@@ -85,7 +85,8 @@ existing_articles = [
         "read_time": 3,
         "subtitle": "A space where ancient wisdom meets modern technology",
         "slug": "welcome-to-paddyspeaks.html",
-        "has_image": False,
+        "has_image": True,
+        "image": "images/paddy-profile.png",
         "excerpt": "The beginning of a journey at the intersection of timeless wisdom and the evolving landscape of technology.",
     },
 ]
