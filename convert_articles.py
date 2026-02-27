@@ -436,13 +436,19 @@ def replace_linkedin_images(content, linkedin_filename, image_mapping):
 
 
 def get_hero_image_path(linkedin_filename, image_mapping):
-    """Get the first available image as hero image for the article."""
+    """Get the cover/hero image for the article (prefers actual cover over inline)."""
     if linkedin_filename not in image_mapping:
         return None
 
     images = image_mapping[linkedin_filename].get("images", [])
-    if images:
-        return "../" + images[0]["path"]
+    # Prefer cover images (fetched from og:image) over inline images
+    for img in images:
+        if img.get("type") == "hero" and "cover-" in img.get("filename", ""):
+            return "../" + img["path"]
+    # Fall back to first hero type
+    for img in images:
+        if img.get("type") == "hero":
+            return "../" + img["path"]
     return None
 
 
