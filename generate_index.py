@@ -184,8 +184,13 @@ def make_card_for_index(a):
     cat = CAT_DISPLAY.get(a["category"], "Philosophy")
 
     if a.get("has_image") and a.get("image"):
+        img_path = a['image']
+        if img_path.startswith("images/"):
+            img_path = "../" + img_path
+        else:
+            img_path = "../images/" + img_path
         image_html = f'''                <div class="scroll-card-image">
-                    <img src="../images/{a['image']}" alt="{title}" loading="lazy">
+                    <img src="{img_path}" alt="{title}" loading="lazy">
                     <span class="scroll-card-tag">{cat}</span>
                 </div>'''
     else:
@@ -254,7 +259,7 @@ articles_index = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            {'<img src="../images/' + featured['image'] + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
+            {'<img src="../' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
@@ -366,7 +371,7 @@ homepage = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            {'<img src="images/' + featured['image'] + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
+            {'<img src="' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
