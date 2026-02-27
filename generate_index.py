@@ -241,7 +241,7 @@ filter_buttons = make_filter_buttons()
 DECK_SCRIPT = '''
 <script>
 (function() {
-    var INITIAL_SHOW = 12;
+    var INITIAL_SHOW = 9;
     var cards = document.querySelectorAll('.deck-card');
     var filterBtns = document.querySelectorAll('.deck-filter-btn');
     var loadMoreBtn = document.querySelector('.deck-load-more-btn');
@@ -291,7 +291,7 @@ DECK_SCRIPT = '''
 
     if (loadMoreBtn) {
         loadMoreBtn.addEventListener('click', function() {
-            showCount += 12;
+            showCount += 9;
             update();
         });
     }
