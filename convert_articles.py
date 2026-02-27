@@ -8,6 +8,7 @@ properly formatted PaddySpeaks article pages.
 import os
 import re
 import html
+import hashlib
 from html.parser import HTMLParser
 from datetime import datetime
 import json
@@ -155,7 +156,11 @@ class LinkedInHTMLParser(HTMLParser):
                 self._div_depth += 1
             # Build content HTML
             if tag == "img":
-                # Skip LinkedIn images for now (user said they'll handle images later)
+                src = attrs_dict.get("src", "")
+                alt_text = attrs_dict.get("alt", "")
+                if "licdn.com" in src or "media.licdn.com" in src:
+                    src = html.unescape(src)
+                    self._buffer.append(f'<img src="{src}" alt="{html.escape(alt_text)}" loading="lazy">')
                 return
             elif tag == "figure" or tag == "figcaption":
                 return
@@ -394,6 +399,53 @@ def make_description(first_para):
     return first_para
 
 
+def load_image_mapping():
+    """Load the image mapping JSON file."""
+    mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "image_mapping.json")
+    if os.path.exists(mapping_path):
+        with open(mapping_path, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def replace_linkedin_images(content, linkedin_filename, image_mapping):
+    """Replace LinkedIn CDN image URLs with local image paths."""
+    if linkedin_filename not in image_mapping:
+        return content
+
+    article_info = image_mapping[linkedin_filename]
+    images = article_info.get("images", [])
+
+    # Build a lookup: MD5 hash of URL -> local path
+    def replace_img_src(match):
+        url = match.group(1)
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+        for img in images:
+            if url_hash in img["filename"]:
+                local_path = "../" + img["path"]
+                return f'src="{local_path}"'
+        # If no match found, remove the image (CDN link is dead)
+        return match.group(0)
+
+    content = re.sub(r'src="(https://media\.licdn\.com/[^"]*)"', replace_img_src, content)
+
+    # Remove img tags that still point to LinkedIn CDN (failed downloads)
+    content = re.sub(r'<img src="https://media\.licdn\.com/[^"]*"[^>]*>', '', content)
+
+    return content
+
+
+def get_hero_image_path(linkedin_filename, image_mapping):
+    """Get the first available image as hero image for the article."""
+    if linkedin_filename not in image_mapping:
+        return None
+
+    images = image_mapping[linkedin_filename].get("images", [])
+    if images:
+        return "../" + images[0]["path"]
+    return None
+
+
 def format_article_content(raw_content):
     """Format the article content for PaddySpeaks, adding drop-cap to first paragraph."""
     content = clean_content(raw_content)
@@ -425,12 +477,17 @@ def generate_article_html(article_data, slug):
     subtitle = article_data["subtitle"]
     description = article_data["description"]
     formatted_content = article_data["formatted_content"]
+    hero_image = article_data.get("hero_image_path", "")
 
     date_display = format_date(date)
 
     encoded_title = html.escape(title)
     encoded_desc = html.escape(description)
     url_title = title.replace(' ', '%20')
+
+    hero_image_html = ""
+    if hero_image:
+        hero_image_html = f'\n<div class="article-hero-image"><img src="{hero_image}" alt="{encoded_title}" loading="lazy"></div>'
 
     return f'''<!DOCTYPE html>
 <html lang="en">
@@ -458,7 +515,7 @@ def generate_article_html(article_data, slug):
 <div>
 <div class="article-hero"><span class="tag">{category}</span><h1>{encoded_title}</h1><p class="subtitle">{html.escape(subtitle)}</p>
 <div class="article-meta"><span>By Paddy</span><span class="dot"></span><span>{date_display}</span><span class="dot"></span><span>{read_time} min read</span></div>
-</div>
+</div>{hero_image_html}
 <div class="article-content">
 
 {formatted_content}
@@ -508,6 +565,10 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
+    # Load image mapping
+    image_mapping = load_image_mapping()
+    print(f"Image mapping loaded: {len(image_mapping)} articles with images")
+
     # Get all LinkedIn HTML files
     linkedin_files = sorted([
         f for f in os.listdir(source_dir)
@@ -520,6 +581,7 @@ def main():
     skipped = 0
     converted = 0
     errors = 0
+    images_embedded = 0
 
     for filename in linkedin_files:
         filepath = os.path.join(source_dir, filename)
@@ -558,15 +620,28 @@ def main():
             # Extract first paragraph
             first_para = extract_first_paragraph_text(data["raw_content"])
 
+            # Replace LinkedIn image URLs with local paths
+            raw_content_with_images = replace_linkedin_images(
+                data["raw_content"], filename, image_mapping
+            )
+
+            # Get hero image
+            hero_image_path = get_hero_image_path(filename, image_mapping)
+
+            # Count images embedded
+            if filename in image_mapping:
+                images_embedded += len(image_mapping[filename].get("images", []))
+
             # Build article data
             article = {
                 "title": data["title"],
                 "date": data["date"],
                 "category": category,
-                "read_time": calculate_read_time(data["raw_content"]),
+                "read_time": calculate_read_time(raw_content_with_images),
                 "subtitle": make_subtitle(data["title"], first_para),
                 "description": make_description(first_para),
-                "formatted_content": format_article_content(data["raw_content"]),
+                "formatted_content": format_article_content(raw_content_with_images),
+                "hero_image_path": hero_image_path or "",
                 "slug": output_filename,
                 "linkedin_source": filename,
             }
@@ -611,6 +686,7 @@ def main():
     print(f"  Converted: {converted}")
     print(f"  Skipped:   {skipped}")
     print(f"  Errors:    {errors}")
+    print(f"  Images embedded: {images_embedded}")
     print(f"  Total new articles: {len(all_articles)}")
     print(f"\nMetadata saved to: {meta_path}")
 

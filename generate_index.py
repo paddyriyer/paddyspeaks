@@ -247,7 +247,7 @@ articles_index = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            <img src="../images/{featured['image']}" alt="{html.escape(featured['title'])}" loading="lazy">
+            {'<img src="../images/' + featured['image'] + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
@@ -359,7 +359,7 @@ homepage = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            <img src="images/{featured['image']}" alt="{html.escape(featured['title'])}" loading="lazy">
+            {'<img src="images/' + featured['image'] + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
