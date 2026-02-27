@@ -4,6 +4,7 @@
 import json
 import html
 from datetime import datetime
+from collections import Counter
 
 # Load new article metadata
 with open("article_metadata.json", "r") as f:
@@ -135,53 +136,61 @@ def format_date_short(date_str):
     return dt.strftime("%b %d, %Y").replace(" 0", " ")
 
 
-def make_card(a, prefix=""):
-    """Generate a scroll card for an article."""
+def resolve_img_path(a, prefix=""):
+    """Resolve image path with proper prefix."""
+    img_path = a.get("image", "")
+    if not img_path:
+        return ""
+    if img_path.startswith("images/"):
+        return prefix + img_path
+    return prefix + "images/" + img_path
+
+
+def make_deck_card(a, prefix=""):
+    """Generate a deck card for the grid layout."""
     title = html.escape(a["title"])
     excerpt = html.escape(a.get("excerpt", a.get("subtitle", ""))[:120])
     slug = a["slug"]
     date_short = format_date_short(a["date"])
     read_time = a["read_time"]
     cat = CAT_DISPLAY.get(a["category"], "Philosophy")
+    cat_raw = a["category"]
 
     if a.get("has_image") and a.get("image"):
-        img_path = a['image']
-        # If path already includes full relative path (e.g. images/articles/...), use as-is with prefix
-        # If it's just a filename (e.g. hero.png), prepend images/
-        if not img_path.startswith("images/"):
-            img_path = f"images/{img_path}"
-        image_html = f'''                <div class="scroll-card-image">
-                    <img src="{prefix}{img_path}" alt="{title}" loading="lazy">
-                    <span class="scroll-card-tag">{cat}</span>
-                </div>'''
+        img_path = resolve_img_path(a, prefix)
+        image_html = f'''            <div class="deck-card-image">
+                <img src="{img_path}" alt="{title}" loading="lazy">
+                <span class="deck-card-tag">{cat}</span>
+            </div>'''
     else:
-        image_html = f'''                <div class="scroll-card-image scroll-card-placeholder">
-                    <div class="scroll-card-placeholder-inner">❧</div>
-                    <span class="scroll-card-tag">{cat}</span>
-                </div>'''
+        image_html = f'''            <div class="deck-card-image deck-card-placeholder">
+                <div class="deck-card-placeholder-inner">❧</div>
+                <span class="deck-card-tag">{cat}</span>
+            </div>'''
 
-    return f'''            <a href="{prefix}articles/{slug}" class="scroll-card">
+    return f'''        <a href="{prefix}articles/{slug}" class="deck-card" data-category="{cat_raw}">
 {image_html}
-                <div class="scroll-card-body">
-                    <h4>{title}</h4>
-                    <p>{excerpt}</p>
-                    <div class="article-meta">
-                        <span>{date_short}</span>
-                        <span class="dot"></span>
-                        <span>{read_time} min</span>
-                    </div>
+            <div class="deck-card-body">
+                <h4>{title}</h4>
+                <p>{excerpt}</p>
+                <div class="article-meta">
+                    <span>{date_short}</span>
+                    <span class="dot"></span>
+                    <span>{read_time} min</span>
                 </div>
-            </a>'''
+            </div>
+        </a>'''
 
 
-def make_card_for_index(a):
-    """Generate a scroll card for articles/index.html (no prefix needed)."""
+def make_deck_card_for_index(a):
+    """Generate a deck card for articles/index.html (../ prefix)."""
     title = html.escape(a["title"])
     excerpt = html.escape(a.get("excerpt", a.get("subtitle", ""))[:120])
     slug = a["slug"]
     date_short = format_date_short(a["date"])
     read_time = a["read_time"]
     cat = CAT_DISPLAY.get(a["category"], "Philosophy")
+    cat_raw = a["category"]
 
     if a.get("has_image") and a.get("image"):
         img_path = a['image']
@@ -189,33 +198,111 @@ def make_card_for_index(a):
             img_path = "../" + img_path
         else:
             img_path = "../images/" + img_path
-        image_html = f'''                <div class="scroll-card-image">
-                    <img src="{img_path}" alt="{title}" loading="lazy">
-                    <span class="scroll-card-tag">{cat}</span>
-                </div>'''
+        image_html = f'''            <div class="deck-card-image">
+                <img src="{img_path}" alt="{title}" loading="lazy">
+                <span class="deck-card-tag">{cat}</span>
+            </div>'''
     else:
-        image_html = f'''                <div class="scroll-card-image scroll-card-placeholder">
-                    <div class="scroll-card-placeholder-inner">❧</div>
-                    <span class="scroll-card-tag">{cat}</span>
-                </div>'''
+        image_html = f'''            <div class="deck-card-image deck-card-placeholder">
+                <div class="deck-card-placeholder-inner">❧</div>
+                <span class="deck-card-tag">{cat}</span>
+            </div>'''
 
-    return f'''            <a href="{slug}" class="scroll-card">
+    return f'''        <a href="{slug}" class="deck-card" data-category="{cat_raw}">
 {image_html}
-                <div class="scroll-card-body">
-                    <h4>{title}</h4>
-                    <p>{excerpt}</p>
-                    <div class="article-meta">
-                        <span>{date_short}</span>
-                        <span class="dot"></span>
-                        <span>{read_time} min</span>
-                    </div>
+            <div class="deck-card-body">
+                <h4>{title}</h4>
+                <p>{excerpt}</p>
+                <div class="article-meta">
+                    <span>{date_short}</span>
+                    <span class="dot"></span>
+                    <span>{read_time} min</span>
                 </div>
-            </a>'''
+            </div>
+        </a>'''
 
+
+# Count articles per category
+cat_counts = Counter(a["category"] for a in all_articles)
+
+# Build filter buttons HTML
+def make_filter_buttons():
+    total = len(all_articles)
+    buttons = f'        <button class="deck-filter-btn active" data-filter="all">All<span class="filter-count"> ({total})</span></button>\n'
+    for cat_key, cat_label in [("technology", "Technology"), ("philosophy", "Philosophy"), ("ai", "AI &amp; Future")]:
+        count = cat_counts.get(cat_key, 0)
+        if count:
+            buttons += f'        <button class="deck-filter-btn" data-filter="{cat_key}">{cat_label}<span class="filter-count"> ({count})</span></button>\n'
+    return buttons
+
+filter_buttons = make_filter_buttons()
+
+# JavaScript for filtering and load-more
+DECK_SCRIPT = '''
+<script>
+(function() {
+    var INITIAL_SHOW = 12;
+    var cards = document.querySelectorAll('.deck-card');
+    var filterBtns = document.querySelectorAll('.deck-filter-btn');
+    var loadMoreBtn = document.querySelector('.deck-load-more-btn');
+    var currentFilter = 'all';
+    var showCount = INITIAL_SHOW;
+
+    function update() {
+        var visible = 0;
+        var totalMatched = 0;
+        cards.forEach(function(card) {
+            var cat = card.getAttribute('data-category');
+            var matches = currentFilter === 'all' || cat === currentFilter;
+            if (matches) {
+                totalMatched++;
+                if (totalMatched <= showCount) {
+                    card.style.display = '';
+                    card.removeAttribute('data-hidden');
+                    visible++;
+                } else {
+                    card.style.display = 'none';
+                    card.setAttribute('data-hidden', 'true');
+                }
+            } else {
+                card.style.display = 'none';
+                card.setAttribute('data-hidden', 'true');
+            }
+        });
+        if (loadMoreBtn) {
+            if (totalMatched > showCount) {
+                loadMoreBtn.style.display = '';
+                loadMoreBtn.textContent = 'Show More (' + (totalMatched - showCount) + ' remaining)';
+            } else {
+                loadMoreBtn.style.display = 'none';
+            }
+        }
+    }
+
+    filterBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            filterBtns.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            currentFilter = btn.getAttribute('data-filter');
+            showCount = INITIAL_SHOW;
+            update();
+        });
+    });
+
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', function() {
+            showCount += 12;
+            update();
+        });
+    }
+
+    update();
+})();
+</script>'''
 
 # === Generate articles/index.html ===
 featured = all_articles[0]
-cards_html = "\n\n".join(make_card_for_index(a) for a in all_articles)
+deck_cards_html = "\n\n".join(make_deck_card_for_index(a) for a in all_articles)
 
 articles_index = f'''<!DOCTYPE html>
 <html lang="en">
@@ -259,7 +346,7 @@ articles_index = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            {'<img src="../' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
+            {'<img src="../' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="deck-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">&#10087;</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
@@ -282,16 +369,22 @@ articles_index = f'''<!DOCTYPE html>
         <cite>— Bhagavad Gita 2.47</cite>
     </div>
 
-    <!-- All Articles — Horizontal Scroll -->
+    <!-- Article Deck -->
     <div class="section-header">
         <h3>All Writings</h3>
     </div>
-    <div class="articles-scroll-wrap">
-        <div class="articles-scroll">
 
-{cards_html}
+    <div class="deck-filters">
+{filter_buttons}    </div>
 
-        </div>
+    <div class="deck-grid">
+
+{deck_cards_html}
+
+    </div>
+
+    <div class="deck-load-more">
+        <button class="deck-load-more-btn">Show More</button>
     </div>
 
 </div>
@@ -307,14 +400,16 @@ articles_index = f'''<!DOCTYPE html>
 </div>
 
 <footer class="site-footer">
-    <div class="footer-ornament">❧</div>
+    <div class="footer-ornament">&#10087;</div>
     <div class="footer-links">
         <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
         <a href="../about.html">About</a>
         <a href="mailto:paddy@paddyspeaks.com">Contact</a>
     </div>
-    <p class="footer-copy">© 2026 PaddySpeaks. All rights reserved.</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks. All rights reserved.</p>
 </footer>
+
+{DECK_SCRIPT}
 
 </body>
 </html>
@@ -326,8 +421,7 @@ print(f"Generated articles/index.html with {len(all_articles)} articles")
 
 
 # === Generate main index.html (homepage) ===
-# Homepage shows featured article + all articles in scroll
-homepage_cards = "\n\n".join(make_card(a, prefix="") for a in all_articles)
+homepage_cards = "\n\n".join(make_deck_card(a, prefix="") for a in all_articles)
 
 homepage = f'''<!DOCTYPE html>
 <html lang="en">
@@ -371,7 +465,7 @@ homepage = f'''<!DOCTYPE html>
     <!-- Featured Article -->
     <div class="featured-article">
         <div class="featured-image">
-            {'<img src="' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="scroll-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">❧</div>'}
+            {'<img src="' + (featured['image'] if featured['image'].startswith('images/') else 'images/' + featured['image']) + '" alt="' + html.escape(featured['title']) + '" loading="lazy">' if featured.get('image') else '<div class="deck-card-placeholder-inner" style="font-size:4rem;display:flex;align-items:center;justify-content:center;height:100%">&#10087;</div>'}
         </div>
         <div class="featured-body">
             <div class="featured-label">Latest</div>
@@ -394,16 +488,22 @@ homepage = f'''<!DOCTYPE html>
         <cite>— Bhagavad Gita 2.47</cite>
     </div>
 
-    <!-- All Articles — Horizontal Scroll -->
-    <div class="section-header">
+    <!-- Article Deck -->
+    <div class="section-header" id="archive">
         <h3>All Writings</h3>
     </div>
-    <div class="articles-scroll-wrap">
-        <div class="articles-scroll">
+
+    <div class="deck-filters">
+{filter_buttons}    </div>
+
+    <div class="deck-grid">
 
 {homepage_cards}
 
-        </div>
+    </div>
+
+    <div class="deck-load-more">
+        <button class="deck-load-more-btn">Show More</button>
     </div>
 
 </div>
@@ -419,14 +519,16 @@ homepage = f'''<!DOCTYPE html>
 </div>
 
 <footer class="site-footer">
-    <div class="footer-ornament">❧</div>
+    <div class="footer-ornament">&#10087;</div>
     <div class="footer-links">
         <a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a>
         <a href="about.html">About</a>
         <a href="mailto:paddy@paddyspeaks.com">Contact</a>
     </div>
-    <p class="footer-copy">© 2026 PaddySpeaks. All rights reserved.</p>
+    <p class="footer-copy">&copy; 2026 PaddySpeaks. All rights reserved.</p>
 </footer>
+
+{DECK_SCRIPT}
 
 </body>
 </html>
