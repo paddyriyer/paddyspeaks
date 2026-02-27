@@ -60,8 +60,21 @@ def get_article_slug(filename):
     return name
 
 
-def download_image(url, filepath, retries=3):
-    """Download an image with retry logic."""
+def detect_image_format(data):
+    """Detect image format from file magic bytes."""
+    if data[:4] == b'\x89PNG':
+        return '.png'
+    elif data[:2] == b'\xff\xd8':
+        return '.jpg'
+    elif data[:4] == b'GIF8':
+        return '.gif'
+    elif data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return '.webp'
+    return '.jpg'  # fallback
+
+
+def download_image(url, filepath_base, retries=3):
+    """Download an image with retry logic. Returns (size, actual_filepath)."""
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, headers={
@@ -69,16 +82,19 @@ def download_image(url, filepath, retries=3):
             })
             with urllib.request.urlopen(req, timeout=30) as response:
                 data = response.read()
+                # Detect actual format and use correct extension
+                ext = detect_image_format(data)
+                filepath = os.path.splitext(filepath_base)[0] + ext
                 with open(filepath, 'wb') as f:
                     f.write(data)
-                return len(data)
+                return len(data), filepath
         except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
             if attempt < retries - 1:
                 time.sleep(2 ** attempt)
             else:
                 print(f"  FAILED: {e}")
-                return 0
-    return 0
+                return 0, None
+    return 0, None
 
 
 def main():
@@ -113,35 +129,44 @@ def main():
         for i, img in enumerate(parser.images):
             total_images += 1
 
-            # Generate filename
+            # Generate base filename (extension determined after download)
             url_hash = hashlib.md5(img['url'].encode()).hexdigest()[:8]
             if img['type'] == 'hero' and i == 0:
-                filename = f"hero-{url_hash}.jpg"
+                base_filename = f"hero-{url_hash}"
             else:
-                filename = f"img-{i:02d}-{url_hash}.jpg"
+                base_filename = f"img-{i:02d}-{url_hash}"
 
-            save_path = os.path.join(article_image_dir, filename)
+            save_path_base = os.path.join(article_image_dir, base_filename + ".jpg")
 
-            # Skip if already downloaded
-            if os.path.exists(save_path) and os.path.getsize(save_path) > 0:
+            # Skip if already downloaded (check both .jpg and .png)
+            existing = None
+            for ext in ['.jpg', '.png', '.gif', '.webp']:
+                candidate = os.path.join(article_image_dir, base_filename + ext)
+                if os.path.exists(candidate) and os.path.getsize(candidate) > 0:
+                    existing = candidate
+                    break
+
+            if existing:
                 skipped += 1
+                actual_filename = os.path.basename(existing)
                 article_images.append({
-                    'filename': filename,
+                    'filename': actual_filename,
                     'type': img['type'],
                     'alt': img['alt'],
-                    'path': os.path.relpath(save_path, '/home/user/paddyspeaks')
+                    'path': os.path.relpath(existing, '/home/user/paddyspeaks')
                 })
                 continue
 
-            # Download
-            size = download_image(img['url'], save_path)
-            if size > 0:
+            # Download (returns correct extension based on file content)
+            size, actual_path = download_image(img['url'], save_path_base)
+            if size > 0 and actual_path:
                 downloaded += 1
+                actual_filename = os.path.basename(actual_path)
                 article_images.append({
-                    'filename': filename,
+                    'filename': actual_filename,
                     'type': img['type'],
                     'alt': img['alt'],
-                    'path': os.path.relpath(save_path, '/home/user/paddyspeaks')
+                    'path': os.path.relpath(actual_path, '/home/user/paddyspeaks')
                 })
                 if downloaded % 20 == 0:
                     print(f"  Progress: {downloaded} downloaded, {failed} failed, {skipped} skipped...")
