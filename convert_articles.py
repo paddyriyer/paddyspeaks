@@ -668,6 +668,10 @@ def main():
     # Save article metadata for index generation
     metadata = []
     for a in all_articles:
+        # Convert hero image path from article-relative to root-relative
+        hero = a.get("hero_image_path", "")
+        if hero.startswith("../"):
+            hero = hero[3:]  # Remove "../" prefix for root-relative path
         metadata.append({
             "title": a["title"],
             "date": a["date"].isoformat() if a["date"] else None,
@@ -675,6 +679,7 @@ def main():
             "read_time": a["read_time"],
             "subtitle": a["subtitle"],
             "slug": a["slug"],
+            "hero_image": hero,
         })
 
     meta_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "article_metadata.json")

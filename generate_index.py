@@ -100,7 +100,9 @@ for a in existing_articles:
 existing_slugs = {a["slug"] for a in existing_articles}
 for a in new_articles:
     if a["slug"] not in existing_slugs:
-        a["has_image"] = False
+        hero = a.get("hero_image", "")
+        a["has_image"] = bool(hero)
+        a["image"] = hero
         a["excerpt"] = a.get("subtitle", "")
         all_articles.append(a)
 
@@ -143,8 +145,13 @@ def make_card(a, prefix=""):
     cat = CAT_DISPLAY.get(a["category"], "Philosophy")
 
     if a.get("has_image") and a.get("image"):
+        img_path = a['image']
+        # If path already includes full relative path (e.g. images/articles/...), use as-is with prefix
+        # If it's just a filename (e.g. hero.png), prepend images/
+        if not img_path.startswith("images/"):
+            img_path = f"images/{img_path}"
         image_html = f'''                <div class="scroll-card-image">
-                    <img src="{prefix}images/{a['image']}" alt="{title}" loading="lazy">
+                    <img src="{prefix}{img_path}" alt="{title}" loading="lazy">
                     <span class="scroll-card-tag">{cat}</span>
                 </div>'''
     else:
