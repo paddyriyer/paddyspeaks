@@ -210,6 +210,7 @@
   function renderNyasa() {
     var container = document.getElementById('nyasa-content');
     var text = LALITHA_DATA.nyasa
+      .replace(/^\.\.\s*nyāsaḥ\s*\.\.\s*/i, '')
       .replace('|| nyAsaH ||', '')
       .trim();
     container.textContent = text;
@@ -266,6 +267,7 @@
           namesHtml += '<div class="name-row">';
           namesHtml += '<span class="name-num">' + nNum + '.</span>';
           namesHtml += '<div class="name-details">';
+          namesHtml += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
           namesHtml += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
           namesHtml += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
           namesHtml += '</div>';
@@ -327,6 +329,7 @@
       html += '<div class="name-row">';
       html += '<span class="name-num">' + name.num + '.</span>';
       html += '<div class="name-details">';
+      html += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
       html += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
       html += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
       html += '</div>';
@@ -352,6 +355,7 @@
       var matches = LALITHA_DATA.names.filter(function (name) {
         return (
           name.name_devanagari.toLowerCase().includes(query) ||
+          (name.name_iast || '').toLowerCase().includes(query) ||
           name.meaning.toLowerCase().includes(query) ||
           String(name.num) === query
         );
@@ -369,6 +373,7 @@
         html += '<div class="name-row">';
         html += '<span class="name-num">' + name.num + '.</span>';
         html += '<div class="name-details">';
+        html += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
         html += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
         html += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
         html += '</div>';
