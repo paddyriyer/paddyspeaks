@@ -248,19 +248,26 @@
       var nameNums = VERSE_NAMES[verseNum] || [];
       var halves = verse.halves || [];
 
-      // Build shloka text display with translations
+      // Build shloka text display with translations after full verse
       var translations = verse.translations || [];
       var shlokaHtml = '<div class="shloka-text">';
       halves.forEach(function (half, idx) {
         shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
-        if (translations[idx]) {
-          shlokaHtml += '<span class="shloka-translation">' + escapeHtml(translations[idx]) + '</span>';
-        }
         if (idx < halves.length - 1) {
           shlokaHtml += '<span class="shloka-separator">|</span>';
         }
       });
       shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
+      // Show translations after the full verse text
+      if (translations.length > 0) {
+        shlokaHtml += '<div class="shloka-translations">';
+        translations.forEach(function (t) {
+          if (t) {
+            shlokaHtml += '<span class="shloka-translation">' + escapeHtml(t) + '</span>';
+          }
+        });
+        shlokaHtml += '</div>';
+      }
       shlokaHtml += '</div>';
 
       // Build names breakdown
