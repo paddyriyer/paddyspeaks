@@ -248,10 +248,14 @@
       var nameNums = VERSE_NAMES[verseNum] || [];
       var halves = verse.halves || [];
 
-      // Build shloka text display
+      // Build shloka text display with translations
+      var translations = verse.translations || [];
       var shlokaHtml = '<div class="shloka-text">';
       halves.forEach(function (half, idx) {
         shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
+        if (translations[idx]) {
+          shlokaHtml += '<span class="shloka-translation">' + escapeHtml(translations[idx]) + '</span>';
+        }
         if (idx < halves.length - 1) {
           shlokaHtml += '<span class="shloka-separator">|</span>';
         }

@@ -29,6 +29,10 @@ const LALITHA_DATA = {
       "halves": [
         "oṃ śrī-mātā śrī-mahārājñī śrīmat-siṃhāsaneśvarī",
         "cid-agni-kuṇḍa-sambhūtā deva-kārya-samudyatā"
+      ],
+      "translations": [
+        "The auspicious Mother; The Empress of the Universe; The queen of the most glorious throne",
+        "Was born in the fire-pit of Pure Consciousness; Intent on fulfilling the wishes of the gods"
       ]
     },
     {
@@ -37,6 +41,10 @@ const LALITHA_DATA = {
       "halves": [
         "udyad-bhānu-sahasrābhā catur-bāhu-samanvitā",
         "rāga-svarūpa-pāśāḍhyā krodhākārāṅkuśojjvalā"
+      ],
+      "translations": [
+        "Has the radiance of a thousand rising suns; Four-armed",
+        "Holding the rope of love in Her hand; Shines, bearing the goad of anger"
       ]
     },
     {
@@ -45,6 +53,10 @@ const LALITHA_DATA = {
       "halves": [
         "mano-rūpekṣu-kodaṇḍā pañca-tanmātra-sāyakā",
         "nijāruṇa-prabhāpūra-majjad-brahmāṇḍa-maṇḍalā"
+      ],
+      "translations": [
+        "Holds in Her hand a sugarcane bow that represents the mind; Holds the five subtle elements as arrows",
+        "Immerses the entire universe in the red efflugence of Her form"
       ]
     },
     {
@@ -53,6 +65,10 @@ const LALITHA_DATA = {
       "halves": [
         "campakāśoka-punnāga-saugandhika-lasat-kacā",
         "kuruvinda-maṇi-śreṇī-kanat-koṭīra-maṇḍitā"
+      ],
+      "translations": [
+        "She whose hair has been adorned with flowers like campaka, ashoka, punnAga and saugandhika",
+        "Resplendent with a crown adorned with rows of kuruvinda gems"
       ]
     },
     {
@@ -61,6 +77,10 @@ const LALITHA_DATA = {
       "halves": [
         "aṣṭamī-candra-vibhrāja-dalika-sthala-śobhitā",
         "mukha-candra-kalaṅkābha-mṛga-nābhi-viśeṣakā"
+      ],
+      "translations": [
+        "She whose forehead shines like the crescent moon of the eighth night of the lunar half-month",
+        "Wears a musk mark on Her forehead which shines like the spot in the moon"
       ]
     },
     {
@@ -69,6 +89,10 @@ const LALITHA_DATA = {
       "halves": [
         "vadana-smara-māṅgalya-gṛha-toraṇa-cillikā",
         "vaktra-lakṣmī-parīvāha-calan-mīnābha-locanā"
+      ],
+      "translations": [
+        "She whose eyebrows shine like the archways leading to the house of kAma, the god of love, which Her face resembles",
+        "She whose eyes possess the luster of the fish that move about in the stream of beauty flowing from Her face"
       ]
     },
     {
@@ -77,14 +101,22 @@ const LALITHA_DATA = {
       "halves": [
         "nava-campaka-puṣpābha-nāsā-daṇḍa-virājitā",
         "tārākānti-tiraskāri-nāsābharaṇa-bhāsurā"
+      ],
+      "translations": [
+        "Resplendent with a nose that has the beauty of a newly blossoming campaka flower",
+        "Shines with a nose-ornament that excels the luster of a star"
       ]
     },
     {
       "num": 8,
-      "text": "kadambamañjarīkḷptakarṇapūramanoharā .\ntāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā",
+      "text": "kadamba-mañjarī-kḷpta-karṇa-pūra-manoharā .\ntāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā",
       "halves": [
-        "kadambamañjarīkḷptakarṇapūramanoharā",
+        "kadamba-mañjarī-kḷpta-karṇa-pūra-manoharā",
         "tāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā"
+      ],
+      "translations": [
+        "Captivating, wearing bunches of kadamba flowers as ear-ornaments",
+        "Wears the sun and the moon as a pair of large earrings"
       ]
     },
     {
@@ -93,6 +125,10 @@ const LALITHA_DATA = {
       "halves": [
         "padmarāga-śilādarśa-paribhāvi-kapola-bhūḥ",
         "nava-vidruma-bimba-śrī-nyakkāri-radanacchadā"
+      ],
+      "translations": [
+        "She whose cheeks excel mirrors made of rubies in their beauty",
+        "She whose lips excel freshly cut coral and bimba fruit in their reflective splendor"
       ]
     },
     {
@@ -101,6 +137,10 @@ const LALITHA_DATA = {
       "halves": [
         "śuddha-vidyāṅkurākāra-dvija-paṅkti-dvayojjvalā",
         "karpūra-vīṭikā-moda-samākarṣi-digantarā"
+      ],
+      "translations": [
+        "Has radiant teeth which resemble the buds of pure knowledge",
+        "Enjoying a camphor-laden betel roll, the fragrance of which is attracting people from all directions"
       ]
     },
     {
@@ -109,6 +149,10 @@ const LALITHA_DATA = {
       "halves": [
         "nija-sallāpa-mādhurya-vinirbhartsita-kacchapī",
         "manda-smita-prabhāpūra-majjat-kāmeśa-mānasā"
+      ],
+      "translations": [
+        "Excels even the veeNa of sarasvatI in the sweetness of Her speech",
+        "Submerges even the mind of KAmesha(Lord shiva) in the radiance of Her smile"
       ]
     },
     {
@@ -117,6 +161,10 @@ const LALITHA_DATA = {
       "halves": [
         "anākalita-sādṛśya-cibuka-śrī-virājitā",
         "kāmeśa-baddha-māṅgalya-sūtra-śobhita-kandharā"
+      ],
+      "translations": [
+        "She whose chin cannot be compared to anything(it is beyond camporison because of its unparalleled beauty)",
+        "She whose neck is adorned with the marriage thread tied by KAmesha"
       ]
     },
     {
@@ -125,6 +173,10 @@ const LALITHA_DATA = {
       "halves": [
         "kanakāṅgada-keyūra-kamanīya-bhujānvitā",
         "ratna-graiveya-cintāka-lola-muktā-phalānvitā"
+      ],
+      "translations": [
+        "She whose arms are beautifully adorned with golden armlets",
+        "She whose neck is resplendent with a gem-studded necklace with a locket made of pearl"
       ]
     },
     {
@@ -133,6 +185,10 @@ const LALITHA_DATA = {
       "halves": [
         "kāmeśvara-prema-ratna-maṇi-pratipaṇa-stanī",
         "nābhyālavāla-romāli-latā-phala-kuca-dvayī"
+      ],
+      "translations": [
+        "Gives Her breasts to KAmeshvara in return for the gem of love He bestows on Her",
+        "She whose breasts are the fruits on the creeper of the fine hairline that starts in the depths of Her navel and spreads upwards"
       ]
     },
     {
@@ -141,6 +197,10 @@ const LALITHA_DATA = {
       "halves": [
         "lakṣya-roma-latā-dhāratā-samunneya-madhyamā",
         "stana-bhāra-dalan-madhya-paṭṭa-bandha-valitrayā"
+      ],
+      "translations": [
+        "Has a waist, the existence of which can only be inferred by the fact that the creeper of Her hairline springs from it",
+        "She whose abdomen has three folds which form a belt to support Her waist from breaking under the weight of Her breasts"
       ]
     },
     {
@@ -149,14 +209,22 @@ const LALITHA_DATA = {
       "halves": [
         "aruṇāruṇa-kausumbha-vastra-bhāsvat-kaṭī-taṭī",
         "ratna-kiṅkiṇikā-ramya-raśanā-dāma-bhūṣitā"
+      ],
+      "translations": [
+        "She whose hips are adorned with a garment as red as the rising sun, which is dyed with an extract from safflower (kusumbha) blossoms",
+        "Adorned with a girdle which is decorated with many gem-studded bells"
       ]
     },
     {
       "num": 17,
-      "text": "kāmeśa-jñāta-saubhāgya-mārdavoru-dvayānvitā .\nmāṇikyamukuṭākārajānudvayavirājitā",
+      "text": "kāmeśa-jñāta-saubhāgya-mārdavoru-dvayānvitā .\nmāṇikya-mukuṭākāra-jānu-dvaya-virājitā",
       "halves": [
         "kāmeśa-jñāta-saubhāgya-mārdavoru-dvayānvitā",
-        "māṇikyamukuṭākārajānudvayavirājitā"
+        "māṇikya-mukuṭākāra-jānu-dvaya-virājitā"
+      ],
+      "translations": [
+        "The beauty and softness of whose thighs are known only to kAmesha, Her husband",
+        "Has no birth; Heroic"
       ]
     },
     {
@@ -165,6 +233,10 @@ const LALITHA_DATA = {
       "halves": [
         "indra-gopa-parikṣipta-smara-tūṇābha-jaṅghikā",
         "gūḍha-gulphā kūrma-pṛṣṭha-jayiṣṇu-prapadānvitā"
+      ],
+      "translations": [
+        "She whose calves gleam like the jewel-covered quiver of the God of Love",
+        "She whose ankles are hidden; She whose feet have arches that rival the back of a tortoise in smooothness and beauty"
       ]
     },
     {
@@ -173,14 +245,22 @@ const LALITHA_DATA = {
       "halves": [
         "nakha-dīdhiti-saṃchanna-namajjana-tamo-guṇā",
         "pada-dvaya-prabhā-jāla-parākṛta-saroruhā"
+      ],
+      "translations": [
+        "She whose toenails give out such a radiance that all the darkness of ignorance is dispelled completely from those devotees who prostrate at Her feet",
+        "She whose feet defeat lotus flowers in radiance"
       ]
     },
     {
       "num": 20,
-      "text": "siñjānamaṇimañjīramaṇḍitaśrīpadāmbujā . \nmarālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ",
+      "text": "siñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā . \nmarālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ",
       "halves": [
-        "siñjānamaṇimañjīramaṇḍitaśrīpadāmbujā",
+        "siñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā",
         "marālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ"
+      ],
+      "translations": [
+        "She whose auspicious lotus feet are adorned with gem-studded golden anklets that tinkle sweetly",
+        "She whose gait is as slow and gentle as that of a swan; The treasure-house of beauty"
       ]
     },
     {
@@ -189,14 +269,22 @@ const LALITHA_DATA = {
       "halves": [
         "sarvāruṇā'navadyāṅgī sarvābharaṇa-bhūṣitā",
         "śiva-kāmeśvarāṅka-sthā śivā svādhīna-vallabhā"
+      ],
+      "translations": [
+        "Entirely red in complexion; She whose body is worthy of worship; Resplendent with all types of ornaments",
+        "Sits in the lap of shiva, who is the conqueror of desire; Keeps Her husband always under Her control"
       ]
     },
     {
       "num": 22,
-      "text": "sumerumadhyaśṛṅgasthā śrīman-nagara-nāyikā .\ncintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā",
+      "text": "sumeru-madhya-śṛṅga-sthā śrīman-nagara-nāyikā .\ncintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā",
       "halves": [
-        "sumerumadhyaśṛṅgasthā śrīman-nagara-nāyikā",
+        "sumeru-madhya-śṛṅga-sthā śrīman-nagara-nāyikā",
         "cintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā"
+      ],
+      "translations": [
+        "PArvatI devI; The Mistress of the most auspicious (or prosperous)",
+        "Resides in a house built of the chintAmaNi; Sits on a seat made of five BrahmAs"
       ]
     },
     {
@@ -205,14 +293,22 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-padmāṭavī-saṃsthā kadamba-vana-vāsinī",
         "sudhā-sāgara-madhyasthā kāmākṣī kāma-dāyinī"
+      ],
+      "translations": [
+        "Resides in the great lotus forest; Resides in the kadamba forest",
+        "Resides in the center of the ocean of nectar; She whose eyes awaken desire, or She who has beautiful eyes; Grants all wishes"
       ]
     },
     {
       "num": 24,
-      "text": "devarṣigaṇasaṃghātastūyamānātmavaibhavā .\nbhaṇḍāsura-vadhodyukta-śakti-senā-samanvitā",
+      "text": "devarṣi-gaṇa-saṃghāta-stūyamānātma-vaibhavā .\nbhaṇḍāsura-vadhodyukta-śakti-senā-samanvitā",
       "halves": [
-        "devarṣigaṇasaṃghātastūyamānātmavaibhavā",
+        "devarṣi-gaṇa-saṃghāta-stūyamānātma-vaibhavā",
         "bhaṇḍāsura-vadhodyukta-śakti-senā-samanvitā"
+      ],
+      "translations": [
+        "She whose might is the subject of praise by multitudes of gods and sages",
+        "Endowed with an army of shaktis intent on slaying bhaNDAsura"
       ]
     },
     {
@@ -221,6 +317,10 @@ const LALITHA_DATA = {
       "halves": [
         "sampatkarī-samārūḍha-sindhura-vraja-sevitā",
         "aśvārūḍhādhiṣṭhitāśva-koṭi-koṭibhirāvṛtā"
+      ],
+      "translations": [
+        "Attended by a herd of elephants ably commanded by sampatkarI",
+        "Surrounded by a cavalry of several million horses which are under the command of the shakti, ashvArUDhA"
       ]
     },
     {
@@ -229,6 +329,10 @@ const LALITHA_DATA = {
       "halves": [
         "cakra-rāja-rathārūḍha-sarvāyudha-pariṣkṛtā",
         "geya-cakra-rathārūḍha-mantriṇī-parisevitā"
+      ],
+      "translations": [
+        "Shines in Her chariot chakrarAja, equipped with all kinds of weapons",
+        "Served by the shakti named mantriNI who rides the chariot known as geyacakra"
       ]
     },
     {
@@ -237,6 +341,10 @@ const LALITHA_DATA = {
       "halves": [
         "kiri-cakra-rathārūḍha-daṇḍa-nāthā-puraskṛtā",
         "jvālā-mālinikākṣipta-vahni-prākāra-madhyagā"
+      ],
+      "translations": [
+        "Escorted by the shakti known as daNDanAthA, seated in the kirichakra chariot",
+        "Has taken position at the center of the fortress of fire created by the goddess, jvAlAmAlinI"
       ]
     },
     {
@@ -245,6 +353,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhaṇḍa-sainya-vadhodyukta-śakti-vikrama-harṣitā",
         "nityā-parākramāṭopa-nirīkṣaṇa-samutsukā"
+      ],
+      "translations": [
+        "Rejoices at the valor of the shaktis who are intent on destroying the forces of bhaNDAsura",
+        "Delights in seeing the might and the pride of Her nityA deities"
       ]
     },
     {
@@ -253,6 +365,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhaṇḍa-putra-vadhodyukta-bālā-vikrama-nanditā",
         "mantriṇyambā-viracita-viṣaṅga-vadha-toṣitā"
+      ],
+      "translations": [
+        "Delights in seeing the valor of the goddess bAla who is intent on killing the sons of bhaNDa",
+        "Rejoices at the destruction, in battle, of the demon viShanga by the mantriNI shakti"
       ]
     },
     {
@@ -261,6 +377,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśukra-prāṇa-haraṇa-vārāhī-vīrya-nanditā",
         "kāmeśvara-mukhāloka-kalpita-śrī-gaṇeśvarā"
+      ],
+      "translations": [
+        "Pleased with the prowess of vArAhI who took the life of vishukra",
+        "Gives rise to gaNesha by a glance at the face of kAmeshvara"
       ]
     },
     {
@@ -269,6 +389,10 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-gaṇeśa-nirbhinna-vighna-yantra-praharṣitā",
         "bhaṇḍāsurendra-nirmukta-śastra-pratyastra-varṣiṇī"
+      ],
+      "translations": [
+        "Rejoices when gaNesha shatters all obstacles",
+        "Showers counter weapons to each weapon fired at Her by bhaNDAsura"
       ]
     },
     {
@@ -277,6 +401,10 @@ const LALITHA_DATA = {
       "halves": [
         "karāṅguli-nakhotpanna-nārāyaṇa-daśākṛtiḥ",
         "mahā-pāśupatāstrāgni-nirdagdhāsura-sainikā"
+      ],
+      "translations": [
+        "Created from Her fingernails all ten incarnations of NArAyaNa (viShNu)",
+        "Burned the armies of the demons in the fire of the missile, mahApAshupata"
       ]
     },
     {
@@ -285,14 +413,22 @@ const LALITHA_DATA = {
       "halves": [
         "kāmeśvarāstra-nirdagdha-sabhaṇḍāsura-śūnyakā",
         "brahmopendra-mahendrādi-deva-saṃstuta-vaibhavā"
+      ],
+      "translations": [
+        "Burned and destroyed bhaNDAsura and his capital shUnyaka with the kAmeshvara missle",
+        "She whose many powers are extolled by brahmA, viShNu, shiva and other gods"
       ]
     },
     {
       "num": 34,
-      "text": "haranetrāgnisaṃdagdhakāmasañjīvanauṣadhiḥ .\nśrīmad-vāgbhava-kūṭaika-svarūpa-mukha-paṅkajā",
+      "text": "hara-netrāgni-saṃdagdha-kāma-sañjīvanauṣadhiḥ .\nśrīmad-vāgbhava-kūṭaika-svarūpa-mukha-paṅkajā",
       "halves": [
-        "haranetrāgnisaṃdagdhakāmasañjīvanauṣadhiḥ",
+        "hara-netrāgni-saṃdagdha-kāma-sañjīvanauṣadhiḥ",
         "śrīmad-vāgbhava-kūṭaika-svarūpa-mukha-paṅkajā"
+      ],
+      "translations": [
+        "Became the life-giving medicine for kAmadeva (the god of love) who had been burned to ashes by the fire from shiva's (third) eye",
+        "She whose lotus face is the auspicious vAgbhavakUTa (a group of syllables of the panchadashi mantra)"
       ]
     },
     {
@@ -301,6 +437,10 @@ const LALITHA_DATA = {
       "halves": [
         "kaṇṭhādhaḥ-kaṭi-paryanta-madhya-kūṭa-svarūpiṇī",
         "śakti-kūṭaikatāpanna-kaṭyadho-bhāga-dhāriṇī"
+      ],
+      "translations": [
+        "From Her neck to Her waist is of the form of the",
+        "She whose form below the waist is the shaktikUTa (the last four syllables of the pancadashAkShari mantra)"
       ]
     },
     {
@@ -309,6 +449,10 @@ const LALITHA_DATA = {
       "halves": [
         "mūla-mantrātmikā mūla-kūṭa-traya-kalevarā",
         "kulāmṛtaika-rasikā kulasaṃketapālinī"
+      ],
+      "translations": [
+        "The embodiment of the mUla mantra (the pancadashAkShari mantra); She whose (subtle) body is made of the three parts of the pancadashAkShari mantra",
+        "Especially fond of the nectar known as kula; Does not have a family; Protects the code of rituals of the path of yoga known as kula"
       ]
     },
     {
@@ -317,6 +461,10 @@ const LALITHA_DATA = {
       "halves": [
         "kulāṅganā kulānta-sthā kaulinī kula-yoginī",
         "akulā samayānta-sthā samayācāra-tatparā"
+      ],
+      "translations": [
+        "Well-born (who is from a good family); Does not have a family; Resides in the kula vidyA; Belongs to the kula; The deity in the kulas",
+        "Does not have a family; Resides inside 'samaya'; Attached to the samaya form of worship"
       ]
     },
     {
@@ -325,6 +473,10 @@ const LALITHA_DATA = {
       "halves": [
         "mūlādhāraika-nilayā brahma-granthi-vibhedinī",
         "maṇi-pūrāntar-uditā viṣṇu-granthi-vibhedinī"
+      ],
+      "translations": [
+        "She whose principal abode is the mUlAdhAra; Breaks through the knot of brahma",
+        "Emerges in the maNipUra cakra; Breaks through the knot of viShNu"
       ]
     },
     {
@@ -333,6 +485,10 @@ const LALITHA_DATA = {
       "halves": [
         "ājñā-cakrāntarālasthā rudra-granthi-vibhedinī",
         "sahasrārāmbujārūḍhā sudhā-sārābhivarṣiṇī"
+      ],
+      "translations": [
+        "Resides at the center of the Aj~nA chakra; Breaks through the knot of shiva",
+        "Ascends to the thousand-petaled lotus; Pours out streams of ambrosia"
       ]
     },
     {
@@ -341,6 +497,10 @@ const LALITHA_DATA = {
       "halves": [
         "taḍillatā-samaruciḥ ṣaṭ-cakropari-saṃsthitā",
         "mahā-saktiḥ kuṇḍalinī bisa-tantu-tanīyasī"
+      ],
+      "translations": [
+        "As beautiful as a flash of lightning; Resides above the six chakrAs",
+        "Greatly attached to the festive union of shiva and shakti; Has great power; Has the form a coil; Fine and delicate as the fiber of the lotus"
       ]
     },
     {
@@ -349,6 +509,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhavānī bhāvanā-gamyā bhavāraṇya-kuṭhārikā",
         "bhadra-priyā bhadramūrtirbhakta-saubhāgya-dāyinī"
+      ],
+      "translations": [
+        "The wife of bhava (shiva); Unattainable through imagination or thought; Like an axe to clear the jungle of samsAra",
+        "Fond of all auspicious things - who gives all auspicious things; The embodiment of auspiciousness or benevolence; Confers prosperity on Her devotees"
       ]
     },
     {
@@ -357,6 +521,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhakti-priyā bhakti-gamyā bhakti-vaśyā bhayāpahā",
         "śāmbhavī śāradārādhyā śarvāṇī śarma-dāyinī"
+      ],
+      "translations": [
+        "Fond of (and pleased by) devotion; Attained only through devotion; To be won over by devition; Dispels fear",
+        "The wife of shambhu (shiva); Worshipped by sharadA (sarasvatI, the goddess of speech); The wife of sharva (shiva); Confers happiness"
       ]
     },
     {
@@ -365,6 +533,10 @@ const LALITHA_DATA = {
       "halves": [
         "śāṅkarī śrī-karī sādhvī śaraccandra-nibhānanā",
         "śātodarī śānti-matī nir-ādhārā nir-añjanā"
+      ],
+      "translations": [
+        "Gives happiness; Bestows riches in abundance; Chaste; She whose face shines like the full moon in the clear autumn sky",
+        "Slender-waister; Peaceful; Without dependence; Stays unattached, bound to nothing"
       ]
     },
     {
@@ -373,6 +545,10 @@ const LALITHA_DATA = {
       "halves": [
         "nir-lepā nir-malā nityā nirākārā nir-ākulā",
         "nir-guṇā niṣ-kalā śāntā niṣ-kāmā nir-upaplavā"
+      ],
+      "translations": [
+        "Free from all impurities arising from action; Free from all impurities; Eternal; Without form; Without agitation",
+        "Beyond all three gunas of nature, namely sattva, rajas and tamas; Without parts; Tranquil; Without desire; Indestructible"
       ]
     },
     {
@@ -381,6 +557,10 @@ const LALITHA_DATA = {
       "halves": [
         "nitya-muktā nir-vikārā niṣ-prapañcā nir-āśrayā",
         "nitya-śuddhā nitya-buddhā nir-avadyā nir-antarā"
+      ],
+      "translations": [
+        "Ever free from worldly bonds; Unchanging; Not of this universe; Does not depend on anything",
+        "Eternally pure; Ever wise; Blameless or She who is praiseworthy; All-pervading"
       ]
     },
     {
@@ -389,6 +569,10 @@ const LALITHA_DATA = {
       "halves": [
         "niṣ-kāraṇā niṣ-kalaṅkā nirupādhirnir-īśvarā",
         "nīr-āgā rāga-mathanī nir-madā mada-nāśinī"
+      ],
+      "translations": [
+        "Without cause; Faultless; Not conditioned or has no limitations; Has no superior or protector",
+        "Has no desire; Destroys desires (passions); Without pride; Destroys pride"
       ]
     },
     {
@@ -397,6 +581,10 @@ const LALITHA_DATA = {
       "halves": [
         "niś-cintā nirahaṃkārā nir-mohā moha-nāśinī",
         "nir-mamā mamatā-hantrī niṣ-pāpā pāpa-nāśinī"
+      ],
+      "translations": [
+        "Has no anxiety in anything; Without egoism. She who is without the concept of 'I' and 'mine'; Free from delusion; Destroys delusion in Her devotees",
+        "Has no self-interest in anything; Destroys the sense of ownership; Without sin; Destroys all the sins of Her devotees niShkrodhA"
       ]
     },
     {
@@ -405,6 +593,10 @@ const LALITHA_DATA = {
       "halves": [
         "niṣ-krodhā krodha-śamanī nir-lobhā lobha-nāśinī",
         "niḥ-saṃśayā saṃśaya-ghnī nir-bhavā bhava-nāśinī"
+      ],
+      "translations": [
+        "Without anger; Destroys anger in Her devotees; Without greed; Destroys greed in Her devotees",
+        "Without doubts; Kills all doubts; Without origin; Destroys the sorrow of samsAra (the cycle of birth and death)"
       ]
     },
     {
@@ -413,6 +605,10 @@ const LALITHA_DATA = {
       "halves": [
         "nir-vikalpā nir-ābādhā nir-bhedā bheda-nāśinī",
         "nir-nāśā mṛtyu-mathanī niṣ-kriyā niṣ-parigrahā"
+      ],
+      "translations": [
+        "Free of false imaginings; Not disturbed by anything; Beyond all sense of difference; Removes from Her devotees all sense of differences born of vAsanAs",
+        "Imperishable; Destroys death; Remains without action; Does not acquire or accept anything"
       ]
     },
     {
@@ -421,6 +617,10 @@ const LALITHA_DATA = {
       "halves": [
         "nis-tulā nīla-cikurā nir-apāyā nir-atyayā",
         "dur-labhā dur-gamā durgā duḥkha-hantrī sukha-pradā"
+      ],
+      "translations": [
+        "Incomparable, unequalled; Has shining black hair; Imperishable; Cannot be transgressed",
+        "Won only with much difficulty; Approachable only with extreme effort; The destroyer of sorrow; The giver of happiness"
       ]
     },
     {
@@ -429,6 +629,10 @@ const LALITHA_DATA = {
       "halves": [
         "duṣṭa-dūrā durācāra-śamanī doṣa-varjitā",
         "sarva-jñā sāndra-karuṇā samānādhika-varjitā"
+      ],
+      "translations": [
+        "Unapproachable by sinners; Stops evil customs; Free from all faults",
+        "Omniscient; Shows intense compassion; Has neither equal nor superior"
       ]
     },
     {
@@ -437,6 +641,10 @@ const LALITHA_DATA = {
       "halves": [
         "sarva-śakti-mayī sarva-maṅgalā sad-gati-pradā",
         "sarveśvarī sarva-mayī sarva-mantra-svarūpiṇī"
+      ],
+      "translations": [
+        "Has all the divine powers (she who is omnipotent); The source of all that is auspicious; Leads into the right path",
+        "Rules over all the living and non-living things; Pervades every living and non-living thing; The essence of all the mantras"
       ]
     },
     {
@@ -445,6 +653,10 @@ const LALITHA_DATA = {
       "halves": [
         "sarva-yantrātmikā sarva-tantra-rūpā manonmanī",
         "māheśvarī mahā-devī mahā-lakṣmīrmṛḍa-priyā"
+      ],
+      "translations": [
+        "The soul of all yantras; The soul(embodiment) of all tantras; Shiva's shakti",
+        "The wife of maheshvara; The supreme goddess; Has the immeasurable body; The great goddess lakShmI; The beloved of mRiDa (shiva)"
       ]
     },
     {
@@ -453,6 +665,10 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-rūpā mahā-pūjyā mahā-pātaka-nāśinī",
         "mahā-māyā mahā-sattvā mahāśaktirmahā-ratiḥ"
+      ],
+      "translations": [
+        "Has a great form; The greatest object of worship; Destroys even the greatest of sins",
+        "The great illusion; Possesses great sattva; Greatly attached to the festive union of shiva and shakti; Has great power; Boundless delight"
       ]
     },
     {
@@ -461,6 +677,10 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-bhogā mahaiśvaryā mahā-vīryā mahā-balā",
         "mahābuddhirmahāsiddhirmahā-yogeśvareśvarī"
+      ],
+      "translations": [
+        "Has immense wealth; Has supreme sovereignty; Supreme in valor; Supreme in might",
+        "Supreme in intelligence; Endowed with the highest attainments; The object of worship even by the greatest of yogis"
       ]
     },
     {
@@ -469,6 +689,10 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-tantrā mahā-mantrā mahā-yantrā mahā-sanā",
         "mahā-yāga-kramārādhyā mahā-bhairava-pūjitā"
+      ],
+      "translations": [
+        "Worshipped by the great Tantras such as kulArnava and jnAnArnava; Has become lakShmI and sarasvatI; Gives delight; The greatest mantra; In the form of the great yantras; Seated on great seats; Eats everything that is great",
+        "Worshipped by the ritual of mahAyAga; Worshipped even by mahAbhairava (shiva)"
       ]
     },
     {
@@ -477,14 +701,22 @@ const LALITHA_DATA = {
       "halves": [
         "maheśvara-mahākalpa-mahā-tāṇḍava-sākṣiṇī",
         "mahā-kāmeśa-mahiṣī mahā-tripura-sundarī"
+      ],
+      "translations": [
+        "The witness of the great dance of maheshvara (shiva) at the end of the great cycle of creation",
+        "The great queen of mahAkAmeshvara (shiva); The great tripurasundarI"
       ]
     },
     {
       "num": 58,
-      "text": "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī .\nmahācatuḥṣaṣṭikoṭiyoginīgaṇasevitā",
+      "text": "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī .\nmahā-catuḥṣaṣṭi-koṭi-yoginī-gaṇa-sevitā",
       "halves": [
         "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī",
-        "mahācatuḥṣaṣṭikoṭiyoginīgaṇasevitā"
+        "mahā-catuḥṣaṣṭi-koṭi-yoginī-gaṇa-sevitā"
+      ],
+      "translations": [
+        "Oh, Mother! (The split in names of 425-427 may not be proper.)",
+        "Constantly united with parAshiva; She who possesses the power of yoga"
       ]
     },
     {
@@ -493,6 +725,10 @@ const LALITHA_DATA = {
       "halves": [
         "manu-vidyā candra-vidyā candra-maṇḍala-madhyagā",
         "cāru-rūpā cāru-hāsā cāru-candra-kalādharā"
+      ],
+      "translations": [
+        "The embodiment of manuvidyA; The embodiment of chandravidya; Resides in the center of chandramaNDala, the moon's disc",
+        "Has a beauty that does not wax or wane; Has a beautiful smile; Wears of beautiful crescent moon that does not wax or wane"
       ]
     },
     {
@@ -501,6 +737,10 @@ const LALITHA_DATA = {
       "halves": [
         "carācara-jagannāthā cakra-rāja-niketanā",
         "pārvatī padma-nayanā padma-rāga-samaprabhā"
+      ],
+      "translations": [
+        "The ruler of the animate and inanimate worlds; Abides in the shrI chakra",
+        "The daughter of the Mountain (Mount Himavat or HimAlaya); Has eyes that are long and beautiful like the petals of the lotus flower; Has a resplendent red complexion like the ruby"
       ]
     },
     {
@@ -509,6 +749,10 @@ const LALITHA_DATA = {
       "halves": [
         "pañca-pretāsanāsīnā pañcabrahmasvarūpiṇī",
         "cinmayī paramānandā vijñāna-ghana-rūpiṇī"
+      ],
+      "translations": [
+        "Sits on the seat formed by the five corpses; She whose form is composed of the five brahmas",
+        "Consciousness itself; Supreme bliss; The embodiment of all-pervading solid intelligence"
       ]
     },
     {
@@ -517,6 +761,10 @@ const LALITHA_DATA = {
       "halves": [
         "dhyāna-dhyātṛ-dhyeya-rūpā dharmādharma-vivarjitā",
         "viśvarūpā jāgariṇī svapantī taijasātmikā"
+      ],
+      "translations": [
+        "Shines as meditation, meditator and the object of meditation; Devoid of(who transcends) both virtue and vice",
+        "Has the whole universe as Her form; Has no birth; In the waking state, or She who assumes the form of the jIva who is in the waking state; In the dream state or She who assumes the form of the jIva in the dream state; The soul of taijasA (jIva in the dream state, proud of its subtle body)"
       ]
     },
     {
@@ -525,6 +773,10 @@ const LALITHA_DATA = {
       "halves": [
         "suptā prājñātmikā turyā sarvāvasthā-vivarjitā",
         "sṛṣṭi-kartrī brahma-rūpā goptrī govinda-rūpiṇī"
+      ],
+      "translations": [
+        "In the deep-sleep state or assumes the form of the jiva experiencing deep sleep; Not separate from prAj~nA (deep sleep); In the state of turya (fourth state in which the ultimate realization of Atman is obtained); Transcends all states",
+        "The creator; In the form of brahma; Protects; Has assumed the form of govinda (viShNu) for the preservation of the universe"
       ]
     },
     {
@@ -533,6 +785,10 @@ const LALITHA_DATA = {
       "halves": [
         "saṃhāriṇī rudra-rūpā tirodhāna-karīśvarī",
         "sadā-śivā'nugrahadā pañca-kṛtya-parāyaṇā"
+      ],
+      "translations": [
+        "The destroyer of the universe; Has assumed the form of rudra (shiva) for the dissolution of the universe; Causes the disappearance of all things; Protects and rules everything",
+        "SadAshiva, one who always bestows auspiciousness; Confers blessing; Devoted to the five functions (of creation, preservation, destruction, annihilation and reappearance)"
       ]
     },
     {
@@ -541,6 +797,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhānu-maṇḍala-madhyasthā bhairavī bhaga-mālinī",
         "padmāsanā bhagavatī padma-nābha-sahodarī"
+      ],
+      "translations": [
+        "Abides at the center of the sun's disc; The wife of bhairava (shiva); Wears a garland made of the six excellences (of auspiciousness, supremacy, fame, valor, detachment and knowledge)",
+        "Seated in the lotus flower; Protects those who worship Her; ViShNu's sister"
       ]
     },
     {
@@ -549,6 +809,10 @@ const LALITHA_DATA = {
       "halves": [
         "unmeṣa-nimiṣotpanna-vipanna-bhuvanāvalī",
         "sahasra-śīrṣa-vadanā sahasrākṣī sahasra-pāt"
+      ],
+      "translations": [
+        "Causes a series of worlds to arise and disappear with the opening and closing of Her eyes",
+        "Has a thousand heads and faces; Has a thousand eyes; Has a thousand feet"
       ]
     },
     {
@@ -557,6 +821,10 @@ const LALITHA_DATA = {
       "halves": [
         "ābrahma-kīṭa-jananī varṇāśramavidhāyinī",
         "nijājñā-rūpa-nigamā puṇyāpuṇya-phala-pradā"
+      ],
+      "translations": [
+        "The mother of everything from brahmA to the lowliest insect; Established the order of the social division in life",
+        "She whose commands take the form of the vedas; Dispenses the fruits of both good and evil actions"
       ]
     },
     {
@@ -565,6 +833,10 @@ const LALITHA_DATA = {
       "halves": [
         "śruti-sīmanta-sindūrī-kṛta-pādābja-dhūlikā",
         "sakalāgama-sandoha-śukti-sampuṭa-mauktikā"
+      ],
+      "translations": [
+        "The one the dust from whose feet forms the vermillion marks at the parting line of the hair of the shruti devatAs (vedas personified as goddesses)",
+        "The pearl enclosed in the shell made of all the scriptures"
       ]
     },
     {
@@ -573,6 +845,10 @@ const LALITHA_DATA = {
       "halves": [
         "puruṣārtha-pradā pūrṇā bhoginī bhuvaneśvarī",
         "ambikā'nādinidhanā hari-brahmendra-sevitā"
+      ],
+      "translations": [
+        "Grants the (four-fold) objects of human life; Always whole, without growth or decay; The enjoyer; The ruler of the universe",
+        "The mother of the universe; Has neither beginning nor end; Attended by brahmA, viShNu and indra"
       ]
     },
     {
@@ -581,6 +857,10 @@ const LALITHA_DATA = {
       "halves": [
         "nārāyaṇī nāda-rūpā nāma-rūpa-vivarjitā",
         "hrīṃkārī hrīmatī hṛdyā heyopādeya-varjitā"
+      ],
+      "translations": [
+        "The female counterpart of nArAyaNa; In the form of sound; Has no name or form",
+        "The form of syllable 'hrIM'; Endowed with modesty; Abides in the heart; Has nothing to reject or accept"
       ]
     },
     {
@@ -589,6 +869,10 @@ const LALITHA_DATA = {
       "halves": [
         "rāja-rājārcitā rājñī ramyā rājīva-locanā",
         "rañjanī ramaṇī rasyā raṇat-kiṅkiṇi-mekhalā"
+      ],
+      "translations": [
+        "Worshipped by the King of kings; The queen of shiva, the Lord of all kings; Gives delight; She who is lovely; She whose eyes are like rAjiva (lotus)",
+        "Delights the mind; Gives joy; To be enjoyed; She who enjoys; Wears a girdle of tinkling bells"
       ]
     },
     {
@@ -597,6 +881,10 @@ const LALITHA_DATA = {
       "halves": [
         "ramā rākendu-vadanā rati-rūpā rati-priyā",
         "rakṣā-karī rākṣasa-ghnī rāmā ramaṇa-lampaṭā"
+      ],
+      "translations": [
+        "Has become lakShmI and sarasvatI; Gives delight; Has a delightful face like the full moon; In the form of rati, the wife of kAma; The supreme; She who transcends all; Fond of rati; She who is served by rati",
+        "The protector; The slayer of the entire race of demons; Devoted to the Lord of Her heart, Lord shiva"
       ]
     },
     {
@@ -605,6 +893,10 @@ const LALITHA_DATA = {
       "halves": [
         "kāmyā kāma-kalā-rūpā kadamba-kusuma-priyā",
         "kalyāṇī jagatī-kandā karuṇā-rasa-sāgarā"
+      ],
+      "translations": [
+        "To be desired; In the form of kAmakalA; Especially fond of kadamba flowers",
+        "Bestows auspiciousness; The root of the whole world; The ocean of compassion"
       ]
     },
     {
@@ -613,6 +905,10 @@ const LALITHA_DATA = {
       "halves": [
         "kalāvatī kalālāpā kāntā kādambarī-priyā",
         "varadā vāma-nayanā vāruṇīmadavihvalā"
+      ],
+      "translations": [
+        "The embodiment of all arts; Speaks musically and sweetly; Ends all sins and sorrows; Fond of mead",
+        "Grants boons generously; Has beautiful eyes"
       ]
     },
     {
@@ -621,6 +917,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśvādhikā veda-vedyā vindhyācala-nivāsinī",
         "vidhātrī veda-jananī viṣṇu-māyā vilāsinī"
+      ],
+      "translations": [
+        "Transcends the universe; Known through the vedas; Resides in the vindhya mountains",
+        "Creates and sustains this unverse; The mother of the vedas; The illusory power of viShNu; Playful"
       ]
     },
     {
@@ -629,6 +929,10 @@ const LALITHA_DATA = {
       "halves": [
         "kṣetra-svarūpā kṣetreśī kṣetra-kṣetrajña-pālinī",
         "kṣaya-vṛddhi-vinirmuktā kṣetra-pāla-samarcitā"
+      ],
+      "translations": [
+        "She whose body is matter; The wife of kShetresha (shiva); The protector of matter and the knower of matter, therefore the protector of body and soul",
+        "Free from growth and decay; Worshipped by kShetrapAla (shiva in infant form)"
       ]
     },
     {
@@ -637,14 +941,22 @@ const LALITHA_DATA = {
       "halves": [
         "vijayā vimalā vandyā vandāru-jana-vatsalā",
         "vāg-vādinī vāmakeśī vahni-maṇḍala-vāsinī"
+      ],
+      "translations": [
+        "Ever-victorious; Without a trace of impurity; Adorable, worthy of worship; Full of motherlly love for those who worship Her",
+        "Speaks; Has beautiful hair; Bestows all that is auspicious; Resides in the disc of fire"
       ]
     },
     {
       "num": 78,
-      "text": "bhaktimat.hkalpalatikā paśu-pāśa-vimocinī .\nsaṃhṛtāśeṣa-pāṣaṇḍā sadācāra-pravartikā",
+      "text": "bhaktimat-kalpalatikā paśu-pāśa-vimocinī .\nsaṃhṛtāśeṣa-pāṣaṇḍā sadācāra-pravartikā",
       "halves": [
-        "bhaktimat.hkalpalatikā paśu-pāśa-vimocinī",
+        "bhaktimat-kalpalatikā paśu-pāśa-vimocinī",
         "saṃhṛtāśeṣa-pāṣaṇḍā sadācāra-pravartikā"
+      ],
+      "translations": [
+        "Releases the ignorant from bondage",
+        "Destroys all heretics; Immersed in (and inspires others to follow) right conduct"
       ]
     },
     {
@@ -653,6 +965,10 @@ const LALITHA_DATA = {
       "halves": [
         "tāpa-trayāgni-santapta-samāhlādana-candrikā",
         "taruṇī tāpasārādhyā tanu-madhyā tamo'pahā"
+      ],
+      "translations": [
+        "The moonlight that gives joy to those burned by the triple fire of misery",
+        "Ever young; Worshipped by ascetics; Slender-waisted; Removes the ignorance born of tamas"
       ]
     },
     {
@@ -661,6 +977,10 @@ const LALITHA_DATA = {
       "halves": [
         "citistatpada-lakṣyārthā cid-ekarasa-rūpiṇī",
         "svātmānanda-lavībhūta-brahmādyānanda-santatiḥ"
+      ],
+      "translations": [
+        "The embodiment of truth (which is indicated by the word 'tat'); Of the nature of the pure intelligence. She who is the cause of knowledge",
+        "Makes the bliss of brahmA and others insignificant compared to Her own bliss"
       ]
     },
     {
@@ -669,6 +989,10 @@ const LALITHA_DATA = {
       "halves": [
         "parā pratyak-citī-rūpā paśyantī para-devatā",
         "madhyamā vaikharī-rūpā bhakta-mānasa-haṃsikā"
+      ],
+      "translations": [
+        "Of the nature of unmanifested consciousness or of unmanifested brahman; PashyantI, the second level of sound after parA in the svAdhiShTAna chakra; The supreme deity; parAshakti",
+        "Stays in the middle; In the form of vaikharI (sound in the manifested, audible form); The swan in the minds of Her devotees"
       ]
     },
     {
@@ -677,6 +1001,10 @@ const LALITHA_DATA = {
       "halves": [
         "kāmeśvara-prāṇa-nāḍī kṛtajñā kāma-pūjitā",
         "śṛṅgārarasasampūrṇā jayā jālandhara-sthitā"
+      ],
+      "translations": [
+        "The very life of kAmeshvara, Her consort; Knows all of our actions as they occur; Worshipped by kAma",
+        "Always whole, without growth or decay; Has no birth; Victorious always and everywhere; Resides in the jAlandhara pITha (in the throat region)"
       ]
     },
     {
@@ -685,6 +1013,10 @@ const LALITHA_DATA = {
       "halves": [
         "oḍyāṇa-pīṭha-nilayā bindu-maṇḍala-vāsinī",
         "raho-yāga-kramārādhyā rahas-tarpaṇa-tarpitā"
+      ],
+      "translations": [
+        "She whose abode is the center known as oDyANa (in the Aj~nA chakra); Resides in the bindumaNDala (in shrI chakra)",
+        "Worshipped in secret through sacrificial rites; To be gratified by the secret rites of worship"
       ]
     },
     {
@@ -693,6 +1025,10 @@ const LALITHA_DATA = {
       "halves": [
         "sadyaḥ-prasādinī viśva-sākṣiṇī sākṣi-varjitā",
         "ṣaḍaṅga-devatā-yuktā ṣāḍguṇya-paripūritā"
+      ],
+      "translations": [
+        "Bestows Her grace immediately; Witness to the whole universe; Has no other witness",
+        "Accompanied by the deities of the six angAs (heart, head, hair, eyes, armor and weapons); Fully endowed with the six good qualities (prosperity, valor, dispassion, fame, wealth and wisdom)"
       ]
     },
     {
@@ -701,6 +1037,10 @@ const LALITHA_DATA = {
       "halves": [
         "nitya-klinnā nirupamā nirvāṇasukhadāyinī",
         "nityā-ṣoḍaśikā-rūpā śrī-kaṇṭhārdha-śarīriṇī"
+      ],
+      "translations": [
+        "Ever compassionate; Incomparable; Confers the bliss of Liberation",
+        "In the form of the sixteen daily deities (i.e., kAmeshvari, bhagamAlinI, nityaklinnA, bheruNDA, vahnivAsinI, mahAvajreshvarI, shivadUtI, tvaritA, kulasundarI, nityA, nIlapatAkinI, vijayA, sarvamangalA, jvAlAmAlinI, chitrA and tripurasundarI); Possesses half of the body of shrIkaNTha (shiva). She who is in the form of ardhanArishvara"
       ]
     },
     {
@@ -709,6 +1049,10 @@ const LALITHA_DATA = {
       "halves": [
         "prabhāvatī prabhā-rūpā prasiddhā parameśvarī",
         "mūlaprakṛtiravyaktā vyaktāvyaktasvarūpiṇī"
+      ],
+      "translations": [
+        "Effulgent; Effulgence; Celebrated; The supreme sovereign",
+        "The first cause of the entire universe; In the manifested and unmanifested forms"
       ]
     },
     {
@@ -717,6 +1061,10 @@ const LALITHA_DATA = {
       "halves": [
         "vyāpinī vividhākārā vidyāvidyāsvarūpiṇī",
         "mahā-kāmeśa-nayana-kumudāhlāda-kaumudī"
+      ],
+      "translations": [
+        "All-pervading; Has a multitude of forms; The form of both knowledge and ignorance",
+        "She whois the moonlight that gladdens the water-lilies that are mahAkAmesha's eyes"
       ]
     },
     {
@@ -725,6 +1073,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhakta-hārda-tamo-bheda-bhānumad-bhānu-santatiḥ",
         "śiva-dūtī śivārādhyā śiva-mūrtiḥ śivaṅkarī"
+      ],
+      "translations": [
+        "The sunbeam which dispels the darkness from the heart of Her devotees",
+        "She for whom shiva is the messenger; She who is shiva's messenger; Worshipped by shiva; She whose form is shiva Himself; Confers prosperity (auspiciousness, happiness). She who turns Her devotees into shiva"
       ]
     },
     {
@@ -733,6 +1085,10 @@ const LALITHA_DATA = {
       "halves": [
         "śiva-priyā śiva-parā śiṣṭeṣṭā śiṣṭa-pūjitā",
         "aprameyā sva-prakāśā mano-vācāma-gocarā"
+      ],
+      "translations": [
+        "Beloved of shiva; Solely devoted to shiva; Loved by the righteous; She who is the chosen deity of devotees; She who loves righteous people; Always worshipped by the righteous",
+        "Immeasurable by the senses; Self-luminous; Beyond the range of mind and speech"
       ]
     },
     {
@@ -741,6 +1097,10 @@ const LALITHA_DATA = {
       "halves": [
         "cicchaktiś cetanā-rūpā jaḍaśaktirjaḍātmikā",
         "gāyatrī vyāhṛtiḥ sandhyā dvija-vṛnda-niṣevitā"
+      ],
+      "translations": [
+        "The power of consciousness; Pure consciousness; Has no birth; The mAyA that has transformed itself as the power of creation; In the form of the inanimate world",
+        "The gAyatrI mantra; In the nature of utterance; She who presides over the power of speech; In the form of twilight; Worshipped by the twice-born"
       ]
     },
     {
@@ -749,6 +1109,10 @@ const LALITHA_DATA = {
       "halves": [
         "tattvāsanā tattva-mayī pañca-kośāntara-sthitā",
         "niḥsīma-mahimā nitya-yauvanā mada-śālinī"
+      ],
+      "translations": [
+        "Has tattvas as Her seat; She who abides in tattva; Reality itself; she who is shiva Himself; Resides within the five sheaths",
+        "She whose glory is limitless; Ever youthful; Shining in a state of inebriation or intoxication"
       ]
     },
     {
@@ -757,6 +1121,10 @@ const LALITHA_DATA = {
       "halves": [
         "mada-ghūrṇita-raktākṣī mada-pāṭala-gaṇḍa-bhūḥ",
         "candana-drava-digdhāṅgī cāmpeya-kusuma-priyā"
+      ],
+      "translations": [
+        "She whose eyes are reddened, rolling with rapture and inward-looking; She whose cheeks are rosy with rapture",
+        "She whose body is smeared with sandalwood paste; Especially fond of champaka flowers"
       ]
     },
     {
@@ -765,6 +1133,10 @@ const LALITHA_DATA = {
       "halves": [
         "kuśalā komalākārā kurukullā kuleśvarī",
         "kula-kuṇḍālayā kaula-mārga-tatpara-sevitā"
+      ],
+      "translations": [
+        "Skillful; Graceful in form; The shakti, kurukullA (residing in kuruvindA ruby); The ruler of kula (the triad of knower, the known and knowledge)",
+        "Abides in the kulakuNDa (the bindu at the center of the pericarp in mUlAdhAra chakra; Worshipped by those devoted to the kaula tradition"
       ]
     },
     {
@@ -773,6 +1145,10 @@ const LALITHA_DATA = {
       "halves": [
         "kumāra-gaṇanāthāmbā tuṣṭiḥ puṣṭirmatirdhṛtiḥ",
         "śāntiḥ svasti-matī kāntirnandinī vighna-nāśinī"
+      ],
+      "translations": [
+        "The mother of kumAra(subrahmanya) and gaNanAtha(GaNapathi); Ever content; The power of nourishment; Manifests as intelligence; Fortitude",
+        "Tranquility itself; The ultimate truth; Effulgence; Gives delight; Destroys all obstaces"
       ]
     },
     {
@@ -781,6 +1157,10 @@ const LALITHA_DATA = {
       "halves": [
         "tejovatī tri-nayanā lolākṣīkāma-rūpiṇī",
         "mālinī haṃsinī mātā malayācala-vāsinī"
+      ],
+      "translations": [
+        "Effulgent; Has the sun, moon and fire as Her three eyes; Has rolling eyes. separate name कामरूपिणी - She who is in the form of love in women; Has a desirable form",
+        "Wearing garlands; Not separate from hamsas (the yogins who have reached great spiritual heights); The mother of the universe; Resides in the malaya mountain"
       ]
     },
     {
@@ -789,6 +1169,10 @@ const LALITHA_DATA = {
       "halves": [
         "sumukhī nalinī subhrūḥ śobhanā sura-nāyikā",
         "kāla-kaṇṭhī kānti-matī kṣobhiṇī sūkṣma-rūpiṇī"
+      ],
+      "translations": [
+        "Has a beautiful face; She whose body is soft and beautiful like lotus petals; Has beautiful eyebrows; Always radiant; The leader of the gods",
+        "The wife of shiva; Radiant; Creates upheaval in the mind; Has a form that is too subtle to be perceived by the sense organs"
       ]
     },
     {
@@ -797,6 +1181,10 @@ const LALITHA_DATA = {
       "halves": [
         "vajreśvarī vāma-devī vayo'vasthā-vivarjitā",
         "siddheśvarī siddha-vidyā siddha-mātā yaśasvinī"
+      ],
+      "translations": [
+        "VajreshvarI, the sixth daily deity; The wife of vAma deva (shiva); Exempt from changes due to age (time)",
+        "The goddess worshipped by spiritual adepts; In the form of siddhavidyA, the fifteen-syllabled mantra; The mother of siddhas; Of unequalled renown"
       ]
     },
     {
@@ -805,6 +1193,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśuddhi-cakra-nilayā''rakta-varṇā tri-locanā",
         "khaṭvāṅgādi-praharaṇā vadanaika-samanvitā"
+      ],
+      "translations": [
+        "Resides in the vishuddhi chakra; Of slightly red (rosy) complexion; Has thhree eyes",
+        "Armed with a club and other weapons; Possesses only one face"
       ]
     },
     {
@@ -813,6 +1205,10 @@ const LALITHA_DATA = {
       "halves": [
         "pāyasānna-priyā tvak-sthā paśu-loka-bhayaṅkarī",
         "amṛtādi-mahā-śakti-saṃvṛtā ḍākinīśvarī"
+      ],
+      "translations": [
+        "Especially fond of sweet rice; The deity of the organ of touch (skin); Fills with fear the mortal beings bound by worldly existence",
+        "Surrounded by amRitA and other shakti deities; The DAkinI deity"
       ]
     },
     {
@@ -821,6 +1217,10 @@ const LALITHA_DATA = {
       "halves": [
         "anāhatābja-nilayā śyāmābhā vadana-dvayā",
         "daṃṣṭrojjvalā'kṣamālādidharā rudhira-saṃsthitā"
+      ],
+      "translations": [
+        "Resides in the anAhata lotus in the heart; Black in complexion; Has two faces",
+        "Has shining tusks; Wearing garlands of rudrAkSha beads and other things; Presides over the blood in the bodies of living beings"
       ]
     },
     {
@@ -829,6 +1229,10 @@ const LALITHA_DATA = {
       "halves": [
         "kālarātryādi-śaktyaugha-vṛtā snigdhaudana-priyā",
         "mahā-vīrendra-varadā rākiṇyambā-svarūpiṇī"
+      ],
+      "translations": [
+        "Surrounded by kAlarAtri and other shaktis; Fond of food offerings containing ghee, oil and other substances containing fats",
+        "Bestows boons on great warriors; In the form of the rAkiNi deity"
       ]
     },
     {
@@ -837,6 +1241,10 @@ const LALITHA_DATA = {
       "halves": [
         "maṇipūrābja-nilayā vadana-traya-saṃyutā",
         "vajrādikāyudhopetā ḍāmaryādibhirāvṛtā"
+      ],
+      "translations": [
+        "Resides in the ten-petaled lotus in the maNipUraka chakra; Has three faces",
+        "Holds the vajra (lightning bolt) and other weapons; Surrounded by DAmarI and other attending deities"
       ]
     },
     {
@@ -845,6 +1253,10 @@ const LALITHA_DATA = {
       "halves": [
         "rakta-varṇā māṃsa-niṣṭhā guḍānna-prīta-mānasā",
         "samasta-bhakta-sukha-dā lākinyambā-svarūpiṇī"
+      ],
+      "translations": [
+        "Red in complexion; Presides over the flesh in living beings; Fond of sweet rice made with raw sugar",
+        "Confers happiness on all Her devotees; In the form of the lAkinI yoginI"
       ]
     },
     {
@@ -853,6 +1265,10 @@ const LALITHA_DATA = {
       "halves": [
         "svādhiṣṭhānāmbuja-gatā catur-vaktra-manoharā",
         "śūlādyāyudha-sampannā pīta-varṇā'tigarvitā"
+      ],
+      "translations": [
+        "Resides in the six-petaled lotus in the svAdhiShTAna, kAkinI yoginI; Has four beautiful faces",
+        "Possesses the trident and other weapons (i.e., noose, skull and abhaya); Yellow in color; Very proud"
       ]
     },
     {
@@ -861,6 +1277,10 @@ const LALITHA_DATA = {
       "halves": [
         "medo-niṣṭhā madhu-prītā bandhinyādi-samanvitā",
         "dadhyannāsakta-hṛdayā kākinī-rūpa-dhāriṇī"
+      ],
+      "translations": [
+        "Resides in the fat in living beings; Fond of honey and other offerings made with honey; Accompanied by bandhini and other shaktis",
+        "Particularly fond of offerings made with curd; In the form of kAkinI yoginI"
       ]
     },
     {
@@ -869,6 +1289,10 @@ const LALITHA_DATA = {
       "halves": [
         "mūlādhārāmbujārūḍhā pañca-vaktrā'sthisaṃsthitā",
         "aṅkuśādi-praharaṇā varadādi-niṣevitā"
+      ],
+      "translations": [
+        "Resident in the lotus in the mUlAdhAra; Has five faces; Resides in the bones",
+        "Holds the goad and other weapons; Destroys the unholy; Attended by varadA and other shaktis"
       ]
     },
     {
@@ -877,6 +1301,10 @@ const LALITHA_DATA = {
       "halves": [
         "mudgaudanāsakta-cittā sākinyambā-svarūpiṇī",
         "ājñā-cakrābja-nilayā śukla-varṇā ṣaḍ-ānanā"
+      ],
+      "translations": [
+        "Particularly fond of food offerings made of mudga, a lentil; In the form of sAkinI yoginI",
+        "Resides in the two-petaled lotus in the AjnAchakra; White in color; Has six faces"
       ]
     },
     {
@@ -885,6 +1313,10 @@ const LALITHA_DATA = {
       "halves": [
         "majjā-saṃsthā haṃsavatī-mukhya-śakti-samanvitā",
         "haridrānnaikarasikā hākinī-rūpa-dhāriṇī"
+      ],
+      "translations": [
+        "The presiding deity of the bone marrow; Accompanied by the shaktis hamsavatI and kShamAvati (in the two petals of the lotus)",
+        "Fond of food seasoned with turmeric; In the form of hAkinI devI"
       ]
     },
     {
@@ -893,6 +1325,10 @@ const LALITHA_DATA = {
       "halves": [
         "sahasra-dala-padma-sthā sarva-varṇopaśobhitā",
         "sarvāyudha-dharā śukla-saṃsthitā sarvato-mukhī"
+      ],
+      "translations": [
+        "Resides in the thousand-petaled lotus; Radiant in many colors",
+        "Holds all the known weapons; Resides in the semen; Has faces turned in all directions"
       ]
     },
     {
@@ -901,6 +1337,10 @@ const LALITHA_DATA = {
       "halves": [
         "sarvaudana-prīta-cittā yākinyambā-svarūpiṇī",
         "svāhā svadhā'matirmedhā śrutiḥ smṛtiranuttamā"
+      ],
+      "translations": [
+        "Pleased by all offerings of food; In the form of the yAkinI yoginI",
+        "The object of the invocation 'svAhA' at the end of mantras chanted while offering oblations to the fire in yAga ceremonies; The object of the 'svadhA' invocation at the end of mantras; In the form of ignorance or nescience; In the form of wisdom (knowledge); In the form of the vedas; In the form of smRiti (works based on the meaning of vedas); The best; She who is not excelled by anyone"
       ]
     },
     {
@@ -909,6 +1349,10 @@ const LALITHA_DATA = {
       "halves": [
         "puṇya-kīrtiḥ puṇya-labhyā puṇya-śravaṇa-kīrtanā",
         "pulomajārcitā bandha-mocanī bandhurālakā"
+      ],
+      "translations": [
+        "She whose fame is sacred or righteous; Attained only by righteous souls; Bestows merit on anyone who hears of Her and praises Her",
+        "Worshipped by pulomaja (Indra's wife); Free from bonds; She who gives release from bondage"
       ]
     },
     {
@@ -917,6 +1361,10 @@ const LALITHA_DATA = {
       "halves": [
         "vimarśa-rūpiṇī vidyā viyadādijagatprasūḥ",
         "sarva-vyādhi-praśamanī sarva-mṛtyu-nivāriṇī"
+      ],
+      "translations": [
+        "In the form of vimarsha (reflection or meaning); In the form of knowledge; The Mother of the universe, which is the aggregate of all the elements starting with the ether",
+        "Removes all diseases and sorrows; Guards Her devotees from all"
       ]
     },
     {
@@ -925,6 +1373,10 @@ const LALITHA_DATA = {
       "halves": [
         "agra-gaṇyā'cintyarūpā kali-kalmaṣa-nāśinī",
         "kātyāyanī kāla-hantrī kamalākṣa-niṣevitā"
+      ],
+      "translations": [
+        "To be considered the foremost; Of a form beyond the reach of thought; The destroyer of the sins of the age of kali",
+        "The daughter of a sage named kata; The destroyer of time (death); She in whom viShNu takes refuge"
       ]
     },
     {
@@ -933,6 +1385,10 @@ const LALITHA_DATA = {
       "halves": [
         "tāmbūla-pūrita-mukhī dāḍimī-kusuma-prabhā",
         "mṛgākṣī mohinī mukhyā mṛḍānī mitrarūpiṇī"
+      ],
+      "translations": [
+        "She whose mouth is full from chewing betel; Shines like a pomegranate flower",
+        "She whose eyes are long and beautiful like those of a doe; Enchanting; The first; The wife of mRiDa (shiva); The friend of everyone (universe)"
       ]
     },
     {
@@ -941,6 +1397,10 @@ const LALITHA_DATA = {
       "halves": [
         "nitya-tṛptā bhaktanidhirniyantrī nikhileśvarī",
         "maitryādi-vāsanā-labhyā mahā-pralaya-sākṣiṇī"
+      ],
+      "translations": [
+        "Eternally contented; The treasure of the devotees; Controls and guides all beings on the right path; The ruler of all",
+        "To be attained by love and other good dispositions; Witness to the great dissolution"
       ]
     },
     {
@@ -949,6 +1409,10 @@ const LALITHA_DATA = {
       "halves": [
         "parā śaktiḥ parā niṣṭhā prajñānaghanarūpiṇī",
         "mādhvī-pānālasā mattā mātṛkā-varṇa-rūpiṇī"
+      ],
+      "translations": [
+        "The original, supreme power; The supreme end, the supreme abidance; Pure, condensed knowledge",
+        "Languid from drinking wine; She who is not eager for anything; Intoxicated; In the form of the letters of the alphabet"
       ]
     },
     {
@@ -957,6 +1421,10 @@ const LALITHA_DATA = {
       "halves": [
         "mahā-kailāsa-nilayā mṛṇāla-mṛdu-dorlatā",
         "mahanīyā dayāmūrtirmahā-sāmrājya-śālinī"
+      ],
+      "translations": [
+        "Resides in the great kailAsa; She whose arms are as soft and cool as the lotus stem",
+        "Adorable; The personification of compassion; Controls the great empire of the three worlds"
       ]
     },
     {
@@ -965,14 +1433,22 @@ const LALITHA_DATA = {
       "halves": [
         "ātma-vidyā mahā-vidyā śrī-vidyā kāma-sevitā",
         "śrī-ṣoḍaśākṣarī-vidyā tri-kūṭā kāma-koṭikā"
+      ],
+      "translations": [
+        "The knowledge of the self; The seat of exalted knowledge, the knowledge of the self; Sacred knowledge (pa~nchadashi mantra); Worshipped by kAmadeva",
+        "In the form of the sixteen-syllabled mantra; In the three parts (of pa~nchadashI mantra); She, of whom kAma (shiva) is a part or an approximate form"
       ]
     },
     {
       "num": 119,
-      "text": "kaṭākṣakiṅkarībhūtakamalākoṭisevitā .\nśiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā",
+      "text": "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā .\nśiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā",
       "halves": [
-        "kaṭākṣakiṅkarībhūtakamalākoṭisevitā",
+        "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā",
         "śiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā"
+      ],
+      "translations": [
+        "Attended by millions of lakShmis who are subdued by Hern mere glances",
+        "Resides in the head; Resplendent like the moon"
       ]
     },
     {
@@ -981,6 +1457,10 @@ const LALITHA_DATA = {
       "halves": [
         "hṛdaya-sthā ravi-prakhyā trikoṇāntara-dīpikā",
         "dākṣāyaṇī daitya-hantrī dakṣa-yajña-vināśinī"
+      ],
+      "translations": [
+        "Resides in the heart; Shines with the special brilliance of the sun; Shines as a light within the triangle",
+        "SatIdevI, the daughter of dakSha prajApati; The killer of demons; The destroyer of the sacrifice conducted by dakSha"
       ]
     },
     {
@@ -989,6 +1469,10 @@ const LALITHA_DATA = {
       "halves": [
         "darāndolita-dīrghākṣī dara-hāsojjvalan-mukhī",
         "gurumūrtirguṇanidhirgo-mātā guha-janma-bhūḥ"
+      ],
+      "translations": [
+        "Has long, tremulous eyes; She whose face is radiant with a smile",
+        "Has assumed a severe form or one who has assumed the form of the guru; The treasure house of all good qualities; Became surabhI, the cow that grants all wishes; The mother of guhA (subramaNya)"
       ]
     },
     {
@@ -997,6 +1481,10 @@ const LALITHA_DATA = {
       "halves": [
         "deveśī daṇḍa-nīti-sthā daharākāśa-rūpiṇī",
         "pratipan-mukhya-rākānta-tithi-maṇḍala-pūjitā"
+      ],
+      "translations": [
+        "The protector of the gods; Maintains the rules of jusstice without the slightest error; The subtle self in the heart",
+        "Worshipped daily starting with pratipad (first day of the lunar half-month) and ending with the full moon"
       ]
     },
     {
@@ -1005,6 +1493,10 @@ const LALITHA_DATA = {
       "halves": [
         "kalātmikā kalā-nāthā kāvyālāpa-vinodinī",
         "sacāmara-ramā-vāṇī-savya-dakṣiṇa-sevitā"
+      ],
+      "translations": [
+        "In the form of the kalAs; The mistress of all the kalAs; Delights in hearing poetry",
+        "Attended by lakShmI on the left side and sarasvatI on the right side, bearing ceremonial fans"
       ]
     },
     {
@@ -1013,6 +1505,10 @@ const LALITHA_DATA = {
       "halves": [
         "ādiśaktirameyā''tmā paramā pāvanākṛtiḥ",
         "aneka-koṭi-brahmāṇḍa-jananī divya-vigrahā"
+      ],
+      "translations": [
+        "The primordial power, the parAshakti who is the cause of the universe; Not measurable by any means; The self in all; The supreme; Of sacred form",
+        "The creator of many crores of worlds; Has a divine body"
       ]
     },
     {
@@ -1021,6 +1517,10 @@ const LALITHA_DATA = {
       "halves": [
         "klīṃkārī kevalā guhyā kaivalya-pada-dāyinī",
         "tripurā tri-jagad-vandyā trimūrtistri-daśeśvarī"
+      ],
+      "translations": [
+        "Creator of the syllable 'klIM'; The absolute, as She is complete, independent and without any attributes; To be known in secret; Bestows liberation",
+        "Older than the three (trinity of brahmA viShNu and shiva); Adored by the inhabitants of all three worlds; The aggregate of the trinity (brahmA, viShNu and shiva); The ruler of the gods"
       ]
     },
     {
@@ -1029,6 +1529,10 @@ const LALITHA_DATA = {
       "halves": [
         "tryakṣarī divya-gandhāḍhyā sindūra-tilakāñcitā",
         "umā śailendra-tanayā gaurī gandharva-sevitā"
+      ],
+      "translations": [
+        "She whose form consists of three letters or syllables (Om = a u m); Richly endowed with divine fragrance; Shines witha vermillion mark on Her forehead; She who is decorated with a special paste made of vermilion",
+        "PArvatI devI; The daughter of himavat, the king of the mountains; Has a fair complexion; Served by gandharvas (like vishvAvasu)"
       ]
     },
     {
@@ -1037,6 +1541,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśva-garbhā svarṇa-garbhā'varadā vāg-adhīśvarī",
         "dhyāna-gamyā'paricchedyā jñāna-dā jñāna-vigrahā"
+      ],
+      "translations": [
+        "Contains the whole universe in Her womb; The cause of the universe; Destroys the unholy; Presides over speech",
+        "To be attained through meditation; She whose limits cannot be ascertained (unlimited); Divine commandment herself; Gives knowledge of the self; Sthe embodiment of knowledge itself"
       ]
     },
     {
@@ -1045,6 +1553,10 @@ const LALITHA_DATA = {
       "halves": [
         "sarva-vedānta-saṃvedyā satyānanda-svarūpiṇī",
         "lopāmudrārcitā līlā-kḷpta-brahmāṇḍa-maṇḍalā"
+      ],
+      "translations": [
+        "Known by all of vedAnta; She whose form is existence and bliss",
+        "Worshipped by lopAmudrA (wife of sage agastya); Has created and maintained the universe purely as a sport"
       ]
     },
     {
@@ -1053,6 +1565,10 @@ const LALITHA_DATA = {
       "halves": [
         "adṛśyā dṛśya-rahitā vijñātrī vedya-varjitā",
         "yoginī yoga-dā yogyā yogānandā yugan-dharā"
+      ],
+      "translations": [
+        "Not perceived by sense organs (normal eyes); Has nothing to see; Knows the truth of the physical universe; Has nothing left to know",
+        "Constantly united with parAshiva; She who possesses the power of yoga; Bestows the power of yoga; Deserves yoga of all kinds; The bliss attained through yoga; She who enjoys the bliss of yoga; The bearer of the yugas"
       ]
     },
     {
@@ -1061,6 +1577,10 @@ const LALITHA_DATA = {
       "halves": [
         "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī",
         "sarvādhārā supratiṣṭhā sad-asad-rūpa-dhāriṇī"
+      ],
+      "translations": [
+        "In the form of the powers of will, knowledge and action",
+        "The support of all; Firmly established; Assumes the forms of both being and non-being"
       ]
     },
     {
@@ -1069,6 +1589,10 @@ const LALITHA_DATA = {
       "halves": [
         "aṣṭamūrtirajājaitrī lokayātrāvidhāyinī",
         "ekākinī bhūma-rūpā nir-dvaitā dvaita-varjitā"
+      ],
+      "translations": [
+        "Has eight forms; Has no birth; Directs the course of the worlds",
+        "The lone one; The aggregate of all existing things; Without the sense of duality; Beyond duality"
       ]
     },
     {
@@ -1077,6 +1601,10 @@ const LALITHA_DATA = {
       "halves": [
         "anna-dā vasu-dā vṛddhā brahmātmaikya-svarūpiṇī",
         "bṛhatī brāhmaṇī brāhmī brahmānandā bali-priyā"
+      ],
+      "translations": [
+        "The giver of food to all living things; The giver of wealth; Ancient; She whose nature is the union of brahman and Atman",
+        "Immense; Predominantly sAttvic; The tail that is brahman; the support for all; Presides over speech; Ever immersed in the bliss of brahman; Especially fond of sacrificial offerings"
       ]
     },
     {
@@ -1085,6 +1613,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhāṣā-rūpā bṛhat-senā bhāvābhāva-vivarjitā",
         "sukhārādhyā śubha-karī śobhanā sulabhā gatiḥ"
+      ],
+      "translations": [
+        "In the form of language; Has a vast army; Beyond being and non-being",
+        "Easily worshipped; Does good; Attained through a bright and easy path"
       ]
     },
     {
@@ -1093,6 +1625,10 @@ const LALITHA_DATA = {
       "halves": [
         "rāja-rājeśvarī rājya-dāyinī rājya-vallabhā",
         "rājatkṛpā rāja-pīṭha-niveśita-nijāśritā"
+      ],
+      "translations": [
+        "The ruler of kings and emperors; Gives dominion; Protects all the dominions",
+        "Has a compassion that captivates everyone; The supreme; She who transcends all; Establishes on royal thrones of those who take refuge in Her"
       ]
     },
     {
@@ -1101,6 +1637,10 @@ const LALITHA_DATA = {
       "halves": [
         "rājya-lakṣmīḥ kośa-nāthā caturaṅga-baleśvarī",
         "sāmrājya-dāyinī satya-sandhā sāgara-mekhalā"
+      ],
+      "translations": [
+        "The embodiment of the prosperity of the world; The mistress of the treasury; Commands armies of four types",
+        "The bestower of imperial dominion; Devoted to (or maintains) truth; Girdled by the oceans"
       ]
     },
     {
@@ -1109,6 +1649,10 @@ const LALITHA_DATA = {
       "halves": [
         "dīkṣitā daitya-śamanī sarva-loka-vaśaṅkarī",
         "sarvārtha-dātrī sāvitrī saccidānanda-rūpiṇī"
+      ],
+      "translations": [
+        "Under a vow; Destroys the demons, wicked forces; Keeps all the worlds under Her control",
+        "Grants all desires; The creative power in the universe; Of the nature of existence, consciousness and bliss"
       ]
     },
     {
@@ -1117,6 +1661,10 @@ const LALITHA_DATA = {
       "halves": [
         "deśa-kālāparicchinnā sarva-gā sarva-mohinī",
         "sarasvatī śāstra-mayī guhāmbā guhya-rūpiṇī"
+      ],
+      "translations": [
+        "Not limited by time and space; She who is not measured by time and space; Pervades all the worlds and all the living and non-living things; She who is omnipresent; Deludes all",
+        "In the form of knowledge; In the form of the scriptures; She whose limbs are the scriptures; The mother of guha (subramaNya); She who dwells in the cave of the heart; Has a secret form"
       ]
     },
     {
@@ -1125,6 +1673,10 @@ const LALITHA_DATA = {
       "halves": [
         "sarvopādhi-vinirmuktā sadā-śiva-pativratā",
         "sampradāyeśvarī sādhvī gurumaṇḍalarūpiṇī"
+      ],
+      "translations": [
+        "Free from all limitations; SadAshiva's devoted wife",
+        "The guardian of sacred traditions; Chaste; Embodies in Herself the lineage of Gurus"
       ]
     },
     {
@@ -1133,6 +1685,10 @@ const LALITHA_DATA = {
       "halves": [
         "kulottīrṇā bhagārādhyā māyā madhu-matī mahī",
         "gaṇāmbā guhyakārādhyā komalāṅgī guru-priyā"
+      ],
+      "translations": [
+        "Transcends the senses; Worshipped in the sun's disc; Illusion; She whose nature is as sweet as honey; The goddess earth",
+        "The mother of shiva's attendants; Worshipped by guhyakas (a kind of devAs); Has beautiful limbs; Beloved of the gurus"
       ]
     },
     {
@@ -1141,6 +1697,10 @@ const LALITHA_DATA = {
       "halves": [
         "svatantrā sarva-tantreśī dakṣiṇā-mūrti-rūpiṇī",
         "sanakādi-samārādhyā śiva-jñāna-pradāyinī"
+      ],
+      "translations": [
+        "Free from all limitations; The goddess of all tantras; In the form of dakShiNAmUrti",
+        "Worshipped by sanaka and other sages; Bestows the knowledge of siva"
       ]
     },
     {
@@ -1149,6 +1709,10 @@ const LALITHA_DATA = {
       "halves": [
         "cit-kalā''nandakalikā prema-rūpā priyaṅkarī",
         "nāma-pārāyaṇa-prītā nandi-vidyā naṭeśvarī"
+      ],
+      "translations": [
+        "The consciousness in brahman; The bud of bliss; Pure love; Grants what is dear to Her devotees",
+        "Pleased by the repetition of Her names; The deity worshipped by the nandi mantra; The wife of natesha (shiva)"
       ]
     },
     {
@@ -1157,6 +1721,10 @@ const LALITHA_DATA = {
       "halves": [
         "mithyā-jagadadhiṣṭhānā mukti-dā mukti-rūpiṇī",
         "lāsya-priyā laya-karī lajjā rambhādi-vanditā"
+      ],
+      "translations": [
+        "The basis of the illusory universe; Gives liberation; In the form of liberation",
+        "Fond of the lAsya dance; Causes absorption; Exists as modesty in living beings; Adored by the celestial damsels such as rambhA"
       ]
     },
     {
@@ -1165,6 +1733,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhava-dāva-sudhā-vṛṣṭiḥ pāpāraṇya-davānalā",
         "daurbhāgya-tūla-vātūlā jarādhvānta-ravi-prabhā"
+      ],
+      "translations": [
+        "The rain of nectar falling on the forest fire of worldly existence; Like wild fire to the forest of sins",
+        "The gale that drives away the cotton wisps of misfortune; Has no birth; The sunlight that dispels the darkness of old age"
       ]
     },
     {
@@ -1173,6 +1745,10 @@ const LALITHA_DATA = {
       "halves": [
         "bhāgyābdhi-candrikā bhakta-citta-keki-ghanāghanā",
         "rogaparvatadambholirmṛtyu-dāru-kuṭhārikā"
+      ],
+      "translations": [
+        "The full moon to the ocean of good fortune; The cloud that gladdens the peacocks who are the hearts of Her devotees",
+        "The thunderbolt that shatters the mountain of disease; The axe that cuts down the tree of death"
       ]
     },
     {
@@ -1181,6 +1757,10 @@ const LALITHA_DATA = {
       "halves": [
         "maheśvarī mahā-kālī mahā-grāsā mahā-śanā",
         "aparṇā caṇḍikā caṇḍa-muṇḍāsura-niṣūdinī"
+      ],
+      "translations": [
+        "The wife of maheshvara; The supreme goddess; The great kAli; Devours everything great; She who is the great devourer; Seated on great seats; Eats everything that is great",
+        "Owes no debt; Angry (at the wicked); Killed chaNDa, muNDa and other asuras"
       ]
     },
     {
@@ -1189,6 +1769,10 @@ const LALITHA_DATA = {
       "halves": [
         "kṣarākṣarātmikā sarva-lokeśī viśva-dhāriṇī",
         "tri-varga-dātrī subhagā tryambakā tri-guṇātmikā"
+      ],
+      "translations": [
+        "In the form of both the perishable and imperishable Atman; The ruler of all worlds; Supports the universe",
+        "Bestows the three goals of life; The seat of all prosperity; Has three eyes; The essence of the three gunas"
       ]
     },
     {
@@ -1197,6 +1781,10 @@ const LALITHA_DATA = {
       "halves": [
         "svargāpavarga-dā śuddhā japā-puṣpa-nibhākṛtiḥ",
         "ojovatī dyuti-dharā yajña-rūpā priya-vratā"
+      ],
+      "translations": [
+        "Bestows heaven and liberation; The purest; Has no birth; She whose body is like the hibiscus flower",
+        "Full of vitality; Full of light and splendor; She who has an aura of light; In the form of sacrifice; Fond of vows"
       ]
     },
     {
@@ -1205,6 +1793,10 @@ const LALITHA_DATA = {
       "halves": [
         "durārādhyā dur-ādharṣā pāṭalī-kusuma-priyā",
         "mahatī meru-nilayā mandāra-kusuma-priyā"
+      ],
+      "translations": [
+        "Difficult to worship; Difficult to control; Fond of the pATali flower (the pale red trumpet flower)",
+        "Great; She who is in the form of mahatti (nArada's vINa); Resides in the meru mountain; Fond of the mandAra flowers"
       ]
     },
     {
@@ -1213,6 +1805,10 @@ const LALITHA_DATA = {
       "halves": [
         "vīrārādhyā virāḍ-rūpā virajā viśvato-mukhī",
         "pratyag-rūpā parā-kāśā prāṇa-dā prāṇa-rūpiṇī"
+      ],
+      "translations": [
+        "Worshipped by heroic persons; In the form of the cosmic whole; Without rajas (desire and anger); Faces all directions",
+        "The indwelling self; The transcendental ether (which is the material cause of the cosmic and individual bodies); The giver of life; The nature of life"
       ]
     },
     {
@@ -1221,6 +1817,10 @@ const LALITHA_DATA = {
       "halves": [
         "mārtāṇḍa-bhairavārādhyā mantriṇī-nyasta-rājya-dhūḥ",
         "tripureśī jaya-tsenā nis-traiguṇyā parāparā"
+      ],
+      "translations": [
+        "Worshipped by mArtANDabhairava; Has entrusted Her regal responsibilities to Her mantriNi",
+        "The goddess of tripura; Has an army which is accustomed only to victory; Devoid of the three guNas; Both parA and aparA"
       ]
     },
     {
@@ -1229,6 +1829,10 @@ const LALITHA_DATA = {
       "halves": [
         "satya-jñānānanda-rūpā sāmarasya-parāyaṇā",
         "kapardinī kalā-mālā kāma-dhuk kāma-rūpiṇī"
+      ],
+      "translations": [
+        "Truth, knowledge and bliss; Immersed in a state of steady wisdom",
+        "The wife of kapardi (shiva, one with matted hair); Wears all sixty-four forms of art as a garland; Fulfills all desires; Has a desirable form"
       ]
     },
     {
@@ -1237,6 +1841,10 @@ const LALITHA_DATA = {
       "halves": [
         "kalā-nidhiḥ kāvya-kalā rasa-jñā rasa-śevadhiḥ",
         "puṣṭā purātanā pūjyā puṣkarā puṣkarekṣaṇā"
+      ],
+      "translations": [
+        "The treasurehouse of all arts; The art of poetry; Knows all the rasas; The treasurehouse of rasa",
+        "Always full of vigor, nourishment; Ancient; Worthy of worship by all; Complete; She who gives bourishment to all; Has eyes like lotus petals"
       ]
     },
     {
@@ -1245,6 +1853,10 @@ const LALITHA_DATA = {
       "halves": [
         "paraṃjyotiḥ paraṃdhāma paramāṇuḥ parāt-parā",
         "pāśa-hastā pāśa-hantrī para-mantra-vibhedinī"
+      ],
+      "translations": [
+        "The supreme light; The supreme abode; The subtlest particle; Tshe most supreme of the supreme ones",
+        "Holds a noose in Her hand; Destroys the bonds; Breaks the spell of the evil mantras of the enemies"
       ]
     },
     {
@@ -1253,6 +1865,10 @@ const LALITHA_DATA = {
       "halves": [
         "mūrtā'mūrtā'nitya-tṛptā muni-mānasa-haṃsikā",
         "satya-vratā satya-rūpā sarvāntaryāminī satī"
+      ],
+      "translations": [
+        "Has no definite form; Satisfied even by our perishable offerings; The swan in the mAnasa lake of the minds of sages",
+        "Abides firmly in truth; Truth itself; Dwells inside all; Reality, the eternal being"
       ]
     },
     {
@@ -1261,6 +1877,10 @@ const LALITHA_DATA = {
       "halves": [
         "brahmāṇī brahmajananī bahu-rūpā budhārcitā",
         "prasavitrī pracaṇḍā''jñā pratiṣṭhā prakaṭākṛtiḥ"
+      ],
+      "translations": [
+        "Predominantly sAttvic; The tail that is brahman; the support for all; Has no birth; The mother; Has a multitude of forms; Worshipped by the wise",
+        "Mother of the universe; Full of awe-inspiring wrath; Divine commandment herself; The foundation; Manifested in the form of the universe"
       ]
     },
     {
@@ -1269,6 +1889,10 @@ const LALITHA_DATA = {
       "halves": [
         "prāṇeśvarī prāṇa-dātrī pañcāśat-pīṭha-rūpiṇī",
         "viśṛṅkhalā vivikta-sthā vīra-mātā viyat-prasūḥ"
+      ],
+      "translations": [
+        "Lords over the five prANas and the senses; The giver of life; Has fifty centers of worship",
+        "Abides in secluded places; The mother of the valiant; The mother to the ether"
       ]
     },
     {
@@ -1277,6 +1901,10 @@ const LALITHA_DATA = {
       "halves": [
         "mukundā mukti-nilayā mūla-vigraha-rūpiṇī",
         "bhāva-jñā bhava-roga-ghnī bhava-cakra-pravartinī"
+      ],
+      "translations": [
+        "Gives salvation; The abode of salvation; The root form of everything",
+        "The knower of all thoughts and sentiments; Eradicates the diseases of the cycle of birth and death; Turns the wheel of the cycle of birth and death"
       ]
     },
     {
@@ -1285,6 +1913,10 @@ const LALITHA_DATA = {
       "halves": [
         "chandaḥ-sārā śāstra-sārā mantra-sārā talodarī",
         "udārakīrtiruddāma-vaibhavā varṇa-rūpiṇī"
+      ],
+      "translations": [
+        "The essence of all the vedas; The essence of all scriptures; Has become lakShmI and sarasvatI; Gives delight; The essence of all mantras; Slender-waisted",
+        "Possesses exalted fame; She whose prowess is unlimited; In the form of the letters of the alphabets"
       ]
     },
     {
@@ -1293,6 +1925,10 @@ const LALITHA_DATA = {
       "halves": [
         "janma-mṛtyu-jarā-tapta-jana-viśrānti-dāyinī",
         "sarvopaniṣad-udghuṣṭā śāntyatīta-kalātmikā"
+      ],
+      "translations": [
+        "Gives peace and repose to those who are afflicted by birth, death and decrepitude",
+        "Celebrated by all the upaniShads; Transcends the state of peace"
       ]
     },
     {
@@ -1301,6 +1937,10 @@ const LALITHA_DATA = {
       "halves": [
         "gambhīrā gaganānta-sthā garvitā gāna-lolupā",
         "kalpanā-rahitā kāṣṭhā'kāntā kāntārdha-vigrahā"
+      ],
+      "translations": [
+        "Unfathomable; Resides in the ether, space; Proud; Delights in music",
+        "Free from imaginary attributes; Dwells in the highest state (beyond which there is nothing); Ends all sins and sorrows; Half the body of Her husband"
       ]
     },
     {
@@ -1309,6 +1949,10 @@ const LALITHA_DATA = {
       "halves": [
         "kārya-kāraṇa-nirmuktā kāma-keli-taraṅgitā",
         "kanat-kanaka-tāṭaṅkā līlā-vigraha-dhāriṇī"
+      ],
+      "translations": [
+        "Free from the bond of cause and effect; Overflowing with pleasure in the union with kAmeshvara",
+        "Wears glittering gold ear ornaments; Assumes various glorious forms as a sport"
       ]
     },
     {
@@ -1317,6 +1961,10 @@ const LALITHA_DATA = {
       "halves": [
         "ajā kṣaya-vinirmuktā mugdhā kṣipra-prasādinī",
         "antar-mukha-samārādhyā bahir-mukha-su-dur-labhā"
+      ],
+      "translations": [
+        "Has no birth; Free from decay; Captivating in Her beauty; Quickly pleased",
+        "To be worshipped internally (mentally); Difficult to attain by those whose attention is directed outwards"
       ]
     },
     {
@@ -1325,6 +1973,10 @@ const LALITHA_DATA = {
       "halves": [
         "trayī tri-varga-nilayā tri-sthā tripura-mālinī",
         "nir-āmayā nir-ālambā svātmā-rāmā sudhāsṛtiḥ"
+      ],
+      "translations": [
+        "The three vedas; The abode of the threefold aims of human life; Resides in the three worlds; The goddess of the antardashAra chakra of the shrI chakra",
+        "Free from diseases of all kinds; Depends on none; Rejoices in Her own self"
       ]
     },
     {
@@ -1333,6 +1985,10 @@ const LALITHA_DATA = {
       "halves": [
         "saṃsāra-paṅka-nirmagna-samuddharaṇa-paṇḍitā",
         "yajña-priyā yajña-kartrī yajamāna-svarūpiṇī"
+      ],
+      "translations": [
+        "Skilled in raising those who are immersed in the mire of transmigratory life",
+        "Fond all sacrifices and other rituals; The doer of sacrificial rites; In the form of yajamAna, who directs sacrificial rites"
       ]
     },
     {
@@ -1341,6 +1997,10 @@ const LALITHA_DATA = {
       "halves": [
         "dharmādhārā dhanādhyakṣā dhana-dhānya-vivardhinī",
         "vipra-priyā vipra-rūpā viśva-bhramaṇa-kāriṇī"
+      ],
+      "translations": [
+        "The support of the code for righteous living; Oversees wealth; Increases wealth and harvests",
+        "Fond of the learned; In the form of a knower of the self; Makes the universe go around through Her power of illusion"
       ]
     },
     {
@@ -1349,6 +2009,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśva-grāsā vidrumābhā vaiṣṇavī viṣṇu-rūpiṇī",
         "ayoniryoni-nilayā kūṭa-sthā kula-rūpiṇī"
+      ],
+      "translations": [
+        "Devours the universe; Shines like coral (with Her red complexion); In the form of viShNu; In a form that extends over the whole universe",
+        "Without origin; The seat of all origins; Remains unchanged like the anvil; Does not have a family; The deity of the kaula path"
       ]
     },
     {
@@ -1357,6 +2021,10 @@ const LALITHA_DATA = {
       "halves": [
         "vīra-goṣṭhī-priyā vīrā naiṣkarmyā nāda-rūpiṇī",
         "vijñāna-kalanā kalyā vidagdhā baindavāsanā"
+      ],
+      "translations": [
+        "Fond of the assembly of warriors; Abstains from actions; In the form of the primal sound",
+        "Realizes the knowledge of brahman; Capable of creation; Expert in everything; Seated in the baindava (spot between the eyebrows) chakra"
       ]
     },
     {
@@ -1365,6 +2033,10 @@ const LALITHA_DATA = {
       "halves": [
         "tattvādhikā tattva-mayī tattva-martha-svarūpiṇī",
         "sāma-gāna-priyā saumyā sadāśiva-kuṭumbinī"
+      ],
+      "translations": [
+        "Transcends all cosmic categories; Reality itself; she who is shiva Himself; The meaning of tat (that) and tvam (thou)",
+        "Fond of the chanting of the sAma veda; Benign and gentle in nature; of a cool, gentle nature as the moon; The wife of sadAshiva"
       ]
     },
     {
@@ -1373,6 +2045,10 @@ const LALITHA_DATA = {
       "halves": [
         "savyāpasavya-mārga-sthā sarvāpad-vinivāriṇī",
         "sva-sthā svabhāva-madhurā dhīrā dhīra-samarcitā"
+      ],
+      "translations": [
+        "Occupies (or can be reached by) both the left and right paths of worship; Removes all dangers",
+        "Abides in Herself; She who is free from all afflictions; Sweet in Her inherent nature; Worshipped by the wise"
       ]
     },
     {
@@ -1381,6 +2057,10 @@ const LALITHA_DATA = {
       "halves": [
         "caitanyārghya-samārādhyā caitanya-kusuma-priyā",
         "sadoditā sadā-tuṣṭā taruṇāditya-pāṭalā"
+      ],
+      "translations": [
+        "Worshipped with consciousness as the oblation; Fond of the flower that is consciousness",
+        "Ever shining; Ever pleased; Meant by 'That', the supreme truth, brahman; Rosy like the morning sun"
       ]
     },
     {
@@ -1389,6 +2069,10 @@ const LALITHA_DATA = {
       "halves": [
         "dakṣiṇā-dakṣiṇārādhyā dara-smera-mukhāmbujā",
         "kaulinīkevalā'narghyakaivalya-pada-dāyinī"
+      ],
+      "translations": [
+        "Adored by both right and left-handed worshippers; She whose lotus face holds a sweet smile",
+        "Worshipped as pure knowledge (consciousness) by the spiritual aspirants following the kaula path; Confers the priceless fruit of final liberation"
       ]
     },
     {
@@ -1397,6 +2081,10 @@ const LALITHA_DATA = {
       "halves": [
         "stotra-priyā stuti-matī śruti-saṃstuta-vaibhavā",
         "manasvinī mānavatī maheśī maṅgalākṛtiḥ"
+      ],
+      "translations": [
+        "Fond of hymns in Her praise; The true object, the essence, of all praises; She whose glory is celebrated in the shrutis",
+        "Well-known for Her mind; High-minded; She who has great fame; The wife of mahesha (shiva); Of auspicious form"
       ]
     },
     {
@@ -1405,6 +2093,10 @@ const LALITHA_DATA = {
       "halves": [
         "viśva-mātā jagad-dhātrī viśālākṣī virāgiṇī",
         "pragalbhā paramodārā parāmodā mano-mayī"
+      ],
+      "translations": [
+        "The mother of the universe; Has no birth; The mother who protects and sustains the world; Has large eyes; Dispassionate",
+        "Skillful and confident; Supremely generous; In the form of the mind"
       ]
     },
     {
@@ -1413,6 +2105,10 @@ const LALITHA_DATA = {
       "halves": [
         "vyoma-keśī vimāna-sthā vajriṇī vāmakeśvarī",
         "pañca-yajña-priyā pañca-preta-mañcādhiśāyinī"
+      ],
+      "translations": [
+        "Has the sky as Her hair; Seated in Her celestial chariot; She who journeys in Her celestial chariot along with the gods; Bears the vajrA (thunderbolt) weapon; The presiding deity of the vamakeshvara tantra",
+        "Fond of the five forms of sacrifices (agnihotrA, darshapUrnamAsa, chAturmAsya, goyaj~na and somayaj~na); Reclines on a couch made of the five corpses"
       ]
     },
     {
@@ -1421,6 +2117,10 @@ const LALITHA_DATA = {
       "halves": [
         "pañcamī pañca-bhūteśī pañcasaṃkhyopacāriṇī",
         "śāśvatī śāśvataiśvaryā śarma-dā śambhu-mohinī"
+      ],
+      "translations": [
+        "The fifth (after brahmA, viShNu, rudra and Ishvara); The goddess of the five elements; Worshipped using five objects (fragrance, flower, incense, lamp and food) of worship",
+        "Eternal; Holds eternal sovereignty; The giver of happiness; Deludes shiva"
       ]
     },
     {
@@ -1429,6 +2129,10 @@ const LALITHA_DATA = {
       "halves": [
         "dharādhara-sutā dhanyā dharmiṇī dharma-vardhinī",
         "lokātītā guṇātītā sarvātītā śamātmikā"
+      ],
+      "translations": [
+        "The daughter of dhara (himavat); Possessses great wealth; She who is extremely blessed; Righteous; Promotes righteousness",
+        "Transcends the worlds; Transcends the guNAs; Transcends everything; Of the nature of peace and bliss"
       ]
     },
     {
@@ -1437,6 +2141,10 @@ const LALITHA_DATA = {
       "halves": [
         "bandhūka-kusuma-prakhyā bālā līlā-vinodinī",
         "su-maṅgalī sukha-karī su-veṣāḍhyā suvāsinī"
+      ],
+      "translations": [
+        "Resembles the bandhUka flower in beauty and grace; Never forsakes the nature of a child; Delights in Her sport",
+        "Eternally auspicious; She who never becomes a widow; Gives happiness; Very attractive in Her beautiful rich garments and ornaments; Ever auspiciously married"
       ]
     },
     {
@@ -1445,6 +2153,10 @@ const LALITHA_DATA = {
       "halves": [
         "suvāsiny-arcana-prītā''śobhanā śuddha-mānasā",
         "bindu-tarpaṇa-santuṣṭā pūrva-jā tripurāmbikā"
+      ],
+      "translations": [
+        "Pleased by the worship performed by married women; Always radiant; Of pure mind; one who purifies the mind of Her worshipers",
+        "Pleased by offerings to the bindu (of shrIchakra); Ahead of everyone; first born; The mother of the tripuras (three cities)"
       ]
     },
     {
@@ -1453,6 +2165,10 @@ const LALITHA_DATA = {
       "halves": [
         "daśa-mudrā-samārādhyā tripurā-śrī-vaśaṅkarī",
         "jñāna-mudrā jñāna-gamyā jñāna-jñeya-svarūpiṇī"
+      ],
+      "translations": [
+        "Worshipped by ten mudras (sarva sa~NkShobhini, sarvavidrAvinI, sarvAkarshini, sarvavashankari, sarvonmAdinI, sarvamahankusha, sarvakhechari, sarva bIja, sarva yoni, sarva trikhaNDA); She for whom tripurAshrI is under control",
+        "In the form of the j~nAna mudrA; Divine commandment herself; To be attained through the yoga of knowledge; Both knowledge and the known"
       ]
     },
     {
@@ -1461,6 +2177,10 @@ const LALITHA_DATA = {
       "halves": [
         "yoni-mudrā tri-khaṇḍeśī tri-guṇāmbā tri-koṇa-gā",
         "anaghā'dbhutacāritrā vāñchitārtha-pradāyinī"
+      ],
+      "translations": [
+        "In the form of the yonimudrA; The ruler of the tenth mudrA, the trikhaNDa; Endowed with the three guNas of sattva, rajas and tamas; Mother of all beings; mother of the universe; Resides in the triangle",
+        "Sinless; She whose deeds are marvelous; Gives all the desired objects"
       ]
     },
     {
@@ -1469,6 +2189,10 @@ const LALITHA_DATA = {
       "halves": [
         "abhyāsātiśaya-jñātā ṣaḍadhvātīta-rūpiṇī",
         "avyājakaruṇāmūrtirajñāna-dhvānta-dīpikā"
+      ],
+      "translations": [
+        "Known only through the exceedingly streneous practice of spiritual discipline; She whose form transcends the six paths",
+        "Pure compassion; The bright lamp that dispels the darkness of ignorance"
       ]
     },
     {
@@ -1477,6 +2201,10 @@ const LALITHA_DATA = {
       "halves": [
         "ābāla-gopa-viditā sarvānullaṅghya-śāsanā",
         "śrī-cakra-rāja-nilayā śrīmat-tripura-sundarī"
+      ],
+      "translations": [
+        "Known well by all, even by children and cowherds; She whose commands are not disobeyed by anyone",
+        "Abides in shrIchakra, the king of chakras; The divine tripurasundarI devI"
       ]
     }
   ],
@@ -1809,7 +2537,7 @@ const LALITHA_DATA = {
       "num": 55,
       "name_devanagari": "सुमेरुमध्यश‍ृङ्गस्था",
       "meaning": "She who sits on the middle peak of Mount Sumeru",
-      "name_iast": "sumeru-madhya-śa‍ṛṅga-sthā"
+      "name_iast": "sumeru-madhya-śṛṅga-sthā"
     },
     {
       "num": 56,
@@ -5019,7 +5747,7 @@ const LALITHA_DATA = {
       "num": 590,
       "name_devanagari": "कटाक्षकिङ्करीभुतकमलाकोटिसेविता",
       "meaning": "She who is attended by millions of lakShmis who are subdued by Hern mere glances",
-      "name_iast": "kaṭākṣakiṅkarībhutakamalākoṭisevitā"
+      "name_iast": "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā"
     },
     {
       "num": 591,
