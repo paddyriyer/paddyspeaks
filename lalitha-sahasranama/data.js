@@ -81,9 +81,9 @@ const LALITHA_DATA = {
     },
     {
       "num": 8,
-      "text": "kadamba-mañjarī-kḷpta-karṇa-pūra-manoharā .\ntāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā",
+      "text": "kadambamañjarīkḷptakarṇapūramanoharā .\ntāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā",
       "halves": [
-        "kadamba-mañjarī-kḷpta-karṇa-pūra-manoharā",
+        "kadambamañjarīkḷptakarṇapūramanoharā",
         "tāṭaṅka-yugalī-bhūta-tapanoḍupa-maṇḍalā"
       ]
     },
@@ -97,10 +97,10 @@ const LALITHA_DATA = {
     },
     {
       "num": 10,
-      "text": "śuddha-vidyāṅkurākāra-dvija-paṅkti-dvayojjvalā .\nkarpūravīṭikāmodasamākarṣidigantarā",
+      "text": "śuddha-vidyāṅkurākāra-dvija-paṅkti-dvayojjvalā .\nkarpūra-vīṭikā-moda-samākarṣi-digantarā",
       "halves": [
         "śuddha-vidyāṅkurākāra-dvija-paṅkti-dvayojjvalā",
-        "karpūravīṭikāmodasamākarṣidigantarā"
+        "karpūra-vīṭikā-moda-samākarṣi-digantarā"
       ]
     },
     {
@@ -113,9 +113,9 @@ const LALITHA_DATA = {
     },
     {
       "num": 12,
-      "text": "anākalitasādṛśyacibukaśrīvirājitā . \nkāmeśa-baddha-māṅgalya-sūtra-śobhita-kandharā",
+      "text": "anākalita-sādṛśya-cibuka-śrī-virājitā . \nkāmeśa-baddha-māṅgalya-sūtra-śobhita-kandharā",
       "halves": [
-        "anākalitasādṛśyacibukaśrīvirājitā",
+        "anākalita-sādṛśya-cibuka-śrī-virājitā",
         "kāmeśa-baddha-māṅgalya-sūtra-śobhita-kandharā"
       ]
     },
@@ -129,17 +129,17 @@ const LALITHA_DATA = {
     },
     {
       "num": 14,
-      "text": "kāmeśvarapremaratnamaṇipratipaṇastanī .\nnābhyālavāla-romāli-latā-phala-kuca-dvayī",
+      "text": "kāmeśvara-prema-ratna-maṇi-pratipaṇa-stanī .\nnābhyālavāla-romāli-latā-phala-kuca-dvayī",
       "halves": [
-        "kāmeśvarapremaratnamaṇipratipaṇastanī",
+        "kāmeśvara-prema-ratna-maṇi-pratipaṇa-stanī",
         "nābhyālavāla-romāli-latā-phala-kuca-dvayī"
       ]
     },
     {
       "num": 15,
-      "text": "lakṣya-roma-latā-dhāratā-samunneya-ma--dhya--mā .\nstana-bhāra-dalan-madhya-paṭṭa-bandha-valitrayā",
+      "text": "lakṣya-roma-latā-dhāratā-samunneya-madhyamā .\nstana-bhāra-dalan-madhya-paṭṭa-bandha-valitrayā",
       "halves": [
-        "lakṣya-roma-latā-dhāratā-samunneya-ma--dhya--mā",
+        "lakṣya-roma-latā-dhāratā-samunneya-madhyamā",
         "stana-bhāra-dalan-madhya-paṭṭa-bandha-valitrayā"
       ]
     },
@@ -177,34 +177,34 @@ const LALITHA_DATA = {
     },
     {
       "num": 20,
-      "text": "siñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā . \nmarālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ",
+      "text": "siñjānamaṇimañjīramaṇḍitaśrīpadāmbujā . \nmarālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ",
       "halves": [
-        "siñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā",
+        "siñjānamaṇimañjīramaṇḍitaśrīpadāmbujā",
         "marālī-manda-gamanā mahā-lāvaṇya-śevadhiḥ"
       ]
     },
     {
       "num": 21,
-      "text": "sa--rvā--ruṇā'navadyāṅgī sarvābharaṇa-bhūṣitā .\nśiva-kāmeśvarāṅka-sthā śivā svādhīna-vallabhā",
+      "text": "sarvāruṇā'navadyāṅgī sarvābharaṇa-bhūṣitā .\nśiva-kāmeśvarāṅka-sthā śivā svādhīna-vallabhā",
       "halves": [
-        "sa--rvā--ruṇā'navadyāṅgī sarvābharaṇa-bhūṣitā",
+        "sarvāruṇā'navadyāṅgī sarvābharaṇa-bhūṣitā",
         "śiva-kāmeśvarāṅka-sthā śivā svādhīna-vallabhā"
       ]
     },
     {
       "num": 22,
-      "text": "sumeru-madhya-śṛṅga-sthā śrīman-nagara-nāyikā .\ncintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā",
+      "text": "sumerumadhyaśṛṅgasthā śrīman-nagara-nāyikā .\ncintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā",
       "halves": [
-        "sumeru-madhya-śṛṅga-sthā śrīman-nagara-nāyikā",
+        "sumerumadhyaśṛṅgasthā śrīman-nagara-nāyikā",
         "cintāmaṇi-gṛhāntasthā pañca-brahmāsana-sthitā"
       ]
     },
     {
       "num": 23,
-      "text": "mahā-padmāṭavī-saṃsthā kadamba-vana-vāsinī .\nsudhā-sāgara-madhyasthā kā-mā-kṣī kāma-dāyinī",
+      "text": "mahā-padmāṭavī-saṃsthā kadamba-vana-vāsinī .\nsudhā-sāgara-madhyasthā kāmākṣī kāma-dāyinī",
       "halves": [
         "mahā-padmāṭavī-saṃsthā kadamba-vana-vāsinī",
-        "sudhā-sāgara-madhyasthā kā-mā-kṣī kāma-dāyinī"
+        "sudhā-sāgara-madhyasthā kāmākṣī kāma-dāyinī"
       ]
     },
     {
@@ -297,34 +297,34 @@ const LALITHA_DATA = {
     },
     {
       "num": 35,
-      "text": "kaṇṭhādhaḥ-kaṭi-paryanta-madhya-kūṭa-svarūpiṇī .\nśaktikūṭaikatāpannakaṭyadhobhāgadhāriṇī",
+      "text": "kaṇṭhādhaḥ-kaṭi-paryanta-madhya-kūṭa-svarūpiṇī .\nśakti-kūṭaikatāpanna-kaṭyadho-bhāga-dhāriṇī",
       "halves": [
         "kaṇṭhādhaḥ-kaṭi-paryanta-madhya-kūṭa-svarūpiṇī",
-        "śaktikūṭaikatāpannakaṭyadhobhāgadhāriṇī"
+        "śakti-kūṭaikatāpanna-kaṭyadho-bhāga-dhāriṇī"
       ]
     },
     {
       "num": 36,
-      "text": "mūla-mantrātmikā mūlakūṭatrayakalevarā .\nkulāmṛtaika-rasikā kulasaṃketapālinī",
+      "text": "mūla-mantrātmikā mūla-kūṭa-traya-kalevarā .\nkulāmṛtaika-rasikā kulasaṃketapālinī",
       "halves": [
-        "mūla-mantrātmikā mūlakūṭatrayakalevarā",
+        "mūla-mantrātmikā mūla-kūṭa-traya-kalevarā",
         "kulāmṛtaika-rasikā kulasaṃketapālinī"
       ]
     },
     {
       "num": 37,
-      "text": "kulā-ṅgan-ā kulā-nta-sthā ka-ulinī kula-yoginī .\nakulā sam-a-yā-nta-sthā samayācāra-tatparā",
+      "text": "kulāṅganā kulānta-sthā kaulinī kula-yoginī .\nakulā samayānta-sthā samayācāra-tatparā",
       "halves": [
-        "kulā-ṅgan-ā kulā-nta-sthā ka-ulinī kula-yoginī",
-        "akulā sam-a-yā-nta-sthā samayācāra-tatparā"
+        "kulāṅganā kulānta-sthā kaulinī kula-yoginī",
+        "akulā samayānta-sthā samayācāra-tatparā"
       ]
     },
     {
       "num": 38,
-      "text": "mūlādhāraika-nilayā brahma-granthi-vibhedinī .\nmaṇipūrāntaruditā viṣṇu-granthi-vibhedinī",
+      "text": "mūlādhāraika-nilayā brahma-granthi-vibhedinī .\nmaṇi-pūrāntar-uditā viṣṇu-granthi-vibhedinī",
       "halves": [
         "mūlādhāraika-nilayā brahma-granthi-vibhedinī",
-        "maṇipūrāntaruditā viṣṇu-granthi-vibhedinī"
+        "maṇi-pūrāntar-uditā viṣṇu-granthi-vibhedinī"
       ]
     },
     {
@@ -337,10 +337,10 @@ const LALITHA_DATA = {
     },
     {
       "num": 40,
-      "text": "taḍillatā-samaruciḥ ṣaṭ-cakropari-saṃsthitā .\nmahāsaktiḥ kuṇḍa-linī bisa-tantu-tanīyasī",
+      "text": "taḍillatā-samaruciḥ ṣaṭ-cakropari-saṃsthitā .\nmahā-saktiḥ kuṇḍalinī bisa-tantu-tanīyasī",
       "halves": [
         "taḍillatā-samaruciḥ ṣaṭ-cakropari-saṃsthitā",
-        "mahāsaktiḥ kuṇḍa-linī bisa-tantu-tanīyasī"
+        "mahā-saktiḥ kuṇḍalinī bisa-tantu-tanīyasī"
       ]
     },
     {
@@ -353,74 +353,74 @@ const LALITHA_DATA = {
     },
     {
       "num": 42,
-      "text": "bhakti-priyā bhakti-gamyā bhakti-vaśyā bha-yā-pa-hā .\nśāmbhavī śāradārādhyā śa-rvā-ṇī śarma-dāyinī",
+      "text": "bhakti-priyā bhakti-gamyā bhakti-vaśyā bhayāpahā .\nśāmbhavī śāradārādhyā śarvāṇī śarma-dāyinī",
       "halves": [
-        "bhakti-priyā bhakti-gamyā bhakti-vaśyā bha-yā-pa-hā",
-        "śāmbhavī śāradārādhyā śa-rvā-ṇī śarma-dāyinī"
+        "bhakti-priyā bhakti-gamyā bhakti-vaśyā bhayāpahā",
+        "śāmbhavī śāradārādhyā śarvāṇī śarma-dāyinī"
       ]
     },
     {
       "num": 43,
-      "text": "śā--ṅkarī śrī-karī sādhvī śaraccandra-nibhānanā .\nśā-toda-rī śānti-matī nir-ā-dhārā nir-a-ñjan-ā",
+      "text": "śāṅkarī śrī-karī sādhvī śaraccandra-nibhānanā .\nśātodarī śānti-matī nir-ādhārā nir-añjanā",
       "halves": [
-        "śā--ṅkarī śrī-karī sādhvī śaraccandra-nibhānanā",
-        "śā-toda-rī śānti-matī nir-ā-dhārā nir-a-ñjan-ā"
+        "śāṅkarī śrī-karī sādhvī śaraccandra-nibhānanā",
+        "śātodarī śānti-matī nir-ādhārā nir-añjanā"
       ]
     },
     {
       "num": 44,
-      "text": "nir--lepā nir--ma--lā nityā nirākārā nir-ā-kulā .\nnir-guṇā niṣ-kalā śāntā niṣ-kā-mā nir-upa-pla-vā",
+      "text": "nir-lepā nir-malā nityā nirākārā nir-ākulā .\nnir-guṇā niṣ-kalā śāntā niṣ-kāmā nir-upaplavā",
       "halves": [
-        "nir--lepā nir--ma--lā nityā nirākārā nir-ā-kulā",
-        "nir-guṇā niṣ-kalā śāntā niṣ-kā-mā nir-upa-pla-vā"
+        "nir-lepā nir-malā nityā nirākārā nir-ākulā",
+        "nir-guṇā niṣ-kalā śāntā niṣ-kāmā nir-upaplavā"
       ]
     },
     {
       "num": 45,
-      "text": "nitya-muktā nir--vi--kā--rā niṣ--pra--pa--ñcā nir--ā--śra--yā .\nnitya-śuddhā nitya-buddhā nir-a-va-dyā nir-an-ta-rā",
+      "text": "nitya-muktā nir-vikārā niṣ-prapañcā nir-āśrayā .\nnitya-śuddhā nitya-buddhā nir-avadyā nir-antarā",
       "halves": [
-        "nitya-muktā nir--vi--kā--rā niṣ--pra--pa--ñcā nir--ā--śra--yā",
-        "nitya-śuddhā nitya-buddhā nir-a-va-dyā nir-an-ta-rā"
+        "nitya-muktā nir-vikārā niṣ-prapañcā nir-āśrayā",
+        "nitya-śuddhā nitya-buddhā nir-avadyā nir-antarā"
       ]
     },
     {
       "num": 46,
-      "text": "niṣ--kā--ra--ṇā niṣ--ka--la--ṅkā nirupādhirnir--īśva--rā .\nnīrāgā rāga-mathanī nir-ma-dā mada-nāśinī",
+      "text": "niṣ-kāraṇā niṣ-kalaṅkā nirupādhirnir-īśvarā .\nnīr-āgā rāga-mathanī nir-madā mada-nāśinī",
       "halves": [
-        "niṣ--kā--ra--ṇā niṣ--ka--la--ṅkā nirupādhirnir--īśva--rā",
-        "nīrāgā rāga-mathanī nir-ma-dā mada-nāśinī"
+        "niṣ-kāraṇā niṣ-kalaṅkā nirupādhirnir-īśvarā",
+        "nīr-āgā rāga-mathanī nir-madā mada-nāśinī"
       ]
     },
     {
       "num": 47,
-      "text": "niś--cintā nirahaṃkārā nir--mohā moha-nāśinī .\nnir--ma--mā mamatā-hantrī niṣ-pā-pā pāpa-nāśinī",
+      "text": "niś-cintā nirahaṃkārā nir-mohā moha-nāśinī .\nnir-mamā mamatā-hantrī niṣ-pāpā pāpa-nāśinī",
       "halves": [
-        "niś--cintā nirahaṃkārā nir--mohā moha-nāśinī",
-        "nir--ma--mā mamatā-hantrī niṣ-pā-pā pāpa-nāśinī"
+        "niś-cintā nirahaṃkārā nir-mohā moha-nāśinī",
+        "nir-mamā mamatā-hantrī niṣ-pāpā pāpa-nāśinī"
       ]
     },
     {
       "num": 48,
-      "text": "niṣ--krodhā krodha-śamanī nir--lobhā lobha-nāśinī .\nniḥ--sa--ṃśa--yā sa--ṃśa--ya--ghnī nir-bha-vā bhava-nāśinī",
+      "text": "niṣ-krodhā krodha-śamanī nir-lobhā lobha-nāśinī .\nniḥ-saṃśayā saṃśaya-ghnī nir-bhavā bhava-nāśinī",
       "halves": [
-        "niṣ--krodhā krodha-śamanī nir--lobhā lobha-nāśinī",
-        "niḥ--sa--ṃśa--yā sa--ṃśa--ya--ghnī nir-bha-vā bhava-nāśinī"
+        "niṣ-krodhā krodha-śamanī nir-lobhā lobha-nāśinī",
+        "niḥ-saṃśayā saṃśaya-ghnī nir-bhavā bhava-nāśinī"
       ]
     },
     {
       "num": 49,
-      "text": "nir--vi--ka--lpā nir--ā--bā--dhā nir--bhedā bheda-nāśinī .\nnir--nā--śā mṛtyu-mathanī niṣ--kriyā niṣ-parigrahā",
+      "text": "nir-vikalpā nir-ābādhā nir-bhedā bheda-nāśinī .\nnir-nāśā mṛtyu-mathanī niṣ-kriyā niṣ-parigrahā",
       "halves": [
-        "nir--vi--ka--lpā nir--ā--bā--dhā nir--bhedā bheda-nāśinī",
-        "nir--nā--śā mṛtyu-mathanī niṣ--kriyā niṣ-parigrahā"
+        "nir-vikalpā nir-ābādhā nir-bhedā bheda-nāśinī",
+        "nir-nāśā mṛtyu-mathanī niṣ-kriyā niṣ-parigrahā"
       ]
     },
     {
       "num": 50,
-      "text": "nis--tulā nīla-cikurā nir--a--pā--yā nir--a--tya--yā .\ndur--la--bhā dur--ga--mā durgā duḥkha-hantrī sukha-pradā",
+      "text": "nis-tulā nīla-cikurā nir-apāyā nir-atyayā .\ndur-labhā dur-gamā durgā duḥkha-hantrī sukha-pradā",
       "halves": [
-        "nis--tulā nīla-cikurā nir--a--pā--yā nir--a--tya--yā",
-        "dur--la--bhā dur--ga--mā durgā duḥkha-hantrī sukha-pradā"
+        "nis-tulā nīla-cikurā nir-apāyā nir-atyayā",
+        "dur-labhā dur-gamā durgā duḥkha-hantrī sukha-pradā"
       ]
     },
     {
@@ -433,18 +433,18 @@ const LALITHA_DATA = {
     },
     {
       "num": 52,
-      "text": "sarva-śakti-mayī sarva-maṅgalā sad-gati-pradā .\nsa--rveśvarī sarva--mayī sarva-mantra-svarūpiṇī",
+      "text": "sarva-śakti-mayī sarva-maṅgalā sad-gati-pradā .\nsarveśvarī sarva-mayī sarva-mantra-svarūpiṇī",
       "halves": [
         "sarva-śakti-mayī sarva-maṅgalā sad-gati-pradā",
-        "sa--rveśvarī sarva--mayī sarva-mantra-svarūpiṇī"
+        "sarveśvarī sarva-mayī sarva-mantra-svarūpiṇī"
       ]
     },
     {
       "num": 53,
-      "text": "sarva-yantrātmikā sarva-tantra-rūpā man--onman--ī .\nmā--heśvarī mahā-devī mahālakṣmīrmṛḍa-priyā",
+      "text": "sarva-yantrātmikā sarva-tantra-rūpā manonmanī .\nmāheśvarī mahā-devī mahā-lakṣmīrmṛḍa-priyā",
       "halves": [
-        "sarva-yantrātmikā sarva-tantra-rūpā man--onman--ī",
-        "mā--heśvarī mahā-devī mahālakṣmīrmṛḍa-priyā"
+        "sarva-yantrātmikā sarva-tantra-rūpā manonmanī",
+        "māheśvarī mahā-devī mahā-lakṣmīrmṛḍa-priyā"
       ]
     },
     {
@@ -457,17 +457,17 @@ const LALITHA_DATA = {
     },
     {
       "num": 55,
-      "text": "mahā-bhogā ma--ha--iśva--ryā mahā-vīryā mahā-balā .\nmahābuddhirmahāsiddhirmahā-yogeśvareśvarī",
+      "text": "mahā-bhogā mahaiśvaryā mahā-vīryā mahā-balā .\nmahābuddhirmahāsiddhirmahā-yogeśvareśvarī",
       "halves": [
-        "mahā-bhogā ma--ha--iśva--ryā mahā-vīryā mahā-balā",
+        "mahā-bhogā mahaiśvaryā mahā-vīryā mahā-balā",
         "mahābuddhirmahāsiddhirmahā-yogeśvareśvarī"
       ]
     },
     {
       "num": 56,
-      "text": "mahā-tantrā mahā-mantrā mahā-yantrā mahā--san--ā .\nmahā-yāga-kramārādhyā mahā-bhairava-pūjitā",
+      "text": "mahā-tantrā mahā-mantrā mahā-yantrā mahā-sanā .\nmahā-yāga-kramārādhyā mahā-bhairava-pūjitā",
       "halves": [
-        "mahā-tantrā mahā-mantrā mahā-yantrā mahā--san--ā",
+        "mahā-tantrā mahā-mantrā mahā-yantrā mahā-sanā",
         "mahā-yāga-kramārādhyā mahā-bhairava-pūjitā"
       ]
     },
@@ -481,10 +481,10 @@ const LALITHA_DATA = {
     },
     {
       "num": 58,
-      "text": "catuḥ-ṣaṣṭyupacārāḍhyā catuḥ-ṣaṣṭi-kalā-mayī .\nmahā-catuḥṣaṣṭi-koṭi-yoginī-gaṇa-sevitā",
+      "text": "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī .\nmahācatuḥṣaṣṭikoṭiyoginīgaṇasevitā",
       "halves": [
-        "catuḥ-ṣaṣṭyupacārāḍhyā catuḥ-ṣaṣṭi-kalā-mayī",
-        "mahā-catuḥṣaṣṭi-koṭi-yoginī-gaṇa-sevitā"
+        "catuḥṣaṣṭyupacārāḍhyā catuḥṣaṣṭikalāmayī",
+        "mahācatuḥṣaṣṭikoṭiyoginīgaṇasevitā"
       ]
     },
     {
@@ -505,57 +505,57 @@ const LALITHA_DATA = {
     },
     {
       "num": 61,
-      "text": "pañca-pretāsanāsīnā pañca-brahma-svarūpiṇī .\ncinmayī para--mānandā vijñāna-ghana-rūpiṇī",
+      "text": "pañca-pretāsanāsīnā pañcabrahmasvarūpiṇī .\ncinmayī paramānandā vijñāna-ghana-rūpiṇī",
       "halves": [
-        "pañca-pretāsanāsīnā pañca-brahma-svarūpiṇī",
-        "cinmayī para--mānandā vijñāna-ghana-rūpiṇī"
+        "pañca-pretāsanāsīnā pañcabrahmasvarūpiṇī",
+        "cinmayī paramānandā vijñāna-ghana-rūpiṇī"
       ]
     },
     {
       "num": 62,
-      "text": "dhyāna-dhyātṛ-dhyeya-rūpā dharmādharma-vivarjitā .\nviśva-rūpā jā--ga--riṇī sva--pan--tī ta--ija--sātmikā",
+      "text": "dhyāna-dhyātṛ-dhyeya-rūpā dharmādharma-vivarjitā .\nviśvarūpā jāgariṇī svapantī taijasātmikā",
       "halves": [
         "dhyāna-dhyātṛ-dhyeya-rūpā dharmādharma-vivarjitā",
-        "viśva-rūpā jā--ga--riṇī sva--pan--tī ta--ija--sātmikā"
+        "viśvarūpā jāgariṇī svapantī taijasātmikā"
       ]
     },
     {
       "num": 63,
-      "text": "suptā prā--jñātmikā turyā sarvāvasthā-vivarjitā .\nsṛṣṭi-kartrī brahma-rūpā goptrī govinda-rūpiṇī",
+      "text": "suptā prājñātmikā turyā sarvāvasthā-vivarjitā .\nsṛṣṭi-kartrī brahma-rūpā goptrī govinda-rūpiṇī",
       "halves": [
-        "suptā prā--jñātmikā turyā sarvāvasthā-vivarjitā",
+        "suptā prājñātmikā turyā sarvāvasthā-vivarjitā",
         "sṛṣṭi-kartrī brahma-rūpā goptrī govinda-rūpiṇī"
       ]
     },
     {
       "num": 64,
-      "text": "sa--ṃhā--riṇī rudra-rūpā tirodhāna-karīśvarī .\nsad--ā--śivā'nugrahadā pañca-kṛtya-parāyaṇā",
+      "text": "saṃhāriṇī rudra-rūpā tirodhāna-karīśvarī .\nsadā-śivā'nugrahadā pañca-kṛtya-parāyaṇā",
       "halves": [
-        "sa--ṃhā--riṇī rudra-rūpā tirodhāna-karīśvarī",
-        "sad--ā--śivā'nugrahadā pañca-kṛtya-parāyaṇā"
+        "saṃhāriṇī rudra-rūpā tirodhāna-karīśvarī",
+        "sadā-śivā'nugrahadā pañca-kṛtya-parāyaṇā"
       ]
     },
     {
       "num": 65,
-      "text": "bhānu-maṇḍala-madhyasthā bha--ira--vī bhaga-mālinī .\npa--dmā--san--ā bha--ga--vatī padma-nābha-sahodarī",
+      "text": "bhānu-maṇḍala-madhyasthā bhairavī bhaga-mālinī .\npadmāsanā bhagavatī padma-nābha-sahodarī",
       "halves": [
-        "bhānu-maṇḍala-madhyasthā bha--ira--vī bhaga-mālinī",
-        "pa--dmā--san--ā bha--ga--vatī padma-nābha-sahodarī"
+        "bhānu-maṇḍala-madhyasthā bhairavī bhaga-mālinī",
+        "padmāsanā bhagavatī padma-nābha-sahodarī"
       ]
     },
     {
       "num": 66,
-      "text": "unmeṣa-nimiṣotpanna-vipanna-bhuvanāvalī .\nsahasra-śīrṣa-vadanā sa--ha--srā--kṣī sahasra-pāt",
+      "text": "unmeṣa-nimiṣotpanna-vipanna-bhuvanāvalī .\nsahasra-śīrṣa-vadanā sahasrākṣī sahasra-pāt",
       "halves": [
         "unmeṣa-nimiṣotpanna-vipanna-bhuvanāvalī",
-        "sahasra-śīrṣa-vadanā sa--ha--srā--kṣī sahasra-pāt"
+        "sahasra-śīrṣa-vadanā sahasrākṣī sahasra-pāt"
       ]
     },
     {
       "num": 67,
-      "text": "ābrahmakīṭajananī varṇāśrama-vidhāyinī .\nnijājñā-rūpa-nigamā puṇyāpuṇya-phala-pradā",
+      "text": "ābrahma-kīṭa-jananī varṇāśramavidhāyinī .\nnijājñā-rūpa-nigamā puṇyāpuṇya-phala-pradā",
       "halves": [
-        "ābrahmakīṭajananī varṇāśrama-vidhāyinī",
+        "ābrahma-kīṭa-jananī varṇāśramavidhāyinī",
         "nijājñā-rūpa-nigamā puṇyāpuṇya-phala-pradā"
       ]
     },
@@ -569,385 +569,385 @@ const LALITHA_DATA = {
     },
     {
       "num": 69,
-      "text": "puruṣārtha-pradā pūrṇā bhoginī bhuvan--eśvarī .\nambikā'nādinidhanā hari--bra--hmendra--sevitā",
+      "text": "puruṣārtha-pradā pūrṇā bhoginī bhuvaneśvarī .\nambikā'nādinidhanā hari-brahmendra-sevitā",
       "halves": [
-        "puruṣārtha-pradā pūrṇā bhoginī bhuvan--eśvarī",
-        "ambikā'nādinidhanā hari--bra--hmendra--sevitā"
+        "puruṣārtha-pradā pūrṇā bhoginī bhuvaneśvarī",
+        "ambikā'nādinidhanā hari-brahmendra-sevitā"
       ]
     },
     {
       "num": 70,
-      "text": "nā--rā--ya--ṇī nā--da--rūpā nāma-rūpa-vivarjitā .\nhrīṃkārī hrīmatī hṛdyā heyopādeya-varjitā",
+      "text": "nārāyaṇī nāda-rūpā nāma-rūpa-vivarjitā .\nhrīṃkārī hrīmatī hṛdyā heyopādeya-varjitā",
       "halves": [
-        "nā--rā--ya--ṇī nā--da--rūpā nāma-rūpa-vivarjitā",
+        "nārāyaṇī nāda-rūpā nāma-rūpa-vivarjitā",
         "hrīṃkārī hrīmatī hṛdyā heyopādeya-varjitā"
       ]
     },
     {
       "num": 71,
-      "text": "rāja-rājārcitā rājñī ramyā rā--jīva--locan--ā .\nra--ñjan--ī ramaṇī rasyā raṇat-kiṅkiṇi-mekhalā",
+      "text": "rāja-rājārcitā rājñī ramyā rājīva-locanā .\nrañjanī ramaṇī rasyā raṇat-kiṅkiṇi-mekhalā",
       "halves": [
-        "rāja-rājārcitā rājñī ramyā rā--jīva--locan--ā",
-        "ra--ñjan--ī ramaṇī rasyā raṇat-kiṅkiṇi-mekhalā"
+        "rāja-rājārcitā rājñī ramyā rājīva-locanā",
+        "rañjanī ramaṇī rasyā raṇat-kiṅkiṇi-mekhalā"
       ]
     },
     {
       "num": 72,
-      "text": "ramā rā--kenduva--dan--ā rati--rūpā rati-priyā .\nra--kṣā--karī rā--kṣa--sa--ghnī rāmā ra--ma--ṇa--la--mpa--ṭā",
+      "text": "ramā rākendu-vadanā rati-rūpā rati-priyā .\nrakṣā-karī rākṣasa-ghnī rāmā ramaṇa-lampaṭā",
       "halves": [
-        "ramā rā--kenduva--dan--ā rati--rūpā rati-priyā",
-        "ra--kṣā--karī rā--kṣa--sa--ghnī rāmā ra--ma--ṇa--la--mpa--ṭā"
+        "ramā rākendu-vadanā rati-rūpā rati-priyā",
+        "rakṣā-karī rākṣasa-ghnī rāmā ramaṇa-lampaṭā"
       ]
     },
     {
       "num": 73,
-      "text": "kāmyā kāma--kalā--rūpā kadamba--kusuma--priyā .\nkalyāṇī jagat--īkan--dā karuṇā--rasa--sā--ga--rā",
+      "text": "kāmyā kāma-kalā-rūpā kadamba-kusuma-priyā .\nkalyāṇī jagatī-kandā karuṇā-rasa-sāgarā",
       "halves": [
-        "kāmyā kāma--kalā--rūpā kadamba--kusuma--priyā",
-        "kalyāṇī jagat--īkan--dā karuṇā--rasa--sā--ga--rā"
+        "kāmyā kāma-kalā-rūpā kadamba-kusuma-priyā",
+        "kalyāṇī jagatī-kandā karuṇā-rasa-sāgarā"
       ]
     },
     {
       "num": 74,
-      "text": "kalāvatī kalā--lā--pā kāntā kā--da--mba--rīpriyā .\nvaradā vā--man--a--yan--ā vāruṇīmadavihvalā",
+      "text": "kalāvatī kalālāpā kāntā kādambarī-priyā .\nvaradā vāma-nayanā vāruṇīmadavihvalā",
       "halves": [
-        "kalāvatī kalā--lā--pā kāntā kā--da--mba--rīpriyā",
-        "varadā vā--man--a--yan--ā vāruṇīmadavihvalā"
+        "kalāvatī kalālāpā kāntā kādambarī-priyā",
+        "varadā vāma-nayanā vāruṇīmadavihvalā"
       ]
     },
     {
       "num": 75,
-      "text": "vi--śvā--dhikā veda--vedyā vi--ndhyā--ca--lan--ivāsinī .\nvidhātrī veda--jan--an--ī viṣṇu--māyā vi--lā--sinī",
+      "text": "viśvādhikā veda-vedyā vindhyācala-nivāsinī .\nvidhātrī veda-jananī viṣṇu-māyā vilāsinī",
       "halves": [
-        "vi--śvā--dhikā veda--vedyā vi--ndhyā--ca--lan--ivāsinī",
-        "vidhātrī veda--jan--an--ī viṣṇu--māyā vi--lā--sinī"
+        "viśvādhikā veda-vedyā vindhyācala-nivāsinī",
+        "vidhātrī veda-jananī viṣṇu-māyā vilāsinī"
       ]
     },
     {
       "num": 76,
-      "text": "kṣetra--sva--rūpā kṣetreśī kṣetra--kṣetra--jña--pā--linī .\nkṣa--ya--vṛddhivinirmuktā kṣetra--pā--la--sam--arcitā",
+      "text": "kṣetra-svarūpā kṣetreśī kṣetra-kṣetrajña-pālinī .\nkṣaya-vṛddhi-vinirmuktā kṣetra-pāla-samarcitā",
       "halves": [
-        "kṣetra--sva--rūpā kṣetreśī kṣetra--kṣetra--jña--pā--linī",
-        "kṣa--ya--vṛddhivinirmuktā kṣetra--pā--la--sam--arcitā"
+        "kṣetra-svarūpā kṣetreśī kṣetra-kṣetrajña-pālinī",
+        "kṣaya-vṛddhi-vinirmuktā kṣetra-pāla-samarcitā"
       ]
     },
     {
       "num": 77,
-      "text": "vijayā vimalā vandyā van--dā--ruja--nava--tsa--lā .\nvāgvādinī vā--ma--keśī va--hnimaṇḍala--vāsinī",
+      "text": "vijayā vimalā vandyā vandāru-jana-vatsalā .\nvāg-vādinī vāmakeśī vahni-maṇḍala-vāsinī",
       "halves": [
-        "vijayā vimalā vandyā van--dā--ruja--nava--tsa--lā",
-        "vāgvādinī vā--ma--keśī va--hnimaṇḍala--vāsinī"
+        "vijayā vimalā vandyā vandāru-jana-vatsalā",
+        "vāg-vādinī vāmakeśī vahni-maṇḍala-vāsinī"
       ]
     },
     {
       "num": 78,
-      "text": "bhaktimat.hkalpalatikā pa--śupāśa--vi--mocinī .\nsa--ṃhṛtā--śeṣa--pā--ṣa--ṇḍā sad--ā--cā--ra--pra--va--rtikā",
+      "text": "bhaktimat.hkalpalatikā paśu-pāśa-vimocinī .\nsaṃhṛtāśeṣa-pāṣaṇḍā sadācāra-pravartikā",
       "halves": [
-        "bhaktimat.hkalpalatikā pa--śupāśa--vi--mocinī",
-        "sa--ṃhṛtā--śeṣa--pā--ṣa--ṇḍā sad--ā--cā--ra--pra--va--rtikā"
+        "bhaktimat.hkalpalatikā paśu-pāśa-vimocinī",
+        "saṃhṛtāśeṣa-pāṣaṇḍā sadācāra-pravartikā"
       ]
     },
     {
       "num": 79,
-      "text": "tā--pa--tra--yā--gnis--an--ta--pta--sam--ā--hlā--dan--a--candrikā .\ntaruṇī tā--pa--sārādhyā tanu--ma--dhyā ta--mo'pa--hā",
+      "text": "tāpa-trayāgni-santapta-samāhlādana-candrikā .\ntaruṇī tāpasārādhyā tanu-madhyā tamo'pahā",
       "halves": [
-        "tā--pa--tra--yā--gnis--an--ta--pta--sam--ā--hlā--dan--a--candrikā",
-        "taruṇī tā--pa--sārādhyā tanu--ma--dhyā ta--mo'pa--hā"
+        "tāpa-trayāgni-santapta-samāhlādana-candrikā",
+        "taruṇī tāpasārādhyā tanu-madhyā tamo'pahā"
       ]
     },
     {
       "num": 80,
-      "text": "citistatpadalakṣyārthā cidekarasarūpiṇī .\nsvātmānandalavībhūtabrahmādyānandasantatiḥ",
+      "text": "citistatpada-lakṣyārthā cid-ekarasa-rūpiṇī .\nsvātmānanda-lavībhūta-brahmādyānanda-santatiḥ",
       "halves": [
-        "citistatpadalakṣyārthā cidekarasarūpiṇī",
-        "svātmānandalavībhūtabrahmādyānandasantatiḥ"
+        "citistatpada-lakṣyārthā cid-ekarasa-rūpiṇī",
+        "svātmānanda-lavībhūta-brahmādyānanda-santatiḥ"
       ]
     },
     {
       "num": 81,
-      "text": "parā pratyakcitīrūpā paśyantī paradevatā .\nma--dhya--mā vaikharīrūpā bhaktamānasahaṃsikā",
+      "text": "parā pratyak-citī-rūpā paśyantī para-devatā .\nmadhyamā vaikharī-rūpā bhakta-mānasa-haṃsikā",
       "halves": [
-        "parā pratyakcitīrūpā paśyantī paradevatā",
-        "ma--dhya--mā vaikharīrūpā bhaktamānasahaṃsikā"
+        "parā pratyak-citī-rūpā paśyantī para-devatā",
+        "madhyamā vaikharī-rūpā bhakta-mānasa-haṃsikā"
       ]
     },
     {
       "num": 82,
-      "text": "kāmeśvara--prāṇa--nā--ḍī kṛta--jñā kāma--pūjitā .\nśṛṅgārarasasampūrṇā jayā jālandharasthitā",
+      "text": "kāmeśvara-prāṇa-nāḍī kṛtajñā kāma-pūjitā .\nśṛṅgārarasasampūrṇā jayā jālandhara-sthitā",
       "halves": [
-        "kāmeśvara--prāṇa--nā--ḍī kṛta--jñā kāma--pūjitā",
-        "śṛṅgārarasasampūrṇā jayā jālandharasthitā"
+        "kāmeśvara-prāṇa-nāḍī kṛtajñā kāma-pūjitā",
+        "śṛṅgārarasasampūrṇā jayā jālandhara-sthitā"
       ]
     },
     {
       "num": 83,
-      "text": "oḍyāṇapīṭhanilayā bindumaṇḍalavāsinī .\nra--hoyā--ga--kra--mārādhyā ra--hasta--rpa--ṇa--ta--rpitā",
+      "text": "oḍyāṇa-pīṭha-nilayā bindu-maṇḍala-vāsinī .\nraho-yāga-kramārādhyā rahas-tarpaṇa-tarpitā",
       "halves": [
-        "oḍyāṇapīṭhanilayā bindumaṇḍalavāsinī",
-        "ra--hoyā--ga--kra--mārādhyā ra--hasta--rpa--ṇa--ta--rpitā"
+        "oḍyāṇa-pīṭha-nilayā bindu-maṇḍala-vāsinī",
+        "raho-yāga-kramārādhyā rahas-tarpaṇa-tarpitā"
       ]
     },
     {
       "num": 84,
-      "text": "sadyaḥprasādinī viśvasākṣiṇī sā--kṣivarjitā .\nṣaḍaṅgadevatāyuktā ṣā--ḍguṇya--pari--pūritā",
+      "text": "sadyaḥ-prasādinī viśva-sākṣiṇī sākṣi-varjitā .\nṣaḍaṅga-devatā-yuktā ṣāḍguṇya-paripūritā",
       "halves": [
-        "sadyaḥprasādinī viśvasākṣiṇī sā--kṣivarjitā",
-        "ṣaḍaṅgadevatāyuktā ṣā--ḍguṇya--pari--pūritā"
+        "sadyaḥ-prasādinī viśva-sākṣiṇī sākṣi-varjitā",
+        "ṣaḍaṅga-devatā-yuktā ṣāḍguṇya-paripūritā"
       ]
     },
     {
       "num": 85,
-      "text": "nityaklinnā nirupamā nirvāṇasukhadāyinī .\nnityā---ṣoḍa--śikā--rūpā śrī--ka--ṇṭhā--rdha--śa--rīriṇī",
+      "text": "nitya-klinnā nirupamā nirvāṇasukhadāyinī .\nnityā-ṣoḍaśikā-rūpā śrī-kaṇṭhārdha-śarīriṇī",
       "halves": [
-        "nityaklinnā nirupamā nirvāṇasukhadāyinī",
-        "nityā---ṣoḍa--śikā--rūpā śrī--ka--ṇṭhā--rdha--śa--rīriṇī"
+        "nitya-klinnā nirupamā nirvāṇasukhadāyinī",
+        "nityā-ṣoḍaśikā-rūpā śrī-kaṇṭhārdha-śarīriṇī"
       ]
     },
     {
       "num": 86,
-      "text": "prabhāvatī prabhā--rūpā prasiddhā parameśvarī .\nmūlaprakṛtiravyaktā vyaktāvyaktasvarūpiṇī",
+      "text": "prabhāvatī prabhā-rūpā prasiddhā parameśvarī .\nmūlaprakṛtiravyaktā vyaktāvyaktasvarūpiṇī",
       "halves": [
-        "prabhāvatī prabhā--rūpā prasiddhā parameśvarī",
+        "prabhāvatī prabhā-rūpā prasiddhā parameśvarī",
         "mūlaprakṛtiravyaktā vyaktāvyaktasvarūpiṇī"
       ]
     },
     {
       "num": 87,
-      "text": "vyāpinī vividhākārā vidyāvidyāsvarūpiṇī .\nmahākāmeśanayanakumudāhlādakaumudī",
+      "text": "vyāpinī vividhākārā vidyāvidyāsvarūpiṇī .\nmahā-kāmeśa-nayana-kumudāhlāda-kaumudī",
       "halves": [
         "vyāpinī vividhākārā vidyāvidyāsvarūpiṇī",
-        "mahākāmeśanayanakumudāhlādakaumudī"
+        "mahā-kāmeśa-nayana-kumudāhlāda-kaumudī"
       ]
     },
     {
       "num": 88,
-      "text": "bhaktahārdatamobhedabhānumadbhānusantatiḥ .\nśivadūtī śivārādhyā śiva--mūrtiḥ śiva--ṅkarī",
+      "text": "bhakta-hārda-tamo-bheda-bhānumad-bhānu-santatiḥ .\nśiva-dūtī śivārādhyā śiva-mūrtiḥ śivaṅkarī",
       "halves": [
-        "bhaktahārdatamobhedabhānumadbhānusantatiḥ",
-        "śivadūtī śivārādhyā śiva--mūrtiḥ śiva--ṅkarī"
+        "bhakta-hārda-tamo-bheda-bhānumad-bhānu-santatiḥ",
+        "śiva-dūtī śivārādhyā śiva-mūrtiḥ śivaṅkarī"
       ]
     },
     {
       "num": 89,
-      "text": "śiva--priyā śiva--parā śiṣṭeṣṭā śiṣṭapūjitā .\na--pra--meyā svaprakāśā man--ovā--cā--ma--goca--rā",
+      "text": "śiva-priyā śiva-parā śiṣṭeṣṭā śiṣṭa-pūjitā .\naprameyā sva-prakāśā mano-vācāma-gocarā",
       "halves": [
-        "śiva--priyā śiva--parā śiṣṭeṣṭā śiṣṭapūjitā",
-        "a--pra--meyā svaprakāśā man--ovā--cā--ma--goca--rā"
+        "śiva-priyā śiva-parā śiṣṭeṣṭā śiṣṭa-pūjitā",
+        "aprameyā sva-prakāśā mano-vācāma-gocarā"
       ]
     },
     {
       "num": 90,
-      "text": "cicchaktiś cetanārūpā jaḍaśaktirja--ḍātmikā .\ngāyatrī vyā--hṛtiḥ san--dhyā dvi--ja--vṛnda--niṣ--evi--tā",
+      "text": "cicchaktiś cetanā-rūpā jaḍaśaktirjaḍātmikā .\ngāyatrī vyāhṛtiḥ sandhyā dvija-vṛnda-niṣevitā",
       "halves": [
-        "cicchaktiś cetanārūpā jaḍaśaktirja--ḍātmikā",
-        "gāyatrī vyā--hṛtiḥ san--dhyā dvi--ja--vṛnda--niṣ--evi--tā"
+        "cicchaktiś cetanā-rūpā jaḍaśaktirjaḍātmikā",
+        "gāyatrī vyāhṛtiḥ sandhyā dvija-vṛnda-niṣevitā"
       ]
     },
     {
       "num": 91,
-      "text": "ta--ttvā--san--ā ta--ttva--mayī pañca--kośānta--ra--sthitā .\nniḥsīmamahimā nityayauvanā madaśālinī",
+      "text": "tattvāsanā tattva-mayī pañca-kośāntara-sthitā .\nniḥsīma-mahimā nitya-yauvanā mada-śālinī",
       "halves": [
-        "ta--ttvā--san--ā ta--ttva--mayī pañca--kośānta--ra--sthitā",
-        "niḥsīmamahimā nityayauvanā madaśālinī"
+        "tattvāsanā tattva-mayī pañca-kośāntara-sthitā",
+        "niḥsīma-mahimā nitya-yauvanā mada-śālinī"
       ]
     },
     {
       "num": 92,
-      "text": "madaghūrṇitaraktākṣī mada--pā--ṭa--la--ga--ṇḍa--bhūḥ .\ncandanadravadigdhāṅgī cāmpeyakusumapriyā",
+      "text": "mada-ghūrṇita-raktākṣī mada-pāṭala-gaṇḍa-bhūḥ .\ncandana-drava-digdhāṅgī cāmpeya-kusuma-priyā",
       "halves": [
-        "madaghūrṇitaraktākṣī mada--pā--ṭa--la--ga--ṇḍa--bhūḥ",
-        "candanadravadigdhāṅgī cāmpeyakusumapriyā"
+        "mada-ghūrṇita-raktākṣī mada-pāṭala-gaṇḍa-bhūḥ",
+        "candana-drava-digdhāṅgī cāmpeya-kusuma-priyā"
       ]
     },
     {
       "num": 93,
-      "text": "kuśalā komalākārā kurukullā kuleśvarī .\nkula--kuṇḍā--la--yā kaulamārgatatparasevitā",
+      "text": "kuśalā komalākārā kurukullā kuleśvarī .\nkula-kuṇḍālayā kaula-mārga-tatpara-sevitā",
       "halves": [
         "kuśalā komalākārā kurukullā kuleśvarī",
-        "kula--kuṇḍā--la--yā kaulamārgatatparasevitā"
+        "kula-kuṇḍālayā kaula-mārga-tatpara-sevitā"
       ]
     },
     {
       "num": 94,
-      "text": "kumāragaṇanāthāmbā tuṣṭiḥ puṣṭirmatirdhṛtiḥ .\nśāntiḥ svastimatī kāntirnandinī vighna-nāśinī",
+      "text": "kumāra-gaṇanāthāmbā tuṣṭiḥ puṣṭirmatirdhṛtiḥ .\nśāntiḥ svasti-matī kāntirnandinī vighna-nāśinī",
       "halves": [
-        "kumāragaṇanāthāmbā tuṣṭiḥ puṣṭirmatirdhṛtiḥ",
-        "śāntiḥ svastimatī kāntirnandinī vighna-nāśinī"
+        "kumāra-gaṇanāthāmbā tuṣṭiḥ puṣṭirmatirdhṛtiḥ",
+        "śāntiḥ svasti-matī kāntirnandinī vighna-nāśinī"
       ]
     },
     {
       "num": 95,
-      "text": "tejovatī tri--na--yan--ā lolā--kṣīkāma-rūpiṇī .\nmālinī ha--ṃsinī mātā malayācala-vāsinī",
+      "text": "tejovatī tri-nayanā lolākṣīkāma-rūpiṇī .\nmālinī haṃsinī mātā malayācala-vāsinī",
       "halves": [
-        "tejovatī tri--na--yan--ā lolā--kṣīkāma-rūpiṇī",
-        "mālinī ha--ṃsinī mātā malayācala-vāsinī"
+        "tejovatī tri-nayanā lolākṣīkāma-rūpiṇī",
+        "mālinī haṃsinī mātā malayācala-vāsinī"
       ]
     },
     {
       "num": 96,
-      "text": "su--mukhī nalinī su--bhrūḥ śobhan--ā su--ra--nāyikā .\nkā--la--ka--ṇṭhī kānti--matī kṣobhiṇī sūkṣma-rūpiṇī",
+      "text": "sumukhī nalinī subhrūḥ śobhanā sura-nāyikā .\nkāla-kaṇṭhī kānti-matī kṣobhiṇī sūkṣma-rūpiṇī",
       "halves": [
-        "su--mukhī nalinī su--bhrūḥ śobhan--ā su--ra--nāyikā",
-        "kā--la--ka--ṇṭhī kānti--matī kṣobhiṇī sūkṣma-rūpiṇī"
+        "sumukhī nalinī subhrūḥ śobhanā sura-nāyikā",
+        "kāla-kaṇṭhī kānti-matī kṣobhiṇī sūkṣma-rūpiṇī"
       ]
     },
     {
       "num": 97,
-      "text": "va--jreśvarī vā--ma--devī va--yo'va--sthā--vi--varjitā .\nsiddheśvarī siddha--vidyā siddha--mā--tā ya--śa--svi--nī",
+      "text": "vajreśvarī vāma-devī vayo'vasthā-vivarjitā .\nsiddheśvarī siddha-vidyā siddha-mātā yaśasvinī",
       "halves": [
-        "va--jreśvarī vā--ma--devī va--yo'va--sthā--vi--varjitā",
-        "siddheśvarī siddha--vidyā siddha--mā--tā ya--śa--svi--nī"
+        "vajreśvarī vāma-devī vayo'vasthā-vivarjitā",
+        "siddheśvarī siddha-vidyā siddha-mātā yaśasvinī"
       ]
     },
     {
       "num": 98,
-      "text": "vi--śuddhicakra--nilayā''ra--kta--va--rṇā tri--locan--ā .\nkha--ṭvā--ṅgādi--pra--ha--ra--ṇā vadana--ika--samanvitā",
+      "text": "viśuddhi-cakra-nilayā''rakta-varṇā tri-locanā .\nkhaṭvāṅgādi-praharaṇā vadanaika-samanvitā",
       "halves": [
-        "vi--śuddhicakra--nilayā''ra--kta--va--rṇā tri--locan--ā",
-        "kha--ṭvā--ṅgādi--pra--ha--ra--ṇā vadana--ika--samanvitā"
+        "viśuddhi-cakra-nilayā''rakta-varṇā tri-locanā",
+        "khaṭvāṅgādi-praharaṇā vadanaika-samanvitā"
       ]
     },
     {
       "num": 99,
-      "text": "pāyasānnapriyā tvaksthā pa--śuloka--bhaya--ṅkarī .\na--mṛtādi--mahā--śakti--sa--ṃvṛtā ḍā--kinīśvarī",
+      "text": "pāyasānna-priyā tvak-sthā paśu-loka-bhayaṅkarī .\namṛtādi-mahā-śakti-saṃvṛtā ḍākinīśvarī",
       "halves": [
-        "pāyasānnapriyā tvaksthā pa--śuloka--bhaya--ṅkarī",
-        "a--mṛtādi--mahā--śakti--sa--ṃvṛtā ḍā--kinīśvarī"
+        "pāyasānna-priyā tvak-sthā paśu-loka-bhayaṅkarī",
+        "amṛtādi-mahā-śakti-saṃvṛtā ḍākinīśvarī"
       ]
     },
     {
       "num": 100,
-      "text": "anāhatābjanilayā śyā--mābhā vadanadvayā .\ndaṃṣṭrojjvalā'kṣamālādidharā rudhira--saṃsthitā",
+      "text": "anāhatābja-nilayā śyāmābhā vadana-dvayā .\ndaṃṣṭrojjvalā'kṣamālādidharā rudhira-saṃsthitā",
       "halves": [
-        "anāhatābjanilayā śyā--mābhā vadanadvayā",
-        "daṃṣṭrojjvalā'kṣamālādidharā rudhira--saṃsthitā"
+        "anāhatābja-nilayā śyāmābhā vadana-dvayā",
+        "daṃṣṭrojjvalā'kṣamālādidharā rudhira-saṃsthitā"
       ]
     },
     {
       "num": 101,
-      "text": "kālarātryādiśaktyaughavṛtā snigdhaudanapriyā .\nmahā--vīrendra--va--ra--dā rākiṇyambāsvarūpiṇī",
+      "text": "kālarātryādi-śaktyaugha-vṛtā snigdhaudana-priyā .\nmahā-vīrendra-varadā rākiṇyambā-svarūpiṇī",
       "halves": [
-        "kālarātryādiśaktyaughavṛtā snigdhaudanapriyā",
-        "mahā--vīrendra--va--ra--dā rākiṇyambāsvarūpiṇī"
+        "kālarātryādi-śaktyaugha-vṛtā snigdhaudana-priyā",
+        "mahā-vīrendra-varadā rākiṇyambā-svarūpiṇī"
       ]
     },
     {
       "num": 102,
-      "text": "maṇi--pūrā--bja--nilayā vadanatrayasaṃyutā .\nvajrādikāyudhopetā ḍāmaryādibhirāvṛtā",
+      "text": "maṇipūrābja-nilayā vadana-traya-saṃyutā .\nvajrādikāyudhopetā ḍāmaryādibhirāvṛtā",
       "halves": [
-        "maṇi--pūrā--bja--nilayā vadanatrayasaṃyutā",
+        "maṇipūrābja-nilayā vadana-traya-saṃyutā",
         "vajrādikāyudhopetā ḍāmaryādibhirāvṛtā"
       ]
     },
     {
       "num": 103,
-      "text": "ra--kta--va--rṇā mā--ṃsa--niṣ--ṭhā guḍānnaprītamānasā .\nsam--a--sta--bha--kta--sukha--dā lākinyambāsvarūpiṇī",
+      "text": "rakta-varṇā māṃsa-niṣṭhā guḍānna-prīta-mānasā .\nsamasta-bhakta-sukha-dā lākinyambā-svarūpiṇī",
       "halves": [
-        "ra--kta--va--rṇā mā--ṃsa--niṣ--ṭhā guḍānnaprītamānasā",
-        "sam--a--sta--bha--kta--sukha--dā lākinyambāsvarūpiṇī"
+        "rakta-varṇā māṃsa-niṣṭhā guḍānna-prīta-mānasā",
+        "samasta-bhakta-sukha-dā lākinyambā-svarūpiṇī"
       ]
     },
     {
       "num": 104,
-      "text": "svādhiṣṭhānāmbujagatā caturvaktramanoharā .\nśūlādyāyudhasampannā pīta--va--rṇā'tiga--rvi--tā",
+      "text": "svādhiṣṭhānāmbuja-gatā catur-vaktra-manoharā .\nśūlādyāyudha-sampannā pīta-varṇā'tigarvitā",
       "halves": [
-        "svādhiṣṭhānāmbujagatā caturvaktramanoharā",
-        "śūlādyāyudhasampannā pīta--va--rṇā'tiga--rvi--tā"
+        "svādhiṣṭhānāmbuja-gatā catur-vaktra-manoharā",
+        "śūlādyāyudha-sampannā pīta-varṇā'tigarvitā"
       ]
     },
     {
       "num": 105,
-      "text": "medoniṣ--ṭhā madhuprītā ban--dhinyādi--samanvitā .\ndadhyannāsaktahṛdayā kā-kinīrūpa-dhāriṇī",
+      "text": "medo-niṣṭhā madhu-prītā bandhinyādi-samanvitā .\ndadhyannāsakta-hṛdayā kākinī-rūpa-dhāriṇī",
       "halves": [
-        "medoniṣ--ṭhā madhuprītā ban--dhinyādi--samanvitā",
-        "dadhyannāsaktahṛdayā kā-kinīrūpa-dhāriṇī"
+        "medo-niṣṭhā madhu-prītā bandhinyādi-samanvitā",
+        "dadhyannāsakta-hṛdayā kākinī-rūpa-dhāriṇī"
       ]
     },
     {
       "num": 106,
-      "text": "mūlādhārāmbujārūḍhā pañca--va--ktrā'sthisaṃsthitā .\naṅkuśādipraharaṇā varadādiniṣevitā",
+      "text": "mūlādhārāmbujārūḍhā pañca-vaktrā'sthisaṃsthitā .\naṅkuśādi-praharaṇā varadādi-niṣevitā",
       "halves": [
-        "mūlādhārāmbujārūḍhā pañca--va--ktrā'sthisaṃsthitā",
-        "aṅkuśādipraharaṇā varadādiniṣevitā"
+        "mūlādhārāmbujārūḍhā pañca-vaktrā'sthisaṃsthitā",
+        "aṅkuśādi-praharaṇā varadādi-niṣevitā"
       ]
     },
     {
       "num": 107,
-      "text": "mudga--udan--ā--sa--kta--cittā sā--kinya--mbā--svarūpiṇī .\nājñācakrābjanilayā śuklavarṇā ṣa-ḍā-nan-ā",
+      "text": "mudgaudanāsakta-cittā sākinyambā-svarūpiṇī .\nājñā-cakrābja-nilayā śukla-varṇā ṣaḍ-ānanā",
       "halves": [
-        "mudga--udan--ā--sa--kta--cittā sā--kinya--mbā--svarūpiṇī",
-        "ājñācakrābjanilayā śuklavarṇā ṣa-ḍā-nan-ā"
+        "mudgaudanāsakta-cittā sākinyambā-svarūpiṇī",
+        "ājñā-cakrābja-nilayā śukla-varṇā ṣaḍ-ānanā"
       ]
     },
     {
       "num": 108,
-      "text": "majjāsaṃsthā ha-ṃsa-vatī-mukhya-śakti-samanvitā .\nharidrānnaikarasikā hā-kinīrūpa-dhāriṇī",
+      "text": "majjā-saṃsthā haṃsavatī-mukhya-śakti-samanvitā .\nharidrānnaikarasikā hākinī-rūpa-dhāriṇī",
       "halves": [
-        "majjāsaṃsthā ha-ṃsa-vatī-mukhya-śakti-samanvitā",
-        "haridrānnaikarasikā hā-kinīrūpa-dhāriṇī"
+        "majjā-saṃsthā haṃsavatī-mukhya-śakti-samanvitā",
+        "haridrānnaikarasikā hākinī-rūpa-dhāriṇī"
       ]
     },
     {
       "num": 109,
-      "text": "sahasradalapadmasthā sarvavarṇopaśobhitā .\nsarvāyudhadharā śukla-saṃsthitā sarvatomukhī",
+      "text": "sahasra-dala-padma-sthā sarva-varṇopaśobhitā .\nsarvāyudha-dharā śukla-saṃsthitā sarvato-mukhī",
       "halves": [
-        "sahasradalapadmasthā sarvavarṇopaśobhitā",
-        "sarvāyudhadharā śukla-saṃsthitā sarvatomukhī"
+        "sahasra-dala-padma-sthā sarva-varṇopaśobhitā",
+        "sarvāyudha-dharā śukla-saṃsthitā sarvato-mukhī"
       ]
     },
     {
       "num": 110,
-      "text": "sarva-udan-a-prīta-cittā yā-kinya-mbā-svarūpiṇī .\nsvāhā svadhā'matirmedhā śrutiḥ smṛtiranu--tta--mā",
+      "text": "sarvaudana-prīta-cittā yākinyambā-svarūpiṇī .\nsvāhā svadhā'matirmedhā śrutiḥ smṛtiranuttamā",
       "halves": [
-        "sarva-udan-a-prīta-cittā yā-kinya-mbā-svarūpiṇī",
-        "svāhā svadhā'matirmedhā śrutiḥ smṛtiranu--tta--mā"
+        "sarvaudana-prīta-cittā yākinyambā-svarūpiṇī",
+        "svāhā svadhā'matirmedhā śrutiḥ smṛtiranuttamā"
       ]
     },
     {
       "num": 111,
-      "text": "puṇyakīrtiḥ puṇya--la--bhyā puṇya-śravaṇa-kīrtanā .\npuloma--jā--rcitā bandha-mocanī bandhurālakā",
+      "text": "puṇya-kīrtiḥ puṇya-labhyā puṇya-śravaṇa-kīrtanā .\npulomajārcitā bandha-mocanī bandhurālakā",
       "halves": [
-        "puṇyakīrtiḥ puṇya--la--bhyā puṇya-śravaṇa-kīrtanā",
-        "puloma--jā--rcitā bandha-mocanī bandhurālakā"
+        "puṇya-kīrtiḥ puṇya-labhyā puṇya-śravaṇa-kīrtanā",
+        "pulomajārcitā bandha-mocanī bandhurālakā"
       ]
     },
     {
       "num": 112,
-      "text": "vimarśa-rūpiṇī vidyā viyadādi-jagat-prasūḥ .\nsarva-vyādhi-praśamanī sarva-mṛtyu-nivāriṇī",
+      "text": "vimarśa-rūpiṇī vidyā viyadādijagatprasūḥ .\nsarva-vyādhi-praśamanī sarva-mṛtyu-nivāriṇī",
       "halves": [
-        "vimarśa-rūpiṇī vidyā viyadādi-jagat-prasūḥ",
+        "vimarśa-rūpiṇī vidyā viyadādijagatprasūḥ",
         "sarva-vyādhi-praśamanī sarva-mṛtyu-nivāriṇī"
       ]
     },
     {
       "num": 113,
-      "text": "a--gra--ga--ṇyā'cintyarūpā kali-kalmaṣa-nāśinī .\nkā--tyā--yan--ī kāla-hantrī kamalākṣa-niṣevitā",
+      "text": "agra-gaṇyā'cintyarūpā kali-kalmaṣa-nāśinī .\nkātyāyanī kāla-hantrī kamalākṣa-niṣevitā",
       "halves": [
-        "a--gra--ga--ṇyā'cintyarūpā kali-kalmaṣa-nāśinī",
-        "kā--tyā--yan--ī kāla-hantrī kamalākṣa-niṣevitā"
+        "agra-gaṇyā'cintyarūpā kali-kalmaṣa-nāśinī",
+        "kātyāyanī kāla-hantrī kamalākṣa-niṣevitā"
       ]
     },
     {
       "num": 114,
-      "text": "tāmbūla-pūrita-mukhī dāḍimī-kusuma-prabhā .\nmṛgā--kṣī mohinī mukhyā mṛḍānī mitra--rūpiṇī",
+      "text": "tāmbūla-pūrita-mukhī dāḍimī-kusuma-prabhā .\nmṛgākṣī mohinī mukhyā mṛḍānī mitrarūpiṇī",
       "halves": [
         "tāmbūla-pūrita-mukhī dāḍimī-kusuma-prabhā",
-        "mṛgā--kṣī mohinī mukhyā mṛḍānī mitra--rūpiṇī"
+        "mṛgākṣī mohinī mukhyā mṛḍānī mitrarūpiṇī"
       ]
     },
     {
       "num": 115,
-      "text": "nitya--tṛptā bhaktanidhirniyantrī nikhileśvarī .\nmaitryādi-vāsanā-labhyā mahā-pralaya-sākṣiṇī",
+      "text": "nitya-tṛptā bhaktanidhirniyantrī nikhileśvarī .\nmaitryādi-vāsanā-labhyā mahā-pralaya-sākṣiṇī",
       "halves": [
-        "nitya--tṛptā bhaktanidhirniyantrī nikhileśvarī",
+        "nitya-tṛptā bhaktanidhirniyantrī nikhileśvarī",
         "maitryādi-vāsanā-labhyā mahā-pralaya-sākṣiṇī"
       ]
     },
     {
       "num": 116,
-      "text": "parā śaktiḥ parā niṣṭhā prajñāna-ghana-rūpiṇī .\nmādhvī-pānālasā mattā mātṛkā-varṇa-rūpiṇī",
+      "text": "parā śaktiḥ parā niṣṭhā prajñānaghanarūpiṇī .\nmādhvī-pānālasā mattā mātṛkā-varṇa-rūpiṇī",
       "halves": [
-        "parā śaktiḥ parā niṣṭhā prajñāna-ghana-rūpiṇī",
+        "parā śaktiḥ parā niṣṭhā prajñānaghanarūpiṇī",
         "mādhvī-pānālasā mattā mātṛkā-varṇa-rūpiṇī"
       ]
     },
@@ -969,18 +969,18 @@ const LALITHA_DATA = {
     },
     {
       "num": 119,
-      "text": "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā .\nśiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā",
+      "text": "kaṭākṣakiṅkarībhūtakamalākoṭisevitā .\nśiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā",
       "halves": [
-        "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā",
+        "kaṭākṣakiṅkarībhūtakamalākoṭisevitā",
         "śiraḥ-sthitā candra-nibhā bhālasthendradhanuḥprabhā"
       ]
     },
     {
       "num": 120,
-      "text": "hṛdaya-sthā ravi-prakhyā trikoṇāntara-dīpikā .\ndā--kṣā--ya--ṇī daitya-hantrī dakṣa-yajña-vināśinī",
+      "text": "hṛdaya-sthā ravi-prakhyā trikoṇāntara-dīpikā .\ndākṣāyaṇī daitya-hantrī dakṣa-yajña-vināśinī",
       "halves": [
         "hṛdaya-sthā ravi-prakhyā trikoṇāntara-dīpikā",
-        "dā--kṣā--ya--ṇī daitya-hantrī dakṣa-yajña-vināśinī"
+        "dākṣāyaṇī daitya-hantrī dakṣa-yajña-vināśinī"
       ]
     },
     {
@@ -1001,9 +1001,9 @@ const LALITHA_DATA = {
     },
     {
       "num": 123,
-      "text": "ka--lātmikā kalā-nāthā kāvyālāpa-vinodinī . \nsacāmara-ramā-vāṇī-savya-dakṣiṇa-sevitā",
+      "text": "kalātmikā kalā-nāthā kāvyālāpa-vinodinī . \nsacāmara-ramā-vāṇī-savya-dakṣiṇa-sevitā",
       "halves": [
-        "ka--lātmikā kalā-nāthā kāvyālāpa-vinodinī",
+        "kalātmikā kalā-nāthā kāvyālāpa-vinodinī",
         "sacāmara-ramā-vāṇī-savya-dakṣiṇa-sevitā"
       ]
     },
@@ -1017,10 +1017,10 @@ const LALITHA_DATA = {
     },
     {
       "num": 125,
-      "text": "klīṃkārī kevalā guhyā kaivalya-pada-dāyinī .\ntri--purā tri-jagad-vandyā trimūrtistri-daśeśvarī",
+      "text": "klīṃkārī kevalā guhyā kaivalya-pada-dāyinī .\ntripurā tri-jagad-vandyā trimūrtistri-daśeśvarī",
       "halves": [
         "klīṃkārī kevalā guhyā kaivalya-pada-dāyinī",
-        "tri--purā tri-jagad-vandyā trimūrtistri-daśeśvarī"
+        "tripurā tri-jagad-vandyā trimūrtistri-daśeśvarī"
       ]
     },
     {
@@ -1033,66 +1033,66 @@ const LALITHA_DATA = {
     },
     {
       "num": 127,
-      "text": "viśva-garbhā svarṇa-garbhā'varadā vā--ga--dhīśvarī .\ndhyāna-gamyā'paricchedyā jñāna-dā jñāna-vigrahā",
+      "text": "viśva-garbhā svarṇa-garbhā'varadā vāg-adhīśvarī .\ndhyāna-gamyā'paricchedyā jñāna-dā jñāna-vigrahā",
       "halves": [
-        "viśva-garbhā svarṇa-garbhā'varadā vā--ga--dhīśvarī",
+        "viśva-garbhā svarṇa-garbhā'varadā vāg-adhīśvarī",
         "dhyāna-gamyā'paricchedyā jñāna-dā jñāna-vigrahā"
       ]
     },
     {
       "num": 128,
-      "text": "sarva-vedānta-saṃvedyā satyānanda-svarūpiṇī .\nlopā--mudrā--rcitā līlā-kḷpta-brahmāṇḍa-maṇḍalā",
+      "text": "sarva-vedānta-saṃvedyā satyānanda-svarūpiṇī .\nlopāmudrārcitā līlā-kḷpta-brahmāṇḍa-maṇḍalā",
       "halves": [
         "sarva-vedānta-saṃvedyā satyānanda-svarūpiṇī",
-        "lopā--mudrā--rcitā līlā-kḷpta-brahmāṇḍa-maṇḍalā"
+        "lopāmudrārcitā līlā-kḷpta-brahmāṇḍa-maṇḍalā"
       ]
     },
     {
       "num": 129,
-      "text": "adṛśyā dṛśya-rahitā vi--jñā--trī vedya-varjitā .\nyoginī yoga-dā yogyā yogānandā yugan-dharā",
+      "text": "adṛśyā dṛśya-rahitā vijñātrī vedya-varjitā .\nyoginī yoga-dā yogyā yogānandā yugan-dharā",
       "halves": [
-        "adṛśyā dṛśya-rahitā vi--jñā--trī vedya-varjitā",
+        "adṛśyā dṛśya-rahitā vijñātrī vedya-varjitā",
         "yoginī yoga-dā yogyā yogānandā yugan-dharā"
       ]
     },
     {
       "num": 130,
-      "text": "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī .\nsarvādhārā suprati--ṣṭhā sad-asad-rūpa-dhāriṇī",
+      "text": "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī .\nsarvādhārā supratiṣṭhā sad-asad-rūpa-dhāriṇī",
       "halves": [
         "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī",
-        "sarvādhārā suprati--ṣṭhā sad-asad-rūpa-dhāriṇī"
+        "sarvādhārā supratiṣṭhā sad-asad-rūpa-dhāriṇī"
       ]
     },
     {
       "num": 131,
-      "text": "aṣṭamūrtirajājaitrī loka-yātrā-vidhāyinī . \nekā--kinī bhūma-rūpā nirdvaitā dvaita-varjitā",
+      "text": "aṣṭamūrtirajājaitrī lokayātrāvidhāyinī . \nekākinī bhūma-rūpā nir-dvaitā dvaita-varjitā",
       "halves": [
-        "aṣṭamūrtirajājaitrī loka-yātrā-vidhāyinī",
-        "ekā--kinī bhūma-rūpā nirdvaitā dvaita-varjitā"
+        "aṣṭamūrtirajājaitrī lokayātrāvidhāyinī",
+        "ekākinī bhūma-rūpā nir-dvaitā dvaita-varjitā"
       ]
     },
     {
       "num": 132,
-      "text": "anna-dā vasu-dā vṛddhā brahmātmaikya-svarūpiṇī .\nbṛhatī brā--hma--ṇī brāhmī brahmānandā bali-priyā",
+      "text": "anna-dā vasu-dā vṛddhā brahmātmaikya-svarūpiṇī .\nbṛhatī brāhmaṇī brāhmī brahmānandā bali-priyā",
       "halves": [
         "anna-dā vasu-dā vṛddhā brahmātmaikya-svarūpiṇī",
-        "bṛhatī brā--hma--ṇī brāhmī brahmānandā bali-priyā"
+        "bṛhatī brāhmaṇī brāhmī brahmānandā bali-priyā"
       ]
     },
     {
       "num": 133,
-      "text": "bhāṣā-rūpā bṛhat-senā bhāvābhāva-vivarjitā .\nsu--khārādhyā śubha-karī śobhan--ā sulabhā gatiḥ",
+      "text": "bhāṣā-rūpā bṛhat-senā bhāvābhāva-vivarjitā .\nsukhārādhyā śubha-karī śobhanā sulabhā gatiḥ",
       "halves": [
         "bhāṣā-rūpā bṛhat-senā bhāvābhāva-vivarjitā",
-        "su--khārādhyā śubha-karī śobhan--ā sulabhā gatiḥ"
+        "sukhārādhyā śubha-karī śobhanā sulabhā gatiḥ"
       ]
     },
     {
       "num": 134,
-      "text": "rāja-rājeśvarī rājya-dāyinī rājya-vallabhā .\nrāja--tkṛpā rāja-pīṭha-niveśita-nijāśritā",
+      "text": "rāja-rājeśvarī rājya-dāyinī rājya-vallabhā .\nrājatkṛpā rāja-pīṭha-niveśita-nijāśritā",
       "halves": [
         "rāja-rājeśvarī rājya-dāyinī rājya-vallabhā",
-        "rāja--tkṛpā rāja-pīṭha-niveśita-nijāśritā"
+        "rājatkṛpā rāja-pīṭha-niveśita-nijāśritā"
       ]
     },
     {
@@ -1105,33 +1105,33 @@ const LALITHA_DATA = {
     },
     {
       "num": 136,
-      "text": "dīkṣitā daitya-śamanī sarva-loka-vaśaṅkarī .\nsarvārtha-dātrī sā--vi--trī saccidānanda-rūpiṇī",
+      "text": "dīkṣitā daitya-śamanī sarva-loka-vaśaṅkarī .\nsarvārtha-dātrī sāvitrī saccidānanda-rūpiṇī",
       "halves": [
         "dīkṣitā daitya-śamanī sarva-loka-vaśaṅkarī",
-        "sarvārtha-dātrī sā--vi--trī saccidānanda-rūpiṇī"
+        "sarvārtha-dātrī sāvitrī saccidānanda-rūpiṇī"
       ]
     },
     {
       "num": 137,
-      "text": "deśa-kālāparicchinnā sarva--gā sarva-mohinī .\nsarasvatī śāstra--mayī guhāmbā guhya-rūpiṇī",
+      "text": "deśa-kālāparicchinnā sarva-gā sarva-mohinī .\nsarasvatī śāstra-mayī guhāmbā guhya-rūpiṇī",
       "halves": [
-        "deśa-kālāparicchinnā sarva--gā sarva-mohinī",
-        "sarasvatī śāstra--mayī guhāmbā guhya-rūpiṇī"
+        "deśa-kālāparicchinnā sarva-gā sarva-mohinī",
+        "sarasvatī śāstra-mayī guhāmbā guhya-rūpiṇī"
       ]
     },
     {
       "num": 138,
-      "text": "sarvopādhi-vinirmuktā sadā-śiva-pativratā .\nsampradāyeśvarī sādhvī guru-maṇḍala-rūpiṇī",
+      "text": "sarvopādhi-vinirmuktā sadā-śiva-pativratā .\nsampradāyeśvarī sādhvī gurumaṇḍalarūpiṇī",
       "halves": [
         "sarvopādhi-vinirmuktā sadā-śiva-pativratā",
-        "sampradāyeśvarī sādhvī guru-maṇḍala-rūpiṇī"
+        "sampradāyeśvarī sādhvī gurumaṇḍalarūpiṇī"
       ]
     },
     {
       "num": 139,
-      "text": "kulottīrṇā bhagārādhyā māyā ma--dhumatī mahī .\ngaṇāmbā guhyakārādhyā komalāṅgī guru-priyā",
+      "text": "kulottīrṇā bhagārādhyā māyā madhu-matī mahī .\ngaṇāmbā guhyakārādhyā komalāṅgī guru-priyā",
       "halves": [
-        "kulottīrṇā bhagārādhyā māyā ma--dhumatī mahī",
+        "kulottīrṇā bhagārādhyā māyā madhu-matī mahī",
         "gaṇāmbā guhyakārādhyā komalāṅgī guru-priyā"
       ]
     },
@@ -1177,18 +1177,18 @@ const LALITHA_DATA = {
     },
     {
       "num": 145,
-      "text": "ma--heśvarī mahā-kālī mahā-grāsā mahā--śan--ā .\naparṇā caṇḍikā caṇḍa-muṇḍāsura-niṣūdinī",
+      "text": "maheśvarī mahā-kālī mahā-grāsā mahā-śanā .\naparṇā caṇḍikā caṇḍa-muṇḍāsura-niṣūdinī",
       "halves": [
-        "ma--heśvarī mahā-kālī mahā-grāsā mahā--śan--ā",
+        "maheśvarī mahā-kālī mahā-grāsā mahā-śanā",
         "aparṇā caṇḍikā caṇḍa-muṇḍāsura-niṣūdinī"
       ]
     },
     {
       "num": 146,
-      "text": "kṣarākṣarātmikā sarva-lokeśī viśva-dhāriṇī .\ntri-varga-dātrī su--bha--gā tryambakā tri-guṇātmikā",
+      "text": "kṣarākṣarātmikā sarva-lokeśī viśva-dhāriṇī .\ntri-varga-dātrī subhagā tryambakā tri-guṇātmikā",
       "halves": [
         "kṣarākṣarātmikā sarva-lokeśī viśva-dhāriṇī",
-        "tri-varga-dātrī su--bha--gā tryambakā tri-guṇātmikā"
+        "tri-varga-dātrī subhagā tryambakā tri-guṇātmikā"
       ]
     },
     {
@@ -1201,266 +1201,266 @@ const LALITHA_DATA = {
     },
     {
       "num": 148,
-      "text": "durārādhyā dur--ā--dha--rṣā pāṭalī-kusuma-priyā .\nmahatī meru-nilayā mandāra-kusuma-priyā",
+      "text": "durārādhyā dur-ādharṣā pāṭalī-kusuma-priyā .\nmahatī meru-nilayā mandāra-kusuma-priyā",
       "halves": [
-        "durārādhyā dur--ā--dha--rṣā pāṭalī-kusuma-priyā",
+        "durārādhyā dur-ādharṣā pāṭalī-kusuma-priyā",
         "mahatī meru-nilayā mandāra-kusuma-priyā"
       ]
     },
     {
       "num": 149,
-      "text": "vīrārādhyā virāḍ-rūpā virajā viśvato-mukhī .\npratyag-rūpā parā--kā--śā prāṇa-dā prāṇa-rūpiṇī",
+      "text": "vīrārādhyā virāḍ-rūpā virajā viśvato-mukhī .\npratyag-rūpā parā-kāśā prāṇa-dā prāṇa-rūpiṇī",
       "halves": [
         "vīrārādhyā virāḍ-rūpā virajā viśvato-mukhī",
-        "pratyag-rūpā parā--kā--śā prāṇa-dā prāṇa-rūpiṇī"
+        "pratyag-rūpā parā-kāśā prāṇa-dā prāṇa-rūpiṇī"
       ]
     },
     {
       "num": 150,
-      "text": "mārtāṇḍa-bhairavārādhyā mantriṇī-nyasta-rājya-dhūḥ . \ntripureśī jayatsenā nis--tra--iguṇyā parāparā",
+      "text": "mārtāṇḍa-bhairavārādhyā mantriṇī-nyasta-rājya-dhūḥ . \ntripureśī jaya-tsenā nis-traiguṇyā parāparā",
       "halves": [
         "mārtāṇḍa-bhairavārādhyā mantriṇī-nyasta-rājya-dhūḥ",
-        "tripureśī jayatsenā nis--tra--iguṇyā parāparā"
+        "tripureśī jaya-tsenā nis-traiguṇyā parāparā"
       ]
     },
     {
       "num": 151,
-      "text": "satya-jñānānanda-rūpā sāmarasya-parāyaṇā .\nkapardinī kalā-mālā kāma--dhuk kāma-rūpiṇī",
+      "text": "satya-jñānānanda-rūpā sāmarasya-parāyaṇā .\nkapardinī kalā-mālā kāma-dhuk kāma-rūpiṇī",
       "halves": [
         "satya-jñānānanda-rūpā sāmarasya-parāyaṇā",
-        "kapardinī kalā-mālā kāma--dhuk kāma-rūpiṇī"
+        "kapardinī kalā-mālā kāma-dhuk kāma-rūpiṇī"
       ]
     },
     {
       "num": 152,
-      "text": "kalā-nidhiḥ kāvya-kalā rasa--jñā rasa-śevadhiḥ .\npuṣṭā purātanā pūjyā puṣka--rā puṣkarekṣaṇā",
+      "text": "kalā-nidhiḥ kāvya-kalā rasa-jñā rasa-śevadhiḥ .\npuṣṭā purātanā pūjyā puṣkarā puṣkarekṣaṇā",
       "halves": [
-        "kalā-nidhiḥ kāvya-kalā rasa--jñā rasa-śevadhiḥ",
-        "puṣṭā purātanā pūjyā puṣka--rā puṣkarekṣaṇā"
+        "kalā-nidhiḥ kāvya-kalā rasa-jñā rasa-śevadhiḥ",
+        "puṣṭā purātanā pūjyā puṣkarā puṣkarekṣaṇā"
       ]
     },
     {
       "num": 153,
-      "text": "paraṃ-jyotiḥ paraṃ-dhāma paramāṇuḥ parāt-parā .\npāśa-hastā pāśa-hantrī para--mantra--vibhedinī",
+      "text": "paraṃjyotiḥ paraṃdhāma paramāṇuḥ parāt-parā .\npāśa-hastā pāśa-hantrī para-mantra-vibhedinī",
       "halves": [
-        "paraṃ-jyotiḥ paraṃ-dhāma paramāṇuḥ parāt-parā",
-        "pāśa-hastā pāśa-hantrī para--mantra--vibhedinī"
+        "paraṃjyotiḥ paraṃdhāma paramāṇuḥ parāt-parā",
+        "pāśa-hastā pāśa-hantrī para-mantra-vibhedinī"
       ]
     },
     {
       "num": 154,
-      "text": "mūrtā'mūrtā'nitya--tṛptā munimānasa--ha--ṃsikā .\nsatya--vra--tā satya-rūpā sa--rvā--nta--ryā--minī satī",
+      "text": "mūrtā'mūrtā'nitya-tṛptā muni-mānasa-haṃsikā .\nsatya-vratā satya-rūpā sarvāntaryāminī satī",
       "halves": [
-        "mūrtā'mūrtā'nitya--tṛptā munimānasa--ha--ṃsikā",
-        "satya--vra--tā satya-rūpā sa--rvā--nta--ryā--minī satī"
+        "mūrtā'mūrtā'nitya-tṛptā muni-mānasa-haṃsikā",
+        "satya-vratā satya-rūpā sarvāntaryāminī satī"
       ]
     },
     {
       "num": 155,
-      "text": "brahmā--ṇī brahmajananī ba--hurūpā budhā--rcitā .\nprasa--vi--trī pra--ca--ṇḍā''jñā prati--ṣṭhā pra--ka--ṭā--kṛtiḥ",
+      "text": "brahmāṇī brahmajananī bahu-rūpā budhārcitā .\nprasavitrī pracaṇḍā''jñā pratiṣṭhā prakaṭākṛtiḥ",
       "halves": [
-        "brahmā--ṇī brahmajananī ba--hurūpā budhā--rcitā",
-        "prasa--vi--trī pra--ca--ṇḍā''jñā prati--ṣṭhā pra--ka--ṭā--kṛtiḥ"
+        "brahmāṇī brahmajananī bahu-rūpā budhārcitā",
+        "prasavitrī pracaṇḍā''jñā pratiṣṭhā prakaṭākṛtiḥ"
       ]
     },
     {
       "num": 156,
-      "text": "prā--ṇeśvarī prāṇa--dātrī pa--ñcā--śa--tpīṭha--rūpiṇī .\nviśṛṅkhalā vi--vi--kta--sthā vīra--mā--tā vi--ya--tpra--sūḥ",
+      "text": "prāṇeśvarī prāṇa-dātrī pañcāśat-pīṭha-rūpiṇī .\nviśṛṅkhalā vivikta-sthā vīra-mātā viyat-prasūḥ",
       "halves": [
-        "prā--ṇeśvarī prāṇa--dātrī pa--ñcā--śa--tpīṭha--rūpiṇī",
-        "viśṛṅkhalā vi--vi--kta--sthā vīra--mā--tā vi--ya--tpra--sūḥ"
+        "prāṇeśvarī prāṇa-dātrī pañcāśat-pīṭha-rūpiṇī",
+        "viśṛṅkhalā vivikta-sthā vīra-mātā viyat-prasūḥ"
       ]
     },
     {
       "num": 157,
-      "text": "mukundā mukti--nilayā mūla--vigraha--rūpiṇī .\nbhā--va--jñā bha--va--roga--ghnī bha--va--cakra--pra--va--rtinī",
+      "text": "mukundā mukti-nilayā mūla-vigraha-rūpiṇī .\nbhāva-jñā bhava-roga-ghnī bhava-cakra-pravartinī",
       "halves": [
-        "mukundā mukti--nilayā mūla--vigraha--rūpiṇī",
-        "bhā--va--jñā bha--va--roga--ghnī bha--va--cakra--pra--va--rtinī"
+        "mukundā mukti-nilayā mūla-vigraha-rūpiṇī",
+        "bhāva-jñā bhava-roga-ghnī bhava-cakra-pravartinī"
       ]
     },
     {
       "num": 158,
-      "text": "chan--da--ḥsā--rā śāstra--sā--rā mantra--sā--rā ta--loda--rī .\nudārakīrtiruddāma--va--ibha--vā va--rṇa--rūpiṇī",
+      "text": "chandaḥ-sārā śāstra-sārā mantra-sārā talodarī .\nudārakīrtiruddāma-vaibhavā varṇa-rūpiṇī",
       "halves": [
-        "chan--da--ḥsā--rā śāstra--sā--rā mantra--sā--rā ta--loda--rī",
-        "udārakīrtiruddāma--va--ibha--vā va--rṇa--rūpiṇī"
+        "chandaḥ-sārā śāstra-sārā mantra-sārā talodarī",
+        "udārakīrtiruddāma-vaibhavā varṇa-rūpiṇī"
       ]
     },
     {
       "num": 159,
-      "text": "jan--ma--mṛtyuja--rā--ta--pta--jan--a--vi--śrā--ntidāyinī .\nsa--rvopa--niṣ--a--dudghuṣṭā śā--ntya--tīta--ka--lātmikā",
+      "text": "janma-mṛtyu-jarā-tapta-jana-viśrānti-dāyinī .\nsarvopaniṣad-udghuṣṭā śāntyatīta-kalātmikā",
       "halves": [
-        "jan--ma--mṛtyuja--rā--ta--pta--jan--a--vi--śrā--ntidāyinī",
-        "sa--rvopa--niṣ--a--dudghuṣṭā śā--ntya--tīta--ka--lātmikā"
+        "janma-mṛtyu-jarā-tapta-jana-viśrānti-dāyinī",
+        "sarvopaniṣad-udghuṣṭā śāntyatīta-kalātmikā"
       ]
     },
     {
       "num": 160,
-      "text": "ga--mbhīrā ga--gan--ā--nta--sthā ga--rvi--tā gā--na--lolupā .\nka--lpan--ā--rahitā kāṣṭhā'kāntā kā--ntā--rdha--vigrahā",
+      "text": "gambhīrā gaganānta-sthā garvitā gāna-lolupā .\nkalpanā-rahitā kāṣṭhā'kāntā kāntārdha-vigrahā",
       "halves": [
-        "ga--mbhīrā ga--gan--ā--nta--sthā ga--rvi--tā gā--na--lolupā",
-        "ka--lpan--ā--rahitā kāṣṭhā'kāntā kā--ntā--rdha--vigrahā"
+        "gambhīrā gaganānta-sthā garvitā gāna-lolupā",
+        "kalpanā-rahitā kāṣṭhā'kāntā kāntārdha-vigrahā"
       ]
     },
     {
       "num": 161,
-      "text": "kārya--kā--ra--ṇa--nir--muktā kāma--kelita--ra--ṅgitā .\nkan--a--tkanaka--tā--ṭa--ṅkā līlā--vigraha--dhāriṇī",
+      "text": "kārya-kāraṇa-nirmuktā kāma-keli-taraṅgitā .\nkanat-kanaka-tāṭaṅkā līlā-vigraha-dhāriṇī",
       "halves": [
-        "kārya--kā--ra--ṇa--nir--muktā kāma--kelita--ra--ṅgitā",
-        "kan--a--tkanaka--tā--ṭa--ṅkā līlā--vigraha--dhāriṇī"
+        "kārya-kāraṇa-nirmuktā kāma-keli-taraṅgitā",
+        "kanat-kanaka-tāṭaṅkā līlā-vigraha-dhāriṇī"
       ]
     },
     {
       "num": 162,
-      "text": "ajā kṣa--ya--vinirmuktā mugdhā kṣipra--pra--sādi--nī .\nan--ta--rmukha--sam--ārādhyā ba--hirmukha--su--dur--la--bhā",
+      "text": "ajā kṣaya-vinirmuktā mugdhā kṣipra-prasādinī .\nantar-mukha-samārādhyā bahir-mukha-su-dur-labhā",
       "halves": [
-        "ajā kṣa--ya--vinirmuktā mugdhā kṣipra--pra--sādi--nī",
-        "an--ta--rmukha--sam--ārādhyā ba--hirmukha--su--dur--la--bhā"
+        "ajā kṣaya-vinirmuktā mugdhā kṣipra-prasādinī",
+        "antar-mukha-samārādhyā bahir-mukha-su-dur-labhā"
       ]
     },
     {
       "num": 163,
-      "text": "trayī tri--va--rga--nilayā tri--sthā tripura--mālinī .\nnir--ā--ma--yā nir--ā--la--mbā svā--tmā--rā--mā sudhāsṛtiḥ",
+      "text": "trayī tri-varga-nilayā tri-sthā tripura-mālinī .\nnir-āmayā nir-ālambā svātmā-rāmā sudhāsṛtiḥ",
       "halves": [
-        "trayī tri--va--rga--nilayā tri--sthā tripura--mālinī",
-        "nir--ā--ma--yā nir--ā--la--mbā svā--tmā--rā--mā sudhāsṛtiḥ"
+        "trayī tri-varga-nilayā tri-sthā tripura-mālinī",
+        "nir-āmayā nir-ālambā svātmā-rāmā sudhāsṛtiḥ"
       ]
     },
     {
       "num": 164,
-      "text": "sa--ṃsā--ra--pa--ṅka--nir--ma--gna--sam--uddharaṇa--pa--ṇḍitā .\nyajña--priyā yajña--kartrī ya--ja--mā--na--svarūpiṇī",
+      "text": "saṃsāra-paṅka-nirmagna-samuddharaṇa-paṇḍitā .\nyajña-priyā yajña-kartrī yajamāna-svarūpiṇī",
       "halves": [
-        "sa--ṃsā--ra--pa--ṅka--nir--ma--gna--sam--uddharaṇa--pa--ṇḍitā",
-        "yajña--priyā yajña--kartrī ya--ja--mā--na--svarūpiṇī"
+        "saṃsāra-paṅka-nirmagna-samuddharaṇa-paṇḍitā",
+        "yajña-priyā yajña-kartrī yajamāna-svarūpiṇī"
       ]
     },
     {
       "num": 165,
-      "text": "dha--rmā--dhārā dhan--ā--dhya--kṣā dhan--a--dhā--nya--vi--va--rdhinī .\nvi--pra--priyā vi--pra--rūpā viśva--bhra--ma--ṇa--kā--riṇī",
+      "text": "dharmādhārā dhanādhyakṣā dhana-dhānya-vivardhinī .\nvipra-priyā vipra-rūpā viśva-bhramaṇa-kāriṇī",
       "halves": [
-        "dha--rmā--dhārā dhan--ā--dhya--kṣā dhan--a--dhā--nya--vi--va--rdhinī",
-        "vi--pra--priyā vi--pra--rūpā viśva--bhra--ma--ṇa--kā--riṇī"
+        "dharmādhārā dhanādhyakṣā dhana-dhānya-vivardhinī",
+        "vipra-priyā vipra-rūpā viśva-bhramaṇa-kāriṇī"
       ]
     },
     {
       "num": 166,
-      "text": "viśva--grā--sā vi--drumābhā va--iṣṇa--vī viṣṇu--rūpiṇī .\nayoniryoninilayā kūṭa--sthā kula--rūpiṇī",
+      "text": "viśva-grāsā vidrumābhā vaiṣṇavī viṣṇu-rūpiṇī .\nayoniryoni-nilayā kūṭa-sthā kula-rūpiṇī",
       "halves": [
-        "viśva--grā--sā vi--drumābhā va--iṣṇa--vī viṣṇu--rūpiṇī",
-        "ayoniryoninilayā kūṭa--sthā kula--rūpiṇī"
+        "viśva-grāsā vidrumābhā vaiṣṇavī viṣṇu-rūpiṇī",
+        "ayoniryoni-nilayā kūṭa-sthā kula-rūpiṇī"
       ]
     },
     {
       "num": 167,
-      "text": "vīra--goṣṭhīpriyā vīrā na--iṣka--rmyā nāda-rūpiṇī .\nvi--jñāna--ka--lan--ā kalyā vi--da--gdhā ba--inda--vā--san--ā",
+      "text": "vīra-goṣṭhī-priyā vīrā naiṣkarmyā nāda-rūpiṇī .\nvijñāna-kalanā kalyā vidagdhā baindavāsanā",
       "halves": [
-        "vīra--goṣṭhīpriyā vīrā na--iṣka--rmyā nāda-rūpiṇī",
-        "vi--jñāna--ka--lan--ā kalyā vi--da--gdhā ba--inda--vā--san--ā"
+        "vīra-goṣṭhī-priyā vīrā naiṣkarmyā nāda-rūpiṇī",
+        "vijñāna-kalanā kalyā vidagdhā baindavāsanā"
       ]
     },
     {
       "num": 168,
-      "text": "ta--ttvā--dhikā ta--ttva--mayī tattva-martha-svarūpiṇī .\nsāma-gāna-priyā saumyā sadāśiva-kuṭumbinī",
+      "text": "tattvādhikā tattva-mayī tattva-martha-svarūpiṇī .\nsāma-gāna-priyā saumyā sadāśiva-kuṭumbinī",
       "halves": [
-        "ta--ttvā--dhikā ta--ttva--mayī tattva-martha-svarūpiṇī",
+        "tattvādhikā tattva-mayī tattva-martha-svarūpiṇī",
         "sāma-gāna-priyā saumyā sadāśiva-kuṭumbinī"
       ]
     },
     {
       "num": 169,
-      "text": "savyāpasavya-mārga-sthā sarvāpad-vinivāriṇī .\nsva--sthā svabhāva-madhurā dhīrā dhīra-samarcitā",
+      "text": "savyāpasavya-mārga-sthā sarvāpad-vinivāriṇī .\nsva-sthā svabhāva-madhurā dhīrā dhīra-samarcitā",
       "halves": [
         "savyāpasavya-mārga-sthā sarvāpad-vinivāriṇī",
-        "sva--sthā svabhāva-madhurā dhīrā dhīra-samarcitā"
+        "sva-sthā svabhāva-madhurā dhīrā dhīra-samarcitā"
       ]
     },
     {
       "num": 170,
-      "text": "caitanyārghya-samārādhyā caitanya-kusuma-priyā .\nsad--oditā sad--ā--tuṣṭā ta--ruṇādi--tya--pā--ṭa--lā",
+      "text": "caitanyārghya-samārādhyā caitanya-kusuma-priyā .\nsadoditā sadā-tuṣṭā taruṇāditya-pāṭalā",
       "halves": [
         "caitanyārghya-samārādhyā caitanya-kusuma-priyā",
-        "sad--oditā sad--ā--tuṣṭā ta--ruṇādi--tya--pā--ṭa--lā"
+        "sadoditā sadā-tuṣṭā taruṇāditya-pāṭalā"
       ]
     },
     {
       "num": 171,
-      "text": "da--kṣiṇā--da--kṣiṇārādhyā da--ra--smera--mukhā--mbujā .\nka--ulinīkevalā'narghyakaivalya-pada-dāyinī",
+      "text": "dakṣiṇā-dakṣiṇārādhyā dara-smera-mukhāmbujā .\nkaulinīkevalā'narghyakaivalya-pada-dāyinī",
       "halves": [
-        "da--kṣiṇā--da--kṣiṇārādhyā da--ra--smera--mukhā--mbujā",
-        "ka--ulinīkevalā'narghyakaivalya-pada-dāyinī"
+        "dakṣiṇā-dakṣiṇārādhyā dara-smera-mukhāmbujā",
+        "kaulinīkevalā'narghyakaivalya-pada-dāyinī"
       ]
     },
     {
       "num": 172,
-      "text": "stotra--priyā stutimatī śrutisaṃstuta--va--ibha--vā .\nmanas--vi--nī mā--na--vatī maheśī maṅga--lā--kṛtiḥ",
+      "text": "stotra-priyā stuti-matī śruti-saṃstuta-vaibhavā .\nmanasvinī mānavatī maheśī maṅgalākṛtiḥ",
       "halves": [
-        "stotra--priyā stutimatī śrutisaṃstuta--va--ibha--vā",
-        "manas--vi--nī mā--na--vatī maheśī maṅga--lā--kṛtiḥ"
+        "stotra-priyā stuti-matī śruti-saṃstuta-vaibhavā",
+        "manasvinī mānavatī maheśī maṅgalākṛtiḥ"
       ]
     },
     {
       "num": 173,
-      "text": "viśva--mā--tā ja--ga--ddhā--trī vi--śā--lā--kṣī vi--rā--giṇī .\npra--ga--lbhā para--modā--rā parā--modā man--omayī",
+      "text": "viśva-mātā jagad-dhātrī viśālākṣī virāgiṇī .\npragalbhā paramodārā parāmodā mano-mayī",
       "halves": [
-        "viśva--mā--tā ja--ga--ddhā--trī vi--śā--lā--kṣī vi--rā--giṇī",
-        "pra--ga--lbhā para--modā--rā parā--modā man--omayī"
+        "viśva-mātā jagad-dhātrī viśālākṣī virāgiṇī",
+        "pragalbhā paramodārā parāmodā mano-mayī"
       ]
     },
     {
       "num": 174,
-      "text": "vyoma--keśī vimāna--sthā va--jriṇī vā--ma--keśvarī .\npañca--yajña--priyā pañca--preta--ma--ñcā--dhiśā--yinī",
+      "text": "vyoma-keśī vimāna-sthā vajriṇī vāmakeśvarī .\npañca-yajña-priyā pañca-preta-mañcādhiśāyinī",
       "halves": [
-        "vyoma--keśī vimāna--sthā va--jriṇī vā--ma--keśvarī",
-        "pañca--yajña--priyā pañca--preta--ma--ñcā--dhiśā--yinī"
+        "vyoma-keśī vimāna-sthā vajriṇī vāmakeśvarī",
+        "pañca-yajña-priyā pañca-preta-mañcādhiśāyinī"
       ]
     },
     {
       "num": 175,
-      "text": "pañca--mī pañca--bhūteśī pañcasaṃkhyopacāriṇī .\nśāśvatī śā--śva--ta--iśva--ryā śa--rma--dā śa--mbhumohinī",
+      "text": "pañcamī pañca-bhūteśī pañcasaṃkhyopacāriṇī .\nśāśvatī śāśvataiśvaryā śarma-dā śambhu-mohinī",
       "halves": [
-        "pañca--mī pañca--bhūteśī pañcasaṃkhyopacāriṇī",
-        "śāśvatī śā--śva--ta--iśva--ryā śa--rma--dā śa--mbhumohinī"
+        "pañcamī pañca-bhūteśī pañcasaṃkhyopacāriṇī",
+        "śāśvatī śāśvataiśvaryā śarma-dā śambhu-mohinī"
       ]
     },
     {
       "num": 176,
-      "text": "dharādha--ra--su--tā dhanyā dha--rmiṇī dharma--va--rdhinī .\nlokā--tītā guṇā--tītā sa--rvā--tītā śa--mātmikā",
+      "text": "dharādhara-sutā dhanyā dharmiṇī dharma-vardhinī .\nlokātītā guṇātītā sarvātītā śamātmikā",
       "halves": [
-        "dharādha--ra--su--tā dhanyā dha--rmiṇī dharma--va--rdhinī",
-        "lokā--tītā guṇā--tītā sa--rvā--tītā śa--mātmikā"
+        "dharādhara-sutā dhanyā dharmiṇī dharma-vardhinī",
+        "lokātītā guṇātītā sarvātītā śamātmikā"
       ]
     },
     {
       "num": 177,
-      "text": "bandhūkakusumaprakhyā bālā līlāvinodinī .\nsu--maṅga--lī sukha--karī su--veṣā--ḍhyā suvāsinī",
+      "text": "bandhūka-kusuma-prakhyā bālā līlā-vinodinī .\nsu-maṅgalī sukha-karī su-veṣāḍhyā suvāsinī",
       "halves": [
-        "bandhūkakusumaprakhyā bālā līlāvinodinī",
-        "su--maṅga--lī sukha--karī su--veṣā--ḍhyā suvāsinī"
+        "bandhūka-kusuma-prakhyā bālā līlā-vinodinī",
+        "su-maṅgalī sukha-karī su-veṣāḍhyā suvāsinī"
       ]
     },
     {
       "num": 178,
-      "text": "su--vā--sinya--rcan--a--prītā''śobhan--ā śuddha--mā--na--sā .\nbinduta--rpa--ṇa--san--tuṣṭā pūrva--jā tri--purāmbikā",
+      "text": "suvāsiny-arcana-prītā''śobhanā śuddha-mānasā .\nbindu-tarpaṇa-santuṣṭā pūrva-jā tripurāmbikā",
       "halves": [
-        "su--vā--sinya--rcan--a--prītā''śobhan--ā śuddha--mā--na--sā",
-        "binduta--rpa--ṇa--san--tuṣṭā pūrva--jā tri--purāmbikā"
+        "suvāsiny-arcana-prītā''śobhanā śuddha-mānasā",
+        "bindu-tarpaṇa-santuṣṭā pūrva-jā tripurāmbikā"
       ]
     },
     {
       "num": 179,
-      "text": "daśa--mudrā--sam--ārādhyā tri--purā--śrī--va--śa--ṅkarī .\njñāna--mudrā jñāna--gamyā jñāna--jñeya--svarūpiṇī",
+      "text": "daśa-mudrā-samārādhyā tripurā-śrī-vaśaṅkarī .\njñāna-mudrā jñāna-gamyā jñāna-jñeya-svarūpiṇī",
       "halves": [
-        "daśa--mudrā--sam--ārādhyā tri--purā--śrī--va--śa--ṅkarī",
-        "jñāna--mudrā jñāna--gamyā jñāna--jñeya--svarūpiṇī"
+        "daśa-mudrā-samārādhyā tripurā-śrī-vaśaṅkarī",
+        "jñāna-mudrā jñāna-gamyā jñāna-jñeya-svarūpiṇī"
       ]
     },
     {
       "num": 180,
-      "text": "yonimudrā tri--kha--ṇḍeśī tri--guṇāmbā tri--koṇa--gā .\nanaghā'dbhutacāritrā vā--ñchitā--rtha--pradāyinī",
+      "text": "yoni-mudrā tri-khaṇḍeśī tri-guṇāmbā tri-koṇa-gā .\nanaghā'dbhutacāritrā vāñchitārtha-pradāyinī",
       "halves": [
-        "yonimudrā tri--kha--ṇḍeśī tri--guṇāmbā tri--koṇa--gā",
-        "anaghā'dbhutacāritrā vā--ñchitā--rtha--pradāyinī"
+        "yoni-mudrā tri-khaṇḍeśī tri-guṇāmbā tri-koṇa-gā",
+        "anaghā'dbhutacāritrā vāñchitārtha-pradāyinī"
       ]
     },
     {
@@ -1605,7 +1605,7 @@ const LALITHA_DATA = {
       "num": 21,
       "name_devanagari": "कदम्बमञ्जरीक्लृप्तकर्णपूरमनोहरा",
       "meaning": "She who is captivating, wearing bunches of kadamba flowers as ear-ornaments",
-      "name_iast": "kadamba-mañjarī-kḷpta-karṇa-pūra-manoharā"
+      "name_iast": "kadamba-mañjarī-klṛpta-karṇa-pūra-manoharā"
     },
     {
       "num": 22,
@@ -1635,7 +1635,7 @@ const LALITHA_DATA = {
       "num": 26,
       "name_devanagari": "कर्पूरवीटिकामोदसमाकर्षिदिगन्तरा",
       "meaning": "She who is enjoying a camphor-laden betel roll, the fragrance of which is attracting people from all directions",
-      "name_iast": "karpūra-vīṭikā-moda-samākarṣad-digantarā"
+      "name_iast": "karpūra-vīṭikā-moda-samākarṣi-digantarā"
     },
     {
       "num": 27,
@@ -1653,7 +1653,7 @@ const LALITHA_DATA = {
       "num": 29,
       "name_devanagari": "अनाकलितसादृश्यचिबुकश्रीविराजिता",
       "meaning": "She whose chin cannot be compared to anything(it is beyond camporison because of its unparalleled beauty)",
-      "name_iast": "anākalita-sādṛśya-cubuka-śrī-virājitā"
+      "name_iast": "anākalita-sādṛśya-cibuka-śrī-virājitā"
     },
     {
       "num": 30,
@@ -1677,7 +1677,7 @@ const LALITHA_DATA = {
       "num": 33,
       "name_devanagari": "कामेश्वरप्रेमरत्नमणिप्रतिपणस्तनी",
       "meaning": "She who gives Her breasts to KAmeshvara in return for the gem of love He bestows on Her",
-      "name_iast": "kāmeśvara-prema-ratna-maṇi-pratipana-stanī"
+      "name_iast": "kāmeśvara-prema-ratna-maṇi-pratipaṇa-stanī"
     },
     {
       "num": 34,
@@ -1755,7 +1755,7 @@ const LALITHA_DATA = {
       "num": 46,
       "name_devanagari": "शिञ्जानमणिमञ्जिरमण्डितश्रीपदाम्बुजा",
       "meaning": "She whose auspicious lotus feet are adorned with gem-studded golden anklets that tinkle sweetly",
-      "name_iast": "siñjāna-maṇi-mañjīra-maṇḍita-śrī-padāmbujā"
+      "name_iast": "śiñjāna-maṇi-mañjira-maṇḍita-śrī-padāmbujā"
     },
     {
       "num": 47,
@@ -1773,13 +1773,13 @@ const LALITHA_DATA = {
       "num": 49,
       "name_devanagari": "सर्वारुणा",
       "meaning": "She who is entirely red in complexion",
-      "name_iast": "sa--rvā--ruṇā"
+      "name_iast": "sarvāruṇā"
     },
     {
       "num": 50,
       "name_devanagari": "अनवद्याङ्गी",
       "meaning": "She whose body is worthy of worship",
-      "name_iast": "a--nava--dyā--ṅgī"
+      "name_iast": "anavadyāṅgī"
     },
     {
       "num": 51,
@@ -1809,7 +1809,7 @@ const LALITHA_DATA = {
       "num": 55,
       "name_devanagari": "सुमेरुमध्यश‍ृङ्गस्था",
       "meaning": "She who sits on the middle peak of Mount Sumeru",
-      "name_iast": "sumeru-madhya-śṛṅga-sthā"
+      "name_iast": "sumeru-madhya-śa‍ṛṅga-sthā"
     },
     {
       "num": 56,
@@ -1851,7 +1851,7 @@ const LALITHA_DATA = {
       "num": 62,
       "name_devanagari": "कामाक्षी",
       "meaning": "She whose eyes awaken desire, or She who has beautiful eyes",
-      "name_iast": "kā--mā--kṣī"
+      "name_iast": "kāmākṣī"
     },
     {
       "num": 63,
@@ -2001,7 +2001,7 @@ const LALITHA_DATA = {
       "num": 87,
       "name_devanagari": "शक्तिकूटैकतापन्नकट्यधोभागधारिणी",
       "meaning": "She whose form below the waist is the shaktikUTa (the last four syllables of the pancadashAkShari mantra)",
-      "name_iast": "śakti-kūṭaikatāpanna-kaṭyādho-bhāga-dhāriṇī"
+      "name_iast": "śakti-kūṭaikatāpanna-kaṭyadho-bhāga-dhāriṇī"
     },
     {
       "num": 88,
@@ -2013,7 +2013,7 @@ const LALITHA_DATA = {
       "num": 89,
       "name_devanagari": "मूलकूटत्रयकलेवरा",
       "meaning": "She whose (subtle) body is made of the three parts of the pancadashAkShari mantra",
-      "name_iast": "mūla-kūṭa-traya-kalebarā"
+      "name_iast": "mūla-kūṭa-traya-kalevarā"
     },
     {
       "num": 90,
@@ -2031,19 +2031,19 @@ const LALITHA_DATA = {
       "num": 92,
       "name_devanagari": "कुलाङ्गना",
       "meaning": "She who is well-born (who is from a good family)",
-      "name_iast": "kulā--ṅgan--ā"
+      "name_iast": "kulāṅganā"
     },
     {
       "num": 93,
       "name_devanagari": "कुलान्तस्था",
       "meaning": "She who resides in the kula vidyA",
-      "name_iast": "kulā--nta--sthā"
+      "name_iast": "kulānta-sthā"
     },
     {
       "num": 94,
       "name_devanagari": "कौलिनी",
       "meaning": "She who belongs to the kula",
-      "name_iast": "ka--ulinī"
+      "name_iast": "kaulinī"
     },
     {
       "num": 95,
@@ -2061,7 +2061,7 @@ const LALITHA_DATA = {
       "num": 97,
       "name_devanagari": "समयान्तस्था",
       "meaning": "She who resides inside 'samaya'",
-      "name_iast": "sam--a--yā--nta--sthā"
+      "name_iast": "samayānta-sthā"
     },
     {
       "num": 98,
@@ -2085,7 +2085,7 @@ const LALITHA_DATA = {
       "num": 101,
       "name_devanagari": "मणिपूरान्तरुदिता",
       "meaning": "She who emerges in the maNipUra cakra",
-      "name_iast": "maṇi-pūrāntarudītā"
+      "name_iast": "maṇi-pūrāntar-uditā"
     },
     {
       "num": 102,
@@ -2133,13 +2133,13 @@ const LALITHA_DATA = {
       "num": 109,
       "name_devanagari": "महासक्तिः",
       "meaning": "She who is greatly attached to the festive union of shiva and shakti",
-      "name_iast": "mahā-śaktiḥ"
+      "name_iast": "mahā-saktiḥ"
     },
     {
       "num": 110,
       "name_devanagari": "कुण्डलिनी",
       "meaning": "She who has the form a coil",
-      "name_iast": "kuṇḍa--linī"
+      "name_iast": "kuṇḍalinī"
     },
     {
       "num": 111,
@@ -2205,7 +2205,7 @@ const LALITHA_DATA = {
       "num": 121,
       "name_devanagari": "भयापहा",
       "meaning": "She who dispels fear",
-      "name_iast": "bha--yā--pa--hā"
+      "name_iast": "bhayāpahā"
     },
     {
       "num": 122,
@@ -2223,7 +2223,7 @@ const LALITHA_DATA = {
       "num": 124,
       "name_devanagari": "शर्वाणी",
       "meaning": "She who is the wife of sharva (shiva)",
-      "name_iast": "śa--rvā--ṇī"
+      "name_iast": "śarvāṇī"
     },
     {
       "num": 125,
@@ -2235,13 +2235,13 @@ const LALITHA_DATA = {
       "num": 126,
       "name_devanagari": "शाङ्करी",
       "meaning": "She who gives happiness",
-      "name_iast": "śā--ṅkarī"
+      "name_iast": "śāṅkarī"
     },
     {
       "num": 127,
       "name_devanagari": "श्रीकरी",
       "meaning": "She who bestows riches in abundance",
-      "name_iast": "śrī--karī"
+      "name_iast": "śrī-karī"
     },
     {
       "num": 128,
@@ -2259,37 +2259,37 @@ const LALITHA_DATA = {
       "num": 130,
       "name_devanagari": "शातोदरी",
       "meaning": "She who is slender-waister",
-      "name_iast": "śā--toda--rī"
+      "name_iast": "śātodarī"
     },
     {
       "num": 131,
       "name_devanagari": "शान्तिमती",
       "meaning": "She who is peaceful",
-      "name_iast": "śānti--matī"
+      "name_iast": "śānti-matī"
     },
     {
       "num": 132,
       "name_devanagari": "निराधारा",
       "meaning": "She who is without dependence",
-      "name_iast": "nir--ā--dhārā"
+      "name_iast": "nir-ādhārā"
     },
     {
       "num": 133,
       "name_devanagari": "निरञ्जना",
       "meaning": "She who stays unattached, bound to nothing",
-      "name_iast": "nir--a--ñjan--ā"
+      "name_iast": "nir-añjanā"
     },
     {
       "num": 134,
       "name_devanagari": "निर्लेपा",
       "meaning": "She who is free from all impurities arising from action",
-      "name_iast": "nir--lepā"
+      "name_iast": "nir-lepā"
     },
     {
       "num": 135,
       "name_devanagari": "निर्मला",
       "meaning": "She who is free from all impurities",
-      "name_iast": "nir--ma--lā"
+      "name_iast": "nir-malā"
     },
     {
       "num": 136,
@@ -2301,25 +2301,25 @@ const LALITHA_DATA = {
       "num": 137,
       "name_devanagari": "निराकरा",
       "meaning": "She who is without form",
-      "name_iast": "nir--ā--ka--rā"
+      "name_iast": "nir-ākarā"
     },
     {
       "num": 138,
       "name_devanagari": "निराकुला",
       "meaning": "She who is without agitation",
-      "name_iast": "nir--ā--kulā"
+      "name_iast": "nir-ākulā"
     },
     {
       "num": 139,
       "name_devanagari": "निर्गुणा",
       "meaning": "She who is beyond all three gunas of nature, namely sattva, rajas and tamas",
-      "name_iast": "nir--guṇā"
+      "name_iast": "nir-guṇā"
     },
     {
       "num": 140,
       "name_devanagari": "निष्कला",
       "meaning": "She who is without parts",
-      "name_iast": "niṣ--kalā"
+      "name_iast": "niṣ-kalā"
     },
     {
       "num": 141,
@@ -2331,13 +2331,13 @@ const LALITHA_DATA = {
       "num": 142,
       "name_devanagari": "निष्कामा",
       "meaning": "She who is without desire",
-      "name_iast": "niṣ--kā--mā"
+      "name_iast": "niṣ-kāmā"
     },
     {
       "num": 143,
       "name_devanagari": "निरुपप्लवा",
       "meaning": "She who is indestructible",
-      "name_iast": "nir--upa--pla--vā"
+      "name_iast": "nir-upaplavā"
     },
     {
       "num": 144,
@@ -2349,19 +2349,19 @@ const LALITHA_DATA = {
       "num": 145,
       "name_devanagari": "निर्विकारा",
       "meaning": "She who is unchanging",
-      "name_iast": "nir--vi--kā--rā"
+      "name_iast": "nir-vikārā"
     },
     {
       "num": 146,
       "name_devanagari": "निष्प्रपञ्चा",
       "meaning": "She who is not of this universe",
-      "name_iast": "niṣ--pra--pa--ñcā"
+      "name_iast": "niṣ-prapañcā"
     },
     {
       "num": 147,
       "name_devanagari": "निराश्रया",
       "meaning": "She who does not depend on anything",
-      "name_iast": "nir--ā--śra--yā"
+      "name_iast": "nir-āśrayā"
     },
     {
       "num": 148,
@@ -2379,43 +2379,43 @@ const LALITHA_DATA = {
       "num": 150,
       "name_devanagari": "निरवद्या",
       "meaning": "She who is blameless or She who is praiseworthy",
-      "name_iast": "nir--a--va--dyā"
+      "name_iast": "nir-avadyā"
     },
     {
       "num": 151,
       "name_devanagari": "निरन्तरा",
       "meaning": "She who is all-pervading",
-      "name_iast": "nir--an--ta--rā"
+      "name_iast": "nir-antarā"
     },
     {
       "num": 152,
       "name_devanagari": "निष्कारणा",
       "meaning": "She who is without cause",
-      "name_iast": "niṣ--kā--ra--ṇā"
+      "name_iast": "niṣ-kāraṇā"
     },
     {
       "num": 153,
       "name_devanagari": "निष्कलङ्का",
       "meaning": "She who is faultless",
-      "name_iast": "niṣ--ka--la--ṅkā"
+      "name_iast": "niṣ-kalaṅkā"
     },
     {
       "num": 154,
       "name_devanagari": "निरुपाधिः",
       "meaning": "She who is not conditioned or has no limitations",
-      "name_iast": "nir--upā--dhiḥ"
+      "name_iast": "nir-upādhiḥ"
     },
     {
       "num": 155,
       "name_devanagari": "निरीश्वरा",
       "meaning": "She who has no superior or protector",
-      "name_iast": "nir--īśva--rā"
+      "name_iast": "nir-īśvarā"
     },
     {
       "num": 156,
       "name_devanagari": "नीरागा",
       "meaning": "She who has no desire",
-      "name_iast": "nīrāgā"
+      "name_iast": "nīr-āgā"
     },
     {
       "num": 157,
@@ -2427,7 +2427,7 @@ const LALITHA_DATA = {
       "num": 158,
       "name_devanagari": "निर्मदा",
       "meaning": "She who is without pride",
-      "name_iast": "nir--ma--dā"
+      "name_iast": "nir-madā"
     },
     {
       "num": 159,
@@ -2439,19 +2439,19 @@ const LALITHA_DATA = {
       "num": 160,
       "name_devanagari": "निश्चिन्ता",
       "meaning": "She who has no anxiety in anything",
-      "name_iast": "niś--cintā"
+      "name_iast": "niś-cintā"
     },
     {
       "num": 161,
       "name_devanagari": "निरहङ्कारा",
       "meaning": "She who is without egoism. She who is without the concept of 'I' and 'mine'",
-      "name_iast": "nir--a--ha--ṅkā--rā"
+      "name_iast": "nir-ahaṅkārā"
     },
     {
       "num": 162,
       "name_devanagari": "निर्मोहा",
       "meaning": "She who is free from delusion",
-      "name_iast": "nir--mohā"
+      "name_iast": "nir-mohā"
     },
     {
       "num": 163,
@@ -2463,7 +2463,7 @@ const LALITHA_DATA = {
       "num": 164,
       "name_devanagari": "निर्ममा",
       "meaning": "She who has no self-interest in anything",
-      "name_iast": "nir--ma--mā"
+      "name_iast": "nir-mamā"
     },
     {
       "num": 165,
@@ -2475,7 +2475,7 @@ const LALITHA_DATA = {
       "num": 166,
       "name_devanagari": "निष्पापा",
       "meaning": "She who is without sin",
-      "name_iast": "niṣ--pā--pā"
+      "name_iast": "niṣ-pāpā"
     },
     {
       "num": 167,
@@ -2487,7 +2487,7 @@ const LALITHA_DATA = {
       "num": 168,
       "name_devanagari": "निष्क्रोधा",
       "meaning": "She who is without anger",
-      "name_iast": "niṣ--krodhā"
+      "name_iast": "niṣ-krodhā"
     },
     {
       "num": 169,
@@ -2499,7 +2499,7 @@ const LALITHA_DATA = {
       "num": 170,
       "name_devanagari": "निर्लोभा",
       "meaning": "She who is without greed",
-      "name_iast": "nir--lobhā"
+      "name_iast": "nir-lobhā"
     },
     {
       "num": 171,
@@ -2511,19 +2511,19 @@ const LALITHA_DATA = {
       "num": 172,
       "name_devanagari": "निःसंशया",
       "meaning": "She who is without doubts",
-      "name_iast": "niḥ--sa--ṃśa--yā"
+      "name_iast": "niḥ-saṃśayā"
     },
     {
       "num": 173,
       "name_devanagari": "संशयघ्नी",
       "meaning": "She who kills all doubts",
-      "name_iast": "sa--ṃśa--ya--ghnī"
+      "name_iast": "saṃśaya-ghnī"
     },
     {
       "num": 174,
       "name_devanagari": "निर्भवा",
       "meaning": "She who is without origin",
-      "name_iast": "nir--bha--vā"
+      "name_iast": "nir-bhavā"
     },
     {
       "num": 175,
@@ -2535,19 +2535,19 @@ const LALITHA_DATA = {
       "num": 176,
       "name_devanagari": "निर्विकल्पा",
       "meaning": "She who is free of false imaginings",
-      "name_iast": "nir--vi--ka--lpā"
+      "name_iast": "nir-vikalpā"
     },
     {
       "num": 177,
       "name_devanagari": "निराबाधा",
       "meaning": "She who is not disturbed by anything",
-      "name_iast": "nir--ā--bā--dhā"
+      "name_iast": "nir-ābādhā"
     },
     {
       "num": 178,
       "name_devanagari": "निर्भेदा",
       "meaning": "She who is beyond all sense of difference",
-      "name_iast": "nir--bhedā"
+      "name_iast": "nir-bhedā"
     },
     {
       "num": 179,
@@ -2559,7 +2559,7 @@ const LALITHA_DATA = {
       "num": 180,
       "name_devanagari": "निर्नाशा",
       "meaning": "She who is imperishable",
-      "name_iast": "nir--nā--śā"
+      "name_iast": "nir-nāśā"
     },
     {
       "num": 181,
@@ -2571,19 +2571,19 @@ const LALITHA_DATA = {
       "num": 182,
       "name_devanagari": "निष्क्रिया",
       "meaning": "She who remains without action",
-      "name_iast": "niṣ--kriyā"
+      "name_iast": "niṣ-kriyā"
     },
     {
       "num": 183,
       "name_devanagari": "निष्परिग्रहा",
       "meaning": "She who does not acquire or accept anything",
-      "name_iast": "niṣ--parigrahā"
+      "name_iast": "niṣ-parigrahā"
     },
     {
       "num": 184,
       "name_devanagari": "निस्तुला",
       "meaning": "She who is incomparable, unequalled",
-      "name_iast": "nis--tulā"
+      "name_iast": "nis-tulā"
     },
     {
       "num": 185,
@@ -2595,25 +2595,25 @@ const LALITHA_DATA = {
       "num": 186,
       "name_devanagari": "निरपाया",
       "meaning": "She who is imperishable",
-      "name_iast": "nir--a--pā--yā"
+      "name_iast": "nir-apāyā"
     },
     {
       "num": 187,
       "name_devanagari": "निरत्यया",
       "meaning": "She who cannot be transgressed",
-      "name_iast": "nir--a--tya--yā"
+      "name_iast": "nir-atyayā"
     },
     {
       "num": 188,
       "name_devanagari": "दुर्लभा",
       "meaning": "She who is won only with much difficulty",
-      "name_iast": "dur--la--bhā"
+      "name_iast": "dur-labhā"
     },
     {
       "num": 189,
       "name_devanagari": "दुर्गमा",
       "meaning": "She who is approachable only with extreme effort",
-      "name_iast": "dur--ga--mā"
+      "name_iast": "dur-gamā"
     },
     {
       "num": 190,
@@ -2691,13 +2691,13 @@ const LALITHA_DATA = {
       "num": 202,
       "name_devanagari": "सर्वेश्वरी",
       "meaning": "She who rules over all the living and non-living things",
-      "name_iast": "sa--rveśvarī"
+      "name_iast": "sarveśvarī"
     },
     {
       "num": 203,
       "name_devanagari": "सर्वमयी",
       "meaning": "She who pervades every living and non-living thing",
-      "name_iast": "sarva--mayī"
+      "name_iast": "sarva-mayī"
     },
     {
       "num": 204,
@@ -2721,13 +2721,13 @@ const LALITHA_DATA = {
       "num": 207,
       "name_devanagari": "मनोन्मनी",
       "meaning": "She who is shiva's shakti",
-      "name_iast": "man--onman--ī"
+      "name_iast": "manonmanī"
     },
     {
       "num": 208,
       "name_devanagari": "माहेश्वरी",
       "meaning": "She who is the wife of maheshvara",
-      "name_iast": "mā--heśvarī"
+      "name_iast": "māheśvarī"
     },
     {
       "num": 209,
@@ -2739,7 +2739,7 @@ const LALITHA_DATA = {
       "num": 210,
       "name_devanagari": "महालक्ष्मी",
       "meaning": "She who is the great goddess lakShmI",
-      "name_iast": "mahā-lakṣmīḥ"
+      "name_iast": "mahā-lakṣmī"
     },
     {
       "num": 211,
@@ -2799,7 +2799,7 @@ const LALITHA_DATA = {
       "num": 220,
       "name_devanagari": "महैश्वर्या",
       "meaning": "She who has supreme sovereignty",
-      "name_iast": "ma--ha--iśva--ryā"
+      "name_iast": "mahaiśvaryā"
     },
     {
       "num": 221,
@@ -2853,7 +2853,7 @@ const LALITHA_DATA = {
       "num": 229,
       "name_devanagari": "महासना",
       "meaning": "She who is seated on great seats",
-      "name_iast": "mahā--san--ā"
+      "name_iast": "mahā-sanā"
     },
     {
       "num": 230,
@@ -2889,19 +2889,19 @@ const LALITHA_DATA = {
       "num": 235,
       "name_devanagari": "चतुष्षष्ट्युपचाराढ्या",
       "meaning": "She who is adored in sixty-four ceremonies",
-      "name_iast": "catuḥ-ṣaṣṭyupacārāḍhyā"
+      "name_iast": "catuṣ-ṣaṣṭy-upacārāḍhyā"
     },
     {
       "num": 236,
       "name_devanagari": "चतुष्षष्टिकलामयी",
       "meaning": "She who embodies the sixty-four fine arts",
-      "name_iast": "catuḥ-ṣaṣṭi-kalā-mayī"
+      "name_iast": "catuṣ-ṣaṣṭi-kalā-mayī"
     },
     {
       "num": 237,
       "name_devanagari": "महाचतुष्षष्टिकोटियोगिनीगणसेविता",
       "meaning": "She who is attended (served) by sixty-four crores of bands of yoginis",
-      "name_iast": "mahā-catuḥṣaṣṭi-koṭi-yoginī-gaṇa-sevitā"
+      "name_iast": "mahā-catuṣṣaṣṭi-koṭi-yoginī-gaṇa-sevitā"
     },
     {
       "num": 238,
@@ -2979,7 +2979,7 @@ const LALITHA_DATA = {
       "num": 250,
       "name_devanagari": "पञ्चब्रह्मस्वरुपिणी",
       "meaning": "She whose form is composed of the five brahmas",
-      "name_iast": "pañca-brahma-svarūpiṇī"
+      "name_iast": "pañca-brahma-svarupiṇī"
     },
     {
       "num": 251,
@@ -2991,7 +2991,7 @@ const LALITHA_DATA = {
       "num": 252,
       "name_devanagari": "परमानन्दा",
       "meaning": "She who is supreme bliss",
-      "name_iast": "para--mānandā"
+      "name_iast": "paramānandā"
     },
     {
       "num": 253,
@@ -3015,25 +3015,25 @@ const LALITHA_DATA = {
       "num": 256,
       "name_devanagari": "विश्वरुपा",
       "meaning": "She who has the whole universe as Her form",
-      "name_iast": "viśva-rūpā"
+      "name_iast": "viśva-rupā"
     },
     {
       "num": 257,
       "name_devanagari": "जागरिणी",
       "meaning": "She who is in the waking state, or She who assumes the form of the jIva who is in the waking state",
-      "name_iast": "jā--ga--riṇī"
+      "name_iast": "jāgariṇī"
     },
     {
       "num": 258,
       "name_devanagari": "स्वपन्ती",
       "meaning": "She who is in the dream state or She who assumes the form of the jIva in the dream state",
-      "name_iast": "sva--pan--tī"
+      "name_iast": "svapantī"
     },
     {
       "num": 259,
       "name_devanagari": "तैजसात्मिका",
       "meaning": "She who is the soul of taijasA (jIva in the dream state, proud of its subtle body)",
-      "name_iast": "ta--ija--sātmikā"
+      "name_iast": "taijasātmikā"
     },
     {
       "num": 260,
@@ -3045,7 +3045,7 @@ const LALITHA_DATA = {
       "num": 261,
       "name_devanagari": "प्राज्ञात्मिका",
       "meaning": "She who is not separate from prAj~nA (deep sleep)",
-      "name_iast": "prā--jñātmikā"
+      "name_iast": "prājñātmikā"
     },
     {
       "num": 262,
@@ -3087,7 +3087,7 @@ const LALITHA_DATA = {
       "num": 268,
       "name_devanagari": "संहारिणी",
       "meaning": "She who is the destroyer of the universe",
-      "name_iast": "sa--ṃhā--riṇī"
+      "name_iast": "saṃhāriṇī"
     },
     {
       "num": 269,
@@ -3111,7 +3111,7 @@ const LALITHA_DATA = {
       "num": 272,
       "name_devanagari": "सदाशिवा",
       "meaning": "She who is sadAshiva, one who always bestows auspiciousness",
-      "name_iast": "sad--ā--śivā"
+      "name_iast": "sadā-śivā"
     },
     {
       "num": 273,
@@ -3135,7 +3135,7 @@ const LALITHA_DATA = {
       "num": 276,
       "name_devanagari": "भैरवी",
       "meaning": "She who is the wife of bhairava (shiva)",
-      "name_iast": "bha--ira--vī"
+      "name_iast": "bhairavī"
     },
     {
       "num": 277,
@@ -3147,13 +3147,13 @@ const LALITHA_DATA = {
       "num": 278,
       "name_devanagari": "पद्मासना",
       "meaning": "She who is seated in the lotus flower",
-      "name_iast": "pa--dmā--san--ā"
+      "name_iast": "padmāsanā"
     },
     {
       "num": 279,
       "name_devanagari": "भगवती",
       "meaning": "She who protects those who worship Her",
-      "name_iast": "bha--ga--vatī"
+      "name_iast": "bhagavatī"
     },
     {
       "num": 280,
@@ -3177,7 +3177,7 @@ const LALITHA_DATA = {
       "num": 283,
       "name_devanagari": "सहस्राक्षी",
       "meaning": "She who has a thousand eyes",
-      "name_iast": "sa--ha--srā--kṣī"
+      "name_iast": "sahasrākṣī"
     },
     {
       "num": 284,
@@ -3189,13 +3189,13 @@ const LALITHA_DATA = {
       "num": 285,
       "name_devanagari": "आब्रह्मकीटजननी",
       "meaning": "She who is the mother of everything from brahmA to the lowliest insect",
-      "name_iast": "ābrahma-kīṭa-janānī"
+      "name_iast": "ābrahma-kīṭa-jananī"
     },
     {
       "num": 286,
       "name_devanagari": "वर्णाश्रमविधायिनि",
       "meaning": "She who established the order of the social division in life",
-      "name_iast": "varṇāśrama-vidhāyinī"
+      "name_iast": "varṇāśrama-vidhāyini"
     },
     {
       "num": 287,
@@ -3243,7 +3243,7 @@ const LALITHA_DATA = {
       "num": 294,
       "name_devanagari": "भुवनेश्वरी",
       "meaning": "She who is the ruler of the universe",
-      "name_iast": "bhuvan--eśvarī"
+      "name_iast": "bhuvaneśvarī"
     },
     {
       "num": 295,
@@ -3255,25 +3255,25 @@ const LALITHA_DATA = {
       "num": 296,
       "name_devanagari": "अनादिनिधना",
       "meaning": "She who has neither beginning nor end",
-      "name_iast": "an--ādi--nidhan--ā"
+      "name_iast": "anādi-nidhanā"
     },
     {
       "num": 297,
       "name_devanagari": "हरिब्रह्मेन्द्रसेविता",
       "meaning": "She who is attended by brahmA, viShNu and indra",
-      "name_iast": "hari--bra--hmendra--sevitā"
+      "name_iast": "hari-brahmendra-sevitā"
     },
     {
       "num": 298,
       "name_devanagari": "नारायणी",
       "meaning": "She who is the female counterpart of nArAyaNa",
-      "name_iast": "nā--rā--ya--ṇī"
+      "name_iast": "nārāyaṇī"
     },
     {
       "num": 299,
       "name_devanagari": "नादरूपा",
       "meaning": "She who is in the form of sound",
-      "name_iast": "nā--da--rūpā"
+      "name_iast": "nāda-rūpā"
     },
     {
       "num": 300,
@@ -3285,7 +3285,7 @@ const LALITHA_DATA = {
       "num": 301,
       "name_devanagari": "ह्रीङ्कारी",
       "meaning": "She who is the form of syllable 'hrIM'",
-      "name_iast": "hrīṅkā--rī"
+      "name_iast": "hrīṅkārī"
     },
     {
       "num": 302,
@@ -3327,13 +3327,13 @@ const LALITHA_DATA = {
       "num": 308,
       "name_devanagari": "राजीवलोचना",
       "meaning": "She whose eyes are like rAjiva (lotus)",
-      "name_iast": "rā--jīva--locan--ā"
+      "name_iast": "rājīva-locanā"
     },
     {
       "num": 309,
       "name_devanagari": "रञ्जनी",
       "meaning": "She who delights the mind",
-      "name_iast": "ra--ñjan--ī"
+      "name_iast": "rañjanī"
     },
     {
       "num": 310,
@@ -3363,13 +3363,13 @@ const LALITHA_DATA = {
       "num": 314,
       "name_devanagari": "राकेन्दुवदना",
       "meaning": "She who has a delightful face like the full moon",
-      "name_iast": "rā--kenduva--dan--ā"
+      "name_iast": "rākendu-vadanā"
     },
     {
       "num": 315,
       "name_devanagari": "रतिरूपा",
       "meaning": "She who is in the form of rati, the wife of kAma",
-      "name_iast": "rati--rūpā"
+      "name_iast": "rati-rūpā"
     },
     {
       "num": 316,
@@ -3381,13 +3381,13 @@ const LALITHA_DATA = {
       "num": 317,
       "name_devanagari": "रक्षाकरी",
       "meaning": "She who is the protector",
-      "name_iast": "ra--kṣā--karī"
+      "name_iast": "rakṣā-karī"
     },
     {
       "num": 318,
       "name_devanagari": "राक्षसघ्नी",
       "meaning": "She who is the slayer of the entire race of demons",
-      "name_iast": "rā--kṣa--sa--ghnī"
+      "name_iast": "rākṣasa-ghnī"
     },
     {
       "num": 319,
@@ -3399,7 +3399,7 @@ const LALITHA_DATA = {
       "num": 320,
       "name_devanagari": "रमणलम्पटा",
       "meaning": "She who is devoted to the Lord of Her heart, Lord shiva",
-      "name_iast": "ra--ma--ṇa--la--mpa--ṭā"
+      "name_iast": "ramaṇa-lampaṭā"
     },
     {
       "num": 321,
@@ -3411,43 +3411,43 @@ const LALITHA_DATA = {
       "num": 322,
       "name_devanagari": "कामकलारूपा",
       "meaning": "She who is in the form of kAmakalA",
-      "name_iast": "kāma--kalā--rūpā"
+      "name_iast": "kāma-kalā-rūpā"
     },
     {
       "num": 323,
       "name_devanagari": "कदम्बकुसुमप्रिया",
       "meaning": "She who is especially fond of kadamba flowers",
-      "name_iast": "kadamba--kusuma--priyā"
+      "name_iast": "kadamba-kusuma-priyā"
     },
     {
       "num": 324,
       "name_devanagari": "कल्याणी",
       "meaning": "She who bestows auspiciousness",
-      "name_iast": "kāma-dāyinī"
+      "name_iast": "kalyāṇī"
     },
     {
       "num": 325,
       "name_devanagari": "जगतीकन्दा",
       "meaning": "She who is the root of the whole world",
-      "name_iast": "jagat--īkan--dā"
+      "name_iast": "jagatī-kandā"
     },
     {
       "num": 326,
       "name_devanagari": "करुणारससागरा",
       "meaning": "She who is the ocean of compassion",
-      "name_iast": "karuṇā--rasa--sā--ga--rā"
+      "name_iast": "karuṇā-rasa-sāgarā"
     },
     {
       "num": 327,
       "name_devanagari": "कलावती",
       "meaning": "She who is the embodiment of all arts",
-      "name_iast": "mahā-vīryā"
+      "name_iast": "kalāvatī"
     },
     {
       "num": 328,
       "name_devanagari": "कलालापा",
       "meaning": "She who speaks musically and sweetly",
-      "name_iast": "kalā--lā--pā"
+      "name_iast": "kalālāpā"
     },
     {
       "num": 329,
@@ -3459,7 +3459,7 @@ const LALITHA_DATA = {
       "num": 330,
       "name_devanagari": "कादम्बरीप्रिया",
       "meaning": "She who is fond of mead",
-      "name_iast": "kā--da--mba--rīpriyā"
+      "name_iast": "kādambarī-priyā"
     },
     {
       "num": 331,
@@ -3471,61 +3471,61 @@ const LALITHA_DATA = {
       "num": 332,
       "name_devanagari": "वामनयना",
       "meaning": "She who has beautiful eyes",
-      "name_iast": "vā--man--a--yan--ā"
+      "name_iast": "vāma-nayanā"
     },
     {
       "num": 333,
       "name_devanagari": "वारुणी मदविव्हला",
       "meaning": "She who is intoxicated by vAruNi (ambrosial drink)",
-      "name_iast": "satya-rūpā"
+      "name_iast": "vāruṇī mada-vivhalā"
     },
     {
       "num": 334,
       "name_devanagari": "विश्वाधिका",
       "meaning": "She who transcends the universe",
-      "name_iast": "vi--śvā--dhikā"
+      "name_iast": "viśvādhikā"
     },
     {
       "num": 335,
       "name_devanagari": "वेदवेद्या",
       "meaning": "She who is known through the vedas",
-      "name_iast": "veda--vedyā"
+      "name_iast": "veda-vedyā"
     },
     {
       "num": 336,
       "name_devanagari": "विन्ध्याचलनिवासिनी",
       "meaning": "She who resides in the vindhya mountains",
-      "name_iast": "vi--ndhyā--ca--lan--ivāsinī"
+      "name_iast": "vindhyācala-nivāsinī"
     },
     {
       "num": 337,
       "name_devanagari": "विधात्री",
       "meaning": "She who creates and sustains this unverse",
-      "name_iast": "rāja-rājeśvarī"
+      "name_iast": "vidhātrī"
     },
     {
       "num": 338,
       "name_devanagari": "वेदजननी",
       "meaning": "She who is the mother of the vedas",
-      "name_iast": "veda--jan--an--ī"
+      "name_iast": "veda-jananī"
     },
     {
       "num": 339,
       "name_devanagari": "विष्णुमाया",
       "meaning": "She who is the illusory power of viShNu",
-      "name_iast": "viṣṇu--māyā"
+      "name_iast": "viṣṇu-māyā"
     },
     {
       "num": 340,
       "name_devanagari": "विलासिनी",
       "meaning": "She who is playful",
-      "name_iast": "vi--lā--sinī"
+      "name_iast": "vilāsinī"
     },
     {
       "num": 341,
       "name_devanagari": "क्षेत्रस्वरूपा",
       "meaning": "She whose body is matter",
-      "name_iast": "kṣetra--sva--rūpā"
+      "name_iast": "kṣetra-svarūpā"
     },
     {
       "num": 342,
@@ -3537,19 +3537,19 @@ const LALITHA_DATA = {
       "num": 343,
       "name_devanagari": "क्षेत्रक्षेत्रज्ञपालिनी",
       "meaning": "She who is the protector of matter and the knower of matter, therefore the protector of body and soul",
-      "name_iast": "kṣetra--kṣetra--jña--pā--linī"
+      "name_iast": "kṣetra-kṣetrajña-pālinī"
     },
     {
       "num": 344,
       "name_devanagari": "क्षयवृद्धिविनिर्मुक्ता",
       "meaning": "She who is free from growth and decay",
-      "name_iast": "kṣa--ya--vṛddhivinirmuktā"
+      "name_iast": "kṣaya-vṛddhi-vinirmuktā"
     },
     {
       "num": 345,
       "name_devanagari": "क्षेत्रपालसमर्चिता",
       "meaning": "She who is worshipped by kShetrapAla (shiva in infant form)",
-      "name_iast": "kṣetra--pā--la--sam--arcitā"
+      "name_iast": "kṣetra-pāla-samarcitā"
     },
     {
       "num": 346,
@@ -3573,55 +3573,55 @@ const LALITHA_DATA = {
       "num": 349,
       "name_devanagari": "वन्दारुजनवत्सला",
       "meaning": "She who is full of motherlly love for those who worship Her",
-      "name_iast": "van--dā--ruja--nava--tsa--lā"
+      "name_iast": "vandāru-jana-vatsalā"
     },
     {
       "num": 350,
       "name_devanagari": "वाग्वादिनी",
       "meaning": "She who speaks",
-      "name_iast": "ratiḥ-priyā"
+      "name_iast": "vāg-vādinī"
     },
     {
       "num": 351,
       "name_devanagari": "वामकेशी",
       "meaning": "She who has beautiful hair",
-      "name_iast": "vā--ma--keśī"
+      "name_iast": "vāmakeśī"
     },
     {
       "num": 352,
       "name_devanagari": "वह्निमण्डलवासिनी",
       "meaning": "She who resides in the disc of fire",
-      "name_iast": "va--hnimaṇḍala--vāsinī"
+      "name_iast": "vahni-maṇḍala-vāsinī"
     },
     {
       "num": 353,
       "name_devanagari": "भक्तिमत्कल्पलतिका",
       "meaning": "She who is the kalpa (wish-granting) creeper to Her devotees",
-      "name_iast": "bhakti--ma--tka--lpa--lati--kā"
+      "name_iast": "bhaktimat-kalpa-latikā"
     },
     {
       "num": 354,
       "name_devanagari": "पशुपाशविमोचिनी",
       "meaning": "She who releases the ignorant from bondage",
-      "name_iast": "pa--śupāśa--vi--mocinī"
+      "name_iast": "paśu-pāśa-vimocinī"
     },
     {
       "num": 355,
       "name_devanagari": "संहृताशेषपाषण्डा",
       "meaning": "She who destroys all heretics",
-      "name_iast": "sa--ṃhṛtā--śeṣa--pā--ṣa--ṇḍā"
+      "name_iast": "saṃhṛtāśeṣa-pāṣaṇḍā"
     },
     {
       "num": 356,
       "name_devanagari": "सदाचारप्रवर्तिका",
       "meaning": "She who is immersed in (and inspires others to follow) right conduct",
-      "name_iast": "sad--ā--cā--ra--pra--va--rtikā"
+      "name_iast": "sadācāra-pravartikā"
     },
     {
       "num": 357,
       "name_devanagari": "तापत्रयाग्निसन्तप्तसमाह्लादनचन्द्रिका",
       "meaning": "She who is the moonlight that gives joy to those burned by the triple fire of misery",
-      "name_iast": "tā--pa--tra--yā--gnis--an--ta--pta--sam--ā--hlā--dan--a--candrikā"
+      "name_iast": "tāpa-trayāgni-santapta-samāhlādana-candrikā"
     },
     {
       "num": 358,
@@ -3633,109 +3633,109 @@ const LALITHA_DATA = {
       "num": 359,
       "name_devanagari": "तापसाराध्या",
       "meaning": "She who is worshipped by ascetics",
-      "name_iast": "tā--pa--sārādhyā"
+      "name_iast": "tāpasārādhyā"
     },
     {
       "num": 360,
       "name_devanagari": "तनुमध्या",
       "meaning": "She who is slender-waisted",
-      "name_iast": "tanu--ma--dhyā"
+      "name_iast": "tanu-madhyā"
     },
     {
       "num": 361,
       "name_devanagari": "तमोऽपहा",
       "meaning": "She who removes the ignorance born of tamas",
-      "name_iast": "ta--mo'pa--hā"
+      "name_iast": "tamo'pahā"
     },
     {
       "num": 362,
       "name_devanagari": "चित् (चितिः)",
       "meaning": "She who is in the form of pure intelligence",
-      "name_iast": "bhava-dāva-sudhā-vṛṣṭiḥ"
+      "name_iast": "cit (citiḥ)"
     },
     {
       "num": 363,
       "name_devanagari": "तत्पदलक्ष्यार्था",
       "meaning": "She who is the embodiment of truth (which is indicated by the word 'tat')",
-      "name_iast": "pāpāraṇya-davānalā"
+      "name_iast": "tatpada-lakṣyārthā"
     },
     {
       "num": 364,
       "name_devanagari": "चिदेकरसरूपिणी",
       "meaning": "She who is of the nature of the pure intelligence. She who is the cause of knowledge",
-      "name_iast": "daurbhāgya-tūla-vātūlā"
+      "name_iast": "cid-ekarasa-rūpiṇī"
     },
     {
       "num": 365,
       "name_devanagari": "स्वात्मानन्दलवीभूतब्रह्माद्यानन्दसन्ततिः",
       "meaning": "She who makes the bliss of brahmA and others insignificant compared to Her own bliss",
-      "name_iast": "jarādhvānta-ravi-prabhā"
+      "name_iast": "svātmānanda-lavībhūta-brahmādyānanda-santatiḥ"
     },
     {
       "num": 366,
       "name_devanagari": "परा",
       "meaning": "She who is the supreme; She who transcends all",
-      "name_iast": "bhāgyābdhi-candrikā"
+      "name_iast": "parā"
     },
     {
       "num": 367,
       "name_devanagari": "प्रत्यक्चितीरूपा",
       "meaning": "She who is of the nature of unmanifested consciousness or of unmanifested brahman",
-      "name_iast": "bhakta-citta-keki-ghanāghanā"
+      "name_iast": "pratyak-citī-rūpā"
     },
     {
       "num": 368,
       "name_devanagari": "पश्यन्ती",
       "meaning": "She who is pashyantI, the second level of sound after parA in the svAdhiShTAna chakra",
-      "name_iast": "roga-parvata-dambholiḥ"
+      "name_iast": "paśyantī"
     },
     {
       "num": 369,
       "name_devanagari": "परदेवता",
       "meaning": "She who is the supreme deity; parAshakti",
-      "name_iast": "mṛtyu-dāru-kuṭhārikā"
+      "name_iast": "para-devatā"
     },
     {
       "num": 370,
       "name_devanagari": "मध्यमा",
       "meaning": "She who stays in the middle",
-      "name_iast": "ma--dhya--mā"
+      "name_iast": "madhyamā"
     },
     {
       "num": 371,
       "name_devanagari": "वैखरीरूपा",
       "meaning": "She who is in the form of vaikharI (sound in the manifested, audible form)",
-      "name_iast": "mahā-kālī"
+      "name_iast": "vaikharī-rūpā"
     },
     {
       "num": 372,
       "name_devanagari": "भक्तमानसहंसिका",
       "meaning": "She who is the swan in the minds of Her devotees",
-      "name_iast": "mahā-grāsā"
+      "name_iast": "bhakta-mānasa-haṃsikā"
     },
     {
       "num": 373,
       "name_devanagari": "कामेश्वरप्राणनाडी",
       "meaning": "She who is the very life of kAmeshvara, Her consort",
-      "name_iast": "kāmeśvara--prāṇa--nā--ḍī"
+      "name_iast": "kāmeśvara-prāṇa-nāḍī"
     },
     {
       "num": 374,
       "name_devanagari": "कृतज्ञा",
       "meaning": "She who knows all of our actions as they occur",
-      "name_iast": "kṛta--jñā"
+      "name_iast": "kṛtajñā"
     },
     {
       "num": 375,
       "name_devanagari": "कामपूजिता",
       "meaning": "She who is worshipped by kAma",
-      "name_iast": "kāma--pūjitā"
+      "name_iast": "kāma-pūjitā"
     },
     {
       "num": 376,
       "name_devanagari": "श‍ृङ्गाररससम्पूर्णा",
       "meaning": "She who is filled with the essence of Love",
-      "name_iast": "caṇḍa-muṇḍāsura-niṣūdinī"
+      "name_iast": "śa‍ṛṅgāra-rasa-sampūrṇā"
     },
     {
       "num": 377,
@@ -3747,283 +3747,283 @@ const LALITHA_DATA = {
       "num": 378,
       "name_devanagari": "जालन्धरस्थिता",
       "meaning": "She who resides in the jAlandhara pITha (in the throat region)",
-      "name_iast": "sarva-lokeśī"
+      "name_iast": "jālandhara-sthitā"
     },
     {
       "num": 379,
       "name_devanagari": "ओड्याणपीठनिलया",
       "meaning": "She whose abode is the center known as oDyANa (in the Aj~nA chakra)",
-      "name_iast": "viśva-dhāriṇī"
+      "name_iast": "oḍyāṇa-pīṭha-nilayā"
     },
     {
       "num": 380,
       "name_devanagari": "बिन्दुमण्डलवासिनी",
       "meaning": "She who resides in the bindumaNDala (in shrI chakra)",
-      "name_iast": "tri-varga-dātrī"
+      "name_iast": "bindu-maṇḍala-vāsinī"
     },
     {
       "num": 381,
       "name_devanagari": "रहोयागक्रमाराध्या",
       "meaning": "She who is worshipped in secret through sacrificial rites",
-      "name_iast": "ra--hoyā--ga--kra--mārādhyā"
+      "name_iast": "raho-yāga-kramārādhyā"
     },
     {
       "num": 382,
       "name_devanagari": "रहस्तर्पणतर्पिता",
       "meaning": "She who is to be gratified by the secret rites of worship",
-      "name_iast": "ra--hasta--rpa--ṇa--ta--rpitā"
+      "name_iast": "rahas-tarpaṇa-tarpitā"
     },
     {
       "num": 383,
       "name_devanagari": "सद्यःप्रसादिनी",
       "meaning": "She who bestows Her grace immediately",
-      "name_iast": "tri-guṇātmikā"
+      "name_iast": "sadyaḥ-prasādinī"
     },
     {
       "num": 384,
       "name_devanagari": "विश्वसाक्षिणी",
       "meaning": "She who is witness to the whole universe",
-      "name_iast": "svargāpavarga-dā"
+      "name_iast": "viśva-sākṣiṇī"
     },
     {
       "num": 385,
       "name_devanagari": "साक्षिवर्जिता",
       "meaning": "She who has no other witness",
-      "name_iast": "sā--kṣivarjitā"
+      "name_iast": "sākṣi-varjitā"
     },
     {
       "num": 386,
       "name_devanagari": "षडङ्गदेवतायुक्ता",
       "meaning": "She who is accompanied by the deities of the six angAs (heart, head, hair, eyes, armor and weapons)",
-      "name_iast": "japā-puṣpa-nibhākṛtiḥ"
+      "name_iast": "ṣaḍaṅga-devatā-yuktā"
     },
     {
       "num": 387,
       "name_devanagari": "षाड्गुण्यपरिपूरिता",
       "meaning": "She who is fully endowed with the six good qualities (prosperity, valor, dispassion, fame, wealth and wisdom)",
-      "name_iast": "ṣā--ḍguṇya--pari--pūritā"
+      "name_iast": "ṣāḍguṇya-paripūritā"
     },
     {
       "num": 388,
       "name_devanagari": "नित्यक्लिन्ना",
       "meaning": "She who is ever compassionate",
-      "name_iast": "dyuti-dharā"
+      "name_iast": "nitya-klinnā"
     },
     {
       "num": 389,
       "name_devanagari": "निरुपमा",
       "meaning": "She who is incomparable",
-      "name_iast": "yajña-rūpā"
+      "name_iast": "nirupamā"
     },
     {
       "num": 390,
       "name_devanagari": "निर्वाण सुखदायिनी",
       "meaning": "She who confers the bliss of Liberation",
-      "name_iast": "priya-vratā"
+      "name_iast": "nirvāṇa sukha-dāyinī"
     },
     {
       "num": 391,
       "name_devanagari": "नित्या-षोडशिकारूपा",
       "meaning": "She who is in the form of the sixteen daily deities (i.e., kAmeshvari, bhagamAlinI, nityaklinnA, bheruNDA, vahnivAsinI, mahAvajreshvarI, shivadUtI, tvaritA, kulasundarI, nityA, nIlapatAkinI, vijayA, sarvamangalA, jvAlAmAlinI, chitrA and tripurasundarI)",
-      "name_iast": "nityā---ṣoḍa--śikā--rūpā"
+      "name_iast": "nityā-ṣoḍaśikā-rūpā"
     },
     {
       "num": 392,
       "name_devanagari": "श्रीकण्ठार्धशरीरिणी",
       "meaning": "She who possesses half of the body of shrIkaNTha (shiva). She who is in the form of ardhanArishvara",
-      "name_iast": "śrī--ka--ṇṭhā--rdha--śa--rīriṇī"
+      "name_iast": "śrī-kaṇṭhārdha-śarīriṇī"
     },
     {
       "num": 393,
       "name_devanagari": "प्रभावती",
       "meaning": "She who is effulgent",
-      "name_iast": "pāṭalī-kusuma-priyā"
+      "name_iast": "prabhāvatī"
     },
     {
       "num": 394,
       "name_devanagari": "प्रभारूपा",
       "meaning": "She who is effulgence",
-      "name_iast": "prabhā--rūpā"
+      "name_iast": "prabhā-rūpā"
     },
     {
       "num": 395,
       "name_devanagari": "प्रसिद्धा",
       "meaning": "She who is celebrated",
-      "name_iast": "meru-nilayā"
+      "name_iast": "prasiddhā"
     },
     {
       "num": 396,
       "name_devanagari": "परमेश्वरी",
       "meaning": "She who is the supreme sovereign",
-      "name_iast": "mandāra-kusuma-priyā"
+      "name_iast": "parameśvarī"
     },
     {
       "num": 397,
       "name_devanagari": "मूलप्रकृतिः",
       "meaning": "She who is the first cause of the entire universe",
-      "name_iast": "mūla--pra--kṛtiḥ"
+      "name_iast": "mūla-prakṛtiḥ"
     },
     {
       "num": 398,
       "name_devanagari": "अव्यक्ता",
       "meaning": "She who is unmanifested",
-      "name_iast": "virāḍ-rūpā"
+      "name_iast": "avyaktā"
     },
     {
       "num": 399,
       "name_devanagari": "व्यक्ताव्यक्तस्वरूपीणि",
       "meaning": "She who is in the manifested and unmanifested forms",
-      "name_iast": "vya--ktā--vya--kta--sva--rūpīṇi"
+      "name_iast": "vyaktāvyakta-svarūpīṇi"
     },
     {
       "num": 400,
       "name_devanagari": "व्यापिनी",
       "meaning": "She who is all-pervading",
-      "name_iast": "viśvato-mukhī"
+      "name_iast": "vyāpinī"
     },
     {
       "num": 401,
       "name_devanagari": "विविधाकारा",
       "meaning": "She who has a multitude of forms",
-      "name_iast": "pratyag-rūpā"
+      "name_iast": "vividhākārā"
     },
     {
       "num": 402,
       "name_devanagari": "विद्याऽविद्यास्वरूपिणी",
       "meaning": "She who is the form of both knowledge and ignorance",
-      "name_iast": "vidyā--'vidyā--svarūpiṇī"
+      "name_iast": "vidyā-'vidyā-svarūpiṇī"
     },
     {
       "num": 403,
       "name_devanagari": "महाकामेशनयनकुमुदाह्लादकौमुदी",
       "meaning": "She whois the moonlight that gladdens the water-lilies that are mahAkAmesha's eyes",
-      "name_iast": "prāṇa-dā"
+      "name_iast": "mahā-kāmeśa-nayana-kumudāhlāda-kaumudī"
     },
     {
       "num": 404,
       "name_devanagari": "भक्तहार्दतमोभेदभानुमद्भानुसन्ततिः",
       "meaning": "She who is the sunbeam which dispels the darkness from the heart of Her devotees",
-      "name_iast": "prāṇa-rūpiṇī"
+      "name_iast": "bhakta-hārda-tamo-bheda-bhānumad-bhānu-santatiḥ"
     },
     {
       "num": 405,
       "name_devanagari": "शिवदूती",
       "meaning": "She for whom shiva is the messenger; She who is shiva's messenger",
-      "name_iast": "mārtāṇḍa-bhairavārādhyā"
+      "name_iast": "śiva-dūtī"
     },
     {
       "num": 406,
       "name_devanagari": "शिवाराध्या",
       "meaning": "She who is worshipped by shiva",
-      "name_iast": "mantriṇī-nyasta-rājya-dhūḥ"
+      "name_iast": "śivārādhyā"
     },
     {
       "num": 407,
       "name_devanagari": "शिवमूर्तिः",
       "meaning": "She whose form is shiva Himself",
-      "name_iast": "śiva--mūrtiḥ"
+      "name_iast": "śiva-mūrtiḥ"
     },
     {
       "num": 408,
       "name_devanagari": "शिवङ्करी",
       "meaning": "She who confers prosperity (auspiciousness, happiness). She who turns Her devotees into shiva",
-      "name_iast": "śiva--ṅkarī"
+      "name_iast": "śivaṅkarī"
     },
     {
       "num": 409,
       "name_devanagari": "शिवप्रिया",
       "meaning": "She who is beloved of shiva",
-      "name_iast": "śiva--priyā"
+      "name_iast": "śiva-priyā"
     },
     {
       "num": 410,
       "name_devanagari": "शिवपरा",
       "meaning": "She who is solely devoted to shiva",
-      "name_iast": "śiva--parā"
+      "name_iast": "śiva-parā"
     },
     {
       "num": 411,
       "name_devanagari": "शिष्टेष्टा",
       "meaning": "She who is loved by the righteous; She who is the chosen deity of devotees; She who loves righteous people",
-      "name_iast": "satya-jñānānanda-rūpā"
+      "name_iast": "śiṣṭeṣṭā"
     },
     {
       "num": 412,
       "name_devanagari": "शिष्टपूजिता",
       "meaning": "She who is always worshipped by the righteous",
-      "name_iast": "sāmarasya-parāyaṇā"
+      "name_iast": "śiṣṭa-pūjitā"
     },
     {
       "num": 413,
       "name_devanagari": "अप्रमेया",
       "meaning": "She who is immeasurable by the senses",
-      "name_iast": "a--pra--meyā"
+      "name_iast": "aprameyā"
     },
     {
       "num": 414,
       "name_devanagari": "स्वप्रकाशा",
       "meaning": "She who is self-luminous",
-      "name_iast": "kalā-mālā"
+      "name_iast": "sva-prakāśā"
     },
     {
       "num": 415,
       "name_devanagari": "मनोवाचामगोचरा",
       "meaning": "She who is beyond the range of mind and speech",
-      "name_iast": "man--ovā--cā--ma--goca--rā"
+      "name_iast": "mano-vācāma-gocarā"
     },
     {
       "num": 416,
       "name_devanagari": "चिच्छक्तिः",
       "meaning": "She who is the power of consciousness",
-      "name_iast": "kāma-rūpiṇī"
+      "name_iast": "cic-chaktiḥ"
     },
     {
       "num": 417,
       "name_devanagari": "चेतनारूपा",
       "meaning": "She who is pure consciousness",
-      "name_iast": "kalā-nidhiḥ"
+      "name_iast": "cetanā-rūpā"
     },
     {
       "num": 418,
       "name_devanagari": "जडशक्तिः",
       "meaning": "She who is the mAyA that has transformed itself as the power of creation",
-      "name_iast": "kāvya-kalā"
+      "name_iast": "jaḍa-śaktiḥ"
     },
     {
       "num": 419,
       "name_devanagari": "जडात्मिका",
       "meaning": "She who is in the form of the inanimate world",
-      "name_iast": "ja--ḍātmikā"
+      "name_iast": "jaḍātmikā"
     },
     {
       "num": 420,
       "name_devanagari": "गायत्री",
       "meaning": "She who is the gAyatrI mantra",
-      "name_iast": "rasa-śevadhiḥ"
+      "name_iast": "gāyatrī"
     },
     {
       "num": 421,
       "name_devanagari": "व्याहृतिः",
       "meaning": "She who is in the nature of utterance; She who presides over the power of speech",
-      "name_iast": "vyā--hṛtiḥ"
+      "name_iast": "vyāhṛtiḥ"
     },
     {
       "num": 422,
       "name_devanagari": "सन्ध्या",
       "meaning": "She who is in the form of twilight",
-      "name_iast": "san--dhyā"
+      "name_iast": "sandhyā"
     },
     {
       "num": 423,
       "name_devanagari": "द्विजवृन्दनिषेविता",
       "meaning": "She who is worshipped by the twice-born",
-      "name_iast": "dvi--ja--vṛnda--niṣ--evi--tā"
+      "name_iast": "dvija-vṛnda-niṣevitā"
     },
     {
       "num": 424,
       "name_devanagari": "तत्त्वासना",
       "meaning": "She who has tattvas as Her seat; She who abides in tattva",
-      "name_iast": "ta--ttvā--san--ā"
+      "name_iast": "tattvāsanā"
     },
     {
       "num": 425,
@@ -4035,61 +4035,61 @@ const LALITHA_DATA = {
       "num": 426,
       "name_devanagari": "त्वं",
       "meaning": "She who is referred to, by 'Thou'",
-      "name_iast": "paraṃ-jyotiḥ"
+      "name_iast": "tvaṃ"
     },
     {
       "num": 427,
       "name_devanagari": "अयी",
       "meaning": "Oh, Mother! (The split in names of 425-427 may not be proper.)",
-      "name_iast": "paraṃ-dhāma"
+      "name_iast": "ayī"
     },
     {
       "num": 428,
       "name_devanagari": "पञ्चकोशान्तरस्थिता",
       "meaning": "She who resides within the five sheaths",
-      "name_iast": "pañca--kośānta--ra--sthitā"
+      "name_iast": "pañca-kośāntara-sthitā"
     },
     {
       "num": 429,
       "name_devanagari": "निःसीममहिमा",
       "meaning": "She whose glory is limitless",
-      "name_iast": "parāt-parā"
+      "name_iast": "niḥsīma-mahimā"
     },
     {
       "num": 430,
       "name_devanagari": "नित्ययौवना",
       "meaning": "She who is ever youthful",
-      "name_iast": "pāśa-hantrī"
+      "name_iast": "nitya-yauvanā"
     },
     {
       "num": 431,
       "name_devanagari": "मदशालिनी",
       "meaning": "She who is shining in a state of inebriation or intoxication",
-      "name_iast": "para-śaktiḥ"
+      "name_iast": "mada-śālinī"
     },
     {
       "num": 432,
       "name_devanagari": "मदघूर्णितरक्ताक्षी",
       "meaning": "She whose eyes are reddened, rolling with rapture and inward-looking",
-      "name_iast": "pāśa-hastā"
+      "name_iast": "mada-ghūrṇita-raktākṣī"
     },
     {
       "num": 433,
       "name_devanagari": "मदपाटलगण्डभूः",
       "meaning": "She whose cheeks are rosy with rapture",
-      "name_iast": "mada--pā--ṭa--la--ga--ṇḍa--bhūḥ"
+      "name_iast": "mada-pāṭala-gaṇḍa-bhūḥ"
     },
     {
       "num": 434,
       "name_devanagari": "चन्दनद्रवदिग्धाङ्गी",
       "meaning": "She whose body is smeared with sandalwood paste",
-      "name_iast": "prajñāna-ghana-rūpiṇī"
+      "name_iast": "candana-drava-digdhāṅgī"
     },
     {
       "num": 435,
       "name_devanagari": "चाम्पेयकुसुमप्रिया",
       "meaning": "She who is especially fond of champaka flowers",
-      "name_iast": "mādhvī-pānālasā"
+      "name_iast": "cāmpeya-kusuma-priyā"
     },
     {
       "num": 436,
@@ -4101,85 +4101,85 @@ const LALITHA_DATA = {
       "num": 437,
       "name_devanagari": "कोमलाकारा",
       "meaning": "She who is graceful in form",
-      "name_iast": "mātṛkā-varṇa-rūpiṇī"
+      "name_iast": "komalākārā"
     },
     {
       "num": 438,
       "name_devanagari": "कुरुकुल्ला",
       "meaning": "She who is the shakti, kurukullA (residing in kuruvindA ruby)",
-      "name_iast": "mahā-kailāsa-nilayā"
+      "name_iast": "kurukullā"
     },
     {
       "num": 439,
       "name_devanagari": "कुलेश्वरी",
       "meaning": "She who is the ruler of kula (the triad of knower, the known and knowledge)",
-      "name_iast": "mṛṇāla-mṛdu-dorlatā"
+      "name_iast": "kuleśvarī"
     },
     {
       "num": 440,
       "name_devanagari": "कुलकुण्डालया",
       "meaning": "She who abides in the kulakuNDa (the bindu at the center of the pericarp in mUlAdhAra chakra",
-      "name_iast": "kula--kuṇḍā--la--yā"
+      "name_iast": "kula-kuṇḍālayā"
     },
     {
       "num": 441,
       "name_devanagari": "कौलमार्गतत्परसेविता",
       "meaning": "She who is worshipped by those devoted to the kaula tradition",
-      "name_iast": "dayā-mūrtiḥ"
+      "name_iast": "kaula-mārga-tatpara-sevitā"
     },
     {
       "num": 442,
       "name_devanagari": "कुमारगणनाथाम्बा",
       "meaning": "She who is the mother of kumAra(subrahmanya) and gaNanAtha(GaNapathi)",
-      "name_iast": "mahā-sāmrājya-śālinī"
+      "name_iast": "kumāra-gaṇanāthāmbā"
     },
     {
       "num": 443,
       "name_devanagari": "तुष्टिः",
       "meaning": "She who is ever content",
-      "name_iast": "ātma-vidyā"
+      "name_iast": "tuṣṭiḥ"
     },
     {
       "num": 444,
       "name_devanagari": "पुष्टिः",
       "meaning": "She who is the power of nourishment",
-      "name_iast": "mahā-vidyā"
+      "name_iast": "puṣṭiḥ"
     },
     {
       "num": 445,
       "name_devanagari": "मतिः",
       "meaning": "She who manifests as intelligence",
-      "name_iast": "śrī-vidyā"
+      "name_iast": "matiḥ"
     },
     {
       "num": 446,
       "name_devanagari": "धृतिः",
       "meaning": "She who is fortitude",
-      "name_iast": "kāma-sevitā"
+      "name_iast": "dhṛtiḥ"
     },
     {
       "num": 447,
       "name_devanagari": "शान्तिः",
       "meaning": "She who is tranquility itself",
-      "name_iast": "śrī-ṣoḍaśākṣarī-vidyā"
+      "name_iast": "śāntiḥ"
     },
     {
       "num": 448,
       "name_devanagari": "स्वस्तिमती",
       "meaning": "She who is the ultimate truth",
-      "name_iast": "tri-kūṭā"
+      "name_iast": "svasti-matī"
     },
     {
       "num": 449,
       "name_devanagari": "कान्तिः",
       "meaning": "She who is effulgence",
-      "name_iast": "kāma-koṭikā"
+      "name_iast": "kāntiḥ"
     },
     {
       "num": 450,
       "name_devanagari": "नन्दिनी",
       "meaning": "She who gives delight",
-      "name_iast": "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā"
+      "name_iast": "nandinī"
     },
     {
       "num": 451,
@@ -4197,13 +4197,13 @@ const LALITHA_DATA = {
       "num": 453,
       "name_devanagari": "त्रिनयना",
       "meaning": "She who has the sun, moon and fire as Her three eyes",
-      "name_iast": "tri--na--yan--ā"
+      "name_iast": "tri-nayanā"
     },
     {
       "num": 454,
       "name_devanagari": "लोलाक्षी",
       "meaning": "She who has rolling eyes. separate name कामरूपिणी - She who is in the form of love in women",
-      "name_iast": "lolā--kṣī"
+      "name_iast": "lolākṣī"
     },
     {
       "num": 455,
@@ -4215,7 +4215,7 @@ const LALITHA_DATA = {
       "num": 456,
       "name_devanagari": "हंसिनी",
       "meaning": "She who is not separate from hamsas (the yogins who have reached great spiritual heights)",
-      "name_iast": "ha--ṃsinī"
+      "name_iast": "haṃsinī"
     },
     {
       "num": 457,
@@ -4233,7 +4233,7 @@ const LALITHA_DATA = {
       "num": 459,
       "name_devanagari": "सुमुखी",
       "meaning": "She who has a beautiful face",
-      "name_iast": "su--mukhī"
+      "name_iast": "sumukhī"
     },
     {
       "num": 460,
@@ -4245,31 +4245,31 @@ const LALITHA_DATA = {
       "num": 461,
       "name_devanagari": "सुभ्रूः",
       "meaning": "She who has beautiful eyebrows",
-      "name_iast": "su--bhrūḥ"
+      "name_iast": "subhrūḥ"
     },
     {
       "num": 462,
       "name_devanagari": "शोभना",
       "meaning": "She who is always radiant",
-      "name_iast": "śobhan--ā"
+      "name_iast": "śobhanā"
     },
     {
       "num": 463,
       "name_devanagari": "सुरनायिका",
       "meaning": "She who is the leader of the gods",
-      "name_iast": "su--ra--nāyikā"
+      "name_iast": "sura-nāyikā"
     },
     {
       "num": 464,
       "name_devanagari": "कालकण्ठी",
       "meaning": "She who is the wife of shiva",
-      "name_iast": "kā--la--ka--ṇṭhī"
+      "name_iast": "kāla-kaṇṭhī"
     },
     {
       "num": 465,
       "name_devanagari": "कान्तिमती",
       "meaning": "She who is radiant",
-      "name_iast": "kānti--matī"
+      "name_iast": "kānti-matī"
     },
     {
       "num": 466,
@@ -4287,403 +4287,403 @@ const LALITHA_DATA = {
       "num": 468,
       "name_devanagari": "वज्रेश्वरी",
       "meaning": "She who is vajreshvarI, the sixth daily deity",
-      "name_iast": "va--jreśvarī"
+      "name_iast": "vajreśvarī"
     },
     {
       "num": 469,
       "name_devanagari": "वामदेवी",
       "meaning": "She who is the wife of vAma deva (shiva)",
-      "name_iast": "vā--ma--devī"
+      "name_iast": "vāma-devī"
     },
     {
       "num": 470,
       "name_devanagari": "वयोऽवस्थाविवर्जिता",
       "meaning": "She who is exempt from changes due to age (time)",
-      "name_iast": "va--yo'va--sthā--vi--varjitā"
+      "name_iast": "vayo'vasthā-vivarjitā"
     },
     {
       "num": 471,
       "name_devanagari": "सिद्धेश्वरि",
       "meaning": "She who is the goddess worshipped by spiritual adepts",
-      "name_iast": "siddheśva--ri"
+      "name_iast": "siddheśvari"
     },
     {
       "num": 472,
       "name_devanagari": "सिद्धविद्या",
       "meaning": "She who is in the form of siddhavidyA, the fifteen-syllabled mantra",
-      "name_iast": "siddha--vidyā"
+      "name_iast": "siddha-vidyā"
     },
     {
       "num": 473,
       "name_devanagari": "सिद्धमाता",
       "meaning": "She who is the mother of siddhas",
-      "name_iast": "siddha--mā--tā"
+      "name_iast": "siddha-mātā"
     },
     {
       "num": 474,
       "name_devanagari": "यशस्विनी",
       "meaning": "She who is of unequalled renown",
-      "name_iast": "ya--śa--svi--nī"
+      "name_iast": "yaśasvinī"
     },
     {
       "num": 475,
       "name_devanagari": "विशुद्धिचक्रनिलया",
       "meaning": "She who resides in the vishuddhi chakra",
-      "name_iast": "vi--śuddhicakra--nilayā"
+      "name_iast": "viśuddhi-cakra-nilayā"
     },
     {
       "num": 476,
       "name_devanagari": "आरक्तवर्णा",
       "meaning": "She who is of slightly red (rosy) complexion",
-      "name_iast": "ā--ra--kta--va--rṇā"
+      "name_iast": "ārakta-varṇā"
     },
     {
       "num": 477,
       "name_devanagari": "त्रिलोचना",
       "meaning": "She who has thhree eyes",
-      "name_iast": "tri--locan--ā"
+      "name_iast": "tri-locanā"
     },
     {
       "num": 478,
       "name_devanagari": "खट्वाङ्गादिप्रहरणा",
       "meaning": "She who is armed with a club and other weapons",
-      "name_iast": "kha--ṭvā--ṅgādi--pra--ha--ra--ṇā"
+      "name_iast": "khaṭvāṅgādi-praharaṇā"
     },
     {
       "num": 479,
       "name_devanagari": "वदनैकसमन्विता",
       "meaning": "She who possesses only one face",
-      "name_iast": "vadana--ika--samanvitā"
+      "name_iast": "vadanaika-samanvitā"
     },
     {
       "num": 480,
       "name_devanagari": "पायसान्नप्रिया",
       "meaning": "She who is especially fond of sweet rice",
-      "name_iast": "aneka-koṭi-brahmāṇḍa-jananī"
+      "name_iast": "pāyasānna-priyā"
     },
     {
       "num": 481,
       "name_devanagari": "त्वक्स्था",
       "meaning": "She who is the deity of the organ of touch (skin)",
-      "name_iast": "divya-vigrahā"
+      "name_iast": "tvak-sthā"
     },
     {
       "num": 482,
       "name_devanagari": "पशुलोकभयङ्करी",
       "meaning": "She who fills with fear the mortal beings bound by worldly existence",
-      "name_iast": "pa--śuloka--bhaya--ṅkarī"
+      "name_iast": "paśu-loka-bhayaṅkarī"
     },
     {
       "num": 483,
       "name_devanagari": "अमृतादिमहाशक्तिसंवृता",
       "meaning": "She who is surrounded by amRitA and other shakti deities",
-      "name_iast": "a--mṛtādi--mahā--śakti--sa--ṃvṛtā"
+      "name_iast": "amṛtādi-mahā-śakti-saṃvṛtā"
     },
     {
       "num": 484,
       "name_devanagari": "डाकिनीश्वरी",
       "meaning": "She who is the DAkinI deity",
-      "name_iast": "ḍā--kinīśvarī"
+      "name_iast": "ḍākinīśvarī"
     },
     {
       "num": 485,
       "name_devanagari": "अनाहताब्जनिलया",
       "meaning": "She who resides in the anAhata lotus in the heart",
-      "name_iast": "kaivalya-pada-dāyinī"
+      "name_iast": "anāhatābja-nilayā"
     },
     {
       "num": 486,
       "name_devanagari": "श्यामाभा",
       "meaning": "She who is black in complexion",
-      "name_iast": "śyā--mābhā"
+      "name_iast": "śyāmābhā"
     },
     {
       "num": 487,
       "name_devanagari": "वदनद्वया",
       "meaning": "She who has two faces",
-      "name_iast": "tri-jagad-vandyā"
+      "name_iast": "vadana-dvayā"
     },
     {
       "num": 488,
       "name_devanagari": "दंष्ट्रोज्ज्वला",
       "meaning": "She who has shining tusks",
-      "name_iast": "tri-mūrtiḥ"
+      "name_iast": "daṃṣṭrojjvalā"
     },
     {
       "num": 489,
       "name_devanagari": "अक्षमालादिधरा",
       "meaning": "She who is wearing garlands of rudrAkSha beads and other things",
-      "name_iast": "tri-daśeśvarī"
+      "name_iast": "akṣamālādi-dharā"
     },
     {
       "num": 490,
       "name_devanagari": "रुधिरसंस्थिता",
       "meaning": "She who presides over the blood in the bodies of living beings",
-      "name_iast": "rudhira--saṃsthitā"
+      "name_iast": "rudhira-saṃsthitā"
     },
     {
       "num": 491,
       "name_devanagari": "कालरात्र्यादिशक्त्यौघवृता",
       "meaning": "She who is surrounded by kAlarAtri and other shaktis",
-      "name_iast": "divya-gandhāḍhyā"
+      "name_iast": "kālarātryādi-śaktyaugha-vṛtā"
     },
     {
       "num": 492,
       "name_devanagari": "स्निग्धौदनप्रिया",
       "meaning": "She who is fond of food offerings containing ghee, oil and other substances containing fats",
-      "name_iast": "sindūra-tilakāñcitā"
+      "name_iast": "snigdhaudana-priyā"
     },
     {
       "num": 493,
       "name_devanagari": "महावीरेन्द्रवरदा",
       "meaning": "She who bestows boons on great warriors",
-      "name_iast": "mahā--vīrendra--va--ra--dā"
+      "name_iast": "mahā-vīrendra-varadā"
     },
     {
       "num": 494,
       "name_devanagari": "राकिण्यम्बास्वरूपिणी",
       "meaning": "She who is in the form of the rAkiNi deity",
-      "name_iast": "śailendra-tanayā"
+      "name_iast": "rākiṇyambā-svarūpiṇī"
     },
     {
       "num": 495,
       "name_devanagari": "मणिपूराब्जनिलया",
       "meaning": "She who resides in the ten-petaled lotus in the maNipUraka chakra",
-      "name_iast": "maṇi--pūrā--bja--nilayā"
+      "name_iast": "maṇipūrābja-nilayā"
     },
     {
       "num": 496,
       "name_devanagari": "वदनत्रयसंयुता",
       "meaning": "She who has three faces",
-      "name_iast": "gandharva-sevitā"
+      "name_iast": "vadana-traya-saṃyutā"
     },
     {
       "num": 497,
       "name_devanagari": "वज्रादिकायुधोपेता",
       "meaning": "She who holds the vajra (lightning bolt) and other weapons",
-      "name_iast": "viśva-garbhā"
+      "name_iast": "vajrādikāyudhopetā"
     },
     {
       "num": 498,
       "name_devanagari": "डामर्यादिभिरावृता",
       "meaning": "She who is surrounded by DAmarI and other attending deities",
-      "name_iast": "svarṇa-garbhā"
+      "name_iast": "ḍāmaryādibhirāvṛtā"
     },
     {
       "num": 499,
       "name_devanagari": "रक्तवर्णा",
       "meaning": "She who is red in complexion",
-      "name_iast": "ra--kta--va--rṇā"
+      "name_iast": "rakta-varṇā"
     },
     {
       "num": 500,
       "name_devanagari": "मांसनिष्ठा",
       "meaning": "She who presides over the flesh in living beings",
-      "name_iast": "mā--ṃsa--niṣ--ṭhā"
+      "name_iast": "māṃsa-niṣṭhā"
     },
     {
       "num": 501,
       "name_devanagari": "गुडान्नप्रीतमानसा",
       "meaning": "She who is fond of sweet rice made with raw sugar",
-      "name_iast": "dhyāna-gamyā"
+      "name_iast": "guḍānna-prīta-mānasā"
     },
     {
       "num": 502,
       "name_devanagari": "समस्तभक्तसुखदा",
       "meaning": "She who confers happiness on all Her devotees",
-      "name_iast": "sam--a--sta--bha--kta--sukha--dā"
+      "name_iast": "samasta-bhakta-sukha-dā"
     },
     {
       "num": 503,
       "name_devanagari": "लाकिन्यम्बास्वरूपिणी",
       "meaning": "She who is in the form of the lAkinI yoginI",
-      "name_iast": "jñāna-dā"
+      "name_iast": "lākinyambā-svarūpiṇī"
     },
     {
       "num": 504,
       "name_devanagari": "स्वाधिष्ठानाम्बुजगता",
       "meaning": "She who resides in the six-petaled lotus in the svAdhiShTAna, kAkinI yoginI",
-      "name_iast": "jñāna-vigrahā"
+      "name_iast": "svādhiṣṭhānāmbuja-gatā"
     },
     {
       "num": 505,
       "name_devanagari": "चतुर्वक्त्रमनोहरा",
       "meaning": "She who has four beautiful faces",
-      "name_iast": "sarva-vedānta-saṃvedyā"
+      "name_iast": "catur-vaktra-manoharā"
     },
     {
       "num": 506,
       "name_devanagari": "शूलाद्यायुधसम्पन्ना",
       "meaning": "She who possesses the trident and other weapons (i.e., noose, skull and abhaya)",
-      "name_iast": "satyānanda-svarūpiṇī"
+      "name_iast": "śūlādyāyudha-sampannā"
     },
     {
       "num": 507,
       "name_devanagari": "पीतवर्णा",
       "meaning": "She who is yellow in color",
-      "name_iast": "pīta--va--rṇā"
+      "name_iast": "pīta-varṇā"
     },
     {
       "num": 508,
       "name_devanagari": "अतिगर्विता",
       "meaning": "She who is very proud",
-      "name_iast": "līlā-kḷpta-brahmāṇḍa-maṇḍalā"
+      "name_iast": "ati-garvitā"
     },
     {
       "num": 509,
       "name_devanagari": "मेदोनिष्ठा",
       "meaning": "She who resides in the fat in living beings",
-      "name_iast": "medoniṣ--ṭhā"
+      "name_iast": "medo-niṣṭhā"
     },
     {
       "num": 510,
       "name_devanagari": "मधुप्रीता",
       "meaning": "She who is fond of honey and other offerings made with honey",
-      "name_iast": "dṛśya-rahitā"
+      "name_iast": "madhu-prītā"
     },
     {
       "num": 511,
       "name_devanagari": "बन्धिन्यादिसमन्विता",
       "meaning": "She who is accompanied by bandhini and other shaktis",
-      "name_iast": "ban--dhinyādi--samanvitā"
+      "name_iast": "bandhinyādi-samanvitā"
     },
     {
       "num": 512,
       "name_devanagari": "दध्यन्नासक्तहृदया",
       "meaning": "She who is particularly fond of offerings made with curd",
-      "name_iast": "vedya-varjitā"
+      "name_iast": "dadhyannāsakta-hṛdayā"
     },
     {
       "num": 513,
       "name_devanagari": "काकिनीरूपधारिणी",
       "meaning": "She who is in the form of kAkinI yoginI",
-      "name_iast": "kā--kinīrūpa--dhāriṇī"
+      "name_iast": "kākinī-rūpa-dhāriṇī"
     },
     {
       "num": 514,
       "name_devanagari": "मूलाधाराम्बुजारूढा",
       "meaning": "She who is resident in the lotus in the mUlAdhAra",
-      "name_iast": "yoga-dā"
+      "name_iast": "mūlādhārāmbujārūḍhā"
     },
     {
       "num": 515,
       "name_devanagari": "पञ्चवक्त्रा",
       "meaning": "She who has five faces",
-      "name_iast": "pañca--va--ktrā"
+      "name_iast": "pañca-vaktrā"
     },
     {
       "num": 516,
       "name_devanagari": "अस्थिसंस्थिता",
       "meaning": "She who resides in the bones",
-      "name_iast": "a--sthisaṃsthitā"
+      "name_iast": "asthi-saṃsthitā"
     },
     {
       "num": 517,
       "name_devanagari": "अङ्कुशादिप्रहरणा",
       "meaning": "She who holds the goad and other weapons",
-      "name_iast": "yugan-dharā"
+      "name_iast": "aṅkuśādi-praharaṇā"
     },
     {
       "num": 518,
       "name_devanagari": "वरदादिनिषेविता",
       "meaning": "She who is attended by varadA and other shaktis",
-      "name_iast": "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī"
+      "name_iast": "varadādi-niṣevitā"
     },
     {
       "num": 519,
       "name_devanagari": "मुद्गौदनासक्तचित्ता",
       "meaning": "She who is particularly fond of food offerings made of mudga, a lentil",
-      "name_iast": "mudga--udan--ā--sa--kta--cittā"
+      "name_iast": "mudgaudanāsakta-cittā"
     },
     {
       "num": 520,
       "name_devanagari": "साकिन्यम्बास्वरूपिणी",
       "meaning": "She who is in the form of sAkinI yoginI",
-      "name_iast": "sā--kinya--mbā--svarūpiṇī"
+      "name_iast": "sākinyambā-svarūpiṇī"
     },
     {
       "num": 521,
       "name_devanagari": "आज्ञाचक्राब्जनिलया",
       "meaning": "She who resides in the two-petaled lotus in the AjnAchakra",
-      "name_iast": "sad-asad-rūpa-dhāriṇī"
+      "name_iast": "ājñā-cakrābja-nilayā"
     },
     {
       "num": 522,
       "name_devanagari": "शुक्लवर्णा",
       "meaning": "She who is white in color",
-      "name_iast": "aṣṭa-mūrtiḥ"
+      "name_iast": "śukla-varṇā"
     },
     {
       "num": 523,
       "name_devanagari": "षडानना",
       "meaning": "She who has six faces",
-      "name_iast": "ṣa--ḍā--nan--ā"
+      "name_iast": "ṣaḍ-ānanā"
     },
     {
       "num": 524,
       "name_devanagari": "मज्जासंस्था",
       "meaning": "She who is the presiding deity of the bone marrow",
-      "name_iast": "loka-yātrā-vidhāyinī"
+      "name_iast": "majjā-saṃsthā"
     },
     {
       "num": 525,
       "name_devanagari": "हंसवतीमुख्यशक्तिसमन्विता",
       "meaning": "She who is accompanied by the shaktis hamsavatI and kShamAvati (in the two petals of the lotus)",
-      "name_iast": "ha--ṃsa--vatī--mukhya--śakti--samanvitā"
+      "name_iast": "haṃsavatī-mukhya-śakti-samanvitā"
     },
     {
       "num": 526,
       "name_devanagari": "हरिद्रान्नैकरसिका",
       "meaning": "She who is fond of food seasoned with turmeric",
-      "name_iast": "bhūma-rūpā"
+      "name_iast": "haridrānnaikarasikā"
     },
     {
       "num": 527,
       "name_devanagari": "हाकिनीरूपधारिणी",
       "meaning": "She who is in the form of hAkinI devI",
-      "name_iast": "hā--kinīrūpa--dhāriṇī"
+      "name_iast": "hākinī-rūpa-dhāriṇī"
     },
     {
       "num": 528,
       "name_devanagari": "सहस्रदलपद्मस्था",
       "meaning": "She who resides in the thousand-petaled lotus",
-      "name_iast": "dvaita-varjitā"
+      "name_iast": "sahasra-dala-padma-sthā"
     },
     {
       "num": 529,
       "name_devanagari": "सर्ववर्णोपशोभिता",
       "meaning": "She who is radiant in many colors",
-      "name_iast": "anna-dā"
+      "name_iast": "sarva-varṇopaśobhitā"
     },
     {
       "num": 530,
       "name_devanagari": "सर्वायुधधरा",
       "meaning": "She who holds all the known weapons",
-      "name_iast": "vasu-dā"
+      "name_iast": "sarvāyudha-dharā"
     },
     {
       "num": 531,
       "name_devanagari": "शुक्लसंस्थिता",
       "meaning": "She who resides in the semen",
-      "name_iast": "śukla--saṃsthitā"
+      "name_iast": "śukla-saṃsthitā"
     },
     {
       "num": 532,
       "name_devanagari": "सर्वतोमुखी",
       "meaning": "She who has faces turned in all directions",
-      "name_iast": "brahmātmaikya-svarūpiṇī"
+      "name_iast": "sarvato-mukhī"
     },
     {
       "num": 533,
       "name_devanagari": "सर्वौदनप्रीतचित्ता",
       "meaning": "She who is pleased by all offerings of food",
-      "name_iast": "sarva--udan--a--prīta--cittā"
+      "name_iast": "sarvaudana-prīta-cittā"
     },
     {
       "num": 534,
       "name_devanagari": "याकिन्यम्बास्वरूपिणी",
       "meaning": "She who is in the form of the yAkinI yoginI",
-      "name_iast": "yā--kinya--mbā--svarūpiṇī"
+      "name_iast": "yākinyambā-svarūpiṇī"
     },
     {
       "num": 535,
@@ -4701,43 +4701,43 @@ const LALITHA_DATA = {
       "num": 537,
       "name_devanagari": "अमतिः",
       "meaning": "She who is in the form of ignorance or nescience",
-      "name_iast": "bali-priyā"
+      "name_iast": "amatiḥ"
     },
     {
       "num": 538,
       "name_devanagari": "मेधा",
       "meaning": "She who is in the form of wisdom (knowledge)",
-      "name_iast": "bhāṣā-rūpā"
+      "name_iast": "medhā"
     },
     {
       "num": 539,
       "name_devanagari": "श्रुतिः",
       "meaning": "She who is in the form of the vedas",
-      "name_iast": "bṛhat-senā"
+      "name_iast": "śrutiḥ"
     },
     {
       "num": 540,
       "name_devanagari": "स्मृतिः",
       "meaning": "She who is in the form of smRiti (works based on the meaning of vedas)",
-      "name_iast": "bhāvābhāva-vivarjitā"
+      "name_iast": "smṛtiḥ"
     },
     {
       "num": 541,
       "name_devanagari": "अनुत्तमा",
       "meaning": "She who is the best; She who is not excelled by anyone",
-      "name_iast": "anu--tta--mā"
+      "name_iast": "anuttamā"
     },
     {
       "num": 542,
       "name_devanagari": "पुण्यकीर्तिः",
       "meaning": "She whose fame is sacred or righteous",
-      "name_iast": "śubha-karī"
+      "name_iast": "puṇya-kīrtiḥ"
     },
     {
       "num": 543,
       "name_devanagari": "पुण्यलभ्या",
       "meaning": "She who is attained only by righteous souls",
-      "name_iast": "puṇya--la--bhyā"
+      "name_iast": "puṇya-labhyā"
     },
     {
       "num": 544,
@@ -4749,7 +4749,7 @@ const LALITHA_DATA = {
       "num": 545,
       "name_devanagari": "पुलोमजार्चिता",
       "meaning": "She who is worshipped by pulomaja (Indra's wife)",
-      "name_iast": "puloma--jā--rcitā"
+      "name_iast": "pulomajārcitā"
     },
     {
       "num": 546,
@@ -4761,7 +4761,7 @@ const LALITHA_DATA = {
       "num": 547,
       "name_devanagari": "बर्बरालका",
       "meaning": "She who has wavy locks of hair;",
-      "name_iast": "ba--rba--rā--la--kā"
+      "name_iast": "barbarālakā"
     },
     {
       "num": 548,
@@ -4779,7 +4779,7 @@ const LALITHA_DATA = {
       "num": 550,
       "name_devanagari": "वियदादि जगत्प्रसूः",
       "meaning": "She who is the Mother of the universe, which is the aggregate of all the elements starting with the ether",
-      "name_iast": "viyadādi-jagat-prasūḥ"
+      "name_iast": "viyadādi jagat-prasūḥ"
     },
     {
       "num": 551,
@@ -4797,7 +4797,7 @@ const LALITHA_DATA = {
       "num": 553,
       "name_devanagari": "अग्रगण्या",
       "meaning": "She who is to be considered the foremost",
-      "name_iast": "a--gra--ga--ṇyā"
+      "name_iast": "agra-gaṇyā"
     },
     {
       "num": 554,
@@ -4815,7 +4815,7 @@ const LALITHA_DATA = {
       "num": 556,
       "name_devanagari": "कात्यायनी",
       "meaning": "She who is the daughter of a sage named kata",
-      "name_iast": "kā--tyā--yan--ī"
+      "name_iast": "kātyāyanī"
     },
     {
       "num": 557,
@@ -4845,7 +4845,7 @@ const LALITHA_DATA = {
       "num": 561,
       "name_devanagari": "मृगाक्षी",
       "meaning": "She whose eyes are long and beautiful like those of a doe",
-      "name_iast": "mṛgā--kṣī"
+      "name_iast": "mṛgākṣī"
     },
     {
       "num": 562,
@@ -4863,163 +4863,163 @@ const LALITHA_DATA = {
       "num": 564,
       "name_devanagari": "मृडानी",
       "meaning": "She who is the wife of mRiDa (shiva)",
-      "name_iast": "mitrarūpiṇī"
+      "name_iast": "mṛḍānī"
     },
     {
       "num": 565,
       "name_devanagari": "मित्ररूपिणी",
       "meaning": "She who is the friend of everyone (universe)",
-      "name_iast": "mitra--rūpiṇī"
+      "name_iast": "mitrarūpiṇī"
     },
     {
       "num": 566,
       "name_devanagari": "नित्यतृप्ता",
       "meaning": "She who is eternally contented",
-      "name_iast": "nitya--tṛptā"
+      "name_iast": "nitya-tṛptā"
     },
     {
       "num": 567,
       "name_devanagari": "भक्तनिधिः",
       "meaning": "She who is the treasure of the devotees",
-      "name_iast": "nikhileśvarī"
+      "name_iast": "bhakta-nidhiḥ"
     },
     {
       "num": 568,
       "name_devanagari": "नियन्त्री",
       "meaning": "She who controls and guides all beings on the right path",
-      "name_iast": "maitryādi-vāsanā-labhyā"
+      "name_iast": "niyantrī"
     },
     {
       "num": 569,
       "name_devanagari": "निखिलेश्वरी",
       "meaning": "She who is the ruler of all",
-      "name_iast": "mahā-pralaya-sākṣiṇī"
+      "name_iast": "nikhileśvarī"
     },
     {
       "num": 570,
       "name_devanagari": "मैत्र्यादिवासनालभ्या",
       "meaning": "She who is to be attained by love and other good dispositions",
-      "name_iast": "ma--itryādi--vā--san--ā--la--bhyā"
+      "name_iast": "maitryādi-vāsanā-labhyā"
     },
     {
       "num": 571,
       "name_devanagari": "महाप्रलयसाक्षिणी",
       "meaning": "She who is witness to the great dissolution",
-      "name_iast": "prajñāna-ghana-rūpiṇī"
+      "name_iast": "mahā-pralaya-sākṣiṇī"
     },
     {
       "num": 572,
       "name_devanagari": "पराशक्तिः",
       "meaning": "She who is the original, supreme power",
-      "name_iast": "mādhvī-pānālasā"
+      "name_iast": "parā-śaktiḥ"
     },
     {
       "num": 573,
       "name_devanagari": "परानिष्ठा",
       "meaning": "She who is the supreme end, the supreme abidance",
-      "name_iast": "parā--niṣ--ṭhā"
+      "name_iast": "parā-niṣṭhā"
     },
     {
       "num": 574,
       "name_devanagari": "प्रज्ञानघनरुपिणी",
       "meaning": "She who is pure, condensed knowledge",
-      "name_iast": "mātṛkā-varṇa-rūpiṇī"
+      "name_iast": "prajñāna-ghana-rupiṇī"
     },
     {
       "num": 575,
       "name_devanagari": "माध्वीपानालसा",
       "meaning": "She who is languid from drinking wine; She who is not eager for anything",
-      "name_iast": "mahā-kailāsa-nilayā"
+      "name_iast": "mādhvī-pānālasā"
     },
     {
       "num": 576,
       "name_devanagari": "मत्ता",
       "meaning": "She who is intoxicated",
-      "name_iast": "mṛṇāla-mṛdu-dorlatā"
+      "name_iast": "mattā"
     },
     {
       "num": 577,
       "name_devanagari": "मातृकावर्णरूपिणी",
       "meaning": "She who is in the form of the letters of the alphabet",
-      "name_iast": "mā--tṛkā--va--rṇa--rūpiṇī"
+      "name_iast": "mātṛkā-varṇa-rūpiṇī"
     },
     {
       "num": 578,
       "name_devanagari": "महाकैलासनिलया",
       "meaning": "She who resides in the great kailAsa",
-      "name_iast": "dayā-mūrtiḥ"
+      "name_iast": "mahā-kailāsa-nilayā"
     },
     {
       "num": 579,
       "name_devanagari": "मृणालमृदुदोर्लता",
       "meaning": "She whose arms are as soft and cool as the lotus stem",
-      "name_iast": "mahā-sāmrājya-śālinī"
+      "name_iast": "mṛṇāla-mṛdu-dorlatā"
     },
     {
       "num": 580,
       "name_devanagari": "महनीया",
       "meaning": "She who is adorable",
-      "name_iast": "ātma-vidyā"
+      "name_iast": "mahanīyā"
     },
     {
       "num": 581,
       "name_devanagari": "दयामूर्तिः",
       "meaning": "She who is the personification of compassion",
-      "name_iast": "mahā-vidyā"
+      "name_iast": "dayā-mūrtiḥ"
     },
     {
       "num": 582,
       "name_devanagari": "महासाम्राज्यशालिनी",
       "meaning": "She who controls the great empire of the three worlds",
-      "name_iast": "śrī-vidyā"
+      "name_iast": "mahā-sāmrājya-śālinī"
     },
     {
       "num": 583,
       "name_devanagari": "आत्मविद्या",
       "meaning": "She who is the knowledge of the self",
-      "name_iast": "kāma-sevitā"
+      "name_iast": "ātma-vidyā"
     },
     {
       "num": 584,
       "name_devanagari": "महाविद्या",
       "meaning": "She who is the seat of exalted knowledge, the knowledge of the self",
-      "name_iast": "śrī-ṣoḍaśākṣarī-vidyā"
+      "name_iast": "mahā-vidyā"
     },
     {
       "num": 585,
       "name_devanagari": "श्रीविद्या",
       "meaning": "She who is sacred knowledge (pa~nchadashi mantra)",
-      "name_iast": "śrī--vidyā"
+      "name_iast": "śrī-vidyā"
     },
     {
       "num": 586,
       "name_devanagari": "कामसेविता",
       "meaning": "She who is worshipped by kAmadeva",
-      "name_iast": "kāma-koṭikā"
+      "name_iast": "kāma-sevitā"
     },
     {
       "num": 587,
       "name_devanagari": "श्रीषोडशाक्षरीविद्या",
       "meaning": "She who is in the form of the sixteen-syllabled mantra",
-      "name_iast": "kaṭākṣa-kiṅkarī-bhūta-kamalā-koṭi-sevitā"
+      "name_iast": "śrī-ṣoḍaśākṣarī-vidyā"
     },
     {
       "num": 588,
       "name_devanagari": "त्रिकूटा",
       "meaning": "She who is in the three parts (of pa~nchadashI mantra)",
-      "name_iast": "tri--kūṭā"
+      "name_iast": "tri-kūṭā"
     },
     {
       "num": 589,
       "name_devanagari": "कामकोटिका",
       "meaning": "She, of whom kAma (shiva) is a part or an approximate form",
-      "name_iast": "kāma--koṭi--kā"
+      "name_iast": "kāma-koṭikā"
     },
     {
       "num": 590,
       "name_devanagari": "कटाक्षकिङ्करीभुतकमलाकोटिसेविता",
       "meaning": "She who is attended by millions of lakShmis who are subdued by Hern mere glances",
-      "name_iast": "ka--ṭā--kṣa--kiṅkarī--bhuta--ka--ma--lā--koṭi--sevitā"
+      "name_iast": "kaṭākṣakiṅkarībhutakamalākoṭisevitā"
     },
     {
       "num": 591,
@@ -5037,7 +5037,7 @@ const LALITHA_DATA = {
       "num": 593,
       "name_devanagari": "भालस्था",
       "meaning": "She who resides in the forehead (between the eyebrows)",
-      "name_iast": "bhāla--sthā"
+      "name_iast": "bhāla-sthā"
     },
     {
       "num": 594,
@@ -5067,7 +5067,7 @@ const LALITHA_DATA = {
       "num": 598,
       "name_devanagari": "दाक्षायणी",
       "meaning": "She who is satIdevI, the daughter of dakSha prajApati",
-      "name_iast": "dā--kṣā--ya--ṇī"
+      "name_iast": "dākṣāyaṇī"
     },
     {
       "num": 599,
@@ -5145,7 +5145,7 @@ const LALITHA_DATA = {
       "num": 611,
       "name_devanagari": "कलात्मिका",
       "meaning": "She who is in the form of the kalAs",
-      "name_iast": "ka--lātmikā"
+      "name_iast": "kalātmikā"
     },
     {
       "num": 612,
@@ -5211,7 +5211,7 @@ const LALITHA_DATA = {
       "num": 622,
       "name_devanagari": "क्लीङ्कारी",
       "meaning": "She who is creator of the syllable 'klIM'",
-      "name_iast": "klīṅkā--rī"
+      "name_iast": "klīṅkārī"
     },
     {
       "num": 623,
@@ -5235,7 +5235,7 @@ const LALITHA_DATA = {
       "num": 626,
       "name_devanagari": "त्रिपुरा",
       "meaning": "She who is older than the three (trinity of brahmA viShNu and shiva)",
-      "name_iast": "tri--purā"
+      "name_iast": "tripurā"
     },
     {
       "num": 627,
@@ -5253,73 +5253,73 @@ const LALITHA_DATA = {
       "num": 629,
       "name_devanagari": "त्रिदशेश्वरी",
       "meaning": "She who is the ruler of the gods",
-      "name_iast": "tri--da--śeśvarī"
+      "name_iast": "tri-daśeśvarī"
     },
     {
       "num": 630,
       "name_devanagari": "त्र्यक्षरि",
       "meaning": "She whose form consists of three letters or syllables (Om = a u m)",
-      "name_iast": "divya-gandhāḍhyā"
+      "name_iast": "tryakṣari"
     },
     {
       "num": 631,
       "name_devanagari": "दिव्यगन्धाढ्या",
       "meaning": "She who is richly endowed with divine fragrance",
-      "name_iast": "sindūra-tilakāñcitā"
+      "name_iast": "divya-gandhāḍhyā"
     },
     {
       "num": 632,
       "name_devanagari": "सिन्दूरतिलकाञ्चिता",
       "meaning": "She who shines witha vermillion mark on Her forehead; She who is decorated with a special paste made of vermilion",
-      "name_iast": "sindūra--tilakā--ñcitā"
+      "name_iast": "sindūra-tilakāñcitā"
     },
     {
       "num": 633,
       "name_devanagari": "उमा",
       "meaning": "She who is pArvatI devI",
-      "name_iast": "śailendra-tanayā"
+      "name_iast": "umā"
     },
     {
       "num": 634,
       "name_devanagari": "शैलेन्द्रतनया",
       "meaning": "She who is the daughter of himavat, the king of the mountains",
-      "name_iast": "śa--ilendra--tan--a--yā"
+      "name_iast": "śailendra-tanayā"
     },
     {
       "num": 635,
       "name_devanagari": "गौरी",
       "meaning": "She who has a fair complexion",
-      "name_iast": "gandharva-sevitā"
+      "name_iast": "gaurī"
     },
     {
       "num": 636,
       "name_devanagari": "गन्धर्वसेविता",
       "meaning": "She who is served by gandharvas (like vishvAvasu)",
-      "name_iast": "viśva-garbhā"
+      "name_iast": "gandharva-sevitā"
     },
     {
       "num": 637,
       "name_devanagari": "विश्वगर्भा",
       "meaning": "She who contains the whole universe in Her womb",
-      "name_iast": "svarṇa-garbhā"
+      "name_iast": "viśva-garbhā"
     },
     {
       "num": 638,
       "name_devanagari": "स्वर्णगर्भा",
       "meaning": "She who is the cause of the universe",
-      "name_iast": "svarṇa--ga--rbhā"
+      "name_iast": "svarṇa-garbhā"
     },
     {
       "num": 639,
       "name_devanagari": "अवरदा",
       "meaning": "She who destroys the unholy",
-      "name_iast": "a--va--ra--dā"
+      "name_iast": "avaradā"
     },
     {
       "num": 640,
       "name_devanagari": "वागधीश्वरी",
       "meaning": "She who presides over speech",
-      "name_iast": "vā--ga--dhīśvarī"
+      "name_iast": "vāg-adhīśvarī"
     },
     {
       "num": 641,
@@ -5331,7 +5331,7 @@ const LALITHA_DATA = {
       "num": 642,
       "name_devanagari": "अपरिच्छेद्या",
       "meaning": "She whose limits cannot be ascertained (unlimited)",
-      "name_iast": "a--pari--cchedyā"
+      "name_iast": "aparicchedyā"
     },
     {
       "num": 643,
@@ -5361,7 +5361,7 @@ const LALITHA_DATA = {
       "num": 647,
       "name_devanagari": "लोपामुद्रार्चिता",
       "meaning": "She who is worshipped by lopAmudrA (wife of sage agastya)",
-      "name_iast": "lopā--mudrā--rcitā"
+      "name_iast": "lopāmudrārcitā"
     },
     {
       "num": 648,
@@ -5385,7 +5385,7 @@ const LALITHA_DATA = {
       "num": 651,
       "name_devanagari": "विज्ञात्री",
       "meaning": "She who knows the truth of the physical universe",
-      "name_iast": "vi--jñā--trī"
+      "name_iast": "vijñātrī"
     },
     {
       "num": 652,
@@ -5403,103 +5403,103 @@ const LALITHA_DATA = {
       "num": 654,
       "name_devanagari": "योगदा",
       "meaning": "She who bestows the power of yoga",
-      "name_iast": "yogadā"
+      "name_iast": "yoga-dā"
     },
     {
       "num": 655,
       "name_devanagari": "योग्या",
       "meaning": "She who deserves yoga of all kinds",
-      "name_iast": "yugan-dharā"
+      "name_iast": "yogyā"
     },
     {
       "num": 656,
       "name_devanagari": "योगानन्दा",
       "meaning": "She who is the bliss attained through yoga; She who enjoys the bliss of yoga",
-      "name_iast": "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī"
+      "name_iast": "yogānandā"
     },
     {
       "num": 657,
       "name_devanagari": "युगन्धरा",
       "meaning": "She who is the bearer of the yugas",
-      "name_iast": "yugan--dha--rā"
+      "name_iast": "yugan-dharā"
     },
     {
       "num": 658,
       "name_devanagari": "इच्छाशक्तिज्ञानशक्तिक्रियाशक्तिस्वरूपिणी",
       "meaning": "She who is in the form of the powers of will, knowledge and action",
-      "name_iast": "icchā--śakti--jñāna--śakti--kriyā--śakti--svarūpiṇī"
+      "name_iast": "icchā-śakti-jñāna-śakti-kriyā-śakti-svarūpiṇī"
     },
     {
       "num": 659,
       "name_devanagari": "सर्वाधारा",
       "meaning": "She who is the support of all",
-      "name_iast": "sad-asad-rūpa-dhāriṇī"
+      "name_iast": "sarvādhārā"
     },
     {
       "num": 660,
       "name_devanagari": "सुप्रतीष्ठा",
       "meaning": "She who is firmly established",
-      "name_iast": "aṣṭa-mūrtiḥ"
+      "name_iast": "su-pratīṣṭhā"
     },
     {
       "num": 661,
       "name_devanagari": "सदसद्रूपधारिणी",
       "meaning": "She who assumes the forms of both being and non-being",
-      "name_iast": "sad--a--sad--rūpa--dhāriṇī"
+      "name_iast": "sad-asad-rūpa-dhāriṇī"
     },
     {
       "num": 662,
       "name_devanagari": "अष्टमूर्तिः",
       "meaning": "She who has eight forms",
-      "name_iast": "loka-yātrā-vidhāyinī"
+      "name_iast": "aṣṭa-mūrtiḥ"
     },
     {
       "num": 663,
       "name_devanagari": "अजाजेत्री",
       "meaning": "She who conquers ignorance",
-      "name_iast": "a--jā--jetrī"
+      "name_iast": "ajā-jetrī"
     },
     {
       "num": 664,
       "name_devanagari": "लोकयात्रविधायिनी",
       "meaning": "She who directs the course of the worlds",
-      "name_iast": "bhūma-rūpā"
+      "name_iast": "loka-yātra-vidhāyinī"
     },
     {
       "num": 665,
       "name_devanagari": "एकाकिनी",
       "meaning": "She who is the lone one",
-      "name_iast": "ekā--kinī"
+      "name_iast": "ekākinī"
     },
     {
       "num": 666,
       "name_devanagari": "भूमरूपा",
       "meaning": "She who is the aggregate of all existing things",
-      "name_iast": "dvaita-varjitā"
+      "name_iast": "bhūma-rūpā"
     },
     {
       "num": 667,
       "name_devanagari": "निर्द्वैता",
       "meaning": "She who is without the sense of duality",
-      "name_iast": "anna-dā"
+      "name_iast": "nir-dvaitā"
     },
     {
       "num": 668,
       "name_devanagari": "द्वैतवर्जिता",
       "meaning": "She who is beyond duality",
-      "name_iast": "vasu-dā"
+      "name_iast": "dvaita-varjitā"
     },
     {
       "num": 669,
       "name_devanagari": "अन्नदा",
       "meaning": "She who is the giver of food to all living things",
-      "name_iast": "annadā"
+      "name_iast": "anna-dā"
     },
     {
       "num": 670,
       "name_devanagari": "वसुदा",
       "meaning": "She who is the giver of wealth",
-      "name_iast": "brahmātmaikya-svarūpiṇī"
+      "name_iast": "vasu-dā"
     },
     {
       "num": 671,
@@ -5511,7 +5511,7 @@ const LALITHA_DATA = {
       "num": 672,
       "name_devanagari": "ब्रह्मात्मैक्यस्वरूपिणी",
       "meaning": "She whose nature is the union of brahman and Atman",
-      "name_iast": "brahmā--tma--ikya--svarūpiṇī"
+      "name_iast": "brahmātmaikya-svarūpiṇī"
     },
     {
       "num": 673,
@@ -5523,67 +5523,67 @@ const LALITHA_DATA = {
       "num": 674,
       "name_devanagari": "ब्राह्मणी",
       "meaning": "She who is predominantly sAttvic",
-      "name_iast": "brā--hma--ṇī"
+      "name_iast": "brāhmaṇī"
     },
     {
       "num": 675,
       "name_devanagari": "ब्राह्मी",
       "meaning": "She who presides over speech",
-      "name_iast": "bali-priyā"
+      "name_iast": "brāhmī"
     },
     {
       "num": 676,
       "name_devanagari": "ब्रह्मानन्दा",
       "meaning": "She who is ever immersed in the bliss of brahman",
-      "name_iast": "bhāṣā-rūpā"
+      "name_iast": "brahmānandā"
     },
     {
       "num": 677,
       "name_devanagari": "बलिप्रिया",
       "meaning": "She who is especially fond of sacrificial offerings",
-      "name_iast": "bṛhat-senā"
+      "name_iast": "bali-priyā"
     },
     {
       "num": 678,
       "name_devanagari": "भाषारूपा",
       "meaning": "She who is in the form of language",
-      "name_iast": "bhāvābhāva-vivarjitā"
+      "name_iast": "bhāṣā-rūpā"
     },
     {
       "num": 679,
       "name_devanagari": "बृहत्सेना",
       "meaning": "She who has a vast army",
-      "name_iast": "bṛha--tsenā"
+      "name_iast": "bṛhat-senā"
     },
     {
       "num": 680,
       "name_devanagari": "भावाभावविवर्जिता",
       "meaning": "She who is beyond being and non-being",
-      "name_iast": "śubha-karī"
+      "name_iast": "bhāvābhāva-vivarjitā"
     },
     {
       "num": 681,
       "name_devanagari": "सुखाराध्या",
       "meaning": "She who is easily worshipped",
-      "name_iast": "su--khārādhyā"
+      "name_iast": "sukhārādhyā"
     },
     {
       "num": 682,
       "name_devanagari": "शुभकरी",
       "meaning": "She who does good",
-      "name_iast": "śubha--karī"
+      "name_iast": "śubha-karī"
     },
     {
       "num": 683,
       "name_devanagari": "शोभनासुलभागतिः",
       "meaning": "She who is attained through a bright and easy path",
-      "name_iast": "śobhan--ā--su--la--bhā--gati--ḥ"
+      "name_iast": "śobhanāsulabhāgatiḥ"
     },
     {
       "num": 684,
       "name_devanagari": "राजराजेश्वरी",
       "meaning": "She who is the ruler of kings and emperors",
-      "name_iast": "rāja--rā--jeśvarī"
+      "name_iast": "rāja-rājeśvarī"
     },
     {
       "num": 685,
@@ -5601,7 +5601,7 @@ const LALITHA_DATA = {
       "num": 687,
       "name_devanagari": "राजत्कृपा",
       "meaning": "She who has a compassion that captivates everyone",
-      "name_iast": "rāja--tkṛpā"
+      "name_iast": "rājatkṛpā"
     },
     {
       "num": 688,
@@ -5613,7 +5613,7 @@ const LALITHA_DATA = {
       "num": 689,
       "name_devanagari": "राज्यलक्ष्मी",
       "meaning": "She who is the embodiment of the prosperity of the world",
-      "name_iast": "rājya-lakṣmīḥ"
+      "name_iast": "rājya-lakṣmī"
     },
     {
       "num": 690,
@@ -5673,7 +5673,7 @@ const LALITHA_DATA = {
       "num": 699,
       "name_devanagari": "सावित्री",
       "meaning": "She who is the creative power in the universe",
-      "name_iast": "sā--vi--trī"
+      "name_iast": "sāvitrī"
     },
     {
       "num": 700,
@@ -5691,7 +5691,7 @@ const LALITHA_DATA = {
       "num": 702,
       "name_devanagari": "सर्वगा",
       "meaning": "She who pervades all the worlds and all the living and non-living things; She who is omnipresent",
-      "name_iast": "sarva--gā"
+      "name_iast": "sarva-gā"
     },
     {
       "num": 703,
@@ -5709,37 +5709,37 @@ const LALITHA_DATA = {
       "num": 705,
       "name_devanagari": "शास्त्रमयी",
       "meaning": "She who is in the form of the scriptures; She whose limbs are the scriptures",
-      "name_iast": "śāstra--mayī"
+      "name_iast": "śāstra-mayī"
     },
     {
       "num": 706,
       "name_devanagari": "गुहाम्बा",
       "meaning": "She who is the mother of guha (subramaNya); She who dwells in the cave of the heart",
-      "name_iast": "guhya-rūpiṇī"
+      "name_iast": "guhāmbā"
     },
     {
       "num": 707,
       "name_devanagari": "गुह्यरूपिणी",
       "meaning": "She who has a secret form",
-      "name_iast": "sarvopādhi-vinirmuktā"
+      "name_iast": "guhya-rūpiṇī"
     },
     {
       "num": 708,
       "name_devanagari": "सर्वोपाधिविनिर्मुक्ता",
       "meaning": "She who is free from all limitations",
-      "name_iast": "sadā-śiva-pativratā"
+      "name_iast": "sarvopādhi-vinirmuktā"
     },
     {
       "num": 709,
       "name_devanagari": "सदाशिवपतिव्रता",
       "meaning": "She who is sadAshiva's devoted wife",
-      "name_iast": "sad--ā--śiva--pativratā"
+      "name_iast": "sadā-śiva-pativratā"
     },
     {
       "num": 710,
       "name_devanagari": "सम्प्रदायेश्वरी",
       "meaning": "She who is the guardian of sacred traditions",
-      "name_iast": "guru-maṇḍala-rūpiṇī"
+      "name_iast": "sampradāyeśvarī"
     },
     {
       "num": 711,
@@ -5757,7 +5757,7 @@ const LALITHA_DATA = {
       "num": 713,
       "name_devanagari": "गुरूमण्डलरूपिणी",
       "meaning": "She who embodies in Herself the lineage of Gurus",
-      "name_iast": "gurūmaṇḍala--rūpiṇī"
+      "name_iast": "gurū-maṇḍala-rūpiṇī"
     },
     {
       "num": 714,
@@ -5769,115 +5769,115 @@ const LALITHA_DATA = {
       "num": 715,
       "name_devanagari": "भगाराध्या",
       "meaning": "She who is worshipped in the sun's disc",
-      "name_iast": "komalāṅgī"
+      "name_iast": "bhagārādhyā"
     },
     {
       "num": 716,
       "name_devanagari": "माया",
       "meaning": "She who is illusion",
-      "name_iast": "guru-priyā"
+      "name_iast": "māyā"
     },
     {
       "num": 717,
       "name_devanagari": "मधुमती",
       "meaning": "She whose nature is as sweet as honey",
-      "name_iast": "ma--dhumatī"
+      "name_iast": "madhu-matī"
     },
     {
       "num": 718,
       "name_devanagari": "मही",
       "meaning": "She who is the goddess earth",
-      "name_iast": "sarva-tantreśī"
+      "name_iast": "mahī"
     },
     {
       "num": 719,
       "name_devanagari": "गणाम्बा",
       "meaning": "She who is the mother of shiva's attendants",
-      "name_iast": "dakṣiṇā-mūrti-rūpiṇī"
+      "name_iast": "gaṇāmbā"
     },
     {
       "num": 720,
       "name_devanagari": "गुह्यकाराध्या",
       "meaning": "She who is worshipped by guhyakas (a kind of devAs)",
-      "name_iast": "sanakādi-samārādhyā"
+      "name_iast": "guhyakārādhyā"
     },
     {
       "num": 721,
       "name_devanagari": "कोमलाङ्गी",
       "meaning": "She who has beautiful limbs",
-      "name_iast": "śiva-jñāna-pradāyinī"
+      "name_iast": "komalāṅgī"
     },
     {
       "num": 722,
       "name_devanagari": "गुरुप्रिया",
       "meaning": "She who is beloved of the gurus",
-      "name_iast": "cit-kalā"
+      "name_iast": "guru-priyā"
     },
     {
       "num": 723,
       "name_devanagari": "स्वतन्त्रा",
       "meaning": "She who is free from all limitations",
-      "name_iast": "ānanda-kalikā"
+      "name_iast": "svatantrā"
     },
     {
       "num": 724,
       "name_devanagari": "सर्वतन्त्रेशी",
       "meaning": "She who is the goddess of all tantras",
-      "name_iast": "prema-rūpā"
+      "name_iast": "sarva-tantreśī"
     },
     {
       "num": 725,
       "name_devanagari": "दक्षिणामूर्तिरूपिणी",
       "meaning": "She who is in the form of dakShiNAmUrti",
-      "name_iast": "da--kṣiṇā--mūrti--rūpiṇī"
+      "name_iast": "dakṣiṇā-mūrti-rūpiṇī"
     },
     {
       "num": 726,
       "name_devanagari": "सनकादिसमाराध्या",
       "meaning": "She who is worshipped by sanaka and other sages",
-      "name_iast": "nāma-pārāyaṇa-prītā"
+      "name_iast": "sanakādi-samārādhyā"
     },
     {
       "num": 727,
       "name_devanagari": "शिवज्ञानप्रदायिनी",
       "meaning": "She who bestows the knowledge of siva",
-      "name_iast": "nandi-vidyā"
+      "name_iast": "śiva-jñāna-pradāyinī"
     },
     {
       "num": 728,
       "name_devanagari": "चित्कला",
       "meaning": "She who is the consciousness in brahman",
-      "name_iast": "citkalā"
+      "name_iast": "cit-kalā"
     },
     {
       "num": 729,
       "name_devanagari": "आनन्दकलिका",
       "meaning": "She who is the bud of bliss",
-      "name_iast": "mithyā-jagadadhiṣṭhānā"
+      "name_iast": "ānanda-kalikā"
     },
     {
       "num": 730,
       "name_devanagari": "प्रेमरूपा",
       "meaning": "She who is pure love",
-      "name_iast": "mukti-dā"
+      "name_iast": "prema-rūpā"
     },
     {
       "num": 731,
       "name_devanagari": "प्रियङ्करी",
       "meaning": "She who grants what is dear to Her devotees",
-      "name_iast": "mukti-rūpiṇī"
+      "name_iast": "priyaṅkarī"
     },
     {
       "num": 732,
       "name_devanagari": "नामपारायणप्रीता",
       "meaning": "She who is pleased by the repetition of Her names",
-      "name_iast": "lāsya-priyā"
+      "name_iast": "nāma-pārāyaṇa-prītā"
     },
     {
       "num": 733,
       "name_devanagari": "नन्दिविद्या",
       "meaning": "She who is the deity worshipped by the nandi mantra",
-      "name_iast": "laya-karī"
+      "name_iast": "nandi-vidyā"
     },
     {
       "num": 734,
@@ -5889,115 +5889,115 @@ const LALITHA_DATA = {
       "num": 735,
       "name_devanagari": "मिथ्याजगदधिष्ठाना",
       "meaning": "She who is the basis of the illusory universe",
-      "name_iast": "rambhādi-vanditā"
+      "name_iast": "mithyā-jagadadhiṣṭhānā"
     },
     {
       "num": 736,
       "name_devanagari": "मुक्तिदा",
       "meaning": "She who gives liberation",
-      "name_iast": "bhava-dāva-sudhā-vṛṣṭiḥ"
+      "name_iast": "mukti-dā"
     },
     {
       "num": 737,
       "name_devanagari": "मुक्तिरूपिणी",
       "meaning": "She who is in the form of liberation",
-      "name_iast": "pāpāraṇya-davānalā"
+      "name_iast": "mukti-rūpiṇī"
     },
     {
       "num": 738,
       "name_devanagari": "लास्यप्रिया",
       "meaning": "She who is fond of the lAsya dance",
-      "name_iast": "daurbhāgya-tūla-vātūlā"
+      "name_iast": "lāsya-priyā"
     },
     {
       "num": 739,
       "name_devanagari": "लयकरी",
       "meaning": "She who causes absorption",
-      "name_iast": "jarādhvānta-ravi-prabhā"
+      "name_iast": "laya-karī"
     },
     {
       "num": 740,
       "name_devanagari": "लज्जा",
       "meaning": "She who exists as modesty in living beings",
-      "name_iast": "bhāgyābdhi-candrikā"
+      "name_iast": "lajjā"
     },
     {
       "num": 741,
       "name_devanagari": "रम्भादिवन्दिता",
       "meaning": "She who is adored by the celestial damsels such as rambhA",
-      "name_iast": "bhakta-citta-keki-ghanāghanā"
+      "name_iast": "rambhādi-vanditā"
     },
     {
       "num": 742,
       "name_devanagari": "भवदावसुधावृष्टिः",
       "meaning": "She who is the rain of nectar falling on the forest fire of worldly existence",
-      "name_iast": "roga-parvata-dambholiḥ"
+      "name_iast": "bhava-dāva-sudhā-vṛṣṭiḥ"
     },
     {
       "num": 743,
       "name_devanagari": "पापारण्यदवानला",
       "meaning": "She who is like wild fire to the forest of sins",
-      "name_iast": "mṛtyu-dāru-kuṭhārikā"
+      "name_iast": "pāpāraṇya-davānalā"
     },
     {
       "num": 744,
       "name_devanagari": "दौर्भाग्यतूलवातूला",
       "meaning": "She who is the gale that drives away the cotton wisps of misfortune",
-      "name_iast": "da--urbhā--gya--tūla--vā--tūlā"
+      "name_iast": "daurbhāgya-tūla-vātūlā"
     },
     {
       "num": 745,
       "name_devanagari": "जराध्वान्तरविप्रभा",
       "meaning": "She who is the sunlight that dispels the darkness of old age",
-      "name_iast": "mahā-kālī"
+      "name_iast": "jarādhvānta-ravi-prabhā"
     },
     {
       "num": 746,
       "name_devanagari": "भाग्याब्धिचन्द्रिका",
       "meaning": "She who is the full moon to the ocean of good fortune",
-      "name_iast": "mahā-grāsā"
+      "name_iast": "bhāgyābdhi-candrikā"
     },
     {
       "num": 747,
       "name_devanagari": "भक्तचित्तकेकिघनाघना",
       "meaning": "She who is the cloud that gladdens the peacocks who are the hearts of Her devotees",
-      "name_iast": "bha--kta--citta--kekighan--ā--ghan--ā"
+      "name_iast": "bhakta-citta-keki-ghanāghanā"
     },
     {
       "num": 748,
       "name_devanagari": "रोगपर्वतदम्भोलिः",
       "meaning": "She who is the thunderbolt that shatters the mountain of disease",
-      "name_iast": "roga--parvata--dambholiḥ"
+      "name_iast": "roga-parvata-dambholiḥ"
     },
     {
       "num": 749,
       "name_devanagari": "मृत्युदारुकुठारिका",
       "meaning": "She who is the axe that cuts down the tree of death",
-      "name_iast": "mṛtyudā--rukuṭhārikā"
+      "name_iast": "mṛtyu-dāru-kuṭhārikā"
     },
     {
       "num": 750,
       "name_devanagari": "महेश्वरी",
       "meaning": "She who is the supreme goddess",
-      "name_iast": "ma--heśvarī"
+      "name_iast": "maheśvarī"
     },
     {
       "num": 751,
       "name_devanagari": "महाकाली",
       "meaning": "She who is the great kAli",
-      "name_iast": "caṇḍa-muṇḍāsura-niṣūdinī"
+      "name_iast": "mahā-kālī"
     },
     {
       "num": 752,
       "name_devanagari": "महाग्रासा",
       "meaning": "She who devours everything great; She who is the great devourer",
-      "name_iast": "mahā--grā--sā"
+      "name_iast": "mahā-grāsā"
     },
     {
       "num": 753,
       "name_devanagari": "महाशना",
       "meaning": "She who eats everything that is great",
-      "name_iast": "mahā--śan--ā"
+      "name_iast": "mahā-śanā"
     },
     {
       "num": 754,
@@ -6009,73 +6009,73 @@ const LALITHA_DATA = {
       "num": 755,
       "name_devanagari": "चण्डिका",
       "meaning": "She who is angry (at the wicked)",
-      "name_iast": "sarva-lokeśī"
+      "name_iast": "caṇḍikā"
     },
     {
       "num": 756,
       "name_devanagari": "चण्डमुण्डासुरनिषूदिनी",
       "meaning": "She who killed chaNDa, muNDa and other asuras",
-      "name_iast": "viśva-dhāriṇī"
+      "name_iast": "caṇḍa-muṇḍāsura-niṣūdinī"
     },
     {
       "num": 757,
       "name_devanagari": "क्षराक्षरात्मिका",
       "meaning": "She who is in the form of both the perishable and imperishable Atman",
-      "name_iast": "tri-varga-dātrī"
+      "name_iast": "kṣarākṣarātmikā"
     },
     {
       "num": 758,
       "name_devanagari": "सर्वलोकेशी",
       "meaning": "She who is the ruler of all worlds",
-      "name_iast": "sarva--lokeśī"
+      "name_iast": "sarva-lokeśī"
     },
     {
       "num": 759,
       "name_devanagari": "विश्वधारिणी",
       "meaning": "She who supports the universe",
-      "name_iast": "tri-guṇātmikā"
+      "name_iast": "viśva-dhāriṇī"
     },
     {
       "num": 760,
       "name_devanagari": "त्रिवर्गदात्री",
       "meaning": "She who bestows the three goals of life",
-      "name_iast": "svargāpavarga-dā"
+      "name_iast": "tri-varga-dātrī"
     },
     {
       "num": 761,
       "name_devanagari": "सुभगा",
       "meaning": "She who is the seat of all prosperity",
-      "name_iast": "su--bha--gā"
+      "name_iast": "subhagā"
     },
     {
       "num": 762,
       "name_devanagari": "त्र्यम्बका",
       "meaning": "She who has three eyes",
-      "name_iast": "japā-puṣpa-nibhākṛtiḥ"
+      "name_iast": "tryambakā"
     },
     {
       "num": 763,
       "name_devanagari": "त्रिगुणात्मिका",
       "meaning": "She who is the essence of the three gunas",
-      "name_iast": "tri--guṇātmikā"
+      "name_iast": "tri-guṇātmikā"
     },
     {
       "num": 764,
       "name_devanagari": "स्वर्गापवर्गदा",
       "meaning": "She who bestows heaven and liberation",
-      "name_iast": "sva--rgā--pa--va--rga--dā"
+      "name_iast": "svargāpavarga-dā"
     },
     {
       "num": 765,
       "name_devanagari": "शुद्धा",
       "meaning": "She who is the purest",
-      "name_iast": "yajña-rūpā"
+      "name_iast": "śuddhā"
     },
     {
       "num": 766,
       "name_devanagari": "जपापुष्पनिभाकृतिः",
       "meaning": "She whose body is like the hibiscus flower",
-      "name_iast": "priya-vratā"
+      "name_iast": "japā-puṣpa-nibhākṛtiḥ"
     },
     {
       "num": 767,
@@ -6087,37 +6087,37 @@ const LALITHA_DATA = {
       "num": 768,
       "name_devanagari": "द्युतिधरा",
       "meaning": "She who is full of light and splendor; She who has an aura of light",
-      "name_iast": "pāṭalī-kusuma-priyā"
+      "name_iast": "dyuti-dharā"
     },
     {
       "num": 769,
       "name_devanagari": "यज्ञरूपा",
       "meaning": "She who is in the form of sacrifice",
-      "name_iast": "yajña--rūpā"
+      "name_iast": "yajña-rūpā"
     },
     {
       "num": 770,
       "name_devanagari": "प्रियव्रता",
       "meaning": "She who is fond of vows",
-      "name_iast": "meru-nilayā"
+      "name_iast": "priya-vratā"
     },
     {
       "num": 771,
       "name_devanagari": "दुराराध्या",
       "meaning": "She who is difficult to worship",
-      "name_iast": "mandāra-kusuma-priyā"
+      "name_iast": "durārādhyā"
     },
     {
       "num": 772,
       "name_devanagari": "दुराधर्षा",
       "meaning": "She who is difficult to control",
-      "name_iast": "dur--ā--dha--rṣā"
+      "name_iast": "dur-ādharṣā"
     },
     {
       "num": 773,
       "name_devanagari": "पाटलीकुसुमप्रिया",
       "meaning": "She who is fond of the pATali flower (the pale red trumpet flower)",
-      "name_iast": "virāḍ-rūpā"
+      "name_iast": "pāṭalī-kusuma-priyā"
     },
     {
       "num": 774,
@@ -6129,13 +6129,13 @@ const LALITHA_DATA = {
       "num": 775,
       "name_devanagari": "मेरुनिलया",
       "meaning": "She who resides in the meru mountain",
-      "name_iast": "viśvato-mukhī"
+      "name_iast": "meru-nilayā"
     },
     {
       "num": 776,
       "name_devanagari": "मन्दारकुसुमप्रिया",
       "meaning": "She who is fond of the mandAra flowers",
-      "name_iast": "pratyag-rūpā"
+      "name_iast": "mandāra-kusuma-priyā"
     },
     {
       "num": 777,
@@ -6147,139 +6147,139 @@ const LALITHA_DATA = {
       "num": 778,
       "name_devanagari": "विराड्रूपा",
       "meaning": "She who is in the form of the cosmic whole",
-      "name_iast": "prāṇa-dā"
+      "name_iast": "virāḍ-rūpā"
     },
     {
       "num": 779,
       "name_devanagari": "विरजा",
       "meaning": "She who is without rajas (desire and anger)",
-      "name_iast": "prāṇa-rūpiṇī"
+      "name_iast": "virajā"
     },
     {
       "num": 780,
       "name_devanagari": "विश्वतोमुखी",
       "meaning": "She who faces all directions",
-      "name_iast": "mārtāṇḍa-bhairavārādhyā"
+      "name_iast": "viśvato-mukhī"
     },
     {
       "num": 781,
       "name_devanagari": "प्रत्यग्रूपा",
       "meaning": "She who is the indwelling self",
-      "name_iast": "mantriṇī-nyasta-rājya-dhūḥ"
+      "name_iast": "pratyag-rūpā"
     },
     {
       "num": 782,
       "name_devanagari": "पराकाशा",
       "meaning": "She who is the transcendental ether (which is the material cause of the cosmic and individual bodies)",
-      "name_iast": "parā--kā--śā"
+      "name_iast": "parā-kāśā"
     },
     {
       "num": 783,
       "name_devanagari": "प्राणदा",
       "meaning": "She who is the giver of life",
-      "name_iast": "prāṇa--dā"
+      "name_iast": "prāṇa-dā"
     },
     {
       "num": 784,
       "name_devanagari": "प्राणरूपिणी",
       "meaning": "She who is the nature of life",
-      "name_iast": "prāṇa--rūpiṇī"
+      "name_iast": "prāṇa-rūpiṇī"
     },
     {
       "num": 785,
       "name_devanagari": "मार्ताण्डभैरवाराध्या",
       "meaning": "She who is worshipped by mArtANDabhairava",
-      "name_iast": "mā--rtā--ṇḍa--bha--ira--vārādhyā"
+      "name_iast": "mārtāṇḍa-bhairavārādhyā"
     },
     {
       "num": 786,
       "name_devanagari": "मन्त्रिणीन्यस्तराज्यधूः",
       "meaning": "She who has entrusted Her regal responsibilities to Her mantriNi",
-      "name_iast": "mantriṇī--nya--sta--rā--jya--dhūḥ"
+      "name_iast": "mantriṇī-nyasta-rājya-dhūḥ"
     },
     {
       "num": 787,
       "name_devanagari": "त्रिपुरेशी",
       "meaning": "She who is the goddess of tripura",
-      "name_iast": "satya-jñānānanda-rūpā"
+      "name_iast": "tripureśī"
     },
     {
       "num": 788,
       "name_devanagari": "जयत्सेना",
       "meaning": "She who has an army which is accustomed only to victory",
-      "name_iast": "sāmarasya-parāyaṇā"
+      "name_iast": "jaya-tsenā"
     },
     {
       "num": 789,
       "name_devanagari": "निस्त्रैगुण्या",
       "meaning": "She who is devoid of the three guNas",
-      "name_iast": "nis--tra--iguṇyā"
+      "name_iast": "nis-traiguṇyā"
     },
     {
       "num": 790,
       "name_devanagari": "परापरा",
       "meaning": "She who is both parA and aparA",
-      "name_iast": "kalā-mālā"
+      "name_iast": "parāparā"
     },
     {
       "num": 791,
       "name_devanagari": "सत्यज्ञानानन्दरूपा",
       "meaning": "She who is truth, knowledge and bliss",
-      "name_iast": "satya--jñā--nānanda--rūpā"
+      "name_iast": "satya-jñānānanda-rūpā"
     },
     {
       "num": 792,
       "name_devanagari": "सामरस्यपरायणा",
       "meaning": "She who is immersed in a state of steady wisdom",
-      "name_iast": "kāma-rūpiṇī"
+      "name_iast": "sāmarasya-parāyaṇā"
     },
     {
       "num": 793,
       "name_devanagari": "कपर्दिनी",
       "meaning": "She who is the wife of kapardi (shiva, one with matted hair)",
-      "name_iast": "kalā-nidhiḥ"
+      "name_iast": "kapardinī"
     },
     {
       "num": 794,
       "name_devanagari": "कलामाला",
       "meaning": "She who wears all sixty-four forms of art as a garland",
-      "name_iast": "kāvya-kalā"
+      "name_iast": "kalā-mālā"
     },
     {
       "num": 795,
       "name_devanagari": "कामधुक्",
       "meaning": "She who fulfills all desires",
-      "name_iast": "kāma--dhuk"
+      "name_iast": "kāma-dhuk"
     },
     {
       "num": 796,
       "name_devanagari": "कामरूपिणी",
       "meaning": "She who has a desirable form",
-      "name_iast": "rasa-śevadhiḥ"
+      "name_iast": "kāma-rūpiṇī"
     },
     {
       "num": 797,
       "name_devanagari": "कलानिधिः",
       "meaning": "She who is the treasurehouse of all arts",
-      "name_iast": "kalā--nidhiḥ"
+      "name_iast": "kalā-nidhiḥ"
     },
     {
       "num": 798,
       "name_devanagari": "काव्यकला",
       "meaning": "She who is the art of poetry",
-      "name_iast": "kā--vya--kalā"
+      "name_iast": "kāvya-kalā"
     },
     {
       "num": 799,
       "name_devanagari": "रसज्ञा",
       "meaning": "She who knows all the rasas",
-      "name_iast": "rasa--jñā"
+      "name_iast": "rasa-jñā"
     },
     {
       "num": 800,
       "name_devanagari": "रसशेवधिः",
       "meaning": "She who is the treasurehouse of rasa",
-      "name_iast": "rasa--śevadhi--ḥ"
+      "name_iast": "rasa-śevadhiḥ"
     },
     {
       "num": 801,
@@ -6291,67 +6291,67 @@ const LALITHA_DATA = {
       "num": 802,
       "name_devanagari": "पुरातना",
       "meaning": "She who is ancient",
-      "name_iast": "paraṃ-jyotiḥ"
+      "name_iast": "purātanā"
     },
     {
       "num": 803,
       "name_devanagari": "पूज्या",
       "meaning": "She who is worthy of worship by all",
-      "name_iast": "paraṃ-dhāma"
+      "name_iast": "pūjyā"
     },
     {
       "num": 804,
       "name_devanagari": "पुष्करा",
       "meaning": "She who is complete; She who gives bourishment to all",
-      "name_iast": "puṣka--rā"
+      "name_iast": "puṣkarā"
     },
     {
       "num": 805,
       "name_devanagari": "पुष्करेक्षणा",
       "meaning": "She who has eyes like lotus petals",
-      "name_iast": "parāt-parā"
+      "name_iast": "puṣkarekṣaṇā"
     },
     {
       "num": 806,
       "name_devanagari": "परञ्ज्योतिः",
       "meaning": "She who is the supreme light",
-      "name_iast": "pāśa-hantrī"
+      "name_iast": "parañ-jyotiḥ"
     },
     {
       "num": 807,
       "name_devanagari": "परन्धाम",
       "meaning": "She who is the supreme abode",
-      "name_iast": "para-śaktiḥ"
+      "name_iast": "paran-dhāma"
     },
     {
       "num": 808,
       "name_devanagari": "परमाणुः",
       "meaning": "She who is the subtlest particle",
-      "name_iast": "pāśa-hastā"
+      "name_iast": "paramāṇuḥ"
     },
     {
       "num": 809,
       "name_devanagari": "परात्परा",
       "meaning": "She who is tshe most supreme of the supreme ones",
-      "name_iast": "parāt--parā"
+      "name_iast": "parāt-parā"
     },
     {
       "num": 810,
       "name_devanagari": "पाशहस्ता",
       "meaning": "She who holds a noose in Her hand",
-      "name_iast": "pāśa--ha--stā"
+      "name_iast": "pāśa-hastā"
     },
     {
       "num": 811,
       "name_devanagari": "पाशहन्त्री",
       "meaning": "She who destroys the bonds",
-      "name_iast": "pāśa--hantrī"
+      "name_iast": "pāśa-hantrī"
     },
     {
       "num": 812,
       "name_devanagari": "परमन्त्रविभेदिनी",
       "meaning": "She who breaks the spell of the evil mantras of the enemies",
-      "name_iast": "para--mantra--vibhedinī"
+      "name_iast": "para-mantra-vibhedinī"
     },
     {
       "num": 813,
@@ -6369,31 +6369,31 @@ const LALITHA_DATA = {
       "num": 815,
       "name_devanagari": "अनित्यतृप्ता",
       "meaning": "She who is satisfied even by our perishable offerings",
-      "name_iast": "a--nitya--tṛptā"
+      "name_iast": "anitya-tṛptā"
     },
     {
       "num": 816,
       "name_devanagari": "मुनिमानसहंसिका",
       "meaning": "She who is the swan in the mAnasa lake of the minds of sages",
-      "name_iast": "munimānasa--ha--ṃsikā"
+      "name_iast": "muni-mānasa-haṃsikā"
     },
     {
       "num": 817,
       "name_devanagari": "सत्यव्रता",
       "meaning": "She who abides firmly in truth",
-      "name_iast": "satya--vra--tā"
+      "name_iast": "satya-vratā"
     },
     {
       "num": 818,
       "name_devanagari": "सत्यरूपा",
       "meaning": "She who is truth itself",
-      "name_iast": "satya--rūpā"
+      "name_iast": "satya-rūpā"
     },
     {
       "num": 819,
       "name_devanagari": "सर्वान्तर्यामिनी",
       "meaning": "She who dwells inside all",
-      "name_iast": "sa--rvā--nta--ryā--minī"
+      "name_iast": "sarvāntaryāminī"
     },
     {
       "num": 820,
@@ -6405,7 +6405,7 @@ const LALITHA_DATA = {
       "num": 821,
       "name_devanagari": "ब्रह्माणी",
       "meaning": "She who is the tail that is brahman; the support for all",
-      "name_iast": "brahmā--ṇī"
+      "name_iast": "brahmāṇī"
     },
     {
       "num": 822,
@@ -6423,25 +6423,25 @@ const LALITHA_DATA = {
       "num": 824,
       "name_devanagari": "बहुरूपा",
       "meaning": "She who has a multitude of forms",
-      "name_iast": "ba--hurūpā"
+      "name_iast": "bahu-rūpā"
     },
     {
       "num": 825,
       "name_devanagari": "बुधार्चिता",
       "meaning": "She who is worshipped by the wise",
-      "name_iast": "budhā--rcitā"
+      "name_iast": "budhārcitā"
     },
     {
       "num": 826,
       "name_devanagari": "प्रसवित्री",
       "meaning": "She who is mother of the universe",
-      "name_iast": "prasa--vi--trī"
+      "name_iast": "prasavitrī"
     },
     {
       "num": 827,
       "name_devanagari": "प्रचण्डा",
       "meaning": "She who is full of awe-inspiring wrath",
-      "name_iast": "pra--ca--ṇḍā"
+      "name_iast": "pracaṇḍā"
     },
     {
       "num": 828,
@@ -6453,55 +6453,55 @@ const LALITHA_DATA = {
       "num": 829,
       "name_devanagari": "प्रतिष्ठा",
       "meaning": "She who is the foundation",
-      "name_iast": "prati--ṣṭhā"
+      "name_iast": "pratiṣṭhā"
     },
     {
       "num": 830,
       "name_devanagari": "प्रकटाकृतिः",
       "meaning": "She who is manifested in the form of the universe",
-      "name_iast": "pra--ka--ṭā--kṛtiḥ"
+      "name_iast": "prakaṭākṛtiḥ"
     },
     {
       "num": 831,
       "name_devanagari": "प्राणेश्वरी",
       "meaning": "She who lords over the five prANas and the senses",
-      "name_iast": "prā--ṇeśvarī"
+      "name_iast": "prāṇeśvarī"
     },
     {
       "num": 832,
       "name_devanagari": "प्राणदात्री",
       "meaning": "She who is the giver of life",
-      "name_iast": "prāṇa--dātrī"
+      "name_iast": "prāṇa-dātrī"
     },
     {
       "num": 833,
       "name_devanagari": "पञ्चाशत्पीठरूपिणी",
       "meaning": "She who has fifty centers of worship",
-      "name_iast": "pa--ñcā--śa--tpīṭha--rūpiṇī"
+      "name_iast": "pañcāśat-pīṭha-rūpiṇī"
     },
     {
       "num": 834,
       "name_devanagari": "विश‍ृङ्खला",
       "meaning": "She who is unfettered, free in every way",
-      "name_iast": "vi--śa--‍ṛṅkha--lā"
+      "name_iast": "viśa‍ṛṅkhalā"
     },
     {
       "num": 835,
       "name_devanagari": "विविक्तस्था",
       "meaning": "She who abides in secluded places",
-      "name_iast": "vi--vi--kta--sthā"
+      "name_iast": "vivikta-sthā"
     },
     {
       "num": 836,
       "name_devanagari": "वीरमाता",
       "meaning": "She who is the mother of the valiant",
-      "name_iast": "vīra--mā--tā"
+      "name_iast": "vīra-mātā"
     },
     {
       "num": 837,
       "name_devanagari": "वियत्प्रसूः",
       "meaning": "She who is the mother to the ether",
-      "name_iast": "vi--ya--tpra--sūḥ"
+      "name_iast": "viyat-prasūḥ"
     },
     {
       "num": 838,
@@ -6513,121 +6513,121 @@ const LALITHA_DATA = {
       "num": 839,
       "name_devanagari": "मुक्तिनिलया",
       "meaning": "She who is the abode of salvation",
-      "name_iast": "mukti--nilayā"
+      "name_iast": "mukti-nilayā"
     },
     {
       "num": 840,
       "name_devanagari": "मूलविग्रहरूपिणी",
       "meaning": "She who is the root form of everything",
-      "name_iast": "mūla--vigraha--rūpiṇī"
+      "name_iast": "mūla-vigraha-rūpiṇī"
     },
     {
       "num": 841,
       "name_devanagari": "भावज्ञा",
       "meaning": "She who is the knower of all thoughts and sentiments",
-      "name_iast": "bhā--va--jñā"
+      "name_iast": "bhāva-jñā"
     },
     {
       "num": 842,
       "name_devanagari": "भवरोगघ्नी",
       "meaning": "She who eradicates the diseases of the cycle of birth and death",
-      "name_iast": "bha--va--roga--ghnī"
+      "name_iast": "bhava-roga-ghnī"
     },
     {
       "num": 843,
       "name_devanagari": "भवचक्रप्रवर्तिनी",
       "meaning": "She who turns the wheel of the cycle of birth and death",
-      "name_iast": "bha--va--cakra--pra--va--rtinī"
+      "name_iast": "bhava-cakra-pravartinī"
     },
     {
       "num": 844,
       "name_devanagari": "छन्दःसारा",
       "meaning": "She who is the essence of all the vedas",
-      "name_iast": "chan--da--ḥsā--rā"
+      "name_iast": "chandaḥ-sārā"
     },
     {
       "num": 845,
       "name_devanagari": "शास्त्रसारा",
       "meaning": "She who is the essence of all scriptures",
-      "name_iast": "śāstra--sā--rā"
+      "name_iast": "śāstra-sārā"
     },
     {
       "num": 846,
       "name_devanagari": "मन्त्रसारा",
       "meaning": "She who is the essence of all mantras",
-      "name_iast": "mantra--sā--rā"
+      "name_iast": "mantra-sārā"
     },
     {
       "num": 847,
       "name_devanagari": "तलोदरी",
       "meaning": "She who is slender-waisted",
-      "name_iast": "ta--loda--rī"
+      "name_iast": "talodarī"
     },
     {
       "num": 848,
       "name_devanagari": "उदारकीर्तिः",
       "meaning": "She who possesses exalted fame",
-      "name_iast": "udā--ra--kīrtiḥ"
+      "name_iast": "udāra-kīrtiḥ"
     },
     {
       "num": 849,
       "name_devanagari": "उद्दामवैभवा",
       "meaning": "She whose prowess is unlimited",
-      "name_iast": "uddāma--va--ibha--vā"
+      "name_iast": "uddāma-vaibhavā"
     },
     {
       "num": 850,
       "name_devanagari": "वर्णरूपिणी",
       "meaning": "She who is in the form of the letters of the alphabets",
-      "name_iast": "va--rṇa--rūpiṇī"
+      "name_iast": "varṇa-rūpiṇī"
     },
     {
       "num": 851,
       "name_devanagari": "जन्ममृत्युजरातप्तजनविश्रान्तिदायिनी",
       "meaning": "She who gives peace and repose to those who are afflicted by birth, death and decrepitude",
-      "name_iast": "jan--ma--mṛtyuja--rā--ta--pta--jan--a--vi--śrā--ntidāyinī"
+      "name_iast": "janma-mṛtyu-jarā-tapta-jana-viśrānti-dāyinī"
     },
     {
       "num": 852,
       "name_devanagari": "सर्वोपनिषदुद्घुष्टा",
       "meaning": "She who is celebrated by all the upaniShads",
-      "name_iast": "sa--rvopa--niṣ--a--dudghuṣṭā"
+      "name_iast": "sarvopaniṣad-udghuṣṭā"
     },
     {
       "num": 853,
       "name_devanagari": "शान्त्यतीतकलात्मिका",
       "meaning": "She who transcends the state of peace",
-      "name_iast": "śā--ntya--tīta--ka--lātmikā"
+      "name_iast": "śāntyatīta-kalātmikā"
     },
     {
       "num": 854,
       "name_devanagari": "गम्भीरा",
       "meaning": "She who is unfathomable",
-      "name_iast": "ga--mbhīrā"
+      "name_iast": "gambhīrā"
     },
     {
       "num": 855,
       "name_devanagari": "गगनान्तस्था",
       "meaning": "She who resides in the ether, space",
-      "name_iast": "ga--gan--ā--nta--sthā"
+      "name_iast": "gaganānta-sthā"
     },
     {
       "num": 856,
       "name_devanagari": "गर्विता",
       "meaning": "She who is proud",
-      "name_iast": "ga--rvi--tā"
+      "name_iast": "garvitā"
     },
     {
       "num": 857,
       "name_devanagari": "गानलोलुपा",
       "meaning": "She who delights in music",
-      "name_iast": "gā--na--lolupā"
+      "name_iast": "gāna-lolupā"
     },
     {
       "num": 858,
       "name_devanagari": "कल्पनारहिता",
       "meaning": "She who is free from imaginary attributes",
-      "name_iast": "ka--lpan--ā--rahitā"
+      "name_iast": "kalpanā-rahitā"
     },
     {
       "num": 859,
@@ -6645,31 +6645,31 @@ const LALITHA_DATA = {
       "num": 861,
       "name_devanagari": "कान्तार्धविग्रहा",
       "meaning": "She who is half the body of Her husband",
-      "name_iast": "kā--ntā--rdha--vigrahā"
+      "name_iast": "kāntārdha-vigrahā"
     },
     {
       "num": 862,
       "name_devanagari": "कार्यकारणनिर्मुक्ता",
       "meaning": "She who is free from the bond of cause and effect",
-      "name_iast": "kārya--kā--ra--ṇa--nir--muktā"
+      "name_iast": "kārya-kāraṇa-nirmuktā"
     },
     {
       "num": 863,
       "name_devanagari": "कामकेलितरङ्गिता",
       "meaning": "She who is overflowing with pleasure in the union with kAmeshvara",
-      "name_iast": "kāma--kelita--ra--ṅgitā"
+      "name_iast": "kāma-keli-taraṅgitā"
     },
     {
       "num": 864,
       "name_devanagari": "कनत्कनकताटङ्का",
       "meaning": "She who wears glittering gold ear ornaments",
-      "name_iast": "kan--a--tkanaka--tā--ṭa--ṅkā"
+      "name_iast": "kanat-kanaka-tāṭaṅkā"
     },
     {
       "num": 865,
       "name_devanagari": "लीलाविग्रहधारिणी",
       "meaning": "She who assumes various glorious forms as a sport",
-      "name_iast": "līlā--vigraha--dhāriṇī"
+      "name_iast": "līlā-vigraha-dhāriṇī"
     },
     {
       "num": 866,
@@ -6681,7 +6681,7 @@ const LALITHA_DATA = {
       "num": 867,
       "name_devanagari": "क्षयविनिर्मुक्ता",
       "meaning": "She who is free from decay",
-      "name_iast": "kṣa--ya--vinirmuktā"
+      "name_iast": "kṣaya-vinirmuktā"
     },
     {
       "num": 868,
@@ -6693,19 +6693,19 @@ const LALITHA_DATA = {
       "num": 869,
       "name_devanagari": "क्षिप्रप्रसादिनी",
       "meaning": "She who is quickly pleased",
-      "name_iast": "kṣipra--pra--sādi--nī"
+      "name_iast": "kṣipra-prasādinī"
     },
     {
       "num": 870,
       "name_devanagari": "अन्तर्मुखसमाराध्या",
       "meaning": "She who is to be worshipped internally (mentally)",
-      "name_iast": "an--ta--rmukha--sam--ārādhyā"
+      "name_iast": "antar-mukha-samārādhyā"
     },
     {
       "num": 871,
       "name_devanagari": "बहिर्मुखसुदुर्लभा",
       "meaning": "She who is difficult to attain by those whose attention is directed outwards",
-      "name_iast": "ba--hirmukha--su--dur--la--bhā"
+      "name_iast": "bahir-mukha-su-dur-labhā"
     },
     {
       "num": 872,
@@ -6717,127 +6717,127 @@ const LALITHA_DATA = {
       "num": 873,
       "name_devanagari": "त्रिवर्गनिलया",
       "meaning": "She who is the abode of the threefold aims of human life",
-      "name_iast": "tri--va--rga--nilayā"
+      "name_iast": "tri-varga-nilayā"
     },
     {
       "num": 874,
       "name_devanagari": "त्रिस्था",
       "meaning": "She who resides in the three worlds",
-      "name_iast": "tri--sthā"
+      "name_iast": "tri-sthā"
     },
     {
       "num": 875,
       "name_devanagari": "त्रिपुरमालिनी",
       "meaning": "She who is the goddess of the antardashAra chakra of the shrI chakra",
-      "name_iast": "tripura--mālinī"
+      "name_iast": "tripura-mālinī"
     },
     {
       "num": 876,
       "name_devanagari": "निरामया",
       "meaning": "She who is free from diseases of all kinds",
-      "name_iast": "nir--ā--ma--yā"
+      "name_iast": "nir-āmayā"
     },
     {
       "num": 877,
       "name_devanagari": "निरालम्बा",
       "meaning": "She who depends on none",
-      "name_iast": "nir--ā--la--mbā"
+      "name_iast": "nir-ālambā"
     },
     {
       "num": 878,
       "name_devanagari": "स्वात्मारामा",
       "meaning": "She who rejoices in Her own self",
-      "name_iast": "svā--tmā--rā--mā"
+      "name_iast": "svātmā-rāmā"
     },
     {
       "num": 879,
       "name_devanagari": "सुधास्रुतिः / सृतिः",
       "meaning": "She who is the source of nectar",
-      "name_iast": "sudhāsrutiḥ / sṛtiḥ"
+      "name_iast": "sudhā-srutiḥ / sṛtiḥ"
     },
     {
       "num": 880,
       "name_devanagari": "संसारपङ्कनिर्मग्नसमुद्धरणपण्डिता",
       "meaning": "She who is skilled in raising those who are immersed in the mire of transmigratory life",
-      "name_iast": "sa--ṃsā--ra--pa--ṅka--nir--ma--gna--sam--uddharaṇa--pa--ṇḍitā"
+      "name_iast": "saṃsāra-paṅka-nirmagna-samuddharaṇa-paṇḍitā"
     },
     {
       "num": 881,
       "name_devanagari": "यज्ञप्रिया",
       "meaning": "She who is fond all sacrifices and other rituals",
-      "name_iast": "yajña--priyā"
+      "name_iast": "yajña-priyā"
     },
     {
       "num": 882,
       "name_devanagari": "यज्ञकर्त्री",
       "meaning": "She who is the doer of sacrificial rites",
-      "name_iast": "yajña--kartrī"
+      "name_iast": "yajña-kartrī"
     },
     {
       "num": 883,
       "name_devanagari": "यजमानस्वरूपिणी",
       "meaning": "She who is in the form of yajamAna, who directs sacrificial rites",
-      "name_iast": "ya--ja--mā--na--svarūpiṇī"
+      "name_iast": "yajamāna-svarūpiṇī"
     },
     {
       "num": 884,
       "name_devanagari": "धर्माधारा",
       "meaning": "She who is the support of the code for righteous living",
-      "name_iast": "dha--rmā--dhārā"
+      "name_iast": "dharmādhārā"
     },
     {
       "num": 885,
       "name_devanagari": "धनाध्यक्षा",
       "meaning": "She who oversees wealth",
-      "name_iast": "dhan--ā--dhya--kṣā"
+      "name_iast": "dhanādhyakṣā"
     },
     {
       "num": 886,
       "name_devanagari": "धनधान्यविवर्धिनी",
       "meaning": "She who increases wealth and harvests",
-      "name_iast": "dhan--a--dhā--nya--vi--va--rdhinī"
+      "name_iast": "dhana-dhānya-vivardhinī"
     },
     {
       "num": 887,
       "name_devanagari": "विप्रप्रिया",
       "meaning": "She who is fond of the learned",
-      "name_iast": "vi--pra--priyā"
+      "name_iast": "vipra-priyā"
     },
     {
       "num": 888,
       "name_devanagari": "विप्ररूपा",
       "meaning": "She who is in the form of a knower of the self",
-      "name_iast": "vi--pra--rūpā"
+      "name_iast": "vipra-rūpā"
     },
     {
       "num": 889,
       "name_devanagari": "विश्वभ्रमणकारिणी",
       "meaning": "She who makes the universe go around through Her power of illusion",
-      "name_iast": "viśva--bhra--ma--ṇa--kā--riṇī"
+      "name_iast": "viśva-bhramaṇa-kāriṇī"
     },
     {
       "num": 890,
       "name_devanagari": "विश्वग्रासा",
       "meaning": "She who devours the universe",
-      "name_iast": "viśva--grā--sā"
+      "name_iast": "viśva-grāsā"
     },
     {
       "num": 891,
       "name_devanagari": "विद्रुमाभा",
       "meaning": "She who shines like coral (with Her red complexion)",
-      "name_iast": "vi--drumābhā"
+      "name_iast": "vidrumābhā"
     },
     {
       "num": 892,
       "name_devanagari": "वैष्णवी",
       "meaning": "She who is in the form of viShNu",
-      "name_iast": "va--iṣṇa--vī"
+      "name_iast": "vaiṣṇavī"
     },
     {
       "num": 893,
       "name_devanagari": "विष्णुरूपिणी",
       "meaning": "She who is in a form that extends over the whole universe",
-      "name_iast": "viṣṇu--rūpiṇī"
+      "name_iast": "viṣṇu-rūpiṇī"
     },
     {
       "num": 894,
@@ -6849,25 +6849,25 @@ const LALITHA_DATA = {
       "num": 895,
       "name_devanagari": "योनिनिलया",
       "meaning": "She who is the seat of all origins",
-      "name_iast": "yoninilayā"
+      "name_iast": "yoni-nilayā"
     },
     {
       "num": 896,
       "name_devanagari": "कूटस्था",
       "meaning": "She who remains unchanged like the anvil",
-      "name_iast": "kūṭa--sthā"
+      "name_iast": "kūṭa-sthā"
     },
     {
       "num": 897,
       "name_devanagari": "कुलरूपिणी",
       "meaning": "She who is the deity of the kaula path",
-      "name_iast": "kula--rūpiṇī"
+      "name_iast": "kula-rūpiṇī"
     },
     {
       "num": 898,
       "name_devanagari": "वीरगोष्ठीप्रिया",
       "meaning": "She who is fond of the assembly of warriors",
-      "name_iast": "vīra--goṣṭhīpriyā"
+      "name_iast": "vīra-goṣṭhī-priyā"
     },
     {
       "num": 899,
@@ -6879,7 +6879,7 @@ const LALITHA_DATA = {
       "num": 900,
       "name_devanagari": "नैष्कर्म्या",
       "meaning": "She who abstains from actions",
-      "name_iast": "na--iṣka--rmyā"
+      "name_iast": "naiṣkarmyā"
     },
     {
       "num": 901,
@@ -6891,7 +6891,7 @@ const LALITHA_DATA = {
       "num": 902,
       "name_devanagari": "विज्ञानकलना",
       "meaning": "She who realizes the knowledge of brahman",
-      "name_iast": "vi--jñāna--ka--lan--ā"
+      "name_iast": "vijñāna-kalanā"
     },
     {
       "num": 903,
@@ -6903,25 +6903,25 @@ const LALITHA_DATA = {
       "num": 904,
       "name_devanagari": "विदग्धा",
       "meaning": "She who is expert in everything",
-      "name_iast": "vi--da--gdhā"
+      "name_iast": "vidagdhā"
     },
     {
       "num": 905,
       "name_devanagari": "बैन्दवासना",
       "meaning": "She who is seated in the baindava (spot between the eyebrows) chakra",
-      "name_iast": "ba--inda--vā--san--ā"
+      "name_iast": "baindavāsanā"
     },
     {
       "num": 906,
       "name_devanagari": "तत्त्वाधिका",
       "meaning": "She who transcends all cosmic categories",
-      "name_iast": "ta--ttvā--dhikā"
+      "name_iast": "tattvādhikā"
     },
     {
       "num": 907,
       "name_devanagari": "तत्त्वमयी",
       "meaning": "She who is reality itself; she who is shiva Himself",
-      "name_iast": "ta--ttva--mayī"
+      "name_iast": "tattva-mayī"
     },
     {
       "num": 908,
@@ -6963,7 +6963,7 @@ const LALITHA_DATA = {
       "num": 914,
       "name_devanagari": "स्वस्था",
       "meaning": "She who abides in Herself; She who is free from all afflictions",
-      "name_iast": "sva--sthā"
+      "name_iast": "sva-sthā"
     },
     {
       "num": 915,
@@ -6999,31 +6999,31 @@ const LALITHA_DATA = {
       "num": 920,
       "name_devanagari": "सदोदिता",
       "meaning": "She who is ever shining",
-      "name_iast": "sad--oditā"
+      "name_iast": "sadoditā"
     },
     {
       "num": 921,
       "name_devanagari": "सदातुष्टा",
       "meaning": "She who is ever pleased",
-      "name_iast": "sad--ā--tuṣṭā"
+      "name_iast": "sadā-tuṣṭā"
     },
     {
       "num": 922,
       "name_devanagari": "तरुणादित्यपाटला",
       "meaning": "She who is rosy like the morning sun",
-      "name_iast": "ta--ruṇādi--tya--pā--ṭa--lā"
+      "name_iast": "taruṇāditya-pāṭalā"
     },
     {
       "num": 923,
       "name_devanagari": "दक्षिणादक्षिणाराध्या",
       "meaning": "She who is adored by both right and left-handed worshippers",
-      "name_iast": "da--kṣiṇā--da--kṣiṇārādhyā"
+      "name_iast": "dakṣiṇā-dakṣiṇārādhyā"
     },
     {
       "num": 924,
       "name_devanagari": "दरस्मेरमुखाम्बुजा",
       "meaning": "She whose lotus face holds a sweet smile",
-      "name_iast": "da--ra--smera--mukhā--mbujā"
+      "name_iast": "dara-smera-mukhāmbujā"
     },
     {
       "num": 925,
@@ -7035,37 +7035,37 @@ const LALITHA_DATA = {
       "num": 926,
       "name_devanagari": "अनर्घ्यकैवल्यपददायिनी",
       "meaning": "She who confers the priceless fruit of final liberation",
-      "name_iast": "an--a--rghya--ka--iva--lya--pada--dāyinī"
+      "name_iast": "anarghya-kaivalya-pada-dāyinī"
     },
     {
       "num": 927,
       "name_devanagari": "स्तोत्रप्रिया",
       "meaning": "She who is fond of hymns in Her praise",
-      "name_iast": "stotra--priyā"
+      "name_iast": "stotra-priyā"
     },
     {
       "num": 928,
       "name_devanagari": "स्तुतिमती",
       "meaning": "She who is the true object, the essence, of all praises",
-      "name_iast": "stutimatī"
+      "name_iast": "stuti-matī"
     },
     {
       "num": 929,
       "name_devanagari": "श्रुतिसंस्तुतवैभवा",
       "meaning": "She whose glory is celebrated in the shrutis",
-      "name_iast": "śrutisaṃstuta--va--ibha--vā"
+      "name_iast": "śruti-saṃstuta-vaibhavā"
     },
     {
       "num": 930,
       "name_devanagari": "मनस्विनी",
       "meaning": "She who is well-known for Her mind",
-      "name_iast": "manas--vi--nī"
+      "name_iast": "manasvinī"
     },
     {
       "num": 931,
       "name_devanagari": "मानवती",
       "meaning": "She who is high-minded; She who has great fame",
-      "name_iast": "mā--na--vatī"
+      "name_iast": "mānavatī"
     },
     {
       "num": 932,
@@ -7077,145 +7077,145 @@ const LALITHA_DATA = {
       "num": 933,
       "name_devanagari": "मङ्गलाकृतिः",
       "meaning": "She who is of auspicious form",
-      "name_iast": "maṅga--lā--kṛtiḥ"
+      "name_iast": "maṅgalākṛtiḥ"
     },
     {
       "num": 934,
       "name_devanagari": "विश्वमाता",
       "meaning": "She who is the mother of the universe",
-      "name_iast": "viśva--mā--tā"
+      "name_iast": "viśva-mātā"
     },
     {
       "num": 935,
       "name_devanagari": "जगद्धात्री",
       "meaning": "She who is the mother who protects and sustains the world",
-      "name_iast": "ja--ga--ddhā--trī"
+      "name_iast": "jagad-dhātrī"
     },
     {
       "num": 936,
       "name_devanagari": "विशालाक्षी",
       "meaning": "She who has large eyes",
-      "name_iast": "vi--śā--lā--kṣī"
+      "name_iast": "viśālākṣī"
     },
     {
       "num": 937,
       "name_devanagari": "विरागिणी",
       "meaning": "She who is dispassionate",
-      "name_iast": "vi--rā--giṇī"
+      "name_iast": "virāgiṇī"
     },
     {
       "num": 938,
       "name_devanagari": "प्रगल्भा",
       "meaning": "She who is skillful and confident",
-      "name_iast": "pra--ga--lbhā"
+      "name_iast": "pragalbhā"
     },
     {
       "num": 939,
       "name_devanagari": "परमोदारा",
       "meaning": "She who is supremely generous",
-      "name_iast": "para--modā--rā"
+      "name_iast": "paramodārā"
     },
     {
       "num": 940,
       "name_devanagari": "परामोदा",
       "meaning": "She who is supremely joyful",
-      "name_iast": "parā--modā"
+      "name_iast": "parāmodā"
     },
     {
       "num": 941,
       "name_devanagari": "मनोमयी",
       "meaning": "She who is in the form of the mind",
-      "name_iast": "man--omayī"
+      "name_iast": "mano-mayī"
     },
     {
       "num": 942,
       "name_devanagari": "व्योमकेशी",
       "meaning": "She who has the sky as Her hair",
-      "name_iast": "vyoma--keśī"
+      "name_iast": "vyoma-keśī"
     },
     {
       "num": 943,
       "name_devanagari": "विमानस्था",
       "meaning": "She who is seated in Her celestial chariot; She who journeys in Her celestial chariot along with the gods",
-      "name_iast": "vimāna--sthā"
+      "name_iast": "vimāna-sthā"
     },
     {
       "num": 944,
       "name_devanagari": "वज्रिणी",
       "meaning": "She who bears the vajrA (thunderbolt) weapon",
-      "name_iast": "va--jriṇī"
+      "name_iast": "vajriṇī"
     },
     {
       "num": 945,
       "name_devanagari": "वामकेश्वरी",
       "meaning": "She who is the presiding deity of the vamakeshvara tantra",
-      "name_iast": "vā--ma--keśvarī"
+      "name_iast": "vāmakeśvarī"
     },
     {
       "num": 946,
       "name_devanagari": "पञ्चयज्ञप्रिया",
       "meaning": "She who is fond of the five forms of sacrifices (agnihotrA, darshapUrnamAsa, chAturmAsya, goyaj~na and somayaj~na)",
-      "name_iast": "pañca--yajña--priyā"
+      "name_iast": "pañca-yajña-priyā"
     },
     {
       "num": 947,
       "name_devanagari": "पञ्चप्रेतमञ्चाधिशायिनी",
       "meaning": "She who reclines on a couch made of the five corpses",
-      "name_iast": "pañca--preta--ma--ñcā--dhiśā--yinī"
+      "name_iast": "pañca-preta-mañcādhiśāyinī"
     },
     {
       "num": 948,
       "name_devanagari": "पञ्चमी",
       "meaning": "She who is the fifth (after brahmA, viShNu, rudra and Ishvara)",
-      "name_iast": "pañca--mī"
+      "name_iast": "pañcamī"
     },
     {
       "num": 949,
       "name_devanagari": "पञ्चभूतेशी",
       "meaning": "She who is the goddess of the five elements",
-      "name_iast": "pañca--bhūteśī"
+      "name_iast": "pañca-bhūteśī"
     },
     {
       "num": 950,
       "name_devanagari": "पञ्चसङ्ख्योपचारिणी",
       "meaning": "She who is worshipped using five objects (fragrance, flower, incense, lamp and food) of worship",
-      "name_iast": "viṣṇu-rūpiṇī"
+      "name_iast": "pañca-saṅkhyopacāriṇī"
     },
     {
       "num": 951,
       "name_devanagari": "शाश्वती",
       "meaning": "She who is eternal",
-      "name_iast": "ayoniḥ"
+      "name_iast": "śāśvatī"
     },
     {
       "num": 952,
       "name_devanagari": "शाश्वतैश्वर्या",
       "meaning": "She who holds eternal sovereignty",
-      "name_iast": "śā--śva--ta--iśva--ryā"
+      "name_iast": "śāśvataiśvaryā"
     },
     {
       "num": 953,
       "name_devanagari": "शर्मदा",
       "meaning": "She who is the giver of happiness",
-      "name_iast": "śa--rma--dā"
+      "name_iast": "śarma-dā"
     },
     {
       "num": 954,
       "name_devanagari": "शम्भुमोहिनी",
       "meaning": "She who deludes shiva",
-      "name_iast": "śa--mbhumohinī"
+      "name_iast": "śambhu-mohinī"
     },
     {
       "num": 955,
       "name_devanagari": "धरा",
       "meaning": "She who is mother earth",
-      "name_iast": "pañca-kośāntara-sthitā"
+      "name_iast": "dharā"
     },
     {
       "num": 956,
       "name_devanagari": "धरसुता",
       "meaning": "She who is the daughter of dhara (himavat)",
-      "name_iast": "dha--ra--su--tā"
+      "name_iast": "dhara-sutā"
     },
     {
       "num": 957,
@@ -7227,43 +7227,43 @@ const LALITHA_DATA = {
       "num": 958,
       "name_devanagari": "धर्मिणी",
       "meaning": "She who is righteous",
-      "name_iast": "dha--rmiṇī"
+      "name_iast": "dharmiṇī"
     },
     {
       "num": 959,
       "name_devanagari": "धर्मवर्धिनी",
       "meaning": "She who promotes righteousness",
-      "name_iast": "dharma--va--rdhinī"
+      "name_iast": "dharma-vardhinī"
     },
     {
       "num": 960,
       "name_devanagari": "लोकातीता",
       "meaning": "She who transcends the worlds",
-      "name_iast": "lokā--tītā"
+      "name_iast": "lokātītā"
     },
     {
       "num": 961,
       "name_devanagari": "गुणातीता",
       "meaning": "She who transcends the guNAs",
-      "name_iast": "guṇā--tītā"
+      "name_iast": "guṇātītā"
     },
     {
       "num": 962,
       "name_devanagari": "सर्वातीता",
       "meaning": "She who transcends everything",
-      "name_iast": "sa--rvā--tītā"
+      "name_iast": "sarvātītā"
     },
     {
       "num": 963,
       "name_devanagari": "शमात्मिका",
       "meaning": "She who is of the nature of peace and bliss",
-      "name_iast": "śa--mātmikā"
+      "name_iast": "śamātmikā"
     },
     {
       "num": 964,
       "name_devanagari": "बन्धूककुसुमप्रख्या",
       "meaning": "She who resembles the bandhUka flower in beauty and grace",
-      "name_iast": "sadā-śivā"
+      "name_iast": "bandhūka-kusuma-prakhyā"
     },
     {
       "num": 965,
@@ -7275,127 +7275,127 @@ const LALITHA_DATA = {
       "num": 966,
       "name_devanagari": "लीलाविनोदिनी",
       "meaning": "She who delights in Her sport",
-      "name_iast": "parā-śaktiḥ"
+      "name_iast": "līlā-vinodinī"
     },
     {
       "num": 967,
       "name_devanagari": "सुमङ्गली",
       "meaning": "She who is eternally auspicious; She who never becomes a widow",
-      "name_iast": "su--maṅga--lī"
+      "name_iast": "su-maṅgalī"
     },
     {
       "num": 968,
       "name_devanagari": "सुखकरी",
       "meaning": "She who gives happiness",
-      "name_iast": "sukha--karī"
+      "name_iast": "sukha-karī"
     },
     {
       "num": 969,
       "name_devanagari": "सुवेषाढ्या",
       "meaning": "She who is very attractive in Her beautiful rich garments and ornaments",
-      "name_iast": "su--veṣā--ḍhyā"
+      "name_iast": "su-veṣāḍhyā"
     },
     {
       "num": 970,
       "name_devanagari": "सुवासिनी",
       "meaning": "She who is ever auspiciously married",
-      "name_iast": "kāma-keli-taraṅgitā"
+      "name_iast": "suvāsinī"
     },
     {
       "num": 971,
       "name_devanagari": "सुवासिन्यर्चनप्रीता",
       "meaning": "She who is pleased by the worship performed by married women",
-      "name_iast": "su--vā--sinya--rcan--a--prītā"
+      "name_iast": "suvāsiny-arcana-prītā"
     },
     {
       "num": 972,
       "name_devanagari": "आशोभना",
       "meaning": "She who is always radiant",
-      "name_iast": "ā--śobhan--ā"
+      "name_iast": "āśobhanā"
     },
     {
       "num": 973,
       "name_devanagari": "शुद्धमानसा",
       "meaning": "She who is of pure mind; one who purifies the mind of Her worshipers",
-      "name_iast": "śuddha--mā--na--sā"
+      "name_iast": "śuddha-mānasā"
     },
     {
       "num": 974,
       "name_devanagari": "बिन्दुतर्पणसन्तुष्टा",
       "meaning": "She who is pleased by offerings to the bindu (of shrIchakra)",
-      "name_iast": "binduta--rpa--ṇa--san--tuṣṭā"
+      "name_iast": "bindu-tarpaṇa-santuṣṭā"
     },
     {
       "num": 975,
       "name_devanagari": "पूर्वजा",
       "meaning": "She who is ahead of everyone; first born",
-      "name_iast": "pūrva--jā"
+      "name_iast": "pūrva-jā"
     },
     {
       "num": 976,
       "name_devanagari": "त्रिपुराम्बिका",
       "meaning": "She who is the mother of the tripuras (three cities)",
-      "name_iast": "tri--purāmbikā"
+      "name_iast": "tripurāmbikā"
     },
     {
       "num": 977,
       "name_devanagari": "दशमुद्रासमाराध्या",
       "meaning": "She who is worshipped by ten mudras (sarva sa~NkShobhini, sarvavidrAvinI, sarvAkarshini, sarvavashankari, sarvonmAdinI, sarvamahankusha, sarvakhechari, sarva bIja, sarva yoni, sarva trikhaNDA)",
-      "name_iast": "daśa--mudrā--sam--ārādhyā"
+      "name_iast": "daśa-mudrā-samārādhyā"
     },
     {
       "num": 978,
       "name_devanagari": "त्रिपुराश्रीवशङ्करी",
       "meaning": "She for whom tripurAshrI is under control",
-      "name_iast": "tri--purā--śrī--va--śa--ṅkarī"
+      "name_iast": "tripurā-śrī-vaśaṅkarī"
     },
     {
       "num": 979,
       "name_devanagari": "ज्ञानमुद्रा",
       "meaning": "She who is in the form of the j~nAna mudrA",
-      "name_iast": "jñāna--mudrā"
+      "name_iast": "jñāna-mudrā"
     },
     {
       "num": 980,
       "name_devanagari": "ज्ञानगम्या",
       "meaning": "She who is to be attained through the yoga of knowledge",
-      "name_iast": "jñāna--gamyā"
+      "name_iast": "jñāna-gamyā"
     },
     {
       "num": 981,
       "name_devanagari": "ज्ञानज्ञेयस्वरूपिणी",
       "meaning": "She who is both knowledge and the known",
-      "name_iast": "jñāna--jñeya--svarūpiṇī"
+      "name_iast": "jñāna-jñeya-svarūpiṇī"
     },
     {
       "num": 982,
       "name_devanagari": "योनिमुद्रा",
       "meaning": "She who is in the form of the yonimudrA",
-      "name_iast": "yonimudrā"
+      "name_iast": "yoni-mudrā"
     },
     {
       "num": 983,
       "name_devanagari": "त्रिखण्डेशी",
       "meaning": "She who is the ruler of the tenth mudrA, the trikhaNDa",
-      "name_iast": "tri--kha--ṇḍeśī"
+      "name_iast": "tri-khaṇḍeśī"
     },
     {
       "num": 984,
       "name_devanagari": "त्रिगुणा",
       "meaning": "She who is endowed with the three guNas of sattva, rajas and tamas",
-      "name_iast": "tri--guṇā"
+      "name_iast": "tri-guṇā"
     },
     {
       "num": 985,
       "name_devanagari": "अम्बा",
       "meaning": "She who is mother of all beings; mother of the universe",
-      "name_iast": "mṛtyu-mṛtyu-svarūpiṇī"
+      "name_iast": "ambā"
     },
     {
       "num": 986,
       "name_devanagari": "त्रिकोणगा",
       "meaning": "She who resides in the triangle",
-      "name_iast": "tri--koṇa--gā"
+      "name_iast": "tri-koṇa-gā"
     },
     {
       "num": 987,
@@ -7407,13 +7407,13 @@ const LALITHA_DATA = {
       "num": 988,
       "name_devanagari": "अद्भुतचारित्रा",
       "meaning": "She whose deeds are marvelous",
-      "name_iast": "a--dbhuta--cā--ritrā"
+      "name_iast": "adbhuta-cāritrā"
     },
     {
       "num": 989,
       "name_devanagari": "वाञ्छितार्थप्रदायिनी",
       "meaning": "She who gives all the desired objects",
-      "name_iast": "vā--ñchitā--rtha--pradāyinī"
+      "name_iast": "vāñchitārtha-pradāyinī"
     },
     {
       "num": 990,
