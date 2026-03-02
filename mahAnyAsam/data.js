@@ -48,7 +48,7 @@ const MAHANYASAM_DATA = {
           "instruction": "Touch all limbs (sarvāṅga) — Ya"
         },
         {
-          "text": "nama̍ste rudra ma̱nyava̍ u̱tota̱ iṣa̍ve̱ nama̍: |\nnama̍ste astu̱ dhanva̍ne bā̱hubhyā̍mu̱ta te̱ nama̍: ||",
+          "text": "namaste rudra manyava utota iṣave nama: |\nnamaste astu dhanvane bāhubhyāmuta te nama: ||",
           "meaning": "Salutations to Thy anger, O Rudra, and also to Thy arrow. Salutations to Thy bow and to Thy two arms.",
           "instruction": "Rudra invocation from Śrī Rudram — Namakam, Anuvāka 1"
         }
@@ -62,27 +62,27 @@ const MAHANYASAM_DATA = {
       "description": "Śiva's five faces — Sadyojāta, Vāmadeva, Aghora, Tatpuruṣa, and Īśāna — are meditated upon with their associated Gāyatrī mantras. Each face governs a direction and aspect of creation.",
       "mantras": [
         {
-          "text": "oṃ bhūrbhuva̱ssuva̍: | oṃ naṃ |\ntatpuru̍ṣāya vi̱dmahe̍ mahāde̱vāya̍ dhīmahi |\ntanno̍ rudraḥ praco̱dayā̎t ||",
+          "text": "oṃ bhūrbhuvassuva: | oṃ naṃ |\ntatpuruṣāya vidmahe mahādevāya dhīmahi |\ntanno rudraḥ pracodayāt ||",
           "meaning": "We know Tatpuruṣa, we meditate upon Mahādeva. May Rudra illuminate us.",
           "instruction": "East Face — Tatpuruṣa (the supreme Person)"
         },
         {
-          "text": "oṃ bhūrbhuva̱ssuva̍: | oṃ maṃ |\na̱ghore̎bhyo'tha̱ ghore̎bhyo̱ ghora̱ghora̍tarebhyaḥ |\nsarve̎bhyaḥ sarva̱śarve̎bhyo̱ nama̍ste astu ru̱drarū̍pebhyaḥ ||",
+          "text": "oṃ bhūrbhuvassuva: | oṃ maṃ |\naghorebhyo'tha ghorebhyo ghoraghoratarebhyaḥ |\nsarvebhyaḥ sarvaśarvebhyo namaste astu rudrarūpebhyaḥ ||",
           "meaning": "From those who are not terrible, from the terrible ones, and from the most terrible — salutations to all forms of Rudra.",
           "instruction": "South Face — Aghora (the non-terrible)"
         },
         {
-          "text": "oṃ bhūrbhuva̱ssuva̍: | oṃ śiṃ |\nsa̱dyo jā̱taṃ pra̍padyā̱mi̱ sa̱dyo jā̱tāya̱ vai namo̱ nama̍: |\nbha̱vebha̍ve̱ nāti̍bhave bhavasva̱ mām |\nbha̱vodbha̍vāya̱ nama̍: ||",
+          "text": "oṃ bhūrbhuvassuva: | oṃ śiṃ |\nsadyo jātaṃ prapadyāmi sadyo jātāya vai namo nama: |\nbhavebhave nātibhave bhavasva mām |\nbhavodbhavāya nama: ||",
           "meaning": "I take refuge in the newly born one. Salutations again and again. In existence and beyond existence, may You cause me to be. Salutations to the source of all existence.",
           "instruction": "West Face — Sadyojāta (the newly born)"
         },
         {
-          "text": "oṃ bhūrbhuva̱ssuva̍: | oṃ vāṃ |\nvā̱ma̱de̱vāya̱ namo̎ jye̱ṣṭhāya̱ nama̍: śre̱ṣṭhāya̱ namo̍ ru̱drāya̱ nama̱: kālā̍ya̱ nama̍: |\nkala̍vikaraṇāya̱ namo̱ bala̍vikaraṇāya̱ namo̱ balā̍ya̱ namo̱ bala̍pramathanāya̱ nama̍: |\nsarva̍bhūtadamanāya̱ namo̍ mano̱nma̍nāya̱ nama̍: ||",
+          "text": "oṃ bhūrbhuvassuva: | oṃ vāṃ |\nvāmadevāya namo jyeṣṭhāya nama: śreṣṭhāya namo rudrāya nama: kālāya nama: |\nkalavikaraṇāya namo balavikaraṇāya namo balāya namo balapramathanāya nama: |\nsarvabhūtadamanāya namo manonmanāya nama: ||",
           "meaning": "Salutations to Vāmadeva, to the eldest, to the best, to Rudra, to Kāla (time). Salutations to the transformer of forms, to the transformer of strength, to the powerful, to the subduer of all. Salutations to the subduer of all beings, to the one beyond the mind.",
           "instruction": "North Face — Vāmadeva (the beautiful god)"
         },
         {
-          "text": "oṃ bhūrbhuva̱ssuva̍: | oṃ yaṃ |\nīśānaḥ sarva̍vidyā̱nā̱mīśvaraḥ sarva̍bhūtā̱nā̱m |\nbrahmādhi̍pati̱rbrahma̱ṇo'dhi̍pati̱rbrahmā̍ śi̱vo me̍ astu sadāśi̱vom ||",
+          "text": "oṃ bhūrbhuvassuva: | oṃ yaṃ |\nīśānaḥ sarvavidyānāmīśvaraḥ sarvabhūtānām |\nbrahmādhipatirbrahmaṇo'dhipatirbrahmā śivo me astu sadāśivom ||",
           "meaning": "Īśāna is the lord of all knowledge, the lord of all beings, the lord of Brahmā, the lord of the Vedas. May He, Sadāśiva, be auspicious to me.",
           "instruction": "Upper Face — Īśāna (the supreme ruler)"
         }
@@ -199,7 +199,7 @@ const MAHANYASAM_DATA = {
           "instruction": "The Haṃsa Mantra"
         },
         {
-          "text": "haṃsa ha̱ṃsāya̍ vi̱dmahē̍ paramaha̱ṃsāya̍ dhīmahi |\ntanno̍ haṃsaḥ praco̱dayā̎t ||",
+          "text": "haṃsa haṃsāya vidmahē paramahaṃsāya dhīmahi |\ntanno haṃsaḥ pracodayāt ||",
           "meaning": "We know the Haṃsa, we meditate upon the Paramahaṃsa. May Haṃsa illuminate our understanding.",
           "instruction": "Haṃsa Gāyatrī Mantra"
         }
@@ -295,15 +295,15 @@ const MAHANYASAM_DATA = {
       "description": "A profound philosophical hymn from the Ṛgveda Khila (appendix), each verse ending with the refrain 'tanme manaḥ śivasaṅkalpamastu' — 'May my mind be of auspicious resolve.' This section contemplates the nature of the mind and prays for its purification.",
       "mantras": [
         {
-          "text": "yene̱daṃ bhū̱taṃ bhuva̍naṃ bhavi̱ṣyat\npari̍gṛhītama̱mṛte̍na̱ sarva̎m |\nyena̍ ya̱jñastā̍yate sa̱ptaho̍tā̱\ntanme̱ mana̍: śi̱vasa̍ṅka̱lpama̍stu ||",
+          "text": "yenedaṃ bhūtaṃ bhuvanaṃ bhaviṣyat\nparigṛhītamamṛtena sarvam |\nyena yajñastāyate saptahotā\ntanme mana: śivasaṅkalpamastu ||",
           "meaning": "That by which the past, the present, and the future — all is encompassed along with immortality, and by which the sevenfold sacrifice is extended — may my mind be of auspicious resolve."
         },
         {
-          "text": "yena̱ karmā̍ṇi pra̱cara̍nti̱ dhīrā̱\nyato̍ vā̱cā mana̍sā̱ cāru̱yanti̍ |\nyatsammi̍ta̱ṃ mana̍: sa̱ñcara̍nti̱ prā̱ṇina̱s-\ntanme̱ mana̍: śi̱vasa̍ṅka̱lpama̍stu ||",
+          "text": "yena karmāṇi pracaranti dhīrā\nyato vācā manasā cāruyanti |\nyatsammitaṃ mana: sañcaranti prāṇinas-\ntanme mana: śivasaṅkalpamastu ||",
           "meaning": "That by which the wise perform their works, from which speech and mind derive their beauty, that which all living beings share in common — may my mind be of auspicious resolve."
         },
         {
-          "text": "yajjāgra̍to dū̱ramu̱daiti̱ daiva̎m\ntadu̍ su̱ptasya̍ tathai̱veti̍ |\ndūra̱ṅgama̱ṃ jyoti̍ṣā̱ṃ jyoti̱reka̎m\ntanme̱ mana̍: śi̱vasa̍ṅka̱lpama̍stu ||",
+          "text": "yajjāgrato dūramudaiti daivam\ntadu suptasya tathaiveti |\ndūraṅgamaṃ jyotiṣāṃ jyotirekam\ntanme mana: śivasaṅkalpamastu ||",
           "meaning": "That which goes far in the waking state, and likewise in sleep — that far-traveling one, the light of lights — may my mind be of auspicious resolve."
         }
       ]
@@ -316,19 +316,19 @@ const MAHANYASAM_DATA = {
       "description": "One of the most celebrated hymns of the Ṛgveda (10.90), describing the cosmic sacrifice of the Puruṣa (Supreme Being) from whom the universe manifests. Its inclusion in the Mahānyāsam connects the act of self-consecration to the primordial cosmic act of creation.",
       "mantras": [
         {
-          "text": "sa̱hasra̍śīrṣā̱ puru̍ṣaḥ | sa̱ha̱srā̱kṣaḥ sa̱hasra̍pāt |\nsa bhūmi̍ṃ vi̱śvato̍ vṛ̱tvā | atya̍tiṣṭhaddaśāṅgu̱lam ||",
+          "text": "sahasraśīrṣā puruṣaḥ | sahasrākṣaḥ sahasrapāt |\nsa bhūmiṃ viśvato vṛtvā | atyatiṣṭhaddaśāṅgulam ||",
           "meaning": "The Puruṣa has a thousand heads, a thousand eyes, a thousand feet. He pervades the earth on all sides and extends ten fingers' breadth beyond."
         },
         {
-          "text": "puru̍ṣa e̱vedagṃ sarva̎m | yadbhū̱taṃ yacca̱ bhavya̎m |\nu̱tāmṛ̍ta̱tvasyeśā̍naḥ | ya̱danne̍nāti̱roha̍ti ||",
+          "text": "puruṣa evedagṃ sarvam | yadbhūtaṃ yacca bhavyam |\nutāmṛtatvasyeśānaḥ | yadannenātirohati ||",
           "meaning": "All this is indeed the Puruṣa — all that was and all that will be. He is the lord of immortality, which grows beyond through food."
         },
         {
-          "text": "e̱tāvā̍nasya mahi̱mā | ato̱ jyāyāg̍śca̱ pūru̍ṣaḥ |\npādo̎'sya̱ viśvā̍ bhū̱tāni̍ | tri̱pāda̍syā̱mṛta̍ṃ di̱vi ||",
+          "text": "etāvānasya mahimā | ato jyāyāgśca pūruṣaḥ |\npādo'sya viśvā bhūtāni | tripādasyāmṛtaṃ divi ||",
           "meaning": "Such is His greatness, and the Puruṣa is even greater than this. All beings are but a quarter of Him; three-quarters are immortal in heaven."
         },
         {
-          "text": "tri̱pādū̱rdhva udai̱tpuru̍ṣaḥ | pādo̎'syē̱hābha̍vā̱tpuna̍: |\ntato̱ viṣva̱ṅvya̍krāmat | sāśa̱nāna̍śa̱ne a̱bhi ||",
+          "text": "tripādūrdhva udaitpuruṣaḥ | pādo'syēhābhavātpuna: |\ntato viṣvaṅvyakrāmat | sāśanānaśane abhi ||",
           "meaning": "Three-quarters of the Puruṣa rose upward; one quarter remained here. He then pervaded everywhere, over that which eats and that which does not."
         }
       ]
@@ -367,7 +367,7 @@ const MAHANYASAM_DATA = {
       "description": "Mantras addressing the individual self (puruṣa) within each practitioner, establishing the identity between the individual soul and the cosmic Puruṣa invoked earlier.",
       "mantras": [
         {
-          "text": "yadā tvā pra̱tipū̱ruṣaṃ śre̱ṣṭha karṇa |\ndha̱rma̱yantama̱rke a̱gnau vā sa̱ṃdidī̍pse ||",
+          "text": "yadā tvā pratipūruṣaṃ śreṣṭha karṇa |\ndharmayantamarke agnau vā saṃdidīpse ||",
           "meaning": "When for each person, O best of listeners, you are established in righteousness, blazing in the Arka or in Agni."
         }
       ]
