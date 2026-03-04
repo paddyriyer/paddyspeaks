@@ -100,7 +100,6 @@ tr.hoverable{position:relative}
 .hover-widget .hw-row:last-child{border-bottom:none}
 .hover-widget .hw-label{color:var(--muted)}
 .hover-widget .hw-value{font-weight:600;color:var(--text)}
-.hover-widget .hw-chart{height:120px;margin:10px 0;position:relative;overflow:hidden}
 .hover-widget .hw-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
 .hover-widget .hw-section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
 .hover-widget .hw-meta{font-size:10px;color:var(--dim);font-family:'Courier New',monospace;background:rgba(0,0,0,.3);padding:8px 10px;border-radius:6px;margin-top:6px;line-height:1.6;white-space:pre-wrap}
@@ -445,8 +444,6 @@ let hoverWidget = null;
 let activeCharts = {};
 let hoverTimer = null;
 const sparkCache = new Map();
-const widgetChartConfigs = new Map();
-let widgetChartCounter = 0;
 
 function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
@@ -501,9 +498,6 @@ function showHoverWidget(e, content) {
     hoverWidget.style.left = left + 'px';
     hoverWidget.style.top = top + 'px';
     hoverWidget.classList.add('visible');
-
-    // Render charts from stored configs (not JSON in DOM)
-    hoverWidget.querySelectorAll('canvas[data-chart-id]').forEach(renderWidgetChart);
   });
 }
 
@@ -521,30 +515,8 @@ function hideHoverWidget() {
     hoverWidget.remove();
     hoverWidget = null;
   }
-  widgetChartConfigs.clear();
-  widgetChartCounter = 0;
 }
 
-function storeWidgetChartConfig(cfg) {
-  const id = 'wc-' + (++widgetChartCounter);
-  widgetChartConfigs.set(id, cfg);
-  return id;
-}
-
-function renderWidgetChart(canvas) {
-  const id = canvas.dataset.chartId;
-  const cfg = widgetChartConfigs.get(id);
-  if (!cfg) return;
-  // Force fixed size — no auto-resize in hover widgets
-  canvas.width = 340;
-  canvas.height = 110;
-  const ctx = canvas.getContext('2d');
-  const widgetCfg = JSON.parse(JSON.stringify(cfg));
-  widgetCfg.options = widgetCfg.options || {};
-  widgetCfg.options.responsive = false;
-  widgetCfg.options.maintainAspectRatio = false;
-  new Chart(ctx, widgetCfg);
-}
 
 function sparkSvg(data, color, w=120, h=32) {
   const key = data.join(',') + color + w + h;
@@ -831,15 +803,6 @@ function renderCustomer360() {
 
 function showCustomerWidget(e, idx) {
   const c = CUSTOMERS[idx];
-  const chartId = storeWidgetChartConfig({
-    type: 'line',
-    data: {
-      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
-      datasets: [{ data: c.sparkline, borderColor: c.yoy >= 0 ? '#10b981' : '#ef4444', backgroundColor: c.yoy >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', fill: true, tension: .4, pointRadius: 2, borderWidth: 2 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
-  });
-
   const riskColor = c.churnRisk === 'Low' ? 'var(--green)' : c.churnRisk === 'Medium' ? 'var(--gold)' : 'var(--red)';
 
   showHoverWidgetDebounced(e, () => `
@@ -856,11 +819,6 @@ function showCustomerWidget(e, idx) {
       <div class="hw-row"><span class="hw-label">Lifetime Value</span><span class="hw-value" style="color:var(--accent)">${fmt(c.ltv)}</span></div>
       <div class="hw-row"><span class="hw-label">Total Orders</span><span class="hw-value">${c.orders}</span></div>
       <div class="hw-row"><span class="hw-label">YoY Growth</span><span class="hw-value" style="color:${c.yoy >= 0 ? 'var(--green)' : 'var(--red)'}">${c.yoy >= 0 ? '+' : ''}${c.yoy}%</span></div>
-    </div>
-
-    <div class="hw-section">
-      <div class="hw-section-title">12-Month Revenue Trend</div>
-      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
     </div>
 
     <div class="hw-section">
@@ -970,14 +928,6 @@ function renderRevenue() {
 
 function showProductWidget(e, idx) {
   const p = PRODUCTS[idx];
-  const chartId = storeWidgetChartConfig({
-    type: 'bar',
-    data: {
-      labels: ['Q1','Q2','Q3','Q4'],
-      datasets: [{ data: p.qoq, backgroundColor: p.growth >= 0 ? 'rgba(16,185,129,.6)' : 'rgba(239,68,68,.6)', borderRadius: 4 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
-  });
 
   showHoverWidgetDebounced(e, () => `
     <h3><span style="font-size:16px">📦</span> ${p.name}</h3>
@@ -989,7 +939,10 @@ function showProductWidget(e, idx) {
 
     <div class="hw-section">
       <div class="hw-section-title">Quarterly Revenue ($K)</div>
-      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
+      <div class="hw-row"><span class="hw-label">Q1</span><span class="hw-value">${fmt(p.qoq[0] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q2</span><span class="hw-value">${fmt(p.qoq[1] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q3</span><span class="hw-value">${fmt(p.qoq[2] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q4</span><span class="hw-value">${fmt(p.qoq[3] * 1000)}</span></div>
     </div>
 
     <div class="hw-section">
@@ -1002,21 +955,11 @@ function showProductWidget(e, idx) {
         ${qualityBar(p.margin, p.margin >= 60 ? 'var(--green)' : p.margin >= 40 ? 'var(--gold)' : 'var(--red)')}
       </div>
     </div>
-
-    <div class="hw-meta">calc: margin_pct = (net_amount - cost_amount)\n         / NULLIF(net_amount, 0) * 100\nsrc:  SAP VBAK/VBAP → Bronze → Gold</div>
   `);
 }
 
 function showRegionWidget(e, idx) {
   const r = REGIONS[idx];
-  const chartId = storeWidgetChartConfig({
-    type: 'line',
-    data: {
-      labels: ['Q1','Q2','Q3','Q4'],
-      datasets: [{ data: r.qRev, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', fill: true, tension: .4, pointRadius: 3, borderWidth: 2 }]
-    },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
-  });
 
   showHoverWidgetDebounced(e, () => `
     <h3>${r.flag} ${r.country}</h3>
@@ -1028,8 +971,11 @@ function showRegionWidget(e, idx) {
     <div class="hw-row"><span class="hw-label">Avg Rev/Customer</span><span class="hw-value">${fmt(r.revenue / r.customers)}</span></div>
 
     <div class="hw-section">
-      <div class="hw-section-title">Quarterly Revenue Trend ($K)</div>
-      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
+      <div class="hw-section-title">Quarterly Revenue ($K)</div>
+      <div class="hw-row"><span class="hw-label">Q1</span><span class="hw-value">${fmt(r.qRev[0] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q2</span><span class="hw-value">${fmt(r.qRev[1] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q3</span><span class="hw-value">${fmt(r.qRev[2] * 1000)}</span></div>
+      <div class="hw-row"><span class="hw-label">Q4</span><span class="hw-value">${fmt(r.qRev[3] * 1000)}</span></div>
     </div>
   `);
 }
