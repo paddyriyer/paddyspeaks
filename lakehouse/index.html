@@ -44,7 +44,8 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 @keyframes slideRight{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.live-dot{animation:none}.content{animation:none}.hover-widget{transition:none}.kpi,.card,.catalog-item,.medallion-layer{transition:none}}
 
-.tabs{display:flex;gap:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;overflow-x:auto;position:sticky;top:62px;z-index:99}
+.tabs{display:flex;gap:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:62px;z-index:99}
+.tabs::-webkit-scrollbar{display:none}
 .tab{padding:11px 18px;font-size:12px;font-weight:500;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
 .tab:hover{color:var(--text);background:rgba(255,255,255,.03)}
 .tab.active{color:var(--accent);font-weight:700;border-bottom-color:var(--accent)}
@@ -74,7 +75,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .card-title{font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .card-title .badge{font-size:9px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
 
-.table-wrap{overflow-x:auto;overflow-y:auto;max-height:420px}
+.table-wrap{overflow-x:auto;overflow-y:auto;max-height:420px;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead{position:sticky;top:0;z-index:5}
 th{background:var(--card2);color:var(--muted);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.6px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
@@ -130,8 +131,50 @@ tr.hoverable{position:relative}
 .score-ring::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:3px solid var(--border)}
 .back-link:hover{opacity:1!important}
 
-@media(max-width:1024px){.grid-2,.grid-3,.grid-23,.grid-32{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:640px){.kpi-row{grid-template-columns:1fr}.header{padding:10px 14px}.content{padding:14px}.tabs{padding:0 8px}}
+@media(max-width:1024px){.grid-2,.grid-3,.grid-23,.grid-32{grid-template-columns:1fr}.grid-4{grid-template-columns:repeat(2,1fr)}.kpi-row{grid-template-columns:repeat(2,1fr)}.medallion{flex-wrap:wrap;gap:8px}.medallion-layer{min-width:120px;padding:14px 16px}.medallion-arrow{font-size:18px}.hover-widget{width:320px}}
+@media(max-width:640px){
+  .kpi-row{grid-template-columns:1fr}
+  .header{padding:10px 14px}
+  .header-title{font-size:13px}
+  .header-sub{font-size:9px}
+  .content{padding:10px}
+  .tabs{padding:0 4px;top:52px}
+  .tab{padding:9px 12px;font-size:11px}
+  .kpi-value{font-size:20px}
+  .kpi{padding:12px 14px}
+  .card{padding:12px 14px}
+  .card-title{font-size:11px}
+  .chart-box{height:220px}
+  .grid-4{grid-template-columns:1fr}
+  .medallion{flex-direction:column;gap:6px}
+  .medallion-layer{min-width:unset;width:100%;padding:12px 16px}
+  .medallion-arrow{transform:rotate(90deg);font-size:16px}
+  .medallion-count{font-size:16px}
+  .arch-row{flex-wrap:wrap;gap:6px}
+  .arch-box{font-size:10px;padding:6px 10px}
+  .hover-widget{width:calc(100vw - 20px);max-width:340px;left:10px!important;right:10px;font-size:11px}
+  .hover-widget h3{font-size:13px}
+  .hover-widget .hw-row{font-size:10px}
+  .hover-widget .hw-meta{font-size:9px;padding:6px 8px}
+  table{font-size:11px}
+  th{font-size:9px;padding:8px 8px}
+  td{padding:8px 8px}
+  .table-wrap{-webkit-overflow-scrolling:touch}
+  .catalog-item{padding:10px 12px}
+  .catalog-item .ci-name{font-size:12px}
+  .score-ring{width:48px;height:48px;font-size:13px}
+  .pill{font-size:9px;padding:2px 6px}
+  .back-link{display:none!important}
+}
+
+/* Touch device: tap to show/dismiss hover widgets */
+@media(hover:none) and (pointer:coarse){
+  .hover-widget{transition:opacity .15s ease}
+  tr.hoverable:active td{background:var(--card2)}
+  .kpi:hover{transform:none}
+  .medallion-layer:hover{transform:none}
+  .catalog-item:hover{transform:none}
+}
 
 </style>
 </head>
@@ -1929,18 +1972,13 @@ setInterval(() => {
 }, 5000);
 
 // ═══ EVENT DELEGATION ═══
+// Detect touch device
+const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
 // Track currently hovered element to avoid re-triggering on child moves
 let currentHoverRow = null;
 
-document.addEventListener('mouseover', function(e) {
-  const row = e.target.closest('[data-hover]');
-  if (row === currentHoverRow) return; // still on same row, ignore
-  if (!row) {
-    // moved off any hover target
-    if (currentHoverRow) { currentHoverRow = null; hideHoverWidget(); }
-    return;
-  }
-  currentHoverRow = row;
+function triggerHoverWidget(row) {
   const type = row.dataset.hover;
   const idx = parseInt(row.dataset.idx ?? row.dataset.custIdx, 10);
   const fakeEvent = { currentTarget: row };
@@ -1954,17 +1992,55 @@ document.addEventListener('mouseover', function(e) {
     case 'proddetail': showProductDetailWidget(fakeEvent, idx); break;
     case 'cohort': showCohortWidget(fakeEvent, idx); break;
   }
-});
+}
 
-document.addEventListener('mouseout', function(e) {
-  const row = e.target.closest('[data-hover]');
-  if (!row || row !== currentHoverRow) return;
-  // Check if we're moving to another child of the same row
-  const related = e.relatedTarget;
-  if (related && row.contains(related)) return; // still inside the row
-  currentHoverRow = null;
-  hideHoverWidget();
-});
+if (isTouchDevice) {
+  // Touch: tap row to show widget, tap elsewhere to dismiss
+  document.addEventListener('click', function(e) {
+    // If tapping on the tab bar, let it through
+    if (e.target.closest('.tab[data-tab]')) return;
+
+    const row = e.target.closest('[data-hover]');
+    if (row) {
+      e.preventDefault();
+      if (row === currentHoverRow) {
+        // Tap same row again = dismiss
+        currentHoverRow = null;
+        hideHoverWidget();
+      } else {
+        currentHoverRow = row;
+        triggerHoverWidget(row);
+      }
+      return;
+    }
+    // Tap anywhere else = dismiss
+    if (currentHoverRow) {
+      currentHoverRow = null;
+      hideHoverWidget();
+    }
+  });
+} else {
+  // Desktop: hover to show, mouseout to dismiss
+  document.addEventListener('mouseover', function(e) {
+    const row = e.target.closest('[data-hover]');
+    if (row === currentHoverRow) return;
+    if (!row) {
+      if (currentHoverRow) { currentHoverRow = null; hideHoverWidget(); }
+      return;
+    }
+    currentHoverRow = row;
+    triggerHoverWidget(row);
+  });
+
+  document.addEventListener('mouseout', function(e) {
+    const row = e.target.closest('[data-hover]');
+    if (!row || row !== currentHoverRow) return;
+    const related = e.relatedTarget;
+    if (related && row.contains(related)) return;
+    currentHoverRow = null;
+    hideHoverWidget();
+  });
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', render);
