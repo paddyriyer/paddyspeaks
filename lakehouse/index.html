@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MDM Lakehouse Demo — PaddySpeaks</title>
+<meta name="description" content="Interactive MDM Lakehouse demo showcasing AI-driven data management with medallion architecture, Customer 360, and data catalog.">
+<meta property="og:title" content="MDM Lakehouse Demo — PaddySpeaks">
+<meta property="og:description" content="Interactive demo: AI-driven MDM Lakehouse with Customer 360, Data Quality Hub, and Data Catalog">
+<meta property="og:url" content="https://paddyspeaks.com/lakehouse/">
+<link rel="canonical" href="https://paddyspeaks.com/lakehouse/">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0e1a;--bg2:#0f1320;--card:#151929;--card2:#1a1f35;--card3:#1e2440;
+  --border:#252d45;--border2:#2a3355;
+  --text:#e8ecf4;--muted:#8892a8;--dim:#5a6380;
+  --accent:#ff9900;--blue:#3b82f6;--green:#10b981;--red:#ef4444;
+  --purple:#8b5cf6;--cyan:#06b6d4;--gold:#f59e0b;--pink:#ec4899;
+  --lime:#84cc16;--teal:#14b8a6;
+  --glow:0 0 20px rgba(255,153,0,.15);
+}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13px;overflow-x:hidden}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+
+#app{min-height:100vh;display:flex;flex-direction:column}
+
+.header{background:linear-gradient(135deg,#0d1225 0%,#151b35 100%);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(20px)}
+.header-logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;color:#fff;box-shadow:var(--glow)}
+.header-title{font-size:16px;font-weight:800;letter-spacing:-.3px}
+.header-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,.4)}50%{opacity:.6;box-shadow:0 0 0 6px rgba(16,185,129,0)}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideRight{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+
+.tabs{display:flex;gap:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;overflow-x:auto;position:sticky;top:62px;z-index:99}
+.tab{padding:11px 18px;font-size:12px;font-weight:500;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
+.tab:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.tab.active{color:var(--accent);font-weight:700;border-bottom-color:var(--accent)}
+
+.content{padding:20px 24px;max-width:1520px;margin:0 auto;width:100%;animation:fadeIn .3s ease}
+
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;position:relative;overflow:hidden;transition:all .25s}
+.kpi:hover{border-color:var(--border2);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.kpi-bar{position:absolute;top:0;left:0;width:100%;height:3px}
+.kpi-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px}
+.kpi-value{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.kpi-sub{font-size:10px;color:var(--dim);margin-top:3px}
+.kpi-trend{font-size:11px;font-weight:600;margin-left:8px}
+.kpi-trend.up{color:var(--green)}
+.kpi-trend.down{color:var(--red)}
+
+.grid{display:grid;gap:14px;margin-bottom:14px}
+.grid-2{grid-template-columns:1fr 1fr}
+.grid-3{grid-template-columns:1fr 1fr 1fr}
+.grid-23{grid-template-columns:2fr 1fr}
+.grid-32{grid-template-columns:1fr 2fr}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:all .25s}
+.card:hover{border-color:var(--border2)}
+.card-title{font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .badge{font-size:9px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
+
+.table-wrap{overflow-x:auto;overflow-y:auto;max-height:420px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead{position:sticky;top:0;z-index:5}
+th{background:var(--card2);color:var(--muted);font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.6px;padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)}
+td{padding:10px 12px;border-bottom:1px solid var(--border);transition:background .15s}
+tr.hoverable:hover td{background:var(--card2);cursor:pointer}
+tr.hoverable{position:relative}
+
+.pill{display:inline-block;padding:2px 10px;border-radius:4px;font-size:10px;font-weight:600}
+.pill-green{background:rgba(16,185,129,.15);color:var(--green)}
+.pill-red{background:rgba(239,68,68,.15);color:var(--red)}
+.pill-gold{background:rgba(245,158,11,.15);color:var(--gold)}
+.pill-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.pill-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+.pill-cyan{background:rgba(6,182,212,.15);color:var(--cyan)}
+
+.chart-box{position:relative;width:100%;height:100%;min-height:220px}
+
+/* Hover Widget */
+.hover-widget{position:fixed;z-index:1000;background:linear-gradient(145deg,#1a1f35 0%,#151929 100%);border:1px solid var(--border2);border-radius:14px;padding:18px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 30px rgba(255,153,0,.08);pointer-events:none;opacity:0;transition:opacity .2s ease,transform .2s ease;transform:scale(.96);backdrop-filter:blur(20px)}
+.hover-widget.visible{opacity:1;transform:scale(1);pointer-events:auto}
+.hover-widget h3{font-size:14px;font-weight:700;margin-bottom:10px;color:var(--accent);display:flex;align-items:center;gap:8px}
+.hover-widget .hw-row{display:flex;justify-content:space-between;padding:5px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.05)}
+.hover-widget .hw-row:last-child{border-bottom:none}
+.hover-widget .hw-label{color:var(--muted)}
+.hover-widget .hw-value{font-weight:600;color:var(--text)}
+.hover-widget .hw-chart{height:120px;margin:10px 0;position:relative}
+.hover-widget .hw-section{margin-top:12px;padding-top:10px;border-top:1px solid var(--border)}
+.hover-widget .hw-section-title{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.hover-widget .hw-meta{font-size:10px;color:var(--dim);font-family:'Courier New',monospace;background:rgba(0,0,0,.3);padding:8px 10px;border-radius:6px;margin-top:6px;line-height:1.6;white-space:pre-wrap}
+.hover-widget .hw-bar{height:6px;border-radius:3px;background:var(--card3);overflow:hidden;margin-top:4px}
+.hover-widget .hw-bar-fill{height:100%;border-radius:3px;transition:width .3s}
+
+.medallion{display:flex;gap:12px;align-items:center;justify-content:center;margin:20px 0}
+.medallion-layer{text-align:center;padding:18px 24px;border-radius:12px;border:1px solid var(--border);min-width:140px;transition:all .3s}
+.medallion-layer:hover{transform:translateY(-3px);box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.medallion-arrow{color:var(--dim);font-size:24px;font-weight:300}
+.medallion-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.medallion-count{font-size:20px;font-weight:800;margin-top:4px}
+.medallion-sub{font-size:10px;color:var(--dim);margin-top:2px}
+
+.arch-flow{display:flex;flex-direction:column;gap:16px;padding:10px 0}
+.arch-row{display:flex;align-items:center;gap:10px}
+.arch-box{padding:8px 14px;border-radius:8px;font-size:11px;font-weight:600;border:1px solid}
+.arch-arrow-down{text-align:center;color:var(--dim);font-size:18px}
+
+.catalog-item{padding:14px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .2s;background:var(--card)}
+.catalog-item:hover{border-color:var(--accent);background:var(--card2);transform:translateX(3px)}
+.catalog-item .ci-name{font-weight:700;font-size:13px;margin-bottom:4px}
+.catalog-item .ci-desc{font-size:11px;color:var(--muted)}
+.catalog-item .ci-tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.catalog-item .ci-tag{font-size:9px;padding:2px 8px;border-radius:3px;background:rgba(255,255,255,.05);color:var(--dim);font-weight:500}
+
+.score-ring{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;position:relative}
+.score-ring::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:3px solid var(--border)}
+
+@media(max-width:1024px){.grid-2,.grid-3,.grid-23,.grid-32{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:640px){.kpi-row{grid-template-columns:1fr}.header{padding:10px 14px}.content{padding:14px}.tabs{padding:0 8px}}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#8892a8;font-family:Inter,sans-serif">
+    <div style="text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">Loading Lakehouse...</div>
+      <div style="font-size:14px;color:#5a6380">Initializing Chart.js and data models</div>
+    </div>
+  </div>
+</div>
+<script>
+
+// ═══════════════════════════════════════════════════════════════
+// MDM LAKEHOUSE DEMO — DATA & CONFIGURATION
+// ═══════════════════════════════════════════════════════════════
+
+const TABS = [
+  { id: 'overview', label: 'Lakehouse Overview', icon: '⚡' },
+  { id: 'customer360', label: 'Customer 360', icon: '👥' },
+  { id: 'revenue', label: 'Revenue Analytics', icon: '📊' },
+  { id: 'quality', label: 'Data Quality Hub', icon: '🛡️' },
+  { id: 'catalog', label: 'Data Catalog', icon: '📚' }
+];
+
+// --- Medallion Architecture Stats ---
+const MEDALLION = {
+  bronze: { records: 15200, tables: 6, freshness: '< 5 min', quality: 72, sources: ['SAP ECC', 'Salesforce CRM', 'Oracle DB', 'REST APIs'] },
+  silver: { records: 12800, tables: 6, freshness: '< 15 min', quality: 94, transforms: ['Dedup', 'Null Fill', 'Type Cast', 'Conform'] },
+  mdm:    { records: 500, tables: 2, freshness: '< 30 min', quality: 99, method: 'Jaro-Winkler Fuzzy Match + Survivorship' },
+  gold:   { records: 36650, tables: 11, freshness: '< 1 hr', quality: 97.5, schema: 'Star Schema (Kimball)' }
+};
+
+// --- Customer 360 Golden Records ---
+const CUSTOMERS = [
+  { uid: 'CU-001', name: 'Quantum Dynamics Corp', segment: 'Enterprise', country: 'US', sources: 'SAP+SFDC+Oracle', confidence: 98.4, revenue: 284500, health: 92, lifecycle: 'Champion', ltv: 1420000, orders: 47, csat: 4.8, churnRisk: 'Low', lastOrder: '2026-02-28', yoy: 12.3, sparkline: [22,25,28,24,30,27,32,29,35,31,28,34] },
+  { uid: 'CU-002', name: 'NovaTech Solutions Ltd', segment: 'Mid-Market', country: 'UK', sources: 'SAP+Salesforce', confidence: 95.1, revenue: 187200, health: 78, lifecycle: 'Loyal', ltv: 936000, orders: 32, csat: 4.3, churnRisk: 'Low', lastOrder: '2026-02-15', yoy: 8.7, sparkline: [18,20,17,22,19,24,21,23,20,25,22,24] },
+  { uid: 'CU-003', name: 'Meridian Health Systems', segment: 'Enterprise', country: 'US', sources: 'SAP+SFDC+Oracle', confidence: 97.2, revenue: 342100, health: 88, lifecycle: 'Champion', ltv: 1710000, orders: 56, csat: 4.6, churnRisk: 'Low', lastOrder: '2026-03-01', yoy: 15.2, sparkline: [30,28,35,32,38,36,40,37,42,39,44,41] },
+  { uid: 'CU-004', name: 'Atlas Manufacturing GmbH', segment: 'Enterprise', country: 'DE', sources: 'SAP+Oracle', confidence: 93.8, revenue: 156800, health: 65, lifecycle: 'At-Risk', ltv: 784000, orders: 24, csat: 3.5, churnRisk: 'High', lastOrder: '2025-12-10', yoy: -4.2, sparkline: [20,22,18,16,19,15,14,17,13,15,12,11] },
+  { uid: 'CU-005', name: 'PacificRim Trading Co', segment: 'Mid-Market', country: 'SG', sources: 'Salesforce only', confidence: 88.3, revenue: 98400, health: 71, lifecycle: 'Activated', ltv: 492000, orders: 18, csat: 4.0, churnRisk: 'Medium', lastOrder: '2026-01-22', yoy: 3.1, sparkline: [8,10,9,12,11,14,13,11,15,12,14,13] },
+  { uid: 'CU-006', name: 'Boreal Energy Partners', segment: 'Enterprise', country: 'CA', sources: 'SAP+Salesforce', confidence: 96.5, revenue: 267300, health: 85, lifecycle: 'Loyal', ltv: 1336500, orders: 41, csat: 4.5, churnRisk: 'Low', lastOrder: '2026-02-20', yoy: 9.8, sparkline: [24,22,26,28,25,30,27,32,29,31,28,33] },
+  { uid: 'CU-007', name: 'Sahara Logistics SARL', segment: 'SMB', country: 'FR', sources: 'SFDC+Oracle', confidence: 91.7, revenue: 45600, health: 42, lifecycle: 'Dormant', ltv: 228000, orders: 9, csat: 3.2, churnRisk: 'High', lastOrder: '2025-08-14', yoy: -18.5, sparkline: [12,10,8,9,6,7,5,4,6,3,4,3] },
+  { uid: 'CU-008', name: 'Zenith Pharma Inc', segment: 'Enterprise', country: 'US', sources: 'SAP+SFDC+Oracle', confidence: 99.1, revenue: 412800, health: 95, lifecycle: 'Champion', ltv: 2064000, orders: 63, csat: 4.9, churnRisk: 'Low', lastOrder: '2026-03-02', yoy: 22.1, sparkline: [35,38,40,42,39,45,43,48,46,50,47,52] },
+  { uid: 'CU-009', name: 'TerraFirma Construction', segment: 'Mid-Market', country: 'AU', sources: 'SAP+Oracle', confidence: 94.2, revenue: 134500, health: 73, lifecycle: 'Activated', ltv: 672500, orders: 22, csat: 4.1, churnRisk: 'Medium', lastOrder: '2026-02-05', yoy: 5.4, sparkline: [14,12,15,13,16,14,18,16,15,17,14,16] },
+  { uid: 'CU-010', name: 'Sakura Digital KK', segment: 'Mid-Market', country: 'JP', sources: 'Salesforce only', confidence: 87.9, revenue: 112300, health: 68, lifecycle: 'Loyal', ltv: 561500, orders: 26, csat: 4.2, churnRisk: 'Low', lastOrder: '2026-01-30', yoy: 6.8, sparkline: [10,12,11,14,13,15,14,16,15,14,16,15] },
+  { uid: 'CU-011', name: 'Vanguard Fintech AG', segment: 'Startup', country: 'DE', sources: 'SFDC+Oracle', confidence: 90.5, revenue: 67800, health: 58, lifecycle: 'At-Risk', ltv: 339000, orders: 12, csat: 3.6, churnRisk: 'High', lastOrder: '2025-11-18', yoy: -8.3, sparkline: [10,9,11,8,10,7,8,6,7,5,6,5] },
+  { uid: 'CU-012', name: 'Pinnacle Retail Group', segment: 'Enterprise', country: 'US', sources: 'SAP+SFDC+Oracle', confidence: 97.8, revenue: 298700, health: 90, lifecycle: 'Champion', ltv: 1493500, orders: 49, csat: 4.7, churnRisk: 'Low', lastOrder: '2026-02-27', yoy: 11.5, sparkline: [26,28,30,27,32,30,34,31,36,33,35,34] }
+];
+
+// --- Monthly Revenue ---
+const MONTHLY_REV = [
+  {m:'Jan 24',rev:484.8,cost:217.4},{m:'Feb',rev:392,cost:226.2},{m:'Mar',rev:380.1,cost:173.9},{m:'Apr',rev:361.3,cost:218.9},
+  {m:'May',rev:450.8,cost:241},{m:'Jun',rev:346.1,cost:182.9},{m:'Jul',rev:450.1,cost:221.8},{m:'Aug',rev:434,cost:207.3},
+  {m:'Sep',rev:410.8,cost:216.6},{m:'Oct',rev:364,cost:195.9},{m:'Nov',rev:360,cost:190.1},{m:'Dec 24',rev:391.2,cost:215.6},
+  {m:'Jan 25',rev:441.2,cost:208.2},{m:'Feb',rev:343.1,cost:178.2},{m:'Mar',rev:417.5,cost:218.1},{m:'Apr',rev:395.2,cost:192.3},
+  {m:'May',rev:397.9,cost:194.8},{m:'Jun',rev:389,cost:193.4},{m:'Jul',rev:381.4,cost:190.4},{m:'Aug',rev:418.4,cost:214},
+  {m:'Sep',rev:396,cost:206.6},{m:'Oct',rev:375.9,cost:177.8},{m:'Nov',rev:341.1,cost:186.2},{m:'Dec 25',rev:401.9,cost:160.4},
+  {m:'Jan 26',rev:379.3,cost:203.1}
+];
+
+// --- Revenue by Product Category ---
+const PRODUCTS = [
+  { name: 'Cloud Infrastructure', category: 'Cloud', revenue: 1209500, units: 2340, margin: 42, growth: 18.5, qoq: [280,305,312,312] },
+  { name: 'Security Suite Pro', category: 'Security', revenue: 1358500, units: 1890, margin: 58, growth: 14.2, qoq: [310,335,348,365] },
+  { name: 'Analytics Platform', category: 'Analytics', revenue: 1346300, units: 1560, margin: 52, growth: 22.8, qoq: [290,320,355,381] },
+  { name: 'Enterprise Support', category: 'Support', revenue: 1338000, units: 3200, margin: 68, growth: 5.1, qoq: [325,330,338,345] },
+  { name: 'Hardware Appliances', category: 'Hardware', revenue: 1522300, units: 890, margin: 28, growth: -2.3, qoq: [395,388,380,359] },
+  { name: 'Training Academy', category: 'Training', revenue: 1194100, units: 4500, margin: 72, growth: 31.4, qoq: [240,280,320,354] },
+  { name: 'Pro Services', category: 'Services', revenue: 1072200, units: 780, margin: 45, growth: 8.9, qoq: [255,262,270,285] },
+  { name: 'License Renewals', category: 'License', revenue: 862000, units: 1100, margin: 85, growth: -5.7, qoq: [228,220,215,199] }
+];
+
+// --- Data Quality Rules ---
+const DQ_LAYERS = [
+  { layer: 'Bronze (Raw)', score: 72.3, pass: 4812, fail: 1848, rules: 28, critical: 3, freshness: '< 5 min', trend: [65,68,70,71,72,72] },
+  { layer: 'Silver (Clean)', score: 94.1, pass: 8420, fail: 528, rules: 42, critical: 0, freshness: '< 15 min', trend: [88,90,91,93,94,94] },
+  { layer: 'MDM (Golden)', score: 99.2, pass: 496, fail: 4, rules: 18, critical: 0, freshness: '< 30 min', trend: [96,97,98,99,99,99] },
+  { layer: 'Gold (Star)', score: 97.5, pass: 12350, fail: 318, rules: 56, critical: 1, freshness: '< 1 hr', trend: [93,94,95,96,97,97] }
+];
+
+const DQ_RULES = [
+  { rule: 'NOT_NULL: customer_email', layer: 'Silver', status: 'Pass', passRate: 99.8, severity: 'Critical', lastRun: '2 min ago' },
+  { rule: 'UNIQUE: customer_uid', layer: 'MDM', status: 'Pass', passRate: 100, severity: 'Critical', lastRun: '15 min ago' },
+  { rule: 'RANGE: order_amount > 0', layer: 'Gold', status: 'Pass', passRate: 99.9, severity: 'High', lastRun: '28 min ago' },
+  { rule: 'FORMAT: phone_regex', layer: 'Silver', status: 'Warn', passRate: 94.2, severity: 'Medium', lastRun: '12 min ago' },
+  { rule: 'REFERENTIAL: product_id FK', layer: 'Gold', status: 'Pass', passRate: 100, severity: 'Critical', lastRun: '45 min ago' },
+  { rule: 'FRESHNESS: < 24hr', layer: 'Bronze', status: 'Pass', passRate: 98.5, severity: 'High', lastRun: '5 min ago' },
+  { rule: 'COMPLETENESS: address', layer: 'Silver', status: 'Warn', passRate: 91.3, severity: 'Medium', lastRun: '18 min ago' },
+  { rule: 'CONSISTENCY: country_code ISO', layer: 'Silver', status: 'Pass', passRate: 99.7, severity: 'Low', lastRun: '12 min ago' },
+  { rule: 'ACCURACY: revenue vs invoice', layer: 'Gold', status: 'Fail', passRate: 87.2, severity: 'High', lastRun: '1 hr ago' },
+  { rule: 'TIMELINESS: CDC lag < 5min', layer: 'Bronze', status: 'Pass', passRate: 96.8, severity: 'High', lastRun: '1 min ago' }
+];
+
+// --- Data Catalog ---
+const CATALOG = [
+  {
+    name: 'dim_customer', layer: 'Gold', type: 'Dimension (SCD2)', records: 500, size: '2.4 MB',
+    description: 'Golden customer master records from MDM matching engine. Slowly-changing dimension type 2 for historical tracking.',
+    owner: 'MDM Team', refreshSchedule: 'Every 30 min', lastRefresh: '2026-03-04 09:45:00',
+    schema: [
+      { col: 'customer_uid', type: 'VARCHAR(36)', nullable: false, desc: 'Unique golden record ID (UUID)' },
+      { col: 'customer_name', type: 'VARCHAR(200)', nullable: false, desc: 'Survived best name from sources' },
+      { col: 'segment', type: 'VARCHAR(50)', nullable: false, desc: 'Business segment classification' },
+      { col: 'country_code', type: 'CHAR(2)', nullable: false, desc: 'ISO 3166-1 alpha-2' },
+      { col: 'source_systems', type: 'VARCHAR(100)', nullable: false, desc: 'Contributing source systems' },
+      { col: 'match_confidence', type: 'DECIMAL(5,2)', nullable: false, desc: 'Jaro-Winkler match score (0-100)' },
+      { col: 'total_revenue', type: 'DECIMAL(15,2)', nullable: true, desc: 'SUM(fact_sales.amount) per customer' },
+      { col: 'health_score', type: 'INT', nullable: true, desc: 'Composite: 40% recency + 30% frequency + 30% monetary' },
+      { col: 'valid_from', type: 'TIMESTAMP', nullable: false, desc: 'SCD2 effective start' },
+      { col: 'valid_to', type: 'TIMESTAMP', nullable: true, desc: 'SCD2 effective end (NULL=current)' }
+    ],
+    lineage: 'SAP KNA1 → Bronze → Silver (dedup) → MDM Match → dim_customer',
+    calculations: [
+      { name: 'health_score', formula: '0.4 * recency_score + 0.3 * frequency_score + 0.3 * monetary_score', desc: 'Weighted composite of RFM components, each normalized 0-100' },
+      { name: 'match_confidence', formula: 'MAX(jaro_winkler(name_a, name_b), levenshtein_ratio(addr_a, addr_b)) * 100', desc: 'Best fuzzy match score across name and address fields' },
+      { name: 'total_revenue', formula: 'SUM(fs.net_amount) WHERE fs.customer_uid = dc.customer_uid', desc: 'Aggregated from fact_sales, refreshed hourly' }
+    ],
+    quality: { completeness: 99.6, accuracy: 98.8, timeliness: 99.2, consistency: 99.1 },
+    tags: ['MDM', 'Golden Record', 'SCD2', 'Customer Master', 'PII']
+  },
+  {
+    name: 'fact_sales', layer: 'Gold', type: 'Fact (Transaction)', records: 3500, size: '8.1 MB',
+    description: 'Transactional sales fact table in star schema. Grain: one row per order line item.',
+    owner: 'Analytics Engineering', refreshSchedule: 'Every 1 hr', lastRefresh: '2026-03-04 10:00:00',
+    schema: [
+      { col: 'sale_id', type: 'BIGINT', nullable: false, desc: 'Surrogate key' },
+      { col: 'customer_uid', type: 'VARCHAR(36)', nullable: false, desc: 'FK → dim_customer' },
+      { col: 'product_id', type: 'VARCHAR(20)', nullable: false, desc: 'FK → dim_product' },
+      { col: 'order_date_key', type: 'INT', nullable: false, desc: 'FK → dim_date (YYYYMMDD)' },
+      { col: 'quantity', type: 'INT', nullable: false, desc: 'Units sold' },
+      { col: 'unit_price', type: 'DECIMAL(10,2)', nullable: false, desc: 'Price per unit at sale time' },
+      { col: 'net_amount', type: 'DECIMAL(12,2)', nullable: false, desc: 'quantity * unit_price * (1 - discount_pct)' },
+      { col: 'cost_amount', type: 'DECIMAL(12,2)', nullable: false, desc: 'COGS from product master' },
+      { col: 'profit_amount', type: 'DECIMAL(12,2)', nullable: false, desc: 'net_amount - cost_amount' },
+      { col: 'discount_pct', type: 'DECIMAL(5,2)', nullable: true, desc: 'Applied discount percentage' }
+    ],
+    lineage: 'SAP VBAK/VBAP + SFDC Opportunities → Bronze → Silver → Gold (star schema)',
+    calculations: [
+      { name: 'net_amount', formula: 'quantity * unit_price * (1 - COALESCE(discount_pct, 0) / 100)', desc: 'Revenue net of discounts' },
+      { name: 'profit_amount', formula: 'net_amount - cost_amount', desc: 'Gross profit per line item' },
+      { name: 'margin_pct', formula: '(profit_amount / NULLIF(net_amount, 0)) * 100', desc: 'Gross margin percentage (derived)' }
+    ],
+    quality: { completeness: 99.9, accuracy: 97.5, timeliness: 98.8, consistency: 99.3 },
+    tags: ['Star Schema', 'Transactions', 'Revenue', 'Kimball']
+  },
+  {
+    name: 'dim_product', layer: 'Gold', type: 'Dimension', records: 80, size: '0.3 MB',
+    description: 'Product catalog dimension with 8 categories. Sourced from SAP Material Master.',
+    owner: 'Product Data Team', refreshSchedule: 'Daily 06:00', lastRefresh: '2026-03-04 06:00:00',
+    schema: [
+      { col: 'product_id', type: 'VARCHAR(20)', nullable: false, desc: 'Natural key from SAP MARA' },
+      { col: 'product_name', type: 'VARCHAR(200)', nullable: false, desc: 'Product display name' },
+      { col: 'category', type: 'VARCHAR(50)', nullable: false, desc: 'One of 8 product categories' },
+      { col: 'unit_cost', type: 'DECIMAL(10,2)', nullable: false, desc: 'Standard cost from SAP' },
+      { col: 'list_price', type: 'DECIMAL(10,2)', nullable: false, desc: 'Suggested retail price' },
+      { col: 'launch_date', type: 'DATE', nullable: true, desc: 'Product launch date' },
+      { col: 'is_active', type: 'BOOLEAN', nullable: false, desc: 'Current sellable flag' }
+    ],
+    lineage: 'SAP MARA/MAKT → Bronze → Silver → dim_product',
+    calculations: [
+      { name: 'standard_margin', formula: '(list_price - unit_cost) / NULLIF(list_price, 0) * 100', desc: 'Expected margin at list price' }
+    ],
+    quality: { completeness: 100, accuracy: 99.5, timeliness: 100, consistency: 100 },
+    tags: ['Product Master', 'SAP', 'Catalog']
+  },
+  {
+    name: 'fact_clickstream', layer: 'Gold', type: 'Fact (Event)', records: 25000, size: '42 MB',
+    description: 'Web clickstream events with session tracking and conversion attribution. Near real-time ingestion via Kinesis.',
+    owner: 'Digital Analytics', refreshSchedule: 'Every 5 min', lastRefresh: '2026-03-04 10:12:00',
+    schema: [
+      { col: 'event_id', type: 'BIGINT', nullable: false, desc: 'Unique event identifier' },
+      { col: 'session_id', type: 'VARCHAR(36)', nullable: false, desc: 'Browser session UUID' },
+      { col: 'customer_uid', type: 'VARCHAR(36)', nullable: true, desc: 'FK → dim_customer (if identified)' },
+      { col: 'event_type', type: 'VARCHAR(30)', nullable: false, desc: 'page_view|click|form_submit|purchase' },
+      { col: 'page_url', type: 'VARCHAR(500)', nullable: false, desc: 'Normalized page URL' },
+      { col: 'referrer_source', type: 'VARCHAR(50)', nullable: true, desc: 'Attribution: Google|Direct|Email|...' },
+      { col: 'event_ts', type: 'TIMESTAMP', nullable: false, desc: 'Event timestamp (UTC)' },
+      { col: 'conversion_flag', type: 'BOOLEAN', nullable: false, desc: 'TRUE if event led to purchase' }
+    ],
+    lineage: 'Web Tag → Kinesis → Lambda → Bronze → Silver → fact_clickstream',
+    calculations: [
+      { name: 'session_duration', formula: 'MAX(event_ts) - MIN(event_ts) WHERE session_id = x', desc: 'Computed per session in Silver layer' },
+      { name: 'conversion_rate', formula: 'COUNT(conversion_flag=true) / COUNT(DISTINCT session_id) * 100', desc: 'Session-level conversion percentage' },
+      { name: 'bounce_rate', formula: 'COUNT(sessions with 1 event) / COUNT(DISTINCT session_id) * 100', desc: 'Single-page sessions ratio' }
+    ],
+    quality: { completeness: 96.2, accuracy: 94.8, timeliness: 99.5, consistency: 97.1 },
+    tags: ['Clickstream', 'Real-time', 'Attribution', 'Kinesis']
+  },
+  {
+    name: 'fact_interactions', layer: 'Gold', type: 'Fact (Accumulating)', records: 6000, size: '5.6 MB',
+    description: 'Customer interaction touchpoints across all channels. Includes CSAT scores and sentiment analysis.',
+    owner: 'CX Analytics', refreshSchedule: 'Every 1 hr', lastRefresh: '2026-03-04 10:00:00',
+    schema: [
+      { col: 'interaction_id', type: 'BIGINT', nullable: false, desc: 'Surrogate key' },
+      { col: 'customer_uid', type: 'VARCHAR(36)', nullable: false, desc: 'FK → dim_customer' },
+      { col: 'channel', type: 'VARCHAR(30)', nullable: false, desc: 'email|phone|chat|social|in_person' },
+      { col: 'interaction_date_key', type: 'INT', nullable: false, desc: 'FK → dim_date' },
+      { col: 'csat_score', type: 'DECIMAL(3,1)', nullable: true, desc: 'Customer satisfaction (1.0 - 5.0)' },
+      { col: 'sentiment', type: 'VARCHAR(10)', nullable: true, desc: 'AI-derived: positive|neutral|negative' },
+      { col: 'resolution_hours', type: 'DECIMAL(6,1)', nullable: true, desc: 'Time to resolution' }
+    ],
+    lineage: 'Salesforce Cases + Zendesk → Bronze → Silver → fact_interactions',
+    calculations: [
+      { name: 'avg_csat', formula: 'AVG(csat_score) WHERE customer_uid = x', desc: 'Mean CSAT across all interactions' },
+      { name: 'sentiment_score', formula: 'Claude AI sentiment analysis → {positive: 1, neutral: 0, negative: -1}', desc: 'AI-powered sentiment classification using Claude' },
+      { name: 'nps_derived', formula: '((csat >= 4.5 count) - (csat <= 2.0 count)) / total * 100', desc: 'Derived NPS from CSAT distribution' }
+    ],
+    quality: { completeness: 97.8, accuracy: 96.2, timeliness: 98.5, consistency: 98.9 },
+    tags: ['Interactions', 'CSAT', 'Sentiment', 'AI-Enriched']
+  },
+  {
+    name: 'dim_customer_lifecycle', layer: 'Gold', type: 'Dimension', records: 500, size: '1.8 MB',
+    description: 'Customer lifecycle stage classification with churn prediction and health scoring. AI-enriched with Claude agents.',
+    owner: 'Data Science', refreshSchedule: 'Daily 02:00', lastRefresh: '2026-03-04 02:00:00',
+    schema: [
+      { col: 'customer_uid', type: 'VARCHAR(36)', nullable: false, desc: 'FK → dim_customer' },
+      { col: 'lifecycle_stage', type: 'VARCHAR(20)', nullable: false, desc: 'Champion|Loyal|Activated|At-Risk|Dormant|Churned' },
+      { col: 'churn_risk', type: 'VARCHAR(10)', nullable: false, desc: 'Low|Medium|High' },
+      { col: 'health_score', type: 'INT', nullable: false, desc: 'Composite 0-100' },
+      { col: 'cohort_month', type: 'DATE', nullable: false, desc: 'First purchase month' },
+      { col: 'tenure_months', type: 'INT', nullable: false, desc: 'Months since first purchase' },
+      { col: 'predicted_ltv', type: 'DECIMAL(12,2)', nullable: true, desc: 'ML-predicted lifetime value' }
+    ],
+    lineage: 'dim_customer + fact_sales + fact_interactions → ML Pipeline → dim_customer_lifecycle',
+    calculations: [
+      { name: 'health_score', formula: '0.4 * recency_norm + 0.3 * frequency_norm + 0.3 * monetary_norm', desc: 'RFM-weighted composite, normalized 0-100 via min-max scaling' },
+      { name: 'churn_risk', formula: 'CASE WHEN churn_probability > 0.7 THEN High WHEN > 0.3 THEN Medium ELSE Low', desc: 'XGBoost model output bucketed into tiers' },
+      { name: 'predicted_ltv', formula: 'BG/NBD model * Gamma-Gamma monetary model', desc: 'Probabilistic CLV using Buy-Till-You-Die framework' }
+    ],
+    quality: { completeness: 100, accuracy: 93.5, timeliness: 99.8, consistency: 99.5 },
+    tags: ['Lifecycle', 'ML', 'Churn', 'Health Score', 'AI-Enriched']
+  },
+  {
+    name: 'fact_fraud_signals', layer: 'Gold', type: 'Fact', records: 450, size: '1.2 MB',
+    description: 'Fraud detection alerts generated by rule engine and ML anomaly detection. Includes Claude AI analysis.',
+    owner: 'Risk & Compliance', refreshSchedule: 'Real-time', lastRefresh: '2026-03-04 10:14:30',
+    schema: [
+      { col: 'signal_id', type: 'BIGINT', nullable: false, desc: 'Alert unique ID' },
+      { col: 'detection_method', type: 'VARCHAR(30)', nullable: false, desc: 'Rule-Based|ML Anomaly|Claude AI|Manual' },
+      { col: 'severity', type: 'VARCHAR(10)', nullable: false, desc: 'Low|Medium|High|Critical' },
+      { col: 'risk_score', type: 'DECIMAL(5,2)', nullable: false, desc: '0-100 risk score' },
+      { col: 'status', type: 'VARCHAR(20)', nullable: false, desc: 'Open|Investigating|Confirmed|Resolved|False Positive' },
+      { col: 'fraud_type', type: 'VARCHAR(50)', nullable: false, desc: 'Split Txn|Phantom Vendor|Geo Mismatch|...' }
+    ],
+    lineage: 'fact_sales + external watchlists → Fraud Engine → Claude AI Review → fact_fraud_signals',
+    calculations: [
+      { name: 'risk_score', formula: '0.3 * amount_anomaly + 0.25 * velocity_score + 0.25 * pattern_match + 0.2 * entity_risk', desc: 'Multi-factor risk composite from ML pipeline' },
+      { name: 'false_positive_rate', formula: 'COUNT(status=False Positive) / COUNT(*) * 100', desc: 'Overall FPR for detection tuning' }
+    ],
+    quality: { completeness: 100, accuracy: 91.2, timeliness: 99.9, consistency: 98.7 },
+    tags: ['Fraud', 'Risk', 'Real-time', 'ML', 'Compliance']
+  },
+  {
+    name: 'mdm_match_pairs', layer: 'MDM', type: 'Audit', records: 200, size: '0.5 MB',
+    description: 'MDM match results showing source record pairs, match scores, and merge decisions. Full audit trail.',
+    owner: 'MDM Team', refreshSchedule: 'Every 30 min', lastRefresh: '2026-03-04 09:45:00',
+    schema: [
+      { col: 'pair_id', type: 'BIGINT', nullable: false, desc: 'Match pair identifier' },
+      { col: 'source_a_id', type: 'VARCHAR(50)', nullable: false, desc: 'Record ID from source system A' },
+      { col: 'source_b_id', type: 'VARCHAR(50)', nullable: false, desc: 'Record ID from source system B' },
+      { col: 'match_score', type: 'DECIMAL(5,2)', nullable: false, desc: 'Jaro-Winkler similarity (0-100)' },
+      { col: 'match_decision', type: 'VARCHAR(20)', nullable: false, desc: 'AUTO_MERGE|REVIEW|NO_MATCH' },
+      { col: 'golden_uid', type: 'VARCHAR(36)', nullable: true, desc: 'Resulting golden record UID' }
+    ],
+    lineage: 'Bronze (all sources) → Silver (dedup) → MDM Matching Engine → mdm_match_pairs',
+    calculations: [
+      { name: 'match_score', formula: 'MAX(jaro_winkler_sim(name), jaro_winkler_sim(addr), exact_match(email) * 100)', desc: 'Best of multiple field-level Jaro-Winkler similarity scores' },
+      { name: 'match_decision', formula: 'CASE WHEN score >= 90 THEN AUTO_MERGE WHEN >= 70 THEN REVIEW ELSE NO_MATCH', desc: 'Threshold-based decision routing' }
+    ],
+    quality: { completeness: 100, accuracy: 97.5, timeliness: 99.0, consistency: 100 },
+    tags: ['MDM', 'Matching', 'Audit Trail', 'Jaro-Winkler']
+  }
+];
+
+// --- Segments & Regions for Revenue ---
+const SEGMENTS = [
+  { name: 'Enterprise', revenue: 2078100, customers: 107, growth: 14.2, color: '#8b5cf6' },
+  { name: 'Mid-Market', revenue: 2796900, customers: 142, growth: 8.7, color: '#3b82f6' },
+  { name: 'SMB', revenue: 2412600, customers: 120, growth: 5.3, color: '#06b6d4' },
+  { name: 'Startup', revenue: 2615400, customers: 129, growth: 22.1, color: '#10b981' }
+];
+
+const REGIONS = [
+  { country: 'US', flag: '🇺🇸', revenue: 2883100, customers: 142, pct: 29.2, growth: 11.5, topProduct: 'Security Suite', qRev: [680,720,745,738] },
+  { country: 'UK', flag: '🇬🇧', revenue: 1277100, customers: 65, pct: 12.9, growth: 7.8, topProduct: 'Analytics', qRev: [300,315,328,334] },
+  { country: 'Japan', flag: '🇯🇵', revenue: 883900, customers: 43, pct: 9.0, growth: 15.2, topProduct: 'Cloud', qRev: [200,215,225,244] },
+  { country: 'Germany', flag: '🇩🇪', revenue: 847500, customers: 43, pct: 8.6, growth: 4.1, topProduct: 'Hardware', qRev: [208,210,214,216] },
+  { country: 'France', flag: '🇫🇷', revenue: 829800, customers: 42, pct: 8.4, growth: 6.3, topProduct: 'Support', qRev: [198,205,210,217] },
+  { country: 'Singapore', flag: '🇸🇬', revenue: 794100, customers: 41, pct: 8.0, growth: 18.9, topProduct: 'Training', qRev: [175,192,205,222] },
+  { country: 'Australia', flag: '🇦🇺', revenue: 671500, customers: 34, pct: 6.8, growth: 9.2, topProduct: 'Services', qRev: [160,165,170,177] },
+  { country: 'India', flag: '🇮🇳', revenue: 598000, customers: 28, pct: 6.1, growth: 28.5, topProduct: 'Cloud', qRev: [120,140,158,180] },
+  { country: 'Brazil', flag: '🇧🇷', revenue: 589100, customers: 32, pct: 6.0, growth: 12.7, topProduct: 'License', qRev: [138,144,150,157] },
+  { country: 'Canada', flag: '🇨🇦', revenue: 528700, customers: 28, pct: 5.4, growth: 8.4, topProduct: 'Analytics', qRev: [128,130,134,137] }
+];
+
+const AI_VS_TRADITIONAL = {
+  labels: ['Timeline', 'Cost', 'Team Size', 'DQ Score', 'Time to Insight'],
+  traditional: [18, 6.8, 35, 82, 14],
+  aiDriven: [4, 1.2, 7, 97.5, 2]
+};
+
+
+// ═══════════════════════════════════════════════════════════════
+// CORE ENGINE — State, Rendering, Hover Widget System
+// ═══════════════════════════════════════════════════════════════
+
+let activeTab = 'overview';
+let hoverWidget = null;
+let activeCharts = {};
+
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return document.querySelectorAll(sel); }
+function el(tag, attrs, ...children) {
+  const e = document.createElement(tag);
+  if (attrs) Object.entries(attrs).forEach(([k,v]) => {
+    if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (k === 'className') e.className = v;
+    else if (k === 'innerHTML') e.innerHTML = v;
+    else e.setAttribute(k, v);
+  });
+  children.flat(Infinity).forEach(c => {
+    if (c == null) return;
+    e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+  });
+  return e;
+}
+
+function fmt(n, dec=0) {
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(dec > 0 ? dec : 0) + 'K';
+  return '$' + n.toFixed(dec);
+}
+function fmtN(n) {
+  return n.toLocaleString();
+}
+function pct(n) { return n.toFixed(1) + '%'; }
+
+// ═══ HOVER WIDGET SYSTEM ═══
+function showHoverWidget(e, content) {
+  hideHoverWidget();
+  hoverWidget = el('div', { className: 'hover-widget' });
+  hoverWidget.innerHTML = content;
+  document.body.appendChild(hoverWidget);
+
+  const rect = e.currentTarget.getBoundingClientRect();
+  const ww = window.innerWidth;
+  const wh = window.innerHeight;
+  let left = rect.right + 16;
+  let top = rect.top;
+
+  // If widget would overflow right, show on left
+  requestAnimationFrame(() => {
+    const hw = hoverWidget.getBoundingClientRect();
+    if (left + hw.width > ww - 20) {
+      left = rect.left - hw.width - 16;
+    }
+    if (top + hw.height > wh - 20) {
+      top = Math.max(10, wh - hw.height - 20);
+    }
+    hoverWidget.style.left = left + 'px';
+    hoverWidget.style.top = top + 'px';
+    hoverWidget.classList.add('visible');
+
+    // Render any charts inside the widget
+    hoverWidget.querySelectorAll('canvas[data-chart]').forEach(renderWidgetChart);
+  });
+}
+
+function hideHoverWidget() {
+  if (hoverWidget) {
+    hoverWidget.remove();
+    hoverWidget = null;
+  }
+}
+
+function renderWidgetChart(canvas) {
+  const cfg = JSON.parse(canvas.dataset.chart);
+  const ctx = canvas.getContext('2d');
+  new Chart(ctx, cfg);
+}
+
+function sparkSvg(data, color, w=120, h=32) {
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - ((v-min)/range)*h}`).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function qualityBar(pct, color) {
+  return `<div class="hw-bar"><div class="hw-bar-fill" style="width:${pct}%;background:${color}"></div></div>`;
+}
+
+// ═══ CHART UTILITIES ═══
+function destroyCharts() {
+  Object.values(activeCharts).forEach(c => { try { c.destroy(); } catch(e) {} });
+  activeCharts = {};
+}
+
+function createChart(canvasId, config) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  if (activeCharts[canvasId]) {
+    try { activeCharts[canvasId].destroy(); } catch(e) {}
+  }
+  const defaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { labels: { color: '#8892a8', font: { size: 11, family: 'Inter' }, boxWidth: 12, padding: 12 } },
+      tooltip: {
+        backgroundColor: '#1a1f35',
+        titleColor: '#e8ecf4',
+        bodyColor: '#8892a8',
+        borderColor: '#252d45',
+        borderWidth: 1,
+        cornerRadius: 8,
+        titleFont: { weight: '600' },
+        bodyFont: { size: 11 },
+        padding: 10
+      }
+    },
+    scales: config.type === 'doughnut' || config.type === 'pie' || config.type === 'radar' || config.type === 'polarArea' ? undefined : {
+      x: { ticks: { color: '#5a6380', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' }, border: { color: '#252d45' } },
+      y: { ticks: { color: '#5a6380', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,.04)' }, border: { color: '#252d45' } }
+    }
+  };
+  if (config.options) {
+    config.options = deepMerge(defaults, config.options);
+  } else {
+    config.options = defaults;
+  }
+  activeCharts[canvasId] = new Chart(canvas.getContext('2d'), config);
+}
+
+function deepMerge(target, source) {
+  const out = { ...target };
+  for (const k of Object.keys(source)) {
+    if (source[k] && typeof source[k] === 'object' && !Array.isArray(source[k])) {
+      out[k] = deepMerge(out[k] || {}, source[k]);
+    } else {
+      out[k] = source[k];
+    }
+  }
+  return out;
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// TAB RENDERERS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── TAB 1: LAKEHOUSE OVERVIEW ───
+function renderOverview() {
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div>
+        <div class="kpi-label">Total Records</div>
+        <div class="kpi-value" style="color:var(--accent)">36,650+</div>
+        <div class="kpi-sub">Across 11 tables in Gold layer</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--green)"></div>
+        <div class="kpi-label">Data Quality Score</div>
+        <div class="kpi-value" style="color:var(--green)">97.5%</div>
+        <div class="kpi-sub">144 rules, 1 critical alert</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--blue)"></div>
+        <div class="kpi-label">Golden Records</div>
+        <div class="kpi-value" style="color:var(--blue)">500</div>
+        <div class="kpi-sub">MDM matched from 1,500+ source records</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--purple)"></div>
+        <div class="kpi-label">AI Agents Active</div>
+        <div class="kpi-value" style="color:var(--purple)">6</div>
+        <div class="kpi-sub">ETL, MDM, DQ, dbt, DAG, Docs</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--cyan)"></div>
+        <div class="kpi-label">Pipeline Templates</div>
+        <div class="kpi-value" style="color:var(--cyan)">50+</div>
+        <div class="kpi-sub">SAP, Salesforce, Oracle auto-generated</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--gold)"></div>
+        <div class="kpi-label">Cost Savings</div>
+        <div class="kpi-value" style="color:var(--gold)">~78%</div>
+        <div class="kpi-sub">vs Traditional MDM implementation</div></div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-title">Medallion Architecture — Data Flow <span class="badge" style="background:rgba(255,153,0,.15);color:var(--accent)">LIVE</span></div>
+        <div class="medallion">
+          <div class="medallion-layer" style="border-color:var(--gold);background:rgba(245,158,11,.05)">
+            <div class="medallion-label" style="color:var(--gold)">Bronze</div>
+            <div style="font-size:11px;color:var(--muted)">Raw Ingestion</div>
+            <div class="medallion-count" style="color:var(--gold)">15.2K</div>
+            <div class="medallion-sub">6 tables • &lt; 5 min</div>
+          </div>
+          <div class="medallion-arrow">→</div>
+          <div class="medallion-layer" style="border-color:var(--blue);background:rgba(59,130,246,.05)">
+            <div class="medallion-label" style="color:var(--blue)">Silver</div>
+            <div style="font-size:11px;color:var(--muted)">Cleansed & Conformed</div>
+            <div class="medallion-count" style="color:var(--blue)">12.8K</div>
+            <div class="medallion-sub">6 tables • DQ: 94%</div>
+          </div>
+          <div class="medallion-arrow">→</div>
+          <div class="medallion-layer" style="border-color:var(--purple);background:rgba(139,92,246,.05)">
+            <div class="medallion-label" style="color:var(--purple)">MDM</div>
+            <div style="font-size:11px;color:var(--muted)">Golden Records</div>
+            <div class="medallion-count" style="color:var(--purple)">500</div>
+            <div class="medallion-sub">Jaro-Winkler • 99.2%</div>
+          </div>
+          <div class="medallion-arrow">→</div>
+          <div class="medallion-layer" style="border-color:var(--green);background:rgba(16,185,129,.05)">
+            <div class="medallion-label" style="color:var(--green)">Gold</div>
+            <div style="font-size:11px;color:var(--muted)">Star Schema</div>
+            <div class="medallion-count" style="color:var(--green)">36.6K</div>
+            <div class="medallion-sub">11 tables • Kimball</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding:14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--muted);line-height:1.8">
+          <strong style="color:var(--text)">Why Lakehouse, Not Data Warehouse?</strong><br>
+          <span style="color:var(--accent)">●</span> <strong>Open formats</strong> (Delta Lake/Parquet) — no vendor lock-in<br>
+          <span style="color:var(--blue)">●</span> <strong>Single copy of data</strong> — no ETL duplication between lake & warehouse<br>
+          <span style="color:var(--green)">●</span> <strong>AI/ML native</strong> — train models directly on lakehouse data<br>
+          <span style="color:var(--purple)">●</span> <strong>Real-time + batch</strong> — streaming & scheduled in one architecture<br>
+          <span style="color:var(--cyan)">●</span> <strong>Cost-effective</strong> — S3 storage at $0.023/GB vs $40+/TB warehouse
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">AI-Driven vs Traditional MDM</div>
+        <div class="chart-box"><canvas id="chart-ai-vs-trad"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="card-title">Source System Coverage</div>
+        <div class="chart-box" style="min-height:200px"><canvas id="chart-source-cov"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Data Volume by Layer</div>
+        <div class="chart-box" style="min-height:200px"><canvas id="chart-vol-layer"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">AI Agent Workload</div>
+        <div class="chart-box" style="min-height:200px"><canvas id="chart-agent-work"></canvas></div>
+      </div>
+    </div>
+  `;
+}
+
+function initOverviewCharts() {
+  createChart('chart-ai-vs-trad', {
+    type: 'bar',
+    data: {
+      labels: ['Timeline (months)', 'Cost ($M)', 'Team Size', 'Time to Insight (days)'],
+      datasets: [
+        { label: 'Traditional', data: [18, 6.8, 35, 14], backgroundColor: 'rgba(239,68,68,.7)', borderRadius: 4 },
+        { label: 'AI-Driven (This POC)', data: [4, 1.2, 7, 2], backgroundColor: 'rgba(16,185,129,.7)', borderRadius: 4 }
+      ]
+    },
+    options: { plugins: { legend: { position: 'bottom' } }, indexAxis: 'y' }
+  });
+
+  createChart('chart-source-cov', {
+    type: 'doughnut',
+    data: {
+      labels: ['SAP ECC', 'Salesforce CRM', 'Oracle DB', 'REST APIs', 'Kinesis'],
+      datasets: [{ data: [35, 28, 22, 10, 5], backgroundColor: ['#ff9900','#3b82f6','#ef4444','#8b5cf6','#06b6d4'], borderWidth: 0 }]
+    },
+    options: { plugins: { legend: { position: 'bottom' } }, cutout: '60%' }
+  });
+
+  createChart('chart-vol-layer', {
+    type: 'bar',
+    data: {
+      labels: ['Bronze', 'Silver', 'MDM', 'Gold'],
+      datasets: [{ label: 'Records', data: [15200, 12800, 500, 36650], backgroundColor: ['rgba(245,158,11,.7)','rgba(59,130,246,.7)','rgba(139,92,246,.7)','rgba(16,185,129,.7)'], borderRadius: 6 }]
+    },
+    options: { plugins: { legend: { display: false } } }
+  });
+
+  createChart('chart-agent-work', {
+    type: 'radar',
+    data: {
+      labels: ['ETL Gen', 'MDM Match', 'DQ Engine', 'dbt Model', 'DAG Build', 'Doc Writer'],
+      datasets: [
+        { label: 'Pipelines Generated', data: [50, 12, 42, 18, 8, 6], borderColor: '#ff9900', backgroundColor: 'rgba(255,153,0,.1)', pointBackgroundColor: '#ff9900' },
+        { label: 'Quality Score', data: [94, 99, 97, 96, 95, 98], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', pointBackgroundColor: '#3b82f6' }
+      ]
+    },
+    options: { scales: { r: { angleLines: { color: 'rgba(255,255,255,.05)' }, grid: { color: 'rgba(255,255,255,.05)' }, ticks: { display: false }, pointLabels: { color: '#8892a8', font: { size: 10 } } } } }
+  });
+}
+
+// ─── TAB 2: CUSTOMER 360 ───
+function renderCustomer360() {
+  const rows = CUSTOMERS.map((c, i) => `
+    <tr class="hoverable" data-cust-idx="${i}"
+        onmouseenter="showCustomerWidget(event, ${i})"
+        onmouseleave="hideHoverWidget()">
+      <td style="font-weight:600;color:var(--accent)">${c.uid}</td>
+      <td><strong>${c.name}</strong></td>
+      <td><span class="pill pill-${c.segment === 'Enterprise' ? 'purple' : c.segment === 'Mid-Market' ? 'blue' : c.segment === 'SMB' ? 'cyan' : 'green'}">${c.segment}</span></td>
+      <td>${c.country}</td>
+      <td style="font-size:10px">${c.sources}</td>
+      <td><span style="color:${c.confidence >= 95 ? 'var(--green)' : c.confidence >= 90 ? 'var(--gold)' : 'var(--red)'};font-weight:700">${c.confidence}%</span></td>
+      <td style="font-weight:700;color:var(--text)">${fmt(c.revenue)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:40px;height:6px;border-radius:3px;background:var(--card3);overflow:hidden">
+            <div style="height:100%;width:${c.health}%;border-radius:3px;background:${c.health >= 80 ? 'var(--green)' : c.health >= 60 ? 'var(--gold)' : 'var(--red)'}"></div>
+          </div>
+          <span style="font-size:11px;font-weight:600;color:${c.health >= 80 ? 'var(--green)' : c.health >= 60 ? 'var(--gold)' : 'var(--red)'}">${c.health}</span>
+        </div>
+      </td>
+      <td><span class="pill pill-${c.lifecycle === 'Champion' ? 'green' : c.lifecycle === 'Loyal' ? 'blue' : c.lifecycle === 'Activated' ? 'cyan' : c.lifecycle === 'At-Risk' ? 'gold' : 'red'}">${c.lifecycle}</span></td>
+      <td>${sparkSvg(c.sparkline, c.yoy >= 0 ? '#10b981' : '#ef4444', 80, 24)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div>
+        <div class="kpi-label">Golden Records</div><div class="kpi-value" style="color:var(--accent)">500</div>
+        <div class="kpi-sub">Deduplicated from 1,500+ source records</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--green)"></div>
+        <div class="kpi-label">Avg Match Confidence</div><div class="kpi-value" style="color:var(--green)">94.7%</div>
+        <div class="kpi-sub">Jaro-Winkler fuzzy matching</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--blue)"></div>
+        <div class="kpi-label">Total Revenue</div><div class="kpi-value" style="color:var(--blue)">$9.9M</div>
+        <div class="kpi-sub">Across all golden records</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--purple)"></div>
+        <div class="kpi-label">Champions</div><div class="kpi-value" style="color:var(--purple)">68</div>
+        <div class="kpi-sub">13.6% of customer base</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--red)"></div>
+        <div class="kpi-label">At-Risk</div><div class="kpi-value" style="color:var(--red)">69</div>
+        <div class="kpi-sub">13.8% need intervention</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">MDM Golden Records — Customer 360 View <span class="badge" style="background:rgba(139,92,246,.15);color:var(--purple)">HOVER FOR DETAILS</span></div>
+      <div style="font-size:10px;color:var(--dim);margin:-6px 0 10px 0">Hover over any row to see full customer profile with spend trends, segment analysis, and source system details</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>UID</th><th>Customer Name</th><th>Segment</th><th>Country</th><th>Sources</th>
+            <th>Match %</th><th>Revenue</th><th>Health</th><th>Lifecycle</th><th>Trend (12m)</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:14px">
+      <div class="card">
+        <div class="card-title">Customer Segments</div>
+        <div class="chart-box"><canvas id="chart-cust-seg"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Lifecycle Distribution</div>
+        <div class="chart-box"><canvas id="chart-lifecycle"></canvas></div>
+      </div>
+    </div>
+  `;
+}
+
+function showCustomerWidget(e, idx) {
+  const c = CUSTOMERS[idx];
+  const chartCfg = JSON.stringify({
+    type: 'line',
+    data: {
+      labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+      datasets: [{ data: c.sparkline, borderColor: c.yoy >= 0 ? '#10b981' : '#ef4444', backgroundColor: c.yoy >= 0 ? 'rgba(16,185,129,.1)' : 'rgba(239,68,68,.1)', fill: true, tension: .4, pointRadius: 2, borderWidth: 2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
+  });
+
+  const riskColor = c.churnRisk === 'Low' ? 'var(--green)' : c.churnRisk === 'Medium' ? 'var(--gold)' : 'var(--red)';
+
+  showHoverWidget(e, `
+    <h3><span style="font-size:18px">👤</span> ${c.name}</h3>
+    <div class="hw-row"><span class="hw-label">Customer UID</span><span class="hw-value" style="color:var(--accent)">${c.uid}</span></div>
+    <div class="hw-row"><span class="hw-label">Segment</span><span class="hw-value">${c.segment}</span></div>
+    <div class="hw-row"><span class="hw-label">Country</span><span class="hw-value">${c.country}</span></div>
+    <div class="hw-row"><span class="hw-label">Source Systems</span><span class="hw-value">${c.sources}</span></div>
+    <div class="hw-row"><span class="hw-label">Match Confidence</span><span class="hw-value" style="color:${c.confidence >= 95 ? 'var(--green)' : 'var(--gold)'}">${c.confidence}%</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Revenue & Lifetime Value</div>
+      <div class="hw-row"><span class="hw-label">Annual Revenue</span><span class="hw-value">${fmt(c.revenue)}</span></div>
+      <div class="hw-row"><span class="hw-label">Lifetime Value</span><span class="hw-value" style="color:var(--accent)">${fmt(c.ltv)}</span></div>
+      <div class="hw-row"><span class="hw-label">Total Orders</span><span class="hw-value">${c.orders}</span></div>
+      <div class="hw-row"><span class="hw-label">YoY Growth</span><span class="hw-value" style="color:${c.yoy >= 0 ? 'var(--green)' : 'var(--red)'}">${c.yoy >= 0 ? '+' : ''}${c.yoy}%</span></div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">12-Month Revenue Trend</div>
+      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Health & Risk</div>
+      <div class="hw-row"><span class="hw-label">Health Score</span><span class="hw-value">${c.health}/100</span></div>
+      <div style="margin:4px 0">${qualityBar(c.health, c.health >= 80 ? 'var(--green)' : c.health >= 60 ? 'var(--gold)' : 'var(--red)')}</div>
+      <div class="hw-row"><span class="hw-label">CSAT</span><span class="hw-value">${c.csat}/5.0</span></div>
+      <div class="hw-row"><span class="hw-label">Churn Risk</span><span class="hw-value" style="color:${riskColor}">${c.churnRisk}</span></div>
+      <div class="hw-row"><span class="hw-label">Lifecycle Stage</span><span class="hw-value">${c.lifecycle}</span></div>
+      <div class="hw-row"><span class="hw-label">Last Order</span><span class="hw-value">${c.lastOrder}</span></div>
+    </div>
+  `);
+}
+
+function initCustomer360Charts() {
+  createChart('chart-cust-seg', {
+    type: 'doughnut',
+    data: {
+      labels: SEGMENTS.map(s => s.name),
+      datasets: [{ data: SEGMENTS.map(s => s.revenue), backgroundColor: SEGMENTS.map(s => s.color), borderWidth: 0 }]
+    },
+    options: { cutout: '55%', plugins: { legend: { position: 'bottom' } } }
+  });
+
+  createChart('chart-lifecycle', {
+    type: 'bar',
+    data: {
+      labels: ['Dormant', 'Activated', 'At-Risk', 'Champion', 'Churned', 'Loyal'],
+      datasets: [{ data: [231, 70, 69, 68, 53, 9], backgroundColor: ['#6b7280','#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6'], borderRadius: 6 }]
+    },
+    options: { plugins: { legend: { display: false } }, indexAxis: 'y' }
+  });
+}
+
+
+// ─── TAB 3: REVENUE ANALYTICS ───
+function renderRevenue() {
+  const prodRows = PRODUCTS.map((p, i) => `
+    <tr class="hoverable" onmouseenter="showProductWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+      <td style="font-weight:600">${p.name}</td>
+      <td><span class="pill pill-${p.category === 'Cloud' ? 'cyan' : p.category === 'Security' ? 'red' : p.category === 'Analytics' ? 'purple' : p.category === 'Training' ? 'green' : 'blue'}">${p.category}</span></td>
+      <td style="font-weight:700;color:var(--text)">${fmt(p.revenue)}</td>
+      <td>${fmtN(p.units)}</td>
+      <td><span style="color:${p.margin >= 60 ? 'var(--green)' : p.margin >= 40 ? 'var(--gold)' : 'var(--red)'}; font-weight:600">${p.margin}%</span></td>
+      <td><span class="kpi-trend ${p.growth >= 0 ? 'up' : 'down'}">${p.growth >= 0 ? '▲' : '▼'} ${Math.abs(p.growth)}%</span></td>
+      <td>${sparkSvg(p.qoq, p.growth >= 0 ? '#10b981' : '#ef4444', 70, 22)}</td>
+    </tr>
+  `).join('');
+
+  const regRows = REGIONS.map((r, i) => `
+    <tr class="hoverable" onmouseenter="showRegionWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+      <td>${r.flag} <strong>${r.country}</strong></td>
+      <td style="font-weight:700">${fmt(r.revenue)}</td>
+      <td>${r.customers}</td>
+      <td>${pct(r.pct)}</td>
+      <td><span class="kpi-trend ${r.growth >= 0 ? 'up' : 'down'}">${r.growth >= 0 ? '▲' : '▼'} ${pct(r.growth)}</span></td>
+      <td>${r.topProduct}</td>
+      <td>${sparkSvg(r.qRev, '#3b82f6', 70, 22)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div>
+        <div class="kpi-label">Total Revenue (25m)</div><div class="kpi-value" style="color:var(--accent)">$9.9M</div>
+        <div class="kpi-sub">25 months trailing</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--green)"></div>
+        <div class="kpi-label">Avg Margin</div><div class="kpi-value" style="color:var(--green)">48.2%</div>
+        <div class="kpi-sub">Across all categories</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--blue)"></div>
+        <div class="kpi-label">Products</div><div class="kpi-value" style="color:var(--blue)">80</div>
+        <div class="kpi-sub">8 categories</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--purple)"></div>
+        <div class="kpi-label">Markets</div><div class="kpi-value" style="color:var(--purple)">10</div>
+        <div class="kpi-sub">Global reach</div></div>
+    </div>
+
+    <div class="grid grid-23">
+      <div class="card">
+        <div class="card-title">Revenue Trend (25 Months)</div>
+        <div class="chart-box"><canvas id="chart-rev-trend"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Revenue by Segment</div>
+        <div class="chart-box"><canvas id="chart-rev-seg"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="card-title">Product Performance <span class="badge" style="background:rgba(59,130,246,.15);color:var(--blue)">HOVER FOR DRILL-DOWN</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Product</th><th>Category</th><th>Revenue</th><th>Units</th><th>Margin</th><th>Growth</th><th>QoQ</th></tr></thead>
+          <tbody>${prodRows}</tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Revenue by Region <span class="badge" style="background:rgba(6,182,212,.15);color:var(--cyan)">HOVER FOR DETAILS</span></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Country</th><th>Revenue</th><th>Customers</th><th>Share</th><th>Growth</th><th>Top Product</th><th>Quarterly</th></tr></thead>
+          <tbody>${regRows}</tbody></table>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showProductWidget(e, idx) {
+  const p = PRODUCTS[idx];
+  const chartCfg = JSON.stringify({
+    type: 'bar',
+    data: {
+      labels: ['Q1','Q2','Q3','Q4'],
+      datasets: [{ data: p.qoq, backgroundColor: p.growth >= 0 ? 'rgba(16,185,129,.6)' : 'rgba(239,68,68,.6)', borderRadius: 4 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
+  });
+
+  showHoverWidget(e, `
+    <h3><span style="font-size:16px">📦</span> ${p.name}</h3>
+    <div class="hw-row"><span class="hw-label">Category</span><span class="hw-value">${p.category}</span></div>
+    <div class="hw-row"><span class="hw-label">Total Revenue</span><span class="hw-value" style="color:var(--accent)">${fmt(p.revenue)}</span></div>
+    <div class="hw-row"><span class="hw-label">Units Sold</span><span class="hw-value">${fmtN(p.units)}</span></div>
+    <div class="hw-row"><span class="hw-label">Gross Margin</span><span class="hw-value" style="color:${p.margin >= 60 ? 'var(--green)' : 'var(--gold)'}">${p.margin}%</span></div>
+    <div class="hw-row"><span class="hw-label">YoY Growth</span><span class="hw-value" style="color:${p.growth >= 0 ? 'var(--green)' : 'var(--red)'}">${p.growth >= 0 ? '+' : ''}${p.growth}%</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Quarterly Revenue ($K)</div>
+      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Margin Analysis</div>
+      <div class="hw-row"><span class="hw-label">Avg Selling Price</span><span class="hw-value">${fmt(p.revenue / p.units, 0)}</span></div>
+      <div class="hw-row"><span class="hw-label">Estimated COGS</span><span class="hw-value">${fmt(p.revenue * (1 - p.margin/100))}</span></div>
+      <div class="hw-row"><span class="hw-label">Gross Profit</span><span class="hw-value" style="color:var(--green)">${fmt(p.revenue * p.margin/100)}</span></div>
+      <div style="margin-top:6px">
+        <div style="font-size:10px;color:var(--dim);margin-bottom:3px">Margin %</div>
+        ${qualityBar(p.margin, p.margin >= 60 ? 'var(--green)' : p.margin >= 40 ? 'var(--gold)' : 'var(--red)')}
+      </div>
+    </div>
+
+    <div class="hw-meta">calc: margin_pct = (net_amount - cost_amount)\n         / NULLIF(net_amount, 0) * 100\nsrc:  SAP VBAK/VBAP → Bronze → Gold</div>
+  `);
+}
+
+function showRegionWidget(e, idx) {
+  const r = REGIONS[idx];
+  const chartCfg = JSON.stringify({
+    type: 'line',
+    data: {
+      labels: ['Q1','Q2','Q3','Q4'],
+      datasets: [{ data: r.qRev, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.1)', fill: true, tension: .4, pointRadius: 3, borderWidth: 2 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
+  });
+
+  showHoverWidget(e, `
+    <h3>${r.flag} ${r.country}</h3>
+    <div class="hw-row"><span class="hw-label">Total Revenue</span><span class="hw-value" style="color:var(--accent)">${fmt(r.revenue)}</span></div>
+    <div class="hw-row"><span class="hw-label">Customers</span><span class="hw-value">${r.customers}</span></div>
+    <div class="hw-row"><span class="hw-label">Global Share</span><span class="hw-value">${pct(r.pct)}</span></div>
+    <div class="hw-row"><span class="hw-label">YoY Growth</span><span class="hw-value" style="color:var(--green)">+${pct(r.growth)}</span></div>
+    <div class="hw-row"><span class="hw-label">Top Product</span><span class="hw-value">${r.topProduct}</span></div>
+    <div class="hw-row"><span class="hw-label">Avg Rev/Customer</span><span class="hw-value">${fmt(r.revenue / r.customers)}</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Quarterly Revenue Trend ($K)</div>
+      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+    </div>
+  `);
+}
+
+function initRevenueCharts() {
+  createChart('chart-rev-trend', {
+    type: 'line',
+    data: {
+      labels: MONTHLY_REV.map(m => m.m),
+      datasets: [
+        { label: 'Revenue ($K)', data: MONTHLY_REV.map(m => m.rev), borderColor: '#ff9900', backgroundColor: 'rgba(255,153,0,.08)', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 },
+        { label: 'Cost ($K)', data: MONTHLY_REV.map(m => m.cost), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,.05)', fill: true, tension: .3, pointRadius: 2, borderWidth: 2 }
+      ]
+    },
+    options: { plugins: { legend: { position: 'bottom' } } }
+  });
+
+  createChart('chart-rev-seg', {
+    type: 'doughnut',
+    data: {
+      labels: SEGMENTS.map(s => s.name),
+      datasets: [{ data: SEGMENTS.map(s => s.revenue), backgroundColor: SEGMENTS.map(s => s.color), borderWidth: 0 }]
+    },
+    options: { cutout: '55%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
+// ─── TAB 4: DATA QUALITY HUB ───
+function renderQuality() {
+  const layerCards = DQ_LAYERS.map((l, i) => {
+    const color = l.score >= 97 ? 'var(--green)' : l.score >= 90 ? 'var(--blue)' : l.score >= 80 ? 'var(--gold)' : 'var(--red)';
+    return `
+    <div class="card" style="text-align:center" onmouseenter="showDQLayerWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${l.layer}</div>
+      <div style="font-size:42px;font-weight:900;color:${color};margin:8px 0">${l.score}%</div>
+      <div style="font-size:10px;color:var(--dim)">${fmtN(l.pass)} pass / ${fmtN(l.fail)} fail</div>
+      <div style="margin:8px auto;width:80%">${qualityBar(l.score, color)}</div>
+      <div style="font-size:10px;color:var(--dim)">${l.rules} rules • ${l.critical} critical • ${l.freshness}</div>
+      <div style="margin-top:8px">${sparkSvg(l.trend, color.replace('var(--green)','#10b981').replace('var(--blue)','#3b82f6').replace('var(--gold)','#f59e0b').replace('var(--red)','#ef4444'), 100, 28)}</div>
+    </div>`;
+  }).join('');
+
+  const ruleRows = DQ_RULES.map((r, i) => `
+    <tr class="hoverable" onmouseenter="showDQRuleWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+      <td style="font-family:'Courier New',monospace;font-size:11px">${r.rule}</td>
+      <td><span class="pill pill-${r.layer.startsWith('Bronze') ? 'gold' : r.layer === 'Silver' ? 'blue' : r.layer === 'MDM' ? 'purple' : 'green'}">${r.layer}</span></td>
+      <td><span class="pill pill-${r.status === 'Pass' ? 'green' : r.status === 'Warn' ? 'gold' : 'red'}">${r.status}</span></td>
+      <td style="font-weight:600;color:${r.passRate >= 99 ? 'var(--green)' : r.passRate >= 95 ? 'var(--gold)' : 'var(--red)'}">${pct(r.passRate)}</td>
+      <td><span class="pill pill-${r.severity === 'Critical' ? 'red' : r.severity === 'High' ? 'gold' : 'blue'}">${r.severity}</span></td>
+      <td style="color:var(--dim);font-size:11px">${r.lastRun}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--green)"></div>
+        <div class="kpi-label">Overall DQ Score</div><div class="kpi-value" style="color:var(--green)">97.5%</div>
+        <div class="kpi-sub">Weighted across all layers</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--blue)"></div>
+        <div class="kpi-label">Total Rules</div><div class="kpi-value" style="color:var(--blue)">144</div>
+        <div class="kpi-sub">28 Bronze + 42 Silver + 18 MDM + 56 Gold</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--red)"></div>
+        <div class="kpi-label">Critical Alerts</div><div class="kpi-value" style="color:var(--red)">1</div>
+        <div class="kpi-sub">Revenue accuracy check in Gold layer</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div>
+        <div class="kpi-label">Records Validated</div><div class="kpi-value" style="color:var(--accent)">28.8K</div>
+        <div class="kpi-sub">Last 24 hours</div></div>
+    </div>
+
+    <div class="grid grid-4" style="margin-bottom:14px">${layerCards}</div>
+
+    <div class="grid grid-23">
+      <div class="card">
+        <div class="card-title">DQ Rule Status <span class="badge" style="background:rgba(16,185,129,.15);color:var(--green)">HOVER FOR DETAILS</span></div>
+        <div class="table-wrap" style="max-height:350px">
+          <table><thead><tr><th>Rule</th><th>Layer</th><th>Status</th><th>Pass Rate</th><th>Severity</th><th>Last Run</th></tr></thead>
+          <tbody>${ruleRows}</tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Quality Dimensions</div>
+        <div class="chart-box"><canvas id="chart-dq-dims"></canvas></div>
+      </div>
+    </div>
+  `;
+}
+
+function showDQLayerWidget(e, idx) {
+  const l = DQ_LAYERS[idx];
+  showHoverWidget(e, `
+    <h3><span style="font-size:16px">🛡️</span> ${l.layer} Quality</h3>
+    <div class="hw-row"><span class="hw-label">Quality Score</span><span class="hw-value" style="color:var(--green)">${l.score}%</span></div>
+    <div class="hw-row"><span class="hw-label">Rules Active</span><span class="hw-value">${l.rules}</span></div>
+    <div class="hw-row"><span class="hw-label">Records Passed</span><span class="hw-value" style="color:var(--green)">${fmtN(l.pass)}</span></div>
+    <div class="hw-row"><span class="hw-label">Records Failed</span><span class="hw-value" style="color:var(--red)">${fmtN(l.fail)}</span></div>
+    <div class="hw-row"><span class="hw-label">Critical Issues</span><span class="hw-value" style="color:${l.critical > 0 ? 'var(--red)' : 'var(--green)'}">${l.critical}</span></div>
+    <div class="hw-row"><span class="hw-label">Data Freshness</span><span class="hw-value">${l.freshness}</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Quality Trend (6 Periods)</div>
+      <div style="display:flex;gap:4px;align-items:flex-end;height:50px;margin-top:8px">
+        ${l.trend.map(v => `<div style="flex:1;background:rgba(16,185,129,.4);border-radius:3px 3px 0 0;height:${(v/100)*50}px;position:relative">
+          <span style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--dim)">${v}</span>
+        </div>`).join('')}
+      </div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Framework</div>
+      <div class="hw-meta">Engine: Great Expectations\nSchedule: Continuous\nAlert: PagerDuty + Slack\nOwner: Data Quality Team</div>
+    </div>
+  `);
+}
+
+function showDQRuleWidget(e, idx) {
+  const r = DQ_RULES[idx];
+  const ruleDetails = {
+    'NOT_NULL: customer_email': { check: 'customer_email IS NOT NULL', impact: 'Breaks email campaigns, customer communication', remediation: 'Flag source system, fill from alternate source via MDM' },
+    'UNIQUE: customer_uid': { check: 'COUNT(customer_uid) = COUNT(DISTINCT customer_uid)', impact: 'Duplicate golden records, revenue double-counting', remediation: 'Re-run MDM matching engine, adjust Jaro-Winkler threshold' },
+    'RANGE: order_amount > 0': { check: 'order_amount > 0 AND order_amount < 10000000', impact: 'Negative or extreme values corrupt revenue analytics', remediation: 'Quarantine record, flag for manual review' },
+    'FORMAT: phone_regex': { check: "phone MATCHES '^\\+?[0-9\\s\\-\\(\\)]{7,20}$'", impact: 'Invalid phone numbers in CRM, failed outreach', remediation: 'Apply phone normalization in Silver transform' },
+    'REFERENTIAL: product_id FK': { check: 'ALL fact_sales.product_id IN dim_product.product_id', impact: 'Orphan sales records, broken joins', remediation: 'Add missing products or remap to catch-all category' },
+    'FRESHNESS: < 24hr': { check: 'MAX(ingestion_ts) > NOW() - INTERVAL 24 HOURS', impact: 'Stale data in Bronze, delayed downstream analytics', remediation: 'Check Glue job status, verify source connectivity' },
+    'COMPLETENESS: address': { check: 'address_line1 IS NOT NULL AND city IS NOT NULL', impact: 'Incomplete shipping/billing, geo analytics gaps', remediation: 'Enrich via third-party address API (Loqate/SmartyStreets)' },
+    'CONSISTENCY: country_code ISO': { check: "country_code IN (SELECT code FROM iso_3166_1_alpha2)", impact: 'Regional reporting errors, compliance issues', remediation: 'Map non-standard codes in Silver ETL' },
+    'ACCURACY: revenue vs invoice': { check: 'ABS(SUM(fact_sales.net_amount) - SUM(invoice.total)) < 0.01', impact: 'Financial reporting discrepancies, audit risk', remediation: 'Reconciliation pipeline, flag mismatches for finance team' },
+    'TIMELINESS: CDC lag < 5min': { check: 'MAX(event_ts) - MAX(ingestion_ts) < INTERVAL 5 MINUTES', impact: 'Real-time dashboards show stale data', remediation: 'Scale Kinesis shards, check Lambda concurrency' }
+  };
+  const det = ruleDetails[r.rule] || { check: r.rule, impact: 'Data quality degradation', remediation: 'Review and fix at source' };
+
+  showHoverWidget(e, `
+    <h3><span style="font-size:16px">${r.status === 'Pass' ? '✅' : r.status === 'Warn' ? '⚠️' : '❌'}</span> ${r.rule}</h3>
+    <div class="hw-row"><span class="hw-label">Layer</span><span class="hw-value">${r.layer}</span></div>
+    <div class="hw-row"><span class="hw-label">Status</span><span class="hw-value" style="color:${r.status === 'Pass' ? 'var(--green)' : r.status === 'Warn' ? 'var(--gold)' : 'var(--red)'}">${r.status}</span></div>
+    <div class="hw-row"><span class="hw-label">Pass Rate</span><span class="hw-value">${pct(r.passRate)}</span></div>
+    <div style="margin:4px 0">${qualityBar(r.passRate, r.passRate >= 99 ? 'var(--green)' : r.passRate >= 95 ? 'var(--gold)' : 'var(--red)')}</div>
+    <div class="hw-row"><span class="hw-label">Severity</span><span class="hw-value" style="color:${r.severity === 'Critical' ? 'var(--red)' : r.severity === 'High' ? 'var(--gold)' : 'var(--blue)'}">${r.severity}</span></div>
+    <div class="hw-row"><span class="hw-label">Last Run</span><span class="hw-value">${r.lastRun}</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">SQL Check</div>
+      <div class="hw-meta">${det.check}</div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Business Impact</div>
+      <div style="font-size:11px;color:var(--gold);margin-top:4px">${det.impact}</div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Remediation</div>
+      <div style="font-size:11px;color:var(--green);margin-top:4px">${det.remediation}</div>
+    </div>
+  `);
+}
+
+function initQualityCharts() {
+  createChart('chart-dq-dims', {
+    type: 'radar',
+    data: {
+      labels: ['Completeness', 'Accuracy', 'Timeliness', 'Consistency', 'Uniqueness', 'Validity'],
+      datasets: [
+        { label: 'Bronze', data: [78, 72, 96, 68, 65, 80], borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,.08)', pointBackgroundColor: '#f59e0b', borderWidth: 2 },
+        { label: 'Silver', data: [95, 94, 98, 92, 96, 93], borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)', pointBackgroundColor: '#3b82f6', borderWidth: 2 },
+        { label: 'Gold', data: [99, 97, 99, 99, 100, 98], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.08)', pointBackgroundColor: '#10b981', borderWidth: 2 }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom' } },
+      scales: { r: { min: 50, max: 100, angleLines: { color: 'rgba(255,255,255,.05)' }, grid: { color: 'rgba(255,255,255,.05)' }, ticks: { display: false, stepSize: 10 }, pointLabels: { color: '#8892a8', font: { size: 10 } } } }
+    }
+  });
+}
+
+
+// ─── TAB 5: DATA CATALOG ───
+function renderCatalog() {
+  const items = CATALOG.map((c, i) => {
+    const layerColor = c.layer === 'Gold' ? 'green' : c.layer === 'MDM' ? 'purple' : c.layer === 'Silver' ? 'blue' : 'gold';
+    return `
+    <div class="catalog-item" onmouseenter="showCatalogWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="ci-name" style="color:var(--accent)">${c.name}</div>
+          <div class="ci-desc">${c.description}</div>
+        </div>
+        <div style="text-align:right;min-width:100px">
+          <span class="pill pill-${layerColor}">${c.layer}</span>
+          <div style="font-size:10px;color:var(--dim);margin-top:4px">${fmtN(c.records)} records</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+        <div class="ci-tags">
+          ${c.tags.map(t => `<span class="ci-tag">${t}</span>`).join('')}
+        </div>
+        <div style="display:flex;gap:12px;font-size:10px;color:var(--dim)">
+          <span>📐 ${c.schema.length} cols</span>
+          <span>📏 ${c.size}</span>
+          <span>🔄 ${c.refreshSchedule}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div class="kpi-row">
+      <div class="kpi"><div class="kpi-bar" style="background:var(--accent)"></div>
+        <div class="kpi-label">Cataloged Assets</div><div class="kpi-value" style="color:var(--accent)">${CATALOG.length}</div>
+        <div class="kpi-sub">Tables, facts & dimensions</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--green)"></div>
+        <div class="kpi-label">Total Columns</div><div class="kpi-value" style="color:var(--green)">${CATALOG.reduce((s,c) => s + c.schema.length, 0)}</div>
+        <div class="kpi-sub">Fully documented with types</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--purple)"></div>
+        <div class="kpi-label">Calculations</div><div class="kpi-value" style="color:var(--purple)">${CATALOG.reduce((s,c) => s + c.calculations.length, 0)}</div>
+        <div class="kpi-sub">Business logic documented</div></div>
+      <div class="kpi"><div class="kpi-bar" style="background:var(--blue)"></div>
+        <div class="kpi-label">Lineage Traced</div><div class="kpi-value" style="color:var(--blue)">100%</div>
+        <div class="kpi-sub">Source → Bronze → Gold</div></div>
+    </div>
+
+    <div class="grid grid-32">
+      <div class="card">
+        <div class="card-title">Data Assets <span class="badge" style="background:rgba(255,153,0,.15);color:var(--accent)">HOVER FOR FULL METADATA</span></div>
+        <div style="font-size:10px;color:var(--dim);margin:-6px 0 12px 0">Hover over any dataset to see complete metadata including schema, calculations, lineage, and quality scores</div>
+        ${items}
+      </div>
+      <div class="card">
+        <div class="card-title">Catalog Stats</div>
+        <div class="chart-box" style="min-height:200px"><canvas id="chart-catalog-types"></canvas></div>
+        <div style="margin-top:16px">
+          <div class="card-title" style="margin-top:8px">Quality by Asset</div>
+          <div class="chart-box" style="min-height:200px"><canvas id="chart-catalog-quality"></canvas></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function showCatalogWidget(e, idx) {
+  const c = CATALOG[idx];
+  const schemaCols = c.schema.slice(0, 6).map(s =>
+    `<tr><td style="color:var(--accent);font-family:'Courier New',monospace;font-size:10px;padding:3px 6px">${s.col}</td><td style="color:var(--dim);font-size:10px;padding:3px 6px">${s.type}</td><td style="font-size:9px;color:var(--muted);padding:3px 6px">${s.nullable ? 'NULL' : 'NOT NULL'}</td></tr>`
+  ).join('');
+  const moreSchema = c.schema.length > 6 ? `<div style="font-size:9px;color:var(--dim);margin-top:4px">... +${c.schema.length - 6} more columns</div>` : '';
+
+  const calcRows = c.calculations.map(calc =>
+    `<div style="margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--blue)">${calc.name}</div>
+      <div class="hw-meta" style="margin-top:2px;font-size:9px;padding:6px 8px">${calc.formula}</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:2px">${calc.desc}</div>
+    </div>`
+  ).join('');
+
+  const q = c.quality;
+  const qualityBars = `
+    <div style="margin-top:6px">
+      <div class="hw-row"><span class="hw-label">Completeness</span><span class="hw-value">${q.completeness}%</span></div>
+      ${qualityBar(q.completeness, q.completeness >= 99 ? 'var(--green)' : 'var(--gold)')}
+      <div class="hw-row"><span class="hw-label">Accuracy</span><span class="hw-value">${q.accuracy}%</span></div>
+      ${qualityBar(q.accuracy, q.accuracy >= 97 ? 'var(--green)' : q.accuracy >= 94 ? 'var(--blue)' : 'var(--gold)')}
+      <div class="hw-row"><span class="hw-label">Timeliness</span><span class="hw-value">${q.timeliness}%</span></div>
+      ${qualityBar(q.timeliness, q.timeliness >= 99 ? 'var(--green)' : 'var(--blue)')}
+      <div class="hw-row"><span class="hw-label">Consistency</span><span class="hw-value">${q.consistency}%</span></div>
+      ${qualityBar(q.consistency, q.consistency >= 99 ? 'var(--green)' : 'var(--blue)')}
+    </div>`;
+
+  showHoverWidget(e, `
+    <h3><span style="font-size:16px">📚</span> ${c.name}</h3>
+    <div class="hw-row"><span class="hw-label">Layer</span><span class="hw-value">${c.layer}</span></div>
+    <div class="hw-row"><span class="hw-label">Type</span><span class="hw-value">${c.type}</span></div>
+    <div class="hw-row"><span class="hw-label">Records</span><span class="hw-value">${fmtN(c.records)}</span></div>
+    <div class="hw-row"><span class="hw-label">Size</span><span class="hw-value">${c.size}</span></div>
+    <div class="hw-row"><span class="hw-label">Owner</span><span class="hw-value">${c.owner}</span></div>
+    <div class="hw-row"><span class="hw-label">Refresh</span><span class="hw-value">${c.refreshSchedule}</span></div>
+    <div class="hw-row"><span class="hw-label">Last Refresh</span><span class="hw-value">${c.lastRefresh}</span></div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Schema (${c.schema.length} Columns)</div>
+      <table style="width:100%;font-size:10px;border-collapse:collapse;margin-top:4px">
+        <tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:3px 6px;color:var(--muted);font-size:9px">Column</th><th style="text-align:left;padding:3px 6px;color:var(--muted);font-size:9px">Type</th><th style="text-align:left;padding:3px 6px;color:var(--muted);font-size:9px">Null</th></tr>
+        ${schemaCols}
+      </table>
+      ${moreSchema}
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Lineage</div>
+      <div class="hw-meta" style="font-size:10px">${c.lineage}</div>
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Calculations & Business Logic</div>
+      ${calcRows}
+    </div>
+
+    <div class="hw-section">
+      <div class="hw-section-title">Quality Scores</div>
+      ${qualityBars}
+    </div>
+  `);
+}
+
+function initCatalogCharts() {
+  const typeMap = {};
+  CATALOG.forEach(c => { const t = c.type.split(' ')[0]; typeMap[t] = (typeMap[t]||0) + 1; });
+  createChart('chart-catalog-types', {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(typeMap),
+      datasets: [{ data: Object.values(typeMap), backgroundColor: ['#ff9900','#3b82f6','#10b981','#8b5cf6','#06b6d4','#ef4444'], borderWidth: 0 }]
+    },
+    options: { cutout: '55%', plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }
+  });
+
+  createChart('chart-catalog-quality', {
+    type: 'bar',
+    data: {
+      labels: CATALOG.map(c => c.name.replace('dim_','').replace('fact_','').replace('mdm_','')),
+      datasets: [
+        { label: 'Completeness', data: CATALOG.map(c => c.quality.completeness), backgroundColor: 'rgba(16,185,129,.6)', borderRadius: 3 },
+        { label: 'Accuracy', data: CATALOG.map(c => c.quality.accuracy), backgroundColor: 'rgba(59,130,246,.6)', borderRadius: 3 }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } },
+      scales: { y: { min: 85, max: 101 } }
+    }
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN RENDER ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+function renderHeader() {
+  const now = new Date();
+  return `
+    <div class="header">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div class="header-logo">L</div>
+        <div>
+          <div class="header-title">Enterprise MDM Lakehouse — Interactive Demo</div>
+          <div class="header-sub">Claude Opus 4.6 AI Agents • Delta Lake • Star Schema • 36,650+ Records</div>
+        </div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:11px;color:var(--muted)"><span class="live-dot"></span>LIVE — <span id="clock">${now.toLocaleTimeString()}</span></div>
+        <div style="font-size:10px;color:var(--dim)">S3 + Snowflake + Athena | DQ: 97.5%</div>
+        <a href="https://paddyspeaks.com/" style="font-size:10px;color:var(--accent);text-decoration:none;margin-top:2px;display:inline-block;opacity:.7;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">← PaddySpeaks.com</a>
+      </div>
+    </div>
+  `;
+}
+
+function renderTabs() {
+  return `<div class="tabs">${TABS.map(t =>
+    `<button class="tab${activeTab === t.id ? ' active' : ''}" onclick="switchTab('${t.id}')">${t.icon} ${t.label}</button>`
+  ).join('')}</div>`;
+}
+
+function switchTab(tabId) {
+  activeTab = tabId;
+  hideHoverWidget();
+  destroyCharts();
+  render();
+}
+
+function render() {
+  const app = document.getElementById('app');
+  let content = '';
+  switch(activeTab) {
+    case 'overview': content = renderOverview(); break;
+    case 'customer360': content = renderCustomer360(); break;
+    case 'revenue': content = renderRevenue(); break;
+    case 'quality': content = renderQuality(); break;
+    case 'catalog': content = renderCatalog(); break;
+  }
+  app.innerHTML = renderHeader() + renderTabs() + `<div class="content">${content}</div>`;
+
+  // Initialize charts after DOM is ready
+  requestAnimationFrame(() => {
+    switch(activeTab) {
+      case 'overview': initOverviewCharts(); break;
+      case 'customer360': initCustomer360Charts(); break;
+      case 'revenue': initRevenueCharts(); break;
+      case 'quality': initQualityCharts(); break;
+      case 'catalog': initCatalogCharts(); break;
+    }
+  });
+}
+
+// Clock updater
+setInterval(() => {
+  const clock = document.getElementById('clock');
+  if (clock) clock.textContent = new Date().toLocaleTimeString();
+}, 1000);
+
+// Initialize
+document.addEventListener('DOMContentLoaded', render);
+
+// Close hover widget on scroll
+window.addEventListener('scroll', hideHoverWidget, true);
+
+</script>
+</body>
+</html>
