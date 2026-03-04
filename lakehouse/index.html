@@ -9,8 +9,10 @@
 <meta property="og:description" content="Interactive demo: AI-driven MDM Lakehouse with Customer 360, Data Quality Hub, and Data Catalog">
 <meta property="og:url" content="https://paddyspeaks.com/lakehouse/">
 <link rel="canonical" href="https://paddyspeaks.com/lakehouse/">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" as="style">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 
@@ -36,10 +38,11 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .header-logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px;color:#fff;box-shadow:var(--glow)}
 .header-title{font-size:16px;font-weight:800;letter-spacing:-.3px}
 .header-sub{font-size:11px;color:var(--muted);margin-top:1px}
-.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;animation:pulse 2s infinite}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:6px;animation:pulse 2s infinite;will-change:opacity,box-shadow}
 @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(16,185,129,.4)}50%{opacity:.6;box-shadow:0 0 0 6px rgba(16,185,129,0)}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideRight{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@media(prefers-reduced-motion:reduce){.live-dot{animation:none}.content{animation:none}.hover-widget{transition:none}.kpi,.card,.catalog-item,.medallion-layer{transition:none}}
 
 .tabs{display:flex;gap:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:0 16px;overflow-x:auto;position:sticky;top:62px;z-index:99}
 .tab{padding:11px 18px;font-size:12px;font-weight:500;color:var(--muted);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;transition:all .2s;font-family:inherit}
@@ -66,7 +69,7 @@ html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:var(--
 .grid-32{grid-template-columns:1fr 2fr}
 .grid-4{grid-template-columns:repeat(4,1fr)}
 
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:all .25s}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px;transition:all .25s;contain:layout style}
 .card:hover{border-color:var(--border2)}
 .card-title{font-size:12px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .card-title .badge{font-size:9px;font-weight:600;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
@@ -90,7 +93,7 @@ tr.hoverable{position:relative}
 .chart-box{position:relative;width:100%;height:100%;min-height:220px}
 
 /* Hover Widget */
-.hover-widget{position:fixed;z-index:1000;background:linear-gradient(145deg,#1a1f35 0%,#151929 100%);border:1px solid var(--border2);border-radius:14px;padding:18px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 30px rgba(255,153,0,.08);pointer-events:none;opacity:0;transition:opacity .2s ease,transform .2s ease;transform:scale(.96);backdrop-filter:blur(20px)}
+.hover-widget{position:fixed;z-index:1000;background:linear-gradient(145deg,#1a1f35 0%,#151929 100%);border:1px solid var(--border2);border-radius:14px;padding:18px;width:380px;box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 30px rgba(255,153,0,.08);pointer-events:none;opacity:0;transition:opacity .2s ease,transform .2s ease;transform:scale(.96);backdrop-filter:blur(20px);will-change:opacity,transform;contain:layout style}
 .hover-widget.visible{opacity:1;transform:scale(1);pointer-events:auto}
 .hover-widget h3{font-size:14px;font-weight:700;margin-bottom:10px;color:var(--accent);display:flex;align-items:center;gap:8px}
 .hover-widget .hw-row{display:flex;justify-content:space-between;padding:5px 0;font-size:11px;border-bottom:1px solid rgba(255,255,255,.05)}
@@ -126,6 +129,7 @@ tr.hoverable{position:relative}
 
 .score-ring{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;position:relative}
 .score-ring::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:3px solid var(--border)}
+.back-link:hover{opacity:1!important}
 
 @media(max-width:1024px){.grid-2,.grid-3,.grid-23,.grid-32{grid-template-columns:1fr}.kpi-row{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:640px){.kpi-row{grid-template-columns:1fr}.header{padding:10px 14px}.content{padding:14px}.tabs{padding:0 8px}}
@@ -439,6 +443,10 @@ const AI_VS_TRADITIONAL = {
 let activeTab = 'overview';
 let hoverWidget = null;
 let activeCharts = {};
+let hoverTimer = null;
+const sparkCache = new Map();
+const widgetChartConfigs = new Map();
+let widgetChartCounter = 0;
 
 function $(sel) { return document.querySelector(sel); }
 function $$(sel) { return document.querySelectorAll(sel); }
@@ -468,7 +476,7 @@ function fmtN(n) {
 }
 function pct(n) { return n.toFixed(1) + '%'; }
 
-// ═══ HOVER WIDGET SYSTEM ═══
+// ═══ HOVER WIDGET SYSTEM (debounced) ═══
 function showHoverWidget(e, content) {
   hideHoverWidget();
   hoverWidget = el('div', { className: 'hover-widget' });
@@ -481,8 +489,8 @@ function showHoverWidget(e, content) {
   let left = rect.right + 16;
   let top = rect.top;
 
-  // If widget would overflow right, show on left
   requestAnimationFrame(() => {
+    if (!hoverWidget) return;
     const hw = hoverWidget.getBoundingClientRect();
     if (left + hw.width > ww - 20) {
       left = rect.left - hw.width - 16;
@@ -494,30 +502,53 @@ function showHoverWidget(e, content) {
     hoverWidget.style.top = top + 'px';
     hoverWidget.classList.add('visible');
 
-    // Render any charts inside the widget
-    hoverWidget.querySelectorAll('canvas[data-chart]').forEach(renderWidgetChart);
+    // Render charts from stored configs (not JSON in DOM)
+    hoverWidget.querySelectorAll('canvas[data-chart-id]').forEach(renderWidgetChart);
   });
 }
 
+function showHoverWidgetDebounced(e, contentFn) {
+  if (hoverTimer) clearTimeout(hoverTimer);
+  const target = e.currentTarget;
+  hoverTimer = setTimeout(() => {
+    showHoverWidget({ currentTarget: target }, contentFn());
+  }, 60);
+}
+
 function hideHoverWidget() {
+  if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
   if (hoverWidget) {
     hoverWidget.remove();
     hoverWidget = null;
   }
+  widgetChartConfigs.clear();
+  widgetChartCounter = 0;
+}
+
+function storeWidgetChartConfig(cfg) {
+  const id = 'wc-' + (++widgetChartCounter);
+  widgetChartConfigs.set(id, cfg);
+  return id;
 }
 
 function renderWidgetChart(canvas) {
-  const cfg = JSON.parse(canvas.dataset.chart);
+  const id = canvas.dataset.chartId;
+  const cfg = widgetChartConfigs.get(id);
+  if (!cfg) return;
   const ctx = canvas.getContext('2d');
   new Chart(ctx, cfg);
 }
 
 function sparkSvg(data, color, w=120, h=32) {
+  const key = data.join(',') + color + w + h;
+  if (sparkCache.has(key)) return sparkCache.get(key);
   const max = Math.max(...data);
   const min = Math.min(...data);
   const range = max - min || 1;
   const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - ((v-min)/range)*h}`).join(' ');
-  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const svg = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  sparkCache.set(key, svg);
+  return svg;
 }
 
 function qualityBar(pct, color) {
@@ -724,9 +755,7 @@ function initOverviewCharts() {
 // ─── TAB 2: CUSTOMER 360 ───
 function renderCustomer360() {
   const rows = CUSTOMERS.map((c, i) => `
-    <tr class="hoverable" data-cust-idx="${i}"
-        onmouseenter="showCustomerWidget(event, ${i})"
-        onmouseleave="hideHoverWidget()">
+    <tr class="hoverable" data-cust-idx="${i}" data-hover="customer">
       <td style="font-weight:600;color:var(--accent)">${c.uid}</td>
       <td><strong>${c.name}</strong></td>
       <td><span class="pill pill-${c.segment === 'Enterprise' ? 'purple' : c.segment === 'Mid-Market' ? 'blue' : c.segment === 'SMB' ? 'cyan' : 'green'}">${c.segment}</span></td>
@@ -795,7 +824,7 @@ function renderCustomer360() {
 
 function showCustomerWidget(e, idx) {
   const c = CUSTOMERS[idx];
-  const chartCfg = JSON.stringify({
+  const chartId = storeWidgetChartConfig({
     type: 'line',
     data: {
       labels: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
@@ -806,7 +835,7 @@ function showCustomerWidget(e, idx) {
 
   const riskColor = c.churnRisk === 'Low' ? 'var(--green)' : c.churnRisk === 'Medium' ? 'var(--gold)' : 'var(--red)';
 
-  showHoverWidget(e, `
+  showHoverWidgetDebounced(e, () => `
     <h3><span style="font-size:18px">👤</span> ${c.name}</h3>
     <div class="hw-row"><span class="hw-label">Customer UID</span><span class="hw-value" style="color:var(--accent)">${c.uid}</span></div>
     <div class="hw-row"><span class="hw-label">Segment</span><span class="hw-value">${c.segment}</span></div>
@@ -824,7 +853,7 @@ function showCustomerWidget(e, idx) {
 
     <div class="hw-section">
       <div class="hw-section-title">12-Month Revenue Trend</div>
-      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
     </div>
 
     <div class="hw-section">
@@ -863,7 +892,7 @@ function initCustomer360Charts() {
 // ─── TAB 3: REVENUE ANALYTICS ───
 function renderRevenue() {
   const prodRows = PRODUCTS.map((p, i) => `
-    <tr class="hoverable" onmouseenter="showProductWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+    <tr class="hoverable" data-hover="product" data-idx="${i}">
       <td style="font-weight:600">${p.name}</td>
       <td><span class="pill pill-${p.category === 'Cloud' ? 'cyan' : p.category === 'Security' ? 'red' : p.category === 'Analytics' ? 'purple' : p.category === 'Training' ? 'green' : 'blue'}">${p.category}</span></td>
       <td style="font-weight:700;color:var(--text)">${fmt(p.revenue)}</td>
@@ -875,7 +904,7 @@ function renderRevenue() {
   `).join('');
 
   const regRows = REGIONS.map((r, i) => `
-    <tr class="hoverable" onmouseenter="showRegionWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+    <tr class="hoverable" data-hover="region" data-idx="${i}">
       <td>${r.flag} <strong>${r.country}</strong></td>
       <td style="font-weight:700">${fmt(r.revenue)}</td>
       <td>${r.customers}</td>
@@ -934,7 +963,7 @@ function renderRevenue() {
 
 function showProductWidget(e, idx) {
   const p = PRODUCTS[idx];
-  const chartCfg = JSON.stringify({
+  const chartId = storeWidgetChartConfig({
     type: 'bar',
     data: {
       labels: ['Q1','Q2','Q3','Q4'],
@@ -943,7 +972,7 @@ function showProductWidget(e, idx) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
   });
 
-  showHoverWidget(e, `
+  showHoverWidgetDebounced(e, () => `
     <h3><span style="font-size:16px">📦</span> ${p.name}</h3>
     <div class="hw-row"><span class="hw-label">Category</span><span class="hw-value">${p.category}</span></div>
     <div class="hw-row"><span class="hw-label">Total Revenue</span><span class="hw-value" style="color:var(--accent)">${fmt(p.revenue)}</span></div>
@@ -953,7 +982,7 @@ function showProductWidget(e, idx) {
 
     <div class="hw-section">
       <div class="hw-section-title">Quarterly Revenue ($K)</div>
-      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
     </div>
 
     <div class="hw-section">
@@ -973,7 +1002,7 @@ function showProductWidget(e, idx) {
 
 function showRegionWidget(e, idx) {
   const r = REGIONS[idx];
-  const chartCfg = JSON.stringify({
+  const chartId = storeWidgetChartConfig({
     type: 'line',
     data: {
       labels: ['Q1','Q2','Q3','Q4'],
@@ -982,7 +1011,7 @@ function showRegionWidget(e, idx) {
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { display: false } }, y: { ticks: { color: '#5a6380', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,.04)' } } } }
   });
 
-  showHoverWidget(e, `
+  showHoverWidgetDebounced(e, () => `
     <h3>${r.flag} ${r.country}</h3>
     <div class="hw-row"><span class="hw-label">Total Revenue</span><span class="hw-value" style="color:var(--accent)">${fmt(r.revenue)}</span></div>
     <div class="hw-row"><span class="hw-label">Customers</span><span class="hw-value">${r.customers}</span></div>
@@ -993,7 +1022,7 @@ function showRegionWidget(e, idx) {
 
     <div class="hw-section">
       <div class="hw-section-title">Quarterly Revenue Trend ($K)</div>
-      <div class="hw-chart"><canvas data-chart='${chartCfg}' width="340" height="110"></canvas></div>
+      <div class="hw-chart"><canvas data-chart-id="${chartId}" width="340" height="110"></canvas></div>
     </div>
   `);
 }
@@ -1026,7 +1055,7 @@ function renderQuality() {
   const layerCards = DQ_LAYERS.map((l, i) => {
     const color = l.score >= 97 ? 'var(--green)' : l.score >= 90 ? 'var(--blue)' : l.score >= 80 ? 'var(--gold)' : 'var(--red)';
     return `
-    <div class="card" style="text-align:center" onmouseenter="showDQLayerWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+    <div class="card" style="text-align:center" data-hover="dqlayer" data-idx="${i}">
       <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${l.layer}</div>
       <div style="font-size:42px;font-weight:900;color:${color};margin:8px 0">${l.score}%</div>
       <div style="font-size:10px;color:var(--dim)">${fmtN(l.pass)} pass / ${fmtN(l.fail)} fail</div>
@@ -1037,7 +1066,7 @@ function renderQuality() {
   }).join('');
 
   const ruleRows = DQ_RULES.map((r, i) => `
-    <tr class="hoverable" onmouseenter="showDQRuleWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+    <tr class="hoverable" data-hover="dqrule" data-idx="${i}">
       <td style="font-family:'Courier New',monospace;font-size:11px">${r.rule}</td>
       <td><span class="pill pill-${r.layer.startsWith('Bronze') ? 'gold' : r.layer === 'Silver' ? 'blue' : r.layer === 'MDM' ? 'purple' : 'green'}">${r.layer}</span></td>
       <td><span class="pill pill-${r.status === 'Pass' ? 'green' : r.status === 'Warn' ? 'gold' : 'red'}">${r.status}</span></td>
@@ -1174,7 +1203,7 @@ function renderCatalog() {
   const items = CATALOG.map((c, i) => {
     const layerColor = c.layer === 'Gold' ? 'green' : c.layer === 'MDM' ? 'purple' : c.layer === 'Silver' ? 'blue' : 'gold';
     return `
-    <div class="catalog-item" onmouseenter="showCatalogWidget(event, ${i})" onmouseleave="hideHoverWidget()">
+    <div class="catalog-item" data-hover="catalog" data-idx="${i}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
           <div class="ci-name" style="color:var(--accent)">${c.name}</div>
@@ -1343,7 +1372,7 @@ function renderHeader() {
       <div style="text-align:right">
         <div style="font-size:11px;color:var(--muted)"><span class="live-dot"></span>LIVE — <span id="clock">${now.toLocaleTimeString()}</span></div>
         <div style="font-size:10px;color:var(--dim)">S3 + Snowflake + Athena | DQ: 97.5%</div>
-        <a href="https://paddyspeaks.com/" style="font-size:10px;color:var(--accent);text-decoration:none;margin-top:2px;display:inline-block;opacity:.7;transition:opacity .2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">← PaddySpeaks.com</a>
+        <a href="https://paddyspeaks.com/" style="font-size:10px;color:var(--accent);text-decoration:none;margin-top:2px;display:inline-block;opacity:.7;transition:opacity .2s" class="back-link">← PaddySpeaks.com</a>
       </div>
     </div>
   `;
@@ -1351,19 +1380,30 @@ function renderHeader() {
 
 function renderTabs() {
   return `<div class="tabs">${TABS.map(t =>
-    `<button class="tab${activeTab === t.id ? ' active' : ''}" onclick="switchTab('${t.id}')">${t.icon} ${t.label}</button>`
+    `<button class="tab${activeTab === t.id ? ' active' : ''}" data-tab="${t.id}">${t.icon} ${t.label}</button>`
   ).join('')}</div>`;
 }
+
+// Tab click delegation
+document.addEventListener('click', function(e) {
+  const tab = e.target.closest('.tab[data-tab]');
+  if (tab) switchTab(tab.dataset.tab);
+});
 
 function switchTab(tabId) {
   activeTab = tabId;
   hideHoverWidget();
   destroyCharts();
-  render();
+  renderContent();
+  // Update active tab button
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
 }
 
-function render() {
-  const app = document.getElementById('app');
+function renderContent() {
+  const contentEl = document.querySelector('.content');
+  if (!contentEl) return;
   let content = '';
   switch(activeTab) {
     case 'overview': content = renderOverview(); break;
@@ -1372,9 +1412,8 @@ function render() {
     case 'quality': content = renderQuality(); break;
     case 'catalog': content = renderCatalog(); break;
   }
-  app.innerHTML = renderHeader() + renderTabs() + `<div class="content">${content}</div>`;
+  contentEl.innerHTML = content;
 
-  // Initialize charts after DOM is ready
   requestAnimationFrame(() => {
     switch(activeTab) {
       case 'overview': initOverviewCharts(); break;
@@ -1386,17 +1425,45 @@ function render() {
   });
 }
 
-// Clock updater
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = renderHeader() + renderTabs() + '<div class="content"></div>';
+  renderContent();
+}
+
+// Clock updater (reduced frequency — every 5s instead of 1s)
 setInterval(() => {
   const clock = document.getElementById('clock');
   if (clock) clock.textContent = new Date().toLocaleTimeString();
-}, 1000);
+}, 5000);
+
+// ═══ EVENT DELEGATION ═══
+document.addEventListener('mouseenter', function(e) {
+  const row = e.target.closest('[data-hover]');
+  if (!row) return;
+  const type = row.dataset.hover;
+  const idx = parseInt(row.dataset.idx ?? row.dataset.custIdx, 10);
+  const fakeEvent = { currentTarget: row };
+  switch(type) {
+    case 'customer': showCustomerWidget(fakeEvent, idx); break;
+    case 'product': showProductWidget(fakeEvent, idx); break;
+    case 'region': showRegionWidget(fakeEvent, idx); break;
+    case 'dqlayer': showDQLayerWidget(fakeEvent, idx); break;
+    case 'dqrule': showDQRuleWidget(fakeEvent, idx); break;
+    case 'catalog': showCatalogWidget(fakeEvent, idx); break;
+  }
+}, true);
+
+document.addEventListener('mouseleave', function(e) {
+  const row = e.target.closest('[data-hover]');
+  if (row) hideHoverWidget();
+}, true);
 
 // Initialize
 document.addEventListener('DOMContentLoaded', render);
 
-// Close hover widget on scroll
-window.addEventListener('scroll', hideHoverWidget, true);
+// Close hover widget on scroll (passive for perf)
+window.addEventListener('scroll', hideHoverWidget, { capture: true, passive: true });
 
 </script>
 </body>
