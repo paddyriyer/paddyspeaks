@@ -1438,9 +1438,18 @@ setInterval(() => {
 }, 5000);
 
 // ═══ EVENT DELEGATION ═══
-document.addEventListener('mouseenter', function(e) {
+// Track currently hovered element to avoid re-triggering on child moves
+let currentHoverRow = null;
+
+document.addEventListener('mouseover', function(e) {
   const row = e.target.closest('[data-hover]');
-  if (!row) return;
+  if (row === currentHoverRow) return; // still on same row, ignore
+  if (!row) {
+    // moved off any hover target
+    if (currentHoverRow) { currentHoverRow = null; hideHoverWidget(); }
+    return;
+  }
+  currentHoverRow = row;
   const type = row.dataset.hover;
   const idx = parseInt(row.dataset.idx ?? row.dataset.custIdx, 10);
   const fakeEvent = { currentTarget: row };
@@ -1452,12 +1461,17 @@ document.addEventListener('mouseenter', function(e) {
     case 'dqrule': showDQRuleWidget(fakeEvent, idx); break;
     case 'catalog': showCatalogWidget(fakeEvent, idx); break;
   }
-}, true);
+});
 
-document.addEventListener('mouseleave', function(e) {
+document.addEventListener('mouseout', function(e) {
   const row = e.target.closest('[data-hover]');
-  if (row) hideHoverWidget();
-}, true);
+  if (!row || row !== currentHoverRow) return;
+  // Check if we're moving to another child of the same row
+  const related = e.relatedTarget;
+  if (related && row.contains(related)) return; // still inside the row
+  currentHoverRow = null;
+  hideHoverWidget();
+});
 
 // Initialize
 document.addEventListener('DOMContentLoaded', render);
