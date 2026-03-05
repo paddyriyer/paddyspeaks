@@ -131,35 +131,55 @@
     namesMap[n.num] = n;
   });
 
-  // --- Render Dhyana Shlokas ---
+  // --- Render Pre-Stotram Sections (Dhyana, Preamble, Viniyoga, etc.) ---
   function renderDhyana() {
     var container = document.getElementById('dhyana-container');
     var html = '';
 
-    // Render preamble (question and answer) if available
-    if (VISHNU_DATA.preamble) {
-      var p = VISHNU_DATA.preamble;
-      html += '<div class="preamble-block">';
-      html += '<div class="preamble-label">Yudhishthira\'s Question</div>';
-      html += '<div class="preamble-sanskrit">' + escapeHtml(p.question) + '</div>';
-      html += '<div class="preamble-translation">' + escapeHtml(p.question_translation) + '</div>';
-      html += '</div>';
+    if (VISHNU_DATA.preStotra) {
+      VISHNU_DATA.preStotra.forEach(function (section) {
+        html += '<div class="pre-stotra-section">';
+        html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
+        if (section.label_sanskrit) {
+          html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+        }
+        html += '</div>';
 
-      html += '<div class="preamble-block">';
-      html += '<div class="preamble-label">Bhishma\'s Answer</div>';
-      html += '<div class="preamble-sanskrit">' + escapeHtml(p.answer) + '</div>';
-      html += '<div class="preamble-translation">' + escapeHtml(p.answer_translation) + '</div>';
-      html += '</div>';
+        // Render verses
+        if (section.verses) {
+          section.verses.forEach(function (v) {
+            html += '<div class="dhyana-verse">';
+            if (v.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
+            }
+            if (v.sanskrit) {
+              html += '<div class="transliteration iast-transliteration">' + escapeHtml(v.sanskrit) + '</div>';
+            }
+            if (v.translation) {
+              html += '<div class="translation">' + escapeHtml(v.translation) + '</div>';
+            }
+            html += '</div>';
+          });
+        }
+
+        // Render prose (for viniyoga)
+        if (section.prose) {
+          section.prose.forEach(function (p) {
+            html += '<div class="dhyana-verse viniyoga-text">';
+            if (p.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
+            }
+            if (p.translation) {
+              html += '<div class="translation">' + escapeHtml(p.translation) + '</div>';
+            }
+            html += '</div>';
+          });
+        }
+
+        html += '</div>';
+      });
     }
 
-    VISHNU_DATA.dhyana.forEach(function (dv) {
-      html += '<div class="dhyana-verse">';
-      html += '<div class="transliteration">' + escapeHtml(dv.sanskrit) + '</div>';
-      if (dv.translation) {
-        html += '<div class="translation">' + escapeHtml(dv.translation) + '</div>';
-      }
-      html += '</div>';
-    });
     container.innerHTML = html;
   }
 
