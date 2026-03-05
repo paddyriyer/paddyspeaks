@@ -180,16 +180,37 @@
       var nameNums = VERSE_NAMES[verseNum] || [];
       var halves = verse.halves || [];
 
-      // Build shloka text display with translations
+      // Build shloka text display with English transliteration and IAST
       var translations = verse.translations || [];
+      var englishHalves = verse.english_halves || [];
       var shlokaHtml = '<div class="shloka-text">';
+
+      // English transliteration (primary display)
+      if (englishHalves.length > 0) {
+        shlokaHtml += '<div class="shloka-english">';
+        englishHalves.forEach(function (half, idx) {
+          shlokaHtml += '<span class="shloka-line english-line">' + escapeHtml(half) + '</span>';
+          if (idx < englishHalves.length - 1) {
+            shlokaHtml += '<span class="shloka-separator">|</span>';
+          }
+        });
+        shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
+        shlokaHtml += '</div>';
+      }
+
+      // IAST transliteration (secondary)
+      shlokaHtml += '<div class="shloka-iast">';
       halves.forEach(function (half, idx) {
         shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
         if (idx < halves.length - 1) {
           shlokaHtml += '<span class="shloka-separator">|</span>';
         }
       });
-      shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
+      if (englishHalves.length === 0) {
+        shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
+      }
+      shlokaHtml += '</div>';
+
       if (translations.length > 0) {
         shlokaHtml += '<div class="shloka-translations">';
         translations.forEach(function (t) {
@@ -220,8 +241,8 @@
       });
       namesHtml += '</div>';
 
-      // Preview text
-      var preview = halves.length > 0 ? halves[0] : '';
+      // Preview text (prefer English transliteration)
+      var preview = englishHalves.length > 0 ? englishHalves[0] : (halves.length > 0 ? halves[0] : '');
       if (preview.length > 60) preview = preview.substring(0, 60) + '...';
 
       // Verse card
