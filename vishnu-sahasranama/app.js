@@ -189,6 +189,73 @@
     container.innerHTML = html;
   }
 
+  // --- Render Post-Stotram / Phalashruti ---
+  function renderPhalashruti() {
+    var container = document.getElementById('phalashruti-container');
+    if (!container) return;
+    var html = '';
+
+    if (VISHNU_DATA.postStotra) {
+      VISHNU_DATA.postStotra.forEach(function (section) {
+        html += '<div class="pre-stotra-section">';
+        html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
+        if (section.label_sanskrit) {
+          html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+        }
+        html += '</div>';
+
+        if (section.speaker) {
+          html += '<div class="speaker-label">' + escapeHtml(section.speaker);
+          if (section.speaker_sanskrit) {
+            html += ' <span class="label-sanskrit">' + escapeHtml(section.speaker_sanskrit) + '</span>';
+          }
+          html += '</div>';
+        }
+
+        // Render verses
+        if (section.verses) {
+          section.verses.forEach(function (v) {
+            html += '<div class="dhyana-verse">';
+            if (v.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
+            }
+            if (v.devanagari) {
+              html += '<div class="devanagari-text">' + escapeHtml(v.devanagari) + '</div>';
+            }
+            if (v.sanskrit) {
+              html += '<div class="transliteration iast-transliteration">' + escapeHtml(v.sanskrit) + '</div>';
+            }
+            if (v.translation) {
+              html += '<div class="translation">' + escapeHtml(v.translation) + '</div>';
+            }
+            html += '</div>';
+          });
+        }
+
+        // Render prose
+        if (section.prose) {
+          section.prose.forEach(function (p) {
+            html += '<div class="dhyana-verse viniyoga-text">';
+            if (p.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
+            }
+            if (p.devanagari) {
+              html += '<div class="devanagari-text">' + escapeHtml(p.devanagari) + '</div>';
+            }
+            if (p.translation) {
+              html += '<div class="translation">' + escapeHtml(p.translation) + '</div>';
+            }
+            html += '</div>';
+          });
+        }
+
+        html += '</div>';
+      });
+    }
+
+    container.innerHTML = html;
+  }
+
   // --- Render Stotram (Main Chanting View) ---
   function renderStotram() {
     var container = document.getElementById('stotram-container');
@@ -417,6 +484,7 @@
   function init() {
     renderDhyana();
     renderStotram();
+    renderPhalashruti();
     renderNames();
     setupSearch();
     setupNavigation();

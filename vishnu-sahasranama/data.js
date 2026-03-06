@@ -8265,5 +8265,303 @@ const VISHNU_DATA = {
       "name_devanagari": "सर्वप्रहरणायुधः",
       "meaning": "He who has all weapons at His command; He for whom everything is a weapon"
     }
+  ],
+  "postStotra": [
+    {
+      "label": "Uttaranyasah, Phalashrutih",
+      "label_sanskrit": "उत्तरन्यासः, फलश्रुतिः",
+      "speaker": "Bhishma Uvacha",
+      "speaker_sanskrit": "भीष्म उवाच",
+      "verses": [
+        {
+          "devanagari": "इतीदं कीर्तनीयस्य केशवस्य महात्मनः ।\nनाम्नां सहस्रं दिव्यानामशेषेण प्रकीर्तितम् ॥ १ ॥",
+          "sanskrit": "itīdaṃ kīrtanīyasya keśavasya mahātmanaḥ .\nnāmnāṃ sahasraṃ divyānāmaśeṣeṇa prakīrtitam .. 1 ..",
+          "english": "Iteedam keertaneeyasya keshvasya mahatmanah |\nNamnam sahasram divyanamasheshena prakeertitam || 1 ||",
+          "translation": "Thus has been sung in its entirety the thousand divine names of Keshava, the great soul, who is worthy of being praised."
+        },
+        {
+          "devanagari": "य इदं शृणुयान्नित्यं यश्चापि परिकीर्तयेत् ।\nनाशुभं प्राप्नुयात्किञ्चित्सोऽमुत्रेह च मानवः ॥ २ ॥",
+          "sanskrit": "ya idaṃ śṛṇuyānnityaṃ yaścāpi parikīrtayet .\nnāśubhaṃ prāpnuyātkiñcitso'mutreha ca mānavaḥ .. 2 ..",
+          "english": "Ya idam shrunuyannityam yashchapi parikeertayet |\nNashubham prapnuyatkincitsomutraha cha manavah || 2 ||",
+          "translation": "He who hears or recites this daily shall never meet with any inauspiciousness, either here or hereafter."
+        },
+        {
+          "devanagari": "वेदान्तगो ब्राह्मणः स्यात्क्षत्रियो विजयी भवेत् ।\nवैश्यो धनसमृद्धः स्याच्छूद्रः सुखमवाप्नुयात् ॥ ३ ॥",
+          "sanskrit": "vedāntago brāhmaṇaḥ syātkṣatriyo vijayī bhavet .\nvaiśyo dhanasamṛddhaḥ syācchūdraḥ sukhamavāpnuyāt .. 3 ..",
+          "english": "Vedantago brahmanah syat kshatriyo vijayee bhavet |\nVaishyo dhanasamruddhah syachchhoodrah sukhamavapnuyat || 3 ||",
+          "translation": "A Brahmana will attain knowledge of the Vedanta, a Kshatriya will become victorious, a Vaishya will gain wealth, and a Shudra will attain happiness."
+        },
+        {
+          "devanagari": "धर्मार्थी प्राप्नुयाद्धर्ममर्थार्थी चार्थमाप्नुयात् ।\nकामानवाप्नुयात्कामी प्रजार्थी प्राप्नुयात्प्रजाम् ॥ ४ ॥",
+          "sanskrit": "dharmārthī prāpnuyāddharmamarthārthī cārthamāpnuyāt .\nkāmānavāpnuyātkāmī prajārthī prāpnuyātprajām .. 4 ..",
+          "english": "Dharmarthee prapnuyaddharmamar-tharthee charthamapnuyat |\nKamanavapnuyatkamee prajarthee prapnuyatprajam || 4 ||",
+          "translation": "He who desires dharma attains dharma, he who desires wealth attains wealth, he who desires pleasures attains them, and he who desires progeny obtains progeny."
+        },
+        {
+          "devanagari": "भक्तिमान् यः सदोत्थाय शुचिस्तद्गतमानसः ।\nसहस्रं वासुदेवस्य नाम्नामेतत्प्रकीर्तयेत् ॥ ५ ॥",
+          "sanskrit": "bhaktimān yaḥ sadotthāya śucistadgatamānasaḥ .\nsahasraṃ vāsudevasya nāmnāmetatprakīrtayet .. 5 ..",
+          "english": "Bhaktiman yah sadotthaya shuchistadgatama-nasah |\nSahasram vasudevasya namnam-etatpra-keertayet || 5 ||",
+          "translation": "He who, with devotion, rises early, pure in mind and focused on the Lord, recites these thousand names of Vasudeva —"
+        },
+        {
+          "devanagari": "यशः प्राप्नोति विपुलं ज्ञातिप्राधान्यमेव च ।\nअचलां श्रियमाप्नोति श्रेयः प्राप्नोत्यनुत्तमम् ॥ ६ ॥",
+          "sanskrit": "yaśaḥ prāpnoti vipulaṃ jñātiprādhānyameva ca .\nacalāṃ śriyamāpnoti śreyaḥ prāpnotyanuttamam .. 6 ..",
+          "english": "Yashah prapnoti vipulam jnatipradhanyameva cha |\nAchalam shriyamapnoti shreyah prapnotyanuttamam || 6 ||",
+          "translation": "— attains great fame, pre-eminence among kinsmen, imperishable wealth, and the highest good."
+        },
+        {
+          "devanagari": "न भयं कचिदाप्नोति वीर्यं तेजश्च विन्दति ।\nभवत्यरोगो द्युतिमानवलरूपगुणान्वितः ॥ ७ ॥",
+          "sanskrit": "na bhayaṃ kacidāpnoti vīryaṃ tejaśca vindati .\nbhavatyarogo dyutimānvalarūpaguṇānvitaḥ .. 7 ..",
+          "english": "Na bhayam kachidapnoti veeryam tejashcha vindati |\nBhavatyarogo dyutimanvala-roopagunanvitah || 7 ||",
+          "translation": "He never encounters fear; he attains valour and radiance. He becomes free from disease, endowed with brilliance, beauty, and good qualities."
+        },
+        {
+          "devanagari": "रोगार्तो मुच्यते रोगाद्बद्धो मुच्येत बन्धनात् ।\nभयान्मुच्येत भीतस्तु मुच्येतापन्न आपदः ॥ ८ ॥",
+          "sanskrit": "rogārto mucyate rogādbaddho mucyeta bandhanāt .\nbhayānmucyeta bhītastu mucyetāpanna āpadaḥ .. 8 ..",
+          "english": "Rogarto muchyate rogadbaddho muchyeta bandhanat |\nBhayanmuchyeta bheetastu muchyetapanna apadah || 8 ||",
+          "translation": "The diseased is freed from disease, the bound from bondage, the fearful from fear, and the distressed from calamity."
+        },
+        {
+          "devanagari": "दुर्गाण्यतितरत्याशु पुरुषः पुरुषोत्तमम् ।\nस्तुवन्नामसहस्रेण नित्यं भक्तिसमन्वितः ॥ ९ ॥",
+          "sanskrit": "durgāṇyatitaratyāśu puruṣaḥ puruṣottamam .\nstuvannāmasahasreṇa nityaṃ bhaktisamanvitaḥ .. 9 ..",
+          "english": "Durganyatitaratyashu purushah purushottamam |\nStuvannama-sahasrena nityam bhaktisamanvitah || 9 ||",
+          "translation": "A person who always praises the Supreme Being with devotion through the thousand names quickly overcomes all difficulties."
+        },
+        {
+          "devanagari": "वासुदेवाश्रयो मर्त्यो वासुदेवपरायणः ।\nसर्वपापविशुद्धात्मा याति ब्रह्म सनातनम् ॥ १० ॥",
+          "sanskrit": "vāsudevāśrayo martyo vāsudevaparāyaṇaḥ .\nsarvapāpaviśuddhātmā yāti brahma sanātanam .. 10 ..",
+          "english": "Vasudevashreyo martyo vasudevaparayanah |\nSarva-papavishuddhatma yati brahma sanatanam || 10 ||",
+          "translation": "A mortal who takes refuge in Vasudeva, who is devoted to Vasudeva, becomes purified of all sins and attains the eternal Brahman."
+        },
+        {
+          "devanagari": "न वासुदेवभक्तानामशुभं विद्यते क्वचित् ।\nजन्ममृत्युजराव्याधिभयं नैवोपजायते ॥ ११ ॥",
+          "sanskrit": "na vāsudevabhaktānāmaśubhaṃ vidyate kvacit .\njanmamṛtyujarāvyādhibhayaṃ naivopajāyate .. 11 ..",
+          "english": "Na vasudevabhaktanamashubham vidyate kvachit |\nJanma-mrityu-jaravyadhi-bhayam naivopajayate || 11 ||",
+          "translation": "For the devotees of Vasudeva, no inauspiciousness exists anywhere. The fear of birth, death, old age, and disease never arises."
+        },
+        {
+          "devanagari": "इमं स्तवमधीयानः श्रद्धाभक्तिसमन्वितः ।\nयुज्येतात्मसुखक्षान्तिश्रीधृतिस्मृतिकीर्तिभिः ॥ १२ ॥",
+          "sanskrit": "imaṃ stavamdhīyānaḥ śraddhābhaktisamanvitaḥ .\nyujyetātmasukhakṣāntiśrīdhṛtismṛtikīrtibhiḥ .. 12 ..",
+          "english": "Imam stavamadheeyaanah shraddha-bhaktisamanvitah |\nYujyetatma-sukha-kshanti-shreedhrti-smriti-keertibhih || 12 ||",
+          "translation": "He who studies this hymn with faith and devotion is endowed with inner happiness, patience, prosperity, firmness, memory, and fame."
+        },
+        {
+          "devanagari": "न क्रोधो न च मात्सर्यं न लोभो नाशुभा मतिः ।\nभवन्ति कृतपुण्यानां भक्तानां पुरुषोत्तमे ॥ १३ ॥",
+          "sanskrit": "na krodho na ca mātsaryaṃ na lobho nāśubhā matiḥ .\nbhavanti kṛtapuṇyānāṃ bhaktānāṃ puruṣottame .. 13 ..",
+          "english": "Na krodho na cha matsaryam na lobho nashubha matih |\nBhavanti krutapunyanam bhaktanam purushottame || 13 ||",
+          "translation": "Neither anger, nor jealousy, nor greed, nor evil thoughts arise in the meritorious devotees of the Supreme Being."
+        },
+        {
+          "devanagari": "द्यौः सचन्द्रार्कनक्षत्रा खं दिशो भूर्महोदधिः ।\nवासुदेवस्य वीर्येण विधृतानि महात्मनः ॥ १४ ॥",
+          "sanskrit": "dyauḥ sacandrārkanakṣatrā khaṃ diśo bhūrmahodadhiḥ .\nvāsudevasya vīryeṇa vidhṛtāni mahātmanaḥ .. 14 ..",
+          "english": "Dyauh sachandrarkanakshatra kham disho bhurmaho-dadhih |\nVasudevasya veeryena vidhrutani mahatmanah || 14 ||",
+          "translation": "The sky with the moon, sun, and stars, space, the directions, the earth, and the great ocean — all are sustained by the power of the great-souled Vasudeva."
+        },
+        {
+          "devanagari": "ससुरासुरगन्धर्वं सयक्षोरगराक्षसम् ।\nजगद्वशे वर्ततेदं कृष्णस्य सचराचरम् ॥ १५ ॥",
+          "sanskrit": "sasurāsuragandharvaṃ sayakṣoragarākṣasam .\njagadvaśe vartatetaṃ kṛṣṇasya sacarācaram .. 15 ..",
+          "english": "Sasura-sura-gandharvam sayakshoraga-rakshasam |\nJagadvashe vartateedam krishnasya sacharacharam || 15 ||",
+          "translation": "This entire universe of moving and non-moving beings — with its gods, demons, gandharvas, yakshas, serpents, and rakshasas — exists under the control of Krishna."
+        },
+        {
+          "devanagari": "इन्द्रियाणि मनो बुद्धिः सत्त्वं तेजो बलं धृतिः ।\nवासुदेवात्मकान्याहुः क्षेत्रं क्षेत्रज्ञ एव च ॥ १६ ॥",
+          "sanskrit": "indriyāṇi mano buddhiḥ sattvaṃ tejo balaṃ dhṛtiḥ .\nvāsudevātmakānyāhuḥ kṣetraṃ kṣetrajña eva ca .. 16 ..",
+          "english": "Indriyani mano buddhih sattvam tejo balam dhrutih |\nVasudevatma-kanyahuh kshetram kshetrajna eva cha || 16 ||",
+          "translation": "The senses, mind, intellect, essence, radiance, strength, and steadfastness — all are said to be of the nature of Vasudeva, as also the field and the knower of the field."
+        },
+        {
+          "devanagari": "सर्वागमानामाचारः प्रथमं परिकल्पते ।\nआचारप्रभवो धर्मो धर्मस्य प्रभुरच्युतः ॥ १७ ॥",
+          "sanskrit": "sarvāgamānāmācāraḥ prathamaṃ parikalpate .\nācāraprabhavo dharmo dharmasya prabhuracyutaḥ .. 17 ..",
+          "english": "Sarvagamanamaacharah prathamam parikalpate |\nAcharaprabhavo dharmo dharmasya prabhurachyutah || 17 ||",
+          "translation": "Right conduct is prescribed as the first principle in all scriptures. Dharma arises from right conduct, and the Lord of dharma is Achyuta."
+        },
+        {
+          "devanagari": "ऋषयः पितरो देवा महाभूतानि धातवः ।\nजङ्गमाजङ्गमं चेदं जगन्नारायणोद्भवम् ॥ १८ ॥",
+          "sanskrit": "ṛṣayaḥ pitaro devā mahābhūtāni dhātavaḥ .\njaṅgamājaṅgamaṃ cedaṃ jagannārāyaṇodbhavam .. 18 ..",
+          "english": "Rishayah pitaro deva mahabhutani dhatavah |\nJangamajangamam chedam jagannara-yanodbhavam || 18 ||",
+          "translation": "The sages, ancestors, gods, the great elements, and all that is moving and non-moving in this world — all originate from Narayana."
+        },
+        {
+          "devanagari": "योगो ज्ञानं तथा साङ्ख्यं विद्याः शिल्पादिकर्म च ।\nवेदाः शास्त्राणि विज्ञानमेतत्सर्वं जनार्दनात् ॥ १९ ॥",
+          "sanskrit": "yogo jñānaṃ tathā sāṅkhyaṃ vidyāḥ śilpādikarma ca .\nvedāḥ śāstrāṇi vijñānametatservaṃ janārdanāt .. 19 ..",
+          "english": "Yogo jnanam tatha sankhyam vidyah shilpadikarma cha |\nVedah shastrani vijnanametat-sarvam janardanat || 19 ||",
+          "translation": "Yoga, knowledge, Sankhya, learning, arts, and all crafts — the Vedas, scriptures, and all sciences — all come from Janardana."
+        },
+        {
+          "devanagari": "एको विष्णुर्महद्भूतं पृथग्भूतान्यनेकशः ।\nत्रीँल्लोकान्व्याप्य भूतात्मा भुङ्क्ते विश्वभुगव्ययः ॥ २० ॥",
+          "sanskrit": "eko viṣṇurmahabhūtaṃ pṛthagbhūtānyanekaśaḥ .\ntrīṃllokānvyāpya bhūtātmā bhuṅkte viśvabhugavyayaḥ .. 20 ..",
+          "english": "Eko vishnur-mahadbhootam prithag-bhootanyane-kashah |\nTreemllo-kanvyapya bhootatma bhunkte vishvabhugavyayah || 20 ||",
+          "translation": "Vishnu alone is the great Being, manifesting as the many diverse beings. Pervading the three worlds, the imperishable Soul of all beings sustains the entire universe."
+        },
+        {
+          "devanagari": "इमं स्तवं भगवतो विष्णोर्व्यासेन कीर्तितम् ।\nपठेद्य इच्छेत्पुरुषः श्रेयः प्राप्तुं सुखानि च ॥ २१ ॥",
+          "sanskrit": "imaṃ stavaṃ bhagavato viṣṇorvyāsena kīrtitam .\npaṭhedya icchetpuruṣaḥ śreyaḥ prāptuṃ sukhāni ca .. 21 ..",
+          "english": "Imam stavam bhagavato vishnor-vyasena keertitam |\nPathedya icchet-purushah shreyah praptum sukhani cha || 21 ||",
+          "translation": "This hymn of Lord Vishnu, composed by Vyasa, should be recited by anyone who desires the highest good and happiness."
+        },
+        {
+          "devanagari": "विश्वेश्वरमजं देवं जगतः प्रभुमव्ययम् ।\nभजन्ति ये पुष्कराक्षं न ते यान्ति पराभवम् ॥ २२ ॥",
+          "sanskrit": "viśveśvaramajaṃ devaṃ jagataḥ prabhumavyayam .\nbhajanti ye puṣkarākṣaṃ na te yānti parābhavam .. 22 ..",
+          "english": "Vishveshvaramajam devam jagatah prabhumavyayam |\nBhajanti ye pushkarakasham na te yanti parabhavam || 22 ||",
+          "translation": "Those who worship the unborn Lord, the God of the universe, the imperishable Lord of all worlds, the lotus-eyed — they never meet with defeat."
+        },
+        {
+          "devanagari": "न ते यान्ति पराभवम् ॐ नम इति ।",
+          "sanskrit": "na te yānti parābhavam om nama iti .",
+          "english": "Na te yanti parabhavam Om nama iti."
+        }
+      ]
+    },
+    {
+      "label": "Arjuna Uvacha",
+      "label_sanskrit": "अर्जुन उवाच",
+      "verses": [
+        {
+          "devanagari": "पद्मपत्रविशालाक्ष पद्मनाभ सुरोत्तम ।\nभक्तानामनुरक्तानां त्राता भव जनार्दन ॥ २३ ॥",
+          "sanskrit": "padmapatraviśālākṣa padmanābha surottama .\nbhaktānāmanüraktānāṃ trātā bhava janārdana .. 23 ..",
+          "english": "Padmapatra-vishalaksha padmanabha surottama |\nBhaktanam-anuraktanam trata bhava janardana || 23 ||",
+          "translation": "O Lotus-eyed one, O Padmanabha, O best of the gods, be the protector of Your loving devotees, O Janardana!"
+        }
+      ]
+    },
+    {
+      "label": "Sri Bhagavan Uvacha",
+      "label_sanskrit": "श्रीभगवानुवाच",
+      "verses": [
+        {
+          "devanagari": "यो मां नामसहस्रेण स्तोतुमिच्छति पाण्डव ।\nसोऽहमेकेन श्लोकेन स्तुत एव न संशयः ॥ २५ ॥",
+          "sanskrit": "yo māṃ nāmasahasreṇa stotumicchati pāṇḍava .\nso'hamekena ślokena stuta eva na saṃśayaḥ .. 25 ..",
+          "english": "Yo mam namasahasrena stotumicchati Pandava |\nSohamekena shlokena stuta eva na samshayah || 25 ||",
+          "translation": "He who wishes to praise Me with a thousand names, O Pandava — I am indeed praised by even one shloka, there is no doubt."
+        },
+        {
+          "devanagari": "स्तुत एव न संशय ॐ नम इति ।",
+          "sanskrit": "stuta eva na saṃśaya om nama iti .",
+          "english": "Stuta eva na samshaya Om nama iti."
+        }
+      ]
+    },
+    {
+      "label": "Vyasa Uvacha",
+      "label_sanskrit": "व्यास उवाच",
+      "verses": [
+        {
+          "devanagari": "वासनाद्वासुदेवस्य वासितं भुवनत्रयम् ।\nसर्वभूतनिवासोऽसि वासुदेव नमोऽस्तु ते ॥ २५ ॥",
+          "sanskrit": "vāsanādvāsudevasya vāsitaṃ bhuvanatrayam .\nsarvabhūtanivāso'si vāsudeva namo'stu te .. 25 ..",
+          "english": "Vasanad-vasudevasya vasitam bhuvanatrayam |\nSarvabhuta-nivaso'si vasudeva namo'stu te || 25 ||",
+          "translation": "The three worlds are pervaded by the fragrance of Vasudeva. You are the abode of all beings, O Vasudeva, salutations to You!"
+        },
+        {
+          "devanagari": "श्रीवासुदेव नमोऽस्तु त ॐ नम इति ।",
+          "sanskrit": "śrīvāsudeva namo'stu ta om nama iti .",
+          "english": "Sri Vasudeva namo'stu ta Om nama iti."
+        }
+      ]
+    },
+    {
+      "label": "Parvati Uvacha",
+      "label_sanskrit": "पार्वत्युवाच",
+      "verses": [
+        {
+          "devanagari": "केनोपायेन लघुना विष्णोर्नामसहस्रकम् ।\nपठ्यते पण्डितैर्नित्यं श्रोतुमिच्छाम्यहं प्रभो ॥ २६ ॥",
+          "sanskrit": "kenopāyena laghunā viṣṇornāmasahasrakam .\npaṭhyate paṇḍitairnityaṃ śrotumicchāmyahaṃ prabho .. 26 ..",
+          "english": "Kenopayena laghuna vishnor-nama-sahasrakam |\nPathyate panditairnityam shrotumicchhamyaham prabho || 26 ||",
+          "translation": "By what easy means can the thousand names of Vishnu be recited? I wish to hear this, O Lord!"
+        }
+      ]
+    },
+    {
+      "label": "Ishvara Uvacha",
+      "label_sanskrit": "ईश्वर उवाच",
+      "verses": [
+        {
+          "devanagari": "श्रीरामरामरामेति रमे रामे मनोरमे ।\nसहस्रनामतत्तुल्यं रामनाम वरानने ॥ २७ ॥",
+          "sanskrit": "śrīrāmarāmarāmeti rame rāme manorame .\nsahasranāmatattulyaṃ rāmanāma varānane .. 27 ..",
+          "english": "Sri Rama Rama Rameti rame Rame manorame |\nSahasra-namatattultyam Ramanama varanane || 27 ||",
+          "translation": "By chanting 'Sri Rama, Rama, Rama,' I delight in Rama, who is charming. The name of Rama, O beautiful one, is equal to the thousand names."
+        },
+        {
+          "devanagari": "श्रीरामनाम वरानन ॐ नम इति ।",
+          "sanskrit": "śrīrāmanāma varānana om nama iti .",
+          "english": "Sri Ramanama varanana Om nama iti."
+        }
+      ]
+    },
+    {
+      "label": "Brahma Uvacha",
+      "label_sanskrit": "ब्रह्मोवाच",
+      "verses": [
+        {
+          "devanagari": "नमोऽस्त्वनन्ताय सहस्रमूर्तये\nसहस्रपादाक्षिशिरोरुबाहवे ।\nसहस्रनाम्ने पुरुषाय शाश्वते\nसहस्रकोटियुगधारिणे नमः ॥ २८ ॥",
+          "sanskrit": "namo'stvanantāya sahasramūrtaye\nsahasrapādākṣiśirorubāhave .\nsahasranāmne puruṣāya śāśvate\nsahasrakoṭiyugadhāriṇe namaḥ .. 28 ..",
+          "english": "Namo'stvanantaya sahasra-murtaye\nSahasra-padakshi-shirorubahave |\nSahasra-namne purushaya shashvate\nSahasra-koti-yugadharine namah || 28 ||",
+          "translation": "Salutations to the Infinite One of a thousand forms, with a thousand feet, eyes, heads, thighs, and arms. Salutations to Him of a thousand names, the eternal Purusha, who sustains a thousand crore yugas."
+        },
+        {
+          "devanagari": "सहस्रकोटियुगधारिणे नम ॐ नम इति ।",
+          "sanskrit": "sahasrakoṭiyugadhāriṇe nama om nama iti .",
+          "english": "Sahasra-koti-yugadharine nama Om nama iti."
+        }
+      ]
+    },
+    {
+      "label": "Sanjaya Uvacha",
+      "label_sanskrit": "सञ्जय उवाच",
+      "verses": [
+        {
+          "devanagari": "यत्र योगेश्वरः कृष्णो यत्र पार्थो धनुर्धरः ।\nतत्र श्रीर्विजयो भूतिर्ध्रुवा नीतिर्मतिर्मम ॥ २९ ॥",
+          "sanskrit": "yatra yogeśvaraḥ kṛṣṇo yatra pārtho dhanurdharaḥ .\ntatra śrīrvijayo bhūtirdhruvā nītirmatirmama .. 29 ..",
+          "english": "Yatra yogeshvarah krishno yatra partho dhanurdharah |\nTatra shreervijayo bhootir-dhruva neetirmatirmama || 29 ||",
+          "translation": "Where there is Krishna, the Lord of Yoga, and where there is Partha (Arjuna), the wielder of the bow — there abide prosperity, victory, glory, and eternal righteousness. This is my conviction."
+        }
+      ]
+    },
+    {
+      "label": "Sri Bhagavan Uvacha",
+      "label_sanskrit": "श्रीभगवानुवाच",
+      "verses": [
+        {
+          "devanagari": "अनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते ।\nतेषां नित्याभियुक्तानां योगक्षेमं वहाम्यहम् ॥ ३० ॥",
+          "sanskrit": "ananyāścintayanto māṃ ye janāḥ paryupāsate .\nteṣāṃ nityābhiyuktānāṃ yogakṣemaṃ vahāmyaham .. 30 ..",
+          "english": "Ananyashchintayanto mam ye janah paryupasate |\nTesham nityabhiyuktanam yogakshemam vahamyaham || 30 ||",
+          "translation": "Those who, thinking of nothing else, worship Me with single-minded devotion — to those ever-devoted ones, I carry what they lack and preserve what they have."
+        },
+        {
+          "devanagari": "परित्राणाय साधूनां विनाशाय च दुष्कृताम् ।\nधर्मसंस्थापनार्थाय सम्भवामि युगे युगे ॥ ३१ ॥",
+          "sanskrit": "paritrāṇāya sādhūnāṃ vināśāya ca duṣkṛtām .\ndharmasaṃsthāpanārthāya sambhavāmi yuge yuge .. 31 ..",
+          "english": "Paritranaya sadhunam vinashaya cha dushkrutam |\nDharma-samsthapanarthaya sambhavami yuge yuge || 31 ||",
+          "translation": "For the protection of the righteous, for the destruction of the wicked, and for the establishment of dharma, I manifest Myself in every age."
+        },
+        {
+          "devanagari": "आर्ताः विष्णुं शिथिलाश्च भीता घोरेषु च व्याधिषु वर्तमानाः ।\nसङ्कीर्त्य नारायणशब्दमात्रं विमुक्तदुःखाः सुखिनो भवन्ति ॥ ३२ ॥",
+          "sanskrit": "ārtāḥ viṣṇuṃ śithilāśca bhītā ghoreṣu ca vyādhiṣu vartamānāḥ .\nsaṅkīrtya nārāyaṇaśabdamātraṃ vimuktaduḥkhāḥ sukhino bhavanti .. 32 ..",
+          "english": "Artah vishnum shithilashcha bheeta ghoreshu cha vyadhishu vartamanah |\nSankirtya narayana-shabdamatram vimukta-duhkhah sukhino bhavanti || 32 ||",
+          "translation": "Those who are distressed, feeble, afraid, or afflicted with terrible diseases — by merely chanting the name of Narayana, they become free from sorrow and attain happiness."
+        }
+      ]
+    },
+    {
+      "label": "Samarpana",
+      "label_sanskrit": "समर्पणम्",
+      "verses": [
+        {
+          "devanagari": "कायेन वाचा मनसेन्द्रियैर्वा बुद्ध्यात्मना वा प्रकृतेः स्वभावात् ।\nकरोमि यद्यत् सकलं परस्मै नारायणायेति समर्पयामि ॥ ३३ ॥",
+          "sanskrit": "kāyena vācā manasendriyairvā buddhyātmanā vā prakṛteḥ svabhāvāt .\nkaromi yadyat sakalaṃ parasmai nārāyaṇāyeti samarpayāmi .. 33 ..",
+          "english": "Kayena vacha manasendriyairva buddhyatmana va prakruteh svabhavat |\nKaromi yadyat sakalam parasmai narayanayeti samarpayami || 33 ||",
+          "translation": "Whatever I do with my body, speech, mind, senses, intellect, or soul, whether by nature or by habit — I offer all of it to the Supreme Lord Narayana."
+        }
+      ]
+    },
+    {
+      "label": "Colophon",
+      "label_sanskrit": "",
+      "prose": [
+        {
+          "devanagari": "इति श्रीविष्णोर्दिव्यसहस्रनामस्तोत्रं सम्पूर्णम् ।\nॐ तत् सत् ।\nमहाभारते अनुशासनपर्वणि अध्यायः १४९",
+          "english": "Iti Sri Vishnor-divya-sahasra-nama-stotram sampurnam |\nOm tat sat |\nMahabharate Anushasana Parvani Adhyayah 149",
+          "translation": "Thus ends the divine thousand names of Sri Vishnu. Om, that is the Truth. From the Mahabharata, Anushasana Parva, Chapter 149."
+        }
+      ]
+    }
   ]
 };
