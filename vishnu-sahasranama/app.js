@@ -256,6 +256,184 @@
     container.innerHTML = html;
   }
 
+  // --- Generate PDF (printable page) ---
+  function generatePDF() {
+    var w = window.open('', '_blank');
+    if (!w) {
+      alert('Please allow pop-ups to generate the PDF.');
+      return;
+    }
+
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8">';
+    html += '<title>Sri Vishnu Sahasranama Stotram</title>';
+    html += '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">';
+    html += '<style>';
+    html += 'body{font-family:"Source Serif 4",Georgia,serif;max-width:700px;margin:0 auto;padding:40px 30px;color:#1a1a2e;line-height:1.6;font-size:11pt;}';
+    html += '.dev{font-family:"Noto Sans Devanagari",sans-serif;color:#1a1a6e;font-size:12pt;line-height:2;font-weight:500;white-space:pre-line;margin:4px 0;}';
+    html += '.iast{font-style:italic;color:#666;font-size:9.5pt;margin:2px 0;}';
+    html += '.eng{font-weight:500;font-size:10.5pt;margin:2px 0;white-space:pre-line;}';
+    html += '.tl{color:#444;font-size:10pt;margin:4px 0 12px;font-style:italic;}';
+    html += '.sec{font-size:14pt;font-weight:700;color:#1a1a6e;margin:28px 0 8px;padding-bottom:4px;border-bottom:2px solid #c4a35a;text-transform:uppercase;letter-spacing:0.05em;}';
+    html += '.sec .sk{font-weight:500;color:#c4a35a;text-transform:none;letter-spacing:0;font-family:"Noto Sans Devanagari",sans-serif;margin-left:8px;font-size:11pt;}';
+    html += '.speaker{font-size:10pt;font-weight:600;color:#888;font-style:italic;margin:8px 0;}';
+    html += '.verse-block{margin:10px 0;padding:10px 14px;border-left:3px solid #c4a35a;background:#fafaf7;page-break-inside:avoid;}';
+    html += '.stotram-verse{margin:12px 0;padding:8px 0;border-bottom:1px solid #eee;page-break-inside:avoid;}';
+    html += '.v-num{font-weight:700;color:#c4a35a;margin-right:4px;}';
+    html += '.name-row{display:flex;gap:8px;margin:2px 0;font-size:9.5pt;}';
+    html += '.name-num{color:#c4a35a;font-weight:600;min-width:35px;}';
+    html += '.name-iast{font-weight:600;}';
+    html += '.name-dev{font-family:"Noto Sans Devanagari",sans-serif;color:#1a1a6e;font-size:10pt;}';
+    html += '.name-meaning{color:#555;font-style:italic;}';
+    html += '.prose{font-size:10pt;white-space:pre-line;margin:4px 0;}';
+    html += 'h1{text-align:center;font-size:20pt;color:#1a1a6e;margin-bottom:4px;}';
+    html += '.subtitle{text-align:center;color:#666;font-size:11pt;margin-bottom:30px;}';
+    html += '.ornament{text-align:center;color:#c4a35a;font-size:18pt;margin:8px 0;}';
+    html += '.names-section{margin:6px 0 12px;padding-left:10px;}';
+    html += '@media print{body{padding:20px;font-size:10pt;}.verse-block{background:#fff;}}';
+    html += '</style></head><body>';
+
+    // Title
+    html += '<div class="ornament">&#x2733;</div>';
+    html += '<h1>Sri Vishnu Sahasranama Stotram</h1>';
+    html += '<div class="subtitle">श्रीविष्णुसहस्रनामस्तोत्रम्</div>';
+    html += '<div class="subtitle">The Thousand Divine Names of Lord Vishnu<br>From the Mahabharata, Anushasana Parva</div>';
+
+    // --- Pre-Stotra ---
+    if (VISHNU_DATA.preStotra) {
+      VISHNU_DATA.preStotra.forEach(function (section) {
+        html += '<div class="sec">' + esc(section.label);
+        if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
+        html += '</div>';
+
+        if (section.verses) {
+          section.verses.forEach(function (v) {
+            html += '<div class="verse-block">';
+            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
+            if (v.devanagari) html += '<div class="dev">' + esc(v.devanagari) + '</div>';
+            if (v.sanskrit) html += '<div class="iast">' + esc(v.sanskrit) + '</div>';
+            if (v.translation) html += '<div class="tl">' + esc(v.translation) + '</div>';
+            html += '</div>';
+          });
+        }
+        if (section.prose) {
+          section.prose.forEach(function (p) {
+            html += '<div class="verse-block">';
+            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
+            if (p.devanagari) html += '<div class="dev prose">' + esc(p.devanagari) + '</div>';
+            if (p.translation) html += '<div class="tl">' + esc(p.translation) + '</div>';
+            html += '</div>';
+          });
+        }
+      });
+    }
+
+    // --- Main Stotram ---
+    html += '<div class="sec">Sri Vishnu Sahasranama Stotram<span class="sk">श्रीविष्णुसहस्रनामस्तोत्रम्</span></div>';
+
+    VISHNU_DATA.verses.forEach(function (verse) {
+      var verseNum = verse.num;
+      var halves = verse.halves || [];
+      var englishHalves = verse.english_halves || [];
+      var translations = verse.translations || [];
+      var nameNums = VERSE_NAMES[verseNum] || [];
+
+      html += '<div class="stotram-verse">';
+
+      // English transliteration
+      if (englishHalves.length > 0) {
+        html += '<div class="eng"><span class="v-num">' + verseNum + '.</span> ';
+        html += esc(englishHalves.join(' | ')) + ' ||</div>';
+      }
+
+      // Devanagari (from halves — construct from IAST since we don't have devanagari for main verses)
+      // IAST
+      if (halves.length > 0) {
+        html += '<div class="iast">' + esc(halves.join(' | ')) + ' ||</div>';
+      }
+
+      // Translations (name meanings per half)
+      if (translations.length > 0) {
+        html += '<div class="tl">' + esc(translations.join(' ')) + '</div>';
+      }
+
+      // Names breakdown
+      if (nameNums.length > 0) {
+        html += '<div class="names-section">';
+        nameNums.forEach(function (nNum) {
+          var name = namesMap[nNum];
+          if (name) {
+            html += '<div class="name-row">';
+            html += '<span class="name-num">' + nNum + '.</span>';
+            html += '<span class="name-iast">' + esc(name.name_iast || '') + '</span>';
+            if (name.name_devanagari) {
+              html += ' <span class="name-dev">' + esc(name.name_devanagari) + '</span>';
+            }
+            html += ' — <span class="name-meaning">' + esc(name.meaning) + '</span>';
+            html += '</div>';
+          }
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    // --- Post-Stotra / Phalashruti ---
+    if (VISHNU_DATA.postStotra) {
+      VISHNU_DATA.postStotra.forEach(function (section) {
+        html += '<div class="sec">' + esc(section.label);
+        if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
+        html += '</div>';
+
+        if (section.speaker) {
+          html += '<div class="speaker">' + esc(section.speaker);
+          if (section.speaker_sanskrit) html += ' <span class="sk">' + esc(section.speaker_sanskrit) + '</span>';
+          html += '</div>';
+        }
+
+        if (section.verses) {
+          section.verses.forEach(function (v) {
+            html += '<div class="verse-block">';
+            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
+            if (v.devanagari) html += '<div class="dev">' + esc(v.devanagari) + '</div>';
+            if (v.sanskrit) html += '<div class="iast">' + esc(v.sanskrit) + '</div>';
+            if (v.translation) html += '<div class="tl">' + esc(v.translation) + '</div>';
+            html += '</div>';
+          });
+        }
+        if (section.prose) {
+          section.prose.forEach(function (p) {
+            html += '<div class="verse-block">';
+            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
+            if (p.devanagari) html += '<div class="dev prose">' + esc(p.devanagari) + '</div>';
+            if (p.translation) html += '<div class="tl">' + esc(p.translation) + '</div>';
+            html += '</div>';
+          });
+        }
+      });
+    }
+
+    // Footer
+    html += '<div class="ornament" style="margin-top:30px;">&#x2733;</div>';
+    html += '<div class="subtitle">Om Namo Bhagavate Vasudevaya</div>';
+    html += '<div class="subtitle" style="font-size:9pt;">Generated from paddyspeaks.com/vishnu-sahasranama</div>';
+
+    html += '</body></html>';
+
+    w.document.write(html);
+    w.document.close();
+
+    // Wait for fonts to load, then trigger print
+    w.onload = function () {
+      setTimeout(function () { w.print(); }, 500);
+    };
+  }
+
+  function esc(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   // --- Render Stotram (Main Chanting View) ---
   function renderStotram() {
     var container = document.getElementById('stotram-container');
@@ -489,6 +667,12 @@
     setupSearch();
     setupNavigation();
     setupProgressBar();
+
+    // PDF download button
+    var pdfBtn = document.getElementById('download-pdf');
+    if (pdfBtn) {
+      pdfBtn.addEventListener('click', function () { generatePDF(); });
+    }
   }
 
   if (document.readyState === 'loading') {
