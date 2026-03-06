@@ -144,19 +144,19 @@ const VISHNU_DATA = {
         {
           "sanskrit": "viṣṇornāmasahasrasya vedavyāso mahāmuniḥ .\nchando'nuṣṭup tathā devaḥ bhagavān devakīsutaḥ ..",
           "devanagari": "विष्णोर्नामसहस्रस्य वेदव्यासो महामुनिः ।\nछन्दोऽनुष्टुप् तथा देवः भगवान् देवकीसुतः ॥",
-          "english": "Vishno-ranam sahasrasya vedavyaso maha munih |\nChandho nusthup tatha devah bhagavan devakee-sutah ||",
+          "english": "Rushirnamnam Sahasrasya Vedhavyaso Mahamunihi |\nChandoNushtup Thadha Dhevo Bhaghavan DhevageeSuthaha ||",
           "translation": "The great sage Vedavyasa is the Rishi of the Vishnu Sahasranama; the meter is Anushtup; the deity is Bhagavan, the son of Devaki."
         },
         {
           "sanskrit": "amṛtāṃśūdbhavo bījaṃ śaktirdevakīnandanaḥ .\ntrisāmā hṛdayaṃ tasya śāntyarthe viniyujyate ..",
           "devanagari": "अमृतांशूद्भवो बीजं शक्तिर्देवकीनन्दनः ।\nत्रिसामा हृदयं तस्य शान्त्यर्थे विनियुज्यते ॥",
-          "english": "Amrutham-shubdavo beejam shaktir-devaki nandanah |\nTrisama hrudayam tasya shantya-rdhe viniyu-jyate ||",
+          "english": "Amrutham Soothbhavo Bheejam Shakthir Dhevaki Nandhanaha |\nThrisama Hrudhayam Thasya Shanthyarthe Viniyujyathe ||",
           "translation": "The seed is Amritamshudbhava; the power is Devaki Nandana; the heart is Trisama. It is chanted for the attainment of peace."
         },
         {
           "sanskrit": "viṣṇuṃ jiṣṇuṃ mahāviṣṇuṃ prabhaviṣṇuṃ maheśvaram .\naneka rūpa daityāntaṃ namāmi puruṣottamam ..",
           "devanagari": "विष्णुं जिष्णुं महाविष्णुं प्रभविष्णुं महेश्वरम् ।\nअनेकरूपदैत्यान्तं नमामि पुरुषोत्तमम् ॥",
-          "english": "Vishnum jishnum maha-vishnum prabha-vishnum mahe-svaram |\nAnekarupam daithyantham namami purushottamam ||",
+          "english": "Vishnum Jishnum Mahavishnum Prabhavishnum Maheswaram |\nAnaika Roopa Dhaithyantham Namami PurushothThamam ||",
           "translation": "I bow to Vishnu, the victorious, the great Vishnu, the mighty Vishnu, the great Lord, who assumes many forms, the destroyer of demons, the Supreme Being."
         }
       ]
