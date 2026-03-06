@@ -414,6 +414,27 @@
     });
   }
 
+  // --- PDF Download ---
+  function setupPdfDownload() {
+    var btn = document.getElementById('download-pdf');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      // Expand all verses so they appear in the PDF
+      document.querySelectorAll('.verse-card').forEach(function (c) {
+        c.classList.add('expanded');
+      });
+      // Show only chanting view for printing
+      document.querySelectorAll('.view').forEach(function (v) {
+        v.classList.remove('active');
+      });
+      document.getElementById('chanting-view').classList.add('active');
+      // Small delay to let DOM update, then trigger print
+      setTimeout(function () {
+        window.print();
+      }, 300);
+    });
+  }
+
   // --- Reading Progress ---
   function setupProgressBar() {
     window.addEventListener('scroll', function () {
@@ -440,6 +461,7 @@
     setupSearch();
     setupNavigation();
     setupProgressBar();
+    setupPdfDownload();
   }
 
   if (document.readyState === 'loading') {

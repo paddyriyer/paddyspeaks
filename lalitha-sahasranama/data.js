@@ -6,20 +6,20 @@ const LALITHA_DATA = {
   "nyasa": ".. nyāsaḥ ..\nasya śrīlalitāsahasranāmastotramālāmantrasya .\nvaśinyādivāgdevatā ṛṣayaḥ .\nanuṣṭupchandaḥ .\nśrīlalitāparameśvarī devatā .\nśrīmadvāgbhavakūṭeti bījam .\nmadhyakūṭeti śaktiḥ .\nśaktikūṭeti kīlakam .\nśrīlalitāmahātripurasundarīprasādasiddhidvārā\ncintitaphalāvāptyarthe jape viniyogaḥ .",
   "dhyana": [
     {
-      "sanskrit": "sindūrāruṇavigrahāṃ trinayanāṃ māṇikyamaulisphurat\ntārānāyakaśekharāṃ smitamukhīmāpīnavakṣoruhām .\npāṇibhyāmalipūrṇaratnacaṣakaṃ raktotpalaṃ vibhratīṃ\nsaumyāṃ ratnaghaṭastharaktacaraṇāṃ dhyāyetparāmambikām ..",
-      "translation": "The Divine mother is to be meditated upon as shining in a vermilion-red body, with a triple eyes, sporting a crown of rubies studded with the crescent moon, a face all smiles, a splendid bust, one hand holding a jewel-cup brimming with mead, and the other twirling a red lotus."
+      "sanskrit": "sindūrāruṇa-vigrahāṃ tri-nayanāṃ māṇikya-mauli-sphurat-\ntārānāyaka-śekharāṃ smita-mukhīm-āpīna-vakṣoruhām |\npāṇibhyām-ali-pūrṇa-ratna-caṣakaṃ raktotpalaṃ bibhratīṃ\nsaumyāṃ ratna-ghaṭastha-rakta-caraṇāṃ dhyāyet-parām-ambikām ||",
+      "translation": "The Divine Mother is to be meditated upon as shining in a vermilion-red body, with three eyes, sporting a crown of rubies studded with the crescent moon, a face all smiles, a splendid bust, one hand holding a jewel-cup brimming with mead, and the other twirling a red lotus."
     },
     {
-      "sanskrit": "aruṇāṃ karuṇātaraṅgitākṣīṃ\ndhṛtapāśāṅkuśapuṣpabāṇacāpām .\naṇimādibhirāvṛtāṃ mayukhaiḥ\nahamityeva vibhāvaye bhavānīm ..",
-      "translation": "I meditate on the great Empress. She is red in color, and her eyes are full of compassion, and holds the noose, the goad, the bow and the flowery arrow in Her hands. She is surrounded on all sides by powers such as aNimA for rays and She is the Self within me."
+      "sanskrit": "aruṇāṃ karuṇā-taraṅgitākṣīṃ dhṛta-pāśāṅkuśa-puṣpa-bāṇa-cāpām |\naṇimādibhir-āvṛtāṃ mayūkhaiḥ aham-ity-eva vibhāvaye bhavānīm ||",
+      "translation": "I meditate on the great Empress. She is red in color, and Her eyes are full of compassion, and holds the noose, the goad, the bow and the flowery arrow in Her hands. She is surrounded on all sides by powers such as Anima for rays and She is the Self within me."
     },
     {
-      "sanskrit": "dhyāyetpadmāsanasthāṃ vikasitavadanāṃ padmapatrāyatākṣīṃ\nhemābhāṃ pītavastrāṃ karakalitalasaddhemapadmāṃ varāṅgīm .\nsarvālaṅkārayuktāṃ satatamabhayadāṃ bhaktanamrāṃ bhavānīṃ\nśrīvidyāṃ śāntamūrtiṃ sakalasuranutāṃ sarvasampatpradātrīm ..",
-      "translation": "The Divine Goddess is to be meditated upon as seated on the lotus with petal eyes.  She is golden hued, and has lotus flowers in Her hand.  She dispels fear of the devotees who bow before Her.  She is the embodiment of peace, knowledge (vidyA), is praised by gods and grants every kind of wealth wished for."
+      "sanskrit": "dhyāyet-padmāsanasthāṃ vikasita-vadanāṃ padma-patrāyatākṣīṃ\nhemābhāṃ pītavastrāṃ kara-kalita-lasadd-hema-padmāṃ varāṅgīm |\nsarvālaṅkāra-yuktāṃ satatam-abhayadāṃ bhakta-namrāṃ bhavānīṃ\nśrī-vidyāṃ śānta-mūrtiṃ sakala-sura-nutāṃ sarva-sampat-pradātrīm ||",
+      "translation": "The Divine Goddess is to be meditated upon as seated on the lotus with petal eyes. She is golden hued, and has lotus flowers in Her hand. She dispels fear of the devotees who bow before Her. She is the embodiment of peace, knowledge (Sri Vidya), is praised by gods and grants every kind of wealth wished for."
     },
     {
-      "sanskrit": "sakuṅkumavilepanāmalikacumbikastūrikāṃ\nsamandahasitekṣaṇāṃ saśaracāpapāśāṅkuśām .\naśeṣajanamohinīmaruṇamālyabhūṣāmbarāṃ\njapākusumabhāsurāṃ japavidhau smaredambikām ..",
-      "translation": "I meditate on the Mother, whose eyes are smiling, who holds the arrow, bow, noose and the goad in Her hand. She is glittering with red garlands and ornaments.  She is painted with kumkuma on her forehead and is red and tender like the japa flower."
+      "sanskrit": "sakuṅkuma-vilepanām-alika-cumbi-kastūrikāṃ\nsamanda-hasitekṣaṇāṃ saśara-cāpa-pāśāṅkuśām |\naśeṣa-jana-mohinīm-aruṇa-mālya-bhūṣāmbarāṃ\njapā-kusuma-bhāsurāṃ japavidhau smared-ambikām ||",
+      "translation": "I meditate on the Mother, whose eyes are smiling, who holds the arrow, bow, noose and the goad in Her hand. She is glittering with red garlands and ornaments. She is painted with kumkuma on Her forehead and is red and tender like the japa flower."
     }
   ],
   "verses": [
