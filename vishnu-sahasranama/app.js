@@ -152,6 +152,9 @@
             if (v.english) {
               html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
             }
+            if (v.devanagari) {
+              html += '<div class="devanagari-text">' + escapeHtml(v.devanagari) + '</div>';
+            }
             if (v.sanskrit) {
               html += '<div class="transliteration iast-transliteration">' + escapeHtml(v.sanskrit) + '</div>';
             }
@@ -168,6 +171,9 @@
             html += '<div class="dhyana-verse viniyoga-text">';
             if (p.english) {
               html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
+            }
+            if (p.devanagari) {
+              html += '<div class="devanagari-text">' + escapeHtml(p.devanagari) + '</div>';
             }
             if (p.translation) {
               html += '<div class="translation">' + escapeHtml(p.translation) + '</div>';

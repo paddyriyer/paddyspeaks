@@ -12,31 +12,37 @@ const VISHNU_DATA = {
       "verses": [
         {
           "sanskrit": "śuklāmbaradharaṃ viṣṇuṃ śaśivarṇaṃ caturbhujam .\nprasannavadanaṃ dhyāyet sarvavighnopaśāntaye ..",
+          "devanagari": "शुक्लाम्बरधरं विष्णुं शशिवर्णं चतुर्भुजम् ।\nप्रसन्नवदनं ध्यायेत् सर्वविघ्नोपशान्तये ॥",
           "english": "Shuklam-baradharam Vishnum shashivarnam chaturbhujam |\nPrasanna vadanam dhyayet sarva vighnopa-shantaye ||",
           "translation": "One should meditate upon Lord Vishnu who is clad in white garments, who is all-pervading, who is of the color of the moon, who has four arms, and who has a pleasing countenance — for the removal of all obstacles."
         },
         {
           "sanskrit": "vyāsaṃ vasiṣṭhanaptāraṃ śakteḥ pautramakalmṣam .\nparāśarātmajaṃ vande śukatātaṃ taponidhim ..",
+          "devanagari": "व्यासं वसिष्ठनप्तारं शक्तेः पौत्रमकल्मषम् ।\nपराशरात्मजं वन्दे शुकतातं तपोनिधिम् ॥",
           "english": "Vyasam vasistha-naptaram shakteh poutrama-kalmasham |\nParasha-raatmajam vande shukatatam taponidhim ||",
           "translation": "I salute Vyasa, the grandson of Vasishtha, the spotless grandson of Shakti, the son of Parashara, the father of Shuka, and the treasure-house of penance."
         },
         {
           "sanskrit": "vyāsāya viṣṇurūpāya vyāsarūpāya viṣṇave .\nnamo vai brahmanidhaye vāsiṣṭhāya namo namaḥ ..",
+          "devanagari": "व्यासाय विष्णुरूपाय व्यासरूपाय विष्णवे ।\nनमो वै ब्रह्मनिधये वासिष्ठाय नमो नमः ॥",
           "english": "Vyasaya vishnuroopaya vyasaroopaya vishnave |\nNamo vai brahmanidhaye vasisthaya namo namah ||",
           "translation": "Salutations to Vyasa who is a form of Vishnu, and to Vishnu who is a form of Vyasa. Salutations again and again to that great one who is a treasure of Brahman and belongs to the lineage of Vasishtha."
         },
         {
           "sanskrit": "avikārāya śuddhāya nityāya paramātmane .\nsadaikarūparūpāya viṣṇave sarvajṣṇave namaḥ ..",
+          "devanagari": "अविकाराय शुद्धाय नित्याय परमात्मने ।\nसदैकरूपरूपाय विष्णवे सर्वजिष्णवे नमः ॥",
           "english": "Avikaraya shudhaya nithya paramathmane |\nSadaika roopa roopaya vishnave sarva gishnave ||",
           "translation": "Salutations to Lord Vishnu who is without change, pure, eternal, the Supreme Self, ever of one unchanging form, and all-knowing."
         },
         {
           "sanskrit": "yasya smaraṇamātreṇa janmasaṃsārabandhanāt .\nvimucyate namastasmai viṣṇave prabhaviṣṇave ..",
+          "devanagari": "यस्य स्मरणमात्रेण जन्मसंसारबन्धनात् ।\nविमुच्यते नमस्तस्मै विष्णवे प्रभविष्णवे ॥",
           "english": "Yasya smarana-matrena janma-samsara bhandanat |\nVimuchyate namasta-smai vishnave pradha-vishnave ||",
           "translation": "Salutations to Lord Vishnu, the mighty one, by merely remembering whom one is freed from the bondage of birth and the cycle of existence."
         },
         {
           "sanskrit": "om namo viṣṇave prabhaviṣṇave",
+          "devanagari": "ॐ नमो विष्णवे प्रभविष्णवे",
           "english": "Om namo vishnave prabhavishnave"
         }
       ]
@@ -47,6 +53,7 @@ const VISHNU_DATA = {
       "verses": [
         {
           "sanskrit": "śrutvā dharmānaśeṣeṇa pāvanāni ca sarvaśaḥ .\nyudhiṣṭhiraḥ śāntanavaṃ punareva abhyabhāṣata ..",
+          "devanagari": "श्रुत्वा धर्मानशेषेण पावनानि च सर्वशः ।\nयुधिष्ठिरः शान्तनवं पुनरेव अभ्यभाषत ॥",
           "english": "Shrutva dharma nasheshana pavanani cha sarvashah |\nYudhishthirah shantanavam punareva abhya-bhashata ||",
           "translation": "Having heard all the dharmas in their entirety and all that is purifying, Yudhishthira again spoke to the son of Shantanu (Bhishma)."
         }
@@ -58,11 +65,13 @@ const VISHNU_DATA = {
       "verses": [
         {
           "sanskrit": "kimekam daivatam loke kiṃ vāpyekaṃ parāyaṇam .\nstuvantaḥ kaṃ kamarcantaḥ prāpnuyurmānavāḥ śubham ..",
+          "devanagari": "किमेकं दैवतं लोके किं वाप्येकं परायणम् ।\nस्तुवन्तः कं कमर्चन्तः प्राप्नुयुर्मानवाः शुभम् ॥",
           "english": "Kimekam daivatam loke kim vapyekam parayanam |\nStuvantah kam ka marchantah prapnuyuh manavah-shubham ||",
           "translation": "Who is the one great God in the world? Who is the one supreme refuge? By praising and worshipping whom can a person attain auspiciousness?"
         },
         {
           "sanskrit": "ko dharmaḥ sarvadharmāṇāṃ bhavataḥ paramo mataḥ .\nkiṃ japanmucyate janturjanmasaṃsārabandhanāt ..",
+          "devanagari": "को धर्मः सर्वधर्माणां भवतः परमो मतः ।\nकिं जपन्मुच्यते जन्तुर्जन्मसंसारबन्धनात् ॥",
           "english": "Ko dharmah sarva-dharmanam bhavatah paramo matah |\nKim japanmuchyate janthuh janma samsara-bandhanat ||",
           "translation": "What is, in your opinion, the greatest Dharma of all? By chanting whose name can a being be freed from the bonds of birth and rebirth?"
         }
@@ -74,66 +83,79 @@ const VISHNU_DATA = {
       "verses": [
         {
           "sanskrit": "jagat prabhum devadevamanantaṃ puruṣottamam .\nstuvannāmasahasreṇa puruṣaḥ satatotthitaḥ ..",
+          "devanagari": "जगत्प्रभुं देवदेवमनन्तं पुरुषोत्तमम् ।\nस्तुवन्नामसहस्रेण पुरुषः सततोत्थितः ॥",
           "english": "Jagat-prabhum deva-devam anantam purusho-tamam |\nSthuva nnama-sahasrena purushah satatottitah ||",
           "translation": "By always rising up and praising with a thousand names the Lord of the Universe, the God of gods, the Infinite, the Supreme Being (Purushottama) — one attains the highest good."
         },
         {
           "sanskrit": "tameva cārcayannityaṃ bhaktyā puruṣamavyayam .\ndhyāyan stuvan nāmasyanśca yajamānastameva ca ..",
+          "devanagari": "तमेव चार्चयन्नित्यं भक्त्या पुरुषमव्ययम् ।\nध्यायन् स्तुवन् नामस्यंश्च यजमानस्तमेव च ॥",
           "english": "Tameva charcha-yannityam bhaktya purusha mavyayam |\nDhyayan stuvan nama-syamschha yajamanah thameva cha ||",
           "translation": "By always worshipping with devotion that Imperishable Being, by meditating, praising, saluting, and worshipping Him alone —"
         },
         {
           "sanskrit": "anādinidhanam viṣṇuṃ sarvaloka maheśvaram .\nlokadhyakṣaṃ stuvannityaṃ sarvaduḥkhātigo bhavet ..",
+          "devanagari": "अनादिनिधनं विष्णुं सर्वलोकमहेश्वरम् ।\nलोकाध्यक्षं स्तुवन्नित्यं सर्वदुःखातिगो भवेत् ॥",
           "english": "Anadi-nidhanam vishnum sarvaloka mahe-shvaram |\nLokadhyaksham sthuva nnityam sarva-duhkhatigo bhavet ||",
           "translation": "By always praising Vishnu, who has no beginning or end, who is the great Lord of all worlds, the overseer of all — one transcends all sorrow."
         },
         {
           "sanskrit": "brahmaṇyaṃ sarvadharmajñaṃ lokānāṃ kīrtivardhanam .\nlokānāthaṃ mahābhūtaṃ sarvabhūtabhavaodbhavam ..",
+          "devanagari": "ब्रह्मण्यं सर्वधर्मज्ञं लोकानां कीर्तिवर्धनम् ।\nलोकनाथं महाभूतं सर्वभूतभवोद्भवम् ॥",
           "english": "Brahmanyam sarva-dharmagnam lokanam keerthi-vardhanam |\nLokanatham maha-dbhootam sarvabhuta-bhavod-bhavam ||",
           "translation": "He who is devoted to Brahman, who knows all dharmas, who increases the glory of all worlds, the Lord of all beings, the great Being, the source of all creatures."
         },
         {
           "sanskrit": "eṣa me sarvadharmāṇāṃ dharmodhikatamo mataḥ .\nyadbhaktyā puṇḍarīkākṣaṃ stavairarced naraḥ sadā ..",
+          "devanagari": "एष मे सर्वधर्माणां धर्मोऽधिकतमो मतः ।\nयद्भक्त्या पुण्डरीकाक्षं स्तवैरर्चेन्नरः सदा ॥",
           "english": "Esha me sarva-dharmanam dharmo-dhikatamo matah |\nYadbhaktya pundaree-kaksham stavairarche nara sada ||",
           "translation": "This is, in my opinion, the greatest dharma of all — that a person should always worship the Lotus-eyed Lord with devotion and hymns."
         },
         {
           "sanskrit": "paramaṃ yo mahattejah paramaṃ yo mahattapaḥ .\nparamaṃ yo mahadbrahma paramaṃ yaḥ parāyaṇam ..",
+          "devanagari": "परमं यो महत्तेजः परमं यो महत्तपः ।\nपरमं यो महद्ब्रह्म परमं यः परायणम् ॥",
           "english": "Paramam yo maha-tejaha paramam yo maha-tapaha |\nParamam yo mahad-bramha paramam yah parayanam ||",
           "translation": "He who is the supreme radiance, the supreme penance, the supreme Brahman, the supreme refuge."
         },
         {
           "sanskrit": "pavitrāṇāṃ pavitraṃ yo maṅgalānāṃ ca maṅgalam .\ndaivataṃ devatānāṃ ca bhūtānāṃ yoavyayaḥ pitā ..",
+          "devanagari": "पवित्राणां पवित्रं यो मङ्गलानां च मङ्गलम् ।\nदैवतं देवतानां च भूतानां योऽव्ययः पिता ॥",
           "english": "Pavitranam pavitram yo mangalanam cha mangalam |\nDaivatam devatanam cha bhootanam yovyayah pita ||",
           "translation": "He who is the purest of the pure, the most auspicious of the auspicious, the God of all gods, and the imperishable Father of all beings."
         },
         {
           "sanskrit": "yataḥ sarvāṇi bhūtāni bhavantyādiyugāgame .\nyasmiṃśca pralayaṃ yānti punareva yugakṣaye ..",
+          "devanagari": "यतः सर्वाणि भूतानि भवन्त्यादियुगागमे ।\nयस्मिंश्च प्रलयं यान्ति पुनरेव युगक्षये ॥",
           "english": "Yatah sarani bhutani bhavantyadi yugagame |\nYasminscha pralayam yanti punareva yugakshaye ||",
           "translation": "From whom all beings come into existence at the beginning of each age, and into whom they dissolve again at the end of each age."
         },
         {
           "sanskrit": "tasya lokapradhānasya jagannāthasya bhūpate .\nviṣṇornāmasahasraṃ me śṛṇu pāpabhayāpaham ..",
+          "devanagari": "तस्य लोकप्रधानस्य जगन्नाथस्य भूपते ।\nविष्णोर्नामसहस्रं मे शृणु पापभयापहम् ॥",
           "english": "Tasya loka pradhanasya jaganna-thasya bhupate |\nVishnor nama-sahasram me shrunu papa-bhayapaham ||",
           "translation": "O King! Hear from me the thousand names of that Lord Vishnu, the Lord of all worlds, the Lord of the Universe — which destroys all sin and fear."
         },
         {
           "sanskrit": "yāni nāmāni gauṇāni vikhyātāni mahātmanaḥ .\nṛṣibhiḥ parigītāni tāni vakṣyāmi bhūtaye ..",
+          "devanagari": "यानि नामानि गौणानि विख्यातानि महात्मनः ।\nऋषिभिः परिगीतानि तानि वक्ष्यामि भूतये ॥",
           "english": "Yani namani gounani vikhyatani mahatmanah |\nRishibhih parigeetani tani vakshyami bhootaye ||",
           "translation": "I shall recite for the welfare of all, those celebrated names of the great Soul which have been sung by the sages."
         },
         {
           "sanskrit": "viṣṇornāmasahasrasya vedavyāso mahāmuniḥ .\nchando'nuṣṭup tathā devaḥ bhagavān devakīsutaḥ ..",
+          "devanagari": "विष्णोर्नामसहस्रस्य वेदव्यासो महामुनिः ।\nछन्दोऽनुष्टुप् तथा देवः भगवान् देवकीसुतः ॥",
           "english": "Vishno-ranam sahasrasya vedavyaso maha munih |\nChandho nusthup tatha devah bhagavan devakee-sutah ||",
           "translation": "The great sage Vedavyasa is the Rishi of the Vishnu Sahasranama; the meter is Anushtup; the deity is Bhagavan, the son of Devaki."
         },
         {
           "sanskrit": "amṛtāṃśūdbhavo bījaṃ śaktirdevakīnandanaḥ .\ntrisāmā hṛdayaṃ tasya śāntyarthe viniyujyate ..",
+          "devanagari": "अमृतांशूद्भवो बीजं शक्तिर्देवकीनन्दनः ।\nत्रिसामा हृदयं तस्य शान्त्यर्थे विनियुज्यते ॥",
           "english": "Amrutham-shubdavo beejam shaktir-devaki nandanah |\nTrisama hrudayam tasya shantya-rdhe viniyu-jyate ||",
           "translation": "The seed is Amritamshudbhava; the power is Devaki Nandana; the heart is Trisama. It is chanted for the attainment of peace."
         },
         {
           "sanskrit": "viṣṇuṃ jiṣṇuṃ mahāviṣṇuṃ prabhaviṣṇuṃ maheśvaram .\naneka rūpa daityāntaṃ namāmi puruṣottamam ..",
+          "devanagari": "विष्णुं जिष्णुं महाविष्णुं प्रभविष्णुं महेश्वरम् ।\nअनेकरूपदैत्यान्तं नमामि पुरुषोत्तमम् ॥",
           "english": "Vishnum jishnum maha-vishnum prabha-vishnum mahe-svaram |\nAnekarupam daithyantham namami purushottamam ||",
           "translation": "I bow to Vishnu, the victorious, the great Vishnu, the mighty Vishnu, the great Lord, who assumes many forms, the destroyer of demons, the Supreme Being."
         }
@@ -144,6 +166,7 @@ const VISHNU_DATA = {
       "label_sanskrit": "विनियोगः",
       "prose": [
         {
+          "devanagari": "अस्य श्रीविष्णोर्दिव्यसहस्रनामस्तोत्रमहामन्त्रस्य, श्रीवेदव्यासो भगवान् ऋषिः, अनुष्टुप् छन्दः, श्रीमहाविष्णुः परमात्मा श्रीमन्नारायणो देवता, अमृतांशूद्भवो भानुरिति बीजम्, देवकीनन्दनः स्रष्टेतिः शक्तिः, उद्भवः क्षोभणोदेव इति परमो मन्त्रः, शङ्खभृन्नन्दकी चक्रीति कीलकम्, शार्ङ्गधन्वा गदाधर इत्यस्त्रम्, रथाङ्गपाणिरक्षोभ्य इति नेत्रम्, त्रिसामा सामगः सामेति कवचम्, आनन्दं परब्रह्मेति योनिः, ऋतुसुदर्शनः कल इति दिग्बन्धनः, श्रीविश्वरूप इति ध्यानम्, श्रीमहाविष्णुप्रीत्यर्थे विष्णोर्दिव्यसहस्रनामजपे विनियोगः ।",
           "english": "Asya shree vishno divya sahasranama stotra maha-mantrasya, shree vedavyaso bhagavan rishih, ansthup-chandah shree maha vishnuh paramatma shree mannarayanoo devata, amritam-shoodbhavo bhanuriti beejam, devakee nandana srasthetih shakthi udbavah kshobha-noo-deva iti paramo mantrah, shankha-bhru-nnadakee chakreeti keelakam, sharnga-dhanva gadadhara itiastram rathanga-pani rakshobhya iti netram, trisama samaga ssamete kavacham, annandham para-bramheti yonih rutu-shudarshanah kala iti digbandanah, sree vishvaroopa iti dhyanam, shree maha vishnu-preet-yarthe vishnordivya sahasra-nama jape viniyogah.",
           "translation": "For this great mantra of the divine thousand names of Sri Vishnu: the sage is Bhagavan Sri Vedavyasa; the meter is Anushtup; the deity is Sri Maha Vishnu, the Supreme Self, Sri Narayana..."
         }
@@ -155,44 +178,54 @@ const VISHNU_DATA = {
       "verses": [
         {
           "sanskrit": "kṣīrodanvatpradeshe śucimaṇi vilasatsaikyate mauktikānām .\nmālākḷptāsanasthah sphaṭikamaṇi nibhaiḥ mauktikairmandītāṅgaḥ ..",
+          "devanagari": "क्षीरोदन्वत्प्रदेशे शुचिमणि विलसत्सैक्यते मौक्तिकानाम् ।\nमालाकॢप्तासनस्थः स्फटिकमणि निभैः मौक्तिकैर्मण्डिताङ्गः ॥",
           "english": "Kshiro-dhanvat-pradesha suchimani vilasat saikyate mauktikanam\nMaalaak-la-pta-sanasthah spatika-mani nibhaih mauktikaih mandi-takngah |"
         },
         {
           "sanskrit": "śubhrairabhrairadabhrairupari viracitaiḥ muktapīyūṣavarṣaiḥ .\nānandī naḥ punīyādarinalina gadā śaṅkhapāṇirmukundaḥ ..",
+          "devanagari": "शुभ्रैरभ्रैरदभ्रैरुपरि विरचितैः मुक्तपीयूषवर्षैः ।\nआनन्दी नः पुनीयादरिनलिन गदा शङ्खपाणिर्मुकुन्दः ॥",
           "english": "Shrub-brai-rabrai-radabraih upari verachitaih muktah-peeusha-varsh\nAanande nah puniyat arenalina gadha shankha-panhi mukundaha ||"
         },
         {
           "sanskrit": "bhūḥ pādau yasya nābhirviyadasuranilāścandra sūryau ca netre .\nkarṇāvāsāḥ śirodyo mukhāpi dahano yasya vāsteyamabdhiḥ ..",
+          "devanagari": "भूः पादौ यस्य नाभिर्वियदसुरनिलाश्चन्द्र सूर्यौ च नेत्रे ।\nकर्णावासाः शिरोद्यौ मुखापि दहनो यस्य वास्तेयमब्धिः ॥",
           "english": "Bhuh padao yasyanabih viyada-suranelah chandra-soorya-cha-netra |\nKarna-vasa-serodyah mooka-mapi dahano yesya-vaste-yamabdhih |"
         },
         {
           "sanskrit": "antasthaṃ yasya viśvam suranara khagago bhogi gandharva daityaiḥ .\ncitraṃ raṃramyate taṃ tribhuvana vapuṣaṃ viṣṇumīśaṃ namāmi ..",
+          "devanagari": "अन्तस्थं यस्य विश्वं सुरनर खगगो भोगि गन्धर्व दैत्यैः ।\nचित्रं रंरम्यते तं त्रिभुवन वपुषं विष्णुमीशं नमामि ॥",
           "english": "Antastham-yasya-vishwam-suranara khagago bhogi gandharva dhaithyeh !\nChitram ram-ramyate tham tribhuvana-vapusham vishnu-meesham namami !!",
           "translation": "I bow to Lord Vishnu whose form encompasses the three worlds — whose feet are the earth, whose navel is space, whose breath is the wind, whose eyes are the sun and moon, whose ears are the directions, whose head is the sky, whose mouth is fire, whose body is the ocean — within whom abide all beings including gods, humans, birds, serpents, gandharvas, and demons."
         },
         {
+          "devanagari": "ॐ नमो भगवते वासुदेवाय",
           "english": "Om namo bhagavate vasudevaya"
         },
         {
           "sanskrit": "śāntākāraṃ bhujagaśayanaṃ padmanābhaṃ sureśam .\nviśvādhāraṃ gaganasadṛṣam meghavarṇam śubhāṅgam ..",
+          "devanagari": "शान्ताकारं भुजगशयनं पद्मनाभं सुरेशम् ।\nविश्वाधारं गगनसदृशं मेघवर्णं शुभाङ्गम् ॥",
           "english": "Shantha-karam bhujaga-shayanam padma-naabham suresham |\nVishva-khaaram gagana sadrusham megevarnam shubhangam ||",
           "translation": "He who has a peaceful form, who reclines on the serpent (Adishesha), whose navel bears the lotus, the Lord of the gods, the support of the universe, who is vast like the sky, dark as a cloud, and of auspicious body."
         },
         {
           "sanskrit": "lakṣmīkāntaṃ kamalanayanam yogihṛddhyānagamyam .\nvande viṣṇuṃ bhavabhayaharaṃ sarvalokaikanātham ..",
+          "devanagari": "लक्ष्मीकान्तं कमलनयनं योगिहृद्ध्यानगम्यम् ।\nवन्दे विष्णुं भवभयहरं सर्वलोकैकनाथम् ॥",
           "english": "Lakshmi-kantham kamala-nayanam yogi-hrudhyana-gamyam |\nVande vishnum bava-bhaya-haram sarva-lokaika-natham ||",
           "translation": "The beloved of Lakshmi, the lotus-eyed, attainable through the meditation of yogis — I bow to Vishnu, the remover of the fear of worldly existence, the sole Lord of all worlds."
         },
         {
           "sanskrit": "meghaśyāmaṃ pītakauśeyavāsam śrīvatsāṅkaṃ kaustubhodbhāsitāṅgam .\npuṇyopetaṃ puṇḍarīkāyatākṣaṃ viṣṇuṃ vande sarvalokaikanātham ..",
+          "devanagari": "मेघश्यामं पीतकौशेयवासं श्रीवत्साङ्कं कौस्तुभोद्भासिताङ्गम् ।\nपुण्योपेतं पुण्डरीकायताक्षं विष्णुं वन्दे सर्वलोकैकनाथम् ॥",
           "english": "Megha-shyamam peetha-kauseya-vasam sree vatsajkam kaustu-bhod-bhace-thangam !\nPunyo-petam pundari-kaya thaksham vishnum vande sarva-lokaika natham ||",
           "translation": "Dark as a rain cloud, clad in yellow silk, bearing the Srivatsa mark, adorned by the Kaustubha gem, endowed with merit, with eyes wide as lotuses — I bow to Vishnu, the sole Lord of all worlds."
         },
         {
+          "devanagari": "नमः समस्तभूतानामादिभूताय भूभृते ।\nअनेकरूपरूपाय विष्णवे प्रभविष्णवे ॥",
           "english": "Namah samasta bhutanam-adi-bhutaya bhubrite\nAneka-ruparupaya vishnave prabha-vishnave"
         },
         {
           "sanskrit": "saśaṅkhacakraṃ sakirīṭakuṇḍalaṃ sapītavastraṃ sarasīruhekṣaṇam .\nsahāravakṣaḥsthalaśobhi kaustubhaṃ namāmi viṣṇuṃ śirasā caturbhujam ..",
+          "devanagari": "सशङ्खचक्रं सकिरीटकुण्डलं सपीतवस्त्रं सरसीरुहेक्षणम् ।\nसहारवक्षःस्थलशोभि कौस्तुभं नमामि विष्णुं शिरसा चतुर्भुजम् ॥",
           "english": "Sashamkha-chakram-sakrireeta-kundalam sapeetha-vastram-saraseeru-he kshanam |\nSahara-vaksha sthala-shobi-kaustubham namami-vishnum-seerasaa chatur bhujam ||",
           "translation": "I bow my head to Vishnu, the four-armed one, who bears the conch and discus, who wears a crown and earrings, who is clad in yellow garments, whose eyes are like lotuses, whose chest adorned with garlands shines with the Kaustubha gem."
         }
