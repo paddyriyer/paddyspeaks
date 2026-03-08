@@ -556,8 +556,8 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 1",
       titleSanskrit: "प्रथमोऽनुवाकः",
-      subtitle: "General Blessings",
-      description: "The first anuvaka of the Chamakam begins the prayer for blessings using the 'ca me' (and to me) pattern. It invokes Agni (fire) and asks for prosperity, welfare, comfort, and various forms of material and spiritual abundance.",
+      subtitle: "Arthendram — Invocation of Twenty Gods with Indra",
+      description: "Known as the 'Arthendram' anuvaka, this section clubs all Gods with Indra as the Antaryami (indwelling Lord) and co-sharer in all sacrificial oblations. Twenty deities are invoked paired with Indra, who as the God of Gods receives a share of every offering. Each deity represents a cosmic power that bestows specific psychological and spiritual faculties — Agni embodies the power of will, Brihaspati signifies vastness, Savitar the Supreme Creator. The prayer asks that all these divine powers grow within us, as a child grows in the mother's womb.",
       mantras: [
         {
           devanagari: "अग्निश्च म इन्द्रश्च मे सोमश्च म इन्द्रश्च मे",
@@ -606,38 +606,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 2",
       titleSanskrit: "द्वितीयोऽनुवाकः",
-      subtitle: "Blessings of Prosperity",
-      description: "The second anuvaka continues asking for various blessings — fire, luster, food, nourishment, thought, understanding, speech, and many more. Each blessing is sought with the refrain 'ca me' — 'and to me'.",
+      subtitle: "Perfection of Speech, Senses, Body, and Vital Breaths",
+      description: "This anuvaka prays for the perfection of the human body, which is the cornerstone for upholding Dharma. It encompasses thirty-six items relating to the sensory and internal organs, mental faculties, bodily structure, vital breaths, and longevity. The prayer seeks that all these powers be perfectly revealed in us in complete harmony with each other, enabling successful performance of all tasks in everyday life.",
       mantras: [
         {
           devanagari: "वाक् च मे मनश्च मे चक्षुश्च मे श्रोत्रं च मे",
           text: "vāk ca me manaśca me cakṣuśca me śrotraṁ ca me",
-          meaning: "May speech be mine, may mind be mine, may sight be mine, may hearing be mine."
+          meaning: "May the power of speech be mine, may a clear and sound mind be mine, may keen eyesight and perception be mine, may discriminatory hearing be mine."
         },
         {
           devanagari: "दक्षश्च मे बलं च म ओजश्च मे सहश्च मे",
           text: "dakṣaśca me balaṁ ca ma ojaśca me sahaśca me",
-          meaning: "May skill be mine, may strength be mine, may vitality be mine, may power be mine."
+          meaning: "May the fine functioning of all sense organs be mine, may the strength of body organs be mine, may virility and the highest intelligence be mine, may the power to overcome foes be mine."
         },
         {
           devanagari: "आत्मा च मे तनूश्च मे शर्म च मे वर्म च मे",
           text: "ātmā ca me tanūśca me śarma ca me varma ca me",
-          meaning: "May my self be mine, may my body be mine, may happiness be mine, may protection be mine."
+          meaning: "May a seasoned and necessary ego be mine, may a perfected and well-built body be mine, may happiness be mine, may safeguarding of the body be mine."
         },
         {
           devanagari: "अङ्गानि च मे अस्थीनि च मे परूंषि च मे शरीराणि च मे",
           text: "aṅgāni ca me asthīni ca me parūṁṣi ca me śarīrāṇi ca me",
-          meaning: "May my limbs be mine, may my bones be mine, may my joints be mine, may my body parts be mine."
+          meaning: "May excellent limbs be mine, may perfected and well-set bones be mine, may well-set joints be mine, may excellent body parts be mine."
         },
         {
           devanagari: "आयुश्च मे जरा च मे आत्मा च मे तनूश्च मे",
           text: "āyuśca me jarā ca me ātmā ca me tanūśca me",
-          meaning: "May long life be mine, may old age be mine, may my self be mine, may my body be mine."
+          meaning: "May prolonged active life and longevity be mine, may a venerable and respected old age be mine, may a seasoned ego be mine, may a well-built body be mine."
         },
         {
           devanagari: "प्राणश्च मेऽपानश्च मे व्यानश्च मेऽसुश्च मे",
           text: "prāṇaśca me'pānaśca me vyānaśca me'suśca me",
-          meaning: "May inbreath be mine, may outbreath be mine, may diffused breath be mine, may life force be mine."
+          meaning: "May the regular function of the main breath be mine, may the downward breath be mine, may the distributing breath be mine, may the vital function of these airs be mine."
         }
       ]
     },
@@ -646,38 +646,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 3",
       titleSanskrit: "तृतीयोऽनुवाकः",
-      subtitle: "Strength and Vitality",
-      description: "This anuvaka seeks blessings of strength, vitality, and sustenance. It asks for various forms of grain, food, and nourishment, recognizing that physical well-being is essential for spiritual growth.",
+      subtitle: "Prominence, Leadership, and Worldly Splendor",
+      description: "This anuvaka prays for prominence and leadership, common sense, intellectual acumen, the capability to face adversity, spiritual elevation, and worldly splendor. These are the goals to be attained with the powers of body and mind requested in the previous anuvaka. It encompasses thirty-eight aspirations ranging from eminence among people to freedom from disease, from the duties of sacred rituals to comfortable dwelling and auspicious days.",
       mantras: [
         {
           devanagari: "ज्यैष्ठ्यं च म आधिपत्यं च मे मन्युश्च मे भामश्च मे",
           text: "jyaiṣṭhyaṁ ca ma ādhipatyaṁ ca me manyuśca me bhāmaśca me",
-          meaning: "May supremacy be mine, may sovereignty be mine, may anger (righteous) be mine, may wrath be mine."
+          meaning: "May elderliness and eminence among people be mine, may overlordship and leadership be mine, may controlled resentment be mine, may the sustainable manifestation of righteous anger be mine."
         },
         {
           devanagari: "अमश्च मेऽम्भश्च मे जेमा च मे महिमा च मे",
           text: "amaśca me'mbhaśca me jemā ca me mahimā ca me",
-          meaning: "May raw food be mine, may water be mine, may conquest be mine, may greatness be mine."
+          meaning: "May in-depth mind and sterling character be mine, may sweet wholesome drinking water be mine, may the upper hand and success over foes be mine, may resultant fame and wealth from victories be mine."
         },
         {
           devanagari: "वरिमा च मे प्रथिमा च मे वर्ष्मा च मे द्राघ्या च मे",
           text: "varimā ca me prathimā ca me varṣmā ca me drāghyā ca me",
-          meaning: "May breadth be mine, may expanse be mine, may height be mine, may length be mine."
+          meaning: "May being valued and respected by others be mine, may increase in abounding wealth and accomplishments be mine, may worthy progeny of sons and grandsons be mine, may the unbreakable continuity of sumptuous grandeur be mine."
         },
         {
           devanagari: "ऋतं च मेऽमृतं च मेऽयक्ष्मं च मेऽनामयच्च मे",
           text: "ṛtaṁ ca me'mṛtaṁ ca me'yakṣmaṁ ca me'nāmayacca me",
-          meaning: "May cosmic order be mine, may immortality be mine, may freedom from disease be mine, may good health be mine."
+          meaning: "May the faithful performance of the duties of yajnas be mine, may the immortal fruits of those yajnas be mine, may the prevention of incurable diseases be mine, may a body devoid of ailments be mine."
         },
         {
           devanagari: "जीवातुश्च मे दीर्घायुत्वं च मेऽनमित्रं च मेऽभयं च मे",
           text: "jīvātuśca me dīrghāyutvaṁ ca me'namitraṁ ca me'bhayaṁ ca me",
-          meaning: "May livelihood be mine, may long life be mine, may freedom from enemies be mine, may fearlessness be mine."
+          meaning: "May medicines that sustain life be mine, may prolonged longevity be mine, may a life without enemies be mine, may a life free from fear be mine."
         },
         {
           devanagari: "सुगं च मे शयनं च मे सूषा च मे सुदिनं च मे",
           text: "sugaṁ ca me śayanaṁ ca me sūṣā ca me sudinaṁ ca me",
-          meaning: "May good path be mine, may comfortable rest be mine, may beautiful dawn be mine, may auspicious day be mine."
+          meaning: "May good behavior acceptable to all be mine, may comfortable beds for restful sleep be mine, may a pleasing early morning be mine, may a good day fit for rituals and Vedic studies be mine."
         }
       ]
     },
@@ -686,38 +686,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 4",
       titleSanskrit: "चतुर्थोऽनुवाकः",
-      subtitle: "Offerings and Blessings",
-      description: "This anuvaka asks for the blessings associated with various Vedic offerings and sacrifices. It seeks fulfillment through the power of the sacred rituals and their presiding deities.",
+      subtitle: "Food, Nourishment, and Material Abundance",
+      description: "This anuvaka prays for all forms of food, nourishment, and material abundance essential for sustaining life and performing sacred duties. It encompasses wholesome food and pleasing speech, the richness of dairy and agriculture, the bounty of seasonal rains and fertile lands, and the fullness of wealth in all its forms. The prayer progresses from basic sustenance to overflowing abundance, culminating in the aspiration for an everlasting, inexhaustible supply of all that supports life.",
       mantras: [
         {
           devanagari: "ऊर्क् च मे सूनृता च मे पयश्च मे रसश्च मे",
           text: "ūrk ca me sūnṛtā ca me payaśca me rasaśca me",
-          meaning: "May food be mine, may sweet speech be mine, may milk be mine, may sap/essence be mine."
+          meaning: "May wholesome food be mine, may pleasing and endearing speech be mine, may nourishing milk be mine, may tasteful sweet juices be mine."
         },
         {
           devanagari: "घृतं च मे मधु च मे सगधिश्च मे सपीतिश्च मे",
           text: "ghṛtaṁ ca me madhu ca me sagadhiśca me sapītiśca me",
-          meaning: "May ghee be mine, may honey be mine, may eating together be mine, may drinking together be mine."
+          meaning: "May clarified ghee be mine, may sweet honey be mine, may the joy of eating with relatives be mine, may the joy of drinking with relatives be mine."
         },
         {
           devanagari: "कृषिश्च मे वृष्टिश्च मे जैत्रं च म औद्भिद्यं च मे",
           text: "kṛṣiśca me vṛṣṭiśca me jaitraṁ ca ma audbhidyaṁ ca me",
-          meaning: "May agriculture be mine, may rain be mine, may victory be mine, may productivity be mine."
+          meaning: "May thriving agriculture be mine, may timely seasonal rains be mine, may worthy fertile lands for cultivation be mine, may clusters of foliage with tall flourishing trees be mine."
         },
         {
           devanagari: "रयिश्च मे रायश्च मे पुष्टं च मे पुष्टिश्च मे",
           text: "rayiśca me rāyaśca me puṣṭaṁ ca me puṣṭiśca me",
-          meaning: "May wealth be mine, may riches be mine, may prosperity be mine, may nourishment be mine."
+          meaning: "May gold be mine, may the nine precious gems be mine, may abundant wealth be mine, may a well-built healthy body be mine."
         },
         {
           devanagari: "विभु च मे प्रभु च मे बहु च मे भूयश्च मे",
           text: "vibhu ca me prabhu ca me bahu ca me bhūyaśca me",
-          meaning: "May pervading power be mine, may dominion be mine, may abundance be mine, may plenty be mine."
+          meaning: "May an abundant variety of pulses and cereals be mine, may a profuse quantity of provisions be mine, may many multiples of these be mine, may further development and increase be mine."
         },
         {
           devanagari: "पूर्णं च मे पूर्णतरं च मेऽक्षितिश्च मे कूयवाश्च मे",
           text: "pūrṇaṁ ca me pūrṇataraṁ ca me'kṣitiśca me kūyavāśca me",
-          meaning: "May fullness be mine, may greater fullness be mine, may imperishability be mine, may food grains be mine."
+          meaning: "May provisions filled up to the brim be mine, may supply even above the maximum extent be mine, may an everlasting incessant supply be mine, may small cereals and fine grains be mine."
         }
       ]
     },
@@ -726,8 +726,8 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 5",
       titleSanskrit: "पञ्चमोऽनुवाकः",
-      subtitle: "Animal and Agricultural Blessings",
-      description: "This anuvaka seeks blessings for cattle, livestock, and agricultural prosperity. It asks for the well-being of animals that are essential for Vedic life and for the prosperity of the household.",
+      subtitle: "Grains, Minerals, and Harmony with Nature",
+      description: "This anuvaka prays for harmony with all aspects of the natural world. It begins with horses and cattle essential for Vedic life, proceeds through every variety of food grain and cereal that sustains the body, and culminates with the elemental foundations of nature: stones, earth, hills, mountains, sand, trees, gold, and metals. The prayer reflects the Vedic vision that the human being must live in balance with the mineral, vegetable, and animal kingdoms alike.",
       mantras: [
         {
           devanagari: "अश्वपरिः च मे गोपरिश्च मे",
@@ -757,12 +757,12 @@ var RUDRAM_DATA = {
         {
           devanagari: "अश्मा च मे मृत्तिका च मे गिरयश्च मे पर्वताश्च मे",
           text: "aśmā ca me mṛttikā ca me girayaśca me parvatāśca me",
-          meaning: "May stones be mine, may clay be mine, may hills be mine, may mountains be mine."
+          meaning: "May precious stones be mine, may fertile earth and soil be mine, may protective hills be mine, may huge mountains with their resources be mine."
         },
         {
           devanagari: "सिकताश्च मे वनस्पतयश्च मे हिरण्यं च मेऽयश्च मे",
           text: "sikatāśca me vanaspatayaśca me hiraṇyaṁ ca me'yaśca me",
-          meaning: "May sand be mine, may trees be mine, may gold be mine, may iron be mine."
+          meaning: "May sand for sacred rituals be mine, may fruit-bearing trees be mine, may gold be mine, may strong steel and metals be mine."
         }
       ]
     },
@@ -771,38 +771,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 6",
       titleSanskrit: "षष्ठोऽनुवाकः",
-      subtitle: "Cosmic Blessings",
-      description: "This anuvaka seeks cosmic and sacrificial blessings. It asks for the grace of sacred fires, offerings, and the fruits of various Vedic rituals and sacrifices.",
+      subtitle: "Vedic Sacrifices, Sacred Fires, and Ritual Knowledge",
+      description: "This is the prime prayer concerning Vedic ritual contents. It invokes the sacrificial fires, specific yajnas such as the Pravargya and Ashvamedha, cosmic deities including Earth, Aditi, Diti, and Heaven, and the full corpus of Vedic knowledge: Rig mantras, Sama chants, Yajur formulas, and the sacred meters. It also seeks the disciplines of initiation, penance, seasonal observances, and sacred vows. The two great Sama Veda hymns Brihat and Rathantara are invoked as the culminating blessing.",
       mantras: [
         {
           devanagari: "अग्निश्च मे घर्मश्च मेऽर्कश्च मे सूर्यश्च मे",
           text: "agniśca me gharmaśca me'rkaśca me sūryaśca me",
-          meaning: "May fire be mine, may the hot sacrificial drink be mine, may the hymn be mine, may the sun be mine."
+          meaning: "May the sacrificial fire be mine, may the Pravargya hot-milk offering for the Soma Yaga be mine, may the Arka Yagna with Indra as its presiding deity be mine, may the Surya Yagna be mine."
         },
         {
           devanagari: "प्राणश्च मेऽश्वमेधश्च मे पृथिवी च मेऽदितिश्च मे",
           text: "prāṇaśca me'śvamedhaśca me pṛthivī ca me'ditiśca me",
-          meaning: "May life-breath be mine, may the horse sacrifice be mine, may the earth be mine, may Aditi be mine."
+          meaning: "May the Prana Homa be mine, may the great Ashvamedha horse sacrifice be mine, may the Earth with her presiding deity be mine, may the blessings of Aditi and her devatas be mine."
         },
         {
           devanagari: "दितिश्च मे द्यौश्च मे शक्वरीरङ्गुलयो दिशश्च मे",
           text: "ditiśca me dyauśca me śakvarīraṅgulayo diśaśca me",
-          meaning: "May Diti be mine, may heaven be mine, may the Shakvari-meter fingers be mine, may the quarters be mine."
+          meaning: "May the blessings of Diti and her devatas be mine, may Heaven and its deity be mine, may the Shakvari chandas and the pointing finger of the Cosmic Being (Virat Purusha) be mine, may the cardinal directions be mine."
         },
         {
           devanagari: "यज्ञेन कल्पन्तां ऋक् च मे साम च मे स्तोमश्च मे",
           text: "yajñena kalpantāṁ ṛk ca me sāma ca me stomaśca me",
-          meaning: "May they be obtained through sacrifice. May the Rig hymn be mine, may the Sama chant be mine, may the Stoma be mine."
+          meaning: "May all these be attained through sacrifice. May the Rig Veda mantras be mine, may the Sama Veda musical chants be mine, may the Stoma (the counted arrangements of Sama hymns) be mine."
         },
         {
           devanagari: "यजुश्च मे दीक्षा च मे तपश्च मे ऋतुश्च मे",
           text: "yajuśca me dīkṣā ca me tapaśca me ṛtuśca me",
-          meaning: "May the Yajus formula be mine, may initiation be mine, may austerity be mine, may the seasons be mine."
+          meaning: "May the Yajur Veda mantras be mine, may the sacred initiation (Diksha) into yagna be mine, may penance for the dilution of sins be mine, may the proper seasons for performing rituals be mine."
         },
         {
           devanagari: "व्रतं च मेऽहोरात्रयोर्वृष्ट्या बृहद्रथन्तरे च मे",
           text: "vrataṁ ca me'horātrayorvṛṣṭyā bṛhadrathantare ca me",
-          meaning: "May the vow be mine, may the rain of day and night be mine, may Brihat and Rathantara Samans be mine."
+          meaning: "May sacred vows such as the Ekastana Vratam be mine, may the rains of day and night be mine, may the two great hymns Brihat and Rathantara of the Sama Veda be mine."
         }
       ]
     },
@@ -811,38 +811,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 7",
       titleSanskrit: "सप्तमोऽनुवाकः",
-      subtitle: "More Cosmic Elements",
-      description: "This anuvaka continues seeking blessings of cosmic elements and sacrificial rites. It asks for the grace of various meters, fires, and divine powers that govern the universe.",
+      subtitle: "Vessels, Implements, and Powers of the Soma Sacrifice",
+      description: "This anuvaka lists the various vessels, implements, and ritual elements necessary for the Soma Yaga sacrifice. Each vessel and instrument represents an aspect of self-offering to the respective deity. The prayer encompasses the sacred bricks of the fire altar, the nourishing power within the rituals, the Vedic hymns and formulas, the grace of Prajapati and the heavenly realm, the sacrificial fires including the great Vaishvanara, and the power that sustains the entire sacrificial enterprise.",
       mantras: [
         {
           devanagari: "इष्टकाश्च म ऊर्जश्वतीश्च मे ऋक्सामे च मे",
           text: "iṣṭakāśca ma ūrjaśvatīśca me ṛksāme ca me",
-          meaning: "May the bricks (of the fire altar) be mine, may the ones full of nourishment be mine, may the Rig and Sama hymns be mine."
+          meaning: "May the sacred bricks of the fire altar be mine, may those filled with nourishing power be mine, may the combined Rig and Sama Veda hymns be mine."
         },
         {
           devanagari: "स्तोमश्च मे यजुश्च मे दीक्षा च मे",
           text: "stomaśca me yajuśca me dīkṣā ca me",
-          meaning: "May the Stoma hymn be mine, may the Yajus formula be mine, may initiation be mine."
+          meaning: "May the Stoma arrangements of Sama chants be mine, may the Yajur Veda sacrificial formulas be mine, may the sacred initiation into sacrifice be mine."
         },
         {
           devanagari: "प्रजापतिश्च मे सौवर्गश्च मे",
           text: "prajāpatiśca me sauvarrgaśca me",
-          meaning: "May the Lord of creatures be mine, may heaven be mine."
+          meaning: "May the grace of Prajapati, the Lord of all creatures, be mine, may the attainment of the heavenly realm be mine."
         },
         {
           devanagari: "अग्निश्च मे घर्मश्च मेऽर्कश्च मे",
           text: "agniśca me gharmaśca me'rkaśca me",
-          meaning: "May fire be mine, may the hot oblation be mine, may the sacred chant be mine."
+          meaning: "May the sacrificial fire be mine, may the hot Pravargya oblation be mine, may the Arka ritual chant be mine."
         },
         {
           devanagari: "महावैश्वानरश्च मे अग्निश्च मे",
           text: "mahāvaiśvānaraśca me agniśca me",
-          meaning: "May the great Vaishvanara fire be mine, may the fire be mine."
+          meaning: "May the great Vaishvanara fire that pervades all beings be mine, may the sacred sacrificial fire be mine."
         },
         {
           devanagari: "यज्ञश्च मे यज्ञस्य शक्तिश्च मे",
           text: "yajñaśca me yajñasya śaktiśca me",
-          meaning: "May the sacrifice be mine, may the power of the sacrifice be mine."
+          meaning: "May the complete sacrifice be mine, may the full power and potency of the sacrifice be mine."
         }
       ]
     },
@@ -851,38 +851,38 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 8",
       titleSanskrit: "अष्टमोऽनुवाकः",
-      subtitle: "Odd Numbers — Mystical Series",
-      description: "This famous anuvaka of the Chamakam invokes blessings through odd numbers from 1 to 33. These numbers represent various cosmic principles and divine forces. The odd number series is considered highly auspicious and represents the fullness of creation.",
+      subtitle: "Odd Numbers — Divine and Cosmic Forces",
+      description: "This celebrated anuvaka invokes blessings through the odd numbers from 1 to 33, each representing a specific divine or cosmic force. Odd numbers are associated with the realm of the devatas (gods). A profound mathematical insight underlies this section: when two odd numbers are added together, the result is always even, signifying that humans were created by the devatas. Each number corresponds to specific Vedic metres, fire-altar configurations, soma pressings, and cosmic principles that together represent the fullness of divine creation.",
       mantras: [
         {
           devanagari: "एका च मे तिस्रश्च मे पञ्च च मे सप्त च मे",
           text: "ekā ca me tisraśca me pañca ca me sapta ca me",
-          meaning: "May one be mine, may three be mine, may five be mine, may seven be mine."
+          meaning: "May the power of one (the singular cosmic fire Agni) be mine, may three (the three Vedas and triple world) be mine, may five (the five seasons and Pancha Bhutas) be mine, may seven (the seven metres and seven Rishis) be mine."
         },
         {
           devanagari: "नव च म एकादश च मे त्रयोदश च मे",
           text: "nava ca ma ekādaśa ca me trayodaśa ca me",
-          meaning: "May nine be mine, may eleven be mine, may thirteen be mine."
+          meaning: "May nine (the nine forms of Agni and the Navagrahas) be mine, may eleven (the eleven Rudras) be mine, may thirteen (the thirteen months of the ritual year) be mine."
         },
         {
           devanagari: "पञ्चदश च मे सप्तदश च मे नवदश च मे",
           text: "pañcadaśa ca me saptadaśa ca me navadaśa ca me",
-          meaning: "May fifteen be mine, may seventeen be mine, may nineteen be mine."
+          meaning: "May fifteen (the fifteen nights of the waxing moon and the Stoma hymn arrangements) be mine, may seventeen (the Saptadasa Stoma) be mine, may nineteen (the Ekavimsastoma and cosmic principles) be mine."
         },
         {
           devanagari: "एकविंशतिश्च मे त्रयोविंशतिश्च मे पञ्चविंशतिश्च मे",
           text: "ekaviṁśatiśca me trayoviṁśatiśca me pañcaviṁśatiśca me",
-          meaning: "May twenty-one be mine, may twenty-three be mine, may twenty-five be mine."
+          meaning: "May twenty-one (the Ekavimsastoma and the twenty-one layers of creation) be mine, may twenty-three (higher Stoma configurations) be mine, may twenty-five (the twenty-five cosmic principles of Sankhya) be mine."
         },
         {
           devanagari: "सप्तविंशतिश्च मे नवविंशतिश्च मे",
           text: "saptaviṁśatiśca me navaviṁśatiśca me",
-          meaning: "May twenty-seven be mine, may twenty-nine be mine."
+          meaning: "May twenty-seven (the twenty-seven Nakshatras and cosmic stations) be mine, may twenty-nine (the higher sacred configurations) be mine."
         },
         {
           devanagari: "एकत्रिंशच्च मे त्रयस्त्रिंशच्च मे",
           text: "ekatriṁśacca me trayastriṁśacca me",
-          meaning: "May thirty-one be mine, may thirty-three be mine."
+          meaning: "May thirty-one (the culminating Stoma arrangement) be mine, may thirty-three (the thirty-three devatas who govern all cosmic functions) be mine."
         }
       ]
     },
@@ -891,28 +891,28 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 9",
       titleSanskrit: "नवमोऽनुवाकः",
-      subtitle: "Even Numbers — Multiples of Four",
-      description: "This anuvaka invokes blessings through even numbers, specifically multiples of four from 4 to 48. These numbers represent a different set of cosmic principles and divine forces, complementing the odd numbers of the previous anuvaka.",
+      subtitle: "Even Numbers — Human and Material Realm",
+      description: "Complementing the odd numbers of the previous anuvaka, this section invokes blessings through multiples of four from 4 to 48. While odd numbers belong to the divine realm, even numbers relate to the human and material realm, representing cosmic mathematical harmonies. Each number corresponds to specific Vedic metres, fire-altar brick layers, soma vessel counts, and ritual configurations. Together with the odd-number series, these form the complete numerical framework of the Vedic sacrifice, expressing the harmony between the divine and human orders.",
       mantras: [
         {
           devanagari: "चतस्रश्च मेऽष्टौ च मे द्वादश च मे",
           text: "catasraśca me'ṣṭau ca me dvādaśa ca me",
-          meaning: "May four be mine, may eight be mine, may twelve be mine."
+          meaning: "May four (the four Vedas and four directions) be mine, may eight (the eight Vasus and Ashta Dikpalakas) be mine, may twelve (the twelve Adityas and twelve months) be mine."
         },
         {
           devanagari: "षोडश च मे विंशतिश्च मे चतुर्विंशतिश्च मे",
           text: "ṣoḍaśa ca me viṁśatiśca me caturviṁśatiśca me",
-          meaning: "May sixteen be mine, may twenty be mine, may twenty-four be mine."
+          meaning: "May sixteen (the sixteen ritual priests and sixteen kalas) be mine, may twenty (the twenty bricks of the fire altar) be mine, may twenty-four (the twenty-four syllables of the Gayatri) be mine."
         },
         {
           devanagari: "अष्टाविंशतिश्च मे द्वात्रिंशच्च मे षट्त्रिंशच्च मे",
           text: "aṣṭāviṁśatiśca me dvātriṁśacca me ṣaṭtriṁśacca me",
-          meaning: "May twenty-eight be mine, may thirty-two be mine, may thirty-six be mine."
+          meaning: "May twenty-eight (the twenty-eight Nakshatras in the lunar cycle) be mine, may thirty-two (the sacred syllabic configurations) be mine, may thirty-six (the expanded cosmic arrangements) be mine."
         },
         {
           devanagari: "चत्वारिंशच्च मे चतुश्चत्वारिंशच्च मे अष्टाचत्वारिंशच्च मे",
           text: "catvāriṁśacca me catuścatvāriṁśacca me aṣṭācatvāriṁśacca me",
-          meaning: "May forty be mine, may forty-four be mine, may forty-eight be mine."
+          meaning: "May forty (the forty days of sacred observance) be mine, may forty-four (the extended ritual configurations) be mine, may forty-eight (the culminating number representing the fullness of all cosmic and ritual harmonies) be mine."
         }
       ]
     },
@@ -921,33 +921,33 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 10",
       titleSanskrit: "दशमोऽनुवाकः",
-      subtitle: "More Number Sequences",
-      description: "This anuvaka continues the mystical number invocations with more sequences. These numbers represent further cosmic harmonies and sacred mathematical relationships that underpin Vedic cosmology.",
+      subtitle: "Cosmic Deities, Vedic Knowledge, and the Omnipresent Lord",
+      description: "This anuvaka is the closing prayer of the number series, invoking the cosmic deities and forces that govern food production, the heavens, and dissolution. It calls upon the Sun as the source of all energy, the sky and its devatas, the deity presiding over cosmic dissolution, and culminates in the declaration of the omnipotent, omnipresent Lord as the Antaryami (indwelling Self) of all. The anuvaka then reaffirms the desire for the complete corpus of Vedic knowledge and the disciplines of sacred initiation, penance, seasonal observance, and vows.",
       mantras: [
         {
           devanagari: "वाजश्च प्रसवश्च अपिजश्च क्रतुश्च सुवश्च मूर्धा च",
           text: "vājaśca prasavaśca apijaśca kratuśca suvaśca mūrdhā ca",
-          meaning: "May food, impetus, progeny, wisdom, the pressing, and the head (summit) be mine."
+          meaning: "May food be mine, may the production of food be mine, may continuous production be mine, may the use of food in yagna be mine, may the Sun as the source of all energy be mine, may the sky be mine."
         },
         {
           devanagari: "व्यश्नियश्चान्त्यायनश्चान्त्यश्च भौवनश्च भुवनश्च",
           text: "vyaśniyaścāntyāyanaścāntyaśca bhauvanaśca bhuvanaśca",
-          meaning: "May the all-pervading one, the one at the end, the final one, the cosmic one, and the worldly one be mine."
+          meaning: "May the sky devatas be mine, may the deity of Pralaya (cosmic dissolution) be mine, may the one present at the end of consummation be mine, may the devatas presiding on earth be mine, may the entire Universe be mine."
         },
         {
           devanagari: "अधिपतिश्च मे यज्ञेन कल्पन्ताम्",
           text: "adhipatiśca me yajñena kalpantām",
-          meaning: "May the overlord be mine; may all these be attained through sacrifice."
+          meaning: "May the omnipotent and omnipresent Lord who dwells as the Antaryami in all beings be mine; may all these be attained through sacrifice."
         },
         {
           devanagari: "ऋक् च मे साम च मे स्तोमश्च मे यजुश्च मे",
           text: "ṛk ca me sāma ca me stomaśca me yajuśca me",
-          meaning: "May the Rig hymn be mine, may the Sama chant be mine, may the Stoma be mine, may the Yajus formula be mine."
+          meaning: "May the Rig Veda mantras be mine, may the Sama Veda musical chants be mine, may the Stoma arrangements be mine, may the Yajur Veda sacrificial formulas be mine."
         },
         {
           devanagari: "दीक्षा च मे तपश्च मे ऋतुश्च मे व्रतं च मे",
           text: "dīkṣā ca me tapaśca me ṛtuśca me vrataṁ ca me",
-          meaning: "May initiation be mine, may austerity be mine, may the seasons be mine, may the vow be mine."
+          meaning: "May sacred initiation into yagna be mine, may penance for the dilution of sins be mine, may the proper seasons for rituals be mine, may sacred vows and observances be mine."
         }
       ]
     },
@@ -956,43 +956,43 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 11",
       titleSanskrit: "एकादशोऽनुवाकः",
-      subtitle: "Final Prayers for Completeness",
-      description: "The concluding anuvaka of the Chamakam is a grand finale that seeks total fulfillment and completeness. It asks for everything that sustains life and leads to liberation, summarizing all the blessings sought in the preceding anuvakas. It concludes with peace chants.",
+      subtitle: "Worldly Happiness, Heavenly Bliss, and Spiritual Fulfillment",
+      description: "The concluding anuvaka of the Chamakam is a grand summation that seeks total fulfillment across both the worldly and spiritual planes. Beginning with worldly happiness (sham) and heavenly happiness (maya), it proceeds through all that makes life pleasing, from endearing relationships and material comforts to fame, fortune, wealth, and wisdom. It asks for proper guidance from teachers, steadfastness in adversity, the courage to face difficulties, abundant spiritual knowledge of the Vedas, and the capacity to command and encourage others. It culminates by seeking the sacred duties and immortal fruits of yajnas, freedom from disease, and prolonged longevity, ending with the threefold peace chant.",
       mantras: [
         {
           devanagari: "शं च मे मयश्च मे प्रियं च मेऽनुकामश्च मे",
           text: "śaṁ ca me mayaśca me priyaṁ ca me'nukāmaśca me",
-          meaning: "May happiness be mine, may joy be mine, may that which is dear be mine, may fulfillment of desires be mine."
+          meaning: "May worldly happiness be mine, may heavenly happiness be mine, may all pleasing objects be mine, may tempting objects that fulfill desires be mine."
         },
         {
           devanagari: "कामश्च मे सौमनसश्च मे भद्रं च मे श्रेयश्च मे",
           text: "kāmaśca me saumanasaśca me bhadraṁ ca me śreyaśca me",
-          meaning: "May desire be mine, may cheerfulness be mine, may good fortune be mine, may excellence be mine."
+          meaning: "May the longing for experience in the other world be mine, may the pleasure of possessing endearing relations be mine, may progress, welfare, and wisdom be mine, may good prospects and auspicious outcomes be mine."
         },
         {
           devanagari: "वसीयश्च मे यशश्च मे भगश्च मे द्रविणं च मे",
           text: "vasīyaśca me yaśaśca me bhagaśca me draviṇaṁ ca me",
-          meaning: "May better fortune be mine, may fame be mine, may glory be mine, may wealth be mine."
+          meaning: "May comfortable dwelling places be mine, may reputation and fame be mine, may fortune and good luck be mine, may huge wealth be mine."
         },
         {
           devanagari: "यन्ता च मे धर्ता च मे क्षेमश्च मे धृतिश्च मे",
           text: "yantā ca me dhartā ca me kṣemaśca me dhṛtiśca me",
-          meaning: "May the controller be mine, may the supporter be mine, may security be mine, may firmness be mine."
+          meaning: "May proper guidance from elders and teachers be mine, may steadfastness in crucial circumstances like that of a father be mine, may the capacity to protect assets and property be mine, may courage in difficult periods be mine."
         },
         {
           devanagari: "विश्वं च मे महश्च मे संविच्च मे ज्ञात्रं च मे",
           text: "viśvaṁ ca me mahaśca me saṁvicca me jñātraṁ ca me",
-          meaning: "May the universe be mine, may greatness be mine, may knowledge be mine, may understanding be mine."
+          meaning: "May co-operation from all people be mine, may respect and glory be mine, may abundant spiritual knowledge in the Vedas be mine, may the capacity to imbibe and recollect that knowledge be mine."
         },
         {
           devanagari: "सूश्च मे प्रसूश्च मे सीरं च मे लयश्च मे",
           text: "sūśca me prasūśca me sīraṁ ca me layaśca me",
-          meaning: "May birth be mine, may procreation be mine, may the plough be mine, may dissolution be mine."
+          meaning: "May the ability to promote and command sons be mine, may the capacity to encourage and guide serving persons be mine, may the wealth of ploughs, bulls, and agricultural instruments be mine, may the power to avert hurdles and destroy resistance be mine."
         },
         {
           devanagari: "ऋतं च मेऽमृतं च मेऽयक्ष्मं च मेऽनामयच्च मे जीवातुश्च मे दीर्घायुत्वं च मे",
           text: "ṛtaṁ ca me'mṛtaṁ ca me'yakṣmaṁ ca me'nāmayacca me jīvātuśca me dīrghāyutvaṁ ca me",
-          meaning: "May cosmic order be mine, may immortality be mine, may freedom from disease be mine, may good health be mine, may livelihood be mine, may long life be mine."
+          meaning: "May the faithful performance of the duties of yajnas be mine, may the immortal fruits of those yajnas be mine, may the prevention of incurable diseases be mine, may a body devoid of all ailments be mine, may medicines that sustain life and existence be mine, may prolonged longevity be mine."
         },
         {
           devanagari: "ॐ शान्तिः शान्तिः शान्तिः",
