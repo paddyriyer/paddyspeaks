@@ -88,35 +88,32 @@
 
   // --- Render All Sections (Reading View) ---
   function renderSections() {
-    var container = document.getElementById('sections-container');
+    var namakamContainer = document.getElementById('namakam-container');
+    var chamakamContainer = document.getElementById('chamakam-container');
     var parts = getSectionsByPart();
 
-    // Controls: expand/collapse all + Devanagari toggle
-    var controlsHtml = '<div class="expand-controls">';
-    controlsHtml += '<button class="expand-btn" id="expand-all">Expand All</button>';
-    controlsHtml += '<button class="expand-btn" id="collapse-all">Collapse All</button>';
-    controlsHtml += '<button class="expand-btn" id="toggle-devanagari">Hide Devanagari</button>';
-    controlsHtml += '</div>';
+    // Controls: insert before namakam header
+    var controlsDiv = document.createElement('div');
+    controlsDiv.className = 'expand-controls';
+    controlsDiv.innerHTML = '<button class="expand-btn" id="expand-all">Expand All</button>' +
+      '<button class="expand-btn" id="collapse-all">Collapse All</button>' +
+      '<button class="expand-btn" id="toggle-devanagari">Hide Devanagari</button>';
+    var namakamHeader = document.getElementById('namakam-header');
+    namakamHeader.parentNode.insertBefore(controlsDiv, namakamHeader);
 
-    var sectionsHtml = '';
-
-    // Namakam part
-    sectionsHtml += '<div class="part-header"><h2 class="part-title">Namakam</h2>';
-    sectionsHtml += '<p class="part-subtitle">The salutation section — hymns of obeisance to Rudra</p></div>';
-
+    // Namakam sections
+    var namakamHtml = '';
     parts.namakam.forEach(function (section) {
-      sectionsHtml += buildSectionCard(section);
+      namakamHtml += buildSectionCard(section);
     });
+    namakamContainer.innerHTML = namakamHtml;
 
-    // Chamakam part
-    sectionsHtml += '<div class="part-header"><h2 class="part-title">Chamakam</h2>';
-    sectionsHtml += '<p class="part-subtitle">The supplication section — prayers requesting divine blessings</p></div>';
-
+    // Chamakam sections
+    var chamakamHtml = '';
     parts.chamakam.forEach(function (section) {
-      sectionsHtml += buildSectionCard(section);
+      chamakamHtml += buildSectionCard(section);
     });
-
-    container.innerHTML = controlsHtml + sectionsHtml;
+    chamakamContainer.innerHTML = chamakamHtml;
 
     // Expand first 2 sections by default
     for (var i = 1; i <= 2; i++) {
