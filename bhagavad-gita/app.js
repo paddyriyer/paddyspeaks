@@ -148,6 +148,7 @@
     if (!container) return;
 
     var html = '<div class="chapter-buttons">';
+    html += '<span class="chapter-buttons-label">Chapter</span>';
     for (var i = 1; i <= 18; i++) {
       var hasData = chapterHasData(i);
       var activeClass = (i === currentChapter && hasData) ? ' chapter-btn-active' : '';
