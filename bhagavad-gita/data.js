@@ -2489,10 +2489,10 @@ const BHAGAVAD_GITA_DATA = {
     }
     ,
     {
-      chapterNumber: 3,
+      chapter: 3,
       titleSanskrit: "कर्मयोगः",
       titleEnglish: "Karma Yoga",
-      titleDescription: "The Yoga of Action",
+      titleMeaning: "The Yoga of Action",
       summary: "Chapter 3 of the Bhagavad Gita, Karma Yoga, addresses Arjuna's confusion about whether knowledge or action is the superior path. Krishna explains that no one can remain without action even for a moment, as nature compels everyone to act. He teaches that selfless action performed as sacrifice (yajna) liberates, while selfish action binds. Krishna introduces the concept of loka-sangraha — acting for the welfare of the world — and uses his own example as God who continues to act despite having nothing to gain. The chapter concludes with identifying desire (kama) as the great enemy that veils knowledge, and instructs Arjuna to conquer it by knowing the Self that is beyond the intellect.",
       slokas: [
 {
