@@ -545,15 +545,42 @@
     });
   }
 
-  // --- Reading Progress Bar ---
+  // --- Reading Progress Bar & Scroll Buttons ---
   function setupProgressBar() {
+    var scrollBtns = document.getElementById('scrollButtons');
+
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       var bar = document.getElementById('progressBar');
       if (bar) bar.style.width = progress + '%';
+
+      // Show/hide floating scroll buttons
+      if (scrollBtns) {
+        if (scrollTop > 300) {
+          scrollBtns.classList.add('visible');
+        } else {
+          scrollBtns.classList.remove('visible');
+        }
+      }
     });
+
+    // Scroll to top
+    var topBtn = document.getElementById('scrollTopBtn');
+    if (topBtn) {
+      topBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    // Scroll to bottom
+    var bottomBtn = document.getElementById('scrollBottomBtn');
+    if (bottomBtn) {
+      bottomBtn.addEventListener('click', function () {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      });
+    }
   }
 
   // --- URL Hash Navigation ---
