@@ -1,0 +1,206 @@
+        {
+          chapter: 4,
+          sloka: 21,
+          devanagari: "निराशीर्यतचित्तात्मा त्यक्तसर्वपरिग्रहः ।\nशारीरं केवलं कर्म कुर्वन्नाप्नोति किल्बिषम् ॥२१॥",
+          transliteration: "nirāśīr yata-cittātmā tyakta-sarva-parigrahaḥ |\nśārīraṁ kevalaṁ karma kurvan nāpnoti kilbiṣam ||21||",
+          words: [
+            { word: "निराशीः", transliteration: "nirāśīḥ", meaning: "free from desire and expectation" },
+            { word: "यत", transliteration: "yata", meaning: "controlled" },
+            { word: "चित्तात्मा", transliteration: "cittātmā", meaning: "mind and self" },
+            { word: "त्यक्त", transliteration: "tyakta", meaning: "having abandoned" },
+            { word: "सर्व", transliteration: "sarva", meaning: "all" },
+            { word: "परिग्रहः", transliteration: "parigrahaḥ", meaning: "possessiveness; sense of ownership" },
+            { word: "शारीरम्", transliteration: "śārīram", meaning: "bodily; for the body alone" },
+            { word: "केवलम्", transliteration: "kevalam", meaning: "only" },
+            { word: "कर्म", transliteration: "karma", meaning: "action" },
+            { word: "कुर्वन्", transliteration: "kurvan", meaning: "performing" },
+            { word: "न", transliteration: "na", meaning: "not" },
+            { word: "आप्नोति", transliteration: "āpnoti", meaning: "incurs" },
+            { word: "किल्बिषम्", transliteration: "kilbiṣam", meaning: "sin; karmic reaction" }
+          ],
+          translation: "One who is free from expectations, whose mind and self are fully controlled, who has abandoned all sense of ownership, and who performs actions only for the bare maintenance of the body — such a person incurs no sin.",
+          modernInterpretation: "Imagine someone who deleted all their wishlists — Amazon, Flipkart, mental — and just does what the body needs. No hoarding, no 'add to cart at 3 AM,' no doom-scrolling for things they will never use. This person works just enough to keep the lights on and the stomach fed, not to flex on Instagram. Krishna is describing the ultimate minimalist — someone who would make Marie Kondo look like a hoarder. The secret? When you stop collecting things and expectations, karma stops collecting YOU."
+        },
+        {
+          chapter: 4,
+          sloka: 22,
+          devanagari: "यदृच्छालाभसन्तुष्टो द्वन्द्वातीतो विमत्सरः ।\nसमः सिद्धावसिद्धौ च कृत्वापि न निबध्यते ॥२२॥",
+          transliteration: "yadṛcchā-lābha-santuṣṭo dvandvātīto vimatsaraḥ |\nsamaḥ siddhāv asiddhau ca kṛtvāpi na nibadhyate ||22||",
+          words: [
+            { word: "यदृच्छा", transliteration: "yadṛcchā", meaning: "of its own accord; whatever comes" },
+            { word: "लाभ", transliteration: "lābha", meaning: "gain" },
+            { word: "सन्तुष्टः", transliteration: "santuṣṭaḥ", meaning: "satisfied; content" },
+            { word: "द्वन्द्वातीतः", transliteration: "dvandvātītaḥ", meaning: "beyond the pairs of opposites" },
+            { word: "विमत्सरः", transliteration: "vimatsaraḥ", meaning: "free from envy" },
+            { word: "समः", transliteration: "samaḥ", meaning: "equal; balanced" },
+            { word: "सिद्धौ", transliteration: "siddhau", meaning: "in success" },
+            { word: "असिद्धौ", transliteration: "asiddhau", meaning: "in failure" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "कृत्वा", transliteration: "kṛtvā", meaning: "having done" },
+            { word: "अपि", transliteration: "api", meaning: "even" },
+            { word: "न", transliteration: "na", meaning: "not" },
+            { word: "निबध्यते", transliteration: "nibadhyate", meaning: "is bound" }
+          ],
+          translation: "Content with whatever comes of its own accord, free from the pairs of opposites, free from envy, and equal in success and failure — such a person, even while acting, is never bound by karma.",
+          modernInterpretation: "This is the person who checks their startup's metrics and says 'interesting' whether they are up 200% or down 50%. No celebratory reels when things go well, no crying-in-the-shower stories when they fail. They do not stalk their ex's new partner on Instagram, do not compare their salary with college batchmates, and do not care if their LinkedIn post got 3 likes or 3000. Krishna is basically describing someone who has achieved what therapy, stoicism, and ten silent retreats promise but rarely deliver — genuine inner chill."
+        },
+        {
+          chapter: 4,
+          sloka: 23,
+          devanagari: "गतसङ्गस्य मुक्तस्य ज्ञानावस्थितचेतसः ।\nयज्ञायाचरतः कर्म समग्रं प्रविलीयते ॥२३॥",
+          transliteration: "gata-saṅgasya muktasya jñānāvasthita-cetasaḥ |\nyajñāyācarataḥ karma samagraṁ pravilīyate ||23||",
+          words: [
+            { word: "गतसङ्गस्य", transliteration: "gata-saṅgasya", meaning: "of one free from attachment" },
+            { word: "मुक्तस्य", transliteration: "muktasya", meaning: "of the liberated" },
+            { word: "ज्ञान", transliteration: "jñāna", meaning: "in knowledge" },
+            { word: "अवस्थित", transliteration: "avasthita", meaning: "established" },
+            { word: "चेतसः", transliteration: "cetasaḥ", meaning: "whose mind" },
+            { word: "यज्ञाय", transliteration: "yajñāya", meaning: "for the sake of sacrifice" },
+            { word: "आचरतः", transliteration: "ācarataḥ", meaning: "of one who acts" },
+            { word: "कर्म", transliteration: "karma", meaning: "action; work" },
+            { word: "समग्रम्", transliteration: "samagram", meaning: "entirely" },
+            { word: "प्रविलीयते", transliteration: "pravilīyate", meaning: "dissolves completely" }
+          ],
+          translation: "For one who is free from attachment, who is liberated, whose mind is established in knowledge, and who acts only as a sacrifice — all karma dissolves entirely.",
+          modernInterpretation: "Imagine writing code all day but having zero attachment to whether the client accepts the PR or not. You just write it as an offering — not for the appraisal, not for the promotion, not to prove something to your college rival who is now at Google. When you work like it is a puja and not a transaction, the karmic bill simply vanishes. It is like Krishna invented the spiritual version of 'clear browsing history' — except this one actually clears EVERYTHING."
+        },
+        {
+          chapter: 4,
+          sloka: 24,
+          devanagari: "ब्रह्मार्पणं ब्रह्म हविर्ब्रह्माग्नौ ब्रह्मणा हुतम् ।\nब्रह्मैव तेन गन्तव्यं ब्रह्मकर्मसमाधिना ॥२४॥",
+          transliteration: "brahmārpaṇaṁ brahma havir brahmāgnau brahmaṇā hutam |\nbrahmaiva tena gantavyaṁ brahma-karma-samādhinā ||24||",
+          words: [
+            { word: "ब्रह्म", transliteration: "brahma", meaning: "Brahman (the Absolute)" },
+            { word: "अर्पणम्", transliteration: "arpaṇam", meaning: "the offering instrument (ladle)" },
+            { word: "ब्रह्म", transliteration: "brahma", meaning: "Brahman" },
+            { word: "हविः", transliteration: "haviḥ", meaning: "the oblation" },
+            { word: "ब्रह्माग्नौ", transliteration: "brahmāgnau", meaning: "in the fire of Brahman" },
+            { word: "ब्रह्मणा", transliteration: "brahmaṇā", meaning: "by Brahman" },
+            { word: "हुतम्", transliteration: "hutam", meaning: "offered" },
+            { word: "ब्रह्म", transliteration: "brahma", meaning: "Brahman" },
+            { word: "एव", transliteration: "eva", meaning: "indeed; certainly" },
+            { word: "तेन", transliteration: "tena", meaning: "by that person" },
+            { word: "गन्तव्यम्", transliteration: "gantavyam", meaning: "to be reached" },
+            { word: "ब्रह्मकर्मसमाधिना", transliteration: "brahma-karma-samādhinā", meaning: "by one absorbed in Brahman through action" }
+          ],
+          translation: "The act of offering is Brahman, the oblation is Brahman, offered by Brahman into the fire of Brahman. Brahman alone is to be reached by one who sees Brahman in every action.",
+          modernInterpretation: "This is the verse your grandmother chants before meals — and it is arguably the most mind-bending verse in the entire Gita. Krishna says: the spoon is God, the ghee is God, the fire is God, the person pouring is God, and where it is all going is also God. It is like opening a startup and realizing the founder, the investor, the product, the customer, and the market are all the same person. Everything is Brahman wearing different costumes. The next time you eat, remember — you are not just having lunch. The universe is feeding itself to itself. Let that sink in with your dal chawal."
+        },
+        {
+          chapter: 4,
+          sloka: 25,
+          devanagari: "दैवमेवापरे यज्ञं योगिनः पर्युपासते ।\nब्रह्माग्नावपरे यज्ञं यज्ञेनैवोपजुह्वति ॥२५॥",
+          transliteration: "daivam evāpare yajñaṁ yoginaḥ paryupāsate |\nbrahmāgnāv apare yajñaṁ yajñenaivopajuhvati ||25||",
+          words: [
+            { word: "दैवम्", transliteration: "daivam", meaning: "to the devas; worship of gods" },
+            { word: "एव", transliteration: "eva", meaning: "alone; indeed" },
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "यज्ञम्", transliteration: "yajñam", meaning: "sacrifice" },
+            { word: "योगिनः", transliteration: "yoginaḥ", meaning: "yogis" },
+            { word: "पर्युपासते", transliteration: "paryupāsate", meaning: "worship; perform" },
+            { word: "ब्रह्माग्नौ", transliteration: "brahmāgnau", meaning: "in the fire of Brahman" },
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "यज्ञेन", transliteration: "yajñena", meaning: "by sacrifice itself" },
+            { word: "एव", transliteration: "eva", meaning: "indeed" },
+            { word: "उपजुह्वति", transliteration: "upajuhvati", meaning: "offer" }
+          ],
+          translation: "Some yogis perform sacrifice by worshipping the gods alone; others offer the sacrifice itself as an oblation into the fire of Brahman.",
+          modernInterpretation: "Krishna starts listing the different types of spiritual practitioners like a Zomato menu of sacrifices. Option A: worship the devas — the classic temple-visit-and-prasad route. Option B: offer the very act of sacrifice into the fire of the Absolute — which is like using the app to rate the app itself. Some people do rituals to please gods. Others have figured out that the entire act of devotion IS the destination. It is the difference between ordering food for the taste and ordering food because the act of eating itself is sacred."
+        },
+        {
+          chapter: 4,
+          sloka: 26,
+          devanagari: "श्रोत्रादीनीन्द्रियाण्यन्ये संयमाग्निषु जुह्वति ।\nशब्दादीन्विषयानन्ये इन्द्रियाग्निषु जुह्वति ॥२६॥",
+          transliteration: "śrotrādīnīndriyāṇy anye saṁyamāgniṣu juhvati |\nśabdādīn viṣayān anye indriyāgniṣu juhvati ||26||",
+          words: [
+            { word: "श्रोत्रादीनि", transliteration: "śrotrādīni", meaning: "hearing and other" },
+            { word: "इन्द्रियाणि", transliteration: "indriyāṇi", meaning: "senses" },
+            { word: "अन्ये", transliteration: "anye", meaning: "others" },
+            { word: "संयम", transliteration: "saṁyama", meaning: "restraint; self-control" },
+            { word: "अग्निषु", transliteration: "agniṣu", meaning: "in the fires" },
+            { word: "जुह्वति", transliteration: "juhvati", meaning: "offer as oblation" },
+            { word: "शब्दादीन्", transliteration: "śabdādīn", meaning: "sound and other" },
+            { word: "विषयान्", transliteration: "viṣayān", meaning: "sense objects" },
+            { word: "इन्द्रियाग्निषु", transliteration: "indriyāgniṣu", meaning: "in the fires of the senses" }
+          ],
+          translation: "Some offer the senses such as hearing into the fires of self-restraint; others offer sense objects such as sound into the fires of the senses.",
+          modernInterpretation: "Two types of people at a buffet. Type 1: burns the desire itself — they see the gulab jamun and sacrifice the craving. They uninstall Instagram, delete Netflix, put the phone on DND. They sacrifice the senses into the fire of discipline. Type 2: they engage with the world fully but consciously — they watch the Netflix show but offer the experience itself as a sacred act, fully present, no mindless scrolling. One controls the input. The other sanctifies the output. Both are valid spiritual hacks."
+        },
+        {
+          chapter: 4,
+          sloka: 27,
+          devanagari: "सर्वाणीन्द्रियकर्माणि प्राणकर्माणि चापरे ।\nआत्मसंयमयोगाग्नौ जुह्वति ज्ञानदीपिते ॥२७॥",
+          transliteration: "sarvāṇīndriya-karmāṇi prāṇa-karmāṇi cāpare |\nātma-saṁyama-yogāgnau juhvati jñāna-dīpite ||27||",
+          words: [
+            { word: "सर्वाणि", transliteration: "sarvāṇi", meaning: "all" },
+            { word: "इन्द्रियकर्माणि", transliteration: "indriya-karmāṇi", meaning: "functions of the senses" },
+            { word: "प्राणकर्माणि", transliteration: "prāṇa-karmāṇi", meaning: "functions of the life-breath" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "आत्मसंयमयोगाग्नौ", transliteration: "ātma-saṁyama-yogāgnau", meaning: "in the fire of the yoga of self-restraint" },
+            { word: "जुह्वति", transliteration: "juhvati", meaning: "offer" },
+            { word: "ज्ञानदीपिते", transliteration: "jñāna-dīpite", meaning: "kindled by knowledge" }
+          ],
+          translation: "Others offer all the functions of the senses and the functions of the life-breath into the fire of the yoga of self-restraint, kindled by knowledge.",
+          modernInterpretation: "This is the ultimate system shutdown. Not just closing one app — closing ALL apps, all background processes, all notifications, all breath patterns — and offering them into the fire of self-mastery, lit by the flame of true knowledge. This is not your average digital detox weekend. This is someone who has taken every bodily function — seeing, hearing, breathing — and turned it into a conscious offering. It is like converting your entire operating system from Windows to something divine. The firewall is knowledge. The antivirus is self-discipline. Nothing runs without permission."
+        },
+        {
+          chapter: 4,
+          sloka: 28,
+          devanagari: "द्रव्ययज्ञास्तपोयज्ञा योगयज्ञास्तथापरे ।\nस्वाध्यायज्ञानयज्ञाश्च यतयः संशितव्रताः ॥२८॥",
+          transliteration: "dravya-yajñās tapo-yajñā yoga-yajñās tathāpare |\nsvādhyāya-jñāna-yajñāś ca yatayaḥ saṁśita-vratāḥ ||28||",
+          words: [
+            { word: "द्रव्ययज्ञाः", transliteration: "dravya-yajñāḥ", meaning: "sacrifice of material possessions" },
+            { word: "तपोयज्ञाः", transliteration: "tapo-yajñāḥ", meaning: "sacrifice through austerity" },
+            { word: "योगयज्ञाः", transliteration: "yoga-yajñāḥ", meaning: "sacrifice through yoga" },
+            { word: "तथा", transliteration: "tathā", meaning: "also; likewise" },
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "स्वाध्याय", transliteration: "svādhyāya", meaning: "study of scriptures; self-study" },
+            { word: "ज्ञानयज्ञाः", transliteration: "jñāna-yajñāḥ", meaning: "sacrifice of knowledge" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "यतयः", transliteration: "yatayaḥ", meaning: "ascetics; those who strive" },
+            { word: "संशितव्रताः", transliteration: "saṁśita-vratāḥ", meaning: "of strict vows" }
+          ],
+          translation: "Some offer their wealth as sacrifice, some offer austerity, some offer yoga, and others — ascetics of strict vows — offer self-study and knowledge as their sacrifice.",
+          modernInterpretation: "Krishna is basically listing every spiritual subscription plan available. Tier 1: Donate money — the charity gala crowd, the CSR budget people. Tier 2: Hardcore discipline — the ones doing cold showers, intermittent fasting, and waking up at 4 AM. Tier 3: Yoga practitioners — not just the Instagram-pose types, real inner union. Tier 4: The nerds — people who sacrifice through relentless study, reading scriptures like others binge podcasts. And all of them have strict vows — no cheat days. Krishna says there is no one-size-fits-all path. Pick your subscription. Just stay consistent."
+        },
+        {
+          chapter: 4,
+          sloka: 29,
+          devanagari: "अपाने जुह्वति प्राणं प्राणेऽपानं तथापरे ।\nप्राणापानगती रुद्ध्वा प्राणायामपरायणाः ॥२९॥",
+          transliteration: "apāne juhvati prāṇaṁ prāṇe 'pānaṁ tathāpare |\nprāṇāpāna-gatī ruddhvā prāṇāyāma-parāyaṇāḥ ||29||",
+          words: [
+            { word: "अपाने", transliteration: "apāne", meaning: "in the outgoing breath" },
+            { word: "जुह्वति", transliteration: "juhvati", meaning: "offer" },
+            { word: "प्राणम्", transliteration: "prāṇam", meaning: "the incoming breath" },
+            { word: "प्राणे", transliteration: "prāṇe", meaning: "in the incoming breath" },
+            { word: "अपानम्", transliteration: "apānam", meaning: "the outgoing breath" },
+            { word: "तथा", transliteration: "tathā", meaning: "also" },
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "प्राणापानगती", transliteration: "prāṇāpāna-gatī", meaning: "the movement of incoming and outgoing breath" },
+            { word: "रुद्ध्वा", transliteration: "ruddhvā", meaning: "having restrained; stopping" },
+            { word: "प्राणायामपरायणाः", transliteration: "prāṇāyāma-parāyaṇāḥ", meaning: "devoted to breath control (pranayama)" }
+          ],
+          translation: "Still others offer the outgoing breath into the incoming breath, and the incoming breath into the outgoing breath, restraining the movement of both — devoted to the practice of pranayama (breath control).",
+          modernInterpretation: "Before breathwork became a Silicon Valley biohacking trend and Wim Hof became a YouTube sensation, Krishna was already talking about pranayama as a form of sacrifice. Offering the inhale into the exhale and vice versa — it sounds like a riddle, but it is actually the most intimate yajna possible. You are using your own breath as both the offering and the fire. No temple needed. No priest needed. No Amazon order for pooja samagri. Your lungs are the havan kund. Your awareness is the ghee. The OG breathwork coach was not Dutch — he was from Vrindavan."
+        },
+        {
+          chapter: 4,
+          sloka: 30,
+          devanagari: "अपरे नियताहाराः प्राणान्प्राणेषु जुह्वति ।\nसर्वेऽप्येते यज्ञविदो यज्ञक्षपितकल्मषाः ॥३०॥",
+          transliteration: "apare niyatāhārāḥ prāṇān prāṇeṣu juhvati |\nsarve 'py ete yajña-vido yajña-kṣapita-kalmaṣāḥ ||30||",
+          words: [
+            { word: "अपरे", transliteration: "apare", meaning: "others" },
+            { word: "नियताहाराः", transliteration: "niyatāhārāḥ", meaning: "those who regulate their food intake" },
+            { word: "प्राणान्", transliteration: "prāṇān", meaning: "the life-breaths" },
+            { word: "प्राणेषु", transliteration: "prāṇeṣu", meaning: "into the life-breaths" },
+            { word: "जुह्वति", transliteration: "juhvati", meaning: "offer" },
+            { word: "सर्वे", transliteration: "sarve", meaning: "all" },
+            { word: "अपि", transliteration: "api", meaning: "also" },
+            { word: "एते", transliteration: "ete", meaning: "these" },
+            { word: "यज्ञविदः", transliteration: "yajña-vidaḥ", meaning: "knowers of sacrifice" },
+            { word: "यज्ञक्षपितकल्मषाः", transliteration: "yajña-kṣapita-kalmaṣāḥ", meaning: "whose sins are destroyed by sacrifice" }
+          ],
+          translation: "Others, who regulate their diet, offer the life-breaths into the life-breaths. All of these are knowers of sacrifice, and their sins are destroyed through sacrifice.",
+          modernInterpretation: "And finally, the intermittent fasting crowd gets a shoutout — those who control what and how much they eat as a form of sacrifice. But here is the punchline of this whole section: Krishna says ALL of them — the donors, the yogis, the breath-controllers, the fasters, the scholars — they are ALL valid. No one path gets a gold medal. Whether you sacrifice money, comfort, food, breath, or ego — if done with awareness, it burns away your karmic debt. It is the spiritual version of 'all roads lead to Rome,' except here, all yajnas lead to freedom. Pick one. Commit. The fire will do the rest."
+        },
