@@ -358,8 +358,8 @@
   // --- Show a specific view ---
   function showView(viewName) {
     var views = {
-      map: 'dashaka-grid',
-      reading: 'dashaka-detail',
+      map: 'map-view',
+      reading: 'reading-view',
       search: 'search-view'
     };
 
