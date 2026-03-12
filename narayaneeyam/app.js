@@ -357,44 +357,21 @@
 
   // --- Show a specific view ---
   function showView(viewName) {
-    var views = {
-      map: 'map-view',
-      reading: 'reading-view',
-      search: 'search-view'
-    };
-
     // Update nav buttons
-    var buttons = document.querySelectorAll('[data-view]');
-    buttons.forEach(function (btn) {
-      var bv = btn.getAttribute('data-view');
-      if (bv === viewName) {
+    document.querySelectorAll('.nav-btn').forEach(function (btn) {
+      if (btn.getAttribute('data-view') === viewName) {
         btn.classList.add('active');
       } else {
         btn.classList.remove('active');
       }
     });
 
-    // Show/hide views with fade
-    Object.keys(views).forEach(function (key) {
-      var el = document.getElementById(views[key]);
-      if (!el) return;
-      if (key === viewName) {
-        el.style.display = '';
-        el.classList.add('view-active');
-        el.classList.remove('view-hidden');
-      } else {
-        el.classList.remove('view-active');
-        el.classList.add('view-hidden');
-        // Delay hiding to allow fade out
-        (function (element) {
-          setTimeout(function () {
-            if (element.classList.contains('view-hidden')) {
-              element.style.display = 'none';
-            }
-          }, 300);
-        })(el);
-      }
+    // Toggle view sections via CSS (.view/.active)
+    document.querySelectorAll('.view').forEach(function (v) {
+      v.classList.remove('active');
     });
+    var target = document.getElementById(viewName + '-view');
+    if (target) target.classList.add('active');
 
     // Re-render grid when returning to map view
     if (viewName === 'map') {
