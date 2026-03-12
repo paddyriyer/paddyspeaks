@@ -1238,7 +1238,171 @@ var NARAYANEEYAM_DATA = {
       theme: "prayer",
       verseCount: 10,
       summary: "The climactic final dashaka where Bhattathiri, cured of his paralysis, beholds a radiant vision of the Lord and describes His form from head (kesha) to foot (pada). Ends with the famous verse declaring the Lord's complete beauty.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 100,
+          sloka: 1,
+          devanagari: "अग्रे पश्यामि तेजो निबिडतरकलायावलीलोभनीयं\nपीयूषाप्लावितोऽहं तदनु तदुदरे दिव्यकैशोरवेषम् ।\nतारुण्यारम्भरम्यं परमसुखरसास्वादरोमाञ्चिताङ्गै-\nरावीतं नारदाद्यैर्विलसदुपनिषत्सुन्दरीमण्डलैश्च ॥",
+          transliteration: "agre paśyāmi tejo nibiḍatarakalāyāvalīlobhanīyaṃ\npīyūṣāplāvito'haṃ tadanu tadudate divyakaiśoraveṣam |\ntāruṇyārambharamyaṃ paramasukharasāsvādaromāñcitāṅgai-\nrāvītaṃ nāradādyairvilasadupaniṣatsundarīmaṇḍalaiśca ||",
+          translation: "Before me I behold a radiant effulgence, enchanting with dense clusters of divine rays. Immersed in that nectar-like glow, I then perceive within it a divine youthful form, charming with the onset of adolescence, surrounded by Narada and other sages whose limbs are thrilled with the ecstasy of supreme bliss, and by the shining assembly of Upanishadic beauties (personified Upanishads).",
+          commentary: "The opening verse sets the scene: Bhattathiri, cured of his paralysis by divine grace at Guruvayur, beholds a brilliant effulgence that resolves into the enchanting youthful form of Lord Krishna. The Upanishads are personified as beautiful maidens attending the Lord, signifying that the Vedantic truth is this very form.",
+          words: [
+            { word: "अग्रे", transliteration: "agre", meaning: "before me, in front" },
+            { word: "तेजः", transliteration: "tejaḥ", meaning: "radiance, effulgence" },
+            { word: "पीयूष", transliteration: "pīyūṣa", meaning: "nectar, ambrosia" },
+            { word: "कैशोरवेषम्", transliteration: "kaiśoraveṣam", meaning: "youthful form (in adolescent attire)" },
+            { word: "तारुण्यारम्भरम्यं", transliteration: "tāruṇyārambharamyaṃ", meaning: "charming with the onset of youth" },
+            { word: "उपनिषत्सुन्दरी", transliteration: "upaniṣatsundarī", meaning: "Upanishadic beauties (personified Upanishads)" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 2,
+          devanagari: "कालाम्भोदालिकल्पं कलितललितकैर्भूषणैर्भूषिताङ्गं\nकेयूरैर्हारकौस्तुभमणिमकुटैः कुण्डलैर्मेखलाद्यैः ।\nचूडारत्नं ललाटे विमलमणिलसत्कुण्डलं गण्डलोले\nस्निग्धश्यामाभिरामं विदधदतितरां हारमालाविभूषम् ॥",
+          transliteration: "kālāmbhodālikalpam kalitalalitakairbhūṣaṇairbhūṣitāṅgaṃ\nkeyūrairhārakaustubhamaṇimakuṭaiḥ kuṇḍalairmekhalādyaiḥ |\ncūḍāratnaṃ lalāṭe vimalamaṇilasatkuṇḍalaṃ gaṇḍalole\nsnigdhaśyāmābhirāmaṃ vidadhadatitarāṃ hāramālāvibhūṣam ||",
+          translation: "His form, dark like a row of fresh rain clouds, is adorned with beautiful ornaments — armlets, necklaces, the Kaustubha gem, a crown, ear-rings, and a girdle. A crest-jewel shines on His forehead, lustrous ear-rings dangle on His cheeks, His complexion is a captivating glossy dark hue, and He is magnificently decorated with garlands and chains of jewels.",
+          commentary: "This verse gives an overview of the Lord's ornaments and complexion. The dark-cloud complexion (shyama) is the hallmark of Lord Guruvayurappan (Krishna). The Kaustubha gem and other ornaments are the eternal adornments of Vishnu, each carrying symbolic significance.",
+          words: [
+            { word: "कालाम्भोद", transliteration: "kālāmbhoda", meaning: "dark rain cloud" },
+            { word: "भूषणैः", transliteration: "bhūṣaṇaiḥ", meaning: "with ornaments" },
+            { word: "कौस्तुभमणि", transliteration: "kaustubhamaṇi", meaning: "Kaustubha gem" },
+            { word: "मकुटैः", transliteration: "makuṭaiḥ", meaning: "with crown(s)" },
+            { word: "कुण्डलं", transliteration: "kuṇḍalaṃ", meaning: "ear-ring" },
+            { word: "श्यामाभिरामं", transliteration: "śyāmābhirāmaṃ", meaning: "beautiful dark-hued" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 3,
+          devanagari: "केशेषु प्रस्फुरद्भिः किरणनिकरैः केतकीदामभूषे\nकर्णामृष्टामलाभ्यां कनकमणिमयाभ्यां ललत्कुण्डलाभ्याम् ।\nप्रोद्भासिप्रोल्लसद्भ्रूललितविलसिताकारसम्बद्धनासा-\nमौक्तिकं वक्त्रपद्मं विमलतरमहो कृष्ण ते पश्यतो मे ॥",
+          transliteration: "keśeṣu prasphurad bhiḥ kiraṇanikaraiḥ ketakīdāmabhūṣe\nkarṇāmṛṣṭāmalābhyāṃ kanakamaṇimayābhyāṃ lalatkuṇḍalābhyām |\nprodbhāsiprollasadbhrūlalitavilasitākārasambaddhanāsā-\nmauktikaṃ vaktrapadmaṃ vimalataramaho kṛṣṇa te paśyato me ||",
+          translation: "O Krishna! I behold Thy hair, radiant with beams of light, adorned with garlands of ketaki flowers; Thy ears graced by swinging ear-rings made of gold and gems; Thy eyebrows gleaming brightly and playing gracefully; Thy nose adorned with a pearl; Thy lotus-face of utmost purity — all this I now behold!",
+          commentary: "The poet begins the systematic head-to-toe description. Starting with the hair (kesha) — the namesake of this dashaka — he moves to the ears, eyebrows, nose, and face. The ketaki (screw-pine) flower garland in the hair is a distinctive adornment of the Guruvayurappan deity.",
+          words: [
+            { word: "केशेषु", transliteration: "keśeṣu", meaning: "in/on the hair" },
+            { word: "केतकीदाम", transliteration: "ketakīdāma", meaning: "garland of ketaki flowers" },
+            { word: "कुण्डलाभ्याम्", transliteration: "kuṇḍalābhyām", meaning: "with the two ear-rings" },
+            { word: "भ्रू", transliteration: "bhrū", meaning: "eyebrow" },
+            { word: "नासामौक्तिकं", transliteration: "nāsāmauktikaṃ", meaning: "nose-pearl (nose ornament)" },
+            { word: "वक्त्रपद्मं", transliteration: "vaktrapadmaṃ", meaning: "lotus-face" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 4,
+          devanagari: "प्रोद्भासिप्रोल्लसन्मन्दहसितमधुरं पूरयन्तं मुखेन्दुं\nबिम्बाधारौष्ठशोभातिशयरसकरं कुन्दमन्दस्मिताढ्यम् ।\nचक्षुर्भ्यां सम्भ्रमेण प्रथममनुपमं तत्पदं प्रेक्षमाणो\nवक्त्रामृष्टारविन्दप्रतिनिधिनयने कृष्ण ते पश्यतो मे ॥",
+          transliteration: "prodbhāsiprollasanmandahasitamadhuraṃ pūrayantaṃ mukhendum\nbimbādhārauṣṭhaśobhātiśayarasakaraṃ kundamandasmitāḍhyam |\ncakṣurbhyāṃ sambhrameṇa prathamamanupamaṃ tatpadaṃ prekṣamāṇo\nvaktrāmṛṣṭāravindapratinidhiinayane kṛṣṇa te paśyato me ||",
+          translation: "O Krishna! I behold Thy moon-like face filled with a softly radiant, gently smiling sweetness; Thy lips, beautiful as bimba fruits, exuding exquisite charm; Thy smile as lovely as jasmine buds. With eager eyes I gaze first upon that incomparable countenance, with eyes that rival freshly touched lotuses.",
+          commentary: "The poet dwells on the Lord's face — the gentle smile, the bimba-red lips, and the lotus-like eyes. The comparison of the face to the moon (mukhendu) and lips to bimba fruit are classic conventions of Sanskrit devotional poetry. The poet's eagerness to drink in every detail reflects his overwhelming devotion.",
+          words: [
+            { word: "मन्दहसित", transliteration: "mandahasita", meaning: "gentle smile" },
+            { word: "मुखेन्दुं", transliteration: "mukhendum", meaning: "moon-like face" },
+            { word: "बिम्बाधर", transliteration: "bimbādhara", meaning: "bimba-fruit-like lips" },
+            { word: "कुन्दमन्दस्मित", transliteration: "kundamandasmita", meaning: "jasmine-like gentle smile" },
+            { word: "अरविन्द", transliteration: "aravinda", meaning: "lotus" },
+            { word: "नयने", transliteration: "nayane", meaning: "eyes" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 5,
+          devanagari: "तत्ते सत्कम्बुकण्ठं त्रिवलिललितं बाहुचित्रं विभूषो-\nर्बाहून् गोपालबालं दधदथ बलिभान्मूलतो बाहुयुग्मम् ।\nउत्तुङ्गाशेषपीनांसयुगलविलसत्कम्बुबाहुं दधाने\nपश्यामि त्वां समन्तादनुपमवपुषं कृष्ण चेतो हरन्तम् ॥",
+          transliteration: "tatte satkambukaṇṭhaṃ trivalilalitaṃ bāhucitraṃ vibhūṣo-\nrbāhūn gopālabālaṃ dadhadatha balibhānmūlato bāhuyugmam |\nuttuṅgāśeṣapīnāṃsayugalavilasatkambubāhuṃ dadhāne\npaśyāmi tvāṃ samantādanupamavapuṣaṃ kṛṣṇa ceto harantam ||",
+          translation: "O Krishna! I behold Thy neck, beautiful as a conch, with three graceful folds; Thy wonderful arms with ornaments; Thy arms holding the cowherd-boy's charm; Thy pair of mighty arms from the powerful shoulders — broad, elevated, and muscular shoulders with conch-like arms. I see Thee on all sides, with Thy incomparable form that steals the heart!",
+          commentary: "The description moves to the neck, shoulders, and arms. The conch-like neck (kambukaṇṭha) with three lines is a mark of divine beauty (trivali). The reference to the cowherd boy (gopālabāla) reminds us this is Krishna of Guruvayur, while the mighty arms evoke the cosmic Vishnu.",
+          words: [
+            { word: "कम्बुकण्ठं", transliteration: "kambukaṇṭhaṃ", meaning: "conch-like neck" },
+            { word: "त्रिवलि", transliteration: "trivali", meaning: "three folds/lines on the neck" },
+            { word: "बाहु", transliteration: "bāhu", meaning: "arms" },
+            { word: "गोपालबालं", transliteration: "gopālabālaṃ", meaning: "cowherd boy (Krishna)" },
+            { word: "अंस", transliteration: "aṃsa", meaning: "shoulders" },
+            { word: "चेतो हरन्तम्", transliteration: "ceto harantam", meaning: "stealing the heart/mind" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 6,
+          devanagari: "तत्ते श्रीवत्सरम्यं तरलतरमणिग्रैवेयाढ्यं पवित्रं\nहारैश्चोदारकान्तैरतुलमिह लसत्कौस्तुभं वक्षसि श्रीः ।\nमध्ये नानाविलासैः स्तनभरनमिताङ्गी विभान्ती विशालं\nवक्षस्ते कृष्ण तस्यां दयितपदवने चित्तभृङ्गो लुठामि ॥",
+          transliteration: "tatte śrīvatsaramyaṃ taralataramaṇigraiveyāḍhyaṃ pavitraṃ\nhāraiścodārakāntairatulam iha lasatkaustubhaṃ vakṣasi śrīḥ |\nmadhye nānāvilāsaiḥ stanabharanamitāṅgī vibhāntī viśālaṃ\nvakṣaste kṛṣṇa tasyāṃ dayitapadavane cittabhṛṅgo luṭhāmi ||",
+          translation: "O Krishna! Thy chest is beautiful with the Srivatsa mark, adorned with sparkling gem-necklaces, sanctified, incomparably resplendent with the Kaustubha gem. Goddess Lakshmi (Sri) shines there amidst varied graceful poses, Her body slightly bent with the weight of Her bosom. On Thy broad chest, the beloved's abode, my mind-bee rolls about in ecstasy!",
+          commentary: "The Lord's chest bears the Srivatsa mark and Kaustubha gem — the eternal symbols of Vishnu. Goddess Lakshmi eternally resides on His chest. The poet uses the beautiful metaphor of his mind being a bee (bhṛṅga) that tumbles about in the garden of the Lord's chest, intoxicated with devotion.",
+          words: [
+            { word: "श्रीवत्स", transliteration: "śrīvatsa", meaning: "the auspicious mark on Vishnu's chest" },
+            { word: "कौस्तुभं", transliteration: "kaustubhaṃ", meaning: "Kaustubha gem" },
+            { word: "वक्षसि", transliteration: "vakṣasi", meaning: "on the chest" },
+            { word: "श्रीः", transliteration: "śrīḥ", meaning: "Goddess Lakshmi" },
+            { word: "चित्तभृङ्गः", transliteration: "cittabhṛṅgaḥ", meaning: "mind-bee (mind compared to a bee)" },
+            { word: "लुठामि", transliteration: "luṭhāmi", meaning: "I roll about (in bliss)" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 7,
+          devanagari: "शङ्खं चक्रं सरोजं गदमपि दधतं भुजचतुष्टयेन\nपीताम्बर्याञ्चिताङ्गं मणिनिचयमयं कुण्डलं कर्णपाशे ।\nकाञ्चीनूपुरकान्तं कटकवलयिनं दिव्यकेयूरभूषं\nनानारत्नोज्ज्वलाङ्गं त्वामिह भगवतः पश्यतो मे प्रकाशम् ॥",
+          transliteration: "śaṅkhaṃ cakraṃ sarojaṃ gadamapi dadhataṃ bhujacatuṣṭayena\npītāmbaryāñcitāṅgaṃ maṇinicayamayaṃ kuṇḍalaṃ karṇapāśe |\nkāñcīnūpurakāntaṃ kaṭakavalayinaṃ divyakeyūrabhūṣaṃ\nnānaratnojjvalāṅgaṃ tvāmiha bhagavataḥ paśyato me prakāśam ||",
+          translation: "O Lord! I behold Thee holding the conch, discus, lotus, and mace in Thy four arms; Thy form draped in yellow silk garments; gem-studded ear-rings at Thy ear-lobes; resplendent with waist-belt and anklets, bracelets on Thy wrists, divine armlets — Thy entire body blazing with diverse precious gems, manifesting before me in full radiance!",
+          commentary: "This verse presents the iconic four-armed Vishnu form with the four characteristic attributes: shankha (conch), chakra (discus), padma (lotus), and gada (mace). The yellow garment (pitambara) is the hallmark of both Vishnu and Krishna. Every part of the body is adorned with gems.",
+          words: [
+            { word: "शङ्खं", transliteration: "śaṅkhaṃ", meaning: "conch (Panchajanya)" },
+            { word: "चक्रं", transliteration: "cakraṃ", meaning: "discus (Sudarshana)" },
+            { word: "सरोजं", transliteration: "sarojaṃ", meaning: "lotus" },
+            { word: "गदम्", transliteration: "gadam", meaning: "mace (Kaumodaki)" },
+            { word: "पीताम्बर", transliteration: "pītāmbara", meaning: "yellow silk garment" },
+            { word: "काञ्ची", transliteration: "kāñcī", meaning: "waist-belt, girdle" },
+            { word: "नूपुर", transliteration: "nūpura", meaning: "anklets" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 8,
+          devanagari: "मञ्जुश्रोणीतटे लम्बकनकवसनं हेमसूत्रावलम्बि\nकाञ्चीदामोद्गमश्रीदमनकमनसे मेखलाभिर्विराजत् ।\nमन्दारस्रग्विलासद्वनमालिकयुतं कौस्तुभस्यापि देवे\nसन्दर्शं तन्वतेऽस्मिन्दशकगणपतौ वायुगेहे तदीक्षे ॥",
+          transliteration: "mañjuśroṇītaṭe lambakanakvasanaṃ hemasūtrāvalambi\nkāñcīdāmodgamaśrīdamanakamanese mekhalābhirvirājat |\nmandārasragvilāsadvanamālikāyutaṃ kaustubhasyāpi deve\nsandarśaṃ tanvate'smindaśakagaṇapatau vāyugehe tadīkṣe ||",
+          translation: "On His beautiful hips hangs a golden garment supported by golden threads, radiant with girdle-chains that delight the mind with their beauty like damana flowers. He wears the forest-garland (vanamala) swaying with mandara flowers. In this Lord of Guruvayur (the Wind-God's temple), even the Kaustubha gem displays itself anew — I behold all this!",
+          commentary: "The poet describes the waist region — the golden pitambara cloth, the jeweled girdle, and the famous vanamala (forest garland) that reaches down to the knees. The reference to Vayugehe (the temple of the Wind-God, i.e., Guruvayur) anchors this vision to the specific deity and place.",
+          words: [
+            { word: "श्रोणी", transliteration: "śroṇī", meaning: "hips, waist" },
+            { word: "कनकवसनं", transliteration: "kanakvasanaṃ", meaning: "golden garment" },
+            { word: "मेखला", transliteration: "mekhalā", meaning: "girdle, waist-chain" },
+            { word: "वनमालिका", transliteration: "vanamālikā", meaning: "forest garland (vanamala)" },
+            { word: "मन्दार", transliteration: "mandāra", meaning: "celestial coral tree flower" },
+            { word: "वायुगेहे", transliteration: "vāyugehe", meaning: "in the temple of Vayu (Guruvayur)" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 9,
+          devanagari: "ऊरू चारू तवोरू घनमसृणरुचौ चित्तचोरौ रमायाः\nजङ्घे मांसलसम्पूर्णसुदृढसुभगे गूढगुल्फं पदाग्रम् ।\nलाक्षारक्तं पदं ते भवजलधिमथित्वा समुद्धृत्य लोकान्\nभक्तानां हृत्सरोजे निहितमिदमहो पावनं पादपद्मम् ॥",
+          transliteration: "ūrū cārū tavorū ghanamasṛṇarucau cittacorau ramāyāḥ\njaṅghe māṃsalasampūrṇasudṛḍhasubhage gūḍhagulphaṃ padāgram |\nlākṣāraktaṃ padaṃ te bhavajaladhimathitvā samuddhṛtya lokān\nbhaktānāṃ hṛtsaroje nihitamidamaho pāvanaṃ pādapadmam ||",
+          translation: "Thy thighs are beautiful, dense, smooth-complexioned, stealing the heart of Lakshmi herself; Thy calves are well-formed, full, strong, and lovely with concealed ankles and graceful toes. Thy feet are reddened with lac-dye. Having churned the ocean of worldly existence and uplifted the worlds, these sacred lotus-feet are now placed in the heart-lotuses of devotees — how wondrous!",
+          commentary: "The description reaches the feet (pada) — completing the head-to-toe (kesadi-pada) vision. The poet says these are the same feet that churned the ocean of samsara (worldly existence) and rescued all beings, and now they are placed in the hearts of devotees as objects of meditation. The lotus-feet (padapadma) are the ultimate refuge.",
+          words: [
+            { word: "ऊरू", transliteration: "ūrū", meaning: "thighs" },
+            { word: "जङ्घे", transliteration: "jaṅghe", meaning: "calves, shanks" },
+            { word: "गुल्फं", transliteration: "gulphaṃ", meaning: "ankles" },
+            { word: "लाक्षारक्तं", transliteration: "lākṣāraktaṃ", meaning: "reddened with lac-dye" },
+            { word: "भवजलधि", transliteration: "bhavajaladhi", meaning: "ocean of worldly existence (samsara)" },
+            { word: "पादपद्मम्", transliteration: "pādapadmam", meaning: "lotus feet" }
+          ]
+        },
+        {
+          dashaka: 100,
+          sloka: 10,
+          devanagari: "अग्रे पश्यामि तेजो निबिडतरकलायावलीलोभनीयं\nपीयूषाप्लावितोऽहं तदनु तदुदरे दिव्यकैशोरवेषम् ।\nतावद्भूतेशमारात्प्रणमति मधुरापूर्णमूर्तिं परेशं\nस एवायं वासुदेवः स भगवति पदे वायुगेहे ततोऽयम् ।\nऐश्वर्यं शाठ्यमुक्त्वा हरिचरणजुषां भूसुराणां विषण्णो\nभूत्वा सम्प्रार्थये त्वां भवतु भगवतः सन्ततं सन्निधानम् ।\nज्ञानं भक्तिं वदान्यां विनयमतिशयं शान्तिमाढ्यां श्रियं च\nत्वद्भक्तेषु प्रसीद प्रदिश च भगवन् मारुतागारनाथ\nआयुरारोग्यसौख्यम् ॥",
+          transliteration: "agre paśyāmi tejo nibiḍatarakalāyāvalīlobhanīyaṃ\npīyūṣāplāvito'haṃ tadanu tadudate divyakaiśoraveṣam |\ntāvadbhūteśamārātpraṇamati madhurāpūrṇamūrtiṃ pareśaṃ\nsa evāyaṃ vāsudevaḥ sa bhagavati pade vāyugehe tato'yam |\naiśvaryaṃ śāṭhyamuktvā haricaraṇajuṣāṃ bhūsurāṇāṃ viṣaṇṇo\nbhūtvā samprārthaye tvāṃ bhavatu bhagavataḥ santataṃ sannidhānam |\njñānaṃ bhaktiṃ vadānyāṃ vinayamatiśayaṃ śāntimāḍhyāṃ śriyaṃ ca\ntvadbhakteṣu prasīda pradiśa ca bhagavan mārutāgāranātha\nāyurārogyasaukhyam ||",
+          translation: "Before me I behold that same radiant effulgence, that divine youthful form! Lord Shiva himself comes near and bows to this sweet, perfect, Supreme Lord. He is indeed Vasudeva, present here in Guruvayur, the abode of the Wind-God. Renouncing all pretense and approaching the brahmanas devoted to Lord Hari with humility, I pray to Thee: May the Lord's presence be with me always! Grant me knowledge, devotion, generosity, extreme humility, peace, prosperity, and wealth. O Lord, be pleased with Thy devotees! O Lord of Guruvayur (Marutagaranatha), grant me long life, health, and happiness — Ayur Arogya Saukhyam!",
+          commentary: "The most famous and most-recited verse of the entire Narayaneeyam. Bhattathiri concludes his magnum opus of 1036 verses with this prayer to the Lord of Guruvayur. The final words 'āyurārogyasaukhyam' (long life, health, and happiness) became the hallmark blessing associated with Narayaneeyam. Tradition holds that upon completing this verse, Bhattathiri was completely cured of his paralysis. This verse is recited daily at the Guruvayur temple and by millions of devotees worldwide.",
+          words: [
+            { word: "वासुदेवः", transliteration: "vāsudevaḥ", meaning: "Vasudeva (Krishna, son of Vasudeva)" },
+            { word: "वायुगेहे", transliteration: "vāyugehe", meaning: "in the temple of Vayu (Guruvayur)" },
+            { word: "ज्ञानं", transliteration: "jñānaṃ", meaning: "knowledge, wisdom" },
+            { word: "भक्तिं", transliteration: "bhaktiṃ", meaning: "devotion" },
+            { word: "मारुतागारनाथ", transliteration: "mārutāgāranātha", meaning: "Lord of Guruvayur (lit. Lord of the Wind-God's abode)" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "long life, longevity" },
+            { word: "आरोग्य", transliteration: "ārogya", meaning: "health, freedom from disease" },
+            { word: "सौख्यम्", transliteration: "saukhyam", meaning: "happiness, well-being" }
+          ]
+        }
+      ]
     }
   ]
 };
