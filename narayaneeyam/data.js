@@ -7,7 +7,186 @@ var NARAYANEEYAM_DATA = {
       theme: "prayer",
       verseCount: 10,
       summary: "The poet invokes Lord Guruvayurappan, describing the supreme bliss of chanting His divine name. He prays for the Lord's grace to cure his ailment and to compose this devotional work.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 1,
+          sloka: 1,
+          devanagari: "सान्द्रानन्दावबोधात्मकमनुपमितं कालदेशावधिभ्यां\nनिर्मुक्तं नित्यमुक्तं निगमशतसहस्रेण निर्भास्यमानम् ।\nअस्पष्टं दृष्टमात्रे पुनरुरुपुरुषार्थात्मकं ब्रह्म तत्त्वं\nतत्तावद्भाति साक्षाद्गुरुपवनपुरे हन्त भाग्यं जनानाम् ॥",
+          transliteration: "sāndrānandāvabodhātmakam anupamitaṁ kāladeśāvadhibhyāṁ\nnirmuktaṁ nityamuktaṁ nigamaśatasahasreṇa nirbhāsyamānam |\naspasṭaṁ dṛṣṭamātre punaruru-puruṣārthātmakaṁ brahma tattvaṁ\ntattāvadbhāti sākṣād gurupavanapure hanta bhāgyaṁ janānām ||",
+          translation: "That Brahman, which is the essence of dense bliss and pure consciousness, incomparable, free from the limitations of time and space, eternally liberated, illumined by hundreds of thousands of Vedic texts, not clearly apprehended by mere perception yet constituting the highest goal of human life — that very Supreme Truth shines directly in Guruvayur. What great fortune for the people!",
+          commentary: "The opening verse establishes the supreme philosophical nature of the deity at Guruvayur — not merely a temple idol, but Brahman itself, the ultimate reality described in all the Upanishads. Bhattathiri marvels that this inaccessible Absolute has made itself accessible at Guruvayur.",
+          words: [
+            { word: "सान्द्रानन्द", transliteration: "sāndrānanda", meaning: "dense bliss" },
+            { word: "अवबोध", transliteration: "avabodha", meaning: "consciousness, awareness" },
+            { word: "अनुपमितम्", transliteration: "anupamitam", meaning: "incomparable, beyond comparison" },
+            { word: "कालदेशावधिभ्याम्", transliteration: "kāladeśāvadhibhyām", meaning: "from the limitations of time and space" },
+            { word: "निर्मुक्तम्", transliteration: "nirmuktam", meaning: "freed, liberated" },
+            { word: "नित्यमुक्तम्", transliteration: "nityamuktam", meaning: "eternally free" },
+            { word: "निगमशतसहस्रेण", transliteration: "nigamaśatasahasreṇa", meaning: "by hundreds of thousands of Vedic scriptures" },
+            { word: "ब्रह्म तत्त्वम्", transliteration: "brahma tattvam", meaning: "the truth of Brahman" },
+            { word: "गुरुपवनपुरे", transliteration: "gurupavanapure", meaning: "in the city of Guruvayur" },
+            { word: "भाग्यम्", transliteration: "bhāgyam", meaning: "fortune, luck" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 2,
+          devanagari: "एवं दुर्लभ्यवस्तुन्यपि सुलभतया हस्तलब्धे यदन्यत्\nतन्वन्तो दैवतान्यन्यविधिपरतया दुर्लभं चापि कुर्वन् ।\nत्वत्पादे मन्दभक्तास्त्वदितरविषया मां तु तेष्वेव मूढा\nहा हन्त क्लिश्यमानान् प्रतिदिनमनिशं वीक्षसे किं तु नैवम् ॥",
+          transliteration: "evaṁ durlabhyavastunnyapi sulabhatayā hastalabdhe yadanyat\ntanvanto daivatānyanyavidhiparatayā durlabhaṁ cāpi kurvan |\ntvat-pāde mandabhaktāstvad-itara-viṣayā māṁ tu teṣveva mūḍhā\nhā hanta kliśyamānān pratidinam aniśaṁ vīkṣase kiṁ tu naivam ||",
+          translation: "Even though this most difficult-to-attain reality is easily available here at hand, people pursue other deities through various rituals, making the inaccessible even more inaccessible. With feeble devotion to Your feet and minds fixed on objects other than You, these deluded ones suffer daily. Alas! Do You not see them thus?",
+          commentary: "Bhattathiri laments how people, despite having the supreme Brahman easily accessible at Guruvayur, run after lesser deities and worldly goals. He expresses compassion for those who miss this great opportunity and gently chides the Lord for seemingly watching their suffering passively.",
+          words: [
+            { word: "दुर्लभ्य", transliteration: "durlabhya", meaning: "difficult to attain" },
+            { word: "सुलभतया", transliteration: "sulabhatayā", meaning: "with ease, easily" },
+            { word: "हस्तलब्धे", transliteration: "hastalabdhe", meaning: "obtained in hand, readily available" },
+            { word: "दैवतानि", transliteration: "daivatāni", meaning: "deities, gods" },
+            { word: "मन्दभक्ताः", transliteration: "mandabhaktāḥ", meaning: "those with feeble devotion" },
+            { word: "मूढाः", transliteration: "mūḍhāḥ", meaning: "deluded ones" },
+            { word: "क्लिश्यमानान्", transliteration: "kliśyamānān", meaning: "those who are suffering" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 3,
+          devanagari: "सत्त्वं यत्तत्पुराणा जगदुरतितरां सूक्ष्ममाद्यन्तशून्यं\nसंव्यक्तं स्याद्गुणानां परिणतिषु ततो ब्रह्मणीत्यद्य विद्म ।\nतत्सत्त्वं धर्ममुख्यैरपि च सुकृतिनस्ते त्वदीयैरनन्यैः\nभक्तैः संवर्ध्यमानं विमलतरधिया विष्णो भूयात्परं ते ॥",
+          transliteration: "sattvaṁ yat tat purāṇā jagadur atitarāṁ sūkṣmam ādyantaśūnyaṁ\nsaṁvyaktaṁ syād guṇānāṁ pariṇatiṣu tato brahmaṇītyādya vidma |\ntat-sattvaṁ dharmamukhyairapi ca sukṛtinas te tvadīyair ananyaiḥ\nbhaktaiḥ saṁvardhyamānaṁ vimalataradhiyā viṣṇo bhūyāt paraṁ te ||",
+          translation: "That Sattva which the ancients described as supremely subtle, without beginning or end, which becomes manifest during the transformation of the gunas and which thus belongs to Brahman — this we now understand. May that pure Sattva, nurtured by meritorious persons devoted to dharma, by Your own exclusive devotees with the purest intellect, O Vishnu, lead to Your supreme state.",
+          commentary: "This verse explores the philosophical concept of Shuddha Sattva (pure Sattva), the primordial quality that connects the individual soul with Brahman. Through devotion and righteous living, this pure Sattva is cultivated, leading the devotee toward the supreme reality.",
+          words: [
+            { word: "सत्त्वम्", transliteration: "sattvam", meaning: "the quality of purity/goodness" },
+            { word: "सूक्ष्मम्", transliteration: "sūkṣmam", meaning: "subtle" },
+            { word: "आद्यन्तशून्यम्", transliteration: "ādyantaśūnyam", meaning: "without beginning or end" },
+            { word: "गुणानाम्", transliteration: "guṇānām", meaning: "of the qualities (gunas)" },
+            { word: "ब्रह्मणि", transliteration: "brahmaṇi", meaning: "in Brahman" },
+            { word: "अनन्यैः भक्तैः", transliteration: "ananyaiḥ bhaktaiḥ", meaning: "by exclusive devotees" },
+            { word: "विमलतरधिया", transliteration: "vimalataradhiyā", meaning: "with the purest intellect" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 4,
+          devanagari: "तत्ते प्रत्यग्रधाराधरललितकळायावलीकेलिलोलं\nलावण्यस्यैकसारं सुकृतिजनदृशां पूर्णपुण्यावतारम् ।\nलक्ष्मीनिःश्वासवासल्यसरसकरुणावीक्षितं वक्त्रमेतत्\nनैवास्वाद्यं मदीयैर्नयनशशिभिरित्यद्य दुःखं मम स्यात् ॥",
+          transliteration: "tat te pratyagradhārādharalalitakaḷāyāvalī-keli-lolaṁ\nlāvaṇyasyaikasāraṁ sukṛtijana-dṛśāṁ pūrṇapuṇyāvatāram |\nlakṣmī-niḥśvāsa-vāsalya-sarasa-karuṇā-vīkṣitaṁ vaktram etat\nnaivāsvādyaṁ madīyair nayana-śaśibhir ity adya duḥkhaṁ mama syāt ||",
+          translation: "Your face, playfully adorned with fresh rain-cloud-dark curling locks, the sole essence of all beauty, the full incarnation of merit for the eyes of the virtuous, glanced upon with tender compassion like the sweet breath of Lakshmi — that this face cannot be savored by my moon-like eyes is indeed my sorrow today.",
+          commentary: "The poet expresses deep personal anguish that his failing eyesight (due to his illness) prevents him from fully beholding the beautiful divine form of the Lord at Guruvayur. This verse reveals the deeply personal nature of Narayaneeyam — it was composed while Bhattathiri suffered from a severe rheumatic ailment.",
+          words: [
+            { word: "प्रत्यग्रधारा", transliteration: "pratyagradhārā", meaning: "fresh rain-cloud" },
+            { word: "लावण्य", transliteration: "lāvaṇya", meaning: "beauty, grace" },
+            { word: "सुकृतिजन", transliteration: "sukṛtijana", meaning: "meritorious people" },
+            { word: "पूर्णपुण्यावतारम्", transliteration: "pūrṇapuṇyāvatāram", meaning: "full incarnation of merit" },
+            { word: "लक्ष्मी", transliteration: "lakṣmī", meaning: "Lakshmi, the goddess of fortune" },
+            { word: "करुणा", transliteration: "karuṇā", meaning: "compassion" },
+            { word: "वक्त्रम्", transliteration: "vaktram", meaning: "face" },
+            { word: "नयनशशिभिः", transliteration: "nayana-śaśibhiḥ", meaning: "by the moon-like eyes" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 5,
+          devanagari: "नासाग्रन्यस्तदृष्टिर्निरवधिपरमानन्दसान्द्रानुभूतिः\nजानन्नप्यात्मरूपं विगतसकलसंसारसम्बन्धयोग्यम् ।\nत्वद्भक्तस्त्वत्कटाक्षप्रशमितहृदयातङ्कसंतापभारो\nधन्यो धन्यो मुकुन्दापहृतनिजमना नामसङ्कीर्तनेन ॥",
+          transliteration: "nāsāgranyastadṛṣṭir niravadhiparamānanda-sāndrānubhūtiḥ\njānann apyātma-rūpaṁ vigatasakala-saṁsāra-sambandha-yogyam |\ntvad-bhaktaḥ tvat-kaṭākṣa-praśamita-hṛdayātaṅka-santāpa-bhāro\ndhanyō dhanyō mukundāpahṛta-nija-manā nāma-saṅkīrtanena ||",
+          translation: "With gaze fixed on the tip of the nose, experiencing the dense bliss of boundless supreme joy, knowing the nature of the Self as beyond all worldly bonds — such a devotee of Yours, whose heart's afflictions and burning sorrows are quelled by Your gracious glance, is blessed indeed, blessed! His mind is stolen by Mukunda through the chanting of the divine name.",
+          commentary: "This verse extols the state of the ideal devotee who combines yogic practice (fixing the gaze) with devotional ecstasy. The devotee's worldly sorrows are dissolved by the Lord's compassionate glance, and the mind is completely absorbed in God through nama-sankirtana (chanting the divine name).",
+          words: [
+            { word: "नासाग्रन्यस्तदृष्टिः", transliteration: "nāsāgranyastadṛṣṭiḥ", meaning: "with gaze fixed on the tip of the nose" },
+            { word: "परमानन्द", transliteration: "paramānanda", meaning: "supreme bliss" },
+            { word: "आत्मरूपम्", transliteration: "ātmarūpam", meaning: "the nature of the Self" },
+            { word: "कटाक्ष", transliteration: "kaṭākṣa", meaning: "gracious side-glance" },
+            { word: "आतङ्क", transliteration: "ātaṅka", meaning: "affliction, disease" },
+            { word: "धन्यः", transliteration: "dhanyaḥ", meaning: "blessed, fortunate" },
+            { word: "नामसङ्कीर्तनेन", transliteration: "nāmasaṅkīrtanena", meaning: "through chanting the divine name" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 6,
+          devanagari: "सोऽयं भूमन् भवद्भक्तितरुपरिमलो लब्धभागो यदीयं\nपादाम्भोजं भजन्तो मधुकरनिकरा हन्त मोक्षं लभन्ते ।\nतत्र प्रीतिं विधातुं तव चरणतले नित्यमत्यन्तभक्त्या\nनिश्शेषात्मात्मभूतं प्रणमति सततं मे मनो भूयसे ते ॥",
+          transliteration: "so'yaṁ bhūman bhavad-bhakti-taru-parimalo labdha-bhāgo yadīyaṁ\npādāmbhojaṁ bhajanto madhukara-nikarā hanta mokṣaṁ labhante |\ntatra prītiṁ vidhātuṁ tava caraṇatale nityam atyantabhaktyā\nniśśeṣātmātmabhūtaṁ praṇamati satataṁ me mano bhūyase te ||",
+          translation: "O Supreme Being! Those who, like swarms of bees, worship Your lotus feet that are fragrant with the blossoms of the tree of devotion to You, attain liberation. To cultivate love at Your feet with eternal and absolute devotion, my mind, which has become the very Self of all selves, constantly prostrates before You for Your greater glory.",
+          commentary: "Using the beautiful metaphor of bees drawn to fragrant blossoms, Bhattathiri describes how devotees are irresistibly drawn to the Lord's lotus feet. The verse expresses the poet's own surrender, dedicating his mind completely to the Lord's service.",
+          words: [
+            { word: "भूमन्", transliteration: "bhūman", meaning: "O Supreme Being, O Infinite One" },
+            { word: "भक्तितरु", transliteration: "bhaktitaru", meaning: "the tree of devotion" },
+            { word: "परिमलः", transliteration: "parimalaḥ", meaning: "fragrance" },
+            { word: "पादाम्भोजम्", transliteration: "pādāmbhojam", meaning: "lotus feet" },
+            { word: "मधुकरनिकरा", transliteration: "madhukaranikarā", meaning: "swarms of bees" },
+            { word: "मोक्षम्", transliteration: "mokṣam", meaning: "liberation" },
+            { word: "प्रणमति", transliteration: "praṇamati", meaning: "prostrates, bows down" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 7,
+          devanagari: "तत्स्वादाद्वन्द्वमत्स्याविव परिलसतोर्दिव्यविष्ण्वोर्यदेतत्\nगोप्यं वेदान्तवेद्यं गगनसदृशमात्माविलाषं सदैव ।\nतत्त्वं तद्विष्णुतत्त्वं मुनिनुतपदमप्राकृतैश्चापि सेव्यं\nतत्तावद्भाति विश्वस्य जनकमनघं व्यापकं गूढमग्र्यम् ॥",
+          transliteration: "tat-svādād dvandva-matsyāviva parilasator divya-viṣṇvor yad etat\ngopyaṁ vedānta-vedyaṁ gaganasadṛśam ātmāvilāṣaṁ sadaiva |\ntattvaṁ tad viṣṇu-tattvaṁ muni-nuta-padam aprākṛtaiś cāpi sevyaṁ\ntattāvad bhāti viśvasya janakam anaghaṁ vyāpakaṁ gūḍham agryam ||",
+          translation: "Relishing that bliss, like a pair of fish sporting together — that divine Vishnu-reality which is the secret known through Vedanta, vast as the sky, ever the delight of the Self, that Vishnu-principle praised by sages, worshipped even by transcendental beings, the creator of the universe, sinless, all-pervading, hidden, and supreme — that shines forth.",
+          commentary: "This verse presents a Vedantic meditation on the nature of Vishnu as the supreme reality. The simile of fish sporting in water suggests the soul's joyful immersion in Brahman. The verse enumerates the qualities of the Absolute — sky-like vastness, sinlessness, all-pervasiveness, and supreme transcendence.",
+          words: [
+            { word: "स्वाद", transliteration: "svāda", meaning: "taste, relish" },
+            { word: "वेदान्तवेद्यम्", transliteration: "vedāntavedyam", meaning: "knowable through Vedanta" },
+            { word: "गगनसदृशम्", transliteration: "gaganasadṛśam", meaning: "like the sky" },
+            { word: "विष्णुतत्त्वम्", transliteration: "viṣṇu-tattvam", meaning: "the principle/truth of Vishnu" },
+            { word: "मुनिनुत", transliteration: "muninuta", meaning: "praised by sages" },
+            { word: "व्यापकम्", transliteration: "vyāpakam", meaning: "all-pervading" },
+            { word: "अनघम्", transliteration: "anagham", meaning: "sinless, pure" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 8,
+          devanagari: "यद्भीत्या वाति वातो दहति च दहनो भानुमान्भाति नित्यं\nवर्षत्यम्भोदवर्गो हरति च सहसा मृत्युरुग्रः प्रजानाम् ।\nतद्भीतापत्प्रणाशं तदतिविपुलमैश्वर्यमेवेति विद्मस्\nतद्वातालीपताके भव गुरुपवने कृष्ण विष्णो जगन्नाथ ॥",
+          transliteration: "yad-bhītyā vāti vāto dahati ca dahano bhānumān bhāti nityaṁ\nvarṣaty ambhoda-vargo harati ca sahasā mṛtyur ugraḥ prajānām |\ntad-bhītāpat-praṇāśaṁ tad-ativipulam aiśvaryam eveti vidmas\ntad-vātālī-patāke bhava gurupavane kṛṣṇa viṣṇo jagannātha ||",
+          translation: "Out of fear of whom the wind blows, fire burns, the sun shines perpetually, the clouds pour rain, and fierce death snatches away creatures — that supreme lordship which destroys the calamities of those who fear, that immense sovereignty we indeed know. O Krishna, O Vishnu, O Lord of the universe, may You be present in Guruvayur with its fluttering banners!",
+          commentary: "Echoing the famous Taittiriya Upanishad passage (bhīṣāsmāt vātaḥ pavate), this verse describes how all cosmic forces operate out of awe of the Supreme Lord. Bhattathiri acknowledges this supreme sovereignty and prays for the Lord's continued presence at Guruvayur.",
+          words: [
+            { word: "भीत्या", transliteration: "bhītyā", meaning: "out of fear" },
+            { word: "वातः", transliteration: "vātaḥ", meaning: "wind" },
+            { word: "दहनः", transliteration: "dahanaḥ", meaning: "fire" },
+            { word: "भानुमान्", transliteration: "bhānumān", meaning: "the sun" },
+            { word: "मृत्युः", transliteration: "mṛtyuḥ", meaning: "death" },
+            { word: "ऐश्वर्यम्", transliteration: "aiśvaryam", meaning: "supreme lordship, sovereignty" },
+            { word: "गुरुपवने", transliteration: "gurupavane", meaning: "in Guruvayur" },
+            { word: "जगन्नाथ", transliteration: "jagannātha", meaning: "Lord of the universe" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 9,
+          devanagari: "ब्रह्मानन्दो न किञ्चिद्भवति भवदृते तत्त्वतो मे विदित्वा\nत्वत्पादे निश्चलां ताम् अचलितमनसा भक्तिमुत्पादयेथाः ।\nदेवानामेव मित्रं भवसि तव तनुज्योतिषां चक्रवर्ती\nसंसारातारणं मे विरचय भगवन् वातगेहाधिनाथ ॥",
+          transliteration: "brahmānando na kiñcid bhavati bhavad-ṛte tattvato me viditvā\ntvat-pāde niścalāṁ tām acalitamanasā bhaktim utpādayethāḥ |\ndevānām eva mitraṁ bhavasi tava tanu-jyotiṣāṁ cakravartī\nsaṁsārātāraṇaṁ me viracaya bhagavan vātagehādhinātha ||",
+          translation: "Brahman's bliss amounts to nothing without You — having truly known this, may You produce in me unwavering devotion to Your feet with a steady mind. You are the friend of the gods, the emperor among self-luminous beings. O Lord, O Master of Guruvayur, ferry me across the ocean of worldly existence!",
+          commentary: "A deeply personal prayer where Bhattathiri declares that even the bliss of Brahman has no value without the personal Lord. He prays for steady, unwavering devotion and begs the Lord to help him cross the ocean of samsara. The address 'Vatagehavdhinatha' (Lord of the Wind-Temple) is a unique epithet for Guruvayurappan.",
+          words: [
+            { word: "ब्रह्मानन्दः", transliteration: "brahmānandaḥ", meaning: "the bliss of Brahman" },
+            { word: "निश्चलाम्", transliteration: "niścalām", meaning: "unwavering, steady" },
+            { word: "भक्तिम्", transliteration: "bhaktim", meaning: "devotion" },
+            { word: "अचलितमनसा", transliteration: "acalitamanasā", meaning: "with an unshaken mind" },
+            { word: "चक्रवर्ती", transliteration: "cakravartī", meaning: "emperor, sovereign" },
+            { word: "संसारातारणम्", transliteration: "saṁsārātāraṇam", meaning: "crossing over the ocean of worldly existence" },
+            { word: "वातगेहाधिनाथ", transliteration: "vātagehādhinātha", meaning: "Lord of the temple of the Wind (Guruvayur)" }
+          ]
+        },
+        {
+          dashaka: 1,
+          sloka: 10,
+          devanagari: "अज्ञात्वा ते महत्त्वं यदिह निगदितं विश्वनाथ क्षमेथाः\nस्तोत्रं चैतन्मदीयं सकलमपि हरे त्वत्प्रसादैकहेतोः ।\nत्वत्पादाब्जे सदा मे विशतु मनसि सा भक्तिरव्याजभूमा\nआयुरारोग्यसौख्यं प्रदिशतु भवान् गोपिकानाथ विष्णो ॥",
+          transliteration: "ajñātvā te mahatvaṁ yadiha nigaditaṁ viśvanātha kṣamethāḥ\nstōtraṁ caitanmadīyaṁ sakalam api harē tvat-prasādaika-hētoḥ |\ntvat-pādābje sadā me viśatu manasi sā bhaktir avyāja-bhūmā\nāyur-ārogya-saukhyaṁ pradiśatu bhavān gopikānātha viṣṇo ||",
+          translation: "Without fully knowing Your greatness, whatever has been uttered here, O Lord of the Universe, please forgive. This hymn of mine, O Hari, is entirely for the sake of Your grace alone. May that vast and genuine devotion to Your lotus feet always enter my mind. May You grant long life, health, and happiness, O Lord of the Gopis, O Vishnu!",
+          commentary: "The famous concluding verse of Dashaka 1, and the refrain that ends every dashaka of Narayaneeyam. Bhattathiri humbly asks forgiveness for any inadequacy in his praise, reaffirms that his sole purpose is divine grace, and prays for devotion. The final line 'āyur ārogya saukhyam' became the most celebrated prayer from this work — a plea for health that reflects Bhattathiri's own suffering from paralytic illness while composing this masterpiece at Guruvayur.",
+          words: [
+            { word: "महत्त्वम्", transliteration: "mahattvam", meaning: "greatness, glory" },
+            { word: "क्षमेथाः", transliteration: "kṣamethāḥ", meaning: "please forgive" },
+            { word: "स्तोत्रम्", transliteration: "stōtram", meaning: "hymn, prayer of praise" },
+            { word: "प्रसाद", transliteration: "prasāda", meaning: "grace, divine favor" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "अव्याजभूमा", transliteration: "avyājabhūmā", meaning: "vast and genuine, without pretense" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "long life" },
+            { word: "आरोग्य", transliteration: "ārogya", meaning: "health, freedom from disease" },
+            { word: "सौख्यम्", transliteration: "saukhyam", meaning: "happiness, well-being" },
+            { word: "गोपिकानाथ", transliteration: "gopikānātha", meaning: "Lord of the Gopis" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 2,
