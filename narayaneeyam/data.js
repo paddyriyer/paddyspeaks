@@ -1032,12 +1032,205 @@ var NARAYANEEYAM_DATA = {
     },
     {
       dashaka: 5,
-      titleSanskrit: "ब्रह्मसृष्टिवर्णनम्",
-      titleEnglish: "Brahma's Creation",
+      titleSanskrit: "विराट्पुरुषोत्पत्तिः",
+      titleEnglish: "The Origin of the Cosmic Being (Virat Purusha)",
       theme: "creation",
-      verseCount: 11,
-      summary: "Continues the creation narrative with Brahma emerging from the cosmic lotus and undertaking the creation of the various worlds and beings under the Lord's direction.",
-      slokas: []
+      verseCount: 10,
+      summary: "Describes the state before creation during Mahapralaya, the stirring of Maya by the Lord's will, the sequential evolution of Mahat, Ahamkara, senses, elements, and deities, culminating in the formation of the Golden Cosmic Egg and the emergence of the Virat Purusha encompassing all fourteen worlds.",
+      slokas: [
+        {
+          dashaka: 5,
+          sloka: 1,
+          devanagari: "व्यक्ताव्यक्तमिदं न किञ्चिदभवत्प्राक्प्राकृतप्रक्षये\nमायायां गुणसाम्यरुद्धविकृतौ त्वय्यागतायां लयम् ।\nनो मृत्युश्च तदामृतं च समभून्नाह्नो न रात्रेः स्थिति-\nस्तत्रैकस्त्वमशिष्यथाः किल परानन्दप्रकाशात्मना ॥",
+          transliteration: "vyaktāvyaktamidaṁ na kiñcidabhavatprākprākṛtaprakṣaye\nmāyāyāṁ guṇasāmyaruddhavikṛtau tvayyāgatāyāṁ layam |\nno mṛtyuśca tadāmṛtaṁ ca samabhūnnāhno na rātreḥ sthiti-\nstatraikastvam aśiṣyathāḥ kila parānandaprakāśātmanā ||",
+          translation: "During the Great Dissolution (Prakrita Pralaya) long ago, when Maya — whose activity was impeded by the equilibrium of the three Gunas — had become latent and dissolved in Thee, this universe made up of the gross (vyakta) and the subtle (avyakta) did not exist at all. Neither death nor immortality existed then; there was neither the state of day nor of night. Thou alone remained at that time, shining as the essence of Supreme Bliss-Consciousness.",
+          commentary: "The opening verse sets the scene before creation — the state of Mahapralaya (Great Dissolution). When Maya ceased to function because the three Gunas were in perfect equilibrium, the entire phenomenal universe was non-existent. This echoes the Nasadiya Sukta of the Rig Veda. Only the Lord remained as pure consciousness and bliss.",
+          words: [
+            { word: "व्यक्ताव्यक्तम्", transliteration: "vyaktāvyaktam", meaning: "the manifest and the unmanifest (the entire universe)" },
+            { word: "प्राकृतप्रक्षये", transliteration: "prākṛtaprakṣaye", meaning: "during the Prakrita Pralaya (the great cosmic dissolution)" },
+            { word: "मायायाम्", transliteration: "māyāyām", meaning: "Maya (the Lord's creative power)" },
+            { word: "गुणसाम्यरुद्धविकृतौ", transliteration: "guṇasāmyaruddhavikṛtau", meaning: "whose modifications were arrested by the equilibrium of the Gunas" },
+            { word: "लयम्", transliteration: "layam", meaning: "dissolution, merging" },
+            { word: "मृत्युः", transliteration: "mṛtyuḥ", meaning: "death" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "immortality" },
+            { word: "परानन्दप्रकाशात्मना", transliteration: "parānandaprakāśātmanā", meaning: "as the essence of supreme bliss and radiance" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 2,
+          devanagari: "कालः कर्म गुणाश्च जीवनिवहा विश्वं च कार्यं विभो\nचिल्लीलारतिमेयुषि त्वयि तदा निर्लीनतामाययुः ।\nतेषां नैव वदन्त्यसत्त्वमयि भोः शक्त्यात्मना तिष्ठतां\nनो चेत् किं गगनप्रसूनसदृशां भूयो भवेत्सम्भवः ॥",
+          transliteration: "kālaḥ karma guṇāśca jīvanivahā viśvaṁ ca kāryaṁ vibho\ncillīlāratimeyuṣi tvayi tadā nirlīnatāmāyayuḥ |\nteṣāṁ naiva vadantyasattvamayibhoḥ śaktyātmanā tiṣṭhatāṁ\nno cet kiṁ gaganaprasūnasadṛśāṁ bhūyo bhavetsambhavaḥ ||",
+          translation: "O All-pervading Lord! At that time, when Thou wert absorbed in the bliss of Thy own conscious sport, Time, Karma, the three Gunas, the multitude of Jivas (individual souls), and the entire created universe all lay merged in Thee. The scriptures do not declare them as absolutely non-existent, for they remained in Thee in a potential form (as Thy power). Otherwise, like flowers in the sky (a logical impossibility), how could they come into existence again?",
+          commentary: "This verse addresses a philosophical question: if everything merged into the Lord during dissolution, did it become non-existent? Bhattathiri answers with Vedantic logic — they existed in a latent/potential state within the Lord's power (Shakti). If they had become completely non-existent (like the proverbial 'sky-flower'), they could never re-emerge.",
+          words: [
+            { word: "कालः", transliteration: "kālaḥ", meaning: "Time" },
+            { word: "कर्म", transliteration: "karma", meaning: "the effects of accumulated actions" },
+            { word: "गुणाः", transliteration: "guṇāḥ", meaning: "the three qualities (Sattva, Rajas, Tamas)" },
+            { word: "जीवनिवहाः", transliteration: "jīvanivahāḥ", meaning: "the multitude of individual souls" },
+            { word: "चिल्लीलारतिमेयुषि", transliteration: "cillīlāratimeyuṣi", meaning: "absorbed in the bliss of conscious sport" },
+            { word: "निर्लीनताम्", transliteration: "nirlīnatām", meaning: "the state of being dissolved/merged" },
+            { word: "शक्त्यात्मना", transliteration: "śaktyātmanā", meaning: "in the form of (Thy) power/Shakti" },
+            { word: "गगनप्रसून", transliteration: "gaganaprasūna", meaning: "sky-flower (an impossibility)" },
+            { word: "सम्भवः", transliteration: "sambhavaḥ", meaning: "coming into existence, birth" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 3,
+          devanagari: "एवं च द्विपरार्धकालविगतावीक्षां सिसृक्षात्मिकां\nबिभ्राणे त्वयि चुक्षुभे त्रिभुवनीभावाय माया स्वयम् ।\nमायातः खलु कालशक्तिरखिलादृष्टं स्वभावोऽपि च\nप्रादुर्भूय गुणान्विकास्य विदधुस्तस्याः सहायक्रियाम् ॥",
+          transliteration: "evaṁ ca dviparārdhakālavigatāvīkṣāṁ sisṛkṣātmikāṁ\nbibhrāṇe tvayi cukṣubhe tribhuvanībhāvāya māyā svayam |\nmāyātaḥ khalu kālaśaktirakhilādṛṣṭaṁ svabhāvo'pi ca\nprādurbhūya guṇānvikāsya vidadhustasyāḥ sahāyakriyām ||",
+          translation: "Thus, at the end of two Parardhas (the full lifespan of Brahma), when Thou assumed the creative will (the glance of desire to create), Maya herself stirred into activity for the manifestation of the three worlds. From Maya emerged the power of Time, the unseen effects of past deeds (Adrishta), and inherent Nature (Svabhava). These, by developing the Gunas, assisted Maya in her creative function.",
+          commentary: "This verse describes the very beginning of the creative process. When the Lord wills to create, Maya spontaneously becomes active. Three auxiliary forces emerge from Maya — Time (which disturbs the Guna equilibrium), Adrishta (accumulated karmic impressions from previous cycles), and Svabhava (inherent nature) — all cooperating to unfold creation.",
+          words: [
+            { word: "द्विपरार्ध", transliteration: "dviparārdha", meaning: "two Parardhas (the total lifespan of Brahma)" },
+            { word: "ईक्षाम्", transliteration: "īkṣām", meaning: "the glance, the will/intention" },
+            { word: "सिसृक्षात्मिकाम्", transliteration: "sisṛkṣātmikām", meaning: "of the nature of the desire to create" },
+            { word: "चुक्षुभे", transliteration: "cukṣubhe", meaning: "stirred, became agitated" },
+            { word: "त्रिभुवनी", transliteration: "tribhuvanī", meaning: "the three worlds" },
+            { word: "कालशक्तिः", transliteration: "kālaśaktiḥ", meaning: "the power of Time" },
+            { word: "अदृष्टम्", transliteration: "adṛṣṭam", meaning: "the unseen (accumulated karma/destiny)" },
+            { word: "स्वभावः", transliteration: "svabhāvaḥ", meaning: "inherent nature/disposition" },
+            { word: "गुणान् विकास्य", transliteration: "guṇān vikāsya", meaning: "having developed/unfolded the Gunas" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 4,
+          devanagari: "मायासन्निहितोऽप्रविष्टवपुषा साक्षीति गीतो भवान्\nभेदैस्तां प्रतिबिम्बतो विविशिवान् जीवोऽपि नैवापरः ।\nकालादिप्रतिबोधिताऽथ भवता संचोदिता च स्वयं\nमाया सा खलु बुद्धितत्त्वमसृजद्योऽसौ महानुच्यते ॥",
+          transliteration: "māyāsannihito'praviṣṭavapuṣā sākṣīti gīto bhavān\nbhedaistāṁ pratibimbato viviśivān jīvo'pi naivāparaḥ |\nkālādipratibōdhitā'tha bhavatā saṁcoditā ca svayaṁ\nmāyā sā khalu buddhitattvamasṛjadyo'sau mahānucyate ||",
+          translation: "Thou art described by the Vedas as the Witness (Sakshi), present near Maya yet not entering it with Thy own form. The Jiva (individual soul) is none other than Thy reflection appearing through the distinctions in Maya. Then Maya, awakened by Time and other forces, and impelled by Thee, created the principle of Intelligence — that which is called 'Mahat' (the Great One).",
+          commentary: "This verse establishes the Lord's transcendence — He is the uninvolved Witness of creation, ever-present near Maya but never tainted by it. The individual soul (Jiva) is the Lord's own reflection differentiated through Maya. Maya, prompted by Time and directed by the Lord, produces the first cosmic principle: Mahat-tattva (Cosmic Intelligence).",
+          words: [
+            { word: "सन्निहितः", transliteration: "sannihitaḥ", meaning: "present near, in proximity" },
+            { word: "अप्रविष्टवपुषा", transliteration: "apraviṣṭavapuṣā", meaning: "with a form that has not entered (untouched by Maya)" },
+            { word: "साक्षी", transliteration: "sākṣī", meaning: "witness" },
+            { word: "प्रतिबिम्बतः", transliteration: "pratibimbataḥ", meaning: "as a reflection" },
+            { word: "जीवः", transliteration: "jīvaḥ", meaning: "the individual soul" },
+            { word: "संचोदिता", transliteration: "saṁcoditā", meaning: "impelled, directed" },
+            { word: "बुद्धितत्त्वम्", transliteration: "buddhitattvam", meaning: "the principle of intelligence/cosmic intellect" },
+            { word: "महान्", transliteration: "mahān", meaning: "the Great One (Mahat-tattva)" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 5,
+          devanagari: "सोऽहं च त्रिगुणात्मकोऽपि च महान् सत्त्वप्रधानः स्वयं\nजीवेऽस्मिन् खलु निर्विकल्पमहमित्युद्बोधनिष्पादकः ।\nचक्रेऽस्मिन् सविकल्पबोधकमहत्तत्त्वं महान् खल्वसौ\nसम्पुष्टं त्रिगुणैस्तमोऽतिबहुलं विष्णो भवत्प्रेरणात् ॥",
+          transliteration: "so'haṁ ca triguṇātmako'pi ca mahān sattvapradhānaḥ svayaṁ\njīve'smin khalu nirvikalpamamhamityudbōdhaniṣpādakaḥ |\ncakre'smin savikalpabōdhakamahatattvaṁ mahān khalvasau\nsampuṣṭaṁ triguṇaistamo'tibahulam viṣṇo bhavatpreraṇāt ||",
+          translation: "Although constituted of all three Gunas, this Mahat was itself predominantly Sattvic and brought about in the Jiva the cognizance of the undifferentiated Self ('I am'). This Mahat, nourished further by the three Gunas with a predominance of Tamas, created by Thy impulsion the principle that gives differentiated self-awareness — that is known as Ahamkara (Ego-sense). O Vishnu, this was by Thy direction!",
+          commentary: "Mahat-tattva, though containing all three Gunas, is predominantly Sattvic and gives rise to undifferentiated self-awareness ('I am' without qualification). When Tamas predominates further, Mahat produces Ahamkara — the ego principle that creates differentiated, individuated self-consciousness. This transformation happens solely through the Lord's will.",
+          words: [
+            { word: "त्रिगुणात्मकः", transliteration: "triguṇātmakaḥ", meaning: "constituted of the three Gunas" },
+            { word: "सत्त्वप्रधानः", transliteration: "sattvapradhānaḥ", meaning: "predominantly Sattvic" },
+            { word: "निर्विकल्पम्", transliteration: "nirvikalpam", meaning: "without distinction (undifferentiated)" },
+            { word: "उद्बोधनिष्पादकः", transliteration: "udbōdhaniṣpādakaḥ", meaning: "producing the awakening/awareness" },
+            { word: "सविकल्प", transliteration: "savikalpa", meaning: "with distinction (differentiated)" },
+            { word: "तमः", transliteration: "tamaḥ", meaning: "Tamas (quality of darkness/inertia)" },
+            { word: "भवत्प्रेरणात्", transliteration: "bhavatpreraṇāt", meaning: "by Thy impulsion/direction" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 6,
+          devanagari: "सोऽहं च त्रिगुणक्रमात् त्रिविधतामासाद्य वैकारिको\nभूयस्तैजसतामसाविति भवन्नाद्येन सत्त्वात्मना ।\nदेवानिन्द्रियमानिनोऽकृत दिशावातार्कपाश्यश्विनो\nवह्नीन्द्राच्युतमित्रकान् विधुविधिश्रीरुद्रशारीरकान् ॥",
+          transliteration: "so'haṁ ca triguṇakramāt trividhatāmāsādya vaikāriko\nbhūyastaijasatāmasāviti bhavannādyena sattvātmanā |\ndevānindriyamānino'kṛta diśāvātārkapāśyaśvino\nvahnīndrācyutamitrakān vidhuvidhiśrīrudraśārīrakān ||",
+          translation: "This Ahamkara, according to the predominance of the three Gunas, became threefold: Vaikarika (Sattvic), Taijasa (Rajasic), and Tamasa. From the first — the Sattvic Ahamkara — were created the presiding deities of the senses: Dik (Directions), Vayu (Wind), Surya (Sun), Varuna, the Ashvini Devas, Agni (Fire), Indra, Achyuta (Vishnu), Mitra, Chandra (Moon), Brahma, and Rudra.",
+          commentary: "Ahamkara differentiates into three types based on Guna predominance. From the Sattvic aspect (Vaikarika) emerge the presiding deities of all sense organs and inner faculties — governing the five organs of knowledge, five organs of action, and the four aspects of the inner instrument (Antahkarana).",
+          words: [
+            { word: "अहम्", transliteration: "aham", meaning: "ego/I-sense (Ahamkara)" },
+            { word: "त्रिगुणक्रमात्", transliteration: "triguṇakramāt", meaning: "according to the sequence of the three Gunas" },
+            { word: "वैकारिकः", transliteration: "vaikārikaḥ", meaning: "the Sattvic modification (of Ahamkara)" },
+            { word: "तैजसः", transliteration: "taijasaḥ", meaning: "the Rajasic modification" },
+            { word: "तामसः", transliteration: "tāmasaḥ", meaning: "the Tamasic modification" },
+            { word: "इन्द्रियमानिनः", transliteration: "indriyamāninaḥ", meaning: "the presiding deities of the senses" },
+            { word: "दिशा", transliteration: "diśā", meaning: "Directions (deity of hearing)" },
+            { word: "वात", transliteration: "vāta", meaning: "Wind (deity of touch)" },
+            { word: "अर्क", transliteration: "arka", meaning: "Sun (deity of sight)" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 7,
+          devanagari: "भूमन् मानसबुद्ध्यहंकृतिमिलच्चित्ताख्यवृत्त्यन्वितं\nतच्चान्तःकरणं विभो तव बलात् सत्त्वांश एवासृजत् ।\nजातस्तैजसतो दशेन्द्रियगणस्तत्तामसांशात्पुनः\nतन्मात्रं नभसो मरुत्पुरपते शब्दोऽजनि त्वद्बलात् ॥",
+          transliteration: "bhūman mānasabuddhyahaṁkṛtimilaccittākhyavṛttyanvitaṁ\ntaccāntaḥkaraṇaṁ vibho tava balāt sattvāṁśa evāsṛjat |\njātastaijasato daśendriyagaṇastattāmasāṁśātpunaḥ\ntanmātraṁ nabhaso marutpurapate śabdo'jani tvadbalāt ||",
+          translation: "O All-pervading Lord! From the Sattvic aspect alone, by Thy power, was created the Antahkarana (inner organ) endowed with the fourfold function of mind (Manas), intellect (Buddhi), ego (Ahamkriti), and memory (Chitta). From the Rajasic aspect (Taijasa) arose the group of ten sense organs. And from the Tamasic aspect, O Lord of Guruvayur, was born Sound (Shabda), the subtle essence (Tanmatra) of Space, by Thy power!",
+          commentary: "This verse details the threefold creation from Ahamkara. The Sattvic aspect creates the inner mental apparatus (Antahkarana) with its four modes. The Rajasic aspect produces the ten external organs — five of knowledge and five of action. The Tamasic aspect begins producing the subtle elements (Tanmatras), starting with Sound, the Tanmatra of Space.",
+          words: [
+            { word: "मानस", transliteration: "mānasa", meaning: "mind" },
+            { word: "बुद्धि", transliteration: "buddhi", meaning: "intellect" },
+            { word: "अहंकृति", transliteration: "ahaṁkṛti", meaning: "ego-sense" },
+            { word: "चित्त", transliteration: "citta", meaning: "memory/consciousness" },
+            { word: "अन्तःकरणम्", transliteration: "antaḥkaraṇam", meaning: "the inner organ/instrument" },
+            { word: "दशेन्द्रियगणः", transliteration: "daśendriyagaṇaḥ", meaning: "the group of ten senses" },
+            { word: "तन्मात्रम्", transliteration: "tanmātram", meaning: "subtle element/essence" },
+            { word: "शब्दः", transliteration: "śabdaḥ", meaning: "sound" },
+            { word: "त्वद्बलात्", transliteration: "tvadbalāt", meaning: "by Thy power" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 8,
+          devanagari: "शब्दाद्व्योम ततः ससर्जिथ विभो स्पर्शं ततो मारुतं\nतस्माद्रूपमतो महोऽथ च रसं तोयं च गन्धं महीम् ।\nएवं माधव पूर्वपूर्वकलनादाद्याद्यधर्मान्वितं\nभूतग्राममिमं त्वमेव भगवन् प्राकाशयस्तामसात् ॥",
+          transliteration: "śabdādvyoma tataḥ sasarjitha vibho sparśaṁ tato mārutaṁ\ntasmādrūpamato maho'tha ca rasaṁ toyaṁ ca gandhaṁ mahīm |\nevaṁ mādhava pūrvapūrvakalanādādyādyadharmānvitaṁ\nbhūtagrāmamimaṁ tvameva bhagavan prākāśayastāmasāt ||",
+          translation: "From Sound, O Lord, Thou created Space (Akasha); from it Touch, and from Touch, Air (Vayu); from Air, Form, and from Form, Fire; then Taste, and from it Water; and Smell, and from it Earth. Thus, O Madhava, each succeeding element inheriting the qualities of all preceding ones, Thou Thyself manifested this entire group of elements from the Tamasic aspect of Ahamkara.",
+          commentary: "This verse describes the sequential creation of the five great elements from their respective subtle essences (Tanmatras). The key principle is that each element possesses not only its own quality but also the qualities of all preceding elements — Space has only sound, Air has sound and touch, Fire has sound, touch and form, and so on. This cumulative property is central to Sankhya cosmology.",
+          words: [
+            { word: "शब्दात्", transliteration: "śabdāt", meaning: "from Sound" },
+            { word: "व्योम", transliteration: "vyoma", meaning: "Space/Ether (Akasha)" },
+            { word: "स्पर्शम्", transliteration: "sparśam", meaning: "Touch" },
+            { word: "मारुतम्", transliteration: "mārutam", meaning: "Air/Wind (Vayu)" },
+            { word: "रूपम्", transliteration: "rūpam", meaning: "Form/Color" },
+            { word: "महः", transliteration: "mahaḥ", meaning: "Fire/Light" },
+            { word: "रसम्", transliteration: "rasam", meaning: "Taste" },
+            { word: "तोयम्", transliteration: "toyam", meaning: "Water" },
+            { word: "गन्धम्", transliteration: "gandham", meaning: "Smell" },
+            { word: "महीम्", transliteration: "mahīm", meaning: "Earth" },
+            { word: "पूर्वपूर्वकलनात्", transliteration: "pūrvapūrvakalanāt", meaning: "by combination with each preceding one" },
+            { word: "भूतग्रामम्", transliteration: "bhūtagrāmam", meaning: "the group/aggregate of elements" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 9,
+          devanagari: "एते भूतगणास्तथेन्द्रियगणा देवाश्च जाताः पृथक्\nनो शेकुर्भुवनाण्डनिर्मितिविधौ देवैरमीभिस्तदा ।\nत्वं नानाविधसूक्तिभिर्नुतगुणस्तत्त्वान्यमून्यावि-\nशंश्चेष्टाशक्तिमुदीर्य तानि घटयन् हैरण्यमण्डं व्यधाः ॥",
+          transliteration: "ete bhūtagaṇāstathendriyagaṇā devāśca jātāḥ pṛthak\nno śekurbhuvanāṇḍanirmitividhau devairamībhistadā |\ntvaṁ nānāvidhasūktibhirnutaguṇastattvānyamūnyāvi-\nśaṁśceṣṭāśaktimudīrya tāni ghaṭayan hairaṇyamaṇḍaṁ vyadhāḥ ||",
+          translation: "These groups of elements, senses, and deities, though born separately, were unable by themselves to accomplish the creation of the cosmic egg. Then, O Lord, praised by those deities through various hymns, Thou entered into all these fundamental principles, impelling in them the power of activity, and combining them together, Thou created the Golden Cosmic Egg (Hiranyam Andam).",
+          commentary: "Despite all the cosmic principles being in place, they lacked the animating spark. The deities, recognizing their helplessness, praised the Lord. He then entered into all 24 principles as the indwelling Antaryami, energized them with creative power, and by combining them in proper proportion, produced the Hiranyagarbha — the Golden Cosmic Egg containing the entire universe in potential.",
+          words: [
+            { word: "भूतगणाः", transliteration: "bhūtagaṇāḥ", meaning: "groups of elements" },
+            { word: "इन्द्रियगणाः", transliteration: "indriyagaṇāḥ", meaning: "groups of senses" },
+            { word: "भुवनाण्डनिर्मिति", transliteration: "bhuvanāṇḍanirmiti", meaning: "creation of the cosmic egg" },
+            { word: "नानाविधसूक्तिभिः", transliteration: "nānāvidhasūktibhiḥ", meaning: "with various hymns/praises" },
+            { word: "तत्त्वानि", transliteration: "tattvāni", meaning: "the fundamental principles" },
+            { word: "आविशन्", transliteration: "āviśan", meaning: "entered into" },
+            { word: "चेष्टाशक्तिम्", transliteration: "ceṣṭāśaktim", meaning: "the power of activity/motion" },
+            { word: "घटयन्", transliteration: "ghaṭayan", meaning: "combining, uniting" },
+            { word: "हैरण्यमण्डम्", transliteration: "hairaṇyamaṇḍam", meaning: "the Golden Egg (Hiranyagarbha)" }
+          ]
+        },
+        {
+          dashaka: 5,
+          sloka: 10,
+          devanagari: "अण्डं तत्खलु पूर्वसृष्टसलिलेऽतिष्ठत् सहस्रं समाः\nनिर्भिन्दन्नकृथाश्चतुर्दशजगद्रूपं विराडाह्वयम् ।\nसाहस्रैः करपादमूर्धनिवहैर्निःशेषजीवात्मको\nनिर्भातोऽसि मरुत्पुराधिप स मां त्रायस्व सर्वामयात् ॥",
+          transliteration: "aṇḍaṁ tatkhalu pūrvasṛṣṭasalile'tiṣṭhat sahasraṁ samāḥ\nnirbhindannakṛthāścaturdaśajagadrūpaṁ virāḍāhvayam |\nsāhasraiḥ karapādamūrdhanivahairniḥśeṣajīvātmako\nnirbhāto'si marutpurādhipa sa māṁ trāyasva sarvāmayāt ||",
+          translation: "That Cosmic Egg remained in the primordial waters for a thousand years. Then, bursting it open, Thou created the fourteen worlds and became known as Virat (the Cosmic Being). With thousands of hands, feet, and heads, Thou shone as the totality of all individual souls. O Lord of Guruvayur! May that form of Thine protect me from all ailments!",
+          commentary: "The concluding verse describes the culmination of cosmic evolution: the Golden Egg floating in primordial waters for a thousand cosmic years, then the Lord bursting forth as the Virat Purusha — the Cosmic Person encompassing all fourteen worlds with innumerable limbs, embodying all living beings. As is customary, Bhattathiri concludes with a prayer for healing.",
+          words: [
+            { word: "अण्डम्", transliteration: "aṇḍam", meaning: "the Cosmic Egg (Brahmanda)" },
+            { word: "पूर्वसृष्टसलिले", transliteration: "pūrvasṛṣṭasalile", meaning: "in the previously created waters" },
+            { word: "सहस्रं समाः", transliteration: "sahasraṁ samāḥ", meaning: "for a thousand years" },
+            { word: "निर्भिन्दन्", transliteration: "nirbhindan", meaning: "bursting open, splitting" },
+            { word: "चतुर्दशजगत्", transliteration: "caturdaśajagat", meaning: "the fourteen worlds" },
+            { word: "विराट्", transliteration: "virāṭ", meaning: "the Cosmic Being, the universal form" },
+            { word: "साहस्रैः", transliteration: "sāhasraiḥ", meaning: "with thousands" },
+            { word: "करपादमूर्धनिवहैः", transliteration: "karapādamūrdhanivahaiḥ", meaning: "with multitudes of hands, feet, and heads" },
+            { word: "निःशेषजीवात्मकः", transliteration: "niḥśeṣajīvātmakaḥ", meaning: "embodying all living souls without exception" },
+            { word: "मरुत्पुराधिप", transliteration: "marutpurādhipa", meaning: "Lord of Guruvayur" },
+            { word: "त्रायस्व", transliteration: "trāyasva", meaning: "protect (me)" },
+            { word: "सर्वामयात्", transliteration: "sarvāmayāt", meaning: "from all diseases/ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 6,
