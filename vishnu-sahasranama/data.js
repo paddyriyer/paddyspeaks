@@ -8541,6 +8541,84 @@ const VISHNU_DATA = {
       ]
     },
     {
+      "label": "Additional Concluding Shlokas",
+      "label_sanskrit": "अतिरिक्त समापन श्लोकाः",
+      "verses": [
+        {
+          "devanagari": "ॐ आपदामपहर्तारं दातारं सर्वसम्पदाम् ।\nलोकाभिरामं श्रीरामं भूयो भूयो नमाम्यहम् ॥",
+          "sanskrit": "oṃ āpadāmapahartāraṃ dātāraṃ sarvasampadām .\nlokābhirāmaṃ śrīrāmaṃ bhūyo bhūyo namāmyaham ..",
+          "english": "Om apadamapahartaram dataram sarvasampadam |\nLokabhiramam shreeraamam bhuyo bhuyo namamyaham ||",
+          "translation": "Om. I bow again and again to Sri Rama, the remover of calamities, the bestower of all wealth, and the delight of the world."
+        },
+        {
+          "devanagari": "आर्तानामार्तिहन्तारं भीतानां भीतिनाशनम् ।\nद्विषतां कालदण्डं तं रामचन्द्रं नमाम्यहम् ॥",
+          "sanskrit": "ārtānāmārtihantāraṃ bhītānāṃ bhītināśanam .\ndviṣatāṃ kāladaṇḍaṃ taṃ rāmacandraṃ namāmyaham ..",
+          "english": "Artanamartihantaram bheetanam bheetinashanam |\nDvishatam kaladandam tam ramachandram namamyaham ||",
+          "translation": "I bow to Ramachandra, the destroyer of the sorrows of the afflicted, the remover of fear from the frightened, and the rod of death to the hostile."
+        },
+        {
+          "devanagari": "नमः कोदण्डहस्ताय सन्धीकृतशराय च ।\nखण्डिताखिलदैत्याय रामायापत्निवारिणे ॥",
+          "sanskrit": "namaḥ kodaṇḍahastāya sandhīkṛtaśarāya ca .\nkhaṇḍitākhiladaityāya rāmāyāpatnivāriṇe ..",
+          "english": "Namah kodandahastaya sandhikrutasharaya cha |\nKhanditakhiladaityaya ramayapatnivarine ||",
+          "translation": "Salutations to Rama, who holds the Kodanda bow, whose arrow is set on the string, who destroyed all demons, and who wards off calamities."
+        },
+        {
+          "devanagari": "रामाय रामभद्राय रामचन्द्राय वेधसे ।\nरघुनाथाय नाथाय सीतायाः पतये नमः ॥",
+          "sanskrit": "rāmāya rāmabhadrāya rāmacandrāya vedhase .\nraghunāthāya nāthāya sītāyāḥ pataye namaḥ ..",
+          "english": "Ramaya ramabhadraya ramachandraya vedhase |\nRaghunathaya nathaya seetayah pataye namah ||",
+          "translation": "Salutations to Rama, to Ramabhadra, to Ramachandra the creator, to the Lord of the Raghus, the protector, the Lord of Sita."
+        },
+        {
+          "devanagari": "अग्रतः पृष्ठतश्चैव पार्श्वतश्च महाबलौ ।\nआकर्णपूर्णधन्वानौ रक्षेतां रामलक्ष्मणौ ॥",
+          "sanskrit": "agrataḥ pṛṣṭhataścaiva pārśvataśca mahābalau .\nākarṇapūrṇadhanvānau rakṣetāṃ rāmalakṣmaṇau ..",
+          "english": "Agratah prushthataschiva parshvatashcha mahabalau |\nAakarnapurnadhanvanau rakshetam ramalakshmanau ||",
+          "translation": "May the mighty Rama and Lakshmana, with bows drawn to full, protect me from the front, from behind, and from the sides."
+        },
+        {
+          "devanagari": "सन्नद्धः कवची खड्गी चापबाणधरो युवा ।\nगच्छन् ममाग्रतो नित्यं रामः पातु सलक्ष्मणः ॥",
+          "sanskrit": "sannadhdhaḥ kavacī khaḍgī cāpabāṇadharo yuvā .\ngacchan mamāgrato nityaṃ rāmaḥ pātu salakṣmaṇaḥ ..",
+          "english": "Sannaddhah kavachee khadgee chapabanadharo yuva |\nGachchhan mamagrato nityam ramah patu salakshmanah ||",
+          "translation": "May the youthful Rama, armored, sword-bearing, wielding bow and arrow, along with Lakshmana, always walk before me and protect me."
+        },
+        {
+          "devanagari": "अच्युतानन्तगोविन्दनामोच्चारणभेषजात् ।\nनश्यन्ति सकला रोगास्सत्यं सत्यं वदाम्यहम् ॥",
+          "sanskrit": "acyutānantagovindanāmoccāraṇabheṣajāt .\nnaśyanti sakalā rogāssatyaṃ satyaṃ vadāmyaham ..",
+          "english": "Achyutanantagovindanamochcharanabheshajat |\nNashyanti sakala rogassatyam satyam vadamyaham ||",
+          "translation": "By the medicine of chanting the names Achyuta, Ananta, and Govinda, all diseases are destroyed — truly, truly, I declare this."
+        },
+        {
+          "devanagari": "सत्यं सत्यं पुनस्सत्यमुद्भूत्य भुजमुच्यते ।\nवेदाच्छास्त्रं परं नास्ति न दैवं केशवात्परम् ॥",
+          "sanskrit": "satyaṃ satyaṃ punassatyamubhūtya bhujamucyate .\nvedācchāstraṃ paraṃ nāsti na daivaṃ keśavātparam ..",
+          "english": "Satyam satyam punassatyamubhutya bhujamuchyate |\nVedachchhastram param nasti na daivam keshavat-param ||",
+          "translation": "Truth, truth, again truth — raising the arm, it is declared: there is no scripture higher than the Vedas, and no God higher than Keshava."
+        },
+        {
+          "devanagari": "शरीरे जर्जरीभूते व्याधिग्रस्ते कलेवरे ।\nऔषधं जाह्नवीतोयं वैद्यो नारायणो हरिः ॥",
+          "sanskrit": "śarīre jarjarībhūte vyādhigraste kalevare .\nauṣadhaṃ jāhnavītoyaṃ vaidyo nārāyaṇo hariḥ ..",
+          "english": "Shareere jarjareebhoote vyadhigraste kalevare |\nAushadham jahnaveetoyam vaidyo narayano harih ||",
+          "translation": "When the body is worn out and afflicted with disease, the medicine is the water of the Ganga, and the physician is Lord Narayana, Hari."
+        },
+        {
+          "devanagari": "आलोड्य सर्वशास्त्राणि विचार्य च पुनः पुनः ।\nइदमेकं सुनिष्पन्नं ध्येयो नारायणो हरिः ॥",
+          "sanskrit": "ālodya sarvaśāstrāṇi vicārya ca punaḥ punaḥ .\nidamekaṃ suniṣpannaṃ dhyeyo nārāyaṇo hariḥ ..",
+          "english": "Alodya sarvashastrani vicharya cha punah punah |\nIdamekam sunishpannam dhyeyo narayano harih ||",
+          "translation": "Having churned all the scriptures and reflected upon them again and again, this one conclusion stands firm: Narayana, Hari, alone is to be meditated upon."
+        },
+        {
+          "devanagari": "यदक्षरपदभ्रष्टं मात्राहीनं तु यद्भवेत् ।\nतत्सर्वं क्षम्यतां देव नारायण नमोऽस्तु ते ॥",
+          "sanskrit": "yadakṣarapadabhraṣṭaṃ mātrāhīnaṃ tu yadbhavet .\ntatsarvaṃ kṣamyatāṃ deva nārāyaṇa namo'stu te ..",
+          "english": "Yadaksharapadabhrashtam matraheenam tu yadbhavet |\nTatsarvam kshamyatam deva narayana namostu te ||",
+          "translation": "Whatever errors of syllables, words, or meter may have occurred — may all that be forgiven, O Lord Narayana. Salutations to Thee."
+        },
+        {
+          "devanagari": "विसर्गबिन्दुमात्राणि पदपादाक्षराणि च ।\nन्यूनानि चातिरिक्तानि क्षमस्व पुरुषोत्तम ॥",
+          "sanskrit": "visargabindumātrāṇi padapādākṣarāṇi ca .\nnyūnāni cātirikṭāni kṣamasva puruṣottama ..",
+          "english": "Visargabindumatrani padapadaksharani cha |\nNyunani chatirikṭani kshamasva purushottama ||",
+          "translation": "Whatever is deficient or excess in visargas, bindus, matras, words, feet, or syllables — forgive all that, O Purushottama."
+        }
+      ]
+    },
+    {
       "label": "Samarpana",
       "label_sanskrit": "समर्पणम्",
       "verses": [
