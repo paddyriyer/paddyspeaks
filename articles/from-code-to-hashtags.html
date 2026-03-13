@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>From Code to Hashtags: The Death of the Data Pipeline as We Know It</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=Source+Sans+3:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #FDF8F0;
+    --ink: #1A1A2E;
+    --accent-teal: #0D7377;
+    --accent-gold: #D4A843;
+    --accent-coral: #E07A5F;
+    --accent-blue: #3D5A80;
+    --accent-purple: #6B4C9A;
+    --light-teal: #E8F5F5;
+    --light-gold: #FBF4E4;
+    --light-coral: #FDF0EC;
+    --light-blue: #EBF0F6;
+    --code-bg: #0F1923;
+    --code-green: #7EC699;
+    --code-orange: #F5A623;
+    --code-cyan: #56D4DD;
+    --code-pink: #FF79C6;
+    --code-comment: #6272A4;
+    --aws-orange: #FF9900;
+    --azure-blue: #0078D4;
+    --gcp-green: #4285F4;
+    --snowflake-blue: #29B5E8;
+    --databricks-red: #FF3621;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Source Sans 3', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    line-height: 1.7;
+    font-size: 18px;
+    overflow-x: hidden;
+  }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 2rem;
+    position: relative;
+    background: linear-gradient(160deg, #0F1923 0%, #1A1A2E 40%, #162447 70%, #0D7377 100%);
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(circle at 20% 30%, rgba(13, 115, 119, 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(212, 168, 67, 0.2) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(107, 76, 154, 0.15) 0%, transparent 60%);
+    animation: heroGlow 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes heroGlow {
+    0% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+
+  /* Floating hashtags in hero */
+  .floating-hashtags {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .floating-hashtag {
+    position: absolute;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.06);
+    font-size: clamp(1rem, 3vw, 2.5rem);
+    font-weight: 700;
+    animation: floatHash 20s linear infinite;
+  }
+
+  @keyframes floatHash {
+    0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { transform: translateY(-100vh) rotate(15deg); opacity: 0; }
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    max-width: 900px;
+  }
+
+  .hero-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 1s 0.3s forwards;
+  }
+
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    animation: fadeUp 1s 0.6s forwards;
+  }
+
+  .hero h1 .hashtag-highlight {
+    color: var(--accent-gold);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+  }
+
+  .hero-subtitle {
+    font-size: 1.25rem;
+    color: rgba(255,255,255,0.75);
+    font-weight: 300;
+    max-width: 650px;
+    margin: 0 auto 2rem;
+    opacity: 0;
+    animation: fadeUp 1s 0.9s forwards;
+  }
+
+  /* ─── HERO TYPING TERMINAL ─── */
+  .hero-terminal {
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 1.25rem 1.75rem;
+    text-align: left;
+    max-width: 520px;
+    margin: 0 auto 2rem;
+    opacity: 0;
+    animation: fadeUp 1s 1.2s forwards;
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 0.75rem;
+  }
+
+  .terminal-dots span {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .terminal-dots .r { background: #FF5F57; }
+  .terminal-dots .y { background: #FEBC2E; }
+  .terminal-dots .g { background: #28C840; }
+
+  .typing-line {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--accent-gold);
+    font-weight: 700;
+    min-height: 1.6em;
+    display: flex;
+    align-items: center;
+  }
+
+  .typing-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: var(--accent-gold);
+    margin-left: 2px;
+    animation: blink 0.7s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  .hero-byline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: rgba(255,255,255,0.45);
+    letter-spacing: 2px;
+    opacity: 0;
+    animation: fadeUp 1s 1.5s forwards;
+  }
+
+  .scroll-indicator {
+    position: absolute;
+    bottom: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    animation: bounce 2s infinite;
+  }
+
+  .scroll-indicator svg {
+    width: 28px; height: 28px;
+    stroke: rgba(255,255,255,0.4);
+    fill: none; stroke-width: 2;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(10px); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── CONTENT SECTIONS ─── */
+  .content-wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  section { padding: 5rem 0; }
+
+  section p {
+    margin-bottom: 1.5rem;
+    font-weight: 300;
+    font-size: 1.1rem;
+  }
+
+  section p strong {
+    font-weight: 600;
+    color: var(--accent-teal);
+  }
+
+  h2.section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 900;
+    color: var(--ink);
+    margin-bottom: 2rem;
+    line-height: 1.2;
+    position: relative;
+  }
+
+  h2.section-title::after {
+    content: '';
+    display: block;
+    width: 60px;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent-teal), var(--accent-gold));
+    border-radius: 2px;
+    margin-top: 0.75rem;
+    animation: growLine 1s ease forwards;
+    transform-origin: left;
+  }
+
+  @keyframes growLine {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  /* ─── PULL QUOTES ─── */
+  .pull-quote {
+    border-left: 4px solid var(--accent-gold);
+    padding: 1.5rem 2rem;
+    margin: 2.5rem 0;
+    background: var(--light-gold);
+    border-radius: 0 12px 12px 0;
+  }
+
+  .pull-quote p {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.35rem;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.5;
+    margin-bottom: 0;
+  }
+
+  .pull-quote .attribution {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.85rem;
+    font-style: normal;
+    color: var(--accent-teal);
+    margin-top: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+
+  /* ─── ANIMATED CODE COMPARISON ─── */
+  .code-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin: 3rem 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+  }
+
+  @media (max-width: 768px) {
+    .code-comparison { grid-template-columns: 1fr; }
+  }
+
+  .code-panel {
+    padding: 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    overflow-x: auto;
+    position: relative;
+  }
+
+  .code-panel.old {
+    background: #2D1B1B;
+    color: #E8A0A0;
+  }
+
+  .code-panel.new {
+    background: var(--code-bg);
+    color: #E8F0E8;
+  }
+
+  .code-panel-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 1rem;
+    font-weight: 700;
+  }
+
+  .code-panel.old .code-panel-label {
+    background: rgba(224, 122, 95, 0.2);
+    color: var(--accent-coral);
+  }
+
+  .code-panel.new .code-panel-label {
+    background: rgba(13, 115, 119, 0.2);
+    color: var(--code-cyan);
+  }
+
+  .code-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .code-comment { color: var(--code-comment); }
+  .code-keyword { color: var(--code-pink); }
+  .code-string { color: var(--code-green); }
+  .code-function { color: var(--code-cyan); }
+  .code-hashtag { color: var(--accent-gold); font-weight: 700; font-size: 0.9rem; }
+  .code-variable { color: var(--code-orange); }
+  .code-dim { color: #5C6370; }
+
+  /* Old code strikethrough animation */
+  .code-panel.old .code-line {
+    transition: all 0.5s ease;
+  }
+
+  .code-panel.old.animate-strike .code-line {
+    text-decoration: line-through;
+    opacity: 0.3;
+    color: #884444;
+  }
+
+  /* Red overlay X */
+  .code-panel.old .strike-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s ease 0.3s;
+  }
+
+  .code-panel.old.animate-strike .strike-overlay {
+    opacity: 1;
+  }
+
+  .strike-overlay svg {
+    width: 120px;
+    height: 120px;
+    opacity: 0.15;
+  }
+
+  /* New code typing animation */
+  .new-code-lines .typed-line {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  .new-code-lines .typed-line.show {
+    opacity: 1;
+    transform: translateX(0);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .new-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 1.1em;
+    background: var(--code-cyan);
+    animation: blink 0.6s infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+    opacity: 0;
+  }
+
+  .new-cursor.active { opacity: 1; }
+
+  /* ─── PARTICLE PIPELINE SHOWCASE ─── */
+  .pipeline-showcase {
+    background: var(--code-bg);
+    border-radius: 20px;
+    padding: 3rem 2.5rem;
+    margin: 3rem 0;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0,0,0,0.2);
+  }
+
+  .pipeline-showcase::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--aws-orange), var(--azure-blue), var(--gcp-green), var(--snowflake-blue));
+  }
+
+  /* Particle canvas */
+  .particle-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .pipeline-showcase-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .pipeline-step {
+    margin-bottom: 1.8rem;
+    padding-left: 1.5rem;
+    border-left: 2px solid rgba(255,255,255,0.08);
+    transition: border-color 0.4s, background 0.4s;
+    position: relative;
+    z-index: 1;
+    border-radius: 0 8px 8px 0;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .pipeline-step.active-step {
+    border-left-color: var(--accent-gold);
+    background: rgba(212, 168, 67, 0.05);
+  }
+
+  /* Glowing dot on active step */
+  .pipeline-step::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: 0.85rem;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+    transition: all 0.4s;
+  }
+
+  .pipeline-step.active-step::before {
+    background: var(--accent-gold);
+    box-shadow: 0 0 12px var(--accent-gold), 0 0 24px rgba(212, 168, 67, 0.4);
+  }
+
+  .pipeline-step .step-hash {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+    margin-bottom: 0.3rem;
+  }
+
+  .pipeline-step .step-desc {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.5);
+    font-weight: 300;
+  }
+
+  .pipeline-step .step-var {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--code-orange);
+    margin-top: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    background: rgba(245,166,35,0.08);
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .pipeline-step .cloud-badge {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.6rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    margin-top: 0.35rem;
+    margin-right: 0.3rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .badge-aws { background: rgba(255,153,0,0.15); color: var(--aws-orange); }
+  .badge-azure { background: rgba(0,120,212,0.15); color: var(--azure-blue); }
+  .badge-gcp { background: rgba(66,133,244,0.15); color: var(--gcp-green); }
+  .badge-snowflake { background: rgba(41,181,232,0.15); color: var(--snowflake-blue); }
+  .badge-databricks { background: rgba(255,54,33,0.12); color: var(--databricks-red); }
+
+  /* ─── ORBITING CLOUD LOGOS ─── */
+  .cloud-orbit-section {
+    position: relative;
+    padding: 4rem 0;
+  }
+
+  .orbit-container {
+    width: 320px;
+    height: 320px;
+    position: relative;
+    margin: 2rem auto 3rem;
+  }
+
+  .orbit-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, var(--ink), #162447);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2rem;
+    font-weight: 900;
+    color: var(--accent-gold);
+    box-shadow: 0 0 40px rgba(212,168,67,0.3), 0 0 80px rgba(13,115,119,0.15);
+    z-index: 2;
+  }
+
+  .orbit-ring {
+    position: absolute;
+    top: 50%; left: 50%;
+    border: 1px dashed rgba(13,115,119,0.2);
+    border-radius: 50%;
+    animation: spinOrbit 30s linear infinite;
+  }
+
+  .orbit-ring.ring-1 {
+    width: 220px; height: 220px;
+    margin-top: -110px; margin-left: -110px;
+    animation-duration: 20s;
+  }
+
+  .orbit-ring.ring-2 {
+    width: 300px; height: 300px;
+    margin-top: -150px; margin-left: -150px;
+    animation-duration: 30s;
+    animation-direction: reverse;
+  }
+
+  @keyframes spinOrbit {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .orbit-planet {
+    position: absolute;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    /* Counter-rotate to keep text upright */
+    animation: counterSpin 20s linear infinite;
+  }
+
+  .orbit-ring.ring-2 .orbit-planet {
+    animation: counterSpin2 30s linear infinite;
+  }
+
+  @keyframes counterSpin {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(-360deg); }
+  }
+
+  @keyframes counterSpin2 {
+    from { transform: translate(-50%, -50%) rotate(0deg); }
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+  }
+
+  .planet-aws {
+    background: linear-gradient(135deg, #FF9900, #FF6600);
+    color: white;
+    top: 0; left: 50%;
+  }
+
+  .planet-azure {
+    background: linear-gradient(135deg, #0078D4, #005A9E);
+    color: white;
+    top: 50%; right: -26px; left: auto;
+  }
+
+  .planet-gcp {
+    background: linear-gradient(135deg, #4285F4, #1A73E8);
+    color: white;
+    bottom: 0; left: 50%;
+  }
+
+  .planet-snowflake {
+    background: linear-gradient(135deg, #29B5E8, #1D9FD6);
+    color: white;
+    top: 15%; left: -10px;
+  }
+
+  .planet-databricks {
+    background: linear-gradient(135deg, #FF3621, #E02F1D);
+    color: white;
+    bottom: 15%; right: -10px; left: auto;
+  }
+
+  /* Connection beams from center */
+  .beam-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ─── CLOUD STRIP CARDS ─── */
+  .cloud-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin: 3rem 0;
+  }
+
+  .cloud-card {
+    padding: 2rem 1.5rem;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+
+  .cloud-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 50px rgba(0,0,0,0.12);
+  }
+
+  .cloud-card.aws { background: linear-gradient(135deg, #FFF8ED, #FFF2DC); border: 1px solid rgba(255,153,0,0.2); }
+  .cloud-card.azure { background: linear-gradient(135deg, #F0F6FF, #E3EEFF); border: 1px solid rgba(0,120,212,0.2); }
+  .cloud-card.gcp { background: linear-gradient(135deg, #F0F5FF, #E8EEFF); border: 1px solid rgba(66,133,244,0.2); }
+  .cloud-card.snowflake { background: linear-gradient(135deg, #EDF9FF, #DFF3FF); border: 1px solid rgba(41,181,232,0.2); }
+
+  /* Pulse ring on hover */
+  .cloud-card::after {
+    content: '';
+    position: absolute;
+    top: 1rem; right: 1rem;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  .cloud-card.aws::after { background: var(--aws-orange); box-shadow: 0 0 0 0 rgba(255,153,0,0.4); }
+  .cloud-card.azure::after { background: var(--azure-blue); box-shadow: 0 0 0 0 rgba(0,120,212,0.4); }
+  .cloud-card.gcp::after { background: var(--gcp-green); box-shadow: 0 0 0 0 rgba(66,133,244,0.4); }
+  .cloud-card.snowflake::after { background: var(--snowflake-blue); box-shadow: 0 0 0 0 rgba(41,181,232,0.4); }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+    70% { box-shadow: 0 0 0 10px transparent; opacity: 0.7; }
+    100% { box-shadow: 0 0 0 0 transparent; opacity: 1; }
+  }
+
+  .cloud-card .cloud-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
+
+  .cloud-card h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    letter-spacing: 1px;
+  }
+
+  .cloud-card.aws h4 { color: #C77700; }
+  .cloud-card.azure h4 { color: var(--azure-blue); }
+  .cloud-card.gcp h4 { color: #1A73E8; }
+  .cloud-card.snowflake h4 { color: #1D9FD6; }
+
+  .cloud-card p {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: rgba(26,26,46,0.7);
+    margin-bottom: 0;
+  }
+
+  /* ─── EVOLUTION TIMELINE ─── */
+  .evolution-timeline {
+    position: relative;
+    margin: 3rem 0;
+    padding-left: 3rem;
+  }
+
+  .evolution-timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.75rem;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent-coral), var(--accent-teal), var(--accent-gold));
+  }
+
+  .evo-item {
+    position: relative;
+    margin-bottom: 2.5rem;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+
+  .evo-item:hover {
+    transform: translateX(4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+  }
+
+  .evo-item::before {
+    content: '';
+    position: absolute;
+    left: -2.55rem; top: 1.75rem;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 3px solid var(--accent-teal);
+    background: var(--cream);
+    transition: all 0.3s;
+  }
+
+  .evo-item:hover::before {
+    background: var(--accent-teal);
+    box-shadow: 0 0 12px rgba(13,115,119,0.5);
+  }
+
+  .evo-item .evo-era {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent-coral);
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+
+  .evo-item h4 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+  }
+
+  .evo-item p {
+    font-size: 0.95rem;
+    color: rgba(26,26,46,0.7);
+    margin-bottom: 0;
+  }
+
+  /* ─── STAT CALLOUT ─── */
+  .stat-callout {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin: 3rem 0;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--light-teal), var(--light-blue));
+    border-radius: 16px;
+    border: 1px solid rgba(13,115,119,0.15);
+  }
+
+  .stat-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: var(--accent-teal);
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* Animate counting up */
+  .stat-number[data-target] {
+    transition: color 0.3s;
+  }
+
+  .stat-text {
+    font-size: 1rem;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+
+  .stat-text .stat-source {
+    font-size: 0.75rem;
+    color: rgba(26,26,46,0.4);
+    margin-top: 0.3rem;
+    font-style: italic;
+  }
+
+  /* ─── MANIFESTO BOX ─── */
+  .manifesto-box {
+    background: linear-gradient(135deg, var(--ink) 0%, #162447 100%);
+    border-radius: 20px;
+    padding: 3rem;
+    margin: 3rem 0;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .manifesto-box::before {
+    content: '#';
+    position: absolute;
+    right: -30px; top: -40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 15rem;
+    font-weight: 900;
+    color: rgba(255,255,255,0.03);
+    line-height: 1;
+  }
+
+  .manifesto-box h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    color: var(--accent-gold);
+  }
+
+  .manifesto-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    opacity: 0;
+    transform: translateX(-20px);
+    transition: all 0.5s ease;
+  }
+
+  .manifesto-item.show {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .manifesto-item .m-hash {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+    animation: glowHash 2s ease-in-out infinite alternate;
+  }
+
+  @keyframes glowHash {
+    0% { text-shadow: 0 0 5px rgba(212,168,67,0.3); }
+    100% { text-shadow: 0 0 15px rgba(212,168,67,0.8); }
+  }
+
+  .manifesto-item p {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 0;
+    line-height: 1.5;
+  }
+
+  /* ─── COST COMPARISON ─── */
+  .cost-comparison {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 1rem;
+    margin: 3rem 0;
+    align-items: center;
+  }
+
+  @media (max-width: 600px) {
+    .cost-comparison { grid-template-columns: 1fr; }
+    .cost-arrow { transform: rotate(90deg); }
+  }
+
+  .cost-box {
+    padding: 2rem;
+    border-radius: 16px;
+    text-align: center;
+    transition: transform 0.3s;
+  }
+
+  .cost-box:hover { transform: scale(1.03); }
+
+  .cost-box.before { background: var(--light-coral); border: 1px solid rgba(224,122,95,0.2); }
+  .cost-box.after { background: var(--light-teal); border: 1px solid rgba(13,115,119,0.2); }
+
+  .cost-box .cost-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .cost-box.before .cost-label { color: var(--accent-coral); }
+  .cost-box.after .cost-label { color: var(--accent-teal); }
+
+  .cost-box .cost-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    font-weight: 900;
+  }
+
+  .cost-box.before .cost-value { color: var(--accent-coral); }
+  .cost-box.after .cost-value { color: var(--accent-teal); }
+
+  .cost-box .cost-detail {
+    font-size: 0.85rem;
+    color: rgba(26,26,46,0.6);
+    margin-top: 0.3rem;
+  }
+
+  .cost-arrow {
+    font-size: 2rem;
+    color: var(--accent-gold);
+    animation: arrowPulse 1.5s ease infinite;
+  }
+
+  @keyframes arrowPulse {
+    0%, 100% { transform: translateX(0); opacity: 1; }
+    50% { transform: translateX(6px); opacity: 0.6; }
+  }
+
+  /* ─── DQ DASHBOARD ─── */
+  .dq-dashboard {
+    background: white;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.08);
+    margin: 3rem 0;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+
+  .dq-header {
+    background: var(--code-bg);
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .dq-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dq-dot.r { background: #FF5F57; }
+  .dq-dot.y { background: #FEBC2E; }
+  .dq-dot.g { background: #28C840; }
+
+  .dq-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: rgba(255,255,255,0.5);
+    margin-left: 0.5rem;
+  }
+
+  .dq-body { padding: 2rem; }
+
+  .dq-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+
+  .dq-row:last-child { border-bottom: none; }
+
+  .dq-check-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--ink);
+    font-weight: 500;
+    min-width: 140px;
+  }
+
+  .dq-bar-wrap {
+    flex: 1;
+    margin: 0 1.5rem;
+    height: 8px;
+    background: #F0F0F0;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .dq-bar {
+    height: 100%;
+    border-radius: 4px;
+    width: 0;
+    transition: width 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dq-bar.pass { background: linear-gradient(90deg, #28C840, #2EE849); }
+  .dq-bar.warn { background: linear-gradient(90deg, #FEBC2E, #FFD700); }
+
+  .dq-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    min-width: 55px;
+    text-align: right;
+  }
+
+  .dq-score.pass { color: #28C840; }
+  .dq-score.warn { color: #E6A800; }
+
+  /* ─── SECTION DIVIDER ─── */
+  .section-divider {
+    text-align: center;
+    margin: 2rem 0;
+    color: rgba(26,26,46,0.15);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.5rem;
+    letter-spacing: 8px;
+  }
+
+  /* ─── FOOTER ─── */
+  .article-footer {
+    background: var(--ink);
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    padding: 4rem 2rem;
+  }
+
+  .article-footer .footer-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-gold);
+    margin-bottom: 0.75rem;
+  }
+
+  .article-footer p {
+    font-size: 0.85rem;
+    margin-bottom: 0.3rem;
+  }
+
+  .article-footer a {
+    color: var(--accent-teal);
+    text-decoration: none;
+  }
+
+  /* ─── SCROLL REVEAL ─── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 600px) {
+    .content-wrapper { padding: 0 1.25rem; }
+    section { padding: 3rem 0; }
+    .pipeline-showcase { padding: 2rem 1.5rem; }
+    .manifesto-box { padding: 2rem 1.5rem; }
+    .stat-callout { flex-direction: column; text-align: center; }
+    .cloud-strip { grid-template-columns: 1fr; }
+    .orbit-container { transform: scale(0.8); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="floating-hashtags">
+    <span class="floating-hashtag" style="left:5%; animation-delay:0s;"># Extract</span>
+    <span class="floating-hashtag" style="left:15%; animation-delay:3s;"># Transform</span>
+    <span class="floating-hashtag" style="left:30%; animation-delay:6s;"># Load</span>
+    <span class="floating-hashtag" style="left:50%; animation-delay:2s;"># Validate</span>
+    <span class="floating-hashtag" style="left:65%; animation-delay:8s;"># Test</span>
+    <span class="floating-hashtag" style="left:80%; animation-delay:4s;"># Deploy</span>
+    <span class="floating-hashtag" style="left:90%; animation-delay:10s;"># Monitor</span>
+    <span class="floating-hashtag" style="left:40%; animation-delay:12s;"># Govern</span>
+    <span class="floating-hashtag" style="left:70%; animation-delay:5s;"># Secure</span>
+    <span class="floating-hashtag" style="left:20%; animation-delay:9s;"># Scale</span>
+  </div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">The Future of Data Engineering</div>
+    <h1>From Code to <span class="hashtag-highlight">#Hashtags</span><br>The Death of the Data Pipeline<br>As We Know It</h1>
+    <p class="hero-subtitle">In the age of AI, writing a data pipeline is becoming less like programming — and more like writing a short essay.</p>
+
+    <!-- Typing terminal -->
+    <div class="hero-terminal">
+      <div class="terminal-dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="typing-line">
+        <span id="heroTypingText"></span><span class="typing-cursor"></span>
+      </div>
+    </div>
+
+    <div class="hero-byline">By Paddy Iyer &nbsp;·&nbsp; PaddySpeaks &nbsp;·&nbsp; March 2026</div>
+  </div>
+  <div class="scroll-indicator">
+    <svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+  </div>
+</header>
+
+<!-- ═══════════ THE OPENING ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <div class="reveal">
+      <p>Let me paint you a picture.</p>
+      <p>It's 2019. You're a data engineer. Your morning begins with 400 lines of Python stitching together an Airflow DAG. By afternoon, you're debugging a Spark job that's failing because a column name changed upstream. By evening, you're writing SQL transformations, managing dbt models, configuring YAML files, and praying the CI/CD pipeline doesn't break overnight.</p>
+      <p>Now fast-forward to today. That same pipeline? It's a <strong>twelve-line file with hashtags</strong>.</p>
+    </div>
+
+    <div class="reveal">
+      <div class="pull-quote">
+        <p>The best code is the code you never had to write. The next era of data engineering replaces syntax with intent — and complexity with clarity.</p>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>This isn't science fiction. This is the logical conclusion of a trend that's been accelerating since the rise of large language models, cloud-native architectures, and declarative infrastructure. The data pipeline of tomorrow won't be <em>coded</em> — it will be <em>composed</em>. Not in Python or SQL, but in something far more human: structured natural language, annotated with hashtags that an AI-powered backend compiles, optimizes, and executes across any cloud.</p>
+      <p>Welcome to the <strong>World of #Pipelines</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ THE BEFORE/AFTER ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Old World vs. The New World</h2>
+
+    <div class="reveal">
+      <p>To understand the magnitude of this shift, you need to see it side by side. On the left, the pipeline we've been writing for two decades. On the right, the pipeline we're about to start writing.</p>
+    </div>
+
+    <div class="code-comparison reveal" id="codeCompare">
+      <div class="code-panel old" id="oldCode">
+        <div class="code-panel-label">Yesterday's Pipeline — 200+ Lines</div>
+        <div class="code-line"><span class="code-comment"># airflow_dag.py</span></div>
+        <div class="code-line"><span class="code-keyword">from</span> airflow <span class="code-keyword">import</span> DAG</div>
+        <div class="code-line"><span class="code-keyword">from</span> airflow.operators.python <span class="code-keyword">import</span> PythonOperator</div>
+        <div class="code-line"><span class="code-keyword">from</span> airflow.providers.snowflake...</div>
+        <div class="code-line"><span class="code-keyword">from</span> datetime <span class="code-keyword">import</span> datetime, timedelta</div>
+        <div class="code-line">&nbsp;</div>
+        <div class="code-line"><span class="code-function">default_args</span> = {</div>
+        <div class="code-line">  <span class="code-string">'owner'</span>: <span class="code-string">'data_team'</span>,</div>
+        <div class="code-line">  <span class="code-string">'retries'</span>: 3,</div>
+        <div class="code-line">  <span class="code-string">'retry_delay'</span>: timedelta(minutes=5),</div>
+        <div class="code-line">  <span class="code-string">'depends_on_past'</span>: <span class="code-keyword">False</span>,</div>
+        <div class="code-line">  ...</div>
+        <div class="code-line">}</div>
+        <div class="code-line">&nbsp;</div>
+        <div class="code-line"><span class="code-keyword">def</span> <span class="code-function">extract_sfdc</span>():</div>
+        <div class="code-line">  <span class="code-comment"># 50 lines of API logic</span></div>
+        <div class="code-line">  <span class="code-comment"># Auth, pagination, error handling</span></div>
+        <div class="code-line">  <span class="code-comment"># Schema validation...</span></div>
+        <div class="code-line">&nbsp;</div>
+        <div class="code-line"><span class="code-keyword">def</span> <span class="code-function">load_csv_vendor</span>():</div>
+        <div class="code-line">  <span class="code-comment"># 30 lines of file handling</span></div>
+        <div class="code-line">  <span class="code-comment"># S3 download, schema mapping...</span></div>
+        <div class="code-line">&nbsp;</div>
+        <div class="code-line"><span class="code-keyword">def</span> <span class="code-function">transform_facts</span>():</div>
+        <div class="code-line">  <span class="code-comment"># 80 lines of SQL generation</span></div>
+        <div class="code-line">  <span class="code-comment"># Joins, dedup, SCD Type 2...</span></div>
+        <div class="code-line">&nbsp;</div>
+        <div class="code-line"><span class="code-dim">... 120 more lines ...</span></div>
+
+        <!-- Strike overlay -->
+        <div class="strike-overlay">
+          <svg viewBox="0 0 100 100"><line x1="15" y1="15" x2="85" y2="85" stroke="#FF5F57" stroke-width="8" stroke-linecap="round"/><line x1="85" y1="15" x2="15" y2="85" stroke="#FF5F57" stroke-width="8" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <div class="code-panel new" id="newCode">
+        <div class="code-panel-label">Tomorrow's Pipeline — 12 Lines</div>
+        <div class="new-code-lines">
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Extract data from Salesforce CRM</span></div>
+          <div class="typed-line"><span class="code-variable">  @source</span> = salesforce.opportunities</div>
+          <div class="typed-line"><span class="code-variable">  @incremental</span> = last_modified_date</div>
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Ingest CSV from vendor partner</span></div>
+          <div class="typed-line"><span class="code-variable">  @source</span> = s3://acme-vendor/daily/</div>
+          <div class="typed-line"><span class="code-variable">  @schema</span> = auto-detect</div>
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Load into fact tables</span></div>
+          <div class="typed-line"><span class="code-variable">  @targets</span> = fact_sales, fact_customers</div>
+          <div class="typed-line"><span class="code-variable">  @strategy</span> = merge-on-key(id)</div>
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Apply governance</span></div>
+          <div class="typed-line"><span class="code-variable">  @role</span> = $ANALYST_ROLE</div>
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Run automated tests</span></div>
+          <div class="typed-line"><span class="code-variable">  @test</span> = row_count_delta &lt; 10%</div>
+          <div class="typed-line">&nbsp;</div>
+          <div class="typed-line"><span class="code-hashtag"># Validate data quality</span></div>
+          <div class="typed-line"><span class="code-variable">  @dq_threshold</span> = 99.5%</div>
+        </div>
+        <span class="new-cursor" id="newCursor"></span>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>Look at the right side. No imports. No boilerplate. No error handling spaghetti. Each <strong>#hashtag</strong> is a declaration of intent. Each <strong>@variable</strong> is a parameter. The AI backend reads this, resolves the complexity, provisions the infrastructure, writes the compiled execution plan, and runs it — on whichever cloud you're deployed in.</p>
+      <p>The developer doesn't worry about the complexity. The developer <em>declares the outcome</em>.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ WHY NOW ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">Why This Is Happening Now</h2>
+
+    <div class="reveal">
+      <p>This convergence isn't accidental. Three tectonic forces are colliding simultaneously.</p>
+    </div>
+
+    <div class="evolution-timeline reveal">
+      <div class="evo-item">
+        <div class="evo-era">Force 1</div>
+        <h4>LLMs Understand Intent, Not Just Syntax</h4>
+        <p>Large language models have crossed the threshold from code completion to code comprehension. When you write <strong># Extract data from Salesforce CRM</strong>, an LLM doesn't just see text — it understands the semantic intent, resolves the API schema, determines authentication patterns, handles pagination, and generates the compiled execution code. The hashtag becomes a high-level instruction that an AI compiler interprets and fulfills.</p>
+      </div>
+      <div class="evo-item">
+        <div class="evo-era">Force 2</div>
+        <h4>Cloud Platforms Have Become Self-Assembling</h4>
+        <p>AWS, Azure, and GCP aren't just infrastructure anymore — they're programmable substrates. Serverless compute, managed connectors, auto-scaling storage, and built-in governance mean the "how" of pipeline execution can be entirely delegated to the cloud. The developer only needs to express the "what." Snowflake's Cortex, Databricks' Lakeflow, Azure's Fabric — they're all converging toward intent-driven architectures.</p>
+      </div>
+      <div class="evo-item">
+        <div class="evo-era">Force 3</div>
+        <h4>The Integration Tax Has Become Unsustainable</h4>
+        <p>Enterprises spend 40-60% of their data engineering budgets on integration plumbing — connecting systems, managing schemas, handling errors, writing glue code. This is not value creation; it's tax. The #Pipeline paradigm eliminates this tax by abstracting integration into declarative directives that the backend resolves automatically.</p>
+      </div>
+    </div>
+
+    <div class="stat-callout reveal">
+      <div class="stat-number" data-target="50" id="stat1">0%</div>
+      <div class="stat-text">
+        Banco Bradesco, one of Latin America's largest banks, cut their coding time in half by adopting natural language interfaces for pipeline authoring — letting both technical and non-technical users generate and troubleshoot code conversationally.
+        <div class="stat-source">Databricks Customer Story, 2025</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ FULL PIPELINE SHOWCASE WITH PARTICLES ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Anatomy of a #Pipeline</h2>
+
+    <div class="reveal">
+      <p>Let's walk through a real-world scenario. Imagine you're a data engineer at a mid-market e-commerce company. You need to build a daily pipeline that pulls sales data from Salesforce, merges it with vendor inventory CSVs, populates your warehouse fact tables, applies role-based security, runs automated tests, and validates data quality — all before the analytics team's 8 AM standup.</p>
+      <p>Here's how it looks in the <strong>#Pipeline</strong> paradigm:</p>
+    </div>
+
+    <div class="pipeline-showcase reveal" id="pipelineShowcase">
+      <canvas class="particle-canvas" id="particleCanvas"></canvas>
+      <div class="pipeline-showcase-title">sales_daily_pipeline.hp</div>
+
+      <div class="pipeline-step" data-step="0">
+        <div class="step-hash"># Extract data from Salesforce CRM</div>
+        <div class="step-desc">Pull all opportunities updated since last successful run. Handle API rate limits, pagination, and OAuth token refresh automatically.</div>
+        <div class="step-var">@source = salesforce.opportunities</div>
+        <div class="step-var">@incremental = last_modified_date</div>
+        <div class="step-var">@window = $LAST_SUCCESS to $NOW</div>
+        <div><span class="cloud-badge badge-aws">AWS Glue</span><span class="cloud-badge badge-azure">ADF</span><span class="cloud-badge badge-gcp">Dataflow</span></div>
+      </div>
+
+      <div class="pipeline-step" data-step="1">
+        <div class="step-hash"># Combine CSV extract from third-party vendor</div>
+        <div class="step-desc">Ingest the daily inventory file. Auto-detect schema changes. Map vendor SKUs to our internal product taxonomy.</div>
+        <div class="step-var">@source = s3://acme-vendor/inventory/$DATE.csv</div>
+        <div class="step-var">@schema = auto-detect | alert-on-drift</div>
+        <div class="step-var">@mapping = vendor_sku → product.sku (fuzzy)</div>
+        <div><span class="cloud-badge badge-snowflake">Snowpipe</span><span class="cloud-badge badge-databricks">Auto Loader</span></div>
+      </div>
+
+      <div class="pipeline-step" data-step="2">
+        <div class="step-hash"># Run the load and populate fact tables</div>
+        <div class="step-desc">Merge-upsert into fact_sales, dim_customers, dim_products. Apply SCD Type 2 for customer dimension changes. Partition by order_date.</div>
+        <div class="step-var">@targets = fact_sales, dim_customers, dim_products</div>
+        <div class="step-var">@strategy = merge-on-key(order_id) | scd2(customer_id)</div>
+        <div class="step-var">@partition = order_date(monthly)</div>
+        <div><span class="cloud-badge badge-snowflake">Dynamic Tables</span><span class="cloud-badge badge-databricks">Delta Live</span></div>
+      </div>
+
+      <div class="pipeline-step" data-step="3">
+        <div class="step-hash"># Use following permission set</div>
+        <div class="step-desc">Apply role-based access using Snowflake session variables. Lock fact tables to ETL service account for writes. Grant read to analyst and exec roles.</div>
+        <div class="step-var">@role = $ETL_SERVICE_ROLE</div>
+        <div class="step-var">@grant.read = ANALYST_ROLE, EXEC_ROLE</div>
+        <div class="step-var">@grant.write = ETL_SERVICE_ROLE</div>
+        <div><span class="cloud-badge badge-snowflake">RBAC</span><span class="cloud-badge badge-databricks">Unity Catalog</span></div>
+      </div>
+
+      <div class="pipeline-step" data-step="4">
+        <div class="step-hash"># Run auto tests</div>
+        <div class="step-desc">Validate row counts within 10% tolerance of previous run. Check for null primary keys. Verify referential integrity between fact and dimension tables.</div>
+        <div class="step-var">@test.row_delta = ±10%</div>
+        <div class="step-var">@test.not_null = order_id, customer_id</div>
+        <div class="step-var">@test.referential = fact_sales.customer_id → dim_customers.id</div>
+      </div>
+
+      <div class="pipeline-step" data-step="5">
+        <div class="step-hash"># DQ Validation — set threshold limits</div>
+        <div class="step-desc">Run data quality scoring across all target tables. Set pass threshold at 99.5%. Alert Slack on warnings. Block downstream consumers on critical failures.</div>
+        <div class="step-var">@dq_threshold = 99.5%</div>
+        <div class="step-var">@on_warn = slack(#data-ops)</div>
+        <div class="step-var">@on_fail = block_downstream | page(oncall)</div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>That's it. The entire pipeline. A human reads this in 90 seconds. An AI compiles it in 3. The cloud executes it in minutes. No Airflow DAG. No dbt YAML. No Terraform. No glue code. Just <strong>intent, parameters, and execution</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ ORBITING CLOUD BACKENDS ═══════════ -->
+<section class="cloud-orbit-section">
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Cloud Does the Heavy Lifting</h2>
+
+    <div class="reveal">
+      <p>Here's the critical insight: the developer doesn't need to know <em>which</em> cloud service executes each step. The #Pipeline spec is cloud-agnostic at the declaration layer. The AI compilation engine maps each directive to the optimal service on your target platform.</p>
+    </div>
+
+    <!-- Orbiting cloud logos -->
+    <div class="orbit-container reveal">
+      <div class="orbit-center">#</div>
+
+      <div class="orbit-ring ring-1">
+        <div class="orbit-planet planet-aws" style="top:0; left:50%;">AWS</div>
+        <div class="orbit-planet planet-azure" style="top:50%; right:-26px; left:auto;">Azure</div>
+        <div class="orbit-planet planet-gcp" style="bottom:0; left:50%;">GCP</div>
+      </div>
+
+      <div class="orbit-ring ring-2">
+        <div class="orbit-planet planet-snowflake" style="top:15%; left:-10px;">Snow</div>
+        <div class="orbit-planet planet-databricks" style="bottom:15%; right:-10px; left:auto;">DBX</div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>Write once, execute anywhere. The <strong>#</strong> at the center is your intent. The clouds orbiting it are interchangeable backends. Switch providers without rewriting a single line.</p>
+    </div>
+
+    <div class="cloud-strip reveal">
+      <div class="cloud-card aws">
+        <div class="cloud-icon">☁️</div>
+        <h4>AWS</h4>
+        <p><strong># Extract</strong> compiles to Glue crawlers + Lambda connectors. <strong># Load</strong> targets Redshift Serverless. <strong># Test</strong> triggers Step Functions with CloudWatch alerting.</p>
+      </div>
+      <div class="cloud-card azure">
+        <div class="cloud-icon">🔷</div>
+        <h4>Azure</h4>
+        <p><strong># Extract</strong> compiles to Data Factory linked services. <strong># Load</strong> targets Fabric Lakehouse. <strong># Govern</strong> maps to Purview policies and Entra ID roles.</p>
+      </div>
+      <div class="cloud-card gcp">
+        <div class="cloud-icon">🌐</div>
+        <h4>GCP</h4>
+        <p><strong># Extract</strong> compiles to Dataflow pipelines. <strong># Load</strong> targets BigQuery. <strong># DQ</strong> leverages Dataplex quality rules with auto-remediation.</p>
+      </div>
+      <div class="cloud-card snowflake">
+        <div class="cloud-icon">❄️</div>
+        <h4>Snowflake + Databricks</h4>
+        <p><strong># Extract</strong> compiles to Snowpipe / Auto Loader. <strong># Load</strong> targets Dynamic Tables / Delta Live Tables. <strong># Govern</strong> maps to RBAC + Unity Catalog.</p>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>If your company migrates from AWS to Azure next quarter, you don't rewrite a single line of your pipeline. The #Pipeline spec stays identical. Only the compilation target changes. This is what <strong>true cloud portability</strong> looks like — not at the infrastructure level, but at the <em>intent</em> level.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ DQ VALIDATION ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">Data Quality Is No Longer an Afterthought</h2>
+
+    <div class="reveal">
+      <p>In the old world, data quality checks were bolted on — usually as separate dbt tests or Great Expectations suites, written in yet another framework, maintained by yet another team. In the #Pipeline paradigm, quality is <strong>embedded at every step</strong>.</p>
+      <p>When you write <strong># DQ Validation — set threshold limits</strong>, you're not just requesting a check. You're declaring an SLA. The backend generates continuous monitors, anomaly detection, lineage-aware impact analysis, and automated alerting — all from a single hashtag directive.</p>
+    </div>
+
+    <div class="dq-dashboard reveal" id="dqDashboard">
+      <div class="dq-header">
+        <div class="dq-dot r"></div>
+        <div class="dq-dot y"></div>
+        <div class="dq-dot g"></div>
+        <span class="dq-title">sales_daily_pipeline.hp — DQ Dashboard (auto-generated)</span>
+      </div>
+      <div class="dq-body">
+        <div class="dq-row">
+          <span class="dq-check-name">Row Count Delta</span>
+          <div class="dq-bar-wrap"><div class="dq-bar pass" data-width="95"></div></div>
+          <span class="dq-score pass">+3.2%</span>
+        </div>
+        <div class="dq-row">
+          <span class="dq-check-name">Null Primary Keys</span>
+          <div class="dq-bar-wrap"><div class="dq-bar pass" data-width="100"></div></div>
+          <span class="dq-score pass">0 nulls</span>
+        </div>
+        <div class="dq-row">
+          <span class="dq-check-name">Referential Integrity</span>
+          <div class="dq-bar-wrap"><div class="dq-bar pass" data-width="99"></div></div>
+          <span class="dq-score pass">99.97%</span>
+        </div>
+        <div class="dq-row">
+          <span class="dq-check-name">Schema Drift Detection</span>
+          <div class="dq-bar-wrap"><div class="dq-bar warn" data-width="70"></div></div>
+          <span class="dq-score warn">1 new col</span>
+        </div>
+        <div class="dq-row">
+          <span class="dq-check-name">Freshness SLA</span>
+          <div class="dq-bar-wrap"><div class="dq-bar pass" data-width="100"></div></div>
+          <span class="dq-score pass">On time</span>
+        </div>
+        <div class="dq-row">
+          <span class="dq-check-name">Overall DQ Score</span>
+          <div class="dq-bar-wrap"><div class="dq-bar pass" data-width="99.7"></div></div>
+          <span class="dq-score pass">99.7%</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>This entire dashboard — auto-generated from two lines of hashtag directives. No configuration. No separate observability platform. The pipeline is its own quality monitor.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ COST/TIME COMPARISON ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Economics of #Pipelines</h2>
+
+    <div class="reveal">
+      <p>Let's talk about what this means for organizations. The shift from imperative to declarative isn't just about developer happiness — though that matters immensely. It's about fundamentally reshaping the economics of data engineering.</p>
+    </div>
+
+    <div class="cost-comparison reveal">
+      <div class="cost-box before">
+        <div class="cost-label">Traditional Pipeline</div>
+        <div class="cost-value">6-8 Weeks</div>
+        <div class="cost-detail">Design → Code → Test → Deploy → Monitor</div>
+      </div>
+      <div class="cost-arrow">→</div>
+      <div class="cost-box after">
+        <div class="cost-label">#Pipeline</div>
+        <div class="cost-value">2-3 Days</div>
+        <div class="cost-detail">Declare → Review → Execute</div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>But the speed isn't even the most transformative part. Consider what changes downstream:</p>
+      <p><strong>Onboarding:</strong> A new data engineer reads a #Pipeline file and understands the entire data flow in minutes. No tracing through DAGs, no deciphering SQL buried in Python strings, no archaeology through Git blame.</p>
+      <p><strong>Maintenance:</strong> When the vendor changes their CSV schema, the <strong>@schema = auto-detect | alert-on-drift</strong> directive handles it. No midnight pages. No hotfixes. The pipeline adapts.</p>
+      <p><strong>Governance:</strong> Every #Pipeline file is simultaneously its own documentation, its own lineage map, and its own access control policy. The three are inseparable by design.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ ROLE OF DATA ENGINEER ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Data Engineer Evolves — Not Disappears</h2>
+
+    <div class="reveal">
+      <p>Let me be crystal clear: this is not a "data engineering is dead" article. Quite the opposite. The #Pipeline paradigm <em>elevates</em> the data engineer from plumber to architect.</p>
+    </div>
+
+    <div class="pull-quote reveal">
+      <p>Data engineers are evolving from traditional coders to validation experts — overseeing AI-augmented workflows, focusing on strategic orchestration rather than manual pipeline creation.</p>
+      <p class="attribution">— Hitachi Ventures, "The AI-Driven Data Stack Revolution"</p>
+    </div>
+
+    <div class="reveal">
+      <p>In the #Pipeline world, the data engineer's job shifts to:</p>
+      <p><strong>Intent Design:</strong> Crafting precise, unambiguous directives. The quality of a # Extract directive determines the quality of the compiled output. This requires deep domain knowledge — understanding what "incremental" means for Salesforce vs. a REST API vs. a file drop.</p>
+      <p><strong>Compilation Review:</strong> The AI generates an execution plan. The engineer reviews it — checking for optimal join strategies, appropriate partitioning, correct SCD handling. Think of it as code review, but for generated infrastructure.</p>
+      <p><strong>Threshold Tuning:</strong> Setting the right DQ thresholds, alert routing, and failure policies. This is where 15 years of experience matters — knowing that a 10% row delta is normal for sales data but a red flag for transaction data.</p>
+      <p><strong>Architecture:</strong> Deciding which pipelines should exist, how data domains interact, where materialization boundaries sit. The strategic work that was always the most valuable — and always got squeezed out by the urgent need to fix broken DAGs.</p>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ THE MANIFESTO ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <div class="manifesto-box reveal" id="manifestoBox">
+      <h3>The #Pipeline Manifesto</h3>
+      <div class="manifesto-item" data-index="0">
+        <span class="m-hash">#</span>
+        <p><strong>Intent over implementation.</strong> Declare what you want, not how to build it. The cloud is smart enough to figure out the rest.</p>
+      </div>
+      <div class="manifesto-item" data-index="1">
+        <span class="m-hash">#</span>
+        <p><strong>Readability is the ultimate documentation.</strong> If a business analyst can't read your pipeline, your pipeline is too complex.</p>
+      </div>
+      <div class="manifesto-item" data-index="2">
+        <span class="m-hash">#</span>
+        <p><strong>Quality is not a separate layer.</strong> Validation, testing, and governance are embedded in every directive — not bolted on after the fact.</p>
+      </div>
+      <div class="manifesto-item" data-index="3">
+        <span class="m-hash">#</span>
+        <p><strong>Cloud portability at the intent layer.</strong> Write once, compile to any cloud. Switching providers should never require rewriting pipelines.</p>
+      </div>
+      <div class="manifesto-item" data-index="4">
+        <span class="m-hash">#</span>
+        <p><strong>The backend handles the complexity.</strong> Authentication, rate limiting, schema evolution, error handling, retry logic — that's the machine's job, not yours.</p>
+      </div>
+      <div class="manifesto-item" data-index="5">
+        <span class="m-hash">#</span>
+        <p><strong>Developers are architects, not plumbers.</strong> The highest-value work in data engineering is deciding what to build — not debugging how it runs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ ALREADY HAPPENING ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">This Isn't Just Theory — It's Already Happening</h2>
+
+    <div class="reveal">
+      <p>If you think this sounds futuristic, look around. The seeds are already planted and growing fast:</p>
+      <p><strong>Databricks Lakeflow</strong> now enables natural language pipeline authoring with AI-generated code. Their embedded AI functions — <code>ai_analyze_sentiment</code>, <code>ai_extract</code>, <code>ai_classify</code> — can be called directly inside pipeline definitions without managing separate AI services.</p>
+      <p><strong>Snowflake Cortex</strong> provides LLM-powered functions that run inside your data warehouse. Write a SQL query that summarizes customer feedback using natural language — no external API, no model hosting, no inference infrastructure.</p>
+      <p><strong>Informatica's Claire Agents</strong> automate data quality monitoring, data exploration, and building data pipelines — all driven by natural language instructions rather than coded configurations.</p>
+      <p><strong>dbt's Copilot</strong> auto-generates SQL snippets, YAML documentation, and data tests from natural language context. What was once weeks of manual work is now hours.</p>
+      <p>The convergence is undeniable. Every major platform is racing toward the same conclusion: <strong>the future data engineer writes intent, and the platform writes code</strong>.</p>
+    </div>
+
+    <div class="stat-callout reveal">
+      <div class="stat-number" data-target="60" id="stat2">0%</div>
+      <div class="stat-text">
+        Gartner projects that by 2026, roughly 60 percent of AI data projects will stall — not because of poor models, but because the underlying data pipelines aren't ready. The #Pipeline paradigm addresses this directly: by simplifying pipeline creation, more organizations can build the data foundations AI requires.
+        <div class="stat-source">Gartner & Domo AI Data Pipeline Report, 2025</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ THE FUTURE ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">Where This Goes Next</h2>
+
+    <div class="reveal">
+      <p>We're at the beginning. The #Pipeline concept will mature through predictable stages:</p>
+    </div>
+
+    <div class="evolution-timeline reveal">
+      <div class="evo-item">
+        <div class="evo-era">2026-2027</div>
+        <h4>Natural Language Compilation</h4>
+        <p>AI backends reliably compile hashtag directives into cloud-native execution plans. Human review is still required, but the AI handles 80% of the plumbing. Early adopters see 5-10x productivity gains.</p>
+      </div>
+      <div class="evo-item">
+        <div class="evo-era">2028-2029</div>
+        <h4>Self-Healing Pipelines</h4>
+        <p>Pipelines don't just execute — they observe themselves, detect drift, and self-correct. A schema change in a vendor CSV doesn't generate an alert; the pipeline adapts, logs the change, and continues. The # Validate directive becomes a living contract, not a static check.</p>
+      </div>
+      <div class="evo-item">
+        <div class="evo-era">2030+</div>
+        <h4>Conversational Data Engineering</h4>
+        <p>The .hp file itself becomes optional. Data engineers describe entire data architectures in natural conversation. The AI generates the #Pipeline spec, the execution plan, the governance model, and the monitoring framework — all from a single conversation. The pipeline becomes as easy to create as a Slack message.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider">· · · # · · ·</div>
+
+<!-- ═══════════ CLOSING ═══════════ -->
+<section>
+  <div class="content-wrapper">
+    <h2 class="section-title reveal">The Death of the Pipeline as We Know It</h2>
+
+    <div class="reveal">
+      <p>Let's be precise about what's dying. The <em>pipeline</em> isn't dying. Data will always need to be extracted, transformed, validated, and loaded. What's dying is the <em>way</em> we express that work.</p>
+      <p>The hundreds of lines of Python. The YAML configuration sprawl. The DAG dependency nightmares. The 3 AM PagerDuty alerts for a null column that shouldn't have been null. The six-week project timeline for what should be a two-day task.</p>
+      <p>All of that is dying. And in its place rises something remarkably simple: a short file, structured with hashtags, that reads like an essay and executes like enterprise infrastructure.</p>
+    </div>
+
+    <div class="pull-quote reveal">
+      <p>The best pipelines of tomorrow will look less like code and more like well-written specifications. The hashtag is not just a symbol — it's a declaration that says: "I know what I want. Now go build it."</p>
+    </div>
+
+    <div class="reveal">
+      <p>Welcome to the World of <strong>#Pipelines</strong>.</p>
+      <p>The revolution won't be coded. It will be <strong>#declared</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="article-footer">
+  <div class="footer-logo">PaddySpeaks</div>
+  <p><a href="https://paddyspeaks.com" target="_blank">paddyspeaks.com</a></p>
+  <p style="margin-top:1rem; font-size:0.75rem; color:rgba(255,255,255,0.3);">From Code to #Hashtags · March 2026 · Paddy Iyer</p>
+</footer>
+
+<!-- ═══════════ ALL ANIMATIONS JS ═══════════ -->
+<script>
+(function() {
+  // ─── SCROLL REVEAL ───
+  const revealObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+  document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+  // ─── 1. HERO TYPING EFFECT ───
+  const heroLines = [
+    '# Extract data from Salesforce CRM',
+    '# Combine CSV from vendor partner',
+    '# Load and populate fact_sales',
+    '# Apply governance — $ANALYST_ROLE',
+    '# Run auto tests',
+    '# DQ Validation — threshold 99.5%'
+  ];
+  const heroEl = document.getElementById('heroTypingText');
+  let heroLineIdx = 0, heroCharIdx = 0;
+  let heroTyping = true, heroPause = 0;
+
+  function typeHero() {
+    if (!heroEl) return;
+    if (heroTyping) {
+      if (heroCharIdx <= heroLines[heroLineIdx].length) {
+        heroEl.textContent = heroLines[heroLineIdx].substring(0, heroCharIdx);
+        heroCharIdx++;
+        setTimeout(typeHero, 40 + Math.random() * 30);
+      } else {
+        heroTyping = false;
+        heroPause = 0;
+        setTimeout(typeHero, 1800);
+      }
+    } else {
+      if (heroCharIdx > 0) {
+        heroCharIdx--;
+        heroEl.textContent = heroLines[heroLineIdx].substring(0, heroCharIdx);
+        setTimeout(typeHero, 20);
+      } else {
+        heroLineIdx = (heroLineIdx + 1) % heroLines.length;
+        heroTyping = true;
+        setTimeout(typeHero, 400);
+      }
+    }
+  }
+  setTimeout(typeHero, 2000);
+
+  // ─── 2. CODE COMPARISON ANIMATION ───
+  const codeCompare = document.getElementById('codeCompare');
+  const oldCode = document.getElementById('oldCode');
+  const newCursor = document.getElementById('newCursor');
+  const typedLines = document.querySelectorAll('.typed-line');
+  let codeAnimated = false;
+
+  const codeObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !codeAnimated) {
+        codeAnimated = true;
+        // Phase 1: Strike through old code
+        setTimeout(() => {
+          oldCode.classList.add('animate-strike');
+        }, 600);
+        // Phase 2: Type in new code
+        setTimeout(() => {
+          newCursor.classList.add('active');
+          typedLines.forEach((line, i) => {
+            setTimeout(() => {
+              line.classList.add('show');
+            }, i * 180);
+          });
+          // Hide cursor after all lines typed
+          setTimeout(() => {
+            newCursor.classList.remove('active');
+          }, typedLines.length * 180 + 500);
+        }, 1500);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  if (codeCompare) codeObserver.observe(codeCompare);
+
+  // ─── 3. PIPELINE PARTICLE ANIMATION ───
+  const canvas = document.getElementById('particleCanvas');
+  const showcase = document.getElementById('pipelineShowcase');
+  let particles = [];
+  let pCtx, pAnimFrame;
+  let particlesStarted = false;
+
+  class Particle {
+    constructor(canvasW, canvasH) {
+      this.reset(canvasW, canvasH);
+    }
+    reset(w, h) {
+      this.x = Math.random() * 60;
+      this.y = Math.random() * h;
+      this.targetY = this.y + 80 + Math.random() * 120;
+      this.speed = 0.5 + Math.random() * 1.5;
+      this.size = 2 + Math.random() * 3;
+      this.opacity = 0.2 + Math.random() * 0.5;
+      const colors = ['#D4A843', '#56D4DD', '#FF9900', '#29B5E8', '#4285F4'];
+      this.color = colors[Math.floor(Math.random() * colors.length)];
+      this.w = w;
+      this.h = h;
+    }
+    update() {
+      this.y += this.speed;
+      this.x += Math.sin(this.y * 0.02) * 0.5;
+      if (this.y > this.h) this.reset(this.w, this.h);
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = this.color;
+      ctx.globalAlpha = this.opacity;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function initParticles() {
+    if (!canvas || !showcase) return;
+    pCtx = canvas.getContext('2d');
+    canvas.width = showcase.offsetWidth;
+    canvas.height = showcase.offsetHeight;
+    particles = [];
+    for (let i = 0; i < 50; i++) {
+      particles.push(new Particle(canvas.width, canvas.height));
+    }
+    animateParticles();
+  }
+
+  function animateParticles() {
+    if (!pCtx) return;
+    pCtx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(pCtx); });
+    pAnimFrame = requestAnimationFrame(animateParticles);
+  }
+
+  // Pipeline step highlighting
+  const pipelineSteps = document.querySelectorAll('.pipeline-step');
+  let activeStepIdx = 0;
+
+  function cyclePipelineSteps() {
+    pipelineSteps.forEach(s => s.classList.remove('active-step'));
+    if (pipelineSteps[activeStepIdx]) {
+      pipelineSteps[activeStepIdx].classList.add('active-step');
+    }
+    activeStepIdx = (activeStepIdx + 1) % pipelineSteps.length;
+  }
+
+  const pipelineObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !particlesStarted) {
+        particlesStarted = true;
+        initParticles();
+        cyclePipelineSteps();
+        setInterval(cyclePipelineSteps, 2500);
+      }
+    });
+  }, { threshold: 0.2 });
+
+  if (showcase) pipelineObserver.observe(showcase);
+
+  // ─── 4. MANIFESTO STAGGER ───
+  const manifestoBox = document.getElementById('manifestoBox');
+  let manifestoAnimated = false;
+
+  const manifestoObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !manifestoAnimated) {
+        manifestoAnimated = true;
+        const items = manifestoBox.querySelectorAll('.manifesto-item');
+        items.forEach((item, i) => {
+          setTimeout(() => item.classList.add('show'), i * 300);
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+
+  if (manifestoBox) manifestoObserver.observe(manifestoBox);
+
+  // ─── 5. DQ BAR ANIMATION ───
+  const dqDash = document.getElementById('dqDashboard');
+  let dqAnimated = false;
+
+  const dqObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !dqAnimated) {
+        dqAnimated = true;
+        const bars = dqDash.querySelectorAll('.dq-bar');
+        bars.forEach((bar, i) => {
+          const w = bar.getAttribute('data-width');
+          setTimeout(() => {
+            bar.style.width = w + '%';
+          }, i * 200);
+        });
+      }
+    });
+  }, { threshold: 0.3 });
+
+  if (dqDash) dqObserver.observe(dqDash);
+
+  // ─── 6. STAT COUNTER ANIMATION ───
+  function animateCounter(el) {
+    const target = parseInt(el.getAttribute('data-target'));
+    const duration = 1500;
+    const start = performance.now();
+    function tick(now) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(target * eased) + '%';
+      if (progress < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  document.querySelectorAll('.stat-number[data-target]').forEach(el => {
+    const statObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          animateCounter(el);
+          statObserver.unobserve(el);
+        }
+      });
+    }, { threshold: 0.5 });
+    statObserver.observe(el);
+  });
+
+  // ─── RESIZE HANDLER FOR PARTICLES ───
+  window.addEventListener('resize', () => {
+    if (canvas && showcase && particlesStarted) {
+      canvas.width = showcase.offsetWidth;
+      canvas.height = showcase.offsetHeight;
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
