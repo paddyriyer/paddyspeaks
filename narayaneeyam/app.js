@@ -4,6 +4,12 @@
 (function () {
   'use strict';
 
+  if (typeof NARAYANEEYAM_DATA === 'undefined') {
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelector('.content').innerHTML = '<p style="text-align:center;padding:3rem;color:#c62828;">Failed to load Narayaneeyam data. Please refresh the page.</p>';
+    });
+    return;
+  }
   var data = NARAYANEEYAM_DATA;
   var currentDashaka = null;
   var searchTimer = null;
@@ -136,7 +142,7 @@
     var html = '<div class="verse-card" id="' + cardId + '">';
 
     // Header
-    html += '<div class="verse-header" onclick="toggleVerse(\'' + cardId + '\')">';
+    html += '<div class="verse-header" data-toggle-verse="' + cardId + '">';
     html += '<span class="verse-number">' + sloka.dashaka + '.' + sloka.sloka + '</span>';
     html += '<span class="verse-text-preview">' + escapeHtml(preview) + '</span>';
     html += '<span class="verse-toggle">&#9660;</span>';
@@ -244,12 +250,14 @@
 
   // --- Load a dashaka into detail view ---
   function loadDashaka(num) {
+    if (num < 1 || num > 100) return;
     var d = getDashaka(num);
     currentDashaka = num;
 
-    // Mark as visited
+    // Mark as visited and update URL hash
     markVisited(num);
     updateReadingProgress();
+    history.replaceState(null, '', '#dashaka-' + num);
 
     // Switch views
     showView('reading');
@@ -366,12 +374,16 @@
       }
     });
 
-    // Toggle view sections via CSS (.view/.active)
+    // Toggle view sections via CSS (.view/.active) and aria-hidden
     document.querySelectorAll('.view').forEach(function (v) {
       v.classList.remove('active');
+      v.setAttribute('aria-hidden', 'true');
     });
     var target = document.getElementById(viewName + '-view');
-    if (target) target.classList.add('active');
+    if (target) {
+      target.classList.add('active');
+      target.setAttribute('aria-hidden', 'false');
+    }
 
     // Re-render grid when returning to map view
     if (viewName === 'map') {
@@ -540,11 +552,15 @@
     });
   }
 
-  // --- Toggle verse expansion (global) ---
-  window.toggleVerse = function (id) {
-    var el = document.getElementById(id);
-    if (el) el.classList.toggle('expanded');
-  };
+  // --- Toggle verse expansion via event delegation ---
+  document.addEventListener('click', function (e) {
+    var header = e.target.closest('[data-toggle-verse]');
+    if (header) {
+      var id = header.getAttribute('data-toggle-verse');
+      var el = document.getElementById(id);
+      if (el) el.classList.toggle('expanded');
+    }
+  });
 
   // --- Expand/Collapse All handler ---
   function setupExpandCollapse() {
