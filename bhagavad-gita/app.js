@@ -190,12 +190,160 @@
     }
   }
 
+  // --- Build Dhyana Sloka verse card (reuses structure of buildVerseCard) ---
+  function buildDhyanaVerseCard(sloka, index) {
+    var cardId = 'dhyana-sloka-' + (index + 1);
+
+    var preview = sloka.devanagari.split('\n')[0];
+    if (preview.length > 60) preview = preview.substring(0, 60) + '...';
+
+    var html = '<div class="verse-card" id="' + cardId + '">';
+
+    html += '<div class="verse-header" onclick="toggleVerse(\'' + cardId + '\')">';
+    html += '<span class="verse-number">D.' + (index + 1) + '</span>';
+    html += '<span class="verse-text-preview">' + escapeHtml(preview) + '</span>';
+    html += '<span class="verse-toggle">&#9660;</span>';
+    html += '</div>';
+
+    html += '<div class="verse-body">';
+    html += '<div class="sloka-devanagari">' + escapeHtml(sloka.devanagari) + '</div>';
+    html += '<div class="sloka-transliteration">' + escapeHtml(sloka.transliteration) + '</div>';
+
+    if (sloka.words && sloka.words.length > 0) {
+      html += '<div class="word-section-label">Word-by-Word</div>';
+      html += buildWordGrid(sloka.words);
+    }
+
+    html += '<div class="translation-block">';
+    html += '<div class="translation-label">Translation</div>';
+    html += '<div class="translation-text">' + escapeHtml(sloka.translation) + '</div>';
+    html += '</div>';
+
+    if (sloka.modernInterpretation) {
+      html += '<div class="modern-insight">';
+      html += '<div class="modern-insight-label">Modern Insight</div>';
+      html += '<div class="modern-insight-text">' + escapeHtml(sloka.modernInterpretation) + '</div>';
+      html += '</div>';
+    }
+
+    html += '</div>';
+    html += '</div>';
+
+    return html;
+  }
+
+  // --- Load Dhyana Slokas ---
+  function loadDhyanaSlokas() {
+    var dhyana = data.dhyanaSlokas;
+    if (!dhyana) return;
+
+    currentChapter = 0; // special marker for dhyana
+
+    var indexEl = document.getElementById('chapter-index');
+    var navEl = document.getElementById('chapter-nav');
+    if (indexEl) indexEl.style.display = 'none';
+    if (navEl) navEl.style.display = '';
+
+    renderChapterNav();
+
+    // Update heading
+    var heading = document.getElementById('chapter-heading');
+    if (heading) {
+      heading.innerHTML = escapeHtml(dhyana.titleEnglish) +
+        ' <span class="section-heading-sanskrit">' + escapeHtml(dhyana.titleSanskrit) + '</span>';
+    }
+    var intro = document.getElementById('chapter-intro');
+    if (intro) {
+      intro.textContent = dhyana.titleMeaning + ' — ' + dhyana.slokas.length + ' Slokas';
+    }
+
+    // Render verse cards
+    var container = document.getElementById('chapter-container');
+    if (!container) return;
+
+    var html = '<div class="chapter-controls">' +
+      '<div class="chapter-controls-row">' +
+      '<button class="expand-btn back-btn" data-action="back-to-index">&larr; All Chapters</button>' +
+      '</div>' +
+      '<div class="chapter-controls-row">' +
+      '<button class="expand-btn" data-action="expand">Expand All</button>' +
+      '<button class="expand-btn" data-action="collapse">Collapse All</button>' +
+      '</div>' +
+      '</div>';
+
+    dhyana.slokas.forEach(function (sloka, i) {
+      html += buildDhyanaVerseCard(sloka, i);
+    });
+
+    container.innerHTML = html;
+
+    // Expand first 3 by default
+    dhyana.slokas.slice(0, 3).forEach(function (sloka, i) {
+      var el = document.getElementById('dhyana-sloka-' + (i + 1));
+      if (el) el.classList.add('expanded');
+    });
+
+    // Render words and modern views
+    var wordsContainer = document.getElementById('words-container');
+    if (wordsContainer) {
+      var wHtml = '';
+      dhyana.slokas.forEach(function (sloka, i) {
+        wHtml += '<div class="word-view-card">';
+        wHtml += '<div class="word-view-header">';
+        wHtml += '<span class="verse-number">D.' + (i + 1) + '</span>';
+        wHtml += '</div>';
+        wHtml += '<div class="word-view-sloka">' + escapeHtml(sloka.devanagari) + '</div>';
+        wHtml += '<div class="word-view-transliteration">' + escapeHtml(sloka.transliteration) + '</div>';
+        if (sloka.words && sloka.words.length > 0) {
+          wHtml += buildWordGrid(sloka.words);
+        }
+        wHtml += '</div>';
+      });
+      wordsContainer.innerHTML = wHtml;
+    }
+
+    var modernContainer = document.getElementById('modern-container');
+    if (modernContainer) {
+      var mHtml = '';
+      dhyana.slokas.forEach(function (sloka, i) {
+        if (!sloka.modernInterpretation) return;
+        mHtml += '<div class="insight-card">';
+        mHtml += '<div class="insight-card-header">';
+        mHtml += '<span class="verse-number">D.' + (i + 1) + '</span>';
+        mHtml += '</div>';
+        mHtml += '<div class="insight-sloka-text">' + escapeHtml(sloka.devanagari) + '</div>';
+        mHtml += '<div class="insight-transliteration">' + escapeHtml(sloka.transliteration) + '</div>';
+        mHtml += '<div class="insight-translation">' + escapeHtml(sloka.translation) + '</div>';
+        mHtml += '<div class="insight-modern">' + escapeHtml(sloka.modernInterpretation) + '</div>';
+        mHtml += '</div>';
+      });
+      modernContainer.innerHTML = mHtml;
+    }
+
+    var headingEl = document.getElementById('chapter-heading');
+    if (headingEl) headingEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // --- Build chapter index cards (overview of all available chapters) ---
   function renderChapterIndex() {
     var container = document.getElementById('chapter-index');
     if (!container) return;
 
     var html = '';
+
+    // Dhyana Sloka card (before all chapters)
+    if (data.dhyanaSlokas) {
+      var dh = data.dhyanaSlokas;
+      html += '<div class="chapter-index-card dhyana-index-card" data-type="dhyana">';
+      html += '<div class="chapter-index-number">&#x1F549; Dhyana Slokas</div>';
+      html += '<div class="chapter-index-title">' + escapeHtml(dh.titleEnglish) + '</div>';
+      html += '<div class="chapter-index-sanskrit">' + escapeHtml(dh.titleSanskrit) + '</div>';
+      html += '<div class="chapter-index-meaning">' + escapeHtml(dh.titleMeaning) + ' — ' + dh.slokas.length + ' Slokas</div>';
+      html += '<div class="chapter-index-summary">' + escapeHtml(dh.summary.substring(0, 180)) + '...</div>';
+      html += '<div class="chapter-index-read">Read Dhyana Slokas &rarr;</div>';
+      html += '</div>';
+    }
+
     data.chapters.forEach(function (ch) {
       html += '<div class="chapter-index-card" data-chapter="' + ch.chapter + '">';
       html += '<div class="chapter-index-number">Chapter ' + ch.chapter + '</div>';
@@ -212,6 +360,10 @@
     // Bind click events
     container.querySelectorAll('.chapter-index-card').forEach(function (card) {
       card.addEventListener('click', function () {
+        if (card.getAttribute('data-type') === 'dhyana') {
+          loadDhyanaSlokas();
+          return;
+        }
         var chNum = parseInt(card.getAttribute('data-chapter'), 10);
         loadChapter(chNum);
       });

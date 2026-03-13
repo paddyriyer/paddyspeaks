@@ -3,6 +3,200 @@
 // Source: Traditional Bhagavad Gita from the Mahabharata (Bhishma Parva)
 
 const BHAGAVAD_GITA_DATA = {
+  dhyanaSlokas: {
+    titleSanskrit: "गीता ध्यानम्",
+    titleEnglish: "Gita Dhyanam",
+    titleMeaning: "Meditation on the Gita — Invocation Verses",
+    summary: "The Gītā Dhyānam is a set of 9 prayer verses traditionally recited before studying the Bhagavad Gita. Attributed to Madhusudana Saraswati, these verses invoke the grace of the Lord, salute Vyasa the author, and glorify the Gita as the nectar milked from the Upanishads. They prepare the mind and heart for receiving the sacred teaching.",
+    slokas: [
+      {
+        sloka: 1,
+        devanagari: "ॐ पार्थाय प्रतिबोधितां भगवता नारायणेन स्वयं\nव्यासेन ग्रथितां पुराणमुनिना मध्ये महाभारतम् ।\nअद्वैतामृतवर्षिणीं भगवतीमष्टादशाध्यायिनीं\nअम्ब त्वामनुसन्दधामि भगवद्गीते भवद्वेषिणीम् ॥१॥",
+        transliteration: "oṁ pārthāya pratibodhitāṁ bhagavatā nārāyaṇena svayaṁ\nvyāsena grathitāṁ purāṇa-muninā madhye mahābhāratam |\nadvaitāmṛta-varṣiṇīṁ bhagavatīm aṣṭādaśādhyāyinīṁ\namba tvām anusandadhāmi bhagavad-gīte bhava-dveṣiṇīm ||1||",
+        words: [
+          { word: "ॐ", transliteration: "oṁ", meaning: "the sacred syllable" },
+          { word: "पार्थाय", transliteration: "pārthāya", meaning: "to Arjuna (son of Pritha)" },
+          { word: "प्रतिबोधितां", transliteration: "pratibodhitāṁ", meaning: "taught, instructed" },
+          { word: "भगवता", transliteration: "bhagavatā", meaning: "by the Lord" },
+          { word: "नारायणेन", transliteration: "nārāyaṇena", meaning: "by Narayana" },
+          { word: "स्वयं", transliteration: "svayaṁ", meaning: "Himself" },
+          { word: "व्यासेन", transliteration: "vyāsena", meaning: "by Vyasa" },
+          { word: "ग्रथितां", transliteration: "grathitāṁ", meaning: "compiled, strung together" },
+          { word: "पुराणमुनिना", transliteration: "purāṇa-muninā", meaning: "by the ancient sage" },
+          { word: "मध्ये", transliteration: "madhye", meaning: "in the middle of" },
+          { word: "महाभारतम्", transliteration: "mahābhāratam", meaning: "the Mahabharata" },
+          { word: "अद्वैतामृतवर्षिणीं", transliteration: "advaitāmṛta-varṣiṇīṁ", meaning: "showering the nectar of Advaita (non-duality)" },
+          { word: "भगवतीम्", transliteration: "bhagavatīm", meaning: "the divine mother" },
+          { word: "अष्टादशाध्यायिनीं", transliteration: "aṣṭādaśādhyāyinīṁ", meaning: "consisting of eighteen chapters" },
+          { word: "अम्ब", transliteration: "amba", meaning: "O Mother" },
+          { word: "अनुसन्दधामि", transliteration: "anusandadhāmi", meaning: "I meditate upon" },
+          { word: "भगवद्गीते", transliteration: "bhagavad-gīte", meaning: "O Bhagavad Gita" },
+          { word: "भवद्वेषिणीम्", transliteration: "bhava-dveṣiṇīm", meaning: "destroyer of the cycle of rebirth" }
+        ],
+        translation: "Om. O Bhagavad Gita, with which Partha (Arjuna) was illumined by Lord Narayana Himself, and which was composed within the Mahabharata by the ancient sage Vyasa — O divine Mother, the bestower of the nectar of Advaita, consisting of eighteen chapters, O destroyer of rebirth, upon Thee I meditate.",
+        modernInterpretation: "Before we even open the Gita, we bow to it — not as a book, but as a living mother. This verse sets the tone: the Gita is not information, it is transformation. It was not written — it was revealed, directly by God to a confused warrior on a battlefield. And Vyasa, the great compiler, placed it at the heart of the Mahabharata — because the greatest wisdom always emerges from the greatest crisis."
+      },
+      {
+        sloka: 2,
+        devanagari: "नमोऽस्तु ते व्यास विशालबुद्धे\nफुल्लारविन्दायतपत्रनेत्र ।\nयेन त्वया भारततैलपूर्णः\nप्रज्वालितो ज्ञानमयः प्रदीपः ॥२॥",
+        transliteration: "namo'stu te vyāsa viśāla-buddhe\nphullāravindāyata-patra-netre |\nyena tvayā bhārata-taila-pūrṇaḥ\nprajvālito jñānamayaḥ pradīpaḥ ||2||",
+        words: [
+          { word: "नमः", transliteration: "namaḥ", meaning: "salutations" },
+          { word: "अस्तु", transliteration: "astu", meaning: "let there be" },
+          { word: "ते", transliteration: "te", meaning: "to you" },
+          { word: "व्यास", transliteration: "vyāsa", meaning: "O Vyasa" },
+          { word: "विशालबुद्धे", transliteration: "viśāla-buddhe", meaning: "of vast intellect" },
+          { word: "फुल्लारविन्दायतपत्रनेत्र", transliteration: "phullāravindāyata-patra-netre", meaning: "whose eyes are like petals of a full-blown lotus" },
+          { word: "भारततैलपूर्णः", transliteration: "bhārata-taila-pūrṇaḥ", meaning: "filled with the oil of the Mahabharata" },
+          { word: "प्रज्वालितः", transliteration: "prajvālitaḥ", meaning: "lighted, kindled" },
+          { word: "ज्ञानमयः", transliteration: "jñānamayaḥ", meaning: "made of knowledge" },
+          { word: "प्रदीपः", transliteration: "pradīpaḥ", meaning: "lamp" }
+        ],
+        translation: "Salutations to thee, O Vyasa, of vast intellect, whose eyes are like the petals of a full-blown lotus. By thee was lit the lamp of knowledge, filled with the oil of the Mahabharata.",
+        modernInterpretation: "Vyasa is the original content creator — except his content has survived 5,000 years. This verse honors the teacher, the compiler, the one who organized all of human wisdom into story form. The metaphor is beautiful: the Mahabharata is the oil, and Vyasa lit it into a lamp of knowledge. Without the storyteller, even the deepest truth stays dark."
+      },
+      {
+        sloka: 3,
+        devanagari: "प्रपन्नपारिजाताय तोत्रवेत्रैकपाणये ।\nज्ञानमुद्राय कृष्णाय गीतामृतदुहे नमः ॥३॥",
+        transliteration: "prapanna-pārijātāya totra-vetraika-pāṇaye |\njñāna-mudrāya kṛṣṇāya gītāmṛta-duhe namaḥ ||3||",
+        words: [
+          { word: "प्रपन्न", transliteration: "prapanna", meaning: "of those who take refuge" },
+          { word: "पारिजाताय", transliteration: "pārijātāya", meaning: "the wish-fulfilling tree (Parijata)" },
+          { word: "तोत्रवेत्रैकपाणये", transliteration: "totra-vetraika-pāṇaye", meaning: "who holds a cow-driving stick in one hand" },
+          { word: "ज्ञानमुद्राय", transliteration: "jñāna-mudrāya", meaning: "whose hand shows the gesture of knowledge" },
+          { word: "कृष्णाय", transliteration: "kṛṣṇāya", meaning: "to Lord Krishna" },
+          { word: "गीतामृतदुहे", transliteration: "gītāmṛta-duhe", meaning: "the milker of the nectar of the Gita" },
+          { word: "नमः", transliteration: "namaḥ", meaning: "salutations" }
+        ],
+        translation: "Salutations to Lord Krishna, the wish-fulfilling tree for those who surrender to Him, who holds a cow-driving stick in one hand and displays the gesture of knowledge with the other — the milker of the immortal nectar of the Bhagavad Gita.",
+        modernInterpretation: "Krishna is described with two hands — one holds a cattle-prod (he is a cowherd, rooted in the earth), the other shows jñāna-mudrā (the seal of knowledge, pointing to the infinite). He is simultaneously the most practical and the most transcendent being. And he 'milks' the Gita — meaning this wisdom is not forced out; it flows naturally, like milk from a willing cow, to nourish those who are ready."
+      },
+      {
+        sloka: 4,
+        devanagari: "सर्वोपनिषदो गावो दोग्धा गोपालनन्दनः ।\nपार्थो वत्सः सुधीर्भोक्ता दुग्धं गीतामृतं महत् ॥४॥",
+        transliteration: "sarvopaniṣado gāvo dogdhā gopāla-nandanaḥ |\npārtho vatsaḥ sudhīr bhoktā dugdhaṁ gītāmṛtaṁ mahat ||4||",
+        words: [
+          { word: "सर्वोपनिषदः", transliteration: "sarvopaniṣadaḥ", meaning: "all the Upanishads" },
+          { word: "गावः", transliteration: "gāvaḥ", meaning: "are the cows" },
+          { word: "दोग्धा", transliteration: "dogdhā", meaning: "the milker" },
+          { word: "गोपालनन्दनः", transliteration: "gopāla-nandanaḥ", meaning: "the son of the cowherd (Krishna)" },
+          { word: "पार्थः", transliteration: "pārthaḥ", meaning: "Arjuna (son of Pritha)" },
+          { word: "वत्सः", transliteration: "vatsaḥ", meaning: "is the calf" },
+          { word: "सुधीः", transliteration: "sudhīḥ", meaning: "the wise person" },
+          { word: "भोक्ता", transliteration: "bhoktā", meaning: "is the drinker" },
+          { word: "दुग्धं", transliteration: "dugdhaṁ", meaning: "the milk" },
+          { word: "गीतामृतं", transliteration: "gītāmṛtaṁ", meaning: "the nectar of the Gita" },
+          { word: "महत्", transliteration: "mahat", meaning: "supreme, great" }
+        ],
+        translation: "All the Upanishads are the cows, the milker is Krishna the cowherd's son, Arjuna is the calf, the wise are the drinkers, and the supreme nectar of the Gita is the milk.",
+        modernInterpretation: "This is perhaps the most famous verse of the Dhyanam — and the most perfect metaphor in all of Sanskrit literature. The Upanishads are cows — vast, ancient, full of potential nourishment. But who can extract that nourishment? Only Krishna. And why does the cow give milk? Because the calf (Arjuna) is present. Without a sincere student, even God cannot teach. The wise person simply drinks what flows. You don't have to be Arjuna. You just have to be thirsty."
+      },
+      {
+        sloka: 5,
+        devanagari: "वसुदेवसुतं देवं कंसचाणूरमर्दनम् ।\nदेवकीपरमानन्दं कृष्णं वन्दे जगद्गुरुम् ॥५॥",
+        transliteration: "vasudeva-sutaṁ devaṁ kaṁsa-cāṇūra-mardanam |\ndevakī-paramānandaṁ kṛṣṇaṁ vande jagad-gurum ||5||",
+        words: [
+          { word: "वसुदेवसुतं", transliteration: "vasudeva-sutaṁ", meaning: "the son of Vasudeva" },
+          { word: "देवं", transliteration: "devaṁ", meaning: "the divine Lord" },
+          { word: "कंसचाणूरमर्दनम्", transliteration: "kaṁsa-cāṇūra-mardanam", meaning: "the destroyer of Kamsa and Chanura" },
+          { word: "देवकीपरमानन्दं", transliteration: "devakī-paramānandaṁ", meaning: "the supreme bliss of Devaki" },
+          { word: "कृष्णं", transliteration: "kṛṣṇaṁ", meaning: "Lord Krishna" },
+          { word: "वन्दे", transliteration: "vande", meaning: "I worship, I bow to" },
+          { word: "जगद्गुरुम्", transliteration: "jagad-gurum", meaning: "the teacher of the world" }
+        ],
+        translation: "I salute Lord Krishna, the son of Vasudeva, the divine destroyer of Kamsa and Chanura, the supreme joy of Devaki, and the teacher of the entire world.",
+        modernInterpretation: "Notice the progression: son, warrior, joy, teacher. Krishna is all of these simultaneously. He is someone's child, someone's enemy's nightmare, someone's greatest happiness, and everyone's teacher. The verse reminds us that the Jagadguru — the world-teacher — didn't arrive in a temple. He was born in a prison, raised in a village, and taught on a battlefield. The greatest wisdom comes from the most unexpected places."
+      },
+      {
+        sloka: 6,
+        devanagari: "भीष्मद्रोणतटा जयद्रथजला गान्धारनीलोत्पला\nशल्यग्राहवती कृपेण वहनी कर्णेन वेलाकुला ।\nअश्वत्थामविकर्णघोरमकरा दुर्योधनावर्तिनी\nसोत्तीर्णा खलु पाण्डवै रणनदी कैवर्तकः केशवः ॥६॥",
+        transliteration: "bhīṣma-droṇa-taṭā jayadratha-jalā gāndhāra-nīlotpalā\nśalya-grāhavatī kṛpeṇa vahanī karṇena velākulā |\naśvatthāma-vikarṇa-ghora-makarā duryodhanāvartinī\nsottīrṇā khalu pāṇḍavai raṇa-nadī kaivartakaḥ keśavaḥ ||6||",
+        words: [
+          { word: "भीष्मद्रोणतटा", transliteration: "bhīṣma-droṇa-taṭā", meaning: "with Bhishma and Drona as banks" },
+          { word: "जयद्रथजला", transliteration: "jayadratha-jalā", meaning: "with Jayadratha as the water" },
+          { word: "गान्धारनीलोत्पला", transliteration: "gāndhāra-nīlotpalā", meaning: "with the King of Gandhara as the blue lotus" },
+          { word: "शल्यग्राहवती", transliteration: "śalya-grāhavatī", meaning: "with Shalya as the crocodile" },
+          { word: "कृपेण वहनी", transliteration: "kṛpeṇa vahanī", meaning: "with Kripa as the current" },
+          { word: "कर्णेन वेलाकुला", transliteration: "karṇena velākulā", meaning: "with Karna as the turbulent waves" },
+          { word: "अश्वत्थामविकर्णघोरमकरा", transliteration: "aśvatthāma-vikarṇa-ghora-makarā", meaning: "with Ashvatthama and Vikarna as terrible sea-monsters" },
+          { word: "दुर्योधनावर्तिनी", transliteration: "duryodhanāvartinī", meaning: "with Duryodhana as the whirlpool" },
+          { word: "सोत्तीर्णा", transliteration: "sottīrṇā", meaning: "was crossed over" },
+          { word: "पाण्डवैः", transliteration: "pāṇḍavaiḥ", meaning: "by the Pandavas" },
+          { word: "रणनदी", transliteration: "raṇa-nadī", meaning: "the river of battle" },
+          { word: "कैवर्तकः", transliteration: "kaivartakaḥ", meaning: "the ferryman" },
+          { word: "केशवः", transliteration: "keśavaḥ", meaning: "Lord Krishna (Keshava)" }
+        ],
+        translation: "With Bhishma and Drona as its banks, Jayadratha as its water, the King of Gandhara as the blue lily, Shalya as the shark, Kripa as the current, Karna as the mighty waves, Ashvatthama and Vikarna as terrible alligators, and Duryodhana as the whirlpool — this river of battle was indeed crossed by the Pandavas, with Keshava (Krishna) as the ferryman.",
+        modernInterpretation: "Life is a river of battles — not with swords, but with obstacles, people, and circumstances that seem impossible to navigate. This verse names every terrifying force the Pandavas faced and reduces them all to features of a river. Banks, water, waves, whirlpools — scary, but crossable. The key? Having the right ferryman. When Krishna is your guide, even the most impossible river becomes just... a crossing."
+      },
+      {
+        sloka: 7,
+        devanagari: "पाराशर्यवचः सरोजममलं गीतार्थगन्धोत्कटं\nनानाख्यानककेसरं हरिकथासम्बोधनाबोधितम् ।\nलोके सज्जनषट्पदैरहरहः पेपीयमानं मुदा\nभूयाद्भारतपङ्कजं कलिमलप्रध्वंसि नः श्रेयसे ॥७॥",
+        transliteration: "pārāśarya-vacaḥ sarojam amalaṁ gītārtha-gandhotkaṭaṁ\nnānākhyānaka-kesaraṁ harikathā-sambodhanābodhitam |\nloke sajjana-ṣaṭpadair aharahaḥ pepīyamānaṁ mudā\nbhūyād bhārata-paṅkajaṁ kalimala-pradhvaṁsi naḥ śreyase ||7||",
+        words: [
+          { word: "पाराशर्यवचः", transliteration: "pārāśarya-vacaḥ", meaning: "the words of the son of Parashara (Vyasa)" },
+          { word: "सरोजम्", transliteration: "sarojam", meaning: "the lotus" },
+          { word: "अमलं", transliteration: "amalaṁ", meaning: "spotless, pure" },
+          { word: "गीतार्थगन्धोत्कटं", transliteration: "gītārtha-gandhotkaṭaṁ", meaning: "rich with the fragrance of the Gita's meaning" },
+          { word: "नानाख्यानककेसरं", transliteration: "nānākhyānaka-kesaraṁ", meaning: "with various stories as its filaments" },
+          { word: "हरिकथासम्बोधनाबोधितम्", transliteration: "harikathā-sambodhanābodhitam", meaning: "opened by the discourses of Lord Hari" },
+          { word: "सज्जनषट्पदैः", transliteration: "sajjana-ṣaṭpadaiḥ", meaning: "by the bee-like good people" },
+          { word: "अहरहः", transliteration: "aharahaḥ", meaning: "day after day" },
+          { word: "पेपीयमानं", transliteration: "pepīyamānaṁ", meaning: "being drunk, sipped" },
+          { word: "भारतपङ्कजं", transliteration: "bhārata-paṅkajaṁ", meaning: "the lotus of the Mahabharata" },
+          { word: "कलिमलप्रध्वंसि", transliteration: "kalimala-pradhvaṁsi", meaning: "destroyer of the impurities of Kali-yuga" },
+          { word: "श्रेयसे", transliteration: "śreyase", meaning: "for our highest good" }
+        ],
+        translation: "May the lotus of the Mahabharata, born from the words of Vyasa (son of Parashara), spotless, rich with the fragrance of the Gita's meaning, with many stories as its filaments, fully opened by the discourses of Lord Hari, and sipped daily with delight by the bee-like good souls — may this lotus, the destroyer of the impurities of Kali-yuga, bring us the highest good.",
+        modernInterpretation: "The Mahabharata is a lotus. The Gita is its fragrance. Good people are the bees who keep returning to it, day after day. This is not a book you read once — it is one you keep coming back to, each time extracting something new. And in Kali-yuga — our current age of confusion — this lotus is the purifier. The metaphor is stunning: even a lotus grows from mud. The greatest clarity emerges from the messiest situations."
+      },
+      {
+        sloka: 8,
+        devanagari: "मूकं करोति वाचालं पङ्गुं लङ्घयते गिरिम् ।\nयत्कृपा तमहं वन्दे परमानन्दमाधवम् ॥८॥",
+        transliteration: "mūkaṁ karoti vācālaṁ paṅguṁ laṅghayate girim |\nyat-kṛpā tam ahaṁ vande paramānanda-mādhavam ||8||",
+        words: [
+          { word: "मूकं", transliteration: "mūkaṁ", meaning: "the mute, the dumb" },
+          { word: "करोति", transliteration: "karoti", meaning: "makes" },
+          { word: "वाचालं", transliteration: "vācālaṁ", meaning: "eloquent" },
+          { word: "पङ्गुं", transliteration: "paṅguṁ", meaning: "the lame" },
+          { word: "लङ्घयते", transliteration: "laṅghayate", meaning: "causes to cross over" },
+          { word: "गिरिम्", transliteration: "girim", meaning: "a mountain" },
+          { word: "यत्कृपा", transliteration: "yat-kṛpā", meaning: "whose grace" },
+          { word: "तम्", transliteration: "tam", meaning: "Him" },
+          { word: "अहं", transliteration: "ahaṁ", meaning: "I" },
+          { word: "वन्दे", transliteration: "vande", meaning: "bow to, worship" },
+          { word: "परमानन्दमाधवम्", transliteration: "paramānanda-mādhavam", meaning: "Madhava (Krishna), the embodiment of supreme bliss" }
+        ],
+        translation: "I bow to that Madhava (Krishna), the embodiment of supreme bliss, whose grace makes the mute eloquent and enables the lame to cross mountains.",
+        modernInterpretation: "This is the verse about divine grace — the great equalizer. It doesn't matter what you lack: words, strength, ability, confidence. With grace, the impossible becomes not just possible, but natural. The mute doesn't just speak — they become eloquent. The lame don't just walk — they cross mountains. This is not about miracles. It is about what happens when you align yourself with something greater than your limitations."
+      },
+      {
+        sloka: 9,
+        devanagari: "यं ब्रह्मा वरुणेन्द्ररुद्रमरुतः स्तुन्वन्ति दिव्यैः स्तवैः\nवेदैः साङ्गपदक्रमोपनिषदैर्गायन्ति यं सामगाः ।\nध्यानावस्थिततद्गतेन मनसा पश्यन्ति यं योगिनो\nयस्यान्तं न विदुः सुरासुरगणा देवाय तस्मै नमः ॥९॥",
+        transliteration: "yaṁ brahmā varuṇendra-rudra-marutaḥ stunvanti divyaiḥ stavaiḥ\nvedaiḥ sāṅga-pada-kramopaniṣadair gāyanti yaṁ sāmagāḥ |\ndhyānāvasthita-tadgatena manasā paśyanti yaṁ yogino\nyasyāntaṁ na viduḥ surāsura-gaṇā devāya tasmai namaḥ ||9||",
+        words: [
+          { word: "यं", transliteration: "yaṁ", meaning: "whom" },
+          { word: "ब्रह्मा", transliteration: "brahmā", meaning: "Brahma (the creator)" },
+          { word: "वरुणेन्द्ररुद्रमरुतः", transliteration: "varuṇendra-rudra-marutaḥ", meaning: "Varuna, Indra, Rudra, and the Maruts" },
+          { word: "स्तुन्वन्ति", transliteration: "stunvanti", meaning: "praise, glorify" },
+          { word: "दिव्यैः स्तवैः", transliteration: "divyaiḥ stavaiḥ", meaning: "with divine hymns" },
+          { word: "वेदैः", transliteration: "vedaiḥ", meaning: "through the Vedas" },
+          { word: "साङ्गपदक्रमोपनिषदैः", transliteration: "sāṅga-pada-kramopaniṣadaiḥ", meaning: "with their Angas, Pada, Krama, and Upanishads" },
+          { word: "गायन्ति", transliteration: "gāyanti", meaning: "sing" },
+          { word: "सामगाः", transliteration: "sāmagāḥ", meaning: "the singers of the Sama Veda" },
+          { word: "ध्यानावस्थिततद्गतेन मनसा", transliteration: "dhyānāvasthita-tadgatena manasā", meaning: "with a mind absorbed in meditation" },
+          { word: "पश्यन्ति", transliteration: "paśyanti", meaning: "perceive, see" },
+          { word: "योगिनः", transliteration: "yoginaḥ", meaning: "the yogis" },
+          { word: "यस्यान्तं", transliteration: "yasyāntaṁ", meaning: "whose limit, whose end" },
+          { word: "न विदुः", transliteration: "na viduḥ", meaning: "do not know" },
+          { word: "सुरासुरगणाः", transliteration: "surāsura-gaṇāḥ", meaning: "the hosts of gods and demons" },
+          { word: "देवाय तस्मै नमः", transliteration: "devāya tasmai namaḥ", meaning: "to that Supreme God, salutations" }
+        ],
+        translation: "Salutations to that Supreme God whom Brahma, Varuna, Indra, Rudra, and the Maruts praise with divine hymns; whom the singers of the Sama Veda celebrate through the Vedas with their Angas, in proper sequence, and through the Upanishads; whom the yogis perceive with their minds absorbed in meditation; and whose limits neither the gods nor the demons know — to that Divine Being, I offer my salutations.",
+        modernInterpretation: "The final verse is the grand crescendo. Even the gods — Brahma, Indra, Rudra — can only praise Him; they cannot fully know Him. Even the Vedas can only sing about Him. Even yogis in the deepest meditation can only glimpse Him. And neither gods nor demons know where He ends. This is the ultimate humility before the infinite. We are about to study a text whose source is beyond all comprehension. And that is exactly why we study it — not to finish understanding, but to begin."
+      }
+    ]
+  },
   chapters: [
     {
       chapter: 1,
