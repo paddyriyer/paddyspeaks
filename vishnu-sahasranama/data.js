@@ -1584,7 +1584,7 @@ const VISHNU_DATA = {
       ],
       "english_halves": [
         "Udbhava sundara sundo ratana-nabha sulo-chanah",
-        "Arko vaja-sani shrungi jayantah sarva-vijjay"
+        "Arko vaja-sani shrungi jayantah sarva-vijjayee"
       ]
     },
     {
@@ -1663,7 +1663,7 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Anu rbruha tkrushah sthoolo guna-bhrunnir-guno-mahan",
+        "Anur-bruhat-krushah sthoolo guna-bhrunnir-guno-mahan",
         "Adhruta svadhruta svastyah pragvamsho vamsha vardhanah"
       ]
     },
@@ -1727,7 +1727,7 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Vihaya-sagati rjyotih suru-chirhu-tabhugvibhuh",
+        "Vihaya-sagati rjyotih suruchir-hutabhug-vibhuh",
         "Ravi rvirochana sooryah savita ravi lochanah"
       ]
     },
@@ -1823,7 +1823,7 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Anantha roopo nantha shreeh jitamanyur-bhayapahah",
+        "Anantha-roopo anantha-shreeh jitamanyur-bhayapahah",
         "Chatu-rasro gabhee-ratma vidisho vyadisho dishah"
       ]
     },
@@ -1839,7 +1839,7 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Anadi rbhoorbhuvo lakshmeeh suveero ruchi-rangadah",
+        "Anadir-bhoorbhuvo lakshmeeh suveero ruchi-rangadah",
         "Janano jana janmadih bheemo bheema-para-kramah"
       ]
     },
@@ -1936,7 +1936,7 @@ const VISHNU_DATA = {
       ],
       "english_halves": [
         "Shankha-bhrut nandakee chakree sharngadhanva gada-dharah",
-        "Rathanga-pani rakshobhyah sarva praha-rana-yudhah"
+        "Rathanga-pani rakshobhyah sarva-praharana-yudhah"
       ]
     }
   ],
