@@ -5,12 +5,22 @@
   'use strict';
 
   var verses = ABHIRAMI_ANDHADHI_DATA;
+  var searchTimer = null;
 
   // --- Utility: Escape HTML ---
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // --- Utility: Highlight search text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
   }
 
   // --- Build a single verse card HTML ---
@@ -110,8 +120,9 @@
   }
 
   // --- Toggle verse expansion ---
-  window.toggleVerse = function (num) {
-    var el = document.getElementById('verse-' + num);
+  window.toggleVerse = function (id) {
+    var el = document.getElementById(id);
+    if (!el) el = document.getElementById('verse-' + id);
     if (el) el.classList.toggle('expanded');
   };
 
@@ -136,6 +147,40 @@
     });
   }
 
+  // --- Build a search result verse card with highlights ---
+  function buildSearchVerseCard(verse, query) {
+    var num = verse.num;
+    var isKaappu = num === 0;
+    var label = isKaappu ? 'Kaappu' : String(num);
+    var cardClass = isKaappu ? 'kaappu-verse' : (num <= 50 ? 'first-half-verse' : 'second-half-verse');
+
+    var preview = verse.tamil.split('\n')[0];
+    if (preview.length > 60) preview = preview.substring(0, 60) + '...';
+
+    var html = '<div class="verse-card ' + cardClass + ' expanded" id="search-verse-' + num + '">';
+
+    html += '<div class="verse-header" onclick="toggleVerse(\'search-verse-' + num + '\')">';
+    html += '<span class="verse-number">' + label + '</span>';
+    html += '<span class="verse-text-preview">' + highlightText(preview, query) + '</span>';
+    if (isKaappu) {
+      html += '<span class="verse-section-tag">Invocation</span>';
+    }
+    html += '<span class="verse-toggle">&#9660;</span>';
+    html += '</div>';
+
+    html += '<div class="verse-body">';
+    html += '<div class="tamil-block">' + highlightText(verse.tamil, query) + '</div>';
+    html += '<div class="transliteration-block">' + highlightText(verse.transliteration, query) + '</div>';
+    html += '<div class="meaning-block">';
+    html += '<div class="meaning-label">Meaning</div>';
+    html += '<div class="meaning-text">' + highlightText(verse.meaning, query) + '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    return html;
+  }
+
   // --- Search ---
   function setupSearch() {
     var input = document.getElementById('search-input');
@@ -143,39 +188,37 @@
     var count = document.getElementById('search-count');
 
     input.addEventListener('input', function () {
-      var query = input.value.trim().toLowerCase();
-      if (query.length < 2) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
-        count.textContent = '';
-        return;
-      }
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
+          count.textContent = '';
+          return;
+        }
 
-      var matches = verses.filter(function (verse) {
-        return (
-          String(verse.num) === query ||
-          verse.tamil.toLowerCase().includes(query) ||
-          verse.transliteration.toLowerCase().includes(query) ||
-          verse.meaning.toLowerCase().includes(query)
-        );
-      });
+        var matches = verses.filter(function (verse) {
+          return (
+            String(verse.num) === query ||
+            verse.tamil.toLowerCase().includes(query) ||
+            verse.transliteration.toLowerCase().includes(query) ||
+            verse.meaning.toLowerCase().includes(query)
+          );
+        });
 
-      count.textContent = matches.length + ' found';
+        count.textContent = matches.length + ' found';
 
-      if (matches.length === 0) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
-        return;
-      }
+        if (matches.length === 0) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
+          return;
+        }
 
-      var html = '';
-      matches.forEach(function (verse) {
-        html += buildVerseCard(verse);
-      });
-      results.innerHTML = html;
-
-      // Expand all search results
-      results.querySelectorAll('.verse-card').forEach(function (card) {
-        card.classList.add('expanded');
-      });
+        var html = '';
+        matches.forEach(function (verse) {
+          html += buildSearchVerseCard(verse, query);
+        });
+        results.innerHTML = html;
+      }, 300);
     });
   }
 
@@ -197,13 +240,37 @@
     });
   }
 
-  // --- Reading Progress ---
+  // --- Reading Progress & Scroll Buttons ---
   function setupProgressBar() {
+    var scrollButtons = document.getElementById('scrollButtons');
+    var scrollTopBtn = document.getElementById('scrollTopBtn');
+    var scrollBottomBtn = document.getElementById('scrollBottomBtn');
+
+    if (scrollTopBtn) {
+      scrollTopBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+    if (scrollBottomBtn) {
+      scrollBottomBtn.addEventListener('click', function () {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      });
+    }
+
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       document.getElementById('progressBar').style.width = progress + '%';
+
+      // Show/hide scroll buttons
+      if (scrollButtons) {
+        if (scrollTop > 300) {
+          scrollButtons.classList.add('visible');
+        } else {
+          scrollButtons.classList.remove('visible');
+        }
+      }
     });
   }
 
@@ -302,6 +369,34 @@
     };
   };
 
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      var cards = document.querySelectorAll('.view.active .verse-card');
+      if (cards.length === 0) return;
+      var expandedCards = document.querySelectorAll('.view.active .verse-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('verse-card')) next = next.nextElementSibling;
+          if (next) { next.classList.add('expanded'); next.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        } else if (cards[0]) { cards[0].classList.add('expanded'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('verse-card')) prev = prev.previousElementSibling;
+          if (prev) { prev.classList.add('expanded'); prev.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
+    });
+  }
+
   // --- Initialize ---
   function init() {
     renderAllVerses();
@@ -311,6 +406,7 @@
     setupNavigation();
     setupExpandCollapse();
     setupProgressBar();
+    setupKeyboardNav();
   }
 
   if (document.readyState === 'loading') {

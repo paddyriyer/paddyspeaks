@@ -6,12 +6,22 @@
 
   // --- State ---
   var showDevanagari = true;
+  var searchTimer = null;
 
   // --- Utility: Escape HTML ---
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // --- Utility: Highlight Text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
   }
 
   // --- Render Introduction ---
@@ -221,62 +231,65 @@
     var count = document.getElementById('search-count');
 
     input.addEventListener('input', function () {
-      var query = input.value.trim().toLowerCase();
-      if (query.length < 2) {
-        results.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:2rem;">Type at least 2 characters to search...</p>';
-        count.textContent = '';
-        return;
-      }
+      if (searchTimer) clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          results.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:2rem;">Type at least 2 characters to search...</p>';
+          count.textContent = '';
+          return;
+        }
 
-      var matches = [];
+        var matches = [];
 
-      RUDRAM_DATA.sections.forEach(function (section) {
-        // Check section title and subtitle
-        var sectionMatch = section.title.toLowerCase().includes(query) ||
-          (section.subtitle || '').toLowerCase().includes(query) ||
-          (section.titleSanskrit || '').toLowerCase().includes(query);
+        RUDRAM_DATA.sections.forEach(function (section) {
+          // Check section title and subtitle
+          var sectionMatch = section.title.toLowerCase().includes(query) ||
+            (section.subtitle || '').toLowerCase().includes(query) ||
+            (section.titleSanskrit || '').toLowerCase().includes(query);
 
-        section.mantras.forEach(function (mantra) {
-          var textMatch = mantra.text.toLowerCase().includes(query);
-          var devanagariMatch = (mantra.devanagari || '').includes(query);
-          var meaningMatch = (mantra.meaning || '').toLowerCase().includes(query);
+          section.mantras.forEach(function (mantra) {
+            var textMatch = mantra.text.toLowerCase().includes(query);
+            var devanagariMatch = (mantra.devanagari || '').includes(query);
+            var meaningMatch = (mantra.meaning || '').toLowerCase().includes(query);
 
-          if (textMatch || devanagariMatch || meaningMatch || sectionMatch) {
-            matches.push({
-              sectionTitle: section.title,
-              sectionId: section.id,
-              part: section.part,
-              text: mantra.text,
-              devanagari: mantra.devanagari || '',
-              meaning: mantra.meaning || ''
-            });
-          }
+            if (textMatch || devanagariMatch || meaningMatch || sectionMatch) {
+              matches.push({
+                sectionTitle: section.title,
+                sectionId: section.id,
+                part: section.part,
+                text: mantra.text,
+                devanagari: mantra.devanagari || '',
+                meaning: mantra.meaning || ''
+              });
+            }
+          });
         });
-      });
 
-      count.textContent = matches.length + ' found';
+        count.textContent = matches.length + ' found';
 
-      if (matches.length === 0) {
-        results.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:2rem;">No mantras found matching "' + escapeHtml(query) + '"</p>';
-        return;
-      }
-
-      var html = '';
-      matches.forEach(function (match) {
-        html += '<div class="search-result" onclick="navigateToSection(' + match.sectionId + ')">';
-        html += '<div class="search-result-section">' + escapeHtml(match.sectionTitle);
-        html += ' <span class="search-result-part">(' + escapeHtml(match.part) + ')</span>';
-        html += '</div>';
-        if (match.devanagari) {
-          html += '<div class="search-result-devanagari">' + escapeHtml(match.devanagari.substring(0, 150)) + (match.devanagari.length > 150 ? '...' : '') + '</div>';
+        if (matches.length === 0) {
+          results.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);padding:2rem;">No mantras found matching "' + escapeHtml(query) + '"</p>';
+          return;
         }
-        html += '<div class="search-result-text">' + escapeHtml(match.text.substring(0, 200)) + (match.text.length > 200 ? '...' : '') + '</div>';
-        if (match.meaning) {
-          html += '<div class="search-result-meaning">' + escapeHtml(match.meaning) + '</div>';
-        }
-        html += '</div>';
-      });
-      results.innerHTML = html;
+
+        var html = '';
+        matches.forEach(function (match) {
+          html += '<div class="search-result" onclick="navigateToSection(' + match.sectionId + ')">';
+          html += '<div class="search-result-section">' + highlightText(match.sectionTitle, query);
+          html += ' <span class="search-result-part">(' + escapeHtml(match.part) + ')</span>';
+          html += '</div>';
+          if (match.devanagari) {
+            html += '<div class="search-result-devanagari">' + highlightText(match.devanagari.substring(0, 150), query) + (match.devanagari.length > 150 ? '...' : '') + '</div>';
+          }
+          html += '<div class="search-result-text">' + highlightText(match.text.substring(0, 200), query) + (match.text.length > 200 ? '...' : '') + '</div>';
+          if (match.meaning) {
+            html += '<div class="search-result-meaning">' + highlightText(match.meaning, query) + '</div>';
+          }
+          html += '</div>';
+        });
+        results.innerHTML = html;
+      }, 300);
     });
   }
 
@@ -302,11 +315,48 @@
 
   // --- Reading Progress ---
   function setupProgressBar() {
+    var scrollBtns = document.getElementById('scrollButtons');
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       document.getElementById('progressBar').style.width = progress + '%';
+      if (scrollBtns) {
+        if (scrollTop > 300) scrollBtns.classList.add('visible');
+        else scrollBtns.classList.remove('visible');
+      }
+    });
+    var topBtn = document.getElementById('scrollTopBtn');
+    if (topBtn) topBtn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    var bottomBtn = document.getElementById('scrollBottomBtn');
+    if (bottomBtn) bottomBtn.addEventListener('click', function () { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); });
+  }
+
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      var cards = document.querySelectorAll('.view.active .section-card');
+      if (cards.length === 0) return;
+      var expandedCards = document.querySelectorAll('.view.active .section-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('section-card')) next = next.nextElementSibling;
+          if (next) { next.classList.add('expanded'); next.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        } else if (cards[0]) { cards[0].classList.add('expanded'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('section-card')) prev = prev.previousElementSibling;
+          if (prev) { prev.classList.add('expanded'); prev.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
     });
   }
 
@@ -318,6 +368,7 @@
     setupSearch();
     setupNavigation();
     setupProgressBar();
+    setupKeyboardNav();
   }
 
   if (document.readyState === 'loading') {

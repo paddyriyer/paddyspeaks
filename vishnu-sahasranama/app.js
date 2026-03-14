@@ -576,6 +576,17 @@
     container.innerHTML = html;
   }
 
+  // --- Utility: Highlight search term in text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
+  }
+
+  var searchTimer = null;
+
   // --- Search ---
   function setupSearch() {
     var input = document.getElementById('search-input');
@@ -583,43 +594,47 @@
     var count = document.getElementById('search-count');
 
     input.addEventListener('input', function () {
-      var query = input.value.trim().toLowerCase();
-      if (query.length < 2) {
-        results.innerHTML = '<p style="text-align:center;color:#4a5568;padding:2rem;">Type at least 2 characters to search...</p>';
-        count.textContent = '';
-        return;
-      }
+      if (searchTimer) clearTimeout(searchTimer);
 
-      var matches = VISHNU_DATA.names.filter(function (name) {
-        return (
-          (name.name_devanagari || '').toLowerCase().includes(query) ||
-          (name.name_iast || '').toLowerCase().includes(query) ||
-          name.meaning.toLowerCase().includes(query) ||
-          String(name.num) === query
-        );
-      });
-
-      count.textContent = matches.length + ' found';
-
-      if (matches.length === 0) {
-        results.innerHTML = '<p style="text-align:center;color:#4a5568;padding:2rem;">No names found matching "' + escapeHtml(query) + '"</p>';
-        return;
-      }
-
-      var html = '';
-      matches.forEach(function (name) {
-        html += '<div class="name-row">';
-        html += '<span class="name-num">' + name.num + '.</span>';
-        html += '<div class="name-details">';
-        html += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
-        if (name.name_devanagari) {
-          html += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
+      searchTimer = setTimeout(function () {
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          results.innerHTML = '<p style="text-align:center;color:#4a5568;padding:2rem;">Type at least 2 characters to search...</p>';
+          count.textContent = '';
+          return;
         }
-        html += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
-        html += '</div>';
-        html += '</div>';
-      });
-      results.innerHTML = html;
+
+        var matches = VISHNU_DATA.names.filter(function (name) {
+          return (
+            (name.name_devanagari || '').toLowerCase().includes(query) ||
+            (name.name_iast || '').toLowerCase().includes(query) ||
+            name.meaning.toLowerCase().includes(query) ||
+            String(name.num) === query
+          );
+        });
+
+        count.textContent = matches.length + ' found';
+
+        if (matches.length === 0) {
+          results.innerHTML = '<p style="text-align:center;color:#4a5568;padding:2rem;">No names found matching "' + escapeHtml(query) + '"</p>';
+          return;
+        }
+
+        var html = '';
+        matches.forEach(function (name) {
+          html += '<div class="name-row">';
+          html += '<span class="name-num">' + name.num + '.</span>';
+          html += '<div class="name-details">';
+          html += '<span class="name-iast">' + highlightText(name.name_iast || '', query) + '</span>';
+          if (name.name_devanagari) {
+            html += '<span class="name-devanagari">' + highlightText(name.name_devanagari, query) + '</span>';
+          }
+          html += '<span class="name-meaning">' + highlightText(name.meaning, query) + '</span>';
+          html += '</div>';
+          html += '</div>';
+        });
+        results.innerHTML = html;
+      }, 300);
     });
   }
 
@@ -641,13 +656,78 @@
     });
   }
 
-  // --- Reading Progress ---
+  // --- Reading Progress & Scroll Buttons ---
   function setupProgressBar() {
+    var scrollBtns = document.getElementById('scrollButtons');
+
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      document.getElementById('progressBar').style.width = progress + '%';
+      var bar = document.getElementById('progressBar');
+      if (bar) bar.style.width = progress + '%';
+
+      if (scrollBtns) {
+        if (scrollTop > 300) {
+          scrollBtns.classList.add('visible');
+        } else {
+          scrollBtns.classList.remove('visible');
+        }
+      }
+    });
+
+    var topBtn = document.getElementById('scrollTopBtn');
+    if (topBtn) {
+      topBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    var bottomBtn = document.getElementById('scrollBottomBtn');
+    if (bottomBtn) {
+      bottomBtn.addEventListener('click', function () {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      });
+    }
+  }
+
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      var cards = document.querySelectorAll('.view.active .verse-card');
+      if (cards.length === 0) return;
+
+      var expandedCards = document.querySelectorAll('.view.active .verse-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('verse-card')) next = next.nextElementSibling;
+          if (next) {
+            next.classList.add('expanded');
+            next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (cards[0]) {
+          cards[0].classList.add('expanded');
+          cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('verse-card')) prev = prev.previousElementSibling;
+          if (prev) {
+            prev.classList.add('expanded');
+            prev.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
     });
   }
 
@@ -667,6 +747,7 @@
     setupSearch();
     setupNavigation();
     setupProgressBar();
+    setupKeyboardNav();
 
     // PDF download button
     var pdfBtn = document.getElementById('download-pdf');
