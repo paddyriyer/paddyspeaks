@@ -1234,48 +1234,1123 @@ var NARAYANEEYAM_DATA = {
     },
     {
       dashaka: 6,
-      titleSanskrit: "वराहावतारवर्णनम्",
-      titleEnglish: "Hiranyaksha and Varaha Avatar",
-      theme: "avatar",
+      titleSanskrit: "विराट्स्वरूपवर्णनम्",
+      titleEnglish: "Description of the Cosmic Form (Virat Svarupa)",
+      theme: "philosophy",
       verseCount: 10,
-      summary: "Narrates the story of the demon Hiranyaksha who dragged the Earth into the cosmic waters, and how the Lord assumed the mighty Varaha (boar) form to rescue her and slay the demon.",
-      slokas: []
+      summary: "A magnificent meditation on the Virat Purusha — the Universal Form of the Lord — where the entire cosmos with its fourteen worlds, celestial bodies, elements, deities, creatures, rivers, and mountains are mapped onto the body of the Supreme Being, following the Purusha Sukta tradition.",
+      slokas: [
+        {
+          dashaka: 6,
+          sloka: 1,
+          devanagari: "एवं चतुर्दशजगन्मयतां गतस्य पातालमीश तव पादतलं वदन्ति ।\nपादोर्ध्वदेशमपि देव रसातलं ते गुल्फद्वयं खलु महातलमद्भुतात्मन् ॥",
+          transliteration: "evaṁ caturdaśajaganmayatāṁ gatasya pātālamīśa tava pādatalaṁ vadanti |\npādordhvadeśamapi deva rasātalaṁ te gulphadvayaṁ khalu mahātalamad‌bhutātman ||",
+          translation: "O Lord! You who have assumed this form encompassing the fourteen worlds — the sages declare the soles of Your feet to be Patala, the upper part of Your feet to be Rasatala, and Your pair of ankles to be Mahatala, O wondrous-souled One!",
+          commentary: "This opening verse begins the systematic mapping of the Virat Purusha's body from the feet upward. The seven nether worlds (Patala, Rasatala, Mahatala, Talatala, Sutala, Vitala, Atala) are mapped to the lower parts of the Lord's body, continuing the Purusha Sukta tradition.",
+          words: [
+            { word: "एवम्", transliteration: "evam", meaning: "thus, in this way" },
+            { word: "चतुर्दशजगन्मयताम्", transliteration: "caturdaśajaganmayatām", meaning: "the state of encompassing the fourteen worlds" },
+            { word: "गतस्य", transliteration: "gatasya", meaning: "of one who has attained/assumed" },
+            { word: "पातालम्", transliteration: "pātālam", meaning: "Patala (the lowest netherworld)" },
+            { word: "ईश", transliteration: "īśa", meaning: "O Lord" },
+            { word: "पादतलम्", transliteration: "pādatalam", meaning: "the soles of the feet" },
+            { word: "वदन्ति", transliteration: "vadanti", meaning: "they declare, they say" },
+            { word: "पादोर्ध्वदेशम्", transliteration: "pādordhvadeśam", meaning: "the upper part of the feet" },
+            { word: "रसातलम्", transliteration: "rasātalam", meaning: "Rasatala (a netherworld)" },
+            { word: "गुल्फद्वयम्", transliteration: "gulphadvayam", meaning: "the pair of ankles" },
+            { word: "महातलम्", transliteration: "mahātalam", meaning: "Mahatala (a netherworld)" },
+            { word: "अद्भुतात्मन्", transliteration: "adbhutātman", meaning: "O wondrous-souled One" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 2,
+          devanagari: "जङ्घे तलातलमथो सुतलं च जानू किञ्चोरुभागयुगलं वितलातले द्वे ।\nक्षोणीतलं जघनमम्बरमङ्ग नाभि- र्वक्षश्च शक्रनिलयस्तव चक्रपाणे ॥",
+          transliteration: "jaṅghe talātalamathō sutalaṁ ca jānū kiñcorubhāgayugalaṁ vitalātalē dvē |\nkṣōṇītalaṁ jaghanamambaramaṅga nābhi- rvakṣaśca śakranilayastava cakrapāṇē ||",
+          translation: "Your shins are Talatala, Your knees are Sutala, and Your two thighs are Vitala and Atala. The front of Your hip is the Earth, Your navel is the sky, and Your chest is Svarga (the abode of Indra), O wielder of the discus!",
+          commentary: "The mapping continues upward — the lower limbs correspond to the nether worlds, while the hip becomes the earth, the navel becomes the sky (antariksha), and the chest becomes Indraloka (heaven). The epithet 'Chakrapani' (wielder of the discus) is used.",
+          words: [
+            { word: "जङ्घे", transliteration: "jaṅghe", meaning: "shins, calves" },
+            { word: "तलातलम्", transliteration: "talātalam", meaning: "Talatala (a netherworld)" },
+            { word: "सुतलम्", transliteration: "sutalam", meaning: "Sutala (a netherworld)" },
+            { word: "जानू", transliteration: "jānū", meaning: "knees" },
+            { word: "ऊरुभागयुगलम्", transliteration: "ūrubhāgayugalam", meaning: "the pair of thighs" },
+            { word: "वितलातले", transliteration: "vitalātalē", meaning: "Vitala and Atala" },
+            { word: "क्षोणीतलम्", transliteration: "kṣōṇītalam", meaning: "the surface of the earth" },
+            { word: "जघनम्", transliteration: "jaghanam", meaning: "hip, waist" },
+            { word: "अम्बरम्", transliteration: "ambaram", meaning: "sky, space" },
+            { word: "नाभिः", transliteration: "nābhiḥ", meaning: "navel" },
+            { word: "वक्षः", transliteration: "vakṣaḥ", meaning: "chest" },
+            { word: "शक्रनिलयः", transliteration: "śakranilayaḥ", meaning: "abode of Indra (Svarga)" },
+            { word: "चक्रपाणे", transliteration: "cakrapāṇē", meaning: "O wielder of the discus" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 3,
+          devanagari: "ग्रीवा महस्तव मुखं च जनस्तपस्तु फालं शिरस्तव समस्तमयस्य सत्यम् ।\nएवं जगन्मयतनो जगदाश्रितैर- प्यन्यैर्निबद्धवपुषे भगवन्नमस्ते ॥",
+          transliteration: "grīvā mahastava mukhaṁ ca janastapastu phālaṁ śirastava samastamayasya satyam |\nevaṁ jaganmayatanō jagadāśritair- apyanyairnibaddhavapuṣē bhagavannamastē ||",
+          translation: "Your neck is Maharloka, Your face is Janaloka, Your forehead is Tapoloka, and Your head, O Lord who encompasses all, is Satyaloka. Thus, O Lord whose body is the universe, salutations to You whose form is constituted by the worlds and also by other entities that depend upon those worlds!",
+          commentary: "This completes the mapping of the fourteen worlds to the Lord's body. The seven upper worlds (Bhuh, Bhuvah, Svah, Mahar, Jana, Tapah, Satya) are mapped from the hips upward. The verse concludes with a salutation transitioning to the next set of cosmic correspondences.",
+          words: [
+            { word: "ग्रीवा", transliteration: "grīvā", meaning: "neck" },
+            { word: "महः", transliteration: "mahaḥ", meaning: "Maharloka" },
+            { word: "मुखम्", transliteration: "mukham", meaning: "face" },
+            { word: "जनः", transliteration: "janaḥ", meaning: "Janaloka" },
+            { word: "तपः", transliteration: "tapaḥ", meaning: "Tapoloka" },
+            { word: "फालम्", transliteration: "phālam", meaning: "forehead" },
+            { word: "शिरः", transliteration: "śiraḥ", meaning: "head" },
+            { word: "समस्तमयस्य", transliteration: "samastamayasya", meaning: "of the one who encompasses all" },
+            { word: "सत्यम्", transliteration: "satyam", meaning: "Satyaloka (the realm of truth)" },
+            { word: "जगन्मयतनो", transliteration: "jaganmayatanō", meaning: "O one whose body is the universe" },
+            { word: "जगदाश्रितैः", transliteration: "jagadāśritaiḥ", meaning: "by those depending on the worlds" },
+            { word: "निबद्धवपुषे", transliteration: "nibaddhavapuṣē", meaning: "to one whose body is constituted by" },
+            { word: "नमस्ते", transliteration: "namastē", meaning: "salutations to You" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 4,
+          devanagari: "त्वद्ब्रह्मरन्ध्रपदमीश्वर विश्वकन्द छन्दांसि केशव घनास्तव केशपाशाः ।\nउल्लासिचिल्लियुगलं द्रुहिणस्य गेहं पक्ष्माणि रात्रिदिवसौ सविता च नेत्रे ॥",
+          transliteration: "tvad‌brahmarandhrapadamīśvara viśvakanda chandāṁsi kēśava ghanāstava kēśapāśāḥ |\nullāsicilliyugalaṁ druhiṇasya gēhaṁ pakṣmāṇi rātridivisau savitā ca nētrē ||",
+          translation: "O Lord, root-cause of the universe! The Vedas are Your Brahmarandhra (the aperture at the crown of the head). O Keshava! The clouds are Your luxuriant hair. Your delightful pair of eyebrows are the abode of Brahma. Your eyelids are night and day, and the Sun is Your eyes.",
+          commentary: "The verse maps cosmic entities to the Lord's head and face. 'Vishvakanda' means the root or bulb of the universe, indicating the Lord as the fundamental cause. Brahmarandhra is the mystical opening at the crown through which the soul departs — here equated with the Vedas, the path to liberation.",
+          words: [
+            { word: "ब्रह्मरन्ध्रपदम्", transliteration: "brahmarandhrapadam", meaning: "the station of the Brahmarandhra (crown aperture)" },
+            { word: "ईश्वर", transliteration: "īśvara", meaning: "O Lord" },
+            { word: "विश्वकन्द", transliteration: "viśvakanda", meaning: "root-cause of the universe" },
+            { word: "छन्दांसि", transliteration: "chandāṁsi", meaning: "the Vedas (sacred meters)" },
+            { word: "केशव", transliteration: "kēśava", meaning: "O Keshava (one with beautiful hair)" },
+            { word: "घनाः", transliteration: "ghanāḥ", meaning: "clouds" },
+            { word: "केशपाशाः", transliteration: "kēśapāśāḥ", meaning: "locks of hair" },
+            { word: "उल्लासिचिल्लियुगलम्", transliteration: "ullāsicilliyugalam", meaning: "the delightful pair of eyebrows" },
+            { word: "द्रुहिणस्य गेहम्", transliteration: "druhiṇasya gēham", meaning: "the abode of Brahma" },
+            { word: "पक्ष्माणि", transliteration: "pakṣmāṇi", meaning: "eyelids, eyelashes" },
+            { word: "रात्रिदिवसौ", transliteration: "rātridivisau", meaning: "night and day" },
+            { word: "सविता", transliteration: "savitā", meaning: "the Sun" },
+            { word: "नेत्रे", transliteration: "nētrē", meaning: "the two eyes" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 5,
+          devanagari: "निश्शेषविश्वरचना च कटाक्षमोक्षः कर्णौ दिशोऽश्वियुगलं तव नासिके द्वे ।\nलोभत्रपे च भगवन्नधरोत्तरोष्ठौ तारागणाश्च दशनाः शमनश्च दंष्ट्रा ॥",
+          transliteration: "niśśēṣaviśvaracanā ca kaṭākṣamōkṣaḥ karṇau diśō'śviyugalaṁ tava nāsikē dvē |\nlōbhatrapē ca bhagavannādharōttarōṣṭhau tārāgaṇāśca daśanāḥ śamanaśca daṁṣṭrā ||",
+          translation: "The entire creation of the universe is but Your side-glance. Your ears are the directions. Your two nostrils are the Ashvini Kumaras. O Lord! Your lower and upper lips are greed and modesty. The stars are Your teeth, and Yama (the god of death) is Your canine teeth.",
+          commentary: "The cosmic correspondences continue with the sensory organs. The creation of the universe flows from a mere glance of the Lord. The Ashvini twins, divine physicians, are the nostrils. The duality of greed and modesty as the two lips is a striking image from the Bhagavata Purana.",
+          words: [
+            { word: "निश्शेषविश्वरचना", transliteration: "niśśēṣaviśvaracanā", meaning: "the entire creation of the universe" },
+            { word: "कटाक्षमोक्षः", transliteration: "kaṭākṣamōkṣaḥ", meaning: "the release of a side-glance" },
+            { word: "कर्णौ", transliteration: "karṇau", meaning: "the two ears" },
+            { word: "दिशः", transliteration: "diśaḥ", meaning: "the directions, quarters" },
+            { word: "अश्वियुगलम्", transliteration: "aśviyugalam", meaning: "the pair of Ashvini Kumaras" },
+            { word: "नासिके", transliteration: "nāsikē", meaning: "the two nostrils" },
+            { word: "लोभत्रपे", transliteration: "lōbhatrapē", meaning: "greed and modesty" },
+            { word: "अधरोत्तरोष्ठौ", transliteration: "adharōttarōṣṭhau", meaning: "lower and upper lips" },
+            { word: "तारागणाः", transliteration: "tārāgaṇāḥ", meaning: "the multitude of stars" },
+            { word: "दशनाः", transliteration: "daśanāḥ", meaning: "teeth" },
+            { word: "शमनः", transliteration: "śamanaḥ", meaning: "Yama, god of death" },
+            { word: "दंष्ट्रा", transliteration: "daṁṣṭrā", meaning: "canine teeth, tusks" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 6,
+          devanagari: "माया विलासहसितं श्वसितं समीरो जिह्वा जलं वचनमीश शकुन्तपङ्क्तिः ।\nसिद्धादयः स्वरगणा मुखरन्ध्रमग्नि- र्देवा भुजाः स्तनयुगं तव धर्मदेवः ॥",
+          transliteration: "māyā vilāsahasitaṁ śvasitaṁ samīrō jihvā jalaṁ vacanamīśa śakuntapaṅktiḥ |\nsiddhādayaḥ svaragaṇā mukharandhramagnir- dēvā bhujāḥ stanayugaṁ tava dharmadēvaḥ ||",
+          translation: "Your bewitching smile is Maya (the cosmic illusive power). Your breath is the wind. Your tongue is water. Your speech, O Lord, is the rows of birds. The Siddhas and others are the musical notes. Your mouth-cavity is fire. The Devas are Your arms. Your pair of breasts is Dharma.",
+          commentary: "This verse maps the more subtle cosmic elements. Maya, the creative illusory power, is the Lord's captivating smile. The seven musical notes (sa-ri-ga-ma-pa-dha-ni) are the Siddhas and celestial beings. Agni (fire) in the oral cavity aligns with the Vedic concept of Vaishvanara Agni.",
+          words: [
+            { word: "माया", transliteration: "māyā", meaning: "the cosmic illusive power" },
+            { word: "विलासहसितम्", transliteration: "vilāsahasitam", meaning: "the playful smile" },
+            { word: "श्वसितम्", transliteration: "śvasitam", meaning: "breath" },
+            { word: "समीरः", transliteration: "samīraḥ", meaning: "wind, breeze" },
+            { word: "जिह्वा", transliteration: "jihvā", meaning: "tongue" },
+            { word: "जलम्", transliteration: "jalam", meaning: "water" },
+            { word: "वचनम्", transliteration: "vacanam", meaning: "speech" },
+            { word: "शकुन्तपङ्क्तिः", transliteration: "śakuntapaṅktiḥ", meaning: "rows of birds" },
+            { word: "सिद्धादयः", transliteration: "siddhādayaḥ", meaning: "Siddhas and others" },
+            { word: "स्वरगणाः", transliteration: "svaragaṇāḥ", meaning: "the groups of musical notes" },
+            { word: "मुखरन्ध्रम्", transliteration: "mukharandhram", meaning: "the cavity of the mouth" },
+            { word: "अग्निः", transliteration: "agniḥ", meaning: "fire" },
+            { word: "देवाः", transliteration: "dēvāḥ", meaning: "the gods" },
+            { word: "भुजाः", transliteration: "bhujāḥ", meaning: "arms" },
+            { word: "स्तनयुगम्", transliteration: "stanayugam", meaning: "pair of breasts" },
+            { word: "धर्मदेवः", transliteration: "dharmadēvaḥ", meaning: "the god of Dharma (Righteousness)" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 7,
+          devanagari: "पृष्ठं त्वधर्म इह देव मनः सुधांशु- रव्यक्तमेव हृदयाम्बुजमम्बुजाक्ष ।\nकुक्षिः समुद्रनिवहा वसनं तु सन्ध्ये शेफः प्रजापतिरसौ वृषणौ च मित्रः ॥",
+          transliteration: "pṛṣṭhaṁ tvadharma iha dēva manaḥ sudhāṁśu- ravyaktamēva hṛdayāmbujamambujākṣa |\nkukṣiḥ samudranivahā vasanaṁ tu sandhyē śēphaḥ prajāpatirasau vṛṣaṇau ca mitraḥ ||",
+          translation: "O Lord! Your back is Adharma (unrighteousness). Your mind is the Moon. The Avyakta (unmanifest Prakriti) itself is Your lotus-heart, O lotus-eyed One! Your belly is the multitude of oceans. Your garments are the two twilights. Your generative organ is Prajapati, and Your testicles are Mitra.",
+          commentary: "The back being Adharma is significant — it is behind the Lord, not His face or front. The unmanifest Prakriti as the heart indicates that the subtlest creative principle resides at the core. Prajapati as the generative organ symbolizes the creative and procreative force of the cosmos.",
+          words: [
+            { word: "पृष्ठम्", transliteration: "pṛṣṭham", meaning: "back" },
+            { word: "अधर्मः", transliteration: "adharmaḥ", meaning: "unrighteousness" },
+            { word: "मनः", transliteration: "manaḥ", meaning: "mind" },
+            { word: "सुधांशुः", transliteration: "sudhāṁśuḥ", meaning: "the Moon (one with nectar-rays)" },
+            { word: "अव्यक्तम्", transliteration: "avyaktam", meaning: "the unmanifest (Prakriti)" },
+            { word: "हृदयाम्बुजम्", transliteration: "hṛdayāmbujam", meaning: "the lotus-heart" },
+            { word: "अम्बुजाक्ष", transliteration: "ambujākṣa", meaning: "O lotus-eyed One" },
+            { word: "कुक्षिः", transliteration: "kukṣiḥ", meaning: "belly, abdomen" },
+            { word: "समुद्रनिवहाः", transliteration: "samudranivahāḥ", meaning: "the multitude of oceans" },
+            { word: "वसनम्", transliteration: "vasanam", meaning: "garment, clothing" },
+            { word: "सन्ध्ये", transliteration: "sandhyē", meaning: "the two twilights (dawn and dusk)" },
+            { word: "प्रजापतिः", transliteration: "prajāpatiḥ", meaning: "lord of progeny" },
+            { word: "मित्रः", transliteration: "mitraḥ", meaning: "Mitra (a Vedic deity)" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 8,
+          devanagari: "श्रोणीस्थलं मृगगणाः पदयोर्नखास्ते हस्त्युष्ट्रसैन्धवमखा गमनं तु कालः ।\nविप्रादिवर्णभवनं वदनाब्जबाहु- चारूरुयुग्मचरणं करुणाम्बुधे ते ॥",
+          transliteration: "śrōṇīsthalaṁ mṛgagaṇāḥ padayōrnakhāstē hastyuṣṭrasaindhavamakhā gamanaṁ tu kālaḥ |\nviprādivarṇabhavanaṁ vadanābjabāhu- cārūruyugmacaraṇaṁ karuṇāmbudhē tē ||",
+          translation: "Your waist is the animals. Your toenails are elephants, camels, horses, and yajnas. Your gait is Time (Kala). O ocean of compassion! Your lotus-face, arms, beautiful pair of thighs, and feet are the abode of the four varnas.",
+          commentary: "The four varnas originate from different parts of the Virat Purusha — Brahmanas from the face, Kshatriyas from the arms, Vaishyas from the thighs, and Shudras from the feet. This directly echoes the Purusha Sukta (Rig Veda 10.90). Time itself is the Lord's movement — a profound cosmological statement.",
+          words: [
+            { word: "श्रोणीस्थलम्", transliteration: "śrōṇīsthalam", meaning: "the region of the waist/hip" },
+            { word: "मृगगणाः", transliteration: "mṛgagaṇāḥ", meaning: "groups of animals" },
+            { word: "पदयोः नखाः", transliteration: "padayōḥ nakhāḥ", meaning: "toenails" },
+            { word: "हस्ति", transliteration: "hasti", meaning: "elephant" },
+            { word: "उष्ट्र", transliteration: "uṣṭra", meaning: "camel" },
+            { word: "सैन्धव", transliteration: "saindhava", meaning: "horse" },
+            { word: "मखाः", transliteration: "makhāḥ", meaning: "sacrificial rituals (yajnas)" },
+            { word: "गमनम्", transliteration: "gamanam", meaning: "gait, movement" },
+            { word: "कालः", transliteration: "kālaḥ", meaning: "Time" },
+            { word: "विप्रादिवर्णभवनम्", transliteration: "viprādivarṇabhavanam", meaning: "the abode/origin of the four varnas beginning with Brahmanas" },
+            { word: "करुणाम्बुधे", transliteration: "karuṇāmbudhē", meaning: "O ocean of compassion" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 9,
+          devanagari: "वीर्यं महासुरगणोऽस्थिकुलानि शैलाः नाड्यस्सरित्समुदयस्तरवश्च रोम ।\nजीयादिदं वपुरनिर्वचनीयमीश चेष्टा च वासव तवेयमशेषसृष्टिः ॥",
+          transliteration: "vīryaṁ mahāsuragaṇō'sthikulāni śailāḥ nāḍyassaritsamudayastaravaśca rōma |\njīyādidaṁ vapuranirvachanīyamīśa cēṣṭā ca vāsava tavēyamaśēṣasṛṣṭiḥ ||",
+          translation: "Your prowess is the host of great Asuras. Your bones are the mountains. Your blood vessels are the rivers. Your body hair are the trees. May this indescribable body of Yours be ever victorious, O Lord! And Your activity is the entire creation itself.",
+          commentary: "Mountains as the Lord's bones and rivers as His blood vessels are vivid cosmic parallels found in the Bhagavata Purana. The verse declares the Lord's form 'anirvachaniya' — beyond description by words. The entire creation, with all its activity, is nothing but the Lord's own action.",
+          words: [
+            { word: "वीर्यम्", transliteration: "vīryam", meaning: "prowess, virility" },
+            { word: "महासुरगणः", transliteration: "mahāsuragaṇaḥ", meaning: "the host of great Asuras" },
+            { word: "अस्थिकुलानि", transliteration: "asthikulāni", meaning: "the collection of bones" },
+            { word: "शैलाः", transliteration: "śailāḥ", meaning: "mountains" },
+            { word: "नाड्यः", transliteration: "nāḍyaḥ", meaning: "blood vessels, channels" },
+            { word: "सरित्समुदयः", transliteration: "saritsamudayaḥ", meaning: "the multitude of rivers" },
+            { word: "तरवः", transliteration: "taravaḥ", meaning: "trees" },
+            { word: "रोम", transliteration: "rōma", meaning: "body hair" },
+            { word: "जीयात्", transliteration: "jīyāt", meaning: "may it be victorious" },
+            { word: "वपुः", transliteration: "vapuḥ", meaning: "body, form" },
+            { word: "अनिर्वचनीयम्", transliteration: "anirvachanīyam", meaning: "indescribable, beyond words" },
+            { word: "चेष्टा", transliteration: "cēṣṭā", meaning: "activity, action" },
+            { word: "अशेषसृष्टिः", transliteration: "aśēṣasṛṣṭiḥ", meaning: "the entire creation" }
+          ]
+        },
+        {
+          dashaka: 6,
+          sloka: 10,
+          devanagari: "इदं जगन्मयवपुस्तव कर्मभाजां कर्मावसानसमये स्मरणीयमाहुः ।\nतस्यान्तरात्मवपुषे विमलात्मने ते वातालयाधिप नमोऽस्तु निरुन्धि रोगान् ॥",
+          transliteration: "idaṁ jaganmayavapustava karmabhājāṁ karmāvasānasamayē smaraṇīyamāhuḥ |\ntasyāntarātmavapuṣē vimalātmanē tē vātālayādhipa namō'stu nirundhī rōgān ||",
+          translation: "The sages declare that this cosmic form of Yours, which is the universe itself, should be meditated upon by those who follow the path of Karma at the conclusion of their rituals. My salutations to You who are the Inner Self of that cosmic form, O pure-souled One! O Lord of Guruvayur, please destroy my diseases!",
+          commentary: "The concluding verse, as is typical of every Dashaka, ends with a prayer to the Lord of Guruvayur for relief from illness. The verse establishes that the Virat form is what Karma Yogis should meditate upon at the end of their rituals and at the time of death, as prescribed in the Bhagavata Purana.",
+          words: [
+            { word: "जगन्मयवपुः", transliteration: "jaganmayavapuḥ", meaning: "the body that is the universe" },
+            { word: "कर्मभाजाम्", transliteration: "karmabhājām", meaning: "of those who follow the path of karma" },
+            { word: "कर्मावसानसमये", transliteration: "karmāvasānasamayē", meaning: "at the conclusion of rituals" },
+            { word: "स्मरणीयम्", transliteration: "smaraṇīyam", meaning: "to be meditated upon" },
+            { word: "आहुः", transliteration: "āhuḥ", meaning: "they declare" },
+            { word: "अन्तरात्मवपुषे", transliteration: "antarātmavapuṣē", meaning: "to the one whose form is the Inner Self" },
+            { word: "विमलात्मने", transliteration: "vimalātmanē", meaning: "to the pure-souled one" },
+            { word: "वातालयाधिप", transliteration: "vātālayādhipa", meaning: "O Lord of Guruvayur (abode of the wind)" },
+            { word: "नमः अस्तु", transliteration: "namaḥ astu", meaning: "salutations be" },
+            { word: "निरुन्धि", transliteration: "nirundhī", meaning: "destroy, ward off" },
+            { word: "रोगान्", transliteration: "rōgān", meaning: "diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 7,
-      titleSanskrit: "नृसिंहावतारवर्णनम्",
-      titleEnglish: "Hiranyakashipu and Narasimha Avatar",
-      theme: "avatar",
-      verseCount: 11,
-      summary: "Describes the tyranny of Hiranyakashipu and the Lord's terrifying manifestation as Narasimha, the half-man half-lion incarnation, to protect His devotee Prahlada and destroy the demon.",
-      slokas: []
+      titleSanskrit: "ब्रह्मणो जन्म तपो वैकुण्ठदर्शनम्",
+      titleEnglish: "Birth of Brahma, His Penance, and Vision of Vaikuntha",
+      theme: "philosophy",
+      verseCount: 10,
+      summary: "Describes how the Lord manifested as Brahma (Hiranyagarbha) in Satyaloka, commanded him through the divine whisper 'tapa', and after a thousand years of penance, revealed the magnificent abode of Vaikuntha with His resplendent four-armed form, blessing Brahma with knowledge and freedom from bondage.",
+      slokas: [
+        {
+          dashaka: 7,
+          sloka: 1,
+          devanagari: "एवं देव चतुर्दशात्मकजगद्रूपेण जातः पुन-\nस्तस्योर्ध्वं खलु सत्यलोकनिलये जातोऽसि धाता स्वयम् ।\nयं शंसन्ति हिरण्यगर्भमखिलत्रैलोक्यजीवात्मकं\nयोऽभूत् स्फीतरजोविकारविकसन्नानासिसृक्षारसः ॥",
+          transliteration: "evaṁ deva caturdaśātmakajagadrūpeṇa jātaḥ puna-\nstasyōrdhvaṁ khalu satyalōkanilayē jātō'si dhātā svayam |\nyaṁ śaṁsanti hiraṇyagarbhamakhilatrailōkyajīvātmakaṁ\nyō'bhūt sphītarajōvikāravikasannānāsisṛkṣārasaḥ ||",
+          translation: "O Lord! Having manifested in the form of the universe comprising the fourteen worlds (Virat Purusha), Thou again manifested Thyself as Brahma, the Creator, in Satyaloka above all these worlds. The Vedas praise this form as Hiranyagarbha — the collective soul of all the three worlds — who became filled with the desire for manifold creation through the expanding modifications of Rajas guna.",
+          commentary: "This verse establishes the transition from the cosmic Virat Purusha form (Dashaka 6) to Brahma. The Lord Himself becomes the Creator Brahma (Hiranyagarbha), who is the totality of all individual souls. The creative impulse arises from Rajas guna.",
+          words: [
+            { word: "चतुर्दशात्मकजगद्रूपेण", transliteration: "caturdaśātmakajagadrūpeṇa", meaning: "in the form of the fourteen-world universe" },
+            { word: "सत्यलोकनिलये", transliteration: "satyalōkanilayē", meaning: "in the abode of Satyaloka" },
+            { word: "धाता", transliteration: "dhātā", meaning: "the Creator (Brahma)" },
+            { word: "हिरण्यगर्भम्", transliteration: "hiraṇyagarbham", meaning: "Hiranyagarbha (the golden womb/cosmic soul)" },
+            { word: "त्रैलोक्यजीवात्मकम्", transliteration: "trailōkyajīvātmakam", meaning: "the collective soul of all three worlds" },
+            { word: "स्फीतरजोविकार", transliteration: "sphītarajōvikāra", meaning: "expanding modifications of Rajas" },
+            { word: "सिसृक्षारसः", transliteration: "sisṛkṣārasaḥ", meaning: "filled with the desire to create" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 2,
+          devanagari: "सोऽयं विश्वविसर्गदत्तहृदयः सम्पश्यमानः स्वयं\nबोधं खल्वनवाप्य विश्वविषयं चिन्ताकुलस्तस्थिवान् ।\nतावत्त्वं जगतां पते तप तपेत्येवं हि वैहायसीं\nवाणीमेनमशिश्रवः श्रुतिसुखां कुर्वंस्तपःप्रेरणाम् ॥",
+          transliteration: "sō'yaṁ viśvavisargadattahṛdayaḥ sampaśyamānaḥ svayaṁ\nbōdhaṁ khalvanavāpya viśvaviṣayaṁ cintākulastasthivān |\ntāvattvam jagatāṁ patē tapa tapētyēvaṁ hi vaihāyasīṁ\nvāṇīmēnamaśiśravaḥ śrutisukhāṁ kurvaṁstapaḥprēraṇām ||",
+          translation: "This Brahma, whose heart was given over to creating the universe, looked around but could not attain the knowledge of how to create, and remained distressed with anxiety. Then Thou, O Lord of the worlds, made him hear a celestial voice saying 'Tapa, Tapa' — pleasing to the ears — urging him to perform penance.",
+          commentary: "Brahma had the creative impulse but lacked the knowledge needed for creation. The Lord, remaining unseen, whispered the divine command 'ta-pa' (penance) through an ethereal voice. This pivotal moment establishes tapas as the foundation of creation.",
+          words: [
+            { word: "विश्वविसर्गदत्तहृदयः", transliteration: "viśvavisargadattahṛdayaḥ", meaning: "whose heart was given to creating the universe" },
+            { word: "बोधम्", transliteration: "bōdham", meaning: "knowledge, understanding" },
+            { word: "अनवाप्य", transliteration: "anavāpya", meaning: "not having attained" },
+            { word: "चिन्ताकुलः", transliteration: "cintākulaḥ", meaning: "distressed with anxiety" },
+            { word: "तप तप", transliteration: "tapa tapa", meaning: "'do penance, do penance'" },
+            { word: "वैहायसीम्", transliteration: "vaihāyasīm", meaning: "celestial, coming from the sky" },
+            { word: "वाणीम्", transliteration: "vāṇīm", meaning: "voice, speech" },
+            { word: "श्रुतिसुखाम्", transliteration: "śrutisukhām", meaning: "pleasing to the ears" },
+            { word: "तपःप्रेरणाम्", transliteration: "tapaḥprēraṇām", meaning: "urging penance" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 3,
+          devanagari: "कोऽसौ मामवदत् पुमानिति जलापूर्णे जगन्मण्डले\nदिक्षूद्वीक्ष्य किमप्यनीक्षितवता वाक्यार्थमुत्पश्यता ।\nदिव्यं वर्षसहस्रमात्ततपसा तेन त्वमाराधित-\nस्तस्मै दर्शितवानसि स्वनिलयं वैकुण्ठमेकाद्भुतम् ॥",
+          transliteration: "kō'sau māmavadat pumāniti jalāpūrṇē jaganmaṇḍalē\ndikṣūdvīkṣya kimapyanīkṣitavatā vākyārthamutpaśyatā |\ndivyaṁ varṣasahasramāttatapasā tēna tvamārādhita-\nstasmai darśitavānasi svanilayaṁ vaikuṇṭhamēkādbhutam ||",
+          translation: "'Who is this person who spoke to me?' — wondering thus, Brahma looked around in all directions across the water-filled universe but could not see anyone. Contemplating the meaning of the divine words, he performed intense penance for a thousand divine years. Pleased with his penance, Thou revealed to him Thy wonderful abode, Vaikuntha.",
+          commentary: "The entire universe at this stage was engulfed in primordial waters. Brahma searched all directions for the source of the voice but found no one. After a thousand divine years of tapas, the Lord revealed Vaikuntha to him.",
+          words: [
+            { word: "कः असौ", transliteration: "kaḥ asau", meaning: "who is that" },
+            { word: "अवदत्", transliteration: "avadat", meaning: "who spoke" },
+            { word: "जलापूर्णे", transliteration: "jalāpūrṇē", meaning: "filled with water" },
+            { word: "जगन्मण्डले", transliteration: "jaganmaṇḍalē", meaning: "in the sphere of the universe" },
+            { word: "दिक्षु", transliteration: "dikṣu", meaning: "in the directions" },
+            { word: "अनीक्षितवता", transliteration: "anīkṣitavatā", meaning: "by one who could not see" },
+            { word: "वाक्यार्थम्", transliteration: "vākyārtham", meaning: "the meaning of the words" },
+            { word: "वर्षसहस्रम्", transliteration: "varṣasahasram", meaning: "a thousand years" },
+            { word: "आत्ततपसा", transliteration: "āttatapasā", meaning: "with intense penance" },
+            { word: "दर्शितवान् असि", transliteration: "darśitavān asi", meaning: "Thou revealed" },
+            { word: "स्वनिलयम्", transliteration: "svanilayam", meaning: "Thy own abode" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 4,
+          devanagari: "माया यत्र कदापि नो विकुरुते भाते जगद्भ्यो बहिः\nशोकक्रोधविमोहसाध्वसमुखा भावास्तु दूरं गताः ।\nसान्द्रानन्दझरी च यत्र परमज्योतिःप्रकाशात्मके\nतत्ते धाम विभावितं विजयते वैकुण्ठरूपं विभो ॥",
+          transliteration: "māyā yatra kadāpi nō vikurutē bhātē jagadbhyō bahiḥ\nśōkakrōdhavimōhasādhvasamukhā bhāvāstu dūraṁ gatāḥ |\nsāndrānandajharī ca yatra paramajyōtiḥprakāśātmakē\ntattē dhāma vibhāvitaṁ vijayatē vaikuṇṭharūpaṁ vibhō ||",
+          translation: "Thy abode shines beyond all the worlds; Maya never operates there. Emotions like sorrow, anger, delusion, and fear are far removed. There flows a continuous stream of intense bliss, and it is pervaded by the light of the Supreme Radiance. That Vaikuntha abode of Thine — may it be ever victorious, O Lord!",
+          commentary: "The first description of Vaikuntha highlights four characteristics: (1) Maya has no power there, (2) it transcends all material worlds, (3) negative emotions are entirely absent, (4) it is pervaded by unbroken bliss and supreme divine radiance.",
+          words: [
+            { word: "माया", transliteration: "māyā", meaning: "Maya, the cosmic illusion" },
+            { word: "नो विकुरुते", transliteration: "nō vikurutē", meaning: "never operates, has no effect" },
+            { word: "जगद्भ्यो बहिः", transliteration: "jagadbhyō bahiḥ", meaning: "beyond the worlds" },
+            { word: "शोकक्रोधविमोहसाध्वसमुखाः", transliteration: "śōkakrōdhavimōhasādhvasamukhāḥ", meaning: "sorrow, anger, delusion, fear and the like" },
+            { word: "दूरं गताः", transliteration: "dūraṁ gatāḥ", meaning: "gone far away" },
+            { word: "सान्द्रानन्दझरी", transliteration: "sāndrānandajharī", meaning: "a stream of intense bliss" },
+            { word: "परमज्योतिःप्रकाशात्मके", transliteration: "paramajyōtiḥprakāśātmakē", meaning: "having the nature of supreme radiant light" },
+            { word: "विजयते", transliteration: "vijayatē", meaning: "may it be ever victorious" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 5,
+          devanagari: "यस्मिन्नाम चतुर्भुजा हरिमणिश्यामावदातत्विषो\nनानाभूषणरत्नदीपितदिशो राजद्विमानालयाः ।\nभक्तिप्राप्ततथाविधोन्नतपदा दीव्यन्ति दिव्या जना-\nतत्ते धाम निरस्तसर्वशमलं वैकुण्ठरूपं जयेत् ॥",
+          transliteration: "yasminnāma caturbhujā harimaṇiśyāmāvadātatviṣō\nnānābhūṣaṇaratnadīpitadiśō rājadvimānālayāḥ |\nbhaktipraptatathāvidhōnnatapādā dīvyanti divyā janā-\nstattē dhāma nirastasarvaśamalaṁ vaikuṇṭharūpaṁ jayēt ||",
+          translation: "In Vaikuntha dwell divine beings with four arms, whose complexion has the deep blue lustre of sapphires, who illuminate all directions with their various gems and ornaments, and who reside in resplendent aerial mansions. These divine beings attained such exalted positions through devotion alone. May that pure Vaikuntha abode be ever victorious!",
+          commentary: "The inhabitants of Vaikuntha are four-armed, sapphire-complexioned beings in celestial mansions. The key theological point: they attained this status through bhakti (devotion), emphasizing that devotion is the sole path to Vaikuntha.",
+          words: [
+            { word: "चतुर्भुजाः", transliteration: "caturbhujāḥ", meaning: "four-armed" },
+            { word: "हरिमणिश्यामावदातत्विषः", transliteration: "harimaṇiśyāmāvadātatviṣaḥ", meaning: "with the lustre of deep-blue sapphires" },
+            { word: "भूषणरत्न", transliteration: "bhūṣaṇaratna", meaning: "ornaments and gems" },
+            { word: "दीपितदिशः", transliteration: "dīpitadiśaḥ", meaning: "illuminating all directions" },
+            { word: "विमानालयाः", transliteration: "vimānālayāḥ", meaning: "dwelling in aerial mansions" },
+            { word: "भक्तिप्राप्त", transliteration: "bhaktipāpta", meaning: "attained through devotion" },
+            { word: "उन्नतपदाः", transliteration: "unnatapādāḥ", meaning: "of exalted position" },
+            { word: "दिव्या जनाः", transliteration: "divyā janāḥ", meaning: "divine beings" },
+            { word: "निरस्तसर्वशमलम्", transliteration: "nirastasarvaśamalam", meaning: "free from all impurities" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 6,
+          devanagari: "नानादिव्यवधूजनैरभिवृता विद्युल्लतातुल्यया\nविश्वोन्मादनहृद्यगात्रलतया विद्योतिताशान्तरा ।\nत्वत्पादाम्बुजसौरभैककुतुकाल्लक्ष्मीः स्वयं लक्ष्यते\nयस्मिन् विस्मयनीयदिव्यविभवं तत्ते पदं देहि मे ॥",
+          transliteration: "nānādivyavadhūjanairabhivṛtā vidyullatātulayayā\nviśvōnmādanahṛdyagātralayayā vidyōtitāśāntarā |\ntvatpādāmbujasaurabhaikakutukāllakṣmīḥ svayaṁ lakṣyatē\nyasmin vismayaniyadivyavibhavaṁ tattē padaṁ dēhi mē ||",
+          translation: "In that abode, Goddess Lakshmi Herself is seen, surrounded by divine damsels, brilliant like a streak of lightning, Her beautiful form captivating the entire universe. She is there solely because of Her devotion to the fragrance of Thy lotus feet. That abode of astonishing divine splendor — grant me that abode, O Lord!",
+          commentary: "Lakshmi is described in Vaikuntha, attended by divine maidens, with a form compared to lightning. Her sole motivation is devotion to the Lord's lotus feet. Bhattathiri breaks from the narrative to express his personal longing: 'grant me that abode.'",
+          words: [
+            { word: "दिव्यवधूजनैः", transliteration: "divyavadhūjanaiḥ", meaning: "by divine damsels" },
+            { word: "अभिवृता", transliteration: "abhivṛtā", meaning: "surrounded" },
+            { word: "विद्युल्लतातुल्यया", transliteration: "vidyullatātulayayā", meaning: "comparable to a streak of lightning" },
+            { word: "विश्वोन्मादन", transliteration: "viśvōnmādana", meaning: "captivating the entire universe" },
+            { word: "हृद्यगात्रलतया", transliteration: "hṛdyagātralayayā", meaning: "with a beautiful creeper-like form" },
+            { word: "पादाम्बुजसौरभ", transliteration: "pādāmbujasaurabha", meaning: "the fragrance of the lotus feet" },
+            { word: "एककुतुकात्", transliteration: "ekakutukāt", meaning: "solely from attachment/delight" },
+            { word: "लक्ष्मीः", transliteration: "lakṣmīḥ", meaning: "Goddess Lakshmi" },
+            { word: "पदम् देहि मे", transliteration: "padam dēhi mē", meaning: "grant me that abode" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 7,
+          devanagari: "तत्रैवं प्रतिदर्शिते निजपदे रत्नासनाध्यासितं\nभास्वत्कोटिलसत्किरीटकटकाद्याकल्पदीप्राकृति ।\nश्रीवत्साङ्कितमात्तकौस्तुभमणिच्छायारुणं कारणं\nविश्वेषां तव रूपमैक्षत विधिस्तत्ते विभो भातु मे ॥",
+          transliteration: "tatraivaṁ pratidarśitē nijapadē ratnāsanādhyāsitaṁ\nbhāsvatkōṭilasatkiriṭakaṭakādyākalpadīprākṛti |\nśrīvatsāṅkitamāttakaustubhamaṇicchāyāruṇaṁ kāraṇaṁ\nviśvēṣāṁ tava rūpamaikṣata vidhistattē vibhō bhātu mē ||",
+          translation: "When Thy divine abode was revealed, Brahma beheld Thy form — the very cause of all worlds — seated on a throne of gems, resplendent with a brilliant crown outshining thousands of suns, marked with the Srivatsa on the chest, reddish-hued from the lustre of the Kaustubha gem. O Lord, may that divine form shine upon me as well!",
+          commentary: "Brahma's vision of the Lord in Vaikuntha is described — seated on a gem-studded throne, wearing a dazzling crown, adorned with the Srivatsa mark and Kaustubha jewel. He is identified as 'karana' (cause) of all worlds. Bhattathiri again inserts his personal prayer.",
+          words: [
+            { word: "निजपदे", transliteration: "nijapadē", meaning: "in His own abode" },
+            { word: "रत्नासनाध्यासितम्", transliteration: "ratnāsanādhyāsitam", meaning: "seated on a throne of gems" },
+            { word: "भास्वत्कोटि", transliteration: "bhāsvatkōṭi", meaning: "brilliance of millions (of suns)" },
+            { word: "किरीटकटक", transliteration: "kiriṭakaṭaka", meaning: "crown and bangles" },
+            { word: "आकल्पदीप्राकृति", transliteration: "ākalpadīprākṛti", meaning: "with form radiant with ornaments" },
+            { word: "श्रीवत्साङ्कितम्", transliteration: "śrīvatsāṅkitam", meaning: "marked with the Srivatsa" },
+            { word: "कौस्तुभमणि", transliteration: "kaustubhamaṇi", meaning: "the Kaustubha gem" },
+            { word: "छायारुणम्", transliteration: "chāyāruṇam", meaning: "reddish-hued from its lustre" },
+            { word: "कारणम् विश्वेषाम्", transliteration: "kāraṇam viśvēṣām", meaning: "the cause of all worlds" },
+            { word: "भातु मे", transliteration: "bhātu mē", meaning: "may it shine for me" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 8,
+          devanagari: "कालाम्भोदकलायकोमलरुचीचक्रेण चक्रं दिशा-\nमावृण्वानमुदारमन्दहसितस्यन्दप्रसन्नाननम् ।\nराजत्कम्बुगदारिपङ्कजधरश्रीमद्भुजामण्डलं\nस्रष्टुस्तुष्टिकरं वपुस्तव विभो मद्रोगमुद्वासयेत् ॥",
+          transliteration: "kālāmbhōdakalāyakōmalarucīcakrēṇa cakraṁ diśā-\nmāvṛṇvānamudāramandahasitasyandaprasannānanam |\nrājatkambugadāripaṅkajadhara śrīmadbhujāmaṇḍalaṁ\nsraṣṭustuṣṭikaraṁ vapustava vibhō madrōgamudvāsayēt ||",
+          translation: "Thy divine form has a radiance as soft as dark rain clouds, filling all directions with its splendor. Thy face is lit with a gentle, gracious smile. Thy glorious circle of arms bears the conch, mace, discus, and lotus. That form which delighted Brahma the Creator — may it drive away my ailments, O Lord!",
+          commentary: "The Lord's four-armed Vishnu form: dark rain-cloud complexion, gentle smile, and the four emblems — shankha (conch), gada (mace), chakra (discus), and padma (lotus). Bhattathiri's prayer for healing reflects his condition while composing at Guruvayur.",
+          words: [
+            { word: "कालाम्भोदकलायकोमलरुचि", transliteration: "kālāmbhōdakalāyakōmalaruci", meaning: "with soft radiance like dark rain clouds" },
+            { word: "चक्रम् दिशाम्", transliteration: "cakram diśām", meaning: "the circle of directions" },
+            { word: "आवृण्वानम्", transliteration: "āvṛṇvānam", meaning: "filling, pervading" },
+            { word: "उदारमन्दहसित", transliteration: "udāramandahasita", meaning: "gentle gracious smile" },
+            { word: "प्रसन्नाननम्", transliteration: "prasannānanam", meaning: "with serene face" },
+            { word: "कम्बु", transliteration: "kambu", meaning: "conch" },
+            { word: "गदा", transliteration: "gadā", meaning: "mace" },
+            { word: "अरि", transliteration: "ari", meaning: "discus (enemy-destroyer)" },
+            { word: "पङ्कजधर", transliteration: "paṅkajadhara", meaning: "lotus-bearer" },
+            { word: "भुजामण्डलम्", transliteration: "bhujāmaṇḍalam", meaning: "the circle of arms" },
+            { word: "मद्रोगम् उद्वासयेत्", transliteration: "madrōgam udvāsayēt", meaning: "may it drive away my ailments" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 9,
+          devanagari: "दृष्ट्वा सम्भृतसम्भ्रमः कमलभूस्त्वत्पादपाथोरुहे\nहर्षावेशवशंवदो निपतितः प्रीत्या कृतार्थीभवन् ।\nजानास्येव मनीषितं मम विभो ज्ञानं तदापादय\nद्वैताद्वैतभवत्स्वरूपपरमित्याचष्ट तं त्वां भजे ॥",
+          transliteration: "dṛṣṭvā sambhṛtasambhramaḥ kamalabhūstvatpādapāthōruhē\nharṣāvēśavaśaṁvadō nipatitaḥ prītyā kṛtārthībhavan |\njānāsyēva manīṣitaṁ mama vibhō jñānaṁ tadāpādaya\ndvaitādvaitabhavatstarūpaparamityācaṣṭa taṁ tvāṁ bhajē ||",
+          translation: "Seeing Thee, Brahma was overwhelmed with joy and reverence. He fell at Thy lotus feet, overcome by ecstasy, and felt completely fulfilled. He spoke: 'O Lord, Thou knowest my heart's desire. Grant me that supreme knowledge about Thy nature — which transcends both duality and non-duality.' I worship that Lord whom Brahma thus addressed!",
+          commentary: "Brahma prostrates at the Lord's feet in ecstatic devotion. His prayer is profoundly philosophical: he asks for knowledge of the Lord's nature that transcends both dvaita (duality) and advaita (non-duality). This reflects the Bhagavatam's theological position.",
+          words: [
+            { word: "सम्भृतसम्भ्रमः", transliteration: "sambhṛtasambhramaḥ", meaning: "overwhelmed with reverence" },
+            { word: "कमलभूः", transliteration: "kamalabhūḥ", meaning: "the lotus-born (Brahma)" },
+            { word: "पादपाथोरुहे", transliteration: "pādapāthōruhē", meaning: "at the lotus feet" },
+            { word: "हर्षावेशवशंवदः", transliteration: "harṣāvēśavaśaṁvadaḥ", meaning: "overcome by the surge of ecstasy" },
+            { word: "निपतितः", transliteration: "nipatitaḥ", meaning: "fell prostrate" },
+            { word: "कृतार्थीभवन्", transliteration: "kṛtārthībhavan", meaning: "becoming fulfilled" },
+            { word: "मनीषितम्", transliteration: "manīṣitam", meaning: "heart's desire" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "द्वैताद्वैत", transliteration: "dvaitādvaita", meaning: "duality and non-duality" },
+            { word: "भवत्स्वरूप", transliteration: "bhavatstarūpa", meaning: "Thy true nature" },
+            { word: "त्वां भजे", transliteration: "tvāṁ bhajē", meaning: "I worship Thee" }
+          ]
+        },
+        {
+          dashaka: 7,
+          sloka: 10,
+          devanagari: "आताम्रे चरणे विनम्रमथ तं हस्तेन हस्ते स्पृशन्\nबोधस्ते भविता न सर्गविधिबिर्बन्धोऽपि सञ्जायते ।\nइत्याभाष्य गिरं प्रतोष्य नितरां तच्चित्तगूढः स्वयं\nसृष्टौ तं समुदैरयः स भगवन्नुल्लासयोल्लाघताम् ॥",
+          transliteration: "ātāmrē caraṇē vinamramatha taṁ hastēna hastē spṛśan\nbōdhastē bhavitā na sargavidhibirbandhō'pi sañjāyatē |\nityābhāṣya giraṁ pratōṣya nitarāṁ taccittagūḍhaḥ svayaṁ\nsṛṣṭau taṁ samudairayaḥ sa bhagavannullāsayōllāghatām ||",
+          translation: "Touching with Thy reddish lotus hand the hand of the humbly prostrating Brahma, Thou spoke: 'Knowledge shall come to thee, and no bondage shall arise from thy acts of creation.' Having pleased him greatly, Thou — who had entered his heart — then inspired him to begin creation. O Lord, may Thou grant me joy and remove my afflictions!",
+          commentary: "The Lord assures Brahma of two things: (1) he will receive the knowledge needed, and (2) creation will not create karmic bondage for him. The Lord then enters Brahma's heart and from within inspires him to begin creation. This sets the stage for Dashaka 8.",
+          words: [
+            { word: "आताम्रे चरणे", transliteration: "ātāmrē caraṇē", meaning: "with reddish lotus feet/hand" },
+            { word: "विनम्रम्", transliteration: "vinamram", meaning: "humbly bowing" },
+            { word: "हस्तेन हस्ते स्पृशन्", transliteration: "hastēna hastē spṛśan", meaning: "touching hand with hand" },
+            { word: "बोधः", transliteration: "bōdhaḥ", meaning: "knowledge" },
+            { word: "भविता", transliteration: "bhavitā", meaning: "shall come to be" },
+            { word: "सर्गविधिभिः", transliteration: "sargavidhibhiḥ", meaning: "by the acts of creation" },
+            { word: "बन्धः", transliteration: "bandhaḥ", meaning: "bondage" },
+            { word: "न सञ्जायते", transliteration: "na sañjāyatē", meaning: "shall not arise" },
+            { word: "चित्तगूढः", transliteration: "cittagūḍhaḥ", meaning: "hidden in the heart/mind" },
+            { word: "समुदैरयः", transliteration: "samudairayaḥ", meaning: "inspired, urged forward" },
+            { word: "उल्लासय", transliteration: "ullāsaya", meaning: "grant joy" },
+            { word: "उल्लाघताम्", transliteration: "ullāghatām", meaning: "relief from affliction" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 8,
-      titleSanskrit: "गजेन्द्रमोक्षवर्णनम्",
-      titleEnglish: "Gajendra Moksha",
-      theme: "leela",
-      verseCount: 12,
-      summary: "The moving story of Gajendra, the elephant king, who was seized by a crocodile in a lake and cried out to the Lord in total surrender. The Lord rushed on Garuda to liberate him.",
-      slokas: []
+      titleSanskrit: "प्रलयवर्णनम्",
+      titleEnglish: "The Cosmic Dissolution and Birth of Brahma",
+      theme: "philosophy",
+      verseCount: 13,
+      summary: "Describes the Naimittika Pralaya (periodic cosmic dissolution), the Lord's Yoganidra on Adishesha upon the cosmic ocean, the awakening by Kala-shakti, and the emergence of the divine lotus from His navel giving birth to Brahma for a new cycle of creation.",
+      slokas: [
+        {
+          dashaka: 8,
+          sloka: 1,
+          devanagari: "एवं तावत् प्राकृतप्रक्षयान्ते ब्राह्मे कल्पे ह्यादिमे लब्धजन्मा ।\nब्रह्मा भूयस्त्वत्त एवाप्य वेदान् सृष्टिं चक्रे पूर्वकल्पोपमानाम् ॥",
+          transliteration: "evaṃ tāvat prākṛtaprakṣayānte brāhme kalpe hyādime labdhajanmā |\nbrahmā bhūyastvatta evāpya vedān sṛṣṭiṃ cakre pūrvakalpopamānām ||",
+          translation: "At the end of the Prakrita Pralaya (primary cosmic dissolution), in the first Kalpa known as the Brahma Kalpa, Brahma came into existence. He received the knowledge of the Vedas from Thee alone and began creation in the same manner as in the previous Kalpas.",
+          commentary: "This opening verse sets the cosmic timeframe. After the great primordial dissolution, the cycle begins anew. Brahma is born and empowered by Lord Vishnu with Vedic knowledge to carry out creation just as before, establishing the cyclical nature of cosmic time.",
+          words: [
+            { word: "प्राकृतप्रक्षयान्ते", transliteration: "prākṛtaprakṣayānte", meaning: "at the end of the Prakrita (primary) dissolution" },
+            { word: "ब्राह्मे कल्पे", transliteration: "brāhme kalpe", meaning: "in the Brahma Kalpa (first cosmic age)" },
+            { word: "आदिमे", transliteration: "ādime", meaning: "the first, primordial" },
+            { word: "लब्धजन्मा", transliteration: "labdhajanmā", meaning: "having obtained birth" },
+            { word: "ब्रह्मा", transliteration: "brahmā", meaning: "Brahma, the Creator" },
+            { word: "त्वत्तः एव", transliteration: "tvattaḥ eva", meaning: "from Thee alone" },
+            { word: "आप्य", transliteration: "āpya", meaning: "having received" },
+            { word: "वेदान्", transliteration: "vedān", meaning: "the Vedas" },
+            { word: "सृष्टिम्", transliteration: "sṛṣṭim", meaning: "creation" },
+            { word: "पूर्वकल्पोपमानाम्", transliteration: "pūrvakalpopamānām", meaning: "similar to the previous Kalpas" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 2,
+          devanagari: "सोऽयं चतुर्युगसहस्रमितान्यहानि तावन्मिताश्च रजनीर्बहुशो निनाय ।\nनिद्रात्यसौ त्वयि निलीय समं स्वसृष्टैर्नैमित्तिकप्रलयमाहुरतोऽस्य रात्रिम् ॥",
+          transliteration: "so'yaṃ caturyugasahasramitānyahāni tāvanmitāśca rajanīrbahuśo nināya |\nnidrātyasau tvayi nilīya samaṃ svasṛṣṭairnaimittikapralayamāhurato'sya rātrim ||",
+          translation: "He (Brahma) spent many days, each extending over a thousand Chaturyugas, and an equal number of nights. During the night he sleeps, merging in Thee along with all his creations. Therefore, his night is called the Naimittika Pralaya (periodic dissolution).",
+          commentary: "Each day of Brahma (a Kalpa) lasts 4.32 billion human years. During the night of equal duration, Brahma and all created beings dissolve into Lord Vishnu. This periodic dissolution is distinguished from the Prakrita Pralaya (total dissolution) that occurs at the end of Brahma's entire lifespan.",
+          words: [
+            { word: "चतुर्युगसहस्रमितानि", transliteration: "caturyugasahasramitāni", meaning: "measured by a thousand Chaturyugas" },
+            { word: "अहानि", transliteration: "ahāni", meaning: "days" },
+            { word: "रजनीः", transliteration: "rajanīḥ", meaning: "nights" },
+            { word: "निद्राति", transliteration: "nidrāti", meaning: "sleeps" },
+            { word: "निलीय", transliteration: "nilīya", meaning: "having merged, dissolved" },
+            { word: "स्वसृष्टैः", transliteration: "svasṛṣṭaiḥ", meaning: "along with his own creations" },
+            { word: "नैमित्तिकप्रलयम्", transliteration: "naimittikaPralayam", meaning: "the periodic/occasional dissolution" },
+            { word: "रात्रिम्", transliteration: "rātrim", meaning: "the night" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 3,
+          devanagari: "अस्मादृशां पुनरहर्मुखकृत्यतुल्यां सृष्टिं करोत्यनुदिनं स भवत्प्रसादात् ।\nप्राग्ब्राह्मकल्पजनुषां च परायुषां तु सुप्तप्रबोधनसमास्ति तदा विसृष्टिः ॥",
+          transliteration: "asmādṛśāṃ punaraharmukha-kṛtyatulyāṃ sṛṣṭiṃ karotyanudi naṃ sa bhavatprasādāt |\nprāgbrāhmakalpa-januṣāṃ ca parāyuṣāṃ tu suptaprabodhansamāsti tadā visṛṣṭiḥ ||",
+          translation: "By Thy grace, Brahma performs the act of creation every day, like the morning routine of ordinary beings. For the immortal beings born in the previous Brahma Kalpa, creation is merely like waking up from sleep.",
+          commentary: "A beautiful analogy — just as we wake each morning and resume daily activities, Brahma performs creation anew at each cosmic dawn. For long-lived cosmic beings who survive dissolution, it is simply an awakening from their sleep during the Naimittika Pralaya.",
+          words: [
+            { word: "अस्मादृशाम्", transliteration: "asmādṛśām", meaning: "of beings like us" },
+            { word: "अहर्मुखकृत्यतुल्याम्", transliteration: "aharmukha-kṛtyatulyām", meaning: "like a morning routine" },
+            { word: "अनुदिनम्", transliteration: "anudinam", meaning: "every day" },
+            { word: "भवत्प्रसादात्", transliteration: "bhavatprasādāt", meaning: "by Thy grace" },
+            { word: "परायुषाम्", transliteration: "parāyuṣām", meaning: "of the long-lived ones" },
+            { word: "सुप्तप्रबोधनसमा", transliteration: "suptaprabodhanasamā", meaning: "like waking from sleep" },
+            { word: "विसृष्टिः", transliteration: "visṛṣṭiḥ", meaning: "creation, emanation" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 4,
+          devanagari: "पञ्चाशदब्दमधुना स्ववयोऽर्धरूपमेकं परार्धमतिवृत्य हि वर्ततेऽसौ ।\nतत्रान्त्यरात्रिजनितान् कथयामि भूमन् पश्चाद्दिनावतरणे च भवद्विलासान् ॥",
+          transliteration: "pañcāśadabdamadhunā svavayo'rdharūpamekaṃ parārdhamatīvṛtya hi vartate'sau |\ntatrāntyarātrijanitān kathayāmi bhūman paścāddināvataraṇe ca bhavadvilāsān ||",
+          translation: "Brahma has now completed one Parardha (half his lifespan of 50 Brahma-years). O Infinite One, I shall now narrate Thy divine sports that took place during the last night and the dawn of the following day.",
+          commentary: "Brahma's total lifespan is 100 Brahma-years; one Parardha is 50. The poet signals a transition: he will describe the pralaya of the first Parardha and the subsequent creation — the dawn of the current Padma Kalpa.",
+          words: [
+            { word: "पञ्चाशदब्दम्", transliteration: "pañcāśadabdam", meaning: "fifty years" },
+            { word: "स्ववयोऽर्धरूपम्", transliteration: "svavayo'rdharūpam", meaning: "in the form of half his own lifespan" },
+            { word: "परार्धम्", transliteration: "parārdham", meaning: "one Parardha (half of Brahma's life)" },
+            { word: "अतिवृत्य", transliteration: "ativṛtya", meaning: "having crossed, completed" },
+            { word: "अन्त्यरात्रिजनितान्", transliteration: "antyarātrijanitān", meaning: "born of the last night" },
+            { word: "कथयामि", transliteration: "kathayāmi", meaning: "I shall narrate" },
+            { word: "भूमन्", transliteration: "bhūman", meaning: "O Infinite One" },
+            { word: "दिनावतरणे", transliteration: "dināvataraṇe", meaning: "at the dawn of the day" },
+            { word: "भवद्विलासान्", transliteration: "bhavadvilāsān", meaning: "Thy divine sports/lilas" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 5,
+          devanagari: "दिनावसानेऽथ सरोजयोनिः सुषुप्तिकामस्त्वयि सन्निलिल्ये ।\nजगन्ति च त्वज्जठरं समीयुस्तदेदमेकार्णवमास विश्वम् ॥",
+          transliteration: "dināvasāne'tha sarojayoniḥ suṣuptikāmastvayi sannililye |\njaganti ca tvajjaṭharaṁ samīyustedamekārṇavamāsa viśvam ||",
+          translation: "At the end of the day, the lotus-born Brahma, desiring deep sleep, merged into Thee. All the worlds entered Thy abdomen, and the entire universe became one single ocean.",
+          commentary: "This describes the onset of Naimittika Pralaya. Brahma dissolves back into Vishnu, all creation enters the Lord's cosmic body, and nothing remains but an endless expanse of water (Ekarnava).",
+          words: [
+            { word: "दिनावसाने", transliteration: "dināvasāne", meaning: "at the end of the day" },
+            { word: "सरोजयोनिः", transliteration: "sarojayoniḥ", meaning: "the lotus-born one (Brahma)" },
+            { word: "सुषुप्तिकामः", transliteration: "suṣuptikāmaḥ", meaning: "desiring deep sleep" },
+            { word: "सन्निलिल्ये", transliteration: "sannililye", meaning: "merged completely" },
+            { word: "जगन्ति", transliteration: "jaganti", meaning: "the worlds" },
+            { word: "जठरम्", transliteration: "jaṭharam", meaning: "abdomen, belly" },
+            { word: "समीयुः", transliteration: "samīyuḥ", meaning: "entered, went into" },
+            { word: "एकार्णवम्", transliteration: "ekārṇavam", meaning: "one single ocean" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 6,
+          devanagari: "तवैव वेषे फणिराजिशेषे जलैकशेषे भुवने स्म शेषे ।\nआनन्दसान्द्रानुभवस्वरूपः स्वयोगनिद्रापरिमुद्रितात्मा ॥",
+          transliteration: "tavaiva veṣe phaṇirājiśeṣe jalaikaśeṣe bhuvane sma śeṣe |\nānandasāndrānubhavasvarūpaḥ svayoganidrāparimudritātmā ||",
+          translation: "Thou didst recline upon Shesha, the king of serpents, who is Thy own manifestation, in a world where only water remained. Thou art of the nature of concentrated bliss-experience, with Thy consciousness sealed in Yoganidra.",
+          commentary: "A celebrated verse with elegant wordplay on 'shesha' (the serpent / remainder / repose). The Lord reclines on Adishesha in the cosmic ocean — the iconic Anantashayana image. Even in Yoganidra, the Lord exists in a state of pure Sat-Chit-Ananda, beyond ordinary slumber.",
+          words: [
+            { word: "वेषे", transliteration: "veṣe", meaning: "in the form, manifestation" },
+            { word: "फणिराजिशेषे", transliteration: "phaṇirājiśeṣe", meaning: "upon Shesha, the king of serpents" },
+            { word: "जलैकशेषे", transliteration: "jalaikaśeṣe", meaning: "where only water remains" },
+            { word: "शेषे", transliteration: "śeṣe", meaning: "Thou didst recline / rest" },
+            { word: "आनन्दसान्द्रानुभवस्वरूपः", transliteration: "ānandasāndrānubhavasvarūpaḥ", meaning: "of the nature of dense bliss-experience" },
+            { word: "स्वयोगनिद्रा", transliteration: "svayoganidrā", meaning: "one's own Yoganidra (cosmic sleep)" },
+            { word: "परिमुद्रितात्मा", transliteration: "parimudritātmā", meaning: "with consciousness sealed/enclosed" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 7,
+          devanagari: "कालाख्यशक्तिं प्रलयावसाने प्रबोधयेत्यादिशता किलादौ ।\nत्वया प्रसुप्तं परिसुप्तशक्तिव्रजेन तत्राखिलजीवधाम्ना ॥",
+          transliteration: "kālākhyaśaktiṁ pralayāvasāne prabodhayetyādiśatā kilādau |\ntvayā prasuptaṁ parisuptaśaktivrajena tatrākhilajīvadhāmnā ||",
+          translation: "Thou hadst, at the beginning, commanded the power called Kala (Time): 'Awaken Me at the end of the dissolution.' Then Thou went to sleep, with all the various energies and the abode of all jivas dormant within Thee.",
+          commentary: "Before entering Yoganidra, Lord Vishnu instructs His Kala-shakti (Time) to serve as an alarm, waking Him when dissolution ends. All shaktis and all jivas sleep within Him in their subtle, unmanifest form.",
+          words: [
+            { word: "कालाख्यशक्तिम्", transliteration: "kālākhyaśaktim", meaning: "the power called Kala (Time)" },
+            { word: "प्रलयावसाने", transliteration: "pralayāvasāne", meaning: "at the end of dissolution" },
+            { word: "प्रबोधय", transliteration: "prabodhaya", meaning: "awaken (imperative)" },
+            { word: "आदिशता", transliteration: "ādiśatā", meaning: "having commanded" },
+            { word: "प्रसुप्तम्", transliteration: "prasuptam", meaning: "went to deep sleep" },
+            { word: "परिसुप्तशक्तिव्रजेन", transliteration: "parisuptaśaktivrajena", meaning: "with the host of dormant energies" },
+            { word: "अखिलजीवधाम्ना", transliteration: "akhilajīvadhāmnā", meaning: "being the abode of all living souls" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 8,
+          devanagari: "चतुर्युगाणां च सहस्रमेवं त्वयि प्रसुप्ते पुनरद्वितीये ।\nकालाख्यशक्तिः प्रथमप्रबुद्धा प्राबोधयत्त्वां किल विश्वनाथ ॥",
+          transliteration: "caturyugāṇāṁ ca sahasramevaṁ tvayi prasupte punaradvitīye |\nkālākhyaśaktiḥ prathamaprabuddhā prābodhayattvāṁ kila viśvanātha ||",
+          translation: "O Lord of the Universe! After Thou, the One without a second, had slept for a thousand Chaturyugas, the power called Kala (Time), being the first to awaken, roused Thee from Thy cosmic sleep.",
+          commentary: "The duration of Brahma's night equals one Kalpa. Throughout this immense span, the Lord sleeps as the sole reality (advitiya). Kala-shakti, faithful to its original command, is the first force to stir and awakens the Lord.",
+          words: [
+            { word: "चतुर्युगाणाम्", transliteration: "caturyugāṇām", meaning: "of the four-yuga cycles" },
+            { word: "सहस्रम्", transliteration: "sahasram", meaning: "a thousand" },
+            { word: "प्रसुप्ते", transliteration: "prasupte", meaning: "while sleeping" },
+            { word: "अद्वितीये", transliteration: "advitīye", meaning: "the One without a second" },
+            { word: "प्रथमप्रबुद्धा", transliteration: "prathamaprabuddhā", meaning: "the first to awaken" },
+            { word: "प्राबोधयत्", transliteration: "prābodhayat", meaning: "roused, awakened" },
+            { word: "विश्वनाथ", transliteration: "viśvanātha", meaning: "O Lord of the Universe" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 9,
+          devanagari: "विबुध्य च त्वं जलगर्भशायिन् विलोक्य लोकानखिलान् प्रलीनान् ।\nतेष्वेव सूक्ष्मात्मतया निजान्तःस्थितेषु विश्वेषु ददाथ दृष्टिम् ॥",
+          transliteration: "vibudhya ca tvaṁ jalagarbhaśāyin vilokya lokānakhilān pralīnān |\nteṣveva sūkṣmātmatayā nijāntaḥsthiteṣu viśveṣu dadātha dṛṣṭim ||",
+          translation: "Having awakened, O Thou who reclines in the cosmic waters, Thou observed that all the worlds had dissolved. Then Thou cast Thy creative glance upon all those universes that existed within Thee in their subtle form.",
+          commentary: "The Lord awakens upon the cosmic ocean and sees nothing external. But all worlds exist within Him in seed form (sukshma). His divine glance upon these subtle universes is the catalyst for re-creation — leading to the sprouting of the divine lotus from His navel.",
+          words: [
+            { word: "विबुध्य", transliteration: "vibudhya", meaning: "having awakened" },
+            { word: "जलगर्भशायिन्", transliteration: "jalagarbhaśāyin", meaning: "O one who reclines in the cosmic waters" },
+            { word: "विलोक्य", transliteration: "vilokya", meaning: "having observed" },
+            { word: "लोकान्", transliteration: "lokān", meaning: "the worlds" },
+            { word: "प्रलीनान्", transliteration: "pralīnān", meaning: "dissolved, merged" },
+            { word: "सूक्ष्मात्मतया", transliteration: "sūkṣmātmatayā", meaning: "in their subtle form" },
+            { word: "निजान्तःस्थितेषु", transliteration: "nijāntaḥsthiteṣu", meaning: "existing within Himself" },
+            { word: "दृष्टिम्", transliteration: "dṛṣṭim", meaning: "glance, vision" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 10,
+          devanagari: "ततस्त्वदीयादयि नाभिरन्ध्रादुदञ्चितं किञ्चन दिव्यपद्मम् ।\nनिलीननिःशेषपदार्थमालासङ्क्षेपरूपं मुकुलायमानम् ॥",
+          transliteration: "tatastvadīyādayi nābhirandhrādudañcitaṁ kiñcana divyapadmam |\nnilīnaniḥśeṣapadārthamālāsaṅkṣeparūpaṁ mukulāyamānam ||",
+          translation: "Then, O Lord, from Thy navel-opening there arose an extraordinary divine lotus, still in bud form, containing within it the condensed essence of all objects of creation that had been merged in Thee.",
+          commentary: "The famous cosmogonic image — from Vishnu's navel, a lotus bud emerges containing the entire compressed universe. Every element, every being, every world that had dissolved during pralaya is contained in seed-form within this miraculous bud.",
+          words: [
+            { word: "नाभिरन्ध्रात्", transliteration: "nābhirandhrāt", meaning: "from the navel-opening" },
+            { word: "उदञ्चितम्", transliteration: "udañcitam", meaning: "that which arose upward" },
+            { word: "दिव्यपद्मम्", transliteration: "divyapadmam", meaning: "divine lotus" },
+            { word: "निलीननिःशेषपदार्थमाला", transliteration: "nilīnaniḥśeṣapadārthamālā", meaning: "the entire series of merged objects" },
+            { word: "सङ्क्षेपरूपम्", transliteration: "saṅkṣeparūpam", meaning: "in condensed form" },
+            { word: "मुकुलायमानम्", transliteration: "mukulāyamānam", meaning: "in bud form, budding" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 11,
+          devanagari: "तदेतदम्भोरुहकुड्मलं ते कलेवरात्तोयपथे प्ररूढम् ।\nबहिर्निरीतं परितः स्फुरद्भिः स्वधामभिर्ध्वान्तमलं न्यकृन्तत् ॥",
+          transliteration: "tadetadambhoruha-kuḍmalaṁ te kalevarāttoyapathe prarūḍham |\nbahirnirītaṁ paritaḥ sphuradbhiḥ svadhāmabhirdhvāntamalaṁ nyakṛntat ||",
+          translation: "That lotus bud, which sprouted from Thy body upon the watery expanse, emerged outward and, with its radiant effulgence shining in all directions, dispelled the impurity of darkness.",
+          commentary: "The lotus grows through the cosmic waters and rises above them. Its divine luminosity radiates in every direction, pushing back the primordial darkness — a symbolic dawn of new creation, light piercing through the darkness of non-existence.",
+          words: [
+            { word: "अम्भोरुहकुड्मलम्", transliteration: "ambhoruha-kuḍmalam", meaning: "the lotus bud" },
+            { word: "कलेवरात्", transliteration: "kalevarāt", meaning: "from the body" },
+            { word: "तोयपथे", transliteration: "toyapathe", meaning: "upon the path of water (the cosmic ocean)" },
+            { word: "प्ररूढम्", transliteration: "prarūḍham", meaning: "that which sprouted, grew" },
+            { word: "बहिर्निरीतम्", transliteration: "bahirnirītam", meaning: "emerged outward" },
+            { word: "स्फुरद्भिः", transliteration: "sphuradbhiḥ", meaning: "shining, radiant" },
+            { word: "स्वधामभिः", transliteration: "svadhāmabhiḥ", meaning: "with its own effulgence" },
+            { word: "ध्वान्तमलम्", transliteration: "dhvāntamalam", meaning: "the impurity of darkness" },
+            { word: "न्यकृन्तत्", transliteration: "nyakṛntat", meaning: "dispelled, cut away" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 12,
+          devanagari: "सम्फुल्लपत्रे नितरां विचित्रे तस्मिन् भवद्वीर्यधृते सरोजे ।\nस पद्मजन्मा विधिराविरासीत् स्वयम्प्रबुद्धाखिलवेदराशिः ॥",
+          transliteration: "samphullapatre nitarāṁ vicitre tasmin bhavadvīryadhṛte saroje |\nsa padmajanmā vidhirāvirāsīt svayamprabuddhākhilavedarāśiḥ ||",
+          translation: "In that marvellous, fully blossomed lotus, sustained by Thy divine potency, there appeared Brahma — known as Padmajanma (lotus-born) — with the entire treasury of the Vedas spontaneously awakened in his consciousness.",
+          commentary: "The bud opens into a magnificent lotus upheld by Vishnu's yogic power. Brahma manifests within it, fully endowed with Vedic knowledge. He is called 'Padmajanma' (born from the lotus) and 'Vidhi' (the ordainer). The Vedas arise in him automatically, equipping him for creation.",
+          words: [
+            { word: "सम्फुल्लपत्रे", transliteration: "samphullapatre", meaning: "with fully blossomed petals" },
+            { word: "विचित्रे", transliteration: "vicitre", meaning: "marvellous, wondrous" },
+            { word: "भवद्वीर्यधृते", transliteration: "bhavadvīryadhṛte", meaning: "sustained by Thy divine potency" },
+            { word: "सरोजे", transliteration: "saroje", meaning: "in the lotus" },
+            { word: "पद्मजन्मा", transliteration: "padmajanmā", meaning: "the lotus-born one (Brahma)" },
+            { word: "विधिः", transliteration: "vidhiḥ", meaning: "Brahma, the ordainer" },
+            { word: "आविरासीत्", transliteration: "āvirāsīt", meaning: "appeared, manifested" },
+            { word: "स्वयम्प्रबुद्ध", transliteration: "svayamprabuddha", meaning: "spontaneously awakened" },
+            { word: "अखिलवेदराशिः", transliteration: "akhilavedarāśiḥ", meaning: "the entire treasury of the Vedas" }
+          ]
+        },
+        {
+          dashaka: 8,
+          sloka: 13,
+          devanagari: "अस्मिन् परात्मन् ननु पाद्मकल्पे त्वमित्थमुत्थापितपद्मयोनिः ।\nअनन्तभूमा मम रोगराशिं निरुन्धि वातालयवास विष्णो ॥",
+          transliteration: "asmin parātman nanu pādmakalpe tvamitthamutthāpitapadmayoniḥ |\nanantabhūmā mama rogarāśiṁ nirundhi vātālayavāsa viṣṇo ||",
+          translation: "O Supreme Self! In this Padma Kalpa, Thou didst thus raise up Brahma, the lotus-born one. O Thou of infinite glory, O Vishnu who dwells in Guruvayur! Destroy the multitude of my diseases.",
+          commentary: "The concluding prayer — one of the most revered verses of the entire Narayaneeyam. Bhattathiri appeals to the Lord of Guruvayur for relief from his ailments. 'Padmakalpa' names the current cosmic age after the lotus; 'Anantabhuma' addresses the Lord as one of infinite magnitude; 'Vatalayavasa' identifies Him as the presiding deity of Guruvayur.",
+          words: [
+            { word: "परात्मन्", transliteration: "parātman", meaning: "O Supreme Self" },
+            { word: "पाद्मकल्पे", transliteration: "pādmakalpe", meaning: "in the Padma Kalpa (lotus-age)" },
+            { word: "उत्थापितपद्मयोनिः", transliteration: "utthāpitapadmayoniḥ", meaning: "having raised up the lotus-born one (Brahma)" },
+            { word: "अनन्तभूमा", transliteration: "anantabhūmā", meaning: "O one of infinite glory" },
+            { word: "रोगराशिम्", transliteration: "rogarāśim", meaning: "the multitude of diseases" },
+            { word: "निरुन्धि", transliteration: "nirundhi", meaning: "destroy, ward off" },
+            { word: "वातालयवास", transliteration: "vātālayavāsa", meaning: "O dweller in Guruvayur" },
+            { word: "विष्णो", transliteration: "viṣṇo", meaning: "O Vishnu" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 9,
-      titleSanskrit: "समुद्रमथनवर्णनम्",
-      titleEnglish: "The Churning of the Ocean",
-      theme: "leela",
-      verseCount: 11,
-      summary: "Recounts the churning of the milky ocean by the Devas and Asuras using Mount Mandara and Vasuki. The Lord appears as Mohini to distribute the nectar of immortality to the Devas.",
-      slokas: []
+      titleSanskrit: "ब्रह्मणस्तपः तथा लोकसृष्टिः",
+      titleEnglish: "Brahma's Penance and Vision of the Lord",
+      theme: "philosophy",
+      verseCount: 10,
+      summary: "Describes how Brahma, born from the cosmic lotus, searches for his origin, descends through the lotus stem in vain, receives the divine command 'tapa' (penance), performs intense meditation, beholds the Lord in Vaikuntha, and is empowered to create the three worlds.",
+      slokas: [
+        {
+          dashaka: 9,
+          sloka: 1,
+          devanagari: "स्थितस्स कमलोद्भवस्तव हि नाभिपङ्केरुहे\nकुतः स्विदिदमम्बुधावुदितमित्यनालोकयन् ।\nतदीक्षणकुतूहलात् प्रतिदिशं विवृत्तानन-\nश्चतुर्वदनतामगाद्विकसदष्टदृष्ट्यम्बुजाम् ॥",
+          transliteration: "sthitassa kamalodbhavastava hi nābhipaṅkeruhe\nkutaḥ svididamambudhāvuditamityanālokayan |\ntadīkṣaṇakutūhalāt pratidiśaṁ vivṛttānana-\nścaturvadanatāmagādvikasadaṣṭadṛṣṭyambujām ||",
+          translation: "He, the lotus-born Brahma, seated on the lotus sprouting from Your navel, unable to find from where the lotus had risen in the waters, and desirous of ascertaining that source, turned his face in every direction and became endowed with four faces, with eight eyes like fully-bloomed lotuses.",
+          commentary: "Brahma's curiosity about his own origin is a profound philosophical theme — the created being searching for the Creator. His developing four faces symbolizes his all-directional search, and the eight lotus-eyes indicate divine perception.",
+          words: [
+            { word: "स्थितः", transliteration: "sthitaḥ", meaning: "seated, situated" },
+            { word: "कमलोद्भवः", transliteration: "kamalodbhavaḥ", meaning: "the lotus-born one (Brahma)" },
+            { word: "नाभिपङ्केरुहे", transliteration: "nābhipaṅkeruhe", meaning: "on the lotus from the navel" },
+            { word: "कुतः स्वित्", transliteration: "kutaḥ svit", meaning: "from where indeed" },
+            { word: "अम्बुधौ", transliteration: "ambudhau", meaning: "in the ocean" },
+            { word: "उदितम्", transliteration: "uditam", meaning: "arisen" },
+            { word: "अनालोकयन्", transliteration: "anālokayan", meaning: "unable to see" },
+            { word: "ईक्षणकुतूहलात्", transliteration: "īkṣaṇakutūhalāt", meaning: "from curiosity to see" },
+            { word: "प्रतिदिशम्", transliteration: "pratidiśam", meaning: "in every direction" },
+            { word: "विवृत्तानन:", transliteration: "vivṛttānanaḥ", meaning: "with face turned around" },
+            { word: "चतुर्वदनताम्", transliteration: "caturvadanatām", meaning: "the state of having four faces" },
+            { word: "अष्टदृष्ट्यम्बुजाम्", transliteration: "aṣṭadṛṣṭyambujām", meaning: "with eight lotus-eyes" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 2,
+          devanagari: "महार्णवविघूर्णितं कमलमेव तत्केवलं\nविलोक्य तदुपाश्रयं तव तनुं तु नालोकयन् ।\nक एष कमलोदरे महति निस्सहायो ह्यहं\nकुतः स्विदिदमम्बुजं समजनीति चिन्तामगात् ॥",
+          transliteration: "mahārṇavavighūrṇitaṁ kamalameva tatkevalaṁ\nvilokya tadupāśrayaṁ tava tanuṁ tu nālokayan |\nka eṣa kamalodare mahati nissahāyo hyahaṁ\nkutaḥ svididamambujaṁ samajanīti cintāmagāt ||",
+          translation: "He could see only that lotus tossing about in the great ocean, but could not see Your divine form which was its support. 'Who am I, sitting all alone in the cup of this great lotus? Where did this lotus originate?' — thus he fell into deep contemplation.",
+          commentary: "Brahma perceives only the effect (the lotus) but not the cause (Vishnu). This highlights the fundamental limitation of empirical knowledge — seeing the manifest creation but not the unmanifest Creator who supports it.",
+          words: [
+            { word: "महार्णव", transliteration: "mahārṇava", meaning: "the great ocean" },
+            { word: "विघूर्णितम्", transliteration: "vighūrṇitam", meaning: "tossing about, swirling" },
+            { word: "केवलम्", transliteration: "kevalam", meaning: "only, merely" },
+            { word: "उपाश्रयम्", transliteration: "upāśrayam", meaning: "the support, base" },
+            { word: "तनुम्", transliteration: "tanum", meaning: "form, body" },
+            { word: "नालोकयन्", transliteration: "nālokayan", meaning: "not seeing" },
+            { word: "कमलोदरे", transliteration: "kamalodare", meaning: "in the cup/interior of the lotus" },
+            { word: "निस्सहायः", transliteration: "nissahāyaḥ", meaning: "without companion, all alone" },
+            { word: "चिन्ताम् अगात्", transliteration: "cintām agāt", meaning: "fell into contemplation" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 3,
+          devanagari: "अथ प्रविततार नालविवरेण कालात्मना\nत्वयेरितधियाऽनलं परिचिनोति नाभ्यन्तरम् ।\nशतं समधिकं विभो तव हि दिव्यवर्षाणि स-\nन्नयन्नपि हरे गतिं तव न विन्ददे नालतः ॥",
+          transliteration: "atha pravitatāra nālavivareṇa kālātmanā\ntvayeritadhiyā'nalaṁ paricinoti nābhyantaram |\nśataṁ samadhikaṁ vibho tava hi divyavarṣāṇi sa-\nnnayannapi hare gatiṁ tava na vindade nālataḥ ||",
+          translation: "Then Brahma entered the hollow of the lotus stalk, guided by You (as Time). He searched within the stem for over a hundred divine years, O all-pervading Lord, yet could not discover Your whereabouts through that stalk, O Hari!",
+          commentary: "Brahma's physical descent through the lotus stalk represents an external, empirical search for truth. Despite spending over a century in yogic exploration, he cannot find God through mere physical investigation — foreshadowing the teaching that only devotion and penance will reveal the Lord.",
+          words: [
+            { word: "प्रविततार", transliteration: "pravitatāra", meaning: "entered, descended into" },
+            { word: "नालविवरेण", transliteration: "nālavivareṇa", meaning: "through the hollow of the stalk" },
+            { word: "कालात्मना", transliteration: "kālātmanā", meaning: "by the form of Time" },
+            { word: "ईरितधिया", transliteration: "īritadhiyā", meaning: "with mind inspired (by You)" },
+            { word: "अनलम्", transliteration: "analam", meaning: "fire, energy" },
+            { word: "परिचिनोति", transliteration: "paricinoti", meaning: "searches, investigates" },
+            { word: "दिव्यवर्षाणि", transliteration: "divyavarṣāṇi", meaning: "divine years" },
+            { word: "गतिम्", transliteration: "gatim", meaning: "destination, whereabouts" },
+            { word: "न विन्ददे", transliteration: "na vindade", meaning: "did not find" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 4,
+          devanagari: "ततः सकलनालिकाविवरमार्गगो मार्गयन्\nप्रयस्य शतवत्सरं किमपि नैव संदृष्टवान् ।\nनिवृत्य कमलोदरे सुखनिषण्ण एकाग्रधीः\nसमाधिबलमादधे भवदनुग्रहैकाग्रही ॥",
+          transliteration: "tataḥ sakalanālikāvivaramārgago mārgayan\nprayasya śatavatsaraṁ kimapi naiva saṁdṛṣṭavān |\nnivṛtya kamalodare sukhaniṣaṇṇa ekāgradhīḥ\nsamādhibalamādadhe bhavadanugrahaikāgrahī ||",
+          translation: "Travelling through every opening in the lotus stalk, searching anxiously for a hundred divine years, he found absolutely nothing. Returning to the lotus cup and sitting comfortably there, with one-pointed mind, he gathered the power of deep meditation, focused solely on obtaining Your grace.",
+          commentary: "This is the turning point — from external search to internal meditation. After a hundred years of fruitless physical exploration, Brahma turns inward. The verse teaches that God is found not through material investigation but through concentrated meditation and surrender to divine grace.",
+          words: [
+            { word: "नालिकाविवरमार्गगः", transliteration: "nālikāvivaramārgagaḥ", meaning: "one who went through the paths in the stalk openings" },
+            { word: "मार्गयन्", transliteration: "mārgayan", meaning: "searching" },
+            { word: "प्रयस्य", transliteration: "prayasya", meaning: "striving earnestly" },
+            { word: "शतवत्सरम्", transliteration: "śatavatsaram", meaning: "for a hundred years" },
+            { word: "नैव संदृष्टवान्", transliteration: "naiva saṁdṛṣṭavān", meaning: "found absolutely nothing" },
+            { word: "निवृत्य", transliteration: "nivṛtya", meaning: "returning" },
+            { word: "सुखनिषण्णः", transliteration: "sukhaniṣaṇṇaḥ", meaning: "sitting comfortably" },
+            { word: "एकाग्रधीः", transliteration: "ekāgradhīḥ", meaning: "with one-pointed mind" },
+            { word: "समाधिबलम्", transliteration: "samādhibalam", meaning: "the power of deep meditation" },
+            { word: "अनुग्रहैकाग्रही", transliteration: "anugrahaikāgrahī", meaning: "focused solely on obtaining grace" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 5,
+          devanagari: "निमग्नमथ सन्निशम्य सलिले तदम्भोरुहं\nभवत्प्रणिहिताऽनिलप्रभवविक्षुभिताम्भसा ।\nयदन्तरुदभूद्वचस्तप तपेति शब्दद्वयं\nभवन्मुखमरन्दसम्भृतमहास्पदं योगिनाम् ॥",
+          transliteration: "nimagnamatha sanniśamya salile tadambhoruhaṁ\nbhavatpraṇihitā'nilaprabhavavikṣubhitāmbhasā |\nyadantarudabhūdvacastapa tapeti śabdadvayaṁ\nbhavanmukhamarandasambhṛtamahāspadaṁ yoginām ||",
+          translation: "When the lotus was submerging in the waters, agitated by a wind set in motion by You, from within arose the two-syllable divine utterance 'tapa, tapa' (perform penance!) — a word born from the nectar of Your lips, the great refuge of all yogis.",
+          commentary: "The two-syllable command 'tapa' is deeply significant in Bhagavatam theology. It represents the first divine instruction to the first created being. The Lord, though unseen, guides Brahma through subtle inner inspiration — a model for how divine guidance operates in all beings.",
+          words: [
+            { word: "निमग्नम्", transliteration: "nimagnam", meaning: "submerging, sinking" },
+            { word: "सन्निशम्य", transliteration: "sanniśamya", meaning: "perceiving, hearing" },
+            { word: "सलिले", transliteration: "salile", meaning: "in the water" },
+            { word: "अम्भोरुहम्", transliteration: "ambhoruham", meaning: "the lotus" },
+            { word: "प्रणिहित", transliteration: "praṇihita", meaning: "set in motion, directed" },
+            { word: "अनिलप्रभव", transliteration: "anilaprabha", meaning: "caused by wind" },
+            { word: "विक्षुभित", transliteration: "vikṣubhita", meaning: "agitated, disturbed" },
+            { word: "तप तप", transliteration: "tapa tapa", meaning: "'perform penance, perform penance'" },
+            { word: "शब्दद्वयम्", transliteration: "śabdadvayam", meaning: "two-syllable word" },
+            { word: "मुखमरन्द", transliteration: "mukhamaranda", meaning: "nectar from the lips" },
+            { word: "महास्पदम्", transliteration: "mahāspadam", meaning: "great refuge, exalted abode" },
+            { word: "योगिनाम्", transliteration: "yoginām", meaning: "of the yogis" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 6,
+          devanagari: "तपोबलहतेतरोऽथ समवाप्य तत्तेजसा\nप्रबोधविमलां दृशं कमलभूः प्रसन्नात्मना ।\nअपश्यदथ तद्विभो तव हि धाम शान्तं परं\nपरं रजसः सत्त्वतो हि परमाद्भुतं शाश्वतम् ॥",
+          transliteration: "tapōbalahataetarō'tha samavāpya tattejasā\nprabōdhavimalāṁ dṛśaṁ kamalabhūḥ prasannātmanā |\napaśyadatha tadvibhō tava hi dhāma śāntaṁ paraṁ\nparaṁ rajasaḥ sattvato hi paramādbhutaṁ śāśvatam ||",
+          translation: "Through the power of penance, having destroyed all impurities and obtained transcendental vision illumined by that radiance, Brahma, with a serene mind, beheld Your supreme abode — peaceful, transcendent, beyond rajas and sattva, most wondrous and eternal.",
+          commentary: "This is the grand revelation — the Vaikuntha Darshana. The description of Vaikuntha as being beyond even sattva (not just rajas and tamas) reflects the Bhagavatam's teaching about the purely transcendental nature of the Lord's abode. It is 'shantam' (peaceful), 'param' (supreme), and 'shashvatam' (eternal).",
+          words: [
+            { word: "तपोबल", transliteration: "tapōbala", meaning: "the power of penance" },
+            { word: "हतेतरः", transliteration: "hataetaraḥ", meaning: "with all impurities destroyed" },
+            { word: "तेजसा", transliteration: "tejasā", meaning: "by that radiance" },
+            { word: "प्रबोधविमलाम्", transliteration: "prabōdhavimalām", meaning: "clear with awakened knowledge" },
+            { word: "दृशम्", transliteration: "dṛśam", meaning: "vision, sight" },
+            { word: "प्रसन्नात्मना", transliteration: "prasannātmanā", meaning: "with serene mind" },
+            { word: "धाम", transliteration: "dhāma", meaning: "abode, divine realm" },
+            { word: "शान्तम् परम्", transliteration: "śāntam param", meaning: "peaceful and supreme" },
+            { word: "परम् रजसः", transliteration: "param rajasaḥ", meaning: "beyond rajas" },
+            { word: "शाश्वतम्", transliteration: "śāśvatam", meaning: "eternal" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 7,
+          devanagari: "अनेकशतसूर्यभासुरमुदारवैकुण्ठक-\nप्रदेशमधिवासिनं भुजचतुष्टयोल्लासिनम् ।\nमहामणिकिरीटकौस्तुभमुखैर्मणीन्द्रोच्चयै-\nर्विराजितवपुर्विभो विदधते स्म ते मङ्गलम् ॥",
+          transliteration: "anekaśatasūryabhāsuramudāravaikuṇṭhaka-\npradeśamadhivāsinaṁ bhujacatuṣṭayollāsinam |\nmahāmaṇikirīṭakaustubhamukhairmaṇīndroccayai-\nrvirājitavapurvibho vidadhate sma te maṅgalam ||",
+          translation: "Brahma beheld Thee — resplendent with the brilliance of hundreds of suns, dwelling in the magnificent realm of Vaikuntha, radiant with four arms, adorned with the great gem-studded crown, the Kaustubha jewel, and clusters of supreme gems. O all-pervading Lord, they (all those ornaments) lend auspiciousness to Thy divine form!",
+          commentary: "This verse describes Brahma's vision of the Lord's divine form in Vaikuntha. The detailed description of ornaments follows traditional iconographic conventions — the Kaustubha gem on the chest, the jeweled crown, and the four-armed form holding conch, discus, mace, and lotus.",
+          words: [
+            { word: "अनेकशतसूर्यभासुरम्", transliteration: "anekaśatasūryabhāsuram", meaning: "resplendent as hundreds of suns" },
+            { word: "उदारवैकुण्ठक", transliteration: "udāravaikuṇṭhaka", meaning: "the magnificent Vaikuntha" },
+            { word: "अधिवासिनम्", transliteration: "adhivāsinam", meaning: "the dweller, the one residing in" },
+            { word: "भुजचतुष्टय", transliteration: "bhujacatuṣṭaya", meaning: "the four arms" },
+            { word: "उल्लासिनम्", transliteration: "ullāsinam", meaning: "radiant, resplendent" },
+            { word: "महामणिकिरीट", transliteration: "mahāmaṇikirīṭa", meaning: "great gem-studded crown" },
+            { word: "कौस्तुभ", transliteration: "kaustubha", meaning: "the Kaustubha gem" },
+            { word: "मणीन्द्रोच्चयैः", transliteration: "maṇīndroccayaiḥ", meaning: "with clusters of supreme gems" },
+            { word: "विराजितवपुः", transliteration: "virājitavapuḥ", meaning: "with resplendent form" },
+            { word: "मङ्गलम्", transliteration: "maṅgalam", meaning: "auspiciousness" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 8,
+          devanagari: "लभस्व भुवनत्रयीरचनदक्षतामक्षतां\nगृहाण मदनुग्रहं कुरु तपश्च भूयो विधे ।\nभवत्वखिलसाधनी मयि च भक्तिरत्युत्कटे-\nत्युदीर्य गिरमादधा मुदितचेतसं वेधसम् ॥",
+          transliteration: "labhasva bhuvanatrayīracanadakṣatāmakṣatāṁ\ngṛhāṇa madanugrahaṁ kuru tapaśca bhūyo vidhe |\nbhavatvakhilasādhanī mayi ca bhaktiratyutkaṭē-\ntyudīrya girāmādadhā muditacetasaṁ vedhasam ||",
+          translation: "The Lord spoke: 'O Brahma, receive the undiminished ability to create the three worlds. Accept My grace. Continue to perform penance. May you have intense devotion to Me, which shall be the means to accomplish everything.' Uttering these words, the Lord filled Brahma with great joy.",
+          commentary: "The Lord grants Brahma three gifts: (1) creative power, (2) divine grace, and (3) the instruction to cultivate devotion. The emphasis that bhakti is 'akhila-sadhani' (capable of accomplishing everything) is a core teaching of the Bhagavatam and the theological heart of the Narayaneeyam.",
+          words: [
+            { word: "लभस्व", transliteration: "labhasva", meaning: "receive, obtain" },
+            { word: "भुवनत्रयीरचनदक्षताम्", transliteration: "bhuvanatrayīracanadakṣatām", meaning: "the ability to create the three worlds" },
+            { word: "अक्षताम्", transliteration: "akṣatām", meaning: "undiminished, intact" },
+            { word: "गृहाण", transliteration: "gṛhāṇa", meaning: "accept, take" },
+            { word: "मदनुग्रहम्", transliteration: "madanugraham", meaning: "My grace" },
+            { word: "तपः", transliteration: "tapaḥ", meaning: "penance" },
+            { word: "भूयः", transliteration: "bhūyaḥ", meaning: "further, again" },
+            { word: "विधे", transliteration: "vidhe", meaning: "O Brahma (vocative)" },
+            { word: "अखिलसाधनी", transliteration: "akhilasādhanī", meaning: "the means to accomplish everything" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "अत्युत्कटा", transliteration: "atyutkaṭā", meaning: "extremely intense" },
+            { word: "मुदितचेतसम्", transliteration: "muditacetasam", meaning: "with joyful heart" },
+            { word: "वेधसम्", transliteration: "vedhasam", meaning: "Brahma (the creator)" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 9,
+          devanagari: "शतं कृततपास्ततः स खलु दिव्यसंवत्सरा-\nनवाप्य च तपोबलं मतिबलं च पूर्वाधिकम् ।\nउदीक्ष्य किल कम्पितं पयसि पङ्कजं वायुना\nभवद्बलविजृम्भितः पवनपाथसी पीतवान् ॥",
+          transliteration: "śataṁ kṛtatapāstataḥ sa khalu divyasaṁvatsarā-\nnavāpya ca tapobalaṁ matibalaṁ ca pūrvādhikam |\nudīkṣya kila kampitaṁ payasi paṅkajaṁ vāyunā\nbhavadbalavijṛmbhitaḥ pavanapāthasī pītavān ||",
+          translation: "Then Brahma performed penance for a hundred divine years and acquired the strength of penance and intellect far exceeding what he had before. Seeing the lotus trembling in the water due to wind, empowered by Your divine strength, he inhaled both the wind and the waters.",
+          commentary: "Brahma's second round of penance gives him even greater power. His absorption of the wind and waters is the preparatory act for creation — clearing the cosmic stage. That he does this 'bhavadbalavijrmbhitah' (empowered by the Lord's strength) emphasizes that even Brahma acts only through Vishnu's power.",
+          words: [
+            { word: "शतम्", transliteration: "śatam", meaning: "a hundred" },
+            { word: "कृततपाः", transliteration: "kṛtatapāḥ", meaning: "having performed penance" },
+            { word: "दिव्यसंवत्सरान्", transliteration: "divyasaṁvatsarān", meaning: "divine years" },
+            { word: "तपोबलम्", transliteration: "tapobalam", meaning: "the strength of penance" },
+            { word: "मतिबलम्", transliteration: "matibalam", meaning: "the power of intellect" },
+            { word: "पूर्वाधिकम्", transliteration: "pūrvādhikam", meaning: "exceeding the previous" },
+            { word: "कम्पितम्", transliteration: "kampitam", meaning: "trembling, shaking" },
+            { word: "पङ्कजम्", transliteration: "paṅkajam", meaning: "the lotus" },
+            { word: "वायुना", transliteration: "vāyunā", meaning: "by the wind" },
+            { word: "भवद्बलविजृम्भितः", transliteration: "bhavadbalavijṛmbhitaḥ", meaning: "empowered by Your strength" },
+            { word: "पवनपाथसी", transliteration: "pavanapāthasī", meaning: "the wind and the waters" },
+            { word: "पीतवान्", transliteration: "pītavān", meaning: "inhaled, absorbed" }
+          ]
+        },
+        {
+          dashaka: 9,
+          sloka: 10,
+          devanagari: "तवैव कृपया पुनः सरसिजेन तेनैव सः\nप्रकल्प्य भुवनत्रयीं प्रववृते प्रजानिर्मितौ ।\nतथाविधकृपाभरो गुरुमरुत्पुराधीश्वर\nत्वमाशु परिपाहि मां गुरुदयोक्षितैरीक्षितैः ॥",
+          transliteration: "tavaiva kṛpayā punaḥ sarasijena tenaiva saḥ\nprakalpya bhuvanatrayīṁ pravavṛte prajānirmitau |\ntathāvidhakṛpābharo gurumarutpurādhīśvara\ntvamāśu paripāhi māṁ gurudayokṣitairīkṣitaiḥ ||",
+          translation: "Once more, by Your grace alone, using that very lotus as the base, Brahma designed the three worlds and commenced the creation of living beings. O Lord of Guruvayur, who is full of such immeasurable compassion, please protect me quickly with Your glances drenched in great mercy.",
+          commentary: "The concluding verse follows Bhattathiri's signature pattern — ending each dashaka with a personal prayer to Guruvayurappan. The phrase 'gurudayokshitairikshitaih' (glances moistened with great compassion) is a beautiful image of divine grace as the Lord's merciful gaze falling upon the suffering poet.",
+          words: [
+            { word: "कृपया", transliteration: "kṛpayā", meaning: "by grace, by compassion" },
+            { word: "सरसिजेन", transliteration: "sarasijena", meaning: "with the lotus" },
+            { word: "प्रकल्प्य", transliteration: "prakalpya", meaning: "having designed, fashioned" },
+            { word: "भुवनत्रयीम्", transliteration: "bhuvanatrayīm", meaning: "the three worlds" },
+            { word: "प्रववृते", transliteration: "pravavṛte", meaning: "commenced, began" },
+            { word: "प्रजानिर्मितौ", transliteration: "prajānirmitau", meaning: "in the creation of beings" },
+            { word: "कृपाभरः", transliteration: "kṛpābharaḥ", meaning: "full of compassion" },
+            { word: "गुरुमरुत्पुराधीश्वर", transliteration: "gurumarutpurādhīśvara", meaning: "O Lord of Guruvayur" },
+            { word: "आशु", transliteration: "āśu", meaning: "quickly" },
+            { word: "परिपाहि", transliteration: "paripāhi", meaning: "protect completely" },
+            { word: "गुरुदयोक्षितैः ईक्षितैः", transliteration: "gurudayokṣitaiḥ īkṣitaiḥ", meaning: "with glances drenched in great mercy" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 10,
-      titleSanskrit: "वामनावतारवर्णनम्",
-      titleEnglish: "Vamana Avatar",
-      theme: "avatar",
-      verseCount: 13,
-      summary: "The Lord incarnates as Vamana, a dwarf brahmachari, and approaches King Bali seeking three paces of land. He then assumes the cosmic Trivikrama form spanning the three worlds.",
-      slokas: []
+      titleSanskrit: "सृष्टिवैविध्यम्",
+      titleEnglish: "The Variety of Creation",
+      theme: "philosophy",
+      verseCount: 10,
+      summary: "Describes how Brahma, empowered by the Lord, carried out diverse creation — the five forms of ignorance, the four Kumaras who refused to procreate, the birth of Rudra from Brahma's wrath, the ten Prajapatis, and finally Svayambhuva Manu and Shatarupa through whom mankind began.",
+      slokas: [
+        {
+          dashaka: 10,
+          sloka: 1,
+          devanagari: "वैकुण्ठ वर्धितबलोऽथ भवत्प्रसादा-\nदम्भोजयोनिरसृजत् किल जीवदेहान् ।\nस्थास्नूनि भूरुहमयानि तथा तिरश्चां\nजातीर्मनुष्यनिवहानपि देवभेदान् ॥",
+          transliteration: "vaikuṇṭha vardhitabalō'tha bhavatprasādā-\ndambhōjayōnirasṛjatkila jīvadēhān |\nsthāsnūni bhūruhamayāni tathā tiraścāṁ\njātīrmanuṣyanivahānapi dēvabhēdān ||",
+          translation: "O Lord of Vaikuntha! Empowered by Your grace, Brahma (the lotus-born) created bodies for the jivas — the immovable beings such as trees, the various species of animals, hosts of human beings, and different classes of gods.",
+          commentary: "This opening verse sets the stage for the dashaka. Brahma, having received strength from Lord Vishnu, begins populating the universe. The verse emphasizes that creation is karmic — jivas receive bodies suited to their accumulated merit and demerit from before the dissolution.",
+          words: [
+            { word: "वैकुण्ठ", transliteration: "vaikuṇṭha", meaning: "O Lord of Vaikuntha" },
+            { word: "वर्धितबलः", transliteration: "vardhitabalaḥ", meaning: "with increased strength" },
+            { word: "भवत्प्रसादात्", transliteration: "bhavatprasādāt", meaning: "by Your grace" },
+            { word: "अम्भोजयोनिः", transliteration: "ambhōjayōniḥ", meaning: "the lotus-born one (Brahma)" },
+            { word: "असृजत्", transliteration: "asṛjat", meaning: "created" },
+            { word: "जीवदेहान्", transliteration: "jīvadēhān", meaning: "bodies for the living beings" },
+            { word: "स्थास्नूनि", transliteration: "sthāsnūni", meaning: "immovable beings" },
+            { word: "भूरुहमयानि", transliteration: "bhūruhamayāni", meaning: "consisting of trees" },
+            { word: "तिरश्चाम्", transliteration: "tiraścām", meaning: "of animals" },
+            { word: "मनुष्यनिवहान्", transliteration: "manuṣyanivahān", meaning: "hosts of human beings" },
+            { word: "देवभेदान्", transliteration: "dēvabhēdān", meaning: "different classes of gods" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 2,
+          devanagari: "मिथ्याग्रहास्मिमतिरागविकोपभीति-\nरज्ञानवृत्तिमिति पञ्चविधां स सृष्ट्वा ।\nउद्दामतामसपदार्थविधानदूनः\nतेने त्वदीयचरणस्मरणं विशुद्ध्यै ॥",
+          transliteration: "mithyāgrahāsmimatirāgavikōpabhīti-\nrajñānavṛttimiti pañcavidhāṁ sa sṛṣṭvā |\nuddāmatāmasapadārthavidhānadūnaḥ\ntēnē tvadīyacaraṇasmaraṇaṁ viśuddhyai ||",
+          translation: "Brahma first created the five types of ignorance: false notion, egoism, attachment, anger, and fear. Distressed at having created such predominantly tamasic entities, he meditated upon Your lotus feet for purification.",
+          commentary: "The five forms of ignorance — andhatamisra, tamisra, mahamoha, moha, and tamas — represent the fundamental delusions that bind jivas. Brahma's dismay at this dark first creation and his instinctive turning to the Lord for purification highlights the devotional core of the Narayaneeyam.",
+          words: [
+            { word: "मिथ्याग्रहः", transliteration: "mithyāgrahaḥ", meaning: "false notion, delusion" },
+            { word: "अस्मिमतिः", transliteration: "asmimatiḥ", meaning: "egoism, sense of 'I'" },
+            { word: "रागः", transliteration: "rāgaḥ", meaning: "attachment" },
+            { word: "विकोपः", transliteration: "vikōpaḥ", meaning: "anger, agitation" },
+            { word: "भीतिः", transliteration: "bhītiḥ", meaning: "fear" },
+            { word: "अज्ञानवृत्तिम्", transliteration: "ajñānavṛttim", meaning: "the mode of ignorance" },
+            { word: "पञ्चविधाम्", transliteration: "pañcavidhām", meaning: "of five kinds" },
+            { word: "तामसपदार्थ", transliteration: "tāmasapadārtha", meaning: "tamasic entities" },
+            { word: "विधानदूनः", transliteration: "vidhānadūnaḥ", meaning: "distressed by the creation" },
+            { word: "चरणस्मरणम्", transliteration: "caraṇasmaraṇam", meaning: "remembrance of the feet" },
+            { word: "विशुद्ध्यै", transliteration: "viśuddhyai", meaning: "for purification" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 3,
+          devanagari: "तावत् ससर्ज मनसा सनकं सनन्दं\nभूयः सनातनमुनिं च सनत्कुमारम् ।\nते सृष्टिकर्मणि तु तेन नियुज्यमानाः\nत्वत्पादभक्तिरसिका जगृहुर्न वाणीम् ॥",
+          transliteration: "tāvatsasarja manasā sanakaṁ sanandaṁ\nbhūyassanātanamuniṁ ca sanatkumāram |\ntē sṛṣṭikarmaṇi tu tēna niyujyamānāḥ\ntvatpādabhaktirasikā jagṛhurna vāṇīm ||",
+          translation: "Then Brahma created from his mind the four Kumaras — Sanaka, Sananda, Sanatana, and Sanatkumara. But when directed to engage in creation, they, being absorbed in devotion to Your lotus feet, refused to obey.",
+          commentary: "The four Kumaras are mind-born sons of Brahma. Despite being his first conscious creation after purification, they were so absorbed in brahmavidya and devotion to Vishnu that worldly creation held no interest. The phrase 'tvatpādabhaktirasikā' (those who relish devotion to Your feet) elevates bhakti above all other pursuits.",
+          words: [
+            { word: "ससर्ज", transliteration: "sasarja", meaning: "created" },
+            { word: "मनसा", transliteration: "manasā", meaning: "from the mind" },
+            { word: "सनकम्", transliteration: "sanakam", meaning: "Sanaka" },
+            { word: "सनन्दम्", transliteration: "sanandam", meaning: "Sananda" },
+            { word: "सनातनमुनिम्", transliteration: "sanātanamunim", meaning: "the sage Sanatana" },
+            { word: "सनत्कुमारम्", transliteration: "sanatkumāram", meaning: "Sanatkumara" },
+            { word: "सृष्टिकर्मणि", transliteration: "sṛṣṭikarmaṇi", meaning: "in the work of creation" },
+            { word: "नियुज्यमानाः", transliteration: "niyujyamānāḥ", meaning: "being directed, commanded" },
+            { word: "त्वत्पादभक्तिरसिकाः", transliteration: "tvatpādabhaktirasikāḥ", meaning: "those who relish devotion to Your feet" },
+            { word: "जगृहुः न वाणीम्", transliteration: "jagṛhuḥ na vāṇīm", meaning: "did not accept the command" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 4,
+          devanagari: "तावत् प्रकोपमुदितं प्रतिरुन्धतोऽस्य\nभ्रूमध्यतोऽजनि मृडो भवदेकदेशः ।\nनामानि मे कुरु पदानि च हा विरिञ्चे-\nत्यादौ रुरोद किल तेन स रुद्रनामा ॥",
+          transliteration: "tāvat prakōpamuditaṁ pratirundhato'sya\nbhrūmadhyatō'jani mṛḍō bhavadēkadēśaḥ |\nnāmāni mē kuru padāni ca hā viriñcē-\ntyādau rurōda kila tēna sa rudranāmā ||",
+          translation: "While Brahma was suppressing the anger that arose at the Kumaras' refusal, from between his eyebrows was born Mrida (Rudra/Shiva), who is a part of Your own being. Rudra cried out to Brahma: 'Give me names and abodes!' — and because he cried (ruroda), he was named Rudra.",
+          commentary: "The birth of Rudra from Brahma's wrath is a famous episode from Bhagavatam 3.12.7-8. The phrase 'bhavadekadesha' (a part of Your being) affirms the theological position that Shiva is an aspect of Vishnu. The folk-etymology of 'Rudra' from 'ruroda' (he who cried) follows the Bhagavatam account.",
+          words: [
+            { word: "प्रकोपम्", transliteration: "prakōpam", meaning: "anger, rage" },
+            { word: "प्रतिरुन्धतः", transliteration: "pratirundhataḥ", meaning: "of one trying to suppress" },
+            { word: "भ्रूमध्यतः", transliteration: "bhrūmadhyataḥ", meaning: "from between the eyebrows" },
+            { word: "अजनि", transliteration: "ajani", meaning: "was born" },
+            { word: "मृडः", transliteration: "mṛḍaḥ", meaning: "Mrida (Shiva, the gracious one)" },
+            { word: "भवदेकदेशः", transliteration: "bhavadēkadēśaḥ", meaning: "a part of Your being" },
+            { word: "नामानि", transliteration: "nāmāni", meaning: "names" },
+            { word: "पदानि", transliteration: "padāni", meaning: "abodes, stations" },
+            { word: "विरिञ्च", transliteration: "viriñca", meaning: "O Brahma (vocative)" },
+            { word: "रुरोद", transliteration: "rurōda", meaning: "he cried" },
+            { word: "रुद्रनामा", transliteration: "rudranāmā", meaning: "named Rudra" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 5,
+          devanagari: "एकादशाह्वयतया च विभिन्नरूपं\nरुद्रं विधाय दयिता वनिताश्च दत्वा ।\nतावन्त्यदत्त च पदानि भवत्प्रणुन्नः\nप्राह प्रजाविरचनाय च सादरं तम् ॥",
+          transliteration: "ēkādaśāhvayatayā ca vibhinnarūpaṁ\nrudraṁ vidhāya dayitā vanitāśca datvā |\ntāvantyadatta ca padāni bhavatpraṇunnaḥ\nprāha prajāvirachanāya ca sādaraṁ tam ||",
+          translation: "Brahma, prompted by You, gave Rudra eleven names and eleven distinct forms, and bestowed upon each an equal number of wives and abodes. He then respectfully requested Rudra to engage in the work of creation.",
+          commentary: "The eleven Rudras are a well-known Vedic concept. Brahma gives Rudra multiple manifestations to assist in creation. The phrase 'bhavatpranunnah' emphasizes that Brahma acts under divine direction, not independently.",
+          words: [
+            { word: "एकादशाह्वयतया", transliteration: "ēkādaśāhvayatayā", meaning: "with eleven appellations" },
+            { word: "विभिन्नरूपम्", transliteration: "vibhinnarūpam", meaning: "in distinct forms" },
+            { word: "विधाय", transliteration: "vidhāya", meaning: "having made, arranged" },
+            { word: "दयिताः वनिताः", transliteration: "dayitāḥ vanitāḥ", meaning: "beloved wives" },
+            { word: "पदानि", transliteration: "padāni", meaning: "abodes, stations" },
+            { word: "भवत्प्रणुन्नः", transliteration: "bhavatpraṇunnaḥ", meaning: "prompted/inspired by You" },
+            { word: "प्रजाविरचनाय", transliteration: "prajāvirachanāya", meaning: "for the work of creating progeny" },
+            { word: "सादरम्", transliteration: "sādaram", meaning: "respectfully" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 6,
+          devanagari: "रुद्राभिसृष्टभयदाकृतिरुद्रसंघ-\nसम्पूर्यमाणभुवनत्रयभीतचेताः ।\nमा मा प्रजाः सृज तपश्चर मङ्गलाये-\nत्याचष्ट तं कमलभूर्भवदीरितात्मा ॥",
+          transliteration: "rudrābhisṛṣṭabhyadākṛtirudrasaṁgha-\nsampūryamāṇabhuvanatrayabhītacēdāḥ |\nmā mā prajāḥ sṛja tapaścara maṅgalāyē-\ntyācaṣṭa taṁ kamalabhūrbhavadīritātmā ||",
+          translation: "When the three worlds were being filled with hordes of fierce Rudra-like beings, Brahma became terrified. Inspired by You, Brahma told Rudra: 'Stop! Do not create such beings! Perform penance for the welfare of the world.'",
+          commentary: "Rudra's creations mirrored his own fierce temperament. This episode shows the divine hierarchy — Brahma redirects Rudra to tapas rather than creation, and this redirection is itself inspired by the Lord. Rudra's tapas would make him the great Mahayogi.",
+          words: [
+            { word: "रुद्राभिसृष्ट", transliteration: "rudrābhisṛṣṭa", meaning: "created by Rudra" },
+            { word: "भयदाकृति", transliteration: "bhayadākṛti", meaning: "of fearsome form" },
+            { word: "सम्पूर्यमाण", transliteration: "sampūryamāṇa", meaning: "being filled up" },
+            { word: "भुवनत्रय", transliteration: "bhuvanataya", meaning: "three worlds" },
+            { word: "भीतचेताः", transliteration: "bhītacētāḥ", meaning: "with frightened mind" },
+            { word: "मा मा", transliteration: "mā mā", meaning: "do not, do not (emphatic prohibition)" },
+            { word: "तपश्चर", transliteration: "tapaścara", meaning: "perform penance" },
+            { word: "मङ्गलाय", transliteration: "maṅgalāya", meaning: "for welfare, auspiciousness" },
+            { word: "कमलभूः", transliteration: "kamalabhūḥ", meaning: "the lotus-born one (Brahma)" },
+            { word: "भवदीरितात्मा", transliteration: "bhavadīritātmā", meaning: "with mind inspired by You" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 7,
+          devanagari: "तस्याथ सर्गरसिकस्य मरीचिरत्रिः\nतत्राङ्गिराः क्रतुमुनिः पुलहः पुलस्त्यः ।\nअङ्गादजायत भृगुश्च वसिष्ठदक्षौ\nश्रीनारदश्च भगवन् भवदङ्घ्रिदासः ॥",
+          transliteration: "tasyātha sargarasikasya marīciratriḥ\ntatrāṅgirāḥ kratumuniḥ pulahaḥ pulastyaḥ |\naṅgādajāyata bhṛguśca vasiṣṭhadakṣau\nśrīnāradaśca bhagavan bhavadaṅghridāsaḥ ||",
+          translation: "Then, from the body of Brahma, who was eager to create, were born the great sages: Marichi, Atri, Angiras, Kratu, Pulaha, Pulastya, Bhrigu, Vasishtha, and Daksha. And also Sri Narada, O Lord, the devoted servant of Your lotus feet.",
+          commentary: "These are the ten Prajapatis (progenitors) of Brahma who would carry forward creation. Bhattathiri singles out Narada with the devotional epithet 'bhavadanghridasah' (servant of Your feet), consistent with Narada's role throughout the Bhagavatam as the supreme bhakta and wandering devotee-sage.",
+          words: [
+            { word: "सर्गरसिकस्य", transliteration: "sargarasikasya", meaning: "of one eager to create" },
+            { word: "मरीचिः", transliteration: "marīciḥ", meaning: "sage Marichi" },
+            { word: "अत्रिः", transliteration: "atriḥ", meaning: "sage Atri" },
+            { word: "अङ्गिराः", transliteration: "aṅgirāḥ", meaning: "sage Angiras" },
+            { word: "क्रतुमुनिः", transliteration: "kratumuniḥ", meaning: "sage Kratu" },
+            { word: "पुलहः", transliteration: "pulahaḥ", meaning: "sage Pulaha" },
+            { word: "पुलस्त्यः", transliteration: "pulastyaḥ", meaning: "sage Pulastya" },
+            { word: "भृगुः", transliteration: "bhṛguḥ", meaning: "sage Bhrigu" },
+            { word: "वसिष्ठदक्षौ", transliteration: "vasiṣṭhadakṣau", meaning: "Vasishtha and Daksha" },
+            { word: "श्रीनारदः", transliteration: "śrīnāradaḥ", meaning: "Sri Narada" },
+            { word: "भवदङ्घ्रिदासः", transliteration: "bhavadaṅghridāsaḥ", meaning: "servant of Your lotus feet" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 8,
+          devanagari: "धर्मादिकानभिसृजन्नथ कर्दमं च\nवाणीं विधाय विधिरङ्गजसंकुलोऽभूत् ।\nत्वद्बोधितैस्सनकदक्षमुखैस्तनूजैः\nउद्बोधितश्च विरराम तमो विमुञ्चन् ॥",
+          transliteration: "dharmādikānabhisṛjannatha kardamaṁ ca\nvāṇīṁ vidhāya vidhiraṅgajasaṁkulō'bhūt |\ntvadbōdhitaissanakadakṣamukhaistanūjaiḥ\nudbōdhitaśca virarāma tamō vimuñcan ||",
+          translation: "Brahma then created Dharma, Sage Kardama, and Goddess Vani (Saraswati). Upon creating Saraswati, Brahma became afflicted with passion. But enlightened by his sons — Sanaka, Daksha, and others — who were inspired by You, he gave up that delusion.",
+          commentary: "Brahma's momentary infatuation with his own creation (Saraswati) represents the cosmic danger of creator-attachment. His sons' intervention, described as divinely inspired ('tvadbōdhitaiḥ'), shows that even the creator is subject to maya and needs the Lord's grace.",
+          words: [
+            { word: "धर्मादिकान्", transliteration: "dharmādikān", meaning: "Dharma and others" },
+            { word: "कर्दमम्", transliteration: "kardamam", meaning: "sage Kardama" },
+            { word: "वाणीम्", transliteration: "vāṇīm", meaning: "Vani (Saraswati, goddess of speech)" },
+            { word: "विधिः", transliteration: "vidhiḥ", meaning: "Brahma" },
+            { word: "अङ्गजसंकुलः", transliteration: "aṅgajasaṁkulaḥ", meaning: "agitated by passion (Kamadeva)" },
+            { word: "त्वद्बोधितैः", transliteration: "tvadbōdhitaiḥ", meaning: "enlightened by You" },
+            { word: "तनूजैः", transliteration: "tanūjaiḥ", meaning: "by his sons" },
+            { word: "उद्बोधितः", transliteration: "udbōdhitaḥ", meaning: "awakened, made aware" },
+            { word: "विरराम", transliteration: "virarāma", meaning: "desisted, gave up" },
+            { word: "तमः विमुञ्चन्", transliteration: "tamaḥ vimuñcan", meaning: "releasing/abandoning darkness (delusion)" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 9,
+          devanagari: "वेदान् पुराणनिवहानपि सर्वविद्याः\nकुर्वन् निजाननगणाच्चतुराननोऽसौ ।\nपुत्रेषु तेषु विनिधाय स सर्गवृद्धिं\nअप्राप्नुवंस्तव पदाम्बुजमाश्रितोऽभूत् ॥",
+          transliteration: "vēdān purāṇanivahānapi sarvavidyāḥ\nkurvan nijānanagaṇāccaturānanō'sau |\nputrēṣu tēṣu vinidhāya sa sargavṛddhiṁ\naprāpnuvaṁstava padāmbujamāśritō'bhūt ||",
+          translation: "The four-faced Brahma brought forth the Vedas, the Puranas, and all branches of knowledge from his four faces, and entrusted them to his sons. Yet, when creation still did not progress, he took refuge at Your lotus feet.",
+          commentary: "Despite producing the entire corpus of sacred knowledge, Brahma found that intellectual creation alone was insufficient for populating the universe. This sets up the solution in the final verse — the creation of Manu and Shatarupa through bodily division.",
+          words: [
+            { word: "वेदान्", transliteration: "vēdān", meaning: "the Vedas" },
+            { word: "पुराणनिवहान्", transliteration: "purāṇanivahān", meaning: "collections of Puranas" },
+            { word: "सर्वविद्याः", transliteration: "sarvavidyāḥ", meaning: "all branches of knowledge" },
+            { word: "निजाननगणात्", transliteration: "nijānanagaṇāt", meaning: "from his own set of faces" },
+            { word: "चतुराननः", transliteration: "caturānanaḥ", meaning: "the four-faced one (Brahma)" },
+            { word: "विनिधाय", transliteration: "vinidhāya", meaning: "having entrusted, deposited" },
+            { word: "सर्गवृद्धिम्", transliteration: "sargavṛddhim", meaning: "progress of creation" },
+            { word: "अप्राप्नुवन्", transliteration: "aprāpnuvan", meaning: "not attaining" },
+            { word: "पदाम्बुजम्", transliteration: "padāmbujam", meaning: "lotus feet" },
+            { word: "आश्रितः", transliteration: "āśritaḥ", meaning: "took refuge" }
+          ]
+        },
+        {
+          dashaka: 10,
+          sloka: 10,
+          devanagari: "जानन्नुपायमथ देहमजो विभज्य\nस्त्रीपुंसभावमभजन्मनुतद्वधूभ्याम् ।\nताभ्यां च मानुषकुलानि विवर्धयंस्त्वं\nगोविन्द मारुतपुराधिप रुन्धि रोगान् ॥",
+          transliteration: "jānannupāyamatha dēhamajō vibhajya\nstrīpuṁsabhāvamabhajanmanutadvadūbhyām |\ntābhyāṁ ca mānuṣakulāni vivardhayaṁstvaṁ\ngōvinda mārutapurādhipa rundhi rōgān ||",
+          translation: "Then, knowing the means, Brahma divided his own body into male and female halves. From the male half arose Svayambhuva Manu, and from the female half, his consort Shatarupa. Through them, O Govinda, You multiplied the human race. O Lord of Guruvayur, please cure me of my diseases!",
+          commentary: "The concluding verse narrates the origin of Svayambhuva Manu and Shatarupa (Bhagavatam 3.12.35), the first human couple through whom mankind propagated. The verse ends with Bhattathiri's characteristic prayer — 'rundhi rogaan' (destroy my diseases).",
+          words: [
+            { word: "जानन्", transliteration: "jānan", meaning: "knowing" },
+            { word: "उपायम्", transliteration: "upāyam", meaning: "the means, method" },
+            { word: "देहम्", transliteration: "dēham", meaning: "body" },
+            { word: "अजः", transliteration: "ajaḥ", meaning: "the unborn one (Brahma)" },
+            { word: "विभज्य", transliteration: "vibhajya", meaning: "having divided" },
+            { word: "स्त्रीपुंसभावम्", transliteration: "strīpuṁsabhāvam", meaning: "the nature of male and female" },
+            { word: "मनु", transliteration: "manu", meaning: "Svayambhuva Manu" },
+            { word: "तद्वधूभ्याम्", transliteration: "tadvadūbhyām", meaning: "with his consort (Shatarupa)" },
+            { word: "मानुषकुलानि", transliteration: "mānuṣakulāni", meaning: "human families/races" },
+            { word: "विवर्धयन्", transliteration: "vivardhayan", meaning: "multiplying, increasing" },
+            { word: "गोविन्द", transliteration: "gōvinda", meaning: "O Govinda" },
+            { word: "मारुतपुराधिप", transliteration: "mārutapurādhipa", meaning: "O Lord of Guruvayur" },
+            { word: "रुन्धि रोगान्", transliteration: "rundhi rōgān", meaning: "destroy the diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 11,
