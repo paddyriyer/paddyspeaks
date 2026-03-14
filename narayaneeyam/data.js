@@ -5341,7 +5341,224 @@ var NARAYANEEYAM_DATA = {
       theme: "avatar",
       verseCount: 10,
       summary: "Describes the events leading to Rama's fourteen-year exile to the forest, including Kaikeyi's boons, Dasharatha's grief, and Rama's departure with Sita and Lakshmana.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 30,
+          sloka: 1,
+          devanagari: "अयोध्यायां दशरथक्षितिपालनन्दनं\nत्वां राममिन्दुवदनं पटभिस्समुत्सुकैः ।\nसम्भूय पौरजनता मुदिता समन्ततो\nयौवराज्यपदवीमभिषेक्तुमैच्छत ॥",
+          transliteration: "ayōdhyāyāṁ daśarathakṣitipālanandanaṁ\ntvāṁ rāmaminduvadanaṁ paṭabhissamutsukaiḥ |\nsambhūya paurajānatā muditā samantato\nyauvarājyapadavīmabhiṣēktumaicchat ||",
+          translation: "In Ayodhya, the joyful citizens, gathering eagerly from all sides with festive decorations, desired to consecrate You — Rama, the moon-faced beloved son of King Dasharatha — in the office of Yuvaraja (crown prince).",
+          commentary: "The dashaka opens with the jubilant scene of Ayodhya preparing for Rama's coronation. Bhattathiri uses 'indu-vadana' (moon-faced) to establish Rama's divine beauty that endears Him to all. The compound 'paura-janata mudita' captures the unanimous joy of the citizenry. This scene of universal happiness serves as a dramatic contrast to the catastrophe that will follow — a technique the poet uses to heighten the pathos of the entire narrative.",
+          words: [
+            { word: "अयोध्यायाम्", transliteration: "ayōdhyāyām", meaning: "in Ayodhya" },
+            { word: "दशरथ", transliteration: "daśaratha", meaning: "Dasharatha" },
+            { word: "क्षितिपाल", transliteration: "kṣitipāla", meaning: "king, protector of earth" },
+            { word: "नन्दनम्", transliteration: "nandanam", meaning: "son, delight" },
+            { word: "राममिन्दुवदनम्", transliteration: "rāmaminduvadanam", meaning: "Rama, the moon-faced one" },
+            { word: "समुत्सुकैः", transliteration: "samutsukaiḥ", meaning: "with eager ones" },
+            { word: "पौरजनता", transliteration: "paurajānatā", meaning: "the citizens, townsfolk" },
+            { word: "मुदिता", transliteration: "muditā", meaning: "joyful, delighted" },
+            { word: "समन्ततः", transliteration: "samantataḥ", meaning: "from all sides" },
+            { word: "यौवराज्यपदवीम्", transliteration: "yauvarājyapadavīm", meaning: "the office of crown prince" },
+            { word: "अभिषेक्तुम्", transliteration: "abhiṣēktum", meaning: "to consecrate, anoint" },
+            { word: "ऐच्छत", transliteration: "aicchat", meaning: "desired" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 2,
+          devanagari: "मन्थरा तत्र कुब्जा सा कैकेयीसेविकाधमा\nरामाभिषेकवार्तां तामाकर्ण्य विषसन्निभाम् ।\nकैकेय्याः कर्णयोर्धित्वा विषं वाक्यैर्मनोहरैः\nभरतस्यैव राज्यार्हं बुद्धिमस्या व्यपोहयत् ॥",
+          transliteration: "mantharā tatra kubjā sā kaikēyīsēvikādhamā\nrāmābhiṣēkavārtāṁ tāmākarṇya viṣasannibhām |\nkaikēyyāḥ karṇayōrdhitvā viṣaṁ vākyairmanōharaiḥ\nbharatasyyaiva rājyārhaṁ buddhimasyā vyapōhayat ||",
+          translation: "There, the hunchbacked Manthara — that vile maidservant of Kaikeyi — upon hearing the news of Rama's consecration, poured poison into Kaikeyi's ears through charming words, diverting her mind to believe that Bharata alone deserved the kingdom.",
+          commentary: "Manthara is introduced with the epithet 'sevika-adhama' (lowest of servants), signaling her moral baseness. The metaphor of 'vishham vakya' (poison-words poured into the ears) is drawn from the Ramayana tradition. Bhattathiri emphasizes the irony that words can be simultaneously 'manohara' (charming) and 'visha-sannibha' (poison-like) — a commentary on the dangerous power of persuasive speech. Manthara's manipulation represents the working of destiny (daiva) that sets the exile in motion.",
+          words: [
+            { word: "मन्थरा", transliteration: "mantharā", meaning: "Manthara (the hunchbacked maid)" },
+            { word: "कुब्जा", transliteration: "kubjā", meaning: "hunchbacked" },
+            { word: "सेविकाधमा", transliteration: "sēvikādhamā", meaning: "vilest of maidservants" },
+            { word: "अभिषेकवार्ताम्", transliteration: "abhiṣēkavārtām", meaning: "news of the consecration" },
+            { word: "आकर्ण्य", transliteration: "ākarṇya", meaning: "having heard" },
+            { word: "विषसन्निभाम्", transliteration: "viṣasannibhām", meaning: "resembling poison" },
+            { word: "कर्णयोः", transliteration: "karṇayōḥ", meaning: "into the ears" },
+            { word: "वाक्यैः", transliteration: "vākyaiḥ", meaning: "with words" },
+            { word: "मनोहरैः", transliteration: "manōharaiḥ", meaning: "charming, captivating" },
+            { word: "राज्यार्हम्", transliteration: "rājyārham", meaning: "deserving of the kingdom" },
+            { word: "बुद्धिम्", transliteration: "buddhim", meaning: "mind, intellect" },
+            { word: "व्यपोहयत्", transliteration: "vyapōhayat", meaning: "diverted, led astray" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 3,
+          devanagari: "कैकेयी कोपताम्राक्षी क्रोधागारमुपाविशत्\nपूर्वं दत्तवरद्वन्द्वं स्मारयन्ती नृपं तदा ।\nरामस्य वनवासं मे भरतस्याभिषेचनम्\nदेहीति याचयामास दशरथमनाथवत् ॥",
+          transliteration: "kaikēyī kōpatāmrākṣī krōdhāgāramupāviśat\npūrvaṁ dattavaradvandvaṁ smārayantī nṛpaṁ tadā |\nrāmasya vanavāsaṁ mē bharatasyābhiṣēcanam\ndēhīti yācayāmāsa daśarathamanāthavat ||",
+          translation: "Kaikeyi, her eyes red with anger, entered the chamber of wrath. Reminding the king of the two boons he had granted her long ago, she demanded: 'Give me exile to the forest for Rama and consecration for Bharata!' — leaving Dasharatha utterly helpless.",
+          commentary: "The 'krodhagara' (anger-chamber) is a vivid detail from Valmiki's Ramayana — a room where queens would retire to express displeasure, compelling the king to come and appease them. Kaikeyi's 'kopa-tamra-akshi' (anger-reddened eyes) contrasts sharply with the tender wife Dasharatha knew. The two boons (vara-dvandva) were granted during a celestial battle when Kaikeyi saved Dasharatha's life — now they become instruments of destruction. The word 'anathavat' (like one without refuge) poignantly captures the king's utter helplessness before dharma's demands.",
+          words: [
+            { word: "कैकेयी", transliteration: "kaikēyī", meaning: "Kaikeyi (Dasharatha's queen)" },
+            { word: "कोपताम्राक्षी", transliteration: "kōpatāmrākṣī", meaning: "with eyes reddened by anger" },
+            { word: "क्रोधागारम्", transliteration: "krōdhāgāram", meaning: "the chamber of anger" },
+            { word: "उपाविशत्", transliteration: "upāviśat", meaning: "entered, sat in" },
+            { word: "दत्तवरद्वन्द्वम्", transliteration: "dattavaradvandvam", meaning: "the pair of boons granted" },
+            { word: "स्मारयन्ती", transliteration: "smārayantī", meaning: "reminding" },
+            { word: "वनवासम्", transliteration: "vanavāsam", meaning: "exile to the forest" },
+            { word: "अभिषेचनम्", transliteration: "abhiṣēcanam", meaning: "consecration, coronation" },
+            { word: "याचयामास", transliteration: "yācayāmāsa", meaning: "demanded, entreated" },
+            { word: "दशरथम्", transliteration: "daśaratham", meaning: "Dasharatha (the king)" },
+            { word: "अनाथवत्", transliteration: "anāthavat", meaning: "like one without refuge" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 4,
+          devanagari: "हा राम रामेति विलप्य भूपति-\nर्दशरथो दीनमनाः सुदुःखितः ।\nसत्यव्रतत्वात् प्रतिपन्नवाग्भवन्\nन शक्तवान् वारयितुं प्रतिश्रुतम् ॥",
+          transliteration: "hā rāma rāmēti vilapya bhūpati-\nrdaśarathō dīnamanāḥ suduḥkhitaḥ |\nsatyavratatvāt pratipannavāgbhavan\nna śaktavān vārayituṁ pratiśrutam ||",
+          translation: "Crying 'Alas, Rama! Rama!' — King Dasharatha, wretched in mind and deeply grieved, being bound by his vow of truth, having given his word, was powerless to revoke what he had promised.",
+          commentary: "The repetition 'ha Rama Rama' captures the raw anguish of a father trapped between love for his son and adherence to truth. Dasharatha's 'satya-vratatva' (devotion to truth) is the very quality that makes him noble yet destroys him. Bhattathiri presents this as the tragic irony at the heart of the Ramayana — dharma itself becomes the instrument of suffering. The king is 'dina-manah' (wretched-minded) yet cannot act, for to break a promise would destroy the very dharmic order he represents.",
+          words: [
+            { word: "हा", transliteration: "hā", meaning: "alas (exclamation of grief)" },
+            { word: "राम", transliteration: "rāma", meaning: "Rama" },
+            { word: "विलप्य", transliteration: "vilapya", meaning: "having lamented, cried out" },
+            { word: "भूपतिः", transliteration: "bhūpatiḥ", meaning: "the king, lord of the earth" },
+            { word: "दीनमनाः", transliteration: "dīnamanāḥ", meaning: "wretched in mind" },
+            { word: "सुदुःखितः", transliteration: "suduḥkhitaḥ", meaning: "deeply grieved" },
+            { word: "सत्यव्रतत्वात्", transliteration: "satyavratatvāt", meaning: "due to devotion to truth" },
+            { word: "प्रतिपन्नवाक्", transliteration: "pratipannavāk", meaning: "one who has given his word" },
+            { word: "शक्तवान्", transliteration: "śaktavān", meaning: "was able, had power" },
+            { word: "वारयितुम्", transliteration: "vārayitum", meaning: "to prevent, to revoke" },
+            { word: "प्रतिश्रुतम्", transliteration: "pratiśrutam", meaning: "what was promised" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 5,
+          devanagari: "पितुर्वचः शिरसि धृत्वा तु राघवो\nन चुक्षुभे न च मनागपि दुःखितोऽभूत् ।\nसमं हि राज्यं वनवासकल्पनं\nस्थितप्रज्ञस्त्वमवधीरयन् विभो ॥",
+          transliteration: "piturvacaḥ śirasi dhṛtvā tu rāghavō\nna cukṣubhē na ca manāgapi duḥkhitō'bhūt |\nsamaṁ hi rājyaṁ vanavāsakalpanam\nsthitaprajñastvamavadhīrayan vibhō ||",
+          translation: "Bearing His father's word upon His head, Raghava was neither agitated nor even slightly grieved. Kingdom and exile to the forest were equal to You — O Lord, You of steady wisdom transcended all such distinctions.",
+          commentary: "This verse is the spiritual heart of the dashaka. Rama's response to the devastating news reveals His nature as the Supreme Being. The phrase 'na chukshubhe na cha manag api duhkhito bhut' (neither agitated nor even slightly grieved) echoes the Gita's 'sthita-prajna' (one of steady wisdom). Bhattathiri explicitly uses this Gita term to remind us that Rama is Krishna Himself — the very teacher of equanimity. 'Samam hi rajyam vanavasakalpanam' (kingdom and forest-exile are equal) is the ultimate expression of vairagya lived in action.",
+          words: [
+            { word: "पितुर्वचः", transliteration: "piturvacaḥ", meaning: "father's word" },
+            { word: "शिरसि", transliteration: "śirasi", meaning: "upon the head" },
+            { word: "धृत्वा", transliteration: "dhṛtvā", meaning: "having borne, accepted" },
+            { word: "राघवः", transliteration: "rāghavaḥ", meaning: "Raghava (descendant of Raghu, i.e., Rama)" },
+            { word: "चुक्षुभे", transliteration: "cukṣubhē", meaning: "was agitated" },
+            { word: "मनाक्", transliteration: "manāk", meaning: "even slightly" },
+            { word: "दुःखितः", transliteration: "duḥkhitaḥ", meaning: "grieved" },
+            { word: "समम्", transliteration: "samam", meaning: "equal, the same" },
+            { word: "राज्यम्", transliteration: "rājyam", meaning: "kingdom" },
+            { word: "वनवासकल्पनम्", transliteration: "vanavāsakalpanam", meaning: "arrangement of forest exile" },
+            { word: "स्थितप्रज्ञः", transliteration: "sthitaprajñaḥ", meaning: "of steady wisdom" },
+            { word: "अवधीरयन्", transliteration: "avadhīrayan", meaning: "transcending, disregarding" },
+            { word: "विभो", transliteration: "vibhō", meaning: "O all-pervading Lord" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 6,
+          devanagari: "सीता तु वल्कलधरं त्वां समीक्ष्य रघूत्तम\nवनं नयस्व मामपीति दृढव्रता ।\nत्वयैव जीवामि तवैव मारणं\nवियोगदुःखात् किमु राज्यसम्पदा ॥",
+          transliteration: "sītā tu valkaladhraṁ tvāṁ samīkṣya raghūttama\nvanaṁ nayasva māmapīti dṛḍhavratā |\ntvayaiva jīvāmi tavaiva māraṇaṁ\nviyōgaduḥkhāt kimu rājyasampadā ||",
+          translation: "Sita, seeing You clad in bark garments, O best of the Raghus, spoke with firm resolve: 'Take me too to the forest! I live only through You; separation from You is my death. What use is royal wealth compared to this agony of parting?'",
+          commentary: "Sita's declaration reveals pativrata dharma at its most exalted. The phrase 'tvayaiva jivami' (I live only through You) expresses the Vaishnavite ideal of complete dependence on the Lord. On the spiritual plane, Sita as Lakshmi can never be separated from Vishnu — the forest exile merely demonstrates this eternal truth in human terms. Her 'dridha-vrata' (firm resolve) mirrors Rama's own steadfastness, showing them as perfectly matched divine consorts. The rhetorical question 'kimu rajya-sampada' dismisses worldly wealth as worthless beside divine union.",
+          words: [
+            { word: "सीता", transliteration: "sītā", meaning: "Sita (Rama's consort)" },
+            { word: "वल्कलधरम्", transliteration: "valkaladharam", meaning: "wearing bark garments" },
+            { word: "समीक्ष्य", transliteration: "samīkṣya", meaning: "seeing, beholding" },
+            { word: "रघूत्तम", transliteration: "raghūttama", meaning: "O best of the Raghus" },
+            { word: "नयस्व", transliteration: "nayasva", meaning: "take, lead" },
+            { word: "दृढव्रता", transliteration: "dṛḍhavratā", meaning: "of firm resolve" },
+            { word: "जीवामि", transliteration: "jīvāmi", meaning: "I live" },
+            { word: "मारणम्", transliteration: "māraṇam", meaning: "death" },
+            { word: "वियोगदुःखात्", transliteration: "viyōgaduḥkhāt", meaning: "from the grief of separation" },
+            { word: "किमु", transliteration: "kimu", meaning: "what use, what indeed" },
+            { word: "राज्यसम्पदा", transliteration: "rājyasampadā", meaning: "with royal wealth" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 7,
+          devanagari: "लक्ष्मणोऽपि धनुरादाय सायकान्\nरामपार्श्वमुपसृत्य वीर्यवान् ।\nभ्रातरं त्वामनुगन्तुमुद्यतो\nजीवितं तव पदे समर्पयत् ॥",
+          transliteration: "lakṣmaṇō'pi dhanurādāya sāyakān\nrāmapārśvamupasṛtya vīryavān |\nbhrātaraṁ tvāmanugantumudyatō\njīvitaṁ tava padē samarpayat ||",
+          translation: "Lakshmana too, taking up his bow and arrows, the valiant one, approached Rama's side, resolved to follow his brother You. He offered his very life at Your feet.",
+          commentary: "Lakshmana's response is presented in martial terms — 'dhanuh adaya sayakan' (taking bow and arrows) — contrasting with Sita's emotional appeal. His 'viryavan' (valiance) will be essential for the forest sojourn. The phrase 'jivitam tava pade samarpayat' (he offered his life at Your feet) is both a description of brotherly devotion and a theological statement of prapatti (complete surrender). Lakshmana is often identified as Adishesha, the eternal servant of Vishnu, and his instinctive following of Rama enacts this cosmic relationship.",
+          words: [
+            { word: "लक्ष्मणः", transliteration: "lakṣmaṇaḥ", meaning: "Lakshmana" },
+            { word: "धनुः", transliteration: "dhanuḥ", meaning: "bow" },
+            { word: "आदाय", transliteration: "ādāya", meaning: "taking up" },
+            { word: "सायकान्", transliteration: "sāyakān", meaning: "arrows" },
+            { word: "पार्श्वम्", transliteration: "pārśvam", meaning: "side" },
+            { word: "उपसृत्य", transliteration: "upasṛtya", meaning: "having approached" },
+            { word: "वीर्यवान्", transliteration: "vīryavān", meaning: "valiant, mighty" },
+            { word: "भ्रातरम्", transliteration: "bhrātaram", meaning: "brother" },
+            { word: "अनुगन्तुम्", transliteration: "anugantum", meaning: "to follow" },
+            { word: "उद्यतः", transliteration: "udyataḥ", meaning: "resolved, ready" },
+            { word: "जीवितम्", transliteration: "jīvitam", meaning: "life" },
+            { word: "समर्पयत्", transliteration: "samarpayat", meaning: "offered, surrendered" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 8,
+          devanagari: "निर्गच्छति त्वयि वनाय रघूत्तमे\nसीतालक्ष्मणसहिते रथमास्थिते ।\nसर्वे प्रजाः करुणमार्तरवं विदध्युः\nमा गच्छ मा गच्छ इति प्राक्रोशनश्रुपूरिताः ॥",
+          transliteration: "nirgacchati tvayi vanāya raghūttamē\nsītālakṣmaṇasahitē rathamāsthitē |\nsarvē prajāḥ karuṇamārtaravaṁ vidadhyuḥ\nmā gaccha mā gaccha iti prākrōśanāśrupūritāḥ ||",
+          translation: "As You, O best of the Raghus, departed for the forest, mounted on the chariot with Sita and Lakshmana, all the people raised piteous wailing cries, their eyes flooded with tears, crying 'Do not go! Do not go!'",
+          commentary: "The departure scene is one of the most emotionally charged episodes in all of Sanskrit literature. Bhattathiri captures the collective grief through 'sarve prajah' (all the people) — not a single citizen is exempt from sorrow. The repetition 'ma gaccha ma gaccha' (don't go, don't go) in the citizens' cry echoes Valmiki's original pathos. The image of the chariot (ratha) carrying away the city's beloved prince becomes a symbol of dharma's inexorable demands overriding human love. The compound 'ashru-puritah' (filled with tears) extends to the entire city weeping.",
+          words: [
+            { word: "निर्गच्छति", transliteration: "nirgacchati", meaning: "departing, going forth" },
+            { word: "वनाय", transliteration: "vanāya", meaning: "for the forest" },
+            { word: "रघूत्तमे", transliteration: "raghūttamē", meaning: "O best of the Raghus" },
+            { word: "सीतालक्ष्मणसहिते", transliteration: "sītālakṣmaṇasahitē", meaning: "accompanied by Sita and Lakshmana" },
+            { word: "रथम्", transliteration: "ratham", meaning: "chariot" },
+            { word: "आस्थिते", transliteration: "āsthitē", meaning: "mounted upon" },
+            { word: "प्रजाः", transliteration: "prajāḥ", meaning: "the people, subjects" },
+            { word: "करुणम्", transliteration: "karuṇam", meaning: "pitifully" },
+            { word: "आर्तरवम्", transliteration: "ārtaravam", meaning: "distressed cries" },
+            { word: "मा गच्छ", transliteration: "mā gaccha", meaning: "do not go" },
+            { word: "प्राक्रोशन", transliteration: "prākrōśan", meaning: "crying out loudly" },
+            { word: "अश्रुपूरिताः", transliteration: "aśrupūritāḥ", meaning: "filled with tears" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 9,
+          devanagari: "रामेति रामेति पुनः पुनर्वदन्\nपुत्रस्य शोकेन विदीर्णमानसः ।\nदशरथो नाम महीपतिः स्वयं\nवियोगदग्धः सहसा विपत्तिमान् ॥",
+          transliteration: "rāmēti rāmēti punaḥ punarvadan\nputrasya śōkēna vidīrṇamānasaḥ |\ndaśarathō nāma mahīpatiḥ svayaṁ\nviyōgadagdhaḥ sahasā vipattimān ||",
+          translation: "Crying 'Rama! Rama!' again and again, his heart torn asunder by grief for his son, the great king Dasharatha himself, scorched by the fire of separation, suddenly met his end.",
+          commentary: "Dasharatha's death scene is narrated with devastating simplicity. The repetition 'Rameti Rameti punah punah' mirrors the king's dying breaths — each utterance of the divine Name both an expression of grief and, paradoxically, a means of liberation. 'Vidirna-manasa' (heart torn asunder) captures the physical reality of dying from grief. The word 'sahasaa' (suddenly) emphasizes the swiftness of death once hope departs. Tradition holds that Dasharatha attained moksha through uttering the Lord's name at death — his tragedy becomes his salvation, a profound theological irony.",
+          words: [
+            { word: "रामेति", transliteration: "rāmēti", meaning: "saying 'Rama'" },
+            { word: "पुनः पुनः", transliteration: "punaḥ punaḥ", meaning: "again and again" },
+            { word: "वदन्", transliteration: "vadan", meaning: "saying, uttering" },
+            { word: "पुत्रस्य", transliteration: "putrasya", meaning: "for the son" },
+            { word: "शोकेन", transliteration: "śōkēna", meaning: "by grief" },
+            { word: "विदीर्णमानसः", transliteration: "vidīrṇamānasaḥ", meaning: "with heart torn asunder" },
+            { word: "दशरथः", transliteration: "daśarathaḥ", meaning: "Dasharatha" },
+            { word: "महीपतिः", transliteration: "mahīpatiḥ", meaning: "lord of the earth, king" },
+            { word: "वियोगदग्धः", transliteration: "viyōgadagdhaḥ", meaning: "scorched by separation" },
+            { word: "सहसा", transliteration: "sahasā", meaning: "suddenly" },
+            { word: "विपत्तिमान्", transliteration: "vipattimān", meaning: "met with calamity (death)" }
+          ]
+        },
+        {
+          dashaka: 30,
+          sloka: 10,
+          devanagari: "एवं वनवासविधिं विधाय यो\nधर्मस्य मार्गं जगते प्रदर्शयन् ।\nआदर्शभूतं चरितं बभार यः\nस त्वं प्रभो गुर्वयूरपुरेश्वर ॥",
+          transliteration: "ēvaṁ vanavāsavidhiṁ vidhāya yō\ndharmasya mārgaṁ jagatē pradarśayan |\nādarśabhūtaṁ caritaṁ babhāra yaḥ\nsa tvaṁ prabhō gurvayūrapurēśvara ||",
+          translation: "Thus, You who ordained the course of forest exile, showing the path of dharma to the world, You who bore an exemplary life as an ideal — that very Lord are You, O Master of Guruvayur, please protect me.",
+          commentary: "The concluding verse is the phala-shruti of the dashaka, tying the Rama narrative back to the poet's personal devotion to Guruvayurappan. 'Dharmasya margam jagate pradarshayan' (showing the path of dharma to the world) summarizes the theological purpose of the Rama avatar — not merely to destroy demons but to establish the ideal of righteous conduct through personal example. 'Adarsha-bhutam charitam' (exemplary life) echoes the Ramayana's own self-description as an 'adarsha-kavya' (ideal epic). Bhattathiri's identification of Rama with the deity at Guruvayur reminds the devotee that the Lord who endured exile is the same who stands in the temple, accessible to all through bhakti.",
+          words: [
+            { word: "वनवासविधिम्", transliteration: "vanavāsavidhim", meaning: "the course of forest exile" },
+            { word: "विधाय", transliteration: "vidhāya", meaning: "having ordained, arranged" },
+            { word: "धर्मस्य", transliteration: "dharmasya", meaning: "of dharma, righteousness" },
+            { word: "मार्गम्", transliteration: "mārgam", meaning: "the path" },
+            { word: "जगते", transliteration: "jagatē", meaning: "to the world" },
+            { word: "प्रदर्शयन्", transliteration: "pradarśayan", meaning: "showing, demonstrating" },
+            { word: "आदर्शभूतम्", transliteration: "ādarśabhūtam", meaning: "exemplary, ideal" },
+            { word: "चरितम्", transliteration: "caritam", meaning: "life, conduct" },
+            { word: "बभार", transliteration: "babhāra", meaning: "bore, carried out" },
+            { word: "प्रभो", transliteration: "prabhō", meaning: "O Lord, Master" },
+            { word: "गुर्वयूरपुरेश्वर", transliteration: "gurvayūrapurēśvara", meaning: "Lord of Guruvayur" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 31,
