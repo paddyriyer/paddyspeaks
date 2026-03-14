@@ -4827,7 +4827,339 @@ var NARAYANEEYAM_DATA = {
       theme: "devotion",
       verseCount: 10,
       summary: "Continues the Ajamila narrative, describing the debate between the Vishnudutas and Yamadutas about dharma and the supremacy of the Lord's name in absolving all sins.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 22,
+          sloka: 1,
+          devanagari: "अजामिलो नाम महापतिव्रतो
+द्विजस्तु पापेषु निमग्नमानसः ।
+वेश्यासक्तो दशमे वयस्यसौ
+पुत्रं हि नारायणनामधेयकम् ।
+सन्तापयुक्तो मरणे ह्यवोचत
+नारायणेति स्वसुतस्य नाम तत् ॥",
+          transliteration: "ajāmilō nāma mahāpativratō
+dvijāstu pāpēṣu nimagnamānasaḥ |
+vēśyāsaktō daśamē vayasyasau
+putraṁ hi nārāyaṇanāmadhēyakam |
+santāpayuktō maraṇē hyavōcata
+nārāyaṇēti svasutasya nāma tat ||",
+          translation: "The brahmana Ajamila, once a man of great virtue, had sunk deeply into sin. Attached to a courtesan and reaching old age, he had a son named Narayana. In his torment at the moment of death, he called out 'Narayana!' — the name of his own child.",
+          commentary: "This opening verse recapitulates the Ajamila narrative from Dashaka 20, reminding the listener of the essential setup. Ajamila's fall from grace — from a devoted brahmana to a man enslaved by vice — is compressed here. The critical detail is that his youngest son bore the name 'Narayana.' Bhattathiri emphasizes that at the moment of death (marane), driven by paternal attachment (not devotion), Ajamila uttered the divine name. This sets up the theological crux of the entire dashaka: does the Name's power depend on intent?",
+          words: [
+            { word: "अजामिलः", transliteration: "ajāmilaḥ", meaning: "Ajamila (the brahmana)" },
+            { word: "महापतिव्रतः", transliteration: "mahāpativrataḥ", meaning: "formerly of great virtue" },
+            { word: "द्विजः", transliteration: "dvijaḥ", meaning: "brahmana, twice-born" },
+            { word: "पापेषु", transliteration: "pāpēṣu", meaning: "in sins" },
+            { word: "निमग्नमानसः", transliteration: "nimagnamānasaḥ", meaning: "with mind deeply immersed" },
+            { word: "वेश्यासक्तः", transliteration: "vēśyāsaktaḥ", meaning: "attached to a courtesan" },
+            { word: "पुत्रम्", transliteration: "putram", meaning: "son" },
+            { word: "नारायणनामधेयकम्", transliteration: "nārāyaṇanāmadhēyakam", meaning: "bearing the name Narayana" },
+            { word: "सन्तापयुक्तः", transliteration: "santāpayuktaḥ", meaning: "filled with anguish" },
+            { word: "मरणे", transliteration: "maraṇē", meaning: "at death" },
+            { word: "अवोचत", transliteration: "avōcata", meaning: "he called out, spoke" },
+            { word: "नारायणेति", transliteration: "nārāyaṇēti", meaning: "'Narayana!' — thus" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 2,
+          devanagari: "तं पापिनं घोरतमैरनेकधा
+पापैर्भृतं मृत्युसमीपमागतम् ।
+यमस्य दूता भृशपाशहस्तका
+विरूपदेहा अतिभीषणाकृतिः ।
+समाययुस्तत्र महाभयंकराः
+प्राणान्विधातुं यमलोकमुद्यताः ॥",
+          transliteration: "taṁ pāpinaṁ ghōratamairanēkadhā
+pāpairbhṛtaṁ mṛtyusamīpamāgatam |
+yamasya dūtā bhṛśapāśahastakā
+virūpadēhā atibhīṣaṇākṛtiḥ |
+samāyayustatra mahābhayaṁkarāḥ
+prāṇānvidhātuṁ yamalōkamudyatāḥ ||",
+          translation: "To that sinner burdened with countless terrible sins, who had arrived at the threshold of death, came the messengers of Yama — ropes firmly in hand, with hideous bodies and terrifying forms, fearsome indeed — intent on dragging his soul to the realm of Yama.",
+          commentary: "The arrival of the Yamadutas is painted with visceral imagery befitting the terror of the moment. Their deformed bodies (virupa-deha), terrifying appearance (atibhishana-akriti), and tight ropes (bhrisha-pasha-hastaka) represent the inexorable mechanism of karmic justice. Bhattathiri draws from Bhagavatam 6.1.19-22, where these emissaries are described as the embodiment of death's inevitability. The emphasis on Ajamila's accumulated sin (ghoratamair-anekadha-papaih) makes the subsequent rescue all the more astonishing.",
+          words: [
+            { word: "पापिनम्", transliteration: "pāpinam", meaning: "the sinner" },
+            { word: "घोरतमैः", transliteration: "ghōratamaiḥ", meaning: "most terrible" },
+            { word: "पापैः", transliteration: "pāpaiḥ", meaning: "with sins" },
+            { word: "मृत्युसमीपम्", transliteration: "mṛtyusamīpam", meaning: "near death" },
+            { word: "यमस्य", transliteration: "yamasya", meaning: "of Yama (god of death)" },
+            { word: "दूताः", transliteration: "dūtāḥ", meaning: "messengers" },
+            { word: "पाशहस्तकाः", transliteration: "pāśahastakāḥ", meaning: "with ropes in hand" },
+            { word: "विरूपदेहाः", transliteration: "virūpadēhāḥ", meaning: "with deformed bodies" },
+            { word: "भीषणाकृतिः", transliteration: "bhīṣaṇākṛtiḥ", meaning: "of terrifying form" },
+            { word: "महाभयंकराः", transliteration: "mahābhayaṁkarāḥ", meaning: "extremely fearsome" },
+            { word: "प्राणान्", transliteration: "prāṇān", meaning: "the life-breath, soul" },
+            { word: "यमलोकम्", transliteration: "yamalōkam", meaning: "the realm of Yama" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 3,
+          devanagari: "तावत्समुत्तीर्य विभो भवत्पदा-
+दायान्ति दिव्या भवदीयकिङ्कराः ।
+तेजस्विनो दिव्यतनुप्रभान्विताः
+पीताम्बरालङ्कृतचारुविग्रहाः ।
+तिष्ठेति तिष्ठेति वदन्तमोजसा
+यमस्य दूतान् प्रतिरुध्य तस्थिरे ॥",
+          transliteration: "tāvatsamuttīrya vibhō bhavatpadā-
+dāyānti divyā bhavadīyakiṅkarāḥ |
+tējasvinō divyatanūprabhānvitāḥ
+pītāmbarālaṅkṛtacāruvigrahāḥ |
+tiṣṭhēti tiṣṭhēti vadantamōjasā
+yamasya dūtān pratirudhya tasthirē ||",
+          translation: "At that very moment, O Lord, from Your divine abode came Your own radiant servants — luminous beings, graced with divine forms, adorned in yellow garments with beautiful figures. Crying 'Stop! Stop!' with mighty authority, they obstructed Yama's messengers and stood firm.",
+          commentary: "The dramatic intervention of the Vishnudutas creates one of the most cinematic moments in the Bhagavatam narrative. The contrast between the hideous Yamadutas and the radiant Vishnudutas — luminous (tejasvinah), divinely embodied (divya-tanu-prabhanvitah), beautifully adorned in pitambara — is deliberate theological symbolism: dharma embodied vs. mere legalistic punishment. The doubled imperative 'tishtha! tishtha!' (Stop! Stop!) conveys the absolute authority of Vishnu's command over even Yama's jurisdiction.",
+          words: [
+            { word: "तावत्", transliteration: "tāvat", meaning: "at that very moment" },
+            { word: "समुत्तीर्य", transliteration: "samuttīrya", meaning: "having descended, come forth" },
+            { word: "विभो", transliteration: "vibhō", meaning: "O Lord (all-pervading)" },
+            { word: "भवदीयकिङ्कराः", transliteration: "bhavadīyakiṅkarāḥ", meaning: "Your servants (Vishnudutas)" },
+            { word: "तेजस्विनः", transliteration: "tējasvinaḥ", meaning: "radiant, lustrous" },
+            { word: "दिव्यतनुप्रभान्विताः", transliteration: "divyatanūprabhānvitāḥ", meaning: "endowed with divine bodily radiance" },
+            { word: "पीताम्बर", transliteration: "pītāmbara", meaning: "yellow garments (of Vishnu)" },
+            { word: "अलङ्कृत", transliteration: "alaṅkṛta", meaning: "adorned, decorated" },
+            { word: "चारुविग्रहाः", transliteration: "cāruvigrahāḥ", meaning: "of beautiful forms" },
+            { word: "तिष्ठेति", transliteration: "tiṣṭhēti", meaning: "'Stop!' — thus" },
+            { word: "ओजसा", transliteration: "ōjasā", meaning: "with authority, vigor" },
+            { word: "प्रतिरुध्य", transliteration: "pratirudhya", meaning: "obstructing, blocking" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 4,
+          devanagari: "यमस्य दूता अतिविस्मयान्विता
+ऊचुस्तदा विष्णुपदानुचारिणः ।
+कोऽयं विलङ्घ्य प्रभुणो विधिं खलान्
+निवारयन्नस्य पतत्यधर्मिणः ।
+लोकत्रये धर्ममयं यमस्य यत्
+शासं कथं वा खलु लङ्घ्यतेऽत्र वः ॥",
+          transliteration: "yamasya dūtā ativismayānvitā
+ūcustadā viṣṇupadānucāriṇaḥ |
+kō'yaṁ vilaṅghya prabhuṇō vidhiṁ khalān
+nivārayannasya patatyādharmiṇaḥ |
+lōkatrayē dharmamayaṁ yamasya yat
+śāsaṁ kathaṁ vā khalu laṅghyatē'tra vaḥ ||",
+          translation: "The messengers of Yama, filled with great astonishment, then addressed the followers of Lord Vishnu: 'Who are you who transgress the decree of our master and prevent this sinner from falling to punishment? The rule of Yama, rooted in dharma, extends across all three worlds — how dare you violate it here?'",
+          commentary: "The Yamadutas' challenge represents the position of karmic legalism — the strict accounting of merit and demerit. Their argument has real force: Yama's jurisdiction (shasam) is dharma-based (dharma-mayam) and extends across all three worlds (loka-traye). From their perspective, this intervention is lawless. The word 'ativismaya' (great astonishment) reveals they have never encountered such resistance before. Bhattathiri sets up the debate with genuine intellectual fairness, giving the legalist position its due before demolishing it.",
+          words: [
+            { word: "यमस्य दूताः", transliteration: "yamasya dūtāḥ", meaning: "Yama's messengers" },
+            { word: "अतिविस्मयान्विताः", transliteration: "ativismayānvitāḥ", meaning: "filled with great astonishment" },
+            { word: "ऊचुः", transliteration: "ūcuḥ", meaning: "spoke, said" },
+            { word: "विष्णुपदानुचारिणः", transliteration: "viṣṇupadānucāriṇaḥ", meaning: "followers of Lord Vishnu" },
+            { word: "विलङ्घ्य", transliteration: "vilaṅghya", meaning: "transgressing, violating" },
+            { word: "विधिम्", transliteration: "vidhim", meaning: "decree, law" },
+            { word: "निवारयन्", transliteration: "nivārayan", meaning: "preventing, obstructing" },
+            { word: "अधर्मिणः", transliteration: "adharmiṇaḥ", meaning: "of the sinful one" },
+            { word: "लोकत्रये", transliteration: "lōkatrayē", meaning: "in the three worlds" },
+            { word: "धर्ममयम्", transliteration: "dharmamayam", meaning: "consisting of dharma, righteous" },
+            { word: "शासम्", transliteration: "śāsam", meaning: "rule, command" },
+            { word: "लङ्घ्यते", transliteration: "laṅghyatē", meaning: "is transgressed" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 5,
+          devanagari: "इत्थं ब्रुवाणान् यमदूतकान् प्रति
+प्रत्यूचुरुच्चैर्भवदीयकिङ्कराः ।
+नाम्नैव नारायणशब्दमात्रतः
+सर्वं कृतं पापमशेषमस्य तत् ।
+प्रध्वस्तमेवेति हि नामसंकृति-
+र्ज्ञानादज्ञानाद्वपि मुक्तिकारिणी ॥",
+          transliteration: "itthaṁ bruvāṇān yamadūtakān prati
+pratyūcuruccairbhavadīyakiṅkarāḥ |
+nāmnaiva nārāyaṇaśabdamātrataḥ
+sarvaṁ kṛtaṁ pāpamaśēṣamasya tat |
+pradhvastamēvēti hi nāmasaṁkṛti-
+rjñānādajñānādvapi muktikāriṇī ||",
+          translation: "To the Yamadutas speaking thus, Your servants replied with thundering voices: 'By the Name alone — merely by the utterance of the word Narayana — all the accumulated sin of this man, without remainder, has been utterly destroyed. For the chanting of the Name brings liberation whether done with knowledge or in ignorance.'",
+          commentary: "This is the theological heart of the entire Ajamila episode and one of the most important declarations in the Bhagavatam. The Vishnudutas' counter-argument rests on a radical principle: the Name (nama) operates independently of the speaker's intent or knowledge. The phrase 'jnanad-ajnanad-vapi' (whether from knowledge or ignorance) demolishes the legalistic framework entirely. It is not the purity of the devotee that matters but the inherent power (shakti) of the divine Name itself. This doctrine of nama-mahatmya became central to all bhakti movements across India.",
+          words: [
+            { word: "ब्रुवाणान्", transliteration: "bruvāṇān", meaning: "those who were speaking" },
+            { word: "यमदूतकान्", transliteration: "yamadūtakān", meaning: "Yama's messengers" },
+            { word: "प्रत्यूचुः", transliteration: "pratyūcuḥ", meaning: "replied" },
+            { word: "उच्चैः", transliteration: "uccaiḥ", meaning: "loudly, thunderously" },
+            { word: "नाम्ना", transliteration: "nāmnā", meaning: "by the Name" },
+            { word: "नारायणशब्दमात्रतः", transliteration: "nārāyaṇaśabdamātrataḥ", meaning: "merely by the sound 'Narayana'" },
+            { word: "पापम्", transliteration: "pāpam", meaning: "sin" },
+            { word: "अशेषम्", transliteration: "aśēṣam", meaning: "without remainder, completely" },
+            { word: "प्रध्वस्तम्", transliteration: "pradhvastam", meaning: "utterly destroyed" },
+            { word: "नामसंकृतिः", transliteration: "nāmasaṁkṛtiḥ", meaning: "the chanting of the Name" },
+            { word: "ज्ञानात्", transliteration: "jñānāt", meaning: "from knowledge, knowingly" },
+            { word: "अज्ञानात्", transliteration: "ajñānāt", meaning: "from ignorance, unknowingly" },
+            { word: "मुक्तिकारिणी", transliteration: "muktikāriṇī", meaning: "granting liberation" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 6,
+          devanagari: "यथाग्निरिद्धः सहसा तृणान्यधो
+दहत्यशेषं न च वेत्ति तत्क्रियाम् ।
+तथैव नामापि हरेरुदीरितं
+दहत्यघौघान् न च भक्तितादृशी ।
+अपेक्ष्यतेऽत्र स्वत एव शुद्ध्यति
+प्रभोः स्वनामैव हि तत्स्वभावतः ॥",
+          transliteration: "yathāgniriddhaḥ sahasā tṛṇānyadhō
+dahatyaśēṣaṁ na ca vētti tatkṛyām |
+tathāiva nāmāpi harērudīritaṁ
+dahatyaghaughān na ca bhaktitādṛśī |
+apēkṣyatē'tra svata ēva śuddhyati
+prabhōḥ svanāmaiva hi tatsvabhāvataḥ ||",
+          translation: "Just as a blazing fire instantly burns all the dry grass placed upon it without the grass knowing the process, even so the Name of Hari when uttered burns away heaps of sin — and no special quality of devotion is required here, for the Lord's own Name purifies by its very nature.",
+          commentary: "The fire-and-grass analogy (agni-trina) is a masterstroke of theological argumentation. Fire does not ask whether the grass consents or understands — it burns by its inherent nature (sva-bhavata). Similarly, the divine Name possesses intrinsic purifying power that operates regardless of the devotee's qualification. The phrase 'na ca bhakti-tadrishi apekshyate' (no such devotion is required) is revolutionary — it removes all prerequisites and qualifications from the salvific mechanism. This verse encapsulates the Bhagavatam's most radical theological claim about nama-mahatmya.",
+          words: [
+            { word: "अग्निः", transliteration: "agniḥ", meaning: "fire" },
+            { word: "इद्धः", transliteration: "iddhaḥ", meaning: "blazing, kindled" },
+            { word: "तृणानि", transliteration: "tṛṇāni", meaning: "grass, dry straw" },
+            { word: "दहति", transliteration: "dahati", meaning: "burns" },
+            { word: "अशेषम्", transliteration: "aśēṣam", meaning: "completely, without remainder" },
+            { word: "नाम", transliteration: "nāma", meaning: "the Name" },
+            { word: "हरेः", transliteration: "harēḥ", meaning: "of Hari (Vishnu)" },
+            { word: "उदीरितम्", transliteration: "udīritam", meaning: "uttered, pronounced" },
+            { word: "अघौघान्", transliteration: "aghaughān", meaning: "floods of sin" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "अपेक्ष्यते", transliteration: "apēkṣyatē", meaning: "is required, expected" },
+            { word: "स्वभावतः", transliteration: "svabhāvataḥ", meaning: "by its very nature" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 7,
+          devanagari: "निशम्य वाणीममृतोपमां विभोः
+पार्षदानामतिदिव्यभाषितम् ।
+यमस्य दूताः सविषादमानसाः
+पराजिता नाम विवादसंगरे ।
+विमुच्य पाशान् द्विजमन्तिकस्थितं
+ययुर्यमस्यालयमाशु लज्जिताः ॥",
+          transliteration: "niśamya vāṇīmamṛtōpamāṁ vibhōḥ
+pārṣadānāmatidivyabhāṣitam |
+yamasya dūtāḥ saviṣādamānasāḥ
+parājitā nāma vivādasaṁgarē |
+vimucya pāśān dvijamantikasthitaṁ
+yayuryamasyālayamāśu lajjitāḥ ||",
+          translation: "Hearing the nectar-like speech of the Lord's divine attendants — their supremely celestial words — the messengers of Yama, with dejected hearts, defeated in the battle of debate, released their nooses from the brahmana standing nearby and departed swiftly to Yama's abode, ashamed.",
+          commentary: "The defeat of the Yamadutas is portrayed as both intellectual ('vivada-samgare' — in the battle of debate) and emotional ('savishada-manasah' — with dejected minds, 'lajjitah' — ashamed). The Vishnudutas' words are described as 'amrita-upamam' (comparable to nectar) — sweet but devastating to the opposition. The releasing of the nooses (vimucya pashan) symbolizes the victory of grace over karmic law. Bhattathiri conveys that in the hierarchy of cosmic principles, Vishnu's mercy supersedes Yama's justice.",
+          words: [
+            { word: "निशम्य", transliteration: "niśamya", meaning: "having heard" },
+            { word: "वाणीम्", transliteration: "vāṇīm", meaning: "speech, words" },
+            { word: "अमृतोपमाम्", transliteration: "amṛtōpamām", meaning: "comparable to nectar" },
+            { word: "पार्षदानाम्", transliteration: "pārṣadānām", meaning: "of the attendants (of Vishnu)" },
+            { word: "सविषादमानसाः", transliteration: "saviṣādamānasāḥ", meaning: "with dejected minds" },
+            { word: "पराजिताः", transliteration: "parājitāḥ", meaning: "defeated" },
+            { word: "विवादसंगरे", transliteration: "vivādasaṁgarē", meaning: "in the battle of debate" },
+            { word: "विमुच्य", transliteration: "vimucya", meaning: "releasing, letting go" },
+            { word: "पाशान्", transliteration: "pāśān", meaning: "nooses, bonds" },
+            { word: "द्विजम्", transliteration: "dvijam", meaning: "the brahmana (Ajamila)" },
+            { word: "ययुः", transliteration: "yayuḥ", meaning: "they went, departed" },
+            { word: "लज्जिताः", transliteration: "lajjitāḥ", meaning: "ashamed" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 8,
+          devanagari: "ततो यमं प्राप्य निजालयस्थितं
+यमस्य दूताः कथयन्ति विस्मयात् ।
+स धर्मराजोऽपि विचार्य तत्त्वतो
+जगाद दूतान् स्वयमिष्टदेवताम् ।
+विष्णोः परं नास्ति हि लोकपालनं
+त्वन्नामकीर्तिः सकलाघनाशिनी ॥",
+          transliteration: "tatō yamaṁ prāpya nijālayasthitaṁ
+yamasya dūtāḥ kathayanti vismayāt |
+sa dharmarājō'pi vicārya tattvatō
+jagāda dūtān svayamiṣṭadēvatām |
+viṣṇōḥ paraṁ nāsti hi lōkapālanaṁ
+tvannāmakīrtiḥ sakalāghanāśinī ||",
+          translation: "Then, reaching Yama seated in his own abode, his messengers narrated the event with great wonder. That Dharmaraja too, reflecting on the truth, himself instructed his servants about his own chosen deity: 'There is no protector of the world greater than Vishnu. The fame of His Name destroys all sin.'",
+          commentary: "Yama's response is theologically crucial — he does not rage against the Vishnudutas but acknowledges their authority. As Dharmaraja (the righteous king), his integrity compels him to affirm what is true: Vishnu's supremacy (Vishnoh param nasti). Remarkably, Yama calls Vishnu his own 'ishta-devata' (chosen deity), revealing that even the lord of death is a Vaishnava. His declaration that the Lord's Name destroys all sin (sakala-agha-nashini) ratifies the Vishnudutas' argument from the mouth of the opposing party's own lord.",
+          words: [
+            { word: "यमम्", transliteration: "yamam", meaning: "Yama (god of death)" },
+            { word: "निजालयस्थितम्", transliteration: "nijālayasthitam", meaning: "seated in his own abode" },
+            { word: "कथयन्ति", transliteration: "kathayanti", meaning: "narrate, tell" },
+            { word: "विस्मयात्", transliteration: "vismayāt", meaning: "with wonder" },
+            { word: "धर्मराजः", transliteration: "dharmarājaḥ", meaning: "Dharmaraja (Yama as righteous king)" },
+            { word: "विचार्य", transliteration: "vicārya", meaning: "having reflected, considered" },
+            { word: "तत्त्वतः", transliteration: "tattvatah", meaning: "in truth, according to reality" },
+            { word: "इष्टदेवताम्", transliteration: "iṣṭadēvatām", meaning: "chosen deity" },
+            { word: "विष्णोः", transliteration: "viṣṇōḥ", meaning: "of Vishnu" },
+            { word: "लोकपालनम्", transliteration: "lōkapālanam", meaning: "protector of the world" },
+            { word: "नामकीर्तिः", transliteration: "nāmakīrtiḥ", meaning: "glory of the Name" },
+            { word: "सकलाघनाशिनी", transliteration: "sakalāghanāśinī", meaning: "destroyer of all sin" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 9,
+          devanagari: "अजामिलोऽसावपि विस्मयं गतो
+विलोक्य सर्वं भवदीयचेष्टितम् ।
+विरक्तचित्तो विषयेष्वशेषतो
+जगाम तीर्थं हरिद्वारमुत्तमम् ।
+तपश्चचार द्विजसत्तमस्तदा
+भवत्पदध्यानरतो दृढव्रतः ।
+समस्तपापक्षयमाप्य निर्मलो
+भवत्प्रसादं परमं समश्नुत ॥",
+          transliteration: "ajāmilō'sāvapi vismayaṁ gatō
+vilōkya sarvaṁ bhavadīyacēṣṭitam |
+viraktacittō viṣayēṣvaśēṣatō
+jagāma tīrthaṁ haridvāramuttamam |
+tapaścacāra dvijasattamastadā
+bhavatpadādhyānaratō dṛḍhavrataḥ |
+samastapāpakṣayamāpya nirmalō
+bhavatprasādaṁ paramaṁ samaśnuta ||",
+          translation: "Ajamila too, filled with wonder, beholding all Your divine play, became completely detached from worldly objects in his mind. He went to the sacred pilgrimage site of Haridwar. That best of brahmanas then performed intense austerities, absorbed in meditation on Your feet, firm in his vows. Having achieved the destruction of all sins and become spotless, he attained Your supreme grace.",
+          commentary: "Ajamila's transformation represents the complete arc of redemption through nama-mahatmya. The initial accidental utterance of 'Narayana' saved him from Yama, but it also awakened genuine spiritual aspiration. His dispassion (virakta-citta) toward all sense objects (vishayeshu-asheshatah), his pilgrimage to Haridwar, and his firm austerities (dridha-vrata) show that the Name's grace does not merely cancel punishment — it transforms the soul. Bhattathiri emphasizes that the grace received (bhavat-prasadam paramam) comes through the combination of the Name's autonomous power and Ajamila's subsequent conscious surrender.",
+          words: [
+            { word: "अजामिलः", transliteration: "ajāmilaḥ", meaning: "Ajamila" },
+            { word: "विस्मयम्", transliteration: "vismayam", meaning: "wonder, astonishment" },
+            { word: "भवदीयचेष्टितम्", transliteration: "bhavadīyacēṣṭitam", meaning: "Your divine play, actions" },
+            { word: "विरक्तचित्तः", transliteration: "viraktacittaḥ", meaning: "with a detached mind" },
+            { word: "विषयेषु", transliteration: "viṣayēṣu", meaning: "in sense objects" },
+            { word: "हरिद्वारम्", transliteration: "haridvāram", meaning: "Haridwar (sacred city)" },
+            { word: "तपश्चचार", transliteration: "tapaścacāra", meaning: "performed austerities" },
+            { word: "भवत्पदध्यानरतः", transliteration: "bhavatpadādhyānarataḥ", meaning: "absorbed in meditation on Your feet" },
+            { word: "दृढव्रतः", transliteration: "dṛḍhavrataḥ", meaning: "firm in vows" },
+            { word: "पापक्षयम्", transliteration: "pāpakṣayam", meaning: "destruction of sins" },
+            { word: "निर्मलः", transliteration: "nirmalaḥ", meaning: "spotless, pure" },
+            { word: "भवत्प्रसादम्", transliteration: "bhavatprasādam", meaning: "Your grace" }
+          ]
+        },
+        {
+          dashaka: 22,
+          sloka: 10,
+          devanagari: "त्यक्त्वा कलेवरमिदं भगवद्विभूतिं
+प्राप्तो द्विजः परमभागवतो महात्मा ।
+दिव्यं विमानमधिरुह्य विराजमानो
+वैकुण्ठमापदचिरेण भवत्प्रसादात् ।
+त्वन्नामनिष्ठितमहापुरुषो ह्यजामि-
+लस्तत्प्रभावमिदमाह जगत्सु कृष्ण ।
+मारुत्पुराधिप मुकुन्द भवन्तमीडे
+त्वं पाहि नित्यमजितेन्द्रियमाशु भक्तम् ॥",
+          transliteration: "tyaktvā kalēvaramidaṁ bhagavadvibhūtiṁ
+prāptō dvijaḥ paramabhāgavatō mahātmā |
+divyaṁ vimānamdhiruhya virājamānō
+vaikuṇṭhamāpadacirēṇa bhavatprasādāt |
+tvannāmaniṣṭhitamahāpuruṣō hyajāmi-
+lastatprabhāvamidamāha jagatsu kṛṣṇa |
+mārutpurādhipa mukunda bhavantamīḍē
+tvaṁ pāhi nityamajitēndriyamāśu bhaktam ||",
+          translation: "Casting off this mortal body, that brahmana — now a supreme devotee, a great soul — ascended a divine aerial chariot, resplendent, and reached Vaikuntha swiftly by Your grace. Thus Ajamila, established in Your Name, became a great soul, and this glory is proclaimed across the worlds, O Krishna! O Lord of Guruvayur, O Mukunda, I praise You — protect always and swiftly this devotee who has not yet conquered his senses!",
+          commentary: "The concluding verse accomplishes three things simultaneously. First, it completes Ajamila's narrative arc: the former sinner ascends to Vaikuntha in a divine vimana, the ultimate vindication of nama-mahatmya. Second, the phrase 'tvat-nama-nishthita-maha-purusha' (great soul established in Your Name) declares the theological conclusion: the Name alone elevates one to the highest spiritual state. Third, Bhattathiri inserts his characteristic personal prayer — 'ajita-indriyam ashu bhaktam' (a devotee who has not yet conquered his senses) — a humble self-reference acknowledging his own imperfection while claiming the same grace that saved Ajamila. The address 'Marutpuradhipa Mukunda' (Lord of Guruvayur, giver of liberation) perfectly ties the cosmic narrative to the poet's own devotional reality.",
+          words: [
+            { word: "त्यक्त्वा", transliteration: "tyaktvā", meaning: "having abandoned, cast off" },
+            { word: "कलेवरम्", transliteration: "kalēvaram", meaning: "the body, mortal frame" },
+            { word: "भगवद्विभूतिम्", transliteration: "bhagavadvibhūtim", meaning: "divine glory of the Lord" },
+            { word: "परमभागवतः", transliteration: "paramabhāgavataḥ", meaning: "supreme devotee" },
+            { word: "दिव्यं विमानम्", transliteration: "divyaṁ vimānam", meaning: "divine aerial chariot" },
+            { word: "अधिरुह्य", transliteration: "adhiruhya", meaning: "having ascended" },
+            { word: "वैकुण्ठम्", transliteration: "vaikuṇṭham", meaning: "Vaikuntha (Vishnu's abode)" },
+            { word: "अचिरेण", transliteration: "acirēṇa", meaning: "swiftly, without delay" },
+            { word: "मारुत्पुराधिप", transliteration: "mārutpurādhipa", meaning: "O Lord of Guruvayur" },
+            { word: "मुकुन्द", transliteration: "mukunda", meaning: "O Mukunda (giver of liberation)" },
+            { word: "ईडे", transliteration: "īḍē", meaning: "I praise" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect" },
+            { word: "अजितेन्द्रियम्", transliteration: "ajitēndriyam", meaning: "one who has not conquered the senses" },
+            { word: "भक्तम्", transliteration: "bhaktam", meaning: "devotee" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 23,
