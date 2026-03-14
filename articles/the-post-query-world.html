@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Post-Query World: When AI Answers Before You Ask</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Albert+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --deep-navy:#0B1426;--mid-navy:#132040;--steel:#1E3055;--teal:#0D8B8B;--bright-teal:#14B8B8;--ice:#E8F7F7;--sky:#4A9FD9;--lavender:#8B7FC7;--warm-cream:#FFF9F0;--frost:#F4F8FC;--ink:#101828;--coral:#E07A5F;--gold:#D4A843;--code-bg:#0A0F1A;--success:#28C840;--warn:#F5A623;--fail:#E04F5F;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Albert Sans',sans-serif;background:var(--frost);color:var(--ink);line-height:1.75;font-size:18px;overflow-x:hidden}
+
+/* ─── HERO ─── */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:2rem;position:relative;background:linear-gradient(170deg,var(--deep-navy) 0%,var(--mid-navy) 40%,var(--steel) 70%,#1A4A5A 100%);overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 35%,rgba(13,139,139,.2) 0%,transparent 55%),radial-gradient(circle at 25% 70%,rgba(74,159,217,.12) 0%,transparent 50%);animation:heroGlow 10s ease-in-out infinite alternate}
+@keyframes heroGlow{0%{opacity:.6}100%{opacity:1}}
+
+/* Signal pulses */
+.signal-layer{position:absolute;inset:0;pointer-events:none;z-index:1}
+.signal-ring{position:absolute;border:1px solid rgba(20,184,184,.08);border-radius:50%;animation:pulseRing 6s ease-out infinite}
+@keyframes pulseRing{0%{transform:scale(.3);opacity:.6}100%{transform:scale(3);opacity:0}}
+
+.hero-content{position:relative;z-index:2;max-width:880px}
+.hero-eyebrow{font-family:'JetBrains Mono',monospace;font-size:.8rem;letter-spacing:4px;text-transform:uppercase;color:var(--bright-teal);margin-bottom:1.5rem;opacity:0;animation:fadeUp 1s .3s forwards}
+.hero h1{font-family:'DM Serif Display',serif;font-size:clamp(2.5rem,6.5vw,5rem);font-weight:400;color:#fff;line-height:1.08;margin-bottom:1.5rem;opacity:0;animation:fadeUp 1s .6s forwards}
+.hero h1 .teal{color:var(--bright-teal)}
+.hero-sub{font-size:1.2rem;color:rgba(255,255,255,.65);font-weight:300;max-width:640px;margin:0 auto 2.5rem;opacity:0;animation:fadeUp 1s .9s forwards}
+
+/* Query death terminal */
+.query-terminal{background:rgba(0,0,0,.35);backdrop-filter:blur(12px);border:1px solid rgba(20,184,184,.12);border-radius:14px;padding:1.25rem 1.75rem;max-width:520px;margin:0 auto 2rem;text-align:left;opacity:0;animation:fadeUp 1s 1.2s forwards}
+.qt-dots{display:flex;gap:6px;margin-bottom:.75rem}
+.qt-dots span{width:8px;height:8px;border-radius:50%}
+.qt-dots .r{background:#FF5F57}.qt-dots .y{background:#FEBC2E}.qt-dots .g{background:#28C840}
+.qt-line{font-family:'JetBrains Mono',monospace;font-size:.8rem;min-height:1.6em;display:flex;align-items:center}
+.qt-old{color:rgba(255,255,255,.25);text-decoration:line-through;margin-bottom:.35rem}
+.qt-new{color:var(--bright-teal)}
+.qt-cursor{display:inline-block;width:2px;height:1.1em;background:var(--bright-teal);animation:blink .7s infinite;margin-left:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.hero-byline{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:rgba(255,255,255,.35);letter-spacing:2px;opacity:0;animation:fadeUp 1s 1.5s forwards}
+.scroll-ind{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);z-index:2;animation:bounce 2s infinite}
+.scroll-ind svg{width:28px;height:28px;stroke:rgba(255,255,255,.3);fill:none;stroke-width:2}
+@keyframes bounce{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(10px)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+
+/* ─── CONTENT ─── */
+.cw{max-width:820px;margin:0 auto;padding:0 2rem}
+section{padding:5rem 0}
+section p{margin-bottom:1.5rem;font-weight:300;font-size:1.1rem}
+section p strong{font-weight:600;color:var(--teal)}
+h2.st{font-family:'DM Serif Display',serif;font-size:clamp(1.8rem,4vw,2.8rem);font-weight:400;color:var(--ink);margin-bottom:2rem;line-height:1.2}
+h2.st::after{content:'';display:block;width:55px;height:3px;background:linear-gradient(90deg,var(--teal),var(--sky));border-radius:2px;margin-top:.6rem}
+
+/* ─── PULL QUOTE ─── */
+.pq{border-left:4px solid var(--teal);padding:1.5rem 2rem;margin:2.5rem 0;background:var(--ice);border-radius:0 12px 12px 0}
+.pq p{font-family:'DM Serif Display',serif;font-size:1.3rem;font-style:italic;color:var(--ink);line-height:1.5;margin-bottom:0}
+.pq .attr{font-family:'Albert Sans',sans-serif;font-size:.85rem;font-style:normal;color:var(--teal);margin-top:.5rem;font-weight:600}
+
+/* ─── TIMELINE ─── */
+.era-timeline{position:relative;margin:3rem 0;padding-left:3rem}
+.era-timeline::before{content:'';position:absolute;left:.75rem;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--coral),var(--gold),var(--teal),var(--sky),var(--lavender))}
+.era-item{position:relative;margin-bottom:2rem;padding:1.5rem;background:white;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.04);transition:transform .3s}
+.era-item:hover{transform:translateX(4px)}
+.era-item::before{content:'';position:absolute;left:-2.55rem;top:1.5rem;width:12px;height:12px;border-radius:50%;border:3px solid var(--teal);background:var(--frost);transition:all .3s}
+.era-item:hover::before{background:var(--teal);box-shadow:0 0 12px rgba(13,139,139,.5)}
+.era-item .era-year{font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:2px;text-transform:uppercase;color:var(--coral);font-weight:700;margin-bottom:.25rem}
+.era-item h4{font-family:'DM Serif Display',serif;font-size:1.15rem;margin-bottom:.4rem}
+.era-item p{font-size:.92rem;color:rgba(16,24,40,.6);margin-bottom:0}
+.era-item .era-tech{font-family:'JetBrains Mono',monospace;font-size:.6rem;padding:.2rem .5rem;border-radius:3px;display:inline-block;margin-top:.35rem;background:rgba(13,139,139,.08);color:var(--teal);letter-spacing:.5px}
+
+/* ─── PERSONA STORY ─── */
+.persona-card{background:linear-gradient(135deg,var(--deep-navy),var(--steel));border-radius:20px;padding:2.5rem;margin:3rem 0;color:#fff;position:relative;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.15)}
+.persona-card::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--teal),var(--sky),var(--lavender))}
+.persona-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem}
+.persona-avatar{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--teal),var(--sky));display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:white;flex-shrink:0}
+.persona-name{font-family:'DM Serif Display',serif;font-size:1.2rem}
+.persona-role{font-size:.8rem;color:rgba(255,255,255,.45)}
+.persona-scene{margin-bottom:1.5rem}
+.persona-scene .scene-label{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:2px;text-transform:uppercase;color:var(--bright-teal);margin-bottom:.5rem}
+.persona-scene p{font-size:.95rem;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:.5rem}
+.persona-divider{border:none;border-top:1px solid rgba(255,255,255,.06);margin:1.5rem 0}
+
+/* ─── AI INSIGHT NOTIFICATION MOCKUP ─── */
+.notif-stack{margin:3rem 0}
+.notif-card{background:white;border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1rem;box-shadow:0 4px 20px rgba(0,0,0,.05);border-left:4px solid var(--teal);display:flex;gap:1rem;align-items:flex-start;opacity:0;transform:translateX(-30px);transition:all .5s}
+.notif-card.show{opacity:1;transform:translateX(0)}
+.notif-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0}
+.ni-alert{background:rgba(224,79,95,.1);border-left-color:var(--fail)}
+.ni-insight{background:rgba(13,139,139,.1)}
+.ni-action{background:rgba(139,127,199,.1);border-left-color:var(--lavender)}
+.ni-win{background:rgba(40,200,64,.1);border-left-color:var(--success)}
+.notif-card h5{font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:700;margin-bottom:.2rem}
+.notif-card p{font-size:.85rem;color:rgba(16,24,40,.6);line-height:1.4;margin-bottom:0}
+.notif-card .notif-time{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:rgba(16,24,40,.3);margin-top:.3rem}
+
+/* ─── COMPARISON PANELS ─── */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:3rem 0;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.1)}
+@media(max-width:700px){.compare-grid{grid-template-columns:1fr}}
+.compare-panel{padding:2rem}
+.compare-panel.old{background:#F9F1E8;color:var(--ink)}
+.compare-panel.new{background:var(--code-bg);color:#E0F0F0}
+.compare-panel-label{font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:3px;text-transform:uppercase;padding:.3rem .6rem;border-radius:4px;display:inline-block;margin-bottom:1.25rem;font-weight:700}
+.compare-panel.old .compare-panel-label{background:rgba(224,122,95,.15);color:var(--coral)}
+.compare-panel.new .compare-panel-label{background:rgba(20,184,184,.15);color:var(--bright-teal)}
+.compare-step{display:flex;gap:.75rem;align-items:flex-start;margin-bottom:1rem;font-size:.85rem;line-height:1.5}
+.compare-step .cs-num{font-family:'JetBrains Mono',monospace;font-size:.7rem;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.compare-panel.old .cs-num{background:rgba(224,122,95,.12);color:var(--coral)}
+.compare-panel.new .cs-num{background:rgba(20,184,184,.12);color:var(--bright-teal)}
+.compare-step .cs-text{flex:1}
+.compare-panel.old .cs-text{color:rgba(16,24,40,.6)}
+.compare-panel.new .cs-text{color:rgba(224,240,240,.65)}
+.compare-total{font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:700;margin-top:1rem;padding-top:.75rem;border-top:1px solid rgba(128,128,128,.15)}
+.compare-panel.old .compare-total{color:var(--coral)}
+.compare-panel.new .compare-total{color:var(--bright-teal)}
+
+/* ─── STAT ─── */
+.stat-callout{display:flex;align-items:center;gap:2rem;margin:3rem 0;padding:2rem;background:linear-gradient(135deg,var(--ice),#EDF4FB);border-radius:16px;border:1px solid rgba(13,139,139,.12)}
+.stat-number{font-family:'DM Serif Display',serif;font-size:3.5rem;color:var(--teal);line-height:1;white-space:nowrap}
+.stat-text{font-size:1rem;color:var(--ink);line-height:1.5}
+.stat-text .stat-source{font-size:.75rem;color:rgba(16,24,40,.35);margin-top:.25rem;font-style:italic}
+
+/* ─── ANALYTICS EVOLUTION CARDS ─── */
+.evo-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin:3rem 0}
+@media(max-width:700px){.evo-cards{grid-template-columns:repeat(2,1fr)}}
+.evo-card{padding:1.5rem 1rem;border-radius:14px;text-align:center;transition:transform .3s;border:1px solid rgba(0,0,0,.04)}
+.evo-card:hover{transform:translateY(-4px)}
+.evo-card .ec-icon{font-size:1.5rem;margin-bottom:.5rem}
+.evo-card h5{font-family:'JetBrains Mono',monospace;font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:.3rem;font-weight:700}
+.evo-card p{font-size:.8rem;color:rgba(16,24,40,.55);line-height:1.4;margin-bottom:0}
+.ec-desc{background:#FDF5EC;border-color:rgba(224,122,95,.1)}.ec-desc h5{color:var(--coral)}
+.ec-diag{background:#FBF4E4;border-color:rgba(212,168,67,.1)}.ec-diag h5{color:#8B7328}
+.ec-pred{background:var(--ice);border-color:rgba(13,139,139,.1)}.ec-pred h5{color:var(--teal)}
+.ec-proact{background:#F0EEFB;border-color:rgba(139,127,199,.1)}.ec-proact h5{color:var(--lavender)}
+
+/* ─── MANIFESTO ─── */
+.manifesto{background:linear-gradient(135deg,var(--deep-navy),var(--steel));border-radius:20px;padding:3rem;margin:3rem 0;color:#fff;position:relative;overflow:hidden}
+.manifesto::before{content:'?';position:absolute;right:-20px;top:-30px;font-family:'DM Serif Display',serif;font-size:12rem;color:rgba(255,255,255,.02);line-height:1}
+.manifesto h3{font-family:'DM Serif Display',serif;font-size:1.5rem;margin-bottom:1.5rem;color:var(--bright-teal)}
+.mi{display:flex;align-items:flex-start;gap:1rem;margin-bottom:1.25rem;opacity:0;transform:translateX(-20px);transition:all .5s}
+.mi.show{opacity:1;transform:translateX(0)}
+.mi .ms{color:var(--bright-teal);font-size:1.1rem;flex-shrink:0;margin-top:2px}
+.mi p{font-size:1rem;color:rgba(255,255,255,.8);line-height:1.5;margin-bottom:0}
+
+/* ─── SECTION DIVIDER ─── */
+.sd{text-align:center;margin:2rem 0;color:rgba(16,24,40,.1);font-family:'JetBrains Mono',monospace;font-size:1.5rem;letter-spacing:8px}
+
+/* ─── FOOTER ─── */
+.article-footer{background:var(--deep-navy);color:rgba(255,255,255,.5);text-align:center;padding:4rem 2rem}
+.article-footer .fl{font-family:'DM Serif Display',serif;font-size:1.5rem;color:var(--bright-teal);margin-bottom:.5rem}
+.article-footer p{font-size:.85rem;margin-bottom:.3rem}
+.article-footer a{color:var(--bright-teal);text-decoration:none}
+
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .8s,transform .8s}
+.reveal.visible{opacity:1;transform:translateY(0)}
+@media(max-width:600px){.cw{padding:0 1.25rem}section{padding:3rem 0}.persona-card{padding:2rem 1.5rem}.stat-callout{flex-direction:column;text-align:center}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ HERO ═══════════ -->
+<header class="hero">
+  <div class="signal-layer">
+    <div class="signal-ring" style="width:200px;height:200px;top:30%;left:45%;animation-delay:0s"></div>
+    <div class="signal-ring" style="width:300px;height:300px;top:25%;left:42%;animation-delay:2s"></div>
+    <div class="signal-ring" style="width:150px;height:150px;top:60%;left:65%;animation-delay:4s"></div>
+    <div class="signal-ring" style="width:250px;height:250px;top:55%;left:20%;animation-delay:1s"></div>
+  </div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">The PaddySpeaks AI Age Collection · Part 3</div>
+    <h1>The <span class="teal">Post-Query</span> World</h1>
+    <p class="hero-sub">We spent 50 years teaching humans to ask structured questions. What happens when AI eliminates the need to ask at all?</p>
+
+    <div class="query-terminal">
+      <div class="qt-dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="qt-line qt-old">SELECT revenue FROM sales WHERE region = 'APAC'...</div>
+      <div class="qt-line qt-new"><span id="qtText"></span><span class="qt-cursor"></span></div>
+    </div>
+
+    <div class="hero-byline">By Paddy Iyer &nbsp;·&nbsp; PaddySpeaks &nbsp;·&nbsp; March 2026</div>
+  </div>
+  <div class="scroll-ind"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+</header>
+
+<!-- ═══════════ PRIYA'S MORNING — BEFORE ═══════════ -->
+<section>
+  <div class="cw">
+    <div class="reveal">
+      <p>It's 6:47 AM. Priya Mehta, VP of Revenue at a mid-market SaaS company, opens her laptop. She has 23 minutes before her first call — a board prep meeting where she'll need to explain why Q1 pipeline is tracking 12% below target.</p>
+      <p>In the old world — which is to say, <em>yesterday</em> — her morning looks like this:</p>
+    </div>
+
+    <div class="persona-card reveal">
+      <div class="persona-header">
+        <div class="persona-avatar">PM</div>
+        <div><div class="persona-name">Priya Mehta</div><div class="persona-role">VP Revenue · 23 minutes to board prep</div></div>
+      </div>
+      <div class="persona-scene">
+        <div class="scene-label">The Old Morning — 2024</div>
+        <p>Opens Salesforce. Filters by Q1 pipeline. Exports to CSV.</p>
+        <p>Opens Tableau. Loads the revenue dashboard. Waits 14 seconds for it to render. Clicks three filters. Notices the numbers don't match Salesforce. Pings the data team on Slack.</p>
+        <p>Opens Google Sheets. Pulls last quarter's actuals for comparison. Manually calculates the delta. Copies numbers into her slide deck.</p>
+        <p>Realizes she still doesn't know <em>why</em> pipeline dropped. Opens another dashboard. Filters by segment. Then by rep. Then by deal stage. Finds a pattern — maybe. Not sure. No time to investigate.</p>
+        <p>Joins the call with half an answer and a lot of caveats.</p>
+      </div>
+      <hr class="persona-divider">
+      <div class="persona-scene">
+        <div class="scene-label">Time spent: 21 minutes</div>
+        <p style="color:var(--coral)">Dashboards consulted: 4 &nbsp;·&nbsp; Confidence in answer: Low &nbsp;·&nbsp; Root cause identified: No</p>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>This is the world we've built. A world where the person who needs the answer has to <strong>learn the tool, formulate the query, navigate the interface, cross-reference the data, and interpret the result</strong> — all before they can even begin to make a decision.</p>
+      <p>We spent 50 years building this world. It's about to end.</p>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ THE 50-YEAR ARC ═══════════ -->
+<section>
+  <div class="cw">
+    <h2 class="st reveal">50 Years of Teaching Humans to Ask</h2>
+
+    <div class="reveal">
+      <p>Every major era of analytics has been defined by the same pattern: <strong>a human has a question, and they must learn a specific language to get an answer</strong>. The language changed. The fundamental problem didn't.</p>
+    </div>
+
+    <div class="era-timeline reveal">
+      <div class="era-item">
+        <div class="era-year">1970s</div>
+        <h4>The Punch Card Era</h4>
+        <p>Want to know quarterly sales? Submit a job request to the IT department. Wait three weeks. Receive a 200-page printout. Find page 47. Squint.</p>
+        <div class="era-tech">COBOL · Mainframes · Batch Reports</div>
+      </div>
+      <div class="era-item">
+        <div class="era-year">1980s–1990s</div>
+        <h4>The SQL Revolution</h4>
+        <p>Relational databases democratized data access — if you could write SQL. Analysts became the priesthood: the translators between business questions and structured queries.</p>
+        <div class="era-tech">Oracle · SQL · Crystal Reports</div>
+      </div>
+      <div class="era-item">
+        <div class="era-year">2000s–2010s</div>
+        <h4>The Dashboard Golden Age</h4>
+        <p>Tableau, Power BI, Looker. Drag-and-drop. Self-service. Beautiful charts. The promise: everyone can explore data. The reality: most dashboards are built once, consulted never, and maintained forever.</p>
+        <div class="era-tech">Tableau · Power BI · Looker · dbt</div>
+      </div>
+      <div class="era-item">
+        <div class="era-year">2020–2025</div>
+        <h4>The Natural Language Bridge</h4>
+        <p>Ask questions in English instead of SQL. ThoughtSpot, Snowflake Cortex, Databricks AI. Better — but still requires the human to <em>know what to ask</em>.</p>
+        <div class="era-tech">NLP · Semantic Layer · AI Copilots</div>
+      </div>
+      <div class="era-item" style="border-left:3px solid var(--bright-teal)">
+        <div class="era-year" style="color:var(--teal)">2026+</div>
+        <h4>The Post-Query World</h4>
+        <p>The system doesn't wait for your question. It understands your role, your goals, your context — and surfaces the insight <em>before you think to ask</em>. Proactive. Personalized. Continuous.</p>
+        <div class="era-tech">Proactive AI · Agentic Analytics · Zero-Query BI</div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>Each era made it easier to ask. The Post-Query World eliminates the need to ask at all.</p>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ PRIYA'S MORNING — AFTER ═══════════ -->
+<section>
+  <div class="cw">
+    <h2 class="st reveal">The New Morning: Priya, Reimagined</h2>
+
+    <div class="reveal">
+      <p>Same morning. Same 23 minutes. Same board prep. But Priya's AI analytics layer has been watching the data overnight — not waiting for her to ask, but <strong>proactively surfacing what she needs to know</strong>.</p>
+    </div>
+
+    <div class="notif-stack reveal" id="notifStack">
+      <div class="notif-card ni-alert" data-delay="0">
+        <div class="notif-icon" style="background:rgba(224,79,95,.1)">⚠️</div>
+        <div>
+          <h5>Pipeline Alert: APAC Enterprise Down 18%</h5>
+          <p>Q1 enterprise pipeline in APAC dropped 18% vs. Q4. Root cause: 3 deals totaling $2.1M pushed to Q2 by a single account executive. This accounts for 74% of the shortfall.</p>
+          <div class="notif-time">Detected 4:12 AM · Auto-analyzed by 4:14 AM</div>
+        </div>
+      </div>
+      <div class="notif-card" data-delay="1">
+        <div class="notif-icon ni-insight" style="background:rgba(13,139,139,.1)">💡</div>
+        <div>
+          <h5>Hidden Signal: SMB Segment Compensating</h5>
+          <p>While enterprise is down, SMB pipeline is up 31% — driven by a new self-serve trial flow launched in January. Net pipeline gap is actually only 4.2%, not 12%. Your Tableau dashboard doesn't show this because the SMB segment filter was off.</p>
+          <div class="notif-time">Correlated 4:16 AM · Confidence: 94%</div>
+        </div>
+      </div>
+      <div class="notif-card ni-action" data-delay="2">
+        <div class="notif-icon" style="background:rgba(139,127,199,.1)">🎯</div>
+        <div>
+          <h5>Recommended Action: Reforecast + Highlight SMB</h5>
+          <p>Suggested board narrative: "Enterprise pipeline timing shift masked by accelerating SMB momentum. Net gap is 4.2%, not 12%. Recommend increasing SMB marketing allocation by 15%."</p>
+          <div class="notif-time">Generated 4:18 AM · Ready for your review</div>
+        </div>
+      </div>
+      <div class="notif-card ni-win" data-delay="3">
+        <div class="notif-icon" style="background:rgba(40,200,64,.1)">✓</div>
+        <div>
+          <h5>Board Deck Updated</h5>
+          <p>Slide 7 ("Pipeline Health") has been updated with the corrected narrative, segmented waterfall chart, and executive summary. Pending your approval to push to the shared deck.</p>
+          <div class="notif-time">Compiled 4:20 AM · One-click approve</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal">
+      <p>Priya opens her laptop. Four notifications. Reads them in 90 seconds. Approves the deck update. Joins the board call <strong>with a complete answer, a root cause, a recommended action, and a pre-built slide</strong> — all before she finished her coffee.</p>
+    </div>
+
+    <div class="compare-grid reveal">
+      <div class="compare-panel old">
+        <div class="compare-panel-label">Old World · Query-Driven</div>
+        <div class="compare-step"><div class="cs-num">1</div><div class="cs-text">Open Salesforce, export pipeline data</div></div>
+        <div class="compare-step"><div class="cs-num">2</div><div class="cs-text">Open Tableau, load dashboard, apply filters</div></div>
+        <div class="compare-step"><div class="cs-num">3</div><div class="cs-text">Notice data mismatch, Slack the data team</div></div>
+        <div class="compare-step"><div class="cs-num">4</div><div class="cs-text">Open Sheets, manually calculate deltas</div></div>
+        <div class="compare-step"><div class="cs-num">5</div><div class="cs-text">Open second dashboard, filter by segment</div></div>
+        <div class="compare-step"><div class="cs-num">6</div><div class="cs-text">Find possible pattern, no time to verify</div></div>
+        <div class="compare-step"><div class="cs-num">7</div><div class="cs-text">Join call with half an answer</div></div>
+        <div class="compare-total">21 minutes · 4 tools · Low confidence</div>
+      </div>
+      <div class="compare-panel new">
+        <div class="compare-panel-label">Post-Query World · Proactive AI</div>
+        <div class="compare-step"><div class="cs-num">1</div><div class="cs-text">Open laptop. Read 4 notifications.</div></div>
+        <div class="compare-step"><div class="cs-num">2</div><div class="cs-text">Review root cause analysis + recommendation.</div></div>
+        <div class="compare-step"><div class="cs-num">3</div><div class="cs-text">One-click approve the updated board deck.</div></div>
+        <div class="compare-step"><div class="cs-num">4</div><div class="cs-text">Join call with complete answer + action plan.</div></div>
+        <div class="compare-total" style="color:var(--bright-teal)">90 seconds · 0 tools · High confidence</div>
+      </div>
+    </div>
+
+    <div class="stat-callout reveal">
+      <div class="stat-number" data-target="40" id="stat1">0%</div>
+      <div class="stat-text">
+        of analytics queries will be made via natural language by 2026, with many bypassing dashboards entirely. But the Post-Query World goes further: the best queries are the ones that never need to be asked at all.
+        <div class="stat-source">BlastX Analytics Trends Report, 2026</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ THE ANALYTICS EVOLUTION ═══════════ -->
+<section>
+  <div class="cw">
+    <h2 class="st reveal">The Four Stages of Analytics Maturity</h2>
+
+    <div class="reveal">
+      <p>The analytics industry has long described a maturity curve. Most organizations are stuck at the first two stages. The Post-Query World lives at the fourth — and it's arriving faster than anyone expected.</p>
+    </div>
+
+    <div class="evo-cards reveal">
+      <div class="evo-card ec-desc">
+        <div class="ec-icon">📊</div>
+        <h5>Descriptive</h5>
+        <p>What happened? Static dashboards, monthly reports, KPI snapshots. Backward-looking by definition.</p>
+      </div>
+      <div class="evo-card ec-diag">
+        <div class="ec-icon">🔍</div>
+        <h5>Diagnostic</h5>
+        <p>Why did it happen? Drill-downs, ad-hoc queries, analyst investigations. Still human-driven.</p>
+      </div>
+      <div class="evo-card ec-pred">
+        <div class="ec-icon">📈</div>
+        <h5>Predictive</h5>
+        <p>What will happen? Forecasting, trend detection, ML models. Getting closer — but still reactive.</p>
+      </div>
+      <div class="evo-card ec-proact">
+        <div class="ec-icon">✦</div>
+        <h5>Proactive</h5>
+        <p>What should you do — right now? AI surfaces insights, recommends actions, and executes within governance. No query needed.</p>
+      </div>
+    </div>
+
+    <div class="pq reveal">
+      <p>Traditional dashboards are like relics from a bygone era. Static, boring, and utterly unresponsive. We're moving towards dynamic, AI-driven insights that tell you what you need to know, often before you even ask.</p>
+      <p class="attr">— Luzmo State of Dashboards Report, 2025</p>
+    </div>
+
+    <div class="reveal">
+      <p>The uncomfortable reality: <strong>40% of dashboard users don't believe their dashboards help them make better decisions</strong>. Thirty-seven percent say the data isn't clear or actionable. Thirty-four percent spend too much time navigating. The tool that was supposed to democratize data has become its own barrier.</p>
+      <p>The Post-Query World doesn't fix dashboards. It makes them <strong>optional</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ WHAT CHANGES ═══════════ -->
+<section>
+  <div class="cw">
+    <h2 class="st reveal">What Actually Changes</h2>
+
+    <div class="reveal">
+      <p>The shift from query-driven to proactive intelligence isn't a feature upgrade. It's a <strong>structural transformation</strong> of how organizations relate to data. Here's what changes at every layer:</p>
+    </div>
+
+    <div class="reveal">
+      <p><strong>The semantic layer becomes the brain.</strong> Today's semantic layers standardize definitions — "revenue" means the same thing everywhere. Tomorrow's semantic layers understand <em>context</em>: who's asking, what they care about, what their goals are, and what's changed since they last looked. The semantic layer becomes the AI's understanding of your business.</p>
+      <p><strong>Insights flow to where decisions happen.</strong> No more logging into Tableau. Insights arrive in Slack, in your CRM, in your email, in your board deck — embedded in the tools where decisions actually get made. The insight and the action live in the same place.</p>
+      <p><strong>The analyst becomes the curator.</strong> Freed from building dashboards nobody uses, analysts shift to curating AI insights, validating recommendations, aligning proactive alerts with strategy, and ensuring organizational data literacy. The role doesn't disappear. It elevates.</p>
+      <p><strong>Time-to-decision collapses.</strong> The gap between "something changed in the data" and "a human takes action" shrinks from days or weeks to minutes. In high-frequency environments — ad tech, trading, supply chain — this gap is already measured in seconds.</p>
+    </div>
+
+    <div class="stat-callout reveal">
+      <div class="stat-number" data-target="90" id="stat2">0%</div>
+      <div class="stat-text">
+        of business leaders will depend on AI-generated insights by 2026 — up from just 30% in 2019. The shift from "optional enhancement" to "operational necessity" is happening in real-time.
+        <div class="stat-source">Luzmo / Gartner Analytics Survey, 2025</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ THE MANIFESTO ═══════════ -->
+<section>
+  <div class="cw">
+    <div class="manifesto reveal" id="manifestoBox">
+      <h3>The Post-Query Manifesto</h3>
+      <div class="mi" data-index="0">
+        <span class="ms">→</span>
+        <p><strong>The best query is the one never asked.</strong> If the system understands your role, your goals, and your context, it shouldn't wait for you to formulate a question. It should surface what matters, when it matters.</p>
+      </div>
+      <div class="mi" data-index="1">
+        <span class="ms">→</span>
+        <p><strong>Dashboards don't die — they become optional.</strong> There's still value in visual exploration. But the default interaction shifts from "pull" to "push." The dashboard becomes a deep-dive tool, not the primary interface.</p>
+      </div>
+      <div class="mi" data-index="2">
+        <span class="ms">→</span>
+        <p><strong>Insights belong where decisions happen.</strong> Not in a BI tool. In Slack. In email. In the CRM. In the board deck. Data should come to you, not the other way around.</p>
+      </div>
+      <div class="mi" data-index="3">
+        <span class="ms">→</span>
+        <p><strong>The analyst evolves from builder to curator.</strong> Building dashboards was the old job. Curating AI insights, validating recommendations, and ensuring data literacy is the new one. Higher value. Higher impact.</p>
+      </div>
+      <div class="mi" data-index="4">
+        <span class="ms">→</span>
+        <p><strong>Context is the new query language.</strong> SQL was the language of databases. English is the language of NLP. But context — who you are, what you care about, what just changed — is the language of proactive AI. No syntax required.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="sd">· · · → · · ·</div>
+
+<!-- ═══════════ CLOSING ═══════════ -->
+<section>
+  <div class="cw">
+    <h2 class="st reveal">The Last Query</h2>
+
+    <div class="reveal">
+      <p>Somewhere in the world right now, a data analyst is building a Tableau dashboard. They're choosing colors for the bar chart. They're writing the SQL query that will populate it. They're configuring the refresh schedule. They're adding filter dropdowns. They're testing the drill-down paths.</p>
+      <p>And nobody will ever look at it.</p>
+      <p>This isn't their fault. It's the architecture's fault. We built a world where <strong>the human has to come to the data</strong>. The Post-Query World inverts that: the data comes to the human. The insight arrives before the question forms. The recommendation arrives before the meeting starts. The action arrives before the crisis escalates.</p>
+    </div>
+
+    <div class="pq reveal">
+      <p>We discovered a problem on a dashboard three days late. The Post-Query World solves the problem before it escalates. That is the definitive hallmark of the future-ready enterprise.</p>
+      <p class="attr">— BayTech Consulting, "Kill the Dashboard," 2026</p>
+    </div>
+
+    <div class="reveal">
+      <p>Priya Mehta doesn't miss her dashboards. She doesn't miss the 21-minute morning ritual of clicking, filtering, exporting, and guessing. She walks into every meeting with complete context, clear root causes, and recommended actions — all surfaced proactively by a system that understands her role.</p>
+      <p>The query is dead.</p>
+      <p>Long live the <strong>answer</strong>.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer class="article-footer">
+  <div class="fl">PaddySpeaks</div>
+  <p><a href="https://paddyspeaks.com" target="_blank">paddyspeaks.com</a></p>
+  <p style="margin-top:.5rem;font-size:.7rem;color:rgba(255,255,255,.25);">The Post-Query World · March 2026 · Paddy Iyer</p>
+  <p style="font-size:.7rem;color:rgba(255,255,255,.2);margin-top:.2rem">Part 3 of the PaddySpeaks AI Age Collection</p>
+</footer>
+
+<!-- ═══════════ ANIMATIONS ═══════════ -->
+<script>
+(function(){
+  const ro=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting)en.target.classList.add('visible')})},{threshold:.1,rootMargin:'0px 0px -50px 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>ro.observe(el));
+
+  // 1. Hero Query Typing
+  const lines=['⚡ APAC pipeline down 18% — root cause: 3 deals pushed by 1 AE','💡 SMB compensating +31% — net gap only 4.2%','🎯 Recommended: shift 15% budget to SMB self-serve','✓ Board deck slide 7 updated — awaiting your approval','📊 No dashboard needed. No query written.'];
+  const qEl=document.getElementById('qtText');
+  let qIdx=0,qChar=0,qTyping=true;
+  function typeQ(){
+    if(!qEl)return;
+    if(qTyping){
+      if(qChar<=lines[qIdx].length){qEl.textContent=lines[qIdx].substring(0,qChar);qChar++;setTimeout(typeQ,30+Math.random()*20)}
+      else{qTyping=false;setTimeout(typeQ,2200)}
+    }else{
+      if(qChar>0){qChar--;qEl.textContent=lines[qIdx].substring(0,qChar);setTimeout(typeQ,12)}
+      else{qIdx=(qIdx+1)%lines.length;qTyping=true;setTimeout(typeQ,300)}
+    }
+  }
+  setTimeout(typeQ,2000);
+
+  // 2. Notification Stack
+  const ns=document.getElementById('notifStack');
+  let nsA=false;
+  const nsO=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting&&!nsA){nsA=true;ns.querySelectorAll('.notif-card').forEach((c,i)=>{setTimeout(()=>c.classList.add('show'),i*500)})}})},{threshold:.2});
+  if(ns)nsO.observe(ns);
+
+  // 3. Manifesto Stagger
+  const mb=document.getElementById('manifestoBox');
+  let mbA=false;
+  const mbO=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting&&!mbA){mbA=true;mb.querySelectorAll('.mi').forEach((m,i)=>{setTimeout(()=>m.classList.add('show'),i*300)})}})},{threshold:.3});
+  if(mb)mbO.observe(mb);
+
+  // 4. Stat Counters
+  function animC(el){
+    const t=parseInt(el.getAttribute('data-target'));
+    const suf='%';const dur=1500,st=performance.now();
+    function tick(now){const p=Math.min((now-st)/dur,1);const e=1-Math.pow(1-p,3);el.textContent=Math.round(t*e)+suf;if(p<1)requestAnimationFrame(tick)}
+    requestAnimationFrame(tick);
+  }
+  document.querySelectorAll('.stat-number[data-target]').forEach(el=>{
+    const so=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){animC(el);so.unobserve(el)}})},{threshold:.5});
+    so.observe(el);
+  });
+})();
+</script>
+
+</body>
+</html>
