@@ -650,7 +650,19 @@
   window.toggleVerse = function (id) {
     var el = document.getElementById(id);
     if (el) el.classList.toggle('expanded');
+    requestAnimationFrame(updateScrollButtons);
   };
+
+  // --- Re-evaluate scroll button visibility ---
+  function updateScrollButtons() {
+    var scrollBtns = document.getElementById('scrollButtons');
+    if (!scrollBtns) return;
+    if (window.scrollY > 300) {
+      scrollBtns.classList.add('visible');
+    } else {
+      scrollBtns.classList.remove('visible');
+    }
+  }
 
   // --- Expand/Collapse All handler ---
   function setupExpandCollapse() {
@@ -676,6 +688,9 @@
           card.classList.remove('expanded');
         }
       });
+
+      // Re-evaluate scroll button visibility after layout change
+      requestAnimationFrame(updateScrollButtons);
     });
   }
 
