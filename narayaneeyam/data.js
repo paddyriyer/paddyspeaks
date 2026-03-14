@@ -4598,7 +4598,227 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Recounts the sacrifice performed by Daksha Prajapati where Sati immolated herself due to the insult to Lord Shiva. Shiva's fury destroyed the sacrifice, later restored by Lord Vishnu's intervention.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 21,
+          sloka: 1,
+          devanagari: "दक्षो विरिञ्चतनयः प्रजापतीनां\nपत्यौ भवे दुहितरं सतीं प्रदाय ।\nपश्चात्तमेव गिरिशं सभामधास्ते\nनिन्दन् प्रयागविषये स यज्ञमैच्छत् ॥",
+          transliteration: "dakṣō viriñcatanayaḥ prajāpatīnāṁ\npatyau bhavē duhitaraṁ satīṁ pradāya |\npaścāttamēva giriśaṁ sabhāmadhāstē\nnindan prayāgaviṣayē sa yajñamaicchat ||",
+          translation: "Daksha, son of Brahma and chief among Prajapatis, having given his daughter Sati in marriage to Lord Shiva, later came to harbour enmity towards that very Girisha. Insulting him in the assembly, Daksha resolved to perform a grand sacrifice.",
+          commentary: "This opening verse establishes the dramatic conflict of the Daksha Yaga narrative from Bhagavatam Canto 4. Daksha Prajapati, despite being Brahma's son and having willingly given Sati in marriage to Shiva, developed intense animosity towards his son-in-law. The irony is captured by 'tam eva' (that very one) — the same Shiva he once honored as a worthy bridegroom. The conflict arose when Shiva did not rise to greet Daksha at an assembly, which Daksha interpreted as an insult. Bhattathiri compresses the backstory efficiently, moving swiftly to the yaga that sets the tragedy in motion.",
+          words: [
+            { word: "दक्षः", transliteration: "dakṣaḥ", meaning: "Daksha (the Prajapati)" },
+            { word: "विरिञ्चतनयः", transliteration: "viriñcatanayaḥ", meaning: "son of Brahma (Virinchi)" },
+            { word: "प्रजापतीनाम्", transliteration: "prajāpatīnām", meaning: "of the Prajapatis" },
+            { word: "भवे", transliteration: "bhavē", meaning: "to Shiva (Bhava)" },
+            { word: "दुहितरम्", transliteration: "duhitaram", meaning: "daughter" },
+            { word: "सतीम्", transliteration: "satīm", meaning: "Sati (the faithful one)" },
+            { word: "प्रदाय", transliteration: "pradāya", meaning: "having given (in marriage)" },
+            { word: "गिरिशम्", transliteration: "giriśam", meaning: "Lord of the mountain (Shiva)" },
+            { word: "सभाम्", transliteration: "sabhām", meaning: "assembly, court" },
+            { word: "निन्दन्", transliteration: "nindan", meaning: "insulting, reviling" },
+            { word: "यज्ञम्", transliteration: "yajñam", meaning: "sacrifice, ritual" },
+            { word: "ऐच्छत्", transliteration: "aicchat", meaning: "desired, resolved upon" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 2,
+          devanagari: "दक्षेण वैरमनुधाय महेश्वरस्य\nसर्वानमन्त्र्य दिविजान् विहायेशमेकम् ।\nआरब्धयागविधिरुद्धतदर्पगर्वो\nनैवाजुहोत् भगवते भवदंशभूते ॥",
+          transliteration: "dakṣēṇa vairamanudhāya mahēśvarasya\nsarvānamantrya divijān vihāyēśamēkam |\nārabdhayāgavidhiruddhatadarpagarvō\nnaivājuhōt bhagatvatē bhavadaṁśabhūtē ||",
+          translation: "Daksha, nurturing enmity towards Maheshvara, invited all the gods but deliberately excluded Shiva alone. Commencing the sacrificial rites with swelling pride and arrogance, he offered no oblation to Shiva, who is verily a portion of You, O Lord.",
+          commentary: "Bhattathiri emphasizes the theological gravity of Daksha's offense by noting that Shiva is 'bhavad-amsha-bhute' — a manifestation of Vishnu's own essence. This is significant in the Narayaneeyam's Vaishnavite framework, where Shiva is honored as an emanation of the Supreme. Daksha's deliberate exclusion of Shiva from the invitation list (vihaya isham ekam) and his refusal to offer Shiva's share of the sacrifice constitute a double affront — both social and ritual. The word 'uddhata-darpa-garva' (swelling with insolent pride) marks his hubris before the inevitable fall.",
+          words: [
+            { word: "वैरम्", transliteration: "vairam", meaning: "enmity, hostility" },
+            { word: "अनुधाय", transliteration: "anudhāya", meaning: "nurturing, maintaining" },
+            { word: "महेश्वरस्य", transliteration: "mahēśvarasya", meaning: "of Maheshvara (Shiva)" },
+            { word: "अमन्त्र्य", transliteration: "amantrya", meaning: "having invited" },
+            { word: "दिविजान्", transliteration: "divijān", meaning: "the gods, celestials" },
+            { word: "विहाय", transliteration: "vihāya", meaning: "excluding, leaving out" },
+            { word: "ईशम्", transliteration: "īśam", meaning: "the Lord (Shiva)" },
+            { word: "आरब्धयागविधिः", transliteration: "ārabdhayāgavidhiḥ", meaning: "one who commenced the sacrificial rites" },
+            { word: "उद्धतदर्पगर्वः", transliteration: "uddhatadarpagarvāḥ", meaning: "swelling with insolent pride" },
+            { word: "अजुहोत्", transliteration: "ajuhōt", meaning: "offered oblation" },
+            { word: "भवदंशभूते", transliteration: "bhavadaṁśabhūtē", meaning: "who is a portion of You (Vishnu)" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 3,
+          devanagari: "तत्रागतान् दिविषदो निरीक्ष्य सद्यः\nश्रुत्वा च यागमहिमानमथ स्वसख्यः ।\nसर्वं निवेद्य गिरिशाय सती ययाचे\nगन्तुं पितुर्गृहमसौ बहुयागदर्शी ॥",
+          transliteration: "tatrāgatān diviṣadō nirīkṣya sadyaḥ\nśrutvā ca yāgamahimānamatha svasakhyaḥ |\nsarvaṁ nivēdya giriśāya satī yayācē\ngantuṁ piturgṛhamasau bahuyāgadarśī ||",
+          translation: "Sati, seeing the gods passing by on their way to the sacrifice, and hearing from her companions about the grandeur of the yaga, reported everything to Lord Shiva and earnestly requested permission to go to her father's house to witness the great sacrifice.",
+          commentary: "This verse captures the poignant moment when Sati learns of her father's grand sacrifice. The celestials passing overhead (divishado agataan) on their way to Daksha's yaga provide visual evidence of her exclusion. Her companions (sva-sakhyah) relay the splendor of the event. The word 'yayache' (she entreated) suggests the intensity of her desire. Despite being the daughter of the host, she must ask permission from her husband — highlighting both the cultural protocol and the awkwardness of the situation where her own father has snubbed her husband.",
+          words: [
+            { word: "दिविषदः", transliteration: "diviṣadaḥ", meaning: "the celestials, gods" },
+            { word: "निरीक्ष्य", transliteration: "nirīkṣya", meaning: "seeing, observing" },
+            { word: "श्रुत्वा", transliteration: "śrutvā", meaning: "having heard" },
+            { word: "यागमहिमानम्", transliteration: "yāgamahimānam", meaning: "the grandeur of the sacrifice" },
+            { word: "स्वसख्यः", transliteration: "svasakhyaḥ", meaning: "from her own companions" },
+            { word: "निवेद्य", transliteration: "nivēdya", meaning: "having reported, informed" },
+            { word: "गिरिशाय", transliteration: "giriśāya", meaning: "to Girisha (Shiva)" },
+            { word: "सती", transliteration: "satī", meaning: "Sati (the devoted wife)" },
+            { word: "ययाचे", transliteration: "yayācē", meaning: "entreated, requested" },
+            { word: "पितुः", transliteration: "pituḥ", meaning: "father's" },
+            { word: "गृहम्", transliteration: "gṛham", meaning: "house, home" },
+            { word: "यागदर्शी", transliteration: "yāgadarśī", meaning: "one wishing to witness the sacrifice" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 4,
+          devanagari: "शम्भुस्तदा बहुतरं प्रतिषिध्य वाचा\nस्नेहादभीप्सितवतीमनुनीय भूयः ।\nदक्षस्य दुष्टमनसो निजवैरभावं\nव्याख्याय तामपि सतीं न शशाक रोद्धुम् ॥",
+          transliteration: "śambhustadā bahutaraṁ pratiṣidhya vācā\nsnēhādabhīpsitavatīmanunīya bhūyaḥ |\ndakṣasya duṣṭamanasō nijavairabhāvaṁ\nvyākhyāya tāmapi satīṁ na śaśāka rōddhum ||",
+          translation: "Lord Shambhu then tried extensively to dissuade her with words, lovingly attempting to console one so full of longing. He explained Daksha's hostile disposition and bitter enmity, yet even so he could not restrain Sati from her resolve.",
+          commentary: "Shiva's response reveals deep tenderness beneath his cosmic detachment. He 'pratiṣidhya vācā' (dissuaded with words) and 'anunīya snehāt' (consoled out of affection), showing both wisdom and love. He explicitly warns about Daksha's 'dushta-manasa' (corrupt mind) and 'nija-vaira-bhava' (innate enmity). Yet the verse's poignant conclusion — 'na shashaka roddham' (he could not restrain her) — signals fate's inexorable pull. Bhattathiri captures the paradox: the all-powerful Shiva, who could destroy the universe, cannot stop his devoted wife from walking into tragedy.",
+          words: [
+            { word: "शम्भुः", transliteration: "śambhuḥ", meaning: "Shambhu (Shiva, the auspicious one)" },
+            { word: "बहुतरम्", transliteration: "bahutaram", meaning: "extensively, at great length" },
+            { word: "प्रतिषिध्य", transliteration: "pratiṣidhya", meaning: "dissuading, prohibiting" },
+            { word: "वाचा", transliteration: "vācā", meaning: "with words" },
+            { word: "स्नेहात्", transliteration: "snēhāt", meaning: "out of affection, love" },
+            { word: "अभीप्सितवतीम्", transliteration: "abhīpsitavatīm", meaning: "one who greatly desired" },
+            { word: "अनुनीय", transliteration: "anunīya", meaning: "consoling, placating" },
+            { word: "दुष्टमनसः", transliteration: "duṣṭamanasaḥ", meaning: "of corrupt mind" },
+            { word: "वैरभावम्", transliteration: "vairabhāvam", meaning: "feeling of enmity" },
+            { word: "व्याख्याय", transliteration: "vyākhyāya", meaning: "having explained" },
+            { word: "न शशाक", transliteration: "na śaśāka", meaning: "could not, was unable" },
+            { word: "रोद्धुम्", transliteration: "rōddhum", meaning: "to restrain, to stop" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 5,
+          devanagari: "प्राप्ता पितुः सदनमम्ब सती तदानीं\nनो तां प्रसन्नवदनः पितृपार्श्वगामी ।\nमातापि वीक्ष्य तनयां सजलेक्षणाभ्यां\nस्नेहं दधे न तु पिता दयितां कदाचित् ॥",
+          transliteration: "prāptā pituḥ sadanamamaba satī tadānīṁ\nnō tāṁ prasannavadanaḥ pitṛpārśvagāmī |\nmātāpi vīkṣya tanayāṁ sajalēkṣaṇābhyāṁ\nsnēhaṁ dadhē na tu pitā dayitāṁ kadācit ||",
+          translation: "Having arrived at her father's house, Sati found no pleasant welcome from those gathered around Daksha. Though her mother gazed upon her daughter with tear-filled eyes and showed affection, her father showed no love whatsoever to his once-beloved daughter.",
+          commentary: "The emotional devastation of Sati's arrival is rendered with stark simplicity. The contrast between maternal love and paternal cruelty is devastating: her mother's 'sajala-ikshana' (tear-filled eyes) overflow with helpless tenderness, while Daksha's refusal to acknowledge his 'dayitam' (beloved) daughter completes the humiliation. The word 'kadachit' (not even slightly, not at all) intensifies the cruelty — Daksha offers not even a trace of fatherly warmth. Bhattathiri's address to the Lord as 'amba' (mother/lord) subtly invokes divine compassion as witness to this scene of familial betrayal.",
+          words: [
+            { word: "प्राप्ता", transliteration: "prāptā", meaning: "having arrived" },
+            { word: "सदनम्", transliteration: "sadanam", meaning: "house, abode" },
+            { word: "सती", transliteration: "satī", meaning: "Sati" },
+            { word: "प्रसन्नवदनः", transliteration: "prasannavadanaḥ", meaning: "with a pleasant face, welcoming" },
+            { word: "पितृपार्श्वगामी", transliteration: "pitṛpārśvagāmī", meaning: "those near the father" },
+            { word: "माता", transliteration: "mātā", meaning: "mother" },
+            { word: "तनयाम्", transliteration: "tanayām", meaning: "daughter" },
+            { word: "सजलेक्षणाभ्याम्", transliteration: "sajalēkṣaṇābhyām", meaning: "with tear-filled eyes" },
+            { word: "स्नेहम्", transliteration: "snēham", meaning: "affection, love" },
+            { word: "दधे", transliteration: "dadhē", meaning: "showed, held" },
+            { word: "दयिताम्", transliteration: "dayitām", meaning: "beloved (daughter)" },
+            { word: "कदाचित्", transliteration: "kadācit", meaning: "not at all, not even slightly" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 6,
+          devanagari: "श्रुत्वा तदा पितृमुखात् खलु निन्दनानि\nशम्भोर्महेशितुरसह्यतमान्यनन्तम् ।\nक्रोधं दधाना विगतासुरचिन्तयित्वा\nयोगाग्निमात्मवपुषि प्रदधे स्म सैव ॥",
+          transliteration: "śrutvā tadā pitṛmukhāt khalu nindanāni\nśambhōrmahēśiturasahyatamānyanantam |\nkrōdhaṁ dadhānā vigatāsuracintayitvā\nyōgāgnimātmavapuṣi pradadhē sma saiva ||",
+          translation: "Hearing then from her father's mouth unbearable and endless insults against Lord Shambhu, the great sovereign, Sati — consumed by wrath and resolving to abandon her life — kindled the fire of yoga within her own body and immolated herself.",
+          commentary: "This is the climactic moment of the narrative. Sati's self-immolation is not a passive act of despair but an active yogic feat — she generates 'yogagni' (the fire of yoga) from within her own body (atma-vapushi). The compound 'asahya-tamani-anantam' (unbearable and endless) describes the stream of insults Daksha hurled at Shiva. The word 'maheshitu' (great sovereign) ironically underscores the absurdity of a petty prajapati insulting the Lord of lords. The phrase 'vigata-asu' (departed from life force) combined with yogagni shows Sati's spiritual mastery even in her final act — she departs by will, not by violence.",
+          words: [
+            { word: "पितृमुखात्", transliteration: "pitṛmukhāt", meaning: "from the father's mouth" },
+            { word: "निन्दनानि", transliteration: "nindanāni", meaning: "insults, abuses" },
+            { word: "शम्भोः", transliteration: "śambhōḥ", meaning: "of Shambhu (Shiva)" },
+            { word: "महेशितुः", transliteration: "mahēśituḥ", meaning: "of the great Lord" },
+            { word: "असह्यतमानि", transliteration: "asahyatamāni", meaning: "most unbearable" },
+            { word: "अनन्तम्", transliteration: "anantam", meaning: "endless, limitless" },
+            { word: "क्रोधम्", transliteration: "krōdham", meaning: "wrath, anger" },
+            { word: "विगतासुः", transliteration: "vigatāsuḥ", meaning: "departed from life, resolved to die" },
+            { word: "योगाग्निम्", transliteration: "yōgāgnim", meaning: "fire of yoga" },
+            { word: "आत्मवपुषि", transliteration: "ātmavapuṣi", meaning: "in her own body" },
+            { word: "प्रदधे", transliteration: "pradadhē", meaning: "kindled, placed" },
+            { word: "सा एव", transliteration: "sā ēva", meaning: "she herself" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 7,
+          devanagari: "श्रुत्वैतदुग्रमतिकोपभरान्महेशो\nजूटाद्विनिर्मितवपुर्वीरभद्रनामा ।\nरुद्रांशसम्भवमहाप्रमथप्रवीर-\nस्तं यागवाटमभियाय बभञ्ज सर्वम् ॥",
+          transliteration: "śrutvaitadugrmamitikōpabharānmahēśō\njūṭādvinirmitavapurvīrabhadranāmā |\nrudrāṁśasambhavamahāpramathapravīra-\nstaṁ yāgavāṭamabhiyāya babhañja sarvam ||",
+          translation: "Hearing of this terrible event, Maheshvara — overwhelmed with fury — manifested from his matted locks a fearsome being named Virabhadra. This mighty warrior, born of Rudra's essence, accompanied by the great Pramathas, stormed into the sacrificial arena and destroyed everything.",
+          commentary: "Shiva's rage materializes as Virabhadra, who emerges from his jata (matted locks) — a dramatic image conveying how destruction springs from ascetic power. The name 'Virabhadra' combines 'vira' (hero) and 'bhadra' (auspicious), a paradoxical name for an agent of devastation. He leads the Pramathas (Shiva's fierce attendants) described as 'maha-pramatha-pravira' (great heroes among the Pramathas). The verb 'babhanja' (shattered) has a finality that conveys total destruction of the sacrificial arena (yaga-vata). Bhattathiri compresses the elaborate Bhagavatam narrative of Virabhadra's rampage into a single devastating verse.",
+          words: [
+            { word: "उग्रम्", transliteration: "ugram", meaning: "terrible, fierce" },
+            { word: "अतिकोपभरात्", transliteration: "atikōpabharāt", meaning: "overwhelmed with extreme fury" },
+            { word: "महेशः", transliteration: "mahēśaḥ", meaning: "Maheshvara (Shiva)" },
+            { word: "जूटात्", transliteration: "jūṭāt", meaning: "from the matted locks" },
+            { word: "विनिर्मितवपुः", transliteration: "vinirmitavapuḥ", meaning: "one whose body was manifested" },
+            { word: "वीरभद्रनामा", transliteration: "vīrabhadranāmā", meaning: "named Virabhadra" },
+            { word: "रुद्रांशसम्भव", transliteration: "rudrāṁśasambhava", meaning: "born of Rudra's essence" },
+            { word: "प्रमथप्रवीरः", transliteration: "pramathapravīraḥ", meaning: "hero among the Pramathas" },
+            { word: "यागवाटम्", transliteration: "yāgavāṭam", meaning: "sacrificial arena" },
+            { word: "अभियाय", transliteration: "abhiyāya", meaning: "having attacked, stormed" },
+            { word: "बभञ्ज", transliteration: "babhañja", meaning: "shattered, destroyed" },
+            { word: "सर्वम्", transliteration: "sarvam", meaning: "everything, all" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 8,
+          devanagari: "भग्नाक्षि भागमखिलं भृगुवंशजानां\nश्मश्रूणि लुञ्चयति पूषदतांश्च भिन्दन् ।\nदक्षस्य तस्य च शिरश्छिदमाशु कृत्वा\nछागस्य कायमधिरोप्य निवर्तितोऽभूत् ॥",
+          transliteration: "bhagnākṣi bhāgamakhilaṁ bhṛguvaṁśajānāṁ\nśmaśrūṇi luñcayati pūṣadatāṁśca bhindan |\ndakṣasya tasya ca śiraśchidamāśu kṛtvā\nchāgasya kāyamadhirōpya nivartitō'bhūt ||",
+          translation: "Virabhadra smashed the eyes of Bhaga, destroyed the shares of the Bhrigu clan, tore out their beards, knocked out the teeth of Pushan, and swiftly severing the head of Daksha, affixed a goat's head upon his body before withdrawing.",
+          commentary: "This verse catalogs the specific punishments meted out during the destruction of the sacrifice, following the Bhagavatam narrative. Bhaga loses his eyes (bhagna-akshi) because he witnessed Daksha's insults with approval; Pushan loses his teeth (pusha-datam bhindan) because he smiled at the humiliation; the Bhrigus lose their beards because they supported Daksha. The climactic act — Daksha's decapitation and replacement with a goat's head (chhagasya kayam adhiropya) — is both punishment and symbolic: the arrogant prajapati who behaved like a sacrificial animal receives an animal's head. The verse moves with breathless speed, matching Virabhadra's fury.",
+          words: [
+            { word: "भग्नाक्षि", transliteration: "bhagnākṣi", meaning: "having smashed the eyes (of Bhaga)" },
+            { word: "भागम्", transliteration: "bhāgam", meaning: "the share, portion" },
+            { word: "भृगुवंशजानाम्", transliteration: "bhṛguvaṁśajānām", meaning: "of those born in the Bhrigu clan" },
+            { word: "श्मश्रूणि", transliteration: "śmaśrūṇi", meaning: "beards" },
+            { word: "लुञ्चयति", transliteration: "luñcayati", meaning: "tearing out, plucking" },
+            { word: "पूषदताम्", transliteration: "pūṣadatām", meaning: "the teeth of Pushan" },
+            { word: "भिन्दन्", transliteration: "bhindan", meaning: "breaking, knocking out" },
+            { word: "शिरश्छिदम्", transliteration: "śiraśchidam", meaning: "severance of the head" },
+            { word: "छागस्य", transliteration: "chāgasya", meaning: "of a goat" },
+            { word: "अधिरोप्य", transliteration: "adhirōpya", meaning: "having affixed, placed upon" },
+            { word: "निवर्तितः", transliteration: "nivartitaḥ", meaning: "withdrew, returned" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 9,
+          devanagari: "विध्वस्तयागविधिदेवगणाः समेत्य\nब्रह्माणमादितमगात् शरणं सुराणाम् ।\nसर्वे मिलित्वा भवदीयपदारविन्दं\nनत्वा स्तुवन्ति खलु देव भवन्तमेव ॥",
+          transliteration: "vidhvastayāgavidhidēvagaṇāḥ samētya\nbrahmāṇamādiatamagāt śaraṇaṁ surāṇām |\nsarvē militvā bhavadīyapadāravindaṁ\nnatvā stuvanti khalu dēva bhavantamēva ||",
+          translation: "The gods, their sacrificial rites destroyed, assembled and first approached Brahma, the refuge of the celestials. Then all of them together, bowing at Your lotus feet, praised none other than You, O Lord.",
+          commentary: "After Virabhadra's devastation, the cosmic hierarchy of appeal is revealed: the gods first approach Brahma, who then leads them to Vishnu — establishing the Narayaneeyam's theological hierarchy. The phrase 'bhavadiya-pada-aravindam' (Your lotus feet) marks the turning point from destruction to restoration. The emphatic 'bhavantam eva' (You alone) underscores that ultimately it is Vishnu who resolves all conflicts, even those between other deities. This verse bridges the narrative from Shiva's destruction to Vishnu's restoration, placing Guruvayurappan at the center of cosmic order.",
+          words: [
+            { word: "विध्वस्तयागविधि", transliteration: "vidhvastayāgavidhi", meaning: "whose sacrificial rites were destroyed" },
+            { word: "देवगणाः", transliteration: "dēvagaṇāḥ", meaning: "hosts of gods" },
+            { word: "समेत्य", transliteration: "samētya", meaning: "having assembled, come together" },
+            { word: "ब्रह्माणम्", transliteration: "brahmāṇam", meaning: "Brahma (the creator)" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "सुराणाम्", transliteration: "surāṇām", meaning: "of the gods" },
+            { word: "मिलित्वा", transliteration: "militvā", meaning: "having gathered together" },
+            { word: "पदारविन्दम्", transliteration: "padāravindam", meaning: "lotus feet" },
+            { word: "नत्वा", transliteration: "natvā", meaning: "having bowed" },
+            { word: "स्तुवन्ति", transliteration: "stuvanti", meaning: "they praise" },
+            { word: "भवन्तम्", transliteration: "bhavantam", meaning: "You (the Lord)" },
+            { word: "एव", transliteration: "ēva", meaning: "alone, verily" }
+          ]
+        },
+        {
+          dashaka: 21,
+          sloka: 10,
+          devanagari: "त्वत्प्रेरितो भगवता गिरिशस्ततोऽसौ\nसन्तोषमाप्य सकलं पुनरारचय्य ।\nछागाननं तमपि दक्षमनुग्रहीत्\nस्तोत्रं जगाद भवते स च दक्ष एव ।\nवातालयेश परिपालय मां गदेभ्यो\nनारायणाशु कुरु सन्ततरोगमुक्तिम् ॥",
+          transliteration: "tvatprēritō bhagavatā giriśastatō'sau\nsantōṣamāpya sakalaṁ punarāracayya |\nchāgānanaṁ tamapi dakṣamanugrihīt\nstōtraṁ jagāda bhavatē sa ca dakṣa ēva |\nvātālayēśa paripālaya māṁ gadēbhyō\nnārāyaṇāśu kuru santatarōgamuktim ||",
+          translation: "Prompted by You, Lord Girisha became appeased. The entire sacrifice was restored, and Daksha — now bearing a goat's face — was revived and blessed by Shiva. That very Daksha then sang hymns of praise to You. O Lord of Guruvayur, Narayana, protect me from ailments and swiftly grant me complete freedom from disease!",
+          commentary: "The concluding verse brings the narrative full circle with characteristic Narayaneeyam closure. Vishnu's behind-the-scenes orchestration is emphasized by 'tvat-preritah' (prompted by You) — even Shiva's pacification is attributed to the Supreme Lord's will. The restoration of the sacrifice and Daksha's revival with a goat head (chhaga-ananam) symbolize divine justice tempered by mercy. Daksha's transformation from arrogant insulter to devotional hymnist completes the moral arc. Bhattathiri's personal prayer 'vatalayesha paripālaya mam gadebhyah' (O Lord of the Temple of Wind, protect me from diseases) maintains the autobiographical thread of the Narayaneeyam — the poet's own ailment mirrored in the narrative of cosmic destruction and restoration.",
+          words: [
+            { word: "त्वत्प्रेरितः", transliteration: "tvatprēritaḥ", meaning: "prompted by You, inspired by You" },
+            { word: "गिरिशः", transliteration: "giriśaḥ", meaning: "Girisha (Shiva, Lord of the mountain)" },
+            { word: "सन्तोषम्", transliteration: "santōṣam", meaning: "satisfaction, appeasement" },
+            { word: "आरचय्य", transliteration: "āracayya", meaning: "having restored, re-established" },
+            { word: "छागाननम्", transliteration: "chāgānanam", meaning: "goat-faced" },
+            { word: "दक्षम्", transliteration: "dakṣam", meaning: "Daksha" },
+            { word: "अनुग्रहीत्", transliteration: "anugrahīt", meaning: "blessed, showed grace" },
+            { word: "स्तोत्रम्", transliteration: "stōtram", meaning: "hymn of praise" },
+            { word: "जगाद", transliteration: "jagāda", meaning: "sang, recited" },
+            { word: "वातालयेश", transliteration: "vātālayēśa", meaning: "O Lord of Guruvayur (Temple of Wind)" },
+            { word: "परिपालय", transliteration: "paripālaya", meaning: "protect, guard" },
+            { word: "गदेभ्यः", transliteration: "gadēbhyaḥ", meaning: "from diseases" },
+            { word: "रोगमुक्तिम्", transliteration: "rōgamuktim", meaning: "freedom from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 22,
