@@ -5332,7 +5332,228 @@ var NARAYANEEYAM_DATA = {
       theme: "avatar",
       verseCount: 10,
       summary: "Narrates Rama's arrival at Mithila, His breaking of Lord Shiva's bow at Sita's swayamvara, and the divine marriage of Rama and Sita, the union of Vishnu and Lakshmi.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 29,
+          sloka: 1,
+          devanagari: "विश्वामित्रेण सहितो मिथिलां समुपागतः\nत्वं राघवो लक्ष्मणसंयुतो विभो ।\nजनकस्य पुरीं रम्यां ददृशे हर्षसम्भृतां\nस्वयंवरोत्सवमहामहिमोज्ज्वलां तदा ॥",
+          transliteration: "viśvāmitreṇa sahitō mithilāṁ samupāgataḥ\ntvaṁ rāghavō lakṣmaṇasaṁyutō vibhō |\njanakasya purīṁ ramyāṁ dadṛśē harṣasambhṛtāṁ\nsvayaṁvarōtsavamahāmahimōjjvalāṁ tadā ||",
+          translation: "Accompanied by sage Vishwamitra, You, O Lord Raghava, arrived at Mithila together with Lakshmana. You beheld the beautiful city of King Janaka, radiant with joy and resplendent with the grand festivities of the swayamvara.",
+          commentary: "Bhattathiri opens this dashaka with Rama's arrival at Mithila after the events of the previous dashaka — the slaying of Tataka, protection of Vishwamitra's yajna, and the liberation of Ahalya. The journey from Vishwamitra's ashram to Mithila marks a transition from martial exploits to the romantic-divine narrative. The word 'vibho' (all-pervading Lord) subtly reminds us that the young prince walking into Mithila is none other than the Supreme Being. The compound 'svayamvarotsava-maha-mahima-ujjvalam' paints the city ablaze with wedding-tournament splendor.",
+          words: [
+            { word: "विश्वामित्रेण", transliteration: "viśvāmitreṇa", meaning: "with Vishwamitra" },
+            { word: "सहितः", transliteration: "sahitaḥ", meaning: "accompanied" },
+            { word: "मिथिलाम्", transliteration: "mithilām", meaning: "to Mithila (Janaka's capital)" },
+            { word: "समुपागतः", transliteration: "samupāgataḥ", meaning: "arrived, approached" },
+            { word: "राघवः", transliteration: "rāghavaḥ", meaning: "descendant of Raghu (Rama)" },
+            { word: "लक्ष्मणसंयुतः", transliteration: "lakṣmaṇasaṁyutaḥ", meaning: "accompanied by Lakshmana" },
+            { word: "विभो", transliteration: "vibhō", meaning: "O all-pervading Lord" },
+            { word: "पुरीम्", transliteration: "purīm", meaning: "city" },
+            { word: "रम्याम्", transliteration: "ramyām", meaning: "beautiful, delightful" },
+            { word: "हर्षसम्भृताम्", transliteration: "harṣasambhṛtām", meaning: "filled with joy" },
+            { word: "स्वयंवरोत्सव", transliteration: "svayaṁvarōtsava", meaning: "swayamvara festival" },
+            { word: "उज्ज्वलाम्", transliteration: "ujjvalām", meaning: "radiant, resplendent" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 2,
+          devanagari: "जनको नाम धर्मात्मा मिथिलाधिपतिः प्रभुः\nहलेन क्षेत्रकर्षणे लब्धवान् दुहितां शुभाम् ।\nसीतां नाम महाभागां लक्ष्मीमेव सनातनीं\nभूतलाद्विनिःसृतां साक्षाद्भवदर्धाङ्गवल्लभाम् ॥",
+          transliteration: "janakō nāma dharmātmā mithilādhipatiḥ prabhuḥ\nhalēna kṣētrakarṣaṇē labdhavān duhitāṁ śubhām |\nsītāṁ nāma mahābhāgāṁ lakṣmīmēva sanātanīṁ\nbhūtalādviniḥsṛtāṁ sākṣādbhavadardhāṅgavallabhām ||",
+          translation: "The righteous King Janaka, lord of Mithila, had obtained while ploughing his field a blessed daughter named Sita — none other than eternal Lakshmi herself, who emerged directly from the earth, Your own beloved consort and other half.",
+          commentary: "This verse introduces Sita's divine origin. The name 'Sita' literally means 'furrow' — she was found in the earth during a ritual ploughing (hala-kshetra-karshane). Bhattathiri immediately reveals her true identity: she is Lakshmi herself (Lakshmi-eva sanatani), the eternal consort of Vishnu. The term 'bhavad-ardhanga-vallabha' (beloved of Your other half) echoes the Ardhanarishvara concept adapted for Vishnu-Lakshmi — they are inseparable aspects of one divine reality. Janaka is called 'dharmatma' — his righteousness made him worthy of raising the divine mother.",
+          words: [
+            { word: "जनकः", transliteration: "janakaḥ", meaning: "King Janaka" },
+            { word: "धर्मात्मा", transliteration: "dharmātmā", meaning: "righteous-souled" },
+            { word: "मिथिलाधिपतिः", transliteration: "mithilādhipatiḥ", meaning: "lord of Mithila" },
+            { word: "हलेन", transliteration: "halēna", meaning: "with a plough" },
+            { word: "क्षेत्रकर्षणे", transliteration: "kṣētrakarṣaṇē", meaning: "while ploughing the field" },
+            { word: "लब्धवान्", transliteration: "labdhavān", meaning: "obtained, found" },
+            { word: "दुहिताम्", transliteration: "duhitām", meaning: "daughter" },
+            { word: "सीताम्", transliteration: "sītām", meaning: "Sita (furrow-born)" },
+            { word: "महाभागाम्", transliteration: "mahābhāgām", meaning: "greatly fortunate, blessed" },
+            { word: "लक्ष्मीम्", transliteration: "lakṣmīm", meaning: "Lakshmi (goddess of prosperity)" },
+            { word: "सनातनीम्", transliteration: "sanātanīm", meaning: "eternal" },
+            { word: "भूतलात्", transliteration: "bhūtalāt", meaning: "from the earth" },
+            { word: "अर्धाङ्गवल्लभाम्", transliteration: "ardhāṅgavallabhām", meaning: "beloved consort, other half" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 3,
+          devanagari: "महेश्वरस्य धनुरासीदतीव दुर्धरं महत्\nन कश्चिदुद्वहेत् तत्तु नृपाणामपि संसदि ।\nतत्पूरयेद्यः सहसा तस्मै दद्यां सुतामिति\nप्रतिज्ञां तां चकाराशु जनकः पार्थिवेश्वरः ॥",
+          transliteration: "mahēśvarasya dhanurāsīdatīva durdharaṁ mahat\nna kaścidudvahēt tattu nṛpāṇāmapi saṁsadi |\ntatpūrayēdyaḥ sahasā tasmai dadyāṁ sutāmiti\npratijñāṁ tāṁ cakārāśu janakaḥ pārthivēśvaraḥ ||",
+          translation: "There was the great bow of Lord Shiva, immensely heavy and impossible to wield. No king in the assembly could even lift it. 'Whoever strings this bow swiftly, to him I shall give my daughter' — such was the vow that King Janaka, lord among kings, proclaimed.",
+          commentary: "Janaka's vow (pratijña) forms the dramatic premise of the swayamvara. The bow of Mahesvara (Shiva) is described as 'ativa durdharam' — exceedingly difficult to bear, and 'mahat' — immense. The emphatic 'na kaschit' (no one at all) among assembled kings establishes the impossibility that only an avatar can overcome. Janaka's condition — 'tat purayat' (whoever strings it) — is a test designed by divine providence to identify Sita's destined husband. The historical context is that this bow was given to Janaka's ancestors by Shiva himself and had been worshipped in the royal family for generations.",
+          words: [
+            { word: "महेश्वरस्य", transliteration: "mahēśvarasya", meaning: "of Lord Shiva" },
+            { word: "धनुः", transliteration: "dhanuḥ", meaning: "bow" },
+            { word: "दुर्धरम्", transliteration: "durdharam", meaning: "impossible to bear, unwieldy" },
+            { word: "महत्", transliteration: "mahat", meaning: "great, immense" },
+            { word: "उद्वहेत्", transliteration: "udvahēt", meaning: "could lift" },
+            { word: "नृपाणाम्", transliteration: "nṛpāṇām", meaning: "of kings" },
+            { word: "संसदि", transliteration: "saṁsadi", meaning: "in the assembly" },
+            { word: "पूरयेत्", transliteration: "pūrayēt", meaning: "would string (the bow)" },
+            { word: "सहसा", transliteration: "sahasā", meaning: "swiftly, at once" },
+            { word: "सुताम्", transliteration: "sutām", meaning: "daughter" },
+            { word: "प्रतिज्ञाम्", transliteration: "pratijñām", meaning: "vow, pledge" },
+            { word: "पार्थिवेश्वरः", transliteration: "pārthivēśvaraḥ", meaning: "lord among kings" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 4,
+          devanagari: "समागता नृपवराः पृथिवीपतिश्रिया\nबभूवुरुत्सुकमना धनुराज्ञया तदा ।\nन चालयामासुरमुं शिवचापमद्भुतं\nव्रीडान्विताः प्रययुरेव हि भूमिपालकाः ॥",
+          transliteration: "samāgatā nṛpavarāḥ pṛthivīpatiśriyā\nbabhūvurutsukamanā dhanurājñayā tadā |\nna cālayāmāsuramum śivacāpamadbhutaṁ\nvrīḍānvitāḥ prayayurēva hi bhūmipālakāḥ ||",
+          translation: "Mighty kings arrived resplendent with royal glory, their minds eager to attempt the bow-challenge. Yet they could not even move that wondrous bow of Shiva. Filled with shame, those rulers of the earth departed in humiliation.",
+          commentary: "The scene of assembled kings failing at the bow provides the dramatic contrast for Rama's effortless success. Bhattathiri uses 'nripa-varah' (best of kings) and 'prithivi-pati-shriya' (with the splendor of earth-lords) to emphasize that these were no ordinary men — they were the mightiest warriors of the age. Yet the bow remained immovable (na chalayamasu). Their departure 'vrida-anvitah' (filled with shame) heightens the anticipation. In Valmiki's Ramayana, even the mighty Ravana was among those who failed, though Bhattathiri does not name specific kings here.",
+          words: [
+            { word: "समागताः", transliteration: "samāgatāḥ", meaning: "assembled, arrived" },
+            { word: "नृपवराः", transliteration: "nṛpavarāḥ", meaning: "excellent kings" },
+            { word: "पृथिवीपतिश्रिया", transliteration: "pṛthivīpatiśriyā", meaning: "with royal splendor" },
+            { word: "उत्सुकमनाः", transliteration: "utsukamanāḥ", meaning: "with eager minds" },
+            { word: "धनुराज्ञया", transliteration: "dhanurājñayā", meaning: "by the bow-challenge command" },
+            { word: "चालयामासुः", transliteration: "cālayāmāsuḥ", meaning: "they tried to move" },
+            { word: "शिवचापम्", transliteration: "śivacāpam", meaning: "Shiva's bow" },
+            { word: "अद्भुतम्", transliteration: "adbhutam", meaning: "wondrous, marvellous" },
+            { word: "व्रीडान्विताः", transliteration: "vrīḍānvitāḥ", meaning: "filled with shame" },
+            { word: "प्रययुः", transliteration: "prayayuḥ", meaning: "departed, went away" },
+            { word: "भूमिपालकाः", transliteration: "bhūmipālakāḥ", meaning: "protectors of the earth (kings)" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 5,
+          devanagari: "ततो भवान् विश्वगुरोर्वचः श्रुत्वा\nसमुत्थितो मन्दहसन् रघूत्तमः ।\nलीलाकरेणैव समुद्बबर्ह तत्\nमहेशचापं मणिकुण्डलोज्ज्वलः ॥",
+          transliteration: "tatō bhavān viśvagurōrvacaḥ śrutvā\nsamutthitō mandahasan raghūttamaḥ |\nlīlākarēṇaiva samudbabarha tat\nmahēśacāpaṁ maṇikuṇḍalōjjvalaḥ ||",
+          translation: "Then You, O best of Raghus, hearing the words of the universal preceptor Vishwamitra, rose with a gentle smile. With Your ear-ornaments gleaming, You lifted that great bow of Shiva as though in mere play, effortlessly.",
+          commentary: "This is the climactic moment of the swayamvara. The contrast with the preceding verse is total: where mighty kings strained and failed, Rama rises 'mandahasan' (gently smiling) and lifts the bow 'lilakarena' (playfully). Vishwamitra's nod — 'vishva-gurorvachah' — signals the preceptor's knowing command to the disguised Supreme Being. The detail 'mani-kundala-ujjvalah' (radiant with jeweled earrings) adds aesthetic beauty — this is no mere feat of brute strength but an act of divine grace. The word 'samudbabarha' (lifted up completely) implies he raised what no one else could budge.",
+          words: [
+            { word: "भवान्", transliteration: "bhavān", meaning: "You (the Lord)" },
+            { word: "विश्वगुरोः", transliteration: "viśvagurōḥ", meaning: "of the universal preceptor (Vishwamitra)" },
+            { word: "वचः", transliteration: "vacaḥ", meaning: "words, command" },
+            { word: "समुत्थितः", transliteration: "samutthitaḥ", meaning: "rose up, stood up" },
+            { word: "मन्दहसन्", transliteration: "mandahasan", meaning: "gently smiling" },
+            { word: "रघूत्तमः", transliteration: "raghūttamaḥ", meaning: "best of the Raghu dynasty" },
+            { word: "लीलाकरेण", transliteration: "līlākarēṇa", meaning: "playfully, as sport" },
+            { word: "समुद्बबर्ह", transliteration: "samudbabarha", meaning: "lifted up" },
+            { word: "महेशचापम्", transliteration: "mahēśacāpam", meaning: "Shiva's bow" },
+            { word: "मणिकुण्डलोज्ज्वलः", transliteration: "maṇikuṇḍalōjjvalaḥ", meaning: "radiant with jeweled earrings" },
+            { word: "एव", transliteration: "ēva", meaning: "indeed, merely" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 6,
+          devanagari: "आरोप्य मौर्वीमथ कर्षतस्तव\nभुजे बले ज्याघोषपूरिताशि ।\nबभञ्ज तच्चापवरं महास्वनैः\nत्रैलोक्यकम्पं विदधत्समन्ततः ॥",
+          transliteration: "ārōpya maurvīmatha karṣatastava\nbhujē balē jyāghōṣapūritāśi |\nbabhañja taccāpavaraṁ mahāsvanaiḥ\ntrailōkyakampaṁ vidadhatsamantataḥ ||",
+          translation: "Stringing the bowstring and drawing it with the mighty strength of Your arm, filling all directions with the twang of the bow, You broke that supreme bow with a thunderous sound that shook the three worlds on all sides.",
+          commentary: "The breaking of the bow (dhanusha-bhanga) is one of the most celebrated moments in the Ramayana. Bhattathiri captures the cosmic scale of the event — the sound 'jya-ghosha' (twang of the bowstring) fills all directions (ashi = disha), and the breaking produces 'maha-svanaih' (great thundering sounds) that cause 'trailokya-kampam' (trembling of the three worlds). This cosmic disturbance signals that this is no ordinary human feat — it is the Supreme Being reasserting His sovereignty. The broken bow of Shiva also symbolically represents Vishnu's supremacy, a theme Bhattathiri handles with theological care.",
+          words: [
+            { word: "आरोप्य", transliteration: "ārōpya", meaning: "having strung, mounted" },
+            { word: "मौर्वीम्", transliteration: "maurvīm", meaning: "the bowstring" },
+            { word: "कर्षतः", transliteration: "karṣataḥ", meaning: "drawing, pulling" },
+            { word: "भुजे", transliteration: "bhujē", meaning: "in the arm" },
+            { word: "बले", transliteration: "balē", meaning: "with strength" },
+            { word: "ज्याघोषपूरिता", transliteration: "jyāghōṣapūritā", meaning: "filled with the twang of the bowstring" },
+            { word: "बभञ्ज", transliteration: "babhañja", meaning: "broke, shattered" },
+            { word: "चापवरम्", transliteration: "cāpavaram", meaning: "the excellent bow" },
+            { word: "महास्वनैः", transliteration: "mahāsvanaiḥ", meaning: "with great thunderous sounds" },
+            { word: "त्रैलोक्यकम्पम्", transliteration: "trailōkyakampam", meaning: "trembling of the three worlds" },
+            { word: "विदधत्", transliteration: "vidadhat", meaning: "causing, producing" },
+            { word: "समन्ततः", transliteration: "samantataḥ", meaning: "on all sides" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 7,
+          devanagari: "सीता ततो राजसुता सलज्जा\nमन्दं समेत्य स्मितपूर्णवक्त्रा ।\nतवोपकण्ठे वनमालिकां शुभां\nसमर्पयामास जयेति घोषणे ॥",
+          transliteration: "sītā tatō rājasutā salajjā\nmandaṁ samētya smitapūrṇavaktrā |\ntavōpakaṇṭhē vanamālikāṁ śubhāṁ\nsamarpayāmāsa jayēti ghōṣaṇē ||",
+          translation: "Then Sita, the king's daughter, bashfully approached with slow steps, her face full of smiles. Amidst cries of 'Victory!', she placed the auspicious garland of forest flowers around Your neck.",
+          commentary: "The garlanding (vanamala-arpana) is the tenderest moment of the narrative. Bhattathiri paints Sita with exquisite sensitivity — 'salajja' (bashful), 'mandam' (slowly, with graceful hesitation), and 'smita-purna-vaktra' (face brimming with smiles). These contradictory emotions — shyness and joy — perfectly capture a bride's state. The 'vanamālika' (forest-flower garland) is significant: in Vaishnava theology, Vishnu is Vanamali — the wearer of the forest garland. Sita placing this garland on Rama symbolizes the eternal reunion of Lakshmi and Narayana, recognized by the assembly's victorious shouts (jaya-iti-ghoshane).",
+          words: [
+            { word: "सीता", transliteration: "sītā", meaning: "Sita" },
+            { word: "राजसुता", transliteration: "rājasutā", meaning: "king's daughter, princess" },
+            { word: "सलज्जा", transliteration: "salajjā", meaning: "bashful, with modesty" },
+            { word: "मन्दम्", transliteration: "mandam", meaning: "slowly, gently" },
+            { word: "समेत्य", transliteration: "samētya", meaning: "having approached" },
+            { word: "स्मितपूर्णवक्त्रा", transliteration: "smitapūrṇavaktrā", meaning: "with a face full of smiles" },
+            { word: "उपकण्ठे", transliteration: "upakaṇṭhē", meaning: "near the neck" },
+            { word: "वनमालिकाम्", transliteration: "vanamālikām", meaning: "garland of forest flowers" },
+            { word: "शुभाम्", transliteration: "śubhām", meaning: "auspicious" },
+            { word: "समर्पयामास", transliteration: "samarpayāmāsa", meaning: "offered, placed" },
+            { word: "जय", transliteration: "jaya", meaning: "victory" },
+            { word: "घोषणे", transliteration: "ghōṣaṇē", meaning: "amidst the proclamation" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 8,
+          devanagari: "जनकस्य मुदां सीमा न बभूवाथ कर्हिचित्\nमिथिलापुरवासिनां जनानां हृदि चोत्सवः ।\nदुन्दुभ्यो दिवि वाद्यन्त पुष्पवृष्टिश्च खेचरैः\nब्रह्मानन्दसमं लेभे जनको भक्तसत्तमः ॥",
+          transliteration: "janakasya mudāṁ sīmā na babhūvātha karhicit\nmithilāpuravāsināṁ janānāṁ hṛdi cōtsavaḥ |\ndundubhyō divi vādyanta puṣpavṛṣṭiśca khēcaraiḥ\nbrahmānandasamaṁ lēbhē janakō bhaktasattamaḥ ||",
+          translation: "There was no limit to Janaka's joy. Festivity filled the hearts of all the people of Mithila. Celestial kettledrums resounded in the heavens, and the sky-dwellers showered flowers. Janaka, that best among devotees, attained bliss equal to Brahmananda.",
+          commentary: "The aftermath of the bow-breaking is a cascading celebration that moves from earth to heaven. Janaka's unbounded joy (muda sima na babhuva) reflects a father's happiness and a devotee's recognition that his daughter will marry the Supreme Lord. The celestial response — dundubhi (divine drums) and pushpa-vrishti (flower showers from the sky-dwellers, khecharaih) — confirms the cosmic significance of this union. Bhattathiri's calling Janaka 'bhakta-sattama' (best of devotees) is doctrinally important: in the Bhagavata tradition, Janaka is a model jnani-bhakta, a liberated soul who performed worldly duties perfectly.",
+          words: [
+            { word: "जनकस्य", transliteration: "janakasya", meaning: "of Janaka" },
+            { word: "मुदाम्", transliteration: "mudām", meaning: "of joy" },
+            { word: "सीमा", transliteration: "sīmā", meaning: "limit, boundary" },
+            { word: "मिथिलापुरवासिनाम्", transliteration: "mithilāpuravāsinām", meaning: "of the residents of Mithila" },
+            { word: "उत्सवः", transliteration: "utsavaḥ", meaning: "festival, celebration" },
+            { word: "दुन्दुभ्यः", transliteration: "dundubhyaḥ", meaning: "kettledrums" },
+            { word: "दिवि", transliteration: "divi", meaning: "in the heavens" },
+            { word: "वाद्यन्त", transliteration: "vādyanta", meaning: "were sounded" },
+            { word: "पुष्पवृष्टिः", transliteration: "puṣpavṛṣṭiḥ", meaning: "shower of flowers" },
+            { word: "खेचरैः", transliteration: "khēcaraiḥ", meaning: "by sky-dwellers (celestials)" },
+            { word: "ब्रह्मानन्दसमम्", transliteration: "brahmānandasamam", meaning: "equal to the bliss of Brahman" },
+            { word: "भक्तसत्तमः", transliteration: "bhaktasattamaḥ", meaning: "the best among devotees" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 9,
+          devanagari: "अथ भार्गवरामः स क्रोधरक्तेक्षणो भृशम्\nआगत्य तत्र गर्जन्वै चिक्षेप वैष्णवं धनुः ।\nगृहाण राम चापं त्वं पूरयस्वेति चाब्रवीत्\nभवानादाय तच्चापं सज्यं कृत्वा व्यदामयत् ॥",
+          transliteration: "atha bhārgavarāmaḥ sa krōdharaktēkṣaṇō bhṛśam\nāgatya tatra garjanvai cikṣēpa vaiṣṇavaṁ dhanuḥ |\ngṛhāṇa rāma cāpaṁ tvaṁ pūrayasvēti cābravīt\nbhavānādāya taccāpaṁ sajyaṁ kṛtvā vyadāmayat ||",
+          translation: "Then Parashurama, the descendant of Bhrigu, arrived with eyes red with fury, roaring terribly, and hurled forth the Vaishnava bow. 'Take this bow, O Rama, and string it!' he challenged. You took that bow, strung it, and drew it effortlessly.",
+          commentary: "The dramatic confrontation between the two Ramas — Parashurama (Bhargava-Rama) and Dasharathi Rama — is a pivotal theological moment. Parashurama, himself an avatara of Vishnu, arrives enraged that Shiva's bow has been broken. His 'krodha-rakta-ikshana' (eyes red with anger) and 'garjan' (roaring) present a terrifying figure. He throws down the Vaishnava bow (Vishnu's own bow, far mightier than Shiva's) as a challenge. But Rama takes it (adaya), strings it (sajyam kritva), and draws it (vyadamayat) with the same ease he showed with Shiva's bow. This scene reveals Rama's identity as the full Purna-avatara — even another avatara's power pales before Him.",
+          words: [
+            { word: "भार्गवरामः", transliteration: "bhārgavarāmaḥ", meaning: "Parashurama (Rama of the Bhrigu clan)" },
+            { word: "क्रोधरक्तेक्षणः", transliteration: "krōdharaktēkṣaṇaḥ", meaning: "with eyes red with anger" },
+            { word: "भृशम्", transliteration: "bhṛśam", meaning: "exceedingly, intensely" },
+            { word: "गर्जन्", transliteration: "garjan", meaning: "roaring, thundering" },
+            { word: "चिक्षेप", transliteration: "cikṣēpa", meaning: "hurled, threw" },
+            { word: "वैष्णवम्", transliteration: "vaiṣṇavam", meaning: "of Vishnu" },
+            { word: "धनुः", transliteration: "dhanuḥ", meaning: "bow" },
+            { word: "गृहाण", transliteration: "gṛhāṇa", meaning: "take, receive" },
+            { word: "पूरय", transliteration: "pūraya", meaning: "string (the bow)" },
+            { word: "आदाय", transliteration: "ādāya", meaning: "having taken" },
+            { word: "सज्यम्", transliteration: "sajyam", meaning: "strung (with bowstring)" },
+            { word: "व्यदामयत्", transliteration: "vyadāmayat", meaning: "drew, bent (the bow)" }
+          ]
+        },
+        {
+          dashaka: 29,
+          sloka: 10,
+          devanagari: "विनम्रो भार्गवस्तत्र ज्ञात्वा त्वां पुरुषोत्तमम्\nययौ तपसे धीमान् त्यक्तमानो महातपाः ।\nततो विवाहं सुमहत्कृत्वायोध्यां गतो भवान्\nसीतया सह धर्मात्मन् पाहि मां गुरुवायुपुरपते ॥",
+          transliteration: "vinamrō bhārgavastatra jñātvā tvāṁ puruṣōttamam\nyayau tapasē dhīmān tyaktamānō mahātapāḥ |\ntatō vivāhaṁ sumahatkṛtvāyōdhyāṁ gatō bhavān\nsītayā saha dharmātman pāhi māṁ guruvāyupurapate ||",
+          translation: "Parashurama, humbled, recognizing You as the Supreme Person, went away wisely for penance, his pride abandoned, that great ascetic. Thereafter, having celebrated the grand wedding, You returned to Ayodhya with Sita. O righteous-souled Lord of Guruvayur, protect me!",
+          commentary: "The concluding verse brings together the Parashurama episode's resolution and the traditional closing prayer. Parashurama's recognition of Rama as 'Purushottama' (the Supreme Person) is his moment of spiritual awakening — the partial avatara recognizes the complete avatara. His departure 'tyakta-manah' (having abandoned pride) shows that even divine incarnations must ultimately surrender to the Purna-Brahman. The dashaka closes with the joyous return to Ayodhya, completing the Mithila narrative arc. The closing 'pahi mam guruvayupurapate' (protect me, O Lord of Guruvayur) follows Bhattathiri's characteristic pattern — every dashaka ends as a prayer from the ailing poet to his healing deity at Guruvayur.",
+          words: [
+            { word: "विनम्रः", transliteration: "vinamraḥ", meaning: "humbled, bowed" },
+            { word: "भार्गवः", transliteration: "bhārgavaḥ", meaning: "Parashurama (descendant of Bhrigu)" },
+            { word: "पुरुषोत्तमम्", transliteration: "puruṣōttamam", meaning: "the Supreme Person" },
+            { word: "तपसे", transliteration: "tapasē", meaning: "for penance" },
+            { word: "धीमान्", transliteration: "dhīmān", meaning: "the wise one" },
+            { word: "त्यक्तमानः", transliteration: "tyaktamānaḥ", meaning: "having abandoned pride" },
+            { word: "महातपाः", transliteration: "mahātapāḥ", meaning: "great ascetic" },
+            { word: "विवाहम्", transliteration: "vivāham", meaning: "wedding, marriage" },
+            { word: "अयोध्याम्", transliteration: "ayōdhyām", meaning: "to Ayodhya" },
+            { word: "सीतया", transliteration: "sītayā", meaning: "with Sita" },
+            { word: "धर्मात्मन्", transliteration: "dharmātman", meaning: "O righteous-souled one" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect" },
+            { word: "गुरुवायुपुरपते", transliteration: "guruvāyupurapate", meaning: "O Lord of Guruvayur" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 30,
