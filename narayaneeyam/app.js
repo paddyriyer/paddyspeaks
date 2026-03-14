@@ -187,14 +187,32 @@
     return html;
   }
 
+  // --- Current theme filter ---
+  var currentThemeFilter = 'all';
+
   // --- Render Dashaka Grid (10x10 map) ---
   function renderDashakaGrid() {
     var container = document.getElementById('dashaka-grid');
     if (!container) return;
 
     var visited = getVisited();
-    var html = '<div class="dashaka-grid-inner">';
+    var html = '';
 
+    // Theme filter buttons
+    html += '<div class="theme-filter">';
+    html += '<button class="theme-filter-btn' + (currentThemeFilter === 'all' ? ' active' : '') + '" data-theme="all">All</button>';
+    Object.keys(THEME_COLORS).forEach(function (theme) {
+      html += '<button class="theme-filter-btn' + (currentThemeFilter === theme ? ' active' : '') + '" data-theme="' + theme + '">';
+      html += THEME_ICONS[theme] + ' ' + theme.charAt(0).toUpperCase() + theme.slice(1);
+      html += '</button>';
+    });
+    html += '</div>';
+
+    // Grid
+    html += '<div class="dashaka-grid-inner">';
+
+    // Count data-available dashakas
+    var dataCount = 0;
     for (var i = 1; i <= 100; i++) {
       var d = getDashaka(i);
       var theme = d ? d.theme : 'philosophy';
@@ -204,9 +222,12 @@
       var verseCount = d ? d.verseCount : 0;
       var isVisited = visited[i] ? true : false;
       var hasData = d && d.slokas && d.slokas.length > 0;
+      var filteredOut = currentThemeFilter !== 'all' && theme !== currentThemeFilter;
 
-      html += '<div class="dashaka-card' + (isVisited ? ' visited' : '') + (hasData ? ' has-data' : '') + '"';
-      html += ' data-dashaka="' + i + '"';
+      if (hasData) dataCount++;
+
+      html += '<div class="dashaka-card' + (isVisited ? ' visited' : '') + (hasData ? ' has-data' : '') + (filteredOut ? ' filtered-out' : '') + '"';
+      html += ' data-dashaka="' + i + '" data-theme="' + theme + '"';
       html += ' style="border-top: 3px solid ' + color + '"';
       html += '>';
       html += '<div class="dashaka-card-number" style="color: ' + color + '">' + i + '</div>';
@@ -234,16 +255,24 @@
     // Reading stats
     var visitedCount = getVisitedCount();
     html += '<div class="reading-stats">';
-    html += '<span>' + visitedCount + ' of 100 dashakas explored</span>';
+    html += '<span>' + visitedCount + ' of 100 dashakas explored &middot; ' + dataCount + ' dashakas with full verse data</span>';
     html += '</div>';
 
     container.innerHTML = html;
 
-    // Bind click events
+    // Bind click events on cards
     container.querySelectorAll('.dashaka-card').forEach(function (card) {
       card.addEventListener('click', function () {
         var num = parseInt(card.getAttribute('data-dashaka'), 10);
         loadDashaka(num);
+      });
+    });
+
+    // Bind theme filter buttons
+    container.querySelectorAll('.theme-filter-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        currentThemeFilter = btn.getAttribute('data-theme');
+        renderDashakaGrid();
       });
     });
   }
@@ -273,6 +302,15 @@
     // Navigation controls
     html += '<div class="dashaka-nav-controls">';
     html += '<button class="nav-control-btn back-btn" data-action="back-to-grid">&larr; Dashaka Map</button>';
+    html += '<div class="dashaka-quick-jump">';
+    html += '<select data-action="jump-dashaka">';
+    for (var j = 1; j <= 100; j++) {
+      var jd = getDashaka(j);
+      var jTitle = jd ? jd.titleEnglish : 'Dashaka ' + j;
+      html += '<option value="' + j + '"' + (j === num ? ' selected' : '') + '>' + j + '. ' + escapeHtml(jTitle) + '</option>';
+    }
+    html += '</select>';
+    html += '</div>';
     html += '<div class="dashaka-nav-arrows">';
     if (num > 1) {
       html += '<button class="nav-control-btn prev-btn" data-action="prev-dashaka">&larr; Prev</button>';
@@ -318,6 +356,24 @@
       html += '</div>';
     }
 
+    // Bottom navigation
+    html += '<div class="dashaka-bottom-nav">';
+    if (num > 1) {
+      var prevD = getDashaka(num - 1);
+      var prevTitle = prevD ? prevD.titleEnglish : 'Dashaka ' + (num - 1);
+      html += '<button class="bottom-nav-btn" data-action="prev-dashaka">&larr; ' + (num - 1) + '. ' + escapeHtml(prevTitle) + '</button>';
+    } else {
+      html += '<span></span>';
+    }
+    if (num < 100) {
+      var nextD = getDashaka(num + 1);
+      var nextTitle = nextD ? nextD.titleEnglish : 'Dashaka ' + (num + 1);
+      html += '<button class="bottom-nav-btn primary" data-action="next-dashaka">' + (num + 1) + '. ' + escapeHtml(nextTitle) + ' &rarr;</button>';
+    } else {
+      html += '<span></span>';
+    }
+    html += '</div>';
+
     container.innerHTML = html;
 
     // Expand first 2 slokas by default
@@ -348,17 +404,25 @@
       });
     }
 
-    var prevBtn = container.querySelector('[data-action="prev-dashaka"]');
-    if (prevBtn) {
-      prevBtn.addEventListener('click', function () {
+    // Bind ALL prev/next buttons (top and bottom)
+    container.querySelectorAll('[data-action="prev-dashaka"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
         if (currentDashaka > 1) loadDashaka(currentDashaka - 1);
       });
-    }
+    });
 
-    var nextBtn = container.querySelector('[data-action="next-dashaka"]');
-    if (nextBtn) {
-      nextBtn.addEventListener('click', function () {
+    container.querySelectorAll('[data-action="next-dashaka"]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
         if (currentDashaka < 100) loadDashaka(currentDashaka + 1);
+      });
+    });
+
+    // Quick-jump dropdown
+    var jumpSelect = container.querySelector('[data-action="jump-dashaka"]');
+    if (jumpSelect) {
+      jumpSelect.addEventListener('change', function () {
+        var num = parseInt(jumpSelect.value, 10);
+        if (num >= 1 && num <= 100) loadDashaka(num);
       });
     }
   }

@@ -3485,7 +3485,209 @@ var NARAYANEEYAM_DATA = {
       theme: "creation",
       verseCount: 10,
       summary: "Provides a detailed cosmographic description of Jambudvipa, the central continent in Puranic geography, including its nine varshas, mountains, rivers, and the glory of Bharatavarsha.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 16,
+          sloka: 1,
+          devanagari: "भूगोलकस्य परितः क्षीरसिन्धुमध्ये\nजम्बूद्वीपमिति लक्षयोजनायतं तत् ।\nनवखण्डसंयुतमुदारगिरिप्रभेदं\nवर्णय्य तत्र भवतो महिमानमीडे ॥",
+          transliteration: "bhūgōlakasya paritaḥ kṣīrasindhumadhyē\njambūdvīpamiti lakṣayōjanāyataṁ tat |\nnavakhaṇḍasaṁyutamudāragiriprabēdhaṁ\nvarṇayya tatra bhavatō mahimānamīḍē ||",
+          translation: "In the midst of the cosmic ocean surrounding the terrestrial globe lies Jambudvipa, extending a hundred thousand yojanas. Comprising nine divisions and distinguished by magnificent mountain ranges — describing this, I celebrate Your glory therein.",
+          commentary: "Bhattathiri opens the dashaka by establishing the cosmic setting from Bhagavatam Canto 5, Chapter 16. Jambudvipa is the central continent of Puranic cosmography, surrounded by the salt ocean. The 'laksha-yojana' (hundred thousand yojanas) measurement follows the Bhagavatam's precise specifications. The nine divisions (nava-khanda) refer to the nine varshas or regions into which Jambudvipa is divided. By stating 'bhavatah mahimanam ide' (I celebrate Your glory), Bhattathiri reminds us that even cosmographic description serves devotion — geography itself manifests the Lord's grandeur.",
+          words: [
+            { word: "भूगोलकस्य", transliteration: "bhūgōlakasya", meaning: "of the terrestrial globe" },
+            { word: "क्षीरसिन्धुमध्ये", transliteration: "kṣīrasindhumadhyē", meaning: "in the midst of the ocean" },
+            { word: "जम्बूद्वीपम्", transliteration: "jambūdvīpam", meaning: "Jambudvipa (the continent of the Jambu tree)" },
+            { word: "लक्षयोजनायतम्", transliteration: "lakṣayōjanāyatam", meaning: "extending a hundred thousand yojanas" },
+            { word: "नवखण्डसंयुतम्", transliteration: "navakhaṇḍasaṁyutam", meaning: "comprising nine divisions" },
+            { word: "उदारगिरिप्रभेदम्", transliteration: "udāragiriprabēdam", meaning: "distinguished by magnificent mountains" },
+            { word: "वर्णय्य", transliteration: "varṇayya", meaning: "describing" },
+            { word: "महिमानम्", transliteration: "mahimānam", meaning: "glory, greatness" },
+            { word: "ईडे", transliteration: "īḍē", meaning: "I celebrate, praise" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 2,
+          devanagari: "मध्ये समस्तभुवनस्य सुमेरुरुच्चै-\nरष्टाशितिर्वियदमुष्य सहस्रयोजनम् ।\nहेमाद्रिराजति चतुर्विधवर्णभेदै-\nराभाति दिक्षु सुमहान् कमलाकृतिस्थः ॥",
+          transliteration: "madhyē samastabhuvanasya sumēruruccai-\nraṣṭāśitirviyadamuṣya sahasrayōjanam |\nhēmādrirājati caturvidhavarṇabhēdai-\nrābhāti dikṣu sumahān kamalākṛtisthaḥ ||",
+          translation: "At the center of all the worlds, Mount Meru rises eighty-four thousand yojanas high. This golden mountain king shines with four distinct colors on its four sides, standing vast like a lotus in bloom.",
+          commentary: "Mount Meru, the cosmic axis mundi, is described per Bhagavatam 5.16.7. Its height of 84,000 yojanas and golden nature (hema-adri) make it the supreme mountain. The 'chatur-vidha-varna-bhedaih' refers to the four colors on Meru's four faces — white (east), yellow (south), black (west), and red (north) — each corresponding to different minerals. The lotus simile (kamala-akriti-sthah) is significant: just as the lotus is the seat of creation in Vedic imagery, Meru is the structural center from which the cosmic geography unfolds. Meru is also understood as the Lord's navel, reinforcing the connection between cosmography and divine form.",
+          words: [
+            { word: "मध्ये", transliteration: "madhyē", meaning: "at the center" },
+            { word: "समस्तभुवनस्य", transliteration: "samastabhuvanasya", meaning: "of all the worlds" },
+            { word: "सुमेरुः", transliteration: "sumēruḥ", meaning: "Mount Meru" },
+            { word: "अष्टाशितिः", transliteration: "aṣṭāśitiḥ", meaning: "eighty-four (thousand)" },
+            { word: "सहस्रयोजनम्", transliteration: "sahasrayōjanam", meaning: "thousand yojanas" },
+            { word: "हेमाद्रिः", transliteration: "hēmādriḥ", meaning: "the golden mountain" },
+            { word: "राजति", transliteration: "rājati", meaning: "shines, reigns" },
+            { word: "चतुर्विधवर्णभेदैः", transliteration: "caturvidhavarṇabhēdaiḥ", meaning: "with four distinct colors" },
+            { word: "दिक्षु", transliteration: "dikṣu", meaning: "in the directions" },
+            { word: "कमलाकृतिस्थः", transliteration: "kamalākṛtisthaḥ", meaning: "standing in the form of a lotus" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 3,
+          devanagari: "मन्दरमेरुमन्दरसुपार्श्वकुमुद्वताख्याः\nमेरोश्चतुर्दिशि गिरिप्रवराः स्थितास्ते ।\nकादम्बनन्दनसरोजवटाः क्रमेण\nतेषां शिरस्सु विलसन्ति महाद्रुमौघाः ॥",
+          transliteration: "mandaramērumandarasupārśvakumudvatākhyāḥ\nmērōścaturdishi giripravarāḥ sthitāstē |\nkādambanandanasarōjavaṭāḥ kramēṇa\ntēṣāṁ śirasssu vilasanti mahādrumaughāḥ ||",
+          translation: "Mandara, Merumandara, Suparsva, and Kumudvan — these foremost mountains stand in the four directions of Meru. Upon their summits flourish in order the great trees: Kadamba, Nandana, Saroja (lotus), and Vata (banyan).",
+          commentary: "This verse catalogs the four buttress mountains of Meru as described in Bhagavatam 5.16.12-13. Each mountain supports one of the four cardinal directions around Meru and bears a distinctive celestial tree. The Kadamba tree on Mandara is famed for producing a river of honey; the Nandana garden on Merumandara belongs to Indra; the cosmic lotus on Suparsva represents Brahma's creative power; and the Vata (banyan) on Kumudvan recalls the Lord resting as Vatapatra-shayin (the child on the banyan leaf). Thus even the geography encodes theological symbolism.",
+          words: [
+            { word: "मन्दर", transliteration: "mandara", meaning: "Mount Mandara" },
+            { word: "मेरुमन्दर", transliteration: "mērumandara", meaning: "Mount Merumandara" },
+            { word: "सुपार्श्व", transliteration: "supārśva", meaning: "Mount Suparsva" },
+            { word: "कुमुद्वत", transliteration: "kumudvat", meaning: "Mount Kumudvan" },
+            { word: "चतुर्दिशि", transliteration: "caturdishi", meaning: "in the four directions" },
+            { word: "गिरिप्रवराः", transliteration: "giripravarāḥ", meaning: "foremost mountains" },
+            { word: "कादम्ब", transliteration: "kādamba", meaning: "Kadamba tree" },
+            { word: "नन्दन", transliteration: "nandana", meaning: "Nandana tree (or garden)" },
+            { word: "सरोज", transliteration: "sarōja", meaning: "lotus tree" },
+            { word: "वटाः", transliteration: "vaṭāḥ", meaning: "banyan trees" },
+            { word: "महाद्रुमौघाः", transliteration: "mahādrumaughāḥ", meaning: "hosts of great trees" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 4,
+          devanagari: "नीलश्वेतशृङ्गवदनिषधमाल्यवन्तो\nगन्धमादनपरिवृतनीलनिषादपूर्वाः ।\nमेरोरुभयतः स्थिताः परिकल्प्य वर्षान्\nनवधा विभज्य विदधुर्भुवनस्य शोभाम् ॥",
+          transliteration: "nīlaśvētaśṛṅgavanniṣadhamālyavantō\ngandhamādanapariṿrtanīlaniṣādapūrvāḥ |\nmērōrubhayataḥ sthitāḥ parikalpya varṣān\nnavadhā vibhajya vidadhurbhuvanasya śōbhām ||",
+          translation: "Nila, Shveta, Shringavan, Nishadha, Malyavan, Gandhamadana and others — these mountains situated on both sides of Meru divide the land into nine varshas, creating the beauty of the world.",
+          commentary: "The verse enumerates the major mountain ranges that partition Jambudvipa into nine varshas (regions), following Bhagavatam 5.16.8-9. The mountains run east to west on either side of Meru like the threads of a lotus (padma-kosa). Nila, Shveta, and Shringavan lie to the north; Nishadha, Malyavan (Hemakuta), and Gandhamadana to the south. These six ranges, together with the lateral boundaries, create the nine varshas. The phrase 'bhuvanasya shobham' (beauty of the world) suggests that the Lord arranged the cosmic geography aesthetically — creation is not merely functional but beautiful.",
+          words: [
+            { word: "नीलश्वेतशृङ्गवत्", transliteration: "nīlaśvētaśṛṅgavat", meaning: "Nila, Shveta, and Shringavan mountains" },
+            { word: "निषध", transliteration: "niṣadha", meaning: "Mount Nishadha" },
+            { word: "माल्यवन्तः", transliteration: "mālyavantaḥ", meaning: "Malyavan mountain" },
+            { word: "गन्धमादन", transliteration: "gandhamādana", meaning: "Mount Gandhamadana" },
+            { word: "उभयतः", transliteration: "ubhayataḥ", meaning: "on both sides" },
+            { word: "वर्षान्", transliteration: "varṣān", meaning: "varshas (regions)" },
+            { word: "नवधा", transliteration: "navadhā", meaning: "ninefold" },
+            { word: "विभज्य", transliteration: "vibhajya", meaning: "having divided" },
+            { word: "शोभाम्", transliteration: "śōbhām", meaning: "beauty, splendor" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 5,
+          devanagari: "इलावृतं हि नवमध्यगतं च वर्षं\nमेरोस्समन्ततउपास्ति सुखावहं तत् ।\nभद्राश्वकेतुमलयात्तथ कुर्वतोऽन्ये\nकिम्पूरुषं हरिवरं रमणं च वर्षम् ॥",
+          transliteration: "ilāvṛtaṁ hi navamadhyagataṁ ca varṣaṁ\nmērōssamantatauupāsti sukhāvahaṁ tat |\nbhadrāśvakētumalayāttathā kurvatō'nyē\nkimpūruṣaṁ harivaraṁ ramaṇaṁ ca varṣam ||",
+          translation: "Ilavrita-varsha lies at the center of the nine regions, surrounding Meru on all sides, bestowing bliss. Bhadrasva, Ketumala, and beyond them are Kimpurusha, Harivarsha, Ramyaka, and other varshas.",
+          commentary: "This verse catalogs the nine varshas of Jambudvipa as per Bhagavatam 5.16.9. Ilavrita-varsha, surrounding Meru, is the central region where Lord Shiva alone resides, engaged in worship of Sankarshana. The other eight varshas radiate outward: Bhadrasva (east), Ketumala (west), and the northern and southern chains. Each varsha has its own presiding deity, its own form of the Lord worshipped, and its own distinctive character. The word 'sukhavaham' (bestowing bliss) applied to Ilavrita indicates its paradisiacal nature, where inhabitants live without suffering.",
+          words: [
+            { word: "इलावृतम्", transliteration: "ilāvṛtam", meaning: "Ilavrita-varsha" },
+            { word: "नवमध्यगतम्", transliteration: "navamadhyagatam", meaning: "situated at the center of the nine" },
+            { word: "वर्षम्", transliteration: "varṣam", meaning: "varsha (region)" },
+            { word: "समन्ततः", transliteration: "samantatḥ", meaning: "on all sides" },
+            { word: "उपास्ति", transliteration: "upāsti", meaning: "is situated near, surrounds" },
+            { word: "सुखावहम्", transliteration: "sukhāvaham", meaning: "bestowing happiness, blissful" },
+            { word: "भद्राश्व", transliteration: "bhadrāśva", meaning: "Bhadrasva-varsha" },
+            { word: "केतुमल", transliteration: "kētumala", meaning: "Ketumala-varsha" },
+            { word: "किम्पूरुषम्", transliteration: "kimpūruṣam", meaning: "Kimpurusha-varsha" },
+            { word: "हरिवरम्", transliteration: "harivaram", meaning: "Harivarsha" },
+            { word: "रमणम्", transliteration: "ramaṇam", meaning: "Ramyaka-varsha" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 6,
+          devanagari: "इलावृते भगवतो नवयोगनाथा-\nस्त्वां सङ्कर्षणतनुं परिचिन्तयन्ति ।\nभद्राश्वके हयशिरस्तव रूपमाद्यं\nसम्पूजयन्त्यनुदिनं मुनयो भजन्ते ॥",
+          transliteration: "ilāvṛtē bhagavatō navayōganāthā-\nstvāṁ saṅkarṣaṇatanuṁ paricintayanti |\nbhadrāśvakē hayaśirastva rūpamādyaṁ\nsampūjayantyanudinaṁ munayō bhajantē ||",
+          translation: "In Ilavrita, the nine Yoganaths meditate upon You as Sankarshana. In Bhadrasva-varsha, sages daily worship and serve You in the primeval form of Hayagriva (the horse-headed Lord).",
+          commentary: "This verse begins detailing the forms of the Lord worshipped in each varsha, following Bhagavatam 5.17-18. In Ilavrita, Lord Shiva along with the nine great Yogendras (nava-yoga-nathah) meditates on Sankarshana — the first expansion of the Lord associated with destruction and transcendence. In Bhadrasva-varsha (to the east), the presiding deity Bhadrasravas leads worship of Hayagriva, the horse-headed incarnation who rescued the Vedas. The term 'adyam rupam' (primeval form) for Hayagriva signals that wisdom-recovery is among the Lord's most ancient functions. Each varsha thus becomes a shrine to a specific divine function.",
+          words: [
+            { word: "इलावृते", transliteration: "ilāvṛtē", meaning: "in Ilavrita-varsha" },
+            { word: "नवयोगनाथाः", transliteration: "navayōganāthāḥ", meaning: "the nine lords of yoga" },
+            { word: "सङ्कर्षणतनुम्", transliteration: "saṅkarṣaṇatanum", meaning: "the form of Sankarshana" },
+            { word: "परिचिन्तयन्ति", transliteration: "paricintayanti", meaning: "meditate upon" },
+            { word: "भद्राश्वके", transliteration: "bhadrāśvakē", meaning: "in Bhadrasva-varsha" },
+            { word: "हयशिरः", transliteration: "hayaśiraḥ", meaning: "horse-headed (Hayagriva)" },
+            { word: "रूपम् आद्यम्", transliteration: "rūpam ādyam", meaning: "the primeval form" },
+            { word: "सम्पूजयन्ति", transliteration: "sampūjayanti", meaning: "worship" },
+            { word: "अनुदिनम्", transliteration: "anudinam", meaning: "daily" },
+            { word: "भजन्ते", transliteration: "bhajantē", meaning: "they serve, worship" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 7,
+          devanagari: "केतौमले लकुलिशं प्रियया च लक्ष्म्या\nसंसेव्यमानचरणं प्रणमन्ति लोकाः ।\nकिम्पूरुषे हनुमता सह सर्वभक्ताः\nत्वां रामरूपिणमजस्रमुपासते हि ॥",
+          transliteration: "kētaumalē lakuliśaṁ priyayā ca lakṣmyā\nsaṁsēvyamānacaraṇaṁ praṇamanti lōkāḥ |\nkimpūruṣē hanumatā saha sarvabhaktāḥ\ntvāṁ rāmarūpiṇamajasramupāsatē hi ||",
+          translation: "In Ketumala-varsha, the people bow to You as Kamadeva (the enchanter), whose feet are served by beloved Lakshmi. In Kimpurusha-varsha, all the devotees along with Hanuman perpetually worship You in the form of Lord Rama.",
+          commentary: "Ketumala-varsha (western region) worships the Lord in His most enchanting form with Lakshmi — representing the divine as the source of all desire and fulfillment. The mention of Lakshmi serving His feet (samsevyamana-charanam) emphasizes the supreme nature of this form even above Sri herself. Kimpurusha-varsha presents one of the most beloved images: Hanuman leading eternal worship of Lord Rama. The word 'ajasram' (perpetually, without cessation) conveys the timeless nature of Hanuman's devotion — in Kimpurusha, Rama-bhakti is the eternal reality, not a historical event.",
+          words: [
+            { word: "केतौमले", transliteration: "kētaumalē", meaning: "in Ketumala-varsha" },
+            { word: "लकुलिशम्", transliteration: "lakuliśam", meaning: "the enchanting form (Kamadeva form)" },
+            { word: "लक्ष्म्या", transliteration: "lakṣmyā", meaning: "by Lakshmi" },
+            { word: "संसेव्यमानचरणम्", transliteration: "saṁsēvyamānacaraṇam", meaning: "whose feet are served" },
+            { word: "प्रणमन्ति", transliteration: "praṇamanti", meaning: "they bow to" },
+            { word: "किम्पूरुषे", transliteration: "kimpūruṣē", meaning: "in Kimpurusha-varsha" },
+            { word: "हनुमता", transliteration: "hanumatā", meaning: "with Hanuman" },
+            { word: "रामरूपिणम्", transliteration: "rāmarūpiṇam", meaning: "in the form of Rama" },
+            { word: "अजस्रम्", transliteration: "ajasram", meaning: "perpetually, ceaselessly" },
+            { word: "उपासते", transliteration: "upāsatē", meaning: "they worship" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 8,
+          devanagari: "हर्यश्वके नृहरिरूपधरं प्रह्लादो\nरम्ये च मत्स्यवपुषं मनुरादिराजः ।\nकुर्वन्ति हीरणमये कमठं मुनीन्द्रा-\nस्त्वामुत्तरे तु कुरवः पुरुषं नमन्ति ॥",
+          transliteration: "haryaśvakē nṛharirūpadharaṁ prahlādō\nramyē ca matsyavapuṣaṁ manurādirājaḥ |\nkurvanti hīraṇamayē kamaṭhaṁ munīndrā-\nstvāmuttarē tu kuravaḥ puruṣaṁ namanti ||",
+          translation: "In Harivarsha, Prahlada worships You bearing the Narasimha form. In Ramyaka, Manu the first king worships You as Matsya (the Fish). In Hiranmaya, great sages worship You as Kurma (the Tortoise). And in Uttarakuru, the Kurus bow to You as the Supreme Purusha.",
+          commentary: "This verse completes the survey of divine forms across the remaining varshas. The pairing is theologically precise: Prahlada, who was saved by Narasimha, eternally worships that form in Harivarsha. Manu, saved from the deluge by Matsya, worships the Fish incarnation in Ramyaka. The Kurma (Tortoise) who supported Mount Mandara during the churning is worshipped in Hiranmaya. Uttarakuru, the northernmost varsha, worships the undifferentiated Supreme Purusha — Narayana Himself. Thus the varshas form a complete mandala of avatara-worship, each region eternally reliving the salvation it received.",
+          words: [
+            { word: "हर्यश्वके", transliteration: "haryaśvakē", meaning: "in Harivarsha" },
+            { word: "नृहरिरूपधरम्", transliteration: "nṛharirūpadharam", meaning: "bearing the Narasimha form" },
+            { word: "प्रह्लादः", transliteration: "prahlādaḥ", meaning: "Prahlada" },
+            { word: "मत्स्यवपुषम्", transliteration: "matsyavapuṣam", meaning: "in the form of Matsya (Fish)" },
+            { word: "मनुः", transliteration: "manuḥ", meaning: "Manu" },
+            { word: "आदिराजः", transliteration: "ādirājaḥ", meaning: "the first king" },
+            { word: "हीरणमये", transliteration: "hīraṇamayē", meaning: "in Hiranmaya-varsha" },
+            { word: "कमठम्", transliteration: "kamaṭham", meaning: "Kurma (Tortoise)" },
+            { word: "मुनीन्द्राः", transliteration: "munīndrāḥ", meaning: "great sages" },
+            { word: "उत्तरे कुरवः", transliteration: "uttarē kuravaḥ", meaning: "the Kurus in the north" },
+            { word: "पुरुषम्", transliteration: "puruṣam", meaning: "the Supreme Purusha" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 9,
+          devanagari: "तेषामशेषवरवर्षगतो जनानां\nभोगैर्न चापि विरतिर्न च भक्तिरुच्चैः ।\nभारे तु भारतजनस्य महत्तरैव\nमुक्तिः कर्मभूमिसुलभा तव पादसेवा ॥",
+          transliteration: "tēṣāmaśēṣavaravarṣagatō janānāṁ\nbhōgairna cāpi viratirna ca bhaktiruuccaiḥ |\nbhārē tu bhāratajansya mahattaraiva\nmuktiḥ karmabhūmisulabhā tava pādasēvā ||",
+          translation: "The people dwelling in all those excellent varshas neither develop detachment through their enjoyments nor attain supreme devotion. But in Bharata-varsha, liberation and service to Your feet are readily attainable — for it is the land of karma.",
+          commentary: "This is the theological heart of the dashaka, echoing Bhagavatam 5.19.21-23. The other eight varshas are paradises where inhabitants enjoy divine pleasures for vast durations — but precisely because of this, they develop neither dispassion (virati) nor intense devotion (bhakti). Bharata-varsha, by contrast, is the karma-bhumi (land of action) where the mixture of pleasure and pain generates both detachment and spiritual aspiration. The phrase 'karma-bhumi-sulabha' (easily attainable in the land of karma) is profound: liberation is 'easy' here not because life is comfortable, but because suffering drives the soul toward God. Even the devas covet birth in Bharata.",
+          words: [
+            { word: "अशेषवरवर्षगतः", transliteration: "aśēṣavaravarṣagatḥ", meaning: "dwelling in all the excellent varshas" },
+            { word: "भोगैः", transliteration: "bhōgaiḥ", meaning: "through enjoyments" },
+            { word: "विरतिः", transliteration: "viratiḥ", meaning: "detachment, dispassion" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "भारे", transliteration: "bhārē", meaning: "in Bharata" },
+            { word: "भारतजनस्य", transliteration: "bhāratajansya", meaning: "of the people of Bharata" },
+            { word: "महत्तरा", transliteration: "mahattarā", meaning: "far greater" },
+            { word: "मुक्तिः", transliteration: "muktiḥ", meaning: "liberation" },
+            { word: "कर्मभूमिसुलभा", transliteration: "karmabhūmisulabhā", meaning: "easily attainable in the land of karma" },
+            { word: "पादसेवा", transliteration: "pādasēvā", meaning: "service to Your feet" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 10,
+          devanagari: "तत्र त्वदीयचरणस्मरणानुरक्ता\nये कर्मपाकनियतं लभन्ते विमुक्तिम् ।\nतं भारतं प्रति सुरा अपि जन्म वाञ्छ-\nन्त्याधिव्यधिप्रशमनं कुरु मे मुकुन्द ॥",
+          transliteration: "tatra tvadīyacaraṇasmaraṇānuraktā\nyē karmapākaniyataṁ labhantē vimuktim |\ntaṁ bhārataṁ prati surā api janma vāñcha-\nntyādhivyadhipraśamanaṁ kuru mē mukunda ||",
+          translation: "There, those who are devoted to the remembrance of Your feet attain liberation as ordained by their karma's fruition. Even the gods desire birth in that Bharata! O Mukunda, please calm my mental and bodily afflictions!",
+          commentary: "The concluding verse brings the cosmic geography back to personal devotion, as is Bhattathiri's signature. In Bharata-varsha, remembrance of the Lord's feet (tvadiya-charana-smarana) coupled with karma's natural course grants liberation. The stunning claim that even devas (sura api) desire birth in Bharata underscores the supreme spiritual opportunity of human birth in the karma-bhumi — a key Bhagavatam teaching (5.19.22). The closing prayer 'adhi-vyadhi-prashamanam kuru' (calm my mental and physical afflictions) is Bhattathiri's characteristic refrain, linking cosmic theology to his personal condition at Guruvayur. 'Mukunda' — the giver of liberation — is the perfect divine name to close a dashaka about the geography of spiritual liberation.",
+          words: [
+            { word: "त्वदीयचरणस्मरण", transliteration: "tvadīyacaraṇasmaraṇa", meaning: "remembrance of Your feet" },
+            { word: "अनुरक्ताः", transliteration: "anuraktāḥ", meaning: "devoted, attached" },
+            { word: "कर्मपाकनियतम्", transliteration: "karmapākaniyatam", meaning: "as ordained by the fruition of karma" },
+            { word: "विमुक्तिम्", transliteration: "vimuktim", meaning: "liberation" },
+            { word: "भारतम्", transliteration: "bhāratam", meaning: "Bharata-varsha" },
+            { word: "सुराः", transliteration: "surāḥ", meaning: "the gods, devas" },
+            { word: "जन्म", transliteration: "janma", meaning: "birth" },
+            { word: "वाञ्छन्ति", transliteration: "vāñchanti", meaning: "desire, long for" },
+            { word: "आधिव्यधिप्रशमनम्", transliteration: "ādhivyadhipraśamanam", meaning: "calming of mental and physical afflictions" },
+            { word: "मुकुन्द", transliteration: "mukunda", meaning: "O Mukunda (giver of liberation)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 17,
@@ -3503,7 +3705,226 @@ var NARAYANEEYAM_DATA = {
       theme: "creation",
       verseCount: 10,
       summary: "Describes the nether worlds (Patala) with their splendid cities and the various hells (Naraka) where sinners undergo suffering. Emphasizes the Lord's role as the ultimate judge.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 18,
+          sloka: 1,
+          devanagari: "पातालमूलभुवि शेषमहाहिरूपी\nनीलाद्रिनायकशिरःसदृशैः फणाग्रैः ।\nदध्रे समस्तभुवनानि निजाङ्गभूषा-\nमुक्तामयूखनिकरैः परिरञ्जयन् दिशः ॥",
+          transliteration: "pātālamūlabhuvi śēṣamahāhirūpī\nnīlādrināyakaśiraḥsadṛśaiḥ phaṇāgraiḥ |\ndadhrē samastabhuvanāni nijāṅgabhūṣā-\nmuktāmayūkhaanikaraiḥ parirañjayan diśaḥ ||",
+          translation: "In the nethermost region of Patala, You, in the form of the great serpent Shesha, with Your hood-tips resembling the peaks of the Blue Mountain, support all the worlds, illuminating the directions with rays from the gems adorning Your body.",
+          commentary: "The dashaka opens by identifying the Lord with Ananta-Shesha, the cosmic serpent who supports the universe from below. This directly follows the Bhagavatam's cosmographic sequence (Canto 5, Chapter 25). The comparison of Shesha's hoods to Niladri (Blue Mountain) peaks conveys both their massive scale and their dark, lustrous beauty. The gems on Shesha's body radiate light throughout the subterranean regions, establishing that even the lowest cosmic realms are illuminated by the Lord's presence. Bhattathiri thus begins the description of Patala not with darkness but with divine radiance.",
+          words: [
+            { word: "पातालमूलभुवि", transliteration: "pātālamūlabhuvi", meaning: "in the nethermost region of Patala" },
+            { word: "शेषमहाहिरूपी", transliteration: "śēṣamahāhirūpī", meaning: "in the form of the great serpent Shesha" },
+            { word: "नीलाद्रिनायकशिरःसदृशैः", transliteration: "nīlādrināyakaśiraḥsadṛśaiḥ", meaning: "resembling the peaks of the Blue Mountain" },
+            { word: "फणाग्रैः", transliteration: "phaṇāgraiḥ", meaning: "with the tips of the hoods" },
+            { word: "दध्रे", transliteration: "dadhrē", meaning: "supported, bore" },
+            { word: "समस्तभुवनानि", transliteration: "samastabhuvanāni", meaning: "all the worlds" },
+            { word: "निजाङ्गभूषा", transliteration: "nijāṅgabhūṣā", meaning: "ornaments on His own body" },
+            { word: "मुक्तामयूखनिकरैः", transliteration: "muktāmayūkhaanikaraiḥ", meaning: "with clusters of rays from gems/pearls" },
+            { word: "परिरञ्जयन्", transliteration: "parirañjayan", meaning: "illuminating, delighting" },
+            { word: "दिशः", transliteration: "diśaḥ", meaning: "the directions, quarters" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 2,
+          devanagari: "अतलं वितलं चैव सुतलं तलमेव च ।\nतलातलं महातलं पातालं चेति सप्तधा ।\nभूमेरधो विभागेषु नगराणि सुशोभने ॥",
+          transliteration: "atalaṁ vitalaṁ caiva sutalaṁ talamēva ca |\ntalātalaṁ mahātalaṁ pātālaṁ cēti saptadhā |\nbhūmēradhō vibhāgēṣu nagarāṇi suśōbhanē ||",
+          translation: "Atala, Vitala, Sutala, Talatala, Mahatala, Rasatala, and Patala — thus sevenfold are the regions below the Earth, wherein stand cities of magnificent splendor.",
+          commentary: "This verse catalogues the seven subterranean worlds as enumerated in Bhagavatam 5.24. Each Patala region is described in the Puranas as surpassing heavenly realms in luxury and beauty. The word 'sushobhane' (of magnificent splendor) is deliberate — these are not dark dungeons but realms of opulence inhabited by Daityas, Danavas, and Nagas. Bhattathiri follows the Bhagavatam closely here, presenting the Puranic geography systematically before proceeding to describe the character of each realm.",
+          words: [
+            { word: "अतलम्", transliteration: "atalam", meaning: "Atala (first subterranean world)" },
+            { word: "वितलम्", transliteration: "vitalam", meaning: "Vitala (second subterranean world)" },
+            { word: "सुतलम्", transliteration: "sutalam", meaning: "Sutala (third subterranean world)" },
+            { word: "तलम्", transliteration: "talam", meaning: "Tala (the fourth)" },
+            { word: "तलातलम्", transliteration: "talātalam", meaning: "Talatala (fifth subterranean world)" },
+            { word: "महातलम्", transliteration: "mahātalam", meaning: "Mahatala (sixth subterranean world)" },
+            { word: "पातालम्", transliteration: "pātālam", meaning: "Patala (seventh and lowest subterranean world)" },
+            { word: "सप्तधा", transliteration: "saptadhā", meaning: "sevenfold, in seven divisions" },
+            { word: "भूमेः अधः", transliteration: "bhūmēḥ adhaḥ", meaning: "below the Earth" },
+            { word: "विभागेषु", transliteration: "vibhāgēṣu", meaning: "in the divisions, regions" },
+            { word: "नगराणि", transliteration: "nagarāṇi", meaning: "cities" },
+            { word: "सुशोभने", transliteration: "suśōbhanē", meaning: "of great splendor, magnificently beautiful" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 3,
+          devanagari: "दैतेयदानवगणा मुनिसिद्धसङ्घा\nनागाश्च यत्र विलसन्ति सुखेन सर्वे ।\nक्रीडासरोभिरुपशोभितभूमिभागा\nभास्वन्मणिप्रभिभिरुज्ज्वलदिव्यगेहाः ॥",
+          transliteration: "daitēyadānavagaṇā munisiddhasaṅghā\nnāgāśca yatra vilasanti sukhēna sarvē |\nkrīḍāsarōbhirupaśōbhitabhūmibhāgā\nbhāsvanmaṇiprabhabhirujjvaladivyagēhāḥ ||",
+          translation: "There, hosts of Daityas and Danavas, groups of sages and Siddhas, and Nagas — all sport happily. The lands are adorned with pleasure-lakes, and divine mansions blaze with the radiance of luminous gems.",
+          commentary: "The Bhagavatam (5.24.8) describes the Patala regions as surpassing even Indra's heaven in pleasure. Bhattathiri captures this by listing the diverse inhabitants — Daityas, Danavas, sages, Siddhas, and Nagas — all coexisting 'sukhena' (happily). The pleasure-lakes (krida-saras) and gem-lit mansions (bhasvan-mani-prabha) create an image of subterranean paradise. The theological point is subtle: even these splendid realms exist within the Lord's creation and under His governance.",
+          words: [
+            { word: "दैतेयदानवगणाः", transliteration: "daitēyadānavagaṇāḥ", meaning: "hosts of Daityas and Danavas" },
+            { word: "मुनिसिद्धसङ्घाः", transliteration: "munisiddhasaṅghāḥ", meaning: "groups of sages and Siddhas" },
+            { word: "नागाः", transliteration: "nāgāḥ", meaning: "the Nagas (serpent beings)" },
+            { word: "विलसन्ति", transliteration: "vilasanti", meaning: "sport, play, revel" },
+            { word: "सुखेन", transliteration: "sukhēna", meaning: "happily, comfortably" },
+            { word: "क्रीडासरोभिः", transliteration: "krīḍāsarōbhiḥ", meaning: "with pleasure-lakes" },
+            { word: "उपशोभित", transliteration: "upaśōbhita", meaning: "adorned, beautified" },
+            { word: "भूमिभागाः", transliteration: "bhūmibhāgāḥ", meaning: "tracts of land" },
+            { word: "भास्वन्मणिप्रभभिः", transliteration: "bhāsvanmaṇiprabhabhiḥ", meaning: "with the brilliance of luminous gems" },
+            { word: "उज्ज्वल", transliteration: "ujjvala", meaning: "blazing, resplendent" },
+            { word: "दिव्यगेहाः", transliteration: "divyagēhāḥ", meaning: "divine mansions" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 4,
+          devanagari: "बलिर्महात्मा भवदीयभक्तो\nवामानरूपात्तव सर्वमार्पयन् ।\nसुतालभूमौ तव सन्निधानं\nप्राप्तो दयालो विजयी विभासि ॥",
+          transliteration: "balirmahātmā bhavadīyabhaktō\nvāmānarūpāttava sarvamārpayan |\nsutālabhūmau tava sannidhānaṁ\nprāptō dayālō vijayī vibhāsi ||",
+          translation: "The great soul Bali, Your own devotee, who surrendered everything to You in Your Vamana form, attained Your very presence in Sutala — O Compassionate One, You shine there victorious!",
+          commentary: "This verse references the famous Vamana episode (to be described in detail in later Dashakas). King Bali, the noblest of Daityas, gave away his entire kingdom to Lord Vamana and was consigned to Sutala. But the Bhagavatam (5.24.18) reveals that this apparent defeat was actually a supreme blessing — the Lord Himself became Bali's doorkeeper in Sutala. Bhattathiri calls Bali 'mahātmā' and 'bhavadīya-bhakta' (Your own devotee), emphasizing that Bali's banishment to Patala was in truth the highest grace. The Lord's epithet 'dayālo' (compassionate one) underscores this paradox.",
+          words: [
+            { word: "बलिः", transliteration: "baliḥ", meaning: "King Bali" },
+            { word: "महात्मा", transliteration: "mahātmā", meaning: "great soul" },
+            { word: "भवदीयभक्तः", transliteration: "bhavadīyabhaktaḥ", meaning: "Your own devotee" },
+            { word: "वामानरूपात्", transliteration: "vāmānarūpāt", meaning: "from (You in) the Vamana form" },
+            { word: "सर्वम्", transliteration: "sarvam", meaning: "everything" },
+            { word: "अर्पयन्", transliteration: "arpayan", meaning: "offering, surrendering" },
+            { word: "सुतालभूमौ", transliteration: "sutālabhūmau", meaning: "in the realm of Sutala" },
+            { word: "सन्निधानम्", transliteration: "sannidhānam", meaning: "presence, proximity" },
+            { word: "प्राप्तः", transliteration: "prāptaḥ", meaning: "attained, obtained" },
+            { word: "दयालो", transliteration: "dayālō", meaning: "O Compassionate One" },
+            { word: "विजयी", transliteration: "vijayī", meaning: "victorious, triumphant" },
+            { word: "विभासि", transliteration: "vibhāsi", meaning: "You shine, You are resplendent" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 5,
+          devanagari: "तेषामधस्तादधिलोकपालं\nयमं वदन्ति प्रभवन्तमेतम् ।\nपित्रा सह प्रेतगणान् विचार्य\nदण्डं ददात्येष हि धर्ममार्गे ॥",
+          transliteration: "tēṣāmadhastaadadhilōkapālaṁ\nyamaṁ vadanti prabhavantamētam |\npitrā saha prētagaṇān vicārya\ndaṇḍaṁ dadātyēṣa hi dharmamārgē ||",
+          translation: "Below those (Patala regions), they speak of Yama, the lord and ruler of that realm. Together with Chitragupta, examining the hosts of departed souls, he metes out punishment according to the path of Dharma.",
+          commentary: "The transition from Patala to Naraka is marked by introducing Yama, the god of death and cosmic judge. The Bhagavatam (5.26) describes Yama's realm as lying south of the cosmic structure, below the Patala regions. Bhattathiri presents Yama not as arbitrary but as one who acts 'dharma-marge' — strictly on the path of righteousness. Chitragupta (implied by 'pitra saha' — with the recorder) maintains accounts of karmic deeds. This sets up the theological framework: punishment in Naraka is not divine cruelty but the lawful consequence of one's own actions.",
+          words: [
+            { word: "तेषाम्", transliteration: "tēṣām", meaning: "of those (Patala regions)" },
+            { word: "अधस्तात्", transliteration: "adhastāt", meaning: "below" },
+            { word: "अधिलोकपालम्", transliteration: "adhilōkapālam", meaning: "the presiding lord, ruler of that realm" },
+            { word: "यमम्", transliteration: "yamam", meaning: "Yama (god of death and justice)" },
+            { word: "वदन्ति", transliteration: "vadanti", meaning: "they speak of, they describe" },
+            { word: "प्रभवन्तम्", transliteration: "prabhavantam", meaning: "the powerful one, the lord" },
+            { word: "पित्रा सह", transliteration: "pitrā saha", meaning: "together with the recorder (Chitragupta)" },
+            { word: "प्रेतगणान्", transliteration: "prētagaṇān", meaning: "hosts of departed souls" },
+            { word: "विचार्य", transliteration: "vicārya", meaning: "examining, judging" },
+            { word: "दण्डम्", transliteration: "daṇḍam", meaning: "punishment" },
+            { word: "ददाति", transliteration: "dadāti", meaning: "gives, metes out" },
+            { word: "धर्ममार्गे", transliteration: "dharmamārgē", meaning: "according to the path of Dharma" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 6,
+          devanagari: "तामिस्रमन्धतमसं रौरवं महान्तं\nकुम्भीपकं च बहुशो नरकान् वदन्ति ।\nतत्रातिघोरयमदूतगणैर्नियुक्ताः\nपापात्मनः सहनमत्र सुदुःखमाहुः ॥",
+          transliteration: "tāmisramandhatmasaṁ rauravaṁ mahāntaṁ\nkumbhīpakaṁ ca bahuśō narakān vadanti |\ntatrātigōrayamadūtagaṇairniyuktāḥ\npāpātmanaḥ sahanamatra suduḥkhamāhuḥ ||",
+          translation: "Tamisra, Andhatamisra, Raurava, Maharaurava, Kumbhipaka — many such hells they describe. There, driven by the terrible hosts of Yama's servants, the sinful souls are said to endure exceedingly great suffering.",
+          commentary: "The verse enumerates the principal Narakas from Bhagavatam 5.26. Tamisra (darkness) and Andhatamisra (blinding darkness) relate to those who steal others' wealth and wives. Raurava and Maharaurava are for those who torment other beings. Kumbhipaka (pot-cooking) is for those who cook living creatures. The term 'bahushah' (many) indicates these are only representative — the Bhagavatam lists twenty-eight. The suffering is administered by Yamadotas (Yama's messengers), establishing that this is an organized system of karmic justice, not random torment.",
+          words: [
+            { word: "तामिस्रम्", transliteration: "tāmisram", meaning: "Tamisra (hell of darkness)" },
+            { word: "अन्धतमसम्", transliteration: "andhatmasam", meaning: "Andhatamisra (hell of blinding darkness)" },
+            { word: "रौरवम्", transliteration: "raurvam", meaning: "Raurava (hell of terrible cries)" },
+            { word: "महान्तम्", transliteration: "mahāntam", meaning: "Maharaurava (the great Raurava)" },
+            { word: "कुम्भीपकम्", transliteration: "kumbhīpakam", meaning: "Kumbhipaka (hell of pot-cooking)" },
+            { word: "बहुशः", transliteration: "bahuśaḥ", meaning: "many, in many ways" },
+            { word: "नरकान्", transliteration: "narakān", meaning: "hells" },
+            { word: "अतिघोर", transliteration: "atighōra", meaning: "exceedingly terrible" },
+            { word: "यमदूतगणैः", transliteration: "yamadūtagaṇaiḥ", meaning: "by hosts of Yama's messengers" },
+            { word: "नियुक्ताः", transliteration: "niyuktāḥ", meaning: "driven, impelled" },
+            { word: "पापात्मनः", transliteration: "pāpātmanaḥ", meaning: "the sinful souls" },
+            { word: "सहनम्", transliteration: "sahanam", meaning: "endurance, suffering" },
+            { word: "सुदुःखम्", transliteration: "suduḥkham", meaning: "exceedingly painful" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 7,
+          devanagari: "हिंसाकृतः परधनापहृतिप्रवीणाः\nमिथ्याभिशंसनपराः पिशुना नराणाम् ।\nते तत्र घोरयमकिङ्करदण्डपातैः\nक्लिश्यन्ति दुःसहतरैर्बहुजन्मपापैः ॥",
+          transliteration: "hiṁsākṛtaḥ paradhanāpahṛtipravīṇāḥ\nmithyābhiśaṁsanaparāḥ piśunā narāṇām |\ntē tatra ghōrayamakiṅkaradaṇḍapātaiḥ\nkliśyanti duḥsahatarairbahujamnapāpaiḥ ||",
+          translation: "Those who commit violence, who are skilled in seizing others' wealth, who make false accusations, who are slanderers among men — they suffer there from the unbearable blows of Yama's terrible servants, due to sins accumulated over many births.",
+          commentary: "Bhattathiri here specifies the categories of sinners, following the Bhagavatam's detailed catalogue. Violence (himsa), theft of others' wealth (paradhana-apahriti), false testimony (mithya-abhishamsana), and slander (pishuna) are highlighted as the principal sins leading to Naraka. The phrase 'bahu-janma-papaihi' (sins of many births) introduces the important doctrine that karmic consequences accumulate across lifetimes. The punishment is not arbitrary but precisely calibrated to the nature and severity of the accumulated sins.",
+          words: [
+            { word: "हिंसाकृतः", transliteration: "hiṁsākṛtaḥ", meaning: "those who commit violence" },
+            { word: "परधनापहृतिप्रवीणाः", transliteration: "paradhanāpahṛtipravīṇāḥ", meaning: "skilled in seizing others' wealth" },
+            { word: "मिथ्याभिशंसनपराः", transliteration: "mithyābhiśaṁsanaparāḥ", meaning: "devoted to false accusations" },
+            { word: "पिशुनाः", transliteration: "piśunāḥ", meaning: "slanderers, backbiters" },
+            { word: "नराणाम्", transliteration: "narāṇām", meaning: "among men" },
+            { word: "घोरयमकिङ्करदण्डपातैः", transliteration: "ghōrayamakiṅkaradaṇḍapātaiḥ", meaning: "by blows of Yama's terrible servants" },
+            { word: "क्लिश्यन्ति", transliteration: "kliśyanti", meaning: "they suffer, are tormented" },
+            { word: "दुःसहतरैः", transliteration: "duḥsahataraiḥ", meaning: "most unbearable" },
+            { word: "बहुजन्मपापैः", transliteration: "bahujamnapāpaiḥ", meaning: "due to sins of many births" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 8,
+          devanagari: "ये वै परस्य हरणे धनदाररत्न-\nलोलाः प्रवृत्तिमलिनाः कृपणाश्च लोके ।\nते यातनाशतमनुभूय तदन्तकाले\nजायन्त एव खलु जन्तुषु नीचयोनौ ॥",
+          transliteration: "yē vai parasya haraṇē dhanadāraratna-\nlōlāḥ pravṛttimalināḥ kṛpaṇāśca lōkē |\ntē yātanāśatamanubhūya tadantakālē\njāyanta ēva khalu jantuṣu nīcayōnau ||",
+          translation: "Those who in this world are greedy for stealing others' wealth, wives, and jewels, who are stained by sinful conduct and are miserly — they, after experiencing hundreds of torments, are born at the end in lowly wombs among creatures.",
+          commentary: "This verse introduces the post-Naraka consequence: rebirth in lower species. The Bhagavatam teaches that Naraka is not eternal punishment but a purgatorial process after which the soul is reborn according to residual karma. The sins listed — greed for others' wealth (dhana), wives (dara), and jewels (ratna) — represent the three objects that typically fuel worldly attachment. The term 'nicha-yonau' (lowly wombs) refers to birth as animals, insects, or plants. This completes the karmic cycle: sin leads to Naraka, which leads to degraded rebirth.",
+          words: [
+            { word: "परस्य", transliteration: "parasya", meaning: "of another, others'" },
+            { word: "हरणे", transliteration: "haraṇē", meaning: "in stealing, seizing" },
+            { word: "धनदाररत्न", transliteration: "dhanadāraratna", meaning: "wealth, wives, and jewels" },
+            { word: "लोलाः", transliteration: "lōlāḥ", meaning: "greedy, lustful" },
+            { word: "प्रवृत्तिमलिनाः", transliteration: "pravṛttimalināḥ", meaning: "stained by sinful conduct" },
+            { word: "कृपणाः", transliteration: "kṛpaṇāḥ", meaning: "miserly, wretched" },
+            { word: "यातनाशतम्", transliteration: "yātanāśatam", meaning: "hundreds of torments" },
+            { word: "अनुभूय", transliteration: "anubhūya", meaning: "having experienced" },
+            { word: "अन्तकाले", transliteration: "antakālē", meaning: "at the end of that period" },
+            { word: "जायन्ते", transliteration: "jāyantē", meaning: "are born" },
+            { word: "जन्तुषु", transliteration: "jantuṣu", meaning: "among creatures" },
+            { word: "नीचयोनौ", transliteration: "nīcayōnau", meaning: "in lowly wombs" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 9,
+          devanagari: "एवं विचित्रबहुलोकविधानकर्तुः\nसर्वात्मनस्तव विभो महिमा न चित्रम् ।\nसर्वं हि विश्वमिदमात्मकृतं त्वदीयं\nधर्मस्थितिं च विदधासि विनाशयन् च ॥",
+          transliteration: "ēvaṁ vicitrabahulōkavidhānakartuḥ\nsarvātmanastava vibhō mahimā na citram |\nsarvaṁ hi viśvamidamātmakṛtaṁ tvadīyaṁ\ndharmasthitiṁ ca vidadhāsi vināśayan ca ||",
+          translation: "Thus, for You — the creator of the marvellous design of these many worlds, the Self of all — this glory is no wonder, O Lord! For this entire universe is Your own self-made creation; You establish Dharma and also bring about dissolution.",
+          commentary: "After the detailed description of Patala and Naraka, Bhattathiri steps back for a theological synthesis. The intricate cosmic architecture — heavens, earths, nether worlds, and hells — is all 'vichitra-bahuloka-vidhana' (the marvellous design of many worlds) created by the Lord who is 'sarvatman' (the Self of all). The word 'na chitram' (no wonder) is characteristic of Bhattathiri's devotional confidence: however astonishing the cosmic design appears, it is only natural for the Supreme Being. The verse also states the Lord's dual function: establishing Dharma (dharma-sthiti) and dissolution (vinashayan) — creation and destruction are both His.",
+          words: [
+            { word: "विचित्र", transliteration: "vicitra", meaning: "marvellous, wonderful" },
+            { word: "बहुलोकविधानकर्तुः", transliteration: "bahulōkavidhānakartuḥ", meaning: "of the creator of the design of many worlds" },
+            { word: "सर्वात्मनः", transliteration: "sarvātmanaḥ", meaning: "of the Self of all" },
+            { word: "विभो", transliteration: "vibhō", meaning: "O All-pervading Lord" },
+            { word: "महिमा", transliteration: "mahimā", meaning: "glory, greatness" },
+            { word: "न चित्रम्", transliteration: "na citram", meaning: "is no wonder" },
+            { word: "विश्वम्", transliteration: "viśvam", meaning: "the universe" },
+            { word: "आत्मकृतम्", transliteration: "ātmakṛtam", meaning: "self-made, created by Yourself" },
+            { word: "त्वदीयम्", transliteration: "tvadīyam", meaning: "Your own" },
+            { word: "धर्मस्थितिम्", transliteration: "dharmasthitim", meaning: "the establishment of Dharma" },
+            { word: "विदधासि", transliteration: "vidadhāsi", meaning: "You ordain, establish" },
+            { word: "विनाशयन्", transliteration: "vināśayan", meaning: "bringing about dissolution" }
+          ]
+        },
+        {
+          dashaka: 18,
+          sloka: 10,
+          devanagari: "एतत्समस्तभुवनप्रविभागवैभवं\nसम्प्रेक्ष्य ते चरणयुग्ममहं नमामि ।\nलोकत्रयीमधिकयन्नरकान् विधत्से\nसर्वेश्वराय भवते कुरु शान्तिमामयात् ॥",
+          transliteration: "ētatsamastabhuvanapravibhāgavaibhavaṁ\nsamprēkṣya tē caraṇayugmamahṁ namāmi |\nlōkatrayīmadhikayaannarakān vidhatsē\nsarvēśvarāya bhavatē kuru śāntimāmayāt ||",
+          translation: "Beholding this glory of the division of all the worlds, I bow to Your pair of feet. You who govern the three worlds and ordain the hells — O Lord of all, grant me peace from disease!",
+          commentary: "The concluding verse follows Bhattathiri's signature pattern: after an elaborate cosmic description, he turns to personal devotion and his prayer for healing. The poet has traversed the Patala regions and Naraka in ten verses; now he 'beholds' (samprekshya) the total design and prostrates (namami). The juxtaposition is deliberate: the same Lord who designs elaborate purification-through-suffering in Naraka is entreated to grant 'shanti' (peace) from the poet's ailment. The word 'sarveshvara' (Lord of all) encompasses sovereignty over all realms described — from gem-lit Patala to the darkest Naraka. The closing plea 'kuru shantim amayat' (grant peace from disease) mirrors the characteristic Narayaneeyam ending, connecting cosmic theology to Bhattathiri's personal suffering at Guruvayur.",
+          words: [
+            { word: "एतत्", transliteration: "ētat", meaning: "this" },
+            { word: "समस्तभुवनप्रविभागवैभवम्", transliteration: "samastabhuvanapravibhāgavaibhavam", meaning: "the glory of the division of all worlds" },
+            { word: "सम्प्रेक्ष्य", transliteration: "samprēkṣya", meaning: "beholding, contemplating" },
+            { word: "चरणयुग्मम्", transliteration: "caraṇayugmam", meaning: "the pair of feet" },
+            { word: "अहम्", transliteration: "aham", meaning: "I" },
+            { word: "नमामि", transliteration: "namāmi", meaning: "bow to, salute" },
+            { word: "लोकत्रयीम्", transliteration: "lōkatrayīm", meaning: "the three worlds" },
+            { word: "अधिकयन्", transliteration: "adhikayan", meaning: "governing, presiding over" },
+            { word: "नरकान्", transliteration: "narakān", meaning: "the hells" },
+            { word: "विधत्से", transliteration: "vidhatsē", meaning: "You ordain, arrange" },
+            { word: "सर्वेश्वराय", transliteration: "sarvēśvarāya", meaning: "to the Lord of all" },
+            { word: "भवते", transliteration: "bhavatē", meaning: "to You" },
+            { word: "कुरु", transliteration: "kuru", meaning: "grant, bestow" },
+            { word: "शान्तिम्", transliteration: "śāntim", meaning: "peace" },
+            { word: "आमयात्", transliteration: "āmayāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 19,
@@ -3521,7 +3942,216 @@ var NARAYANEEYAM_DATA = {
       theme: "devotion",
       verseCount: 10,
       summary: "Tells the story of the fallen brahmana Ajamila who, at the moment of death, called out his son's name 'Narayana' and was saved by the Lord's messengers, illustrating the supreme power of the divine name.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 20,
+          sloka: 1,
+          devanagari: "परीक्षिति क्षितिपतौ भवदङ्घ्रिभक्ति-\nभावं विशोध्य सुकृतं बहु मन्वति त्वम् ।\nपापक्षयं प्रति तपःकृतचित्तशुद्धि-\nसाध्यं प्रतीतमिति शौनक सत्यमूचे ॥",
+          transliteration: "parīkṣiti kṣitipatau bhavadaṅghribhakti-\nbhāvaṁ viśōdhya sukṛtaṁ bahu manvati tvam |\npāpakṣayaṁ prati tapaḥkṛtacittaśuddhi-\nsādhyaṁ pratītamiti śaunaka satyamūcē ||",
+          translation: "When King Parikshit inquired about the means of expiating sin, You — through Shuka — declared that mere austerities for mental purification are well-known remedies, but devotion to Your feet is the supreme good. Thus Shuka spoke the truth to Shaunaka's assembly.",
+          commentary: "This opening verse sets the context from Bhagavatam Canto 6. King Parikshit raises the question about prayaschitta (expiation). The conventional answer — austerities and rituals for mental purification (tapah-krita-chitta-shuddhi) — is acknowledged but shown to be insufficient. Bhattathiri signals that the dashaka will reveal something far superior: bhakti to the Lord's feet (bhavad-angri-bhakti). The mention of Shaunaka's assembly frames this as the outer narrative of Bhagavatam.",
+          words: [
+            { word: "परीक्षिति", transliteration: "parīkṣiti", meaning: "when Parikshit" },
+            { word: "क्षितिपतौ", transliteration: "kṣitipatau", meaning: "the king" },
+            { word: "भवदङ्घ्रिभक्ति", transliteration: "bhavadaṅghribhakti", meaning: "devotion to Your feet" },
+            { word: "विशोध्य", transliteration: "viśōdhya", meaning: "having purified, examined" },
+            { word: "सुकृतम्", transliteration: "sukṛtam", meaning: "merit, good deed" },
+            { word: "पापक्षयम्", transliteration: "pāpakṣayam", meaning: "destruction of sin" },
+            { word: "तपःकृतचित्तशुद्धि", transliteration: "tapaḥkṛtacittaśuddhi", meaning: "mental purification achieved through austerity" },
+            { word: "साध्यम्", transliteration: "sādhyam", meaning: "achievable, the means" },
+            { word: "प्रतीतम्", transliteration: "pratītam", meaning: "well-known, established" },
+            { word: "शौनक", transliteration: "śaunaka", meaning: "O Shaunaka (the sage)" },
+            { word: "सत्यम्", transliteration: "satyam", meaning: "truth" },
+            { word: "ऊचे", transliteration: "ūcē", meaning: "spoke, declared" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 2,
+          devanagari: "प्रायश्चित्तं चरन्तोऽपि पुनः पापं समाचरन् ।\nन विशुद्ध्यन्ति राजेन्द्र कुञ्जरस्नानवत् खलाः ।\nइत्युक्त्वा कथयामासीत् त्वच्छुको नामवैभवम् ॥",
+          transliteration: "prāyaścittaṁ carantō'pi punaḥ pāpaṁ samācaran |\nna viśuddhyanti rājēndra kuñjarasnānavat khalāḥ |\nityuktvā kathayāmāsīt tvaccchukō nāmavaibhavam ||",
+          translation: "Even those who perform expiation commit sin again — they are not truly purified, O King, just as an elephant bathes only to throw dust on itself again. Having said this, Your Shuka proceeded to narrate the glory of the Divine Name.",
+          commentary: "The famous elephant-bath analogy (kunjara-snana-vat) from Bhagavatam 6.1.10 is one of the most memorable metaphors in all of Vedantic literature. An elephant bathes in a river only to immediately cover itself with mud — similarly, ritualistic expiation without transformation of heart leads to repetition of sin. This devastating critique of mere external penance prepares the ground for the Ajamila narrative, where the power of God's Name achieves what no penance can.",
+          words: [
+            { word: "प्रायश्चित्तम्", transliteration: "prāyaścittam", meaning: "expiation, atonement" },
+            { word: "चरन्तः", transliteration: "carantaḥ", meaning: "performing" },
+            { word: "पुनः", transliteration: "punaḥ", meaning: "again" },
+            { word: "पापम्", transliteration: "pāpam", meaning: "sin" },
+            { word: "समाचरन्", transliteration: "samācaran", meaning: "commit, practice" },
+            { word: "विशुद्ध्यन्ति", transliteration: "viśuddhyanti", meaning: "are purified" },
+            { word: "राजेन्द्र", transliteration: "rājēndra", meaning: "O best of kings" },
+            { word: "कुञ्जरस्नानवत्", transliteration: "kuñjarasnānavat", meaning: "like the bathing of an elephant" },
+            { word: "खलाः", transliteration: "khalāḥ", meaning: "the wicked" },
+            { word: "शुकः", transliteration: "śukaḥ", meaning: "Shuka (the sage-narrator)" },
+            { word: "नामवैभवम्", transliteration: "nāmavaibhavam", meaning: "the glory of the Divine Name" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 3,
+          devanagari: "कान्यकुब्जे द्विजवरः स ह्यजामिल इत्यभूत्\nवेदवित्सुव्रतयुतः सदाचारपरोऽमलः ।\nपित्रोः शुश्रूषणरतो गुरुवृत्तिपरायणः\nश्रद्दधानो जितेन्द्रियः संयतो नियतेन्द्रियः ॥",
+          transliteration: "kānyakubjē dvijavarḥ sa hyajāmila ityabhūt\nvēdavitsuvratayutaḥ sadācāraparō'malaḥ |\npitrōḥ śuśrūṣaṇaratō guruvṛttiparāyaṇaḥ\nśraddadhānō jitēndriyaḥ saṁyatō niyatēndriyaḥ ||",
+          translation: "In the city of Kanyakubja, there lived a brahmana named Ajamila — learned in the Vedas, observing sacred vows, pure in conduct, devoted to serving his parents, faithful to his teacher's way, full of faith, with senses subdued and self-controlled.",
+          commentary: "Bhattathiri carefully enumerates Ajamila's original virtues to heighten the drama of his fall. He was Veda-learned (veda-vit), of excellent vows (su-vrata), pure in conduct (sad-achara, amala), devoted to parents (pitroh shushrusana-rata) and teacher (guru-vritti-parayana), faithful (shraddadhana), and self-controlled (jita-indriya, niyata-indriya). This exhaustive list of spiritual qualifications makes his subsequent degradation all the more shocking and instructive — even the most accomplished can fall through a single moment of weakness.",
+          words: [
+            { word: "कान्यकुब्जे", transliteration: "kānyakubjē", meaning: "in Kanyakubja (a city)" },
+            { word: "द्विजवरः", transliteration: "dvijavarḥ", meaning: "excellent brahmana" },
+            { word: "अजामिलः", transliteration: "ajāmilaḥ", meaning: "Ajamila (by name)" },
+            { word: "वेदवित्", transliteration: "vēdavit", meaning: "knower of the Vedas" },
+            { word: "सुव्रतयुतः", transliteration: "suvratayutaḥ", meaning: "endowed with sacred vows" },
+            { word: "सदाचारपरः", transliteration: "sadācāraparaḥ", meaning: "devoted to righteous conduct" },
+            { word: "अमलः", transliteration: "amalaḥ", meaning: "pure, spotless" },
+            { word: "शुश्रूषणरतः", transliteration: "śuśrūṣaṇarataḥ", meaning: "devoted to service" },
+            { word: "गुरुवृत्तिपरायणः", transliteration: "guruvṛttiparāyaṇaḥ", meaning: "devoted to the teacher's way" },
+            { word: "जितेन्द्रियः", transliteration: "jitēndriyaḥ", meaning: "one who has conquered the senses" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 4,
+          devanagari: "पित्राज्ञया वनगतः फलमूलसञ्चयं\nकुर्वन्नसौ ददृशे कामिनं शूद्रकन्यया ।\nसंसक्तमत्तमधुपानरतं मदाकुलं\nलोलेक्षणावनतिभिः कृतमन्मथोत्सवम् ॥",
+          transliteration: "pitrājñayā vanagatḥ phalamūlasañcayaṁ\nkurvannasau dadṛśē kāminaṁ śūdrakanyayā |\nsaṁsaktamattamadhupānarataṁ madākulaṁ\nlōlēkṣaṇāvanatibhiḥ kṛtamanmathōtsavam ||",
+          translation: "Once, sent to the forest by his father to gather fruits and roots, he beheld a lustful man with a shudra woman — intoxicated with wine, maddened with passion, celebrating the festival of desire with her coquettish glances and gestures.",
+          commentary: "The fateful encounter that triggers Ajamila's downfall is described with vivid sensory detail. The contrast is stark: a pure brahmana on an errand of filial duty (pitra-ajnaya) encounters the intoxicating spectacle of unrestrained passion. The compound 'lolekshana-avanati-bhih' (with rolling glances and bowing gestures) captures the seductive power of the scene. Bhattathiri follows the Bhagavatam in showing that even a single unguarded moment of sensory exposure can undo years of spiritual discipline.",
+          words: [
+            { word: "पित्राज्ञया", transliteration: "pitrājñayā", meaning: "by the father's command" },
+            { word: "वनगतः", transliteration: "vanagataḥ", meaning: "gone to the forest" },
+            { word: "फलमूलसञ्चयम्", transliteration: "phalamūlasañcayam", meaning: "gathering of fruits and roots" },
+            { word: "ददृशे", transliteration: "dadṛśē", meaning: "he saw, beheld" },
+            { word: "कामिनम्", transliteration: "kāminam", meaning: "a lustful person" },
+            { word: "शूद्रकन्यया", transliteration: "śūdrakanyayā", meaning: "with a shudra woman" },
+            { word: "मत्तमधुपानरतम्", transliteration: "mattamadhupānaratam", meaning: "intoxicated with wine-drinking" },
+            { word: "मदाकुलम्", transliteration: "madākulam", meaning: "maddened with passion" },
+            { word: "लोलेक्षणा", transliteration: "lōlēkṣaṇā", meaning: "with rolling/coquettish glances" },
+            { word: "मन्मथोत्सवम्", transliteration: "manmathōtsavam", meaning: "festival of Cupid (desire)" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 5,
+          devanagari: "तदीक्षणात्कामकलातिविह्वलो\nधृतिं विहाय प्रससार तामयम् ।\nजगाम पापैरतिमोहितो बहु\nव्यधत्त कर्माण्यखिलानि दूषितः ॥",
+          transliteration: "tadīkṣaṇātkāmakalātivihvalō\ndhṛtiṁ vihāya prasasāra tāmayam |\njagāma pāpairatimōhitō bahu\nvyadhatta karmāṇyakhilāni dūṣitaḥ ||",
+          translation: "Overwhelmed by the arts of desire upon seeing that sight, he abandoned his self-restraint and pursued that woman. Deeply deluded by sin, the now-corrupted Ajamila engaged in every kind of wicked deed.",
+          commentary: "The speed of Ajamila's degradation is captured in the rapid verbal sequence: seeing (tadikshana), becoming agitated (kama-kala-ativihvala), abandoning restraint (dhritim vihaya), and pursuing (prasasara). The Bhagavatam emphasizes that he abandoned his wife, parents, and all dharmic duties. The word 'akhilani' (all kinds) indicates total moral collapse — gambling, theft, deceit, and cruelty. This illustrates the Bhagavatam's teaching that kama (lust) is the gateway through which all other vices enter.",
+          words: [
+            { word: "तदीक्षणात्", transliteration: "tadīkṣaṇāt", meaning: "from seeing that" },
+            { word: "कामकला", transliteration: "kāmakalā", meaning: "arts of desire" },
+            { word: "अतिविह्वलः", transliteration: "ativihvalaḥ", meaning: "extremely agitated, overwhelmed" },
+            { word: "धृतिम्", transliteration: "dhṛtim", meaning: "self-restraint, fortitude" },
+            { word: "विहाय", transliteration: "vihāya", meaning: "having abandoned" },
+            { word: "प्रससार", transliteration: "prasasāra", meaning: "pursued, went towards" },
+            { word: "मोहितः", transliteration: "mōhitaḥ", meaning: "deluded" },
+            { word: "कर्माणि", transliteration: "karmāṇi", meaning: "deeds, actions" },
+            { word: "अखिलानि", transliteration: "akhilāni", meaning: "all kinds" },
+            { word: "दूषितः", transliteration: "dūṣitaḥ", meaning: "corrupted, defiled" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 6,
+          devanagari: "स वै दशापत्यजनिप्रसक्तधीः\nतयाऽधमस्त्र्या दशमं सुतं तदा ।\nनारायणाह्वयमजीजनत् प्रभो\nतमेव बालं परिलाल्य निर्वृतः ॥",
+          transliteration: "sa vai daśāpatyajāniprasaktadhīḥ\ntayā'dhamastriyā daśamaṁ sutaṁ tadā |\nnārāyaṇāhvayamajījanat prabhō\ntamēva bālaṁ parilālya nirvṛtaḥ ||",
+          translation: "That brahmana, his mind engrossed in begetting children, fathered ten sons with that low-born woman. O Lord! The youngest he named 'Narayana' — and he found his greatest delight in fondling that very child.",
+          commentary: "The seemingly trivial act of naming his youngest son 'Narayana' becomes the pivot of the entire narrative. Ajamila's motive was purely worldly — doting parental affection (parilalya nirvritha), not devotion. Yet the Bhagavatam's profound teaching is that even the Name uttered without spiritual intent carries transcendent power. The number ten (dasha apatya) emphasizes his deep entanglement in samsara. The word 'adhama-strya' (low-born woman) underscores how far he has fallen from his brahmanic origins.",
+          words: [
+            { word: "दशापत्य", transliteration: "daśāpatya", meaning: "ten offspring" },
+            { word: "प्रसक्तधीः", transliteration: "prasaktadhīḥ", meaning: "with mind engrossed" },
+            { word: "अधमस्त्र्या", transliteration: "adhamastriyā", meaning: "with a low-born woman" },
+            { word: "दशमम्", transliteration: "daśamam", meaning: "the tenth" },
+            { word: "सुतम्", transliteration: "sutam", meaning: "son" },
+            { word: "नारायणाह्वयम्", transliteration: "nārāyaṇāhvayam", meaning: "named Narayana" },
+            { word: "अजीजनत्", transliteration: "ajījanat", meaning: "begot, fathered" },
+            { word: "प्रभो", transliteration: "prabhō", meaning: "O Lord" },
+            { word: "बालम्", transliteration: "bālam", meaning: "child" },
+            { word: "परिलाल्य", transliteration: "parilālya", meaning: "fondling, caressing" },
+            { word: "निर्वृतः", transliteration: "nirvṛtaḥ", meaning: "delighted, contented" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 7,
+          devanagari: "अशीतिवर्षे समुपेत्य मृत्युना\nत्रिभिः स दूतैर्यमराजकिङ्करैः ।\nभयातुरो नाम किलैतदर्भकं\nप्रभो ननामोच्चरणेन नारायणम् ॥",
+          transliteration: "aśītivarṣē samupētya mṛtyunā\ntribhiḥ sa dūtairyamarājakiṅkaraiḥ |\nbhayāturō nāma kilaitadarbhakaṁ\nprabhō nanāmōccaraṇēna nārāyaṇam ||",
+          translation: "At eighty years of age, as death approached with three terrifying messengers of Yama, the frightened Ajamila cried out calling his little son — and thereby, O Lord, he uttered the name 'Narayana'!",
+          commentary: "The climactic moment of the narrative arrives. The Yamadutas — three messengers of the god of death — come with their nooses to drag Ajamila's soul. In his terror (bhayatura), he instinctively calls out for his beloved youngest child. The word 'kila' (indeed, as it happened) marks the extraordinary irony: what was merely a father's cry for his son became, by the inscrutable grace of the Name, an invocation of the Supreme Lord. This is 'sanketyam' — accidental utterance of the divine Name, which the Bhagavatam declares is sufficient for liberation.",
+          words: [
+            { word: "अशीतिवर्षे", transliteration: "aśītivarṣē", meaning: "at eighty years of age" },
+            { word: "समुपेत्य", transliteration: "samupētya", meaning: "having approached" },
+            { word: "मृत्युना", transliteration: "mṛtyunā", meaning: "by death" },
+            { word: "दूतैः", transliteration: "dūtaiḥ", meaning: "by messengers" },
+            { word: "यमराजकिङ्करैः", transliteration: "yamarājakiṅkaraiḥ", meaning: "servants of King Yama" },
+            { word: "भयातुरः", transliteration: "bhayāturaḥ", meaning: "stricken with fear" },
+            { word: "नाम", transliteration: "nāma", meaning: "the name" },
+            { word: "अर्भकम्", transliteration: "arbhakam", meaning: "the little child" },
+            { word: "उच्चरणेन", transliteration: "uccaraṇēna", meaning: "by the utterance" },
+            { word: "नारायणम्", transliteration: "nārāyaṇam", meaning: "Narayana (the divine name)" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 8,
+          devanagari: "श्रुत्वा तु नारायणशब्दमात्रतः\nचतुर्भुजाः दिव्यवपुर्धराः क्षणात् ।\nभवत्प्रभावादुपगम्य तत्र ते\nन्यषेधयन् यामकिरान् भवत्पराः ॥",
+          transliteration: "śrutvā tu nārāyaṇaśabdamātrataḥ\ncaturbhujāḥ divyavapurdharāḥ kṣaṇāt |\nbhavatprabhāvādupagamya tatra tē\nnyaṣēdhayan yāmakirān bhavatparāḥ ||",
+          translation: "Hearing merely the sound 'Narayana', the four-armed Vishnudutas — bearers of divine forms — arrived instantly by Your power, and those devotees of Yours forcefully stopped Yama's servants.",
+          commentary: "The arrival of the Vishnudutas is electrifying. The word 'shabda-matratah' (merely from the sound) is theologically crucial — it was not Ajamila's intent, devotion, or understanding that summoned them, but the mere vibration of the Name. The Vishnudutas are described as 'chaturbhuja' (four-armed) and 'divya-vapur-dhara' (bearing divine forms), contrasting sharply with the terrifying Yamadutas. Their intervention 'bhavat-prabhavat' (by Your power) clarifies that the Name's potency derives from the Lord Himself.",
+          words: [
+            { word: "श्रुत्वा", transliteration: "śrutvā", meaning: "having heard" },
+            { word: "नारायणशब्दमात्रतः", transliteration: "nārāyaṇaśabdamātrataḥ", meaning: "merely from the sound 'Narayana'" },
+            { word: "चतुर्भुजाः", transliteration: "caturbhujāḥ", meaning: "four-armed ones" },
+            { word: "दिव्यवपुर्धराः", transliteration: "divyavapurdharāḥ", meaning: "bearers of divine forms" },
+            { word: "क्षणात्", transliteration: "kṣaṇāt", meaning: "instantly" },
+            { word: "भवत्प्रभावात्", transliteration: "bhavatprabhāvāt", meaning: "by Your power/glory" },
+            { word: "उपगम्य", transliteration: "upagamya", meaning: "having approached" },
+            { word: "न्यषेधयन्", transliteration: "nyaṣēdhayan", meaning: "they stopped, prevented" },
+            { word: "यामकिरान्", transliteration: "yāmakirān", meaning: "servants of Yama" },
+            { word: "भवत्पराः", transliteration: "bhavatparāḥ", meaning: "devoted to You, Your followers" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 9,
+          devanagari: "विवादमानेषु तदा तदीयके-\nष्वमीषु तत्त्वं निगदन्तु विष्णुभिः ।\nत्वन्नामसंकीर्तनमात्रतोऽखिलं\nप्रयाति पापं प्रलयं ममाज्ञया ॥",
+          transliteration: "vivādamānēṣu tadā tadīyakē-\nṣvamīṣu tattvaṁ nigadantu viṣṇubhiḥ |\ntvannāmasaṁkīrtanamātratō'khilaṁ\nprayāti pāpaṁ pralayaṁ mamājñayā ||",
+          translation: "When a great debate arose between the two groups of messengers, the Vishnudutas proclaimed the truth: 'By the mere chanting of the Lord's Name, all sin is annihilated — this is by His own decree.'",
+          commentary: "The theological debate between Yamadutas and Vishnudutas constitutes one of the most important doctrinal passages in the Bhagavatam. The Yamadutas argue that Ajamila must suffer for his sins; the Vishnudutas counter with the supremacy of Nama-sankirtan. The phrase 'nama-sankirtana-matratah' (merely by chanting the Name) and 'akhilam papam pralayam prayati' (all sin goes to destruction) establishes the Bhagavata doctrine that the Name transcends all karmic accounting. The word 'mama-ajnaya' (by My decree) grounds this power in divine sovereignty, not mechanical causation.",
+          words: [
+            { word: "विवादमानेषु", transliteration: "vivādamānēṣu", meaning: "while debating" },
+            { word: "तदीयकेषु", transliteration: "tadīyakēṣu", meaning: "among those groups (of messengers)" },
+            { word: "तत्त्वम्", transliteration: "tattvam", meaning: "the truth, the reality" },
+            { word: "निगदन्तु", transliteration: "nigadantu", meaning: "they declared" },
+            { word: "विष्णुभिः", transliteration: "viṣṇubhiḥ", meaning: "by the Vishnudutas" },
+            { word: "त्वन्नामसंकीर्तन", transliteration: "tvannāmasaṁkīrtana", meaning: "chanting of Your Name" },
+            { word: "मात्रतः", transliteration: "mātrataḥ", meaning: "merely by" },
+            { word: "अखिलम्", transliteration: "akhilam", meaning: "all, entire" },
+            { word: "पापम्", transliteration: "pāpam", meaning: "sin" },
+            { word: "प्रलयम्", transliteration: "pralayam", meaning: "destruction, annihilation" },
+            { word: "ममाज्ञया", transliteration: "mamājñayā", meaning: "by My (the Lord's) decree" }
+          ]
+        },
+        {
+          dashaka: 20,
+          sloka: 10,
+          devanagari: "इत्थं द्विजोऽसौ भवदीयकिङ्करै-\nर्विमुक्तपाशो भवदङ्घ्रिभक्तिमान् ।\nसंप्राप्य गङ्गामयमात्मशोधनं\nविधाय लेभे तव धाम शाश्वतम् ।\nत्वन्नामसंकीर्तनशक्तिरीदृशी\nमरुत्पुरीनाथ हराशु मे गदान् ॥",
+          transliteration: "itthaṁ dvijō'sau bhavadīyakiṅkarai-\nrvimuktapāśō bhavadaṅghribhaktimān |\nsaṁprāpya gaṅgāmayamātmaśōdhanaṁ\nvidhāya lēbhē tava dhāma śāśvatam |\ntvannāmasaṁkīrtanaśaktirīdṛśī\nmarutpurīnātha harāśu mē gadān ||",
+          translation: "Thus freed from the noose by Your servants, that brahmana developed true devotion to Your feet. Reaching the Ganga, he purified himself through self-discipline and attained Your eternal abode. Such is the power of chanting Your Name! O Lord of Guruvayur, swiftly remove my diseases!",
+          commentary: "The concluding verse weaves together Ajamila's liberation with Bhattathiri's personal prayer, as is his characteristic signature. After being rescued, Ajamila does not return to his old ways — he develops genuine devotion (bhavad-angri-bhaktiman), goes to the Ganga for purification (atma-shodhanam), and ultimately attains the Lord's eternal abode (tava dhama shashvatam). The exclamation 'tvat-nama-sankirtana-shaktir-idrishi' (such is the power of Your Name!) is the dashaka's thesis statement. The closing 'marutpurinatha harashume gadan' (O Lord of Guruvayur, remove my diseases) is the characteristic prayer linking Bhattathiri's personal affliction to the liberating power of the narrative he has just recounted.",
+          words: [
+            { word: "द्विजः", transliteration: "dvijaḥ", meaning: "the brahmana (Ajamila)" },
+            { word: "भवदीयकिङ्करैः", transliteration: "bhavadīyakiṅkaraiḥ", meaning: "by Your servants (Vishnudutas)" },
+            { word: "विमुक्तपाशः", transliteration: "vimuktapāśaḥ", meaning: "freed from the noose" },
+            { word: "भवदङ्घ्रिभक्तिमान्", transliteration: "bhavadaṅghribhaktimān", meaning: "endowed with devotion to Your feet" },
+            { word: "गङ्गाम्", transliteration: "gaṅgām", meaning: "the Ganga river" },
+            { word: "आत्मशोधनम्", transliteration: "ātmaśōdhanam", meaning: "self-purification" },
+            { word: "धाम शाश्वतम्", transliteration: "dhāma śāśvatam", meaning: "eternal abode" },
+            { word: "त्वन्नामसंकीर्तनशक्तिः", transliteration: "tvannāmasaṁkīrtanaśaktiḥ", meaning: "the power of chanting Your Name" },
+            { word: "ईदृशी", transliteration: "īdṛśī", meaning: "such (is its nature)" },
+            { word: "मरुत्पुरीनाथ", transliteration: "marutpurīnātha", meaning: "O Lord of Guruvayur" },
+            { word: "हर", transliteration: "hara", meaning: "remove, destroy" },
+            { word: "आशु", transliteration: "āśu", meaning: "swiftly, quickly" },
+            { word: "गदान्", transliteration: "gadān", meaning: "diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 21,
