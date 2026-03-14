@@ -3696,7 +3696,229 @@ var NARAYANEEYAM_DATA = {
       theme: "creation",
       verseCount: 10,
       summary: "Describes the structure of the cosmic universe including the seven dvipas, the planetary systems, the movement of celestial bodies, and the Lord as the cosmic axis sustaining all.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 17,
+          sloka: 1,
+          devanagari: "जम्बूप्लक्षाह्वयशाल्मलिं च कुशकौञ्चौ शाककं पुष्करं\nसप्तैतान् समुदाहरन्ति मुनयो द्वीपान् क्रमाद्द्विगुणान् ।\nक्षारेक्षुसुरासर्पिर्दधिदुग्धशुद्धजलैः\nसप्तसागरवेष्टितान् भगवन् त्वं बिभर्षि विश्वधर ॥",
+          transliteration: "jambūplakṣāhvayaśālmaliṁ ca kuśakauñcau śākakaṁ puṣkaraṁ\nsaptaitān samudāharanti munayō dvīpān kramāddviguṇān |\nkṣārēkṣusurāsarpiḥdadhidugdhaśuddhajalaiḥ\nsaptasāgaravēṣṭitān bhagavan tvaṁ bibharṣi viśvadhara ||",
+          translation: "The sages enumerate seven dvipas — Jambu, Plaksha, Shalmali, Kusha, Krauncha, Shaka, and Pushkara — each successively double the size of the previous one, surrounded by seven oceans of salt water, sugarcane juice, wine, ghee, curd, milk, and pure water. O Lord, You the upholder of the universe sustain them all!",
+          commentary: "This opening verse establishes the grand Puranic cosmography drawn from Bhagavatam Canto 5. The seven dvipas (continents) are listed in their traditional order, each twice the size of the preceding one, forming concentric rings. The seven oceans — each of a different substance — represent the diverse material manifestations of the Lord's creative power. Bhattathiri addresses the Lord as 'vishvadhara' (upholder of the universe), immediately connecting geography to theology: the cosmos is not self-sustaining but rests on divine will.",
+          words: [
+            { word: "जम्बू", transliteration: "jambū", meaning: "Jambudvipa (the central continent)" },
+            { word: "प्लक्ष", transliteration: "plakṣa", meaning: "Plakshadwipa (the fig-tree continent)" },
+            { word: "शाल्मलि", transliteration: "śālmali", meaning: "Shalmalidvipa (the silk-cotton continent)" },
+            { word: "कुश", transliteration: "kuśa", meaning: "Kushadvipa (the kusha-grass continent)" },
+            { word: "कौञ्चौ", transliteration: "kauñcau", meaning: "Kraunchadwipa (the heron continent)" },
+            { word: "शाककम्", transliteration: "śākakam", meaning: "Shakadvipa (the teak continent)" },
+            { word: "पुष्करम्", transliteration: "puṣkaram", meaning: "Pushkaradvipa (the lotus continent)" },
+            { word: "सप्त", transliteration: "sapta", meaning: "seven" },
+            { word: "द्वीपान्", transliteration: "dvīpān", meaning: "continents, islands" },
+            { word: "द्विगुणान्", transliteration: "dviguṇān", meaning: "each double (the previous)" },
+            { word: "सप्तसागरवेष्टितान्", transliteration: "saptasāgaravēṣṭitān", meaning: "surrounded by seven oceans" },
+            { word: "विश्वधर", transliteration: "viśvadhara", meaning: "O upholder of the universe" },
+            { word: "बिभर्षि", transliteration: "bibharṣi", meaning: "You sustain, uphold" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 2,
+          devanagari: "प्लक्षे शाल्मलिके कुशे च कृतकेषु क्रौञ्चशाकाह्वये\nपुष्कारे च जनाः समस्तसुकृतान् भुञ्जन्ति दीर्घायुषः ।\nतत्तद्द्वीपनिवासिनो भगवतो नानास्वरूपं सदा\nसम्यक् पूजयतीह नामभिरिति त्वां नारदः प्राह नः ॥",
+          transliteration: "plakṣē śālmalikē kuśē ca kṛtakēṣu krauñcaśākāhvayē\npuṣkārē ca janāḥ samastasukṛtān bhuñjanti dīrghāyuṣaḥ |\ntattaddvīpanivāsinō bhagavatō nānāsvarūpaṁ sadā\nsamyak pūjayatīha nāmabhiriti tvāṁ nāradaḥ prāha naḥ ||",
+          translation: "In Plaksha, Shalmali, Kusha, Krauncha, Shaka, and Pushkara, the long-lived inhabitants enjoy the fruits of their accumulated merit. The residents of each dvipa worship different forms of the Lord with appropriate names — thus Narada has told us about You.",
+          commentary: "This verse summarizes the spiritual life across the six outer dvipas. Unlike Jambudvipa where mixed karmas operate, these dvipas are inhabited by beings of accumulated merit (samasta-sukrtan) who enjoy long lives (dirghayushah). The key theological point is that in every dvipa, the Lord is worshipped in different forms and names (nana-svarupam namabhih), establishing the universality of Vishnu-worship across the cosmos. The attribution to Narada (naradah praha nah) grounds this cosmography in received tradition.",
+          words: [
+            { word: "जनाः", transliteration: "janāḥ", meaning: "the people, inhabitants" },
+            { word: "समस्तसुकृतान्", transliteration: "samastasukṛtān", meaning: "all accumulated merits" },
+            { word: "भुञ्जन्ति", transliteration: "bhuñjanti", meaning: "enjoy, experience" },
+            { word: "दीर्घायुषः", transliteration: "dīrghāyuṣaḥ", meaning: "long-lived" },
+            { word: "तत्तद्द्वीपनिवासिनः", transliteration: "tattaddvīpanivāsinaḥ", meaning: "the inhabitants of each respective dvipa" },
+            { word: "नानास्वरूपम्", transliteration: "nānāsvarūpam", meaning: "various forms" },
+            { word: "सम्यक्", transliteration: "samyak", meaning: "properly, completely" },
+            { word: "पूजयति", transliteration: "pūjayati", meaning: "worships" },
+            { word: "नामभिः", transliteration: "nāmabhiḥ", meaning: "with (various) names" },
+            { word: "नारदः", transliteration: "nāradaḥ", meaning: "the sage Narada" },
+            { word: "प्राह", transliteration: "prāha", meaning: "has told, narrated" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 3,
+          devanagari: "लोकालोकमितिस्थितं तदखिलद्वीपावलेर्बाह्यतः\nपर्वन्तं तमसावृतं सुविपुलं शैलं प्रचक्षत्यसौ ।\nयावत्सूर्यशशिप्रभा प्रसरति प्राचीनतो भूतले\nलोकालोकविभागकृत्सुरगिरिस्त्वन्मूर्तिरेवोच्यते ॥",
+          transliteration: "lōkālōkamitisthitaṁ tadakhiladvīpāvalērbāhyataḥ\nparvantaṁ tamasāvṛtaṁ suvipulaṁ śailaṁ pracakṣatyasau |\nyāvatsūryaśaśiprabhā prasarati prācīnatō bhūtalē\nlōkālōkavibhāgakṛtsuragiristvanmūrtirevōcyatē ||",
+          translation: "Beyond all the dvipas stands the vast mountain called Lokaloka, enveloped in darkness on its outer side. Up to where the light of sun and moon extends on the earth's surface, this mountain forms the boundary between the illumined and unillumined worlds — and this divine mountain is said to be none other than Your own form!",
+          commentary: "Lokaloka Parvata is the cosmic boundary separating the illuminated worlds (loka) from the region of perpetual darkness (aloka). Its identification as the Lord's own form (tvan-murti-eva) transforms physical cosmography into theology — the boundary between light and darkness is itself divine. The verse draws from Bhagavatam 5.20.34-38, where this mountain is described as the ultimate limit of solar and lunar illumination. Bhattathiri emphasizes that what appears as a geographical feature is really the Lord's cosmic body defining the limits of manifested creation.",
+          words: [
+            { word: "लोकालोकम्", transliteration: "lōkālōkam", meaning: "Lokaloka (the boundary between light and darkness)" },
+            { word: "अखिलद्वीपावलेः", transliteration: "akhiladvīpāvalēḥ", meaning: "of the entire series of dvipas" },
+            { word: "बाह्यतः", transliteration: "bāhyataḥ", meaning: "beyond, outside" },
+            { word: "तमसावृतम्", transliteration: "tamasāvṛtam", meaning: "enveloped in darkness" },
+            { word: "सुविपुलम्", transliteration: "suvipulam", meaning: "very vast, immense" },
+            { word: "शैलम्", transliteration: "śailam", meaning: "mountain" },
+            { word: "सूर्यशशिप्रभा", transliteration: "sūryaśaśiprabhā", meaning: "the light of the sun and moon" },
+            { word: "प्रसरति", transliteration: "prasarati", meaning: "extends, spreads" },
+            { word: "लोकालोकविभागकृत्", transliteration: "lōkālōkavibhāgakṛt", meaning: "maker of the division between loka and aloka" },
+            { word: "सुरगिरिः", transliteration: "suragiriḥ", meaning: "the divine mountain" },
+            { word: "त्वन्मूर्तिः", transliteration: "tvanmūrtiḥ", meaning: "Your own form" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 4,
+          devanagari: "भूगोलस्य तदुर्ध्वतो विलसति ग्रक्षेपमात्रे रवि-\nर्यस्याधः शिशिरातपौ तदुपरि स्वाहाह इत्याह्वयम् ।\nभूमेर्योजनलक्षमुच्चमुपरि ज्योतिश्चक्रं मतं\nतत्र ग्रहगणश्चरत्यविरतं त्वत्प्रेरणापालितः ॥",
+          transliteration: "bhūgōlasya tadūrdhvatō vilasati grakṣēpamātrē ravi-\nryasyādhaḥ śiśirātapau tadupari svāhāha ityāhvayam |\nbhūmēryōjanalakṣamuccamupari jyōtiścakraṁ mataṁ\ntatra grahagaṇaścaratyavirataṁ tvatprēraṇāpālitaḥ ||",
+          translation: "Above the earth-sphere shines the sun, below which lie the regions of cold and heat, and above which extend the realms known as Svaha and Aha. The luminous wheel of stars is understood to be a hundred thousand yojanas above the earth, and there the planets move ceaselessly, guided by Your divine will.",
+          commentary: "Bhattathiri now turns from horizontal cosmography (dvipas) to vertical cosmography (planetary systems). The sun's position is described relative to the earth-sphere (bhu-gola), with regions of cold and heat below it and higher celestial realms above. The jyotis-chakra (luminous wheel/zodiac) at a hundred thousand yojanas represents the stellar sphere. The crucial theological assertion is 'tvat-prerana-palitah' — the planets move by Your impulsion. This transforms astronomical description into a hymn: celestial mechanics is divine governance.",
+          words: [
+            { word: "भूगोलस्य", transliteration: "bhūgōlasya", meaning: "of the earth-sphere" },
+            { word: "ऊर्ध्वतः", transliteration: "ūrdhvataḥ", meaning: "above" },
+            { word: "रविः", transliteration: "raviḥ", meaning: "the sun" },
+            { word: "शिशिरातपौ", transliteration: "śiśirātapau", meaning: "cold and heat" },
+            { word: "स्वाहा", transliteration: "svāhā", meaning: "Svaha (a celestial region)" },
+            { word: "अह", transliteration: "aha", meaning: "Aha (a celestial region)" },
+            { word: "योजनलक्षम्", transliteration: "yōjanalakṣam", meaning: "a hundred thousand yojanas" },
+            { word: "ज्योतिश्चक्रम्", transliteration: "jyōtiścakram", meaning: "the luminous wheel, the zodiacal circle" },
+            { word: "ग्रहगणः", transliteration: "grahagaṇaḥ", meaning: "the host of planets" },
+            { word: "चरति", transliteration: "carati", meaning: "moves, revolves" },
+            { word: "अविरतम्", transliteration: "aviratam", meaning: "ceaselessly, without pause" },
+            { word: "त्वत्प्रेरणापालितः", transliteration: "tvatprēraṇāpālitaḥ", meaning: "guided and sustained by Your impulsion" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 5,
+          devanagari: "भूर्भुवःस्वरितिवा महस्तप इति ब्रह्मेति चोच्चावचान्\nलोकान् सप्त वदन्ति तत्र भवतो व्याप्तिः समस्ता स्थिता ।\nभूम्यादित्यविराट्सुधातपजनःसत्यान्तमेतद्भुवा-\nमूर्ध्वं व्यापकमेव ते वपुरिति स्तुन्वन्ति वेदा मुदा ॥",
+          transliteration: "bhūrbhuvaḥsvaritivā mahaḥtapa iti brahmēti cōccāvacān\nlōkān sapta vadanti tatra bhavatō vyāptiḥ samastā sthitā |\nbhūmyādityavirāṭsudhātapajanaḥsatyāntamētadbhuvā-\nmūrdhvaṁ vyāpakamēva tē vapuriti stunvanti vēdā mudā ||",
+          translation: "The sages speak of seven worlds — Bhuh, Bhuvah, Svah, Mahah, Tapah, Janah, and Satyam — ascending from the low to the high. Your pervasion extends through all of them! From Earth through the solar realm, the Virat, the celestial, Tapas, Janas, to Satya — the Vedas joyfully declare that all this is but Your all-pervading body!",
+          commentary: "The seven lokas of Vedic cosmology are enumerated in ascending order, forming the vertical axis of the universe. Bhattathiri's theological point is that the Lord's 'vyapti' (pervasion) extends through every level — there is no realm beyond divine reach. The identification of this entire loka-system with the Lord's body (te vapuh) echoes the Purusha Sukta and Vishvarupa descriptions. The phrase 'veda muda stunvanti' (the Vedas joyfully praise) grounds this cosmic vision in scriptural authority, suggesting that Vedic cosmography is ultimately a hymn to divine omnipresence.",
+          words: [
+            { word: "भूर्भुवःस्वः", transliteration: "bhūrbhuvaḥsvaḥ", meaning: "Bhuh, Bhuvah, Svah (the three primary worlds)" },
+            { word: "महः", transliteration: "mahaḥ", meaning: "Maharloka" },
+            { word: "तपः", transliteration: "tapaḥ", meaning: "Tapoloka" },
+            { word: "ब्रह्म", transliteration: "brahma", meaning: "Brahmaloka / Satyaloka" },
+            { word: "उच्चावचान्", transliteration: "uccāvacān", meaning: "high and low, ascending" },
+            { word: "लोकान्", transliteration: "lōkān", meaning: "worlds" },
+            { word: "सप्त", transliteration: "sapta", meaning: "seven" },
+            { word: "व्याप्तिः", transliteration: "vyāptiḥ", meaning: "pervasion, all-pervadingness" },
+            { word: "समस्ता", transliteration: "samastā", meaning: "entire, complete" },
+            { word: "व्यापकम्", transliteration: "vyāpakam", meaning: "all-pervading" },
+            { word: "वपुः", transliteration: "vapuḥ", meaning: "body, form" },
+            { word: "वेदाः", transliteration: "vēdāḥ", meaning: "the Vedas" },
+            { word: "स्तुन्वन्ति", transliteration: "stunvanti", meaning: "praise, hymn" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 6,
+          devanagari: "सूर्यस्तावदशेषलोकनिवहान् सञ्जीवयन्नूर्जितं\nभूमेः कोटिषु पञ्चदक्षमुपरि ज्योतिर्मयो भ्राम्यति ।\nमन्दारानिलदग्धतापसशिरो लेलिह्यमानोऽर्चिषा\nभ्रामं भ्रामम् अनेकलोकमखिलं त्वन्मण्डलं राजते ॥",
+          transliteration: "sūryastāvadaśēṣalōkanivahān sañjīvayannūrjitaṁ\nbhūmēḥ kōṭiṣu pañcadakṣamupari jyōtirmayō bhrāmyati |\nmandārāniladagdhatāpaśaśirō lēlihyamānō'rciṣā\nbhrāmaṁ bhrāmam anēkalōkamakhilaṁ tvanmaṇḍalaṁ rājatē ||",
+          translation: "The sun, that mighty luminary, giving life to all the worlds, revolves above the earth at a distance of five crore yojanas, resplendent with fire. With his rays licking the firmament like flames fanned by the Mandara wind, he circles and circles through manifold worlds — truly, Your radiant orb alone shines forth!",
+          commentary: "This verse focuses on the sun as the most visible cosmic agent of the Lord. The sun is described as 'asheshaloka-nivahan sanjivayan' — giving life to all worlds — establishing its role as the supreme sustainer in the material realm. The poetic image of solar rays 'licking' the sky like flames (lelihyamano archisha) is vivid. The climactic identification 'tvan-mandalam rajate' (Your orb alone shines) makes the sun a direct manifestation of divine light. This follows Bhagavatam's teaching that the sun is the visible eye of the Lord (Surya-narayana).",
+          words: [
+            { word: "सूर्यः", transliteration: "sūryaḥ", meaning: "the sun" },
+            { word: "अशेषलोकनिवहान्", transliteration: "aśēṣalōkanivahān", meaning: "all the multitudes of worlds" },
+            { word: "सञ्जीवयन्", transliteration: "sañjīvayan", meaning: "giving life to, vivifying" },
+            { word: "ऊर्जितम्", transliteration: "ūrjitam", meaning: "mighty, powerful" },
+            { word: "कोटिषु", transliteration: "kōṭiṣu", meaning: "crores (tens of millions)" },
+            { word: "ज्योतिर्मयः", transliteration: "jyōtirmayaḥ", meaning: "full of light, luminous" },
+            { word: "भ्राम्यति", transliteration: "bhrāmyati", meaning: "revolves, circles" },
+            { word: "लेलिह्यमानः", transliteration: "lēlihyamānaḥ", meaning: "licking, flickering" },
+            { word: "अर्चिषा", transliteration: "arciṣā", meaning: "with flames, rays" },
+            { word: "अनेकलोकम्", transliteration: "anēkalōkam", meaning: "manifold worlds" },
+            { word: "त्वन्मण्डलम्", transliteration: "tvanmaṇḍalam", meaning: "Your orb/disc" },
+            { word: "राजते", transliteration: "rājatē", meaning: "shines, is resplendent" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 7,
+          devanagari: "सूर्याचन्द्रमसोर्ग्रहैश्च सहितैर्नक्षत्रराशिस्थितै-\nर्विश्वं व्याप्तमिदं विलोक्य विबुधा बद्ध्वा ध्रुवे तत्परम् ।\nशिंशुमारवपुः प्रकल्प्य भगवन् पुच्छाग्रदेशे ध्रुवं\nन्यस्तं तं च विधारयन्तमनिशं त्वामेव जानन्ति ते ॥",
+          transliteration: "sūryācandrmasōrgrahaiśca sahitairnakṣatrarāśisthitai-\nrviśvaṁ vyāptamidaṁ vilōkya vibudhā baddhvā dhruvē tatparam |\nśiṁśumāravapuḥ prakalpya bhagavan pucchāgradēśē dhruvaṁ\nnyastaṁ taṁ ca vidhārayantamaniśaṁ tvāmēva jānanti tē ||",
+          translation: "Seeing this universe pervaded by the sun, moon, planets, and constellations arrayed in the zodiac, the wise ones perceive them all bound to Dhruva (the Pole Star). O Lord, they envision the Shishumara (celestial dolphin) form, with Dhruva fixed at the tip of its tail — and they recognize the one who upholds it all ceaselessly as none other than You!",
+          commentary: "The Shishumara (celestial dolphin or porpoise) is the Puranic constellation-figure encompassing the entire stellar sphere, described in Bhagavatam 5.23. All celestial bodies — sun, moon, planets, nakshatras — are arranged upon this cosmic form. Dhruva (the Pole Star) sits at the tail-tip (puccha-agra-desha), serving as the pivot around which the heavens rotate. The verse's climax is the identification: the one who upholds (vidharayantam) this entire celestial mechanism ceaselessly (anisham) is the Lord Himself. The Shishumara is thus a form of Vishnu, and astronomical observation becomes a form of worship.",
+          words: [
+            { word: "सूर्याचन्द्रमसोः", transliteration: "sūryācandrmasōḥ", meaning: "of the sun and moon" },
+            { word: "ग्रहैः", transliteration: "grahaiḥ", meaning: "with the planets" },
+            { word: "नक्षत्रराशिस्थितैः", transliteration: "nakṣatrarāśisthitaiḥ", meaning: "situated in the constellations/zodiac" },
+            { word: "विबुधाः", transliteration: "vibudhāḥ", meaning: "the wise ones, the learned" },
+            { word: "ध्रुवे", transliteration: "dhruvē", meaning: "in/to Dhruva (the Pole Star)" },
+            { word: "शिंशुमारवपुः", transliteration: "śiṁśumāravapuḥ", meaning: "the form of the celestial dolphin (Shishumara)" },
+            { word: "प्रकल्प्य", transliteration: "prakalpya", meaning: "having conceived, envisioned" },
+            { word: "पुच्छाग्रदेशे", transliteration: "pucchāgradēśē", meaning: "at the tip of the tail" },
+            { word: "ध्रुवम्", transliteration: "dhruvam", meaning: "Dhruva (the Pole Star)" },
+            { word: "न्यस्तम्", transliteration: "nyastam", meaning: "placed, fixed" },
+            { word: "विधारयन्तम्", transliteration: "vidhārayantam", meaning: "the one who upholds" },
+            { word: "अनिशम्", transliteration: "aniśam", meaning: "ceaselessly, always" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 8,
+          devanagari: "ध्रुवस्तावत्तेजोनिधिरचलभक्तिप्रणिहितो\nभवत्पादाम्भोजे नियतमनसा संस्थितियुतः ।\nस एवाधारोऽस्य प्रकृतिरचितस्याण्डकटाहे\nत्वदंशो नारायण सकलमेतद्वहति हि ॥",
+          transliteration: "dhruvastavāttējōnidhiracalabhaktipraṇihitō\nbhavatpādāmbhōjē niyatamanasā saṁsthitiyutaḥ |\nsa ēvādhārō'sya prakṛtiracitasyāṇḍakaṭāhē\ntvadaṁśō nārāyaṇa sakalamētadvahati hi ||",
+          translation: "Dhruva, that treasury of radiance, established with unwavering devotion at Your lotus feet, with mind firmly fixed — he alone serves as the pivot of this cosmos fashioned by Prakriti within the cosmic egg-shell. O Narayana, it is Your own aspect that bears all this!",
+          commentary: "Dhruva's story was narrated earlier in the Narayaneeyam, and here Bhattathiri connects that devotional narrative to cosmic structure. Dhruva's unwavering devotion (achala-bhakti) is mirrored in his astronomical fixity as the Pole Star — the axis around which the heavens revolve. He is the 'adhara' (support) of the cosmos within the 'anda-kataha' (egg-shell of the Brahmanda). Yet even Dhruva's function is derivative: 'tvad-amsho vahati' — it is the Lord's own portion that actually bears the universe. Devotion and cosmic function are thus unified.",
+          words: [
+            { word: "ध्रुवः", transliteration: "dhruvaḥ", meaning: "Dhruva (the Pole Star)" },
+            { word: "तेजोनिधिः", transliteration: "tējōnidhiḥ", meaning: "treasury of radiance" },
+            { word: "अचलभक्तिप्रणिहितः", transliteration: "acalabhaktipraṇihitaḥ", meaning: "established with unwavering devotion" },
+            { word: "पादाम्भोजे", transliteration: "pādāmbhōjē", meaning: "at the lotus feet" },
+            { word: "नियतमनसा", transliteration: "niyatamanasā", meaning: "with a controlled/fixed mind" },
+            { word: "संस्थितियुतः", transliteration: "saṁsthitiyutaḥ", meaning: "endowed with firm establishment" },
+            { word: "आधारः", transliteration: "ādhāraḥ", meaning: "the support, pivot" },
+            { word: "अण्डकटाहे", transliteration: "aṇḍakaṭāhē", meaning: "within the cosmic egg-shell" },
+            { word: "त्वदंशः", transliteration: "tvadaṁśaḥ", meaning: "Your aspect, Your portion" },
+            { word: "नारायण", transliteration: "nārāyaṇa", meaning: "O Narayana" },
+            { word: "वहति", transliteration: "vahati", meaning: "bears, carries" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 9,
+          devanagari: "राहुस्तावदनारतं शशिरविग्रासोद्यतः सैंहिके-\nयोऽसौ पर्वणि पर्वणि क्षितिभृतां छायां तमस्कुर्वते ।\nसर्वं चैतदशेषचेष्टितमिदं विश्वं चराचरात्मकं\nत्वन्माया रचितं विभो तव वशे तिष्ठत्यहो चित्रताम् ॥",
+          transliteration: "rāhustāvadanārataṁ śaśiravigrāsōdyataḥ saiṁhikē-\nyō'sau parvaṇi parvaṇi kṣitibhṛtāṁ chāyāṁ tamaskurvatē |\nsarvaṁ caitadaśēṣacēṣṭitamidaṁ viśvaṁ carācarātmakaṁ\ntvanmāyā racitaṁ vibhō tava vaśē tiṣṭhatyahō citratām ||",
+          translation: "Rahu, the son of Simhika, ceaselessly attempts to swallow the sun and moon, casting his shadow upon the luminaries at every eclipse. Yet all this — every activity in this universe of moving and non-moving beings — is fashioned by Your Maya and stands under Your control. How wondrous indeed!",
+          commentary: "Rahu (the ascending lunar node) is described per Bhagavatam 5.24.1-3 as the demonic entity causing eclipses by attempting to devour the sun and moon. But Bhattathiri elevates this from mere astronomy to a meditation on Maya: even Rahu's seemingly malefic eclipses are part of the Lord's cosmic play. The exclamation 'aho citratam' (how wondrous!) expresses amazement that the entire cosmos — moving and non-moving (chara-achara) — with all its complex activities (ashesha-cheshtitam) is Maya's creation, fully under divine control (tava vashe). Nothing operates independently of the Lord.",
+          words: [
+            { word: "राहुः", transliteration: "rāhuḥ", meaning: "Rahu (the ascending lunar node/eclipse demon)" },
+            { word: "अनारतम्", transliteration: "anāratam", meaning: "ceaselessly" },
+            { word: "शशिरविग्रासोद्यतः", transliteration: "śaśiravigrāsōdyataḥ", meaning: "intent on swallowing the moon and sun" },
+            { word: "सैंहिकेयः", transliteration: "saiṁhikēyaḥ", meaning: "son of Simhika" },
+            { word: "पर्वणि पर्वणि", transliteration: "parvaṇi parvaṇi", meaning: "at every junction/eclipse" },
+            { word: "छायाम्", transliteration: "chāyām", meaning: "shadow" },
+            { word: "तमस्कुर्वते", transliteration: "tamaskurvatē", meaning: "causes darkness" },
+            { word: "चराचरात्मकम्", transliteration: "carācarātmakam", meaning: "consisting of moving and non-moving beings" },
+            { word: "त्वन्माया", transliteration: "tvanmāyā", meaning: "Your Maya/divine illusion" },
+            { word: "रचितम्", transliteration: "racitam", meaning: "fashioned, created" },
+            { word: "तव वशे", transliteration: "tava vaśē", meaning: "under Your control" },
+            { word: "चित्रताम्", transliteration: "citratām", meaning: "wondrousness, marvel" }
+          ]
+        },
+        {
+          dashaka: 17,
+          sloka: 10,
+          devanagari: "एतादृक्सकलं जगद्भगवतो मायेरितं ब्रूमहे\nनो सत्यं खलु केवलस्त्वमजितो व्याप्यैतदालोकसे ।\nसप्तद्वीपवतीं धरित्रिमखिलां भूयो भवत्तेजसा\nपूर्णां तां भगवन्ननन्त भिषजां श्रेष्ठ प्रभो पाहि माम् ॥",
+          transliteration: "ētādṛksakalaṁ jagadbhagavatō māyēritaṁ brūmahē\nnō satyaṁ khalu kēvalastvamajitō vyāpyaitadālōkasē |\nsaptadvīpavatīṁ dharitrumakhilāṁ bhūyō bhavattējasā\npūrṇāṁ tāṁ bhagavannananta bhiṣajāṁ śrēṣṭha prabhō pāhi mām ||",
+          translation: "All this universe, we declare, is set in motion by the Maya of the Lord — it is not ultimately real. You alone, the Unconquered One, pervade and witness it all. The entire earth with its seven dvipas is filled with Your radiance. O Ananta, O best of physicians, O Lord of Guruvayur, protect me!",
+          commentary: "The concluding verse delivers the Vedantic summary: the cosmos just described across nine verses is 'maya-iritam' (set in motion by Maya) and 'no satyam' (not ultimately real). Only the Lord is real (kevalah tvam), pervading and witnessing all (vyapya etat aalokase). The beautiful phrase 'sapta-dvipa-vatim dhritrim bhavat-tejasa purnam' envisions the seven-dvipa earth as suffused with divine radiance. The closing prayer 'Ananta bhishajam shreshtha prabho pahi mam' combines cosmic theology with personal supplication — the Lord who sustains the universe in its entirety is also the supreme physician who can heal one devotee's ailment. This signature Narayaneeyam move from cosmic to personal encapsulates Bhattathiri's genius.",
+          words: [
+            { word: "एतादृक्", transliteration: "ētādṛk", meaning: "such, of this kind" },
+            { word: "सकलम्", transliteration: "sakalam", meaning: "entire, all" },
+            { word: "जगत्", transliteration: "jagat", meaning: "the universe" },
+            { word: "मायेरितम्", transliteration: "māyēritam", meaning: "set in motion by Maya" },
+            { word: "नो सत्यम्", transliteration: "nō satyam", meaning: "not ultimately real" },
+            { word: "केवलः", transliteration: "kēvalaḥ", meaning: "alone, solely" },
+            { word: "अजितः", transliteration: "ajitaḥ", meaning: "the Unconquered One" },
+            { word: "व्याप्य", transliteration: "vyāpya", meaning: "pervading" },
+            { word: "आलोकसे", transliteration: "ālōkasē", meaning: "You witness, behold" },
+            { word: "सप्तद्वीपवतीम्", transliteration: "saptadvīpavatīm", meaning: "possessing seven dvipas" },
+            { word: "धरित्रिम्", transliteration: "dharitrim", meaning: "the earth" },
+            { word: "अनन्त", transliteration: "ananta", meaning: "O Infinite One" },
+            { word: "भिषजाम् श्रेष्ठ", transliteration: "bhiṣajāṁ śrēṣṭha", meaning: "O best of physicians" },
+            { word: "पाहि माम्", transliteration: "pāhi mām", meaning: "protect me" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 18,
@@ -3933,7 +4155,223 @@ var NARAYANEEYAM_DATA = {
       theme: "philosophy",
       verseCount: 10,
       summary: "Narrates the incarnation of Lord Kapila, son of Devahuti, who expounded the Sankhya philosophy to his mother, explaining the nature of Prakriti, Purusha, and the path to liberation.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 19,
+          sloka: 1,
+          devanagari: "प्रकृतिरचिद्विभो त्वं चिद्विभोऽसि प्रधाना-\nद्गुणमयमखिलं तत्कार्यजातं बभूव ।\nमहदपि च ततोऽहं तत्त्वमुत्तीर्य कालाद्\nगुणनियमवशात्ते सृष्टिरित्यन्वशैषीः ॥",
+          transliteration: "prakṛtiracidvibhō tvaṁ cidvibhō'si pradhānā-\ndguṇamayamakhilaṁ tatkāryajātaṁ babhūva |\nmahadapi ca tatō'haṁ tattvamuttīrya kālād\nguṇaniyamavaśāttē sṛṣṭirityanyvaśaiṣīḥ ||",
+          translation: "O Lord! Prakriti is insentient, while You are the sentient Supreme Being. From Pradhana (Prakriti), all products consisting of the three gunas arose. From it came Mahat (cosmic intelligence), and then the Ahankara (ego) principle — impelled by Time and governed by the gunas, thus proceeds Your creation. So You taught.",
+          commentary: "This opening verse establishes the fundamental Sankhya dualism between Prakriti (insentient, achit) and Purusha/God (sentient, chit). Bhattathiri addresses the Lord as 'chid-vibho' (the conscious Supreme) contrasted with Prakriti as 'achid' (unconscious). The evolutionary sequence begins: from Pradhana (unmanifest Prakriti) arises Mahat-tattva (cosmic intelligence), then Ahankara (ego-principle). The catalyst is Kala (Time), which is identified as the Lord's own power. This verse sets the stage for the detailed Sankhya cosmogony that follows.",
+          words: [
+            { word: "प्रकृतिः", transliteration: "prakṛtiḥ", meaning: "Prakriti, primordial nature" },
+            { word: "अचित्", transliteration: "acit", meaning: "insentient, unconscious" },
+            { word: "विभो", transliteration: "vibhō", meaning: "O All-pervading Lord" },
+            { word: "चिद्विभो", transliteration: "cidvibhō", meaning: "O Conscious Supreme Being" },
+            { word: "प्रधानात्", transliteration: "pradhānāt", meaning: "from Pradhana (unmanifest Prakriti)" },
+            { word: "गुणमयम्", transliteration: "guṇamayam", meaning: "consisting of the three gunas" },
+            { word: "कार्यजातम्", transliteration: "kāryajātam", meaning: "the entire group of effects/products" },
+            { word: "महत्", transliteration: "mahat", meaning: "Mahat-tattva (cosmic intelligence)" },
+            { word: "अहम् तत्त्वम्", transliteration: "ahaṁ tattvam", meaning: "the ego-principle (Ahankara)" },
+            { word: "कालात्", transliteration: "kālāt", meaning: "impelled by Time" },
+            { word: "गुणनियमवशात्", transliteration: "guṇaniyamavaśāt", meaning: "governed by the regulation of gunas" },
+            { word: "सृष्टिः", transliteration: "sṛṣṭiḥ", meaning: "creation" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 2,
+          devanagari: "सत्त्वं रजस्तम इति प्रकृतेर्गुणास्ते\nसाम्यस्थितौ प्रलयकाल उपाहुरार्याः ।\nवैषम्यतो जगदिदं प्रभवत्यशेषं\nगुल्मं लतां तरुमिवैकमिदं बहूनि ॥",
+          transliteration: "sattvaṁ rajastama iti prakṛtērguṇāstē\nsāmyasthitau pralayakāla upāhurāryāḥ |\nvaiṣamyatō jagadidaṁ prabhavatyaśēṣaṁ\ngulmaṁ latāṁ tarumivaikamidaṁ bahūni ||",
+          translation: "Sattva, Rajas, and Tamas — these are the gunas of Prakriti. When they are in equilibrium, it is called the state of dissolution, say the wise. From their disequilibrium, this entire universe arises — just as from one seed come forth shrubs, creepers, and trees in their multitudes.",
+          commentary: "This verse explains the mechanism of creation through the three gunas. In pralaya (dissolution), sattva, rajas, and tamas exist in perfect equilibrium (samya-sthiti) — this is the unmanifest state of Prakriti. Creation begins when this balance is disturbed (vaishamya). The botanical simile is apt: just as a single seed produces diverse vegetation — shrubs (gulma), creepers (lata), and trees (taru) — so from one Prakriti emerges the infinite variety of creation. The 'ekam idam bahuni' (this one becomes many) echoes the Upanishadic teaching.",
+          words: [
+            { word: "सत्त्वम्", transliteration: "sattvam", meaning: "Sattva (purity, goodness)" },
+            { word: "रजः", transliteration: "rajaḥ", meaning: "Rajas (passion, activity)" },
+            { word: "तमः", transliteration: "tamaḥ", meaning: "Tamas (inertia, darkness)" },
+            { word: "गुणाः", transliteration: "guṇāḥ", meaning: "the qualities/modes" },
+            { word: "साम्यस्थितौ", transliteration: "sāmyasthitau", meaning: "in the state of equilibrium" },
+            { word: "प्रलयकाले", transliteration: "pralayakālē", meaning: "at the time of dissolution" },
+            { word: "आर्याः", transliteration: "āryāḥ", meaning: "the wise, the learned" },
+            { word: "वैषम्यतः", transliteration: "vaiṣamyataḥ", meaning: "from the disequilibrium" },
+            { word: "प्रभवति", transliteration: "prabhavati", meaning: "arises, comes forth" },
+            { word: "गुल्मम्", transliteration: "gulmam", meaning: "shrub" },
+            { word: "लताम्", transliteration: "latām", meaning: "creeper" },
+            { word: "तरुम्", transliteration: "tarum", meaning: "tree" },
+            { word: "एकम् इदं बहूनि", transliteration: "ēkam idaṁ bahūni", meaning: "this one becomes many" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 3,
+          devanagari: "सात्त्विक्यहन्तिरभवत्तव दैविकी या\nवैकारिकी श्रुतिरिति प्रथिता महद्भिः ।\nतद्राजसी भवति तैजसनामधेया\nतामस्यहन्तिरपि भूतमयी प्रदिष्टा ॥",
+          transliteration: "sāttvikyyahantirabhavattava daivikī yā\nvaikārikī śrutiriti prathitā mahadbhiḥ |\ntadrājasī bhavati taijasanāmadhēyā\ntāmasyahantirapi bhūtamayī pradiṣṭā ||",
+          translation: "The Sattvic Ahankara, known as Vaikarika, is divine in nature — from it arise the presiding deities and the mind, say the great sages. The Rajasic Ahankara is called Taijasa — from it arise the sense organs. And the Tamasic Ahankara, called Bhutadi, produces the subtle and gross elements.",
+          commentary: "This verse details the threefold division of Ahankara, a distinctive feature of Sankhya cosmology. Sattvic Ahankara (Vaikarika) produces the mind and the presiding deities of the senses — hence it is 'daiviki' (divine). Rajasic Ahankara (Taijasa) produces the ten sense organs (five of knowledge, five of action). Tamasic Ahankara (Bhutadi) produces the five tanmatras (subtle elements) which in turn produce the five gross elements. This threefold classification shows how consciousness, activity, and matter all emerge from one principle differentiated by the gunas.",
+          words: [
+            { word: "सात्त्विकी", transliteration: "sāttvikī", meaning: "Sattvic (of the nature of Sattva)" },
+            { word: "अहन्तिः", transliteration: "ahantiḥ", meaning: "Ahankara (ego-principle)" },
+            { word: "दैविकी", transliteration: "daivikī", meaning: "divine (producing deities)" },
+            { word: "वैकारिकी", transliteration: "vaikārikī", meaning: "Vaikarika (the modified/transformative)" },
+            { word: "श्रुतिः", transliteration: "śrutiḥ", meaning: "the scriptures (Vedas)" },
+            { word: "महद्भिः", transliteration: "mahadbhiḥ", meaning: "by the great sages" },
+            { word: "राजसी", transliteration: "rājasī", meaning: "Rajasic (of the nature of Rajas)" },
+            { word: "तैजस", transliteration: "taijasa", meaning: "Taijasa (the luminous/active)" },
+            { word: "तामसी", transliteration: "tāmasī", meaning: "Tamasic (of the nature of Tamas)" },
+            { word: "भूतमयी", transliteration: "bhūtamayī", meaning: "consisting of elements (Bhutadi)" },
+            { word: "प्रदिष्टा", transliteration: "pradiṣṭā", meaning: "declared, taught" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 4,
+          devanagari: "शब्दस्ततः खमभवत्स्पर्शश्च वायुः\nरूपं ततो ज्वलनमापशिवा रसाच्च ।\nगन्धश्च भूमिरभवत्तदनेन तत्त्व-\nजातेन सङ्घटनमण्डमजायतेदम् ॥",
+          transliteration: "śabdastataḥ khamabhavatparśaśca vāyuḥ\nrūpaṁ tatō jvalanamāpaśivā rasācca |\ngandhaśca bhūmirabhavattadanēna tattva-\njātēna saṅghaṭaṇamaṇḍamajāyatēdam ||",
+          translation: "From sound arose space (Akasha); from touch arose air (Vayu); from form arose fire (Agni); from taste arose water (Apah); and from smell arose earth (Prithvi). By the combination of all these tattvas, the cosmic egg (Brahmanda) was born.",
+          commentary: "This verse traces the sequential evolution of the five gross elements from their corresponding tanmatras (subtle qualities). Each tanmatra produces its corresponding element: shabda (sound) produces akasha (space), sparsha (touch) produces vayu (air), rupa (form/color) produces agni (fire), rasa (taste) produces apah (water), and gandha (smell) produces bhumi (earth). Each successive element contains the qualities of all preceding elements — earth has all five qualities. The culmination is the Brahmanda (cosmic egg), formed by the combination (sanghatanam) of all these tattvas working together under divine will.",
+          words: [
+            { word: "शब्दः", transliteration: "śabdaḥ", meaning: "sound (the tanmatra)" },
+            { word: "खम्", transliteration: "kham", meaning: "space, ether (Akasha)" },
+            { word: "स्पर्शः", transliteration: "sparśaḥ", meaning: "touch (the tanmatra)" },
+            { word: "वायुः", transliteration: "vāyuḥ", meaning: "air, wind" },
+            { word: "रूपम्", transliteration: "rūpam", meaning: "form, color (the tanmatra)" },
+            { word: "ज्वलनम्", transliteration: "jvalanam", meaning: "fire (Agni)" },
+            { word: "आपः", transliteration: "āpaḥ", meaning: "water" },
+            { word: "रसात्", transliteration: "rasāt", meaning: "from taste (the tanmatra)" },
+            { word: "गन्धः", transliteration: "gandhaḥ", meaning: "smell (the tanmatra)" },
+            { word: "भूमिः", transliteration: "bhūmiḥ", meaning: "earth" },
+            { word: "तत्त्वजातेन", transliteration: "tattvajātēna", meaning: "by the group of tattvas" },
+            { word: "सङ्घटनम्", transliteration: "saṅghaṭanam", meaning: "combination, aggregation" },
+            { word: "अण्डम्", transliteration: "aṇḍam", meaning: "the cosmic egg (Brahmanda)" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 5,
+          devanagari: "एतेषु तत्त्वनिचयेषु विभो जडेषु\nचैतन्यमेव भवदंशकलानुसारात् ।\nजीवोपरागवशतो भवसन्निवेशः\nबिम्बानुबिम्बनमिवाम्बुनि चन्द्रबिम्बम् ॥",
+          transliteration: "ētēṣu tattvanicayēṣu vibhō jaḍēṣu\ncaitanyamēva bhavadaṁśakalānusārāt |\njīvōparāgavaśatō bhavasannivēśaḥ\nbimbānubimbanamivāmbuni candrabimbam ||",
+          translation: "O Lord! In this assemblage of insentient tattvas, consciousness appears only due to the fraction of Your own essence (as the Jiva). Through the Jiva's coloring by Prakriti, involvement in worldly existence occurs — like the moon's reflection appearing in water.",
+          commentary: "This verse addresses the central puzzle: how does consciousness appear in inert matter? The answer is that the Jiva (individual soul) is an amsha (fraction) of the Lord's consciousness (bhavad-amsha-kala). The tattvas themselves are jada (inert); it is the Jiva's presence that lends them the appearance of sentience. But the Jiva becomes colored (uparaga) by contact with Prakriti, leading to samsara. The reflection analogy (bimba-anubimbana) is profound: just as the moon appears to be in the water but is not actually affected by it, so the Atman appears to be in samsara but remains untouched. This is the quintessential Sankhya-Vedanta synthesis that Kapila teaches.",
+          words: [
+            { word: "तत्त्वनिचयेषु", transliteration: "tattvanicayēṣu", meaning: "in the assemblage of tattvas" },
+            { word: "जडेषु", transliteration: "jaḍēṣu", meaning: "insentient, inert" },
+            { word: "चैतन्यम्", transliteration: "caitanyam", meaning: "consciousness" },
+            { word: "भवदंशकला", transliteration: "bhavadaṁśakalā", meaning: "a fraction of Your essence" },
+            { word: "अनुसारात्", transliteration: "anusārāt", meaning: "due to, following from" },
+            { word: "जीवोपरागवशतः", transliteration: "jīvōparāgavaśataḥ", meaning: "due to the Jiva's coloring/association" },
+            { word: "भवसन्निवेशः", transliteration: "bhavasannivēśaḥ", meaning: "involvement in worldly existence" },
+            { word: "बिम्बानुबिम्बनम्", transliteration: "bimbānubimbanam", meaning: "reflection of an original" },
+            { word: "अम्बुनि", transliteration: "ambuni", meaning: "in water" },
+            { word: "चन्द्रबिम्बम्", transliteration: "candrabimbam", meaning: "the moon's reflection" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 6,
+          devanagari: "सत्त्वोन्मुखस्य हि मनःसु जनस्य पुंसः\nसम्यग्विवेकनिचयो भवदर्पणात्स्यात् ।\nरागान्धकारजनिताश्रुजडीकृताक्षो\nव्यर्थं रजोऽनुभजते तमसा च मूढः ॥",
+          transliteration: "sattvōnmukhasya hi manaḥsu janasya puṁsaḥ\nsamyagvivēkanicayō bhavadarpanātsyāt |\nrāgāndhakārajanitāśrujaḍīkṛtākṣō\nvyarthaṁ rajō'nubhajatē tamasā ca mūḍhaḥ ||",
+          translation: "For the person whose mind is oriented toward Sattva, perfect discriminative knowledge arises through Your grace, as in a mirror. But one whose eyes are blinded by the tears born of the darkness of passion — deluded by Tamas, he futilely pursues Rajas.",
+          commentary: "This verse contrasts two human conditions based on guna-predominance. The sattvic person, whose mind is turned toward purity (sattva-unmukha), receives clear discriminative knowledge (samyag-viveka) — the Lord's grace acting as a mirror (bhavat-arpanat) that reveals truth. In contrast, the person dominated by rajas and tamas is described with a striking image: raga (passion) creates andhakara (darkness), which produces tears (ashru) that render the eyes jada (inert/blind). Such a person, deluded (mudha) by tamas, chases rajas futilely (vyartham). The verse teaches that guna-orientation determines spiritual destiny.",
+          words: [
+            { word: "सत्त्वोन्मुखस्य", transliteration: "sattvōnmukhasya", meaning: "of one oriented toward Sattva" },
+            { word: "मनःसु", transliteration: "manaḥsu", meaning: "in the minds" },
+            { word: "विवेकनिचयः", transliteration: "vivēkanicayaḥ", meaning: "accumulation of discriminative knowledge" },
+            { word: "भवदर्पणात्", transliteration: "bhavadarpanāt", meaning: "through Your grace (lit. Your mirror)" },
+            { word: "रागान्धकार", transliteration: "rāgāndhakāra", meaning: "darkness of passion" },
+            { word: "अश्रुजडीकृताक्षः", transliteration: "aśrujaḍīkṛtākṣaḥ", meaning: "whose eyes are rendered inert by tears" },
+            { word: "व्यर्थम्", transliteration: "vyartham", meaning: "futilely, in vain" },
+            { word: "रजः", transliteration: "rajaḥ", meaning: "Rajas (passion)" },
+            { word: "अनुभजते", transliteration: "anubhajatē", meaning: "pursues, follows" },
+            { word: "तमसा", transliteration: "tamasā", meaning: "by Tamas (darkness/inertia)" },
+            { word: "मूढः", transliteration: "mūḍhaḥ", meaning: "deluded" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 7,
+          devanagari: "त्रैगुण्यवृत्तिरखिला भवदीयमाया\nजीवस्तु तद्वशगतो भ्रमति प्रतीतम् ।\nत्वत्पादभक्तिरखिलं शमयेत्तदेना-\nमित्युक्तवानसि कृपार्द्रदृशा च मातुः ॥",
+          transliteration: "traiguṇyavṛttirakhilā bhavadīyamāyā\njīvastu tadvaśagatō bhramati pratītam |\ntvatpādabhaktirakhilaṁ śamayēttadēnā-\nmityuktavānasi kṛpārdradṛśā ca mātuḥ ||",
+          translation: "All activity of the three gunas is Your Maya; the Jiva, falling under its sway, wanders in samsara — this is evident. Devotion to Your feet alone can quell all of this Maya — thus You spoke to Your mother with compassion-filled eyes.",
+          commentary: "This verse is the philosophical climax where Sankhya merges into Bhakti. The entire operation of the three gunas is identified as the Lord's own Maya (bhavadiya-maya). The Jiva, though intrinsically free, comes under its power (tad-vashagata) and wanders (bhramati) through cycles of birth and death. The remedy is singular: tvat-pada-bhakti (devotion to the Lord's feet) can quell (shamayet) all of Maya's power. The tender detail 'kripa-ardra-drisha' (with compassion-moist eyes) transforms the philosophical discourse into a mother-son scene of divine love. Kapila teaches not as a detached philosopher but as a loving son seeing his mother's bondage.",
+          words: [
+            { word: "त्रैगुण्यवृत्तिः", transliteration: "traiguṇyavṛttiḥ", meaning: "the functioning of the three gunas" },
+            { word: "अखिला", transliteration: "akhilā", meaning: "entire, all" },
+            { word: "भवदीयमाया", transliteration: "bhavadīyamāyā", meaning: "Your Maya (divine illusion)" },
+            { word: "जीवः", transliteration: "jīvaḥ", meaning: "the individual soul" },
+            { word: "तद्वशगतः", transliteration: "tadvaśagataḥ", meaning: "fallen under its sway" },
+            { word: "भ्रमति", transliteration: "bhramati", meaning: "wanders (in samsara)" },
+            { word: "त्वत्पादभक्तिः", transliteration: "tvatpādabhaktiḥ", meaning: "devotion to Your feet" },
+            { word: "शमयेत्", transliteration: "śamayēt", meaning: "can quell, pacify" },
+            { word: "उक्तवान् असि", transliteration: "uktavān asi", meaning: "You spoke, You declared" },
+            { word: "कृपार्द्रदृशा", transliteration: "kṛpārdradṛśā", meaning: "with compassion-filled eyes" },
+            { word: "मातुः", transliteration: "mātuḥ", meaning: "to the mother (Devahuti)" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 8,
+          devanagari: "श्रुत्वैतदम्ब विदिताखिलतत्त्वसारा\nविद्वत्तमा खलु सती स्वसुतोपदेशात् ।\nध्यात्वा भवन्तमनिशं तव भक्तियोगा-\nदाशु प्रसन्नमनसा प्रकृतिं जजित्ये ॥",
+          transliteration: "śrutvaitadamba viditākhilatattvasārā\nvidvattamā khalu satī svasutōpadēśāt |\ndhyātvā bhavantamaniśaṁ tava bhaktiyōgā-\ndāśu prasannamanasā prakṛtiṁ jajityē ||",
+          translation: "Having heard all this, the mother — now knowing the essence of all tattvas and become the wisest through her own son's teachings — meditated upon You ceaselessly. Through Your Bhakti Yoga, with a serene mind, she swiftly conquered Prakriti.",
+          commentary: "This verse marks Devahuti's transformation from student to realized soul. The word 'vidvattama' (wisest of the wise) applied to a woman is remarkable in the context of ancient Indian literature. Her knowledge came through her son's teaching (sva-suta-upadesha) — a reversal of the usual parent-child dynamic that highlights the divine nature of Kapila. Her practice was threefold: she heard the teachings (shrutva), she meditated ceaselessly (dhyatva anishan), and she practiced bhakti yoga. The result: with a serene mind (prasanna-manasa), she conquered Prakriti (prakritim jajitye) — the very Prakriti whose 24 tattvas had been systematically explained in the preceding verses.",
+          words: [
+            { word: "श्रुत्वा", transliteration: "śrutvā", meaning: "having heard" },
+            { word: "अम्ब", transliteration: "amba", meaning: "the mother (Devahuti)" },
+            { word: "विदिताखिलतत्त्वसारा", transliteration: "viditākhilatattvasārā", meaning: "knowing the essence of all tattvas" },
+            { word: "विद्वत्तमा", transliteration: "vidvattamā", meaning: "the wisest of the wise" },
+            { word: "स्वसुतोपदेशात्", transliteration: "svasutōpadēśāt", meaning: "through her own son's teachings" },
+            { word: "ध्यात्वा", transliteration: "dhyātvā", meaning: "having meditated upon" },
+            { word: "अनिशम्", transliteration: "aniśam", meaning: "ceaselessly, constantly" },
+            { word: "भक्तियोगात्", transliteration: "bhaktiyōgāt", meaning: "through Bhakti Yoga" },
+            { word: "प्रसन्नमनसा", transliteration: "prasannamanasā", meaning: "with a serene mind" },
+            { word: "प्रकृतिम्", transliteration: "prakṛtim", meaning: "Prakriti (Nature)" },
+            { word: "जजित्ये", transliteration: "jajityē", meaning: "she conquered, overcame" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 9,
+          devanagari: "विदेहमुक्तिमधिगम्य परात्मभावं\nदेवाङ्गना सरिदभूत्तदियं प्रसिद्धा ।\nसिद्धैः सदा परिवृतः कपिलावतारो\nयोगेश्वरेश्वर विभासि च प्रागुदीच्याम् ॥",
+          transliteration: "vidēhamuktimahdigamya parātmabhāvaṁ\ndēvāṅganā saridabhūttadiyaṁ prasiddhā |\nsiddhaiḥ sadā parivṛtaḥ kapilāvatārō\nyōgēśvarēśvara vibhāsi ca prāgudīcyām ||",
+          translation: "Attaining videha-mukti (liberation upon leaving the body) and the state of the Supreme Self, that divine lady became a sacred river — she is the well-known (one). And You, in Your incarnation as Kapila, surrounded always by Siddhas, shine forth in the northeast, O Lord of the lords of Yoga!",
+          commentary: "Devahuti's liberation is described as 'videha-mukti' — liberation upon shedding the body, attaining identity with the Supreme Self (Paramatma-bhava). Her body became a sacred river — traditionally identified with the river at Siddhapura (Bindu Sarovar). The phrase 'devangana' (divine lady) elevates Devahuti to a celestial status even before her liberation. Kapila, meanwhile, remains at his ashram in the northeast (prag-udichyam), surrounded by Siddhas (perfected beings). The title 'Yogeshvareshvara' (Lord of the lords of Yoga) establishes Kapila as the supreme authority on all yoga traditions.",
+          words: [
+            { word: "विदेहमुक्तिम्", transliteration: "vidēhamuktim", meaning: "liberation upon leaving the body" },
+            { word: "परात्मभावम्", transliteration: "parātmabhāvam", meaning: "the state of the Supreme Self" },
+            { word: "देवाङ्गना", transliteration: "dēvāṅganā", meaning: "divine lady (Devahuti)" },
+            { word: "सरित्", transliteration: "sarit", meaning: "a river" },
+            { word: "अभूत्", transliteration: "abhūt", meaning: "became" },
+            { word: "प्रसिद्धा", transliteration: "prasiddhā", meaning: "well-known, famous" },
+            { word: "सिद्धैः", transliteration: "siddhaiḥ", meaning: "by Siddhas (perfected beings)" },
+            { word: "परिवृतः", transliteration: "parivṛtaḥ", meaning: "surrounded" },
+            { word: "कपिलावतारः", transliteration: "kapilāvatāraḥ", meaning: "the incarnation as Kapila" },
+            { word: "योगेश्वरेश्वर", transliteration: "yōgēśvarēśvara", meaning: "O Lord of the lords of Yoga" },
+            { word: "विभासि", transliteration: "vibhāsi", meaning: "You shine forth" },
+            { word: "प्रागुदीच्याम्", transliteration: "prāgudīcyām", meaning: "in the northeast" }
+          ]
+        },
+        {
+          dashaka: 19,
+          sloka: 10,
+          devanagari: "एवं विबोध्य जननीं परमार्थतत्त्वं\nसांख्यप्रणालिविशदीकृतयोगमार्गम् ।\nदत्त्वा च भक्तिमचलां गुरुपुङ्गवः स\nत्वं मे गदान्वयहरो भव वातनाथ ॥",
+          transliteration: "ēvaṁ vibōdhya jananīṁ paramārthatattvaṁ\nsāṅkhyapranāliviśadīkṛtayōgamārgam |\ndattvā ca bhaktimacalāṁ gurupuṅgavaḥ sa\ntvaṁ mē gadānvayaharō bhava vātanātha ||",
+          translation: "Thus having enlightened Your mother with the supreme truth — the path of Yoga made luminous through the Sankhya system — and having bestowed upon her unwavering devotion, O foremost of Gurus, O Lord of Guruvayur, be the destroyer of all my ailments!",
+          commentary: "The concluding verse follows the characteristic Narayaneeyam pattern where Bhattathiri synthesizes the dashaka's content and makes his personal plea. The summary is elegant: Kapila taught 'paramartha-tattva' (the ultimate truth) through the 'sankhya-pranali' (Sankhya methodology), which illuminated (vishadikrita) the 'yoga-marga' (path of Yoga). He gave Devahuti 'achala bhakti' (unshakeable devotion) — the practical fruit of all philosophy. The address 'guru-pungava' (foremost among gurus) links Kapila the teacher with Krishna at Guruvayur. The closing prayer 'gad-anvaya-hara' (destroyer of the succession of diseases) carries Bhattathiri's personal anguish — his rheumatic ailment that drove him to compose this masterwork.",
+          words: [
+            { word: "विबोध्य", transliteration: "vibōdhya", meaning: "having enlightened, taught" },
+            { word: "जननीम्", transliteration: "jananīm", meaning: "the mother (Devahuti)" },
+            { word: "परमार्थतत्त्वम्", transliteration: "paramārthattatvam", meaning: "the supreme truth" },
+            { word: "सांख्यप्रणालि", transliteration: "sāṅkhyapranāli", meaning: "the Sankhya system/methodology" },
+            { word: "विशदीकृत", transliteration: "viśadīkṛta", meaning: "made luminous/clear" },
+            { word: "योगमार्गम्", transliteration: "yōgamārgam", meaning: "the path of Yoga" },
+            { word: "भक्तिम् अचलाम्", transliteration: "bhaktim acalām", meaning: "unwavering devotion" },
+            { word: "गुरुपुङ्गवः", transliteration: "gurupuṅgavaḥ", meaning: "foremost of Gurus" },
+            { word: "गदान्वयहरः", transliteration: "gadānvayaharaḥ", meaning: "destroyer of the succession of diseases" },
+            { word: "भव", transliteration: "bhava", meaning: "be, become" },
+            { word: "वातनाथ", transliteration: "vātanātha", meaning: "O Lord of Guruvayur (Lord of Vata/wind)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 20,
