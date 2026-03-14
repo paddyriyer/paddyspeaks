@@ -3485,7 +3485,209 @@ var NARAYANEEYAM_DATA = {
       theme: "creation",
       verseCount: 10,
       summary: "Provides a detailed cosmographic description of Jambudvipa, the central continent in Puranic geography, including its nine varshas, mountains, rivers, and the glory of Bharatavarsha.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 16,
+          sloka: 1,
+          devanagari: "भूगोलकस्य परितः क्षीरसिन्धुमध्ये\nजम्बूद्वीपमिति लक्षयोजनायतं तत् ।\nनवखण्डसंयुतमुदारगिरिप्रभेदं\nवर्णय्य तत्र भवतो महिमानमीडे ॥",
+          transliteration: "bhūgōlakasya paritaḥ kṣīrasindhumadhyē\njambūdvīpamiti lakṣayōjanāyataṁ tat |\nnavakhaṇḍasaṁyutamudāragiriprabēdhaṁ\nvarṇayya tatra bhavatō mahimānamīḍē ||",
+          translation: "In the midst of the cosmic ocean surrounding the terrestrial globe lies Jambudvipa, extending a hundred thousand yojanas. Comprising nine divisions and distinguished by magnificent mountain ranges — describing this, I celebrate Your glory therein.",
+          commentary: "Bhattathiri opens the dashaka by establishing the cosmic setting from Bhagavatam Canto 5, Chapter 16. Jambudvipa is the central continent of Puranic cosmography, surrounded by the salt ocean. The 'laksha-yojana' (hundred thousand yojanas) measurement follows the Bhagavatam's precise specifications. The nine divisions (nava-khanda) refer to the nine varshas or regions into which Jambudvipa is divided. By stating 'bhavatah mahimanam ide' (I celebrate Your glory), Bhattathiri reminds us that even cosmographic description serves devotion — geography itself manifests the Lord's grandeur.",
+          words: [
+            { word: "भूगोलकस्य", transliteration: "bhūgōlakasya", meaning: "of the terrestrial globe" },
+            { word: "क्षीरसिन्धुमध्ये", transliteration: "kṣīrasindhumadhyē", meaning: "in the midst of the ocean" },
+            { word: "जम्बूद्वीपम्", transliteration: "jambūdvīpam", meaning: "Jambudvipa (the continent of the Jambu tree)" },
+            { word: "लक्षयोजनायतम्", transliteration: "lakṣayōjanāyatam", meaning: "extending a hundred thousand yojanas" },
+            { word: "नवखण्डसंयुतम्", transliteration: "navakhaṇḍasaṁyutam", meaning: "comprising nine divisions" },
+            { word: "उदारगिरिप्रभेदम्", transliteration: "udāragiriprabēdam", meaning: "distinguished by magnificent mountains" },
+            { word: "वर्णय्य", transliteration: "varṇayya", meaning: "describing" },
+            { word: "महिमानम्", transliteration: "mahimānam", meaning: "glory, greatness" },
+            { word: "ईडे", transliteration: "īḍē", meaning: "I celebrate, praise" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 2,
+          devanagari: "मध्ये समस्तभुवनस्य सुमेरुरुच्चै-\nरष्टाशितिर्वियदमुष्य सहस्रयोजनम् ।\nहेमाद्रिराजति चतुर्विधवर्णभेदै-\nराभाति दिक्षु सुमहान् कमलाकृतिस्थः ॥",
+          transliteration: "madhyē samastabhuvanasya sumēruruccai-\nraṣṭāśitirviyadamuṣya sahasrayōjanam |\nhēmādrirājati caturvidhavarṇabhēdai-\nrābhāti dikṣu sumahān kamalākṛtisthaḥ ||",
+          translation: "At the center of all the worlds, Mount Meru rises eighty-four thousand yojanas high. This golden mountain king shines with four distinct colors on its four sides, standing vast like a lotus in bloom.",
+          commentary: "Mount Meru, the cosmic axis mundi, is described per Bhagavatam 5.16.7. Its height of 84,000 yojanas and golden nature (hema-adri) make it the supreme mountain. The 'chatur-vidha-varna-bhedaih' refers to the four colors on Meru's four faces — white (east), yellow (south), black (west), and red (north) — each corresponding to different minerals. The lotus simile (kamala-akriti-sthah) is significant: just as the lotus is the seat of creation in Vedic imagery, Meru is the structural center from which the cosmic geography unfolds. Meru is also understood as the Lord's navel, reinforcing the connection between cosmography and divine form.",
+          words: [
+            { word: "मध्ये", transliteration: "madhyē", meaning: "at the center" },
+            { word: "समस्तभुवनस्य", transliteration: "samastabhuvanasya", meaning: "of all the worlds" },
+            { word: "सुमेरुः", transliteration: "sumēruḥ", meaning: "Mount Meru" },
+            { word: "अष्टाशितिः", transliteration: "aṣṭāśitiḥ", meaning: "eighty-four (thousand)" },
+            { word: "सहस्रयोजनम्", transliteration: "sahasrayōjanam", meaning: "thousand yojanas" },
+            { word: "हेमाद्रिः", transliteration: "hēmādriḥ", meaning: "the golden mountain" },
+            { word: "राजति", transliteration: "rājati", meaning: "shines, reigns" },
+            { word: "चतुर्विधवर्णभेदैः", transliteration: "caturvidhavarṇabhēdaiḥ", meaning: "with four distinct colors" },
+            { word: "दिक्षु", transliteration: "dikṣu", meaning: "in the directions" },
+            { word: "कमलाकृतिस्थः", transliteration: "kamalākṛtisthaḥ", meaning: "standing in the form of a lotus" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 3,
+          devanagari: "मन्दरमेरुमन्दरसुपार्श्वकुमुद्वताख्याः\nमेरोश्चतुर्दिशि गिरिप्रवराः स्थितास्ते ।\nकादम्बनन्दनसरोजवटाः क्रमेण\nतेषां शिरस्सु विलसन्ति महाद्रुमौघाः ॥",
+          transliteration: "mandaramērumandarasupārśvakumudvatākhyāḥ\nmērōścaturdishi giripravarāḥ sthitāstē |\nkādambanandanasarōjavaṭāḥ kramēṇa\ntēṣāṁ śirasssu vilasanti mahādrumaughāḥ ||",
+          translation: "Mandara, Merumandara, Suparsva, and Kumudvan — these foremost mountains stand in the four directions of Meru. Upon their summits flourish in order the great trees: Kadamba, Nandana, Saroja (lotus), and Vata (banyan).",
+          commentary: "This verse catalogs the four buttress mountains of Meru as described in Bhagavatam 5.16.12-13. Each mountain supports one of the four cardinal directions around Meru and bears a distinctive celestial tree. The Kadamba tree on Mandara is famed for producing a river of honey; the Nandana garden on Merumandara belongs to Indra; the cosmic lotus on Suparsva represents Brahma's creative power; and the Vata (banyan) on Kumudvan recalls the Lord resting as Vatapatra-shayin (the child on the banyan leaf). Thus even the geography encodes theological symbolism.",
+          words: [
+            { word: "मन्दर", transliteration: "mandara", meaning: "Mount Mandara" },
+            { word: "मेरुमन्दर", transliteration: "mērumandara", meaning: "Mount Merumandara" },
+            { word: "सुपार्श्व", transliteration: "supārśva", meaning: "Mount Suparsva" },
+            { word: "कुमुद्वत", transliteration: "kumudvat", meaning: "Mount Kumudvan" },
+            { word: "चतुर्दिशि", transliteration: "caturdishi", meaning: "in the four directions" },
+            { word: "गिरिप्रवराः", transliteration: "giripravarāḥ", meaning: "foremost mountains" },
+            { word: "कादम्ब", transliteration: "kādamba", meaning: "Kadamba tree" },
+            { word: "नन्दन", transliteration: "nandana", meaning: "Nandana tree (or garden)" },
+            { word: "सरोज", transliteration: "sarōja", meaning: "lotus tree" },
+            { word: "वटाः", transliteration: "vaṭāḥ", meaning: "banyan trees" },
+            { word: "महाद्रुमौघाः", transliteration: "mahādrumaughāḥ", meaning: "hosts of great trees" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 4,
+          devanagari: "नीलश्वेतशृङ्गवदनिषधमाल्यवन्तो\nगन्धमादनपरिवृतनीलनिषादपूर्वाः ।\nमेरोरुभयतः स्थिताः परिकल्प्य वर्षान्\nनवधा विभज्य विदधुर्भुवनस्य शोभाम् ॥",
+          transliteration: "nīlaśvētaśṛṅgavanniṣadhamālyavantō\ngandhamādanapariṿrtanīlaniṣādapūrvāḥ |\nmērōrubhayataḥ sthitāḥ parikalpya varṣān\nnavadhā vibhajya vidadhurbhuvanasya śōbhām ||",
+          translation: "Nila, Shveta, Shringavan, Nishadha, Malyavan, Gandhamadana and others — these mountains situated on both sides of Meru divide the land into nine varshas, creating the beauty of the world.",
+          commentary: "The verse enumerates the major mountain ranges that partition Jambudvipa into nine varshas (regions), following Bhagavatam 5.16.8-9. The mountains run east to west on either side of Meru like the threads of a lotus (padma-kosa). Nila, Shveta, and Shringavan lie to the north; Nishadha, Malyavan (Hemakuta), and Gandhamadana to the south. These six ranges, together with the lateral boundaries, create the nine varshas. The phrase 'bhuvanasya shobham' (beauty of the world) suggests that the Lord arranged the cosmic geography aesthetically — creation is not merely functional but beautiful.",
+          words: [
+            { word: "नीलश्वेतशृङ्गवत्", transliteration: "nīlaśvētaśṛṅgavat", meaning: "Nila, Shveta, and Shringavan mountains" },
+            { word: "निषध", transliteration: "niṣadha", meaning: "Mount Nishadha" },
+            { word: "माल्यवन्तः", transliteration: "mālyavantaḥ", meaning: "Malyavan mountain" },
+            { word: "गन्धमादन", transliteration: "gandhamādana", meaning: "Mount Gandhamadana" },
+            { word: "उभयतः", transliteration: "ubhayataḥ", meaning: "on both sides" },
+            { word: "वर्षान्", transliteration: "varṣān", meaning: "varshas (regions)" },
+            { word: "नवधा", transliteration: "navadhā", meaning: "ninefold" },
+            { word: "विभज्य", transliteration: "vibhajya", meaning: "having divided" },
+            { word: "शोभाम्", transliteration: "śōbhām", meaning: "beauty, splendor" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 5,
+          devanagari: "इलावृतं हि नवमध्यगतं च वर्षं\nमेरोस्समन्ततउपास्ति सुखावहं तत् ।\nभद्राश्वकेतुमलयात्तथ कुर्वतोऽन्ये\nकिम्पूरुषं हरिवरं रमणं च वर्षम् ॥",
+          transliteration: "ilāvṛtaṁ hi navamadhyagataṁ ca varṣaṁ\nmērōssamantatauupāsti sukhāvahaṁ tat |\nbhadrāśvakētumalayāttathā kurvatō'nyē\nkimpūruṣaṁ harivaraṁ ramaṇaṁ ca varṣam ||",
+          translation: "Ilavrita-varsha lies at the center of the nine regions, surrounding Meru on all sides, bestowing bliss. Bhadrasva, Ketumala, and beyond them are Kimpurusha, Harivarsha, Ramyaka, and other varshas.",
+          commentary: "This verse catalogs the nine varshas of Jambudvipa as per Bhagavatam 5.16.9. Ilavrita-varsha, surrounding Meru, is the central region where Lord Shiva alone resides, engaged in worship of Sankarshana. The other eight varshas radiate outward: Bhadrasva (east), Ketumala (west), and the northern and southern chains. Each varsha has its own presiding deity, its own form of the Lord worshipped, and its own distinctive character. The word 'sukhavaham' (bestowing bliss) applied to Ilavrita indicates its paradisiacal nature, where inhabitants live without suffering.",
+          words: [
+            { word: "इलावृतम्", transliteration: "ilāvṛtam", meaning: "Ilavrita-varsha" },
+            { word: "नवमध्यगतम्", transliteration: "navamadhyagatam", meaning: "situated at the center of the nine" },
+            { word: "वर्षम्", transliteration: "varṣam", meaning: "varsha (region)" },
+            { word: "समन्ततः", transliteration: "samantatḥ", meaning: "on all sides" },
+            { word: "उपास्ति", transliteration: "upāsti", meaning: "is situated near, surrounds" },
+            { word: "सुखावहम्", transliteration: "sukhāvaham", meaning: "bestowing happiness, blissful" },
+            { word: "भद्राश्व", transliteration: "bhadrāśva", meaning: "Bhadrasva-varsha" },
+            { word: "केतुमल", transliteration: "kētumala", meaning: "Ketumala-varsha" },
+            { word: "किम्पूरुषम्", transliteration: "kimpūruṣam", meaning: "Kimpurusha-varsha" },
+            { word: "हरिवरम्", transliteration: "harivaram", meaning: "Harivarsha" },
+            { word: "रमणम्", transliteration: "ramaṇam", meaning: "Ramyaka-varsha" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 6,
+          devanagari: "इलावृते भगवतो नवयोगनाथा-\nस्त्वां सङ्कर्षणतनुं परिचिन्तयन्ति ।\nभद्राश्वके हयशिरस्तव रूपमाद्यं\nसम्पूजयन्त्यनुदिनं मुनयो भजन्ते ॥",
+          transliteration: "ilāvṛtē bhagavatō navayōganāthā-\nstvāṁ saṅkarṣaṇatanuṁ paricintayanti |\nbhadrāśvakē hayaśirastva rūpamādyaṁ\nsampūjayantyanudinaṁ munayō bhajantē ||",
+          translation: "In Ilavrita, the nine Yoganaths meditate upon You as Sankarshana. In Bhadrasva-varsha, sages daily worship and serve You in the primeval form of Hayagriva (the horse-headed Lord).",
+          commentary: "This verse begins detailing the forms of the Lord worshipped in each varsha, following Bhagavatam 5.17-18. In Ilavrita, Lord Shiva along with the nine great Yogendras (nava-yoga-nathah) meditates on Sankarshana — the first expansion of the Lord associated with destruction and transcendence. In Bhadrasva-varsha (to the east), the presiding deity Bhadrasravas leads worship of Hayagriva, the horse-headed incarnation who rescued the Vedas. The term 'adyam rupam' (primeval form) for Hayagriva signals that wisdom-recovery is among the Lord's most ancient functions. Each varsha thus becomes a shrine to a specific divine function.",
+          words: [
+            { word: "इलावृते", transliteration: "ilāvṛtē", meaning: "in Ilavrita-varsha" },
+            { word: "नवयोगनाथाः", transliteration: "navayōganāthāḥ", meaning: "the nine lords of yoga" },
+            { word: "सङ्कर्षणतनुम्", transliteration: "saṅkarṣaṇatanum", meaning: "the form of Sankarshana" },
+            { word: "परिचिन्तयन्ति", transliteration: "paricintayanti", meaning: "meditate upon" },
+            { word: "भद्राश्वके", transliteration: "bhadrāśvakē", meaning: "in Bhadrasva-varsha" },
+            { word: "हयशिरः", transliteration: "hayaśiraḥ", meaning: "horse-headed (Hayagriva)" },
+            { word: "रूपम् आद्यम्", transliteration: "rūpam ādyam", meaning: "the primeval form" },
+            { word: "सम्पूजयन्ति", transliteration: "sampūjayanti", meaning: "worship" },
+            { word: "अनुदिनम्", transliteration: "anudinam", meaning: "daily" },
+            { word: "भजन्ते", transliteration: "bhajantē", meaning: "they serve, worship" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 7,
+          devanagari: "केतौमले लकुलिशं प्रियया च लक्ष्म्या\nसंसेव्यमानचरणं प्रणमन्ति लोकाः ।\nकिम्पूरुषे हनुमता सह सर्वभक्ताः\nत्वां रामरूपिणमजस्रमुपासते हि ॥",
+          transliteration: "kētaumalē lakuliśaṁ priyayā ca lakṣmyā\nsaṁsēvyamānacaraṇaṁ praṇamanti lōkāḥ |\nkimpūruṣē hanumatā saha sarvabhaktāḥ\ntvāṁ rāmarūpiṇamajasramupāsatē hi ||",
+          translation: "In Ketumala-varsha, the people bow to You as Kamadeva (the enchanter), whose feet are served by beloved Lakshmi. In Kimpurusha-varsha, all the devotees along with Hanuman perpetually worship You in the form of Lord Rama.",
+          commentary: "Ketumala-varsha (western region) worships the Lord in His most enchanting form with Lakshmi — representing the divine as the source of all desire and fulfillment. The mention of Lakshmi serving His feet (samsevyamana-charanam) emphasizes the supreme nature of this form even above Sri herself. Kimpurusha-varsha presents one of the most beloved images: Hanuman leading eternal worship of Lord Rama. The word 'ajasram' (perpetually, without cessation) conveys the timeless nature of Hanuman's devotion — in Kimpurusha, Rama-bhakti is the eternal reality, not a historical event.",
+          words: [
+            { word: "केतौमले", transliteration: "kētaumalē", meaning: "in Ketumala-varsha" },
+            { word: "लकुलिशम्", transliteration: "lakuliśam", meaning: "the enchanting form (Kamadeva form)" },
+            { word: "लक्ष्म्या", transliteration: "lakṣmyā", meaning: "by Lakshmi" },
+            { word: "संसेव्यमानचरणम्", transliteration: "saṁsēvyamānacaraṇam", meaning: "whose feet are served" },
+            { word: "प्रणमन्ति", transliteration: "praṇamanti", meaning: "they bow to" },
+            { word: "किम्पूरुषे", transliteration: "kimpūruṣē", meaning: "in Kimpurusha-varsha" },
+            { word: "हनुमता", transliteration: "hanumatā", meaning: "with Hanuman" },
+            { word: "रामरूपिणम्", transliteration: "rāmarūpiṇam", meaning: "in the form of Rama" },
+            { word: "अजस्रम्", transliteration: "ajasram", meaning: "perpetually, ceaselessly" },
+            { word: "उपासते", transliteration: "upāsatē", meaning: "they worship" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 8,
+          devanagari: "हर्यश्वके नृहरिरूपधरं प्रह्लादो\nरम्ये च मत्स्यवपुषं मनुरादिराजः ।\nकुर्वन्ति हीरणमये कमठं मुनीन्द्रा-\nस्त्वामुत्तरे तु कुरवः पुरुषं नमन्ति ॥",
+          transliteration: "haryaśvakē nṛharirūpadharaṁ prahlādō\nramyē ca matsyavapuṣaṁ manurādirājaḥ |\nkurvanti hīraṇamayē kamaṭhaṁ munīndrā-\nstvāmuttarē tu kuravaḥ puruṣaṁ namanti ||",
+          translation: "In Harivarsha, Prahlada worships You bearing the Narasimha form. In Ramyaka, Manu the first king worships You as Matsya (the Fish). In Hiranmaya, great sages worship You as Kurma (the Tortoise). And in Uttarakuru, the Kurus bow to You as the Supreme Purusha.",
+          commentary: "This verse completes the survey of divine forms across the remaining varshas. The pairing is theologically precise: Prahlada, who was saved by Narasimha, eternally worships that form in Harivarsha. Manu, saved from the deluge by Matsya, worships the Fish incarnation in Ramyaka. The Kurma (Tortoise) who supported Mount Mandara during the churning is worshipped in Hiranmaya. Uttarakuru, the northernmost varsha, worships the undifferentiated Supreme Purusha — Narayana Himself. Thus the varshas form a complete mandala of avatara-worship, each region eternally reliving the salvation it received.",
+          words: [
+            { word: "हर्यश्वके", transliteration: "haryaśvakē", meaning: "in Harivarsha" },
+            { word: "नृहरिरूपधरम्", transliteration: "nṛharirūpadharam", meaning: "bearing the Narasimha form" },
+            { word: "प्रह्लादः", transliteration: "prahlādaḥ", meaning: "Prahlada" },
+            { word: "मत्स्यवपुषम्", transliteration: "matsyavapuṣam", meaning: "in the form of Matsya (Fish)" },
+            { word: "मनुः", transliteration: "manuḥ", meaning: "Manu" },
+            { word: "आदिराजः", transliteration: "ādirājaḥ", meaning: "the first king" },
+            { word: "हीरणमये", transliteration: "hīraṇamayē", meaning: "in Hiranmaya-varsha" },
+            { word: "कमठम्", transliteration: "kamaṭham", meaning: "Kurma (Tortoise)" },
+            { word: "मुनीन्द्राः", transliteration: "munīndrāḥ", meaning: "great sages" },
+            { word: "उत्तरे कुरवः", transliteration: "uttarē kuravaḥ", meaning: "the Kurus in the north" },
+            { word: "पुरुषम्", transliteration: "puruṣam", meaning: "the Supreme Purusha" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 9,
+          devanagari: "तेषामशेषवरवर्षगतो जनानां\nभोगैर्न चापि विरतिर्न च भक्तिरुच्चैः ।\nभारे तु भारतजनस्य महत्तरैव\nमुक्तिः कर्मभूमिसुलभा तव पादसेवा ॥",
+          transliteration: "tēṣāmaśēṣavaravarṣagatō janānāṁ\nbhōgairna cāpi viratirna ca bhaktiruuccaiḥ |\nbhārē tu bhāratajansya mahattaraiva\nmuktiḥ karmabhūmisulabhā tava pādasēvā ||",
+          translation: "The people dwelling in all those excellent varshas neither develop detachment through their enjoyments nor attain supreme devotion. But in Bharata-varsha, liberation and service to Your feet are readily attainable — for it is the land of karma.",
+          commentary: "This is the theological heart of the dashaka, echoing Bhagavatam 5.19.21-23. The other eight varshas are paradises where inhabitants enjoy divine pleasures for vast durations — but precisely because of this, they develop neither dispassion (virati) nor intense devotion (bhakti). Bharata-varsha, by contrast, is the karma-bhumi (land of action) where the mixture of pleasure and pain generates both detachment and spiritual aspiration. The phrase 'karma-bhumi-sulabha' (easily attainable in the land of karma) is profound: liberation is 'easy' here not because life is comfortable, but because suffering drives the soul toward God. Even the devas covet birth in Bharata.",
+          words: [
+            { word: "अशेषवरवर्षगतः", transliteration: "aśēṣavaravarṣagatḥ", meaning: "dwelling in all the excellent varshas" },
+            { word: "भोगैः", transliteration: "bhōgaiḥ", meaning: "through enjoyments" },
+            { word: "विरतिः", transliteration: "viratiḥ", meaning: "detachment, dispassion" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "भारे", transliteration: "bhārē", meaning: "in Bharata" },
+            { word: "भारतजनस्य", transliteration: "bhāratajansya", meaning: "of the people of Bharata" },
+            { word: "महत्तरा", transliteration: "mahattarā", meaning: "far greater" },
+            { word: "मुक्तिः", transliteration: "muktiḥ", meaning: "liberation" },
+            { word: "कर्मभूमिसुलभा", transliteration: "karmabhūmisulabhā", meaning: "easily attainable in the land of karma" },
+            { word: "पादसेवा", transliteration: "pādasēvā", meaning: "service to Your feet" }
+          ]
+        },
+        {
+          dashaka: 16,
+          sloka: 10,
+          devanagari: "तत्र त्वदीयचरणस्मरणानुरक्ता\nये कर्मपाकनियतं लभन्ते विमुक्तिम् ।\nतं भारतं प्रति सुरा अपि जन्म वाञ्छ-\nन्त्याधिव्यधिप्रशमनं कुरु मे मुकुन्द ॥",
+          transliteration: "tatra tvadīyacaraṇasmaraṇānuraktā\nyē karmapākaniyataṁ labhantē vimuktim |\ntaṁ bhārataṁ prati surā api janma vāñcha-\nntyādhivyadhipraśamanaṁ kuru mē mukunda ||",
+          translation: "There, those who are devoted to the remembrance of Your feet attain liberation as ordained by their karma's fruition. Even the gods desire birth in that Bharata! O Mukunda, please calm my mental and bodily afflictions!",
+          commentary: "The concluding verse brings the cosmic geography back to personal devotion, as is Bhattathiri's signature. In Bharata-varsha, remembrance of the Lord's feet (tvadiya-charana-smarana) coupled with karma's natural course grants liberation. The stunning claim that even devas (sura api) desire birth in Bharata underscores the supreme spiritual opportunity of human birth in the karma-bhumi — a key Bhagavatam teaching (5.19.22). The closing prayer 'adhi-vyadhi-prashamanam kuru' (calm my mental and physical afflictions) is Bhattathiri's characteristic refrain, linking cosmic theology to his personal condition at Guruvayur. 'Mukunda' — the giver of liberation — is the perfect divine name to close a dashaka about the geography of spiritual liberation.",
+          words: [
+            { word: "त्वदीयचरणस्मरण", transliteration: "tvadīyacaraṇasmaraṇa", meaning: "remembrance of Your feet" },
+            { word: "अनुरक्ताः", transliteration: "anuraktāḥ", meaning: "devoted, attached" },
+            { word: "कर्मपाकनियतम्", transliteration: "karmapākaniyatam", meaning: "as ordained by the fruition of karma" },
+            { word: "विमुक्तिम्", transliteration: "vimuktim", meaning: "liberation" },
+            { word: "भारतम्", transliteration: "bhāratam", meaning: "Bharata-varsha" },
+            { word: "सुराः", transliteration: "surāḥ", meaning: "the gods, devas" },
+            { word: "जन्म", transliteration: "janma", meaning: "birth" },
+            { word: "वाञ्छन्ति", transliteration: "vāñchanti", meaning: "desire, long for" },
+            { word: "आधिव्यधिप्रशमनम्", transliteration: "ādhivyadhipraśamanam", meaning: "calming of mental and physical afflictions" },
+            { word: "मुकुन्द", transliteration: "mukunda", meaning: "O Mukunda (giver of liberation)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 17,
