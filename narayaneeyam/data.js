@@ -11121,7 +11121,183 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Celebrates the lifting of Mount Govardhana by child Krishna on His little finger to shelter the people and cattle of Vraja from Indra's furious rainstorm, humbling the king of gods.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 51,
+          sloka: 1,
+          devanagari: "हृतेन्द्रपूजामखिलं च वृत्तं\nनिशम्य कोपाद्भगवन् सुरेन्द्रः ।\nत्वद्बालभावं परिगृह्य मोहात्\nसंवर्तकाभ्रं प्रससर्ज वृष्ट्यै ॥",
+          transliteration: "hṛtendrapūjām akhilaṁ ca vṛttaṁ\nniśamya kopād bhagavan surendraḥ |\ntvad-bālabhāvaṁ parigṛhya mohāt\nsaṁvartakābhraṁ prasasarja vṛṣṭyai ||",
+          translation: "O Lord, hearing that his worship had been taken away and learning of all that had transpired, the king of gods Indra became furious. Deluded into thinking You were merely a child, he dispatched the terrifying dissolution-clouds to unleash their rain.",
+          commentary: "This opening verse sets the scene from Bhagavatam 10.25. Indra's anger stems from Krishna's persuading the Vrajavasis to worship Mount Govardhana instead of performing the traditional Indra-yajna. The term samvartaka-abhra refers to the catastrophic clouds that appear at the end of a cosmic cycle (pralaya), indicating that Indra deployed his most destructive weapons against innocent cowherds — a gross overreaction born of wounded ego.",
+          words: [
+            { word: "हृतेन्द्रपूजाम्", transliteration: "hṛtendrapūjām", meaning: "the worship of Indra having been taken away" },
+            { word: "सुरेन्द्रः", transliteration: "surendraḥ", meaning: "Indra, king of the gods" },
+            { word: "कोपात्", transliteration: "kopāt", meaning: "out of anger" },
+            { word: "बालभावम्", transliteration: "bālabhāvam", meaning: "the state of being a child" },
+            { word: "परिगृह्य", transliteration: "parigṛhya", meaning: "considering, assuming" },
+            { word: "मोहात्", transliteration: "mohāt", meaning: "out of delusion" },
+            { word: "संवर्तकाभ्रम्", transliteration: "saṁvartakābhram", meaning: "dissolution-clouds (clouds of cosmic destruction)" },
+            { word: "वृष्ट्यै", transliteration: "vṛṣṭyai", meaning: "for the purpose of raining" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 2,
+          devanagari: "ततो महावृष्टिभिरत्यदुःसहैः\nवज्रेण वातैश्च शिलासमूहैः ।\nदिशोऽप्यपश्यन्नपि गोकुलं तद्\nभयार्तमार्तं भवदेकशून्यम् ॥",
+          transliteration: "tato mahāvṛṣṭibhir atyaduḥsahaiḥ\nvajreṇa vātaiśca śilāsamūhaiḥ |\ndiśo'pyapaśyan napi gokulaṁ tad\nbhayārtam ārtaṁ bhavadaikaśūnyam ||",
+          translation: "Then, with unbearable torrential rains, thunderbolts, fierce winds, and showers of hailstones, even the directions became invisible. The Gokula, afflicted with fear and distress, felt utterly lost without You.",
+          commentary: "The verse paints the terrifying scene of Indra's assault. The accumulation of calamities — rain, lightning, wind, hailstones — represents the full fury of a humiliated deity. The phrase bhavad-eka-shunya (empty without You alone) beautifully captures how the Vrajavasis' distress was not merely physical but spiritual — separated from Krishna's reassuring presence, their world was void.",
+          words: [
+            { word: "महावृष्टिभिः", transliteration: "mahāvṛṣṭibhiḥ", meaning: "with great torrential rains" },
+            { word: "अत्यदुःसहैः", transliteration: "atyaduḥsahaiḥ", meaning: "extremely unbearable" },
+            { word: "वज्रेण", transliteration: "vajreṇa", meaning: "with thunderbolts" },
+            { word: "शिलासमूहैः", transliteration: "śilāsamūhaiḥ", meaning: "with showers of hailstones" },
+            { word: "गोकुलम्", transliteration: "gokulam", meaning: "the cowherd settlement" },
+            { word: "भयार्तम्", transliteration: "bhayārtam", meaning: "afflicted by fear" },
+            { word: "आर्तम्", transliteration: "ārtam", meaning: "distressed, suffering" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 3,
+          devanagari: "ततो भवन्तं शरणं प्रपन्नाः\nसमस्तगोपा भवदेकनाथाः ।\nत्राहीति तान् वीक्ष्य भवान् दयार्द्रः\nसमुत्पपाटोच्चगिरिं क्षणेन ॥",
+          transliteration: "tato bhavantaṁ śaraṇaṁ prapannāḥ\nsamastagopā bhavadekanāthāḥ |\ntrāhīti tān vīkṣya bhavān dayārdraḥ\nsamutpapāṭoccagiriṁ kṣaṇena ||",
+          translation: "Then all the cowherds, whose sole protector was You, took refuge in You, crying 'Save us!' Seeing them thus, You, with a heart melting with compassion, instantly uprooted the great mountain.",
+          commentary: "The verse captures the quintessential moment of prapatti (surrender). The cowherds' cry of 'trahi' (save us!) echoes the Vedantic tradition of complete self-surrender. Krishna's response — instant, compassionate, effortless — demonstrates the divine promise that the Lord rushes to protect those who take refuge in Him. The word kshane (in an instant) emphasizes the immediacy of divine grace.",
+          words: [
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "प्रपन्नाः", transliteration: "prapannāḥ", meaning: "having surrendered, taken refuge" },
+            { word: "एकनाथाः", transliteration: "ekanāthāḥ", meaning: "having only one lord/protector" },
+            { word: "त्राहि", transliteration: "trāhi", meaning: "save us! protect us!" },
+            { word: "दयार्द्रः", transliteration: "dayārdraḥ", meaning: "with heart moistened by compassion" },
+            { word: "समुत्पपाट", transliteration: "samutpapāṭa", meaning: "uprooted, lifted up" },
+            { word: "उच्चगिरिम्", transliteration: "uccagirim", meaning: "the lofty mountain" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 4,
+          devanagari: "गोवर्धनं तं गिरिमुद्धरन्नजे\nबाले करे लीलयिवाम्बुजोपमे ।\nछत्रायितं तं कुरु गोकुलस्य\nइत्यात्मनात्मा गिरिमुद्बभार ॥",
+          transliteration: "govardhanaṁ taṁ girimuddharan naje\nbāle kare līlayivāmbujopame |\nchatrāyitaṁ taṁ kuru gokulasya\nityātmanātmā girimudbadhāra ||",
+          translation: "Lifting up that Mount Govardhana effortlessly on Your lotus-like tender child-hand, You held it aloft like an umbrella for Gokula. Thus the Supreme Self bore the mountain upon Himself.",
+          commentary: "This iconic image — the child Krishna holding aloft a mountain on His little finger — is one of the most celebrated scenes in all of Hindu sacred literature. The contrast between the tender child's hand (bala kare) compared to a lotus (ambujopame) and the massive mountain creates the central paradox of the leela: infinite power expressed through the most delicate form. The term chatraayitam (made into an umbrella) transforms the mountain from a place of worship into an instrument of protection.",
+          words: [
+            { word: "गोवर्धनम्", transliteration: "govardhanaṁ", meaning: "Mount Govardhana" },
+            { word: "उद्धरन्", transliteration: "uddharan", meaning: "lifting up" },
+            { word: "बाले करे", transliteration: "bāle kare", meaning: "on the tender/young hand" },
+            { word: "लीलया", transliteration: "līlayā", meaning: "playfully, effortlessly" },
+            { word: "अम्बुजोपमे", transliteration: "ambujopame", meaning: "resembling a lotus" },
+            { word: "छत्रायितम्", transliteration: "chatrāyitam", meaning: "made into an umbrella/canopy" },
+            { word: "उद्बभार", transliteration: "udbadhāra", meaning: "held aloft, bore up" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 5,
+          devanagari: "तदद्रिमूले सपशुप्रजावृताः\nसमाश्रयन्तं प्रजाः सुखं स्थिताः ।\nत्वद्वक्त्रविश्रान्तविलोचना मुदा\nतस्थुर्दिनानि प्रविचिन्त्य सप्त ॥",
+          transliteration: "tadadrimūle sapaśuprajāvṛtāḥ\nsamāśrayantaṁ prajāḥ sukhaṁ sthitāḥ |\ntvadvaktravīśrāntavilocanā mudā\ntasthurdinānī pravicintya sapta ||",
+          translation: "At the foot of that mountain, the people along with their cattle took shelter happily. With their eyes resting upon Your face in joy, they stood for seven days without even noticing the passage of time.",
+          commentary: "For seven days, Krishna held up the mountain — a test of endurance that was no effort for the Lord but which astonished all witnesses. The beautiful phrase tvad-vaktra-vishranta-vilochana (eyes resting upon Your face) suggests that the Vrajavasis were so absorbed in Krishna's beauty that the seven days passed as if a single moment. This is a taste of the timeless bliss of Vaikuntha experienced within the material world.",
+          words: [
+            { word: "अद्रिमूले", transliteration: "adrimūle", meaning: "at the foot of the mountain" },
+            { word: "सपशुप्रजा", transliteration: "sapaśuprajā", meaning: "people together with their cattle" },
+            { word: "समाश्रयन्तम्", transliteration: "samāśrayantam", meaning: "taking shelter" },
+            { word: "सुखम्", transliteration: "sukham", meaning: "happily, comfortably" },
+            { word: "वक्त्र", transliteration: "vaktra", meaning: "face" },
+            { word: "विश्रान्त", transliteration: "viśrānta", meaning: "resting, reposing" },
+            { word: "विलोचना", transliteration: "vilocanā", meaning: "eyes" },
+            { word: "सप्त", transliteration: "sapta", meaning: "seven" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 6,
+          devanagari: "ततोऽतिवृष्टिं प्रविधाय दुर्मना\nप्रभञ्जनश्चाशनिभीषणध्वनिः ।\nनिरीक्ष्य चाद्रेश्चलनं न किञ्चन\nशचीपतिः शाम्यति खिन्नमानसः ॥",
+          transliteration: "tato'tivṛṣṭiṁ pravidhāya durmanā\nprabhañjanaścāśanibhīṣaṇadhvaniḥ |\nnirīkṣya cādreścalanaṁ na kiñcana\nśacīpatiḥ śāmyati khinnamānasaḥ ||",
+          translation: "Then, having unleashed excessive rain with terrible winds and frightening thunderclaps, yet seeing that the mountain did not move even slightly, the husband of Shachi (Indra) ceased his assault, his mind dejected.",
+          commentary: "Indra exhausts his entire arsenal to no avail. The phrase calanaṁ na kiñcana (not even the slightest movement) emphasizes the utter futility of Indra's fury against Krishna's effortless power. The use of Shachipati (husband of Shachi) rather than Indra's more glorious titles subtly diminishes him, suggesting that his identity is now defined by relationships rather than his own glory, which has been eclipsed by the Supreme Lord.",
+          words: [
+            { word: "अतिवृष्टिम्", transliteration: "ativṛṣṭim", meaning: "excessive rainfall" },
+            { word: "दुर्मनाः", transliteration: "durmanāḥ", meaning: "with wicked/troubled mind" },
+            { word: "प्रभञ्जनः", transliteration: "prabhañjanaḥ", meaning: "fierce wind, storm" },
+            { word: "अशनि", transliteration: "aśani", meaning: "thunderbolt" },
+            { word: "भीषणध्वनिः", transliteration: "bhīṣaṇadhvaniḥ", meaning: "terrible sound, frightening roar" },
+            { word: "चलनम्", transliteration: "calanam", meaning: "movement, shaking" },
+            { word: "शचीपतिः", transliteration: "śacīpatiḥ", meaning: "husband of Shachi (Indra)" },
+            { word: "खिन्नमानसः", transliteration: "khinnamānasaḥ", meaning: "with a dejected mind" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 7,
+          devanagari: "व्यपोह्य मेघानथ निर्मले व्योम्नि\nप्रकाशमाने भगवन् भवत्प्रभो ।\nव्यमुञ्चदद्रिं प्रणतैर्व्रजौकसां\nविलोकितस्त्वं परिपूर्णवैभवः ॥",
+          transliteration: "vyapohya meghān atha nirmale vyomni\nprakāśamāne bhagavan bhavatprabho |\nvyamuñcadadriṁ praṇatair vrajaukasāṁ\nvilokitastvaṁ paripūrṇavaibhavaḥ ||",
+          translation: "When the clouds dispersed and the sky shone clear, O Lord, You gently set down the mountain, beheld with reverence by the bowing residents of Vraja, Your full glory now manifest.",
+          commentary: "The clearing of the skies marks Indra's surrender. Krishna's setting down of the mountain is as graceful as His lifting of it — the word vyamunchat (released, set down) conveys gentleness. The Vrajavasis now see Krishna with new eyes (paripurna-vaibhavah, one of full glory), understanding that their cowherd boy is far more than He appears.",
+          words: [
+            { word: "व्यपोह्य", transliteration: "vyapohya", meaning: "having dispelled, having removed" },
+            { word: "मेघान्", transliteration: "meghān", meaning: "the clouds" },
+            { word: "निर्मले", transliteration: "nirmale", meaning: "clear, pure" },
+            { word: "व्योम्नि", transliteration: "vyomni", meaning: "in the sky" },
+            { word: "व्यमुञ्चत्", transliteration: "vyamuñcat", meaning: "set down, released" },
+            { word: "प्रणतैः", transliteration: "praṇataiḥ", meaning: "by those who are bowing" },
+            { word: "व्रजौकसाम्", transliteration: "vrajaukasām", meaning: "of the residents of Vraja" },
+            { word: "परिपूर्णवैभवः", transliteration: "paripūrṇavaibhavaḥ", meaning: "of complete/full glory" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 8,
+          devanagari: "ततो भवन्तं सुरभिः समेत्य\nक्षीराभिषेकैर्मुदिता ह्यपूजयत् ।\nमहेन्द्रवाहो गजराजवाहनः\nस्वयं च पादौ तव पर्यधावत ॥",
+          transliteration: "tato bhavantaṁ surabhiḥ sametya\nkṣīrābhiṣekair muditā hyapūjayat |\nmahendravāho gajarājavāhanaḥ\nsvayaṁ ca pādau tava paryadhāvata ||",
+          translation: "Then the divine cow Surabhi approached You and joyfully worshipped You with ablutions of milk. The great Indra himself, mounted on his elephant Airavata, came and fell at Your feet.",
+          commentary: "This verse describes the famous Govinda-abhisheka. Surabhi (the wish-fulfilling divine cow) and Indra together perform the consecration of Krishna, anointing Him as 'Govinda' — protector of cows. This episode transforms an act of defiance into a divine coronation. Indra, who sent the storm in rage, now performs worship in humility — a complete reversal that illustrates how the Lord humbles the proud and then graciously accepts their devotion.",
+          words: [
+            { word: "सुरभिः", transliteration: "surabhiḥ", meaning: "the divine cow Surabhi/Kamadhenu" },
+            { word: "क्षीराभिषेकैः", transliteration: "kṣīrābhiṣekaiḥ", meaning: "with ablutions/consecrations of milk" },
+            { word: "अपूजयत्", transliteration: "apūjayat", meaning: "worshipped" },
+            { word: "महेन्द्रवाहः", transliteration: "mahendravāhaḥ", meaning: "borne by the great Indra" },
+            { word: "गजराजवाहनः", transliteration: "gajarājavāhanaḥ", meaning: "having the king of elephants (Airavata) as vehicle" },
+            { word: "पादौ", transliteration: "pādau", meaning: "the two feet" },
+            { word: "पर्यधावत", transliteration: "paryadhāvata", meaning: "ran to, fell at" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 9,
+          devanagari: "गोविन्द इत्यभ्यषिञ्चत् सुरेन्द्रः\nत्वामैरावद्दन्तलग्नैर्जलौघैः ।\nगन्धर्वगीतैर्मुनिभिस्तुतश्च\nप्रसन्नलीलं प्रजगल्भ ईशः ॥",
+          transliteration: "govinda ityabhyaṣiñcat surendraḥ\ntvām airāvaddantalagnair jalaughaiḥ |\ngandharvagītair munibhistutaśca\nprasannalīlaṁ prajagalbha īśaḥ ||",
+          translation: "Indra consecrated You with the title 'Govinda,' bathing You with streams of water from the tusks of Airavata. Praised by the songs of Gandharvas and the hymns of sages, You, the Lord, shone in gracious play.",
+          commentary: "The abhisheka scene reaches its climax as Indra formally bestows the title Govinda (lord/protector of cows) upon Krishna. The water streaming from Airavata's tusks, the celestial music of Gandharvas, and the Vedic hymns of sages together create a divine coronation. The word prasanna-leelam (gracious play) reminds us that for Krishna, even this grand cosmic drama — Indra's pride, the storm, the mountain-lifting, and now the abhisheka — is all effortless leela.",
+          words: [
+            { word: "गोविन्द", transliteration: "govinda", meaning: "protector/lord of cows (title given to Krishna)" },
+            { word: "अभ्यषिञ्चत्", transliteration: "abhyaṣiñcat", meaning: "consecrated, anointed" },
+            { word: "ऐरावत्", transliteration: "airāvat", meaning: "Airavata, Indra's elephant" },
+            { word: "दन्तलग्नैः", transliteration: "dantalagnaiḥ", meaning: "clinging to the tusks" },
+            { word: "जलौघैः", transliteration: "jalaughaiḥ", meaning: "with streams/floods of water" },
+            { word: "गन्धर्वगीतैः", transliteration: "gandharvagītaiḥ", meaning: "with songs of the Gandharvas" },
+            { word: "मुनिभिः", transliteration: "munibhiḥ", meaning: "by the sages" },
+            { word: "प्रसन्नलीलम्", transliteration: "prasannalīlam", meaning: "with gracious/joyful play" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 10,
+          devanagari: "इत्थं महेन्द्रादिनिषेवितं त्वां\nगोवर्धनोद्धारणलीलशालिनम् ।\nगोविन्दनामामृतपूर्णमूर्तिं\nमरुत्पुरेश प्रणतोऽस्मि नित्यम् ॥",
+          transliteration: "itthaṁ mahendrādiniṣevitaṁ tvāṁ\ngovardhanoddhāraṇalīlaśālinam |\ngovindanāmāmṛtapūrṇamūrtiṁ\nmarutpureśa praṇato'smi nityam ||",
+          translation: "Thus worshipped by great Indra and other gods, You who are adorned by the sport of lifting Govardhana, whose form overflows with the nectar of the name Govinda — O Lord of Guruvayur, I bow to You always. May You cure all my afflictions.",
+          commentary: "The closing verse ties together the entire Govardhana episode with Bhattathiri's personal devotion. The compound govardhanoddhāraṇa-līla-śālinam celebrates the mountain-lifting as Krishna's crowning glory, while govinda-nāma-amṛta-pūrṇa-mūrtim suggests that the very name Govinda, earned through this episode, fills Krishna's form with immortal sweetness. The poet's final prostration (pranato'smi nityam) before Marutpuresha follows the traditional closing pattern of seeking healing grace.",
+          words: [
+            { word: "निषेवितम्", transliteration: "niṣevitam", meaning: "worshipped, served, attended upon" },
+            { word: "गोवर्धनोद्धारण", transliteration: "govardhanoddhāraṇa", meaning: "the lifting of Govardhana" },
+            { word: "लीलशालिनम्", transliteration: "līlaśālinam", meaning: "adorned with/distinguished by the divine play" },
+            { word: "अमृतपूर्णमूर्तिम्", transliteration: "amṛtapūrṇamūrtim", meaning: "form filled with nectar/immortality" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "प्रणतः अस्मि", transliteration: "praṇataḥ asmi", meaning: "I bow, I prostrate" },
+            { word: "नित्यम्", transliteration: "nityam", meaning: "always, eternally" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 52,
@@ -11130,7 +11306,177 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates Nanda's abduction by Varuna's servants and Krishna's rescue. The cowherds are then granted a vision of Vaikuntha, and joyous celebrations follow in Vraja.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 52,
+          sloka: 1,
+          devanagari: "एकादशीव्रतयुतो व्रजनाथनन्दः\nस्नातुं गतो यमुनया निशि पर्वकाले ।\nवारुण्यभृत्यगणहस्तगतः प्रभातं\nनालोकयत् तव पिता खलु वारुणेषु ॥",
+          transliteration: "ekādaśīvratayuto vrajanāthanandaḥ\nsnātuṁ gato yamunayā niśi parvakāle |\nvāruṇyabhṛtyagaṇahastagataḥ prabhātaṁ\nnālokayat tava pitā khalu vāruṇeṣu ||",
+          translation: "Nanda, the chief of Vraja, observing the Ekadashi vow, went to bathe in the Yamuna at night during the sacred occasion. Seized by the servants of Varuna, your father did not see the dawn, held captive in Varuna's realm.",
+          commentary: "Bhagavatam 10.28 narrates this episode. Nanda went to bathe in the Yamuna before dawn to observe the Ekadashi vrata, but mistakenly entered the water during the inauspicious hours (abhijit-muhurta had not yet arrived). Varuna's attendants, overzealous in their duty, seized him and brought him to their lord. This sets up another occasion for Krishna to demonstrate His supreme lordship over all the Lokapalas (world-guardians).",
+          words: [
+            { word: "एकादशीव्रतयुतः", transliteration: "ekādaśīvratayutaḥ", meaning: "engaged in the Ekadashi fast/vow" },
+            { word: "व्रजनाथ", transliteration: "vrajanātha", meaning: "lord/chief of Vraja" },
+            { word: "यमुनया", transliteration: "yamunayā", meaning: "in the Yamuna river" },
+            { word: "निशि", transliteration: "niśi", meaning: "at night" },
+            { word: "पर्वकाले", transliteration: "parvakāle", meaning: "at the time of a sacred occasion" },
+            { word: "वारुण्यभृत्यगण", transliteration: "vāruṇyabhṛtyagaṇa", meaning: "the host of Varuna's servants" },
+            { word: "हस्तगतः", transliteration: "hastagataḥ", meaning: "fallen into the hands of, seized" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 2,
+          devanagari: "हा नन्दमानीय इति प्रभाते\nक्रन्दन्ति गोपा भवदन्तिकं ते ।\nगत्वा त्वया वारुणलोकमाशु\nपिता स आनीय समर्पितोऽभूत् ॥",
+          transliteration: "hā nandam ānīya iti prabhāte\nkrandanti gopā bhavadantikaṁ te |\ngatvā tvayā vāruṇalokam āśu\npitā sa ānīya samarpito'bhūt ||",
+          translation: "At dawn, the cowherds came crying to You: 'Alas, Nanda has been taken away!' You went swiftly to Varuna's realm, and your father was brought back and restored to them.",
+          commentary: "Krishna's response to the crisis is characteristically immediate (ashu — swiftly). Unlike His confrontation with Indra which involved an elaborate seven-day leela, the Varuna episode is resolved with divine dispatch. The simplicity of the verse mirrors the simplicity of the rescue — Krishna merely appeared before Varuna, who immediately recognized the Supreme Lord and returned Nanda with profuse apologies.",
+          words: [
+            { word: "क्रन्दन्ति", transliteration: "krandanti", meaning: "they cry, they wail" },
+            { word: "गोपाः", transliteration: "gopāḥ", meaning: "the cowherds" },
+            { word: "अन्तिकम्", transliteration: "antikam", meaning: "near, into the presence of" },
+            { word: "वारुणलोकम्", transliteration: "vāruṇalokam", meaning: "the realm/world of Varuna" },
+            { word: "आशु", transliteration: "āśu", meaning: "swiftly, quickly" },
+            { word: "आनीय", transliteration: "ānīya", meaning: "having brought back" },
+            { word: "समर्पितः", transliteration: "samarpitaḥ", meaning: "restored, handed over" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 3,
+          devanagari: "वरुणेन पूजितस्त्वं स्तुतश्च बहुमानतः ।\nक्षमस्व भगवन्नेतत् भृत्यदोषमिति ब्रुवन् ।\nपितरं ते समानीय प्रणनाम जगत्पतिम् ॥",
+          transliteration: "varuṇena pūjitastvaṁ stutaśca bahumānataḥ |\nkṣamasva bhagavannetat bhṛtyadoṣamiti bruvan |\npitaraṁ te samānīya praṇanāma jagatpatim ||",
+          translation: "Varuna worshipped You and praised You with great reverence, saying: 'Forgive this, O Lord — it was the fault of my servants.' Having restored your father, he bowed to You, the Lord of the universe.",
+          commentary: "Unlike Indra who needed a devastating lesson before surrendering, Varuna immediately recognizes Krishna as Jagatpati (Lord of the universe) and offers humble apology. His acknowledgment that it was bhritya-dosha (the fault of servants) rather than his own command shows both political wisdom and genuine devotion. This episode establishes a pattern: every cosmic guardian who encounters Krishna ultimately acknowledges His supremacy.",
+          words: [
+            { word: "पूजितः", transliteration: "pūjitaḥ", meaning: "worshipped, honored" },
+            { word: "स्तुतः", transliteration: "stutaḥ", meaning: "praised, extolled" },
+            { word: "बहुमानतः", transliteration: "bahumānataḥ", meaning: "with great respect/reverence" },
+            { word: "क्षमस्व", transliteration: "kṣamasva", meaning: "please forgive (imperative)" },
+            { word: "भृत्यदोषम्", transliteration: "bhṛtyadoṣam", meaning: "the fault of servants" },
+            { word: "प्रणनाम", transliteration: "praṇanāma", meaning: "bowed down, prostrated" },
+            { word: "जगत्पतिम्", transliteration: "jagatpatim", meaning: "lord of the universe" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 4,
+          devanagari: "नन्दस्तदा वारुणलोकवैभवं\nत्वत्तेजसश्चातिशयं विलोक्य ।\nप्रत्यागतः प्राह व्रजौकसो हरेः\nमाहात्म्यमत्यद्भुतमप्रमेयम् ॥",
+          transliteration: "nandastadā vāruṇalokavaibhavaṁ\ntvattejasaścātiśayaṁ vilokya |\npratyāgataḥ prāha vrajaukaso hareḥ\nmāhātmyam atyadbhutam aprameyam ||",
+          translation: "Nanda, having witnessed the splendor of Varuna's realm and the surpassing brilliance of Your divine glory, returned and told the residents of Vraja about the immeasurable and most wondrous greatness of Lord Hari.",
+          commentary: "Nanda's experience in Varuna-loka becomes a catalyst for deeper understanding among the Vrajavasis. Having seen how even the mighty Varuna trembles before his foster-son, Nanda returns with wonder. The terms atyadbhutam (most wondrous) and aprameyam (immeasurable, beyond comprehension) indicate that Nanda's experience transcends ordinary language — he struggles to convey the full magnitude of what he witnessed.",
+          words: [
+            { word: "वारुणलोकवैभवम्", transliteration: "vāruṇalokavaibhavam", meaning: "the splendor of Varuna's world" },
+            { word: "तेजसः", transliteration: "tejasaḥ", meaning: "of divine brilliance/glory" },
+            { word: "अतिशयम्", transliteration: "atiśayam", meaning: "surpassing excellence" },
+            { word: "प्रत्यागतः", transliteration: "pratyāgataḥ", meaning: "having returned" },
+            { word: "मांहात्म्यम्", transliteration: "māhātmyam", meaning: "greatness, glory" },
+            { word: "अत्यद्भुतम्", transliteration: "atyadbhutam", meaning: "most wondrous" },
+            { word: "अप्रमेयम्", transliteration: "aprameyam", meaning: "immeasurable, beyond comprehension" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 5,
+          devanagari: "ततो व्रजौकोभिरुदीरितं हरेः\nप्रभावमाकर्ण्य समन्ततो मुदा ।\nकदा नु साक्षात्कृतविष्णुलोकताम्\nअवाप्नुयामेति मतिर्बभूव ह ॥",
+          transliteration: "tato vrajaukobhir udīritaṁ hareḥ\nprabhāvam ākarṇya samantato mudā |\nkadā nu sākṣātkṛtaviṣṇulokatām\navāpnuyāmeti matir babhūva ha ||",
+          translation: "Then, hearing about the glory of Lord Hari narrated by the residents of Vraja from all sides with joy, they all developed the desire: 'When shall we too directly behold the realm of Vishnu?'",
+          commentary: "Nanda's account kindles a longing in the hearts of all Vrajavasis to see Vaikuntha for themselves. This collective aspiration is significant in Bhakti theology — it represents the transition from indirect faith (shraddha) to the burning desire for direct experience (sākṣātkāra). The Lord, ever responsive to sincere longing, will soon fulfill this wish, as the next verses describe.",
+          words: [
+            { word: "व्रजौकोभिः", transliteration: "vrajaukobhiḥ", meaning: "by the residents of Vraja" },
+            { word: "उदीरितम्", transliteration: "udīritam", meaning: "narrated, described" },
+            { word: "प्रभावम्", transliteration: "prabhāvam", meaning: "glory, power, majesty" },
+            { word: "आकर्ण्य", transliteration: "ākarṇya", meaning: "having heard" },
+            { word: "साक्षात्कृत", transliteration: "sākṣātkṛta", meaning: "directly perceived, beheld" },
+            { word: "विष्णुलोकताम्", transliteration: "viṣṇulokatām", meaning: "the state of Vishnu's realm" },
+            { word: "मतिः", transliteration: "matiḥ", meaning: "thought, desire, intention" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 6,
+          devanagari: "तेषां मनोरथमवाप्य भवान् दयालुः\nवैकुण्ठलोकमखिलं समदर्शयत्ताम् ।\nब्रह्मादयो विधिशिवादय एव यत्र\nnityaṁ श्रिया सह विभासि परात्परस्त्वम् ॥",
+          transliteration: "teṣāṁ manoratham avāpya bhavān dayāluḥ\nvaikuṇṭhalokam akhilaṁ samadarśayattām |\nbrahmādayo vidhiśivādaya eva yatra\nnityaṁ śriyā saha vibhāsi parātparastvam ||",
+          translation: "Understanding their heartfelt wish, You, the compassionate one, revealed to them the entire realm of Vaikuntha — where Brahma, Shiva, and other gods eternally attend You, and where You shine with Shri (Lakshmi), the Supreme beyond the supreme.",
+          commentary: "Krishna grants the Vrajavasis a direct vision of Vaikuntha — His eternal transcendent abode. This extraordinary grace, normally attained only after liberation, is bestowed upon simple cowherds out of pure love. The vision reveals that the boy they know as their neighbor's child is in fact Paratpara (the Supreme beyond the supreme), eternally resplendent with Shri (Lakshmi) and worshipped by Brahma and Shiva themselves.",
+          words: [
+            { word: "मनोरथम्", transliteration: "manoratham", meaning: "heartfelt desire, wish" },
+            { word: "दयालुः", transliteration: "dayāluḥ", meaning: "the compassionate one" },
+            { word: "वैकुण्ठलोकम्", transliteration: "vaikuṇṭhalokam", meaning: "the realm of Vaikuntha (Vishnu's abode)" },
+            { word: "समदर्शयत्", transliteration: "samadarśayat", meaning: "showed, revealed" },
+            { word: "श्रिया सह", transliteration: "śriyā saha", meaning: "together with Lakshmi" },
+            { word: "विभासि", transliteration: "vibhāsi", meaning: "You shine, You are resplendent" },
+            { word: "परात्परः", transliteration: "parātparaḥ", meaning: "the Supreme beyond the supreme" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 7,
+          devanagari: "आलोक्य वैकुण्ठपदं व्रजौकसः\nपरं विस्मयमापन्नाः प्रमोदसलिलाप्लुताः ।\nपुनर्व्रजं प्राप्य हरेर्विचिन्त्य तत्\nप्रभावमासन् प्रणतिं गताः परे ॥",
+          transliteration: "ālokya vaikuṇṭhapadaṁ vrajaukasaḥ\nparaṁ vismayam āpannāḥ pramodasalilāplutāḥ |\npunarvrjaṁ prāpya harervicintya tat\nprabhāvam āsan praṇatiṁ gatāḥ pare ||",
+          translation: "Having beheld the abode of Vaikuntha, the residents of Vraja were filled with supreme wonder and drenched in tears of joy. Returning to Vraja and reflecting on the Lord's glory, they surrendered themselves completely to the Supreme.",
+          commentary: "The emotional response of the Vrajavasis — wonder (vismaya) and tears of joy (pramoda-salila) — mirrors the experience described in devotional texts when a devotee receives divine vision. Yet the most profound effect is described last: pranatim gatah pare (they surrendered to the Supreme). The vision transforms their natural affection for Krishna into conscious, total devotion — they now know whom they love.",
+          words: [
+            { word: "आलोक्य", transliteration: "ālokya", meaning: "having beheld, having seen" },
+            { word: "वैकुण्ठपदम्", transliteration: "vaikuṇṭhapadam", meaning: "the abode of Vaikuntha" },
+            { word: "विस्मयम्", transliteration: "vismayam", meaning: "wonder, amazement" },
+            { word: "प्रमोदसलिल", transliteration: "pramodasalila", meaning: "tears of joy (lit. water of delight)" },
+            { word: "आप्लुताः", transliteration: "āplutāḥ", meaning: "drenched, flooded" },
+            { word: "प्रभावम्", transliteration: "prabhāvam", meaning: "glory, divine power" },
+            { word: "प्रणतिम्", transliteration: "praṇatim", meaning: "surrender, prostration" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 8,
+          devanagari: "ततो व्रजे महोत्सवो बभूव सुन्दरो महान् ।\nनन्दमोचनपूर्वं तं गोविन्दाभिषेचनम् ।\nव्रजवासिनो महामोदं प्रापुः सर्वे नराः स्त्रियः ॥",
+          transliteration: "tato vraje mahotsavo babhūva sundaro mahān |\nnandamocanapūrvaṁ taṁ govindābhiṣecanam |\nvrajavāsino mahāmodaṁ prāpuḥ sarve narāḥ striyaḥ ||",
+          translation: "Then a great and beautiful celebration arose in Vraja — marking Nanda's liberation and Govinda's consecration. All the men and women of Vraja attained supreme delight.",
+          commentary: "The Nandotsava (festival of joy) referenced in the dashaka's title reaches its culmination. The celebration has a dual cause: Nanda's safe return from Varuna's captivity and the memory of Krishna's Govinda-abhisheka after the Govardhana episode. The verse emphasizes the inclusive nature of the joy — sarve narah striyah (all men and women) — suggesting that divine celebrations leave no one out.",
+          words: [
+            { word: "महोत्सवः", transliteration: "mahotsavaḥ", meaning: "great festival, grand celebration" },
+            { word: "सुन्दरः", transliteration: "sundaraḥ", meaning: "beautiful" },
+            { word: "नन्दमोचन", transliteration: "nandamocana", meaning: "the liberation/freeing of Nanda" },
+            { word: "गोविन्दाभिषेचनम्", transliteration: "govindābhiṣecanam", meaning: "the consecration/coronation as Govinda" },
+            { word: "व्रजवासिनः", transliteration: "vrajavāsinaḥ", meaning: "the residents of Vraja" },
+            { word: "महामोदम्", transliteration: "mahāmodam", meaning: "supreme delight, great joy" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 9,
+          devanagari: "गीतैश्च नृत्यैश्च विचित्रवादनैः\nगोपा विरेजुर्मुदिताः समन्ततः ।\nत्वदीयमाहात्म्यविवर्धितोत्सवं\nव्रजं बभासे भुवि वैकुण्ठवत् ॥",
+          transliteration: "gītaiśca nṛtyaiśca vicitravādanaiḥ\ngopā virejur muditāḥ samantataḥ |\ntvadīyamāhātmyavivardhitotsavaṁ\nvrajaṁ babhāse bhuvi vaikuṇṭhavat ||",
+          translation: "With songs, dances, and varied musical instruments, the cowherds shone joyfully all around. Vraja, its celebration magnified by Your greatness, gleamed on earth like Vaikuntha itself.",
+          commentary: "The concluding celebration transforms Vraja into a terrestrial Vaikuntha. Having just witnessed the real Vaikuntha, the cowherds now recreate its joy in their own humble settlement through song, dance, and music. The simile vaikuṇṭhavat (like Vaikuntha) carries deeper meaning: where Krishna is present and celebrated with love, that place becomes Vaikuntha regardless of its material condition. This is a key teaching of Bhakti philosophy.",
+          words: [
+            { word: "गीतैः", transliteration: "gītaiḥ", meaning: "with songs" },
+            { word: "नृत्यैः", transliteration: "nṛtyaiḥ", meaning: "with dances" },
+            { word: "विचित्रवादनैः", transliteration: "vicitravādanaiḥ", meaning: "with varied musical instruments" },
+            { word: "विरेजुः", transliteration: "virejuḥ", meaning: "they shone, they were radiant" },
+            { word: "माहात्म्य", transliteration: "māhātmya", meaning: "greatness, glory" },
+            { word: "विवर्धित", transliteration: "vivardhita", meaning: "magnified, increased" },
+            { word: "वैकुण्ठवत्", transliteration: "vaikuṇṭhavat", meaning: "like Vaikuntha" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 10,
+          devanagari: "एवं व्रजं वैकुण्ठसन्निभं कृतं\nत्वया दयासागर गोपरक्षक ।\nनन्दमोक्षणवरुणप्रसादक\nमरुत्पुरेशाखिलरोगशान्तये ॥",
+          transliteration: "evaṁ vrajaṁ vaikuṇṭhasannibhaṁ kṛtaṁ\ntvayā dayāsāgara goparakṣaka |\nnandamokṣaṇavaruṇaprasādaka\nmarutpureśākhilarogaśāntaye ||",
+          translation: "Thus You transformed Vraja into the likeness of Vaikuntha, O ocean of compassion, O protector of cowherds, O liberator of Nanda and granter of grace to Varuna. O Lord of Guruvayur, may You grant me peace from all ailments.",
+          commentary: "The closing verse synthesizes the entire dashaka's themes: Krishna as dayasagara (ocean of compassion), goparakshaka (protector of cowherds), liberator of Nanda from Varuna, and the one who graciously accepted even Varuna's apology. The final prayer to Marutpuresha for akhila-roga-shantaye (peace from all ailments) follows the Narayaneeyam's invariable closing convention, connecting the cosmic narrative to Bhattathiri's personal quest for healing at Guruvayur.",
+          words: [
+            { word: "वैकुण्ठसन्निभम्", transliteration: "vaikuṇṭhasannibham", meaning: "resembling Vaikuntha" },
+            { word: "दयासागर", transliteration: "dayāsāgara", meaning: "ocean of compassion" },
+            { word: "गोपरक्षक", transliteration: "goparakṣaka", meaning: "protector of cowherds" },
+            { word: "नन्दमोक्षण", transliteration: "nandamokṣaṇa", meaning: "liberator of Nanda" },
+            { word: "वरुणप्रसादक", transliteration: "varuṇaprasādaka", meaning: "granter of grace to Varuna" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "अखिलरोगशान्तये", transliteration: "akhilarogaśāntaye", meaning: "for the pacification of all ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 53,
