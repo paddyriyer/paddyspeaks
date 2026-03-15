@@ -10380,7 +10380,180 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Tells how Brahma stole the cowherd boys and calves to test Krishna, who then expanded Himself into identical copies of all of them. Brahma, humbled, offered prayers of glorification.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 47,
+          sloka: 1,
+          devanagari: "वत्सान् चरन्तान् सह गोपबालैः\nकदाचिदीक्ष्य त्वयि भुक्तवत्सु ।\nब्रह्मा विमोहं तव वीक्ष्य लीलां\nवत्सान् निनाय प्रथमं बिलं प्रति ॥",
+          transliteration: "vatsān carantān saha gopabālaiḥ\nkadācidīkṣya tvayi bhuktavatsu |\nbrahma vimohaṁ tava vīkṣya līlāṁ\nvatsān nināya prathamaṁ bilaṁ prati ||",
+          translation: "Once, while the cowherd boys were eating their midday meal with You and the calves were grazing nearby, Brahma, wishing to test Your divine power, first led the calves away and hid them in a cave.",
+          commentary: "This opening verse sets the scene for the Brahma-Vimohana Lila as described in Bhagavatam 10.13. Brahma, the creator, had witnessed Krishna's effortless killing of Aghasura and was bewildered about whether this cowherd boy was truly the Supreme Lord. His curiosity drove him to devise a test — beginning by stealing the calves while Krishna and friends were absorbed in their forest meal.",
+          words: [
+            { word: 'वत्सान्', transliteration: 'vatsān', meaning: 'calves' },
+            { word: 'गोपबालैः', transliteration: 'gopabālaiḥ', meaning: 'with the cowherd boys' },
+            { word: 'भुक्तवत्सु', transliteration: 'bhuktavatsu', meaning: 'while they were eating' },
+            { word: 'ब्रह्मा', transliteration: 'brahmā', meaning: 'Lord Brahma, the creator' },
+            { word: 'विमोहम्', transliteration: 'vimoham', meaning: 'bewilderment, delusion' },
+            { word: 'लीलाम्', transliteration: 'līlām', meaning: 'divine play' },
+            { word: 'बिलम्', transliteration: 'bilam', meaning: 'cave, cavern' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 2,
+          devanagari: "वत्सान् गतान् वीक्ष्य ततो विधाता\nगोपान् अपि त्वत्सखिनो निनाय ।\nनिद्रापयन् मायिककृत्यतस्तान्\nगुहान्तरे क्वापि निधाय दूरम् ॥",
+          transliteration: "vatsān gatān vīkṣya tato vidhātā\ngopān api tvatsakhino nināya |\nnidrāpayan māyikakṛtyatastān\nguhāntare kvāpi nidhāya dūram ||",
+          translation: "Seeing the calves gone, Brahma then also took away the cowherd boys, Your companions. Putting them to sleep by his mystic power, he hid them far away in a cave.",
+          commentary: "Brahma escalated his test by also taking the gopas, Krishna's friends. Using his creative potency (māyā-śakti), he put them into a deep yogic sleep and concealed them in a remote mountain cave. Bhagavatam 10.13.17 describes how Brahma hid both the boys and calves to see what Krishna would do when left entirely alone in the forest.",
+          words: [
+            { word: 'विधाता', transliteration: 'vidhātā', meaning: 'Brahma, the creator' },
+            { word: 'गोपान्', transliteration: 'gopān', meaning: 'the cowherd boys' },
+            { word: 'सखिनः', transliteration: 'sakhinaḥ', meaning: 'friends, companions' },
+            { word: 'निद्रापयन्', transliteration: 'nidrāpayan', meaning: 'putting to sleep' },
+            { word: 'मायिक', transliteration: 'māyika', meaning: 'mystic, illusory' },
+            { word: 'गुहान्तरे', transliteration: 'guhāntare', meaning: 'inside a cave' },
+            { word: 'दूरम्', transliteration: 'dūram', meaning: 'far away' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 3,
+          devanagari: "एकाकितां प्राप्य तदा वनान्ते\nसर्वं विदित्वा कमलोद्भवस्य ।\nमायाबलं त्वं स्वयमेव सद्यो\nवत्सान् गोपांश्च तदीयरूपः ॥",
+          transliteration: "ekākitāṁ prāpya tadā vanānte\nsarvaṁ viditvā kamalodbhavasya |\nmāyābalaṁ tvaṁ svayameva sadyo\nvatsān gopāṁśca tadīyarūpaḥ ||",
+          translation: "Finding Yourself alone at the forest's edge and knowing fully well the mystic trick of the lotus-born Brahma, You immediately assumed by Your own power the identical forms of all the calves and cowherd boys.",
+          commentary: "This verse describes Krishna's astonishing response. Rather than being troubled, He who is omniscient instantly knew what Brahma had done. As Bhagavatam 10.13.19 describes, Krishna expanded Himself into exact replicas of every single calf and every cowherd boy — each with their unique appearance, personality, clothing, and ornaments. This demonstrates His nature as the source of all beings.",
+          words: [
+            { word: 'एकाकिताम्', transliteration: 'ekākitām', meaning: 'state of being alone' },
+            { word: 'वनान्ते', transliteration: 'vanānte', meaning: 'at the edge of the forest' },
+            { word: 'कमलोद्भवस्य', transliteration: 'kamalodbhavasya', meaning: 'of the lotus-born (Brahma)' },
+            { word: 'मायाबलम्', transliteration: 'māyābalam', meaning: 'power of illusion' },
+            { word: 'स्वयम्', transliteration: 'svayam', meaning: 'by Himself' },
+            { word: 'सद्यः', transliteration: 'sadyaḥ', meaning: 'immediately' },
+            { word: 'तदीयरूपः', transliteration: 'tadīyarūpaḥ', meaning: 'having their very forms' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 4,
+          devanagari: "प्रतिच्छवीन् सर्वगोपालबालान्\nसवत्सकान् निर्मिमिषे त्वमेव ।\nरूपैः स्वभावैश्च तथैव सर्वं\nचीरैर्वेणुभिरामकान्तिभिश्च ॥",
+          transliteration: "praticchavīn sarvagopālabālān\nsavatsalān nirmimise tvameva |\nrūpaiḥ svabhāvaiśca tathaiva sarvaṁ\ncīrairveṇubhirāmakāntibhiśca ||",
+          translation: "You created exact replicas of all the cowherd boys along with their calves — identical in form, temperament, clothing, flutes, staffs, and charming beauty.",
+          commentary: "Bhattathiri marvels at the perfection of Krishna's expansion. Each duplicate was so precise that it matched the original boy's unique dress (cīra), flute (veṇu), mannerisms, and radiance. Bhagavatam 10.13.19-20 emphasizes that even the most intimate details were replicated. Each form was actually a direct expansion of Krishna Himself — Vishnu in the guise of a cowherd boy.",
+          words: [
+            { word: 'प्रतिच्छवीन्', transliteration: 'praticchavīn', meaning: 'exact replicas, reflections' },
+            { word: 'गोपालबालान्', transliteration: 'gopālabālān', meaning: 'cowherd boys' },
+            { word: 'सवत्सकान्', transliteration: 'savatsalān', meaning: 'along with the calves' },
+            { word: 'निर्मिमिषे', transliteration: 'nirmimise', meaning: 'You created, manifested' },
+            { word: 'स्वभावैः', transliteration: 'svabhāvaiḥ', meaning: 'with natural temperaments' },
+            { word: 'चीरैः', transliteration: 'cīraiḥ', meaning: 'with garments, clothes' },
+            { word: 'वेणुभिः', transliteration: 'veṇubhiḥ', meaning: 'with flutes' },
+            { word: 'आमकान्तिभिः', transliteration: 'āmakāntibhiḥ', meaning: 'with natural radiance' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 5,
+          devanagari: "एवं हि संवत्सरमात्रमीश\nत्वद्रूपधारैरपि गोपबालैः ।\nव्रजे समं गोभिरतीव रेमे\nनाकस्य कश्चिद्विदधे विशेषम् ॥",
+          transliteration: "evaṁ hi saṁvatsaramātramīśa\ntvadrūpadhārarapi gopabālaiḥ |\nvraje samaṁ gobhiratīva reme\nnākasya kaścidvidadhe viśeṣam ||",
+          translation: "Thus, O Lord, for an entire year You played in Vraja in the forms of all those cowherd boys and calves. No one noticed any difference whatsoever.",
+          commentary: "For a full year, life in Vraja continued perfectly normally with Krishna playing the role of every single boy and calf simultaneously. Bhagavatam 10.13.22 describes that the mothers could not detect any difference — indeed, their love for their 'sons' actually increased, since each form was now directly Krishna. This is the supreme paradox: the mothers unknowingly loved God directly in the form of their own children.",
+          words: [
+            { word: 'संवत्सरम्', transliteration: 'saṁvatsaram', meaning: 'one full year' },
+            { word: 'ईश', transliteration: 'īśa', meaning: 'O Lord' },
+            { word: 'त्वद्रूपधारैः', transliteration: 'tvadrūpadhāraiḥ', meaning: 'by those bearing Your form' },
+            { word: 'व्रजे', transliteration: 'vraje', meaning: 'in Vraja (the cowherd village)' },
+            { word: 'रेमे', transliteration: 'reme', meaning: 'played, sported' },
+            { word: 'विशेषम्', transliteration: 'viśeṣam', meaning: 'difference, distinction' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 6,
+          devanagari: "ततः कदाचित् कमलासनस्तु\nव्रजं विलोक्याखिलमद्भुतं किम् ।\nसमागतस्तत्र ददर्श कृष्णं\nतथैव गोपान् अपि वत्सकांश्च ॥",
+          transliteration: "tataḥ kadācit kamalāsanastu\nvrajaṁ vilokyākhilamadbhutaṁ kim |\nsamāgatastatra dadarśa kṛṣṇaṁ\ntathaiva gopān api vatsakāṁśca ||",
+          translation: "Then, after some time, Brahma returned to Vraja and was amazed — he saw Krishna playing with the very same cowherd boys and calves, exactly as before, as if nothing had happened.",
+          commentary: "When Brahma returned expecting to find Krishna alone and distressed, he was stunned. Bhagavatam 10.13.23 describes his confusion — the boys and calves he had hidden were still sleeping in the cave, yet identical ones were playing happily with Krishna. His plan had completely failed; indeed, it had revealed his own insignificance before the Supreme Lord.",
+          words: [
+            { word: 'कमलासनः', transliteration: 'kamalāsanaḥ', meaning: 'the lotus-seated one (Brahma)' },
+            { word: 'विलोक्य', transliteration: 'vilokya', meaning: 'having observed, seeing' },
+            { word: 'अखिलम्', transliteration: 'akhilam', meaning: 'everything, all' },
+            { word: 'अद्भुतम्', transliteration: 'adbhutam', meaning: 'wonderful, astonishing' },
+            { word: 'समागतः', transliteration: 'samāgataḥ', meaning: 'having arrived, returned' },
+            { word: 'ददर्श', transliteration: 'dadarśa', meaning: 'he saw, beheld' },
+            { word: 'वत्सकान्', transliteration: 'vatsakān', meaning: 'the calves' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 7,
+          devanagari: "तानेव पश्यन् पुनरत्र गोपान्\nगुहागतांश्चापि तथैव दृष्ट्वा ।\nइतश्चेतश्च विलोकयन् सः\nचतुर्मुखोऽप्यासत विस्मयार्तः ॥",
+          transliteration: "tāneva paśyan punaratra gopān\nguhāgatāṁścāpi tathaiva dṛṣṭvā |\nitaścetaśca vilokayan saḥ\ncaturmukho'pyāsata vismayārtaḥ ||",
+          translation: "Seeing the same boys here and also finding the ones he had hidden still asleep in the cave, Brahma looked back and forth between them. Even the four-faced creator sat down, overwhelmed with astonishment.",
+          commentary: "Brahma's confusion is dramatized beautifully here. Looking one way, he saw boys playing with Krishna; looking the other way, he saw the same boys sleeping in his cave. Which were real? Bhagavatam 10.13.25 describes how even Brahma's four heads were insufficient to comprehend this mystery. The creator of the universe was rendered helpless before the play of the Supreme Lord.",
+          words: [
+            { word: 'गुहागतान्', transliteration: 'guhāgatān', meaning: 'those gone to (hidden in) the cave' },
+            { word: 'इतश्चेतश्च', transliteration: 'itaścetaśca', meaning: 'here and there, back and forth' },
+            { word: 'विलोकयन्', transliteration: 'vilokayan', meaning: 'looking, observing' },
+            { word: 'चतुर्मुखः', transliteration: 'caturmukhaḥ', meaning: 'the four-faced one (Brahma)' },
+            { word: 'आसत', transliteration: 'āsata', meaning: 'sat down, remained' },
+            { word: 'विस्मयार्तः', transliteration: 'vismayārtaḥ', meaning: 'struck with wonder' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 8,
+          devanagari: "तावत् त्वदीया तनवस्तु सर्वा\nनारायणाकारतया स्फुरन्त्यः ।\nचतुर्भुजाः पीतदुकूलभूषाः\nश्रिया समं ब्रह्ममयं बभूवुः ॥",
+          transliteration: "tāvat tvadīyā tanavstu sarvā\nnārāyaṇākāratayā sphurantyaḥ |\ncaturbhujāḥ pītadukūlabhūṣāḥ\nśriyā samaṁ brahmamayaṁ babhūvuḥ ||",
+          translation: "Then all Your expanded forms began to shine forth in the form of Lord Narayana — four-armed, adorned in golden silk garments, radiant with Lakshmi, pervaded by the light of Brahman.",
+          commentary: "This is the climactic revelation of the episode. As described in Bhagavatam 10.13.46-47, each cowherd boy and calf suddenly transformed before Brahma's eyes into a four-armed form of Vishnu, adorned with conch, disc, mace and lotus, wearing yellow silk, accompanied by Lakshmi. Brahma realized that every living being is ultimately a form of Narayana — a profound Vedantic truth revealed through divine play.",
+          words: [
+            { word: 'त्वदीयाः', transliteration: 'tvadīyāḥ', meaning: 'Your own (forms)' },
+            { word: 'तनवः', transliteration: 'tanavaḥ', meaning: 'forms, bodies' },
+            { word: 'नारायणाकारतया', transliteration: 'nārāyaṇākāratayā', meaning: 'in the form of Narayana' },
+            { word: 'स्फुरन्त्यः', transliteration: 'sphurantyaḥ', meaning: 'shining forth, manifesting' },
+            { word: 'चतुर्भुजाः', transliteration: 'caturbhujāḥ', meaning: 'four-armed' },
+            { word: 'पीतदुकूल', transliteration: 'pītadukūla', meaning: 'yellow silk garments' },
+            { word: 'श्रिया', transliteration: 'śriyā', meaning: 'with Lakshmi (divine splendor)' },
+            { word: 'ब्रह्ममयम्', transliteration: 'brahmamayam', meaning: 'pervaded by Brahman' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 9,
+          devanagari: "सम्मोहितस्तेन चतुर्मुखोऽसौ\nविरिञ्चिलोकाधिपतिर्विधाता ।\nस्तोत्राणि तुभ्यं विविधानि गायन्\nप्रणम्य भूमौ शरणं प्रपेदे ॥",
+          transliteration: "sammohitastena caturmukho'sau\nviriñcilokādhipatirvidhātā |\nstotrāṇi tubhyaṁ vividhāni gāyan\npraṇamya bhūmau śaraṇaṁ prapede ||",
+          translation: "Completely bewildered, the four-faced Brahma, sovereign of the highest heaven, sang various hymns of praise unto You and, prostrating on the ground, surrendered completely.",
+          commentary: "Brahma's pride was shattered by this direct experience of Krishna's supremacy. As described in Bhagavatam 10.14 (the famous Brahma-stuti), Brahma composed exquisite prayers acknowledging that Krishna is the Supreme Brahman who cannot be measured even by the creator. His prostration (praṇamya) symbolizes the complete surrender of ego and intellectual pride before divine grace.",
+          words: [
+            { word: 'सम्मोहितः', transliteration: 'sammohitaḥ', meaning: 'completely bewildered' },
+            { word: 'विरिञ्चिलोक', transliteration: 'viriñciloka', meaning: 'the world of Brahma (highest heaven)' },
+            { word: 'अधिपतिः', transliteration: 'adhipatiḥ', meaning: 'lord, sovereign' },
+            { word: 'स्तोत्राणि', transliteration: 'stotrāṇi', meaning: 'hymns of praise' },
+            { word: 'गायन्', transliteration: 'gāyan', meaning: 'singing' },
+            { word: 'प्रणम्य', transliteration: 'praṇamya', meaning: 'having prostrated' },
+            { word: 'शरणम्', transliteration: 'śaraṇam', meaning: 'refuge, surrender' },
+            { word: 'प्रपेदे', transliteration: 'prapede', meaning: 'he attained, took refuge' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 10,
+          devanagari: "तत्सर्वमायां प्रतिसंहरन् त्वं\nगोपान् सवत्सान् प्रतिमोचयित्वा ।\nसर्वं यथापूर्वमकल्पयस्त्वं\nतं ब्रह्मविस्मापनलीलमीशम् ।\nगुरुवायुपुरेश भगवन् पाहि\nसर्वामयात् त्वं प्रणतं जनं मे ॥",
+          transliteration: "tatsarvamāyāṁ pratisaṁharan tvaṁ\ngopān savatsān pratimocayitvā |\nsarvaṁ yathāpūrvamakalpayastvaṁ\ntaṁ brahmavismāpanalīlamīśam |\nguruvāyupureśa bhagavan pāhi\nsarvāmayāt tvaṁ praṇataṁ janaṁ me ||",
+          translation: "Withdrawing all that divine illusion, You released the cowherd boys and calves, restoring everything to its original state. O Lord of Guruvayur, You who performed this lila of bewildering Brahma himself, protect me, Your surrendered devotee, from all ailments!",
+          commentary: "The concluding verse follows the traditional Narayaneeyam pattern. Krishna gracefully withdrew His cosmic display, and life in Vraja returned to normal — the boys woke as if from a brief nap, unaware that a year had passed. Bhattathiri ends with a prayer to the Lord of Guruvayur, connecting the ancient lila with his present need. The one who bewildered even Brahma can surely dispel the poet's physical suffering.",
+          words: [
+            { word: 'प्रतिसंहरन्', transliteration: 'pratisaṁharan', meaning: 'withdrawing, dissolving' },
+            { word: 'प्रतिमोचयित्वा', transliteration: 'pratimocayitvā', meaning: 'having released' },
+            { word: 'यथापूर्वम्', transliteration: 'yathāpūrvam', meaning: 'as before, to the original state' },
+            { word: 'ब्रह्मविस्मापन', transliteration: 'brahmavismāpana', meaning: 'bewildering of Brahma' },
+            { word: 'ईशम्', transliteration: 'īśam', meaning: 'the Lord, the Supreme' },
+            { word: 'गुरुवायुपुरेश', transliteration: 'guruvāyupureśa', meaning: 'O Lord of Guruvayur' },
+            { word: 'पाहि', transliteration: 'pāhi', meaning: 'protect' },
+            { word: 'सर्वामयात्', transliteration: 'sarvāmayāt', meaning: 'from all ailments' }
+          ]
+        }
+      ]
     },
     {
       dashaka: 48,
@@ -10389,7 +10562,179 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Describes the killing of the donkey demon Dhenukasura in the palm groves of Talavana, and the beginning of the confrontation with the poisonous serpent Kaliya in the Yamuna.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 48,
+          sloka: 1,
+          devanagari: "ततस्त्वं गोपगोबालैः परिवीतो दिने दिने ।\nवनाद्वनमतिक्रामन् विजहार वृन्दावने ॥\nचारुवेणुरवैर्गोपान् रञ्जयन् मधुरस्वनैः\nतालवनं गतो रामसहितो बालकैः सह ॥",
+          transliteration: "tatastvarṁ gopagobālaiḥ parivīto dine dine |\nvanādvanam atikrāman vijahāra vṛndāvane ||\ncāruveṇuravairgopān rañjayan madhuraswanaiḥ\ntālavanaṁ gato rāmasahito bālakaiḥ saha ||",
+          translation: 'Then You, surrounded by cowherd boys day after day, roamed from forest to forest and sported in Vrindavan. Delighting the gopas with the sweet notes of Your charming flute, You went to Talavana (the palm grove) accompanied by Balarama and the boys.',
+          commentary: 'Bhattathiri sets the stage for the Dhenukasura episode from Bhagavatam 10.15. The idyllic daily life of Krishna and Balarama roaming the forests of Vrindavan is described first, establishing the carefree pastoral setting. The mention of the venu (flute) reminds us that these divine adventures unfold within the framework of simple cowherd life. Talavana, the palm grove, becomes the next arena for divine leela.',
+          words: [
+            { word: 'गोपगोबालैः', transliteration: 'gopagobālaiḥ', meaning: 'by the cowherd boys' },
+            { word: 'परिवीतः', transliteration: 'parivītaḥ', meaning: 'surrounded' },
+            { word: 'वनाद्वनम्', transliteration: 'vanādvanam', meaning: 'from forest to forest' },
+            { word: 'चारुवेणुरवैः', transliteration: 'cāruveṇuravaiḥ', meaning: 'with the sweet sounds of the flute' },
+            { word: 'रञ्जयन्', transliteration: 'rañjayan', meaning: 'delighting, charming' },
+            { word: 'तालवनम्', transliteration: 'tālavanaṁ', meaning: 'the palm grove (Talavana)' },
+            { word: 'रामसहितः', transliteration: 'rāmasahitaḥ', meaning: 'accompanied by Balarama' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 2,
+          devanagari: "तालवनं तु तत्तत्र धेनुकासुररक्षितम् ।\nबहुतालद्रुमाकीर्णं पक्वतालफलान्वितम् ॥\nसुगन्धिना फलगन्धेन समन्ताद्वासिताम्बरम्\nसमासाद्य बलं बालाः फलानि चखुरादरात् ॥",
+          transliteration: "tālavanaṁ tu tattatra dhenukāsurarakṣitam |\nbahutāladrumākīrṇaṁ pakvatālaphalānvitam ||\nsugandhinā phalagandena samantādvāsitāmbaram\nsamāsādya balaṁ bālāḥ phalāni cakhurādarāt ||",
+          translation: 'That Talavana was guarded by the demon Dhenukasura and was filled with many palm trees laden with ripe fruits. The air all around was fragrant with the sweet scent of the ripe fruits. Reaching there, the boys eagerly desired those fruits.',
+          commentary: 'The Bhagavatam describes Talavana as a forbidden paradise. The ripe palm fruits were tantalizingly fragrant, yet no one dared enter because of Dhenukasura, a fearsome donkey demon who was an associate of Kamsa. The contrast between the inviting sweetness of the grove and the deadly danger lurking within mirrors many of Krishna-leela\'s themes — worldly pleasures guarded by demonic forces, accessible only through divine grace.',
+          words: [
+            { word: 'धेनुकासुररक्षितम्', transliteration: 'dhenukāsurarakṣitam', meaning: 'guarded by the demon Dhenuka' },
+            { word: 'तालद्रुम', transliteration: 'tāladruma', meaning: 'palm trees' },
+            { word: 'पक्वतालफल', transliteration: 'pakvatālaphala', meaning: 'ripe palm fruits' },
+            { word: 'सुगन्धिना', transliteration: 'sugandhinā', meaning: 'with fragrance' },
+            { word: 'फलगन्धेन', transliteration: 'phalagandena', meaning: 'with the scent of fruits' },
+            { word: 'वासिताम्बरम्', transliteration: 'vāsitāmbaram', meaning: 'the air perfumed' },
+            { word: 'चखुः', transliteration: 'cakhuḥ', meaning: 'desired eagerly' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 3,
+          devanagari: "बालास्तु तालवृक्षाणां फलानि पतितानि च ।\nभक्षयन्तो विजह्रुस्ते ततश्चान्यानि काङ्क्षिणः ॥\nबलं सञ्चोदयामासुर्बालाः प्रार्थनया मुहुः\nत्वां च राममथो वीरं तालान् पातयितुं द्रुतम् ॥",
+          transliteration: "bālāstu tālavṛkṣāṇāṁ phalāni patitāni ca |\nbhakṣayanto vijahrus te tataścānyāni kāṅkṣiṇaḥ ||\nbalaṁ sañcodayāmāsurbālāḥ prārthanayā muhuḥ\ntvāṁ ca rāmamathō vīraṁ tālān pātayituṁ drutam ||",
+          translation: 'The boys ate the fallen palm fruits and sported about, but desiring more, they repeatedly urged Balarama with their requests. They implored both You and the mighty Rama to shake down more palm fruits quickly.',
+          commentary: 'The innocent cowherd boys, having tasted the delicious fruits, naturally wanted more. Their turning to Krishna and Balarama for help reflects the child-like trust that characterizes the Vrindavan devotees. In spiritual terms, the devotees turn to the Lord for the fruits of the spiritual garden that they cannot access on their own due to the obstacles placed by demonic forces.',
+          words: [
+            { word: 'तालवृक्षाणाम्', transliteration: 'tālavṛkṣāṇām', meaning: 'of the palm trees' },
+            { word: 'पतितानि', transliteration: 'patitāni', meaning: 'fallen' },
+            { word: 'भक्षयन्तः', transliteration: 'bhakṣayantaḥ', meaning: 'eating' },
+            { word: 'काङ्क्षिणः', transliteration: 'kāṅkṣiṇaḥ', meaning: 'desiring, longing for' },
+            { word: 'सञ्चोदयामासुः', transliteration: 'sañcodayāmāsuḥ', meaning: 'they urged, they impelled' },
+            { word: 'प्रार्थनया', transliteration: 'prārthanayā', meaning: 'with requests, with prayers' },
+            { word: 'पातयितुम्', transliteration: 'pātayitum', meaning: 'to cause to fall, to shake down' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 4,
+          devanagari: "ततो बलस्तु सङ्गृह्य तालान् कम्पितवान् बली ।\nपातयामास तालानि फलानि च सहस्रशः ॥\nतालद्रुमान् समाक्षिप्य कम्पयन् भीमविक्रमः\nभूमौ निपेतुस्तालानि गुञ्जद्भ्रमरसङ्कुलम् ॥",
+          transliteration: "tato balastu saṅgṛhya tālān kampitavān balī |\npātayāmāsa tālāni phalāni ca sahasraśaḥ ||\ntāladrumān samākṣipya kampayan bhīmavikramaḥ\nbhūmau nipetustālāni guñjadbhramarasaṅkulam ||",
+          translation: 'Then the mighty Balarama seized the palm trees and shook them, causing thousands of palm fruits to rain down. Grasping and shaking the palm trees with his tremendous prowess, the fruits fell to the ground buzzing with swarming bees.',
+          commentary: 'Balarama, the incarnation of Ananta Shesha and the embodiment of divine strength, effortlessly shakes the great palm trees. The image of fruits raining down with bees swarming around them is vividly poetic. Balarama\'s role as the elder brother and protector is showcased here. The phrase bhimavikramah (of tremendous prowess) alludes to his nature as the source of all strength.',
+          words: [
+            { word: 'सङ्गृह्य', transliteration: 'saṅgṛhya', meaning: 'having seized, grasped' },
+            { word: 'कम्पितवान्', transliteration: 'kampitavān', meaning: 'shook, caused to tremble' },
+            { word: 'सहस्रशः', transliteration: 'sahasraśaḥ', meaning: 'by the thousands' },
+            { word: 'भीमविक्रमः', transliteration: 'bhīmavikramaḥ', meaning: 'of tremendous prowess' },
+            { word: 'निपेतुः', transliteration: 'nipetuḥ', meaning: 'fell down' },
+            { word: 'गुञ्जत्', transliteration: 'guñjat', meaning: 'buzzing, humming' },
+            { word: 'भ्रमरसङ्कुलम्', transliteration: 'bhramarasaṅkulam', meaning: 'swarming with bees' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 5,
+          devanagari: "तालानां पतनध्वानं श्रुत्वा धेनुकदानवः ।\nअभिद्रुत्य खरात्मा स प्रचण्डः क्रोधमूर्च्छितः ॥\nपश्चिमाभ्यां खुराभ्यां तु बलमुत्पाट्य वक्षसि\nजघान वेगात्तं रामं रासभाकृतिदुर्दमः ॥",
+          transliteration: "tālānāṁ patanadhvānaṁ śrutvā dhenukadānavaḥ |\nabhidrutya kharātmā sa pracaṇḍaḥ krodhamūrcchitaḥ ||\npaścimābhyāṁ khurābhyāṁ tu balamutpāṭya vakṣasi\njaghāna vegāttaṁ rāmaṁ rāsabhākṛtidurdamaḥ ||",
+          translation: 'Hearing the sound of the falling palms, the donkey demon Dhenukasura rushed forward, fierce and swollen with rage. In his donkey form, that untamable demon struck Balarama on the chest with his hind hooves, attacking with great speed.',
+          commentary: 'Bhagavatam 10.15.27 describes the furious arrival of Dhenukasura. The demon, in the form of a mighty ass (khara), attacks with the natural weapon of a donkey — his hind kicks. The phrase krodhamurchhitah (swooning with rage) suggests blind fury that overrides any caution. His reckless attack on Balarama, the supreme embodiment of divine power, illustrates how demonic pride leads to self-destruction.',
+          words: [
+            { word: 'पतनध्वानम्', transliteration: 'patanadhvānam', meaning: 'the sound of falling' },
+            { word: 'धेनुकदानवः', transliteration: 'dhenukadānavaḥ', meaning: 'the demon Dhenuka' },
+            { word: 'खरात्मा', transliteration: 'kharātmā', meaning: 'having the nature of a donkey' },
+            { word: 'क्रोधमूर्च्छितः', transliteration: 'krodhamūrcchitaḥ', meaning: 'swooning with rage' },
+            { word: 'खुराभ्याम्', transliteration: 'khurābhyām', meaning: 'with hooves' },
+            { word: 'वक्षसि', transliteration: 'vakṣasi', meaning: 'on the chest' },
+            { word: 'रासभाकृतिः', transliteration: 'rāsabhākṛtiḥ', meaning: 'having the form of a donkey' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 6,
+          devanagari: "तमापतन्तं सहसा बलभद्रो महाबलः ।\nगृहीत्वा पश्चिमपदौ भ्रामयामास लीलया ॥\nभ्रामयन् तं तु वेगेन तालाग्रे प्राक्षिपद्बली\nस तालशीर्षमासाद्य पपात विगतासुः ॥",
+          transliteration: "tamāpatantaṁ sahasā balabhadro mahābalaḥ |\ngṛhītvā paścimapādau bhrāmayāmāsa līlayā ||\nbhrāmayan taṁ tu vegena tālāgre prākṣipadbalī\nsa tālaśīrṣamāsādya papāta vigatāsuḥ ||",
+          translation: 'The mighty Balarama seized the charging demon by his hind legs and whirled him effortlessly. Spinning him with great speed, the powerful Rama hurled him to the top of a palm tree. Striking the treetop, Dhenukasura fell down, his life departed.',
+          commentary: 'Bhagavatam 10.15.28-29 narrates the iconic slaying. Balarama catches Dhenukasura by the hind legs — the very limbs the demon had used as weapons — and whirls him like a toy. The word lilaya (playfully) underscores that for the divine brothers, these cosmic battles are mere sport. The demon is hurled into the very palm trees he had been guarding, a poetic justice. The impact is so great that many surrounding palm trees also shook and shed their fruits.',
+          words: [
+            { word: 'बलभद्रः', transliteration: 'balabhadraḥ', meaning: 'Balarama (the auspicious strong one)' },
+            { word: 'महाबलः', transliteration: 'mahābalaḥ', meaning: 'of great strength' },
+            { word: 'पश्चिमपदौ', transliteration: 'paścimapādau', meaning: 'the hind legs' },
+            { word: 'भ्रामयामास', transliteration: 'bhrāmayāmāsa', meaning: 'whirled around' },
+            { word: 'लीलया', transliteration: 'līlayā', meaning: 'playfully, effortlessly' },
+            { word: 'तालाग्रे', transliteration: 'tālāgre', meaning: 'onto the top of the palm tree' },
+            { word: 'विगतासुः', transliteration: 'vigatāsuḥ', meaning: 'with life departed, dead' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 7,
+          devanagari: "धेनुके निहते तस्मिन् तत्सम्बन्धिखरासुराः ।\nअभ्यधावन् सुसङ्क्रुद्धा युवां प्रति मदोद्धताः ॥\nताम्स्त्वं च बलदेवश्च लीलयैव निपात्य तान्\nतालाग्रेषु विचिक्षेप शेरते तत्र तत्र ते ॥",
+          transliteration: "dhenuke nihate tasmin tatsambandhi kharāsurāḥ |\nabhyadhāvan susaṅkruddhā yuvāṁ prati madoddhatāḥ ||\ntāṁstvaṁ ca baladevaśca līlayaiva nipātya tān\ntālāgreṣu vicikṣepa śerate tatra tatra te ||",
+          translation: 'When Dhenukasura was slain, his kinsmen, the donkey demons, rushed furiously toward You both, intoxicated with rage. You and Baladeva playfully hurled them all onto the tops of the palm trees, where they lay strewn here and there.',
+          commentary: 'The associates of Dhenukasura meet the same fate as their leader. The phrase lilayaiva (merely in play) is repeated to emphasize the effortless nature of the divine brothers\' victory. The image of demon carcasses draped over palm treetops is both vivid and darkly humorous. The Bhagavatam notes that the grove soon appeared beautiful with the fruits and demon bodies scattered upon the trees, a scene of terrible beauty characteristic of divine leela.',
+          words: [
+            { word: 'निहते', transliteration: 'nihate', meaning: 'when slain' },
+            { word: 'तत्सम्बन्धि', transliteration: 'tatsambandhi', meaning: 'related to him, his kinsmen' },
+            { word: 'खरासुराः', transliteration: 'kharāsurāḥ', meaning: 'the donkey demons' },
+            { word: 'सुसङ्क्रुद्धाः', transliteration: 'susaṅkruddhāḥ', meaning: 'extremely enraged' },
+            { word: 'मदोद्धताः', transliteration: 'madoddhatāḥ', meaning: 'intoxicated with pride' },
+            { word: 'बलदेवः', transliteration: 'baladevaḥ', meaning: 'Baladeva (Balarama)' },
+            { word: 'विचिक्षेप', transliteration: 'vicikṣepa', meaning: 'hurled about, scattered' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 8,
+          devanagari: "हतेषु तेष्वशेषेषु खरदैत्येषु माधव ।\nतालवनं सुसम्पन्नं बालगोपास्तु विविशुः ॥\nफलानि तत्र भुञ्जानास्तृप्तिं प्राप्य मनोरमाम्\nप्रशस्य त्वां च रामं च प्रत्यागच्छन् व्रजं प्रति ॥",
+          transliteration: "hateṣu teṣvaśeṣeṣu kharadaityeṣu mādhava |\ntālavanaṁ susampannaṁ bālagopāstu vivisuḥ ||\nphalāni tatra bhuñjānās tṛptiṁ prāpya manorāmām\npraśasya tvāṁ ca rāmaṁ ca pratyāgacchan vrajaṁ prati ||",
+          translation: 'When all those donkey demons were destroyed, O Madhava, the cowherd boys freely entered the prosperous Talavana. Enjoying the fruits there and attaining delightful satisfaction, they praised You and Rama and returned toward Vraja.',
+          commentary: 'With the demons eliminated, the boys enjoy the fruits of the now-liberated grove. This mirrors the spiritual teaching that once the obstacles of ignorance and ego (represented by the demons) are removed by the Lord\'s grace, the devotee freely enjoys the nectar of divine bliss. The boys\' praise of Krishna and Balarama reflects natural gratitude. The return to Vraja symbolizes the soul\'s homeward journey enriched by divine experience.',
+          words: [
+            { word: 'अशेषेषु', transliteration: 'aśeṣeṣu', meaning: 'all without remainder' },
+            { word: 'खरदैत्येषु', transliteration: 'kharadaityeṣu', meaning: 'the donkey demons' },
+            { word: 'माधव', transliteration: 'mādhava', meaning: 'O Madhava (Krishna)' },
+            { word: 'सुसम्पन्नम्', transliteration: 'susampannam', meaning: 'prosperous, flourishing' },
+            { word: 'तृप्तिम्', transliteration: 'tṛptim', meaning: 'satisfaction, contentment' },
+            { word: 'प्रशस्य', transliteration: 'praśasya', meaning: 'having praised' },
+            { word: 'व्रजम्', transliteration: 'vrajam', meaning: 'Vraja (the cowherd settlement)' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 9,
+          devanagari: "अथ कालियनागस्तु यमुनायां महाह्रदे ।\nवासं चक्रे भयङ्करः तीव्रविषधरो बली ॥\nतद्विषज्वालया तोयं ज्वलन्तमिव सर्वदा\nपक्षिणोऽपि च ये तत्र पतन्त्यम्भसि ते मृताः ॥",
+          transliteration: "atha kāliyanāgastu yamunāyāṁ mahāhrade |\nvāsaṁ cakre bhayaṅkaraḥ tīvraviṣadharo balī ||\ntadviṣajvālayā toyaṁ jvalantamiva sarvadā\npakṣiṇo'pi ca ye tatra patantyambhasi te mṛtāḥ ||",
+          translation: 'Now the terrible serpent Kaliya, possessing fierce venom and great power, had taken up residence in a deep pool of the Yamuna. His poison made the water appear as if perpetually burning. Even the birds that flew over and fell into those waters perished instantly.',
+          commentary: 'Bhattathiri transitions to the Kaliya episode (Bhagavatam 10.16). The serpent Kaliya had been driven from Ramanaka island by Garuda and found refuge in the Yamuna, where Garuda could not enter due to a curse. The description of the poisoned waters — so toxic that even birds flying overhead would die — emphasizes the environmental devastation caused by demonic forces. This sets up the urgent need for divine intervention.',
+          words: [
+            { word: 'कालियनागः', transliteration: 'kāliyanāgaḥ', meaning: 'the serpent Kaliya' },
+            { word: 'महाह्रदे', transliteration: 'mahāhrade', meaning: 'in the great pool' },
+            { word: 'भयङ्करः', transliteration: 'bhayaṅkaraḥ', meaning: 'terrifying' },
+            { word: 'तीव्रविषधरः', transliteration: 'tīvraviṣadharaḥ', meaning: 'possessing fierce venom' },
+            { word: 'विषज्वालया', transliteration: 'viṣajvālayā', meaning: 'by the flames of poison' },
+            { word: 'ज्वलन्तम्', transliteration: 'jvalantam', meaning: 'burning, blazing' },
+            { word: 'पक्षिणः', transliteration: 'pakṣiṇaḥ', meaning: 'birds' }
+          ]
+        },
+        {
+          dashaka: 48,
+          sloka: 10,
+          devanagari: "तद्विषामर्षदुस्सहं दृष्ट्वा त्वं करुणार्णव ।\nमनसि प्रणिधायास्मै दमनं तत्र निश्चितम् ॥\nकालियस्य प्रशमनं कर्तुं कृतमतिर्भवान्\nपाहि मां गुरुवायोर्मे पुरपते सर्वरोगतः ॥",
+          transliteration: "tadviṣāmarṣadussahaṁ dṛṣṭvā tvaṁ karuṇārṇava |\nmanasi praṇidhāyāsmai damanaṁ tatra niścitam ||\nkāliyasya praśamanaṁ kartuṁ kṛtamatirbhavān\npāhi māṁ guruvāyorme purapate sarvarogataḥ ||",
+          translation: 'Seeing the unbearable distress caused by his poison, You, O ocean of compassion, resolved in Your mind to subdue him. Having determined to pacify Kaliya, O Lord of Guruvayur, protect me from all ailments.',
+          commentary: 'The concluding verse follows the traditional Narayaneeyam pattern of connecting the narrative to Bhattathiri\'s personal prayer. The description of Krishna as karunarnava (ocean of compassion) links His motivation to subdue Kaliya with the poet\'s plea for healing. Just as Krishna resolved to purify the poisoned Yamuna for the welfare of all creatures, Bhattathiri prays that the same compassionate Lord will purify his body of disease. The dashaka ends on this note of surrender, setting up the dramatic Kaliya-mardana in the next dashaka.',
+          words: [
+            { word: 'विषामर्ष', transliteration: 'viṣāmarṣa', meaning: 'the affliction of poison' },
+            { word: 'दुस्सहम्', transliteration: 'dussaham', meaning: 'unbearable' },
+            { word: 'करुणार्णवः', transliteration: 'karuṇārṇavaḥ', meaning: 'ocean of compassion' },
+            { word: 'प्रणिधाय', transliteration: 'praṇidhāya', meaning: 'having resolved, having fixed in mind' },
+            { word: 'दमनम्', transliteration: 'damanam', meaning: 'subduing, taming' },
+            { word: 'प्रशमनम्', transliteration: 'praśamanam', meaning: 'pacifying, calming' },
+            { word: 'पुरपते', transliteration: 'purapate', meaning: 'O Lord of the city (Guruvayur)' },
+            { word: 'सर्वरोगतः', transliteration: 'sarvarogataḥ', meaning: 'from all diseases' }
+          ]
+        }
+      ]
     },
     {
       dashaka: 49,
