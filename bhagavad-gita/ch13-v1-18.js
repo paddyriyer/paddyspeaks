@@ -1,0 +1,380 @@
+        [
+        {
+          chapter: 13,
+          sloka: 1,
+          devanagari: "अर्जुन उवाच ।\nप्रकृतिं पुरुषं चैव क्षेत्रं क्षेत्रज्ञमेव च ।\nएतद्वेदितुमिच्छामि ज्ञानं ज्ञेयं च केशव ॥१॥",
+          transliteration: "arjuna uvāca |\nprakṛtiṁ puruṣaṁ caiva kṣetraṁ kṣetrajñam eva ca |\netad veditum icchāmi jñānaṁ jñeyaṁ ca keśava ||1||",
+          words: [
+            { word: "अर्जुन", transliteration: "arjuna", meaning: "Arjuna" },
+            { word: "उवाच", transliteration: "uvāca", meaning: "said" },
+            { word: "प्रकृतिम्", transliteration: "prakṛtim", meaning: "material nature" },
+            { word: "पुरुषम्", transliteration: "puruṣam", meaning: "the enjoyer/consciousness" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "एव", transliteration: "eva", meaning: "indeed" },
+            { word: "क्षेत्रम्", transliteration: "kṣetram", meaning: "the field (body)" },
+            { word: "क्षेत्रज्ञम्", transliteration: "kṣetrajñam", meaning: "the knower of the field (soul)" },
+            { word: "एतत्", transliteration: "etat", meaning: "this" },
+            { word: "वेदितुम्", transliteration: "veditum", meaning: "to know" },
+            { word: "इच्छामि", transliteration: "icchāmi", meaning: "I wish" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "ज्ञेयम्", transliteration: "jñeyam", meaning: "the object of knowledge" },
+            { word: "केशव", transliteration: "keśava", meaning: "O Keshava (Krishna)" }
+          ],
+          translation: "Arjuna said: O Keshava, I wish to know about Prakriti (nature) and Purusha (consciousness), the field and the knower of the field, and about knowledge and the object of knowledge.",
+          modernInterpretation: "Welcome to Chapter 13, everyone. KSHETRA KSHETRAGNA VIBHAGA YOGA. And Arjuna opens with possibly the most LOADED question in the entire Gita. He basically walks up to Krishna and says, 'Bro, explain EVERYTHING — nature, consciousness, the body, the soul, knowledge itself, and what knowledge is even ABOUT.' That is like walking into an IAS interview and saying 'Sir, please explain India.'\n\nBut notice how ORGANIZED Arjuna's question is. He is not rambling anymore. He is not crying on the chariot floor like Chapter 1. He asks about three pairs: Prakriti-Purusha (matter and spirit), Kshetra-Kshetragna (the field and its knower), and Jnana-Jneya (knowledge and its object). Six concepts, three pairs, one question. This man has been PAYING ATTENTION.\n\nThink of it this way — your body is like a PHONE. The hardware is Prakriti (material nature). The USER operating it is Purusha (consciousness). The phone does not know it is a phone — YOU know you are using a phone. Similarly, your body does not know itself. The SOUL knows the body. Understanding this difference is literally the beginning of all spiritual wisdom. And Arjuna is finally ready for this conversation."
+        },
+        {
+          chapter: 13,
+          sloka: 2,
+          devanagari: "श्रीभगवानुवाच ।\nइदं शरीरं कौन्तेय क्षेत्रमित्यभिधीयते ।\nएतद्यो वेत्ति तं प्राहुः क्षेत्रज्ञ इति तद्विदः ॥२॥",
+          transliteration: "śrī-bhagavān uvāca |\nidaṁ śarīraṁ kaunteya kṣetram ity abhidhīyate |\netad yo vetti taṁ prāhuḥ kṣetrajña iti tad-vidaḥ ||2||",
+          words: [
+            { word: "श्रीभगवान्", transliteration: "śrī-bhagavān", meaning: "the Supreme Lord" },
+            { word: "उवाच", transliteration: "uvāca", meaning: "said" },
+            { word: "इदम्", transliteration: "idam", meaning: "this" },
+            { word: "शरीरम्", transliteration: "śarīram", meaning: "body" },
+            { word: "कौन्तेय", transliteration: "kaunteya", meaning: "O son of Kunti" },
+            { word: "क्षेत्रम्", transliteration: "kṣetram", meaning: "the field" },
+            { word: "इति", transliteration: "iti", meaning: "thus" },
+            { word: "अभिधीयते", transliteration: "abhidhīyate", meaning: "is called" },
+            { word: "एतत्", transliteration: "etat", meaning: "this" },
+            { word: "यः", transliteration: "yaḥ", meaning: "he who" },
+            { word: "वेत्ति", transliteration: "vetti", meaning: "knows" },
+            { word: "तम्", transliteration: "tam", meaning: "him" },
+            { word: "प्राहुः", transliteration: "prāhuḥ", meaning: "they call" },
+            { word: "क्षेत्रज्ञः", transliteration: "kṣetrajñaḥ", meaning: "the knower of the field" },
+            { word: "तद्विदः", transliteration: "tad-vidaḥ", meaning: "those who know this" }
+          ],
+          translation: "The Supreme Lord said: This body, O son of Kunti, is called the field (kshetra). He who knows this field is called the knower of the field (kshetragna) by those who know.",
+          modernInterpretation: "Krishna drops the FOUNDATIONAL definition of this entire chapter. Your body? It is a KSHETRA — a FIELD. Like a farm. Like a cricket pitch. Like a startup office. It is a SPACE where things happen. Crops grow, matches are played, work gets done. But the field is not the farmer. The pitch is not the batsman. The office is not the founder. The KNOWER of the field — the one who USES it, OBSERVES it, EXPERIENCES through it — that is the soul. That is YOU.\n\nThis is the most important distinction in Indian philosophy, and Krishna nails it in ONE verse. You are not your body. You are the one AWARE of your body. Right now, you can feel your breath, sense your heartbeat, notice your thoughts. WHO is doing the noticing? Not the body — the body is what is BEING noticed. The NOTICER is the kshetragna — the knower of the field.\n\nIt is like the difference between the SCREEN and the VIEWER. Netflix plays on your screen, but the screen does not enjoy the movie — YOU do. Your body is the screen. Emotions play on it, sensations happen on it, diseases attack it, pleasure flows through it. But YOU — the consciousness watching all of this — you are something ENTIRELY different. Get this one distinction right, and half of life's confusion disappears overnight."
+        },
+        {
+          chapter: 13,
+          sloka: 3,
+          devanagari: "क्षेत्रज्ञं चापि मां विद्धि सर्वक्षेत्रेषु भारत ।\nक्षेत्रक्षेत्रज्ञयोर्ज्ञानं यत्तज्ज्ञानं मतं मम ॥३॥",
+          transliteration: "kṣetrajñaṁ cāpi māṁ viddhi sarva-kṣetreṣu bhārata |\nkṣetra-kṣetrajñayor jñānaṁ yat taj jñānaṁ mataṁ mama ||3||",
+          words: [
+            { word: "क्षेत्रज्ञम्", transliteration: "kṣetrajñam", meaning: "the knower of the field" },
+            { word: "च", transliteration: "ca", meaning: "and" },
+            { word: "अपि", transliteration: "api", meaning: "also" },
+            { word: "माम्", transliteration: "mām", meaning: "Me" },
+            { word: "विद्धि", transliteration: "viddhi", meaning: "know" },
+            { word: "सर्वक्षेत्रेषु", transliteration: "sarva-kṣetreṣu", meaning: "in all fields/bodies" },
+            { word: "भारत", transliteration: "bhārata", meaning: "O descendant of Bharata" },
+            { word: "क्षेत्रक्षेत्रज्ञयोः", transliteration: "kṣetra-kṣetrajñayoḥ", meaning: "of the field and the knower of the field" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "यत्", transliteration: "yat", meaning: "which" },
+            { word: "तत्", transliteration: "tat", meaning: "that" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "मतम्", transliteration: "matam", meaning: "opinion/view" },
+            { word: "मम", transliteration: "mama", meaning: "My" }
+          ],
+          translation: "Know Me also as the knower of the field in all fields, O Bharata. The knowledge of the field and its knower — that I consider to be true knowledge.",
+          modernInterpretation: "BOOM. This is the verse that separates Gita philosophy from basic self-help. Krishna does not just say 'you are the soul, not the body.' He says 'I am the KNOWER in ALL bodies.' Not just your body. Not just Arjuna's body. EVERY body. Every ant, every elephant, every human, every deva — the ultimate KNOWER in all of them is KRISHNA.\n\nThink about it like Wi-Fi. Every device in your house connects to the SAME router. Your phone, laptop, smart TV, Alexa — different devices, different functions, but ONE internet connection powering all of them. Krishna is the COSMIC ROUTER. Individual souls are like individual devices, but the CONSCIOUSNESS that makes consciousness possible — that is Him.\n\nAnd then He defines what REAL knowledge is — 'kṣetra-kṣetrajñayor jñānam' — understanding the distinction between the field (matter) and its knower (spirit). Not your college degree. Not your stock market expertise. Not knowing every stat of every IPL season. REAL knowledge, according to the guy who CREATED knowledge itself, is understanding the difference between MATTER and SPIRIT. Everything else is just information. This is TRANSFORMATION. Your CA exam is information. This verse is education."
+        },
+        {
+          chapter: 13,
+          sloka: 4,
+          devanagari: "तत्क्षेत्रं यच्च यादृक्च यद्विकारि यतश्च यत् ।\nस च यो यत्प्रभावश्च तत्समासेन मे शृणु ॥४॥",
+          transliteration: "tat kṣetraṁ yac ca yādṛk ca yad-vikāri yataś ca yat |\nsa ca yo yat-prabhāvaś ca tat samāsena me śṛṇu ||4||",
+          words: [
+            { word: "तत्", transliteration: "tat", meaning: "that" },
+            { word: "क्षेत्रम्", transliteration: "kṣetram", meaning: "field" },
+            { word: "यत्", transliteration: "yat", meaning: "what" },
+            { word: "यादृक्", transliteration: "yādṛk", meaning: "of what nature" },
+            { word: "यद्विकारि", transliteration: "yad-vikāri", meaning: "what its modifications are" },
+            { word: "यतः", transliteration: "yataḥ", meaning: "from where" },
+            { word: "सः", transliteration: "saḥ", meaning: "he (the knower)" },
+            { word: "यः", transliteration: "yaḥ", meaning: "who" },
+            { word: "यत्प्रभावः", transliteration: "yat-prabhāvaḥ", meaning: "what his powers are" },
+            { word: "समासेन", transliteration: "samāsena", meaning: "in brief" },
+            { word: "मे", transliteration: "me", meaning: "from Me" },
+            { word: "शृणु", transliteration: "śṛṇu", meaning: "hear" }
+          ],
+          translation: "Hear from Me in brief what that field is, what its nature is, what its modifications are, from where it arises, who the knower is, and what his powers are.",
+          modernInterpretation: "Krishna is about to give the SYLLABUS for the most important course you will ever take. He says — let Me tell you WHAT the field is, what its NATURE is, what CHANGES it goes through, WHERE it comes from, WHO the knower is, and what POWERS the knower has. This is basically the course outline for 'Understanding Reality 101.'\n\nNotice how SYSTEMATIC Krishna is. He is not some vague guru saying 'everything is maya, just vibes bro.' He is breaking it down like an IIT professor on the first day of class — 'This is the syllabus, these are the modules, this is what we will cover.' He even says 'samāsena' — in BRIEF. Because the full version would take lifetimes.\n\nThis is a lesson for all of us. Whether you are explaining a startup idea to investors, teaching a concept to students, or even describing a cricket strategy — be STRUCTURED. Tell people what you are going to tell them, then tell them. Krishna could have just started lecturing randomly. Instead, He gives a roadmap. Even GOD believes in a good PowerPoint structure. If the Supreme Lord takes time to organize His content, maybe your next office presentation deserves more than a last-minute copy-paste job."
+        },
+        {
+          chapter: 13,
+          sloka: 5,
+          devanagari: "ऋषिभिर्बहुधा गीतं छन्दोभिर्विविधैः पृथक् ।\nब्रह्मसूत्रपदैश्चैव हेतुमद्भिर्विनिश्चितैः ॥५॥",
+          transliteration: "ṛṣibhir bahudhā gītaṁ chandobhir vividhaiḥ pṛthak |\nbrahma-sūtra-padaiś caiva hetumadbhir viniścitaiḥ ||5||",
+          words: [
+            { word: "ऋषिभिः", transliteration: "ṛṣibhiḥ", meaning: "by the sages" },
+            { word: "बहुधा", transliteration: "bahudhā", meaning: "in many ways" },
+            { word: "गीतम्", transliteration: "gītam", meaning: "sung/described" },
+            { word: "छन्दोभिः", transliteration: "chandobhiḥ", meaning: "by Vedic hymns" },
+            { word: "विविधैः", transliteration: "vividhaiḥ", meaning: "various" },
+            { word: "पृथक्", transliteration: "pṛthak", meaning: "separately" },
+            { word: "ब्रह्मसूत्रपदैः", transliteration: "brahma-sūtra-padaiḥ", meaning: "by the aphorisms of the Brahma Sutra" },
+            { word: "हेतुमद्भिः", transliteration: "hetumadbhiḥ", meaning: "with reasoning/logic" },
+            { word: "विनिश्चितैः", transliteration: "viniścitaiḥ", meaning: "conclusively determined" }
+          ],
+          translation: "This truth has been sung by the sages in many ways, in various Vedic hymns, and especially in the well-reasoned and conclusive aphorisms of the Brahma Sutra.",
+          modernInterpretation: "Krishna is doing something BEAUTIFUL here — He is citing His SOURCES. Even the Supreme Lord gives REFERENCES. He says this knowledge has been described 'bahudhā' — in MANY ways — by various rishis, through different Vedic hymns, and especially through the Brahma Sutras, which are logically reasoned and conclusive.\n\nThis is Krishna saying, 'I am not making this up on the spot. This has been PEER-REVIEWED.' The Brahma Sutras are like the RESEARCH PAPERS of Indian philosophy — tightly argued, logically structured, no fluff. And Krishna specifically highlights 'hetumadbhiḥ' — WITH REASONING. Indian spirituality was never about blind faith. It was always about LOGIC plus experience.\n\nIn today's world, this is like saying 'Do not just take my word for it — here are the research papers, here are the citations, here is the meta-analysis.' Krishna is encouraging INTELLECTUAL rigor alongside spiritual seeking. He is not threatened by questions. He is not saying 'just believe.' He is saying 'this has been examined from EVERY angle by the greatest minds in history, and they ALL arrived at the same conclusion.' That is not dogma — that is CONVERGENT EVIDENCE. So next time someone tells you Hinduism is blind superstition, show them this verse. Even God believes in bibliography."
+        },
+        {
+          chapter: 13,
+          sloka: 6,
+          devanagari: "महाभूतान्यहंकारो बुद्धिरव्यक्तमेव च ।\nइन्द्रियाणि दशैकं च पञ्च चेन्द्रियगोचराः ॥६॥",
+          transliteration: "mahā-bhūtāny ahaṁkāro buddhir avyaktam eva ca |\nindriyāṇi daśaikaṁ ca pañca cendriya-gocarāḥ ||6||",
+          words: [
+            { word: "महाभूतानि", transliteration: "mahā-bhūtāni", meaning: "the great elements" },
+            { word: "अहंकारः", transliteration: "ahaṁkāraḥ", meaning: "ego/false identification" },
+            { word: "बुद्धिः", transliteration: "buddhiḥ", meaning: "intellect" },
+            { word: "अव्यक्तम्", transliteration: "avyaktam", meaning: "the unmanifest (prakriti)" },
+            { word: "इन्द्रियाणि", transliteration: "indriyāṇi", meaning: "the senses" },
+            { word: "दश", transliteration: "daśa", meaning: "ten" },
+            { word: "एकम्", transliteration: "ekam", meaning: "one (the mind)" },
+            { word: "पञ्च", transliteration: "pañca", meaning: "five" },
+            { word: "इन्द्रियगोचराः", transliteration: "indriya-gocarāḥ", meaning: "objects of the senses" }
+          ],
+          translation: "The five great elements, ego, intellect, the unmanifest prakriti, the ten senses and the mind, and the five objects of the senses —",
+          modernInterpretation: "Krishna starts listing the COMPONENTS of the field — basically giving you the SPEC SHEET of the human body-mind system. Five great elements (earth, water, fire, air, space), ego (ahamkara), intellect (buddhi), unmanifest prakriti, ten senses (five knowledge senses plus five action senses), one mind, and five sense objects (sound, touch, form, taste, smell). That is 24 elements total — the COMPLETE BILL OF MATERIALS for a human being.\n\nThink of it like an UNBOXING VIDEO. 'What is inside the box called YOU?' Open it up and you find — a body made of five elements (hardware), senses to interact with the world (input-output ports), a mind to process information (RAM), intellect to make decisions (CPU), ego to create identity (the operating system), and prakriti as the raw material from which it all came (the motherboard).\n\nThis is SANKHYA philosophy in a nutshell, and it was described thousands of years before Western science started cataloging human physiology. The ancient rishis did not have MRI machines or electron microscopes. They had MEDITATION and OBSERVATION. And they mapped the human system with stunning precision. Your therapist charges you 2000 rupees per hour to help you understand your mind. Krishna is breaking down the ENTIRE system in one verse. For free."
+        },
+        {
+          chapter: 13,
+          sloka: 7,
+          devanagari: "इच्छा द्वेषः सुखं दुःखं सङ्घातश्चेतना धृतिः ।\nएतत्क्षेत्रं समासेन सविकारमुदाहृतम् ॥७॥",
+          transliteration: "icchā dveṣaḥ sukhaṁ duḥkhaṁ saṅghātaś cetanā dhṛtiḥ |\netat kṣetraṁ samāsena savikāram udāhṛtam ||7||",
+          words: [
+            { word: "इच्छा", transliteration: "icchā", meaning: "desire" },
+            { word: "द्वेषः", transliteration: "dveṣaḥ", meaning: "hatred/aversion" },
+            { word: "सुखम्", transliteration: "sukham", meaning: "pleasure" },
+            { word: "दुःखम्", transliteration: "duḥkham", meaning: "pain" },
+            { word: "सङ्घातः", transliteration: "saṅghātaḥ", meaning: "the aggregate (body)" },
+            { word: "चेतना", transliteration: "cetanā", meaning: "consciousness/awareness" },
+            { word: "धृतिः", transliteration: "dhṛtiḥ", meaning: "fortitude/conviction" },
+            { word: "एतत्", transliteration: "etat", meaning: "this" },
+            { word: "क्षेत्रम्", transliteration: "kṣetram", meaning: "the field" },
+            { word: "समासेन", transliteration: "samāsena", meaning: "in brief" },
+            { word: "सविकारम्", transliteration: "savikāram", meaning: "with its modifications" },
+            { word: "उदाहृतम्", transliteration: "udāhṛtam", meaning: "has been described" }
+          ],
+          translation: "Desire, aversion, pleasure, pain, the aggregate body, consciousness, and fortitude — this, in brief, is the field with its modifications.",
+          modernInterpretation: "Krishna completes the component list. After the physical and mental elements, He adds the EMOTIONAL and EXPERIENTIAL ones — desire (icchā), hatred (dveṣa), pleasure (sukha), pain (duḥkha), the physical body as a whole (saṅghāta), awareness (cetanā), and willpower (dhṛti). THIS is the complete field. This is what YOU are made of — at the material level.\n\nNow here is the MIND-BENDING part — desire, hatred, pleasure, pain — these are all part of the FIELD, not the knower. Let that sink in. Your desire for that promotion? Part of the field. Your hatred for Monday mornings? Part of the field. Your pleasure when India wins the World Cup? Part of the field. Your pain when your WiFi drops during a crucial Zoom call? Part of the field. YOU — the real you — are the one WATCHING all of these happen.\n\nThis is literally what every good therapist tries to teach you. 'You are not your emotions. You are the one EXPERIENCING your emotions.' CBT, mindfulness, meditation — all modern techniques are basically trying to get you to this ONE Gita verse. Separate yourself from the field. Watch your desires without being enslaved by them. Notice your pain without BECOMING the pain. Krishna said it in 26 words. Your therapy bill could have been so much lower."
+        },
+        {
+          chapter: 13,
+          sloka: 8,
+          devanagari: "अमानित्वमदम्भित्वमहिंसा क्षान्तिरार्जवम् ।\nआचार्योपासनं शौचं स्थैर्यमात्मविनिग्रहः ॥८॥",
+          transliteration: "amānitvam adambhitvam ahiṁsā kṣāntir ārjavam |\nācāryopāsanaṁ śaucaṁ sthairyam ātma-vinigrahaḥ ||8||",
+          words: [
+            { word: "अमानित्वम्", transliteration: "amānitvam", meaning: "humility/absence of pride" },
+            { word: "अदम्भित्वम्", transliteration: "adambhitvam", meaning: "absence of hypocrisy" },
+            { word: "अहिंसा", transliteration: "ahiṁsā", meaning: "non-violence" },
+            { word: "क्षान्तिः", transliteration: "kṣāntiḥ", meaning: "tolerance/patience" },
+            { word: "आर्जवम्", transliteration: "ārjavam", meaning: "simplicity/straightforwardness" },
+            { word: "आचार्योपासनम्", transliteration: "ācāryopāsanam", meaning: "service to the teacher" },
+            { word: "शौचम्", transliteration: "śaucam", meaning: "cleanliness/purity" },
+            { word: "स्थैर्यम्", transliteration: "sthairyam", meaning: "steadfastness" },
+            { word: "आत्मविनिग्रहः", transliteration: "ātma-vinigrahaḥ", meaning: "self-control" }
+          ],
+          translation: "Humility, absence of hypocrisy, non-violence, tolerance, straightforwardness, service to the teacher, purity, steadfastness, and self-control —",
+          modernInterpretation: "Now Krishna starts listing what constitutes REAL KNOWLEDGE — and surprise, it is not about books, degrees, or your ability to win Twitter arguments. The first quality? AMANITVAM — humility. Absence of pride. Not 'I am so great,' but 'I have so much to learn.' In a world where everyone is building a PERSONAL BRAND and curating their LinkedIn profile to look like they invented sliced bread, Krishna says real knowledge begins with HUMILITY.\n\nNext — ADAMBHITVAM — no hypocrisy. Do not pretend to be what you are not. Do not post gym selfies if you eat samosas at midnight. Do not preach about discipline while binge-watching until 3 AM. Be REAL. Then AHIMSA — non-violence. Not just physical — in thought, word, and action. That WhatsApp forward mocking someone? Violence. That sarcastic comment in a meeting? Violence.\n\nKSHANTI — patience. ARJAVAM — simplicity. ACHARYA UPASANAM — serving your teacher. SHAUCHAM — cleanliness of body and mind. STHAIRYAM — rock-solid steadfastness. ATMA-VINIGRAHA — self-control. Notice — not ONE of these is about being SMART. They are all about being GOOD. Krishna is saying that knowledge is not about what is in your HEAD — it is about what is in your CHARACTER. The most knowledgeable person in the room might be the quietest, simplest, most humble one. Not the loudest."
+        },
+        {
+          chapter: 13,
+          sloka: 9,
+          devanagari: "इन्द्रियार्थेषु वैराग्यमनहंकार एव च ।\nजन्ममृत्युजराव्याधिदुःखदोषानुदर्शनम् ॥९॥",
+          transliteration: "indriyārtheṣu vairāgyam anahaṁkāra eva ca |\njanma-mṛtyu-jarā-vyādhi-duḥkha-doṣānudarśanam ||9||",
+          words: [
+            { word: "इन्द्रियार्थेषु", transliteration: "indriyārtheṣu", meaning: "in sense objects" },
+            { word: "वैराग्यम्", transliteration: "vairāgyam", meaning: "detachment/dispassion" },
+            { word: "अनहंकारः", transliteration: "anahaṁkāraḥ", meaning: "absence of ego" },
+            { word: "जन्म", transliteration: "janma", meaning: "birth" },
+            { word: "मृत्यु", transliteration: "mṛtyu", meaning: "death" },
+            { word: "जरा", transliteration: "jarā", meaning: "old age" },
+            { word: "व्याधि", transliteration: "vyādhi", meaning: "disease" },
+            { word: "दुःख", transliteration: "duḥkha", meaning: "suffering" },
+            { word: "दोष", transliteration: "doṣa", meaning: "evil/fault" },
+            { word: "अनुदर्शनम्", transliteration: "anudarśanam", meaning: "perception/reflection upon" }
+          ],
+          translation: "Detachment from sense objects, absence of ego, and reflection upon the evils of birth, death, old age, disease, and suffering —",
+          modernInterpretation: "Krishna continues His checklist of REAL knowledge, and this verse is a REALITY CHECK of epic proportions. He says — be DETACHED from sense objects. Not that you cannot enjoy a good biryani or a beautiful sunset. But do not be ENSLAVED by them. The difference between enjoying Instagram and being unable to sleep without scrolling for two hours — that is the difference between enjoyment and ADDICTION.\n\nThen — ANAHAMKARA — no ego. The biggest disease of our generation. 'Do you know who I AM?' 'My father is...' 'I went to THIS college...' Krishna says drop all of that. It is spiritual dead weight. Your ego is like carrying a heavy suitcase full of rocks while running a marathon — it does not help, it only SLOWS YOU DOWN.\n\nAnd then the DARKEST instruction — 'janma-mṛtyu-jarā-vyādhi-duḥkha-doṣānudarśanam.' REFLECT on the miseries of birth, death, old age, and disease. Not to become depressed, but to become WISE. We spend all our energy pretending we will never age, never get sick, never die. The beauty industry is worth billions because we refuse to accept aging. But Krishna says LOOK AT IT. Face it. Because only when you understand that this body is TEMPORARY do you start investing in what is PERMANENT — the soul, wisdom, love, consciousness."
+        },
+        {
+          chapter: 13,
+          sloka: 10,
+          devanagari: "असक्तिरनभिष्वङ्गः पुत्रदारगृहादिषु ।\nनित्यं च समचित्तत्वमिष्टानिष्टोपपत्तिषु ॥१०॥",
+          transliteration: "asaktir anabhiṣvaṅgaḥ putra-dāra-gṛhādiṣu |\nnityaṁ ca sama-cittatvam iṣṭāniṣṭopapattiṣu ||10||",
+          words: [
+            { word: "असक्तिः", transliteration: "asaktiḥ", meaning: "non-attachment" },
+            { word: "अनभिष्वङ्गः", transliteration: "anabhiṣvaṅgaḥ", meaning: "absence of clinging" },
+            { word: "पुत्र", transliteration: "putra", meaning: "son/children" },
+            { word: "दार", transliteration: "dāra", meaning: "wife/spouse" },
+            { word: "गृह", transliteration: "gṛha", meaning: "home" },
+            { word: "आदिषु", transliteration: "ādiṣu", meaning: "and so on" },
+            { word: "नित्यम्", transliteration: "nityam", meaning: "always" },
+            { word: "समचित्तत्वम्", transliteration: "sama-cittatvam", meaning: "evenness of mind" },
+            { word: "इष्ट", transliteration: "iṣṭa", meaning: "desirable" },
+            { word: "अनिष्ट", transliteration: "aniṣṭa", meaning: "undesirable" },
+            { word: "उपपत्तिषु", transliteration: "upapattiṣu", meaning: "upon occurrence" }
+          ],
+          translation: "Non-attachment and absence of clinging to son, spouse, home, and the rest; constant evenness of mind upon the occurrence of desirable and undesirable events —",
+          modernInterpretation: "This is the verse that makes every Indian uncle and auntie UNCOMFORTABLE. Krishna says — do not CLING to your children, your spouse, your home. Now before you panic — He is NOT saying do not love them. He is saying do not be so ATTACHED that your entire identity depends on them. There is a MASSIVE difference between love and attachment. Love says 'I cherish you.' Attachment says 'I CANNOT EXIST without you.' Love is freedom. Attachment is a golden CAGE.\n\nEvery Indian parent needs to hear this. Your son got into IIT — great. Your son did NOT get into IIT — also great. Your daughter married a doctor — wonderful. Your daughter married an artist — also wonderful. If your happiness depends ENTIRELY on your children's achievements, that is not love — that is OUTSOURCING your emotional well-being to another human.\n\nAnd 'sama-cittatvam' — EVENNESS OF MIND when good and bad things happen. Promotion comes? Stay balanced. Job loss comes? Stay balanced. India wins the match? Enjoy, but stay balanced. India loses? Disappointed, but stay balanced. This does not mean you become a ROBOT. It means you have an ANCHOR deep within that does not move even when the surface is stormy. The sea can have waves and still be deep. Your life can have ups and downs and you can still be CENTERED."
+        },
+        {
+          chapter: 13,
+          sloka: 11,
+          devanagari: "मयि चानन्ययोगेन भक्तिरव्यभिचारिणी ।\nविविक्तदेशसेवित्वमरतिर्जनसंसदि ॥११॥",
+          transliteration: "mayi cānanya-yogena bhaktir avyabhicāriṇī |\nvivikta-deśa-sevitvam aratir jana-saṁsadi ||11||",
+          words: [
+            { word: "मयि", transliteration: "mayi", meaning: "in Me" },
+            { word: "अनन्ययोगेन", transliteration: "ananya-yogena", meaning: "with exclusive devotion" },
+            { word: "भक्तिः", transliteration: "bhaktiḥ", meaning: "devotion" },
+            { word: "अव्यभिचारिणी", transliteration: "avyabhicāriṇī", meaning: "unwavering/unfailing" },
+            { word: "विविक्तदेशसेवित्वम्", transliteration: "vivikta-deśa-sevitvam", meaning: "resorting to solitary places" },
+            { word: "अरतिः", transliteration: "aratiḥ", meaning: "absence of delight/disinterest" },
+            { word: "जनसंसदि", transliteration: "jana-saṁsadi", meaning: "in the assembly of worldly people" }
+          ],
+          translation: "Unwavering devotion to Me through exclusive yoga, resorting to solitary places, and having no delight in the company of worldly people —",
+          modernInterpretation: "Krishna adds two more elements to the knowledge recipe — UNWAVERING devotion and a preference for SOLITUDE over social chaos. 'Ananya-yogena bhaktir avyabhicāriṇī' — devotion that does not WAVER, that does not split its attention between God and a hundred other things.\n\nNow, 'vivikta-deśa-sevitvam' does NOT mean become a hermit and move to a Himalayan cave. It means PREFER quality solitude over meaningless socializing. In today's context — do you really need to be at EVERY party? Do you need to check social media every 15 minutes? Do you need to be in 47 WhatsApp groups where 46 of them are just forwarded good morning messages? Krishna says no. Spend time in QUIET places. With your own thoughts. With your own consciousness.\n\nAnd 'aratir jana-saṁsadi' — no particular delight in crowds of worldly people. This is not misanthropy. It is SELECTIVITY. The wise person does not hate people — they just do not need constant external stimulation to feel alive. They can sit alone with a cup of chai and the sky and feel more alive than someone at a nightclub. Because their ENTERTAINMENT comes from within, not from the noise outside. In a world that worships EXTROVERSION and NETWORKING, Krishna quietly says — the truly knowledgeable person knows the value of SILENCE."
+        },
+        {
+          chapter: 13,
+          sloka: 12,
+          devanagari: "अध्यात्मज्ञाननित्यत्वं तत्त्वज्ञानार्थदर्शनम् ।\nएतज्ज्ञानमिति प्रोक्तमज्ञानं यदतोऽन्यथा ॥१२॥",
+          transliteration: "adhyātma-jñāna-nityatvaṁ tattva-jñānārtha-darśanam |\netaj jñānam iti proktam ajñānaṁ yad ato'nyathā ||12||",
+          words: [
+            { word: "अध्यात्मज्ञाननित्यत्वम्", transliteration: "adhyātma-jñāna-nityatvam", meaning: "constancy in self-knowledge" },
+            { word: "तत्त्वज्ञानार्थदर्शनम्", transliteration: "tattva-jñānārtha-darśanam", meaning: "perception of the goal of true knowledge" },
+            { word: "एतत्", transliteration: "etat", meaning: "this" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "इति", transliteration: "iti", meaning: "thus" },
+            { word: "प्रोक्तम्", transliteration: "proktam", meaning: "is declared" },
+            { word: "अज्ञानम्", transliteration: "ajñānam", meaning: "ignorance" },
+            { word: "यत्", transliteration: "yat", meaning: "that which" },
+            { word: "अतः", transliteration: "ataḥ", meaning: "from this" },
+            { word: "अन्यथा", transliteration: "anyathā", meaning: "otherwise/contrary" }
+          ],
+          translation: "Constancy in self-knowledge, perception of the goal of true knowledge — all this is declared to be knowledge. Whatever is contrary to this is ignorance.",
+          modernInterpretation: "WHAT. A. CLOSER. Krishna wraps up the knowledge checklist (verses 8-12) with a DEVASTATING one-liner — 'etaj jñānam iti proktam, ajñānaṁ yad ato anyathā.' THIS is knowledge. Everything ELSE is ignorance. Full stop. No debate. No terms and conditions.\n\nSo let us recap what Krishna considers KNOWLEDGE: humility, sincerity, non-violence, patience, simplicity, serving your guru, purity, steadfastness, self-control, detachment from senses, egolessness, reflecting on life's suffering, non-attachment to family and possessions, equanimity, unwavering devotion, preference for solitude, and constant self-awareness. TWENTY qualities. And not ONE of them is about your GPA, your salary, your follower count, or how many books you have read.\n\nThis should SHAKE every 'educated' person. You could have three degrees, speak five languages, and solve differential equations in your sleep — and by Krishna's definition, you could still be in COMPLETE IGNORANCE. Because you are rude, egotistical, attached, and spiritually asleep. Meanwhile, the simple grandmother who is humble, patient, kind, and devoted — SHE has real knowledge. Krishna has REDEFINED knowledge. It is not information. It is TRANSFORMATION of character. And everything else — your degrees, your certifications, your LinkedIn endorsements — if they do not come with these qualities, they are just GLORIFIED IGNORANCE."
+        },
+        {
+          chapter: 13,
+          sloka: 13,
+          devanagari: "ज्ञेयं यत्तत्प्रवक्ष्यामि यज्ज्ञात्वामृतमश्नुते ।\nअनादिमत्परं ब्रह्म न सत्तन्नासदुच्यते ॥१३॥",
+          transliteration: "jñeyaṁ yat tat pravakṣyāmi yaj jñātvāmṛtam aśnute |\nanādimat paraṁ brahma na sat tan nāsad ucyate ||13||",
+          words: [
+            { word: "ज्ञेयम्", transliteration: "jñeyam", meaning: "that which is to be known" },
+            { word: "यत्", transliteration: "yat", meaning: "which" },
+            { word: "तत्", transliteration: "tat", meaning: "that" },
+            { word: "प्रवक्ष्यामि", transliteration: "pravakṣyāmi", meaning: "I shall declare" },
+            { word: "ज्ञात्वा", transliteration: "jñātvā", meaning: "having known" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "immortality/nectar" },
+            { word: "अश्नुते", transliteration: "aśnute", meaning: "one attains" },
+            { word: "अनादिमत्", transliteration: "anādimat", meaning: "beginningless" },
+            { word: "परम्", transliteration: "param", meaning: "supreme" },
+            { word: "ब्रह्म", transliteration: "brahma", meaning: "Brahman (Absolute Reality)" },
+            { word: "न", transliteration: "na", meaning: "not" },
+            { word: "सत्", transliteration: "sat", meaning: "existent" },
+            { word: "न", transliteration: "na", meaning: "not" },
+            { word: "असत्", transliteration: "asat", meaning: "non-existent" },
+            { word: "उच्यते", transliteration: "ucyate", meaning: "is said" }
+          ],
+          translation: "I shall declare that which is to be known, knowing which one attains immortality. The beginningless Supreme Brahman is said to be neither existent nor non-existent.",
+          modernInterpretation: "Now Krishna shifts gears from 'what is knowledge' to 'what is the OBJECT of knowledge' — the thing worth KNOWING. And He describes it with a sentence that has been confusing philosophers for thousands of years: 'na sat tan nāsad ucyate' — it is NEITHER existent NOR non-existent. WHAT?!\n\nStay with me here. If someone asks 'Does God exist?' — Krishna's answer is basically 'Your question is WRONG.' Because Brahman — the Ultimate Reality — is BEYOND the categories of existence and non-existence. It is not a THING that exists like your chair exists. But it is also not NON-EXISTENT like a square circle. It is the GROUND of existence itself. The canvas on which existence AND non-existence are both painted.\n\nThink of it like asking 'Is the SCREEN dark or bright?' when a movie is playing. The screen is NEITHER — it is what makes both dark scenes and bright scenes POSSIBLE. It is beyond both. Similarly, Brahman is beyond sat and asat, beyond being and non-being. It is the STAGE on which the entire drama of existence plays out.\n\nAnd what happens when you KNOW this? 'Amṛtam aśnute' — you attain IMMORTALITY. Not that your body lives forever. But YOU — the real you — realize you were never born and will never die. Because you are not a character in the movie. You are the SCREEN. And screens do not come and go with the films."
+        },
+        {
+          chapter: 13,
+          sloka: 14,
+          devanagari: "सर्वतः पाणिपादं तत्सर्वतोऽक्षिशिरोमुखम् ।\nसर्वतः श्रुतिमल्लोके सर्वमावृत्य तिष्ठति ॥१४॥",
+          transliteration: "sarvataḥ pāṇi-pādaṁ tat sarvato'kṣi-śiro-mukham |\nsarvataḥ śrutimal loke sarvam āvṛtya tiṣṭhati ||14||",
+          words: [
+            { word: "सर्वतः", transliteration: "sarvataḥ", meaning: "everywhere" },
+            { word: "पाणिपादम्", transliteration: "pāṇi-pādam", meaning: "hands and feet" },
+            { word: "तत्", transliteration: "tat", meaning: "that (Brahman)" },
+            { word: "सर्वतः", transliteration: "sarvataḥ", meaning: "everywhere" },
+            { word: "अक्षि", transliteration: "akṣi", meaning: "eyes" },
+            { word: "शिरः", transliteration: "śiraḥ", meaning: "heads" },
+            { word: "मुखम्", transliteration: "mukham", meaning: "faces" },
+            { word: "सर्वतः", transliteration: "sarvataḥ", meaning: "everywhere" },
+            { word: "श्रुतिमत्", transliteration: "śrutimat", meaning: "having ears" },
+            { word: "लोके", transliteration: "loke", meaning: "in the world" },
+            { word: "सर्वम्", transliteration: "sarvam", meaning: "everything" },
+            { word: "आवृत्य", transliteration: "āvṛtya", meaning: "enveloping/pervading" },
+            { word: "तिष्ठति", transliteration: "tiṣṭhati", meaning: "exists/stands" }
+          ],
+          translation: "With hands and feet everywhere, with eyes, heads, and faces everywhere, with ears everywhere — That exists pervading everything in the world.",
+          modernInterpretation: "This is one of the most VISUALLY stunning descriptions of Brahman in the entire Gita. Hands everywhere. Feet everywhere. Eyes, heads, mouths, ears — EVERYWHERE. Brahman is not sitting in one place looking down at creation like a CCTV camera. Brahman IS every hand that works, every eye that sees, every ear that hears.\n\nWhen the chai wallah pours your cutting chai with those skilled hands — those are Brahman's hands. When a mother looks at her newborn with tear-filled eyes — those are Brahman's eyes. When a musician hears the perfect shruti — those are Brahman's ears. GOD does not have a BODY — God has ALL bodies. God does not have a FACE — God has ALL faces.\n\nThis verse is the ultimate antidote to DISCRIMINATION. If Brahman's face is in every face, then how can you look at anyone — any caste, any religion, any gender, any economic class — and consider them LESSER? The auto driver has Brahman's hands on the steering. The sweeper has Brahman's feet walking the street. The child begging at the signal has Brahman's eyes looking at you.\n\n'Sarvam āvṛtya tiṣṭhati' — pervading EVERYTHING, It stands. Not occasionally visiting. PERMANENTLY pervading. Like air filling every corner of a room. You cannot find a spot in this universe that is GOD-FREE. There is no spiritual vacuum. It is ALL full. ALL divine. ALL Brahman."
+        },
+        {
+          chapter: 13,
+          sloka: 15,
+          devanagari: "सर्वेन्द्रियगुणाभासं सर्वेन्द्रियविवर्जितम् ।\nअसक्तं सर्वभृच्चैव निर्गुणं गुणभोक्तृ च ॥१५॥",
+          transliteration: "sarvendriya-guṇābhāsaṁ sarvendriya-vivarjitam |\nasaktaṁ sarva-bhṛc caiva nirguṇaṁ guṇa-bhoktṛ ca ||15||",
+          words: [
+            { word: "सर्वेन्द्रियगुणाभासम्", transliteration: "sarvendriya-guṇābhāsam", meaning: "illuminating all sense faculties" },
+            { word: "सर्वेन्द्रियविवर्जितम्", transliteration: "sarvendriya-vivarjitam", meaning: "devoid of all senses" },
+            { word: "असक्तम्", transliteration: "asaktam", meaning: "unattached" },
+            { word: "सर्वभृत्", transliteration: "sarva-bhṛt", meaning: "sustainer of all" },
+            { word: "निर्गुणम्", transliteration: "nirguṇam", meaning: "without qualities (of material nature)" },
+            { word: "गुणभोक्तृ", transliteration: "guṇa-bhoktṛ", meaning: "experiencer of the gunas" }
+          ],
+          translation: "Illuminating all the functions of the senses, yet devoid of all senses; unattached, yet sustaining all; free from the gunas, yet the experiencer of the gunas.",
+          modernInterpretation: "THIS verse is the PARADOX that breaks your brain — and that is exactly the point. Brahman illuminates all senses but HAS no senses. Supports everything but is ATTACHED to nothing. Is beyond all qualities but EXPERIENCES all qualities. How is this possible?!\n\nThink of ELECTRICITY. It powers your fan, your TV, your fridge, your phone — every device works BECAUSE of it. But electricity itself is not hot or cold, not loud or quiet, not bright or dark. It ENABLES all those qualities without HAVING any of them. The fan is cool because of electricity, but electricity is not cool. The bulb is bright because of electricity, but electricity is not bright. It is the ENABLER of everything while being NONE of those things.\n\nSimilarly, Brahman makes your eyes see but does not need eyes. Makes your ears hear but does not need ears. SUSTAINS the entire universe — every galaxy, every atom, every mitochondria — but is not ATTACHED to any of it. Like a billionaire who funds a thousand startups but does not emotionally depend on any single one.\n\n'Nirguṇam guṇa-bhoktṛ' — beyond all qualities yet experiencing all qualities. This is the ultimate DIVINE PARADOX. And it is OKAY if your mind cannot fully grasp it. That is the point. Brahman is not something the mind can CONTAIN — the mind is something Brahman contains."
+        },
+        {
+          chapter: 13,
+          sloka: 16,
+          devanagari: "बहिरन्तश्च भूतानामचरं चरमेव च ।\nसूक्ष्मत्वात्तदविज्ञेयं दूरस्थं चान्तिके च तत् ॥१६॥",
+          transliteration: "bahir antaś ca bhūtānām acaraṁ caram eva ca |\nsūkṣmatvāt tad avijñeyaṁ dūra-sthaṁ cāntike ca tat ||16||",
+          words: [
+            { word: "बहिः", transliteration: "bahiḥ", meaning: "outside" },
+            { word: "अन्तः", transliteration: "antaḥ", meaning: "inside" },
+            { word: "भूतानाम्", transliteration: "bhūtānām", meaning: "of all beings" },
+            { word: "अचरम्", transliteration: "acaram", meaning: "unmoving" },
+            { word: "चरम्", transliteration: "caram", meaning: "moving" },
+            { word: "सूक्ष्मत्वात्", transliteration: "sūkṣmatvāt", meaning: "because of subtlety" },
+            { word: "तत्", transliteration: "tat", meaning: "that" },
+            { word: "अविज्ञेयम्", transliteration: "avijñeyam", meaning: "incomprehensible" },
+            { word: "दूरस्थम्", transliteration: "dūra-stham", meaning: "far away" },
+            { word: "अन्तिके", transliteration: "antike", meaning: "near" }
+          ],
+          translation: "Outside and inside all beings, the moving and the unmoving; because of Its subtlety, It is incomprehensible; It is far away and yet near.",
+          modernInterpretation: "More beautiful paradoxes. Brahman is OUTSIDE you AND inside you. It is in the MOVING things (your running dog, the flowing Ganga, the spinning Earth) and in the UNMOVING things (the mountain, the stone, the silence). It is IMPOSSIBLY far — beyond the farthest galaxy — and IMPOSSIBLY near — closer than your own breath.\n\nWhy can we not perceive It then? 'Sūkṣmatvāt' — because of Its SUBTLETY. Not because It is hidden, but because It is TOO subtle for our gross instruments. You cannot hear a radio signal with your ears — you need a radio. You cannot see Wi-Fi with your eyes — but Wi-Fi is EVERYWHERE in this room right now. Similarly, Brahman pervades everything but is too SUBTLE for the physical senses to detect.\n\n'Dūra-stham ca antike ca tat' — far AND near. This is not a contradiction — it is a description of INFINITY. Think about the sky. Is the sky far away? Yes — it extends to the edge of the observable universe. Is the sky near? Also yes — it is literally touching your head right now. The sky is BOTH infinitely far and immediately here. That is Brahman. You are searching for God in Varanasi, in Tirupati, in Himalayan caves — and the WHOLE TIME, God is closer to you than your own jugular vein. The search is over. You just did not know it."
+        },
+        {
+          chapter: 13,
+          sloka: 17,
+          devanagari: "अविभक्तं च भूतेषु विभक्तमिव च स्थितम् ।\nभूतभर्तृ च तज्ज्ञेयं ग्रसिष्णु प्रभविष्णु च ॥१७॥",
+          transliteration: "avibhaktaṁ ca bhūteṣu vibhaktam iva ca sthitam |\nbhūta-bhartṛ ca taj jñeyaṁ grasiṣṇu prabhaviṣṇu ca ||17||",
+          words: [
+            { word: "अविभक्तम्", transliteration: "avibhaktam", meaning: "undivided" },
+            { word: "भूतेषु", transliteration: "bhūteṣu", meaning: "among beings" },
+            { word: "विभक्तम्", transliteration: "vibhaktam", meaning: "divided" },
+            { word: "इव", transliteration: "iva", meaning: "as if" },
+            { word: "स्थितम्", transliteration: "sthitam", meaning: "situated" },
+            { word: "भूतभर्तृ", transliteration: "bhūta-bhartṛ", meaning: "sustainer of beings" },
+            { word: "ज्ञेयम्", transliteration: "jñeyam", meaning: "to be known" },
+            { word: "ग्रसिष्णु", transliteration: "grasiṣṇu", meaning: "devourer/destroyer" },
+            { word: "प्रभविष्णु", transliteration: "prabhaviṣṇu", meaning: "creator/generator" }
+          ],
+          translation: "Though undivided, It appears to be divided among beings. It is to be known as the sustainer, devourer, and creator of all beings.",
+          modernInterpretation: "This is the verse that explains WHY we feel separate even though we are NOT. Brahman is AVIBHAKTAM — undivided, ONE, seamless. But it APPEARS to be divided among beings — vibhaktam IVA — AS IF divided. Not actually divided. SEEMINGLY divided. Like the ONE sun reflecting in a thousand pots of water. A thousand reflections, but ONE sun.\n\nYou and I FEEL like separate individuals. My consciousness feels different from yours. But Krishna says this is an ILLUSION of division. The consciousness in you and the consciousness in me is the SAME consciousness, just appearing through different body-mind filters. It is like the same electricity appearing as light in a bulb, sound in a speaker, and cold in a fridge. Different expressions, ONE source.\n\nAnd then the triple role — Brahman is the CREATOR (prabhaviṣṇu), the SUSTAINER (bhūta-bhartṛ), and the DESTROYER (grasiṣṇu). Brahma-Vishnu-Shiva in one principle. It creates the universe, maintains it, and dissolves it — the cosmic CYCLE of life. Your body was created, it is being sustained right now, and one day it will be dissolved. But the Brahman within? It just WATCHES the cycle like someone watching seasons change from their window. Spring, summer, autumn, winter — the WATCHER stays the same. And so do you."
+        },
+        {
+          chapter: 13,
+          sloka: 18,
+          devanagari: "ज्योतिषामपि तज्ज्योतिस्तमसः परमुच्यते ।\nज्ञानं ज्ञेयं ज्ञानगम्यं हृदि सर्वस्य विष्ठितम् ॥१८॥",
+          transliteration: "jyotiṣām api taj jyotis tamasaḥ param ucyate |\njñānaṁ jñeyaṁ jñāna-gamyaṁ hṛdi sarvasya viṣṭhitam ||18||",
+          words: [
+            { word: "ज्योतिषाम्", transliteration: "jyotiṣām", meaning: "of all luminaries" },
+            { word: "अपि", transliteration: "api", meaning: "also" },
+            { word: "तत्", transliteration: "tat", meaning: "that" },
+            { word: "ज्योतिः", transliteration: "jyotiḥ", meaning: "the light" },
+            { word: "तमसः", transliteration: "tamasaḥ", meaning: "of darkness" },
+            { word: "परम्", transliteration: "param", meaning: "beyond" },
+            { word: "उच्यते", transliteration: "ucyate", meaning: "is said" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge" },
+            { word: "ज्ञेयम्", transliteration: "jñeyam", meaning: "the object of knowledge" },
+            { word: "ज्ञानगम्यम्", transliteration: "jñāna-gamyam", meaning: "attainable by knowledge" },
+            { word: "हृदि", transliteration: "hṛdi", meaning: "in the heart" },
+            { word: "सर्वस्य", transliteration: "sarvasya", meaning: "of everyone" },
+            { word: "विष्ठितम्", transliteration: "viṣṭhitam", meaning: "is situated" }
+          ],
+          translation: "That is the light of all lights, said to be beyond darkness. It is knowledge, the object of knowledge, and the goal of knowledge, seated in the hearts of all.",
+          modernInterpretation: "What a way to end this section. Krishna describes Brahman as the LIGHT OF ALL LIGHTS — 'jyotiṣām api taj jyotiḥ.' The sun gives light, but what gives light to the sun? The eye sees, but what gives the eye the POWER to see? There is a light behind every light, an awareness behind every awareness, and THAT is Brahman. It is not one more lamp in the room — it is the ELECTRICITY that makes all lamps possible.\n\nAnd it is 'tamasaḥ param' — BEYOND darkness. Not just the opposite of darkness, but beyond the very CONCEPT of dark and light. It is in a category so transcendent that our duality of light-versus-dark does not even apply.\n\nThen the magnificent triple — 'jñānaṁ jñeyaṁ jñāna-gamyam.' It is knowledge ITSELF, the OBJECT of knowledge, and the GOAL of knowledge. It is the knower, the known, and the knowing. It is the question, the answer, and the asking. Everything collapses into ONE.\n\nAnd WHERE is this cosmic, infinite, beyond-darkness-and-light Reality? 'Hṛdi sarvasya viṣṭhitam' — sitting in the HEART of every being. Not in a temple. Not in a book. Not on a mountain. In YOUR heart. Right now. The entire SEARCH for God ends where it began — inside YOU. You have been carrying the answer in your chest your whole life. You were looking for the glasses that were already on your head. And that, my friends, is the most beautiful COSMIC JOKE of all time."
+        }
+        ]

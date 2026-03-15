@@ -788,874 +788,778 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Ruchirahgunabruchchhandavrusho jananolanah",
-        "Sateerthah satavruttah satyah satyanama sattvatah samah"
+        "Achyutah-prathithah pranah pranado vasa-vanujah",
+        "Apamnidhi radishta-nam apra-mattah prati-shtitah"
       ]
     },
     {
       "num": 36,
-      "text": "amoghāḥ puṇḍarīkākṣo vṛṣakarmā vṛṣākṛtiḥ .\nrudro bahūśirā babhrurviśvayoniḥ śucīśravaḥ ..",
+      "text": "skandaḥ skanda-dharaḥ dhuryo varado vāyu-vāhanaḥ .\nvāsu-devo bṛhad-bhānur-ādi-devaḥ purandaraḥ ..",
       "halves": [
-        "amoghāḥ puṇḍarīkākṣo vṛṣakarmā vṛṣākṛtiḥ",
-        "rudro bahūśirā babhrurviśvayoniḥ śucīśravaḥ"
+        "skandaḥ skanda-dharaḥ dhuryo varado vāyu-vāhanaḥ",
+        "vāsu-devo bṛhad-bhānur-ādi-devaḥ purandaraḥ"
       ],
       "translations": [
         ""
       ],
       "english_halves": [
-        "Amoghah pundareekaksho vrushakarma vrushakrutih",
-        "Rudro bahooshira babhrurvishvayonih shucheeshravah"
+        "Skandah sanda-dharo dhuryo varado vayu-vahanah",
+        "Vasudevo bruha-dbhanuh adidevah pura-ndarah"
       ]
     },
     {
       "num": 37,
-      "text": "amṛtaḥ śāśvataḥsthāṇurvarāroho mahātapāḥ .\nsarvagaḥ sarvavidbhānurviṣvakseno janārdanaḥ ..",
+      "text": "aśokas-tāraṇas-tāraḥ śūraḥ śaurir-janeśvaraḥ .\nanukūlaḥ śatāvartaḥ padmī padma-nibhekṣaṇaḥ ..",
       "halves": [
-        "amṛtaḥ śāśvataḥsthāṇurvarāroho mahātapāḥ",
-        "sarvagaḥ sarvavidbhānurviṣvakseno janārdanaḥ"
+        "aśokas-tāraṇas-tāraḥ śūraḥ śaurir-janeśvaraḥ",
+        "anukūlaḥ śatāvartaḥ padmī padma-nibhekṣaṇaḥ"
       ],
       "translations": [
         ""
       ],
       "english_halves": [
-        "Amrutah shashvatahsthanurvararoho mahatapah",
-        "Sarvagah sarvavidbhanurvishvakseno janardanah"
+        "Ashoka starana starah shoora-showri rjane-shvarah",
+        "Anu-koola shata-vartah padmee padma-nibhe-kshanah"
       ]
     },
     {
       "num": 38,
-      "text": "vedo vedavidavyaṅgo vedāṅgo vedavitkaviḥ .\nlokādhyakṣaḥ surādhyakṣo dharmādhyakṣaḥ kṛtākṛtaḥ ..",
+      "text": "padma-nābho'ravindākṣaḥ padma-garbhaḥ śarīra-bhṛt .\nmaharddhir-ṛddho vṛddhātmā mahākṣo garuḍa-dhvajaḥ ..",
       "halves": [
-        "vedo vedavidavyaṅgo vedāṅgo vedavitkaviḥ",
-        "lokādhyakṣaḥ surādhyakṣo dharmādhyakṣaḥ kṛtākṛtaḥ"
+        "padma-nābho'ravindākṣaḥ padma-garbhaḥ śarīra-bhṛt",
+        "maharddhir-ṛddho vṛddhātmā mahākṣo garuḍa-dhvajaḥ"
       ],
       "translations": [
         ""
       ],
       "english_halves": [
-        "Vedo vedavidavyango vedango vedavitkavih",
-        "Lokadhyakshah suradhyaksho dharmadhyakshah krutakrutah"
+        "Padma-nabho ravinda-kshah padma-garbha-shareera-bhrut",
+        "Mahardhi bhooddho vruddha-tma maha-ksho garuda-dhvajah"
       ]
     },
     {
       "num": 39,
-      "text": "caturātmā caturvyūhaścaturdaṃṣṭraścaturbhujaḥ .\nbhrājiṣṇurbhojanaṃ bhoktā sahiṣṇurjagadādijaḥ ..",
+      "text": "atulaḥ śarabho bhīmaḥ sama-yajño havirhariḥ .\nsarva-lakṣaṇa-lakṣaṇyo lakṣmīvān samitiñjayaḥ ..",
       "halves": [
-        "caturātmā caturvyūhaścaturdaṃṣṭraścaturbhujaḥ",
-        "bhrājiṣṇurbhojanaṃ bhoktā sahiṣṇurjagadādijaḥ"
+        "atulaḥ śarabho bhīmaḥ sama-yajño havirhariḥ",
+        "sarva-lakṣaṇa-lakṣaṇyo lakṣmīvān samitiñjayaḥ"
       ],
       "translations": [
         ""
       ],
       "english_halves": [
-        "Chaturatma chaturvyoohashchaturdamshtrashchaturbhujah",
-        "Bhrajishnurbhojanam bhokta sahishnurjagadadijah"
+        "Atula-sharabho bheemah sama-yagno havir-harih",
+        "Sarva lakshana lakshanyo lakshmeevan samiti-njayah"
       ]
     },
     {
       "num": 40,
-      "text": "anagho vijayo jetā viśvayoniḥ punarvasuḥ .\nupendro vāmanaḥ prāṃśurāmoghaḥ śucirūrjitaḥ ..",
+      "text": "vikṣaro rohito mārgo hetur-dāmodaraḥ sahaḥ .\nmahīdharo mahā-bhāgo vegavān-amitāśanaḥ ..",
       "halves": [
-        "anagho vijayo jetā viśvayoniḥ punarvasuḥ",
-        "upendro vāmanaḥ prāṃśurāmoghaḥ śucirūrjitaḥ"
+        "vikṣaro rohito mārgo hetur-dāmodaraḥ sahaḥ",
+        "mahīdharo mahā-bhāgo vegavān-amitāśanaḥ"
       ],
       "translations": [
         ""
       ],
       "english_halves": [
-        "Anagho vijayo jeta vishvayonih punarvasuh",
-        "Upendro vamanah pramshuramoghah shuchiroorjitah"
+        "Veksharo rohito margo hethur-damodara sahah",
+        "Mahee-dharo maha-bhago vegavana-mitashanah"
       ]
     },
     {
       "num": 41,
-      "text": "kartā vikartā gahanaḥ guhaḥ vyavasāyaḥ .\nvyavasthānaḥ saṃsthānaḥ sthānada dhruvaḥ ..",
+      "text": "udbhavaḥ kṣobhaṇo devaḥ śrīgarbhaḥ parameśvaraḥ .\nkaraṇaṃ kāraṇaṃ kartā vikartā gahano guhaḥ ..",
       "halves": [
-        "kartā vikartā gahanaḥ guhaḥ vyavasāyaḥ",
-        "vyavasthānaḥ saṃsthānaḥ sthānada dhruvaḥ"
+        "udbhavaḥ kṣobhaṇo devaḥ śrīgarbhaḥ parameśvaraḥ",
+        "karaṇaṃ kāraṇaṃ kartā vikartā gahano guhaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Karta vikarta gahanah guhah vyavasayah",
-        "Vyavasthanah samsthanah sthanada dhruvah"
+        "Udbhavah ksho-bhano devah shree-garbhah parame-shvarah",
+        "Karanam karanam karta vikarta gahano guhah"
       ]
     },
     {
       "num": 42,
-      "text": "pararddhiḥ parama-spaṣṭaḥ tuṣṭaḥ puṣṭaḥ śubhekṣaṇaḥ .\nrāmaḥ virāmaḥ virajo mārgaḥ neyaḥ ..",
+      "text": "vyavasāyo vyavasthānaḥ saṃsthānaḥ sthānado dhruvaḥ .\npararddhiḥ parama-spaṣṭas-tuṣṭaḥ puṣṭaḥ śubhekṣaṇaḥ ..",
       "halves": [
-        "pararddhiḥ parama-spaṣṭaḥ tuṣṭaḥ puṣṭaḥ śubhekṣaṇaḥ",
-        "rāmaḥ virāmaḥ virajo mārgaḥ neyaḥ"
+        "vyavasāyo vyavasthānaḥ saṃsthānaḥ sthānado dhruvaḥ",
+        "pararddhiḥ parama-spaṣṭas-tuṣṭaḥ puṣṭaḥ śubhekṣaṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Pararddhih parama-spashtah tushtah pushtah shubhekshanah",
-        "Ramah viramah virajo margah neyah"
+        "Vyava-sayo vyava-sthanah sams-thanah sthanado dhruvah",
+        "Para-rdhih parama-spashta stushtah pushtah-shubhe-kshanah"
       ]
     },
     {
       "num": 43,
-      "text": "nayaḥ anayaḥ vīraḥ śakti-mataḥ-śreṣṭhaḥ dharmaḥ .\ndharma-vid-uttamaḥ vaikuṇṭhaḥ puruṣaḥ prāṇaḥ prāṇadaḥ ..",
+      "text": "rāmo virāmo virajo mārgo neyo nayo'nayaḥ .\nvīraḥ śaktimatāṃ-śreṣṭho dharmo dharma-vid-uttamaḥ ..",
       "halves": [
-        "nayaḥ anayaḥ vīraḥ śakti-mataḥ-śreṣṭhaḥ dharmaḥ",
-        "dharma-vid-uttamaḥ vaikuṇṭhaḥ puruṣaḥ prāṇaḥ prāṇadaḥ"
+        "rāmo virāmo virajo mārgo neyo nayo'nayaḥ",
+        "vīraḥ śaktimatāṃ-śreṣṭho dharmo dharma-vid-uttamaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Nayah anayah veerah shakti-matah-shreshthah dharmah",
-        "Dharma-vid-uttamah vaikunthah purushah pranah pranadah"
+        "Ramo viramo virajo margo neyo nayo-nayah",
+        "Veera-shakti-matam shreshto dharmo dharma-vidu-ttamah"
       ]
     },
     {
       "num": 44,
-      "text": "praṇavaḥ pṛthuḥ hiraṇya-garbhaḥ śatru-ghnaḥ vyāptaḥ .\nvāyuḥ adhokṣajaḥ ṛtuḥ su-darśanaḥ ..",
+      "text": "vaikuṇṭhaḥ puruṣaḥ prāṇaḥ prāṇadaḥ praṇavaḥ pṛthuḥ .\nhiraṇya-garbhaḥ śatru-ghno vyāpto vāyur-adhokṣajaḥ ..",
       "halves": [
-        "praṇavaḥ pṛthuḥ hiraṇya-garbhaḥ śatru-ghnaḥ vyāptaḥ",
-        "vāyuḥ adhokṣajaḥ ṛtuḥ su-darśanaḥ"
+        "vaikuṇṭhaḥ puruṣaḥ prāṇaḥ prāṇadaḥ praṇavaḥ pṛthuḥ",
+        "hiraṇya-garbhaḥ śatru-ghno vyāpto vāyur-adhokṣajaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Pranavah pruthuh hiranya-garbhah shatru-ghnah vyaptah",
-        "Vayuh adhokshajah rutuh su-darshanah"
+        "Vaikunthah purushah pranah pranadah pranavah pruthuh",
+        "Hiranya-garbha shatru-ghno vyapto vayu-radho-kshajah"
       ]
     },
     {
       "num": 45,
-      "text": "kālaḥ parameṣṭhī parigrahaḥ ugraḥ saṃvatsaraḥ .\ndakṣaḥ viśrāmaḥ viśva-dakṣiṇaḥ vistāraḥ ..",
+      "text": "ṛtuḥ sudarśanaḥ kālaḥ parameṣṭhī parigrahaḥ .\nugraḥ saṃvatsaro dakṣo viśrāmo viśva-dakṣiṇaḥ ..",
       "halves": [
-        "kālaḥ parameṣṭhī parigrahaḥ ugraḥ saṃvatsaraḥ",
-        "dakṣaḥ viśrāmaḥ viśva-dakṣiṇaḥ vistāraḥ"
+        "ṛtuḥ sudarśanaḥ kālaḥ parameṣṭhī parigrahaḥ",
+        "ugraḥ saṃvatsaro dakṣo viśrāmo viśva-dakṣiṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kalah parameshthee parigrahah ugrah samvatsarah",
-        "Dakshah vishramah vishva-dakshinah vistarah"
+        "Rutu-sudar-shanah-kalah para-meshthi pari-grahah",
+        "Ugra-samva-tsaro daksho vishramo vishva-dakshinah"
       ]
     },
     {
       "num": 46,
-      "text": "sthāvara-sthāṇuḥ pramāṇam bījaṃ avyayam arthaḥ anarthaḥ .\nmahā-kośaḥ mahā-bhogaḥ mahā-dhanaḥ anirviṇṇaḥ sthaviyān ..",
+      "text": "vistāraḥ sthāvara-sthāṇuḥ pramāṇaṃ bījaṃ avyayam .\nartho'nartho mahā-kośo mahā-bhogo mahā-dhanaḥ ..",
       "halves": [
-        "sthāvara-sthāṇuḥ pramāṇam bījaṃ avyayam arthaḥ anarthaḥ",
-        "mahā-kośaḥ mahā-bhogaḥ mahā-dhanaḥ anirviṇṇaḥ sthaviyān"
+        "vistāraḥ sthāvara-sthāṇuḥ pramāṇaṃ bījaṃ avyayam",
+        "artho'nartho mahā-kośo mahā-bhogo mahā-dhanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Sthavara-sthanuh pramanam beejam avyayam arthah anarthah",
-        "Maha-koshah maha-bhogah maha-dhanah anirvinnah sthaviyan"
+        "Vistarah sthavara ssthanuh pramanam beeja-mavyayam",
+        "Artho-nartho maha-kosho maha-bhogo maha-dhanah"
       ]
     },
     {
       "num": 47,
-      "text": "bhū-dharaḥ dharma-gup dharma-kṛt dharmī sat .\nasat kṣaram akṣaram avijñātā ..",
+      "text": "anirviṇṇaḥ sthaviṣṭho bhūr-dharma-yūpo mahā-makhaḥ .\nnakṣatra-nemir-nakṣatrī kṣamaḥ kṣāmaḥ samīhanaḥ ..",
       "halves": [
-        "bhū-dharaḥ dharma-gup dharma-kṛt dharmī sat",
-        "asat kṣaram akṣaram avijñātā"
+        "anirviṇṇaḥ sthaviṣṭho bhūr-dharma-yūpo mahā-makhaḥ",
+        "nakṣatra-nemir-nakṣatrī kṣamaḥ kṣāmaḥ samīhanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Bhoo-dharah dharma-gup dharma-krut dharmee sat",
-        "Asat ksharam aksharam avignata"
+        "Anir-vinnah sthavishto bhooh dharma-yoopo maha-makhah",
+        "Nakshatra-nemir-nakshatree kshamah shamah-samee-hanah"
       ]
     },
     {
       "num": 48,
-      "text": "sahasrāṃśuḥ vidhātā kṛta-lakṣaṇaḥ gabhasti-nemīḥ sattva-sthaḥ .\nsiṃhaḥ bhūta-maheśvaraḥ ādi-devaḥ mahā-devaḥ deveśaḥ ..",
+      "text": "yajña ijyo mahejyaśca kratuḥ satraṃ satāṃ gatiḥ .\nsarva-darśī vimuktātmā sarvajño jñānam-uttamam ..",
       "halves": [
-        "sahasrāṃśuḥ vidhātā kṛta-lakṣaṇaḥ gabhasti-nemīḥ sattva-sthaḥ",
-        "siṃhaḥ bhūta-maheśvaraḥ ādi-devaḥ mahā-devaḥ deveśaḥ"
+        "yajña ijyo mahejyaśca kratuḥ satraṃ satāṃ gatiḥ",
+        "sarva-darśī vimuktātmā sarvajño jñānam-uttamam"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Sahasramshuh vidhata kruta-lakshanah gabhasti-nemeeh sattva-sthah",
-        "Simhah bhoota-maheshvarah adi-devah maha-devah deveshah"
+        "Yagno ijyo mahejyashcha kratuh satram satam-gatih",
+        "Sarva-darshee vimukt-atma sarvagno gnanam-uttamam"
       ]
     },
     {
       "num": 49,
-      "text": "deva-bhṛt-guruḥ uttaraḥ go-patiḥ goptā jñāna-gamyaḥ .\npurātanaḥ śarīra-bhūta-bhṛt bhoktā kapīndraḥ ..",
+      "text": "suvrataḥ sumukhaḥ sūkṣmaḥ sughoṣaḥ sukhadaḥ suhṛt .\nmanoharaḥ jita-krodho vīra-bāhur-vidāraṇaḥ ..",
       "halves": [
-        "deva-bhṛt-guruḥ uttaraḥ go-patiḥ goptā jñāna-gamyaḥ",
-        "purātanaḥ śarīra-bhūta-bhṛt bhoktā kapīndraḥ"
+        "suvrataḥ sumukhaḥ sūkṣmaḥ sughoṣaḥ sukhadaḥ suhṛt",
+        "manoharaḥ jita-krodho vīra-bāhur-vidāraṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Deva-bhrut-guruh uttarah go-patih gopta gnana-gamyah",
-        "Puratanah shareera-bhoota-bhrut bhokta kapeendrah"
+        "Suvratah sumukhah sookshmah sughoshah sukhadah suhrut",
+        "Mano-haro jita-krodho veera-bahur-vidaranah"
       ]
     },
     {
       "num": 50,
-      "text": "bhūri-dakṣiṇaḥ soma-paḥ amṛta-paḥ somaḥ purujit .\npuru-sattamaḥ vinayaḥ jayaḥ satya-sandhaḥ ..",
+      "text": "svāpanaḥ sva-vaśo vyāpī naikātmā naika-karma-kṛt .\nvatsaro vatsalo vatsī ratna-garbho dhaneśvaraḥ ..",
       "halves": [
-        "bhūri-dakṣiṇaḥ soma-paḥ amṛta-paḥ somaḥ purujit",
-        "puru-sattamaḥ vinayaḥ jayaḥ satya-sandhaḥ"
+        "svāpanaḥ sva-vaśo vyāpī naikātmā naika-karma-kṛt",
+        "vatsaro vatsalo vatsī ratna-garbho dhaneśvaraḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Bhoori-dakshinah soma-pah amruta-pah somah purujit",
-        "Puru-sattamah vinayah jayah satya-sandhah"
+        "Swapanah svavasho vyapee naikatma naika-karmakrut",
+        "Vatsaro vatsalo vatsee ratna-garbho dhaneshvarah"
       ]
     },
     {
       "num": 51,
-      "text": "dāśārhaḥ sātvatāṃ patiḥ jīvaḥ vinayi-tā sākṣī .\nmukunda amita-vikramaḥ ambho-nidhiḥ anantātmā mahā-udadhi-śayaḥ ..",
+      "text": "dharma-gub-dharma-kṛd-dharmī sad-asat-kṣaram-akṣaram .\navijñātā sahasrāṃśur-vidhātā kṛta-lakṣaṇaḥ ..",
       "halves": [
-        "dāśārhaḥ sātvatāṃ patiḥ jīvaḥ vinayi-tā sākṣī",
-        "mukunda amita-vikramaḥ ambho-nidhiḥ anantātmā mahā-udadhi-śayaḥ"
+        "dharma-gub-dharma-kṛd-dharmī sad-asat-kṣaram-akṣaram",
+        "avijñātā sahasrāṃśur-vidhātā kṛta-lakṣaṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Dasharhah satvatam patih jeevah vinayi-ta sakshee",
-        "Mukunda amita-vikramah ambho-nidhih anantatma maha-udadhi-shayah"
+        "Dharmagub dharmakrut dharmee sad-asat ksharam aksharam",
+        "Avignatah sahasramshuh vidhata kruta-lakshanah"
       ]
     },
     {
       "num": 52,
-      "text": "antakaḥ ajaḥ mahārhaḥ svābhāvyaḥ jitāmitraḥ .\npramodanaḥ ānandaḥ nandanaḥ nandaḥ satya-dharmā ..",
+      "text": "gabhasti-nemiḥ sattva-sthaḥ siṃho bhūta-maheśvaraḥ .\nādi-devo mahā-devo deveśo deva-bhṛd-guruḥ ..",
       "halves": [
-        "antakaḥ ajaḥ mahārhaḥ svābhāvyaḥ jitāmitraḥ",
-        "pramodanaḥ ānandaḥ nandanaḥ nandaḥ satya-dharmā"
+        "gabhasti-nemiḥ sattva-sthaḥ siṃho bhūta-maheśvaraḥ",
+        "ādi-devo mahā-devo deveśo deva-bhṛd-guruḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Antakah ajah maharhah svabhavyah jitamitrah",
-        "Pramodanah anandah nandanah nandah satya-dharma"
+        "Gabhasti-nemih satvasthah simho bhoota-maheshvarah",
+        "Adidevo mahadevo devesho deva-bhrud-guruh"
       ]
     },
     {
       "num": 53,
-      "text": "trivikramaḥ maharṣiḥ kapilaḥ ācāryaḥ kṛta-jñaḥ medinī-patiḥ tri-padaḥ .\ntri-daśādhyakṣaḥ mahā-śṛṅgaḥ kṛtānta-kṛt mahāvarāhaḥ ..",
+      "text": "uttaro gopatir-goptā jñāna-gamyaḥ purātanaḥ .\nśarīra-bhūta-bhṛd-bhoktā kapīndro bhūri-dakṣiṇaḥ ..",
       "halves": [
-        "trivikramaḥ maharṣiḥ kapilaḥ ācāryaḥ kṛta-jñaḥ medinī-patiḥ tri-padaḥ",
-        "tri-daśādhyakṣaḥ mahā-śṛṅgaḥ kṛtānta-kṛt mahāvarāhaḥ"
+        "uttaro gopatir-goptā jñāna-gamyaḥ purātanaḥ",
+        "śarīra-bhūta-bhṛd-bhoktā kapīndro bhūri-dakṣiṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Trivikramah maharshih kapilah acharyah kruta-gnah medinee-patih tri-padah",
-        "Tri-dashadhyakshah maha-shrungah krutanta-krut mahavarahah"
+        "Uttaro gopatir-gopta gnana-gamyah puratanah",
+        "Shareera-bhoota-bhrud-bhokta kapeendro bhoori-dakshinah"
       ]
     },
     {
       "num": 54,
-      "text": "govindaḥ suṣeṇaḥ kanakāṅgadī guhyaḥ gabhīraḥ .\ngahanaḥ guptaḥ cakra-gadā-dharaḥ vedāḥ ..",
+      "text": "somapo'mṛtapaḥ somaḥ puru-jit puru-sattamaḥ .\nvinayo jayaḥ satya-sandho dāśārhaḥ sātvatāṃ patiḥ ..",
       "halves": [
-        "govindaḥ suṣeṇaḥ kanakāṅgadī guhyaḥ gabhīraḥ",
-        "gahanaḥ guptaḥ cakra-gadā-dharaḥ vedāḥ"
+        "somapo'mṛtapaḥ somaḥ puru-jit puru-sattamaḥ",
+        "vinayo jayaḥ satya-sandho dāśārhaḥ sātvatāṃ patiḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Govindah sushenah kanakangadee guhyah gabheerah",
-        "Gahanah guptah chakra-gada-dharah vedah"
+        "Somapo mrutapah somah purujit puru-sattamah",
+        "Vinayo jayah satya-sandho dasharhah satvatam-patih"
       ]
     },
     {
       "num": 55,
-      "text": "svāṅgaḥ ajitaḥ kṛṣṇaḥ dṛḍhaḥ saṅkarṣaṇaḥ acyutaḥ .\nvaruṇaḥ vāruṇaḥ vṛkṣaḥ puṣkarākṣaḥ mahā-manāḥ ..",
+      "text": "jīvo vinayitā sākṣī mukundo'mita-vikramaḥ .\nambho-nidhir-anantātmā mahodadhi-śayo'ntakaḥ ..",
       "halves": [
-        "svāṅgaḥ ajitaḥ kṛṣṇaḥ dṛḍhaḥ saṅkarṣaṇaḥ acyutaḥ",
-        "varuṇaḥ vāruṇaḥ vṛkṣaḥ puṣkarākṣaḥ mahā-manāḥ"
+        "jīvo vinayitā sākṣī mukundo'mita-vikramaḥ",
+        "ambho-nidhir-anantātmā mahodadhi-śayo'ntakaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Svangah ajitah krushnah drudhah sankarshanah achyutah",
-        "Varunah varunah vrukshah pushkarakshah maha-manah"
+        "Jeevo vinayita sakshee mukundo amita-vikramah",
+        "Ambho-nidhir-anantatma maho-dadhi-shayontakah"
       ]
     },
     {
       "num": 56,
-      "text": "bhagavān bhaga-hā ānandī vana-mālī halāyudhaḥ .\nādityaḥ jyotir-ādityaḥ sahiṣṇuḥ gati-sattamaḥ ..",
+      "text": "ajo mahārhaḥ svābhāvyo jitāmitraḥ pramodanaḥ .\nānando nandano nandaḥ satya-dharmā trivikramaḥ ..",
       "halves": [
-        "bhagavān bhaga-hā ānandī vana-mālī halāyudhaḥ",
-        "ādityaḥ jyotir-ādityaḥ sahiṣṇuḥ gati-sattamaḥ"
+        "ajo mahārhaḥ svābhāvyo jitāmitraḥ pramodanaḥ",
+        "ānando nandano nandaḥ satya-dharmā trivikramaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Bhagavan bhaga-ha anandee vana-malee halayudhah",
-        "Adityah jyotir-adityah sahishnuh gati-sattamah"
+        "Ajo maharhah svabhavyo jita-mitrah pramodanah",
+        "Anando nandano nandah satya-dharma trivikramah"
       ]
     },
     {
       "num": 57,
-      "text": "su-dharmā dharma-gup dharma-kṛt dharmī sat .\nasat-kṣaram avijñātā sahasrāṃśuḥ vidhātā ..",
+      "text": "maharṣiḥ kapilācāryaḥ kṛtajño medinī-patiḥ .\ntri-padas-tri-daśādhyakṣo mahā-śṛṅgaḥ kṛtānta-kṛt ..",
       "halves": [
-        "su-dharmā dharma-gup dharma-kṛt dharmī sat",
-        "asat-kṣaram avijñātā sahasrāṃśuḥ vidhātā"
+        "maharṣiḥ kapilācāryaḥ kṛtajño medinī-patiḥ",
+        "tri-padas-tri-daśādhyakṣo mahā-śṛṅgaḥ kṛtānta-kṛt"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Su-dharma dharma-gup dharma-krut dharmee sat",
-        "Asat-ksharam avignata sahasramshuh vidhata"
+        "Maharshih kapilacharyah krutagno medineepatih",
+        "Tripadah tridash-adhyakshah maha-shringah krutanta-krut"
       ]
     },
     {
       "num": 58,
-      "text": "kṛta-lakṣaṇaḥ gabhasti-nemīḥ sattva-sthaḥ siṃhaḥ bhūta-maheśvaraḥ .\nādi-devaḥ mahā-devaḥ deveśaḥ deva-bhṛt guruḥ ..",
+      "text": "mahā-varāho govindaḥ suṣeṇaḥ kanakāṅgadī .\nguhyo gabhīro gahano guptaś-cakra-gadā-dharaḥ ..",
       "halves": [
-        "kṛta-lakṣaṇaḥ gabhasti-nemīḥ sattva-sthaḥ siṃhaḥ bhūta-maheśvaraḥ",
-        "ādi-devaḥ mahā-devaḥ deveśaḥ deva-bhṛt guruḥ"
+        "mahā-varāho govindaḥ suṣeṇaḥ kanakāṅgadī",
+        "guhyo gabhīro gahano guptaś-cakra-gadā-dharaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kruta-lakshanah gabhasti-nemeeh sattva-sthah simhah bhoota-maheshvarah",
-        "Adi-devah maha-devah deveshah deva-bhrut guruh"
+        "Maha-varaho govindah sushenah kanakangadee",
+        "Guhyo gabheero gahano guptash-chakra-gadadharah"
       ]
     },
     {
       "num": 59,
-      "text": "uttaraḥ go-patiḥ goptā jñāna-gamyaḥ purātanaḥ .\nśarīra-bhūta-bhṛt bhoktā kapīndraḥ bhūri-dakṣiṇaḥ soma-paḥ ..",
+      "text": "vedhāḥ svāṅgo'jitaḥ kṛṣṇo dṛḍhaḥ saṅkarṣaṇo'cyutaḥ .\nvaruṇo vāruṇo vṛkṣaḥ puṣkarākṣo mahā-manāḥ ..",
       "halves": [
-        "uttaraḥ go-patiḥ goptā jñāna-gamyaḥ purātanaḥ",
-        "śarīra-bhūta-bhṛt bhoktā kapīndraḥ bhūri-dakṣiṇaḥ soma-paḥ"
+        "vedhāḥ svāṅgo'jitaḥ kṛṣṇo dṛḍhaḥ saṅkarṣaṇo'cyutaḥ",
+        "varuṇo vāruṇo vṛkṣaḥ puṣkarākṣo mahā-manāḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Uttarah go-patih gopta gnana-gamyah puratanah",
-        "Shareera-bhoota-bhrut bhokta kapeendrah bhoori-dakshinah soma-pah"
+        "Vedhah svango ajitah krishno dridhah sankarshano achyutah",
+        "Varuno varuno vrukshah pushkarakshah maha-manah"
       ]
     },
     {
       "num": 60,
-      "text": "amṛta-paḥ somaḥ puru-jit puru-sattamaḥ vinayaḥ .\njayaḥ satya-sandhaḥ dāśārhaḥ sātvatāṃ-patiḥ jīvaḥ ..",
+      "text": "bhagavān bhaga-hā nandī vana-mālī halāyudhaḥ .\nādityo jyotir-ādityaḥ sahiṣṇur-gati-sattamaḥ ..",
       "halves": [
-        "amṛta-paḥ somaḥ puru-jit puru-sattamaḥ vinayaḥ",
-        "jayaḥ satya-sandhaḥ dāśārhaḥ sātvatāṃ-patiḥ jīvaḥ"
+        "bhagavān bhaga-hā nandī vana-mālī halāyudhaḥ",
+        "ādityo jyotir-ādityaḥ sahiṣṇur-gati-sattamaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Amruta-pah somah puru-jit puru-sattamah vinayah",
-        "Jayah satya-sandhah dasharhah satvatam-patih jeevah"
+        "Bhagavan bhagaha nandee vana-malee hala-yudhah",
+        "Adityo jyotiradityah sahishnur gati-sattamah"
       ]
     },
     {
       "num": 61,
-      "text": "vinayitā sākṣī mukundaḥ amita-vikramaḥ ambho-nidhiḥ .\nanantātmā mahā-udadhi-śayaḥ antakaḥ ajaḥ ..",
+      "text": "sudhanvā khaṇḍa-paraśur-dāruṇo draviṇa-pradaḥ .\ndivaḥ-spṛk sarva-dṛg-vyāso vācaspatir-ayonijaḥ ..",
       "halves": [
-        "vinayitā sākṣī mukundaḥ amita-vikramaḥ ambho-nidhiḥ",
-        "anantātmā mahā-udadhi-śayaḥ antakaḥ ajaḥ"
+        "sudhanvā khaṇḍa-paraśur-dāruṇo draviṇa-pradaḥ",
+        "divaḥ-spṛk sarva-dṛg-vyāso vācaspatir-ayonijaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Vinayita sakshee mukundah amita-vikramah ambho-nidhih",
-        "Anantatma maha-udadhi-shayah antakah ajah"
+        "Sudhanva khanda-parashur-daruno dravina-pradah",
+        "Divah-spruk sarva-drug-vyaso vachaspatir-ayonijah"
       ]
     },
     {
       "num": 62,
-      "text": "mahārhaḥ svābhāvyaḥ jitāmitraḥ pramodanaḥ ānandaḥ .\nnandanaḥ nandaḥ satya-dharmā trivikramaḥ maharṣiḥ kapilaḥ ācāryaḥ ..",
+      "text": "tri-sāmā sāma-gaḥ sāma nirvāṇaṃ bheṣajaṃ bhiṣak .\nsannyāsa-kṛc-chamaḥ śānto niṣṭhā śāntiḥ parāyaṇam ..",
       "halves": [
-        "mahārhaḥ svābhāvyaḥ jitāmitraḥ pramodanaḥ ānandaḥ",
-        "nandanaḥ nandaḥ satya-dharmā trivikramaḥ maharṣiḥ kapilaḥ ācāryaḥ"
+        "tri-sāmā sāma-gaḥ sāma nirvāṇaṃ bheṣajaṃ bhiṣak",
+        "sannyāsa-kṛc-chamaḥ śānto niṣṭhā śāntiḥ parāyaṇam"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Maharhah svabhavyah jitamitrah pramodanah anandah",
-        "Nandanah nandah satya-dharma trivikramah maharshih kapilah acharyah"
+        "Trisama samagah samah nirvanam bheshajam bhishak",
+        "Sanyasa-krut chamah shanto nishtha shantih parayanam"
       ]
     },
     {
       "num": 63,
-      "text": "kṛtajñaḥ medinī-patiḥ tri-padaḥ tri-daśādhyakṣaḥ mahā-śṛṅgaḥ .\nkṛtānta-kṛt mahā-varāhaḥ govindaḥ suṣeṇaḥ ..",
+      "text": "śubhāṅgaḥ śānti-daḥ sraṣṭā kumudaḥ kuvaleśayaḥ .\ngohitaḥ gopatir-goptā vṛṣabhākṣo vṛṣa-priyaḥ ..",
       "halves": [
-        "kṛtajñaḥ medinī-patiḥ tri-padaḥ tri-daśādhyakṣaḥ mahā-śṛṅgaḥ",
-        "kṛtānta-kṛt mahā-varāhaḥ govindaḥ suṣeṇaḥ"
+        "śubhāṅgaḥ śānti-daḥ sraṣṭā kumudaḥ kuvaleśayaḥ",
+        "gohitaḥ gopatir-goptā vṛṣabhākṣo vṛṣa-priyaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Krutagnah medinee-patih tri-padah tri-dashadhyakshah maha-shrungah",
-        "Krutanta-krut maha-varahah govindah sushenah"
+        "Shubhangah shantidah srashta kumudah kuvaleshayah",
+        "Gohito gopatir-gopta vrushabhaksho vrushapriyah"
       ]
     },
     {
       "num": 64,
-      "text": "kanakāṅgadī guhyaḥ gabhīraḥ gahanaḥ guptaḥ .\ncakra-gadā-dharaḥ vedāḥ svāṅgaḥ ajitaḥ ..",
+      "text": "anivartī nivṛttātmā saṅkṣeptā kṣema-kṛc-chivaḥ .\nśrīvatsa-vakṣāḥ śrīvāsaḥ śrīpatiḥ śrīmatāṃ varaḥ ..",
       "halves": [
-        "kanakāṅgadī guhyaḥ gabhīraḥ gahanaḥ guptaḥ",
-        "cakra-gadā-dharaḥ vedāḥ svāṅgaḥ ajitaḥ"
+        "anivartī nivṛttātmā saṅkṣeptā kṣema-kṛc-chivaḥ",
+        "śrīvatsa-vakṣāḥ śrīvāsaḥ śrīpatiḥ śrīmatāṃ varaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kanakangadee guhyah gabheerah gahanah guptah",
-        "Chakra-gada-dharah vedah svangah ajitah"
+        "Anivartee nivruttatma samkshepta kshema-krut-shivah",
+        "Shreevatsa-vakshah shreevasah shreepathih shreematam varah"
       ]
     },
     {
       "num": 65,
-      "text": "kṛṣṇaḥ dṛḍhaḥ saṅkarṣaṇaḥ acyutaḥ varuṇaḥ .\nvāruṇaḥ vṛkṣaḥ puṣkarākṣaḥ mahā-manāḥ ..",
+      "text": "śrīdaḥ śrīśaḥ śrī-nivāsaḥ śrī-nidhiḥ śrī-vibhāvanaḥ .\nśrī-dharaḥ śrī-karaḥ śreyaḥ śrīmān loka-trayāśrayaḥ ..",
       "halves": [
-        "kṛṣṇaḥ dṛḍhaḥ saṅkarṣaṇaḥ acyutaḥ varuṇaḥ",
-        "vāruṇaḥ vṛkṣaḥ puṣkarākṣaḥ mahā-manāḥ"
+        "śrīdaḥ śrīśaḥ śrī-nivāsaḥ śrī-nidhiḥ śrī-vibhāvanaḥ",
+        "śrī-dharaḥ śrī-karaḥ śreyaḥ śrīmān loka-trayāśrayaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Krushnah drudhah sankarshanah achyutah varunah",
-        "Varunah vrukshah pushkarakshah maha-manah"
+        "Shreedah shreeshah shreenivasah shreenidhih shree-vibhavanah",
+        "Shreedharah shreekarah shreyah shreeman lokatray-ashrayah"
       ]
     },
     {
       "num": 66,
-      "text": "bhagavān bhaga-hā ānandī vana-mālī halāyudhaḥ .\nādityaḥ jyotir-ādityaḥ sahiṣṇuḥ gati-sattamaḥ su-dharmā ..",
+      "text": "svakṣaḥ svaṅgaḥ śatānando nandir-jyotir-gaṇeśvaraḥ .\nvijitātmā vidheyātmā sat-kīrtiś-chinna-saṃśayaḥ ..",
       "halves": [
-        "bhagavān bhaga-hā ānandī vana-mālī halāyudhaḥ",
-        "ādityaḥ jyotir-ādityaḥ sahiṣṇuḥ gati-sattamaḥ su-dharmā"
+        "svakṣaḥ svaṅgaḥ śatānando nandir-jyotir-gaṇeśvaraḥ",
+        "vijitātmā vidheyātmā sat-kīrtiś-chinna-saṃśayaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Bhagavan bhaga-ha anandee vana-malee halayudhah",
-        "Adityah jyotir-adityah sahishnuh gati-sattamah su-dharma"
+        "Svakshah svangah shatanando nandir-jyotir-ganeshvarah",
+        "Vijitatma vidheyatma satkeertish-chhinna-samshayah"
       ]
     },
     {
       "num": 67,
-      "text": "khaṇḍa-paraśuḥ dāruṇaḥ draviṇa-pradaḥ divi-spṛk sarva-dṛg-vyāsaḥ .\nvācaspatiḥ ayonija tri-sāmā sāma-gaḥ sāma ..",
+      "text": "udīrṇaḥ sarvataś-cakṣur-anīśaḥ śāśvataḥ sthiraḥ .\nbhūśayo bhūṣaṇo bhūtir-viśokaḥ śoka-nāśanaḥ ..",
       "halves": [
-        "khaṇḍa-paraśuḥ dāruṇaḥ draviṇa-pradaḥ divi-spṛk sarva-dṛg-vyāsaḥ",
-        "vācaspatiḥ ayonija tri-sāmā sāma-gaḥ sāma"
+        "udīrṇaḥ sarvataś-cakṣur-anīśaḥ śāśvataḥ sthiraḥ",
+        "bhūśayo bhūṣaṇo bhūtir-viśokaḥ śoka-nāśanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Khanda-parashuh darunah dravina-pradah divi-spruk sarva-drug-vyasah",
-        "Vachaspatih ayonija tri-sama sama-gah sama"
+        "Udeernah sarvatash-chakshuh aneeshah shashvatah sthirah",
+        "Bhooshayo bhooshano bhootih vishokah shoka-nashanah"
       ]
     },
     {
       "num": 68,
-      "text": "nirvāṇam bheṣajam bhiṣak sannyāsa-kṛt śamaḥ .\nśāntiḥ niṣṭhā śāntiḥ parāyaṇam ..",
+      "text": "arciṣmān arcitaḥ kumbho viśuddhātmā viśodhanaḥ .\naniruddho'pratirathḥ pradyumno'mita-vikramaḥ ..",
       "halves": [
-        "nirvāṇam bheṣajam bhiṣak sannyāsa-kṛt śamaḥ",
-        "śāntiḥ niṣṭhā śāntiḥ parāyaṇam"
+        "arciṣmān arcitaḥ kumbho viśuddhātmā viśodhanaḥ",
+        "aniruddho'pratirathḥ pradyumno'mita-vikramaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Nirvanam bheshajam bhishak sannyasa-krut shamah",
-        "Shantih nishtha shantih parayanam"
+        "Archishman architah kumbho vishuddhatma vishodhanah",
+        "Aniruddho apratirathah pradyumno amita-vikramah"
       ]
     },
     {
       "num": 69,
-      "text": "śubhāṅgaḥ śānti-daḥ sṛṣṭā kumudaḥ kuvaleśayaḥ .\ngohitaḥ go-patiḥ goptā vṛṣabhākṣaḥ ..",
+      "text": "kāla-nemi-nihā vīraḥ śauriḥ śūra-janeśvaraḥ .\ntri-lokātmā tri-lokeśaḥ keśavaḥ keśi-hā hariḥ ..",
       "halves": [
-        "śubhāṅgaḥ śānti-daḥ sṛṣṭā kumudaḥ kuvaleśayaḥ",
-        "gohitaḥ go-patiḥ goptā vṛṣabhākṣaḥ"
+        "kāla-nemi-nihā vīraḥ śauriḥ śūra-janeśvaraḥ",
+        "tri-lokātmā tri-lokeśaḥ keśavaḥ keśi-hā hariḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Shubhangah shanti-dah srushta kumudah kuvaleshayah",
-        "Gohitah go-patih gopta vrushabhakshah"
+        "Kala-neminiha veerah shourih shoora-janeshvarah",
+        "Trilokatma trilokeshah keshavah keshiha harih"
       ]
     },
     {
       "num": 70,
-      "text": "vṛṣa-priyaḥ anivartī nivṛttātmā saṅkṣeptā kṣema-kṛt .\nśivaḥ śrī-vatsa-vakṣāḥ śrī-vāsaḥ śrī-patiḥ śrī-mataṃ-varaḥ ..",
+      "text": "kāma-devaḥ kāma-pālaḥ kāmī kāntaḥ kṛtāgamaḥ .\nanirdeśya-vapuḥ viṣṇur-vīro'nanto dhanañjayaḥ ..",
       "halves": [
-        "vṛṣa-priyaḥ anivartī nivṛttātmā saṅkṣeptā kṣema-kṛt",
-        "śivaḥ śrī-vatsa-vakṣāḥ śrī-vāsaḥ śrī-patiḥ śrī-mataṃ-varaḥ"
+        "kāma-devaḥ kāma-pālaḥ kāmī kāntaḥ kṛtāgamaḥ",
+        "anirdeśya-vapuḥ viṣṇur-vīro'nanto dhanañjayaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Vrusha-priyah anivartee nivruttatma sankshepta kshema-krut",
-        "Shivah shree-vatsa-vakshah shree-vasah shree-patih shree-matam-varah"
+        "Kama-devah kama-palah kamee kantah krutagamah",
+        "Anirdeshya-vapuh vishnur veero ananto dhananjayah"
       ]
     },
     {
       "num": 71,
-      "text": "śrī-daḥ śrī-śaḥ śrī-nivāsaḥ śrī-nidhiḥ śrī-vibhāvanaḥ .\nśrī-dharaḥ śrī-karaḥ śreyaḥ śrī-mān ..",
+      "text": "brahmaṇyo brahma-kṛd brahmā brahma brahma-vivardhanah .\nbrahma-vid brāhmaṇo brahmī brahmajño brāhmaṇa-priyaḥ ..",
       "halves": [
-        "śrī-daḥ śrī-śaḥ śrī-nivāsaḥ śrī-nidhiḥ śrī-vibhāvanaḥ",
-        "śrī-dharaḥ śrī-karaḥ śreyaḥ śrī-mān"
+        "brahmaṇyo brahma-kṛd brahmā brahma brahma-vivardhanah",
+        "brahma-vid brāhmaṇo brahmī brahmajño brāhmaṇa-priyaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Shree-dah shree-shah shree-nivasah shree-nidhih shree-vibhavanah",
-        "Shree-dharah shree-karah shreyah shree-man"
+        "Brahmanyo brahma-krut brahma brahma brahma-vivardhanah",
+        "Brahma-vid brahmano brahmee brahmagnoh brahmana-priyah"
       ]
     },
     {
       "num": 72,
-      "text": "loka-trayāśrayaḥ svakṣaḥ svaṅgaḥ śatānandaḥ nandaḥ .\njyotir-gaṇeśvaraḥ vijitātmā vidheyātmā sat-kīrtiḥ chinnaḥ-saṃśayaḥ ..",
+      "text": "mahā-kramo mahā-karmā mahā-tejā mahoragaḥ .\nmahā-kratur-mahā-yajvā mahā-yajño mahā-haviḥ ..",
       "halves": [
-        "loka-trayāśrayaḥ svakṣaḥ svaṅgaḥ śatānandaḥ nandaḥ",
-        "jyotir-gaṇeśvaraḥ vijitātmā vidheyātmā sat-kīrtiḥ chinnaḥ-saṃśayaḥ"
+        "mahā-kramo mahā-karmā mahā-tejā mahoragaḥ",
+        "mahā-kratur-mahā-yajvā mahā-yajño mahā-haviḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Loka-trayashrayah svakshah svangah shatanandah nandah",
-        "Jyotir-ganeshvarah vijitatma vidheyatma sat-keertih chhinnah-samshayah"
+        "Maha-kramo maha-karma maha-teja mahoragah",
+        "Maha-kratur-mahayajva maha-yagno maha-havih"
       ]
     },
     {
       "num": 73,
-      "text": "udīrṇaḥ sarva-taś-cakṣuḥ anīśaḥ śāśvata-sthiraḥ bhūśayaḥ .\nbhūṣaṇaḥ bhūtiḥ viśokaḥ śoka-nāśanaḥ ..",
+      "text": "stavyaḥ stava-priyaḥ stotraṃ stutiḥ stotā raṇa-priyaḥ .\npūrṇaḥ pūrayitā puṇyaḥ puṇya-kīrtir-anāmayaḥ ..",
       "halves": [
-        "udīrṇaḥ sarva-taś-cakṣuḥ anīśaḥ śāśvata-sthiraḥ bhūśayaḥ",
-        "bhūṣaṇaḥ bhūtiḥ viśokaḥ śoka-nāśanaḥ"
+        "stavyaḥ stava-priyaḥ stotraṃ stutiḥ stotā raṇa-priyaḥ",
+        "pūrṇaḥ pūrayitā puṇyaḥ puṇya-kīrtir-anāmayaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Udeernah sarva-tash-chakshuh aneeshah shashvata-sthirah bhooshayah",
-        "Bhooshanah bhootih vishokah shoka-nashanah"
+        "Stavyah stava-priyah stotram stutih stota rana-priyah",
+        "Poornah poorayita punyah punya-keertih anamayah"
       ]
     },
     {
       "num": 74,
-      "text": "arciṣmān arcitaḥ kumbhaḥ viśuddhātmā viśodhanaḥ .\naniruddhaḥ apratirathḥ pradyumnaḥ amita-vikramaḥ ..",
+      "text": "mano-javaḥ tīrtha-karo vasu-retā vasu-pradaḥ .\nvasu-prado vāsu-devo vasur-vasu-manā haviḥ ..",
       "halves": [
-        "arciṣmān arcitaḥ kumbhaḥ viśuddhātmā viśodhanaḥ",
-        "aniruddhaḥ apratirathḥ pradyumnaḥ amita-vikramaḥ"
+        "mano-javaḥ tīrtha-karo vasu-retā vasu-pradaḥ",
+        "vasu-prado vāsu-devo vasur-vasu-manā haviḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Archishman architah kumbhah vishuddhatma vishodhanah",
-        "Aniruddhah apratirathh pradyumnah amita-vikramah"
+        "Mano-javah teertha-karah vasu-retah vasu-pradah",
+        "Vasu-pradah vasu-devah vasur-vasu-manah havih"
       ]
     },
     {
       "num": 75,
-      "text": "kāla-nemi-nihā vīraḥ śauriḥ śūra-janeśvaraḥ tri-lokātmā .\ntri-lokeśaḥ keśavaḥ keśi-hā hariḥ kāma-devaḥ ..",
+      "text": "sad-gatiḥ sat-kṛtiḥ sattā sad-bhūtiḥ sat-parāyaṇaḥ .\nśūra-seno yadu-śreṣṭhaḥ sannivāsaḥ suyāmunaḥ ..",
       "halves": [
-        "kāla-nemi-nihā vīraḥ śauriḥ śūra-janeśvaraḥ tri-lokātmā",
-        "tri-lokeśaḥ keśavaḥ keśi-hā hariḥ kāma-devaḥ"
+        "sad-gatiḥ sat-kṛtiḥ sattā sad-bhūtiḥ sat-parāyaṇaḥ",
+        "śūra-seno yadu-śreṣṭhaḥ sannivāsaḥ suyāmunaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kala-nemi-niha veerah shaurih shoora-janeshvarah tri-lokatma",
-        "Tri-lokeshah keshavah keshi-ha harih kama-devah"
+        "Sadgatih satkrutih sattah sadbhootih sat-parayanah",
+        "Shoora-seno yadu-shreshthah sannivasah suyamunah"
       ]
     },
     {
       "num": 76,
-      "text": "kāma-pālaḥ kāmī kāntaḥ kṛtāgamaḥ .\nanirdeśya-vapuḥ viṣṇuḥ vīraḥ anantaḥ ..",
+      "text": "bhūtāvāso vāsu-devaḥ sarvāsu-nilayo'nalaḥ .\ndarpa-hā darpa-do dṛpto dur-dharo'thāparājitaḥ ..",
       "halves": [
-        "kāma-pālaḥ kāmī kāntaḥ kṛtāgamaḥ",
-        "anirdeśya-vapuḥ viṣṇuḥ vīraḥ anantaḥ"
+        "bhūtāvāso vāsu-devaḥ sarvāsu-nilayo'nalaḥ",
+        "darpa-hā darpa-do dṛpto dur-dharo'thāparājitaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kama-palah kamee kantah krutagamah",
-        "Anirdeshya-vapuh vishnuh veerah anantah"
+        "Bhoota-vasah vasu-devah sarvasunilayah analah",
+        "Darpahah darpadah druptah durdharah aparajitah"
       ]
     },
     {
       "num": 77,
-      "text": "dhanañjayaḥ brahmaṇyaḥ brahmakṛt brahmā brahma .\nbrahma-vivardhanah brahma-vid brāhmaṇaḥ brahmi ..",
+      "text": "viśva-mūrtir-mahā-mūrtir-dīpta-mūrtir-a-mūrtimān .\naneka-mūrtir-avyaktaḥ śata-mūrtiḥ śatānanaḥ ..",
       "halves": [
-        "dhanañjayaḥ brahmaṇyaḥ brahmakṛt brahmā brahma",
-        "brahma-vivardhanah brahma-vid brāhmaṇaḥ brahmi"
+        "viśva-mūrtir-mahā-mūrtir-dīpta-mūrtir-a-mūrtimān",
+        "aneka-mūrtir-avyaktaḥ śata-mūrtiḥ śatānanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Dhananyjayah brahmanyah brahmakrut brahma brahma",
-        "Brahma-vivardhanah brahma-vid brahmanah brahmi"
+        "Vishva-moortir-maha-moortih deepta-moortir-amoortiman",
+        "Aneka-moortir-avyaktah shata-moortih shata-nanah"
       ]
     },
     {
       "num": 78,
-      "text": "brahma-jñaḥ brāhmaṇa-priyaḥ mahā-kramo mahā-karmā mahā-tejāḥ .\nmahoragaḥ mahā-kratuḥ mahā-yajvā mahā-yajñaḥ ..",
+      "text": "eko naikaḥ savaḥ kaḥ kim yat-tat-padam-anuttamam .\nloka-bandhur-loka-nātho mādhavo bhakta-vatsalaḥ ..",
       "halves": [
-        "brahma-jñaḥ brāhmaṇa-priyaḥ mahā-kramo mahā-karmā mahā-tejāḥ",
-        "mahoragaḥ mahā-kratuḥ mahā-yajvā mahā-yajñaḥ"
+        "eko naikaḥ savaḥ kaḥ kim yat-tat-padam-anuttamam",
+        "loka-bandhur-loka-nātho mādhavo bhakta-vatsalaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Brahma-gnah brahmana-priyah maha-kramo maha-karma maha-tejah",
-        "Mahoragah maha-kratuh maha-yajva maha-yagnah"
+        "Eko naikah savah kah kim yat-tat-padam-anuttamam",
+        "Loka-bandhur-lokanathah madhavo bhakta-vatsalah"
       ]
     },
     {
       "num": 79,
-      "text": "mahā-haviḥ stavyaḥ stava-priyaḥ stotraḥ stutiḥ .\nstotā raṇa-priyaḥ pūrṇaḥ pūrayitā ..",
+      "text": "suvarṇa-varṇo hemāṅgo varāṅgaś-candanāṅgadī .\nvīra-hā viṣamaḥ śūnyo ghṛtāśīr-acalaś-calaḥ ..",
       "halves": [
-        "mahā-haviḥ stavyaḥ stava-priyaḥ stotraḥ stutiḥ",
-        "stotā raṇa-priyaḥ pūrṇaḥ pūrayitā"
+        "suvarṇa-varṇo hemāṅgo varāṅgaś-candanāṅgadī",
+        "vīra-hā viṣamaḥ śūnyo ghṛtāśīr-acalaś-calaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Maha-havih stavyah stava-priyah stotrah stutih",
-        "Stota rana-priyah poornah poorayita"
+        "Suvarna-varnah hemangah varangash-chandanangadee",
+        "Veeraha vishamah shoonyah ghritasheeh achalash-chalah"
       ]
     },
     {
       "num": 80,
-      "text": "puṇyaḥ puṇya-kīrtiḥ anāmayaḥ mano-javaḥ tīrtha-karaḥ .\nvasu-retāḥ vasu-pradaḥ vasu-pradaḥ vāsu-devaḥ vasuḥ ..",
+      "text": "amānī māna-do mānyo loka-svāmī tri-loka-dhṛk .\nsu-medhā medhajo dhanyaḥ satya-medhā dharā-dharaḥ ..",
       "halves": [
-        "puṇyaḥ puṇya-kīrtiḥ anāmayaḥ mano-javaḥ tīrtha-karaḥ",
-        "vasu-retāḥ vasu-pradaḥ vasu-pradaḥ vāsu-devaḥ vasuḥ"
+        "amānī māna-do mānyo loka-svāmī tri-loka-dhṛk",
+        "su-medhā medhajo dhanyaḥ satya-medhā dharā-dharaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Punyah punya-keertih anamayah mano-javah teertha-karah",
-        "Vasu-retah vasu-pradah vasu-pradah vasu-devah vasuh"
+        "Amanee manadah manyah loka-swamee triloka-dhrut",
+        "Sumedhah medhajah dhanyah satya-medhah dhara-dharah"
       ]
     },
     {
       "num": 81,
-      "text": "vasu-manāḥ haviḥ sadgatiḥ satkṛtiḥ sattā .\nsadbhūtiḥ satparāyaṇaḥ śūrasenaḥ yadu-śreṣṭhaḥ ..",
+      "text": "tejo-vṛṣo dyuti-dharaḥ sarva-śastra-bhṛtāṃ varaḥ .\npragraho nigraho vyagro naika-śṛṅgo gadāgrajaḥ ..",
       "halves": [
-        "vasu-manāḥ haviḥ sadgatiḥ satkṛtiḥ sattā",
-        "sadbhūtiḥ satparāyaṇaḥ śūrasenaḥ yadu-śreṣṭhaḥ"
+        "tejo-vṛṣo dyuti-dharaḥ sarva-śastra-bhṛtāṃ varaḥ",
+        "pragraho nigraho vyagro naika-śṛṅgo gadāgrajaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Vasu-manah havih sadgatih satkrutih satta",
-        "Sadbhootih satparayanah shoorasenah yadu-shreshthah"
+        "Tejo-vrusho dyuti-dharah sarva-shastra-bhrutam varah",
+        "Pragraho nigraho vyagro naika-shrungo gadagrajah"
       ]
     },
     {
       "num": 82,
-      "text": "sannivāsaḥ suyāmunaḥ bhūtāvāsaḥ vāsudevaḥ sarvāsunilayaḥ .\nanalaḥ darpaḥ darpa-daḥ dṛptaḥ ..",
+      "text": "catur-mūrtiś-catur-bāhuś-catur-vyūhaś-catur-gatiḥ .\ncatur-ātmā catur-bhāvaś-catur-veda-vid-eka-pāt ..",
       "halves": [
-        "sannivāsaḥ suyāmunaḥ bhūtāvāsaḥ vāsudevaḥ sarvāsunilayaḥ",
-        "analaḥ darpaḥ darpa-daḥ dṛptaḥ"
+        "catur-mūrtiś-catur-bāhuś-catur-vyūhaś-catur-gatiḥ",
+        "catur-ātmā catur-bhāvaś-catur-veda-vid-eka-pāt"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Sannivasah suyamunah bhootavasah vasudevah sarvasunilayah",
-        "Analah darpah darpa-dah druptah"
+        "Chatur-moortih chatur-bahuh chatur-vyoohah chatur-gatih",
+        "Chatur-atma chatur-bhavah chatur-veda-vid-ekapaat"
       ]
     },
     {
       "num": 83,
-      "text": "dur-dharaḥ aparājitaḥ viśva-mūrtiḥ mahā-mūrtiḥ dīpta-mūrtiḥ .\na-mūrtiḥ-mān aneka-mūrtiḥ avyaktaḥ śata-mūrtiḥ śatānanaḥ ..",
+      "text": "samāvarto nivṛttātmā dur-jayo duratikramaḥ .\ndurlabho durgamo durgo durāvāso durāri-hā ..",
       "halves": [
-        "dur-dharaḥ aparājitaḥ viśva-mūrtiḥ mahā-mūrtiḥ dīpta-mūrtiḥ",
-        "a-mūrtiḥ-mān aneka-mūrtiḥ avyaktaḥ śata-mūrtiḥ śatānanaḥ"
+        "samāvarto nivṛttātmā dur-jayo duratikramaḥ",
+        "durlabho durgamo durgo durāvāso durāri-hā"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Dur-dharah aparajitah vishva-moortih maha-moortih deepta-moortih",
-        "A-moortih-man aneka-moortih avyaktah shata-moortih shatananah"
+        "Samavartah nivruttatma durjayah duratikramah",
+        "Durlabhah durgamah durgah duravasah durariha"
       ]
     },
     {
       "num": 84,
-      "text": "ekaḥ naikaḥ savaḥ kaḥ kim .\nyat tat padam-anuttamam loka-bandhuḥ loka-nāthaḥ ..",
+      "text": "śubhāṅgo loka-sāraṅgaḥ su-tantuḥ tantu-vardhanaḥ .\nindra-karmā mahā-karmā kṛta-karmā kṛtāgamaḥ ..",
       "halves": [
-        "ekaḥ naikaḥ savaḥ kaḥ kim",
-        "yat tat padam-anuttamam loka-bandhuḥ loka-nāthaḥ"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Ekah naikah savah kah kim",
-        "Yat tat padam-anuttamam loka-bandhuh loka-nathah"
-      ]
-    },
-    {
-      "num": 85,
-      "text": "mādhavaḥ bhakta-vatsalaḥ su-varṇa-varṇaḥ hemāṅgaḥ varāṅgaḥ .\ncandanāṅgadī vīra-hā viṣamaḥ śūnyaḥ ..",
-      "halves": [
-        "mādhavaḥ bhakta-vatsalaḥ su-varṇa-varṇaḥ hemāṅgaḥ varāṅgaḥ",
-        "candanāṅgadī vīra-hā viṣamaḥ śūnyaḥ"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Madhavah bhakta-vatsalah su-varna-varnah hemangah varangah",
-        "Chandanangadee veera-ha vishamah shoonyah"
-      ]
-    },
-    {
-      "num": 86,
-      "text": "ghṛtāśīḥ acalaḥ calaḥ amānī māna-daḥ .\nmānyaḥ loka-svāmī tri-loka-dhṛk su-medhā ..",
-      "halves": [
-        "ghṛtāśīḥ acalaḥ calaḥ amānī māna-daḥ",
-        "mānyaḥ loka-svāmī tri-loka-dhṛk su-medhā"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Ghrutasheeh achalah chalah amanee mana-dah",
-        "Manyah loka-svamee tri-loka-dhruk su-medha"
-      ]
-    },
-    {
-      "num": 87,
-      "text": "medhajah dhanyaḥ satya-medhāḥ dharā-dharaḥ tejo-vṛṣaḥ .\ndyuti-dharaḥ sarvaśastra-bhṛtāṃ varaḥ pragraho nigraho vyagraḥ ..",
-      "halves": [
-        "medhajah dhanyaḥ satya-medhāḥ dharā-dharaḥ tejo-vṛṣaḥ",
-        "dyuti-dharaḥ sarvaśastra-bhṛtāṃ varaḥ pragraho nigraho vyagraḥ"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Medhajah dhanyah satya-medhah dhara-dharah tejo-vrushah",
-        "Dyuti-dharah sarvashastra-bhrutam varah pragraho nigraho vyagrah"
-      ]
-    },
-    {
-      "num": 88,
-      "text": "naika-śṛṅgaḥ gadāgrajaḥ catur-mūrtiḥ catur-bāhuḥ catur-vyūhaḥ .\ncatur-gatiḥ catur-ātmā catur-bhāvaḥ catur-veda-vit ..",
-      "halves": [
-        "naika-śṛṅgaḥ gadāgrajaḥ catur-mūrtiḥ catur-bāhuḥ catur-vyūhaḥ",
-        "catur-gatiḥ catur-ātmā catur-bhāvaḥ catur-veda-vit"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Naika-shrungah gadagrajah chatur-moortih chatur-bahuh chatur-vyoohah",
-        "Chatur-gatih chatur-atma chatur-bhavah chatur-veda-vit"
-      ]
-    },
-    {
-      "num": 89,
-      "text": "ekapāt samāvartaḥ nivṛttātmā dur-jayo duratikramaḥ .\ndurlabhaḥ durgamaḥ durgaḥ durāvāsaḥ ..",
-      "halves": [
-        "ekapāt samāvartaḥ nivṛttātmā dur-jayo duratikramaḥ",
-        "durlabhaḥ durgamaḥ durgaḥ durāvāsaḥ"
-      ],
-      "translations": [
-        "",
-        ""
-      ],
-      "english_halves": [
-        "Ekapat samavartah nivruttatma dur-jayo duratikramah",
-        "Durlabhah durgamah durgah duravasah"
-      ]
-    },
-    {
-      "num": 90,
-      "text": "durāri-hā śubhāṅgaḥ loka-sāraṅgaḥ su-tantuh tantu-vardhanah .\nindra-karmā mahā-karmā kṛta-karmā kṛtāgamaḥ ..",
-      "halves": [
-        "durāri-hā śubhāṅgaḥ loka-sāraṅgaḥ su-tantuh tantu-vardhanah",
+        "śubhāṅgo loka-sāraṅgaḥ su-tantuḥ tantu-vardhanaḥ",
         "indra-karmā mahā-karmā kṛta-karmā kṛtāgamaḥ"
       ],
       "translations": [
@@ -1663,280 +1567,376 @@ const VISHNU_DATA = {
         ""
       ],
       "english_halves": [
-        "Durari-ha shubhangah loka-sarangah su-tantuh tantu-vardhanah",
+        "Shubhangah loka-sarangah sutantuh tantu-vardhanah",
         "Indra-karma maha-karma kruta-karma krutagamah"
       ]
     },
     {
-      "num": 91,
-      "text": "udbhavaḥ sundaraḥ sundaḥ ratna-nābhaḥ su-locanah .\narkaḥ vāja-saniḥ śṛṅgī jayantaḥ ..",
+      "num": 85,
+      "text": "udbhavaḥ sundaraḥ sundo ratna-nābhaḥ su-locanaḥ .\narko vāja-saniḥ śṛṅgī jayantaḥ sarva-vij-jayī ..",
       "halves": [
-        "udbhavaḥ sundaraḥ sundaḥ ratna-nābhaḥ su-locanah",
-        "arkaḥ vāja-saniḥ śṛṅgī jayantaḥ"
+        "udbhavaḥ sundaraḥ sundo ratna-nābhaḥ su-locanaḥ",
+        "arko vāja-saniḥ śṛṅgī jayantaḥ sarva-vij-jayī"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Udbhavah sundarah sundah ratna-nabhah su-lochanah",
-        "Arkah vaja-sanih shrungee jayantah"
+        "Udbhavah sundarah sundah ratna-nabhah sulochanah",
+        "Arkah vajasanih shrungee jayantah sarva-vijjayee"
+      ]
+    },
+    {
+      "num": 86,
+      "text": "suvarṇa-binduḥ akṣobhyaḥ sarva-vāgīśvareśvaraḥ .\nmahā-hṛdaḥ mahā-gartaḥ mahā-bhūtaḥ mahā-nidhiḥ ..",
+      "halves": [
+        "suvarṇa-binduḥ akṣobhyaḥ sarva-vāgīśvareśvaraḥ",
+        "mahā-hṛdaḥ mahā-gartaḥ mahā-bhūtaḥ mahā-nidhiḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Suvarna-binduh akshobhyah sarva-vageshvareshvarah",
+        "Maha-hradah maha-gartah maha-bhootah maha-nidhih"
+      ]
+    },
+    {
+      "num": 87,
+      "text": "kumudaḥ kundaraḥ kundaḥ parjanyaḥ pāvano'nilaḥ .\namṛtāṃśo mṛta-vapuḥ sarvajñaḥ sarva-tomukhaḥ ..",
+      "halves": [
+        "kumudaḥ kundaraḥ kundaḥ parjanyaḥ pāvano'nilaḥ",
+        "amṛtāṃśo mṛta-vapuḥ sarvajñaḥ sarva-tomukhaḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Kumudah kundarah kundah parjanyah pavanah anilah",
+        "Amrutamshah mruta-vapuh sarvagnah sarva-tomukhah"
+      ]
+    },
+    {
+      "num": 88,
+      "text": "sulabhaḥ su-vrataḥ siddhaḥ śatru-jic-chatru-tāpanaḥ .\nnyag-rodho'dumbaraḥ aśvatthaś-cāṇūrāndhra-niṣūdanaḥ ..",
+      "halves": [
+        "sulabhaḥ su-vrataḥ siddhaḥ śatru-jic-chatru-tāpanaḥ",
+        "nyag-rodho'dumbaraḥ aśvatthaś-cāṇūrāndhra-niṣūdanaḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Sulabhah suvratah siddhah shatrujit shatru-tapanah",
+        "Nyagrodhah udumbarah ashvatthah chanoorandhra-nisoodanah"
+      ]
+    },
+    {
+      "num": 89,
+      "text": "sahasrārciḥ sapta-jihvaḥ saptaidhāḥ sapta-vāhanaḥ .\namūrtir-anagho'cintyo bhaya-kṛd-bhaya-nāśanaḥ ..",
+      "halves": [
+        "sahasrārciḥ sapta-jihvaḥ saptaidhāḥ sapta-vāhanaḥ",
+        "amūrtir-anagho'cintyo bhaya-kṛd-bhaya-nāśanaḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Sahasrarchih sapta-jihvah saptaidhah sapta-vahanah",
+        "Amoortih anaghah achintyah bhaya-krud-bhaya-nashanah"
+      ]
+    },
+    {
+      "num": 90,
+      "text": "aṇur-bṛhat-kṛśaḥ sthūlo guṇa-bhṛn-nirguṇo mahān .\nadhṛtaḥ sva-dhṛtaḥ svāsyaḥ prāg-vaṃśo vaṃśa-vardhanaḥ ..",
+      "halves": [
+        "aṇur-bṛhat-kṛśaḥ sthūlo guṇa-bhṛn-nirguṇo mahān",
+        "adhṛtaḥ sva-dhṛtaḥ svāsyaḥ prāg-vaṃśo vaṃśa-vardhanaḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Anuh bruhat krushah sthoolah guna-bhrun-nirgunah mahan",
+        "Adhrutah sva-dhrutah svasyah pragvamshah vamsha-vardhanah"
+      ]
+    },
+    {
+      "num": 91,
+      "text": "bhāra-bhṛt kathitaḥ yogī yogīśaḥ sarva-kāma-daḥ .\nāśramaḥ śramaṇaḥ kṣāmaḥ suparṇo vāyu-vāhanaḥ ..",
+      "halves": [
+        "bhāra-bhṛt kathitaḥ yogī yogīśaḥ sarva-kāma-daḥ",
+        "āśramaḥ śramaṇaḥ kṣāmaḥ suparṇo vāyu-vāhanaḥ"
+      ],
+      "translations": [
+        "",
+        ""
+      ],
+      "english_halves": [
+        "Bhara-bhrut kathitah yogee yogeeshah sarva-kamadah",
+        "Ashramah shramanah kshamah suparnah vayu-vahanah"
       ]
     },
     {
       "num": 92,
-      "text": "sarva-vij-jayī suvarṇa-binduḥ akṣobhyaḥ sarva-vāgīśvareśvaraḥ mahā-hṛdaḥ .\nmahā-gartaḥ mahā-bhūtaḥ mahā-nidhiḥ kumudaḥ kundaraḥ ..",
+      "text": "dhanur-dharaḥ dhanur-vedaḥ daṇḍaḥ damayitā damaḥ .\naparājitaḥ sarva-saho niyantā niyamo yamaḥ ..",
       "halves": [
-        "sarva-vij-jayī suvarṇa-binduḥ akṣobhyaḥ sarva-vāgīśvareśvaraḥ mahā-hṛdaḥ",
-        "mahā-gartaḥ mahā-bhūtaḥ mahā-nidhiḥ kumudaḥ kundaraḥ"
+        "dhanur-dharaḥ dhanur-vedaḥ daṇḍaḥ damayitā damaḥ",
+        "aparājitaḥ sarva-saho niyantā niyamo yamaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Sarva-vij-jayee suvarna-binduh akshobhyah sarva-vageeshvareshvarah maha-hrudah",
-        "Maha-gartah maha-bhootah maha-nidhih kumudah kundarah"
+        "Dhanur-dharah dhanur-vedah dandah damayita damah",
+        "Aparajitah sarva-sahah niyanta niyamah yamah"
       ]
     },
     {
       "num": 93,
-      "text": "kundaḥ parjanyaḥ pāvanaḥ anilaḥ amṛtāśaḥ .\namṛta-vapuḥ sarvajñaḥ sarva-tomukhah sulabhaḥ ..",
+      "text": "sattvavān sāttvikaḥ satyaḥ satya-dharma-parāyaṇaḥ .\nabhiprāyaḥ priyārho'rhaḥ priya-kṛt prīti-vardhanaḥ ..",
       "halves": [
-        "kundaḥ parjanyaḥ pāvanaḥ anilaḥ amṛtāśaḥ",
-        "amṛta-vapuḥ sarvajñaḥ sarva-tomukhah sulabhaḥ"
+        "sattvavān sāttvikaḥ satyaḥ satya-dharma-parāyaṇaḥ",
+        "abhiprāyaḥ priyārho'rhaḥ priya-kṛt prīti-vardhanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Kundah parjanyah pavanah anilah amrutashah",
-        "Amruta-vapuh sarvagnah sarva-tomukhah sulabhah"
+        "Satvavan satvikah satyah satya-dharma-parayanah",
+        "Abhiprayah priyarhah arhah priyakrut preeti-vardhanah"
       ]
     },
     {
       "num": 94,
-      "text": "su-vrataḥ siddhaḥ śatru-jit śatru-tāpanaḥ nyag-rodhah .\nudumbaraḥ aśvatthaḥ cāṇūrāndhra-niṣūdanaḥ sahasrārciḥ sapta-jihvaḥ ..",
+      "text": "vihāyasa-gatir-jyotiḥ surucir-huta-bhug-vibhuḥ .\nraviḥ virocanaḥ sūryaḥ savitā ravi-locanaḥ ..",
       "halves": [
-        "su-vrataḥ siddhaḥ śatru-jit śatru-tāpanaḥ nyag-rodhah",
-        "udumbaraḥ aśvatthaḥ cāṇūrāndhra-niṣūdanaḥ sahasrārciḥ sapta-jihvaḥ"
+        "vihāyasa-gatir-jyotiḥ surucir-huta-bhug-vibhuḥ",
+        "raviḥ virocanaḥ sūryaḥ savitā ravi-locanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Su-vratah siddhah shatru-jit shatru-tapanah nyag-rodhah",
-        "Udumbarah ashvatthah chanoorandhra-nishoodanah sahasrarchih sapta-jihvah"
+        "Vihayasa-gatih jyotih suruchir-hutabhug-vibhuh",
+        "Ravih virochanah sooryah savita ravilochanah"
       ]
     },
     {
       "num": 95,
-      "text": "saptaidhāḥ sapta-vāhanaḥ amūrtiḥ anaghaḥ acintya .\nbhaya-kṛt bhaya-nāśanaḥ aṇuḥ bṛhat ..",
+      "text": "anantaḥ huta-bhug-bhoktā sukhado naika-jo'gra-jaḥ .\nanirviṇṇaḥ sadā-marṣī lokādhiṣṭhānam-adbhutaḥ ..",
       "halves": [
-        "saptaidhāḥ sapta-vāhanaḥ amūrtiḥ anaghaḥ acintya",
-        "bhaya-kṛt bhaya-nāśanaḥ aṇuḥ bṛhat"
+        "anantaḥ huta-bhug-bhoktā sukhado naika-jo'gra-jaḥ",
+        "anirviṇṇaḥ sadā-marṣī lokādhiṣṭhānam-adbhutaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Saptaidhah sapta-vahanah amoortih anaghah achintya",
-        "Bhaya-krut bhaya-nashanah anuh bruhat"
+        "Anantah huta-bhug-bhokta sukhadah naikajah agrajah",
+        "Anirvinnah sada-marshee lokadhi-shthanam adbhutah"
       ]
     },
     {
       "num": 96,
-      "text": "kṛśaḥ sthūlaḥ guṇa-bhṛt nir-guṇaḥ mahān .\nadhṛtaḥ sva-dhṛtaḥ svāsyaḥ prāg-vaṃśaḥ ..",
+      "text": "sanāt sanātana-tamaḥ kapilaḥ kapir-avyayaḥ .\nsvasti-daḥ svasti-kṛt svasti svasti-bhuk svasti-dakṣiṇaḥ ..",
       "halves": [
-        "kṛśaḥ sthūlaḥ guṇa-bhṛt nir-guṇaḥ mahān",
-        "adhṛtaḥ sva-dhṛtaḥ svāsyaḥ prāg-vaṃśaḥ"
+        "sanāt sanātana-tamaḥ kapilaḥ kapir-avyayaḥ",
+        "svasti-daḥ svasti-kṛt svasti svasti-bhuk svasti-dakṣiṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Krushah sthoolah guna-bhrut nir-gunah mahan",
-        "Adhrutah sva-dhrutah svasyah prag-vamshah"
+        "Sanat sanatana-tamah kapilah kapih avyayah",
+        "Svastidah svasti-krut svastih svasti-bhuk svasti-dakshinah"
       ]
     },
     {
       "num": 97,
-      "text": "vaṃśa-vardhanah bhāra-bhṛt kathitaḥ yogī yogīśaḥ .\nsarva-kāma-daḥ āśramaḥ śramaṇaḥ kṣāmaḥ suparṇaḥ ..",
+      "text": "araudraḥ kuṇḍalī cakrī vikramī ūrjita-śāsanaḥ .\nśabdātigaḥ śabda-sahaḥ śiśiraḥ śarvarī-karaḥ ..",
       "halves": [
-        "vaṃśa-vardhanah bhāra-bhṛt kathitaḥ yogī yogīśaḥ",
-        "sarva-kāma-daḥ āśramaḥ śramaṇaḥ kṣāmaḥ suparṇaḥ"
+        "araudraḥ kuṇḍalī cakrī vikramī ūrjita-śāsanaḥ",
+        "śabdātigaḥ śabda-sahaḥ śiśiraḥ śarvarī-karaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Vamsha-vardhanah bhara-bhrut kathitah yogee yogeeshah",
-        "Sarva-kama-dah ashramah shramanah kshamah suparnah"
+        "Aroudrah kundalee chakree vikramee oorjita-shasanah",
+        "Shabdatigah shabda-sahah shishirah sharvareekarah"
       ]
     },
     {
       "num": 98,
-      "text": "vāyu-vāhanaḥ dhanuḥ-dharaḥ dhanuḥ-vedaḥ daṇḍaḥ damayitā .\ndamaḥ aparājitaḥ sarva-sahaḥ aniyantā ..",
+      "text": "akrūraḥ peśalo dakṣo dakṣiṇaḥ kṣamiṇāṃ varaḥ .\nvidvattamo vīta-bhayaḥ puṇya-śravaṇa-kīrtanaḥ ..",
       "halves": [
-        "vāyu-vāhanaḥ dhanuḥ-dharaḥ dhanuḥ-vedaḥ daṇḍaḥ damayitā",
-        "damaḥ aparājitaḥ sarva-sahaḥ aniyantā"
+        "akrūraḥ peśalo dakṣo dakṣiṇaḥ kṣamiṇāṃ varaḥ",
+        "vidvattamo vīta-bhayaḥ puṇya-śravaṇa-kīrtanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Vayu-vahanah dhanuh-dharah dhanuh-vedah dandah damayita",
-        "Damah aparajitah sarva-sahah aniyanta"
+        "Akroorah peshalah dakshah dakshinah kshaminam-varah",
+        "Vidvattamah veeta-bhayah punya-shravana-keertanah"
       ]
     },
     {
       "num": 99,
-      "text": "niyamaḥ ayamaḥ sattva-vān sāttvikaḥ satyaḥ .\nsatya-dharma-parāyaṇaḥ abhiprāyaḥ priyārhaḥ arhaḥ priya-kṛt ..",
+      "text": "uttāraṇo duṣ-kṛti-hā puṇyo duḥsvapna-nāśanaḥ .\nvīra-hā rakṣaṇaḥ santaḥ jīvanaḥ pary-avasthitaḥ ..",
       "halves": [
-        "niyamaḥ ayamaḥ sattva-vān sāttvikaḥ satyaḥ",
-        "satya-dharma-parāyaṇaḥ abhiprāyaḥ priyārhaḥ arhaḥ priya-kṛt"
+        "uttāraṇo duṣ-kṛti-hā puṇyo duḥsvapna-nāśanaḥ",
+        "vīra-hā rakṣaṇaḥ santaḥ jīvanaḥ pary-avasthitaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Niyamah ayamah sattva-van sattvikah satyah",
-        "Satya-dharma-parayanah abhiprayah priyarhah arhah priya-krut"
+        "Uttaranah dushkrutiha punyah dussvapna-nashanah",
+        "Veeraha rakshanah santah jeevanah paryavasthitah"
       ]
     },
     {
       "num": 100,
-      "text": "prīti-vardhanah vihāya-sa-gatiḥ jyotiḥ su-rucih huta-bhuk .\nvibhuḥ raviḥ virocanaḥ sūryaḥ ..",
+      "text": "ananta-rūpo'nanta-śrīḥ jita-manyur-bhayāpahaḥ .\ncatur-aśro gabhīrātmā vidiśo vyādiśo diśaḥ ..",
       "halves": [
-        "prīti-vardhanah vihāya-sa-gatiḥ jyotiḥ su-rucih huta-bhuk",
-        "vibhuḥ raviḥ virocanaḥ sūryaḥ"
+        "ananta-rūpo'nanta-śrīḥ jita-manyur-bhayāpahaḥ",
+        "catur-aśro gabhīrātmā vidiśo vyādiśo diśaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Preeti-vardhanah vihaya-sa-gatih jyotih su-ruchih huta-bhuk",
-        "Vibhuh ravih virochanah sooryah"
+        "Anantha-roopah anantha-shreeh jitamanyuh bhayapahah",
+        "Chaturasrah gabheeratma vidishah vyadishah dishah"
       ]
     },
     {
       "num": 101,
-      "text": "savitā ravi-locanaḥ ananta-huta-bhuk-bhoktā sukha-daḥ naika-jaḥ .\nagra-jaḥ anir-vinnaḥ sadā-marṣī lokādhiṣṭhānam ..",
+      "text": "anādir-bhūr-bhuvo lakṣmīḥ suvīro ruci-rāṅgadaḥ .\njanano jana-janmādir-bhīmo bhīma-parākramaḥ ..",
       "halves": [
-        "savitā ravi-locanaḥ ananta-huta-bhuk-bhoktā sukha-daḥ naika-jaḥ",
-        "agra-jaḥ anir-vinnaḥ sadā-marṣī lokādhiṣṭhānam"
+        "anādir-bhūr-bhuvo lakṣmīḥ suvīro ruci-rāṅgadaḥ",
+        "janano jana-janmādir-bhīmo bhīma-parākramaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Savita ravi-lochanah ananta-huta-bhuk-bhokta sukha-dah naika-jah",
-        "Agra-jah anir-vinnah sada-marshee lokadhishthanam"
+        "Anadih bhoorbhuvah lakshmee suveerah ruchi-rangadah",
+        "Jananah jana-janmadih bheemah bheema-parakramah"
       ]
     },
     {
       "num": 102,
-      "text": "adbhutaḥ sanāt sanātana-tamaḥ kapilaḥ kapiḥ .\napyayaḥ svastidaḥ svasti-kṛt svasti svasti-bhuk ..",
+      "text": "ādhāro nilayo dhātā puṣpahāsaḥ prajāgaraḥ .\nūrdhvagaḥ sat-pathācāraḥ prāṇadaḥ praṇavaḥ paṇaḥ ..",
       "halves": [
-        "adbhutaḥ sanāt sanātana-tamaḥ kapilaḥ kapiḥ",
-        "apyayaḥ svastidaḥ svasti-kṛt svasti svasti-bhuk"
+        "ādhāro nilayo dhātā puṣpahāsaḥ prajāgaraḥ",
+        "ūrdhvagaḥ sat-pathācāraḥ prāṇadaḥ praṇavaḥ paṇaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Adbhutah sanat sanatana-tamah kapilah kapih",
-        "Apyayah svastidah svasti-krut svasti svasti-bhuk"
+        "Adharah nilayah dhata pushpahasah prajagarah",
+        "Oordhvagah satpathacharah pranadah pranavah panah"
       ]
     },
     {
       "num": 103,
-      "text": "svasti-dakṣiṇaḥ araudraḥ kuṇḍalī cakrī vikramī .\nūrjita-śāsanaḥ śabdātigaḥ śabda-sahaḥ śiśiraḥ ..",
+      "text": "pramāṇaṃ prāṇa-nilayaḥ prāṇa-bhṛt prāṇa-jīvanaḥ .\ntattvaṃ tattva-vid-ekātmā janma-mṛtyu-jarātigaḥ ..",
       "halves": [
-        "svasti-dakṣiṇaḥ araudraḥ kuṇḍalī cakrī vikramī",
-        "ūrjita-śāsanaḥ śabdātigaḥ śabda-sahaḥ śiśiraḥ"
+        "pramāṇaṃ prāṇa-nilayaḥ prāṇa-bhṛt prāṇa-jīvanaḥ",
+        "tattvaṃ tattva-vid-ekātmā janma-mṛtyu-jarātigaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Svasti-dakshinah araudrah kundalee chakree vikramee",
-        "Oorjita-shasanah shabdatigah shabda-sahah shishirah"
+        "Pramanam prana-nilayah prana-bhrut prana-jeevanah",
+        "Tattvam tattva-vid ekatma janma-mrutyu-jaratigah"
       ]
     },
     {
       "num": 104,
-      "text": "śarva-rī-karaḥ akrūraḥ peśalaḥ dakṣaḥ dakṣiṇaḥ .\nkṣamiṇāṃ-varaḥ vidvattamo vīta-bhayaḥ puṇya-śravaṇa-kīrtanaḥ ..",
+      "text": "bhūr-bhuvaḥ-svas-taruḥ tāraḥ savitā pra-pitā-mahaḥ .\nyajño yajña-patir-yajvā yajñāṅgo yajña-vāhanaḥ ..",
       "halves": [
-        "śarva-rī-karaḥ akrūraḥ peśalaḥ dakṣaḥ dakṣiṇaḥ",
-        "kṣamiṇāṃ-varaḥ vidvattamo vīta-bhayaḥ puṇya-śravaṇa-kīrtanaḥ"
+        "bhūr-bhuvaḥ-svas-taruḥ tāraḥ savitā pra-pitā-mahaḥ",
+        "yajño yajña-patir-yajvā yajñāṅgo yajña-vāhanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Sharva-ree-karah akroorah peshalah dakshah dakshinah",
-        "Kshaminam-varah vidvattamo veeta-bhayah punya-shravana-keertanah"
+        "Bhoorbhuvah-svas-taruh tarah savita prapitamahah",
+        "Yagnah yagna-patir-yajva yagnangah yagna-vahanah"
       ]
     },
     {
       "num": 105,
-      "text": "uttāraṇaḥ duṣkṛti-hā puṇyaḥ duḥsvapna-nāśanaḥ vīra-hā .\nrakṣaṇaḥ santaḥ jīvanaḥ paryavasthitaḥ ananta-rūpaḥ ..",
+      "text": "yajña-bhṛd yajña-kṛd yajñī yajña-bhuk yajña-sādhanaḥ .\nyajñānta-kṛd yajña-guhyam annam-annāda eva ca ..",
       "halves": [
-        "uttāraṇaḥ duṣkṛti-hā puṇyaḥ duḥsvapna-nāśanaḥ vīra-hā",
-        "rakṣaṇaḥ santaḥ jīvanaḥ paryavasthitaḥ ananta-rūpaḥ"
+        "yajña-bhṛd yajña-kṛd yajñī yajña-bhuk yajña-sādhanaḥ",
+        "yajñānta-kṛd yajña-guhyam annam-annāda eva ca"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Uttaranah dushkruti-ha punyah duhsvapna-nashanah veera-ha",
-        "Rakshanah santah jeevanah paryavasthitah ananta-roopah"
+        "Yagna-bhrut yagnakrut yagee yagnabhuk yagna-sadhanah",
+        "Yagnantakrut yagna-guhyam annam-annada eva-cha"
       ]
     },
     {
       "num": 106,
-      "text": "ananta-śrīḥ jita-manyuḥ bhayāpahaḥ catur-aśraḥ gabhīrātmā .\nvidiśaḥ vyādiśaḥ diśaḥ anādiḥ ..",
+      "text": "ātma-yoniḥ svayaṃ-jāto vaikhānaḥ sāma-gāyanaḥ .\ndevakī-nandanaḥ sraṣṭā kṣitīśaḥ pāpa-nāśanaḥ ..",
       "halves": [
-        "ananta-śrīḥ jita-manyuḥ bhayāpahaḥ catur-aśraḥ gabhīrātmā",
-        "vidiśaḥ vyādiśaḥ diśaḥ anādiḥ"
+        "ātma-yoniḥ svayaṃ-jāto vaikhānaḥ sāma-gāyanaḥ",
+        "devakī-nandanaḥ sraṣṭā kṣitīśaḥ pāpa-nāśanaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Ananta-shreeh jita-manyuh bhayapahah chatur-ashrah gabheeratma",
-        "Vidishah vyadishah dishah anadih"
+        "Atma-yonih svayam-jatah vaikhanah sama-gayanah",
+        "Devakee-nandanah srashta kshiteeshah papa-nashanah"
       ]
     },
     {
       "num": 107,
-      "text": "bhūr-bhuvaḥ lakṣmīḥ suvīraḥ .\nruci-rāṅgadaḥ jananaḥ ..",
+      "text": "śaṅkha-bhṛn-nandakī cakrī śārṅga-dhanvā gadā-dharaḥ .\nrathāṅga-pāṇir-akṣobhyaḥ sarva-praharaṇāyudhaḥ ..",
       "halves": [
-        "bhūr-bhuvaḥ lakṣmīḥ suvīraḥ",
-        "ruci-rāṅgadaḥ jananaḥ"
+        "śaṅkha-bhṛn-nandakī cakrī śārṅga-dhanvā gadā-dharaḥ",
+        "rathāṅga-pāṇir-akṣobhyaḥ sarva-praharaṇāyudhaḥ"
       ],
       "translations": [
         "",
         ""
       ],
       "english_halves": [
-        "Bhoor-bhuvah lakshmeeh suveerah",
-        "Ruchi-rangadah jananah"
+        "Shankha-bhrut nandakee chakree sharnga-dhanva gada-dharah",
+        "Rathanga-panih akshobhyah sarva-praharanayudhah"
       ]
     }
   ],
@@ -4551,3721 +4551,3439 @@ const VISHNU_DATA = {
       "name_devanagari": "अनिर्विण्णः",
       "meaning": "He who is never despondent or dejected"
     },
-    {
-      "num": 436,
-      "name_iast": "sthaviyān",
-      "name_devanagari": "स्थवीयान्",
-      "meaning": "The Most massive; The supremely large"
-    },
-    {
-      "num": 437,
-      "name_iast": "bhū-dharaḥ",
-      "name_devanagari": "भूधरः",
-      "meaning": "The Bearer of the earth"
-    },
-    {
-      "num": 438,
-      "name_iast": "dharma-gup",
-      "name_devanagari": "धर्मगुप्",
-      "meaning": "The Protector of dharma"
-    },
-    {
-      "num": 439,
-      "name_iast": "dharma-kṛt",
-      "name_devanagari": "धर्मकृत्",
-      "meaning": "He who establishes dharma"
-    },
-    {
-      "num": 440,
-      "name_iast": "dharmī",
-      "name_devanagari": "धर्मी",
-      "meaning": "He who is the supporter of dharma"
-    },
-    {
-      "num": 441,
-      "name_iast": "sat",
-      "name_devanagari": "सत्",
-      "meaning": "Existence; The eternally Real"
-    },
-    {
-      "num": 442,
-      "name_iast": "asat",
-      "name_devanagari": "असत्",
-      "meaning": "The Unmanifest; The causal state beyond perception"
-    },
-    {
-      "num": 443,
-      "name_iast": "kṣaram",
-      "name_devanagari": "क्षरम्",
-      "meaning": "The Perishable (the manifest universe)"
-    },
-    {
-      "num": 444,
-      "name_iast": "akṣaram",
-      "name_devanagari": "अक्षरम्",
-      "meaning": "The Imperishable (the transcendent reality)"
-    },
-    {
-      "num": 445,
-      "name_iast": "avijñātā",
-      "name_devanagari": "अविज्ञाता",
-      "meaning": "He who is not an object of ordinary knowledge"
-    },
-    {
-      "num": 446,
-      "name_iast": "sahasrāṃśuḥ",
-      "name_devanagari": "सहस्रांशुः",
-      "meaning": "He of a thousand rays; The Sun"
-    },
-    {
-      "num": 447,
-      "name_iast": "vidhātā",
-      "name_devanagari": "विधाता",
-      "meaning": "The Ordainer; He who dispenses the fruits of actions"
-    },
-    {
-      "num": 448,
-      "name_iast": "kṛta-lakṣaṇaḥ",
-      "name_devanagari": "कृतलक्षणः",
-      "meaning": "He who is known by the marks of His grace"
-    },
-    {
-      "num": 449,
-      "name_iast": "gabhasti-nemīḥ",
-      "name_devanagari": "गभस्तिनेमीः",
-      "meaning": "He who is surrounded by rays of light"
-    },
-    {
-      "num": 450,
-      "name_iast": "sattva-sthaḥ",
-      "name_devanagari": "सत्त्वस्थः",
-      "meaning": "He who abides in pure sattva (goodness)"
-    },
-    {
-      "num": 451,
-      "name_iast": "siṃhaḥ",
-      "name_devanagari": "सिंहः",
-      "meaning": "The Lion; He who destroys like a lion"
-    },
-    {
-      "num": 452,
-      "name_iast": "bhūta-maheśvaraḥ",
-      "name_devanagari": "भूतमहेश्वरः",
-      "meaning": "The Great Lord of all beings"
-    },
-    {
-      "num": 453,
-      "name_iast": "ādi-devaḥ",
-      "name_devanagari": "आदिदेवः",
-      "meaning": "The Primeval God; The first cause"
-    },
-    {
-      "num": 454,
-      "name_iast": "mahā-devaḥ",
-      "name_devanagari": "महादेवः",
-      "meaning": "The Great God; The supreme deity"
-    },
-    {
-      "num": 455,
-      "name_iast": "deveśaḥ",
-      "name_devanagari": "देवेशः",
-      "meaning": "The Lord of all gods"
-    },
-    {
-      "num": 456,
-      "name_iast": "deva-bhṛt-guruḥ",
-      "name_devanagari": "देवभृद्गुरुः",
-      "meaning": "The Teacher and Sustainer of the gods"
-    },
-    {
-      "num": 457,
-      "name_iast": "uttaraḥ",
-      "name_devanagari": "उत्तरः",
-      "meaning": "He who lifts beings out of samsara; The Supreme"
-    },
-    {
-      "num": 458,
-      "name_iast": "go-patiḥ",
-      "name_devanagari": "गोपतिः",
-      "meaning": "The Lord of the earth and cattle"
-    },
-    {
-      "num": 459,
-      "name_iast": "goptā",
-      "name_devanagari": "गोप्ता",
-      "meaning": "The Protector of all"
-    },
-    {
-      "num": 460,
-      "name_iast": "jñāna-gamyaḥ",
-      "name_devanagari": "ज्ञानगम्यः",
-      "meaning": "He who is attained through knowledge"
-    },
-    {
-      "num": 461,
-      "name_iast": "purātanaḥ",
-      "name_devanagari": "पुरातनः",
-      "meaning": "The Most Ancient; He who was before everything"
-    },
-    {
-      "num": 462,
-      "name_iast": "śarīra-bhūta-bhṛt",
-      "name_devanagari": "शरीरभूतभृत्",
-      "meaning": "He who sustains all beings in their bodies"
-    },
-    {
-      "num": 463,
-      "name_iast": "bhoktā",
-      "name_devanagari": "भोक्ता",
-      "meaning": "The Enjoyer of all experiences"
-    },
-    {
-      "num": 464,
-      "name_iast": "kapīndraḥ",
-      "name_devanagari": "कपीन्द्रः",
-      "meaning": "The Lord of the monkeys (as Rama); Lord of the senses"
-    },
-    {
-      "num": 465,
-      "name_iast": "bhūri-dakṣiṇaḥ",
-      "name_devanagari": "भूरिदक्षिणः",
-      "meaning": "He who gives abundantly as gifts"
-    },
-    {
-      "num": 466,
-      "name_iast": "soma-paḥ",
-      "name_devanagari": "सोमपः",
-      "meaning": "He who drinks the Soma in sacrifices"
-    },
-    {
-      "num": 467,
-      "name_iast": "amṛta-paḥ",
-      "name_devanagari": "अमृतपः",
-      "meaning": "He who drinks the nectar of immortality"
-    },
-    {
-      "num": 468,
-      "name_iast": "somaḥ",
-      "name_devanagari": "सोमः",
-      "meaning": "The Moon; He who is with Uma (Soma)"
-    },
-    {
-      "num": 469,
-      "name_iast": "purujit",
-      "name_devanagari": "पुरुजित्",
-      "meaning": "The Conqueror of many; He who conquers all"
-    },
-    {
-      "num": 470,
-      "name_iast": "puru-sattamaḥ",
-      "name_devanagari": "पुरुसत्तमः",
-      "meaning": "The Best among many; The supreme person"
-    },
-    {
-      "num": 471,
-      "name_iast": "vinayaḥ",
-      "name_devanagari": "विनयः",
-      "meaning": "He who subdues and disciplines"
-    },
-    {
-      "num": 472,
-      "name_iast": "jayaḥ",
-      "name_devanagari": "जयः",
-      "meaning": "Victory; He who is always victorious"
-    },
-    {
-      "num": 473,
-      "name_iast": "satya-sandhaḥ",
-      "name_devanagari": "सत्यसन्धः",
-      "meaning": "He whose promises are always true"
-    },
-    {
-      "num": 474,
-      "name_iast": "dāśārhaḥ",
-      "name_devanagari": "दाशार्हः",
-      "meaning": "He who is born in the Dasharha clan (Krishna)"
-    },
-    {
-      "num": 475,
-      "name_iast": "sātvatāṃ patiḥ",
-      "name_devanagari": "सात्वतां पतिः",
-      "meaning": "The Lord of the Satvatas (Yadavas)"
-    },
-    {
-      "num": 476,
-      "name_iast": "jīvaḥ",
-      "name_devanagari": "जीवः",
-      "meaning": "The Life-principle in all beings"
-    },
-    {
-      "num": 477,
-      "name_iast": "vinayi-tā",
-      "name_devanagari": "विनयिता",
-      "meaning": "He who disciplines all; The Teacher of humility"
-    },
-    {
-      "num": 478,
-      "name_iast": "sākṣī",
-      "name_devanagari": "साक्षी",
-      "meaning": "The Witness of all actions and thoughts"
-    },
-    {
-      "num": 479,
-      "name_iast": "mukunda",
-      "name_devanagari": "मुकुन्दः",
-      "meaning": "He who grants liberation (mukti)"
-    },
-    {
-      "num": 480,
-      "name_iast": "amita-vikramaḥ",
-      "name_devanagari": "अमितविक्रमः",
-      "meaning": "He of boundless valour and strides"
-    },
-    {
-      "num": 481,
-      "name_iast": "ambho-nidhiḥ",
-      "name_devanagari": "अम्भोनिधिः",
-      "meaning": "The Treasure-house of waters; The Ocean"
-    },
-    {
-      "num": 482,
-      "name_iast": "anantātmā",
-      "name_devanagari": "अनन्तात्मा",
-      "meaning": "The Infinite Self"
-    },
-    {
-      "num": 483,
-      "name_iast": "mahā-udadhi-śayaḥ",
-      "name_devanagari": "महोदधिशयः",
-      "meaning": "He who reclines on the great ocean (Kshirasagara)"
-    },
-    {
-      "num": 484,
-      "name_iast": "antakaḥ",
-      "name_devanagari": "अन्तकः",
-      "meaning": "He who brings about the end of all; The Ender"
-    },
-    {
-      "num": 485,
-      "name_iast": "ajaḥ",
-      "name_devanagari": "अजः",
-      "meaning": "The Unborn; Without beginning"
-    },
-    {
-      "num": 486,
-      "name_iast": "mahārhaḥ",
-      "name_devanagari": "महार्हः",
-      "meaning": "He who deserves the highest worship"
-    },
-    {
-      "num": 487,
-      "name_iast": "svābhāvyaḥ",
-      "name_devanagari": "स्वाभाव्यः",
-      "meaning": "He who is naturally present everywhere"
-    },
-    {
-      "num": 488,
-      "name_iast": "jitāmitraḥ",
-      "name_devanagari": "जितामित्रः",
-      "meaning": "He who has conquered all enemies"
-    },
-    {
-      "num": 489,
-      "name_iast": "pramodanaḥ",
-      "name_devanagari": "प्रमोदनः",
-      "meaning": "He who is ever joyful; The source of joy"
-    },
-    {
-      "num": 490,
-      "name_iast": "ānandaḥ",
-      "name_devanagari": "आनन्दः",
-      "meaning": "Bliss itself; He who is supreme bliss"
-    },
-    {
-      "num": 491,
-      "name_iast": "nandanaḥ",
-      "name_devanagari": "नन्दनः",
-      "meaning": "He who makes others joyful; Son of Nanda"
-    },
-    {
-      "num": 492,
-      "name_iast": "nandaḥ",
-      "name_devanagari": "नन्दः",
-      "meaning": "He who is endowed with all perfections; Joy"
-    },
-    {
-      "num": 493,
-      "name_iast": "satya-dharmā",
-      "name_devanagari": "सत्यधर्मा",
-      "meaning": "He whose dharma is truth; He of true conduct"
-    },
-    {
-      "num": 494,
-      "name_iast": "trivikramaḥ",
-      "name_devanagari": "त्रिविक्रमः",
-      "meaning": "He who measured the three worlds in three strides (Vamana)"
-    },
-    {
-      "num": 495,
-      "name_iast": "maharṣiḥ kapilaḥ ācāryaḥ",
-      "name_devanagari": "महर्षिः कपिलाचार्यः",
-      "meaning": "The great sage Kapila (founder of Sankhya philosophy)"
-    },
-    {
-      "num": 496,
-      "name_iast": "kṛta-jñaḥ",
-      "name_devanagari": "कृतज्ञः",
-      "meaning": "He who remembers all good deeds done; The Grateful"
-    },
-    {
-      "num": 497,
-      "name_iast": "medinī-patiḥ",
-      "name_devanagari": "मेदिनीपतिः",
-      "meaning": "The Lord of the Earth"
-    },
-    {
-      "num": 498,
-      "name_iast": "tri-padaḥ",
-      "name_devanagari": "त्रिपदः",
-      "meaning": "He who has three strides (Trivikrama)"
-    },
-    {
-      "num": 499,
-      "name_iast": "tri-daśādhyakṣaḥ",
-      "name_devanagari": "त्रिदशाध्यक्षः",
-      "meaning": "The Presiding Lord of the thirty-three gods"
-    },
-    {
-      "num": 500,
-      "name_iast": "mahā-śṛṅgaḥ",
-      "name_devanagari": "महाशृङ्गः",
-      "meaning": "He of the great horn (Matsya avatar)"
-    },
-    {
-      "num": 501,
-      "name_iast": "kṛtānta-kṛt",
-      "name_devanagari": "कृतान्तकृत्",
-      "meaning": "He who brings about the end of the created world"
-    },
-    {
-      "num": 502,
-      "name_iast": "mahāvarāhaḥ",
-      "name_devanagari": "महावराहः",
-      "meaning": "The Great Boar (Varaha incarnation)"
-    },
-    {
-      "num": 503,
-      "name_iast": "govindaḥ",
-      "name_devanagari": "गोविन्दः",
-      "meaning": "The Protector of cows; Finder of the earth"
-    },
-    {
-      "num": 504,
-      "name_iast": "suṣeṇaḥ",
-      "name_devanagari": "सुषेणः",
-      "meaning": "He who has a beautiful army; The well-armied"
-    },
-    {
-      "num": 505,
-      "name_iast": "kanakāṅgadī",
-      "name_devanagari": "कनकाङ्गदी",
-      "meaning": "He who wears golden armlets"
-    },
-    {
-      "num": 506,
-      "name_iast": "guhyaḥ",
-      "name_devanagari": "गुह्यः",
-      "meaning": "The Mysterious; He who is hidden in the heart"
-    },
-    {
-      "num": 507,
-      "name_iast": "gabhīraḥ",
-      "name_devanagari": "गभीरः",
-      "meaning": "The Unfathomable; Deep and profound"
-    },
-    {
-      "num": 508,
-      "name_iast": "gahanaḥ",
-      "name_devanagari": "गहनः",
-      "meaning": "The Impenetrable; He who is hard to reach"
-    },
-    {
-      "num": 509,
-      "name_iast": "guptaḥ",
-      "name_devanagari": "गुप्तः",
-      "meaning": "The Hidden; He who protects in secret"
-    },
-    {
-      "num": 510,
-      "name_iast": "cakra-gadā-dharaḥ",
-      "name_devanagari": "चक्रगदाधरः",
-      "meaning": "He who bears the discus (Sudarshana) and mace (Kaumodaki)"
-    },
-    {
-      "num": 511,
-      "name_iast": "vedāḥ",
-      "name_devanagari": "वेदाः",
-      "meaning": "He who is the Vedas personified"
-    },
-    {
-      "num": 512,
-      "name_iast": "svāṅgaḥ",
-      "name_devanagari": "स्वाङ्गः",
-      "meaning": "He whose limbs are beautiful and well-proportioned"
-    },
-    {
-      "num": 513,
-      "name_iast": "ajitaḥ",
-      "name_devanagari": "अजितः",
-      "meaning": "The Unconquerable; He who has never been defeated"
-    },
-    {
-      "num": 514,
-      "name_iast": "kṛṣṇaḥ",
-      "name_devanagari": "कृष्णः",
-      "meaning": "The All-attractive Dark-hued One (Krishna)"
-    },
-    {
-      "num": 515,
-      "name_iast": "dṛḍhaḥ",
-      "name_devanagari": "दृढः",
-      "meaning": "The Firm; He who is resolute and unwavering"
-    },
-    {
-      "num": 516,
-      "name_iast": "saṅkarṣaṇaḥ acyutaḥ",
-      "name_devanagari": "सङ्कर्षणोऽच्युतः",
-      "meaning": "He who draws all beings; The Infallible"
-    },
-    {
-      "num": 517,
-      "name_iast": "varuṇaḥ",
-      "name_devanagari": "वरुणः",
-      "meaning": "He who envelops all; The Lord of waters"
-    },
-    {
-      "num": 518,
-      "name_iast": "vāruṇaḥ",
-      "name_devanagari": "वारुणः",
-      "meaning": "The Son of Varuna; He who protects like Varuna"
-    },
-    {
-      "num": 519,
-      "name_iast": "vṛkṣaḥ",
-      "name_devanagari": "वृक्षः",
-      "meaning": "The Tree of life (the Ashvattha tree of samsara)"
-    },
-    {
-      "num": 520,
-      "name_iast": "puṣkarākṣaḥ",
-      "name_devanagari": "पुष्कराक्षः",
-      "meaning": "The Lotus-eyed"
-    },
-    {
-      "num": 521,
-      "name_iast": "mahā-manāḥ",
-      "name_devanagari": "महामनाः",
-      "meaning": "He of great mind; The supremely generous"
-    },
-    {
-      "num": 522,
-      "name_iast": "bhagavān",
-      "name_devanagari": "भगवान्",
-      "meaning": "He who possesses all divine opulences"
-    },
-    {
-      "num": 523,
-      "name_iast": "bhaga-hā",
-      "name_devanagari": "भगहा",
-      "meaning": "He who destroys the opulences of the unrighteous"
-    },
-    {
-      "num": 524,
-      "name_iast": "ānandī",
-      "name_devanagari": "आनन्दी",
-      "meaning": "He who is ever blissful"
-    },
-    {
-      "num": 525,
-      "name_iast": "vana-mālī",
-      "name_devanagari": "वनमाली",
-      "meaning": "He who wears a garland of forest flowers (Vanamala)"
-    },
-    {
-      "num": 526,
-      "name_iast": "halāyudhaḥ",
-      "name_devanagari": "हलायुधः",
-      "meaning": "He who has the plough as His weapon (Balarama)"
-    },
-    {
-      "num": 527,
-      "name_iast": "ādityaḥ",
-      "name_devanagari": "आदित्यः",
-      "meaning": "The Son of Aditi; One of the twelve Adityas"
-    },
-    {
-      "num": 528,
-      "name_iast": "jyotir-ādityaḥ",
-      "name_devanagari": "ज्योतिरादित्यः",
-      "meaning": "The Light of the Sun; The resplendent luminary"
-    },
-    {
-      "num": 529,
-      "name_iast": "sahiṣṇuḥ",
-      "name_devanagari": "सहिष्णुः",
-      "meaning": "The Forbearing; He who endures all with patience"
-    },
-    {
-      "num": 530,
-      "name_iast": "gati-sattamaḥ",
-      "name_devanagari": "गतिसत्तमः",
-      "meaning": "The Best Refuge; The supreme goal"
-    },
-    {
-      "num": 531,
-      "name_iast": "su-dharmā",
-      "name_devanagari": "सुधर्मा",
-      "meaning": "He of excellent dharma; The most righteous"
-    },
-    {
-      "num": 532,
-      "name_iast": "dharma-gup",
-      "name_devanagari": "धर्मगुप्",
-      "meaning": "The Guardian of dharma"
-    },
-    {
-      "num": 533,
-      "name_iast": "dharma-kṛt",
-      "name_devanagari": "धर्मकृत्",
-      "meaning": "The Establisher of dharma"
-    },
-    {
-      "num": 534,
-      "name_iast": "dharmī",
-      "name_devanagari": "धर्मी",
-      "meaning": "He who embodies dharma"
-    },
-    {
-      "num": 535,
-      "name_iast": "sat",
-      "name_devanagari": "सत्",
-      "meaning": "Existence; The eternally real Being"
-    },
-    {
-      "num": 536,
-      "name_iast": "asat-kṣaram",
-      "name_devanagari": "असत्क्षरम्",
-      "meaning": "The imperishable beyond the perishable"
-    },
-    {
-      "num": 537,
-      "name_iast": "avijñātā",
-      "name_devanagari": "अविज्ञाता",
-      "meaning": "He who cannot be fully known by ordinary means"
-    },
-    {
-      "num": 538,
-      "name_iast": "sahasrāṃśuḥ",
-      "name_devanagari": "सहस्रांशुः",
-      "meaning": "He of a thousand rays"
-    },
-    {
-      "num": 539,
-      "name_iast": "vidhātā",
-      "name_devanagari": "विधाता",
-      "meaning": "The Supreme Ordainer"
-    },
-    {
-      "num": 540,
-      "name_iast": "kṛta-lakṣaṇaḥ",
-      "name_devanagari": "कृतलक्षणः",
-      "meaning": "He who is identified by definite characteristics"
-    },
-    {
-      "num": 541,
-      "name_iast": "gabhasti-nemīḥ",
-      "name_devanagari": "गभस्तिनेमीः",
-      "meaning": "He who has rays as His circumference"
-    },
-    {
-      "num": 542,
-      "name_iast": "sattva-sthaḥ",
-      "name_devanagari": "सत्त्वस्थः",
-      "meaning": "He who abides in sattva guna"
-    },
-    {
-      "num": 543,
-      "name_iast": "siṃhaḥ",
-      "name_devanagari": "सिंहः",
-      "meaning": "The Lion; The fearless one"
-    },
-    {
-      "num": 544,
-      "name_iast": "bhūta-maheśvaraḥ",
-      "name_devanagari": "भूतमहेश्वरः",
-      "meaning": "The Great Lord of all beings"
-    },
-    {
-      "num": 545,
-      "name_iast": "ādi-devaḥ",
-      "name_devanagari": "आदिदेवः",
-      "meaning": "The First God"
-    },
-    {
-      "num": 546,
-      "name_iast": "mahā-devaḥ",
-      "name_devanagari": "महादेवः",
-      "meaning": "The Supreme Deity"
-    },
-    {
-      "num": 547,
-      "name_iast": "deveśaḥ",
-      "name_devanagari": "देवेशः",
-      "meaning": "The Lord of all celestials"
-    },
-    {
-      "num": 548,
-      "name_iast": "deva-bhṛt guruḥ",
-      "name_devanagari": "देवभृद्गुरुः",
-      "meaning": "The Teacher of the sustainer of gods"
-    },
-    {
-      "num": 549,
-      "name_iast": "uttaraḥ",
-      "name_devanagari": "उत्तरः",
-      "meaning": "The Supreme; He who lifts up beings"
-    },
-    {
-      "num": 550,
-      "name_iast": "go-patiḥ",
-      "name_devanagari": "गोपतिः",
-      "meaning": "The Lord of the earth"
-    },
-    {
-      "num": 551,
-      "name_iast": "goptā",
-      "name_devanagari": "गोप्ता",
-      "meaning": "The Protector of all"
-    },
-    {
-      "num": 552,
-      "name_iast": "jñāna-gamyaḥ",
-      "name_devanagari": "ज्ञानगम्यः",
-      "meaning": "He who is attainable through knowledge"
-    },
-    {
-      "num": 553,
-      "name_iast": "purātanaḥ",
-      "name_devanagari": "पुरातनः",
-      "meaning": "The Ancient One"
-    },
-    {
-      "num": 554,
-      "name_iast": "śarīra-bhūta-bhṛt",
-      "name_devanagari": "शरीरभूतभृत्",
-      "meaning": "The Sustainer of all bodies"
-    },
-    {
-      "num": 555,
-      "name_iast": "bhoktā",
-      "name_devanagari": "भोक्ता",
-      "meaning": "The Enjoyer"
-    },
-    {
-      "num": 556,
-      "name_iast": "kapīndraḥ",
-      "name_devanagari": "कपीन्द्रः",
-      "meaning": "The Lord of the apes"
-    },
-    {
-      "num": 557,
-      "name_iast": "bhūri-dakṣiṇaḥ",
-      "name_devanagari": "भूरिदक्षिणः",
-      "meaning": "The Abundantly generous"
-    },
-    {
-      "num": 558,
-      "name_iast": "soma-paḥ",
-      "name_devanagari": "सोमपः",
-      "meaning": "The Drinker of Soma"
-    },
-    {
-      "num": 559,
-      "name_iast": "amṛta-paḥ",
-      "name_devanagari": "अमृतपः",
-      "meaning": "The Drinker of nectar"
-    },
-    {
-      "num": 560,
-      "name_iast": "somaḥ",
-      "name_devanagari": "सोमः",
-      "meaning": "The Moon god"
-    },
-    {
-      "num": 561,
-      "name_iast": "puru-jit",
-      "name_devanagari": "पुरुजित्",
-      "meaning": "The Conqueror of many"
-    },
-    {
-      "num": 562,
-      "name_iast": "puru-sattamaḥ",
-      "name_devanagari": "पुरुसत्तमः",
-      "meaning": "The Best among the great"
-    },
-    {
-      "num": 563,
-      "name_iast": "vinayaḥ",
-      "name_devanagari": "विनयः",
-      "meaning": "He who leads through discipline"
-    },
-    {
-      "num": 564,
-      "name_iast": "jayaḥ",
-      "name_devanagari": "जयः",
-      "meaning": "Victory personified"
-    },
-    {
-      "num": 565,
-      "name_iast": "satya-sandhaḥ",
-      "name_devanagari": "सत्यसन्धः",
-      "meaning": "He whose resolve is always true"
-    },
-    {
-      "num": 566,
-      "name_iast": "dāśārhaḥ",
-      "name_devanagari": "दाशार्हः",
-      "meaning": "He who belongs to the Dasharha dynasty"
-    },
-    {
-      "num": 567,
-      "name_iast": "sātvatāṃ-patiḥ",
-      "name_devanagari": "सात्वतांपतिः",
-      "meaning": "The Lord of the Satvata people"
-    },
-    {
-      "num": 568,
-      "name_iast": "jīvaḥ",
-      "name_devanagari": "जीवः",
-      "meaning": "The Life-principle"
-    },
-    {
-      "num": 569,
-      "name_iast": "vinayitā sākṣī",
-      "name_devanagari": "विनयिता साक्षी",
-      "meaning": "The Discipliner and Witness"
-    },
-    {
-      "num": 570,
-      "name_iast": "mukundaḥ",
-      "name_devanagari": "मुकुन्दः",
-      "meaning": "The Giver of liberation"
-    },
-    {
-      "num": 571,
-      "name_iast": "amita-vikramaḥ",
-      "name_devanagari": "अमितविक्रमः",
-      "meaning": "He of immeasurable valour"
-    },
-    {
-      "num": 572,
-      "name_iast": "ambho-nidhiḥ",
-      "name_devanagari": "अम्भोनिधिः",
-      "meaning": "The Abode of waters; The Ocean"
-    },
-    {
-      "num": 573,
-      "name_iast": "anantātmā",
-      "name_devanagari": "अनन्तात्मा",
-      "meaning": "The Infinite Self"
-    },
-    {
-      "num": 574,
-      "name_iast": "mahā-udadhi-śayaḥ",
-      "name_devanagari": "महोदधिशयः",
-      "meaning": "He who sleeps on the great ocean"
-    },
-    {
-      "num": 575,
-      "name_iast": "antakaḥ",
-      "name_devanagari": "अन्तकः",
-      "meaning": "The Destroyer; He who ends all"
-    },
-    {
-      "num": 576,
-      "name_iast": "ajaḥ",
-      "name_devanagari": "अजः",
-      "meaning": "The Unborn"
-    },
-    {
-      "num": 577,
-      "name_iast": "mahārhaḥ",
-      "name_devanagari": "महार्हः",
-      "meaning": "He who deserves supreme worship"
-    },
-    {
-      "num": 578,
-      "name_iast": "svābhāvyaḥ",
-      "name_devanagari": "स्वाभाव्यः",
-      "meaning": "He who is ever established in His own nature"
-    },
-    {
-      "num": 579,
-      "name_iast": "jitāmitraḥ",
-      "name_devanagari": "जितामित्रः",
-      "meaning": "The Conqueror of enemies"
-    },
-    {
-      "num": 580,
-      "name_iast": "pramodanaḥ",
-      "name_devanagari": "प्रमोदनः",
-      "meaning": "The Delighter; He who gives joy"
-    },
-    {
-      "num": 581,
-      "name_iast": "ānandaḥ",
-      "name_devanagari": "आनन्दः",
-      "meaning": "Supreme Bliss"
-    },
-    {
-      "num": 582,
-      "name_iast": "nandanaḥ",
-      "name_devanagari": "नन्दनः",
-      "meaning": "The Bestower of joy"
-    },
-    {
-      "num": 583,
-      "name_iast": "nandaḥ",
-      "name_devanagari": "नन्दः",
-      "meaning": "Joy; The blissful"
-    },
-    {
-      "num": 584,
-      "name_iast": "satya-dharmā",
-      "name_devanagari": "सत्यधर्मा",
-      "meaning": "He of truthful dharma"
-    },
-    {
-      "num": 585,
-      "name_iast": "trivikramaḥ",
-      "name_devanagari": "त्रिविक्रमः",
-      "meaning": "He who took three strides"
-    },
-    {
-      "num": 586,
-      "name_iast": "maharṣiḥ kapilaḥ ācāryaḥ",
-      "name_devanagari": "महर्षिकपिलाचार्यः",
-      "meaning": "The great sage Kapila, the Teacher"
-    },
-    {
-      "num": 587,
-      "name_iast": "kṛtajñaḥ",
-      "name_devanagari": "कृतज्ञः",
-      "meaning": "The Grateful One"
-    },
-    {
-      "num": 588,
-      "name_iast": "medinī-patiḥ",
-      "name_devanagari": "मेदिनीपतिः",
-      "meaning": "The Lord of the Earth"
-    },
-    {
-      "num": 589,
-      "name_iast": "tri-padaḥ",
-      "name_devanagari": "त्रिपदः",
-      "meaning": "He of three strides"
-    },
-    {
-      "num": 590,
-      "name_iast": "tri-daśādhyakṣaḥ",
-      "name_devanagari": "त्रिदशाध्यक्षः",
-      "meaning": "The Overlord of the thirty-three gods"
-    },
-    {
-      "num": 591,
-      "name_iast": "mahā-śṛṅgaḥ",
-      "name_devanagari": "महाशृङ्गः",
-      "meaning": "The Great-horned (Matsya avatar)"
-    },
-    {
-      "num": 592,
-      "name_iast": "kṛtānta-kṛt",
-      "name_devanagari": "कृतान्तकृत्",
-      "meaning": "The Destroyer of the god of death"
-    },
-    {
-      "num": 593,
-      "name_iast": "mahā-varāhaḥ",
-      "name_devanagari": "महावराहः",
-      "meaning": "The Great Boar incarnation"
-    },
-    {
-      "num": 594,
-      "name_iast": "govindaḥ",
-      "name_devanagari": "गोविन्दः",
-      "meaning": "The Finder of the earth (Varaha)"
-    },
-    {
-      "num": 595,
-      "name_iast": "suṣeṇaḥ",
-      "name_devanagari": "सुषेणः",
-      "meaning": "He with a beautiful army"
-    },
-    {
-      "num": 596,
-      "name_iast": "kanakāṅgadī",
-      "name_devanagari": "कनकाङ्गदी",
-      "meaning": "He who wears golden arm-ornaments"
-    },
-    {
-      "num": 597,
-      "name_iast": "guhyaḥ",
-      "name_devanagari": "गुह्यः",
-      "meaning": "The Secret; The Mysterious"
-    },
-    {
-      "num": 598,
-      "name_iast": "gabhīraḥ",
-      "name_devanagari": "गभीरः",
-      "meaning": "The Deep and Unfathomable"
-    },
-    {
-      "num": 599,
-      "name_iast": "gahanaḥ",
-      "name_devanagari": "गहनः",
-      "meaning": "The Impenetrable"
-    },
-    {
-      "num": 600,
-      "name_iast": "guptaḥ",
-      "name_devanagari": "गुप्तः",
-      "meaning": "The Hidden Protector"
-    },
-    {
-      "num": 601,
-      "name_iast": "cakra-gadā-dharaḥ",
-      "name_devanagari": "चक्रगदाधरः",
-      "meaning": "He who bears the discus and mace"
-    },
-    {
-      "num": 602,
-      "name_iast": "vedāḥ",
-      "name_devanagari": "वेदाः",
-      "meaning": "The Vedas themselves"
-    },
-    {
-      "num": 603,
-      "name_iast": "svāṅgaḥ",
-      "name_devanagari": "स्वाङ्गः",
-      "meaning": "He of beautiful limbs"
-    },
-    {
-      "num": 604,
-      "name_iast": "ajitaḥ",
-      "name_devanagari": "अजितः",
-      "meaning": "The Unconquered"
-    },
-    {
-      "num": 605,
-      "name_iast": "kṛṣṇaḥ",
-      "name_devanagari": "कृष्णः",
-      "meaning": "The All-attractive Dark One"
-    },
-    {
-      "num": 606,
-      "name_iast": "dṛḍhaḥ",
-      "name_devanagari": "दृढः",
-      "meaning": "The Firm and Resolute"
-    },
-    {
-      "num": 607,
-      "name_iast": "saṅkarṣaṇaḥ",
-      "name_devanagari": "सङ्कर्षणः",
-      "meaning": "He who draws all to Himself (Balarama)"
-    },
-    {
-      "num": 608,
-      "name_iast": "acyutaḥ",
-      "name_devanagari": "अच्युतः",
-      "meaning": "The Infallible"
-    },
-    {
-      "num": 609,
-      "name_iast": "varuṇaḥ",
-      "name_devanagari": "वरुणः",
-      "meaning": "The Lord of waters"
-    },
-    {
-      "num": 610,
-      "name_iast": "vāruṇaḥ",
-      "name_devanagari": "वारुणः",
-      "meaning": "The Son of Varuna"
-    },
-    {
-      "num": 611,
-      "name_iast": "vṛkṣaḥ",
-      "name_devanagari": "वृक्षः",
-      "meaning": "The Tree (Ashvattha of samsara)"
-    },
-    {
-      "num": 612,
-      "name_iast": "puṣkarākṣaḥ",
-      "name_devanagari": "पुष्कराक्षः",
-      "meaning": "The Lotus-eyed"
-    },
-    {
-      "num": 613,
-      "name_iast": "mahā-manāḥ",
-      "name_devanagari": "महामनाः",
-      "meaning": "The Great-minded"
-    },
-    {
-      "num": 614,
-      "name_iast": "bhagavān",
-      "name_devanagari": "भगवान्",
-      "meaning": "The Lord of all opulences"
-    },
-    {
-      "num": 615,
-      "name_iast": "bhaga-hā",
-      "name_devanagari": "भगहा",
-      "meaning": "The Destroyer of the wealth of the wicked"
-    },
-    {
-      "num": 616,
-      "name_iast": "ānandī",
-      "name_devanagari": "आनन्दी",
-      "meaning": "The Blissful"
-    },
-    {
-      "num": 617,
-      "name_iast": "vana-mālī",
-      "name_devanagari": "वनमाली",
-      "meaning": "He who wears the Vaijayanti garland"
-    },
-    {
-      "num": 618,
-      "name_iast": "halāyudhaḥ",
-      "name_devanagari": "हलायुधः",
-      "meaning": "He whose weapon is the plough"
-    },
-    {
-      "num": 619,
-      "name_iast": "ādityaḥ",
-      "name_devanagari": "आदित्यः",
-      "meaning": "The Son of Aditi"
-    },
-    {
-      "num": 620,
-      "name_iast": "jyotir-ādityaḥ",
-      "name_devanagari": "ज्योतिरादित्यः",
-      "meaning": "The Radiance among the Adityas"
-    },
-    {
-      "num": 621,
-      "name_iast": "sahiṣṇuḥ",
-      "name_devanagari": "सहिष्णुः",
-      "meaning": "The Patient Endurer"
-    },
-    {
-      "num": 622,
-      "name_iast": "gati-sattamaḥ",
-      "name_devanagari": "गतिसत्तमः",
-      "meaning": "The Best Goal for the good"
-    },
-    {
-      "num": 623,
-      "name_iast": "su-dharmā",
-      "name_devanagari": "सुधन्वा",
-      "meaning": "He of the excellent bow"
-    },
-    {
-      "num": 624,
-      "name_iast": "khaṇḍa-paraśuḥ",
-      "name_devanagari": "खण्डपरशुः",
-      "meaning": "He who wields the broken axe (Parashurama)"
-    },
-    {
-      "num": 625,
-      "name_iast": "dāruṇaḥ",
-      "name_devanagari": "दारुणः",
-      "meaning": "The Merciless to the wicked"
-    },
-    {
-      "num": 626,
-      "name_iast": "draviṇa-pradaḥ",
-      "name_devanagari": "द्रविणप्रदः",
-      "meaning": "The Giver of wealth"
-    },
-    {
-      "num": 627,
-      "name_iast": "divi-spṛk",
-      "name_devanagari": "दिविस्पृक्",
-      "meaning": "He who touches the sky; The Transcendent"
-    },
-    {
-      "num": 628,
-      "name_iast": "sarva-dṛg-vyāsaḥ",
-      "name_devanagari": "सर्वदृग्व्यासः",
-      "meaning": "He who sees all and is Vyasa (the compiler)"
-    },
-    {
-      "num": 629,
-      "name_iast": "vācaspatiḥ ayonija",
-      "name_devanagari": "वाचस्पतिरयोनिजः",
-      "meaning": "The Lord of Speech who is not womb-born"
-    },
-    {
-      "num": 630,
-      "name_iast": "tri-sāmā",
-      "name_devanagari": "त्रिसामा",
-      "meaning": "He who is praised by the three Samas"
-    },
-    {
-      "num": 631,
-      "name_iast": "sāma-gaḥ",
-      "name_devanagari": "सामगः",
-      "meaning": "The Singer of the Sama Veda"
-    },
-    {
-      "num": 632,
-      "name_iast": "sāma",
-      "name_devanagari": "साम",
-      "meaning": "The Sama Veda itself"
-    },
-    {
-      "num": 633,
-      "name_iast": "nirvāṇam",
-      "name_devanagari": "निर्वाणम्",
-      "meaning": "Supreme Bliss; Liberation"
-    },
-    {
-      "num": 634,
-      "name_iast": "bheṣajam",
-      "name_devanagari": "भेषजम्",
-      "meaning": "The Medicine for the disease of samsara"
-    },
-    {
-      "num": 635,
-      "name_iast": "bhiṣak",
-      "name_devanagari": "भिषक्",
-      "meaning": "The Physician who cures worldly suffering"
-    },
-    {
-      "num": 636,
-      "name_iast": "sannyāsa-kṛt",
-      "name_devanagari": "सन्न्यासकृत्",
-      "meaning": "The Institutor of sannyasa (renunciation)"
-    },
-    {
-      "num": 637,
-      "name_iast": "śamaḥ",
-      "name_devanagari": "शमः",
-      "meaning": "Peace; He who is the abode of tranquility"
-    },
-    {
-      "num": 638,
-      "name_iast": "śāntiḥ",
-      "name_devanagari": "शान्तिः",
-      "meaning": "Peace itself"
-    },
-    {
-      "num": 639,
-      "name_iast": "niṣṭhā",
-      "name_devanagari": "निष्ठा",
-      "meaning": "The Ultimate Support; Firm resolve"
-    },
-    {
-      "num": 640,
-      "name_iast": "śāntiḥ",
-      "name_devanagari": "शान्तिः",
-      "meaning": "Supreme Peace"
-    },
-    {
-      "num": 641,
-      "name_iast": "parāyaṇam",
-      "name_devanagari": "परायणम्",
-      "meaning": "The Supreme Refuge; The Final Goal"
-    },
-    {
-      "num": 642,
-      "name_iast": "śubhāṅgaḥ",
-      "name_devanagari": "शुभाङ्गः",
-      "meaning": "He of auspicious and beautiful limbs"
-    },
-    {
-      "num": 643,
-      "name_iast": "śānti-daḥ",
-      "name_devanagari": "शान्तिदः",
-      "meaning": "The Bestower of peace"
-    },
-    {
-      "num": 644,
-      "name_iast": "sṛṣṭā",
-      "name_devanagari": "सृष्टा",
-      "meaning": "The Creator of all"
-    },
-    {
-      "num": 645,
-      "name_iast": "kumudaḥ",
-      "name_devanagari": "कुमुदः",
-      "meaning": "He who delights in the earth; The white lotus"
-    },
-    {
-      "num": 646,
-      "name_iast": "kuvaleśayaḥ",
-      "name_devanagari": "कुवलेशयः",
-      "meaning": "He who reclines on the waters"
-    },
-    {
-      "num": 647,
-      "name_iast": "gohitaḥ",
-      "name_devanagari": "गोहितः",
-      "meaning": "He who works for the welfare of the world"
-    },
-    {
-      "num": 648,
-      "name_iast": "go-patiḥ",
-      "name_devanagari": "गोपतिः",
-      "meaning": "The Lord of the earth and cows"
-    },
-    {
-      "num": 649,
-      "name_iast": "goptā",
-      "name_devanagari": "गोप्ता",
-      "meaning": "The Protector"
-    },
-    {
-      "num": 650,
-      "name_iast": "vṛṣabhākṣaḥ",
-      "name_devanagari": "वृषभाक्षः",
-      "meaning": "He whose eyes shower grace (dharma)"
-    },
-    {
-      "num": 651,
-      "name_iast": "vṛṣa-priyaḥ",
-      "name_devanagari": "वृषप्रियः",
-      "meaning": "He who delights in dharma"
-    },
-    {
-      "num": 652,
-      "name_iast": "anivartī",
-      "name_devanagari": "अनिवर्ती",
-      "meaning": "He who never retreats"
-    },
-    {
-      "num": 653,
-      "name_iast": "nivṛttātmā",
-      "name_devanagari": "निवृत्तात्मा",
-      "meaning": "He whose Self is turned away from worldliness"
-    },
-    {
-      "num": 654,
-      "name_iast": "saṅkṣeptā",
-      "name_devanagari": "सङ्क्षेप्ता",
-      "meaning": "He who contracts the universe at dissolution"
-    },
-    {
-      "num": 655,
-      "name_iast": "kṣema-kṛt",
-      "name_devanagari": "क्षेमकृत्",
-      "meaning": "He who ensures the well-being of His devotees"
-    },
-    {
-      "num": 656,
-      "name_iast": "śivaḥ",
-      "name_devanagari": "शिवः",
-      "meaning": "The Auspicious One"
-    },
-    {
-      "num": 657,
-      "name_iast": "śrī-vatsa-vakṣāḥ",
-      "name_devanagari": "श्रीवत्सवक्षाः",
-      "meaning": "He who bears the Srivatsa mark on His chest"
-    },
-    {
-      "num": 658,
-      "name_iast": "śrī-vāsaḥ",
-      "name_devanagari": "श्रीवासः",
-      "meaning": "The Abode of Lakshmi"
-    },
-    {
-      "num": 659,
-      "name_iast": "śrī-patiḥ",
-      "name_devanagari": "श्रीपतिः",
-      "meaning": "The Lord of Lakshmi"
-    },
-    {
-      "num": 660,
-      "name_iast": "śrī-mataṃ-varaḥ",
-      "name_devanagari": "श्रीमतांवरः",
-      "meaning": "The Best among the glorious"
-    },
-    {
-      "num": 661,
-      "name_iast": "śrī-daḥ",
-      "name_devanagari": "श्रीदः",
-      "meaning": "The Giver of prosperity"
-    },
-    {
-      "num": 662,
-      "name_iast": "śrī-śaḥ",
-      "name_devanagari": "श्रीशः",
-      "meaning": "The Lord of Shri (Lakshmi)"
-    },
-    {
-      "num": 663,
-      "name_iast": "śrī-nivāsaḥ",
-      "name_devanagari": "श्रीनिवासः",
-      "meaning": "He in whom Shri (Lakshmi) dwells"
-    },
-    {
-      "num": 664,
-      "name_iast": "śrī-nidhiḥ",
-      "name_devanagari": "श्रीनिधिः",
-      "meaning": "The Treasure-house of Shri"
-    },
-    {
-      "num": 665,
-      "name_iast": "śrī-vibhāvanaḥ",
-      "name_devanagari": "श्रीविभावनः",
-      "meaning": "He who manifests all auspiciousness"
-    },
-    {
-      "num": 666,
-      "name_iast": "śrī-dharaḥ",
-      "name_devanagari": "श्रीधरः",
-      "meaning": "The Bearer of Shri; He who holds Lakshmi on His chest"
-    },
-    {
-      "num": 667,
-      "name_iast": "śrī-karaḥ",
-      "name_devanagari": "श्रीकरः",
-      "meaning": "He who bestows Shri (beauty and prosperity)"
-    },
-    {
-      "num": 668,
-      "name_iast": "śreyaḥ",
-      "name_devanagari": "श्रेयः",
-      "meaning": "The Supreme Good; Liberation"
-    },
-    {
-      "num": 669,
-      "name_iast": "śrī-mān",
-      "name_devanagari": "श्रीमान्",
-      "meaning": "He who is endowed with all glory"
-    },
-    {
-      "num": 670,
-      "name_iast": "loka-trayāśrayaḥ",
-      "name_devanagari": "लोकत्रयाश्रयः",
-      "meaning": "The Refuge of the three worlds"
-    },
-    {
-      "num": 671,
-      "name_iast": "svakṣaḥ",
-      "name_devanagari": "स्वक्षः",
-      "meaning": "He of beautiful eyes"
-    },
-    {
-      "num": 672,
-      "name_iast": "svaṅgaḥ",
-      "name_devanagari": "स्वङ्गः",
-      "meaning": "He of beautiful limbs"
-    },
-    {
-      "num": 673,
-      "name_iast": "śatānandaḥ",
-      "name_devanagari": "शतानन्दः",
-      "meaning": "He of hundred-fold bliss; Ever blissful"
-    },
-    {
-      "num": 674,
-      "name_iast": "nandaḥ",
-      "name_devanagari": "नन्दः",
-      "meaning": "The Blissful"
-    },
-    {
-      "num": 675,
-      "name_iast": "jyotir-gaṇeśvaraḥ",
-      "name_devanagari": "ज्योतिर्गणेश्वरः",
-      "meaning": "The Lord of all luminaries"
-    },
-    {
-      "num": 676,
-      "name_iast": "vijitātmā",
-      "name_devanagari": "विजितात्मा",
-      "meaning": "He who has conquered His Self"
-    },
-    {
-      "num": 677,
-      "name_iast": "vidheyātmā",
-      "name_devanagari": "विधेयात्मा",
-      "meaning": "He whose Self is under His control"
-    },
-    {
-      "num": 678,
-      "name_iast": "sat-kīrtiḥ",
-      "name_devanagari": "सत्कीर्तिः",
-      "meaning": "He of true and noble fame"
-    },
-    {
-      "num": 679,
-      "name_iast": "chinnaḥ-saṃśayaḥ",
-      "name_devanagari": "छिन्नसंशयः",
-      "meaning": "He who has no doubts; The Dispeller of all doubts"
-    },
-    {
-      "num": 680,
-      "name_iast": "udīrṇaḥ",
-      "name_devanagari": "उदीर्णः",
-      "meaning": "The Transcendent; He who is above all"
-    },
-    {
-      "num": 681,
-      "name_iast": "sarva-taś-cakṣuḥ",
-      "name_devanagari": "सर्वतश्चक्षुः",
-      "meaning": "He who has eyes everywhere"
-    },
-    {
-      "num": 682,
-      "name_iast": "anīśaḥ",
-      "name_devanagari": "अनीशः",
-      "meaning": "He who has no one above Him as ruler"
-    },
-    {
-      "num": 683,
-      "name_iast": "śāśvata-sthiraḥ",
-      "name_devanagari": "शाश्वतस्थिरः",
-      "meaning": "The Eternally Firm and Stable"
-    },
-    {
-      "num": 684,
-      "name_iast": "bhūśayaḥ",
-      "name_devanagari": "भूशयः",
-      "meaning": "He who reclines on the earth (as a baby on a banyan leaf)"
-    },
-    {
-      "num": 685,
-      "name_iast": "bhūṣaṇaḥ",
-      "name_devanagari": "भूषणः",
-      "meaning": "The Ornament; He who adorns the world"
-    },
-    {
-      "num": 686,
-      "name_iast": "bhūtiḥ",
-      "name_devanagari": "भूतिः",
-      "meaning": "Existence; Prosperity; He who is pure Being"
-    },
-    {
-      "num": 687,
-      "name_iast": "viśokaḥ",
-      "name_devanagari": "विशोकः",
-      "meaning": "He who is without sorrow"
-    },
-    {
-      "num": 688,
-      "name_iast": "śoka-nāśanaḥ",
-      "name_devanagari": "शोकनाशनः",
-      "meaning": "The Destroyer of sorrow for those who meditate on Him"
-    },
-    {
-      "num": 689,
-      "name_iast": "arciṣmān",
-      "name_devanagari": "अर्चिष्मान्",
-      "meaning": "He who is full of radiance"
-    },
-    {
-      "num": 690,
-      "name_iast": "arcitaḥ",
-      "name_devanagari": "अर्चितः",
-      "meaning": "He who is worshipped by all"
-    },
-    {
-      "num": 691,
-      "name_iast": "kumbhaḥ",
-      "name_devanagari": "कुम्भः",
-      "meaning": "The Pot; He who contains all within Himself"
-    },
-    {
-      "num": 692,
-      "name_iast": "viśuddhātmā",
-      "name_devanagari": "विशुद्धात्मा",
-      "meaning": "He whose Self is supremely pure"
-    },
-    {
-      "num": 693,
-      "name_iast": "viśodhanaḥ",
-      "name_devanagari": "विशोधनः",
-      "meaning": "The Supreme Purifier"
-    },
-    {
-      "num": 694,
-      "name_iast": "aniruddhaḥ",
-      "name_devanagari": "अनिरुद्धः",
-      "meaning": "He who cannot be obstructed by anyone"
-    },
-    {
-      "num": 695,
-      "name_iast": "apratirathḥ",
-      "name_devanagari": "अप्रतिरथः",
-      "meaning": "He who has no adversary; The Matchless"
-    },
-    {
-      "num": 696,
-      "name_iast": "pradyumnaḥ",
-      "name_devanagari": "प्रद्युम्नः",
-      "meaning": "He of great wealth; Krishna's son Pradyumna"
-    },
-    {
-      "num": 697,
-      "name_iast": "amita-vikramaḥ",
-      "name_devanagari": "अमितविक्रमः",
-      "meaning": "He of limitless valour"
-    },
-    {
-      "num": 698,
-      "name_iast": "kāla-nemi-nihā",
-      "name_devanagari": "कालनेमिनिहा",
-      "meaning": "The Slayer of the demon Kalanemi"
-    },
-    {
-      "num": 699,
-      "name_iast": "vīraḥ",
-      "name_devanagari": "वीरः",
-      "meaning": "The Hero; The supremely valiant"
-    },
-    {
-      "num": 700,
-      "name_iast": "śauriḥ",
-      "name_devanagari": "शौरिः",
-      "meaning": "The Descendant of Shura; Krishna"
-    },
-    {
-      "num": 701,
-      "name_iast": "śūra-janeśvaraḥ",
-      "name_devanagari": "शूरजनेश्वरः",
-      "meaning": "The Lord of the valiant"
-    },
-    {
-      "num": 702,
-      "name_iast": "tri-lokātmā",
-      "name_devanagari": "त्रिलोकात्मा",
-      "meaning": "The Self of the three worlds"
-    },
-    {
-      "num": 703,
-      "name_iast": "tri-lokeśaḥ",
-      "name_devanagari": "त्रिलोकेशः",
-      "meaning": "The Lord of the three worlds"
-    },
-    {
-      "num": 704,
-      "name_iast": "keśavaḥ",
-      "name_devanagari": "केशवः",
-      "meaning": "He of beautiful hair; Lord of Brahma, Vishnu, and Shiva"
-    },
-    {
-      "num": 705,
-      "name_iast": "keśi-hā",
-      "name_devanagari": "केशिहा",
-      "meaning": "The Slayer of the demon Keshi"
-    },
-    {
-      "num": 706,
-      "name_iast": "hariḥ",
-      "name_devanagari": "हरिः",
-      "meaning": "He who removes all sins; The Green-hued"
-    },
-    {
-      "num": 707,
-      "name_iast": "kāma-devaḥ",
-      "name_devanagari": "कामदेवः",
-      "meaning": "The Lord of love; He who grants all desires"
-    },
-    {
-      "num": 708,
-      "name_iast": "kāma-pālaḥ",
-      "name_devanagari": "कामपालः",
-      "meaning": "The Protector of those who desire"
-    },
-    {
-      "num": 709,
-      "name_iast": "kāmī",
-      "name_devanagari": "कामी",
-      "meaning": "He who fulfills all desires"
-    },
-    {
-      "num": 710,
-      "name_iast": "kāntaḥ",
-      "name_devanagari": "कान्तः",
-      "meaning": "The Beautiful; The supremely charming"
-    },
-    {
-      "num": 711,
-      "name_iast": "kṛtāgamaḥ",
-      "name_devanagari": "कृतागमः",
-      "meaning": "He who is the author of the Agama scriptures"
-    },
-    {
-      "num": 712,
-      "name_iast": "anirdeśya-vapuḥ",
-      "name_devanagari": "अनिर्देश्यवपुः",
-      "meaning": "He whose form is beyond description"
-    },
-    {
-      "num": 713,
-      "name_iast": "viṣṇuḥ",
-      "name_devanagari": "विष्णुः",
-      "meaning": "The All-pervading One"
-    },
-    {
-      "num": 714,
-      "name_iast": "vīraḥ",
-      "name_devanagari": "वीरः",
-      "meaning": "The Courageous"
-    },
-    {
-      "num": 715,
-      "name_iast": "anantaḥ",
-      "name_devanagari": "अनन्तः",
-      "meaning": "The Infinite; Without end"
-    },
-    {
-      "num": 716,
-      "name_iast": "dhanañjayaḥ",
-      "name_devanagari": "धनञ्जयः",
-      "meaning": "The Winner of wealth (Arjuna's name; also Vishnu)"
-    },
-    {
-      "num": 717,
-      "name_iast": "brahmaṇyaḥ",
-      "name_devanagari": "ब्रह्मण्यः",
-      "meaning": "He who is favourable to Brahman and the Brahmanas"
-    },
-    {
-      "num": 718,
-      "name_iast": "brahmakṛt",
-      "name_devanagari": "ब्रह्मकृत्",
-      "meaning": "He who creates Brahma; The cause of Vedas"
-    },
-    {
-      "num": 719,
-      "name_iast": "brahmā",
-      "name_devanagari": "ब्रह्मा",
-      "meaning": "Brahma, the Creator (as His manifestation)"
-    },
-    {
-      "num": 720,
-      "name_iast": "brahma",
-      "name_devanagari": "ब्रह्म",
-      "meaning": "The Absolute; The Supreme Reality"
-    },
-    {
-      "num": 721,
-      "name_iast": "brahma-vivardhanah",
-      "name_devanagari": "ब्रह्मविवर्धनः",
-      "meaning": "He who increases the Vedas and Brahman"
-    },
-    {
-      "num": 722,
-      "name_iast": "brahma-vid",
-      "name_devanagari": "ब्रह्मवित्",
-      "meaning": "The Knower of Brahman"
-    },
-    {
-      "num": 723,
-      "name_iast": "brāhmaṇaḥ",
-      "name_devanagari": "ब्राह्मणः",
-      "meaning": "He who teaches Brahman; The Brahmana"
-    },
-    {
-      "num": 724,
-      "name_iast": "brahmi",
-      "name_devanagari": "ब्रह्मी",
-      "meaning": "He who possesses Brahman"
-    },
-    {
-      "num": 725,
-      "name_iast": "brahma-jñaḥ",
-      "name_devanagari": "ब्रह्मज्ञः",
-      "meaning": "He who knows the nature of Brahman perfectly"
-    },
-    {
-      "num": 726,
-      "name_iast": "brāhmaṇa-priyaḥ",
-      "name_devanagari": "ब्राह्मणप्रियः",
-      "meaning": "He who is dear to the Brahmanas"
-    },
-    {
-      "num": 727,
-      "name_iast": "mahā-kramo",
-      "name_devanagari": "महाक्रमः",
-      "meaning": "He of great strides (Trivikrama)"
-    },
-    {
-      "num": 728,
-      "name_iast": "mahā-karmā",
-      "name_devanagari": "महाकर्मा",
-      "meaning": "He of great deeds"
-    },
-    {
-      "num": 729,
-      "name_iast": "mahā-tejāḥ",
-      "name_devanagari": "महातेजाः",
-      "meaning": "He of great brilliance"
-    },
-    {
-      "num": 730,
-      "name_iast": "mahoragaḥ",
-      "name_devanagari": "महोरगः",
-      "meaning": "The Great Serpent (Ananta)"
-    },
-    {
-      "num": 731,
-      "name_iast": "mahā-kratuḥ",
-      "name_devanagari": "महाक्रतुः",
-      "meaning": "The Great Sacrifice; He who is the Ashvamedha yajna"
-    },
-    {
-      "num": 732,
-      "name_iast": "mahā-yajvā",
-      "name_devanagari": "महायज्वा",
-      "meaning": "The Great Performer of sacrifice"
-    },
-    {
-      "num": 733,
-      "name_iast": "mahā-yajñaḥ",
-      "name_devanagari": "महायज्ञः",
-      "meaning": "The Great Sacrifice itself"
-    },
-    {
-      "num": 734,
-      "name_iast": "mahā-haviḥ",
-      "name_devanagari": "महाहविः",
-      "meaning": "The Great Offering; The Supreme oblation"
-    },
-    {
-      "num": 735,
-      "name_iast": "stavyaḥ",
-      "name_devanagari": "स्तव्यः",
-      "meaning": "He who is worthy of praise"
-    },
-    {
-      "num": 736,
-      "name_iast": "stava-priyaḥ",
-      "name_devanagari": "स्तवप्रियः",
-      "meaning": "He who delights in hymns of praise"
-    },
-    {
-      "num": 737,
-      "name_iast": "stotraḥ",
-      "name_devanagari": "स्तोत्रम्",
-      "meaning": "The Hymn of praise itself"
-    },
-    {
-      "num": 738,
-      "name_iast": "stutiḥ",
-      "name_devanagari": "स्तुतिः",
-      "meaning": "Praise itself; The act of glorification"
-    },
-    {
-      "num": 739,
-      "name_iast": "stotā",
-      "name_devanagari": "स्तोता",
-      "meaning": "He who praises; The Supreme Praiser"
-    },
-    {
-      "num": 740,
-      "name_iast": "raṇa-priyaḥ",
-      "name_devanagari": "रणप्रियः",
-      "meaning": "He who delights in righteous battle"
-    },
-    {
-      "num": 741,
-      "name_iast": "pūrṇaḥ",
-      "name_devanagari": "पूर्णः",
-      "meaning": "The Complete; He who is full in all respects"
-    },
-    {
-      "num": 742,
-      "name_iast": "pūrayitā",
-      "name_devanagari": "पूरयिता",
-      "meaning": "He who fulfills the desires of all"
-    },
-    {
-      "num": 743,
-      "name_iast": "puṇyaḥ",
-      "name_devanagari": "पुण्यः",
-      "meaning": "The Supremely holy; He whose very name purifies"
-    },
-    {
-      "num": 744,
-      "name_iast": "puṇya-kīrtiḥ",
-      "name_devanagari": "पुण्यकीर्तिः",
-      "meaning": "He of sacred and holy fame"
-    },
-    {
-      "num": 745,
-      "name_iast": "anāmayaḥ",
-      "name_devanagari": "अनामयः",
-      "meaning": "He who is free from all disease and suffering"
-    },
-    {
-      "num": 746,
-      "name_iast": "mano-javaḥ",
-      "name_devanagari": "मनोजवः",
-      "meaning": "He who is swift as thought"
-    },
-    {
-      "num": 747,
-      "name_iast": "tīrtha-karaḥ",
-      "name_devanagari": "तीर्थकरः",
-      "meaning": "He who is the source of all holy places; The path-maker"
-    },
-    {
-      "num": 748,
-      "name_iast": "vasu-retāḥ",
-      "name_devanagari": "वसुरेताः",
-      "meaning": "He whose seed is golden; The source of Vasus"
-    },
-    {
-      "num": 749,
-      "name_iast": "vasu-pradaḥ",
-      "name_devanagari": "वसुप्रदः",
-      "meaning": "The Giver of wealth and shelter"
-    },
-    {
-      "num": 750,
-      "name_iast": "vasu-pradaḥ",
-      "name_devanagari": "वसुप्रदः",
-      "meaning": "The Bestower of riches (repeated in text for emphasis)"
-    },
-    {
-      "num": 751,
-      "name_iast": "vāsu-devaḥ",
-      "name_devanagari": "वासुदेवः",
-      "meaning": "The Son of Vasudeva; He who pervades and illumines all"
-    },
-    {
-      "num": 752,
-      "name_iast": "vasuḥ",
-      "name_devanagari": "वसुः",
-      "meaning": "The Dweller in all beings"
-    },
-    {
-      "num": 753,
-      "name_iast": "vasu-manāḥ",
-      "name_devanagari": "वसुमनाः",
-      "meaning": "He whose mind is ever pure"
-    },
-    {
-      "num": 754,
-      "name_iast": "haviḥ",
-      "name_devanagari": "हविः",
-      "meaning": "The Oblation; He who is the offering in sacrifice"
-    },
-    {
-      "num": 755,
-      "name_iast": "sadgatiḥ",
-      "name_devanagari": "सद्गतिः",
-      "meaning": "The True Path; The refuge of the good"
-    },
-    {
-      "num": 756,
-      "name_iast": "satkṛtiḥ",
-      "name_devanagari": "सत्कृतिः",
-      "meaning": "He who is worshipped rightly; True action"
-    },
-    {
-      "num": 757,
-      "name_iast": "sattā",
-      "name_devanagari": "सत्ता",
-      "meaning": "Existence; Pure Being"
-    },
-    {
-      "num": 758,
-      "name_iast": "sadbhūtiḥ",
-      "name_devanagari": "सद्भूतिः",
-      "meaning": "He who is of real existence"
-    },
-    {
-      "num": 759,
-      "name_iast": "satparāyaṇaḥ",
-      "name_devanagari": "सत्परायणः",
-      "meaning": "The Supreme Refuge of the good"
-    },
-    {
-      "num": 760,
-      "name_iast": "śūrasenaḥ",
-      "name_devanagari": "शूरसेनः",
-      "meaning": "He who has a heroic army"
-    },
-    {
-      "num": 761,
-      "name_iast": "yadu-śreṣṭhaḥ",
-      "name_devanagari": "यदुश्रेष्ठः",
-      "meaning": "The Best among the Yadavas"
-    },
-    {
-      "num": 762,
-      "name_iast": "sannivāsaḥ",
-      "name_devanagari": "सन्निवासः",
-      "meaning": "The Ultimate Abode where all beings reside"
-    },
-    {
-      "num": 763,
-      "name_iast": "suyāmunaḥ",
-      "name_devanagari": "सुयामुनः",
-      "meaning": "He who is attended by the people of Yamuna's banks"
-    },
-    {
-      "num": 764,
-      "name_iast": "bhūtāvāsaḥ",
-      "name_devanagari": "भूतावासः",
-      "meaning": "The Dwelling place of all beings"
-    },
-    {
-      "num": 765,
-      "name_iast": "vāsudevaḥ",
-      "name_devanagari": "वासुदेवः",
-      "meaning": "He who envelops all with Maya; Son of Vasudeva"
-    },
-    {
-      "num": 766,
-      "name_iast": "sarvāsunilayaḥ",
-      "name_devanagari": "सर्वासुनिलयः",
-      "meaning": "The Abode of all life-breaths"
-    },
-    {
-      "num": 767,
-      "name_iast": "analaḥ",
-      "name_devanagari": "अनलः",
-      "meaning": "He of unlimited power; Fire"
-    },
-    {
-      "num": 768,
-      "name_iast": "darpaḥ",
-      "name_devanagari": "दर्पहा",
-      "meaning": "The Destroyer of pride in the wicked"
-    },
-    {
-      "num": 769,
-      "name_iast": "darpa-daḥ",
-      "name_devanagari": "दर्पदः",
-      "meaning": "He who gives pride (confidence) to the righteous"
-    },
-    {
-      "num": 770,
-      "name_iast": "dṛptaḥ",
-      "name_devanagari": "दृप्तः",
-      "meaning": "He who is supremely satisfied"
-    },
-    {
-      "num": 771,
-      "name_iast": "dur-dharaḥ",
-      "name_devanagari": "दुर्धरः",
-      "meaning": "He who is difficult to restrain"
-    },
-    {
-      "num": 772,
-      "name_iast": "aparājitaḥ",
-      "name_devanagari": "अपराजितः",
-      "meaning": "The Unconquered; He who has never been defeated"
-    },
-    {
-      "num": 773,
-      "name_iast": "viśva-mūrtiḥ",
-      "name_devanagari": "विश्वमूर्तिः",
-      "meaning": "He whose form is the universe (Vishvarupa)"
-    },
-    {
-      "num": 774,
-      "name_iast": "mahā-mūrtiḥ",
-      "name_devanagari": "महामूर्तिः",
-      "meaning": "He of the Great Form; The cosmic body"
-    },
-    {
-      "num": 775,
-      "name_iast": "dīpta-mūrtiḥ",
-      "name_devanagari": "दीप्तमूर्तिः",
-      "meaning": "He of blazing and radiant form"
-    },
-    {
-      "num": 776,
-      "name_iast": "a-mūrtiḥ-mān",
-      "name_devanagari": "अमूर्तिमान्",
-      "meaning": "He who is formless yet possesses all forms"
-    },
-    {
-      "num": 777,
-      "name_iast": "aneka-mūrtiḥ",
-      "name_devanagari": "अनेकमूर्तिः",
-      "meaning": "He of many forms"
-    },
-    {
-      "num": 778,
-      "name_iast": "avyaktaḥ",
-      "name_devanagari": "अव्यक्तः",
-      "meaning": "The Unmanifest; Beyond sensory perception"
-    },
-    {
-      "num": 779,
-      "name_iast": "śata-mūrtiḥ",
-      "name_devanagari": "शतमूर्तिः",
-      "meaning": "He of a hundred forms"
-    },
-    {
-      "num": 780,
-      "name_iast": "śatānanaḥ",
-      "name_devanagari": "शतानन्ः",
-      "meaning": "He of a hundred faces"
-    },
-    {
-      "num": 781,
-      "name_iast": "ekaḥ",
-      "name_devanagari": "एकः",
-      "meaning": "The One; The unique and unparalleled"
-    },
-    {
-      "num": 782,
-      "name_iast": "naikaḥ",
-      "name_devanagari": "नैकः",
-      "meaning": "The Many; He who is not just one but manifold"
-    },
-    {
-      "num": 783,
-      "name_iast": "savaḥ",
-      "name_devanagari": "सवः",
-      "meaning": "The Soma sacrifice; He who is the yajna"
-    },
-    {
-      "num": 784,
-      "name_iast": "kaḥ",
-      "name_devanagari": "कः",
-      "meaning": "He who is Brahma; He who shines (ka = who?)"
-    },
-    {
-      "num": 785,
-      "name_iast": "kim",
-      "name_devanagari": "किम्",
-      "meaning": "He who is worthy of enquiry; What (the eternal question)"
-    },
-    {
-      "num": 786,
-      "name_iast": "yat",
-      "name_devanagari": "यत्",
-      "meaning": "He who is of the nature of That; The Supreme Reality"
-    },
-    {
-      "num": 787,
-      "name_iast": "tat",
-      "name_devanagari": "तत्",
-      "meaning": "That (the Supreme Brahman pointed to in the Upanishads)"
-    },
-    {
-      "num": 788,
-      "name_iast": "padam-anuttamam",
-      "name_devanagari": "पदमनुत्तमम्",
-      "meaning": "The Supreme State; The highest abode"
-    },
-    {
-      "num": 789,
-      "name_iast": "loka-bandhuḥ",
-      "name_devanagari": "लोकबन्धुः",
-      "meaning": "The Friend and Kinsman of the world"
-    },
-    {
-      "num": 790,
-      "name_iast": "loka-nāthaḥ",
-      "name_devanagari": "लोकनाथः",
-      "meaning": "The Lord of the world"
-    },
-    {
-      "num": 791,
-      "name_iast": "mādhavaḥ",
-      "name_devanagari": "माधवः",
-      "meaning": "The Lord of knowledge; Husband of Lakshmi"
-    },
-    {
-      "num": 792,
-      "name_iast": "bhakta-vatsalaḥ",
-      "name_devanagari": "भक्तवत्सलः",
-      "meaning": "He who is affectionate to His devotees"
-    },
-    {
-      "num": 793,
-      "name_iast": "su-varṇa-varṇaḥ",
-      "name_devanagari": "सुवर्णवर्णः",
-      "meaning": "He of golden complexion"
-    },
-    {
-      "num": 794,
-      "name_iast": "hemāṅgaḥ",
-      "name_devanagari": "हेमाङ्गः",
-      "meaning": "He of golden limbs"
-    },
-    {
-      "num": 795,
-      "name_iast": "varāṅgaḥ",
-      "name_devanagari": "वराङ्गः",
-      "meaning": "He of beautiful limbs"
-    },
-    {
-      "num": 796,
-      "name_iast": "candanāṅgadī",
-      "name_devanagari": "चन्दनाङ्गदी",
-      "meaning": "He who is adorned with sandal paste"
-    },
-    {
-      "num": 797,
-      "name_iast": "vīra-hā",
-      "name_devanagari": "वीरहा",
-      "meaning": "The Slayer of heroic demons"
-    },
-    {
-      "num": 798,
-      "name_iast": "viṣamaḥ",
-      "name_devanagari": "विषमः",
-      "meaning": "He who is unequalled; The Incomparable"
-    },
-    {
-      "num": 799,
-      "name_iast": "śūnyaḥ",
-      "name_devanagari": "शून्यः",
-      "meaning": "The Void; He who is without material qualities"
-    },
-    {
-      "num": 800,
-      "name_iast": "ghṛtāśīḥ",
-      "name_devanagari": "घृताशीः",
-      "meaning": "He whose blessings are like ghee (nurturing)"
-    },
-    {
-      "num": 801,
-      "name_iast": "acalaḥ",
-      "name_devanagari": "अचलः",
-      "meaning": "The Immovable; He who is steady and unchanging"
-    },
-    {
-      "num": 802,
-      "name_iast": "calaḥ",
-      "name_devanagari": "चलः",
-      "meaning": "He who moves (as the wind, as life-breath)"
-    },
-    {
-      "num": 803,
-      "name_iast": "amānī",
-      "name_devanagari": "अमानी",
-      "meaning": "He who is without pride; The Humble"
-    },
-    {
-      "num": 804,
-      "name_iast": "māna-daḥ",
-      "name_devanagari": "मानदः",
-      "meaning": "He who gives honor to others"
-    },
-    {
-      "num": 805,
-      "name_iast": "mānyaḥ",
-      "name_devanagari": "मान्यः",
-      "meaning": "He who is worthy of worship and respect"
-    },
-    {
-      "num": 806,
-      "name_iast": "loka-svāmī",
-      "name_devanagari": "लोकस्वामी",
-      "meaning": "The Lord and Master of the worlds"
-    },
-    {
-      "num": 807,
-      "name_iast": "tri-loka-dhṛk",
-      "name_devanagari": "त्रिलोकधृक्",
-      "meaning": "The Upholder of the three worlds"
-    },
-    {
-      "num": 808,
-      "name_iast": "su-medhā",
-      "name_devanagari": "सुमेधाः",
-      "meaning": "He of excellent intelligence"
-    },
-    {
-      "num": 809,
-      "name_iast": "medhajah",
-      "name_devanagari": "मेधजः",
-      "meaning": "He who is born of sacrifice"
-    },
-    {
-      "num": 810,
-      "name_iast": "dhanyaḥ",
-      "name_devanagari": "धन्यः",
-      "meaning": "The Blessed; He who possesses true wealth"
-    },
-    {
-      "num": 811,
-      "name_iast": "satya-medhāḥ",
-      "name_devanagari": "सत्यमेधाः",
-      "meaning": "He of true intelligence"
-    },
-    {
-      "num": 812,
-      "name_iast": "dharā-dharaḥ",
-      "name_devanagari": "धराधरः",
-      "meaning": "The Bearer of the Earth"
-    },
-    {
-      "num": 813,
-      "name_iast": "tejo-vṛṣaḥ",
-      "name_devanagari": "तेजोवृषः",
-      "meaning": "He who showers radiance"
-    },
-    {
-      "num": 814,
-      "name_iast": "dyuti-dharaḥ",
-      "name_devanagari": "द्युतिधरः",
-      "meaning": "The Bearer of splendour"
-    },
-    {
-      "num": 815,
-      "name_iast": "sarvaśastra-bhṛtāṃ varaḥ",
-      "name_devanagari": "सर्वशस्त्रभृतांवरः",
-      "meaning": "The Best among all wielders of weapons"
-    },
-    {
-      "num": 816,
-      "name_iast": "pragraho",
-      "name_devanagari": "प्रग्रहः",
-      "meaning": "He who receives worship; The Controller"
-    },
-    {
-      "num": 817,
-      "name_iast": "nigraho",
-      "name_devanagari": "निग्रहः",
-      "meaning": "He who punishes the wicked"
-    },
-    {
-      "num": 818,
-      "name_iast": "vyagraḥ",
-      "name_devanagari": "व्यग्रः",
-      "meaning": "He who is ever-engaged in fulfilling devotees' wishes"
-    },
-    {
-      "num": 819,
-      "name_iast": "naika-śṛṅgaḥ",
-      "name_devanagari": "नैकशृङ्गः",
-      "meaning": "He of many horns (Matsya avatar)"
-    },
-    {
-      "num": 820,
-      "name_iast": "gadāgrajaḥ",
-      "name_devanagari": "गदाग्रजः",
-      "meaning": "He who was born before Gada; Elder brother of Gada (Krishna)"
-    },
-    {
-      "num": 821,
-      "name_iast": "catur-mūrtiḥ",
-      "name_devanagari": "चतुर्मूर्तिः",
-      "meaning": "He of four forms (Vasudeva, Sankarshana, Pradyumna, Aniruddha)"
-    },
-    {
-      "num": 822,
-      "name_iast": "catur-bāhuḥ",
-      "name_devanagari": "चतुर्बाहुः",
-      "meaning": "The Four-armed One"
-    },
-    {
-      "num": 823,
-      "name_iast": "catur-vyūhaḥ",
-      "name_devanagari": "चतुर्व्यूहः",
-      "meaning": "He of four manifestations"
-    },
-    {
-      "num": 824,
-      "name_iast": "catur-gatiḥ",
-      "name_devanagari": "चतुर्गतिः",
-      "meaning": "The four goals (dharma, artha, kama, moksha)"
-    },
-    {
-      "num": 825,
-      "name_iast": "catur-ātmā",
-      "name_devanagari": "चतुरात्मा",
-      "meaning": "He of four-fold Self"
-    },
-    {
-      "num": 826,
-      "name_iast": "catur-bhāvaḥ",
-      "name_devanagari": "चतुर्भावः",
-      "meaning": "He who is the source of the four human pursuits"
-    },
-    {
-      "num": 827,
-      "name_iast": "catur-veda-vit",
-      "name_devanagari": "चतुर्वेदवित्",
-      "meaning": "The Knower of the four Vedas"
-    },
-    {
-      "num": 828,
-      "name_iast": "ekapāt",
-      "name_devanagari": "एकपात्",
-      "meaning": "He who has one foot (the one quarter manifest as creation)"
-    },
-    {
-      "num": 829,
-      "name_iast": "samāvartaḥ",
-      "name_devanagari": "समावर्तः",
-      "meaning": "He who turns the wheel of samsara"
-    },
-    {
-      "num": 830,
-      "name_iast": "nivṛttātmā",
-      "name_devanagari": "निवृत्तात्मा",
-      "meaning": "He whose Self is withdrawn from worldliness"
-    },
-    {
-      "num": 831,
-      "name_iast": "dur-jayo",
-      "name_devanagari": "दुर्जयः",
-      "meaning": "The Unconquerable"
-    },
-    {
-      "num": 832,
-      "name_iast": "duratikramaḥ",
-      "name_devanagari": "दुरतिक्रमः",
-      "meaning": "He who is difficult to transgress or cross"
-    },
-    {
-      "num": 833,
-      "name_iast": "durlabhaḥ",
-      "name_devanagari": "दुर्लभः",
-      "meaning": "He who is difficult to attain"
-    },
-    {
-      "num": 834,
-      "name_iast": "durgamaḥ",
-      "name_devanagari": "दुर्गमः",
-      "meaning": "He who is difficult to reach"
-    },
-    {
-      "num": 835,
-      "name_iast": "durgaḥ",
-      "name_devanagari": "दुर्गः",
-      "meaning": "He who is not easily accessible"
-    },
-    {
-      "num": 836,
-      "name_iast": "durāvāsaḥ",
-      "name_devanagari": "दुरावासः",
-      "meaning": "He who cannot be contained"
-    },
-    {
-      "num": 837,
-      "name_iast": "durāri-hā",
-      "name_devanagari": "दुरारिहा",
-      "meaning": "The Slayer of formidable enemies"
-    },
-    {
-      "num": 838,
-      "name_iast": "śubhāṅgaḥ",
-      "name_devanagari": "शुभाङ्गः",
-      "meaning": "He of beautiful, auspicious limbs"
-    },
-    {
-      "num": 839,
-      "name_iast": "loka-sāraṅgaḥ",
-      "name_devanagari": "लोकसारङ्गः",
-      "meaning": "He who understands the essence of the world"
-    },
-    {
-      "num": 840,
-      "name_iast": "su-tantuh",
-      "name_devanagari": "सुतन्तुः",
-      "meaning": "He who has an excellent lineage; The beautiful thread"
-    },
-    {
-      "num": 841,
-      "name_iast": "tantu-vardhanah",
-      "name_devanagari": "तन्तुवर्धनः",
-      "meaning": "He who expands the lineage; The Weaver of creation"
-    },
-    {
-      "num": 842,
-      "name_iast": "indra-karmā",
-      "name_devanagari": "इन्द्रकर्मा",
-      "meaning": "He whose deeds are like Indra's"
-    },
-    {
-      "num": 843,
-      "name_iast": "mahā-karmā",
-      "name_devanagari": "महाकर्मा",
-      "meaning": "He of great deeds"
-    },
-    {
-      "num": 844,
-      "name_iast": "kṛta-karmā",
-      "name_devanagari": "कृतकर्मा",
-      "meaning": "He who has accomplished all actions"
-    },
-    {
-      "num": 845,
-      "name_iast": "kṛtāgamaḥ",
-      "name_devanagari": "कृतागमः",
-      "meaning": "He who is the author of sacred scriptures"
-    },
-    {
-      "num": 846,
-      "name_iast": "udbhavaḥ",
-      "name_devanagari": "उद्भवः",
-      "meaning": "He who transcends birth; The Supreme origin"
-    },
-    {
-      "num": 847,
-      "name_iast": "sundaraḥ",
-      "name_devanagari": "सुन्दरः",
-      "meaning": "The Beautiful; He of supreme beauty"
-    },
-    {
-      "num": 848,
-      "name_iast": "sundaḥ",
-      "name_devanagari": "सुन्दः",
-      "meaning": "He of great compassion and tenderness"
-    },
-    {
-      "num": 849,
-      "name_iast": "ratna-nābhaḥ",
-      "name_devanagari": "रत्ननाभः",
-      "meaning": "He whose navel is like a gem"
-    },
-    {
-      "num": 850,
-      "name_iast": "su-locanah",
-      "name_devanagari": "सुलोचनः",
-      "meaning": "He of beautiful and auspicious eyes"
-    },
-    {
-      "num": 851,
-      "name_iast": "arkaḥ",
-      "name_devanagari": "अर्कः",
-      "meaning": "He who is worshipped (like the Sun)"
-    },
-    {
-      "num": 852,
-      "name_iast": "vāja-saniḥ",
-      "name_devanagari": "वाजसनिः",
-      "meaning": "The Giver of food and sustenance"
-    },
-    {
-      "num": 853,
-      "name_iast": "śṛṅgī",
-      "name_devanagari": "शृङ्गी",
-      "meaning": "He who has horns (Matsya and Varaha forms)"
-    },
-    {
-      "num": 854,
-      "name_iast": "jayantaḥ",
-      "name_devanagari": "जयन्तः",
-      "meaning": "The Conqueror of all enemies"
-    },
-    {
-      "num": 855,
-      "name_iast": "sarva-vij-jayī",
-      "name_devanagari": "सर्वविज्जयी",
-      "meaning": "He who is victorious over all knowledge; Omniscient Victor"
-    },
-    {
-      "num": 856,
-      "name_iast": "suvarṇa-binduḥ",
-      "name_devanagari": "सुवर्णबिन्दुः",
-      "meaning": "He who has golden spots; The golden point"
-    },
-    {
-      "num": 857,
-      "name_iast": "akṣobhyaḥ",
-      "name_devanagari": "अक्षोभ्यः",
-      "meaning": "He who cannot be disturbed or agitated"
-    },
-    {
-      "num": 858,
-      "name_iast": "sarva-vāgīśvareśvaraḥ",
-      "name_devanagari": "सर्ववागीश्वरेश्वरः",
-      "meaning": "The Lord of all lords of speech"
-    },
-    {
-      "num": 859,
-      "name_iast": "mahā-hṛdaḥ",
-      "name_devanagari": "महाह्रदः",
-      "meaning": "He who is like a great lake (of bliss and depth)"
-    },
-    {
-      "num": 860,
-      "name_iast": "mahā-gartaḥ",
-      "name_devanagari": "महागर्तः",
-      "meaning": "The Great Abyss; He who is unfathomably deep"
-    },
-    {
-      "num": 861,
-      "name_iast": "mahā-bhūtaḥ",
-      "name_devanagari": "महाभूतः",
-      "meaning": "The Great Being; The supreme element"
-    },
-    {
-      "num": 862,
-      "name_iast": "mahā-nidhiḥ",
-      "name_devanagari": "महानिधिः",
-      "meaning": "The Great Treasure"
-    },
-    {
-      "num": 863,
-      "name_iast": "kumudaḥ",
-      "name_devanagari": "कुमुदः",
-      "meaning": "He who gladdens the earth"
-    },
-    {
-      "num": 864,
-      "name_iast": "kundaraḥ",
-      "name_devanagari": "कुन्दरः",
-      "meaning": "He who split the earth (as Varaha)"
-    },
-    {
-      "num": 865,
-      "name_iast": "kundaḥ",
-      "name_devanagari": "कुन्दः",
-      "meaning": "He who is pure like the jasmine flower"
-    },
-    {
-      "num": 866,
-      "name_iast": "parjanyaḥ",
-      "name_devanagari": "पर्जन्यः",
-      "meaning": "The Rain-cloud; He who showers blessings like rain"
-    },
-    {
-      "num": 867,
-      "name_iast": "pāvanaḥ",
-      "name_devanagari": "पावनः",
-      "meaning": "The Purifier of all"
-    },
-    {
-      "num": 868,
-      "name_iast": "anilaḥ",
-      "name_devanagari": "अनिलः",
-      "meaning": "The Wind; He who is the breath of life"
-    },
-    {
-      "num": 869,
-      "name_iast": "amṛtāśaḥ",
-      "name_devanagari": "अमृताशः",
-      "meaning": "He who feeds on the immortal (the Self)"
-    },
-    {
-      "num": 870,
-      "name_iast": "amṛta-vapuḥ",
-      "name_devanagari": "अमृतवपुः",
-      "meaning": "He whose form is immortal nectar"
-    },
-    {
-      "num": 871,
-      "name_iast": "sarvajñaḥ",
-      "name_devanagari": "सर्वज्ञः",
-      "meaning": "The Omniscient; He who knows everything"
-    },
-    {
-      "num": 872,
-      "name_iast": "sarva-tomukhah",
-      "name_devanagari": "सर्वतोमुखः",
-      "meaning": "He who faces all directions; The All-faced"
-    },
-    {
-      "num": 873,
-      "name_iast": "sulabhaḥ",
-      "name_devanagari": "सुलभः",
-      "meaning": "He who is easily attainable through devotion"
-    },
-    {
-      "num": 874,
-      "name_iast": "su-vrataḥ",
-      "name_devanagari": "सुव्रतः",
-      "meaning": "He of excellent vows"
-    },
-    {
-      "num": 875,
-      "name_iast": "siddhaḥ",
-      "name_devanagari": "सिद्धः",
-      "meaning": "The Perfected One"
-    },
-    {
-      "num": 876,
-      "name_iast": "śatru-jit",
-      "name_devanagari": "शत्रुजित्",
-      "meaning": "The Conqueror of all enemies"
-    },
-    {
-      "num": 877,
-      "name_iast": "śatru-tāpanaḥ",
-      "name_devanagari": "शत्रुतापनः",
-      "meaning": "He who torments His enemies"
-    },
-    {
-      "num": 878,
-      "name_iast": "nyag-rodhah",
-      "name_devanagari": "न्यग्रोधः",
-      "meaning": "The Banyan Tree; He under whom all beings take shelter"
-    },
-    {
-      "num": 879,
-      "name_iast": "udumbaraḥ",
-      "name_devanagari": "उदुम्बरः",
-      "meaning": "He who nourishes all beings; The cosmic nurturer"
-    },
-    {
-      "num": 880,
-      "name_iast": "aśvatthaḥ",
-      "name_devanagari": "अश्वत्थः",
-      "meaning": "The Sacred Fig Tree (as described in the Gita)"
-    },
-    {
-      "num": 881,
-      "name_iast": "cāṇūrāndhra-niṣūdanaḥ",
-      "name_devanagari": "चाणूरान्ध्रनिषूदनः",
-      "meaning": "The Slayer of the wrestler Chanura"
-    },
-    {
-      "num": 882,
-      "name_iast": "sahasrārciḥ",
-      "name_devanagari": "सहस्रार्चिः",
-      "meaning": "He of a thousand rays of light"
-    },
-    {
-      "num": 883,
-      "name_iast": "sapta-jihvaḥ",
-      "name_devanagari": "सप्तजिह्वः",
-      "meaning": "He of seven tongues (as the fire of sacrifice)"
-    },
-    {
-      "num": 884,
-      "name_iast": "saptaidhāḥ",
-      "name_devanagari": "सप्तैधाः",
-      "meaning": "He who is the seven types of fuel (for cosmic fire)"
-    },
-    {
-      "num": 885,
-      "name_iast": "sapta-vāhanaḥ",
-      "name_devanagari": "सप्तवाहनः",
-      "meaning": "He whose vehicle has seven horses (the Sun)"
-    },
-    {
-      "num": 886,
-      "name_iast": "amūrtiḥ",
-      "name_devanagari": "अमूर्तिः",
-      "meaning": "The Formless; He who transcends all forms"
-    },
-    {
-      "num": 887,
-      "name_iast": "anaghaḥ",
-      "name_devanagari": "अनघः",
-      "meaning": "The Sinless"
-    },
-    {
-      "num": 888,
-      "name_iast": "acintya",
-      "name_devanagari": "अचिन्त्यः",
-      "meaning": "The Inconceivable; Beyond thought"
-    },
-    {
-      "num": 889,
-      "name_iast": "bhaya-kṛt",
-      "name_devanagari": "भयकृत्",
-      "meaning": "He who creates fear in the wicked"
-    },
-    {
-      "num": 890,
-      "name_iast": "bhaya-nāśanaḥ",
-      "name_devanagari": "भयनाशनः",
-      "meaning": "The Destroyer of fear for the righteous"
-    },
-    {
-      "num": 891,
-      "name_iast": "aṇuḥ",
-      "name_devanagari": "अणुः",
-      "meaning": "The Atom; He who is subtler than the subtlest"
-    },
-    {
-      "num": 892,
-      "name_iast": "bṛhat",
-      "name_devanagari": "बृहत्",
-      "meaning": "The Great; He who is infinitely vast"
-    },
-    {
-      "num": 893,
-      "name_iast": "kṛśaḥ",
-      "name_devanagari": "कृशः",
-      "meaning": "The Slender; He who is subtle"
-    },
-    {
-      "num": 894,
-      "name_iast": "sthūlaḥ",
-      "name_devanagari": "स्थूलः",
-      "meaning": "The Gross; He who is the vast visible universe"
-    },
-    {
-      "num": 895,
-      "name_iast": "guṇa-bhṛt",
-      "name_devanagari": "गुणभृत्",
-      "meaning": "He who bears all qualities"
-    },
-    {
-      "num": 896,
-      "name_iast": "nir-guṇaḥ",
-      "name_devanagari": "निर्गुणः",
-      "meaning": "He who is beyond the three gunas"
-    },
-    {
-      "num": 897,
-      "name_iast": "mahān",
-      "name_devanagari": "महान्",
-      "meaning": "The Great; The Supreme"
-    },
-    {
-      "num": 898,
-      "name_iast": "adhṛtaḥ",
-      "name_devanagari": "अधृतः",
-      "meaning": "He who needs no support; Self-sustained"
-    },
-    {
-      "num": 899,
-      "name_iast": "sva-dhṛtaḥ",
-      "name_devanagari": "स्वधृतः",
-      "meaning": "He who is self-supported; Self-established"
-    },
-    {
-      "num": 900,
-      "name_iast": "svāsyaḥ",
-      "name_devanagari": "स्वास्यः",
-      "meaning": "He of the beautiful face"
-    },
-    {
-      "num": 901,
-      "name_iast": "prāg-vaṃśaḥ",
-      "name_devanagari": "प्राग्वंशः",
-      "meaning": "He who is of an ancient lineage"
-    },
-    {
-      "num": 902,
-      "name_iast": "vaṃśa-vardhanah",
-      "name_devanagari": "वंशवर्धनः",
-      "meaning": "He who multiplies the family line"
-    },
-    {
-      "num": 903,
-      "name_iast": "bhāra-bhṛt",
-      "name_devanagari": "भारभृत्",
-      "meaning": "He who bears the burden of the world"
-    },
-    {
-      "num": 904,
-      "name_iast": "kathitaḥ",
-      "name_devanagari": "कथितः",
-      "meaning": "He who is spoken of in all scriptures"
-    },
-    {
-      "num": 905,
-      "name_iast": "yogī",
-      "name_devanagari": "योगी",
-      "meaning": "The Yogi; He who is realized through Yoga"
-    },
-    {
-      "num": 906,
-      "name_iast": "yogīśaḥ",
-      "name_devanagari": "योगीशः",
-      "meaning": "The Lord of all Yogis"
-    },
-    {
-      "num": 907,
-      "name_iast": "sarva-kāma-daḥ",
-      "name_devanagari": "सर्वकामदः",
-      "meaning": "The Fulfiller of all desires"
-    },
-    {
-      "num": 908,
-      "name_iast": "āśramaḥ",
-      "name_devanagari": "आश्रमः",
-      "meaning": "The Hermitage; He who is the ultimate resting place"
-    },
-    {
-      "num": 909,
-      "name_iast": "śramaṇaḥ",
-      "name_devanagari": "श्रमणः",
-      "meaning": "He who causes exhaustion (of sins through devotion)"
-    },
-    {
-      "num": 910,
-      "name_iast": "kṣāmaḥ",
-      "name_devanagari": "क्षामः",
-      "meaning": "He who destroys (sins); The Efficient"
-    },
-    {
-      "num": 911,
-      "name_iast": "suparṇaḥ",
-      "name_devanagari": "सुपर्णः",
-      "meaning": "He of beautiful wings; Garuda or the Vedic tree"
-    },
-    {
-      "num": 912,
-      "name_iast": "vāyu-vāhanaḥ",
-      "name_devanagari": "वायुवाहनः",
-      "meaning": "He who drives the wind"
-    },
-    {
-      "num": 913,
-      "name_iast": "dhanuḥ-dharaḥ",
-      "name_devanagari": "धनुर्धरः",
-      "meaning": "The Wielder of the bow (Sharnga)"
-    },
-    {
-      "num": 914,
-      "name_iast": "dhanuḥ-vedaḥ",
-      "name_devanagari": "धनुर्वेदः",
-      "meaning": "He who knows the science of archery"
-    },
-    {
-      "num": 915,
-      "name_iast": "daṇḍaḥ",
-      "name_devanagari": "दण्डः",
-      "meaning": "The Punisher; He who is the rod of justice"
-    },
-    {
-      "num": 916,
-      "name_iast": "damayitā",
-      "name_devanagari": "दमयिता",
-      "meaning": "The Subduer; He who disciplines all"
-    },
-    {
-      "num": 917,
-      "name_iast": "damaḥ",
-      "name_devanagari": "दमः",
-      "meaning": "Self-control; He who is the restraining power"
-    },
-    {
-      "num": 918,
-      "name_iast": "aparājitaḥ",
-      "name_devanagari": "अपराजितः",
-      "meaning": "The Undefeated"
-    },
-    {
-      "num": 919,
-      "name_iast": "sarva-sahaḥ",
-      "name_devanagari": "सर्वसहः",
-      "meaning": "He who endures everything"
-    },
-    {
-      "num": 920,
-      "name_iast": "aniyantā",
-      "name_devanagari": "अनियन्ता",
-      "meaning": "He who has no controller above Him"
-    },
-    {
-      "num": 921,
-      "name_iast": "niyamaḥ",
-      "name_devanagari": "नियमः",
-      "meaning": "He who is the regulating principle"
-    },
-    {
-      "num": 922,
-      "name_iast": "ayamaḥ",
-      "name_devanagari": "अयमः",
-      "meaning": "He who has no restraint (being infinite)"
-    },
-    {
-      "num": 923,
-      "name_iast": "sattva-vān",
-      "name_devanagari": "सत्त्ववान्",
-      "meaning": "He who is full of sattva (goodness)"
-    },
-    {
-      "num": 924,
-      "name_iast": "sāttvikaḥ",
-      "name_devanagari": "सात्त्विकः",
-      "meaning": "He who is of the nature of pure sattva"
-    },
-    {
-      "num": 925,
-      "name_iast": "satyaḥ",
-      "name_devanagari": "सत्यः",
-      "meaning": "The Truth"
-    },
-    {
-      "num": 926,
-      "name_iast": "satya-dharma-parāyaṇaḥ",
-      "name_devanagari": "सत्यधर्मपरायणः",
-      "meaning": "He who is devoted to truth and dharma"
-    },
-    {
-      "num": 927,
-      "name_iast": "abhiprāyaḥ",
-      "name_devanagari": "अभिप्रायः",
-      "meaning": "He who is the ultimate purpose of all"
-    },
-    {
-      "num": 928,
-      "name_iast": "priyārhaḥ",
-      "name_devanagari": "प्रियार्हः",
-      "meaning": "He who deserves all love and affection"
-    },
-    {
-      "num": 929,
-      "name_iast": "arhaḥ",
-      "name_devanagari": "अर्हः",
-      "meaning": "He who is worthy of all worship"
-    },
-    {
-      "num": 930,
-      "name_iast": "priya-kṛt",
-      "name_devanagari": "प्रियकृत्",
-      "meaning": "He who does what is dear to His devotees"
-    },
-    {
-      "num": 931,
-      "name_iast": "prīti-vardhanah",
-      "name_devanagari": "प्रीतिवर्धनः",
-      "meaning": "He who increases the joy of His devotees"
-    },
-    {
-      "num": 932,
-      "name_iast": "vihāya-sa-gatiḥ",
-      "name_devanagari": "विहायसगतिः",
-      "meaning": "He who moves through the sky"
-    },
-    {
-      "num": 933,
-      "name_iast": "jyotiḥ",
-      "name_devanagari": "ज्योतिः",
-      "meaning": "The Light; The self-luminous"
-    },
-    {
-      "num": 934,
-      "name_iast": "su-rucih",
-      "name_devanagari": "सुरुचिः",
-      "meaning": "He of beautiful radiance and taste"
-    },
-    {
-      "num": 935,
-      "name_iast": "huta-bhuk",
-      "name_devanagari": "हुतभुक्",
-      "meaning": "He who consumes the offerings in sacrifice"
-    },
-    {
-      "num": 936,
-      "name_iast": "vibhuḥ",
-      "name_devanagari": "विभुः",
-      "meaning": "The All-pervading Lord"
-    },
-    {
-      "num": 937,
-      "name_iast": "raviḥ",
-      "name_devanagari": "रविः",
-      "meaning": "The Sun; He who dries up all"
-    },
-    {
-      "num": 938,
-      "name_iast": "virocanaḥ",
-      "name_devanagari": "विरोचनः",
-      "meaning": "He who illumines all"
-    },
-    {
-      "num": 939,
-      "name_iast": "sūryaḥ",
-      "name_devanagari": "सूर्यः",
-      "meaning": "The Sun; The supreme source of light"
-    },
-    {
-      "num": 940,
-      "name_iast": "savitā",
-      "name_devanagari": "सविता",
-      "meaning": "The Creator; He who generates all"
-    },
-    {
-      "num": 941,
-      "name_iast": "ravi-locanaḥ",
-      "name_devanagari": "रविलोचनः",
-      "meaning": "He whose eyes are the sun"
-    },
-    {
-      "num": 942,
-      "name_iast": "ananta-huta-bhuk-bhoktā",
-      "name_devanagari": "अनन्तहुतभुक्भोक्ता",
-      "meaning": "The Infinite enjoyer of oblations"
-    },
-    {
-      "num": 943,
-      "name_iast": "sukha-daḥ",
-      "name_devanagari": "सुखदः",
-      "meaning": "The Giver of happiness"
-    },
-    {
-      "num": 944,
-      "name_iast": "naika-jaḥ",
-      "name_devanagari": "नैकजः",
-      "meaning": "He who is born many times (incarnations)"
-    },
-    {
-      "num": 945,
-      "name_iast": "agra-jaḥ",
-      "name_devanagari": "अग्रजः",
-      "meaning": "He who was born before all; The First-born"
-    },
-    {
-      "num": 946,
-      "name_iast": "anir-vinnaḥ",
-      "name_devanagari": "अनिर्विण्णः",
-      "meaning": "He who is never dispirited"
-    },
-    {
-      "num": 947,
-      "name_iast": "sadā-marṣī",
-      "name_devanagari": "सदामर्षी",
-      "meaning": "He who is ever patient and forgiving"
-    },
-    {
-      "num": 948,
-      "name_iast": "lokādhiṣṭhānam",
-      "name_devanagari": "लोकाधिष्ठानम्",
-      "meaning": "The Substratum of the worlds"
-    },
-    {
-      "num": 949,
-      "name_iast": "adbhutaḥ",
-      "name_devanagari": "अद्भुतः",
-      "meaning": "The Wonderful; He who is full of wonder"
-    },
-    {
-      "num": 950,
-      "name_iast": "sanāt",
-      "name_devanagari": "सनात्",
-      "meaning": "The Eternal; He who exists from beginningless time"
-    },
-    {
-      "num": 951,
-      "name_iast": "sanātana-tamaḥ",
-      "name_devanagari": "सनातनतमः",
-      "meaning": "The Most Ancient; The most eternal"
-    },
-    {
-      "num": 952,
-      "name_iast": "kapilaḥ",
-      "name_devanagari": "कपिलः",
-      "meaning": "He of golden colour; The sage Kapila"
-    },
-    {
-      "num": 953,
-      "name_iast": "kapiḥ",
-      "name_devanagari": "कपिः",
-      "meaning": "He who drinks water (the Sun); A monkey (Rama connection)"
-    },
-    {
-      "num": 954,
-      "name_iast": "apyayaḥ",
-      "name_devanagari": "अप्ययः",
-      "meaning": "He into whom all merge at dissolution"
-    },
-    {
-      "num": 955,
-      "name_iast": "svastidaḥ",
-      "name_devanagari": "स्वस्तिदः",
-      "meaning": "The Giver of auspiciousness and blessings"
-    },
-    {
-      "num": 956,
-      "name_iast": "svasti-kṛt",
-      "name_devanagari": "स्वस्तिकृत्",
-      "meaning": "He who does what is auspicious"
-    },
-    {
-      "num": 957,
-      "name_iast": "svasti",
-      "name_devanagari": "स्वस्ति",
-      "meaning": "Auspiciousness itself"
-    },
-    {
-      "num": 958,
-      "name_iast": "svasti-bhuk",
-      "name_devanagari": "स्वस्तिभुक्",
-      "meaning": "He who enjoys auspiciousness"
-    },
-    {
-      "num": 959,
-      "name_iast": "svasti-dakṣiṇaḥ",
-      "name_devanagari": "स्वस्तिदक्षिणः",
-      "meaning": "He who is expert in auspiciousness"
-    },
-    {
-      "num": 960,
-      "name_iast": "araudraḥ",
-      "name_devanagari": "अरौद्रः",
-      "meaning": "He who is without anger; The Gentle"
-    },
-    {
-      "num": 961,
-      "name_iast": "kuṇḍalī",
-      "name_devanagari": "कुण्डली",
-      "meaning": "He who wears earrings (the Makara-kundala)"
-    },
-    {
-      "num": 962,
-      "name_iast": "cakrī",
-      "name_devanagari": "चक्री",
-      "meaning": "He who bears the Sudarshana Chakra (discus)"
-    },
-    {
-      "num": 963,
-      "name_iast": "vikramī",
-      "name_devanagari": "विक्रमी",
-      "meaning": "He of great strides and valour"
-    },
-    {
-      "num": 964,
-      "name_iast": "ūrjita-śāsanaḥ",
-      "name_devanagari": "ऊर्जितशासनः",
-      "meaning": "He whose commands are powerful and inviolable"
-    },
-    {
-      "num": 965,
-      "name_iast": "śabdātigaḥ",
-      "name_devanagari": "शब्दातिगः",
-      "meaning": "He who transcends all sound and words"
-    },
-    {
-      "num": 966,
-      "name_iast": "śabda-sahaḥ",
-      "name_devanagari": "शब्दसहः",
-      "meaning": "He who is the source and support of all sound"
-    },
-    {
-      "num": 967,
-      "name_iast": "śiśiraḥ",
-      "name_devanagari": "शिशिरः",
-      "meaning": "He who is cool and refreshing (like winter)"
-    },
-    {
-      "num": 968,
-      "name_iast": "śarva-rī-karaḥ",
-      "name_devanagari": "शर्वरीकरः",
-      "meaning": "He who creates night for the rest of beings"
-    },
-    {
-      "num": 969,
-      "name_iast": "akrūraḥ",
-      "name_devanagari": "अक्रूरः",
-      "meaning": "He who is not cruel; The Kind"
-    },
-    {
-      "num": 970,
-      "name_iast": "peśalaḥ",
-      "name_devanagari": "पेशलः",
-      "meaning": "He who is supremely soft and gentle"
-    },
-    {
-      "num": 971,
-      "name_iast": "dakṣaḥ",
-      "name_devanagari": "दक्षः",
-      "meaning": "The Expert; The supremely skilful"
-    },
-    {
-      "num": 972,
-      "name_iast": "dakṣiṇaḥ",
-      "name_devanagari": "दक्षिणः",
-      "meaning": "He who is generous; The right-handed (auspicious)"
-    },
-    {
-      "num": 973,
-      "name_iast": "kṣamiṇāṃ-varaḥ",
-      "name_devanagari": "क्षमिणांवरः",
-      "meaning": "The Best among the forgiving"
-    },
-    {
-      "num": 974,
-      "name_iast": "vidvattamo",
-      "name_devanagari": "विद्वत्तमः",
-      "meaning": "The Most learned; The supremely wise"
-    },
-    {
-      "num": 975,
-      "name_iast": "vīta-bhayaḥ",
-      "name_devanagari": "वीतभयः",
-      "meaning": "He who is completely free from fear"
-    },
-    {
-      "num": 976,
-      "name_iast": "puṇya-śravaṇa-kīrtanaḥ",
-      "name_devanagari": "पुण्यश्रवणकीर्तनः",
-      "meaning": "He whose hearing and chanting confer merit"
-    },
-    {
-      "num": 977,
-      "name_iast": "uttāraṇaḥ",
-      "name_devanagari": "उत्तारणः",
-      "meaning": "He who lifts beings out of the ocean of samsara"
-    },
-    {
-      "num": 978,
-      "name_iast": "duṣkṛti-hā",
-      "name_devanagari": "दुष्कृतिहा",
-      "meaning": "The Destroyer of evil deeds"
-    },
-    {
-      "num": 979,
-      "name_iast": "puṇyaḥ",
-      "name_devanagari": "पुण्यः",
-      "meaning": "The Holy; He whose very name purifies"
-    },
-    {
-      "num": 980,
-      "name_iast": "duḥsvapna-nāśanaḥ",
-      "name_devanagari": "दुःस्वप्ननाशनः",
-      "meaning": "The Destroyer of bad dreams"
-    },
-    {
-      "num": 981,
-      "name_iast": "vīra-hā",
-      "name_devanagari": "वीरहा",
-      "meaning": "The Slayer of heroic foes"
-    },
-    {
-      "num": 982,
-      "name_iast": "rakṣaṇaḥ",
-      "name_devanagari": "रक्षणः",
-      "meaning": "The Protector"
-    },
-    {
-      "num": 983,
-      "name_iast": "santaḥ",
-      "name_devanagari": "सन्तः",
-      "meaning": "The Virtuous; He who is real and good"
-    },
-    {
-      "num": 984,
-      "name_iast": "jīvanaḥ",
-      "name_devanagari": "जीवनः",
-      "meaning": "He who gives life; The Life-giver"
-    },
-    {
-      "num": 985,
-      "name_iast": "paryavasthitaḥ",
-      "name_devanagari": "पर्यवस्थितः",
-      "meaning": "He who stands firm everywhere"
-    },
-    {
-      "num": 986,
-      "name_iast": "ananta-rūpaḥ",
-      "name_devanagari": "अनन्तरूपः",
-      "meaning": "He of infinite forms"
-    },
-    {
-      "num": 987,
-      "name_iast": "ananta-śrīḥ",
-      "name_devanagari": "अनन्तश्रीः",
-      "meaning": "He of infinite glory and beauty"
-    },
-    {
-      "num": 988,
-      "name_iast": "jita-manyuḥ",
-      "name_devanagari": "जितमन्युः",
-      "meaning": "He who has conquered anger"
-    },
-    {
-      "num": 989,
-      "name_iast": "bhayāpahaḥ",
-      "name_devanagari": "भयापहः",
-      "meaning": "He who removes all fear"
-    },
-    {
-      "num": 990,
-      "name_iast": "catur-aśraḥ",
-      "name_devanagari": "चतुरश्रः",
-      "meaning": "He who is fair and just to all (four-cornered = balanced)"
-    },
-    {
-      "num": 991,
-      "name_iast": "gabhīrātmā",
-      "name_devanagari": "गभीरात्मा",
-      "meaning": "He of inscrutable and profound Self"
-    },
-    {
-      "num": 992,
-      "name_iast": "vidiśaḥ",
-      "name_devanagari": "विदिशः",
-      "meaning": "He who gives unique instructions to each seeker"
-    },
-    {
-      "num": 993,
-      "name_iast": "vyādiśaḥ",
-      "name_devanagari": "व्यादिशः",
-      "meaning": "He who gives special commands"
-    },
-    {
-      "num": 994,
-      "name_iast": "diśaḥ",
-      "name_devanagari": "दिशः",
-      "meaning": "He who is the directions; The all-directional"
-    },
-    {
-      "num": 995,
-      "name_iast": "anādiḥ",
-      "name_devanagari": "अनादिः",
-      "meaning": "He who has no beginning"
-    },
-    {
-      "num": 996,
-      "name_iast": "bhūr-bhuvaḥ",
-      "name_devanagari": "भूर्भुवः",
-      "meaning": "He who is the earth and the atmosphere"
-    },
-    {
-      "num": 997,
-      "name_iast": "lakṣmīḥ",
-      "name_devanagari": "लक्ष्मीः",
-      "meaning": "He who is the embodiment of Lakshmi (prosperity)"
-    },
-    {
-      "num": 998,
-      "name_iast": "suvīraḥ",
-      "name_devanagari": "सुवीरः",
-      "meaning": "He of excellent heroism"
-    },
-    {
-      "num": 999,
-      "name_iast": "ruci-rāṅgadaḥ",
-      "name_devanagari": "रुचिराङ्गदः",
-      "meaning": "He who wears beautiful armlets"
-    },
-    {
-      "num": 1000,
-      "name_iast": "jananaḥ",
-      "name_devanagari": "जननः",
-      "meaning": "He who is the Creator and Father of all beings"
-    },
-    {
-      "num": 1001,
-      "name_iast": "jana-janmādiḥ",
-      "name_devanagari": "जनजन्मादिः",
-      "meaning": "He who is the cause of the birth of all beings"
-    },
-    {
-      "num": 1002,
-      "name_iast": "bhīmaḥ",
-      "name_devanagari": "भीमः",
-      "meaning": "He who is terrible to the wicked"
-    },
-    {
-      "num": 1003,
-      "name_iast": "bhīma-parākramaḥ",
-      "name_devanagari": "भीमपराक्रमः",
-      "meaning": "He of tremendous valour"
-    },
-    {
-      "num": 1004,
-      "name_iast": "ādhāra-nilayaḥ",
-      "name_devanagari": "आधारनिलयः",
-      "meaning": "The Support and Foundation of all"
-    },
-    {
-      "num": 1005,
-      "name_iast": "dhātā",
-      "name_devanagari": "धाता",
-      "meaning": "The Creator and Sustainer"
-    },
-    {
-      "num": 1006,
-      "name_iast": "puṣpahāsaḥ",
-      "name_devanagari": "पुष्पहासः",
-      "meaning": "He whose smile is like a blossoming flower"
-    },
-    {
-      "num": 1007,
-      "name_iast": "prajāgaraḥ",
-      "name_devanagari": "प्रजागरः",
-      "meaning": "The Ever-awake; He who is always vigilant"
-    },
-    {
-      "num": 1008,
-      "name_iast": "ūrdhvagaḥ",
-      "name_devanagari": "ऊर्ध्वगः",
-      "meaning": "He who ascends; He who leads upward"
-    },
-    {
-      "num": 1009,
-      "name_iast": "sat-pathā-cāraḥ",
-      "name_devanagari": "सत्पथाचारः",
-      "meaning": "He who walks the path of truth"
-    },
-    {
-      "num": 1010,
-      "name_iast": "prāṇadaḥ",
-      "name_devanagari": "प्राणदः",
-      "meaning": "The Giver of life-breath"
-    },
-    {
-      "num": 1011,
-      "name_iast": "praṇavaḥ",
-      "name_devanagari": "प्रणवः",
-      "meaning": "The sacred syllable Om"
-    },
-    {
-      "num": 1012,
-      "name_iast": "paṇaḥ",
-      "name_devanagari": "पणः",
-      "meaning": "He who is the supreme transaction and deal"
-    },
-    {
-      "num": 1013,
-      "name_iast": "pramāṇam",
-      "name_devanagari": "प्रमाणम्",
-      "meaning": "The Supreme Authority and Proof"
-    },
-    {
-      "num": 1014,
-      "name_iast": "prāṇa-nilayaḥ",
-      "name_devanagari": "प्राणनिलयः",
-      "meaning": "The Abode of all life-breath"
-    },
-    {
-      "num": 1015,
-      "name_iast": "prāṇa-bhṛt",
-      "name_devanagari": "प्राणभृत्",
-      "meaning": "The Sustainer of life-breath"
-    },
-    {
-      "num": 1016,
-      "name_iast": "prāṇa-jīvanaḥ",
-      "name_devanagari": "प्राणजीवनः",
-      "meaning": "He who gives life to the life-breath"
-    },
-    {
-      "num": 1017,
-      "name_iast": "tattvaṃ",
-      "name_devanagari": "तत्त्वम्",
-      "meaning": "The Reality; The Essence of all that exists"
-    },
-    {
-      "num": 1018,
-      "name_iast": "tattva-vit",
-      "name_devanagari": "तत्त्ववित्",
-      "meaning": "The Knower of the Supreme Truth"
-    },
-    {
-      "num": 1019,
-      "name_iast": "ekātmā",
-      "name_devanagari": "एकात्मा",
-      "meaning": "The One Self in all beings"
-    },
-    {
-      "num": 1020,
-      "name_iast": "janma-mṛtyu-jarātigaḥ",
-      "name_devanagari": "जन्ममृत्युजरातिगः",
-      "meaning": "He who transcends birth, death, and old age"
-    },
-    {
-      "num": 1021,
-      "name_iast": "bhūr-bhuvaḥ-svas-taruḥ",
-      "name_devanagari": "भूर्भुवःस्वस्तरुः",
-      "meaning": "The Tree that is the three worlds"
-    },
-    {
-      "num": 1022,
-      "name_iast": "tāraḥ",
-      "name_devanagari": "तारः",
-      "meaning": "The Saviour who takes across the ocean of samsara"
-    },
-    {
-      "num": 1023,
-      "name_iast": "savitā",
-      "name_devanagari": "सविता",
-      "meaning": "The Generator of all (the Sun principle)"
-    },
-    {
-      "num": 1024,
-      "name_iast": "prapitāmahaḥ",
-      "name_devanagari": "प्रपितामहः",
-      "meaning": "The Great-grandfather; The most ancient ancestor"
-    },
-    {
-      "num": 1025,
-      "name_iast": "yajñaḥ",
-      "name_devanagari": "यज्ञः",
-      "meaning": "The Sacrifice; He who is the embodiment of yajna"
-    },
-    {
-      "num": 1026,
-      "name_iast": "yajña-patiḥ",
-      "name_devanagari": "यज्ञपतिः",
-      "meaning": "The Lord of all sacrifices"
-    },
-    {
-      "num": 1027,
-      "name_iast": "yajvā",
-      "name_devanagari": "यज्वा",
-      "meaning": "The Sacrificer; He who performs sacrifice"
-    },
-    {
-      "num": 1028,
-      "name_iast": "yajñāṅgaḥ",
-      "name_devanagari": "यज्ञाङ्गः",
-      "meaning": "He whose limbs are the sacrifice"
-    },
-    {
-      "num": 1029,
-      "name_iast": "yajña-vāhanaḥ",
-      "name_devanagari": "यज्ञवाहनः",
-      "meaning": "He who carries the sacrifice to fruition"
-    },
-    {
-      "num": 1030,
-      "name_iast": "yajña-bhṛt",
-      "name_devanagari": "यज्ञभृत्",
-      "meaning": "The Sustainer of sacrifices"
-    },
-    {
-      "num": 1031,
-      "name_iast": "yajña-kṛt",
-      "name_devanagari": "यज्ञकृत्",
-      "meaning": "The Performer of sacrifice"
-    },
-    {
-      "num": 1032,
-      "name_iast": "yajñī",
-      "name_devanagari": "यज्ञी",
-      "meaning": "The Enjoyer of sacrifice"
-    },
-    {
-      "num": 1033,
-      "name_iast": "yajña-bhuk",
-      "name_devanagari": "यज्ञभुक्",
-      "meaning": "The Enjoyer of the fruits of sacrifice"
-    },
-    {
-      "num": 1034,
-      "name_iast": "yajña-sādhanaḥ",
-      "name_devanagari": "यज्ञसाधनः",
-      "meaning": "He who is the means of all sacrifice"
-    },
-    {
-      "num": 1035,
-      "name_iast": "yajñānta-kṛt",
-      "name_devanagari": "यज्ञान्तकृत्",
-      "meaning": "He who concludes all sacrifice"
-    },
-    {
-      "num": 1036,
-      "name_iast": "yajña-guhyam",
-      "name_devanagari": "यज्ञगुह्यम्",
-      "meaning": "The Secret of all sacrifice"
-    },
-    {
-      "num": 1037,
-      "name_iast": "annam",
-      "name_devanagari": "अन्नम्",
-      "meaning": "Food; He who is the sustenance of all"
-    },
-    {
-      "num": 1038,
-      "name_iast": "annādaḥ",
-      "name_devanagari": "अन्नादः",
-      "meaning": "The Eater of food; He who consumes all"
-    },
-    {
-      "num": 1039,
-      "name_iast": "ātma-yoniḥ",
-      "name_devanagari": "आत्मयोनिः",
-      "meaning": "He who is His own source; Self-caused"
-    },
-    {
-      "num": 1040,
-      "name_iast": "svayaṃ-jātaḥ",
-      "name_devanagari": "स्वयंजातः",
-      "meaning": "The Self-born"
-    },
-    {
-      "num": 1041,
-      "name_iast": "vai-khānaḥ",
-      "name_devanagari": "वैखानः",
-      "meaning": "He who dug through the earth (as Varaha)"
-    },
-    {
-      "num": 1042,
-      "name_iast": "sāma-gāyanaḥ",
-      "name_devanagari": "सामगायनः",
-      "meaning": "The Singer of the Sama Veda"
-    },
-    {
-      "num": 1043,
-      "name_iast": "devakī-nandanaḥ",
-      "name_devanagari": "देवकीनन्दनः",
-      "meaning": "The Beloved Son of Devaki (Krishna)"
-    },
-    {
-      "num": 1044,
-      "name_iast": "sraṣṭā",
-      "name_devanagari": "स्रष्टा",
-      "meaning": "The Creator of all"
-    },
-    {
-      "num": 1045,
-      "name_iast": "kṣitīśaḥ",
-      "name_devanagari": "क्षितीशः",
-      "meaning": "The Lord of the Earth"
-    },
-    {
-      "num": 1046,
-      "name_iast": "pāpa-nāśanaḥ",
-      "name_devanagari": "पापनाशनः",
-      "meaning": "The Destroyer of sins"
-    },
-    {
-      "num": 1047,
-      "name_iast": "śaṅkha-bhṛt",
-      "name_devanagari": "शङ्खभृत्",
-      "meaning": "The Bearer of the conch (Panchajanya)"
-    },
-    {
-      "num": 1048,
-      "name_iast": "nandakī",
-      "name_devanagari": "नन्दकी",
-      "meaning": "The Wielder of the sword Nandaka"
-    },
-    {
-      "num": 1049,
-      "name_iast": "cakrī",
-      "name_devanagari": "चक्री",
-      "meaning": "The Bearer of the discus Sudarshana"
-    },
-    {
-      "num": 1050,
-      "name_iast": "śārṅga-dhanvā",
-      "name_devanagari": "शार्ङ्गधन्वा",
-      "meaning": "The Wielder of the bow Sharnga"
-    },
-    {
-      "num": 1051,
-      "name_iast": "gadā-dharaḥ",
-      "name_devanagari": "गदाधरः",
-      "meaning": "The Bearer of the mace Kaumodaki"
-    },
-    {
-      "num": 1052,
-      "name_iast": "rathāṅga-pāṇiḥ",
-      "name_devanagari": "रथाङ्गपाणिः",
-      "meaning": "He who holds the chariot wheel in His hand"
-    },
-    {
-      "num": 1053,
-      "name_iast": "akṣobhyaḥ",
-      "name_devanagari": "अक्षोभ्यः",
-      "meaning": "He who is unshakable"
-    },
-    {
-      "num": 1054,
-      "name_iast": "sarva-praharaṇāyudhaḥ",
-      "name_devanagari": "सर्वप्रहरणायुधः",
-      "meaning": "He who has all weapons at His command; He for whom everything is a weapon"
-    }
-  ],
+      {
+        "num": 436,
+        "name_iast": "sthaviṣṭhaḥ",
+        "name_devanagari": "स्थविष्ठः",
+        "meaning": "The most massive one"
+      },
+      {
+        "num": 437,
+        "name_iast": "bhūḥ",
+        "name_devanagari": "भूः",
+        "meaning": "The earth; existence itself"
+      },
+      {
+        "num": 438,
+        "name_iast": "dharma-yūpaḥ",
+        "name_devanagari": "धर्मयूपः",
+        "meaning": "The pillar of dharma"
+      },
+      {
+        "num": 439,
+        "name_iast": "mahā-makhaḥ",
+        "name_devanagari": "महामखः",
+        "meaning": "The great sacrifice"
+      },
+      {
+        "num": 440,
+        "name_iast": "nakṣatra-nemiḥ",
+        "name_devanagari": "नक्षत्रनेमिः",
+        "meaning": "The hub of the stars"
+      },
+      {
+        "num": 441,
+        "name_iast": "nakṣatrī",
+        "name_devanagari": "नक्षत्री",
+        "meaning": "The lord of the stars"
+      },
+      {
+        "num": 442,
+        "name_iast": "kṣamaḥ",
+        "name_devanagari": "क्षमः",
+        "meaning": "He who is patient and forgiving"
+      },
+      {
+        "num": 443,
+        "name_iast": "kṣāmaḥ",
+        "name_devanagari": "क्षामः",
+        "meaning": "He who wanes for the welfare of beings"
+      },
+      {
+        "num": 444,
+        "name_iast": "samīhanaḥ",
+        "name_devanagari": "समीहनः",
+        "meaning": "He who is diligent for the good of all"
+      },
+      {
+        "num": 445,
+        "name_iast": "yajñaḥ",
+        "name_devanagari": "यज्ञः",
+        "meaning": "He who is the sacrifice itself"
+      },
+      {
+        "num": 446,
+        "name_iast": "ijyaḥ",
+        "name_devanagari": "इज्यः",
+        "meaning": "He who is worthy of worship"
+      },
+      {
+        "num": 447,
+        "name_iast": "mahejyaḥ",
+        "name_devanagari": "महेज्यः",
+        "meaning": "He who is worthy of the greatest worship"
+      },
+      {
+        "num": 448,
+        "name_iast": "kratuḥ",
+        "name_devanagari": "क्रतुः",
+        "meaning": "The Vedic ritual; the will to do good"
+      },
+      {
+        "num": 449,
+        "name_iast": "satram",
+        "name_devanagari": "सत्रम्",
+        "meaning": "The protector of the good"
+      },
+      {
+        "num": 450,
+        "name_iast": "satāṃ-gatiḥ",
+        "name_devanagari": "सतांगतिः",
+        "meaning": "The refuge of the righteous"
+      },
+      {
+        "num": 451,
+        "name_iast": "sarva-darśī",
+        "name_devanagari": "सर्वदर्शी",
+        "meaning": "The all-seeing one"
+      },
+      {
+        "num": 452,
+        "name_iast": "vimuktātmā",
+        "name_devanagari": "विमुक्तात्मा",
+        "meaning": "The ever-liberated Self"
+      },
+      {
+        "num": 453,
+        "name_iast": "sarvajñaḥ",
+        "name_devanagari": "सर्वज्ञः",
+        "meaning": "The omniscient one"
+      },
+      {
+        "num": 454,
+        "name_iast": "jñānam-uttamam",
+        "name_devanagari": "ज्ञानम्ुत्तमम्",
+        "meaning": "The supreme knowledge"
+      },
+      {
+        "num": 455,
+        "name_iast": "suvrataḥ",
+        "name_devanagari": "सुव्रतः",
+        "meaning": "He of excellent vows"
+      },
+      {
+        "num": 456,
+        "name_iast": "sumukhaḥ",
+        "name_devanagari": "सुमुखः",
+        "meaning": "He with a beautiful face"
+      },
+      {
+        "num": 457,
+        "name_iast": "sūkṣmaḥ",
+        "name_devanagari": "सूक्ष्मः",
+        "meaning": "The subtle one"
+      },
+      {
+        "num": 458,
+        "name_iast": "sughoṣaḥ",
+        "name_devanagari": "सुघोषः",
+        "meaning": "He of auspicious sound"
+      },
+      {
+        "num": 459,
+        "name_iast": "sukhadaḥ",
+        "name_devanagari": "सुखदः",
+        "meaning": "The bestower of happiness"
+      },
+      {
+        "num": 460,
+        "name_iast": "suhṛt",
+        "name_devanagari": "सुहृत्",
+        "meaning": "The true friend of all"
+      },
+      {
+        "num": 461,
+        "name_iast": "manoharaḥ",
+        "name_devanagari": "मनोहरः",
+        "meaning": "The stealer of minds"
+      },
+      {
+        "num": 462,
+        "name_iast": "jita-krodhaḥ",
+        "name_devanagari": "जितक्रोधः",
+        "meaning": "The conqueror of anger"
+      },
+      {
+        "num": 463,
+        "name_iast": "vīra-bāhuḥ",
+        "name_devanagari": "वीरबाहुः",
+        "meaning": "He of heroic arms"
+      },
+      {
+        "num": 464,
+        "name_iast": "vidāraṇaḥ",
+        "name_devanagari": "विदारणः",
+        "meaning": "He who splits asunder the wicked"
+      },
+      {
+        "num": 465,
+        "name_iast": "svāpanaḥ",
+        "name_devanagari": "स्वापनः",
+        "meaning": "He who puts beings to sleep"
+      },
+      {
+        "num": 466,
+        "name_iast": "sva-vaśaḥ",
+        "name_devanagari": "स्ववशः",
+        "meaning": "He who is self-controlled"
+      },
+      {
+        "num": 467,
+        "name_iast": "vyāpī",
+        "name_devanagari": "व्यापी",
+        "meaning": "The all-pervading one"
+      },
+      {
+        "num": 468,
+        "name_iast": "naikātmā",
+        "name_devanagari": "नैकात्मा",
+        "meaning": "He of many forms"
+      },
+      {
+        "num": 469,
+        "name_iast": "naika-karma-kṛt",
+        "name_devanagari": "नैककर्मकृत्",
+        "meaning": "The doer of many deeds"
+      },
+      {
+        "num": 470,
+        "name_iast": "vatsaraḥ",
+        "name_devanagari": "वत्सरः",
+        "meaning": "The abode in whom all dwell"
+      },
+      {
+        "num": 471,
+        "name_iast": "vatsalaḥ",
+        "name_devanagari": "वत्सलः",
+        "meaning": "The supremely loving one"
+      },
+      {
+        "num": 472,
+        "name_iast": "vatsī",
+        "name_devanagari": "वत्सी",
+        "meaning": "The father; protector of calves"
+      },
+      {
+        "num": 473,
+        "name_iast": "ratna-garbhaḥ",
+        "name_devanagari": "रत्नगर्भः",
+        "meaning": "He who is the jewel-wombed ocean"
+      },
+      {
+        "num": 474,
+        "name_iast": "dhaneśvaraḥ",
+        "name_devanagari": "धनेश्वरः",
+        "meaning": "The lord of wealth"
+      },
+      {
+        "num": 475,
+        "name_iast": "dharma-gup",
+        "name_devanagari": "धर्मगुप्",
+        "meaning": "The protector of dharma"
+      },
+      {
+        "num": 476,
+        "name_iast": "dharma-kṛt",
+        "name_devanagari": "धर्मकृत्",
+        "meaning": "The establisher of dharma"
+      },
+      {
+        "num": 477,
+        "name_iast": "dharmī",
+        "name_devanagari": "धर्मी",
+        "meaning": "The supporter of dharma"
+      },
+      {
+        "num": 478,
+        "name_iast": "sat",
+        "name_devanagari": "सत्",
+        "meaning": "The eternally Real"
+      },
+      {
+        "num": 479,
+        "name_iast": "asat",
+        "name_devanagari": "असत्",
+        "meaning": "The unmanifest cause"
+      },
+      {
+        "num": 480,
+        "name_iast": "kṣaram",
+        "name_devanagari": "क्षरम्",
+        "meaning": "The perishable universe"
+      },
+      {
+        "num": 481,
+        "name_iast": "akṣaram",
+        "name_devanagari": "अक्षरम्",
+        "meaning": "The imperishable Brahman"
+      },
+      {
+        "num": 482,
+        "name_iast": "avijñātā",
+        "name_devanagari": "अविज्ञाता",
+        "meaning": "He who is beyond ordinary knowledge"
+      },
+      {
+        "num": 483,
+        "name_iast": "sahasrāṃśuḥ",
+        "name_devanagari": "सहस्रांशुः",
+        "meaning": "He of a thousand rays"
+      },
+      {
+        "num": 484,
+        "name_iast": "vidhātā",
+        "name_devanagari": "विधाता",
+        "meaning": "The ordainer of all destinies"
+      },
+      {
+        "num": 485,
+        "name_iast": "kṛta-lakṣaṇaḥ",
+        "name_devanagari": "कृतलक्षणः",
+        "meaning": "He who is known by distinguishing marks"
+      },
+      {
+        "num": 486,
+        "name_iast": "gabhasti-nemiḥ",
+        "name_devanagari": "गभस्तिनेमिः",
+        "meaning": "The hub of the cosmic wheel of light"
+      },
+      {
+        "num": 487,
+        "name_iast": "sattva-sthaḥ",
+        "name_devanagari": "सत्त्वस्थः",
+        "meaning": "He who abides in pure goodness"
+      },
+      {
+        "num": 488,
+        "name_iast": "siṃhaḥ",
+        "name_devanagari": "सिंहः",
+        "meaning": "The lion; the destroyer of evil"
+      },
+      {
+        "num": 489,
+        "name_iast": "bhūta-maheśvaraḥ",
+        "name_devanagari": "भूतमहेश्वरः",
+        "meaning": "The great lord of all beings"
+      },
+      {
+        "num": 490,
+        "name_iast": "ādi-devaḥ",
+        "name_devanagari": "आदिदेवः",
+        "meaning": "The primeval god"
+      },
+      {
+        "num": 491,
+        "name_iast": "mahā-devaḥ",
+        "name_devanagari": "महादेवः",
+        "meaning": "The great god"
+      },
+      {
+        "num": 492,
+        "name_iast": "deveśaḥ",
+        "name_devanagari": "देवेशः",
+        "meaning": "The lord of all gods"
+      },
+      {
+        "num": 493,
+        "name_iast": "deva-bhṛd-guruḥ",
+        "name_devanagari": "देवभृद्गुरुः",
+        "meaning": "The preceptor who sustains the gods"
+      },
+      {
+        "num": 494,
+        "name_iast": "uttaraḥ",
+        "name_devanagari": "उत्तरः",
+        "meaning": "The superior one; the deliverer"
+      },
+      {
+        "num": 495,
+        "name_iast": "gopatiḥ",
+        "name_devanagari": "गोपतिः",
+        "meaning": "The lord of the earth"
+      },
+      {
+        "num": 496,
+        "name_iast": "goptā",
+        "name_devanagari": "गोप्ता",
+        "meaning": "The protector of the universe"
+      },
+      {
+        "num": 497,
+        "name_iast": "jñāna-gamyaḥ",
+        "name_devanagari": "ज्ञानगम्यः",
+        "meaning": "He who is attainable through knowledge"
+      },
+      {
+        "num": 498,
+        "name_iast": "purātanaḥ",
+        "name_devanagari": "पुरातनः",
+        "meaning": "The most ancient one"
+      },
+      {
+        "num": 499,
+        "name_iast": "śarīra-bhūta-bhṛt",
+        "name_devanagari": "शरीरभूतभृत्",
+        "meaning": "The sustainer of all embodied beings"
+      },
+      {
+        "num": 500,
+        "name_iast": "bhoktā",
+        "name_devanagari": "भोक्ता",
+        "meaning": "The enjoyer of all experiences"
+      },
+      {
+        "num": 501,
+        "name_iast": "kapīndraḥ",
+        "name_devanagari": "कपीन्द्रः",
+        "meaning": "The lord of monkeys; Rama"
+      },
+      {
+        "num": 502,
+        "name_iast": "bhūri-dakṣiṇaḥ",
+        "name_devanagari": "भूरिदक्षिणः",
+        "meaning": "He of abundant gifts"
+      },
+      {
+        "num": 503,
+        "name_iast": "somapaḥ",
+        "name_devanagari": "सोमपः",
+        "meaning": "The drinker of soma"
+      },
+      {
+        "num": 504,
+        "name_iast": "amṛtapaḥ",
+        "name_devanagari": "अमृतपः",
+        "meaning": "The drinker of immortal nectar"
+      },
+      {
+        "num": 505,
+        "name_iast": "somaḥ",
+        "name_devanagari": "सोमः",
+        "meaning": "The moon; the nourisher"
+      },
+      {
+        "num": 506,
+        "name_iast": "puru-jit",
+        "name_devanagari": "पुरुजित्",
+        "meaning": "The conqueror of many"
+      },
+      {
+        "num": 507,
+        "name_iast": "puru-sattamaḥ",
+        "name_devanagari": "पुरुसत्तमः",
+        "meaning": "The best among the many"
+      },
+      {
+        "num": 508,
+        "name_iast": "vinayaḥ",
+        "name_devanagari": "विनयः",
+        "meaning": "He who humbles the proud"
+      },
+      {
+        "num": 509,
+        "name_iast": "jayaḥ",
+        "name_devanagari": "जयः",
+        "meaning": "The ever-victorious one"
+      },
+      {
+        "num": 510,
+        "name_iast": "satya-sandhaḥ",
+        "name_devanagari": "सत्यसन्धः",
+        "meaning": "He of true resolve"
+      },
+      {
+        "num": 511,
+        "name_iast": "dāśārhaḥ",
+        "name_devanagari": "दाशार्हः",
+        "meaning": "He born in the Dasharha clan"
+      },
+      {
+        "num": 512,
+        "name_iast": "sātvatāṃ-patiḥ",
+        "name_devanagari": "सात्वतांपतिः",
+        "meaning": "The lord of the Sātvatas"
+      },
+      {
+        "num": 513,
+        "name_iast": "jīvaḥ",
+        "name_devanagari": "जीवः",
+        "meaning": "The life-principle in all beings"
+      },
+      {
+        "num": 514,
+        "name_iast": "vinayitā",
+        "name_devanagari": "विनयिता",
+        "meaning": "He who disciplines all"
+      },
+      {
+        "num": 515,
+        "name_iast": "sākṣī",
+        "name_devanagari": "साक्षी",
+        "meaning": "The eternal witness"
+      },
+      {
+        "num": 516,
+        "name_iast": "mukundaḥ",
+        "name_devanagari": "मुकुन्दः",
+        "meaning": "The giver of liberation"
+      },
+      {
+        "num": 517,
+        "name_iast": "amita-vikramaḥ",
+        "name_devanagari": "अमितविक्रमः",
+        "meaning": "He of immeasurable prowess"
+      },
+      {
+        "num": 518,
+        "name_iast": "ambho-nidhiḥ",
+        "name_devanagari": "अम्भोनिधिः",
+        "meaning": "The treasure of the waters; ocean"
+      },
+      {
+        "num": 519,
+        "name_iast": "anantātmā",
+        "name_devanagari": "अनन्तात्मा",
+        "meaning": "The infinite Self"
+      },
+      {
+        "num": 520,
+        "name_iast": "mahodadhi-śayaḥ",
+        "name_devanagari": "महोदधिशयः",
+        "meaning": "He who reclines on the great ocean"
+      },
+      {
+        "num": 521,
+        "name_iast": "antakaḥ",
+        "name_devanagari": "अन्तकः",
+        "meaning": "The destroyer of all at the end"
+      },
+      {
+        "num": 522,
+        "name_iast": "ajaḥ",
+        "name_devanagari": "अजः",
+        "meaning": "The unborn one"
+      },
+      {
+        "num": 523,
+        "name_iast": "mahārhaḥ",
+        "name_devanagari": "महार्हः",
+        "meaning": "He who deserves the highest worship"
+      },
+      {
+        "num": 524,
+        "name_iast": "svābhāvyaḥ",
+        "name_devanagari": "स्वाभाव्यः",
+        "meaning": "He who is eternally self-existing"
+      },
+      {
+        "num": 525,
+        "name_iast": "jitāmitraḥ",
+        "name_devanagari": "जितामित्रः",
+        "meaning": "The conqueror of all foes"
+      },
+      {
+        "num": 526,
+        "name_iast": "pramodanaḥ",
+        "name_devanagari": "प्रमोदनः",
+        "meaning": "He who is ever delightful"
+      },
+      {
+        "num": 527,
+        "name_iast": "ānandaḥ",
+        "name_devanagari": "आनन्दः",
+        "meaning": "He who is pure bliss"
+      },
+      {
+        "num": 528,
+        "name_iast": "nandanaḥ",
+        "name_devanagari": "नन्दनः",
+        "meaning": "He who brings joy to all"
+      },
+      {
+        "num": 529,
+        "name_iast": "nandaḥ",
+        "name_devanagari": "नन्दः",
+        "meaning": "He who is full of bliss"
+      },
+      {
+        "num": 530,
+        "name_iast": "satya-dharmā",
+        "name_devanagari": "सत्यधर्मा",
+        "meaning": "He whose nature is truth and dharma"
+      },
+      {
+        "num": 531,
+        "name_iast": "trivikramaḥ",
+        "name_devanagari": "त्रिविक्रमः",
+        "meaning": "He who took three great strides"
+      },
+      {
+        "num": 532,
+        "name_iast": "maharṣiḥ",
+        "name_devanagari": "महर्षिः",
+        "meaning": "The great sage"
+      },
+      {
+        "num": 533,
+        "name_iast": "kapilaḥ",
+        "name_devanagari": "कपिलः",
+        "meaning": "The sage Kapila"
+      },
+      {
+        "num": 534,
+        "name_iast": "ācāryaḥ",
+        "name_devanagari": "आचार्यः",
+        "meaning": "The supreme teacher"
+      },
+      {
+        "num": 535,
+        "name_iast": "kṛtajñaḥ",
+        "name_devanagari": "कृतज्ञः",
+        "meaning": "He who is grateful; the all-knowing"
+      },
+      {
+        "num": 536,
+        "name_iast": "medinī-patiḥ",
+        "name_devanagari": "मेदिनीपतिः",
+        "meaning": "The lord of the earth"
+      },
+      {
+        "num": 537,
+        "name_iast": "tripadaḥ",
+        "name_devanagari": "त्रिपदः",
+        "meaning": "He of three strides"
+      },
+      {
+        "num": 538,
+        "name_iast": "tri-daśādhyakṣaḥ",
+        "name_devanagari": "त्रिदशाध्यक्षः",
+        "meaning": "The lord of the thirty gods"
+      },
+      {
+        "num": 539,
+        "name_iast": "mahā-śṛṅgaḥ",
+        "name_devanagari": "महाशृङ्गः",
+        "meaning": "He of the great horn; Matsya avatar"
+      },
+      {
+        "num": 540,
+        "name_iast": "kṛtānta-kṛt",
+        "name_devanagari": "कृतान्तकृत्",
+        "meaning": "He who destroys death itself"
+      },
+      {
+        "num": 541,
+        "name_iast": "mahā-varāhaḥ",
+        "name_devanagari": "महावराहः",
+        "meaning": "The great boar; Varaha avatar"
+      },
+      {
+        "num": 542,
+        "name_iast": "govindaḥ",
+        "name_devanagari": "गोविन्दः",
+        "meaning": "The protector of the earth and cows"
+      },
+      {
+        "num": 543,
+        "name_iast": "suṣeṇaḥ",
+        "name_devanagari": "सुषेणः",
+        "meaning": "He with a splendid army"
+      },
+      {
+        "num": 544,
+        "name_iast": "kanakāṅgadī",
+        "name_devanagari": "कनकाङ्गदी",
+        "meaning": "He with golden armlets"
+      },
+      {
+        "num": 545,
+        "name_iast": "guhyaḥ",
+        "name_devanagari": "गुह्यः",
+        "meaning": "The mysterious; the hidden one"
+      },
+      {
+        "num": 546,
+        "name_iast": "gabhīraḥ",
+        "name_devanagari": "गभीरः",
+        "meaning": "The unfathomable one"
+      },
+      {
+        "num": 547,
+        "name_iast": "gahanaḥ",
+        "name_devanagari": "गहनः",
+        "meaning": "The impenetrable; the inscrutable"
+      },
+      {
+        "num": 548,
+        "name_iast": "guptaḥ",
+        "name_devanagari": "गुप्तः",
+        "meaning": "The well-concealed one"
+      },
+      {
+        "num": 549,
+        "name_iast": "cakra-gadā-dharaḥ",
+        "name_devanagari": "चक्रगदाधरः",
+        "meaning": "The wielder of discus and mace"
+      },
+      {
+        "num": 550,
+        "name_iast": "vedhāḥ",
+        "name_devanagari": "वेधाः",
+        "meaning": "The creator; the provider"
+      },
+      {
+        "num": 551,
+        "name_iast": "svāṅgaḥ",
+        "name_devanagari": "स्वाङ्गः",
+        "meaning": "He whose limbs are beautiful"
+      },
+      {
+        "num": 552,
+        "name_iast": "ajitaḥ",
+        "name_devanagari": "अजितः",
+        "meaning": "The unconquerable one"
+      },
+      {
+        "num": 553,
+        "name_iast": "kṛṣṇaḥ",
+        "name_devanagari": "कृष्णः",
+        "meaning": "The dark-complexioned; the all-attractive"
+      },
+      {
+        "num": 554,
+        "name_iast": "dṛḍhaḥ",
+        "name_devanagari": "दृढः",
+        "meaning": "The firm; the immovable"
+      },
+      {
+        "num": 555,
+        "name_iast": "saṅkarṣaṇaḥ",
+        "name_devanagari": "सङ्कर्षणः",
+        "meaning": "He who draws all to himself"
+      },
+      {
+        "num": 556,
+        "name_iast": "acyutaḥ",
+        "name_devanagari": "अच्युतः",
+        "meaning": "He who never falls from glory"
+      },
+      {
+        "num": 557,
+        "name_iast": "varuṇaḥ",
+        "name_devanagari": "वरुणः",
+        "meaning": "The lord of the waters"
+      },
+      {
+        "num": 558,
+        "name_iast": "vāruṇaḥ",
+        "name_devanagari": "वारुणः",
+        "meaning": "The son of Varuṇa"
+      },
+      {
+        "num": 559,
+        "name_iast": "vṛkṣaḥ",
+        "name_devanagari": "वृक्षः",
+        "meaning": "The tree of life; immovable as a tree"
+      },
+      {
+        "num": 560,
+        "name_iast": "puṣkarākṣaḥ",
+        "name_devanagari": "पुष्कराक्षः",
+        "meaning": "The lotus-eyed one"
+      },
+      {
+        "num": 561,
+        "name_iast": "mahā-manāḥ",
+        "name_devanagari": "महामनाः",
+        "meaning": "He of great mind"
+      },
+      {
+        "num": 562,
+        "name_iast": "bhagavān",
+        "name_devanagari": "भगवान्",
+        "meaning": "The possessor of all opulences"
+      },
+      {
+        "num": 563,
+        "name_iast": "bhaga-hā",
+        "name_devanagari": "भगहा",
+        "meaning": "He who destroys worldly fortune during dissolution"
+      },
+      {
+        "num": 564,
+        "name_iast": "nandī",
+        "name_devanagari": "नन्दी",
+        "meaning": "He who is full of delight"
+      },
+      {
+        "num": 565,
+        "name_iast": "vana-mālī",
+        "name_devanagari": "वनमाली",
+        "meaning": "He who wears the garland of wild flowers"
+      },
+      {
+        "num": 566,
+        "name_iast": "halāyudhaḥ",
+        "name_devanagari": "हलायुधः",
+        "meaning": "He who wields the plough; Balarama"
+      },
+      {
+        "num": 567,
+        "name_iast": "ādityaḥ",
+        "name_devanagari": "आदित्यः",
+        "meaning": "The son of Aditi; the sun"
+      },
+      {
+        "num": 568,
+        "name_iast": "jyotir-ādityaḥ",
+        "name_devanagari": "ज्योतिर्ादित्यः",
+        "meaning": "The brilliance of the sun"
+      },
+      {
+        "num": 569,
+        "name_iast": "sahiṣṇuḥ",
+        "name_devanagari": "सहिष्णुः",
+        "meaning": "The all-enduring one"
+      },
+      {
+        "num": 570,
+        "name_iast": "gati-sattamaḥ",
+        "name_devanagari": "गतिसत्तमः",
+        "meaning": "The supreme goal; the best refuge"
+      },
+      {
+        "num": 571,
+        "name_iast": "sudhanvā",
+        "name_devanagari": "सुधन्वा",
+        "meaning": "He of the excellent bow"
+      },
+      {
+        "num": 572,
+        "name_iast": "khaṇḍa-paraśuḥ",
+        "name_devanagari": "खण्डपरशुः",
+        "meaning": "He who wields the broken axe; Parashurama"
+      },
+      {
+        "num": 573,
+        "name_iast": "dāruṇaḥ",
+        "name_devanagari": "दारुणः",
+        "meaning": "He who is merciless to the wicked"
+      },
+      {
+        "num": 574,
+        "name_iast": "draviṇa-pradaḥ",
+        "name_devanagari": "द्रविणप्रदः",
+        "meaning": "The bestower of wealth"
+      },
+      {
+        "num": 575,
+        "name_iast": "divaḥ-spṛk",
+        "name_devanagari": "दिवःस्पृक्",
+        "meaning": "He who touches the sky"
+      },
+      {
+        "num": 576,
+        "name_iast": "sarva-dṛg-vyāsaḥ",
+        "name_devanagari": "सर्वदृग्व्यासः",
+        "meaning": "The all-seeing Vyasa"
+      },
+      {
+        "num": 577,
+        "name_iast": "vācaspatiḥ",
+        "name_devanagari": "वाचस्पतिः",
+        "meaning": "The lord of speech"
+      },
+      {
+        "num": 578,
+        "name_iast": "ayonijaḥ",
+        "name_devanagari": "अयोनिजः",
+        "meaning": "He who is not born of a womb"
+      },
+      {
+        "num": 579,
+        "name_iast": "tri-sāmā",
+        "name_devanagari": "त्रिसामा",
+        "meaning": "He who is praised by three Samas"
+      },
+      {
+        "num": 580,
+        "name_iast": "sāma-gaḥ",
+        "name_devanagari": "सामगः",
+        "meaning": "The singer of Sama hymns"
+      },
+      {
+        "num": 581,
+        "name_iast": "sāma",
+        "name_devanagari": "साम",
+        "meaning": "The Sama Veda itself"
+      },
+      {
+        "num": 582,
+        "name_iast": "nirvāṇam",
+        "name_devanagari": "निर्वाणम्",
+        "meaning": "The supreme bliss of liberation"
+      },
+      {
+        "num": 583,
+        "name_iast": "bheṣajam",
+        "name_devanagari": "भेषजम्",
+        "meaning": "The medicine for worldly ills"
+      },
+      {
+        "num": 584,
+        "name_iast": "bhiṣak",
+        "name_devanagari": "भिषक्",
+        "meaning": "The physician; the healer"
+      },
+      {
+        "num": 585,
+        "name_iast": "sannyāsa-kṛt",
+        "name_devanagari": "सन्न्यासकृत्",
+        "meaning": "The establisher of renunciation"
+      },
+      {
+        "num": 586,
+        "name_iast": "śamaḥ",
+        "name_devanagari": "शमः",
+        "meaning": "The tranquil one"
+      },
+      {
+        "num": 587,
+        "name_iast": "śāntaḥ",
+        "name_devanagari": "शान्तः",
+        "meaning": "The peaceful one"
+      },
+      {
+        "num": 588,
+        "name_iast": "niṣṭhā",
+        "name_devanagari": "निष्ठा",
+        "meaning": "He who is the ultimate abode"
+      },
+      {
+        "num": 589,
+        "name_iast": "śāntiḥ",
+        "name_devanagari": "शान्तिः",
+        "meaning": "He who is peace itself"
+      },
+      {
+        "num": 590,
+        "name_iast": "parāyaṇam",
+        "name_devanagari": "परायणम्",
+        "meaning": "The supreme goal"
+      },
+      {
+        "num": 591,
+        "name_iast": "śubhāṅgaḥ",
+        "name_devanagari": "शुभाङ्गः",
+        "meaning": "He of auspicious limbs"
+      },
+      {
+        "num": 592,
+        "name_iast": "śānti-daḥ",
+        "name_devanagari": "शान्तिदः",
+        "meaning": "The bestower of peace"
+      },
+      {
+        "num": 593,
+        "name_iast": "sraṣṭā",
+        "name_devanagari": "स्रष्टा",
+        "meaning": "The creator of all"
+      },
+      {
+        "num": 594,
+        "name_iast": "kumudaḥ",
+        "name_devanagari": "कुमुदः",
+        "meaning": "He who delights in the earth"
+      },
+      {
+        "num": 595,
+        "name_iast": "kuvaleśayaḥ",
+        "name_devanagari": "कुवलेशयः",
+        "meaning": "He who reclines on the waters"
+      },
+      {
+        "num": 596,
+        "name_iast": "gohitaḥ",
+        "name_devanagari": "गोहितः",
+        "meaning": "He who does good for the earth"
+      },
+      {
+        "num": 597,
+        "name_iast": "gopatiḥ",
+        "name_devanagari": "गोपतिः",
+        "meaning": "The lord of the earth"
+      },
+      {
+        "num": 598,
+        "name_iast": "goptā",
+        "name_devanagari": "गोप्ता",
+        "meaning": "The guardian and protector"
+      },
+      {
+        "num": 599,
+        "name_iast": "vṛṣabhākṣaḥ",
+        "name_devanagari": "वृषभाक्षः",
+        "meaning": "He whose eyes shower blessings"
+      },
+      {
+        "num": 600,
+        "name_iast": "vṛṣa-priyaḥ",
+        "name_devanagari": "वृषप्रियः",
+        "meaning": "He who loves dharma"
+      },
+      {
+        "num": 601,
+        "name_iast": "anivartī",
+        "name_devanagari": "अनिवर्ती",
+        "meaning": "He who never retreats"
+      },
+      {
+        "num": 602,
+        "name_iast": "nivṛttātmā",
+        "name_devanagari": "निवृत्तात्मा",
+        "meaning": "He whose mind is turned away from worldly desires"
+      },
+      {
+        "num": 603,
+        "name_iast": "saṅkṣeptā",
+        "name_devanagari": "सङ्क्षेप्ता",
+        "meaning": "He who contracts the universe at dissolution"
+      },
+      {
+        "num": 604,
+        "name_iast": "kṣema-kṛt",
+        "name_devanagari": "क्षेमकृत्",
+        "meaning": "The doer of good; the bestower of welfare"
+      },
+      {
+        "num": 605,
+        "name_iast": "śivaḥ",
+        "name_devanagari": "शिवः",
+        "meaning": "The auspicious one"
+      },
+      {
+        "num": 606,
+        "name_iast": "śrīvatsa-vakṣāḥ",
+        "name_devanagari": "श्रीवत्सवक्षाः",
+        "meaning": "He with Shrivatsa on His chest"
+      },
+      {
+        "num": 607,
+        "name_iast": "śrīvāsaḥ",
+        "name_devanagari": "श्रीवासः",
+        "meaning": "The abode of Shri; Lakshmi's consort"
+      },
+      {
+        "num": 608,
+        "name_iast": "śrīpatiḥ",
+        "name_devanagari": "श्रीपतिः",
+        "meaning": "The lord of Shri"
+      },
+      {
+        "num": 609,
+        "name_iast": "śrīmatāṃ-varaḥ",
+        "name_devanagari": "श्रीमतांवरः",
+        "meaning": "The best among the glorious"
+      },
+      {
+        "num": 610,
+        "name_iast": "śrīdaḥ",
+        "name_devanagari": "श्रीदः",
+        "meaning": "The bestower of prosperity"
+      },
+      {
+        "num": 611,
+        "name_iast": "śrīśaḥ",
+        "name_devanagari": "श्रीशः",
+        "meaning": "The lord of prosperity"
+      },
+      {
+        "num": 612,
+        "name_iast": "śrī-nivāsaḥ",
+        "name_devanagari": "श्रीनिवासः",
+        "meaning": "He in whom Shri ever dwells"
+      },
+      {
+        "num": 613,
+        "name_iast": "śrī-nidhiḥ",
+        "name_devanagari": "श्रीनिधिः",
+        "meaning": "The treasure of Shri"
+      },
+      {
+        "num": 614,
+        "name_iast": "śrī-vibhāvanaḥ",
+        "name_devanagari": "श्रीविभावनः",
+        "meaning": "He who grants Shri to devotees"
+      },
+      {
+        "num": 615,
+        "name_iast": "śrī-dharaḥ",
+        "name_devanagari": "श्रीधरः",
+        "meaning": "The bearer of Shri"
+      },
+      {
+        "num": 616,
+        "name_iast": "śrī-karaḥ",
+        "name_devanagari": "श्रीकरः",
+        "meaning": "He who bestows auspiciousness"
+      },
+      {
+        "num": 617,
+        "name_iast": "śreyaḥ",
+        "name_devanagari": "श्रेयः",
+        "meaning": "He who is the ultimate good"
+      },
+      {
+        "num": 618,
+        "name_iast": "śrīmān",
+        "name_devanagari": "श्रीमान्",
+        "meaning": "He who is always with Shri"
+      },
+      {
+        "num": 619,
+        "name_iast": "loka-trayāśrayaḥ",
+        "name_devanagari": "लोकत्रयाश्रयः",
+        "meaning": "The refuge of the three worlds"
+      },
+      {
+        "num": 620,
+        "name_iast": "svakṣaḥ",
+        "name_devanagari": "स्वक्षः",
+        "meaning": "He of beautiful eyes"
+      },
+      {
+        "num": 621,
+        "name_iast": "svaṅgaḥ",
+        "name_devanagari": "स्वङ्गः",
+        "meaning": "He of graceful limbs"
+      },
+      {
+        "num": 622,
+        "name_iast": "śatānandaḥ",
+        "name_devanagari": "शतानन्दः",
+        "meaning": "He of a hundred joys"
+      },
+      {
+        "num": 623,
+        "name_iast": "nandiḥ",
+        "name_devanagari": "नन्दिः",
+        "meaning": "He who is full of delight"
+      },
+      {
+        "num": 624,
+        "name_iast": "jyotir-gaṇeśvaraḥ",
+        "name_devanagari": "ज्योतिर्गणेश्वरः",
+        "meaning": "The lord of luminous hosts"
+      },
+      {
+        "num": 625,
+        "name_iast": "vijitātmā",
+        "name_devanagari": "विजितात्मा",
+        "meaning": "He who has conquered the Self"
+      },
+      {
+        "num": 626,
+        "name_iast": "vidheyātmā",
+        "name_devanagari": "विधेयात्मा",
+        "meaning": "He whose Self is under perfect control"
+      },
+      {
+        "num": 627,
+        "name_iast": "sat-kīrtiḥ",
+        "name_devanagari": "सत्कीर्तिः",
+        "meaning": "He of true fame"
+      },
+      {
+        "num": 628,
+        "name_iast": "chinna-saṃśayaḥ",
+        "name_devanagari": "छिन्नसंशयः",
+        "meaning": "The dispeller of all doubts"
+      },
+      {
+        "num": 629,
+        "name_iast": "udīrṇaḥ",
+        "name_devanagari": "उदीर्णः",
+        "meaning": "The exalted one above all"
+      },
+      {
+        "num": 630,
+        "name_iast": "sarvataś-cakṣuḥ",
+        "name_devanagari": "सर्वतश्चक्षुः",
+        "meaning": "He who has eyes everywhere"
+      },
+      {
+        "num": 631,
+        "name_iast": "anīśaḥ",
+        "name_devanagari": "अनीशः",
+        "meaning": "He who has no ruler above Him"
+      },
+      {
+        "num": 632,
+        "name_iast": "śāśvataḥ",
+        "name_devanagari": "शाश्वतः",
+        "meaning": "The eternal one"
+      },
+      {
+        "num": 633,
+        "name_iast": "sthiraḥ",
+        "name_devanagari": "स्थिरः",
+        "meaning": "The firm and immovable"
+      },
+      {
+        "num": 634,
+        "name_iast": "bhūśayaḥ",
+        "name_devanagari": "भूशयः",
+        "meaning": "He who lies on the ground; Rama"
+      },
+      {
+        "num": 635,
+        "name_iast": "bhūṣaṇaḥ",
+        "name_devanagari": "भूषणः",
+        "meaning": "He who adorns the world"
+      },
+      {
+        "num": 636,
+        "name_iast": "bhūtiḥ",
+        "name_devanagari": "भूतिः",
+        "meaning": "He who is pure existence; glory"
+      },
+      {
+        "num": 637,
+        "name_iast": "viśokaḥ",
+        "name_devanagari": "विशोकः",
+        "meaning": "He who is free from sorrow"
+      },
+      {
+        "num": 638,
+        "name_iast": "śoka-nāśanaḥ",
+        "name_devanagari": "शोकनाशनः",
+        "meaning": "The destroyer of sorrow"
+      },
+      {
+        "num": 639,
+        "name_iast": "arciṣmān",
+        "name_devanagari": "अर्चिष्मान्",
+        "meaning": "He who is radiant"
+      },
+      {
+        "num": 640,
+        "name_iast": "arcitaḥ",
+        "name_devanagari": "अर्चितः",
+        "meaning": "He who is worshipped by all"
+      },
+      {
+        "num": 641,
+        "name_iast": "kumbhaḥ",
+        "name_devanagari": "कुम्भः",
+        "meaning": "He who contains everything; the pot-like universe"
+      },
+      {
+        "num": 642,
+        "name_iast": "viśuddhātmā",
+        "name_devanagari": "विशुद्धात्मा",
+        "meaning": "He of perfectly pure Self"
+      },
+      {
+        "num": 643,
+        "name_iast": "viśodhanaḥ",
+        "name_devanagari": "विशोधनः",
+        "meaning": "The supreme purifier"
+      },
+      {
+        "num": 644,
+        "name_iast": "aniruddhaḥ",
+        "name_devanagari": "अनिरुद्धः",
+        "meaning": "He who is unobstructed"
+      },
+      {
+        "num": 645,
+        "name_iast": "apratirathḥ",
+        "name_devanagari": "अप्रतिरथ्ः",
+        "meaning": "He who has no equal adversary"
+      },
+      {
+        "num": 646,
+        "name_iast": "pradyumnaḥ",
+        "name_devanagari": "प्रद्युम्नः",
+        "meaning": "He of great splendor"
+      },
+      {
+        "num": 647,
+        "name_iast": "amita-vikramaḥ",
+        "name_devanagari": "अमितविक्रमः",
+        "meaning": "He of immeasurable valor"
+      },
+      {
+        "num": 648,
+        "name_iast": "kāla-nemi-nihā",
+        "name_devanagari": "कालनेमिनिहा",
+        "meaning": "The slayer of the demon Kalanemi"
+      },
+      {
+        "num": 649,
+        "name_iast": "vīraḥ",
+        "name_devanagari": "वीरः",
+        "meaning": "The courageous hero"
+      },
+      {
+        "num": 650,
+        "name_iast": "śauriḥ",
+        "name_devanagari": "शौरिः",
+        "meaning": "He born in the Shura dynasty"
+      },
+      {
+        "num": 651,
+        "name_iast": "śūra-janeśvaraḥ",
+        "name_devanagari": "शूरजनेश्वरः",
+        "meaning": "The lord of the heroic"
+      },
+      {
+        "num": 652,
+        "name_iast": "tri-lokātmā",
+        "name_devanagari": "त्रिलोकात्मा",
+        "meaning": "The Self of the three worlds"
+      },
+      {
+        "num": 653,
+        "name_iast": "tri-lokeśaḥ",
+        "name_devanagari": "त्रिलोकेशः",
+        "meaning": "The lord of the three worlds"
+      },
+      {
+        "num": 654,
+        "name_iast": "keśavaḥ",
+        "name_devanagari": "केशवः",
+        "meaning": "He of beautiful hair; slayer of Keshi"
+      },
+      {
+        "num": 655,
+        "name_iast": "keśi-hā",
+        "name_devanagari": "केशिहा",
+        "meaning": "The slayer of the demon Keshi"
+      },
+      {
+        "num": 656,
+        "name_iast": "hariḥ",
+        "name_devanagari": "हरिः",
+        "meaning": "He who removes ignorance and sorrow"
+      },
+      {
+        "num": 657,
+        "name_iast": "kāma-devaḥ",
+        "name_devanagari": "कामदेवः",
+        "meaning": "The god of love; He who is desired by all"
+      },
+      {
+        "num": 658,
+        "name_iast": "kāma-pālaḥ",
+        "name_devanagari": "कामपालः",
+        "meaning": "The fulfiller of desires"
+      },
+      {
+        "num": 659,
+        "name_iast": "kāmī",
+        "name_devanagari": "कामी",
+        "meaning": "He who has all desires fulfilled"
+      },
+      {
+        "num": 660,
+        "name_iast": "kāntaḥ",
+        "name_devanagari": "कान्तः",
+        "meaning": "He of enchanting form"
+      },
+      {
+        "num": 661,
+        "name_iast": "kṛtāgamaḥ",
+        "name_devanagari": "कृतागमः",
+        "meaning": "The author of the scriptures"
+      },
+      {
+        "num": 662,
+        "name_iast": "anirdeśya-vapuḥ",
+        "name_devanagari": "अनिर्देश्यवपुः",
+        "meaning": "He whose form is beyond description"
+      },
+      {
+        "num": 663,
+        "name_iast": "viṣṇuḥ",
+        "name_devanagari": "विष्णुः",
+        "meaning": "The all-pervading one"
+      },
+      {
+        "num": 664,
+        "name_iast": "vīraḥ",
+        "name_devanagari": "वीरः",
+        "meaning": "The valiant hero"
+      },
+      {
+        "num": 665,
+        "name_iast": "anantaḥ",
+        "name_devanagari": "अनन्तः",
+        "meaning": "The infinite and endless one"
+      },
+      {
+        "num": 666,
+        "name_iast": "dhanañjayaḥ",
+        "name_devanagari": "धनञ्जयः",
+        "meaning": "The conqueror of wealth; Arjuna's lord"
+      },
+      {
+        "num": 667,
+        "name_iast": "brahmaṇyaḥ",
+        "name_devanagari": "ब्रह्मण्यः",
+        "meaning": "He who is beneficial to Brahman"
+      },
+      {
+        "num": 668,
+        "name_iast": "brahma-kṛt",
+        "name_devanagari": "ब्रह्मकृत्",
+        "meaning": "The creator of Brahma"
+      },
+      {
+        "num": 669,
+        "name_iast": "brahmā",
+        "name_devanagari": "ब्रह्मा",
+        "meaning": "The creator god"
+      },
+      {
+        "num": 670,
+        "name_iast": "brahma",
+        "name_devanagari": "ब्रह्म",
+        "meaning": "The supreme Brahman"
+      },
+      {
+        "num": 671,
+        "name_iast": "brahma-vivardhanah",
+        "name_devanagari": "ब्रह्मविवर्धनह्",
+        "meaning": "He who increases Brahman"
+      },
+      {
+        "num": 672,
+        "name_iast": "brahma-vit",
+        "name_devanagari": "ब्रह्मवित्",
+        "meaning": "The knower of Brahman"
+      },
+      {
+        "num": 673,
+        "name_iast": "brāhmaṇaḥ",
+        "name_devanagari": "ब्राह्मणः",
+        "meaning": "The Brahmana; the priest"
+      },
+      {
+        "num": 674,
+        "name_iast": "brahmī",
+        "name_devanagari": "ब्रह्मी",
+        "meaning": "He who possesses Brahman"
+      },
+      {
+        "num": 675,
+        "name_iast": "brahmajñaḥ",
+        "name_devanagari": "ब्रह्मज्ञः",
+        "meaning": "The knower of the Vedas"
+      },
+      {
+        "num": 676,
+        "name_iast": "brāhmaṇa-priyaḥ",
+        "name_devanagari": "ब्राह्मणप्रियः",
+        "meaning": "He who is dear to the Brahmanas"
+      },
+      {
+        "num": 677,
+        "name_iast": "mahā-kramaḥ",
+        "name_devanagari": "महाक्रमः",
+        "meaning": "He of great strides"
+      },
+      {
+        "num": 678,
+        "name_iast": "mahā-karmā",
+        "name_devanagari": "महाकर्मा",
+        "meaning": "The doer of great deeds"
+      },
+      {
+        "num": 679,
+        "name_iast": "mahā-tejāḥ",
+        "name_devanagari": "महातेजाः",
+        "meaning": "He of great splendor"
+      },
+      {
+        "num": 680,
+        "name_iast": "mahoragaḥ",
+        "name_devanagari": "महोरगः",
+        "meaning": "The great serpent; Ananta"
+      },
+      {
+        "num": 681,
+        "name_iast": "mahā-kratuḥ",
+        "name_devanagari": "महाक्रतुः",
+        "meaning": "He who is the great sacrifice"
+      },
+      {
+        "num": 682,
+        "name_iast": "mahā-yajvā",
+        "name_devanagari": "महायज्वा",
+        "meaning": "The great sacrificer"
+      },
+      {
+        "num": 683,
+        "name_iast": "mahā-yajñaḥ",
+        "name_devanagari": "महायज्ञः",
+        "meaning": "The great sacrifice itself"
+      },
+      {
+        "num": 684,
+        "name_iast": "mahā-haviḥ",
+        "name_devanagari": "महाहविः",
+        "meaning": "The great oblation"
+      },
+      {
+        "num": 685,
+        "name_iast": "stavyaḥ",
+        "name_devanagari": "स्तव्यः",
+        "meaning": "He who is worthy of praise"
+      },
+      {
+        "num": 686,
+        "name_iast": "stava-priyaḥ",
+        "name_devanagari": "स्तवप्रियः",
+        "meaning": "He who loves to be praised"
+      },
+      {
+        "num": 687,
+        "name_iast": "stotram",
+        "name_devanagari": "स्तोत्रम्",
+        "meaning": "The hymn of praise itself"
+      },
+      {
+        "num": 688,
+        "name_iast": "stutiḥ",
+        "name_devanagari": "स्तुतिः",
+        "meaning": "The act of praising"
+      },
+      {
+        "num": 689,
+        "name_iast": "stotā",
+        "name_devanagari": "स्तोता",
+        "meaning": "He who praises; the praiser"
+      },
+      {
+        "num": 690,
+        "name_iast": "raṇa-priyaḥ",
+        "name_devanagari": "रणप्रियः",
+        "meaning": "He who delights in battle"
+      },
+      {
+        "num": 691,
+        "name_iast": "pūrṇaḥ",
+        "name_devanagari": "पूर्णः",
+        "meaning": "The complete; the perfect one"
+      },
+      {
+        "num": 692,
+        "name_iast": "pūrayitā",
+        "name_devanagari": "पूरयिता",
+        "meaning": "The fulfiller of all"
+      },
+      {
+        "num": 693,
+        "name_iast": "puṇyaḥ",
+        "name_devanagari": "पुण्यः",
+        "meaning": "The supremely pure"
+      },
+      {
+        "num": 694,
+        "name_iast": "puṇya-kīrtiḥ",
+        "name_devanagari": "पुण्यकीर्तिः",
+        "meaning": "He of holy fame"
+      },
+      {
+        "num": 695,
+        "name_iast": "anāmayaḥ",
+        "name_devanagari": "अनामयः",
+        "meaning": "He who is free from disease"
+      },
+      {
+        "num": 696,
+        "name_iast": "mano-javaḥ",
+        "name_devanagari": "मनोजवः",
+        "meaning": "He who is swift as the mind"
+      },
+      {
+        "num": 697,
+        "name_iast": "tīrtha-karaḥ",
+        "name_devanagari": "तीर्थकरः",
+        "meaning": "The creator of holy places"
+      },
+      {
+        "num": 698,
+        "name_iast": "vasu-retāḥ",
+        "name_devanagari": "वसुरेताः",
+        "meaning": "He whose seed is golden"
+      },
+      {
+        "num": 699,
+        "name_iast": "vasu-pradaḥ",
+        "name_devanagari": "वसुप्रदः",
+        "meaning": "The bestower of wealth"
+      },
+      {
+        "num": 700,
+        "name_iast": "vasu-pradaḥ",
+        "name_devanagari": "वसुप्रदः",
+        "meaning": "The giver of salvation (repeated with different meaning)"
+      },
+      {
+        "num": 701,
+        "name_iast": "vāsu-devaḥ",
+        "name_devanagari": "वासुदेवः",
+        "meaning": "The son of Vasudeva; the indwelling Lord"
+      },
+      {
+        "num": 702,
+        "name_iast": "vasuḥ",
+        "name_devanagari": "वसुः",
+        "meaning": "The wealth; the dweller in all"
+      },
+      {
+        "num": 703,
+        "name_iast": "vasu-manāḥ",
+        "name_devanagari": "वसुमनाः",
+        "meaning": "He whose mind is rich with noble thoughts"
+      },
+      {
+        "num": 704,
+        "name_iast": "haviḥ",
+        "name_devanagari": "हविः",
+        "meaning": "The oblation itself"
+      },
+      {
+        "num": 705,
+        "name_iast": "sad-gatiḥ",
+        "name_devanagari": "सद्गतिः",
+        "meaning": "The goal of the good"
+      },
+      {
+        "num": 706,
+        "name_iast": "sat-kṛtiḥ",
+        "name_devanagari": "सत्कृतिः",
+        "meaning": "He of righteous deeds"
+      },
+      {
+        "num": 707,
+        "name_iast": "sattā",
+        "name_devanagari": "सत्ता",
+        "meaning": "Existence itself"
+      },
+      {
+        "num": 708,
+        "name_iast": "sad-bhūtiḥ",
+        "name_devanagari": "सद्भूतिः",
+        "meaning": "He of real manifestation"
+      },
+      {
+        "num": 709,
+        "name_iast": "sat-parāyaṇaḥ",
+        "name_devanagari": "सत्परायणः",
+        "meaning": "The supreme goal of the good"
+      },
+      {
+        "num": 710,
+        "name_iast": "śūra-senaḥ",
+        "name_devanagari": "शूरसेनः",
+        "meaning": "He with a heroic army"
+      },
+      {
+        "num": 711,
+        "name_iast": "yadu-śreṣṭhaḥ",
+        "name_devanagari": "यदुश्रेष्ठः",
+        "meaning": "The best of the Yadavas"
+      },
+      {
+        "num": 712,
+        "name_iast": "sannivāsaḥ",
+        "name_devanagari": "सन्निवासः",
+        "meaning": "The abode of the good"
+      },
+      {
+        "num": 713,
+        "name_iast": "suyāmunaḥ",
+        "name_devanagari": "सुयामुनः",
+        "meaning": "He surrounded by the people of Yamuna"
+      },
+      {
+        "num": 714,
+        "name_iast": "bhūtāvāsaḥ",
+        "name_devanagari": "भूतावासः",
+        "meaning": "The dwelling place of all beings"
+      },
+      {
+        "num": 715,
+        "name_iast": "vāsu-devaḥ",
+        "name_devanagari": "वासुदेवः",
+        "meaning": "The all-pervading Lord"
+      },
+      {
+        "num": 716,
+        "name_iast": "sarvāsu-nilayaḥ",
+        "name_devanagari": "सर्वासुनिलयः",
+        "meaning": "The abode of all life-forces"
+      },
+      {
+        "num": 717,
+        "name_iast": "analaḥ",
+        "name_devanagari": "अनलः",
+        "meaning": "He of unlimited power; fire"
+      },
+      {
+        "num": 718,
+        "name_iast": "darpa-hā",
+        "name_devanagari": "दर्पहा",
+        "meaning": "The destroyer of pride"
+      },
+      {
+        "num": 719,
+        "name_iast": "darpa-daḥ",
+        "name_devanagari": "दर्पदः",
+        "meaning": "The bestower of pride to the righteous"
+      },
+      {
+        "num": 720,
+        "name_iast": "dṛptaḥ",
+        "name_devanagari": "दृप्तः",
+        "meaning": "He who is ever satisfied"
+      },
+      {
+        "num": 721,
+        "name_iast": "dur-dharaḥ",
+        "name_devanagari": "दुर्धरः",
+        "meaning": "He who is difficult to hold in meditation"
+      },
+      {
+        "num": 722,
+        "name_iast": "aparājitaḥ",
+        "name_devanagari": "अपराजितः",
+        "meaning": "The unconquered one"
+      },
+      {
+        "num": 723,
+        "name_iast": "viśva-mūrtiḥ",
+        "name_devanagari": "विश्वमूर्तिः",
+        "meaning": "He of the cosmic form"
+      },
+      {
+        "num": 724,
+        "name_iast": "mahā-mūrtiḥ",
+        "name_devanagari": "महामूर्तिः",
+        "meaning": "He of the great form"
+      },
+      {
+        "num": 725,
+        "name_iast": "dīpta-mūrtiḥ",
+        "name_devanagari": "दीप्तमूर्तिः",
+        "meaning": "He of radiant form"
+      },
+      {
+        "num": 726,
+        "name_iast": "a-mūrtimān",
+        "name_devanagari": "अमूर्तिमान्",
+        "meaning": "He who is formless"
+      },
+      {
+        "num": 727,
+        "name_iast": "aneka-mūrtiḥ",
+        "name_devanagari": "अनेकमूर्तिः",
+        "meaning": "He of many forms"
+      },
+      {
+        "num": 728,
+        "name_iast": "avyaktaḥ",
+        "name_devanagari": "अव्यक्तः",
+        "meaning": "The unmanifest"
+      },
+      {
+        "num": 729,
+        "name_iast": "śata-mūrtiḥ",
+        "name_devanagari": "शतमूर्तिः",
+        "meaning": "He of a hundred forms"
+      },
+      {
+        "num": 730,
+        "name_iast": "śatānanaḥ",
+        "name_devanagari": "शताननः",
+        "meaning": "He of a hundred faces"
+      },
+      {
+        "num": 731,
+        "name_iast": "ekaḥ",
+        "name_devanagari": "एकः",
+        "meaning": "The one without a second"
+      },
+      {
+        "num": 732,
+        "name_iast": "naikaḥ",
+        "name_devanagari": "नैकः",
+        "meaning": "The many"
+      },
+      {
+        "num": 733,
+        "name_iast": "savaḥ",
+        "name_devanagari": "सवः",
+        "meaning": "The soma sacrifice"
+      },
+      {
+        "num": 734,
+        "name_iast": "kaḥ",
+        "name_devanagari": "कः",
+        "meaning": "He who is Brahma; who shines"
+      },
+      {
+        "num": 735,
+        "name_iast": "kim",
+        "name_devanagari": "किम्",
+        "meaning": "What; He who is worthy of inquiry"
+      },
+      {
+        "num": 736,
+        "name_iast": "yat",
+        "name_devanagari": "यत्",
+        "meaning": "That which exists"
+      },
+      {
+        "num": 737,
+        "name_iast": "tat",
+        "name_devanagari": "तत्",
+        "meaning": "That; the Supreme Reality"
+      },
+      {
+        "num": 738,
+        "name_iast": "padam-anuttamam",
+        "name_devanagari": "पदम्नुत्तमम्",
+        "meaning": "The supreme state"
+      },
+      {
+        "num": 739,
+        "name_iast": "loka-bandhuḥ",
+        "name_devanagari": "लोकबन्धुः",
+        "meaning": "The friend of the world"
+      },
+      {
+        "num": 740,
+        "name_iast": "loka-nāthaḥ",
+        "name_devanagari": "लोकनाथः",
+        "meaning": "The lord of all worlds"
+      },
+      {
+        "num": 741,
+        "name_iast": "mādhavaḥ",
+        "name_devanagari": "माधवः",
+        "meaning": "The consort of Lakshmi; born in Madhu clan"
+      },
+      {
+        "num": 742,
+        "name_iast": "bhakta-vatsalaḥ",
+        "name_devanagari": "भक्तवत्सलः",
+        "meaning": "He who loves His devotees dearly"
+      },
+      {
+        "num": 743,
+        "name_iast": "suvarṇa-varṇaḥ",
+        "name_devanagari": "सुवर्णवर्णः",
+        "meaning": "He of golden complexion"
+      },
+      {
+        "num": 744,
+        "name_iast": "hemāṅgaḥ",
+        "name_devanagari": "हेमाङ्गः",
+        "meaning": "He of golden limbs"
+      },
+      {
+        "num": 745,
+        "name_iast": "varāṅgaḥ",
+        "name_devanagari": "वराङ्गः",
+        "meaning": "He of beautiful limbs"
+      },
+      {
+        "num": 746,
+        "name_iast": "candanāṅgadī",
+        "name_devanagari": "चन्दनाङ्गदी",
+        "meaning": "He smeared with sandalwood; with golden armlets"
+      },
+      {
+        "num": 747,
+        "name_iast": "vīra-hā",
+        "name_devanagari": "वीरहा",
+        "meaning": "The slayer of heroic demons"
+      },
+      {
+        "num": 748,
+        "name_iast": "viṣamaḥ",
+        "name_devanagari": "विषमः",
+        "meaning": "He who is unequalled"
+      },
+      {
+        "num": 749,
+        "name_iast": "śūnyaḥ",
+        "name_devanagari": "शून्यः",
+        "meaning": "The void; He who is devoid of defects"
+      },
+      {
+        "num": 750,
+        "name_iast": "ghṛtāśīḥ",
+        "name_devanagari": "घृताशीः",
+        "meaning": "He whose blessings are unfailing"
+      },
+      {
+        "num": 751,
+        "name_iast": "acalaḥ",
+        "name_devanagari": "अचलः",
+        "meaning": "The immovable"
+      },
+      {
+        "num": 752,
+        "name_iast": "calaḥ",
+        "name_devanagari": "चलः",
+        "meaning": "The moving"
+      },
+      {
+        "num": 753,
+        "name_iast": "amānī",
+        "name_devanagari": "अमानी",
+        "meaning": "He who is without pride"
+      },
+      {
+        "num": 754,
+        "name_iast": "māna-daḥ",
+        "name_devanagari": "मानदः",
+        "meaning": "The bestower of honor"
+      },
+      {
+        "num": 755,
+        "name_iast": "mānyaḥ",
+        "name_devanagari": "मान्यः",
+        "meaning": "He who is worthy of respect"
+      },
+      {
+        "num": 756,
+        "name_iast": "loka-svāmī",
+        "name_devanagari": "लोकस्वामी",
+        "meaning": "The lord of all worlds"
+      },
+      {
+        "num": 757,
+        "name_iast": "tri-loka-dhṛk",
+        "name_devanagari": "त्रिलोकधृक्",
+        "meaning": "The supporter of the three worlds"
+      },
+      {
+        "num": 758,
+        "name_iast": "su-medhāḥ",
+        "name_devanagari": "सुमेधाः",
+        "meaning": "He of great intelligence"
+      },
+      {
+        "num": 759,
+        "name_iast": "medhajāḥ",
+        "name_devanagari": "मेधजाः",
+        "meaning": "He born of sacrifices"
+      },
+      {
+        "num": 760,
+        "name_iast": "dhanyaḥ",
+        "name_devanagari": "धन्यः",
+        "meaning": "The blessed; the fortunate"
+      },
+      {
+        "num": 761,
+        "name_iast": "satya-medhāḥ",
+        "name_devanagari": "सत्यमेधाः",
+        "meaning": "He of true intelligence"
+      },
+      {
+        "num": 762,
+        "name_iast": "dharā-dharaḥ",
+        "name_devanagari": "धराधरः",
+        "meaning": "The supporter of the earth"
+      },
+      {
+        "num": 763,
+        "name_iast": "tejo-vṛṣaḥ",
+        "name_devanagari": "तेजोवृषः",
+        "meaning": "He who showers splendor"
+      },
+      {
+        "num": 764,
+        "name_iast": "dyuti-dharaḥ",
+        "name_devanagari": "द्युतिधरः",
+        "meaning": "The bearer of radiance"
+      },
+      {
+        "num": 765,
+        "name_iast": "sarva-śastra-bhṛtāṃ-varaḥ",
+        "name_devanagari": "सर्वशस्त्रभृतांवरः",
+        "meaning": "The best among weapon-bearers"
+      },
+      {
+        "num": 766,
+        "name_iast": "pragrahaḥ",
+        "name_devanagari": "प्रग्रहः",
+        "meaning": "He who is the controller"
+      },
+      {
+        "num": 767,
+        "name_iast": "nigrahaḥ",
+        "name_devanagari": "निग्रहः",
+        "meaning": "The restrainer"
+      },
+      {
+        "num": 768,
+        "name_iast": "vyagraḥ",
+        "name_devanagari": "व्यग्रः",
+        "meaning": "He who is ever-busy for devotees"
+      },
+      {
+        "num": 769,
+        "name_iast": "naika-śṛṅgaḥ",
+        "name_devanagari": "नैकशृङ्गः",
+        "meaning": "He of many horns; Matsya avatar"
+      },
+      {
+        "num": 770,
+        "name_iast": "gadāgrajaḥ",
+        "name_devanagari": "गदाग्रजः",
+        "meaning": "The elder brother of Gada; Krishna"
+      },
+      {
+        "num": 771,
+        "name_iast": "catur-mūrtiḥ",
+        "name_devanagari": "चतुर्मूर्तिः",
+        "meaning": "He of four forms"
+      },
+      {
+        "num": 772,
+        "name_iast": "catur-bāhuḥ",
+        "name_devanagari": "चतुर्बाहुः",
+        "meaning": "He of four arms"
+      },
+      {
+        "num": 773,
+        "name_iast": "catur-vyūhaḥ",
+        "name_devanagari": "चतुर्व्यूहः",
+        "meaning": "He of four emanations"
+      },
+      {
+        "num": 774,
+        "name_iast": "catur-gatiḥ",
+        "name_devanagari": "चतुर्गतिः",
+        "meaning": "The four goals of life"
+      },
+      {
+        "num": 775,
+        "name_iast": "catur-ātmā",
+        "name_devanagari": "चतुर्ात्मा",
+        "meaning": "He of four selves"
+      },
+      {
+        "num": 776,
+        "name_iast": "catur-bhāvaḥ",
+        "name_devanagari": "चतुर्भावः",
+        "meaning": "He of four moods of creation"
+      },
+      {
+        "num": 777,
+        "name_iast": "catur-veda-vit",
+        "name_devanagari": "चतुर्वेदवित्",
+        "meaning": "The knower of the four Vedas"
+      },
+      {
+        "num": 778,
+        "name_iast": "eka-pāt",
+        "name_devanagari": "एकपात्",
+        "meaning": "The one-footed; He who pervades as one"
+      },
+      {
+        "num": 779,
+        "name_iast": "samāvartaḥ",
+        "name_devanagari": "समावर्तः",
+        "meaning": "He who controls the cycles of existence"
+      },
+      {
+        "num": 780,
+        "name_iast": "nivṛttātmā",
+        "name_devanagari": "निवृत्तात्मा",
+        "meaning": "He whose Self is turned from worldliness"
+      },
+      {
+        "num": 781,
+        "name_iast": "dur-jayaḥ",
+        "name_devanagari": "दुर्जयः",
+        "meaning": "He who is difficult to conquer"
+      },
+      {
+        "num": 782,
+        "name_iast": "duratikramaḥ",
+        "name_devanagari": "दुरतिक्रमः",
+        "meaning": "He who is difficult to transgress"
+      },
+      {
+        "num": 783,
+        "name_iast": "dur-labhaḥ",
+        "name_devanagari": "दुर्लभः",
+        "meaning": "He who is difficult to attain"
+      },
+      {
+        "num": 784,
+        "name_iast": "dur-gamaḥ",
+        "name_devanagari": "दुर्गमः",
+        "meaning": "He who is difficult to reach"
+      },
+      {
+        "num": 785,
+        "name_iast": "durgaḥ",
+        "name_devanagari": "दुर्गः",
+        "meaning": "He who is known with great difficulty"
+      },
+      {
+        "num": 786,
+        "name_iast": "dur-āvāsaḥ",
+        "name_devanagari": "दुर्ावासः",
+        "meaning": "He whose abode is hard to reach"
+      },
+      {
+        "num": 787,
+        "name_iast": "dur-āri-hā",
+        "name_devanagari": "दुर्ारिहा",
+        "meaning": "The slayer of wicked enemies"
+      },
+      {
+        "num": 788,
+        "name_iast": "śubhāṅgaḥ",
+        "name_devanagari": "शुभाङ्गः",
+        "meaning": "He of auspicious form"
+      },
+      {
+        "num": 789,
+        "name_iast": "loka-sāraṅgaḥ",
+        "name_devanagari": "लोकसारङ्गः",
+        "meaning": "He who understands the essence of the world"
+      },
+      {
+        "num": 790,
+        "name_iast": "su-tantuḥ",
+        "name_devanagari": "सुतन्तुः",
+        "meaning": "He of beautiful expansion; the web of the world"
+      },
+      {
+        "num": 791,
+        "name_iast": "tantu-vardhanaḥ",
+        "name_devanagari": "तन्तुवर्धनः",
+        "meaning": "He who expands the web of the world"
+      },
+      {
+        "num": 792,
+        "name_iast": "indra-karmā",
+        "name_devanagari": "इन्द्रकर्मा",
+        "meaning": "He who performs deeds like Indra"
+      },
+      {
+        "num": 793,
+        "name_iast": "mahā-karmā",
+        "name_devanagari": "महाकर्मा",
+        "meaning": "He of great deeds"
+      },
+      {
+        "num": 794,
+        "name_iast": "kṛta-karmā",
+        "name_devanagari": "कृतकर्मा",
+        "meaning": "He who has accomplished all deeds"
+      },
+      {
+        "num": 795,
+        "name_iast": "kṛtāgamaḥ",
+        "name_devanagari": "कृतागमः",
+        "meaning": "The author of the scriptures"
+      },
+      {
+        "num": 796,
+        "name_iast": "udbhavaḥ",
+        "name_devanagari": "उद्भवः",
+        "meaning": "The origin; He who transcends"
+      },
+      {
+        "num": 797,
+        "name_iast": "sundaraḥ",
+        "name_devanagari": "सुन्दरः",
+        "meaning": "The supremely beautiful"
+      },
+      {
+        "num": 798,
+        "name_iast": "sundaḥ",
+        "name_devanagari": "सुन्दः",
+        "meaning": "He of great compassion"
+      },
+      {
+        "num": 799,
+        "name_iast": "ratna-nābhaḥ",
+        "name_devanagari": "रत्ननाभः",
+        "meaning": "He of the jewel-navel"
+      },
+      {
+        "num": 800,
+        "name_iast": "su-locanaḥ",
+        "name_devanagari": "सुलोचनः",
+        "meaning": "He of beautiful eyes"
+      },
+      {
+        "num": 801,
+        "name_iast": "arkaḥ",
+        "name_devanagari": "अर्कः",
+        "meaning": "He who is worthy of worship; the sun"
+      },
+      {
+        "num": 802,
+        "name_iast": "vāja-saniḥ",
+        "name_devanagari": "वाजसनिः",
+        "meaning": "The bestower of food"
+      },
+      {
+        "num": 803,
+        "name_iast": "śṛṅgī",
+        "name_devanagari": "शृङ्गी",
+        "meaning": "The horned one; Matsya"
+      },
+      {
+        "num": 804,
+        "name_iast": "jayantaḥ",
+        "name_devanagari": "जयन्तः",
+        "meaning": "The conqueror of all enemies"
+      },
+      {
+        "num": 805,
+        "name_iast": "sarva-vij-jayī",
+        "name_devanagari": "सर्वविज्जयी",
+        "meaning": "He who is victorious over all"
+      },
+      {
+        "num": 806,
+        "name_iast": "suvarṇa-binduḥ",
+        "name_devanagari": "सुवर्णबिन्दुः",
+        "meaning": "He with a golden mark"
+      },
+      {
+        "num": 807,
+        "name_iast": "akṣobhyaḥ",
+        "name_devanagari": "अक्षोभ्यः",
+        "meaning": "He who is unperturbed"
+      },
+      {
+        "num": 808,
+        "name_iast": "sarva-vāgīśvareśvaraḥ",
+        "name_devanagari": "सर्ववागीश्वरेश्वरः",
+        "meaning": "The lord of the lord of all speech"
+      },
+      {
+        "num": 809,
+        "name_iast": "mahā-hṛdaḥ",
+        "name_devanagari": "महाहृदः",
+        "meaning": "He of great heart; the great lake"
+      },
+      {
+        "num": 810,
+        "name_iast": "mahā-gartaḥ",
+        "name_devanagari": "महागर्तः",
+        "meaning": "The great abyss"
+      },
+      {
+        "num": 811,
+        "name_iast": "mahā-bhūtaḥ",
+        "name_devanagari": "महाभूतः",
+        "meaning": "The great being"
+      },
+      {
+        "num": 812,
+        "name_iast": "mahā-nidhiḥ",
+        "name_devanagari": "महानिधिः",
+        "meaning": "The great treasure"
+      },
+      {
+        "num": 813,
+        "name_iast": "kumudaḥ",
+        "name_devanagari": "कुमुदः",
+        "meaning": "He who gladdens the earth"
+      },
+      {
+        "num": 814,
+        "name_iast": "kundaraḥ",
+        "name_devanagari": "कुन्दरः",
+        "meaning": "He who bestows rewards as pure as jasmine"
+      },
+      {
+        "num": 815,
+        "name_iast": "kundaḥ",
+        "name_devanagari": "कुन्दः",
+        "meaning": "He who is pure as jasmine"
+      },
+      {
+        "num": 816,
+        "name_iast": "parjanyaḥ",
+        "name_devanagari": "पर्जन्यः",
+        "meaning": "He who is like the rain-cloud"
+      },
+      {
+        "num": 817,
+        "name_iast": "pāvanaḥ",
+        "name_devanagari": "पावनः",
+        "meaning": "The purifier"
+      },
+      {
+        "num": 818,
+        "name_iast": "anilaḥ",
+        "name_devanagari": "अनिलः",
+        "meaning": "The wind; He of infinite form"
+      },
+      {
+        "num": 819,
+        "name_iast": "amṛtāṃśaḥ",
+        "name_devanagari": "अमृतांशः",
+        "meaning": "He of immortal rays; the moon"
+      },
+      {
+        "num": 820,
+        "name_iast": "mṛta-vapuḥ",
+        "name_devanagari": "मृतवपुः",
+        "meaning": "He whose form is immortality itself"
+      },
+      {
+        "num": 821,
+        "name_iast": "sarvajñaḥ",
+        "name_devanagari": "सर्वज्ञः",
+        "meaning": "The omniscient"
+      },
+      {
+        "num": 822,
+        "name_iast": "sarva-tomukhaḥ",
+        "name_devanagari": "सर्वतोमुखः",
+        "meaning": "He whose face is everywhere"
+      },
+      {
+        "num": 823,
+        "name_iast": "sulabhaḥ",
+        "name_devanagari": "सुलभः",
+        "meaning": "He who is easily attainable"
+      },
+      {
+        "num": 824,
+        "name_iast": "su-vrataḥ",
+        "name_devanagari": "सुव्रतः",
+        "meaning": "He of excellent vows"
+      },
+      {
+        "num": 825,
+        "name_iast": "siddhaḥ",
+        "name_devanagari": "सिद्धः",
+        "meaning": "The ever-perfect one"
+      },
+      {
+        "num": 826,
+        "name_iast": "śatru-jit",
+        "name_devanagari": "शत्रुजित्",
+        "meaning": "The conqueror of enemies"
+      },
+      {
+        "num": 827,
+        "name_iast": "śatru-tāpanaḥ",
+        "name_devanagari": "शत्रुतापनः",
+        "meaning": "The tormenter of enemies"
+      },
+      {
+        "num": 828,
+        "name_iast": "nyag-rodhaḥ",
+        "name_devanagari": "न्यग्रोधः",
+        "meaning": "He who is the banyan tree"
+      },
+      {
+        "num": 829,
+        "name_iast": "udumbaraḥ",
+        "name_devanagari": "उदुम्बरः",
+        "meaning": "The nourisher; above the sky"
+      },
+      {
+        "num": 830,
+        "name_iast": "aśvatthaḥ",
+        "name_devanagari": "अश्वत्थः",
+        "meaning": "The holy fig tree; the impermanent world"
+      },
+      {
+        "num": 831,
+        "name_iast": "cāṇūrāndhra-niṣūdanaḥ",
+        "name_devanagari": "चाणूरान्ध्रनिषूदनः",
+        "meaning": "The slayer of the demon Chanura"
+      },
+      {
+        "num": 832,
+        "name_iast": "sahasrārciḥ",
+        "name_devanagari": "सहस्रार्चिः",
+        "meaning": "He of a thousand rays"
+      },
+      {
+        "num": 833,
+        "name_iast": "sapta-jihvaḥ",
+        "name_devanagari": "सप्तजिह्वः",
+        "meaning": "He of seven tongues of fire"
+      },
+      {
+        "num": 834,
+        "name_iast": "saptaidhāḥ",
+        "name_devanagari": "सप्तैधाः",
+        "meaning": "He of seven flames"
+      },
+      {
+        "num": 835,
+        "name_iast": "sapta-vāhanaḥ",
+        "name_devanagari": "सप्तवाहनः",
+        "meaning": "He whose vehicle has seven horses; the sun"
+      },
+      {
+        "num": 836,
+        "name_iast": "amūrtiḥ",
+        "name_devanagari": "अमूर्तिः",
+        "meaning": "He who is formless"
+      },
+      {
+        "num": 837,
+        "name_iast": "anaghaḥ",
+        "name_devanagari": "अनघः",
+        "meaning": "He who is sinless"
+      },
+      {
+        "num": 838,
+        "name_iast": "acintyaḥ",
+        "name_devanagari": "अचिन्त्यः",
+        "meaning": "He who is inconceivable"
+      },
+      {
+        "num": 839,
+        "name_iast": "bhaya-kṛt",
+        "name_devanagari": "भयकृत्",
+        "meaning": "He who creates fear in the wicked"
+      },
+      {
+        "num": 840,
+        "name_iast": "bhaya-nāśanaḥ",
+        "name_devanagari": "भयनाशनः",
+        "meaning": "The destroyer of fear"
+      },
+      {
+        "num": 841,
+        "name_iast": "aṇuḥ",
+        "name_devanagari": "अणुः",
+        "meaning": "The infinitesimally small"
+      },
+      {
+        "num": 842,
+        "name_iast": "bṛhat",
+        "name_devanagari": "बृहत्",
+        "meaning": "The infinitely great"
+      },
+      {
+        "num": 843,
+        "name_iast": "kṛśaḥ",
+        "name_devanagari": "कृशः",
+        "meaning": "The lean; the subtle"
+      },
+      {
+        "num": 844,
+        "name_iast": "sthūlaḥ",
+        "name_devanagari": "स्थूलः",
+        "meaning": "The massive; the gross"
+      },
+      {
+        "num": 845,
+        "name_iast": "guṇa-bhṛt",
+        "name_devanagari": "गुणभृत्",
+        "meaning": "The bearer of all qualities"
+      },
+      {
+        "num": 846,
+        "name_iast": "nirguṇaḥ",
+        "name_devanagari": "निर्गुणः",
+        "meaning": "He who is beyond all qualities"
+      },
+      {
+        "num": 847,
+        "name_iast": "mahān",
+        "name_devanagari": "महान्",
+        "meaning": "The great one"
+      },
+      {
+        "num": 848,
+        "name_iast": "adhṛtaḥ",
+        "name_devanagari": "अधृतः",
+        "meaning": "He who is unsupported; self-sustaining"
+      },
+      {
+        "num": 849,
+        "name_iast": "sva-dhṛtaḥ",
+        "name_devanagari": "स्वधृतः",
+        "meaning": "He who is self-supported"
+      },
+      {
+        "num": 850,
+        "name_iast": "svāsyaḥ",
+        "name_devanagari": "स्वास्यः",
+        "meaning": "He of the beautiful face"
+      },
+      {
+        "num": 851,
+        "name_iast": "prāg-vaṃśaḥ",
+        "name_devanagari": "प्राग्वंशः",
+        "meaning": "The primeval dynasty"
+      },
+      {
+        "num": 852,
+        "name_iast": "vaṃśa-vardhanaḥ",
+        "name_devanagari": "वंशवर्धनः",
+        "meaning": "The grower of the dynasty"
+      },
+      {
+        "num": 853,
+        "name_iast": "bhāra-bhṛt",
+        "name_devanagari": "भारभृत्",
+        "meaning": "The bearer of the burden of the universe"
+      },
+      {
+        "num": 854,
+        "name_iast": "kathitaḥ",
+        "name_devanagari": "कथितः",
+        "meaning": "He who is spoken of in the Vedas"
+      },
+      {
+        "num": 855,
+        "name_iast": "yogī",
+        "name_devanagari": "योगी",
+        "meaning": "The supreme yogi"
+      },
+      {
+        "num": 856,
+        "name_iast": "yogīśaḥ",
+        "name_devanagari": "योगीशः",
+        "meaning": "The lord of the yogis"
+      },
+      {
+        "num": 857,
+        "name_iast": "sarva-kāma-daḥ",
+        "name_devanagari": "सर्वकामदः",
+        "meaning": "The fulfiller of all desires"
+      },
+      {
+        "num": 858,
+        "name_iast": "āśramaḥ",
+        "name_devanagari": "आश्रमः",
+        "meaning": "The hermitage; the resting place"
+      },
+      {
+        "num": 859,
+        "name_iast": "śramaṇaḥ",
+        "name_devanagari": "श्रमणः",
+        "meaning": "He who causes exhaustion in the wicked"
+      },
+      {
+        "num": 860,
+        "name_iast": "kṣāmaḥ",
+        "name_devanagari": "क्षामः",
+        "meaning": "He who destroys; the lean"
+      },
+      {
+        "num": 861,
+        "name_iast": "suparṇaḥ",
+        "name_devanagari": "सुपर्णः",
+        "meaning": "He of beautiful wings; Garuda"
+      },
+      {
+        "num": 862,
+        "name_iast": "vāyu-vāhanaḥ",
+        "name_devanagari": "वायुवाहनः",
+        "meaning": "He who drives the wind"
+      },
+      {
+        "num": 863,
+        "name_iast": "dhanur-dharaḥ",
+        "name_devanagari": "धनुर्धरः",
+        "meaning": "The wielder of the bow"
+      },
+      {
+        "num": 864,
+        "name_iast": "dhanur-vedaḥ",
+        "name_devanagari": "धनुर्वेदः",
+        "meaning": "The knower of the science of archery"
+      },
+      {
+        "num": 865,
+        "name_iast": "daṇḍaḥ",
+        "name_devanagari": "दण्डः",
+        "meaning": "The punisher"
+      },
+      {
+        "num": 866,
+        "name_iast": "damayitā",
+        "name_devanagari": "दमयिता",
+        "meaning": "The subduer"
+      },
+      {
+        "num": 867,
+        "name_iast": "damaḥ",
+        "name_devanagari": "दमः",
+        "meaning": "Self-control personified"
+      },
+      {
+        "num": 868,
+        "name_iast": "aparājitaḥ",
+        "name_devanagari": "अपराजितः",
+        "meaning": "He who is never defeated"
+      },
+      {
+        "num": 869,
+        "name_iast": "sarva-sahaḥ",
+        "name_devanagari": "सर्वसहः",
+        "meaning": "He who bears everything"
+      },
+      {
+        "num": 870,
+        "name_iast": "niyantā",
+        "name_devanagari": "नियन्ता",
+        "meaning": "The controller of all"
+      },
+      {
+        "num": 871,
+        "name_iast": "niyamaḥ",
+        "name_devanagari": "नियमः",
+        "meaning": "The regulator; the law"
+      },
+      {
+        "num": 872,
+        "name_iast": "yamaḥ",
+        "name_devanagari": "यमः",
+        "meaning": "The restrainer; the god of death"
+      },
+      {
+        "num": 873,
+        "name_iast": "sattvavān",
+        "name_devanagari": "सत्त्ववान्",
+        "meaning": "He who is full of nobility and strength"
+      },
+      {
+        "num": 874,
+        "name_iast": "sāttvikaḥ",
+        "name_devanagari": "सात्त्विकः",
+        "meaning": "He who is of pure sattva nature"
+      },
+      {
+        "num": 875,
+        "name_iast": "satyaḥ",
+        "name_devanagari": "सत्यः",
+        "meaning": "The truth itself"
+      },
+      {
+        "num": 876,
+        "name_iast": "satya-dharma-parāyaṇaḥ",
+        "name_devanagari": "सत्यधर्मपरायणः",
+        "meaning": "He who is devoted to truth and dharma"
+      },
+      {
+        "num": 877,
+        "name_iast": "abhiprāyaḥ",
+        "name_devanagari": "अभिप्रायः",
+        "meaning": "He who is the goal to be reached"
+      },
+      {
+        "num": 878,
+        "name_iast": "priyārhaḥ",
+        "name_devanagari": "प्रियार्हः",
+        "meaning": "He who deserves all that is dear"
+      },
+      {
+        "num": 879,
+        "name_iast": "arhaḥ",
+        "name_devanagari": "अर्हः",
+        "meaning": "He who is worthy of worship"
+      },
+      {
+        "num": 880,
+        "name_iast": "priya-kṛt",
+        "name_devanagari": "प्रियकृत्",
+        "meaning": "He who does what is dear to devotees"
+      },
+      {
+        "num": 881,
+        "name_iast": "prīti-vardhanaḥ",
+        "name_devanagari": "प्रीतिवर्धनः",
+        "meaning": "He who increases joy"
+      },
+      {
+        "num": 882,
+        "name_iast": "vihāyasa-gatiḥ",
+        "name_devanagari": "विहायसगतिः",
+        "meaning": "He who moves through the sky"
+      },
+      {
+        "num": 883,
+        "name_iast": "jyotiḥ",
+        "name_devanagari": "ज्योतिः",
+        "meaning": "The self-luminous light"
+      },
+      {
+        "num": 884,
+        "name_iast": "su-ruciḥ",
+        "name_devanagari": "सुरुचिः",
+        "meaning": "He of beautiful radiance"
+      },
+      {
+        "num": 885,
+        "name_iast": "huta-bhuk",
+        "name_devanagari": "हुतभुक्",
+        "meaning": "He who enjoys the oblations"
+      },
+      {
+        "num": 886,
+        "name_iast": "vibhuḥ",
+        "name_devanagari": "विभुः",
+        "meaning": "The all-pervading lord"
+      },
+      {
+        "num": 887,
+        "name_iast": "raviḥ",
+        "name_devanagari": "रविः",
+        "meaning": "The sun; He who dries up everything"
+      },
+      {
+        "num": 888,
+        "name_iast": "virocanaḥ",
+        "name_devanagari": "विरोचनः",
+        "meaning": "He who illuminates everything"
+      },
+      {
+        "num": 889,
+        "name_iast": "sūryaḥ",
+        "name_devanagari": "सूर्यः",
+        "meaning": "The sun; the source of all"
+      },
+      {
+        "num": 890,
+        "name_iast": "savitā",
+        "name_devanagari": "सविता",
+        "meaning": "The generator of all; the sun"
+      },
+      {
+        "num": 891,
+        "name_iast": "ravi-locanaḥ",
+        "name_devanagari": "रविलोचनः",
+        "meaning": "He whose eyes are the sun"
+      },
+      {
+        "num": 892,
+        "name_iast": "anantaḥ",
+        "name_devanagari": "अनन्तः",
+        "meaning": "The endless and infinite one"
+      },
+      {
+        "num": 893,
+        "name_iast": "huta-bhuk",
+        "name_devanagari": "हुतभुक्",
+        "meaning": "The consumer of offerings"
+      },
+      {
+        "num": 894,
+        "name_iast": "bhoktā",
+        "name_devanagari": "भोक्ता",
+        "meaning": "The enjoyer of all"
+      },
+      {
+        "num": 895,
+        "name_iast": "sukhadaḥ",
+        "name_devanagari": "सुखदः",
+        "meaning": "The giver of happiness"
+      },
+      {
+        "num": 896,
+        "name_iast": "naikajaḥ",
+        "name_devanagari": "नैकजः",
+        "meaning": "He who is born many times"
+      },
+      {
+        "num": 897,
+        "name_iast": "agrajaḥ",
+        "name_devanagari": "अग्रजः",
+        "meaning": "The first-born; the eldest"
+      },
+      {
+        "num": 898,
+        "name_iast": "anirviṇṇaḥ",
+        "name_devanagari": "अनिर्विण्णः",
+        "meaning": "He who is never dejected"
+      },
+      {
+        "num": 899,
+        "name_iast": "sadā-marṣī",
+        "name_devanagari": "सदामर्षी",
+        "meaning": "He who always forgives"
+      },
+      {
+        "num": 900,
+        "name_iast": "lokādhiṣṭhānam",
+        "name_devanagari": "लोकाधिष्ठानम्",
+        "meaning": "The support of all worlds"
+      },
+      {
+        "num": 901,
+        "name_iast": "adbhutaḥ",
+        "name_devanagari": "अद्भुतः",
+        "meaning": "The wonderful one"
+      },
+      {
+        "num": 902,
+        "name_iast": "sanāt",
+        "name_devanagari": "सनात्",
+        "meaning": "The eternal ancient one"
+      },
+      {
+        "num": 903,
+        "name_iast": "sanātana-tamaḥ",
+        "name_devanagari": "सनातनतमः",
+        "meaning": "The most ancient of all"
+      },
+      {
+        "num": 904,
+        "name_iast": "kapilaḥ",
+        "name_devanagari": "कपिलः",
+        "meaning": "The sage Kapila"
+      },
+      {
+        "num": 905,
+        "name_iast": "kapiḥ",
+        "name_devanagari": "कपिः",
+        "meaning": "He who drinks water; the sun"
+      },
+      {
+        "num": 906,
+        "name_iast": "avyayaḥ",
+        "name_devanagari": "अव्ययः",
+        "meaning": "The imperishable one"
+      },
+      {
+        "num": 907,
+        "name_iast": "svasti-daḥ",
+        "name_devanagari": "स्वस्तिदः",
+        "meaning": "The bestower of auspiciousness"
+      },
+      {
+        "num": 908,
+        "name_iast": "svasti-kṛt",
+        "name_devanagari": "स्वस्तिकृत्",
+        "meaning": "The doer of auspicious deeds"
+      },
+      {
+        "num": 909,
+        "name_iast": "svastiḥ",
+        "name_devanagari": "स्वस्तिः",
+        "meaning": "He who is auspiciousness itself"
+      },
+      {
+        "num": 910,
+        "name_iast": "svasti-bhuk",
+        "name_devanagari": "स्वस्तिभुक्",
+        "meaning": "He who enjoys auspiciousness"
+      },
+      {
+        "num": 911,
+        "name_iast": "svasti-dakṣiṇaḥ",
+        "name_devanagari": "स्वस्तिदक्षिणः",
+        "meaning": "He who is the auspicious gift"
+      },
+      {
+        "num": 912,
+        "name_iast": "araudraḥ",
+        "name_devanagari": "अरौद्रः",
+        "meaning": "He who is without anger"
+      },
+      {
+        "num": 913,
+        "name_iast": "kuṇḍalī",
+        "name_devanagari": "कुण्डली",
+        "meaning": "He who wears earrings"
+      },
+      {
+        "num": 914,
+        "name_iast": "cakrī",
+        "name_devanagari": "चक्री",
+        "meaning": "He who holds the discus"
+      },
+      {
+        "num": 915,
+        "name_iast": "vikramī",
+        "name_devanagari": "विक्रमी",
+        "meaning": "He of great valor"
+      },
+      {
+        "num": 916,
+        "name_iast": "ūrjita-śāsanaḥ",
+        "name_devanagari": "ऊर्जितशासनः",
+        "meaning": "He of mighty commands"
+      },
+      {
+        "num": 917,
+        "name_iast": "śabdātigaḥ",
+        "name_devanagari": "शब्दातिगः",
+        "meaning": "He who transcends all sound"
+      },
+      {
+        "num": 918,
+        "name_iast": "śabda-sahaḥ",
+        "name_devanagari": "शब्दसहः",
+        "meaning": "He who endures all words of praise"
+      },
+      {
+        "num": 919,
+        "name_iast": "śiśiraḥ",
+        "name_devanagari": "शिशिरः",
+        "meaning": "He who is cool and pleasant"
+      },
+      {
+        "num": 920,
+        "name_iast": "śarvarī-karaḥ",
+        "name_devanagari": "शर्वरीकरः",
+        "meaning": "The maker of night"
+      },
+      {
+        "num": 921,
+        "name_iast": "akrūraḥ",
+        "name_devanagari": "अक्रूरः",
+        "meaning": "He who is not cruel"
+      },
+      {
+        "num": 922,
+        "name_iast": "peśalaḥ",
+        "name_devanagari": "पेशलः",
+        "meaning": "He who is supremely kind"
+      },
+      {
+        "num": 923,
+        "name_iast": "dakṣaḥ",
+        "name_devanagari": "दक्षः",
+        "meaning": "He who is alert and skilled"
+      },
+      {
+        "num": 924,
+        "name_iast": "dakṣiṇaḥ",
+        "name_devanagari": "दक्षिणः",
+        "meaning": "He who is liberal"
+      },
+      {
+        "num": 925,
+        "name_iast": "kṣamiṇāṃ-varaḥ",
+        "name_devanagari": "क्षमिणांवरः",
+        "meaning": "The best among the patient"
+      },
+      {
+        "num": 926,
+        "name_iast": "vidvattamaḥ",
+        "name_devanagari": "विद्वत्तमः",
+        "meaning": "The most learned of all"
+      },
+      {
+        "num": 927,
+        "name_iast": "vīta-bhayaḥ",
+        "name_devanagari": "वीतभयः",
+        "meaning": "He who is free from fear"
+      },
+      {
+        "num": 928,
+        "name_iast": "puṇya-śravaṇa-kīrtanaḥ",
+        "name_devanagari": "पुण्यश्रवणकीर्तनः",
+        "meaning": "He whose hearing and singing are purifying"
+      },
+      {
+        "num": 929,
+        "name_iast": "uttāraṇaḥ",
+        "name_devanagari": "उत्तारणः",
+        "meaning": "He who lifts beings out of samsara"
+      },
+      {
+        "num": 930,
+        "name_iast": "duṣ-kṛti-hā",
+        "name_devanagari": "दुष्कृतिहा",
+        "meaning": "The destroyer of evil deeds"
+      },
+      {
+        "num": 931,
+        "name_iast": "puṇyaḥ",
+        "name_devanagari": "पुण्यः",
+        "meaning": "The supremely holy"
+      },
+      {
+        "num": 932,
+        "name_iast": "duḥsvapna-nāśanaḥ",
+        "name_devanagari": "दुःस्वप्ननाशनः",
+        "meaning": "The destroyer of bad dreams"
+      },
+      {
+        "num": 933,
+        "name_iast": "vīra-hā",
+        "name_devanagari": "वीरहा",
+        "meaning": "The slayer of heroic demons"
+      },
+      {
+        "num": 934,
+        "name_iast": "rakṣaṇaḥ",
+        "name_devanagari": "रक्षणः",
+        "meaning": "The protector"
+      },
+      {
+        "num": 935,
+        "name_iast": "santaḥ",
+        "name_devanagari": "सन्तः",
+        "meaning": "He who is good; the saint"
+      },
+      {
+        "num": 936,
+        "name_iast": "jīvanaḥ",
+        "name_devanagari": "जीवनः",
+        "meaning": "He who gives life to all"
+      },
+      {
+        "num": 937,
+        "name_iast": "pary-avasthitaḥ",
+        "name_devanagari": "पर्य्वस्थितः",
+        "meaning": "He who stands firmly everywhere"
+      },
+      {
+        "num": 938,
+        "name_iast": "ananta-rūpaḥ",
+        "name_devanagari": "अनन्तरूपः",
+        "meaning": "He of infinite forms"
+      },
+      {
+        "num": 939,
+        "name_iast": "ananta-śrīḥ",
+        "name_devanagari": "अनन्तश्रीः",
+        "meaning": "He of infinite glory"
+      },
+      {
+        "num": 940,
+        "name_iast": "jita-manyuḥ",
+        "name_devanagari": "जितमन्युः",
+        "meaning": "He who has conquered anger"
+      },
+      {
+        "num": 941,
+        "name_iast": "bhayāpahaḥ",
+        "name_devanagari": "भयापहः",
+        "meaning": "The remover of fear"
+      },
+      {
+        "num": 942,
+        "name_iast": "catur-aśraḥ",
+        "name_devanagari": "चतुर्श्रः",
+        "meaning": "He who is fair to all"
+      },
+      {
+        "num": 943,
+        "name_iast": "gabhīrātmā",
+        "name_devanagari": "गभीरात्मा",
+        "meaning": "He of inscrutable Self"
+      },
+      {
+        "num": 944,
+        "name_iast": "vidiśaḥ",
+        "name_devanagari": "विदिशः",
+        "meaning": "He who apportions"
+      },
+      {
+        "num": 945,
+        "name_iast": "vyādiśaḥ",
+        "name_devanagari": "व्यादिशः",
+        "meaning": "He who commands from all directions"
+      },
+      {
+        "num": 946,
+        "name_iast": "diśaḥ",
+        "name_devanagari": "दिशः",
+        "meaning": "He who is the directions themselves"
+      },
+      {
+        "num": 947,
+        "name_iast": "anādiḥ",
+        "name_devanagari": "अनादिः",
+        "meaning": "He who is without beginning"
+      },
+      {
+        "num": 948,
+        "name_iast": "bhūr-bhuvaḥ",
+        "name_devanagari": "भूर्भुवः",
+        "meaning": "The earth and the atmosphere"
+      },
+      {
+        "num": 949,
+        "name_iast": "lakṣmīḥ",
+        "name_devanagari": "लक्ष्मीः",
+        "meaning": "The goddess of fortune"
+      },
+      {
+        "num": 950,
+        "name_iast": "suvīraḥ",
+        "name_devanagari": "सुवीरः",
+        "meaning": "He of great heroism"
+      },
+      {
+        "num": 951,
+        "name_iast": "ruci-rāṅgadaḥ",
+        "name_devanagari": "रुचिराङ्गदः",
+        "meaning": "He of beautiful armlets"
+      },
+      {
+        "num": 952,
+        "name_iast": "jananaḥ",
+        "name_devanagari": "जननः",
+        "meaning": "The creator of all beings"
+      },
+      {
+        "num": 953,
+        "name_iast": "jana-janmādiḥ",
+        "name_devanagari": "जनजन्मादिः",
+        "meaning": "He who is the cause of all births"
+      },
+      {
+        "num": 954,
+        "name_iast": "bhīmaḥ",
+        "name_devanagari": "भीमः",
+        "meaning": "The formidable one"
+      },
+      {
+        "num": 955,
+        "name_iast": "bhīma-parākramaḥ",
+        "name_devanagari": "भीमपराक्रमः",
+        "meaning": "He of terrible prowess"
+      },
+      {
+        "num": 956,
+        "name_iast": "ādhāraḥ",
+        "name_devanagari": "आधारः",
+        "meaning": "The support of everything"
+      },
+      {
+        "num": 957,
+        "name_iast": "nilayaḥ",
+        "name_devanagari": "निलयः",
+        "meaning": "The resting place"
+      },
+      {
+        "num": 958,
+        "name_iast": "dhātā",
+        "name_devanagari": "धाता",
+        "meaning": "The sustainer; the creator"
+      },
+      {
+        "num": 959,
+        "name_iast": "puṣpahāsaḥ",
+        "name_devanagari": "पुष्पहासः",
+        "meaning": "He who smiles like a flower"
+      },
+      {
+        "num": 960,
+        "name_iast": "prajāgaraḥ",
+        "name_devanagari": "प्रजागरः",
+        "meaning": "He who is ever-awake"
+      },
+      {
+        "num": 961,
+        "name_iast": "ūrdhvagaḥ",
+        "name_devanagari": "ऊर्ध्वगः",
+        "meaning": "He who is above all"
+      },
+      {
+        "num": 962,
+        "name_iast": "sat-pathācāraḥ",
+        "name_devanagari": "सत्पथाचारः",
+        "meaning": "He who walks the path of truth"
+      },
+      {
+        "num": 963,
+        "name_iast": "prāṇadaḥ",
+        "name_devanagari": "प्राणदः",
+        "meaning": "The giver of life-breath"
+      },
+      {
+        "num": 964,
+        "name_iast": "praṇavaḥ",
+        "name_devanagari": "प्रणवः",
+        "meaning": "He who is Om"
+      },
+      {
+        "num": 965,
+        "name_iast": "paṇaḥ",
+        "name_devanagari": "पणः",
+        "meaning": "The supreme transaction"
+      },
+      {
+        "num": 966,
+        "name_iast": "pramāṇam",
+        "name_devanagari": "प्रमाणम्",
+        "meaning": "The authority; the proof"
+      },
+      {
+        "num": 967,
+        "name_iast": "prāṇa-nilayaḥ",
+        "name_devanagari": "प्राणनिलयः",
+        "meaning": "The abode of all life"
+      },
+      {
+        "num": 968,
+        "name_iast": "prāṇa-bhṛt",
+        "name_devanagari": "प्राणभृत्",
+        "meaning": "The sustainer of life"
+      },
+      {
+        "num": 969,
+        "name_iast": "prāṇa-jīvanaḥ",
+        "name_devanagari": "प्राणजीवनः",
+        "meaning": "He who gives life to all pranas"
+      },
+      {
+        "num": 970,
+        "name_iast": "tattvam",
+        "name_devanagari": "तत्त्वम्",
+        "meaning": "The ultimate reality"
+      },
+      {
+        "num": 971,
+        "name_iast": "tattva-vit",
+        "name_devanagari": "तत्त्ववित्",
+        "meaning": "The knower of the reality"
+      },
+      {
+        "num": 972,
+        "name_iast": "ekātmā",
+        "name_devanagari": "एकात्मा",
+        "meaning": "The one Self in all"
+      },
+      {
+        "num": 973,
+        "name_iast": "janma-mṛtyu-jarātigaḥ",
+        "name_devanagari": "जन्ममृत्युजरातिगः",
+        "meaning": "He who transcends birth, death, and old age"
+      },
+      {
+        "num": 974,
+        "name_iast": "bhūḥ-bhuvaḥ-svas-taruḥ",
+        "name_devanagari": "भूःभुवःस्वस्तरुः",
+        "meaning": "The tree of the three worlds"
+      },
+      {
+        "num": 975,
+        "name_iast": "tāraḥ",
+        "name_devanagari": "तारः",
+        "meaning": "He who helps cross the ocean of samsara"
+      },
+      {
+        "num": 976,
+        "name_iast": "savitā",
+        "name_devanagari": "सविता",
+        "meaning": "The sun; the creator"
+      },
+      {
+        "num": 977,
+        "name_iast": "pra-pitāmahaḥ",
+        "name_devanagari": "प्रपितामहः",
+        "meaning": "The great-grandfather; Brahma"
+      },
+      {
+        "num": 978,
+        "name_iast": "yajñaḥ",
+        "name_devanagari": "यज्ञः",
+        "meaning": "The sacrifice itself"
+      },
+      {
+        "num": 979,
+        "name_iast": "yajña-patiḥ",
+        "name_devanagari": "यज्ञपतिः",
+        "meaning": "The lord of sacrifices"
+      },
+      {
+        "num": 980,
+        "name_iast": "yajvā",
+        "name_devanagari": "यज्वा",
+        "meaning": "The sacrificer"
+      },
+      {
+        "num": 981,
+        "name_iast": "yajñāṅgaḥ",
+        "name_devanagari": "यज्ञाङ्गः",
+        "meaning": "He whose limbs are the sacrifice"
+      },
+      {
+        "num": 982,
+        "name_iast": "yajña-vāhanaḥ",
+        "name_devanagari": "यज्ञवाहनः",
+        "meaning": "He who bears the sacrifice"
+      },
+      {
+        "num": 983,
+        "name_iast": "yajña-bhṛt",
+        "name_devanagari": "यज्ञभृत्",
+        "meaning": "The sustainer of the sacrifice"
+      },
+      {
+        "num": 984,
+        "name_iast": "yajña-kṛt",
+        "name_devanagari": "यज्ञकृत्",
+        "meaning": "The performer of the sacrifice"
+      },
+      {
+        "num": 985,
+        "name_iast": "yajñī",
+        "name_devanagari": "यज्ञी",
+        "meaning": "He who is the enjoyer of the sacrifice"
+      },
+      {
+        "num": 986,
+        "name_iast": "yajña-bhuk",
+        "name_devanagari": "यज्ञभुक्",
+        "meaning": "The consumer of the sacrifice"
+      },
+      {
+        "num": 987,
+        "name_iast": "yajña-sādhanaḥ",
+        "name_devanagari": "यज्ञसाधनः",
+        "meaning": "The instrument of the sacrifice"
+      },
+      {
+        "num": 988,
+        "name_iast": "yajñānta-kṛt",
+        "name_devanagari": "यज्ञान्तकृत्",
+        "meaning": "He who brings sacrifices to completion"
+      },
+      {
+        "num": 989,
+        "name_iast": "yajña-guhyam",
+        "name_devanagari": "यज्ञगुह्यम्",
+        "meaning": "The secret of the sacrifice"
+      },
+      {
+        "num": 990,
+        "name_iast": "annam",
+        "name_devanagari": "अन्नम्",
+        "meaning": "The food that sustains all"
+      },
+      {
+        "num": 991,
+        "name_iast": "annādaḥ",
+        "name_devanagari": "अन्नादः",
+        "meaning": "The eater of food"
+      },
+      {
+        "num": 992,
+        "name_iast": "ātma-yoniḥ",
+        "name_devanagari": "आत्मयोनिः",
+        "meaning": "He who is His own source"
+      },
+      {
+        "num": 993,
+        "name_iast": "svayaṃ-jātaḥ",
+        "name_devanagari": "स्वयंजातः",
+        "meaning": "The self-born"
+      },
+      {
+        "num": 994,
+        "name_iast": "vaikhānaḥ",
+        "name_devanagari": "वैखानः",
+        "meaning": "He who dug through the earth; Varaha"
+      },
+      {
+        "num": 995,
+        "name_iast": "sāma-gāyanaḥ",
+        "name_devanagari": "सामगायनः",
+        "meaning": "The singer of the Sama hymns"
+      },
+      {
+        "num": 996,
+        "name_iast": "devakī-nandanaḥ",
+        "name_devanagari": "देवकीनन्दनः",
+        "meaning": "The son of Devaki"
+      },
+      {
+        "num": 997,
+        "name_iast": "sraṣṭā",
+        "name_devanagari": "स्रष्टा",
+        "meaning": "The creator of all"
+      },
+      {
+        "num": 998,
+        "name_iast": "kṣitīśaḥ",
+        "name_devanagari": "क्षितीशः",
+        "meaning": "The lord of the earth"
+      },
+      {
+        "num": 999,
+        "name_iast": "pāpa-nāśanaḥ",
+        "name_devanagari": "पापनाशनः",
+        "meaning": "The destroyer of sins"
+      },
+      {
+        "num": 1000,
+        "name_iast": "śaṅkha-bhṛt",
+        "name_devanagari": "शङ्खभृत्",
+        "meaning": "The bearer of the conch"
+      },
+      {
+        "num": 1001,
+        "name_iast": "nandakī",
+        "name_devanagari": "नन्दकी",
+        "meaning": "The wielder of the Nandaka sword"
+      },
+      {
+        "num": 1002,
+        "name_iast": "cakrī",
+        "name_devanagari": "चक्री",
+        "meaning": "The wielder of the Sudarshana discus"
+      },
+      {
+        "num": 1003,
+        "name_iast": "śārṅga-dhanvā",
+        "name_devanagari": "शार्ङ्गधन्वा",
+        "meaning": "The wielder of the Sharnga bow"
+      },
+      {
+        "num": 1004,
+        "name_iast": "gadā-dharaḥ",
+        "name_devanagari": "गदाधरः",
+        "meaning": "The bearer of the mace"
+      },
+      {
+        "num": 1005,
+        "name_iast": "rathāṅga-pāṇiḥ",
+        "name_devanagari": "रथाङ्गपाणिः",
+        "meaning": "He with the chariot wheel in hand"
+      },
+      {
+        "num": 1006,
+        "name_iast": "akṣobhyaḥ",
+        "name_devanagari": "अक्षोभ्यः",
+        "meaning": "The unshakeable one"
+      },
+      {
+        "num": 1007,
+        "name_iast": "sarva-praharaṇāyudhaḥ",
+        "name_devanagari": "सर्वप्रहरणायुधः",
+        "meaning": "He for whom all weapons are at hand"
+      }
+    ],
   "postStotra": [
     {
       "label": "Uttaranyasah, Phalashrutih",
@@ -8537,6 +8255,84 @@ const VISHNU_DATA = {
           "sanskrit": "ārtāḥ viṣṇuṃ śithilāśca bhītā ghoreṣu ca vyādhiṣu vartamānāḥ .\nsaṅkīrtya nārāyaṇaśabdamātraṃ vimuktaduḥkhāḥ sukhino bhavanti .. 32 ..",
           "english": "Artah vishnum shithilashcha bheeta ghoreshu cha vyadhishu vartamanah |\nSankirtya narayana-shabdamatram vimukta-duhkhah sukhino bhavanti || 32 ||",
           "translation": "Those who are distressed, feeble, afraid, or afflicted with terrible diseases — by merely chanting the name of Narayana, they become free from sorrow and attain happiness."
+        }
+      ]
+    },
+    {
+      "label": "Additional Concluding Shlokas",
+      "label_sanskrit": "अतिरिक्त समापन श्लोकाः",
+      "verses": [
+        {
+          "devanagari": "ॐ आपदामपहर्तारं दातारं सर्वसम्पदाम् ।\nलोकाभिरामं श्रीरामं भूयो भूयो नमाम्यहम् ॥",
+          "sanskrit": "oṃ āpadāmapahartāraṃ dātāraṃ sarvasampadām .\nlokābhirāmaṃ śrīrāmaṃ bhūyo bhūyo namāmyaham ..",
+          "english": "Om apadamapahartaram dataram sarvasampadam |\nLokabhiramam shreeraamam bhuyo bhuyo namamyaham ||",
+          "translation": "Om. I bow again and again to Sri Rama, the remover of calamities, the bestower of all wealth, and the delight of the world."
+        },
+        {
+          "devanagari": "आर्तानामार्तिहन्तारं भीतानां भीतिनाशनम् ।\nद्विषतां कालदण्डं तं रामचन्द्रं नमाम्यहम् ॥",
+          "sanskrit": "ārtānāmārtihantāraṃ bhītānāṃ bhītināśanam .\ndviṣatāṃ kāladaṇḍaṃ taṃ rāmacandraṃ namāmyaham ..",
+          "english": "Artanamartihantaram bheetanam bheetinashanam |\nDvishatam kaladandam tam ramachandram namamyaham ||",
+          "translation": "I bow to Ramachandra, the destroyer of the sorrows of the afflicted, the remover of fear from the frightened, and the rod of death to the hostile."
+        },
+        {
+          "devanagari": "नमः कोदण्डहस्ताय सन्धीकृतशराय च ।\nखण्डिताखिलदैत्याय रामायापत्निवारिणे ॥",
+          "sanskrit": "namaḥ kodaṇḍahastāya sandhīkṛtaśarāya ca .\nkhaṇḍitākhiladaityāya rāmāyāpatnivāriṇe ..",
+          "english": "Namah kodandahastaya sandhikrutasharaya cha |\nKhanditakhiladaityaya ramayapatnivarine ||",
+          "translation": "Salutations to Rama, who holds the Kodanda bow, whose arrow is set on the string, who destroyed all demons, and who wards off calamities."
+        },
+        {
+          "devanagari": "रामाय रामभद्राय रामचन्द्राय वेधसे ।\nरघुनाथाय नाथाय सीतायाः पतये नमः ॥",
+          "sanskrit": "rāmāya rāmabhadrāya rāmacandrāya vedhase .\nraghunāthāya nāthāya sītāyāḥ pataye namaḥ ..",
+          "english": "Ramaya ramabhadraya ramachandraya vedhase |\nRaghunathaya nathaya seetayah pataye namah ||",
+          "translation": "Salutations to Rama, to Ramabhadra, to Ramachandra the creator, to the Lord of the Raghus, the protector, the Lord of Sita."
+        },
+        {
+          "devanagari": "अग्रतः पृष्ठतश्चैव पार्श्वतश्च महाबलौ ।\nआकर्णपूर्णधन्वानौ रक्षेतां रामलक्ष्मणौ ॥",
+          "sanskrit": "agrataḥ pṛṣṭhataścaiva pārśvataśca mahābalau .\nākarṇapūrṇadhanvānau rakṣetāṃ rāmalakṣmaṇau ..",
+          "english": "Agratah prushthataschiva parshvatashcha mahabalau |\nAakarnapurnadhanvanau rakshetam ramalakshmanau ||",
+          "translation": "May the mighty Rama and Lakshmana, with bows drawn to full, protect me from the front, from behind, and from the sides."
+        },
+        {
+          "devanagari": "सन्नद्धः कवची खड्गी चापबाणधरो युवा ।\nगच्छन् ममाग्रतो नित्यं रामः पातु सलक्ष्मणः ॥",
+          "sanskrit": "sannadhdhaḥ kavacī khaḍgī cāpabāṇadharo yuvā .\ngacchan mamāgrato nityaṃ rāmaḥ pātu salakṣmaṇaḥ ..",
+          "english": "Sannaddhah kavachee khadgee chapabanadharo yuva |\nGachchhan mamagrato nityam ramah patu salakshmanah ||",
+          "translation": "May the youthful Rama, armored, sword-bearing, wielding bow and arrow, along with Lakshmana, always walk before me and protect me."
+        },
+        {
+          "devanagari": "अच्युतानन्तगोविन्दनामोच्चारणभेषजात् ।\nनश्यन्ति सकला रोगास्सत्यं सत्यं वदाम्यहम् ॥",
+          "sanskrit": "acyutānantagovindanāmoccāraṇabheṣajāt .\nnaśyanti sakalā rogāssatyaṃ satyaṃ vadāmyaham ..",
+          "english": "Achyutanantagovindanamochcharanabheshajat |\nNashyanti sakala rogassatyam satyam vadamyaham ||",
+          "translation": "By the medicine of chanting the names Achyuta, Ananta, and Govinda, all diseases are destroyed — truly, truly, I declare this."
+        },
+        {
+          "devanagari": "सत्यं सत्यं पुनस्सत्यमुद्भूत्य भुजमुच्यते ।\nवेदाच्छास्त्रं परं नास्ति न दैवं केशवात्परम् ॥",
+          "sanskrit": "satyaṃ satyaṃ punassatyamubhūtya bhujamucyate .\nvedācchāstraṃ paraṃ nāsti na daivaṃ keśavātparam ..",
+          "english": "Satyam satyam punassatyamubhutya bhujamuchyate |\nVedachchhastram param nasti na daivam keshavat-param ||",
+          "translation": "Truth, truth, again truth — raising the arm, it is declared: there is no scripture higher than the Vedas, and no God higher than Keshava."
+        },
+        {
+          "devanagari": "शरीरे जर्जरीभूते व्याधिग्रस्ते कलेवरे ।\nऔषधं जाह्नवीतोयं वैद्यो नारायणो हरिः ॥",
+          "sanskrit": "śarīre jarjarībhūte vyādhigraste kalevare .\nauṣadhaṃ jāhnavītoyaṃ vaidyo nārāyaṇo hariḥ ..",
+          "english": "Shareere jarjareebhoote vyadhigraste kalevare |\nAushadham jahnaveetoyam vaidyo narayano harih ||",
+          "translation": "When the body is worn out and afflicted with disease, the medicine is the water of the Ganga, and the physician is Lord Narayana, Hari."
+        },
+        {
+          "devanagari": "आलोड्य सर्वशास्त्राणि विचार्य च पुनः पुनः ।\nइदमेकं सुनिष्पन्नं ध्येयो नारायणो हरिः ॥",
+          "sanskrit": "ālodya sarvaśāstrāṇi vicārya ca punaḥ punaḥ .\nidamekaṃ suniṣpannaṃ dhyeyo nārāyaṇo hariḥ ..",
+          "english": "Alodya sarvashastrani vicharya cha punah punah |\nIdamekam sunishpannam dhyeyo narayano harih ||",
+          "translation": "Having churned all the scriptures and reflected upon them again and again, this one conclusion stands firm: Narayana, Hari, alone is to be meditated upon."
+        },
+        {
+          "devanagari": "यदक्षरपदभ्रष्टं मात्राहीनं तु यद्भवेत् ।\nतत्सर्वं क्षम्यतां देव नारायण नमोऽस्तु ते ॥",
+          "sanskrit": "yadakṣarapadabhraṣṭaṃ mātrāhīnaṃ tu yadbhavet .\ntatsarvaṃ kṣamyatāṃ deva nārāyaṇa namo'stu te ..",
+          "english": "Yadaksharapadabhrashtam matraheenam tu yadbhavet |\nTatsarvam kshamyatam deva narayana namostu te ||",
+          "translation": "Whatever errors of syllables, words, or meter may have occurred — may all that be forgiven, O Lord Narayana. Salutations to Thee."
+        },
+        {
+          "devanagari": "विसर्गबिन्दुमात्राणि पदपादाक्षराणि च ।\nन्यूनानि चातिरिक्तानि क्षमस्व पुरुषोत्तम ॥",
+          "sanskrit": "visargabindumātrāṇi padapādākṣarāṇi ca .\nnyūnāni cātirikṭāni kṣamasva puruṣottama ..",
+          "english": "Visargabindumatrani padapadaksharani cha |\nNyunani chatirikṭani kshamasva purushottama ||",
+          "translation": "Whatever is deficient or excess in visargas, bindus, matras, words, feet, or syllables — forgive all that, O Purushottama."
         }
       ]
     },

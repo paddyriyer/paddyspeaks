@@ -13,6 +13,15 @@
     return div.innerHTML;
   }
 
+  // --- Utility: Highlight search text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
+  }
+
   // --- Get all verses from a version as flat array ---
   function getVersionVerses(version) {
     var verses = [];
@@ -55,6 +64,41 @@
     html += '<div class="english-block">';
     html += '<div class="english-label">English Translation</div>';
     html += '<div class="english-text">' + escapeHtml(verse.translation) + '</div>';
+    html += '</div>';
+
+    html += '</div>'; // verse-body
+    html += '</div>'; // verse-card
+
+    return html;
+  }
+
+  // --- Build a verse card with search highlighting ---
+  function buildSearchVerseCard(verse, versionLabel, query) {
+    var typeClass = verse.type + '-type';
+    var typeLabel = verse.type === 'dhyanam' ? 'Dhyanam' : verse.type === 'phala' ? 'Phala Shruti' : 'Verse';
+    var displayNum = verse.type === 'dhyanam' ? 'D' : verse.type === 'phala' ? 'P' + verse.num : verse.num;
+    var cardId = (versionLabel || 'v') + '-' + verse.type + '-' + verse.num;
+
+    var preview = verse.devanagari.split('\n')[0];
+    if (preview.length > 50) preview = preview.substring(0, 50) + '...';
+
+    var html = '<div class="verse-card ' + typeClass + '" id="' + cardId + '">';
+
+    // Header
+    html += '<div class="verse-header" onclick="toggleVerse(\'' + cardId + '\')">';
+    html += '<span class="verse-number">' + displayNum + '</span>';
+    html += '<span class="verse-text-preview">' + highlightText(preview, query) + '</span>';
+    html += '<span class="verse-type-tag">' + typeLabel + '</span>';
+    html += '<span class="verse-toggle">&#9660;</span>';
+    html += '</div>';
+
+    // Body
+    html += '<div class="verse-body">';
+    html += '<div class="devanagari-block">' + highlightText(verse.devanagari, query) + '</div>';
+    html += '<div class="transliteration-block">' + highlightText(verse.transliteration, query) + '</div>';
+    html += '<div class="english-block">';
+    html += '<div class="english-label">English Translation</div>';
+    html += '<div class="english-text">' + highlightText(verse.translation, query) + '</div>';
     html += '</div>';
 
     html += '</div>'; // verse-body
@@ -197,7 +241,7 @@
     results.forEach(function (r, i) {
       var badge = '<span class="version-badge ' + r.version + '">' + r.versionName + '</span>';
       html += '<div style="margin-bottom: 0.5rem;">' + badge + '</div>';
-      var card = buildVerseCard(r.verse, 'sr' + i);
+      var card = buildSearchVerseCard(r.verse, 'sr' + i, query);
       // Auto-expand search results
       card = card.replace('class="verse-card', 'class="verse-card expanded');
       html += card;
@@ -258,7 +302,7 @@
       var val = searchInput.value;
       searchTimeout = setTimeout(function () {
         renderSearch(val);
-      }, 200);
+      }, 300);
     });
 
     // Expand/Collapse buttons
@@ -279,17 +323,72 @@
       }
     });
 
-    // Reading progress
+    // Reading progress and scroll buttons
+    var scrollButtons = document.getElementById('scrollButtons');
+    var scrollTopBtn = document.getElementById('scrollTopBtn');
+    var scrollBottomBtn = document.getElementById('scrollBottomBtn');
+
+    if (scrollTopBtn) {
+      scrollTopBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+    if (scrollBottomBtn) {
+      scrollBottomBtn.addEventListener('click', function () {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      });
+    }
+
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       var bar = document.getElementById('progressBar');
       if (bar) bar.style.width = Math.min(progress, 100) + '%';
+
+      // Show/hide scroll buttons
+      if (scrollButtons) {
+        if (scrollTop > 300) {
+          scrollButtons.classList.add('visible');
+        } else {
+          scrollButtons.classList.remove('visible');
+        }
+      }
     });
+
+    // Keyboard navigation
+    setupKeyboardNav();
 
     // Render initial search placeholder
     renderSearch('');
+  }
+
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      var cards = document.querySelectorAll('.view.active .verse-card');
+      if (cards.length === 0) return;
+      var expandedCards = document.querySelectorAll('.view.active .verse-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('verse-card')) next = next.nextElementSibling;
+          if (next) { next.classList.add('expanded'); next.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        } else if (cards[0]) { cards[0].classList.add('expanded'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('verse-card')) prev = prev.previousElementSibling;
+          if (prev) { prev.classList.add('expanded'); prev.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
+    });
   }
 
   // Wait for DOM

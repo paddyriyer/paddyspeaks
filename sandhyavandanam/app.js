@@ -17,6 +17,25 @@
     return div.innerHTML;
   }
 
+  // --- Utility: Highlight matching text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
+  }
+
+  // --- Utility: Debounce ---
+  function debounce(fn, delay) {
+    var timer;
+    return function () {
+      var context = this, args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(context, args); }, delay);
+    };
+  }
+
   // --- Get category label ---
   function getCategoryLabel(categoryId) {
     for (var i = 0; i < SANDHYAVANDANAM_DATA.categories.length; i++) {
@@ -248,7 +267,7 @@
     var results = document.getElementById('search-results');
     var count = document.getElementById('search-count');
 
-    input.addEventListener('input', function () {
+    function performSearch() {
       var query = input.value.trim().toLowerCase();
       if (query.length < 2) {
         results.innerHTML = '<p class="search-placeholder">Type at least 2 characters to search...</p>';
@@ -279,13 +298,15 @@
       matches.forEach(function (slide) {
         html += '<div class="search-result" onclick="navigateToSlide(' + slide.id + ')">';
         html += '<div class="search-result-number">Q' + slide.id + '</div>';
-        html += '<div class="search-result-question">' + escapeHtml(slide.question) + '</div>';
-        html += '<div class="search-result-preview">' + escapeHtml(slide.answer.substring(0, 150)) + (slide.answer.length > 150 ? '...' : '') + '</div>';
+        html += '<div class="search-result-question">' + highlightText(slide.question, query) + '</div>';
+        html += '<div class="search-result-preview">' + highlightText(slide.answer.substring(0, 150) + (slide.answer.length > 150 ? '...' : ''), query) + '</div>';
         html += '<span class="search-result-category">' + escapeHtml(getCategoryLabel(slide.category)) + '</span>';
         html += '</div>';
       });
       results.innerHTML = html;
-    });
+    }
+
+    input.addEventListener('input', debounce(performSearch, 300));
   }
 
   // --- View Navigation ---
@@ -356,6 +377,29 @@
     });
   }
 
+  // --- Floating Scroll Buttons ---
+  function setupScrollButtons() {
+    var scrollButtons = document.getElementById('scrollButtons');
+    var scrollTopBtn = document.getElementById('scrollTopBtn');
+    var scrollBottomBtn = document.getElementById('scrollBottomBtn');
+
+    scrollTopBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    scrollBottomBtn.addEventListener('click', function () {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    });
+
+    window.addEventListener('scroll', function () {
+      if (window.scrollY > 300) {
+        scrollButtons.classList.add('visible');
+      } else {
+        scrollButtons.classList.remove('visible');
+      }
+    });
+  }
+
   // --- Initialize ---
   function init() {
     renderIntro();
@@ -367,6 +411,7 @@
     setupKeyboard();
     setupTouch();
     setupExpandCollapse();
+    setupScrollButtons();
 
     // Nav button event listeners
     document.getElementById('prev-btn').addEventListener('click', prevSlide);

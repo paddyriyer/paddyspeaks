@@ -5,12 +5,22 @@
   'use strict';
 
   var slokas = SOUNDARYA_LAHARI_DATA;
+  var searchTimer = null;
 
   // --- Utility: Escape HTML ---
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // --- Utility: Highlight search text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
   }
 
   // --- Build a single verse card HTML ---
@@ -142,6 +152,42 @@
     });
   }
 
+  // --- Build a search result verse card with highlights ---
+  function buildSearchVerseCard(sloka, query) {
+    var num = sloka.num;
+    var isAnanda = num <= 41;
+    var sectionClass = isAnanda ? 'ananda-verse' : 'soundarya-verse';
+    var sectionTag = isAnanda ? 'Ananda' : 'Soundarya';
+
+    var preview = sloka.sanskrit.split('\n')[0];
+    if (preview.length > 50) preview = preview.substring(0, 50) + '...';
+
+    var html = '<div class="verse-card ' + sectionClass + '" id="verse-' + num + '">';
+
+    html += '<div class="verse-header" onclick="toggleVerse(' + num + ')">';
+    html += '<span class="verse-number">' + num + '</span>';
+    html += '<span class="verse-text-preview">' + highlightText(preview, query) + '</span>';
+    html += '<span class="verse-section-tag">' + sectionTag + '</span>';
+    html += '<span class="verse-toggle">&#9660;</span>';
+    html += '</div>';
+
+    html += '<div class="verse-body">';
+    html += '<div class="sanskrit-block">' + highlightText(sloka.sanskrit, query) + '</div>';
+    html += '<div class="transliteration-block">' + highlightText(sloka.transliteration, query) + '</div>';
+    html += '<div class="meaning-block">';
+    html += '<div class="meaning-label">Meaning</div>';
+    html += '<div class="meaning-text">' + highlightText(sloka.meaning, query) + '</div>';
+    html += '</div>';
+    html += '<div class="esoteric-block">';
+    html += '<div class="esoteric-label">Esoteric Interpretation</div>';
+    html += '<div class="esoteric-text">' + highlightText(sloka.esoteric, query) + '</div>';
+    html += '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    return html;
+  }
+
   // --- Search ---
   function setupSearch() {
     var input = document.getElementById('search-input');
@@ -149,40 +195,43 @@
     var count = document.getElementById('search-count');
 
     input.addEventListener('input', function () {
-      var query = input.value.trim().toLowerCase();
-      if (query.length < 2) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
-        count.textContent = '';
-        return;
-      }
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
+          count.textContent = '';
+          return;
+        }
 
-      var matches = slokas.filter(function (sloka) {
-        return (
-          String(sloka.num) === query ||
-          sloka.sanskrit.toLowerCase().includes(query) ||
-          sloka.transliteration.toLowerCase().includes(query) ||
-          sloka.meaning.toLowerCase().includes(query) ||
-          sloka.esoteric.toLowerCase().includes(query)
-        );
-      });
+        var matches = slokas.filter(function (sloka) {
+          return (
+            String(sloka.num) === query ||
+            sloka.sanskrit.toLowerCase().includes(query) ||
+            sloka.transliteration.toLowerCase().includes(query) ||
+            sloka.meaning.toLowerCase().includes(query) ||
+            sloka.esoteric.toLowerCase().includes(query)
+          );
+        });
 
-      count.textContent = matches.length + ' found';
+        count.textContent = matches.length + ' found';
 
-      if (matches.length === 0) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
-        return;
-      }
+        if (matches.length === 0) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
+          return;
+        }
 
-      var html = '';
-      matches.forEach(function (sloka) {
-        html += buildVerseCard(sloka);
-      });
-      results.innerHTML = html;
+        var html = '';
+        matches.forEach(function (sloka) {
+          html += buildSearchVerseCard(sloka, query);
+        });
+        results.innerHTML = html;
 
-      // Expand all search results
-      results.querySelectorAll('.verse-card').forEach(function (card) {
-        card.classList.add('expanded');
-      });
+        // Expand all search results
+        results.querySelectorAll('.verse-card').forEach(function (card) {
+          card.classList.add('expanded');
+        });
+      }, 300);
     });
   }
 
@@ -206,11 +255,50 @@
 
   // --- Reading Progress ---
   function setupProgressBar() {
+    var scrollBtns = document.getElementById('scrollButtons');
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
       document.getElementById('progressBar').style.width = progress + '%';
+
+      if (scrollBtns) {
+        if (scrollTop > 300) scrollBtns.classList.add('visible');
+        else scrollBtns.classList.remove('visible');
+      }
+    });
+
+    var topBtn = document.getElementById('scrollTopBtn');
+    if (topBtn) topBtn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    var bottomBtn = document.getElementById('scrollBottomBtn');
+    if (bottomBtn) bottomBtn.addEventListener('click', function () { window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' }); });
+  }
+
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      var cards = document.querySelectorAll('.view.active .verse-card');
+      if (cards.length === 0) return;
+      var expandedCards = document.querySelectorAll('.view.active .verse-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('verse-card')) next = next.nextElementSibling;
+          if (next) { next.classList.add('expanded'); next.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        } else if (cards[0]) { cards[0].classList.add('expanded'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('verse-card')) prev = prev.previousElementSibling;
+          if (prev) { prev.classList.add('expanded'); prev.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
     });
   }
 
@@ -223,6 +311,7 @@
     setupNavigation();
     setupExpandCollapse();
     setupProgressBar();
+    setupKeyboardNav();
   }
 
   if (document.readyState === 'loading') {

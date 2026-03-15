@@ -5,12 +5,22 @@
   'use strict';
 
   var data = HANUMAN_CHALISA_DATA;
+  var searchTimer = null;
 
   // --- Utility: Escape HTML ---
   function escapeHtml(str) {
     var div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // --- Utility: Highlight search term in text ---
+  function highlightText(text, query) {
+    if (!query) return escapeHtml(text);
+    var escaped = escapeHtml(text);
+    var queryEscaped = escapeHtml(query);
+    var regex = new RegExp('(' + queryEscaped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+    return escaped.replace(regex, '<mark>$1</mark>');
   }
 
   // --- Get all verses as flat array ---
@@ -196,6 +206,34 @@
     });
   }
 
+  // --- Build search result card with highlights ---
+  function buildSearchResultCard(verse, query) {
+    var isDoha = verse.type === 'doha';
+    var cardClass = isDoha ? 'doha-verse' : 'chaupai-verse';
+    var displayNum = isDoha ? 'D' + verse.num : verse.num;
+    var cardId = 'search-' + (isDoha ? 'doha-' + verse.num : 'chaupai-' + verse.num);
+
+    if (verse === data.closingDoha) {
+      cardId = 'search-closing-doha';
+      displayNum = 'D';
+    }
+
+    var html = '<div class="verse-card ' + cardClass + ' expanded" id="' + cardId + '">';
+    html += '<div class="verse-header">';
+    html += '<span class="verse-number">' + displayNum + '</span>';
+    html += '<span class="verse-text-preview">' + escapeHtml(verse.hindi.split('\n')[0].substring(0, 50)) + '</span>';
+    html += '</div>';
+    html += '<div class="verse-body">';
+    html += '<div class="hindi-block">' + highlightText(verse.hindi, query) + '</div>';
+    html += '<div class="transliteration-block">' + highlightText(verse.transliteration, query) + '</div>';
+    html += '<div class="english-block">';
+    html += '<div class="english-label">English Translation</div>';
+    html += '<div class="english-text">' + highlightText(verse.english, query) + '</div>';
+    html += '</div>';
+    html += '</div></div>';
+    return html;
+  }
+
   // --- Search ---
   function setupSearch() {
     var input = document.getElementById('search-input');
@@ -204,39 +242,38 @@
     var allVerses = getAllVerses();
 
     input.addEventListener('input', function () {
-      var query = input.value.trim().toLowerCase();
-      if (query.length < 2) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
-        count.textContent = '';
-        return;
-      }
+      if (searchTimer) clearTimeout(searchTimer);
 
-      var matches = allVerses.filter(function (verse) {
-        return (
-          String(verse.num) === query ||
-          verse.hindi.toLowerCase().includes(query) ||
-          verse.transliteration.toLowerCase().includes(query) ||
-          verse.english.toLowerCase().includes(query)
-        );
-      });
+      searchTimer = setTimeout(function () {
+        var query = input.value.trim().toLowerCase();
+        if (query.length < 2) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">Type at least 2 characters to search...</p>';
+          count.textContent = '';
+          return;
+        }
 
-      count.textContent = matches.length + ' found';
+        var matches = allVerses.filter(function (verse) {
+          return (
+            String(verse.num) === query ||
+            verse.hindi.toLowerCase().includes(query) ||
+            verse.transliteration.toLowerCase().includes(query) ||
+            verse.english.toLowerCase().includes(query)
+          );
+        });
 
-      if (matches.length === 0) {
-        results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
-        return;
-      }
+        count.textContent = matches.length + ' found';
 
-      var html = '';
-      matches.forEach(function (verse) {
-        html += buildVerseCard(verse);
-      });
-      results.innerHTML = html;
+        if (matches.length === 0) {
+          results.innerHTML = '<p style="text-align:center;color:#6b5744;padding:2rem;">No verses found matching "' + escapeHtml(query) + '"</p>';
+          return;
+        }
 
-      // Expand all search results
-      results.querySelectorAll('.verse-card').forEach(function (card) {
-        card.classList.add('expanded');
-      });
+        var html = '';
+        matches.forEach(function (verse) {
+          html += buildSearchResultCard(verse, query);
+        });
+        results.innerHTML = html;
+      }, 300);
     });
   }
 
@@ -258,13 +295,85 @@
     });
   }
 
-  // --- Reading Progress ---
+  // --- Reading Progress & Scroll Buttons ---
   function setupProgressBar() {
+    var scrollBtns = document.getElementById('scrollButtons');
+
     window.addEventListener('scroll', function () {
       var scrollTop = window.scrollY;
       var docHeight = document.documentElement.scrollHeight - window.innerHeight;
       var progress = docHeight > 0 ? (scrollTop / docHeight) * 100 : 0;
-      document.getElementById('progressBar').style.width = progress + '%';
+      var bar = document.getElementById('progressBar');
+      if (bar) bar.style.width = progress + '%';
+
+      // Show/hide floating scroll buttons
+      if (scrollBtns) {
+        if (scrollTop > 300) {
+          scrollBtns.classList.add('visible');
+        } else {
+          scrollBtns.classList.remove('visible');
+        }
+      }
+    });
+
+    // Scroll to top
+    var topBtn = document.getElementById('scrollTopBtn');
+    if (topBtn) {
+      topBtn.addEventListener('click', function () {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+
+    // Scroll to bottom
+    var bottomBtn = document.getElementById('scrollBottomBtn');
+    if (bottomBtn) {
+      bottomBtn.addEventListener('click', function () {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+      });
+    }
+  }
+
+  // --- Keyboard Navigation ---
+  function setupKeyboardNav() {
+    document.addEventListener('keydown', function (e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      var cards = document.querySelectorAll('.view.active .verse-card');
+      if (cards.length === 0) return;
+
+      var expandedCards = document.querySelectorAll('.view.active .verse-card.expanded');
+      var lastExpanded = expandedCards.length > 0 ? expandedCards[expandedCards.length - 1] : null;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var next = lastExpanded.nextElementSibling;
+          while (next && !next.classList.contains('verse-card')) {
+            next = next.nextElementSibling;
+          }
+          if (next) {
+            next.classList.add('expanded');
+            next.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        } else if (cards[0]) {
+          cards[0].classList.add('expanded');
+          cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (lastExpanded) {
+          var prev = lastExpanded.previousElementSibling;
+          while (prev && !prev.classList.contains('verse-card')) {
+            prev = prev.previousElementSibling;
+          }
+          if (prev) {
+            prev.classList.add('expanded');
+            prev.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      } else if (e.key === 'Escape') {
+        if (lastExpanded) lastExpanded.classList.remove('expanded');
+      }
     });
   }
 
@@ -277,6 +386,7 @@
     setupNavigation();
     setupExpandCollapse();
     setupProgressBar();
+    setupKeyboardNav();
   }
 
   if (document.readyState === 'loading') {
