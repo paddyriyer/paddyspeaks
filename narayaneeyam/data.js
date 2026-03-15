@@ -15168,7 +15168,182 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates how Krishna and Arjuna traveled beyond the cosmic ocean to Lord Maha Vishnu's abode to retrieve the dead sons of a brahmana, revealing Krishna's supreme divine nature.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 73,
+          sloka: 1,
+          devanagari: "द्वारकायां द्विजवरो बभूव भवदाश्रयः ।\nतस्य पुत्राः प्रजायन्ते म्रियन्ते जन्ममात्रतः ॥\nस शोकार्तो महाभाग राजद्वारि विलालप ।\nहा धिक् क्षत्रियसंरक्षां पुत्रशोकेन दह्यते ॥",
+          transliteration: "dvārakāyāṁ dvijavarō babhūva bhavadāśrayaḥ |\ntasya putrāḥ prajāyante mriyante janmamātrataḥ ||\nsa śokārto mahābhāga rājadvāri vilālapa |\nhā dhik kṣatriyasaṁrakṣāṁ putraśokena dahyate ||",
+          translation: "In Dwaraka, there lived a brahmana devoted to You, O Lord. His sons would be born only to die immediately at birth. Grief-stricken, that noble soul lamented at the royal gates, crying out: 'Alas, shame upon the protection of the Kshatriyas! I am consumed by the sorrow of losing my sons.'",
+          commentary: "This verse sets the stage for the narrative of Dashaka 73. A pious brahmana in Dwaraka repeatedly loses his newborn sons, and in his anguish he publicly denounces the Kshatriya rulers for failing in their duty to protect the people. This public shaming becomes the catalyst for Arjuna's fateful vow.",
+          words: [
+            { word: "dvārakāyām", meaning: "in Dwaraka" },
+            { word: "dvijavarḥ", meaning: "excellent brahmana" },
+            { word: "prajāyante", meaning: "are born" },
+            { word: "mriyante", meaning: "die" },
+            { word: "janmamātrataḥ", meaning: "immediately upon birth" },
+            { word: "śokārtaḥ", meaning: "grief-stricken" },
+            { word: "vilālapa", meaning: "lamented loudly" },
+            { word: "kṣatriyasaṁrakṣām", meaning: "the protection by Kshatriyas" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 2,
+          devanagari: "तच्छ्रुत्वा फाल्गुनो वीरो ब्राह्मणं समुपागतः ।\nप्रतिजज्ञे महाबाहुः पुत्ररक्षां करोम्यहम् ॥\nअहं रक्षामि ते पुत्रं शस्त्रैर्दिव्यैर्महामुने ।\nअन्यथा वह्निमाविश्य त्यक्ष्यामि स्वशरीरकम् ॥",
+          transliteration: "tacchrutvā phālguno vīro brāhmaṇaṁ samupāgataḥ |\npratijajñe mahābāhuḥ putrarakṣāṁ karomyaham ||\nahaṁ rakṣāmi te putraṁ śastrair divyair mahāmune |\nanyathā vahnim āviśya tyakṣyāmi svaśarīrakam ||",
+          translation: "Hearing this, the heroic Arjuna approached the brahmana. The mighty-armed warrior vowed solemnly: 'I shall protect your son! With my divine weapons, O great sage, I shall guard your child — or else I shall enter the fire and give up my own body.'",
+          commentary: "Arjuna's bold vow illustrates his Kshatriya sense of duty and honor. His promise to immolate himself if he fails shows the gravity of the oath. However, this very confidence in his own power — independent of the Lord's will — becomes the lesson Krishna will ultimately teach him.",
+          words: [
+            { word: "phālgunaḥ", meaning: "Arjuna (born under Phalguni star)" },
+            { word: "pratijajñe", meaning: "vowed, promised solemnly" },
+            { word: "mahābāhuḥ", meaning: "mighty-armed" },
+            { word: "putrarakṣām", meaning: "protection of the son" },
+            { word: "śastraiḥ divyaiḥ", meaning: "with divine weapons" },
+            { word: "vahnim āviśya", meaning: "entering the fire" },
+            { word: "tyakṣyāmi", meaning: "I shall give up, abandon" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 3,
+          devanagari: "अथ प्रसवकाले तु विप्रपत्न्याः पुनर्नवम् ।\nशिशुं जातं परिक्षिप्य शरजालैर्धनञ्जयः ॥\nरक्षां विधाय विविधां दिव्यास्त्रैरभिमन्त्रितैः ।\nतथापि बालकस्तत्र तिरोभूतो नभोगतः ॥",
+          transliteration: "atha prasavakāle tu viprapatnyāḥ punarnavam |\nśiśuṁ jātaṁ parikṣipya śarajālair dhanañjayaḥ ||\nrakṣāṁ vidhāya vividhāṁ divyāstrair abhimantritaiḥ |\ntathāpi bālakas tatra tirobhūto nabhogataḥ ||",
+          translation: "Then, when the brahmana's wife was again in labor, Arjuna surrounded the newborn child with a cage of arrows. He arranged elaborate protection using weapons consecrated with divine mantras. Yet despite all this, the infant vanished into the sky and disappeared.",
+          commentary: "Despite Arjuna's formidable military preparations — his cage of arrows and divinely empowered weapons — the child vanishes mysteriously. This demonstrates that no human or even celestial power can override the Supreme Lord's will. The episode is designed to humble Arjuna's martial pride.",
+          words: [
+            { word: "prasavakāle", meaning: "at the time of delivery" },
+            { word: "viprapatnyāḥ", meaning: "of the brahmana's wife" },
+            { word: "parikṣipya", meaning: "surrounding, enclosing" },
+            { word: "śarajālaiḥ", meaning: "with a net of arrows" },
+            { word: "dhanañjayaḥ", meaning: "Arjuna (winner of wealth)" },
+            { word: "abhimantritaiḥ", meaning: "consecrated with mantras" },
+            { word: "tirobhūtaḥ", meaning: "vanished, disappeared" },
+            { word: "nabhogataḥ", meaning: "gone into the sky" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 4,
+          devanagari: "व्रीडितो भ्रष्टसङ्कल्पो विप्रेण परिनिन्दितः ।\nअर्जुनो वह्निमाधातुं प्रवृत्तस्त्वत्प्रसादतः ॥\nनिवारितस्त्वया नाथ सर्वलोकहितेच्छया ।\nत्वं तमादाय विप्रं च ययिथ स्वरथेन ह ॥",
+          transliteration: "vrīḍito bhraṣṭasaṅkalpo vipreṇa parinindintaḥ |\narjuno vahnim ādhātuṁ pravṛttaḥ tvatprasādataḥ ||\nnivāritaḥ tvayā nātha sarvalokahitecchayā |\ntvaṁ tam ādāya vipraṁ ca yayitha svarathena ha ||",
+          translation: "Ashamed, his resolve shattered, and rebuked by the brahmana, Arjuna prepared to enter the fire. But by Your grace, O Lord, You restrained him. Desiring the welfare of all beings, You took Arjuna along with the brahmana and set forth on Your own divine chariot.",
+          commentary: "This turning point shows Krishna's compassion. Rather than letting Arjuna destroy himself over a failed vow, the Lord intervenes. Krishna's decision to personally undertake the journey reveals that the entire episode was divinely orchestrated to showcase a supreme cosmic truth to Arjuna.",
+          words: [
+            { word: "vrīḍitaḥ", meaning: "ashamed, embarrassed" },
+            { word: "bhraṣṭasaṅkalpaḥ", meaning: "whose resolve is broken" },
+            { word: "parinindintaḥ", meaning: "reproached, censured" },
+            { word: "vahnim ādhātum", meaning: "to enter the fire" },
+            { word: "nivāritaḥ", meaning: "restrained, prevented" },
+            { word: "sarvalokahitecchayā", meaning: "desiring the welfare of all worlds" },
+            { word: "rathena", meaning: "by chariot" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 5,
+          devanagari: "दिव्येन रथमुख्येन त्वया सार्धं धनञ्जयः ।\nसप्त द्वीपान् समतिक्रम्य सप्त सागरानपि ॥\nलोकालोकमतिक्रम्य तमसः पारमाययौ ।\nमहान्तमर्णवं तीर्त्वा तेजोमण्डलमाविशत् ॥",
+          transliteration: "divyena rathamukhyena tvayā sārdhaṁ dhanañjayaḥ |\nsapta dvīpān samatikramya sapta sāgarān api ||\nlokālokam atikramya tamasaḥ pāram āyayau |\nmahāntam arṇavaṁ tīrtvā tejomaṇḍalam āviśat ||",
+          translation: "On that supreme divine chariot, Arjuna traveled with You, crossing the seven island-continents and the seven oceans. Passing beyond the Lokaloka mountain range and the realm of darkness, traversing the vast cosmic ocean, they entered a sphere of brilliant effulgence.",
+          commentary: "The journey described here transcends the physical cosmos as understood in Puranic cosmology. The seven dvipas, seven oceans, and the Lokaloka mountains mark the boundary of the manifest universe. Beyond lies primordial darkness and then the supreme radiance of Vaikuntha — the journey symbolizes transcendence from the material to the spiritual.",
+          words: [
+            { word: "divyena", meaning: "divine, celestial" },
+            { word: "rathamukhyena", meaning: "with the foremost chariot" },
+            { word: "sapta dvīpān", meaning: "the seven continents/islands" },
+            { word: "sapta sāgarān", meaning: "the seven oceans" },
+            { word: "lokālokam", meaning: "the Lokaloka mountain (boundary of light and darkness)" },
+            { word: "tamasaḥ pāram", meaning: "the far shore of darkness" },
+            { word: "arṇavam", meaning: "the cosmic ocean" },
+            { word: "tejomaṇḍalam", meaning: "the sphere of radiance" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 6,
+          devanagari: "तत्र वैकुण्ठनिलयं ददर्शाक्षय्यमद्भुतम् ।\nक्षीरोदार्णवमध्यस्थं शेषपर्यङ्कशोभितम् ॥\nमहाविष्णुस्वरूपं तत् तेजसा सकलं वृतम् ।\nसहस्रशीर्षं पुरुषं ददृशाते स्मयान्वितौ ॥",
+          transliteration: "tatra vaikuṇṭhanilayaṁ dadarśākṣayyam adbhutam |\nkṣīrodārṇavamadhyasthaṁ śeṣaparyaṅkaśobhitam ||\nmahāviṣṇusvarūpaṁ tat tejasā sakalaṁ vṛtam |\nsahasraśīrṣaṁ puruṣaṁ dadṛśāte smayānvitau ||",
+          translation: "There they beheld the imperishable and wondrous abode of Vaikuntha, situated in the midst of the cosmic milk-ocean, adorned by the serpent-couch of Shesha. They saw the form of Maha Vishnu, enveloped entirely in radiance — the thousand-headed Purusha — and both gazed upon Him in great wonder.",
+          commentary: "The vision of Maha Vishnu on Ananta Shesha in the milk-ocean is the supreme theophany. The thousand-headed Purusha is the cosmic form described in the Purusha Sukta. That Krishna Himself is this very Supreme Being is the revelation that awaits Arjuna.",
+          words: [
+            { word: "vaikuṇṭhanilayam", meaning: "the abode of Vaikuntha" },
+            { word: "akṣayyam", meaning: "imperishable, eternal" },
+            { word: "kṣīrodārṇavamadhyastham", meaning: "situated in the midst of the milk-ocean" },
+            { word: "śeṣaparyaṅkaśobhitam", meaning: "adorned by the couch of Shesha serpent" },
+            { word: "mahāviṣṇusvarūpam", meaning: "the form of Maha Vishnu" },
+            { word: "sahasraśīrṣam", meaning: "thousand-headed" },
+            { word: "smayānvitau", meaning: "filled with wonder (dual)" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 7,
+          devanagari: "स भगवान् प्राह विश्वेश्वरो हरिः ।\nमया समाहृता बालाः द्रष्टुकामेन वां प्रभू ॥\nभवद्दर्शनलोभेन ब्राह्मणस्यात्मजान्नयन् ।\nयुवां समाकर्षमहं लोकानां हितकाम्यया ॥",
+          transliteration: "sa bhagavān prāha viśveśvaro hariḥ |\nmayā samāhṛtā bālāḥ draṣṭukāmena vāṁ prabhū ||\nbhavaddarśanalobhena brāhmaṇasyātmajān nayan |\nyuvāṁ samākarṣam ahaṁ lokānāṁ hitakāmyayā ||",
+          translation: "That Supreme Lord, Hari, the ruler of all worlds, spoke: 'It is I who took the brahmana's sons, desiring to see you both, O mighty ones. Out of longing for your darshana, I drew the brahmana's children away to attract you both here, for the welfare of all the worlds.'",
+          commentary: "The revelation that Maha Vishnu Himself orchestrated the entire episode — the children's disappearances, Arjuna's failed vow — solely to draw Krishna and Arjuna to His abode is a stunning narrative device. It establishes the transcendent will operating behind seemingly tragic worldly events.",
+          words: [
+            { word: "bhagavān", meaning: "the Supreme Lord" },
+            { word: "viśveśvaraḥ", meaning: "ruler of all worlds" },
+            { word: "samāhṛtāḥ", meaning: "taken, gathered" },
+            { word: "draṣṭukāmena", meaning: "by one desiring to see" },
+            { word: "darśanalobhena", meaning: "out of longing for the vision" },
+            { word: "samākarṣam", meaning: "I attracted, drew towards" },
+            { word: "hitakāmyayā", meaning: "with the desire for welfare" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 8,
+          devanagari: "ततस्ते ब्राह्मणसुतान् प्रापयामास केशवः ।\nबालान् सर्वान् यथापूर्वं विप्राय प्रतिपाद्य च ॥\nहर्षगद्गदया वाचा विप्रः स्तुत्वा जनार्दनम् ।\nपुत्रान् प्राप्य हृषीकेशं प्रणनाम मुहुर्मुहुः ॥",
+          transliteration: "tataste brāhmaṇasutān prāpayāmāsa keśavaḥ |\nbālān sarvān yathāpūrvaṁ viprāya pratipādya ca ||\nharṣagadgadayā vācā vipraḥ stutvā janārdanam |\nputrān prāpya hṛṣīkeśaṁ praṇanāma muhurmuhuḥ ||",
+          translation: "Then Lord Keshava restored all the brahmana's sons. Returning every child just as before to the brahmana, He fulfilled the father's longing. With voice choked with joy, the brahmana praised Janardana, and having received his sons, he bowed again and again to Lord Hrishikesha.",
+          commentary: "The happy resolution demonstrates the Lord's simultaneous care for the ordinary devotee and for the cosmic plan. The brahmana's tearful gratitude and repeated prostrations embody the ideal devotional response. The use of multiple names — Keshava, Janardana, Hrishikesha — emphasizes the Lord's manifold glories.",
+          words: [
+            { word: "brāhmaṇasutān", meaning: "the brahmana's sons" },
+            { word: "prāpayāmāsa", meaning: "caused to obtain, restored" },
+            { word: "keśavaḥ", meaning: "Krishna (the beautiful-haired one)" },
+            { word: "yathāpūrvam", meaning: "as before, in original state" },
+            { word: "pratipādya", meaning: "having given back, restored" },
+            { word: "harṣagadgadayā", meaning: "choked with joy" },
+            { word: "praṇanāma", meaning: "bowed down reverentially" },
+            { word: "muhurmuhuḥ", meaning: "again and again, repeatedly" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 9,
+          devanagari: "अर्जुनस्तु तदा ज्ञात्वा कृष्णस्य परमं पदम् ।\nसर्वलोकपरं देवं विष्णुं त्वां परमेश्वरम् ॥\nविस्मयेन परीतात्मा प्रणम्य शिरसा हरिम् ।\nत्वत्तो न परमस्त्यन्यो लोकेश्वर नमोऽस्तु ते ॥",
+          transliteration: "arjunas tu tadā jñātvā kṛṣṇasya paramaṁ padam |\nsarvaloka-paraṁ devaṁ viṣṇuṁ tvāṁ parameśvaram ||\nvismayena parītātmā praṇamya śirasā harim |\ntvatto na paramasty anyo lokeśvara namo'stu te ||",
+          translation: "Arjuna then realized Krishna's supreme status — that You are Vishnu, the God beyond all worlds, the Supreme Lord Himself. His heart overwhelmed with wonder, he bowed his head to Lord Hari and declared: 'There is none higher than You, O Lord of all worlds — I bow to You!'",
+          commentary: "Arjuna's realization here foreshadows the Vishvarupa darshana of the Bhagavad Gita. Having witnessed that Krishna's own supreme abode lies beyond the entire created cosmos, Arjuna understands that his friend and charioteer is in fact the ultimate reality.",
+          words: [
+            { word: "jñātvā", meaning: "having realized, understood" },
+            { word: "paramaṁ padam", meaning: "the supreme state/abode" },
+            { word: "sarvalokaparam", meaning: "beyond all worlds" },
+            { word: "parameśvaram", meaning: "the Supreme Lord" },
+            { word: "vismayena", meaning: "with wonder, amazement" },
+            { word: "parītātmā", meaning: "one whose soul is overwhelmed" },
+            { word: "lokeśvara", meaning: "O Lord of all worlds" }
+          ]
+        },
+        {
+          dashaka: 73,
+          sloka: 10,
+          devanagari: "एवं सकललोकानामतिक्रम्य पदं परम् ।\nविप्रपुत्रप्रदानेन लीलां दर्शितवान् भवान् ॥\nसर्वेश्वर दयासिन्धो गुरुवायुपुरेश्वर ।\nपरिपालय मामीश शमयाशेषरोगकम् ॥",
+          transliteration: "evaṁ sakalalokānām atikramya padaṁ param |\nvipraputrapradānena līlāṁ darśitavān bhavān ||\nsarveśvara dayāsindho guruvāyupureśvara |\nparipālaya māmīśa śamayāśeṣarogakam ||",
+          translation: "Thus, transcending the station of all worlds, You displayed Your divine sport through the act of returning the brahmana's sons. O Lord of all, ocean of compassion, O Lord of Guruvayur — protect me and put an end to all my ailments!",
+          commentary: "The closing prayer follows Narayaneeyam's characteristic pattern, connecting the cosmic narrative back to the poet's personal petition. Bhattathiri, suffering from illness, implores the Lord of Guruvayur — the same Supreme Being who traversed all creation — to extend that same grace for his healing.",
+          words: [
+            { word: "sakalalokānām", meaning: "of all the worlds" },
+            { word: "atikramya", meaning: "having transcended, crossed beyond" },
+            { word: "līlām", meaning: "divine sport, cosmic play" },
+            { word: "dayāsindho", meaning: "O ocean of compassion" },
+            { word: "guruvāyupureśvara", meaning: "O Lord of Guruvayur" },
+            { word: "paripālaya", meaning: "protect, take care of" },
+            { word: "āśeṣarogakam", meaning: "all diseases without remainder" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 74,
@@ -15177,7 +15352,179 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the love story of Arjuna and Krishna's sister Subhadra, Arjuna's disguise as a renunciant, and their marriage with Krishna's blessing and support.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 74,
+          sloka: 1,
+          devanagari: "तीर्थयात्राप्रसङ्गेन प्रभासक्षेत्रमागतः ।\nपार्थो द्वारवतीसन्निधौ वसन् यादवसंश्रयात् ॥\nशुश्राव सुभद्रायाः रूपौदार्यगुणान् बहून् ।\nतस्यां मनो ददौ वीरस्तवानुज्ञां प्रतीक्षयन् ॥",
+          transliteration: "tīrthayātrāprasaṅgena prabhāsakṣetram āgataḥ |\npārtho dvāravatīsannidhau vasan yādavasaṁśrayāt ||\nśuśrāva subhadrāyāḥ rūpaudāryaguṇān bahūn |\ntasyāṁ mano dadau vīras tavānujñāṁ pratīkṣayan ||",
+          translation: "In the course of his pilgrimage, Arjuna arrived at the sacred field of Prabhasa. Dwelling near Dwaraka under the shelter of the Yadavas, the hero heard much about Subhadra's beauty, nobility, and virtues. He gave his heart to her, awaiting Your permission.",
+          commentary: "Arjuna's pilgrimage to Prabhasa teertha places him strategically near Dwaraka. The mention of his hearing about Subhadra's qualities before seeing her follows the classical pattern of shruti (hearing) preceding darshana (seeing) in the kindling of love. His waiting for Krishna's approval shows his deference to the Lord.",
+          words: [
+            { word: "tīrthayātrā", meaning: "pilgrimage" },
+            { word: "prabhāsakṣetram", meaning: "the sacred field of Prabhasa" },
+            { word: "dvāravatī", meaning: "Dwaraka" },
+            { word: "yādavasaṁśrayāt", meaning: "under the shelter of the Yadavas" },
+            { word: "rūpaudāryaguṇān", meaning: "beauty, nobility, and virtues" },
+            { word: "mano dadau", meaning: "gave his heart/mind" },
+            { word: "anujñām pratīkṣayan", meaning: "awaiting permission" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 2,
+          devanagari: "ददर्श सुभद्रां तां देवीं देवमयीमिव ।\nपद्मपत्रायतनेत्रां चन्द्रवक्त्रां मनोहराम् ॥\nरूपलावण्यसम्पन्नां यौवनश्रीसमन्विताम् ।\nस तां दृष्ट्वा धनुर्धरः कामबाणाभिपीडितः ॥",
+          transliteration: "dadarśa subhadrāṁ tāṁ devīṁ devamayīm iva |\npadmapatrāyatanetrāṁ candravaktrāṁ manoharām ||\nrūpalāvaṇyasampannāṁ yauvanaśrīsamanvitām |\nsa tāṁ dṛṣṭvā dhanurdharaḥ kāmabāṇābhipīḍitaḥ ||",
+          translation: "He beheld Subhadra, that divine lady, radiant as a goddess herself — with wide lotus-petal eyes, a moon-like face, captivating to the heart. Endowed with beauty and grace, adorned with the splendor of youth — upon seeing her, the great archer was smitten by the arrows of Kama.",
+          commentary: "The description of Subhadra follows classical kavya conventions of feminine beauty: lotus eyes, moon face, and the bloom of youth. The irony of the great archer Arjuna being pierced by Kama's arrows is a well-known literary device. As Krishna's sister, Subhadra is herself of divine origin.",
+          words: [
+            { word: "devamayīm", meaning: "like a goddess, divine" },
+            { word: "padmapatrāyatanetrām", meaning: "with wide lotus-petal eyes" },
+            { word: "candravaktrām", meaning: "moon-faced" },
+            { word: "manoharām", meaning: "captivating the heart" },
+            { word: "lāvaṇyasampannām", meaning: "endowed with grace and beauty" },
+            { word: "yauvanaśrī", meaning: "the splendor of youth" },
+            { word: "kāmabāṇābhipīḍitaḥ", meaning: "smitten by the arrows of Kama (Cupid)" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 3,
+          devanagari: "ज्ञात्वा तस्याभिलाषं तं पार्थस्य त्वं जगद्गुरो ।\nउवाच प्रहसन् वाचा स्निग्धया प्रियसुहृत्तमम् ॥\nत्रिदण्डिवेषमास्थाय भैक्षां चर द्विजोत्तम ।\nविमोहय बलं भ्रातरं भोक्ष्यसे तां शुभां वराम् ॥",
+          transliteration: "jñātvā tasyābhilāṣaṁ taṁ pārthasya tvaṁ jagadguro |\nuvāca prahasan vācā snigdhayā priyasuhṛttamam ||\ntridaṇḍiveṣam āsthāya bhaikṣāṁ cara dvijottama |\nvimohaya balaṁ bhrātaraṁ bhokṣyase tāṁ śubhāṁ varām ||",
+          translation: "Knowing the desire in Arjuna's heart, You, O Teacher of the world, spoke with an affectionate smile to Your dearest friend: 'Assume the guise of a tridandi renunciant and go about begging alms, O best of the twice-born. Delude my brother Balarama, and you shall win that auspicious bride.'",
+          commentary: "Krishna's playful advice reveals His role as the supreme facilitator of divine plans. His affectionate smile and address to Arjuna as dvijottama carry gentle humor. The tridandi sannyasi disguise is both practical — since renunciants receive unrestricted hospitality — and tests whether Arjuna's love is strong enough to adopt humility.",
+          words: [
+            { word: "abhilāṣam", meaning: "desire, longing" },
+            { word: "jagadguro", meaning: "O Teacher of the world" },
+            { word: "prahasan", meaning: "smiling, laughing" },
+            { word: "snigdhayā", meaning: "affectionate, tender" },
+            { word: "tridaṇḍiveṣam", meaning: "the guise of a tridandi renunciant" },
+            { word: "bhaikṣāṁ cara", meaning: "go about begging alms" },
+            { word: "vimohaya", meaning: "delude, beguile" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 4,
+          devanagari: "इत्युक्तः पाण्डवश्रेष्ठो जटावल्कलधारणः ।\nत्रिदण्डी कृत्रिमो भूत्वा द्वारकां प्राविशद्धसन् ॥\nतं दृष्ट्वा नगरे सर्वे यतिं तेजस्विनं नवम् ।\nपप्रच्छुः कोऽयमित्येवं तपस्वी ब्रह्मवर्चसी ॥",
+          transliteration: "ity uktaḥ pāṇḍavaśreṣṭho jaṭāvalkaladhāraṇaḥ |\ntridaṇḍī kṛtrimo bhūtvā dvārakāṁ prāviśad dhasan ||\ntaṁ dṛṣṭvā nagare sarve yatiṁ tejasvinaṁ navam |\npapraccchuḥ ko'yam ity evaṁ tapasvī brahmavarcasī ||",
+          translation: "Thus instructed, the foremost Pandava donned matted locks and bark garments. Becoming a pretend tridandi sannyasi, he entered Dwaraka with a hidden smile. Seeing this radiant new ascetic in the city, all the people inquired: 'Who is this effulgent one, this austere man of brahmic splendor?'",
+          commentary: "The image of the mighty warrior Arjuna disguised in the humble garb of a wandering renunciant creates both dramatic irony and humor. His hidden smile betrays the ruse. The citizens' admiration of his natural splendor — which shines through even the disguise — adds to the comic element.",
+          words: [
+            { word: "jaṭāvalkaladhāraṇaḥ", meaning: "wearing matted locks and bark garments" },
+            { word: "tridaṇḍī", meaning: "carrying the triple staff (of a sannyasi)" },
+            { word: "kṛtrimaḥ", meaning: "pretend, artificial" },
+            { word: "tejasvinam", meaning: "radiant, effulgent" },
+            { word: "tapasvī", meaning: "ascetic, one who performs austerities" },
+            { word: "brahmavarcasī", meaning: "possessing brahmic splendor" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 5,
+          devanagari: "बलभद्रो महातेजाः स्वगृहं तमुपानयत् ।\nभोजनेन च पानेन पूजयामास यत्नतः ॥\nवर्षाकालं समुद्दिश्य वासमस्मै न्ययोजयत् ।\nगृहे सुभद्रया सेव्यं मन्यमानो यतिं शुभम् ॥",
+          transliteration: "balabhadro mahātejāḥ svagṛhaṁ tam upānayat |\nbhojanena ca pānena pūjayāmāsa yatnataḥ ||\nvarṣākālaṁ samuddiśya vāsam asmai nyayojayat |\ngṛhe subhadrayā sevyaṁ manyamāno yatiṁ śubham ||",
+          translation: "The mighty Balarama brought the ascetic to his own home. He honored him diligently with food and drink. Pointing to the rainy season as reason for an extended stay, he arranged lodging for him — considering this blessed renunciant worthy of being attended to by Subhadra in the household.",
+          commentary: "Balarama's generous hospitality to the disguised Arjuna is deeply ironic. The elder brother, who would have opposed the match with Arjuna (preferring Duryodhana), unwittingly creates the very conditions for their union. The assignment of Subhadra to serve the guest sets the stage for the love to blossom.",
+          words: [
+            { word: "balabhadraḥ", meaning: "Balarama (Krishna's elder brother)" },
+            { word: "upānayat", meaning: "brought, led to" },
+            { word: "pūjayāmāsa", meaning: "honored, worshipped" },
+            { word: "varṣākālam", meaning: "the rainy season" },
+            { word: "vāsam nyayojayat", meaning: "arranged lodging" },
+            { word: "sevyam", meaning: "worthy of being served" },
+            { word: "yatiṁ śubham", meaning: "the auspicious ascetic" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 6,
+          devanagari: "सा सुभद्रा शुचिः कन्या सेवमाना यतिं सदा ।\nतस्य रूपगुणैर्भावैः क्रमशः प्रत्यपद्यत ॥\nसोऽपि तां वीक्ष्य नेत्राभ्यां स्नेहपूर्णाभ्यमन्वहम् ।\nपरस्परानुरागेण बद्धौ तौ मन्मथाग्निना ॥",
+          transliteration: "sā subhadrā śuciḥ kanyā sevamānā yatiṁ sadā |\ntasya rūpaguṇair bhāvaiḥ kramaśaḥ pratyapadyata ||\nso'pi tāṁ vīkṣya netrābhyāṁ snehapūrṇābhyam anvaham |\nparaspararānurāgeṇa baddhau tau manmathāgninā ||",
+          translation: "That pure maiden Subhadra, serving the ascetic constantly, was gradually drawn to him by his form, virtues, and noble bearing. He too gazed upon her daily with eyes full of tenderness. Bound together by mutual love, they were both consumed by the fire of desire.",
+          commentary: "The gradual blossoming of love between Subhadra and the disguised Arjuna is portrayed with classical restraint. The word kramashah (gradually) suggests the natural unfolding of affection through proximity and service. Their mutual attraction is presented as divinely ordained rather than merely sensual.",
+          words: [
+            { word: "śuciḥ kanyā", meaning: "pure maiden" },
+            { word: "sevamānā", meaning: "serving, attending upon" },
+            { word: "rūpaguṇaiḥ", meaning: "by form and virtues" },
+            { word: "kramaśaḥ", meaning: "gradually, step by step" },
+            { word: "pratyapadyata", meaning: "was drawn to, came to reciprocate" },
+            { word: "snehapūrṇābhyām", meaning: "full of tenderness/love" },
+            { word: "anurāgeṇa", meaning: "with love, attachment" },
+            { word: "manmathāgninā", meaning: "by the fire of desire (Kama)" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 7,
+          devanagari: "ततः कदाचित् सुभद्रां रथमारोप्य फाल्गुनः ।\nजहार तां वरारोहां तवानुमतमाश्रयन् ॥\nविद्युत्प्रभां तनुं त्यक्त्वा धनुर्गृह्य महारथः ।\nयुध्यमानो गतो वीरो यादवान् प्रतिगर्जयन् ॥",
+          transliteration: "tataḥ kadācit subhadrāṁ ratham āropya phālgunaḥ |\njahāra tāṁ varārohāṁ tavānumatam āśrayan ||\nvidyutprabhāṁ tanuṁ tyaktvā dhanur gṛhya mahārathaḥ |\nyudhyamāno gato vīro yādavān pratigarjayan ||",
+          translation: "Then one day, placing Subhadra on his chariot, Arjuna carried away that beautiful woman, relying on Your silent approval. Casting off his lightning-bright ascetic form and taking up his great bow, the hero departed fighting, roaring back at the pursuing Yadavas.",
+          commentary: "The dramatic abduction scene reveals Arjuna's true identity as a Kshatriya warrior. The casting off of the renunciant's disguise and seizing of the great bow is a moment of thrilling transformation. His reliance on Krishna's tacit consent (anumatam) ensures the act is not mere brigandage but divinely sanctioned.",
+          words: [
+            { word: "ratham āropya", meaning: "placing on the chariot" },
+            { word: "jahāra", meaning: "carried away, abducted" },
+            { word: "varārohām", meaning: "beautiful woman (lit. of excellent hips)" },
+            { word: "anumatam", meaning: "approval, consent" },
+            { word: "tanuṁ tyaktvā", meaning: "casting off the form/disguise" },
+            { word: "mahārathaḥ", meaning: "great chariot warrior" },
+            { word: "pratigarjayan", meaning: "roaring back (in challenge)" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 8,
+          devanagari: "बलभद्रस्ततः क्रुद्धो ज्ञात्वा छद्मार्जुनं नृपम् ।\nसैन्यैः सह प्रधावन्तं निवारयितुमुद्यतः ॥\nत्वं तु नाथ प्रसन्नात्मा विनयेन ससैन्यकम् ।\nशान्तवानसि तं भ्रातरं यदुवृद्धैः सहैव हि ॥",
+          transliteration: "balabhadras tataḥ kruddho jñātvā chadmārjunaṁ nṛpam |\nsainyaiḥ saha pradhāvantaṁ nivārayitum udyataḥ ||\ntvaṁ tu nātha prasannātmā vinayena sasainyakam |\nśāntavān asi taṁ bhrātaraṁ yaduvṛddhaiḥ sahaiva hi ||",
+          translation: "Balarama, enraged upon discovering that the disguised guest was Prince Arjuna, prepared to pursue him with his army to stop him. But You, O Lord, serene of heart, along with the Yadava elders, pacified Your brother with gentle diplomacy and humility.",
+          commentary: "Balarama's fury is understandable — his hospitality was abused by a disguised suitor who has now abducted his sister. Krishna's role as peacemaker is crucial. Together with the Yadava elders, He uses diplomacy rather than force, demonstrating that the marriage between the Pandava and Yadava houses serves a greater divine purpose.",
+          words: [
+            { word: "kruddhaḥ", meaning: "enraged, furious" },
+            { word: "chadma", meaning: "disguise, deception" },
+            { word: "nivārayitum", meaning: "to restrain, to stop" },
+            { word: "udyataḥ", meaning: "prepared, ready" },
+            { word: "prasannātmā", meaning: "serene of heart/mind" },
+            { word: "vinayena", meaning: "with humility, gentle diplomacy" },
+            { word: "śāntavān", meaning: "pacified, calmed" },
+            { word: "yaduvṛddhaiḥ", meaning: "with the Yadava elders" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 9,
+          devanagari: "ततः प्रसन्ने दयिते भ्रातरि स्वे हलायुधे ।\nविवाहः समनुष्ठानि सुभद्रार्जुनयोर्महान् ॥\nयादवाः पाण्डवाश्चैव समेताः प्रमुदान्विताः ।\nवाद्यघोषैर्महोत्सावैश्चक्रुः तं मङ्गलोत्सवम् ॥",
+          transliteration: "tataḥ prasanne dayite bhrātari sve halāyudhe |\nvivāhaḥ samanuṣṭhāni subhadrārjunayor mahān ||\nyādavāḥ pāṇḍavāś caiva sametāḥ pramudānvitāḥ |\nvādyaghoṣair mahotsāvaiś cakruḥ taṁ maṅgalotsavam ||",
+          translation: "Then, with the beloved brother Balarama appeased, the grand wedding of Subhadra and Arjuna was duly celebrated. The Yadavas and Pandavas gathered together, filled with delight, and celebrated that auspicious festival with the sounds of music and great festivity.",
+          commentary: "The grand wedding unites the two great clans — Yadavas and Pandavas — in a bond of kinship that has immense consequences for the Mahabharata narrative. The joy of both families and the grand celebrations mark this as a divinely blessed union orchestrated by Krishna.",
+          words: [
+            { word: "halāyudhe", meaning: "Balarama (wielder of the plough)" },
+            { word: "vivāhaḥ", meaning: "wedding, marriage" },
+            { word: "samanuṣṭhāni", meaning: "was duly performed" },
+            { word: "sametāḥ", meaning: "assembled, gathered" },
+            { word: "pramudānvitāḥ", meaning: "filled with great joy" },
+            { word: "vādyaghoṣaiḥ", meaning: "with the sounds of musical instruments" },
+            { word: "maṅgalotsavam", meaning: "auspicious festival/celebration" }
+          ]
+        },
+        {
+          dashaka: 74,
+          sloka: 10,
+          devanagari: "एवं स्वभगिनीं दत्त्वा सखिप्रियतमाय च ।\nबन्धुतां पाण्डवैः कृत्वा लोकरक्षां व्यधाः प्रभो ॥\nतादृशीं भक्तवात्सल्यलीलां दर्शयन् सदा ।\nगुरुवायुपुराधीश पाहि मां कृष्ण वेदना ॥",
+          transliteration: "evaṁ svabhaginīṁ dattvā sakhipriyatamāya ca |\nbandhuṁtāṁ pāṇḍavaiḥ kṛtvā lokarakṣāṁ vyadhāḥ prabho ||\ntādṛśīṁ bhaktavātsalyalīlāṁ darśayan sadā |\nguruvāyupurādhīśa pāhi māṁ kṛṣṇa vedanā ||",
+          translation: "Thus, giving Your own sister to Your dearest friend, and forging the bond of kinship with the Pandavas, You ensured the protection of the world, O Lord. Ever displaying such divine sport of affection for Your devotees, O Lord of Guruvayur, O Krishna — save me from my suffering!",
+          commentary: "The closing verse ties Krishna's personal act of giving Subhadra in marriage to the larger cosmic purpose of protecting dharma through the Pandava-Yadava alliance. Bhattathiri then makes his characteristic personal appeal, connecting the Lord's devotee-loving nature (bhakta-vatsalya) to his own need for healing at Guruvayur.",
+          words: [
+            { word: "bhaginīm", meaning: "sister" },
+            { word: "sakhipriyatamāya", meaning: "to the dearest friend" },
+            { word: "bandhutām", meaning: "kinship, bond of relationship" },
+            { word: "lokarakṣām", meaning: "protection of the world" },
+            { word: "bhaktavātsalyalīlām", meaning: "divine sport of affection for devotees" },
+            { word: "guruvāyupurādhīśa", meaning: "O Lord of Guruvayur" },
+            { word: "vedanā", meaning: "suffering, pain" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 75,
