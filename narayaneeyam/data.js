@@ -10380,7 +10380,180 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Tells how Brahma stole the cowherd boys and calves to test Krishna, who then expanded Himself into identical copies of all of them. Brahma, humbled, offered prayers of glorification.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 47,
+          sloka: 1,
+          devanagari: "वत्सान् चरन्तान् सह गोपबालैः\nकदाचिदीक्ष्य त्वयि भुक्तवत्सु ।\nब्रह्मा विमोहं तव वीक्ष्य लीलां\nवत्सान् निनाय प्रथमं बिलं प्रति ॥",
+          transliteration: "vatsān carantān saha gopabālaiḥ\nkadācidīkṣya tvayi bhuktavatsu |\nbrahma vimohaṁ tava vīkṣya līlāṁ\nvatsān nināya prathamaṁ bilaṁ prati ||",
+          translation: "Once, while the cowherd boys were eating their midday meal with You and the calves were grazing nearby, Brahma, wishing to test Your divine power, first led the calves away and hid them in a cave.",
+          commentary: "This opening verse sets the scene for the Brahma-Vimohana Lila as described in Bhagavatam 10.13. Brahma, the creator, had witnessed Krishna's effortless killing of Aghasura and was bewildered about whether this cowherd boy was truly the Supreme Lord. His curiosity drove him to devise a test — beginning by stealing the calves while Krishna and friends were absorbed in their forest meal.",
+          words: [
+            { word: 'वत्सान्', transliteration: 'vatsān', meaning: 'calves' },
+            { word: 'गोपबालैः', transliteration: 'gopabālaiḥ', meaning: 'with the cowherd boys' },
+            { word: 'भुक्तवत्सु', transliteration: 'bhuktavatsu', meaning: 'while they were eating' },
+            { word: 'ब्रह्मा', transliteration: 'brahmā', meaning: 'Lord Brahma, the creator' },
+            { word: 'विमोहम्', transliteration: 'vimoham', meaning: 'bewilderment, delusion' },
+            { word: 'लीलाम्', transliteration: 'līlām', meaning: 'divine play' },
+            { word: 'बिलम्', transliteration: 'bilam', meaning: 'cave, cavern' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 2,
+          devanagari: "वत्सान् गतान् वीक्ष्य ततो विधाता\nगोपान् अपि त्वत्सखिनो निनाय ।\nनिद्रापयन् मायिककृत्यतस्तान्\nगुहान्तरे क्वापि निधाय दूरम् ॥",
+          transliteration: "vatsān gatān vīkṣya tato vidhātā\ngopān api tvatsakhino nināya |\nnidrāpayan māyikakṛtyatastān\nguhāntare kvāpi nidhāya dūram ||",
+          translation: "Seeing the calves gone, Brahma then also took away the cowherd boys, Your companions. Putting them to sleep by his mystic power, he hid them far away in a cave.",
+          commentary: "Brahma escalated his test by also taking the gopas, Krishna's friends. Using his creative potency (māyā-śakti), he put them into a deep yogic sleep and concealed them in a remote mountain cave. Bhagavatam 10.13.17 describes how Brahma hid both the boys and calves to see what Krishna would do when left entirely alone in the forest.",
+          words: [
+            { word: 'विधाता', transliteration: 'vidhātā', meaning: 'Brahma, the creator' },
+            { word: 'गोपान्', transliteration: 'gopān', meaning: 'the cowherd boys' },
+            { word: 'सखिनः', transliteration: 'sakhinaḥ', meaning: 'friends, companions' },
+            { word: 'निद्रापयन्', transliteration: 'nidrāpayan', meaning: 'putting to sleep' },
+            { word: 'मायिक', transliteration: 'māyika', meaning: 'mystic, illusory' },
+            { word: 'गुहान्तरे', transliteration: 'guhāntare', meaning: 'inside a cave' },
+            { word: 'दूरम्', transliteration: 'dūram', meaning: 'far away' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 3,
+          devanagari: "एकाकितां प्राप्य तदा वनान्ते\nसर्वं विदित्वा कमलोद्भवस्य ।\nमायाबलं त्वं स्वयमेव सद्यो\nवत्सान् गोपांश्च तदीयरूपः ॥",
+          transliteration: "ekākitāṁ prāpya tadā vanānte\nsarvaṁ viditvā kamalodbhavasya |\nmāyābalaṁ tvaṁ svayameva sadyo\nvatsān gopāṁśca tadīyarūpaḥ ||",
+          translation: "Finding Yourself alone at the forest's edge and knowing fully well the mystic trick of the lotus-born Brahma, You immediately assumed by Your own power the identical forms of all the calves and cowherd boys.",
+          commentary: "This verse describes Krishna's astonishing response. Rather than being troubled, He who is omniscient instantly knew what Brahma had done. As Bhagavatam 10.13.19 describes, Krishna expanded Himself into exact replicas of every single calf and every cowherd boy — each with their unique appearance, personality, clothing, and ornaments. This demonstrates His nature as the source of all beings.",
+          words: [
+            { word: 'एकाकिताम्', transliteration: 'ekākitām', meaning: 'state of being alone' },
+            { word: 'वनान्ते', transliteration: 'vanānte', meaning: 'at the edge of the forest' },
+            { word: 'कमलोद्भवस्य', transliteration: 'kamalodbhavasya', meaning: 'of the lotus-born (Brahma)' },
+            { word: 'मायाबलम्', transliteration: 'māyābalam', meaning: 'power of illusion' },
+            { word: 'स्वयम्', transliteration: 'svayam', meaning: 'by Himself' },
+            { word: 'सद्यः', transliteration: 'sadyaḥ', meaning: 'immediately' },
+            { word: 'तदीयरूपः', transliteration: 'tadīyarūpaḥ', meaning: 'having their very forms' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 4,
+          devanagari: "प्रतिच्छवीन् सर्वगोपालबालान्\nसवत्सकान् निर्मिमिषे त्वमेव ।\nरूपैः स्वभावैश्च तथैव सर्वं\nचीरैर्वेणुभिरामकान्तिभिश्च ॥",
+          transliteration: "praticchavīn sarvagopālabālān\nsavatsalān nirmimise tvameva |\nrūpaiḥ svabhāvaiśca tathaiva sarvaṁ\ncīrairveṇubhirāmakāntibhiśca ||",
+          translation: "You created exact replicas of all the cowherd boys along with their calves — identical in form, temperament, clothing, flutes, staffs, and charming beauty.",
+          commentary: "Bhattathiri marvels at the perfection of Krishna's expansion. Each duplicate was so precise that it matched the original boy's unique dress (cīra), flute (veṇu), mannerisms, and radiance. Bhagavatam 10.13.19-20 emphasizes that even the most intimate details were replicated. Each form was actually a direct expansion of Krishna Himself — Vishnu in the guise of a cowherd boy.",
+          words: [
+            { word: 'प्रतिच्छवीन्', transliteration: 'praticchavīn', meaning: 'exact replicas, reflections' },
+            { word: 'गोपालबालान्', transliteration: 'gopālabālān', meaning: 'cowherd boys' },
+            { word: 'सवत्सकान्', transliteration: 'savatsalān', meaning: 'along with the calves' },
+            { word: 'निर्मिमिषे', transliteration: 'nirmimise', meaning: 'You created, manifested' },
+            { word: 'स्वभावैः', transliteration: 'svabhāvaiḥ', meaning: 'with natural temperaments' },
+            { word: 'चीरैः', transliteration: 'cīraiḥ', meaning: 'with garments, clothes' },
+            { word: 'वेणुभिः', transliteration: 'veṇubhiḥ', meaning: 'with flutes' },
+            { word: 'आमकान्तिभिः', transliteration: 'āmakāntibhiḥ', meaning: 'with natural radiance' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 5,
+          devanagari: "एवं हि संवत्सरमात्रमीश\nत्वद्रूपधारैरपि गोपबालैः ।\nव्रजे समं गोभिरतीव रेमे\nनाकस्य कश्चिद्विदधे विशेषम् ॥",
+          transliteration: "evaṁ hi saṁvatsaramātramīśa\ntvadrūpadhārarapi gopabālaiḥ |\nvraje samaṁ gobhiratīva reme\nnākasya kaścidvidadhe viśeṣam ||",
+          translation: "Thus, O Lord, for an entire year You played in Vraja in the forms of all those cowherd boys and calves. No one noticed any difference whatsoever.",
+          commentary: "For a full year, life in Vraja continued perfectly normally with Krishna playing the role of every single boy and calf simultaneously. Bhagavatam 10.13.22 describes that the mothers could not detect any difference — indeed, their love for their 'sons' actually increased, since each form was now directly Krishna. This is the supreme paradox: the mothers unknowingly loved God directly in the form of their own children.",
+          words: [
+            { word: 'संवत्सरम्', transliteration: 'saṁvatsaram', meaning: 'one full year' },
+            { word: 'ईश', transliteration: 'īśa', meaning: 'O Lord' },
+            { word: 'त्वद्रूपधारैः', transliteration: 'tvadrūpadhāraiḥ', meaning: 'by those bearing Your form' },
+            { word: 'व्रजे', transliteration: 'vraje', meaning: 'in Vraja (the cowherd village)' },
+            { word: 'रेमे', transliteration: 'reme', meaning: 'played, sported' },
+            { word: 'विशेषम्', transliteration: 'viśeṣam', meaning: 'difference, distinction' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 6,
+          devanagari: "ततः कदाचित् कमलासनस्तु\nव्रजं विलोक्याखिलमद्भुतं किम् ।\nसमागतस्तत्र ददर्श कृष्णं\nतथैव गोपान् अपि वत्सकांश्च ॥",
+          transliteration: "tataḥ kadācit kamalāsanastu\nvrajaṁ vilokyākhilamadbhutaṁ kim |\nsamāgatastatra dadarśa kṛṣṇaṁ\ntathaiva gopān api vatsakāṁśca ||",
+          translation: "Then, after some time, Brahma returned to Vraja and was amazed — he saw Krishna playing with the very same cowherd boys and calves, exactly as before, as if nothing had happened.",
+          commentary: "When Brahma returned expecting to find Krishna alone and distressed, he was stunned. Bhagavatam 10.13.23 describes his confusion — the boys and calves he had hidden were still sleeping in the cave, yet identical ones were playing happily with Krishna. His plan had completely failed; indeed, it had revealed his own insignificance before the Supreme Lord.",
+          words: [
+            { word: 'कमलासनः', transliteration: 'kamalāsanaḥ', meaning: 'the lotus-seated one (Brahma)' },
+            { word: 'विलोक्य', transliteration: 'vilokya', meaning: 'having observed, seeing' },
+            { word: 'अखिलम्', transliteration: 'akhilam', meaning: 'everything, all' },
+            { word: 'अद्भुतम्', transliteration: 'adbhutam', meaning: 'wonderful, astonishing' },
+            { word: 'समागतः', transliteration: 'samāgataḥ', meaning: 'having arrived, returned' },
+            { word: 'ददर्श', transliteration: 'dadarśa', meaning: 'he saw, beheld' },
+            { word: 'वत्सकान्', transliteration: 'vatsakān', meaning: 'the calves' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 7,
+          devanagari: "तानेव पश्यन् पुनरत्र गोपान्\nगुहागतांश्चापि तथैव दृष्ट्वा ।\nइतश्चेतश्च विलोकयन् सः\nचतुर्मुखोऽप्यासत विस्मयार्तः ॥",
+          transliteration: "tāneva paśyan punaratra gopān\nguhāgatāṁścāpi tathaiva dṛṣṭvā |\nitaścetaśca vilokayan saḥ\ncaturmukho'pyāsata vismayārtaḥ ||",
+          translation: "Seeing the same boys here and also finding the ones he had hidden still asleep in the cave, Brahma looked back and forth between them. Even the four-faced creator sat down, overwhelmed with astonishment.",
+          commentary: "Brahma's confusion is dramatized beautifully here. Looking one way, he saw boys playing with Krishna; looking the other way, he saw the same boys sleeping in his cave. Which were real? Bhagavatam 10.13.25 describes how even Brahma's four heads were insufficient to comprehend this mystery. The creator of the universe was rendered helpless before the play of the Supreme Lord.",
+          words: [
+            { word: 'गुहागतान्', transliteration: 'guhāgatān', meaning: 'those gone to (hidden in) the cave' },
+            { word: 'इतश्चेतश्च', transliteration: 'itaścetaśca', meaning: 'here and there, back and forth' },
+            { word: 'विलोकयन्', transliteration: 'vilokayan', meaning: 'looking, observing' },
+            { word: 'चतुर्मुखः', transliteration: 'caturmukhaḥ', meaning: 'the four-faced one (Brahma)' },
+            { word: 'आसत', transliteration: 'āsata', meaning: 'sat down, remained' },
+            { word: 'विस्मयार्तः', transliteration: 'vismayārtaḥ', meaning: 'struck with wonder' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 8,
+          devanagari: "तावत् त्वदीया तनवस्तु सर्वा\nनारायणाकारतया स्फुरन्त्यः ।\nचतुर्भुजाः पीतदुकूलभूषाः\nश्रिया समं ब्रह्ममयं बभूवुः ॥",
+          transliteration: "tāvat tvadīyā tanavstu sarvā\nnārāyaṇākāratayā sphurantyaḥ |\ncaturbhujāḥ pītadukūlabhūṣāḥ\nśriyā samaṁ brahmamayaṁ babhūvuḥ ||",
+          translation: "Then all Your expanded forms began to shine forth in the form of Lord Narayana — four-armed, adorned in golden silk garments, radiant with Lakshmi, pervaded by the light of Brahman.",
+          commentary: "This is the climactic revelation of the episode. As described in Bhagavatam 10.13.46-47, each cowherd boy and calf suddenly transformed before Brahma's eyes into a four-armed form of Vishnu, adorned with conch, disc, mace and lotus, wearing yellow silk, accompanied by Lakshmi. Brahma realized that every living being is ultimately a form of Narayana — a profound Vedantic truth revealed through divine play.",
+          words: [
+            { word: 'त्वदीयाः', transliteration: 'tvadīyāḥ', meaning: 'Your own (forms)' },
+            { word: 'तनवः', transliteration: 'tanavaḥ', meaning: 'forms, bodies' },
+            { word: 'नारायणाकारतया', transliteration: 'nārāyaṇākāratayā', meaning: 'in the form of Narayana' },
+            { word: 'स्फुरन्त्यः', transliteration: 'sphurantyaḥ', meaning: 'shining forth, manifesting' },
+            { word: 'चतुर्भुजाः', transliteration: 'caturbhujāḥ', meaning: 'four-armed' },
+            { word: 'पीतदुकूल', transliteration: 'pītadukūla', meaning: 'yellow silk garments' },
+            { word: 'श्रिया', transliteration: 'śriyā', meaning: 'with Lakshmi (divine splendor)' },
+            { word: 'ब्रह्ममयम्', transliteration: 'brahmamayam', meaning: 'pervaded by Brahman' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 9,
+          devanagari: "सम्मोहितस्तेन चतुर्मुखोऽसौ\nविरिञ्चिलोकाधिपतिर्विधाता ।\nस्तोत्राणि तुभ्यं विविधानि गायन्\nप्रणम्य भूमौ शरणं प्रपेदे ॥",
+          transliteration: "sammohitastena caturmukho'sau\nviriñcilokādhipatirvidhātā |\nstotrāṇi tubhyaṁ vividhāni gāyan\npraṇamya bhūmau śaraṇaṁ prapede ||",
+          translation: "Completely bewildered, the four-faced Brahma, sovereign of the highest heaven, sang various hymns of praise unto You and, prostrating on the ground, surrendered completely.",
+          commentary: "Brahma's pride was shattered by this direct experience of Krishna's supremacy. As described in Bhagavatam 10.14 (the famous Brahma-stuti), Brahma composed exquisite prayers acknowledging that Krishna is the Supreme Brahman who cannot be measured even by the creator. His prostration (praṇamya) symbolizes the complete surrender of ego and intellectual pride before divine grace.",
+          words: [
+            { word: 'सम्मोहितः', transliteration: 'sammohitaḥ', meaning: 'completely bewildered' },
+            { word: 'विरिञ्चिलोक', transliteration: 'viriñciloka', meaning: 'the world of Brahma (highest heaven)' },
+            { word: 'अधिपतिः', transliteration: 'adhipatiḥ', meaning: 'lord, sovereign' },
+            { word: 'स्तोत्राणि', transliteration: 'stotrāṇi', meaning: 'hymns of praise' },
+            { word: 'गायन्', transliteration: 'gāyan', meaning: 'singing' },
+            { word: 'प्रणम्य', transliteration: 'praṇamya', meaning: 'having prostrated' },
+            { word: 'शरणम्', transliteration: 'śaraṇam', meaning: 'refuge, surrender' },
+            { word: 'प्रपेदे', transliteration: 'prapede', meaning: 'he attained, took refuge' }
+          ]
+        },
+        {
+          dashaka: 47,
+          sloka: 10,
+          devanagari: "तत्सर्वमायां प्रतिसंहरन् त्वं\nगोपान् सवत्सान् प्रतिमोचयित्वा ।\nसर्वं यथापूर्वमकल्पयस्त्वं\nतं ब्रह्मविस्मापनलीलमीशम् ।\nगुरुवायुपुरेश भगवन् पाहि\nसर्वामयात् त्वं प्रणतं जनं मे ॥",
+          transliteration: "tatsarvamāyāṁ pratisaṁharan tvaṁ\ngopān savatsān pratimocayitvā |\nsarvaṁ yathāpūrvamakalpayastvaṁ\ntaṁ brahmavismāpanalīlamīśam |\nguruvāyupureśa bhagavan pāhi\nsarvāmayāt tvaṁ praṇataṁ janaṁ me ||",
+          translation: "Withdrawing all that divine illusion, You released the cowherd boys and calves, restoring everything to its original state. O Lord of Guruvayur, You who performed this lila of bewildering Brahma himself, protect me, Your surrendered devotee, from all ailments!",
+          commentary: "The concluding verse follows the traditional Narayaneeyam pattern. Krishna gracefully withdrew His cosmic display, and life in Vraja returned to normal — the boys woke as if from a brief nap, unaware that a year had passed. Bhattathiri ends with a prayer to the Lord of Guruvayur, connecting the ancient lila with his present need. The one who bewildered even Brahma can surely dispel the poet's physical suffering.",
+          words: [
+            { word: 'प्रतिसंहरन्', transliteration: 'pratisaṁharan', meaning: 'withdrawing, dissolving' },
+            { word: 'प्रतिमोचयित्वा', transliteration: 'pratimocayitvā', meaning: 'having released' },
+            { word: 'यथापूर्वम्', transliteration: 'yathāpūrvam', meaning: 'as before, to the original state' },
+            { word: 'ब्रह्मविस्मापन', transliteration: 'brahmavismāpana', meaning: 'bewildering of Brahma' },
+            { word: 'ईशम्', transliteration: 'īśam', meaning: 'the Lord, the Supreme' },
+            { word: 'गुरुवायुपुरेश', transliteration: 'guruvāyupureśa', meaning: 'O Lord of Guruvayur' },
+            { word: 'पाहि', transliteration: 'pāhi', meaning: 'protect' },
+            { word: 'सर्वामयात्', transliteration: 'sarvāmayāt', meaning: 'from all ailments' }
+          ]
+        }
+      ]
     },
     {
       dashaka: 48,
