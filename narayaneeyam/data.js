@@ -11485,7 +11485,185 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the beginning of the divine Rasa Leela on an autumn full-moon night when Krishna's flute call drew the Gopis irresistibly to the banks of the Yamuna, leaving everything behind.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 53,
+          sloka: 1,
+          devanagari: "शरदि पूर्णशशाङ्ककिरणैः\nकुमुदाकरसुगन्धशीतलैः ।\nउपहिते मधुरे वनान्तरे\nमुरलिकामुपधाय चेलिथ ॥",
+          transliteration: "śaradi pūrṇaśaśāṅkakiraṇaiḥ\nkumudākarasugandhiśītalaiḥ |\nupahite madhure vanāntare\nmuralikām upadhāya celitha ||",
+          translation: "In the autumn season, when the forest was made delightful by the cool, fragrant rays of the full moon mingling with the scent of night-lotuses, You took up Your flute and began to play.",
+          commentary: "The opening verse sets the scene of the Rasa Leela — a perfect autumn night (sharad purnima) when the full moon bathes everything in silver light and the kumuda (night-lotus) flowers perfume the cool air. This is the ideal romantic setting described in the Bhagavata Purana for Krishna's divine play.",
+          words: [
+            { word: "शरदि", transliteration: "śaradi", meaning: "in the autumn season" },
+            { word: "पूर्णशशाङ्क", transliteration: "pūrṇaśaśāṅka", meaning: "full moon" },
+            { word: "किरणैः", transliteration: "kiraṇaiḥ", meaning: "by the rays" },
+            { word: "कुमुदाकर", transliteration: "kumudākara", meaning: "pond of night-lotuses" },
+            { word: "सुगन्धशीतलैः", transliteration: "sugandhiśītalaiḥ", meaning: "fragrant and cool" },
+            { word: "वनान्तरे", transliteration: "vanāntare", meaning: "in the forest interior" },
+            { word: "मुरलिकाम्", transliteration: "muralikām", meaning: "the flute" },
+            { word: "चेलिथ", transliteration: "celitha", meaning: "You played, You moved about" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 2,
+          devanagari: "तव मुरलिरवामृतं हरे\nप्रसृतमशेषदिशान्तरेषु तत् ।\nश्रुतिपदमगमद्व्रजाङ्गनां\nमदनरसप्रविकासि सुन्दरम् ॥",
+          transliteration: "tava muralīravāmṛtaṁ hare\nprasṛtam aśeṣadiśāntareṣu tat |\nśrutipadam agamad vrajāṅganāṁ\nmadanarasapravikāsi sundaram ||",
+          translation: "O Hari, the nectar-like sound of Your flute spread in all directions and reached the ears of the women of Vraja, arousing the beautiful sentiment of divine love in them.",
+          commentary: "Krishna's flute is described as having a supernatural power — its nectar-like melody pervades all directions and specifically targets the Gopis of Vraja, awakening madana-rasa (the sentiment of love). This is not ordinary passion but a divine longing for union with the Supreme.",
+          words: [
+            { word: "मुरलीरव", transliteration: "muralīrava", meaning: "the sound of the flute" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "nectar, immortal sweetness" },
+            { word: "प्रसृतम्", transliteration: "prasṛtam", meaning: "spread forth, pervaded" },
+            { word: "अशेषदिशान्तरेषु", transliteration: "aśeṣadiśāntareṣu", meaning: "in all directions without remainder" },
+            { word: "श्रुतिपदम्", transliteration: "śrutipadam", meaning: "to the range of hearing, to the ears" },
+            { word: "व्रजाङ्गनाम्", transliteration: "vrajāṅganām", meaning: "of the women of Vraja" },
+            { word: "मदनरस", transliteration: "madanarasa", meaning: "the sentiment of love/passion" },
+            { word: "प्रविकासि", transliteration: "pravikāsi", meaning: "causing to blossom forth" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 3,
+          devanagari: "तदवधि निखिलास्तु गोपिकाः\nनिजगृहकर्मनिबन्धभेदिनी ।\nतव पदमुपजग्मुराकुला\nमदनकदर्थितमानसाः प्रभो ॥",
+          transliteration: "tadavadhi nikhilāstu gopikāḥ\nnijagṛhakarmanibandhabhedinī |\ntava padam upajagmur ākulā\nmadanakadarthitamānasāḥ prabho ||",
+          translation: "From that moment, O Lord, all the Gopis, breaking free from the bonds of their household duties, came rushing to You in agitation, their minds tormented by the pangs of divine love.",
+          commentary: "The Gopis abandoned all worldly duties upon hearing Krishna's flute. This is celebrated in Bhakti tradition not as dereliction but as the highest spiritual surrender — where the call of the Divine supersedes all social obligations. Their 'torment' is the sweet anguish of divine love (viraha).",
+          words: [
+            { word: "तदवधि", transliteration: "tadavadhi", meaning: "from that moment" },
+            { word: "निखिलाः", transliteration: "nikhilāḥ", meaning: "all, every one" },
+            { word: "गोपिकाः", transliteration: "gopikāḥ", meaning: "the Gopis (cowherd women)" },
+            { word: "निजगृहकर्म", transliteration: "nijagṛhakarma", meaning: "their own household duties" },
+            { word: "निबन्धभेदिनी", transliteration: "nibandhabhedinī", meaning: "breaking the bonds" },
+            { word: "उपजग्मुः", transliteration: "upajagmuḥ", meaning: "approached, came to" },
+            { word: "आकुलाः", transliteration: "ākulāḥ", meaning: "agitated, restless" },
+            { word: "कदर्थित", transliteration: "kadarthita", meaning: "tormented, afflicted" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 4,
+          devanagari: "दुहतीर्धयतीर्पचन्त्यपि\nप्रभवमुपाटनशीलमेव ताः ।\nपरिजनपरिबन्धनात्ततः\nपरमपि तत्वदुपत्यजन्प्रभो ॥",
+          transliteration: "duhatīr dhayatīr pacantyapi\nprabhavam upāṭanaśīlam eva tāḥ |\nparijanaparibandhanāt tataḥ\nparam api tatvad upatyajan prabho ||",
+          translation: "Some were milking cows, some nursing their infants, some cooking food — yet all of them abandoned these activities midway. Even those held back by their relatives broke free, O Lord, to reach You.",
+          commentary: "This verse vividly illustrates the irresistible pull of Krishna's divine call. The Gopis left their duties unfinished — a dramatic literary device from the Bhagavata showing that the call of the Supreme transcends all worldly compulsions. Even family restraint could not hold them back.",
+          words: [
+            { word: "दुहतीः", transliteration: "duhatīḥ", meaning: "those who were milking" },
+            { word: "धयतीः", transliteration: "dhayatīḥ", meaning: "those who were nursing/feeding" },
+            { word: "पचन्ति", transliteration: "pacanti", meaning: "those who were cooking" },
+            { word: "उपाटनशीलम्", transliteration: "upāṭanaśīlam", meaning: "having the nature of abandoning midway" },
+            { word: "परिजन", transliteration: "parijana", meaning: "relatives, family members" },
+            { word: "परिबन्धनात्", transliteration: "paribandhanāt", meaning: "from being restrained" },
+            { word: "उपत्यजन्", transliteration: "upatyajan", meaning: "abandoning, giving up" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 5,
+          devanagari: "अवरुद्धगतिरपि काश्चन\nत्वयि दृढभावनया समुन्मनाः ।\nगृह एव हि पूर्णतत्सुखा\nविदधुरमीषु तनूत्यजः प्रभो ॥",
+          transliteration: "avaruddhagatir api kāścana\ntvayi dṛḍhabhāvanayā samunmanāḥ |\ngṛha eva hi pūrṇatatsukkhā\nvidadhur amīṣu tanūtyajaḥ prabho ||",
+          translation: "Some Gopis, whose passage was blocked, meditated on You with intense devotion and became fully absorbed. Attaining complete bliss of union with You right in their homes, they shed their mortal bodies, O Lord.",
+          commentary: "This poignant verse references Gopis who were physically prevented from reaching Krishna. Their intense meditation on Him was so powerful that they attained liberation (moksha) right where they were. This illustrates the supreme power of devoted contemplation — one need not physically reach God; sincere longing itself is sufficient for union.",
+          words: [
+            { word: "अवरुद्धगतिः", transliteration: "avaruddhagatīḥ", meaning: "those whose movement was blocked" },
+            { word: "दृढभावनया", transliteration: "dṛḍhabhāvanayā", meaning: "with firm/intense meditation" },
+            { word: "समुन्मनाः", transliteration: "samunmanāḥ", meaning: "fully absorbed in mind" },
+            { word: "पूर्णतत्सुखाः", transliteration: "pūrṇatatsukkhāḥ", meaning: "filled with that bliss (of union)" },
+            { word: "तनूत्यजः", transliteration: "tanūtyajaḥ", meaning: "those who shed their bodies" },
+            { word: "गृह एव", transliteration: "gṛha eva", meaning: "right in their homes" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 6,
+          devanagari: "सकलाः खलु गोपसुन्दरीः\nतव पुरतो विनिवेशिता विभो ।\nकिमिदं किमिदं किमागता\nइति वचनैः प्रहसन्निषिद्धवान् ॥",
+          transliteration: "sakalāḥ khalu gopasundarīḥ\ntava purato viniveśitā vibho |\nkim idaṁ kim idaṁ kim āgatā\niti vacanaiḥ prahasanniṣiddhavān ||",
+          translation: "When all the beautiful cowherd women assembled before You, O all-pervading Lord, You smilingly rebuked them saying, 'What is this? What is this? Why have you come here?'",
+          commentary: "Krishna's seemingly discouraging words to the Gopis are a classic element of the Rasa Leela narrative from the Bhagavata Purana. He tests their resolve by asking them to return home. This divine play (leela) serves to deepen their devotion and establish that their love is unconditional and beyond ordinary attachment.",
+          words: [
+            { word: "सकलाः", transliteration: "sakalāḥ", meaning: "all of them" },
+            { word: "गोपसुन्दरीः", transliteration: "gopasundarīḥ", meaning: "the beautiful cowherd women" },
+            { word: "पुरतः", transliteration: "purataḥ", meaning: "before You, in Your presence" },
+            { word: "विनिवेशिताः", transliteration: "viniveśitāḥ", meaning: "assembled, gathered" },
+            { word: "विभो", transliteration: "vibho", meaning: "O all-pervading Lord" },
+            { word: "किमिदम्", transliteration: "kim idam", meaning: "what is this?" },
+            { word: "प्रहसन्", transliteration: "prahasan", meaning: "smiling, laughing gently" },
+            { word: "निषिद्धवान्", transliteration: "niṣiddhavān", meaning: "forbade, rebuked" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 7,
+          devanagari: "भयजनकमिदं तमो निशा\nवनमपि हिंस्रसरीसृपालयम् ।\nव्रजत पुनरपीह मा स्थित\nद्रुतमिति ताः समबोधयो हरे ॥",
+          transliteration: "bhayajanakamidam tamo niśā\nvanam api hiṁsrasarīsṛpālayam |\nvrajata punar apīha mā sthita\ndrutam iti tāḥ samabodhayo hare ||",
+          translation: "O Hari, You admonished them saying, 'This darkness of night is frightening; this forest is the abode of ferocious snakes and wild animals. Go back quickly and do not remain here!'",
+          commentary: "Krishna continues His divine play of discouragement, warning the Gopis about the dangers of the nighttime forest. These words, though seemingly practical, are actually a test of devotion. The Lord, who is the protector of all beings, pretends concern about forest dangers — an ironic reversal that the Gopis see through with the eyes of love.",
+          words: [
+            { word: "भयजनकम्", transliteration: "bhayajanakam", meaning: "causing fear, frightening" },
+            { word: "तमः", transliteration: "tamaḥ", meaning: "darkness" },
+            { word: "निशा", transliteration: "niśā", meaning: "night" },
+            { word: "हिंस्र", transliteration: "hiṁsra", meaning: "ferocious, dangerous" },
+            { word: "सरीसृप", transliteration: "sarīsṛpa", meaning: "snakes, reptiles" },
+            { word: "आलयम्", transliteration: "ālayam", meaning: "abode, dwelling place" },
+            { word: "व्रजत", transliteration: "vrajata", meaning: "go, return" },
+            { word: "समबोधयः", transliteration: "samabodhayaḥ", meaning: "You instructed, admonished" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 8,
+          devanagari: "पतिसुतगुरुबन्धुसेवनं\nपतिवनिताजनधर्ममाचर ।\nइति निगदति सन्मुखे त्वयि\nव्यलपन्ताश्चिरमार्तवत्प्रभो ॥",
+          transliteration: "patisutagurubandhusevanaṁ\npativanitājanadharmaṁ ācara |\niti nigadati sanmukhe tvayi\nvyalapantāś ciram ārtavat prabho ||",
+          translation: "When You spoke to them face to face saying, 'Serve your husbands, sons, elders, and relatives; follow the dharma prescribed for married women,' they wept for long in anguish, O Lord.",
+          commentary: "Krishna invokes conventional dharma — duties toward husband, children, and family. This creates a profound tension in the narrative between svadharma (social duty) and para-dharma (supreme spiritual duty). The Gopis' tears reveal that for them, devotion to Krishna IS the highest dharma, transcending all social conventions.",
+          words: [
+            { word: "पति", transliteration: "pati", meaning: "husband" },
+            { word: "सुत", transliteration: "suta", meaning: "son, child" },
+            { word: "गुरु", transliteration: "guru", meaning: "elders, teachers" },
+            { word: "बन्धु", transliteration: "bandhu", meaning: "relatives, kinsmen" },
+            { word: "सेवनम्", transliteration: "sevanam", meaning: "service, attending to" },
+            { word: "धर्मम्", transliteration: "dharmam", meaning: "righteous duty" },
+            { word: "निगदति", transliteration: "nigadati", meaning: "speaking, declaring" },
+            { word: "व्यलपन्ताः", transliteration: "vyalapantāḥ", meaning: "weeping, lamenting" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 9,
+          devanagari: "तव पदनखचन्द्ररोचिषा\nमधुरतरस्मितवीक्षितेन च ।\nहृतमनसां विनिवर्तनं कुतः\nस्थगयतु नो हृदयज्वरं हरे ॥",
+          transliteration: "tava padanakhacandrareciṣā\nmadhuaratarasmitvīkṣitena ca |\nhṛtamanasāṁ vinivartanaṁ kutaḥ\nsthagayatu no hṛdayajvaraṁ hare ||",
+          translation: "By the moon-like radiance of Your toenails and by Your sweeter-than-sweet smiling glances, our minds have been stolen. How can we who have lost our hearts to You ever turn back? O Hari, quench the burning fever of our hearts!",
+          commentary: "The Gopis respond to Krishna's discouragement with an impassioned declaration of irrevocable love. The imagery of the toenail's lustre rivalling the moon is a classic Bhakti trope — even the lowest part of the Lord's form outshines the greatest celestial body. Their plea to cure their 'heart-fever' mirrors Bhattathiri's own prayer for healing.",
+          words: [
+            { word: "पदनख", transliteration: "padanakha", meaning: "toenails" },
+            { word: "चन्द्ररोचिषा", transliteration: "candrarociṣā", meaning: "with moon-like radiance" },
+            { word: "मधुरतर", transliteration: "madhuratara", meaning: "sweeter than sweet" },
+            { word: "स्मितवीक्षितेन", transliteration: "smitavīkṣitena", meaning: "by the smiling glance" },
+            { word: "हृतमनसाम्", transliteration: "hṛtamanasām", meaning: "of those whose minds are stolen" },
+            { word: "विनिवर्तनम्", transliteration: "vinivartanam", meaning: "turning back, return" },
+            { word: "हृदयज्वरम्", transliteration: "hṛdayajvaram", meaning: "the fever/burning of the heart" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 10,
+          devanagari: "इति गोपवधूवचोभरैः\nप्रमुदितमानसमाशु मानयन् ।\nरसमुपनयसि स्म ताः प्रभो\nगुरुपवनेश्वर पाहि मां गदात् ॥",
+          transliteration: "iti gopavadhūvacobharaiḥ\npramuditamānasamāśu mānayan |\nrasam upanayasi sma tāḥ prabho\ngurupavaneśvara pāhi māṁ gadāt ||",
+          translation: "Thus, delighted at heart by the torrent of the Gopis' words, You honoured them and led them into the joy of the Rasa dance. O Lord of Guruvayur, protect me from my ailments!",
+          commentary: "The concluding verse of Dashaka 53 brings the narrative to the pivotal moment — Krishna, pleased by the Gopis' unwavering devotion expressed through their words, finally accepts them and initiates the Rasa Leela. Bhattathiri closes with his characteristic prayer to the Lord of Guruvayur (Gurupavaneśvara / Marutpureśa) for relief from his own illness, drawing a parallel between the Gopis' heart-fever and his physical ailment.",
+          words: [
+            { word: "गोपवधू", transliteration: "gopavadhū", meaning: "the cowherd women, Gopis" },
+            { word: "वचोभरैः", transliteration: "vacobharaiḥ", meaning: "by the torrent/weight of words" },
+            { word: "प्रमुदित", transliteration: "pramudita", meaning: "delighted, greatly pleased" },
+            { word: "मानसम्", transliteration: "mānasam", meaning: "mind, heart" },
+            { word: "मानयन्", transliteration: "mānayan", meaning: "honouring, respecting" },
+            { word: "रसम्", transliteration: "rasam", meaning: "the Rasa (divine dance/aesthetic delight)" },
+            { word: "गुरुपवनेश्वर", transliteration: "gurupavaneśvara", meaning: "Lord of Guruvayur" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect" },
+            { word: "गदात्", transliteration: "gadāt", meaning: "from disease/ailment" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 54,
