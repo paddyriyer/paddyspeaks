@@ -11672,7 +11672,178 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Continues the Rasa Leela describing Krishna's disappearance to curb the Gopis' pride, their anguished search, the Gopi Gita of longing, and His reappearance to dance the divine Rasa circle.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 54,
+          sloka: 1,
+          devanagari: "गोपीनां तत्र सर्वासां मानोऽभूत्तव सङ्गतौ ।\nमामेव प्रणयत्यच्युतो भजत्यन्यां न कामपि ॥",
+          transliteration: "gopīnāṁ tatra sarvāsāṁ māno'bhūttava saṅgatau |\nmāmeva praṇayatyacyuto bhajatyan'yāṁ na kāmapi ||",
+          translation: "In Your company, all the Gopis became filled with pride, each thinking: 'It is me alone that Achyuta loves; He cares for no other.'",
+          commentary: "This verse describes the spiritual pitfall of pride (māna) that arose even among the blessed Gopis during the Rasa dance. Each Gopi believed herself to be Krishna's sole beloved. In Vaishnava theology, even the most exalted devotees can be tested by ego. Krishna, the supreme teacher, would soon vanish to cure this pride — demonstrating that divine love demands humility, not possessiveness.",
+          words: [
+            { word: "गोपीनाम्", transliteration: "gopīnām", meaning: "of the Gopis" },
+            { word: "मानः", transliteration: "mānaḥ", meaning: "pride, conceit" },
+            { word: "सङ्गतौ", transliteration: "saṅgatau", meaning: "in the company of, in association" },
+            { word: "प्रणयति", transliteration: "praṇayati", meaning: "loves, shows affection" },
+            { word: "अच्युतः", transliteration: "acyutaḥ", meaning: "the Infallible One, Krishna" },
+            { word: "भजति", transliteration: "bhajati", meaning: "adores, worships, cherishes" },
+            { word: "कामपि", transliteration: "kāmapi", meaning: "anyone at all" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 2,
+          devanagari: "तासां मानमवज्ञाय गर्वापनयनाय च ।\nत्वमन्तर्धानमगमस्तत्क्षणात्तत्र माधव ॥",
+          transliteration: "tāsāṁ mānamavajñāya garvāpanayanāya ca |\ntvamantardhānamagamastatkṣaṇāttatra mādhava ||",
+          translation: "Perceiving their pride and wishing to remove their arrogance, You, O Madhava, instantly disappeared from that very spot.",
+          commentary: "Krishna's sudden disappearance (antardhāna) is one of the most poignant moments in the Bhagavatam (10.29.48). It is not an act of cruelty but of supreme compassion — the divine surgeon removing the tumor of ego. The epithet Mādhava (Lord of Lakshmi) is significant: the one whom even the Goddess of Fortune serves has chosen these cowherd girls, yet they must learn that divine grace cannot be claimed as a right.",
+          words: [
+            { word: "मानम्", transliteration: "mānam", meaning: "pride, arrogance" },
+            { word: "अवज्ञाय", transliteration: "avajñāya", meaning: "having perceived, having noticed" },
+            { word: "गर्वापनयन", transliteration: "garvāpanayana", meaning: "removal of pride" },
+            { word: "अन्तर्धानम्", transliteration: "antardhānam", meaning: "disappearance, vanishing" },
+            { word: "अगमः", transliteration: "agamaḥ", meaning: "You went, You attained" },
+            { word: "तत्क्षणात्", transliteration: "tatkṣaṇāt", meaning: "at that very instant" },
+            { word: "माधव", transliteration: "mādhava", meaning: "O Madhava, Lord of Lakshmi" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 3,
+          devanagari: "त्वय्यन्तर्हिततां प्राप्ते विषण्णा व्याकुलेन्द्रियाः ।\nत्वामन्विष्य वने तस्मिन् गोप्यः शोकविमोहिताः ॥",
+          transliteration: "tvayyantarhitatāṁ prāpte viṣaṇṇā vyākulendriyāḥ |\ntvāmanviṣya vane tasmin gopyaḥ śokavimohitāḥ ||",
+          translation: "When You had disappeared, the Gopis became grief-stricken, their senses bewildered. Deluded by sorrow, they searched for You throughout that forest.",
+          commentary: "The Gopis' anguish upon Krishna's disappearance is described in Bhagavatam 10.30. Their bewilderment (vyākula-indriyāḥ) represents the dark night of the soul familiar to mystics across traditions. The forest (vana) that was paradise a moment ago becomes a wilderness of longing. This viraha (separation) is considered by Vaishnava acharyas to be an even higher state of devotion than union, for it purifies the heart of all possessiveness.",
+          words: [
+            { word: "अन्तर्हिततां", transliteration: "antarhitatāṁ", meaning: "the state of having disappeared" },
+            { word: "विषण्णाः", transliteration: "viṣaṇṇāḥ", meaning: "grief-stricken, despondent" },
+            { word: "व्याकुलेन्द्रियाः", transliteration: "vyākulendriyāḥ", meaning: "with bewildered senses" },
+            { word: "अन्विष्य", transliteration: "anviṣya", meaning: "searching for, seeking" },
+            { word: "वने", transliteration: "vane", meaning: "in the forest" },
+            { word: "शोकविमोहिताः", transliteration: "śokavimohitāḥ", meaning: "deluded by grief" },
+            { word: "गोप्यः", transliteration: "gopyaḥ", meaning: "the Gopis, cowherd maidens" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 4,
+          devanagari: "वृक्षान् पशून् नदीतीरान् पृच्छन्त्यस्त्वद्विचेष्टितम् ।\nत्वद्रूपधारिण्यो भूत्वा खेलन्त्यस्तत्तदाचरन् ॥",
+          transliteration: "vṛkṣān paśūn nadītīrān pṛcchantyastvadviceṣṭitam |\ntvadrūpadhāriṇyo bhūtvā khelantyastattadācaran ||",
+          translation: "They asked the trees, animals, and riverbanks about Your whereabouts. Then, assuming Your form, they playfully enacted Your various deeds.",
+          commentary: "This celebrated passage from the Bhagavatam (10.30.4-11) shows the Gopis questioning all of nature — the tulasi plant, the earth, the deer, the trees — about Krishna. In their love-madness, they began to imitate His leelas: one Gopi played Krishna lifting Govardhana, another enacted the killing of Putana. This divine madness (unmāda) is the eighth stage of viraha described in poetic tradition and represents complete absorption in the beloved.",
+          words: [
+            { word: "वृक्षान्", transliteration: "vṛkṣān", meaning: "trees" },
+            { word: "पशून्", transliteration: "paśūn", meaning: "animals" },
+            { word: "नदीतीरान्", transliteration: "nadītīrān", meaning: "riverbanks" },
+            { word: "पृच्छन्त्यः", transliteration: "pṛcchantyaḥ", meaning: "asking, inquiring" },
+            { word: "विचेष्टितम्", transliteration: "viceṣṭitam", meaning: "deeds, actions, exploits" },
+            { word: "रूपधारिण्यः", transliteration: "rūpadhāriṇyaḥ", meaning: "assuming the form of" },
+            { word: "आचरन्", transliteration: "ācaran", meaning: "enacted, performed" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 5,
+          devanagari: "पदानि तव कान्तस्य पदान्यान्यानि चापरे ।\nदृष्ट्वा तत्राऽऽकलयितुं यतन्ते स्म पदे पदे ॥",
+          transliteration: "padāni tava kāntasya padānyānyāni cāpare |\ndṛṣṭvā tatrā''kalayituṁ yatante sma pade pade ||",
+          translation: "They found Your footprints alongside another's, and at every step they tried to discern what had transpired between the beloved and that favored Gopi.",
+          commentary: "The Gopis discover two sets of footprints — Krishna's and those of one special Gopi (identified by tradition as Radha, though Bhattathiri follows the Bhagavatam in not naming her). The deeper impressions where Krishna evidently carried this Gopi on His shoulders fill the others with both jealousy and awe. This passage (Bhagavatam 10.30.26-28) is considered the most veiled reference to Radha in the text.",
+          words: [
+            { word: "पदानि", transliteration: "padāni", meaning: "footprints, steps" },
+            { word: "कान्तस्य", transliteration: "kāntasya", meaning: "of the beloved" },
+            { word: "अपरे", transliteration: "apare", meaning: "another's, of another" },
+            { word: "दृष्ट्वा", transliteration: "dṛṣṭvā", meaning: "having seen" },
+            { word: "आकलयितुम्", transliteration: "ākalayitum", meaning: "to discern, to understand" },
+            { word: "यतन्ते", transliteration: "yatante", meaning: "they endeavored, they tried" },
+            { word: "पदे पदे", transliteration: "pade pade", meaning: "at every step" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 6,
+          devanagari: "सापि त्वया विहीनाऽऽसीत् गर्विता स्वं विहाय ताम् ।\nतां चापि शोकसन्तप्तां दृष्ट्वा सर्वाः समागताः ॥",
+          transliteration: "sāpi tvayā vihīnā''sīt garvitā svaṁ vihāya tām |\ntāṁ cāpi śokasantaptāṁ dṛṣṭvā sarvāḥ samāgatāḥ ||",
+          translation: "That favored Gopi too, having grown proud, was abandoned by You. Seeing her also burning with grief, all the Gopis gathered together.",
+          commentary: "Even the most favored Gopi was not immune to the test of pride. When she asked Krishna to carry her, He vanished, leaving her alone and weeping. The Bhagavatam (10.30.36-37) shows that divine favoritism is not partiality but pedagogy — Krishna treats each soul according to its spiritual need. The reunion of all the Gopis in their shared grief dissolves the hierarchy of ego and prepares them for the selfless love required for the true Rasa.",
+          words: [
+            { word: "विहीना", transliteration: "vihīnā", meaning: "abandoned, bereft of" },
+            { word: "गर्विता", transliteration: "garvitā", meaning: "having become proud" },
+            { word: "विहाय", transliteration: "vihāya", meaning: "having abandoned, leaving" },
+            { word: "शोकसन्तप्ताम्", transliteration: "śokasantaptām", meaning: "burning with grief" },
+            { word: "दृष्ट्वा", transliteration: "dṛṣṭvā", meaning: "having seen" },
+            { word: "सर्वाः", transliteration: "sarvāḥ", meaning: "all (the Gopis)" },
+            { word: "समागताः", transliteration: "samāgatāḥ", meaning: "gathered together, assembled" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 7,
+          devanagari: "यमुनापुलिने सर्वा मिलित्वा विरहातुराः ।\nगोपिकागीतमारेभुस्त्वद्गुणान् कीर्तयन्त्य उत ॥",
+          transliteration: "yamunāpuline sarvā militvā virahāturāḥ |\ngopikāgītamārebhustvadguṇān kīrtayantya uta ||",
+          translation: "Gathering together on the banks of the Yamuna, all the Gopis, tormented by separation, began singing the Gopi Gita, glorifying Your divine qualities.",
+          commentary: "The Gopi Gita (Bhagavatam 10.31) is one of the most celebrated hymns in all of Sanskrit literature. Comprising nineteen verses, it is a symphony of longing in which the Gopis call upon Krishna to return. Bhattathiri condenses this into a reference, knowing his listeners would recall the full hymn. The Yamuna's bank (pulina) becomes a sacred stage where human longing transforms into divine poetry — the Gopis' tears become the ink of devotional literature.",
+          words: [
+            { word: "यमुनापुलिने", transliteration: "yamunāpuline", meaning: "on the sandy bank of the Yamuna" },
+            { word: "मिलित्वा", transliteration: "militvā", meaning: "having gathered, having assembled" },
+            { word: "विरहातुराः", transliteration: "virahāturāḥ", meaning: "tormented by separation" },
+            { word: "गोपिकागीतम्", transliteration: "gopikāgītam", meaning: "the Song of the Gopis (Gopi Gita)" },
+            { word: "आरेभुः", transliteration: "ārebhuḥ", meaning: "they began, they commenced" },
+            { word: "गुणान्", transliteration: "guṇān", meaning: "qualities, virtues" },
+            { word: "कीर्तयन्त्यः", transliteration: "kīrtayantyaḥ", meaning: "singing, glorifying" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 8,
+          devanagari: "तासामार्तिं निरीक्ष्यैव करुणामृतसागरः ।\nप्रादुर्भूय पुनस्तत्र शान्तिं चक्रे जनार्दनः ॥",
+          transliteration: "tāsāmārtiṁ nirīkṣyaiva karuṇāmṛtasāgaraḥ |\nprādurbhūya punastatra śāntiṁ cakre janārdanaḥ ||",
+          translation: "Beholding their agony, the Ocean of Compassionate Nectar that You are, O Janardana, You manifested again in their midst and restored their peace.",
+          commentary: "Krishna's reappearance (Bhagavatam 10.32.1-2) is the triumph of divine compassion (karuṇā) over pedagogical rigor. The compound karuṇāmṛta-sāgaraḥ (ocean of the nectar of compassion) is a masterful description — He is not merely compassionate but an infinite ocean of healing sweetness. The name Janārdana (He who is worshipped by all beings) reminds us that this intimate drama has cosmic significance.",
+          words: [
+            { word: "आर्तिम्", transliteration: "ārtim", meaning: "agony, distress" },
+            { word: "निरीक्ष्य", transliteration: "nirīkṣya", meaning: "having beheld, having observed" },
+            { word: "करुणामृतसागरः", transliteration: "karuṇāmṛtasāgaraḥ", meaning: "ocean of the nectar of compassion" },
+            { word: "प्रादुर्भूय", transliteration: "prādurbhūya", meaning: "having manifested, having appeared" },
+            { word: "पुनः", transliteration: "punaḥ", meaning: "again" },
+            { word: "शान्तिम्", transliteration: "śāntim", meaning: "peace, tranquility" },
+            { word: "जनार्दनः", transliteration: "janārdanaḥ", meaning: "Janardana, the Lord worshipped by all" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 9,
+          devanagari: "ततो रासमहोत्सावं प्रारब्धवानसौ भवान् ।\nगोपीमण्डलमध्ये त्वं नृत्यन् दिव्यवपुर्धरः ॥",
+          transliteration: "tato rāsamahotsāvaṁ prārabdhavānasau bhavān |\ngopīmaṇḍalamadhye tvaṁ nṛtyan divyavapurdharaḥ ||",
+          translation: "Then You commenced the grand festival of the Rasa dance. In the center of the circle of Gopis, You danced, bearing Your resplendent divine form.",
+          commentary: "The Rasa Mandala (Bhagavatam 10.33) is the cosmic dance in which Krishna multiplied Himself to stand between every two Gopis, so each felt she alone danced with Him. The word mahotsāva (great festival) elevates this from mere dance to a divine celebration. Krishna at the center of the Gopi-mandala is the supreme Purusha surrounded by His Shaktis — a theological image of the relationship between the Divine and individual souls, each receiving His full, undivided attention.",
+          words: [
+            { word: "रासमहोत्सावम्", transliteration: "rāsamahotsāvam", meaning: "the grand festival of the Rasa dance" },
+            { word: "प्रारब्धवान्", transliteration: "prārabdhavān", meaning: "commenced, began" },
+            { word: "गोपीमण्डल", transliteration: "gopīmaṇḍala", meaning: "the circle of Gopis" },
+            { word: "मध्ये", transliteration: "madhye", meaning: "in the middle, at the center" },
+            { word: "नृत्यन्", transliteration: "nṛtyan", meaning: "dancing" },
+            { word: "दिव्यवपुर्धरः", transliteration: "divyavapurdharaḥ", meaning: "bearing a divine form" },
+            { word: "भवान्", transliteration: "bhavān", meaning: "You, Your Lordship" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 10,
+          devanagari: "एवं रासोत्सवं कृत्वा गोपीमण्डलमण्डितः ।\nब्रह्मानन्दरसं दत्वा मरुत्पुरपते हरे ।\nसमस्तामयशान्त्यर्थं भक्तानां पाहि सर्वदा ॥",
+          transliteration: "evaṁ rāsotsavaṁ kṛtvā gopīmaṇḍalamaṇḍitaḥ |\nbrahmānandarasaṁ dattvā marutpurapate hare |\nsamastāmayaśāntyarthaṁ bhaktānāṁ pāhi sarvadā ||",
+          translation: "Thus having performed the Rasa festival, adorned by the circle of Gopis, having bestowed the bliss of Brahman — O Lord of Guruvayur, O Hari, for the complete eradication of all ailments, protect Your devotees always.",
+          commentary: "The concluding verse follows the Narayaneeyam tradition of ending each Dashaka with a prayer to the Lord of Guruvayur (Marutpurapate). Bhattathiri, himself suffering from a debilitating illness, weaves the cosmic Rasa Leela back to the personal — the same Krishna who danced with the Gopis now resides at Guruvayur and can heal all who surrender. The phrase brahmānanda-rasam (the essence of the bliss of Brahman) affirms that the Rasa Leela was not worldly romance but the highest spiritual experience — the jiva's union with Paramatma.",
+          words: [
+            { word: "रासोत्सवम्", transliteration: "rāsotsavam", meaning: "the Rasa festival" },
+            { word: "मण्डित", transliteration: "maṇḍita", meaning: "adorned, decorated" },
+            { word: "ब्रह्मानन्दरसम्", transliteration: "brahmānandarasam", meaning: "the bliss-essence of Brahman" },
+            { word: "मरुत्पुरपते", transliteration: "marutpurapate", meaning: "O Lord of Guruvayur (Marutpura)" },
+            { word: "हरे", transliteration: "hare", meaning: "O Hari, O Lord" },
+            { word: "आमयशान्त्यर्थम्", transliteration: "āmayaśāntyartham", meaning: "for the purpose of curing ailments" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect, save" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 55,
