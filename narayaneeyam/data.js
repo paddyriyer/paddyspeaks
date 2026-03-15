@@ -11121,7 +11121,183 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Celebrates the lifting of Mount Govardhana by child Krishna on His little finger to shelter the people and cattle of Vraja from Indra's furious rainstorm, humbling the king of gods.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 51,
+          sloka: 1,
+          devanagari: "हृतेन्द्रपूजामखिलं च वृत्तं\nनिशम्य कोपाद्भगवन् सुरेन्द्रः ।\nत्वद्बालभावं परिगृह्य मोहात्\nसंवर्तकाभ्रं प्रससर्ज वृष्ट्यै ॥",
+          transliteration: "hṛtendrapūjām akhilaṁ ca vṛttaṁ\nniśamya kopād bhagavan surendraḥ |\ntvad-bālabhāvaṁ parigṛhya mohāt\nsaṁvartakābhraṁ prasasarja vṛṣṭyai ||",
+          translation: "O Lord, hearing that his worship had been taken away and learning of all that had transpired, the king of gods Indra became furious. Deluded into thinking You were merely a child, he dispatched the terrifying dissolution-clouds to unleash their rain.",
+          commentary: "This opening verse sets the scene from Bhagavatam 10.25. Indra's anger stems from Krishna's persuading the Vrajavasis to worship Mount Govardhana instead of performing the traditional Indra-yajna. The term samvartaka-abhra refers to the catastrophic clouds that appear at the end of a cosmic cycle (pralaya), indicating that Indra deployed his most destructive weapons against innocent cowherds — a gross overreaction born of wounded ego.",
+          words: [
+            { word: "हृतेन्द्रपूजाम्", transliteration: "hṛtendrapūjām", meaning: "the worship of Indra having been taken away" },
+            { word: "सुरेन्द्रः", transliteration: "surendraḥ", meaning: "Indra, king of the gods" },
+            { word: "कोपात्", transliteration: "kopāt", meaning: "out of anger" },
+            { word: "बालभावम्", transliteration: "bālabhāvam", meaning: "the state of being a child" },
+            { word: "परिगृह्य", transliteration: "parigṛhya", meaning: "considering, assuming" },
+            { word: "मोहात्", transliteration: "mohāt", meaning: "out of delusion" },
+            { word: "संवर्तकाभ्रम्", transliteration: "saṁvartakābhram", meaning: "dissolution-clouds (clouds of cosmic destruction)" },
+            { word: "वृष्ट्यै", transliteration: "vṛṣṭyai", meaning: "for the purpose of raining" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 2,
+          devanagari: "ततो महावृष्टिभिरत्यदुःसहैः\nवज्रेण वातैश्च शिलासमूहैः ।\nदिशोऽप्यपश्यन्नपि गोकुलं तद्\nभयार्तमार्तं भवदेकशून्यम् ॥",
+          transliteration: "tato mahāvṛṣṭibhir atyaduḥsahaiḥ\nvajreṇa vātaiśca śilāsamūhaiḥ |\ndiśo'pyapaśyan napi gokulaṁ tad\nbhayārtam ārtaṁ bhavadaikaśūnyam ||",
+          translation: "Then, with unbearable torrential rains, thunderbolts, fierce winds, and showers of hailstones, even the directions became invisible. The Gokula, afflicted with fear and distress, felt utterly lost without You.",
+          commentary: "The verse paints the terrifying scene of Indra's assault. The accumulation of calamities — rain, lightning, wind, hailstones — represents the full fury of a humiliated deity. The phrase bhavad-eka-shunya (empty without You alone) beautifully captures how the Vrajavasis' distress was not merely physical but spiritual — separated from Krishna's reassuring presence, their world was void.",
+          words: [
+            { word: "महावृष्टिभिः", transliteration: "mahāvṛṣṭibhiḥ", meaning: "with great torrential rains" },
+            { word: "अत्यदुःसहैः", transliteration: "atyaduḥsahaiḥ", meaning: "extremely unbearable" },
+            { word: "वज्रेण", transliteration: "vajreṇa", meaning: "with thunderbolts" },
+            { word: "शिलासमूहैः", transliteration: "śilāsamūhaiḥ", meaning: "with showers of hailstones" },
+            { word: "गोकुलम्", transliteration: "gokulam", meaning: "the cowherd settlement" },
+            { word: "भयार्तम्", transliteration: "bhayārtam", meaning: "afflicted by fear" },
+            { word: "आर्तम्", transliteration: "ārtam", meaning: "distressed, suffering" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 3,
+          devanagari: "ततो भवन्तं शरणं प्रपन्नाः\nसमस्तगोपा भवदेकनाथाः ।\nत्राहीति तान् वीक्ष्य भवान् दयार्द्रः\nसमुत्पपाटोच्चगिरिं क्षणेन ॥",
+          transliteration: "tato bhavantaṁ śaraṇaṁ prapannāḥ\nsamastagopā bhavadekanāthāḥ |\ntrāhīti tān vīkṣya bhavān dayārdraḥ\nsamutpapāṭoccagiriṁ kṣaṇena ||",
+          translation: "Then all the cowherds, whose sole protector was You, took refuge in You, crying 'Save us!' Seeing them thus, You, with a heart melting with compassion, instantly uprooted the great mountain.",
+          commentary: "The verse captures the quintessential moment of prapatti (surrender). The cowherds' cry of 'trahi' (save us!) echoes the Vedantic tradition of complete self-surrender. Krishna's response — instant, compassionate, effortless — demonstrates the divine promise that the Lord rushes to protect those who take refuge in Him. The word kshane (in an instant) emphasizes the immediacy of divine grace.",
+          words: [
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "प्रपन्नाः", transliteration: "prapannāḥ", meaning: "having surrendered, taken refuge" },
+            { word: "एकनाथाः", transliteration: "ekanāthāḥ", meaning: "having only one lord/protector" },
+            { word: "त्राहि", transliteration: "trāhi", meaning: "save us! protect us!" },
+            { word: "दयार्द्रः", transliteration: "dayārdraḥ", meaning: "with heart moistened by compassion" },
+            { word: "समुत्पपाट", transliteration: "samutpapāṭa", meaning: "uprooted, lifted up" },
+            { word: "उच्चगिरिम्", transliteration: "uccagirim", meaning: "the lofty mountain" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 4,
+          devanagari: "गोवर्धनं तं गिरिमुद्धरन्नजे\nबाले करे लीलयिवाम्बुजोपमे ।\nछत्रायितं तं कुरु गोकुलस्य\nइत्यात्मनात्मा गिरिमुद्बभार ॥",
+          transliteration: "govardhanaṁ taṁ girimuddharan naje\nbāle kare līlayivāmbujopame |\nchatrāyitaṁ taṁ kuru gokulasya\nityātmanātmā girimudbadhāra ||",
+          translation: "Lifting up that Mount Govardhana effortlessly on Your lotus-like tender child-hand, You held it aloft like an umbrella for Gokula. Thus the Supreme Self bore the mountain upon Himself.",
+          commentary: "This iconic image — the child Krishna holding aloft a mountain on His little finger — is one of the most celebrated scenes in all of Hindu sacred literature. The contrast between the tender child's hand (bala kare) compared to a lotus (ambujopame) and the massive mountain creates the central paradox of the leela: infinite power expressed through the most delicate form. The term chatraayitam (made into an umbrella) transforms the mountain from a place of worship into an instrument of protection.",
+          words: [
+            { word: "गोवर्धनम्", transliteration: "govardhanaṁ", meaning: "Mount Govardhana" },
+            { word: "उद्धरन्", transliteration: "uddharan", meaning: "lifting up" },
+            { word: "बाले करे", transliteration: "bāle kare", meaning: "on the tender/young hand" },
+            { word: "लीलया", transliteration: "līlayā", meaning: "playfully, effortlessly" },
+            { word: "अम्बुजोपमे", transliteration: "ambujopame", meaning: "resembling a lotus" },
+            { word: "छत्रायितम्", transliteration: "chatrāyitam", meaning: "made into an umbrella/canopy" },
+            { word: "उद्बभार", transliteration: "udbadhāra", meaning: "held aloft, bore up" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 5,
+          devanagari: "तदद्रिमूले सपशुप्रजावृताः\nसमाश्रयन्तं प्रजाः सुखं स्थिताः ।\nत्वद्वक्त्रविश्रान्तविलोचना मुदा\nतस्थुर्दिनानि प्रविचिन्त्य सप्त ॥",
+          transliteration: "tadadrimūle sapaśuprajāvṛtāḥ\nsamāśrayantaṁ prajāḥ sukhaṁ sthitāḥ |\ntvadvaktravīśrāntavilocanā mudā\ntasthurdinānī pravicintya sapta ||",
+          translation: "At the foot of that mountain, the people along with their cattle took shelter happily. With their eyes resting upon Your face in joy, they stood for seven days without even noticing the passage of time.",
+          commentary: "For seven days, Krishna held up the mountain — a test of endurance that was no effort for the Lord but which astonished all witnesses. The beautiful phrase tvad-vaktra-vishranta-vilochana (eyes resting upon Your face) suggests that the Vrajavasis were so absorbed in Krishna's beauty that the seven days passed as if a single moment. This is a taste of the timeless bliss of Vaikuntha experienced within the material world.",
+          words: [
+            { word: "अद्रिमूले", transliteration: "adrimūle", meaning: "at the foot of the mountain" },
+            { word: "सपशुप्रजा", transliteration: "sapaśuprajā", meaning: "people together with their cattle" },
+            { word: "समाश्रयन्तम्", transliteration: "samāśrayantam", meaning: "taking shelter" },
+            { word: "सुखम्", transliteration: "sukham", meaning: "happily, comfortably" },
+            { word: "वक्त्र", transliteration: "vaktra", meaning: "face" },
+            { word: "विश्रान्त", transliteration: "viśrānta", meaning: "resting, reposing" },
+            { word: "विलोचना", transliteration: "vilocanā", meaning: "eyes" },
+            { word: "सप्त", transliteration: "sapta", meaning: "seven" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 6,
+          devanagari: "ततोऽतिवृष्टिं प्रविधाय दुर्मना\nप्रभञ्जनश्चाशनिभीषणध्वनिः ।\nनिरीक्ष्य चाद्रेश्चलनं न किञ्चन\nशचीपतिः शाम्यति खिन्नमानसः ॥",
+          transliteration: "tato'tivṛṣṭiṁ pravidhāya durmanā\nprabhañjanaścāśanibhīṣaṇadhvaniḥ |\nnirīkṣya cādreścalanaṁ na kiñcana\nśacīpatiḥ śāmyati khinnamānasaḥ ||",
+          translation: "Then, having unleashed excessive rain with terrible winds and frightening thunderclaps, yet seeing that the mountain did not move even slightly, the husband of Shachi (Indra) ceased his assault, his mind dejected.",
+          commentary: "Indra exhausts his entire arsenal to no avail. The phrase calanaṁ na kiñcana (not even the slightest movement) emphasizes the utter futility of Indra's fury against Krishna's effortless power. The use of Shachipati (husband of Shachi) rather than Indra's more glorious titles subtly diminishes him, suggesting that his identity is now defined by relationships rather than his own glory, which has been eclipsed by the Supreme Lord.",
+          words: [
+            { word: "अतिवृष्टिम्", transliteration: "ativṛṣṭim", meaning: "excessive rainfall" },
+            { word: "दुर्मनाः", transliteration: "durmanāḥ", meaning: "with wicked/troubled mind" },
+            { word: "प्रभञ्जनः", transliteration: "prabhañjanaḥ", meaning: "fierce wind, storm" },
+            { word: "अशनि", transliteration: "aśani", meaning: "thunderbolt" },
+            { word: "भीषणध्वनिः", transliteration: "bhīṣaṇadhvaniḥ", meaning: "terrible sound, frightening roar" },
+            { word: "चलनम्", transliteration: "calanam", meaning: "movement, shaking" },
+            { word: "शचीपतिः", transliteration: "śacīpatiḥ", meaning: "husband of Shachi (Indra)" },
+            { word: "खिन्नमानसः", transliteration: "khinnamānasaḥ", meaning: "with a dejected mind" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 7,
+          devanagari: "व्यपोह्य मेघानथ निर्मले व्योम्नि\nप्रकाशमाने भगवन् भवत्प्रभो ।\nव्यमुञ्चदद्रिं प्रणतैर्व्रजौकसां\nविलोकितस्त्वं परिपूर्णवैभवः ॥",
+          transliteration: "vyapohya meghān atha nirmale vyomni\nprakāśamāne bhagavan bhavatprabho |\nvyamuñcadadriṁ praṇatair vrajaukasāṁ\nvilokitastvaṁ paripūrṇavaibhavaḥ ||",
+          translation: "When the clouds dispersed and the sky shone clear, O Lord, You gently set down the mountain, beheld with reverence by the bowing residents of Vraja, Your full glory now manifest.",
+          commentary: "The clearing of the skies marks Indra's surrender. Krishna's setting down of the mountain is as graceful as His lifting of it — the word vyamunchat (released, set down) conveys gentleness. The Vrajavasis now see Krishna with new eyes (paripurna-vaibhavah, one of full glory), understanding that their cowherd boy is far more than He appears.",
+          words: [
+            { word: "व्यपोह्य", transliteration: "vyapohya", meaning: "having dispelled, having removed" },
+            { word: "मेघान्", transliteration: "meghān", meaning: "the clouds" },
+            { word: "निर्मले", transliteration: "nirmale", meaning: "clear, pure" },
+            { word: "व्योम्नि", transliteration: "vyomni", meaning: "in the sky" },
+            { word: "व्यमुञ्चत्", transliteration: "vyamuñcat", meaning: "set down, released" },
+            { word: "प्रणतैः", transliteration: "praṇataiḥ", meaning: "by those who are bowing" },
+            { word: "व्रजौकसाम्", transliteration: "vrajaukasām", meaning: "of the residents of Vraja" },
+            { word: "परिपूर्णवैभवः", transliteration: "paripūrṇavaibhavaḥ", meaning: "of complete/full glory" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 8,
+          devanagari: "ततो भवन्तं सुरभिः समेत्य\nक्षीराभिषेकैर्मुदिता ह्यपूजयत् ।\nमहेन्द्रवाहो गजराजवाहनः\nस्वयं च पादौ तव पर्यधावत ॥",
+          transliteration: "tato bhavantaṁ surabhiḥ sametya\nkṣīrābhiṣekair muditā hyapūjayat |\nmahendravāho gajarājavāhanaḥ\nsvayaṁ ca pādau tava paryadhāvata ||",
+          translation: "Then the divine cow Surabhi approached You and joyfully worshipped You with ablutions of milk. The great Indra himself, mounted on his elephant Airavata, came and fell at Your feet.",
+          commentary: "This verse describes the famous Govinda-abhisheka. Surabhi (the wish-fulfilling divine cow) and Indra together perform the consecration of Krishna, anointing Him as 'Govinda' — protector of cows. This episode transforms an act of defiance into a divine coronation. Indra, who sent the storm in rage, now performs worship in humility — a complete reversal that illustrates how the Lord humbles the proud and then graciously accepts their devotion.",
+          words: [
+            { word: "सुरभिः", transliteration: "surabhiḥ", meaning: "the divine cow Surabhi/Kamadhenu" },
+            { word: "क्षीराभिषेकैः", transliteration: "kṣīrābhiṣekaiḥ", meaning: "with ablutions/consecrations of milk" },
+            { word: "अपूजयत्", transliteration: "apūjayat", meaning: "worshipped" },
+            { word: "महेन्द्रवाहः", transliteration: "mahendravāhaḥ", meaning: "borne by the great Indra" },
+            { word: "गजराजवाहनः", transliteration: "gajarājavāhanaḥ", meaning: "having the king of elephants (Airavata) as vehicle" },
+            { word: "पादौ", transliteration: "pādau", meaning: "the two feet" },
+            { word: "पर्यधावत", transliteration: "paryadhāvata", meaning: "ran to, fell at" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 9,
+          devanagari: "गोविन्द इत्यभ्यषिञ्चत् सुरेन्द्रः\nत्वामैरावद्दन्तलग्नैर्जलौघैः ।\nगन्धर्वगीतैर्मुनिभिस्तुतश्च\nप्रसन्नलीलं प्रजगल्भ ईशः ॥",
+          transliteration: "govinda ityabhyaṣiñcat surendraḥ\ntvām airāvaddantalagnair jalaughaiḥ |\ngandharvagītair munibhistutaśca\nprasannalīlaṁ prajagalbha īśaḥ ||",
+          translation: "Indra consecrated You with the title 'Govinda,' bathing You with streams of water from the tusks of Airavata. Praised by the songs of Gandharvas and the hymns of sages, You, the Lord, shone in gracious play.",
+          commentary: "The abhisheka scene reaches its climax as Indra formally bestows the title Govinda (lord/protector of cows) upon Krishna. The water streaming from Airavata's tusks, the celestial music of Gandharvas, and the Vedic hymns of sages together create a divine coronation. The word prasanna-leelam (gracious play) reminds us that for Krishna, even this grand cosmic drama — Indra's pride, the storm, the mountain-lifting, and now the abhisheka — is all effortless leela.",
+          words: [
+            { word: "गोविन्द", transliteration: "govinda", meaning: "protector/lord of cows (title given to Krishna)" },
+            { word: "अभ्यषिञ्चत्", transliteration: "abhyaṣiñcat", meaning: "consecrated, anointed" },
+            { word: "ऐरावत्", transliteration: "airāvat", meaning: "Airavata, Indra's elephant" },
+            { word: "दन्तलग्नैः", transliteration: "dantalagnaiḥ", meaning: "clinging to the tusks" },
+            { word: "जलौघैः", transliteration: "jalaughaiḥ", meaning: "with streams/floods of water" },
+            { word: "गन्धर्वगीतैः", transliteration: "gandharvagītaiḥ", meaning: "with songs of the Gandharvas" },
+            { word: "मुनिभिः", transliteration: "munibhiḥ", meaning: "by the sages" },
+            { word: "प्रसन्नलीलम्", transliteration: "prasannalīlam", meaning: "with gracious/joyful play" }
+          ]
+        },
+        {
+          dashaka: 51,
+          sloka: 10,
+          devanagari: "इत्थं महेन्द्रादिनिषेवितं त्वां\nगोवर्धनोद्धारणलीलशालिनम् ।\nगोविन्दनामामृतपूर्णमूर्तिं\nमरुत्पुरेश प्रणतोऽस्मि नित्यम् ॥",
+          transliteration: "itthaṁ mahendrādiniṣevitaṁ tvāṁ\ngovardhanoddhāraṇalīlaśālinam |\ngovindanāmāmṛtapūrṇamūrtiṁ\nmarutpureśa praṇato'smi nityam ||",
+          translation: "Thus worshipped by great Indra and other gods, You who are adorned by the sport of lifting Govardhana, whose form overflows with the nectar of the name Govinda — O Lord of Guruvayur, I bow to You always. May You cure all my afflictions.",
+          commentary: "The closing verse ties together the entire Govardhana episode with Bhattathiri's personal devotion. The compound govardhanoddhāraṇa-līla-śālinam celebrates the mountain-lifting as Krishna's crowning glory, while govinda-nāma-amṛta-pūrṇa-mūrtim suggests that the very name Govinda, earned through this episode, fills Krishna's form with immortal sweetness. The poet's final prostration (pranato'smi nityam) before Marutpuresha follows the traditional closing pattern of seeking healing grace.",
+          words: [
+            { word: "निषेवितम्", transliteration: "niṣevitam", meaning: "worshipped, served, attended upon" },
+            { word: "गोवर्धनोद्धारण", transliteration: "govardhanoddhāraṇa", meaning: "the lifting of Govardhana" },
+            { word: "लीलशालिनम्", transliteration: "līlaśālinam", meaning: "adorned with/distinguished by the divine play" },
+            { word: "अमृतपूर्णमूर्तिम्", transliteration: "amṛtapūrṇamūrtim", meaning: "form filled with nectar/immortality" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "प्रणतः अस्मि", transliteration: "praṇataḥ asmi", meaning: "I bow, I prostrate" },
+            { word: "नित्यम्", transliteration: "nityam", meaning: "always, eternally" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 52,
@@ -11130,7 +11306,177 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates Nanda's abduction by Varuna's servants and Krishna's rescue. The cowherds are then granted a vision of Vaikuntha, and joyous celebrations follow in Vraja.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 52,
+          sloka: 1,
+          devanagari: "एकादशीव्रतयुतो व्रजनाथनन्दः\nस्नातुं गतो यमुनया निशि पर्वकाले ।\nवारुण्यभृत्यगणहस्तगतः प्रभातं\nनालोकयत् तव पिता खलु वारुणेषु ॥",
+          transliteration: "ekādaśīvratayuto vrajanāthanandaḥ\nsnātuṁ gato yamunayā niśi parvakāle |\nvāruṇyabhṛtyagaṇahastagataḥ prabhātaṁ\nnālokayat tava pitā khalu vāruṇeṣu ||",
+          translation: "Nanda, the chief of Vraja, observing the Ekadashi vow, went to bathe in the Yamuna at night during the sacred occasion. Seized by the servants of Varuna, your father did not see the dawn, held captive in Varuna's realm.",
+          commentary: "Bhagavatam 10.28 narrates this episode. Nanda went to bathe in the Yamuna before dawn to observe the Ekadashi vrata, but mistakenly entered the water during the inauspicious hours (abhijit-muhurta had not yet arrived). Varuna's attendants, overzealous in their duty, seized him and brought him to their lord. This sets up another occasion for Krishna to demonstrate His supreme lordship over all the Lokapalas (world-guardians).",
+          words: [
+            { word: "एकादशीव्रतयुतः", transliteration: "ekādaśīvratayutaḥ", meaning: "engaged in the Ekadashi fast/vow" },
+            { word: "व्रजनाथ", transliteration: "vrajanātha", meaning: "lord/chief of Vraja" },
+            { word: "यमुनया", transliteration: "yamunayā", meaning: "in the Yamuna river" },
+            { word: "निशि", transliteration: "niśi", meaning: "at night" },
+            { word: "पर्वकाले", transliteration: "parvakāle", meaning: "at the time of a sacred occasion" },
+            { word: "वारुण्यभृत्यगण", transliteration: "vāruṇyabhṛtyagaṇa", meaning: "the host of Varuna's servants" },
+            { word: "हस्तगतः", transliteration: "hastagataḥ", meaning: "fallen into the hands of, seized" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 2,
+          devanagari: "हा नन्दमानीय इति प्रभाते\nक्रन्दन्ति गोपा भवदन्तिकं ते ।\nगत्वा त्वया वारुणलोकमाशु\nपिता स आनीय समर्पितोऽभूत् ॥",
+          transliteration: "hā nandam ānīya iti prabhāte\nkrandanti gopā bhavadantikaṁ te |\ngatvā tvayā vāruṇalokam āśu\npitā sa ānīya samarpito'bhūt ||",
+          translation: "At dawn, the cowherds came crying to You: 'Alas, Nanda has been taken away!' You went swiftly to Varuna's realm, and your father was brought back and restored to them.",
+          commentary: "Krishna's response to the crisis is characteristically immediate (ashu — swiftly). Unlike His confrontation with Indra which involved an elaborate seven-day leela, the Varuna episode is resolved with divine dispatch. The simplicity of the verse mirrors the simplicity of the rescue — Krishna merely appeared before Varuna, who immediately recognized the Supreme Lord and returned Nanda with profuse apologies.",
+          words: [
+            { word: "क्रन्दन्ति", transliteration: "krandanti", meaning: "they cry, they wail" },
+            { word: "गोपाः", transliteration: "gopāḥ", meaning: "the cowherds" },
+            { word: "अन्तिकम्", transliteration: "antikam", meaning: "near, into the presence of" },
+            { word: "वारुणलोकम्", transliteration: "vāruṇalokam", meaning: "the realm/world of Varuna" },
+            { word: "आशु", transliteration: "āśu", meaning: "swiftly, quickly" },
+            { word: "आनीय", transliteration: "ānīya", meaning: "having brought back" },
+            { word: "समर्पितः", transliteration: "samarpitaḥ", meaning: "restored, handed over" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 3,
+          devanagari: "वरुणेन पूजितस्त्वं स्तुतश्च बहुमानतः ।\nक्षमस्व भगवन्नेतत् भृत्यदोषमिति ब्रुवन् ।\nपितरं ते समानीय प्रणनाम जगत्पतिम् ॥",
+          transliteration: "varuṇena pūjitastvaṁ stutaśca bahumānataḥ |\nkṣamasva bhagavannetat bhṛtyadoṣamiti bruvan |\npitaraṁ te samānīya praṇanāma jagatpatim ||",
+          translation: "Varuna worshipped You and praised You with great reverence, saying: 'Forgive this, O Lord — it was the fault of my servants.' Having restored your father, he bowed to You, the Lord of the universe.",
+          commentary: "Unlike Indra who needed a devastating lesson before surrendering, Varuna immediately recognizes Krishna as Jagatpati (Lord of the universe) and offers humble apology. His acknowledgment that it was bhritya-dosha (the fault of servants) rather than his own command shows both political wisdom and genuine devotion. This episode establishes a pattern: every cosmic guardian who encounters Krishna ultimately acknowledges His supremacy.",
+          words: [
+            { word: "पूजितः", transliteration: "pūjitaḥ", meaning: "worshipped, honored" },
+            { word: "स्तुतः", transliteration: "stutaḥ", meaning: "praised, extolled" },
+            { word: "बहुमानतः", transliteration: "bahumānataḥ", meaning: "with great respect/reverence" },
+            { word: "क्षमस्व", transliteration: "kṣamasva", meaning: "please forgive (imperative)" },
+            { word: "भृत्यदोषम्", transliteration: "bhṛtyadoṣam", meaning: "the fault of servants" },
+            { word: "प्रणनाम", transliteration: "praṇanāma", meaning: "bowed down, prostrated" },
+            { word: "जगत्पतिम्", transliteration: "jagatpatim", meaning: "lord of the universe" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 4,
+          devanagari: "नन्दस्तदा वारुणलोकवैभवं\nत्वत्तेजसश्चातिशयं विलोक्य ।\nप्रत्यागतः प्राह व्रजौकसो हरेः\nमाहात्म्यमत्यद्भुतमप्रमेयम् ॥",
+          transliteration: "nandastadā vāruṇalokavaibhavaṁ\ntvattejasaścātiśayaṁ vilokya |\npratyāgataḥ prāha vrajaukaso hareḥ\nmāhātmyam atyadbhutam aprameyam ||",
+          translation: "Nanda, having witnessed the splendor of Varuna's realm and the surpassing brilliance of Your divine glory, returned and told the residents of Vraja about the immeasurable and most wondrous greatness of Lord Hari.",
+          commentary: "Nanda's experience in Varuna-loka becomes a catalyst for deeper understanding among the Vrajavasis. Having seen how even the mighty Varuna trembles before his foster-son, Nanda returns with wonder. The terms atyadbhutam (most wondrous) and aprameyam (immeasurable, beyond comprehension) indicate that Nanda's experience transcends ordinary language — he struggles to convey the full magnitude of what he witnessed.",
+          words: [
+            { word: "वारुणलोकवैभवम्", transliteration: "vāruṇalokavaibhavam", meaning: "the splendor of Varuna's world" },
+            { word: "तेजसः", transliteration: "tejasaḥ", meaning: "of divine brilliance/glory" },
+            { word: "अतिशयम्", transliteration: "atiśayam", meaning: "surpassing excellence" },
+            { word: "प्रत्यागतः", transliteration: "pratyāgataḥ", meaning: "having returned" },
+            { word: "मांहात्म्यम्", transliteration: "māhātmyam", meaning: "greatness, glory" },
+            { word: "अत्यद्भुतम्", transliteration: "atyadbhutam", meaning: "most wondrous" },
+            { word: "अप्रमेयम्", transliteration: "aprameyam", meaning: "immeasurable, beyond comprehension" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 5,
+          devanagari: "ततो व्रजौकोभिरुदीरितं हरेः\nप्रभावमाकर्ण्य समन्ततो मुदा ।\nकदा नु साक्षात्कृतविष्णुलोकताम्\nअवाप्नुयामेति मतिर्बभूव ह ॥",
+          transliteration: "tato vrajaukobhir udīritaṁ hareḥ\nprabhāvam ākarṇya samantato mudā |\nkadā nu sākṣātkṛtaviṣṇulokatām\navāpnuyāmeti matir babhūva ha ||",
+          translation: "Then, hearing about the glory of Lord Hari narrated by the residents of Vraja from all sides with joy, they all developed the desire: 'When shall we too directly behold the realm of Vishnu?'",
+          commentary: "Nanda's account kindles a longing in the hearts of all Vrajavasis to see Vaikuntha for themselves. This collective aspiration is significant in Bhakti theology — it represents the transition from indirect faith (shraddha) to the burning desire for direct experience (sākṣātkāra). The Lord, ever responsive to sincere longing, will soon fulfill this wish, as the next verses describe.",
+          words: [
+            { word: "व्रजौकोभिः", transliteration: "vrajaukobhiḥ", meaning: "by the residents of Vraja" },
+            { word: "उदीरितम्", transliteration: "udīritam", meaning: "narrated, described" },
+            { word: "प्रभावम्", transliteration: "prabhāvam", meaning: "glory, power, majesty" },
+            { word: "आकर्ण्य", transliteration: "ākarṇya", meaning: "having heard" },
+            { word: "साक्षात्कृत", transliteration: "sākṣātkṛta", meaning: "directly perceived, beheld" },
+            { word: "विष्णुलोकताम्", transliteration: "viṣṇulokatām", meaning: "the state of Vishnu's realm" },
+            { word: "मतिः", transliteration: "matiḥ", meaning: "thought, desire, intention" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 6,
+          devanagari: "तेषां मनोरथमवाप्य भवान् दयालुः\nवैकुण्ठलोकमखिलं समदर्शयत्ताम् ।\nब्रह्मादयो विधिशिवादय एव यत्र\nnityaṁ श्रिया सह विभासि परात्परस्त्वम् ॥",
+          transliteration: "teṣāṁ manoratham avāpya bhavān dayāluḥ\nvaikuṇṭhalokam akhilaṁ samadarśayattām |\nbrahmādayo vidhiśivādaya eva yatra\nnityaṁ śriyā saha vibhāsi parātparastvam ||",
+          translation: "Understanding their heartfelt wish, You, the compassionate one, revealed to them the entire realm of Vaikuntha — where Brahma, Shiva, and other gods eternally attend You, and where You shine with Shri (Lakshmi), the Supreme beyond the supreme.",
+          commentary: "Krishna grants the Vrajavasis a direct vision of Vaikuntha — His eternal transcendent abode. This extraordinary grace, normally attained only after liberation, is bestowed upon simple cowherds out of pure love. The vision reveals that the boy they know as their neighbor's child is in fact Paratpara (the Supreme beyond the supreme), eternally resplendent with Shri (Lakshmi) and worshipped by Brahma and Shiva themselves.",
+          words: [
+            { word: "मनोरथम्", transliteration: "manoratham", meaning: "heartfelt desire, wish" },
+            { word: "दयालुः", transliteration: "dayāluḥ", meaning: "the compassionate one" },
+            { word: "वैकुण्ठलोकम्", transliteration: "vaikuṇṭhalokam", meaning: "the realm of Vaikuntha (Vishnu's abode)" },
+            { word: "समदर्शयत्", transliteration: "samadarśayat", meaning: "showed, revealed" },
+            { word: "श्रिया सह", transliteration: "śriyā saha", meaning: "together with Lakshmi" },
+            { word: "विभासि", transliteration: "vibhāsi", meaning: "You shine, You are resplendent" },
+            { word: "परात्परः", transliteration: "parātparaḥ", meaning: "the Supreme beyond the supreme" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 7,
+          devanagari: "आलोक्य वैकुण्ठपदं व्रजौकसः\nपरं विस्मयमापन्नाः प्रमोदसलिलाप्लुताः ।\nपुनर्व्रजं प्राप्य हरेर्विचिन्त्य तत्\nप्रभावमासन् प्रणतिं गताः परे ॥",
+          transliteration: "ālokya vaikuṇṭhapadaṁ vrajaukasaḥ\nparaṁ vismayam āpannāḥ pramodasalilāplutāḥ |\npunarvrjaṁ prāpya harervicintya tat\nprabhāvam āsan praṇatiṁ gatāḥ pare ||",
+          translation: "Having beheld the abode of Vaikuntha, the residents of Vraja were filled with supreme wonder and drenched in tears of joy. Returning to Vraja and reflecting on the Lord's glory, they surrendered themselves completely to the Supreme.",
+          commentary: "The emotional response of the Vrajavasis — wonder (vismaya) and tears of joy (pramoda-salila) — mirrors the experience described in devotional texts when a devotee receives divine vision. Yet the most profound effect is described last: pranatim gatah pare (they surrendered to the Supreme). The vision transforms their natural affection for Krishna into conscious, total devotion — they now know whom they love.",
+          words: [
+            { word: "आलोक्य", transliteration: "ālokya", meaning: "having beheld, having seen" },
+            { word: "वैकुण्ठपदम्", transliteration: "vaikuṇṭhapadam", meaning: "the abode of Vaikuntha" },
+            { word: "विस्मयम्", transliteration: "vismayam", meaning: "wonder, amazement" },
+            { word: "प्रमोदसलिल", transliteration: "pramodasalila", meaning: "tears of joy (lit. water of delight)" },
+            { word: "आप्लुताः", transliteration: "āplutāḥ", meaning: "drenched, flooded" },
+            { word: "प्रभावम्", transliteration: "prabhāvam", meaning: "glory, divine power" },
+            { word: "प्रणतिम्", transliteration: "praṇatim", meaning: "surrender, prostration" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 8,
+          devanagari: "ततो व्रजे महोत्सवो बभूव सुन्दरो महान् ।\nनन्दमोचनपूर्वं तं गोविन्दाभिषेचनम् ।\nव्रजवासिनो महामोदं प्रापुः सर्वे नराः स्त्रियः ॥",
+          transliteration: "tato vraje mahotsavo babhūva sundaro mahān |\nnandamocanapūrvaṁ taṁ govindābhiṣecanam |\nvrajavāsino mahāmodaṁ prāpuḥ sarve narāḥ striyaḥ ||",
+          translation: "Then a great and beautiful celebration arose in Vraja — marking Nanda's liberation and Govinda's consecration. All the men and women of Vraja attained supreme delight.",
+          commentary: "The Nandotsava (festival of joy) referenced in the dashaka's title reaches its culmination. The celebration has a dual cause: Nanda's safe return from Varuna's captivity and the memory of Krishna's Govinda-abhisheka after the Govardhana episode. The verse emphasizes the inclusive nature of the joy — sarve narah striyah (all men and women) — suggesting that divine celebrations leave no one out.",
+          words: [
+            { word: "महोत्सवः", transliteration: "mahotsavaḥ", meaning: "great festival, grand celebration" },
+            { word: "सुन्दरः", transliteration: "sundaraḥ", meaning: "beautiful" },
+            { word: "नन्दमोचन", transliteration: "nandamocana", meaning: "the liberation/freeing of Nanda" },
+            { word: "गोविन्दाभिषेचनम्", transliteration: "govindābhiṣecanam", meaning: "the consecration/coronation as Govinda" },
+            { word: "व्रजवासिनः", transliteration: "vrajavāsinaḥ", meaning: "the residents of Vraja" },
+            { word: "महामोदम्", transliteration: "mahāmodam", meaning: "supreme delight, great joy" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 9,
+          devanagari: "गीतैश्च नृत्यैश्च विचित्रवादनैः\nगोपा विरेजुर्मुदिताः समन्ततः ।\nत्वदीयमाहात्म्यविवर्धितोत्सवं\nव्रजं बभासे भुवि वैकुण्ठवत् ॥",
+          transliteration: "gītaiśca nṛtyaiśca vicitravādanaiḥ\ngopā virejur muditāḥ samantataḥ |\ntvadīyamāhātmyavivardhitotsavaṁ\nvrajaṁ babhāse bhuvi vaikuṇṭhavat ||",
+          translation: "With songs, dances, and varied musical instruments, the cowherds shone joyfully all around. Vraja, its celebration magnified by Your greatness, gleamed on earth like Vaikuntha itself.",
+          commentary: "The concluding celebration transforms Vraja into a terrestrial Vaikuntha. Having just witnessed the real Vaikuntha, the cowherds now recreate its joy in their own humble settlement through song, dance, and music. The simile vaikuṇṭhavat (like Vaikuntha) carries deeper meaning: where Krishna is present and celebrated with love, that place becomes Vaikuntha regardless of its material condition. This is a key teaching of Bhakti philosophy.",
+          words: [
+            { word: "गीतैः", transliteration: "gītaiḥ", meaning: "with songs" },
+            { word: "नृत्यैः", transliteration: "nṛtyaiḥ", meaning: "with dances" },
+            { word: "विचित्रवादनैः", transliteration: "vicitravādanaiḥ", meaning: "with varied musical instruments" },
+            { word: "विरेजुः", transliteration: "virejuḥ", meaning: "they shone, they were radiant" },
+            { word: "माहात्म्य", transliteration: "māhātmya", meaning: "greatness, glory" },
+            { word: "विवर्धित", transliteration: "vivardhita", meaning: "magnified, increased" },
+            { word: "वैकुण्ठवत्", transliteration: "vaikuṇṭhavat", meaning: "like Vaikuntha" }
+          ]
+        },
+        {
+          dashaka: 52,
+          sloka: 10,
+          devanagari: "एवं व्रजं वैकुण्ठसन्निभं कृतं\nत्वया दयासागर गोपरक्षक ।\nनन्दमोक्षणवरुणप्रसादक\nमरुत्पुरेशाखिलरोगशान्तये ॥",
+          transliteration: "evaṁ vrajaṁ vaikuṇṭhasannibhaṁ kṛtaṁ\ntvayā dayāsāgara goparakṣaka |\nnandamokṣaṇavaruṇaprasādaka\nmarutpureśākhilarogaśāntaye ||",
+          translation: "Thus You transformed Vraja into the likeness of Vaikuntha, O ocean of compassion, O protector of cowherds, O liberator of Nanda and granter of grace to Varuna. O Lord of Guruvayur, may You grant me peace from all ailments.",
+          commentary: "The closing verse synthesizes the entire dashaka's themes: Krishna as dayasagara (ocean of compassion), goparakshaka (protector of cowherds), liberator of Nanda from Varuna, and the one who graciously accepted even Varuna's apology. The final prayer to Marutpuresha for akhila-roga-shantaye (peace from all ailments) follows the Narayaneeyam's invariable closing convention, connecting the cosmic narrative to Bhattathiri's personal quest for healing at Guruvayur.",
+          words: [
+            { word: "वैकुण्ठसन्निभम्", transliteration: "vaikuṇṭhasannibham", meaning: "resembling Vaikuntha" },
+            { word: "दयासागर", transliteration: "dayāsāgara", meaning: "ocean of compassion" },
+            { word: "गोपरक्षक", transliteration: "goparakṣaka", meaning: "protector of cowherds" },
+            { word: "नन्दमोक्षण", transliteration: "nandamokṣaṇa", meaning: "liberator of Nanda" },
+            { word: "वरुणप्रसादक", transliteration: "varuṇaprasādaka", meaning: "granter of grace to Varuna" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "अखिलरोगशान्तये", transliteration: "akhilarogaśāntaye", meaning: "for the pacification of all ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 53,
@@ -11139,7 +11485,185 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the beginning of the divine Rasa Leela on an autumn full-moon night when Krishna's flute call drew the Gopis irresistibly to the banks of the Yamuna, leaving everything behind.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 53,
+          sloka: 1,
+          devanagari: "शरदि पूर्णशशाङ्ककिरणैः\nकुमुदाकरसुगन्धशीतलैः ।\nउपहिते मधुरे वनान्तरे\nमुरलिकामुपधाय चेलिथ ॥",
+          transliteration: "śaradi pūrṇaśaśāṅkakiraṇaiḥ\nkumudākarasugandhiśītalaiḥ |\nupahite madhure vanāntare\nmuralikām upadhāya celitha ||",
+          translation: "In the autumn season, when the forest was made delightful by the cool, fragrant rays of the full moon mingling with the scent of night-lotuses, You took up Your flute and began to play.",
+          commentary: "The opening verse sets the scene of the Rasa Leela — a perfect autumn night (sharad purnima) when the full moon bathes everything in silver light and the kumuda (night-lotus) flowers perfume the cool air. This is the ideal romantic setting described in the Bhagavata Purana for Krishna's divine play.",
+          words: [
+            { word: "शरदि", transliteration: "śaradi", meaning: "in the autumn season" },
+            { word: "पूर्णशशाङ्क", transliteration: "pūrṇaśaśāṅka", meaning: "full moon" },
+            { word: "किरणैः", transliteration: "kiraṇaiḥ", meaning: "by the rays" },
+            { word: "कुमुदाकर", transliteration: "kumudākara", meaning: "pond of night-lotuses" },
+            { word: "सुगन्धशीतलैः", transliteration: "sugandhiśītalaiḥ", meaning: "fragrant and cool" },
+            { word: "वनान्तरे", transliteration: "vanāntare", meaning: "in the forest interior" },
+            { word: "मुरलिकाम्", transliteration: "muralikām", meaning: "the flute" },
+            { word: "चेलिथ", transliteration: "celitha", meaning: "You played, You moved about" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 2,
+          devanagari: "तव मुरलिरवामृतं हरे\nप्रसृतमशेषदिशान्तरेषु तत् ।\nश्रुतिपदमगमद्व्रजाङ्गनां\nमदनरसप्रविकासि सुन्दरम् ॥",
+          transliteration: "tava muralīravāmṛtaṁ hare\nprasṛtam aśeṣadiśāntareṣu tat |\nśrutipadam agamad vrajāṅganāṁ\nmadanarasapravikāsi sundaram ||",
+          translation: "O Hari, the nectar-like sound of Your flute spread in all directions and reached the ears of the women of Vraja, arousing the beautiful sentiment of divine love in them.",
+          commentary: "Krishna's flute is described as having a supernatural power — its nectar-like melody pervades all directions and specifically targets the Gopis of Vraja, awakening madana-rasa (the sentiment of love). This is not ordinary passion but a divine longing for union with the Supreme.",
+          words: [
+            { word: "मुरलीरव", transliteration: "muralīrava", meaning: "the sound of the flute" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "nectar, immortal sweetness" },
+            { word: "प्रसृतम्", transliteration: "prasṛtam", meaning: "spread forth, pervaded" },
+            { word: "अशेषदिशान्तरेषु", transliteration: "aśeṣadiśāntareṣu", meaning: "in all directions without remainder" },
+            { word: "श्रुतिपदम्", transliteration: "śrutipadam", meaning: "to the range of hearing, to the ears" },
+            { word: "व्रजाङ्गनाम्", transliteration: "vrajāṅganām", meaning: "of the women of Vraja" },
+            { word: "मदनरस", transliteration: "madanarasa", meaning: "the sentiment of love/passion" },
+            { word: "प्रविकासि", transliteration: "pravikāsi", meaning: "causing to blossom forth" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 3,
+          devanagari: "तदवधि निखिलास्तु गोपिकाः\nनिजगृहकर्मनिबन्धभेदिनी ।\nतव पदमुपजग्मुराकुला\nमदनकदर्थितमानसाः प्रभो ॥",
+          transliteration: "tadavadhi nikhilāstu gopikāḥ\nnijagṛhakarmanibandhabhedinī |\ntava padam upajagmur ākulā\nmadanakadarthitamānasāḥ prabho ||",
+          translation: "From that moment, O Lord, all the Gopis, breaking free from the bonds of their household duties, came rushing to You in agitation, their minds tormented by the pangs of divine love.",
+          commentary: "The Gopis abandoned all worldly duties upon hearing Krishna's flute. This is celebrated in Bhakti tradition not as dereliction but as the highest spiritual surrender — where the call of the Divine supersedes all social obligations. Their 'torment' is the sweet anguish of divine love (viraha).",
+          words: [
+            { word: "तदवधि", transliteration: "tadavadhi", meaning: "from that moment" },
+            { word: "निखिलाः", transliteration: "nikhilāḥ", meaning: "all, every one" },
+            { word: "गोपिकाः", transliteration: "gopikāḥ", meaning: "the Gopis (cowherd women)" },
+            { word: "निजगृहकर्म", transliteration: "nijagṛhakarma", meaning: "their own household duties" },
+            { word: "निबन्धभेदिनी", transliteration: "nibandhabhedinī", meaning: "breaking the bonds" },
+            { word: "उपजग्मुः", transliteration: "upajagmuḥ", meaning: "approached, came to" },
+            { word: "आकुलाः", transliteration: "ākulāḥ", meaning: "agitated, restless" },
+            { word: "कदर्थित", transliteration: "kadarthita", meaning: "tormented, afflicted" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 4,
+          devanagari: "दुहतीर्धयतीर्पचन्त्यपि\nप्रभवमुपाटनशीलमेव ताः ।\nपरिजनपरिबन्धनात्ततः\nपरमपि तत्वदुपत्यजन्प्रभो ॥",
+          transliteration: "duhatīr dhayatīr pacantyapi\nprabhavam upāṭanaśīlam eva tāḥ |\nparijanaparibandhanāt tataḥ\nparam api tatvad upatyajan prabho ||",
+          translation: "Some were milking cows, some nursing their infants, some cooking food — yet all of them abandoned these activities midway. Even those held back by their relatives broke free, O Lord, to reach You.",
+          commentary: "This verse vividly illustrates the irresistible pull of Krishna's divine call. The Gopis left their duties unfinished — a dramatic literary device from the Bhagavata showing that the call of the Supreme transcends all worldly compulsions. Even family restraint could not hold them back.",
+          words: [
+            { word: "दुहतीः", transliteration: "duhatīḥ", meaning: "those who were milking" },
+            { word: "धयतीः", transliteration: "dhayatīḥ", meaning: "those who were nursing/feeding" },
+            { word: "पचन्ति", transliteration: "pacanti", meaning: "those who were cooking" },
+            { word: "उपाटनशीलम्", transliteration: "upāṭanaśīlam", meaning: "having the nature of abandoning midway" },
+            { word: "परिजन", transliteration: "parijana", meaning: "relatives, family members" },
+            { word: "परिबन्धनात्", transliteration: "paribandhanāt", meaning: "from being restrained" },
+            { word: "उपत्यजन्", transliteration: "upatyajan", meaning: "abandoning, giving up" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 5,
+          devanagari: "अवरुद्धगतिरपि काश्चन\nत्वयि दृढभावनया समुन्मनाः ।\nगृह एव हि पूर्णतत्सुखा\nविदधुरमीषु तनूत्यजः प्रभो ॥",
+          transliteration: "avaruddhagatir api kāścana\ntvayi dṛḍhabhāvanayā samunmanāḥ |\ngṛha eva hi pūrṇatatsukkhā\nvidadhur amīṣu tanūtyajaḥ prabho ||",
+          translation: "Some Gopis, whose passage was blocked, meditated on You with intense devotion and became fully absorbed. Attaining complete bliss of union with You right in their homes, they shed their mortal bodies, O Lord.",
+          commentary: "This poignant verse references Gopis who were physically prevented from reaching Krishna. Their intense meditation on Him was so powerful that they attained liberation (moksha) right where they were. This illustrates the supreme power of devoted contemplation — one need not physically reach God; sincere longing itself is sufficient for union.",
+          words: [
+            { word: "अवरुद्धगतिः", transliteration: "avaruddhagatīḥ", meaning: "those whose movement was blocked" },
+            { word: "दृढभावनया", transliteration: "dṛḍhabhāvanayā", meaning: "with firm/intense meditation" },
+            { word: "समुन्मनाः", transliteration: "samunmanāḥ", meaning: "fully absorbed in mind" },
+            { word: "पूर्णतत्सुखाः", transliteration: "pūrṇatatsukkhāḥ", meaning: "filled with that bliss (of union)" },
+            { word: "तनूत्यजः", transliteration: "tanūtyajaḥ", meaning: "those who shed their bodies" },
+            { word: "गृह एव", transliteration: "gṛha eva", meaning: "right in their homes" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 6,
+          devanagari: "सकलाः खलु गोपसुन्दरीः\nतव पुरतो विनिवेशिता विभो ।\nकिमिदं किमिदं किमागता\nइति वचनैः प्रहसन्निषिद्धवान् ॥",
+          transliteration: "sakalāḥ khalu gopasundarīḥ\ntava purato viniveśitā vibho |\nkim idaṁ kim idaṁ kim āgatā\niti vacanaiḥ prahasanniṣiddhavān ||",
+          translation: "When all the beautiful cowherd women assembled before You, O all-pervading Lord, You smilingly rebuked them saying, 'What is this? What is this? Why have you come here?'",
+          commentary: "Krishna's seemingly discouraging words to the Gopis are a classic element of the Rasa Leela narrative from the Bhagavata Purana. He tests their resolve by asking them to return home. This divine play (leela) serves to deepen their devotion and establish that their love is unconditional and beyond ordinary attachment.",
+          words: [
+            { word: "सकलाः", transliteration: "sakalāḥ", meaning: "all of them" },
+            { word: "गोपसुन्दरीः", transliteration: "gopasundarīḥ", meaning: "the beautiful cowherd women" },
+            { word: "पुरतः", transliteration: "purataḥ", meaning: "before You, in Your presence" },
+            { word: "विनिवेशिताः", transliteration: "viniveśitāḥ", meaning: "assembled, gathered" },
+            { word: "विभो", transliteration: "vibho", meaning: "O all-pervading Lord" },
+            { word: "किमिदम्", transliteration: "kim idam", meaning: "what is this?" },
+            { word: "प्रहसन्", transliteration: "prahasan", meaning: "smiling, laughing gently" },
+            { word: "निषिद्धवान्", transliteration: "niṣiddhavān", meaning: "forbade, rebuked" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 7,
+          devanagari: "भयजनकमिदं तमो निशा\nवनमपि हिंस्रसरीसृपालयम् ।\nव्रजत पुनरपीह मा स्थित\nद्रुतमिति ताः समबोधयो हरे ॥",
+          transliteration: "bhayajanakamidam tamo niśā\nvanam api hiṁsrasarīsṛpālayam |\nvrajata punar apīha mā sthita\ndrutam iti tāḥ samabodhayo hare ||",
+          translation: "O Hari, You admonished them saying, 'This darkness of night is frightening; this forest is the abode of ferocious snakes and wild animals. Go back quickly and do not remain here!'",
+          commentary: "Krishna continues His divine play of discouragement, warning the Gopis about the dangers of the nighttime forest. These words, though seemingly practical, are actually a test of devotion. The Lord, who is the protector of all beings, pretends concern about forest dangers — an ironic reversal that the Gopis see through with the eyes of love.",
+          words: [
+            { word: "भयजनकम्", transliteration: "bhayajanakam", meaning: "causing fear, frightening" },
+            { word: "तमः", transliteration: "tamaḥ", meaning: "darkness" },
+            { word: "निशा", transliteration: "niśā", meaning: "night" },
+            { word: "हिंस्र", transliteration: "hiṁsra", meaning: "ferocious, dangerous" },
+            { word: "सरीसृप", transliteration: "sarīsṛpa", meaning: "snakes, reptiles" },
+            { word: "आलयम्", transliteration: "ālayam", meaning: "abode, dwelling place" },
+            { word: "व्रजत", transliteration: "vrajata", meaning: "go, return" },
+            { word: "समबोधयः", transliteration: "samabodhayaḥ", meaning: "You instructed, admonished" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 8,
+          devanagari: "पतिसुतगुरुबन्धुसेवनं\nपतिवनिताजनधर्ममाचर ।\nइति निगदति सन्मुखे त्वयि\nव्यलपन्ताश्चिरमार्तवत्प्रभो ॥",
+          transliteration: "patisutagurubandhusevanaṁ\npativanitājanadharmaṁ ācara |\niti nigadati sanmukhe tvayi\nvyalapantāś ciram ārtavat prabho ||",
+          translation: "When You spoke to them face to face saying, 'Serve your husbands, sons, elders, and relatives; follow the dharma prescribed for married women,' they wept for long in anguish, O Lord.",
+          commentary: "Krishna invokes conventional dharma — duties toward husband, children, and family. This creates a profound tension in the narrative between svadharma (social duty) and para-dharma (supreme spiritual duty). The Gopis' tears reveal that for them, devotion to Krishna IS the highest dharma, transcending all social conventions.",
+          words: [
+            { word: "पति", transliteration: "pati", meaning: "husband" },
+            { word: "सुत", transliteration: "suta", meaning: "son, child" },
+            { word: "गुरु", transliteration: "guru", meaning: "elders, teachers" },
+            { word: "बन्धु", transliteration: "bandhu", meaning: "relatives, kinsmen" },
+            { word: "सेवनम्", transliteration: "sevanam", meaning: "service, attending to" },
+            { word: "धर्मम्", transliteration: "dharmam", meaning: "righteous duty" },
+            { word: "निगदति", transliteration: "nigadati", meaning: "speaking, declaring" },
+            { word: "व्यलपन्ताः", transliteration: "vyalapantāḥ", meaning: "weeping, lamenting" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 9,
+          devanagari: "तव पदनखचन्द्ररोचिषा\nमधुरतरस्मितवीक्षितेन च ।\nहृतमनसां विनिवर्तनं कुतः\nस्थगयतु नो हृदयज्वरं हरे ॥",
+          transliteration: "tava padanakhacandrareciṣā\nmadhuaratarasmitvīkṣitena ca |\nhṛtamanasāṁ vinivartanaṁ kutaḥ\nsthagayatu no hṛdayajvaraṁ hare ||",
+          translation: "By the moon-like radiance of Your toenails and by Your sweeter-than-sweet smiling glances, our minds have been stolen. How can we who have lost our hearts to You ever turn back? O Hari, quench the burning fever of our hearts!",
+          commentary: "The Gopis respond to Krishna's discouragement with an impassioned declaration of irrevocable love. The imagery of the toenail's lustre rivalling the moon is a classic Bhakti trope — even the lowest part of the Lord's form outshines the greatest celestial body. Their plea to cure their 'heart-fever' mirrors Bhattathiri's own prayer for healing.",
+          words: [
+            { word: "पदनख", transliteration: "padanakha", meaning: "toenails" },
+            { word: "चन्द्ररोचिषा", transliteration: "candrarociṣā", meaning: "with moon-like radiance" },
+            { word: "मधुरतर", transliteration: "madhuratara", meaning: "sweeter than sweet" },
+            { word: "स्मितवीक्षितेन", transliteration: "smitavīkṣitena", meaning: "by the smiling glance" },
+            { word: "हृतमनसाम्", transliteration: "hṛtamanasām", meaning: "of those whose minds are stolen" },
+            { word: "विनिवर्तनम्", transliteration: "vinivartanam", meaning: "turning back, return" },
+            { word: "हृदयज्वरम्", transliteration: "hṛdayajvaram", meaning: "the fever/burning of the heart" }
+          ]
+        },
+        {
+          dashaka: 53,
+          sloka: 10,
+          devanagari: "इति गोपवधूवचोभरैः\nप्रमुदितमानसमाशु मानयन् ।\nरसमुपनयसि स्म ताः प्रभो\nगुरुपवनेश्वर पाहि मां गदात् ॥",
+          transliteration: "iti gopavadhūvacobharaiḥ\npramuditamānasamāśu mānayan |\nrasam upanayasi sma tāḥ prabho\ngurupavaneśvara pāhi māṁ gadāt ||",
+          translation: "Thus, delighted at heart by the torrent of the Gopis' words, You honoured them and led them into the joy of the Rasa dance. O Lord of Guruvayur, protect me from my ailments!",
+          commentary: "The concluding verse of Dashaka 53 brings the narrative to the pivotal moment — Krishna, pleased by the Gopis' unwavering devotion expressed through their words, finally accepts them and initiates the Rasa Leela. Bhattathiri closes with his characteristic prayer to the Lord of Guruvayur (Gurupavaneśvara / Marutpureśa) for relief from his own illness, drawing a parallel between the Gopis' heart-fever and his physical ailment.",
+          words: [
+            { word: "गोपवधू", transliteration: "gopavadhū", meaning: "the cowherd women, Gopis" },
+            { word: "वचोभरैः", transliteration: "vacobharaiḥ", meaning: "by the torrent/weight of words" },
+            { word: "प्रमुदित", transliteration: "pramudita", meaning: "delighted, greatly pleased" },
+            { word: "मानसम्", transliteration: "mānasam", meaning: "mind, heart" },
+            { word: "मानयन्", transliteration: "mānayan", meaning: "honouring, respecting" },
+            { word: "रसम्", transliteration: "rasam", meaning: "the Rasa (divine dance/aesthetic delight)" },
+            { word: "गुरुपवनेश्वर", transliteration: "gurupavaneśvara", meaning: "Lord of Guruvayur" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect" },
+            { word: "गदात्", transliteration: "gadāt", meaning: "from disease/ailment" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 54,
@@ -11148,7 +11672,178 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Continues the Rasa Leela describing Krishna's disappearance to curb the Gopis' pride, their anguished search, the Gopi Gita of longing, and His reappearance to dance the divine Rasa circle.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 54,
+          sloka: 1,
+          devanagari: "गोपीनां तत्र सर्वासां मानोऽभूत्तव सङ्गतौ ।\nमामेव प्रणयत्यच्युतो भजत्यन्यां न कामपि ॥",
+          transliteration: "gopīnāṁ tatra sarvāsāṁ māno'bhūttava saṅgatau |\nmāmeva praṇayatyacyuto bhajatyan'yāṁ na kāmapi ||",
+          translation: "In Your company, all the Gopis became filled with pride, each thinking: 'It is me alone that Achyuta loves; He cares for no other.'",
+          commentary: "This verse describes the spiritual pitfall of pride (māna) that arose even among the blessed Gopis during the Rasa dance. Each Gopi believed herself to be Krishna's sole beloved. In Vaishnava theology, even the most exalted devotees can be tested by ego. Krishna, the supreme teacher, would soon vanish to cure this pride — demonstrating that divine love demands humility, not possessiveness.",
+          words: [
+            { word: "गोपीनाम्", transliteration: "gopīnām", meaning: "of the Gopis" },
+            { word: "मानः", transliteration: "mānaḥ", meaning: "pride, conceit" },
+            { word: "सङ्गतौ", transliteration: "saṅgatau", meaning: "in the company of, in association" },
+            { word: "प्रणयति", transliteration: "praṇayati", meaning: "loves, shows affection" },
+            { word: "अच्युतः", transliteration: "acyutaḥ", meaning: "the Infallible One, Krishna" },
+            { word: "भजति", transliteration: "bhajati", meaning: "adores, worships, cherishes" },
+            { word: "कामपि", transliteration: "kāmapi", meaning: "anyone at all" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 2,
+          devanagari: "तासां मानमवज्ञाय गर्वापनयनाय च ।\nत्वमन्तर्धानमगमस्तत्क्षणात्तत्र माधव ॥",
+          transliteration: "tāsāṁ mānamavajñāya garvāpanayanāya ca |\ntvamantardhānamagamastatkṣaṇāttatra mādhava ||",
+          translation: "Perceiving their pride and wishing to remove their arrogance, You, O Madhava, instantly disappeared from that very spot.",
+          commentary: "Krishna's sudden disappearance (antardhāna) is one of the most poignant moments in the Bhagavatam (10.29.48). It is not an act of cruelty but of supreme compassion — the divine surgeon removing the tumor of ego. The epithet Mādhava (Lord of Lakshmi) is significant: the one whom even the Goddess of Fortune serves has chosen these cowherd girls, yet they must learn that divine grace cannot be claimed as a right.",
+          words: [
+            { word: "मानम्", transliteration: "mānam", meaning: "pride, arrogance" },
+            { word: "अवज्ञाय", transliteration: "avajñāya", meaning: "having perceived, having noticed" },
+            { word: "गर्वापनयन", transliteration: "garvāpanayana", meaning: "removal of pride" },
+            { word: "अन्तर्धानम्", transliteration: "antardhānam", meaning: "disappearance, vanishing" },
+            { word: "अगमः", transliteration: "agamaḥ", meaning: "You went, You attained" },
+            { word: "तत्क्षणात्", transliteration: "tatkṣaṇāt", meaning: "at that very instant" },
+            { word: "माधव", transliteration: "mādhava", meaning: "O Madhava, Lord of Lakshmi" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 3,
+          devanagari: "त्वय्यन्तर्हिततां प्राप्ते विषण्णा व्याकुलेन्द्रियाः ।\nत्वामन्विष्य वने तस्मिन् गोप्यः शोकविमोहिताः ॥",
+          transliteration: "tvayyantarhitatāṁ prāpte viṣaṇṇā vyākulendriyāḥ |\ntvāmanviṣya vane tasmin gopyaḥ śokavimohitāḥ ||",
+          translation: "When You had disappeared, the Gopis became grief-stricken, their senses bewildered. Deluded by sorrow, they searched for You throughout that forest.",
+          commentary: "The Gopis' anguish upon Krishna's disappearance is described in Bhagavatam 10.30. Their bewilderment (vyākula-indriyāḥ) represents the dark night of the soul familiar to mystics across traditions. The forest (vana) that was paradise a moment ago becomes a wilderness of longing. This viraha (separation) is considered by Vaishnava acharyas to be an even higher state of devotion than union, for it purifies the heart of all possessiveness.",
+          words: [
+            { word: "अन्तर्हिततां", transliteration: "antarhitatāṁ", meaning: "the state of having disappeared" },
+            { word: "विषण्णाः", transliteration: "viṣaṇṇāḥ", meaning: "grief-stricken, despondent" },
+            { word: "व्याकुलेन्द्रियाः", transliteration: "vyākulendriyāḥ", meaning: "with bewildered senses" },
+            { word: "अन्विष्य", transliteration: "anviṣya", meaning: "searching for, seeking" },
+            { word: "वने", transliteration: "vane", meaning: "in the forest" },
+            { word: "शोकविमोहिताः", transliteration: "śokavimohitāḥ", meaning: "deluded by grief" },
+            { word: "गोप्यः", transliteration: "gopyaḥ", meaning: "the Gopis, cowherd maidens" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 4,
+          devanagari: "वृक्षान् पशून् नदीतीरान् पृच्छन्त्यस्त्वद्विचेष्टितम् ।\nत्वद्रूपधारिण्यो भूत्वा खेलन्त्यस्तत्तदाचरन् ॥",
+          transliteration: "vṛkṣān paśūn nadītīrān pṛcchantyastvadviceṣṭitam |\ntvadrūpadhāriṇyo bhūtvā khelantyastattadācaran ||",
+          translation: "They asked the trees, animals, and riverbanks about Your whereabouts. Then, assuming Your form, they playfully enacted Your various deeds.",
+          commentary: "This celebrated passage from the Bhagavatam (10.30.4-11) shows the Gopis questioning all of nature — the tulasi plant, the earth, the deer, the trees — about Krishna. In their love-madness, they began to imitate His leelas: one Gopi played Krishna lifting Govardhana, another enacted the killing of Putana. This divine madness (unmāda) is the eighth stage of viraha described in poetic tradition and represents complete absorption in the beloved.",
+          words: [
+            { word: "वृक्षान्", transliteration: "vṛkṣān", meaning: "trees" },
+            { word: "पशून्", transliteration: "paśūn", meaning: "animals" },
+            { word: "नदीतीरान्", transliteration: "nadītīrān", meaning: "riverbanks" },
+            { word: "पृच्छन्त्यः", transliteration: "pṛcchantyaḥ", meaning: "asking, inquiring" },
+            { word: "विचेष्टितम्", transliteration: "viceṣṭitam", meaning: "deeds, actions, exploits" },
+            { word: "रूपधारिण्यः", transliteration: "rūpadhāriṇyaḥ", meaning: "assuming the form of" },
+            { word: "आचरन्", transliteration: "ācaran", meaning: "enacted, performed" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 5,
+          devanagari: "पदानि तव कान्तस्य पदान्यान्यानि चापरे ।\nदृष्ट्वा तत्राऽऽकलयितुं यतन्ते स्म पदे पदे ॥",
+          transliteration: "padāni tava kāntasya padānyānyāni cāpare |\ndṛṣṭvā tatrā''kalayituṁ yatante sma pade pade ||",
+          translation: "They found Your footprints alongside another's, and at every step they tried to discern what had transpired between the beloved and that favored Gopi.",
+          commentary: "The Gopis discover two sets of footprints — Krishna's and those of one special Gopi (identified by tradition as Radha, though Bhattathiri follows the Bhagavatam in not naming her). The deeper impressions where Krishna evidently carried this Gopi on His shoulders fill the others with both jealousy and awe. This passage (Bhagavatam 10.30.26-28) is considered the most veiled reference to Radha in the text.",
+          words: [
+            { word: "पदानि", transliteration: "padāni", meaning: "footprints, steps" },
+            { word: "कान्तस्य", transliteration: "kāntasya", meaning: "of the beloved" },
+            { word: "अपरे", transliteration: "apare", meaning: "another's, of another" },
+            { word: "दृष्ट्वा", transliteration: "dṛṣṭvā", meaning: "having seen" },
+            { word: "आकलयितुम्", transliteration: "ākalayitum", meaning: "to discern, to understand" },
+            { word: "यतन्ते", transliteration: "yatante", meaning: "they endeavored, they tried" },
+            { word: "पदे पदे", transliteration: "pade pade", meaning: "at every step" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 6,
+          devanagari: "सापि त्वया विहीनाऽऽसीत् गर्विता स्वं विहाय ताम् ।\nतां चापि शोकसन्तप्तां दृष्ट्वा सर्वाः समागताः ॥",
+          transliteration: "sāpi tvayā vihīnā''sīt garvitā svaṁ vihāya tām |\ntāṁ cāpi śokasantaptāṁ dṛṣṭvā sarvāḥ samāgatāḥ ||",
+          translation: "That favored Gopi too, having grown proud, was abandoned by You. Seeing her also burning with grief, all the Gopis gathered together.",
+          commentary: "Even the most favored Gopi was not immune to the test of pride. When she asked Krishna to carry her, He vanished, leaving her alone and weeping. The Bhagavatam (10.30.36-37) shows that divine favoritism is not partiality but pedagogy — Krishna treats each soul according to its spiritual need. The reunion of all the Gopis in their shared grief dissolves the hierarchy of ego and prepares them for the selfless love required for the true Rasa.",
+          words: [
+            { word: "विहीना", transliteration: "vihīnā", meaning: "abandoned, bereft of" },
+            { word: "गर्विता", transliteration: "garvitā", meaning: "having become proud" },
+            { word: "विहाय", transliteration: "vihāya", meaning: "having abandoned, leaving" },
+            { word: "शोकसन्तप्ताम्", transliteration: "śokasantaptām", meaning: "burning with grief" },
+            { word: "दृष्ट्वा", transliteration: "dṛṣṭvā", meaning: "having seen" },
+            { word: "सर्वाः", transliteration: "sarvāḥ", meaning: "all (the Gopis)" },
+            { word: "समागताः", transliteration: "samāgatāḥ", meaning: "gathered together, assembled" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 7,
+          devanagari: "यमुनापुलिने सर्वा मिलित्वा विरहातुराः ।\nगोपिकागीतमारेभुस्त्वद्गुणान् कीर्तयन्त्य उत ॥",
+          transliteration: "yamunāpuline sarvā militvā virahāturāḥ |\ngopikāgītamārebhustvadguṇān kīrtayantya uta ||",
+          translation: "Gathering together on the banks of the Yamuna, all the Gopis, tormented by separation, began singing the Gopi Gita, glorifying Your divine qualities.",
+          commentary: "The Gopi Gita (Bhagavatam 10.31) is one of the most celebrated hymns in all of Sanskrit literature. Comprising nineteen verses, it is a symphony of longing in which the Gopis call upon Krishna to return. Bhattathiri condenses this into a reference, knowing his listeners would recall the full hymn. The Yamuna's bank (pulina) becomes a sacred stage where human longing transforms into divine poetry — the Gopis' tears become the ink of devotional literature.",
+          words: [
+            { word: "यमुनापुलिने", transliteration: "yamunāpuline", meaning: "on the sandy bank of the Yamuna" },
+            { word: "मिलित्वा", transliteration: "militvā", meaning: "having gathered, having assembled" },
+            { word: "विरहातुराः", transliteration: "virahāturāḥ", meaning: "tormented by separation" },
+            { word: "गोपिकागीतम्", transliteration: "gopikāgītam", meaning: "the Song of the Gopis (Gopi Gita)" },
+            { word: "आरेभुः", transliteration: "ārebhuḥ", meaning: "they began, they commenced" },
+            { word: "गुणान्", transliteration: "guṇān", meaning: "qualities, virtues" },
+            { word: "कीर्तयन्त्यः", transliteration: "kīrtayantyaḥ", meaning: "singing, glorifying" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 8,
+          devanagari: "तासामार्तिं निरीक्ष्यैव करुणामृतसागरः ।\nप्रादुर्भूय पुनस्तत्र शान्तिं चक्रे जनार्दनः ॥",
+          transliteration: "tāsāmārtiṁ nirīkṣyaiva karuṇāmṛtasāgaraḥ |\nprādurbhūya punastatra śāntiṁ cakre janārdanaḥ ||",
+          translation: "Beholding their agony, the Ocean of Compassionate Nectar that You are, O Janardana, You manifested again in their midst and restored their peace.",
+          commentary: "Krishna's reappearance (Bhagavatam 10.32.1-2) is the triumph of divine compassion (karuṇā) over pedagogical rigor. The compound karuṇāmṛta-sāgaraḥ (ocean of the nectar of compassion) is a masterful description — He is not merely compassionate but an infinite ocean of healing sweetness. The name Janārdana (He who is worshipped by all beings) reminds us that this intimate drama has cosmic significance.",
+          words: [
+            { word: "आर्तिम्", transliteration: "ārtim", meaning: "agony, distress" },
+            { word: "निरीक्ष्य", transliteration: "nirīkṣya", meaning: "having beheld, having observed" },
+            { word: "करुणामृतसागरः", transliteration: "karuṇāmṛtasāgaraḥ", meaning: "ocean of the nectar of compassion" },
+            { word: "प्रादुर्भूय", transliteration: "prādurbhūya", meaning: "having manifested, having appeared" },
+            { word: "पुनः", transliteration: "punaḥ", meaning: "again" },
+            { word: "शान्तिम्", transliteration: "śāntim", meaning: "peace, tranquility" },
+            { word: "जनार्दनः", transliteration: "janārdanaḥ", meaning: "Janardana, the Lord worshipped by all" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 9,
+          devanagari: "ततो रासमहोत्सावं प्रारब्धवानसौ भवान् ।\nगोपीमण्डलमध्ये त्वं नृत्यन् दिव्यवपुर्धरः ॥",
+          transliteration: "tato rāsamahotsāvaṁ prārabdhavānasau bhavān |\ngopīmaṇḍalamadhye tvaṁ nṛtyan divyavapurdharaḥ ||",
+          translation: "Then You commenced the grand festival of the Rasa dance. In the center of the circle of Gopis, You danced, bearing Your resplendent divine form.",
+          commentary: "The Rasa Mandala (Bhagavatam 10.33) is the cosmic dance in which Krishna multiplied Himself to stand between every two Gopis, so each felt she alone danced with Him. The word mahotsāva (great festival) elevates this from mere dance to a divine celebration. Krishna at the center of the Gopi-mandala is the supreme Purusha surrounded by His Shaktis — a theological image of the relationship between the Divine and individual souls, each receiving His full, undivided attention.",
+          words: [
+            { word: "रासमहोत्सावम्", transliteration: "rāsamahotsāvam", meaning: "the grand festival of the Rasa dance" },
+            { word: "प्रारब्धवान्", transliteration: "prārabdhavān", meaning: "commenced, began" },
+            { word: "गोपीमण्डल", transliteration: "gopīmaṇḍala", meaning: "the circle of Gopis" },
+            { word: "मध्ये", transliteration: "madhye", meaning: "in the middle, at the center" },
+            { word: "नृत्यन्", transliteration: "nṛtyan", meaning: "dancing" },
+            { word: "दिव्यवपुर्धरः", transliteration: "divyavapurdharaḥ", meaning: "bearing a divine form" },
+            { word: "भवान्", transliteration: "bhavān", meaning: "You, Your Lordship" }
+          ]
+        },
+        {
+          dashaka: 54,
+          sloka: 10,
+          devanagari: "एवं रासोत्सवं कृत्वा गोपीमण्डलमण्डितः ।\nब्रह्मानन्दरसं दत्वा मरुत्पुरपते हरे ।\nसमस्तामयशान्त्यर्थं भक्तानां पाहि सर्वदा ॥",
+          transliteration: "evaṁ rāsotsavaṁ kṛtvā gopīmaṇḍalamaṇḍitaḥ |\nbrahmānandarasaṁ dattvā marutpurapate hare |\nsamastāmayaśāntyarthaṁ bhaktānāṁ pāhi sarvadā ||",
+          translation: "Thus having performed the Rasa festival, adorned by the circle of Gopis, having bestowed the bliss of Brahman — O Lord of Guruvayur, O Hari, for the complete eradication of all ailments, protect Your devotees always.",
+          commentary: "The concluding verse follows the Narayaneeyam tradition of ending each Dashaka with a prayer to the Lord of Guruvayur (Marutpurapate). Bhattathiri, himself suffering from a debilitating illness, weaves the cosmic Rasa Leela back to the personal — the same Krishna who danced with the Gopis now resides at Guruvayur and can heal all who surrender. The phrase brahmānanda-rasam (the essence of the bliss of Brahman) affirms that the Rasa Leela was not worldly romance but the highest spiritual experience — the jiva's union with Paramatma.",
+          words: [
+            { word: "रासोत्सवम्", transliteration: "rāsotsavam", meaning: "the Rasa festival" },
+            { word: "मण्डित", transliteration: "maṇḍita", meaning: "adorned, decorated" },
+            { word: "ब्रह्मानन्दरसम्", transliteration: "brahmānandarasam", meaning: "the bliss-essence of Brahman" },
+            { word: "मरुत्पुरपते", transliteration: "marutpurapate", meaning: "O Lord of Guruvayur (Marutpura)" },
+            { word: "हरे", transliteration: "hare", meaning: "O Hari, O Lord" },
+            { word: "आमयशान्त्यर्थम्", transliteration: "āmayaśāntyartham", meaning: "for the purpose of curing ailments" },
+            { word: "पाहि", transliteration: "pāhi", meaning: "protect, save" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 55,
@@ -11157,7 +11852,178 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the destruction of the Yaksha Shankhachuda who tried to abduct the Gopis, and the bull-demon Arishtasura whom Krishna slew with ease to protect Vraja.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 55,
+          sloka: 1,
+          devanagari: "रासक्रीडारसोन्मत्तगोपीजनमनोहर ।\nत्वं गोपीभिः परिवृतो विचेरिथ वनान्तरे ॥",
+          transliteration: "rāsakrīḍārasonmattagopījanamanoharaḥ |\ntvaṁ gopībhiḥ parivṛto viceritha vanāntare ||",
+          translation: "Intoxicating the hearts of the Gopis with the delight of the Rasa dance, You, O Enchanting One, wandered in the forest groves surrounded by the cowherd maidens.",
+          commentary: "This verse sets the scene after the conclusion of the Rasa Leela. Krishna continued to roam the moonlit forests along the Yamuna with the Gopis. The compound rāsa-krīḍā-rasa-unmatta captures the cascading layers of joy — the dance (krida), its essence (rasa), and the divine intoxication (unmatta) it produced. This idyllic backdrop is about to be disrupted by the Yaksha Shankhachuda.",
+          words: [
+            { word: "रासक्रीडा", transliteration: "rāsakrīḍā", meaning: "the Rasa dance sport" },
+            { word: "उन्मत्त", transliteration: "unmatta", meaning: "intoxicated, maddened with joy" },
+            { word: "गोपीजन", transliteration: "gopījana", meaning: "the cowherd maidens" },
+            { word: "मनोहर", transliteration: "manohara", meaning: "captivating the mind, enchanting" },
+            { word: "परिवृतः", transliteration: "parivṛtaḥ", meaning: "surrounded by" },
+            { word: "विचेरिथ", transliteration: "viceritha", meaning: "You wandered, roamed" },
+            { word: "वनान्तरे", transliteration: "vanāntare", meaning: "in the interior of the forest" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 2,
+          devanagari: "शङ्खचूडो नाम यक्षः कुबेरानुचरो बली ।\nस गोपीरपहर्तुं वै जगामाथ तवान्तिकम् ॥",
+          transliteration: "śaṅkhacūḍo nāma yakṣaḥ kuberānucaro balī |\nsa gopīrapahartuṁ vai jagāmātha tavāntikam ||",
+          translation: "A powerful Yaksha named Shankhachuda, a servant of Kubera, came near You with the intention of abducting the Gopis.",
+          commentary: "Bhagavatam 10.34 introduces the Yaksha Shankhachuda, an attendant of Kubera, the lord of wealth and ruler of the Yakshas. Emboldened by his master's power, he dared to approach Krishna's own beloveds. His name 'Shankhachuda' (conch-crested) refers to the precious crest-jewel (chudamani) he wore, which would become significant in the narrative's resolution.",
+          words: [
+            { word: "शङ्खचूडः", transliteration: "śaṅkhacūḍaḥ", meaning: "Shankhachuda (conch-crested Yaksha)" },
+            { word: "यक्षः", transliteration: "yakṣaḥ", meaning: "a Yaksha, semi-divine being" },
+            { word: "कुबेरानुचरः", transliteration: "kuberānucaraḥ", meaning: "a servant/follower of Kubera" },
+            { word: "बली", transliteration: "balī", meaning: "powerful, strong" },
+            { word: "गोपीः", transliteration: "gopīḥ", meaning: "the Gopis" },
+            { word: "अपहर्तुम्", transliteration: "apahartum", meaning: "to abduct, to carry away" },
+            { word: "तवान्तिकम्", transliteration: "tavāntikam", meaning: "near You, into Your presence" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 3,
+          devanagari: "गोपीरादाय सत्वरं स यक्षो जवसंयुतः ।\nजगाम दूरं पश्यन्तीस्तास्त्वामाक्रन्दयन् भयात् ॥",
+          transliteration: "gopīrādāya satvaraṁ sa yakṣo javasaṁyutaḥ |\njagāma dūraṁ paśyantīstāstvāmākrandayan bhayāt ||",
+          translation: "That swift Yaksha seized the Gopis and carried them away at great speed. The frightened Gopis cried out to You, looking back at You in terror.",
+          commentary: "The Yaksha's audacity in snatching the Gopis from Krishna's very presence demonstrates the folly born of arrogance. The Gopis' desperate cries (akrandayan) and backward glances (pashyantiḥ) reflect their absolute dependence on Krishna — the essence of prapatti or total surrender. In Vaishnava theology, this moment illustrates that even apparent danger serves to deepen the devotee's bond with the Lord.",
+          words: [
+            { word: "आदाय", transliteration: "ādāya", meaning: "having seized, having taken" },
+            { word: "सत्वरम्", transliteration: "satvaram", meaning: "quickly, with haste" },
+            { word: "जवसंयुतः", transliteration: "javasaṁyutaḥ", meaning: "endowed with speed" },
+            { word: "दूरम्", transliteration: "dūram", meaning: "far away" },
+            { word: "पश्यन्तीः", transliteration: "paśyantīḥ", meaning: "looking at, gazing towards" },
+            { word: "आक्रन्दयन्", transliteration: "ākrandayan", meaning: "crying out, wailing" },
+            { word: "भयात्", transliteration: "bhayāt", meaning: "out of fear" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 4,
+          devanagari: "तदार्तरावं निशम्य त्वं शालवृक्षमुदूह्य च ।\nअन्वधावो महावेगं तं यक्षं हन्तुमुद्यतः ॥",
+          transliteration: "tadārtarāvaṁ niśamya tvaṁ śālavṛkṣamudūhya ca |\nanvadhāvo mahāvegaṁ taṁ yakṣaṁ hantumudyataḥ ||",
+          translation: "Hearing the distressed cries of the Gopis, You uprooted a Shala tree and pursued that Yaksha at tremendous speed, determined to slay him.",
+          commentary: "Krishna's response is immediate and dramatic. Uprooting a mighty Shala tree as a weapon recalls His childhood exploits of breaking the Yamala-Arjuna trees. The image of the Supreme Lord chasing down a kidnapper with a tree as His weapon combines the heroic (vira) and the tender (shringara) rasas — He is simultaneously the protective warrior and the devoted lover rushing to rescue His beloveds.",
+          words: [
+            { word: "आर्तरावम्", transliteration: "ārtarāvam", meaning: "the distressed cries" },
+            { word: "निशम्य", transliteration: "niśamya", meaning: "having heard" },
+            { word: "शालवृक्षम्", transliteration: "śālavṛkṣam", meaning: "a Shala tree" },
+            { word: "उदूह्य", transliteration: "udūhya", meaning: "having uprooted" },
+            { word: "अन्वधावः", transliteration: "anvadhāvaḥ", meaning: "You pursued, chased after" },
+            { word: "महावेगम्", transliteration: "mahāvegam", meaning: "with great speed" },
+            { word: "उद्यतः", transliteration: "udyataḥ", meaning: "determined, ready" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 5,
+          devanagari: "विहाय गोपीस्तरसा पलायितं\nतं यक्षमभ्येत्य जघन्थ मुष्टिना ।\nशिरश्चकर्तेश विभूषणं महत्\nचूडामणिं प्राप्य ददाथ राघवे ॥",
+          transliteration: "vihāya gopīstarasā palāyitaṁ\ntaṁ yakṣamabhyetya jaghantha muṣṭinā |\nśiraścakarteśa vibhūṣaṇaṁ mahat\ncūḍāmaṇiṁ prāpya dadātha rāghave ||",
+          translation: "The Yaksha abandoned the Gopis and fled in haste. You caught up with him and struck him down with Your fist. Severing his head, O Lord, You took the great crest-jewel and gave it to Balarama.",
+          commentary: "The Shankhachuda episode concludes swiftly. The Yaksha, realizing his folly, abandoned the Gopis and fled, but none can outrun the Lord. Krishna dispatched him with a single blow and claimed the famous chudamani (crest-jewel). In Bhagavatam 10.34.25, Krishna presents this jewel to Balarama, a gesture of fraternal affection. Some commentators note that this jewel was originally a treasure of Kubera, linking this episode to broader Puranic narratives.",
+          words: [
+            { word: "विहाय", transliteration: "vihāya", meaning: "having abandoned, having left" },
+            { word: "तरसा", transliteration: "tarasā", meaning: "with haste, swiftly" },
+            { word: "पलायितम्", transliteration: "palāyitam", meaning: "one who fled" },
+            { word: "अभ्येत्य", transliteration: "abhyetya", meaning: "having approached, having caught up" },
+            { word: "जघन्थ", transliteration: "jaghantha", meaning: "You struck, You slew" },
+            { word: "मुष्टिना", transliteration: "muṣṭinā", meaning: "with the fist" },
+            { word: "चूडामणिम्", transliteration: "cūḍāmaṇim", meaning: "crest-jewel" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 6,
+          devanagari: "ततश्च कालेन कतिप्रयान्ते\nव्रजं भयेनातितरां स्वनाशयन् ।\nअरिष्ट उग्रो वृषरूपधारको\nमहासुरो भीषणरावमाययौ ॥",
+          transliteration: "tataśca kālena katiprayānte\nvrajaṁ bhayenātitarāṁ svanāśayan |\nariṣṭa ugro vṛṣarūpadhārako\nmahāsuro bhīṣaṇarāvamāyayau ||",
+          translation: "After some time had passed, the ferocious demon Arishtasura, assuming the form of a monstrous bull, came charging toward Vraja with terrifying bellows, filling the inhabitants with dread.",
+          commentary: "The narrative transitions from the Shankhachuda episode to the Arishtasura story (Bhagavatam 10.36). Arishtasura was a demon sent by Kamsa who took the form of a gigantic bull — an ironic choice given the pastoral setting of Vraja. The emphasis on his terrifying sound (bhishana-rava) highlights how the demon's mere approach shattered the peace of the cowherd settlement. The bull form also carries symbolic weight: an uncontrolled bull represents tamoguna (darkness and ignorance) that must be subdued by the divine.",
+          words: [
+            { word: "कालेन", transliteration: "kālena", meaning: "with the passage of time" },
+            { word: "अरिष्टः", transliteration: "ariṣṭaḥ", meaning: "the demon Arishta" },
+            { word: "उग्रः", transliteration: "ugraḥ", meaning: "fierce, terrible" },
+            { word: "वृषरूपधारकः", transliteration: "vṛṣarūpadhārakaḥ", meaning: "one who assumed the form of a bull" },
+            { word: "महासुरः", transliteration: "mahāsuraḥ", meaning: "the great demon" },
+            { word: "भीषणरावम्", transliteration: "bhīṣaṇarāvam", meaning: "terrifying bellowing" },
+            { word: "आययौ", transliteration: "āyayau", meaning: "came, approached" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 7,
+          devanagari: "महागिरिप्रख्यतनुर्महाबलो\nविषाणकोट्या विदलन् धरातलम् ।\nललम्ब नीलाम्बुदवत् खुराग्रतो\nमहीरजश्चित्रमशोभतासुरः ॥",
+          transliteration: "mahāgiriprakhyatanurmahābalo\nviṣāṇakoṭyā vidalan dharātalam |\nlalamba nīlāmbudavat khurāgrato\nmahīrajaścitramśobhatāsuraḥ ||",
+          translation: "With a body massive as a great mountain and immense strength, he tore up the earth with the tips of his horns. Clouds of dust rose from his hooves, and the demon loomed like a dark thundercloud — a terrifying spectacle.",
+          commentary: "Bhattathiri paints a vivid portrait of the bull-demon's imposing physicality. The comparison to a mountain (mahagiri-prakhya) and a dark rain cloud (nilambuda) creates an atmosphere of cosmic menace. The detail of his horns gouging the earth (vishana-kotya vidalan dharatalam) conveys raw destructive power. This elaborate description of the enemy's might serves to magnify the ease with which Krishna will dispatch him.",
+          words: [
+            { word: "महागिरिप्रख्य", transliteration: "mahāgiriprakhya", meaning: "resembling a great mountain" },
+            { word: "महाबलः", transliteration: "mahābalaḥ", meaning: "of immense strength" },
+            { word: "विषाणकोट्या", transliteration: "viṣāṇakoṭyā", meaning: "with the tips of his horns" },
+            { word: "विदलन्", transliteration: "vidalan", meaning: "tearing, splitting" },
+            { word: "धरातलम्", transliteration: "dharātalam", meaning: "the surface of the earth" },
+            { word: "नीलाम्बुदवत्", transliteration: "nīlāmbudavat", meaning: "like a dark rain cloud" },
+            { word: "खुराग्रतः", transliteration: "khurāgrataḥ", meaning: "from the tips of his hooves" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 8,
+          devanagari: "तमागतं वीक्ष्य भयातुरं जनं\nसमाश्वसन्नग्रत एत्य निर्भयम् ।\nतिष्ठेति चोच्चैर्वदन् महासुरं\nत्वमाह्वयस्ताडयितुं समुद्यतः ॥",
+          transliteration: "tamāgataṁ vīkṣya bhayāturaṁ janaṁ\nsamāśvasannagrata etya nirbhayam |\ntiṣṭheti coccairvadan mahāsuraṁ\ntvamāhvayastāḍayituṁ samudyataḥ ||",
+          translation: "Seeing the people stricken with terror at the demon's approach, You reassured them, stepped forward fearlessly, and thundered 'Stop!' at the great demon, ready to strike him down.",
+          commentary: "Krishna's fearless response contrasts sharply with the terror of the Vraja-vasis. The single command 'tishtha' (stop/stand!) echoes the challenge of a kshatriya warrior, yet it comes from a young cowherd boy — the incongruity highlighting the hidden divine nature. Krishna's reassurance of the frightened people (samashvasan) before engaging the demon reflects His nature as the ultimate protector (sharanya), always prioritizing the welfare of His devotees.",
+          words: [
+            { word: "भयातुरम्", transliteration: "bhayāturam", meaning: "stricken with fear" },
+            { word: "समाश्वसन्", transliteration: "samāśvasan", meaning: "reassuring, comforting" },
+            { word: "अग्रतः", transliteration: "agrataḥ", meaning: "forward, to the front" },
+            { word: "निर्भयम्", transliteration: "nirbhayam", meaning: "fearlessly" },
+            { word: "तिष्ठ", transliteration: "tiṣṭha", meaning: "stop! stand!" },
+            { word: "उच्चैः", transliteration: "uccaiḥ", meaning: "loudly, with a thundering voice" },
+            { word: "आह्वयः", transliteration: "āhvayaḥ", meaning: "You challenged, called out" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 9,
+          devanagari: "स धाव्य कृष्ण त्वयि शृङ्गमुद्यतं\nत्वया गृहीतं करयोर्बलात्ततः ।\nप्रगृह्य शृङ्गे परिघूर्ण्य दूरतो\nनिपात्य भूमौ व्यसुरन्तमाददे ॥",
+          transliteration: "sa dhāvya kṛṣṇa tvayi śṛṅgamudyataṁ\ntvayā gṛhītaṁ karayorbalāttataḥ |\npragṛhya śṛṅge parighūrṇya dūrato\nnipātya bhūmau vyasurantamādade ||",
+          translation: "He charged at You, O Krishna, with horns raised. You seized his horns with Your mighty hands, and grasping them firmly, whirled him around and hurled him to the ground afar, where he met his death.",
+          commentary: "The slaying of Arishtasura is described with dynamic action verbs — grasping (pragrhya), whirling (parighurnya), hurling (nipatya). Krishna's method of killing the bull-demon by seizing its horns and spinning it recalls the ancient warrior technique of bull-wrestling. The effortlessness implied by the sequence underscores a key Narayaneeyam theme: what appears as an epic battle to onlookers is mere sport (lila) for the Lord. The word vyasura (bereft of vital breath) marks the definitive end of the demon.",
+          words: [
+            { word: "धाव्य", transliteration: "dhāvya", meaning: "having charged, having rushed" },
+            { word: "शृङ्गम्", transliteration: "śṛṅgam", meaning: "horn" },
+            { word: "उद्यतम्", transliteration: "udyatam", meaning: "raised, uplifted" },
+            { word: "गृहीतम्", transliteration: "gṛhītam", meaning: "seized, grasped" },
+            { word: "प्रगृह्य", transliteration: "pragṛhya", meaning: "having grasped firmly" },
+            { word: "परिघूर्ण्य", transliteration: "parighūrṇya", meaning: "having whirled around" },
+            { word: "व्यसुः", transliteration: "vyasuḥ", meaning: "bereft of life, dead" }
+          ]
+        },
+        {
+          dashaka: 55,
+          sloka: 10,
+          devanagari: "एवं बहून् दानवदैत्ययक्षान्\nनिहत्य लीलाविलसत्प्रभावः ।\nसमस्तलोकेश विभो मुरारे\nमरुत्पुरेशाखिलतापशान्तिम् ॥",
+          transliteration: "evaṁ bahūn dānavadaityayakṣān\nnihatya līlāvilasatprabhāvaḥ |\nsamastalokeśa vibho murāre\nmarutpureśākhilatāpaśāntim ||",
+          translation: "Thus, having slain many Danavas, Daityas, and Yakshas with the glory of Your effortless divine play, O Lord of all worlds, O Murari, O Lord of Guruvayur, grant me the quelling of all afflictions!",
+          commentary: "The concluding verse follows the traditional Narayaneeyam pattern of summarizing the dashaka's events and ending with a personal prayer. Bhattathiri lists the three classes of beings destroyed — Danavas, Daityas, and Yakshas — covering the full range of adversaries encountered. The phrase lilā-vilasat-prabhava (glory shining through divine play) captures the effortlessness of Krishna's victories. The closing appeal for akhila-tapa-shanti (peace from all afflictions) is Bhattathiri's characteristic plea, connecting Krishna's demon-slaying power to the poet's own need for healing at Guruvayur.",
+          words: [
+            { word: "दानवदैत्ययक्षान्", transliteration: "dānavadaityayakṣān", meaning: "Danavas, Daityas, and Yakshas" },
+            { word: "निहत्य", transliteration: "nihatya", meaning: "having slain" },
+            { word: "लीलाविलसत्", transliteration: "līlāvilasat", meaning: "shining through divine play" },
+            { word: "प्रभावः", transliteration: "prabhāvaḥ", meaning: "glory, power" },
+            { word: "मुरारे", transliteration: "murāre", meaning: "O slayer of Mura (Krishna)" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "अखिलतापशान्तिम्", transliteration: "akhilatāpaśāntim", meaning: "quelling of all afflictions" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 56,
@@ -11166,7 +12032,179 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates the killing of the horse-demon Kesi by Krishna's arm thrust down its throat, and the arrival of Akrura sent by Kamsa to bring Krishna and Balarama to Mathura.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 56,
+          sloka: 1,
+          devanagari: "अरिष्टे निहते दैत्ये केशी नाम महासुरः ।\nतुरङ्गरूपं संधाय व्रजमाययावुग्रधीः ॥",
+          transliteration: "ariṣṭe nihate daitye keśī nāma mahāsuraḥ |\nturaṅgarūpaṁ saṁdhāya vrajamāyayāvugradhīḥ ||",
+          translation: "After the demon Arishta was slain, a great demon named Kesi, fierce of intent, assumed the form of a horse and came charging toward Vraja.",
+          commentary: "The Kesi-vadha episode (Bhagavatam 10.37) follows immediately after the Arishtasura slaying, continuing the sequence of Kamsa's increasingly desperate attempts to kill Krishna through demonic agents. Kesi chose the form of a horse (turanga-rupa), and his name itself means 'long-maned one.' The adjective ugra-dhi (fierce of intent) signals that this demon came not merely to fight but with murderous determination.",
+          words: [
+            { word: "अरिष्टे निहते", transliteration: "ariṣṭe nihate", meaning: "when Arishta was slain" },
+            { word: "केशी", transliteration: "keśī", meaning: "Kesi (the long-maned demon)" },
+            { word: "महासुरः", transliteration: "mahāsuraḥ", meaning: "the great demon" },
+            { word: "तुरङ्गरूपम्", transliteration: "turaṅgarūpam", meaning: "the form of a horse" },
+            { word: "संधाय", transliteration: "saṁdhāya", meaning: "having assumed, having adopted" },
+            { word: "व्रजम्", transliteration: "vrajam", meaning: "toward Vraja" },
+            { word: "उग्रधीः", transliteration: "ugradhīḥ", meaning: "fierce of intent, with terrible resolve" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 2,
+          devanagari: "हेषारवेण महता कम्पयन् भुवनत्रयम् ।\nखुरैर्विदारयन् भूमिं स दुष्टोऽभ्यद्रवद् व्रजम् ॥",
+          transliteration: "heṣāraveṇa mahatā kampayan bhuvanatrayan |\nkhurairvidārayan bhūmiṁ sa duṣṭo'bhyadravad vrajam ||",
+          translation: "With his mighty neighing he made the three worlds tremble, and tearing the earth with his hooves, that wicked one rushed toward Vraja.",
+          commentary: "The horse-demon Kesi is portrayed with cosmic-scale terror. His neighing (heshā-rava) shook all three worlds (bhuvana-traya — earth, atmosphere, and heaven), an indication that this was no ordinary demon but one whose power threatened the cosmic order itself. The verb abhyadravat (rushed toward) conveys the headlong, unstoppable momentum of a charging warhorse, making the subsequent ease of Krishna's victory all the more remarkable.",
+          words: [
+            { word: "हेषारवेण", transliteration: "heṣāraveṇa", meaning: "with neighing sound" },
+            { word: "कम्पयन्", transliteration: "kampayan", meaning: "making tremble, shaking" },
+            { word: "भुवनत्रयम्", transliteration: "bhuvanatrayan", meaning: "the three worlds" },
+            { word: "खुरैः", transliteration: "khuraiḥ", meaning: "with hooves" },
+            { word: "विदारयन्", transliteration: "vidārayan", meaning: "tearing apart, rending" },
+            { word: "दुष्टः", transliteration: "duṣṭaḥ", meaning: "the wicked one" },
+            { word: "अभ्यद्रवत्", transliteration: "abhyadravat", meaning: "rushed toward, charged at" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 3,
+          devanagari: "तमापतन्तं सम्प्रेक्ष्य भगवंस्त्वं स्थिरो हसन् ।\nप्रत्युद्गम्याग्रतस्तस्य वक्त्रे हस्तं न्यवेशयः ॥",
+          transliteration: "tamāpatantaṁ samprekṣya bhagavaṁstvaṁ sthiro hasan |\npratyudgamyāgratastasya vaktre hastaṁ nyaveśayaḥ ||",
+          translation: "Seeing him hurtling forward, O Lord, You stood firm with a smile, went forward to meet him, and thrust Your hand into his gaping mouth.",
+          commentary: "This is the iconic moment of the Kesi-vadha. While the demon charged with world-shaking fury, Krishna stood smiling (hasan) — the smile being the quintessential mark of divine nonchalance in the face of cosmic threats. The act of thrusting His arm into the horse-demon's mouth (vaktre hastam nyaveshayah) is both strategically brilliant and symbolically rich: the Lord enters the very source of the demon's terrifying power and destroys it from within, just as He enters the heart of the devotee to destroy ignorance.",
+          words: [
+            { word: "आपतन्तम्", transliteration: "āpatantam", meaning: "one rushing forward, hurtling" },
+            { word: "सम्प्रेक्ष्य", transliteration: "samprekṣya", meaning: "having beheld, having observed" },
+            { word: "स्थिरः", transliteration: "sthiraḥ", meaning: "steady, firm, unshaken" },
+            { word: "हसन्", transliteration: "hasan", meaning: "smiling" },
+            { word: "प्रत्युद्गम्य", transliteration: "pratyudgamya", meaning: "having gone forward to meet" },
+            { word: "वक्त्रे", transliteration: "vaktre", meaning: "in the mouth" },
+            { word: "न्यवेशयः", transliteration: "nyaveśayaḥ", meaning: "You inserted, You thrust in" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 4,
+          devanagari: "करस्तवाथ प्रविशन् मुखे बलात्\nदन्तांश्चकार द्रुतमेव चूर्णितान् ।\nअथो करः प्रस्फुरितः प्रवर्धितो\nजीवं रुरोधास्य यथा हलाहलः ॥",
+          transliteration: "karastavaatha praviśan mukhe balāt\ndantāṁścakāra drutameva cūrṇitān |\natho karaḥ prasphuritaḥ pravardhito\njīvaṁ rurodhasya yathā halāhalaḥ ||",
+          translation: "Your hand, forcefully entering his mouth, instantly crushed his teeth to powder. Then Your arm expanded and swelled within him, choking off his life-breath like the halahala poison.",
+          commentary: "The vivid description of Krishna's expanding arm (prasphuritha pravardhita) within the demon's body is one of the most dramatic images in the Narayaneeyam. The comparison to halahala — the deadly poison that emerged during the churning of the cosmic ocean — is particularly apt: just as that poison threatened all creation until Shiva consumed it, Krishna's expanding arm becomes an unstoppable force of destruction within the demon. The crushing of teeth (dantam curnitan) symbolizes the destruction of the demon's capacity for harm.",
+          words: [
+            { word: "करः", transliteration: "karaḥ", meaning: "hand, arm" },
+            { word: "दन्तान्", transliteration: "dantān", meaning: "teeth" },
+            { word: "चूर्णितान्", transliteration: "cūrṇitān", meaning: "crushed to powder" },
+            { word: "प्रस्फुरितः", transliteration: "prasphuritaḥ", meaning: "expanded, swelled" },
+            { word: "प्रवर्धितः", transliteration: "pravardhitaḥ", meaning: "enlarged, grown" },
+            { word: "जीवम्", transliteration: "jīvam", meaning: "life-breath" },
+            { word: "रुरोध", transliteration: "rurodha", meaning: "blocked, choked off" },
+            { word: "हलाहलः", transliteration: "halāhalaḥ", meaning: "the deadly halahala poison" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 5,
+          devanagari: "स विस्फुरन् स्विन्नतनुः प्रविद्धाक्षो\nविकीर्ण्य पादान् गतजीवितो बली ।\nपपात भूमौ वृजिनात्मको महान्\nजनाश्च तुष्टुर्मुमुचुश्च पुष्पकैः ॥",
+          transliteration: "sa visphuraṁ svinnatanuḥ praviddhākṣo\nvikīrṇya pādān gatajīvito balī |\npapāta bhūmau vṛjinātmako mahān\njanāśca tuṣṭurmumucuśca puṣpakaiḥ ||",
+          translation: "Convulsing with sweat-drenched body and eyes bulging, the mighty sinful demon kicked his legs wildly and fell lifeless to the ground. The people rejoiced and showered flowers.",
+          commentary: "The death of Kesi is described with graphic realism — the convulsions (visphurat), the sweat (svinna-tanu), the bulging eyes (praviddhaksha) — conveying the physical agony of a demon destroyed from within. The people's joyful response of showering flowers (pushpakaiḥ) contrasts with the preceding horror, restoring the atmosphere of celebration that characterizes Vraja. It is after this killing that Krishna earns the epithet 'Keshava' — the slayer of Kesi — one of His most beloved names.",
+          words: [
+            { word: "विस्फुरन्", transliteration: "visphurat", meaning: "convulsing, trembling violently" },
+            { word: "स्विन्नतनुः", transliteration: "svinnatanuḥ", meaning: "with sweat-drenched body" },
+            { word: "प्रविद्धाक्षः", transliteration: "praviddhākṣaḥ", meaning: "with eyes bulging out" },
+            { word: "गतजीवितः", transliteration: "gatajīvitaḥ", meaning: "lifeless, dead" },
+            { word: "वृजिनात्मकः", transliteration: "vṛjinātmakaḥ", meaning: "of sinful nature" },
+            { word: "तुष्टुः", transliteration: "tuṣṭuḥ", meaning: "they rejoiced, praised" },
+            { word: "पुष्पकैः", transliteration: "puṣpakaiḥ", meaning: "with flowers" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 6,
+          devanagari: "ततो भवन्तं नारदो देवर्षिः समुपागमत् ।\nरहस्युपेत्य भगवन् भविष्यत्कार्यमब्रवीत् ॥",
+          transliteration: "tato bhavantaṁ nārado devarṣiḥ samupāgamat |\nrahasyupetya bhagavan bhaviṣyatkāryamabravīt ||",
+          translation: "Then the divine sage Narada approached You and, meeting You in private, O Lord, spoke of the events that were to come.",
+          commentary: "Narada's visit (Bhagavatam 10.37.14-24) is a pivotal narrative turning point. The celestial sage, who moves freely between the divine and earthly realms, comes to Krishna privately (rahasya — in secret) to reveal the future course of events — Kamsa's plots and Krishna's destined journey to Mathura. Narada's role as divine messenger and catalyst recurs throughout the Puranas; he is the one who often sets great events in motion through timely disclosure.",
+          words: [
+            { word: "नारदः", transliteration: "nāradaḥ", meaning: "the sage Narada" },
+            { word: "देवर्षिः", transliteration: "devarṣiḥ", meaning: "divine sage, celestial seer" },
+            { word: "समुपागमत्", transliteration: "samupāgamat", meaning: "approached, came near" },
+            { word: "रहसि", transliteration: "rahasi", meaning: "in private, in secret" },
+            { word: "उपेत्य", transliteration: "upetya", meaning: "having approached" },
+            { word: "भविष्यत्", transliteration: "bhaviṣyat", meaning: "future, what is to come" },
+            { word: "कार्यम्", transliteration: "kāryam", meaning: "task, duty, events to be done" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 7,
+          devanagari: "कंसस्य दुष्टां मतिमुग्रभावां\nचाणूरमुष्टिकमहायुधानाम् ।\nकुवल्ययापीठगजस्य चापि\nसमाचचक्षे भवते स सर्वम् ॥",
+          transliteration: "kaṁsasya duṣṭāṁ matimugrabḥāvāṁ\ncāṇūramuṣṭikamahāyudhānām |\nkuvalayāpīṭhagajasya cāpi\nsamācacakṣe bhavate sa sarvam ||",
+          translation: "He described to You all of Kamsa's wicked plans and terrible intentions — the mighty wrestlers Chanura and Mushtika, and also the elephant Kuvalayapida.",
+          commentary: "Narada reveals the details of Kamsa's elaborate death-trap: the wrestlers Chanura and Mushtika who would challenge Krishna in the arena, and the mad elephant Kuvalayapida stationed at the gate. This advance knowledge serves a literary function — it creates dramatic irony for the audience who knows that all these plans will fail spectacularly. The verb samacacakshe (he narrated completely) indicates Narada's thorough briefing, leaving nothing undisclosed.",
+          words: [
+            { word: "कंसस्य", transliteration: "kaṁsasya", meaning: "of Kamsa" },
+            { word: "दुष्टाम्", transliteration: "duṣṭām", meaning: "wicked, evil" },
+            { word: "मतिम्", transliteration: "matim", meaning: "plan, intention" },
+            { word: "चाणूरमुष्टिक", transliteration: "cāṇūramuṣṭika", meaning: "the wrestlers Chanura and Mushtika" },
+            { word: "कुवलयापीठ", transliteration: "kuvalayāpīṭha", meaning: "the elephant Kuvalayapida" },
+            { word: "गजस्य", transliteration: "gajasya", meaning: "of the elephant" },
+            { word: "समाचचक्षे", transliteration: "samācacakṣe", meaning: "he narrated, described fully" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 8,
+          devanagari: "ततः स कंसः परिशङ्कितात्मा\nप्रेषयामास महात्मनं ततः ।\nअक्रूरमार्यं यदुवंशभूषणं\nभवन्तमानेतुमतीवसादरम् ॥",
+          transliteration: "tataḥ sa kaṁsaḥ pariśaṅkitātmā\npreṣayāmāsa mahātmanaṁ tataḥ |\nakrūramāryaṁ yaduvaṁśabhūṣaṇaṁ\nbhavantamānetumtīvasādaram ||",
+          translation: "Then Kamsa, with a fearful heart, dispatched the noble and great-souled Akrura, ornament of the Yadu dynasty, to bring You to Mathura with great respect.",
+          commentary: "The arrival of Akrura marks the beginning of the end of Krishna's Vraja-lila. Kamsa's choice of Akrura is significant — he is described as arya (noble) and mahātmā (great-souled), epithets that reveal Kamsa's miscalculation. He chose Akrura precisely because of his nobility, expecting that Krishna would not refuse such a respected elder, but Akrura was in fact a secret devotee of Krishna. The phrase parisankita-atma (fearful-hearted) reveals Kamsa's growing terror as demon after demon failed.",
+          words: [
+            { word: "कंसः", transliteration: "kaṁsaḥ", meaning: "Kamsa" },
+            { word: "परिशङ्कितात्मा", transliteration: "pariśaṅkitātmā", meaning: "with a fearful heart" },
+            { word: "प्रेषयामास", transliteration: "preṣayāmāsa", meaning: "he dispatched, sent" },
+            { word: "अक्रूरम्", transliteration: "akrūram", meaning: "Akrura (the noble Yadava)" },
+            { word: "आर्यम्", transliteration: "āryam", meaning: "noble, honorable" },
+            { word: "यदुवंशभूषणम्", transliteration: "yaduvaṁśabhūṣaṇam", meaning: "ornament of the Yadu dynasty" },
+            { word: "आनेतुम्", transliteration: "ānetum", meaning: "to bring, to fetch" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 9,
+          devanagari: "स चाक्रूरो रथेनाशु व्रजदेशमुपागमत् ।\nत्वद्दर्शनोत्कः प्रेम्णा हृदि रोमाञ्चसंयुतः ॥",
+          transliteration: "sa cākrūro rathenāśu vrajadeśamupāgamat |\ntvaddarśanotkaḥ premṇā hṛdi romāñcasaṁyutaḥ ||",
+          translation: "That Akrura arrived swiftly by chariot at the land of Vraja, his heart yearning for Your sight, with hair standing on end from the ecstasy of devotion.",
+          commentary: "Akrura's journey to Vraja (Bhagavatam 10.38) is one of the most emotionally charged passages in the Bhagavatam. Though ostensibly on Kamsa's mission, Akrura's true motivation is his burning desire (utkah) for darshan of Krishna. The physical symptom of spiritual ecstasy — romanca (horripilation, hair standing on end) — is one of the eight sattvika-bhavas in Vaishnava devotional aesthetics, indicating the overwhelming nature of his prema (divine love).",
+          words: [
+            { word: "अक्रूरः", transliteration: "akrūraḥ", meaning: "Akrura" },
+            { word: "रथेन", transliteration: "rathena", meaning: "by chariot" },
+            { word: "आशु", transliteration: "āśu", meaning: "swiftly" },
+            { word: "व्रजदेशम्", transliteration: "vrajadeśam", meaning: "the land of Vraja" },
+            { word: "दर्शनोत्कः", transliteration: "darśanotkaḥ", meaning: "yearning for a vision/sight" },
+            { word: "प्रेम्णा", transliteration: "premṇā", meaning: "with love, with devotion" },
+            { word: "रोमाञ्चसंयुतः", transliteration: "romāñcasaṁyutaḥ", meaning: "with horripilation, hair standing on end" }
+          ]
+        },
+        {
+          dashaka: 56,
+          sloka: 10,
+          devanagari: "एवं स्वभक्तं कृपयाभिवीक्ष्य\nत्वमक्रूरं सानुजमालिलिङ्गिथ ।\nत्वत्प्रेमपूर्णं तमवेक्ष्य मोदिनं\nमरुत्पुरेश प्रणुदाखिलामयान् ॥",
+          transliteration: "evaṁ svabhaktaṁ kṛpayābhivīkṣya\ntvamakrūraṁ sānujamāliliṅgitha |\ntatpremapūrṇaṁ tamavekṣya modinaṁ\nmarutpureśa praṇudākhilāmayān ||",
+          translation: "Thus, gazing with compassion upon Your own devotee, You embraced Akrura along with Your younger brother. Beholding him overflowing with love and joy, O Lord of Guruvayur, drive away all my ailments!",
+          commentary: "The closing verse beautifully unites the narrative of Akrura's arrival with the poet's personal prayer. Krishna's embrace of Akrura (sa-anuja — along with Balarama, His elder brother) is an act of divine grace bestowed upon a yearning devotee. The final appeal — pranuda akhilāmayān (drive away all ailments) — is Bhattathiri's signature conclusion, connecting the Lord's compassion for Akrura with the poet's own hope for healing. Just as Krishna received Akrura with open arms, Bhattathiri prays that the Lord of Guruvayur will similarly embrace him and remove his suffering.",
+          words: [
+            { word: "स्वभक्तम्", transliteration: "svabhaktam", meaning: "His own devotee" },
+            { word: "कृपया", transliteration: "kṛpayā", meaning: "with compassion" },
+            { word: "अभिवीक्ष्य", transliteration: "abhivīkṣya", meaning: "gazing upon" },
+            { word: "सानुजम्", transliteration: "sānujam", meaning: "along with the younger brother" },
+            { word: "आलिलिङ्गिथ", transliteration: "āliliṅgitha", meaning: "You embraced" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "Lord of Guruvayur" },
+            { word: "अखिलामयान्", transliteration: "akhilāmayān", meaning: "all ailments, all diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 57,
@@ -11175,7 +12213,180 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the emotional departure of Krishna and Balarama from Vrindavan, the Gopis' intense grief, and their arrival in Mathura where they encounter the washerman, the garland-maker, and the hunchbacked woman Kubja.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 57,
+          sloka: 1,
+          devanagari: "अक्रूरसंयुक्तरथेन यादव-\nप्रवीर गोपालपुरात् प्रतिष्ठितः ।\nसबालकः सानुजवत्सपालकः\nप्रयाणमाकर्ण्य तदा व्यषीदत ॥",
+          transliteration: "akrūrasaṁyuktarathena yādava-\npravīra gopālapurāt pratiṣṭhitaḥ |\nsabālakaḥ sānujavatsapālakaḥ\nprayāṇamākarṇya tadā vyaṣīdata ||",
+          translation: "O foremost of the Yadavas, You set out from the cowherd village on the chariot brought by Akrura, accompanied by Balarama and the cowherd boys. Hearing of this departure, the entire settlement was stricken with grief.",
+          commentary: "This opening verse sets in motion one of the most emotionally charged episodes of Krishna-lila — the departure from Vrindavan. Akrura, sent by Kamsa ostensibly to invite Krishna and Balarama for a bow-sacrifice (dhanuryaga), arrived with his chariot. The word vyashidata (was distressed) foreshadows the intense sorrow that pervades this entire dashaka. Bhattathiri addresses Krishna as Yadava-pravira, subtly reminding us that Krishna's true identity as a Yadava prince is about to be publicly revealed.",
+          words: [
+            { word: "अक्रूर", transliteration: "akrūra", meaning: "Akrura (uncle of Krishna, sent by Kamsa)" },
+            { word: "रथेन", transliteration: "rathena", meaning: "by chariot" },
+            { word: "यादवप्रवीर", transliteration: "yādavapravīra", meaning: "O foremost of the Yadavas" },
+            { word: "गोपालपुरात्", transliteration: "gopālapurāt", meaning: "from the cowherd village" },
+            { word: "सानुज", transliteration: "sānuja", meaning: "along with the brother" },
+            { word: "प्रयाणम्", transliteration: "prayāṇam", meaning: "departure, journey" },
+            { word: "व्यषीदत", transliteration: "vyaṣīdata", meaning: "became distressed, grieved" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 2,
+          devanagari: "गोप्यस्तु कृष्णेति विलप्य विह्वलाः\nरथस्य मार्गं शुचिबाष्पपूरिताः ।\nनिरुध्य तस्थुर्विकलाकुलेन्द्रिया\nव्रजौकसां नेत्रसुधामपाहरत् ॥",
+          transliteration: "gopyastu kṛṣṇeti vilapya vihvalāḥ\nrathasya mārgaṁ śucibāṣpapūritāḥ |\nnirudhya tasthurvi kalākulendriyāḥ\nvrajaukasāṁ netrasud hāmapāharat ||",
+          translation: "The Gopis, weeping aloud 'Krishna! Krishna!' and overwhelmed with anguish, stood blocking the path of the chariot, their eyes flooded with pure tears and their senses completely agitated. You were taking away the nectar of the eyes of all the people of Vraja.",
+          commentary: "The Gopis' reaction to Krishna's departure is among the most poignant passages in devotional literature. Their attempt to physically block the chariot expresses the desperate intensity of their love. The phrase netra-sudha (nectar of the eyes) is a beautiful metaphor — Krishna was the only sight that nourished and sustained the residents of Vraja. His departure was not merely a physical absence but a removal of the very sustenance of their existence. This scene echoes Bhagavatam 10.39.19-24.",
+          words: [
+            { word: "गोप्यः", transliteration: "gopyaḥ", meaning: "the Gopis (cowherd women)" },
+            { word: "विलप्य", transliteration: "vilapya", meaning: "having lamented, having cried out" },
+            { word: "विह्वलाः", transliteration: "vihvalāḥ", meaning: "overwhelmed, distressed" },
+            { word: "बाष्पपूरिताः", transliteration: "bāṣpapūritāḥ", meaning: "filled with tears" },
+            { word: "निरुध्य", transliteration: "nirudhya", meaning: "blocking, obstructing" },
+            { word: "विकलाकुलेन्द्रियाः", transliteration: "vikalākulendriyāḥ", meaning: "with agitated and disordered senses" },
+            { word: "नेत्रसुधाम्", transliteration: "netrusudhām", meaning: "the nectar of the eyes" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 3,
+          devanagari: "प्रयाहि कृष्णेत्यबला वदन्ति मा\nप्रयाहि कृष्णेति पुनर्वदन्ति ताः ।\nत्वयि प्रयाते किमु जीवनं भवेत्\nइतीव सर्वा विललाप गोपिकाः ॥",
+          transliteration: "prayāhi kṛṣṇetyabalā vadanti mā\nprayāhi kṛṣṇeti punarvadanti tāḥ |\ntvayi prayāte kimu jīvanaṁ bhavet\nitīva sarvā vilalāpa gopikāḥ ||",
+          translation: "The women said, 'Go, Krishna!' and then again cried, 'Do not go, Krishna!' They lamented, 'If You depart, what will become of our very lives?' — thus all the Gopis wept bitterly.",
+          commentary: "This verse captures the Gopis' agonizing inner conflict with devastating simplicity. The contradictory commands — 'Go!' (prayahi) and 'Do not go!' (ma prayahi) — reveal hearts torn between selfless love that wishes Krishna well and the unbearable pain of separation. The rhetorical question 'What will our lives be?' (kimu jivanam bhavet) is not merely poetic — in the Bhagavata theology, the Gopis literally could not conceive of existence without Krishna, for He was the very atman of their being.",
+          words: [
+            { word: "प्रयाहि", transliteration: "prayāhi", meaning: "go forth, depart" },
+            { word: "अबलाः", transliteration: "abalāḥ", meaning: "the women, the delicate ones" },
+            { word: "मा", transliteration: "mā", meaning: "do not" },
+            { word: "जीवनम्", transliteration: "jīvanam", meaning: "life, existence" },
+            { word: "भवेत्", transliteration: "bhavet", meaning: "would become, would be" },
+            { word: "विललाप", transliteration: "vilalāpa", meaning: "lamented bitterly" },
+            { word: "गोपिकाः", transliteration: "gopikāḥ", meaning: "the Gopis" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 4,
+          devanagari: "त्वमाश्वसन् गोपवधूजनं तथा\nप्रतिज्ञया पुनरागमिष्ये इति ।\nसमर्प्य तासामुपशान्तिकारणं\nप्रतस्थिषे राममुखस्सखीवृतः ॥",
+          transliteration: "tvamāśvasan gopavadhūjanaṁ tathā\npratijñayā punarāgamiṣye iti |\nsamarpya tāsāmupaśāntikāraṇaṁ\npratasthiṣe rāmamukhassakhīvṛtaḥ ||",
+          translation: "You consoled the cowherd women with the promise 'I shall return.' Offering them this cause for solace, You set forth, accompanied by Balarama and surrounded by friends.",
+          commentary: "Krishna's compassionate nature is highlighted here — even as He departed for His destined mission in Mathura, He did not abandon the Gopis to despair. He gave them a promise of return (punar-agamishye) to sustain them through the coming separation. In Bhagavatam 10.39.35, Krishna later sent Uddhava with a deeper philosophical message, but here the immediate reassurance shows His tender concern. The word upashanti-karanam (cause of peace) suggests that Krishna's words alone had the power to sustain them through the viraha (separation).",
+          words: [
+            { word: "आश्वसन्", transliteration: "āśvasan", meaning: "consoling, reassuring" },
+            { word: "गोपवधूजनम्", transliteration: "gopavadhūjanam", meaning: "the cowherd women" },
+            { word: "प्रतिज्ञया", transliteration: "pratijñayā", meaning: "with a promise" },
+            { word: "पुनरागमिष्ये", transliteration: "punarāgamiṣye", meaning: "I shall return" },
+            { word: "उपशान्ति", transliteration: "upaśānti", meaning: "peace, consolation" },
+            { word: "प्रतस्थिषे", transliteration: "pratasthiṣe", meaning: "You set forth, departed" },
+            { word: "सखीवृतः", transliteration: "sakhīvṛtaḥ", meaning: "surrounded by friends" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 5,
+          devanagari: "अक्रूरतीर्थे यमुनाजलान्तरे\nभवन्तमक्रूर उदैक्षताद्भुतम् ।\nशेषाङ्कशायीनमनन्तभूषणं\nस्तुवन् प्रमोदात् पुलकाञ्चितो भवन् ॥",
+          transliteration: "akrūratīrthe yamunājalāntare\nbhavantamakrūra udaikṣatādbhutam |\nśeṣāṅkaśāyīnamanantabhūṣaṇaṁ\nstuvan pramodāt pulakāñcito bhavan ||",
+          translation: "At Akrura's bathing ghat, within the waters of the Yamuna, Akrura beheld Your wondrous form — reclining on Shesha with infinite ornaments. Overcome with ecstasy, his body thrilling with horripilation, he offered praises.",
+          commentary: "This verse recounts the remarkable vision granted to Akrura during the journey (Bhagavatam 10.39.44-57). When Akrura entered the Yamuna to perform his ritual ablutions, he was granted a vision of Vishnu's cosmic form reclining on the serpent Ananta-Shesha. This theophany confirmed to Akrura that the cowherd boy he was escorting was none other than the Supreme Lord Himself. The word pulakanchita (thrilling with horripilation) describes the sattvika-bhava, the physical manifestation of supreme devotional ecstasy.",
+          words: [
+            { word: "अक्रूरतीर्थे", transliteration: "akrūratīrthe", meaning: "at Akrura's bathing place" },
+            { word: "यमुनाजलान्तरे", transliteration: "yamunājalāntare", meaning: "within the waters of the Yamuna" },
+            { word: "उदैक्षत", transliteration: "udaikṣata", meaning: "beheld, saw" },
+            { word: "शेषाङ्कशायीनम्", transliteration: "śeṣāṅkaśāyīnam", meaning: "reclining on the lap of Shesha" },
+            { word: "अनन्तभूषणम्", transliteration: "anantabhūṣaṇam", meaning: "with infinite ornaments" },
+            { word: "स्तुवन्", transliteration: "stuvan", meaning: "praising, offering hymns" },
+            { word: "पुलकाञ्चितः", transliteration: "pulakāñcitaḥ", meaning: "with horripilation, thrilled" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 6,
+          devanagari: "रजकं तमेकं कुटिलं निहत्य यो\nन दत्तवान् वाससि कंसभोजने ।\nसुदाम्ने मालाकृते ददौ वरं\nभवान् कृपालुर्मणिमालिकान्वितः ॥",
+          transliteration: "rajakaṁ tamekaṁ kuṭilaṁ nihatya yo\nna dattavān vāsasi kaṁsabhojane |\nsudāmne mālākṛte dadau varaṁ\nbhavān kṛpālurmaṇimālikānvitaḥ ||",
+          translation: "You struck down the wicked washerman who refused to give You garments meant for Kamsa's use. Then, O compassionate one, adorned with gem-necklaces, You granted a boon to the garland-maker Sudama who lovingly offered You garlands.",
+          commentary: "This verse contrasts two encounters in Mathura that reveal the consequences of one's attitude toward the Lord. The washerman (rajaka), arrogant with Kamsa's patronage, refused to offer garments to Krishna and Balarama, and was killed for his insolence — representing the fate of those who cling to worldly power. In contrast, the garland-maker Sudama (different from Krishna's brahmana friend) joyfully offered his best garlands and received divine blessings. This duality of punishment and grace is a recurring theme in Krishna-lila (Bhagavatam 10.41.1-51).",
+          words: [
+            { word: "रजकम्", transliteration: "rajakam", meaning: "the washerman" },
+            { word: "कुटिलम्", transliteration: "kuṭilam", meaning: "wicked, crooked" },
+            { word: "निहत्य", transliteration: "nihatya", meaning: "having struck down, killed" },
+            { word: "वाससि", transliteration: "vāsasi", meaning: "garments, clothes" },
+            { word: "मालाकृते", transliteration: "mālākṛte", meaning: "to the garland-maker" },
+            { word: "वरम्", transliteration: "varam", meaning: "a boon, blessing" },
+            { word: "कृपालुः", transliteration: "kṛpāluḥ", meaning: "the compassionate one" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 7,
+          devanagari: "कुब्जां ततो वक्रतनुं समागतां\nगन्धोपलेपार्थमुपस्थितां मुदा ।\nप्रसाद्य तत्कुब्जतनुं समुज्ज्वलां\nचकर्थ सद्यस्तनुवक्रतामपि ॥",
+          transliteration: "kubjāṁ tato vakratanuṁ samāgatāṁ\ngandhopale pārthamupasthitāṁ mudā |\nprasādya tatkubjatanuṁ samujjvalāṁ\ncakartha sadyastanuvakratāmapi ||",
+          translation: "Then You encountered the hunchbacked woman Kubja, who had come joyfully to offer You fragrant sandalwood paste. Pleased with her, You instantly straightened her bent form and made her radiantly beautiful, removing even the slightest crookedness of her body.",
+          commentary: "The Kubja episode (Bhagavatam 10.42.1-12) is rich with symbolism. Kubja, Kamsa's servant responsible for preparing sandal paste, was physically deformed with three bends in her body. When she offered her ointments to Krishna with devotion, He placed His foot on hers and lifted her chin, transforming her into a beautiful woman. Allegorically, the three bends represent the three afflictions (adhyatmika, adhibhautika, adhidaivika) or the three gunas that distort the soul. Krishna's grace straightens all spiritual deformity.",
+          words: [
+            { word: "कुब्जाम्", transliteration: "kubjām", meaning: "the hunchbacked woman (Kubja/Trivakra)" },
+            { word: "वक्रतनुम्", transliteration: "vakratanum", meaning: "of bent/crooked body" },
+            { word: "गन्धोपलेप", transliteration: "gandhopalep a", meaning: "application of fragrant paste" },
+            { word: "प्रसाद्य", transliteration: "prasādya", meaning: "having pleased, having been gracious to" },
+            { word: "समुज्ज्वलाम्", transliteration: "samujjvalām", meaning: "radiant, beautiful" },
+            { word: "चकर्थ", transliteration: "cakartha", meaning: "You made, You accomplished" },
+            { word: "वक्रताम्", transliteration: "vakratām", meaning: "crookedness, deformity" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 8,
+          devanagari: "ततो भवान् सानुजसेवितो जनैः\nपुरीजनानन्दकरो विचेष्टितैः ।\nमथुरापुरीं सम्यगवाप्य सायकं\nमहेषुचापं समवैक्षथा मुदा ॥",
+          transliteration: "tato bhavān sānujasevito janaiḥ\npurījanānandakaro viceṣṭitaiḥ |\nmathurāpurīṁ samyagavāpya sāyakaṁ\nmaheṣucāpaṁ samavaikṣathā mudā ||",
+          translation: "Then You, attended by Your brother and the people, delighting the citizens of the city with Your exploits, entered Mathura fully and beheld the great sacrificial bow with delight.",
+          commentary: "This verse transitions to the scene of the dhanuryaga (bow-sacrifice) that Kamsa had organized. The great bow (maheshu-chapa) was a massive weapon kept for the sacrificial ceremony, supposedly so heavy that no ordinary person could even move it. The word purijanandakara (delighter of citizens) emphasizes that Krishna's very presence transformed the mood of an entire city oppressed by Kamsa's tyranny. The citizens, seeing the two radiantly beautiful brothers walking through their streets, felt a spontaneous joy they had not known in years.",
+          words: [
+            { word: "सानुज", transliteration: "sānuja", meaning: "along with His brother" },
+            { word: "पुरीजन", transliteration: "purījana", meaning: "citizens of the city" },
+            { word: "आनन्दकरः", transliteration: "ānandakaraḥ", meaning: "causing joy, delighter" },
+            { word: "विचेष्टितैः", transliteration: "viceṣṭitaiḥ", meaning: "by exploits, activities" },
+            { word: "सायकम्", transliteration: "sāyakam", meaning: "the bow (with arrows)" },
+            { word: "महेषुचापम्", transliteration: "maheṣucāpam", meaning: "the great sacrificial bow" },
+            { word: "समवैक्षथाः", transliteration: "samavaikṣathāḥ", meaning: "You beheld, gazed upon" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 9,
+          devanagari: "तद्धन्वगृहे धनुरुद्यतं त्वया\nसलीलमारोप्य शरं विकृष्य च ।\nभग्नं महत्तद्धनुरुग्रनिस्वनं\nचकार कंसं भयविह्वलं तदा ॥",
+          transliteration: "taddhanvagṛhe dhanurudyataṁ tvayā\nsalīlamāropya śaraṁ vikṛṣya ca |\nbhagnaṁ mahattaddhanurugranissvanaṁ\ncakāra kaṁsaṁ bhayavihvalaṁ tadā ||",
+          translation: "In the hall of that bow, You playfully lifted the great bow, strung it and drew the arrow. As that enormous bow snapped with a terrifying sound, it rendered Kamsa paralyzed with fear.",
+          commentary: "The breaking of the sacrificial bow (Bhagavatam 10.42.17-18) was the first direct act of defiance against Kamsa's authority. The word salilam (playfully) is significant — what was impossible for ordinary warriors, Krishna accomplished as mere sport. The thunderous sound (ugra-nisvana) of the breaking bow reverberated through Mathura like a declaration of war. For Kamsa, who had been haunted by the prophecy of his death at Krishna's hands, this sound was the knell of doom. The word bhaya-vihvala (paralyzed with fear) marks the beginning of Kamsa's psychological unraveling.",
+          words: [
+            { word: "धन्वगृहे", transliteration: "dhanvagṛhe", meaning: "in the hall of the bow" },
+            { word: "धनुः", transliteration: "dhanuḥ", meaning: "the bow" },
+            { word: "सलीलम्", transliteration: "salīlam", meaning: "playfully, effortlessly" },
+            { word: "आरोप्य", transliteration: "āropya", meaning: "having strung, mounted" },
+            { word: "विकृष्य", transliteration: "vikṛṣya", meaning: "having drawn (the string)" },
+            { word: "भग्नम्", transliteration: "bhagnam", meaning: "broken, shattered" },
+            { word: "उग्रनिस्वनम्", transliteration: "ugranisvanam", meaning: "with a terrible sound" },
+            { word: "भयविह्वलम्", transliteration: "bhayavihvalam", meaning: "paralyzed with fear" }
+          ]
+        },
+        {
+          dashaka: 57,
+          sloka: 10,
+          devanagari: "भवन्तमेवं मथुरापुरीगतं\nसमीक्ष्य कंसो भयकम्पिताशयः ।\nन शर्म लेभे दिवसे निशासु च\nमरुत्पुरेश प्रणुदस्व मे गदान् ॥",
+          transliteration: "bhavantamevaṁ mathurāpurīgataṁ\nsamīkṣya kaṁso bhayakampitāśayaḥ |\nna śarma lebhe divase niśāsu ca\nmarutpureśa praṇudasva me gadān ||",
+          translation: "Seeing You thus arrived in Mathura, Kamsa, his heart trembling with fear, found no peace by day or by night. O Lord of Guruvayur, drive away my ailments!",
+          commentary: "The closing verse follows the Narayaneeyam tradition of ending with a prayer to Guruvayurappan. Kamsa's sleepless terror (na sharma lebhe — he found no peace) forms a powerful contrast with the devotee's faith: while the tyrant trembled in fear at Krishna's approach, the devotee welcomes the Lord's nearness as the cure for all suffering. The word bhaya-kampita-ashaya (heart trembling with fear) recalls the prophecy that haunted Kamsa since Devaki's marriage. Bhattathiri's personal prayer (pranudhasva me gadan — drive away my diseases) links Kamsa's spiritual malady of tyranny to the poet's physical ailment, both curable only by the Lord of Guruvayur.",
+          words: [
+            { word: "मथुरापुरीगतम्", transliteration: "mathurāpurīgatam", meaning: "arrived in Mathura" },
+            { word: "समीक्ष्य", transliteration: "samīkṣya", meaning: "seeing, beholding" },
+            { word: "भयकम्पित", transliteration: "bhayakampita", meaning: "trembling with fear" },
+            { word: "आशयः", transliteration: "āśayaḥ", meaning: "heart, mind" },
+            { word: "शर्म", transliteration: "śarma", meaning: "peace, comfort" },
+            { word: "निशासु", transliteration: "niśāsu", meaning: "during the nights" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "O Lord of Guruvayur" },
+            { word: "गदान्", transliteration: "gadān", meaning: "diseases, ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 58,
@@ -11184,7 +12395,181 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates the dramatic events in Kamsa's arena: Krishna breaking the great bow, subduing the mighty elephant Kuvalayapida, defeating the wrestlers Chanura and Mushtika, and finally slaying the tyrant Kamsa.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 58,
+          sloka: 1,
+          devanagari: "ततो भवान् सानुज उत्तमोत्सवे\nसमागतो रङ्गशिरो महत्तरे ।\nद्वारेण कंसप्रहितं गजं महा-\nकुवलयापीडमपश्यदुन्मुखम् ॥",
+          transliteration: "tato bhavān sānuja uttamotsave\nsamāgato raṅgaśiro mahattare |\ndvāreṇa kaṁsaprahitaṁ gajaṁ mahā-\nkuvalayāpīḍamapaśyadunmukham ||",
+          translation: "Then You, along with Your brother, arrived at the great arena for the grand festival, and at the gateway You beheld the mighty elephant Kuvalayapida, sent by Kamsa, standing with its face turned menacingly toward You.",
+          commentary: "This verse opens the dramatic arena sequence from Bhagavatam 10.43. Kamsa's desperate plan involved multiple layers of treachery: first the mad elephant Kuvalayapida at the gate, then the professional wrestlers inside, and if all else failed, his own soldiers. The word rangashira (arena, literally 'head of the stage') evokes the theatrical quality of the entire episode — it was indeed a divine drama with Kamsa as the doomed antagonist. The elephant's positioning at the entrance (dvarena) was strategic — Krishna would have to face it before even entering.",
+          words: [
+            { word: "रङ्गशिरः", transliteration: "raṅgaśiraḥ", meaning: "the arena, amphitheatre" },
+            { word: "उत्तमोत्सवे", transliteration: "uttamotsave", meaning: "at the grand festival" },
+            { word: "कंसप्रहितम्", transliteration: "kaṁsaprahitam", meaning: "sent by Kamsa" },
+            { word: "गजम्", transliteration: "gajam", meaning: "elephant" },
+            { word: "कुवलयापीडम्", transliteration: "kuvalayāpīḍam", meaning: "Kuvalayapida (name of the elephant)" },
+            { word: "उन्मुखम्", transliteration: "unmukham", meaning: "facing toward, menacing" },
+            { word: "द्वारेण", transliteration: "dvāreṇa", meaning: "at the gate, entrance" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 2,
+          devanagari: "समीपगं त्वां स गजो निपात्य तां\nमहाशुण्डया करशुण्डयोर्ग्रहम् ।\nचकार दृप्तः प्रबलं निषेव्य तं\nत्वमन्तरे तस्य गतो विलीलया ॥",
+          transliteration: "samīpagaṁ tvāṁ sa gajo nipātya tāṁ\nmahāśuṇḍayā karaśuṇḍayorgraham |\ncakāra dṛptaḥ prabalaṁ niṣevya taṁ\ntvamantare tasya gato vilīlayā ||",
+          translation: "As You approached, the proud elephant seized You with its mighty trunk in a powerful grip. But You slipped between its legs effortlessly, as if in play.",
+          commentary: "The confrontation with Kuvalayapida (Bhagavatam 10.43.1-14) showcases Krishna's agility against brute strength. The elephant, maddened by its keeper and trained to kill, attacked with full force using its trunk (kara-shundayoh). Yet Krishna, described as moving 'in play' (vililaya), treated this life-threatening encounter as sport. The image of the young cowherd boy slipping between the massive legs of a war elephant is both visually dramatic and theologically significant — the Supreme Lord is untouchable by any material force.",
+          words: [
+            { word: "समीपगम्", transliteration: "samīpagam", meaning: "approaching, coming near" },
+            { word: "गजः", transliteration: "gajaḥ", meaning: "the elephant" },
+            { word: "करशुण्डयोः", transliteration: "karaśuṇḍayoḥ", meaning: "with trunk and tusks" },
+            { word: "दृप्तः", transliteration: "dṛptaḥ", meaning: "proud, maddened" },
+            { word: "प्रबलम्", transliteration: "prabalam", meaning: "powerful, forceful" },
+            { word: "अन्तरे", transliteration: "antare", meaning: "between, underneath" },
+            { word: "विलीलया", transliteration: "vilīlayā", meaning: "playfully, as if in sport" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 3,
+          devanagari: "निपात्य भूमौ बलपूर्वमुद्धृतं\nसमुत्थितं पुच्छविकर्षणेन तम् ।\nविहत्य दन्तावुभयत्र दन्तिनं\nजघान दन्तेन तदीयभूषणः ॥",
+          transliteration: "nipātya bhūmau balapūrvamuddhṛtaṁ\nsamutthitaṁ pucchavikarsaṇena tam |\nvihatya dantāvubhayatra dantinaṁ\njaghāna dantena tadīyabhūṣaṇaḥ ||",
+          translation: "You hurled the elephant to the ground with great force, and when it rose again, You dragged it by the tail. Wrenching out both its tusks, You slew the tusked beast and adorned Yourself with its tusk as an ornament.",
+          commentary: "The killing of Kuvalayapida is depicted with visceral power. The sequence — hurling it down (nipatya bhumau), dragging by the tail (puccha-vikarshana), extracting the tusks (dantav vihatya), and finally killing it with its own tusk — shows Krishna's complete dominance. The detail of Krishna wearing the elephant's tusk as an ornament (tadiya-bhushana) as He entered the arena is memorable: He walked in splattered with the elephant's blood, carrying its tusk, looking like a dark cloud adorned with a rainbow. This terrifying beauty is described vividly in Bhagavatam 10.43.17.",
+          words: [
+            { word: "निपात्य", transliteration: "nipātya", meaning: "having thrown down" },
+            { word: "बलपूर्वम्", transliteration: "balapūrvam", meaning: "with great force" },
+            { word: "पुच्छविकर्षणेन", transliteration: "pucchavikarsaṇena", meaning: "by dragging the tail" },
+            { word: "दन्तौ", transliteration: "dantau", meaning: "the two tusks" },
+            { word: "दन्तिनम्", transliteration: "dantinam", meaning: "the tusked one (elephant)" },
+            { word: "जघान", transliteration: "jaghāna", meaning: "slew, killed" },
+            { word: "भूषणः", transliteration: "bhūṣaṇaḥ", meaning: "adorned, wearing as ornament" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 4,
+          devanagari: "ततो महारङ्गमुपागतो भवान्\nगजासृगालिप्तसुकायशोभनः ।\nसमस्तलोकैः परिवीक्षितो मुदा\nननन्द कंसस्तु ममार भीतिभिः ॥",
+          transliteration: "tato mahāraṅgamupāgato bhavān\ngajāsṛgāliptasukāyaśobhanaḥ |\nsamastalokaiḥ parivīkṣito mudā\nnananda kaṁsastu mamāra bhītibhiḥ ||",
+          translation: "Then You entered the great arena, Your beautiful body smeared with the elephant's blood, looking resplendent. While all the spectators gazed with delight, Kamsa alone was dying of fear.",
+          commentary: "This verse captures the dramatic moment of Krishna's arena entry (Bhagavatam 10.43.17). The contrast is masterful: the same sight that delighted the audience (nananda — rejoiced) killed Kamsa with terror (mamara bhitibhih — died of fear). The compound gajasrug-alipta (smeared with elephant blood) creates a fierce, warrior image that is simultaneously beautiful (sukaya-shobhana). Different spectators saw Krishna differently according to Bhagavatam 10.43.17 — the wrestlers saw him as lightning, the citizens as the best of men, the women as the god of love. Kamsa alone saw Death.",
+          words: [
+            { word: "महारङ्गम्", transliteration: "mahāraṅgam", meaning: "the great arena" },
+            { word: "गजासृग्", transliteration: "gajāsṛg", meaning: "elephant's blood" },
+            { word: "आलिप्त", transliteration: "ālipta", meaning: "smeared, anointed" },
+            { word: "शोभनः", transliteration: "śobhanaḥ", meaning: "resplendent, beautiful" },
+            { word: "परिवीक्षितः", transliteration: "parivīkṣitaḥ", meaning: "beheld by all, gazed upon" },
+            { word: "ननन्द", transliteration: "nananda", meaning: "rejoiced, delighted" },
+            { word: "ममार", transliteration: "mamāra", meaning: "died (figuratively)" },
+            { word: "भीतिभिः", transliteration: "bhītibhiḥ", meaning: "from fears" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 5,
+          devanagari: "चाणूरनामा तु महामलः समं\nत्वया समेत्य प्रजहार मुष्टिभिः ।\nत्वमप्यमुं तं प्रतिहत्य मुष्टिभिः\nबभ्राम रङ्गे परिगृह्य वीर्यवान् ॥",
+          transliteration: "cāṇūranāmā tu mahāmalaḥ samaṁ\ntvayā sametya prajahāra muṣṭibhiḥ |\ntvamapyamuṁ taṁ pratihatya muṣṭibhiḥ\nbabhrāma raṅge parigṛhya vīryavān ||",
+          translation: "The great wrestler named Chanura came forward and attacked You with his fists. You too struck him back with Your fists, and grappling with him, You moved powerfully across the arena.",
+          commentary: "The wrestling match between Krishna and Chanura (Bhagavatam 10.44.1-20) was the centerpiece of Kamsa's murderous plan. Chanura was the most formidable wrestler in Kamsa's service, a veteran champion. The match seemed grotesquely unfair — a professional killer against a teenage cowherd boy. Yet the Bhagavatam tells us that the spectators who protested this mismatch did not understand that they were watching the Supreme Lord in human guise. The term mahamala (great wrestler) for Chanura contrasts with viryavan (the truly mighty one) for Krishna.",
+          words: [
+            { word: "चाणूर", transliteration: "cāṇūra", meaning: "Chanura (Kamsa's chief wrestler)" },
+            { word: "महामलः", transliteration: "mahāmalaḥ", meaning: "great wrestler" },
+            { word: "प्रजहार", transliteration: "prajahāra", meaning: "attacked, struck" },
+            { word: "मुष्टिभिः", transliteration: "muṣṭibhiḥ", meaning: "with fists" },
+            { word: "प्रतिहत्य", transliteration: "pratihatya", meaning: "striking back, countering" },
+            { word: "परिगृह्य", transliteration: "parigṛhya", meaning: "grappling, seizing" },
+            { word: "वीर्यवान्", transliteration: "vīryavān", meaning: "the mighty one, full of valor" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 6,
+          devanagari: "भ्रामं भ्रामं पिष्टवदेनमुत्क्षिपन्\nभूमौ निपात्यास्य शिरो व्यचूर्णयत् ।\nमुष्टिकं चापि रणे हलायुधो\nजघान पादप्रहृतिर्निपातयन् ॥",
+          transliteration: "bhrāmaṁ bhrāmaṁ piṣṭavadenamukṣipan\nbhūmau nipātyāsya śiro vyacūrṇayat |\nmuṣṭikaṁ cāpi raṇe halāyudho\njaghāna pādaprahṛtirnipātayan ||",
+          translation: "Whirling him round and round and tossing him like ground flour, You hurled him to the earth and crushed his head. Meanwhile, Balarama the wielder of the plough struck down Mushtika in battle with kicks that felled him.",
+          commentary: "The death of Chanura is described with graphic intensity. The compound bhramam bhramam (whirling repeatedly) evokes the image of Krishna spinning the massive wrestler as if he were a toy. The simile pishtavat (like flour being ground) emphasizes the complete reduction of Chanura's resistance. Meanwhile, Balarama (Halayudha — wielder of the plough) dispatched Mushtika, another champion wrestler. The parallel victories of the two brothers against Kamsa's two best fighters demolished the tyrant's last line of defense before the final confrontation.",
+          words: [
+            { word: "भ्रामम्", transliteration: "bhrāmam", meaning: "whirling, spinning" },
+            { word: "पिष्टवत्", transliteration: "piṣṭavat", meaning: "like flour, like something ground" },
+            { word: "उत्क्षिपन्", transliteration: "utkṣipan", meaning: "tossing up, hurling" },
+            { word: "व्यचूर्णयत्", transliteration: "vyacūrṇayat", meaning: "crushed, pulverized" },
+            { word: "मुष्टिकम्", transliteration: "muṣṭikam", meaning: "Mushtika (another wrestler)" },
+            { word: "हलायुधः", transliteration: "halāyudhaḥ", meaning: "Balarama (wielder of the plough)" },
+            { word: "पादप्रहृतिः", transliteration: "pādaprahṛtiḥ", meaning: "with kicks, blows of the feet" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 7,
+          devanagari: "हतौ मलौ कंसभटांश्च सर्वतो\nविद्राव्य रङ्गे जय जयेति वादिते ।\nजने समस्ते भवदुत्सवोत्सुके\nततो भवान् कंसमुदैक्षतोग्रधीः ॥",
+          transliteration: "hatau malau kaṁsabhaṭāṁśca sarvato\nvidrāvya raṅge jaya jayeti vādite |\njane samaste bhavadutsavotsuke\ntato bhavān kaṁsamudaikṣatogradhīḥ ||",
+          translation: "With both wrestlers slain and Kamsa's soldiers routed in all directions, as 'Victory! Victory!' resounded in the arena and all the people were eager to celebrate You, then You turned Your fierce gaze upon Kamsa.",
+          commentary: "This pivotal verse marks the moment before the climactic killing. The arena erupts in victory cries (jaya jaya) as the spectators, long oppressed by Kamsa's tyranny, finally see their liberator triumph. The word ugra-dhi (fierce-minded, with wrathful resolve) describes Krishna's disposition as He turned toward Kamsa — a rare glimpse of the Lord's terrible aspect. Throughout the Vraja-lila, Krishna is playful and tender; here, as the instrument of cosmic justice, He assumes the gravity befitting the executioner of a tyrant who had imprisoned his own parents and terrorized the righteous.",
+          words: [
+            { word: "हतौ", transliteration: "hatau", meaning: "both slain" },
+            { word: "मलौ", transliteration: "malau", meaning: "the two wrestlers" },
+            { word: "भटान्", transliteration: "bhaṭān", meaning: "soldiers" },
+            { word: "विद्राव्य", transliteration: "vidrāvya", meaning: "having routed, scattered" },
+            { word: "जय", transliteration: "jaya", meaning: "victory" },
+            { word: "उत्सवोत्सुके", transliteration: "utsavotsuke", meaning: "eager for celebration" },
+            { word: "उदैक्षत", transliteration: "udaikṣata", meaning: "looked up at, turned gaze toward" },
+            { word: "उग्रधीः", transliteration: "ugradhīḥ", meaning: "fierce-minded, wrathful" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 8,
+          devanagari: "समुत्पतन् मञ्चतलात् तमाचलं\nसमाक्रमन् कंसमजस्रमुद्धतम् ।\nगृहीत्वा केशेषु विचित्रकुण्डलं\nन्यपातयन्मञ्चतलादवानिपम् ॥",
+          transliteration: "samutpatan mañcatalāt tamācalaṁ\nsamākraman kaṁsamajasramud dhatam |\ngṛhītvā keśeṣu vicitrakuṇḍalaṁ\nnyapātayanmañcatalādavānipam ||",
+          translation: "Leaping up onto the royal dais, You assailed the ever-arrogant Kamsa. Seizing him by his hair adorned with brilliant earrings, You hurled the king down from the platform to the ground.",
+          commentary: "The climactic moment of Kamsa-vadha is narrated in Bhagavatam 10.44.34-38. Krishna's leap onto the royal platform (mancha-tala) was a dramatic act — crossing the boundary between the arena floor and the royal box, between the role of contestant and that of divine executioner. Seizing Kamsa by the hair (keshesu) with its ornamental earrings (vichitra-kundala) was both a warrior's act and a symbolic dethroning. The word ajasram-uddhata (perpetually arrogant) encapsulates Kamsa's defining quality — his unbroken pride that persisted until this very moment.",
+          words: [
+            { word: "समुत्पतन्", transliteration: "samutpatan", meaning: "leaping up" },
+            { word: "मञ्चतलात्", transliteration: "mañcatalāt", meaning: "from the royal platform/dais" },
+            { word: "समाक्रमन्", transliteration: "samākraman", meaning: "attacking, assailing" },
+            { word: "अजस्रम्", transliteration: "ajasram", meaning: "perpetually, ceaselessly" },
+            { word: "उद्धतम्", transliteration: "ud dhatam", meaning: "arrogant, haughty" },
+            { word: "केशेषु", transliteration: "keśeṣu", meaning: "by the hair" },
+            { word: "न्यपातयत्", transliteration: "nyapātayat", meaning: "hurled down, cast down" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 9,
+          devanagari: "तस्योपरि त्वं समधिष्ठितो बलात्\nजगत्त्रयीनाथ इतीव दर्शयन् ।\nसमस्तलोकार्तिकरं निपात्य तं\nप्राणान् ममर्दानयदुग्रविक्रमम् ॥",
+          transliteration: "tasyopari tvaṁ samadhiṣṭhito balāt\njagattrayīnātha itīva darśayan |\nsamastalokārttikaraṁ nipātya taṁ\nprāṇān mamardānayadugravikramam ||",
+          translation: "You mounted upon him with force, as if demonstrating that You are the Lord of all three worlds. Pressing down upon that tormentor of all people, You crushed the life out of him with fierce valor.",
+          commentary: "Krishna's mounting of the fallen Kamsa (Bhagavatam 10.44.38) is laden with cosmic symbolism. The phrase jagat-trayi-natha (Lord of the three worlds) elevates this from a mere wrestling victory to a divine assertion of sovereignty — Vishnu trampling adharma. Kamsa, described as samasta-loka-arti-kara (causer of suffering to all people), represents not just a political tyrant but the principle of demonic oppression itself. His death by being crushed under the Lord's weight mirrors the Vamana-Bali dynamic — the Supreme stepping upon the ego of the powerful. The word ugra-vikrama (fierce valor) echoes Vishnu's ancient epithet.",
+          words: [
+            { word: "समधिष्ठितः", transliteration: "samadhiṣṭhitaḥ", meaning: "mounted upon, seated on" },
+            { word: "जगत्त्रयी", transliteration: "jagattrayī", meaning: "the three worlds" },
+            { word: "नाथः", transliteration: "nāthaḥ", meaning: "Lord, master" },
+            { word: "लोकार्तिकरम्", transliteration: "lokārtikaram", meaning: "causer of suffering to people" },
+            { word: "प्राणान्", transliteration: "prāṇān", meaning: "life-breaths, life" },
+            { word: "ममर्द", transliteration: "mamarda", meaning: "crushed, pressed to death" },
+            { word: "उग्रविक्रमम्", transliteration: "ugravikramam", meaning: "of fierce valor" }
+          ]
+        },
+        {
+          dashaka: 58,
+          sloka: 10,
+          devanagari: "हते ततो भोजपतौ दुरात्मनि\nसमस्तलोकोत्सवसम्भ्रमोऽभवत् ।\nपितरौ विमुक्तौ करबन्धनाद्भवान्\nमरुत्पुरेशाखिलरोगमुक्तये ॥",
+          transliteration: "hate tato bhojapataau durātmani\nsamastalok otsavasambhramo'bhavat |\npitarau vimuktau karabandhanādbhavān\nmarutpureśākhilarogamuktaye ||",
+          translation: "When the evil king of the Bhojas was thus slain, universal celebration and rejoicing broke out. Your parents were freed from their chains of bondage. O Lord of Guruvayur, grant me freedom from all ailments!",
+          commentary: "The concluding verse celebrates the aftermath of Kamsa's death and follows the Narayaneeyam tradition of ending with a healing prayer. Kamsa is called Bhojapati (king of the Bhojas) and duratman (evil-souled). His death triggered universal jubilation (samasta-loka-utsava). The most poignant detail is the freeing of Vasudeva and Devaki from their prison chains (kara-bandhana), reuniting them with their son after years of separation. Bhattathiri draws a parallel between this liberation and his own prayer for release — just as Krishna freed His parents from physical bondage, the Lord of Guruvayur can free the devotee from the bondage of disease (akhila-roga-muktaye).",
+          words: [
+            { word: "भोजपतौ", transliteration: "bhojapataau", meaning: "the king of the Bhojas (Kamsa)" },
+            { word: "दुरात्मनि", transliteration: "durātmani", meaning: "the evil-souled one" },
+            { word: "उत्सवसम्भ्रमः", transliteration: "utsavasambhramaḥ", meaning: "celebration and rejoicing" },
+            { word: "पितरौ", transliteration: "pitarau", meaning: "the two parents (Vasudeva and Devaki)" },
+            { word: "करबन्धनात्", transliteration: "karabandhanāt", meaning: "from chains/bondage" },
+            { word: "विमुक्तौ", transliteration: "vimuktau", meaning: "freed, liberated" },
+            { word: "मरुत्पुरेश", transliteration: "marutpureśa", meaning: "O Lord of Guruvayur" },
+            { word: "अखिलरोगमुक्तये", transliteration: "akhilarogamuktaye", meaning: "for freedom from all ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 59,
