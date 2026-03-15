@@ -15914,7 +15914,184 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the gathering of the Yadavas and other clans at Kurukshetra during a solar eclipse, the joyous reunion of Krishna with the Gopis and Nanda, and the Gopis' supreme devotion.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 79,
+          sloka: 1,
+          devanagari: "सूर्यग्रहणसम्प्राप्तौ कुरुक्षेत्रं समन्ततः ।\nसमाजग्मुर्जनाः सर्वे धर्मतीर्थजिगीषवः ।\nस्नानदानजपासक्ताः पुण्यक्षेत्रनिवासिनः\nत्वद्भक्ताश्च विशेषेण मुक्तिकामा जनार्दन ॥",
+          transliteration: "sūryagrahaṇasamprāptau kurukṣetraṁ samantataḥ |\nsamājagmur janāḥ sarve dharmatīrthajigīṣavaḥ |\nsnānadānajapāsaktāḥ puṇyakṣetranivāsinaḥ\ntvad-bhaktāśca viśeṣeṇa muktikāmā janārdana ||",
+          translation: "When a solar eclipse occurred, people from all directions gathered at Kurukshetra, eager to visit the sacred pilgrimage site. Devoted to ritual bathing, charity, and prayer, and dwelling at that holy place, Your devotees especially, O Janardana, came seeking liberation.",
+          commentary: "The occasion of a solar eclipse was considered supremely auspicious for pilgrimage in Vedic tradition. Kurukshetra, sanctified by ancient sacrifices and cosmic significance, drew multitudes. Bhattathiri sets the scene for the grand reunion that follows.",
+          words: [
+            { word: "sūryagrahaṇa", meaning: "solar eclipse" },
+            { word: "kurukṣetram", meaning: "the field of the Kurus, sacred pilgrimage site" },
+            { word: "samājagmuḥ", meaning: "assembled, gathered together" },
+            { word: "dharmatīrtha", meaning: "sacred pilgrimage of righteousness" },
+            { word: "snānadānajapa", meaning: "bathing, charity, and chanting" },
+            { word: "puṇyakṣetra", meaning: "holy field, sacred site" },
+            { word: "muktikāmāḥ", meaning: "those desiring liberation" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 2,
+          devanagari: "यादवाः सपरीवारा बलभद्रपुरोगमाः ।\nत्वया सह विनिर्गत्य द्वारकायाः सुशोभनाः ।\nरथैर्गजैस्तुरङ्गैश्च सैन्यसम्भारशोभितैः\nकुरुक्षेत्रं समापेतुः सानुरागा जनार्दन ॥",
+          transliteration: "yādavāḥ saparīvārā balabhadrapurogamāḥ |\ntvayā saha vinirgatya dvārakāyāḥ suśobhanāḥ |\nrathair gajais turaṅgaiśca sainyasambhāraśobhitaiḥ\nkurukṣetraṁ samāpetuḥ sānurāgā janārdana ||",
+          translation: "The Yadavas, with their families, led by Balarama and accompanied by You, set out from splendid Dwaraka. With chariots, elephants, and horses, adorned with military splendor, they arrived at Kurukshetra with great affection, O Janardana.",
+          commentary: "The royal procession from Dwaraka is described in all its grandeur. The Yadava clan travels with full regalia, but the underlying mood is one of loving devotion (anuraga) rather than military might, setting the emotional tone for the reunion to come.",
+          words: [
+            { word: "yādavāḥ", meaning: "the Yadava clan" },
+            { word: "balabhadra-purogamāḥ", meaning: "led by Balarama" },
+            { word: "dvārakāyāḥ", meaning: "from Dwaraka" },
+            { word: "rathaiḥ", meaning: "with chariots" },
+            { word: "gajaiḥ", meaning: "with elephants" },
+            { word: "turaṅgaiḥ", meaning: "with horses" },
+            { word: "sānurāgāḥ", meaning: "with affection, with love" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 3,
+          devanagari: "नन्दगोपश्च गोप्यश्च व्रजवासिजनाश्च ये ।\nकुरुक्षेत्रं समायाताः त्वद्दर्शनसमुत्सुकाः ।\nचिरकालविरक्तानां सङ्गमो हृदयङ्गमः\nआनन्दबाष्पसम्पूर्णनयनाः प्रेमविह्वलाः ॥",
+          transliteration: "nandagopaśca gopyaśca vrajavāsijanāśca ye |\nkurukṣetraṁ samāyātāḥ tvad-darśana-samutsukāḥ |\ncirakāla-viraktānāṁ saṅgamo hṛdayaṅgamaḥ\nānandabāṣpa-sampūrṇa-nayanāḥ prema-vihvalāḥ ||",
+          translation: "Nanda the cowherd, the Gopis, and all the residents of Vraja arrived at Kurukshetra, eager for Your darshan. The reunion of those long separated was heart-touching; their eyes filled with tears of joy, they were overwhelmed with love.",
+          commentary: "The arrival of the Vraja-vasis introduces the emotional heart of this dashaka. The long separation since Krishna left Vrindavan as a child makes this meeting extraordinarily poignant. The tears of joy (ananda-bashpa) are a hallmark of the highest bhakti.",
+          words: [
+            { word: "nandagopaḥ", meaning: "Nanda the cowherd chief" },
+            { word: "gopyaḥ", meaning: "the Gopis, cowherd women" },
+            { word: "vrajavāsijanāḥ", meaning: "the residents of Vraja" },
+            { word: "tvad-darśana-samutsukāḥ", meaning: "eager for Your sight" },
+            { word: "cirakāla-viraktānām", meaning: "of those separated for a long time" },
+            { word: "hṛdayaṅgamaḥ", meaning: "heart-touching, deeply moving" },
+            { word: "ānandabāṣpa", meaning: "tears of joy" },
+            { word: "prema-vihvalāḥ", meaning: "overwhelmed with love" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 4,
+          devanagari: "वसुदेवश्च नन्दश्च परिष्वज्य परस्परम् ।\nस्मारयामासतुः पूर्वं बालविन्यासवृत्तकम् ।\nकंसभीत्या कृतं यत्तद्गोकुले बालरक्षणम्\nस्मृत्वा नेत्रजलं मुञ्चन् वसुदेवोऽब्रवीद्वचः ॥",
+          transliteration: "vasudevaśca nandaśca pariṣvajya parasparam |\nsmārayāmāsatuḥ pūrvaṁ bālavinyāsavṛttakam |\nkaṁsabhītyā kṛtaṁ yattadgokule bālarakṣaṇam\nsmṛtvā netrajalaṁ muñcan vasudevo'bravīd vacaḥ ||",
+          translation: "Vasudeva and Nanda embraced each other and recalled the earlier event of the exchange of babies. Remembering how the child was secretly protected in Gokula out of fear of Kamsa, Vasudeva shed tears and spoke these words.",
+          commentary: "This deeply moving scene recalls the night when Vasudeva carried the newborn Krishna across the Yamuna to Gokula and exchanged Him with Nanda's daughter. The two fathers, united by their shared secret and sacrifice, relive that momentous night with mingled joy and sorrow.",
+          words: [
+            { word: "vasudevaḥ", meaning: "Vasudeva, Krishna's father" },
+            { word: "nandaḥ", meaning: "Nanda, Krishna's foster father" },
+            { word: "pariṣvajya", meaning: "having embraced" },
+            { word: "bālavinyāsa", meaning: "the exchange of babies" },
+            { word: "kaṁsabhītyā", meaning: "out of fear of Kamsa" },
+            { word: "gokule", meaning: "in Gokula" },
+            { word: "bālarakṣaṇam", meaning: "protection of the child" },
+            { word: "netrajalam", meaning: "tears (water from the eyes)" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 5,
+          devanagari: "गोप्यस्त्वां वीक्ष्य दूरात्परमसुखघनं प्राणनाथं चिराय\nध्यातं हृत्पद्मकोशे विरहदहनतप्तेन चेतोविलासम् ।\nआलिङ्ग्य स्वान्तरात्मन्यखिलजगदभिज्ञं क्षणं निर्विकल्पाः\nतस्थुर्बाष्पाकुलाक्ष्यः प्रलयसुखरसं प्राप्य विश्वम्भरेश ॥",
+          transliteration: "gopyas tvāṁ vīkṣya dūrāt paramasukhaghanaṁ prāṇanāthaṁ cirāya\ndhyātaṁ hṛtpadmakośe virahādahanataptena cetovilāsam |\nāliṅgya svāntarātmany akhilajagadabhijñaṁ kṣaṇaṁ nirvikalpāḥ\ntasthur bāṣpākulākṣyaḥ pralayasukharasaṁ prāpya viśvambhareśa ||",
+          translation: "The Gopis, seeing You from afar -- the embodiment of supreme bliss, their Lord of life, long meditated upon in the lotus chamber of their hearts scorched by the fire of separation -- embracing You within their innermost soul, the knower of all worlds, stood for a moment in thought-free absorption, their eyes filled with tears, having attained the bliss of final dissolution, O Lord of the Universe.",
+          commentary: "This magnificent verse captures the Gopis' supreme ecstasy upon seeing Krishna. Their meditation during separation was so intense that the actual reunion produces a state akin to nirvikalpa samadhi. The phrase pralaya-sukha-rasa suggests that their joy was as total as cosmic dissolution, dissolving all duality.",
+          words: [
+            { word: "gopyaḥ", meaning: "the Gopis" },
+            { word: "prāṇanātham", meaning: "the Lord of their life-breath" },
+            { word: "viraha-dahana-taptena", meaning: "scorched by the fire of separation" },
+            { word: "āliṅgya", meaning: "having embraced" },
+            { word: "nirvikalpāḥ", meaning: "free from mental modifications, in absorbed state" },
+            { word: "bāṣpākulākṣyaḥ", meaning: "with eyes filled with tears" },
+            { word: "pralayasukharasam", meaning: "the bliss-essence of final dissolution" },
+            { word: "viśvambhareśa", meaning: "O Lord of the Universe" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 6,
+          devanagari: "गोप्यस्ता निर्विशेषं भवदनुभजनं प्राप्य सम्पूर्णकामाः\nत्वन्मूर्तिं ध्यायमानाः प्रतिपदमनिशं त्वन्मयीभूतचित्ताः ।\nभुञ्जानाः स्वप्नतश्च त्वदनुसरणजं केलिसौख्यं समस्तं\nजीवन्मुक्ताः स्थिताश्च प्रकृतिमधिगताः केवलं त्वत्प्रसादात् ॥",
+          transliteration: "gopyastā nirviśeṣaṁ bhavad-anubhajanaṁ prāpya sampūrṇakāmāḥ\ntvad-mūrtiṁ dhyāyamānāḥ pratipadam aniśaṁ tvanmayībhūtacittāḥ |\nbhuñjānāḥ svapnataśca tvad-anusaraṇajaṁ kelisaukhyaṁ samastaṁ\njīvanmuktāḥ sthitāśca prakṛtim adhigatāḥ kevalaṁ tvat-prasādāt ||",
+          translation: "Those Gopis, having attained the supreme experience of worshipping You without any distinction, were fully satisfied in all desires. Meditating on Your form at every step, ceaselessly, their minds having become one with You, experiencing even in dreams the joy of following You in all Your sports -- they remained in a state of liberation while living, having transcended material nature, solely through Your grace.",
+          commentary: "Bhattathiri reveals the Gopis' spiritual stature -- they are jivanmuktas, liberated while still in the body. Their constant meditation on Krishna's form made their consciousness identical with His (tvanmayi-bhuta-citta). This verse affirms the Bhagavata teaching that the Gopis' love is the highest form of devotion, transcending even Vedantic knowledge.",
+          words: [
+            { word: "nirviśeṣam", meaning: "without distinction, absolute" },
+            { word: "sampūrṇakāmāḥ", meaning: "fully satisfied in desires" },
+            { word: "tvanmūrtim", meaning: "Your divine form" },
+            { word: "dhyāyamānāḥ", meaning: "meditating upon" },
+            { word: "tvanmayībhūtacittāḥ", meaning: "minds that have become one with You" },
+            { word: "kelisaukhyam", meaning: "the joy of divine play" },
+            { word: "jīvanmuktāḥ", meaning: "liberated while living" },
+            { word: "tvat-prasādāt", meaning: "by Your grace alone" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 7,
+          devanagari: "त्वं तासां सान्त्वनार्थं मधुरवचनतः प्रेमतत्त्वं विवृण्वन्\nमा शोचध्वं प्रियास्ता भवति न हि कदा प्रेमभेदो मदीयः ।\nदेहत्यागेन वापि प्रतिपदविरहे चापि यो मां स्मरेद्वा\nतं चाहं नित्यमेव स्मरणसुखमयः प्राप्य तिष्ठामि नित्यम् ॥",
+          transliteration: "tvaṁ tāsāṁ sāntvanārthaṁ madhuravachanataḥ prematatvaṁ vivṛṇvan\nmā śocadhvaṁ priyāstā bhavati na hi kadā premabhedo madīyaḥ |\ndehatyāgena vāpi pratipadavirahe cāpi yo māṁ smaredvā\ntaṁ cāhaṁ nityameva smaraṇasukhamayaḥ prāpya tiṣṭhāmi nityam ||",
+          translation: "You, to console them, revealing the truth of divine love through sweet words, said: Do not grieve, O beloved ones; My love never admits of division. Whether through bodily departure or step-by-step separation, whoever remembers Me -- I dwell with them eternally, as the very essence of the bliss of remembrance.",
+          commentary: "Krishna reveals a profound spiritual truth: divine love is never diminished by physical separation. The Lord's teaching here anticipates the Gita's assurance na me bhaktaḥ praṇaśyati -- My devotee never perishes. Krishna exists as the bliss within the remembrance itself, making separation paradoxically a form of deeper union.",
+          words: [
+            { word: "sāntvanārtham", meaning: "for the purpose of consolation" },
+            { word: "madhuravachanataḥ", meaning: "through sweet words" },
+            { word: "prematattvam", meaning: "the truth or principle of love" },
+            { word: "mā śocadhvam", meaning: "do not grieve" },
+            { word: "premabhedaḥ", meaning: "division of love" },
+            { word: "dehatyāgena", meaning: "by abandonment of the body" },
+            { word: "smaraṇasukhamayaḥ", meaning: "consisting of the bliss of remembrance" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 8,
+          devanagari: "मत्प्रेमा यो बिभर्ति क्षणमपि हृदये सर्वदा तस्य पार्श्वे\nतिष्ठामीत्येव वाचा मधुरतरतया गोपिकाः सान्त्वयन् त्वम् ।\nदूरे तिष्ठन्नपीशो हृदि वससि सदा प्रेमबद्धो मदीये\nइत्याकर्ण्याथ गोप्यो विगतशुचमुखाः त्वत्सुखे निष्ठितास्ताः ॥",
+          transliteration: "matpremā yo bibharti kṣaṇam api hṛdaye sarvadā tasya pārśve\ntiṣṭhāmītyeva vācā madhuratara-tayā gopikāḥ sāntvayan tvam |\ndūre tiṣṭhann apīśo hṛdi vasasi sadā premabaddho madīye\nityākarṇyātha gopyo vigataśucamukhāḥ tvat-sukhe niṣṭhitāstāḥ ||",
+          translation: "You consoled the Gopis with the sweetest words: Whoever holds love for Me even for a moment in their heart -- I stand always by their side. Hearing this -- Though You stand far away, O Lord, You dwell always in my heart, bound by love -- the Gopis became free from sorrow, established in the joy of Your presence.",
+          commentary: "Krishna's teaching here is the essence of Bhagavata theology -- the Lord is bound by the ropes of love (prema-baddha). This paradox of omnipotence becoming captive to devotion is central to the Narayaneeyam. The Gopis' grief transforms into settled joy as they realize that genuine love transcends all physical limitations.",
+          words: [
+            { word: "matpremā", meaning: "love for Me" },
+            { word: "bibharti", meaning: "holds, carries" },
+            { word: "pārśve", meaning: "by the side of" },
+            { word: "madhuratara-tayā", meaning: "with the greatest sweetness" },
+            { word: "sāntvayan", meaning: "consoling" },
+            { word: "premabaddhaḥ", meaning: "bound by love" },
+            { word: "vigataśucamukhāḥ", meaning: "with faces freed from sorrow" },
+            { word: "niṣṭhitāḥ", meaning: "established, settled" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 9,
+          devanagari: "द्वारकानाथमहिष्यः रुक्मिणीप्रमुखाश्च याः ।\nगोपिकानां विलोक्य प्रेमभक्तिमनुत्तमाम् ।\nविस्मयं परमं प्राप्ता ईदृशो भगवत्प्रियाः\nअस्माकं तु कथं नाथे भक्तिरीदृग्भवेदिति ॥",
+          transliteration: "dvārakānāthamahiṣyaḥ rukmiṇīpramukhāśca yāḥ |\ngopikānāṁ vilokya premabhaktim anuttamām |\nvismayaṁ paramaṁ prāptā īdṛśo bhagavatpriyāḥ\nasmākaṁ tu kathaṁ nāthe bhaktir īdṛg bhavediti ||",
+          translation: "The queens of the Lord of Dwaraka, led by Rukmini, observing the unparalleled loving devotion of the Gopis, were struck with supreme wonder: Such are the beloved ones of the Lord! How could devotion like this ever arise in us toward our Lord?",
+          commentary: "Even the exalted queens of Dwaraka, who enjoyed Krishna's constant physical presence as His wedded consorts, recognized the superiority of the Gopis' love. This comparison elevates the Gopis' devotion to the highest position in Vaishnavite theology -- their love born of separation (viraha) surpassed even the love born of union (sambhoga).",
+          words: [
+            { word: "mahiṣyaḥ", meaning: "queens, royal consorts" },
+            { word: "rukmiṇī-pramukhāḥ", meaning: "led by Rukmini" },
+            { word: "premabhaktim", meaning: "loving devotion" },
+            { word: "anuttamām", meaning: "unparalleled, supreme" },
+            { word: "vismayam", meaning: "wonder, astonishment" },
+            { word: "bhagavatpriyāḥ", meaning: "beloved of the Lord" },
+            { word: "īdṛk", meaning: "of this kind, such" }
+          ]
+        },
+        {
+          dashaka: 79,
+          sloka: 10,
+          devanagari: "एवं कुरुक्षेत्रगतैः समस्तैः\nसमागमो दिव्यतमो विभूषितः ।\nत्वद्भक्तिपूर्णैर्व्रजवासिभिश्च\nप्रभो गतं तत्सुखसारवैभवम् ।\nसदा जनानां हृदि भक्तिरस्तु ते\nमरुत्पुराधीश्वर पाहि मां गदात् ॥",
+          transliteration: "evaṁ kurukṣetragataiḥ samastaiḥ\nsamāgamo divyatamo vibhūṣitaḥ |\ntvadbhaktipūrṇair vrajavāsibhiśca\nprabho gataṁ tatsukhasāravaibhavam |\nsadā janānāṁ hṛdi bhaktirastu te\nmarutpurādhīśvara pāhi māṁ gadāt ||",
+          translation: "Thus, the most divine reunion at Kurukshetra, graced by all those present and by the Vraja-dwellers overflowing with devotion to You, O Lord, attained the glory of the essence of bliss. May devotion to You dwell always in the hearts of all people. O Lord of Guruvayur, protect me from disease.",
+          commentary: "The concluding verse summarizes the glory of the Kurukshetra reunion and returns to Bhattathiri's personal prayer. The gathering of devotees -- Yadavas, Vraja-vasis, and Gopis alike -- represents the fullness of divine love manifest on earth. As always, the dashaka closes with the poet's heartfelt plea for health at the feet of the Lord of Guruvayur.",
+          words: [
+            { word: "samāgamaḥ", meaning: "reunion, gathering" },
+            { word: "divyatamaḥ", meaning: "most divine" },
+            { word: "vrajavāsibhiḥ", meaning: "by the residents of Vraja" },
+            { word: "sukhasāravaibhavam", meaning: "the glory of the essence of bliss" },
+            { word: "bhaktiḥ", meaning: "devotion" },
+            { word: "marutpurādhīśvara", meaning: "O Lord of Guruvayur" },
+            { word: "pāhi", meaning: "protect" },
+            { word: "gadāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 80,
@@ -15923,7 +16100,182 @@ slokas: [
       theme: "philosophy",
       verseCount: 10,
       summary: "Begins the Uddhava Gita, Krishna's final philosophical teaching to His devoted friend Uddhava, covering the nature of the Self, the impermanence of the world, and the paths to liberation.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 80,
+          sloka: 1,
+          devanagari: "यदुवंशविनाशं च प्रपश्यन् योगमायया ।\nत्वमन्तिमोपदेशार्थं प्रवृत्तो ज्ञानदानतः ।\nलोकानुग्रहणार्थाय कृत्स्नं तत्त्वार्थमव्ययम्\nउपदेष्टुं मनश्चक्रे भक्तोद्धवहिताय वै ॥",
+          transliteration: "yaduvaṁśavināśaṁ ca prapaśyan yogamāyayā |\ntvam antimopadeśārthaṁ pravṛtto jñānadānataḥ |\nlokānugrahaṇārthāya kṛtsnaṁ tattvārtham avyayam\nupadeṣṭuṁ manaścakre bhaktoddhavahitāya vai ||",
+          translation: "Foreseeing through Your divine Maya the destruction of the Yadu dynasty, You resolved to impart final wisdom. For the benefit of all the worlds, You determined to teach the complete, imperishable truth of reality to Your devoted Uddhava.",
+          commentary: "Bhattathiri sets the scene for the Uddhava Gita. Just as Krishna taught Arjuna on the battlefield before the great war, He now imparts His final philosophical testament before His own departure from the world. The choice of the word avyayam (imperishable) signals that this teaching transcends the mortal events about to unfold.",
+          words: [
+            { word: "yaduvaṁśavināśam", meaning: "the destruction of the Yadu dynasty" },
+            { word: "yogamāyayā", meaning: "through divine illusive power" },
+            { word: "antimopadeśa", meaning: "final teaching" },
+            { word: "jñānadānataḥ", meaning: "through the gift of knowledge" },
+            { word: "tattvārtham", meaning: "the meaning of truth, ultimate reality" },
+            { word: "avyayam", meaning: "imperishable, eternal" },
+            { word: "uddhavahitāya", meaning: "for the benefit of Uddhava" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 2,
+          devanagari: "उद्धवो नाम यो भक्तः सचिवः सखिताम् गतः ।\nत्वया समं विनिर्दिष्टो ज्ञानसारोपदेशभाक् ।\nदैवतज्ञः सदाचारः श्रद्धालुर्बुद्धिमान् शुचिः\nत्वत्पादपद्मनिरतः सर्वथा त्वत्परायणः ॥",
+          transliteration: "uddhavo nāma yo bhaktaḥ sacivaḥ sakhitām gataḥ |\ntvayā samaṁ vinirdiṣṭo jñānasāropadeśabhāk |\ndaivatajñaḥ sadācāraḥ śraddhālur buddhimān śuciḥ\ntvat-pādapadma-nirataḥ sarvathā tvat-parāyaṇaḥ ||",
+          translation: "Uddhava by name, a devotee who had attained the status of minister and friend, was chosen by You as the recipient of the essence of wisdom-teaching. Knower of the divine, of righteous conduct, faithful, intelligent, and pure, ever devoted to Your lotus feet, in every way surrendered to You.",
+          commentary: "Uddhava is described as the ideal recipient of spiritual knowledge -- possessing both intellectual qualification (buddhiman) and devotional surrender (tvat-parayana). His unique position as both Krishna's cousin and minister gave him an intimate relationship that made him the perfect vessel for this final teaching.",
+          words: [
+            { word: "uddhavaḥ", meaning: "Uddhava, Krishna's cousin and devotee" },
+            { word: "sacivaḥ", meaning: "minister, counselor" },
+            { word: "sakhitām", meaning: "friendship, the state of being a friend" },
+            { word: "jñānasāra", meaning: "the essence of knowledge" },
+            { word: "sadācāraḥ", meaning: "of righteous conduct" },
+            { word: "śraddhāluḥ", meaning: "faithful, full of faith" },
+            { word: "tvat-parāyaṇaḥ", meaning: "completely devoted to You" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 3,
+          devanagari: "आत्मा नित्योऽक्षरोऽयं न जनिमरणभाक् सर्वगः सूक्ष्मरूपः\nनैवायं हन्यते हन्यमान शरीरे नास्य जन्मास्ति कस्मात् ।\nनित्यं बुद्ध्या विशुद्धं परमसुखघनं तं विदित्वात्मतत्त्वम्\nमुच्येतायं मनुष्यः प्रकृतिगुणमयाद्बन्धनात्सर्वतोऽपि ॥",
+          transliteration: "ātmā nityo'kṣaro'yaṁ na janimaraṇabhāk sarvagaḥ sūkṣmarūpaḥ\nnaivāyaṁ hanyate hanyamāna śarīre nāsya janmāsti kasmāt |\nnityaṁ buddhyā viśuddhaṁ paramasukhaghanaṁ taṁ viditvātmatattvam\nmucyetāyaṁ manuṣyaḥ prakṛtiguṇamayādbandhanāt sarvato'pi ||",
+          translation: "The Self is eternal, imperishable, not subject to birth or death, all-pervading, and subtle in form. It is not slain when the body is slain, nor is there any birth for it. Knowing this Self-truth through purified intelligence as the embodiment of supreme bliss, a person is liberated from bondage to the qualities of material nature entirely.",
+          commentary: "Krishna begins His teaching with the foundational truth of Vedanta -- the eternal nature of the Atman. This echoes the Bhagavad Gita's opening philosophical instruction (na hanyate hanyamane sharire). The path to liberation begins with this fundamental discrimination between the eternal Self and the perishable body.",
+          words: [
+            { word: "ātmā", meaning: "the Self, the soul" },
+            { word: "nityaḥ", meaning: "eternal" },
+            { word: "akṣaraḥ", meaning: "imperishable, indestructible" },
+            { word: "sarvagaḥ", meaning: "all-pervading" },
+            { word: "sūkṣmarūpaḥ", meaning: "of subtle form" },
+            { word: "ātmatattvam", meaning: "the truth of the Self" },
+            { word: "prakṛtiguṇamayāt", meaning: "consisting of the qualities of material nature" },
+            { word: "bandhanāt", meaning: "from bondage" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 4,
+          devanagari: "नामरूपात्मकं विश्वं मायामात्रं मनोहरम् ।\nस्वप्नवत्प्रतिभासन्ते इन्द्रजालसमं जगत् ।\nमिथ्याविकल्पमखिलं गुणदोषविवर्जितम्\nतत्त्वद्रष्टा विमुच्येत मायाबन्धादशेषतः ॥",
+          transliteration: "nāmarūpātmakaṁ viśvaṁ māyāmātraṁ manoharam |\nsvapnavat pratibhāsante indrajālasamaṁ jagat |\nmithyāvikalpam akhilaṁ guṇadoṣavivarjitam\ntattva-draṣṭā vimucyeta māyābandhād aśeṣataḥ ||",
+          translation: "The universe consisting of names and forms is merely Maya, enchanting yet illusory. Like a dream, like a magic show, the world merely appears. All of it is false projection, devoid of real merit or defect. The seer of truth is freed completely from the bondage of Maya.",
+          commentary: "Krishna now addresses the nature of the phenomenal world. The two powerful analogies -- dream (svapna) and magic show (indrajala) -- convey that the world is neither absolutely real nor absolutely unreal, but a superimposition upon Brahman. The one who sees through this appearance to the underlying truth is liberated.",
+          words: [
+            { word: "nāmarūpātmakam", meaning: "consisting of names and forms" },
+            { word: "māyāmātram", meaning: "merely Maya, only illusion" },
+            { word: "svapnavat", meaning: "like a dream" },
+            { word: "indrajālasamam", meaning: "like a magic show" },
+            { word: "mithyāvikalpam", meaning: "false projection, illusory construction" },
+            { word: "tattva-draṣṭā", meaning: "the seer of truth" },
+            { word: "māyābandhāt", meaning: "from the bondage of Maya" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 5,
+          devanagari: "सत्त्वं रजस्तमश्चेति त्रयो गुणाः प्रकीर्तिताः ।\nप्रकृतेरेष सम्भूताः बध्नन्ति पुरुषं दृढम् ।\nसत्त्वं सुखे निबध्नाति रजः कर्मणि भारत\nतमस्त्वज्ञानजं विद्धि मोहनं सर्वदेहिनाम् ॥",
+          transliteration: "sattvaṁ rajastam aśceti trayo guṇāḥ prakīrtitāḥ |\nprakṛtereṣa sambhūtāḥ badhnanti puruṣaṁ dṛḍham |\nsattvaṁ sukhe nibadhnāti rajaḥ karmaṇi bhārata\ntamas tvajñānajaṁ viddhi mohanaṁ sarvadehinām ||",
+          translation: "Sattva, rajas, and tamas -- these three gunas are declared. Born of prakriti (material nature), they bind the soul firmly. Sattva binds to happiness, rajas to action, O scion of Bharata, and know tamas, born of ignorance, to be the deluder of all embodied beings.",
+          commentary: "This verse mirrors the Bhagavad Gita's teaching on the three gunas (14.5-9). Krishna explains the mechanism of bondage -- even sattva, though it brings happiness, is still a binding force. True liberation requires transcending all three gunas, which is achieved only through devotion and knowledge combined.",
+          words: [
+            { word: "sattvam", meaning: "goodness, purity, the quality of illumination" },
+            { word: "rajaḥ", meaning: "passion, activity, the quality of restlessness" },
+            { word: "tamaḥ", meaning: "darkness, inertia, the quality of delusion" },
+            { word: "guṇāḥ", meaning: "qualities, fundamental attributes of nature" },
+            { word: "prakṛteḥ", meaning: "of material nature" },
+            { word: "badhnanti", meaning: "they bind" },
+            { word: "mohanaṁ", meaning: "deluding, bewildering" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 6,
+          devanagari: "वैराग्यं च परं ज्ञानं भक्तियोगश्च शाश्वतः ।\nद्वावेतौ पन्थानौ मुक्तेर्मुख्यौ परिकीर्तितौ ।\nवैराग्येण विशुद्धात्मा भक्त्या मद्गतमानसः\nत्यक्त्वा कर्मफलासङ्गं मुच्यते सर्वबन्धनात् ॥",
+          transliteration: "vairāgyaṁ ca paraṁ jñānaṁ bhaktiyogaśca śāśvataḥ |\ndvāvetau panthānau mukter mukhyau parikīrtitau |\nvairāgyeṇa viśuddhātmā bhaktyā madgatamānasaḥ\ntyaktvā karmaphalāsaṅgaṁ mucyate sarvabandhānāt ||",
+          translation: "Supreme dispassion and knowledge, along with eternal bhakti-yoga -- these two are declared the chief paths to liberation. With a soul purified by detachment and a mind fixed on Me through devotion, having renounced attachment to the fruits of action, one is freed from all bondage.",
+          commentary: "Krishna presents the twin pillars of spiritual practice -- vairagya (dispassion) and bhakti (devotion). Unlike pure Advaita which emphasizes jnana alone, Bhattathiri's Narayaneeyam, following the Bhagavata, insists that knowledge must be wedded to devotion. Detachment without love becomes dry, and love without wisdom becomes sentimental.",
+          words: [
+            { word: "vairāgyam", meaning: "dispassion, detachment" },
+            { word: "bhaktiyogaḥ", meaning: "the yoga of devotion" },
+            { word: "śāśvataḥ", meaning: "eternal, everlasting" },
+            { word: "panthānau", meaning: "paths, ways" },
+            { word: "mukteḥ", meaning: "of liberation" },
+            { word: "viśuddhātmā", meaning: "one whose soul is purified" },
+            { word: "karmaphalāsaṅgam", meaning: "attachment to the fruits of action" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 7,
+          devanagari: "अवधूतस्य चर्यां तां चतुर्विंशतिगौरवाम् ।\nउवाच भगवान् कृष्णः प्रकृतेर्गुरवो यथा ।\nपृथिवी वायुराकाशमापोऽग्निश्चन्द्रमा रविः\nमधुकृत्कुररो भूमिर्गुरवो मे विचिन्तिताः ॥",
+          transliteration: "avadhūtasya caryāṁ tāṁ caturviṁśatigauravām |\nuvāca bhagavān kṛṣṇaḥ prakṛter guravo yathā |\npṛthivī vāyur ākāśam āpo'gniścandramā raviḥ\nmadhukṛt kuraro bhūmir guravo me vicintitāḥ ||",
+          translation: "The Lord Krishna then narrated the story of the Avadhuta and his twenty-four revered teachers. He spoke of how nature itself serves as guru: earth, wind, sky, water, fire, moon, sun, the honeybee, the osprey, the earth -- these I have considered as my teachers.",
+          commentary: "The Avadhuta story is one of the most celebrated passages of the Bhagavata Purana (11.7-9). An avadhuta is a renunciant who has shaken off all worldly conventions. His radical teaching is that wisdom is everywhere in nature for those with eyes to see -- one need not seek a formal teacher when the entire creation is a classroom.",
+          words: [
+            { word: "avadhūtaḥ", meaning: "a renunciant beyond all conventions" },
+            { word: "caturviṁśati", meaning: "twenty-four" },
+            { word: "guravaḥ", meaning: "teachers, preceptors" },
+            { word: "prakṛteḥ", meaning: "from nature" },
+            { word: "pṛthivī", meaning: "earth" },
+            { word: "vāyuḥ", meaning: "wind" },
+            { word: "ākāśam", meaning: "sky, space" },
+            { word: "madhukṛt", meaning: "honeybee" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 8,
+          devanagari: "क्षमां शिक्षेत पृथ्व्यास्तु वायोर्निर्लेपतां तथा ।\nपावकाद्दाहशक्तिं च निर्मलत्वं तथैव च ।\nआकाशवत्सर्वगतो न लिप्येत कदाचन\nएवं प्रकृतितश्चक्रे गुरुबोधमनुत्तमम् ॥",
+          transliteration: "kṣamāṁ śikṣeta pṛthvyāstu vāyor nirlepatāṁ tathā |\npāvakād dāhaśaktiṁ ca nirmalatvaṁ tathaiva ca |\nākāśavat sarvagato na lipyeta kadācana\nevaṁ prakṛtitaścakre gurubodham anuttamam ||",
+          translation: "From the earth one should learn patience; from the wind, non-attachment. From fire, the power to consume impurity and remain pure. Like space, the all-pervading one is never tainted. Thus, from nature itself, He drew unsurpassed teaching.",
+          commentary: "Each element of nature reveals a profound spiritual lesson. Earth endures all that is placed upon it without complaint -- teaching forbearance. Wind passes through everything without clinging -- teaching detachment. Fire transforms all impurities while remaining pure -- teaching spiritual discrimination. Space pervades all yet is untouched -- teaching the nature of the Atman itself.",
+          words: [
+            { word: "kṣamām", meaning: "patience, forbearance" },
+            { word: "pṛthvyāḥ", meaning: "from the earth" },
+            { word: "nirlepatām", meaning: "non-attachment, freedom from clinging" },
+            { word: "pāvakāt", meaning: "from fire" },
+            { word: "dāhaśaktim", meaning: "the power to burn or purify" },
+            { word: "nirmalattvam", meaning: "purity, spotlessness" },
+            { word: "ākāśavat", meaning: "like space" },
+            { word: "gurubodham", meaning: "teaching from the guru, wisdom" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 9,
+          devanagari: "सर्वकर्माणि मय्येव सन्न्यस्य श्रद्धया परम् ।\nफलत्यागेन युक्तात्मा मां प्रपद्यस्व केवलम् ।\nअहं त्वा सर्वपापेभ्यो मोक्षयिष्यामि मा शुचः\nइत्युद्धवं प्रबोध्यैवं कृष्णो वाचमुवाच ह ॥",
+          transliteration: "sarvakarmāṇi mayyeva sannyasya śraddhayā param |\nphalatyāgena yuktātmā māṁ prapadyasva kevalam |\nahaṁ tvā sarvapāpebhyo mokṣayiṣyāmi mā śucaḥ\nityuddhavaṁ prabodhyaivaṁ kṛṣṇo vācam uvāca ha ||",
+          translation: "Surrender all actions to Me alone with supreme faith. With a disciplined self, renouncing the fruits of action, take refuge in Me alone. I shall liberate you from all sins -- do not grieve. Thus enlightening Uddhava, Krishna spoke these words.",
+          commentary: "The supreme teaching echoes the Gita's charama shloka (18.66) -- the ultimate instruction of total surrender (prapatti). Krishna assures Uddhava that complete self-surrender to the Lord, combined with renunciation of the fruits of action, is the direct path to liberation. The phrase ma shucah (do not grieve) is the Lord's compassionate reassurance to all seekers.",
+          words: [
+            { word: "sarvakarmāṇi", meaning: "all actions" },
+            { word: "sannyasya", meaning: "having surrendered, having renounced" },
+            { word: "śraddhayā", meaning: "with faith" },
+            { word: "phalatyāgena", meaning: "by renunciation of fruits" },
+            { word: "prapadyasva", meaning: "take refuge, surrender" },
+            { word: "mokṣayiṣyāmi", meaning: "I shall liberate" },
+            { word: "mā śucaḥ", meaning: "do not grieve" }
+          ]
+        },
+        {
+          dashaka: 80,
+          sloka: 10,
+          devanagari: "एवमुद्धवमालोक्य कृपया परया हरिः ।\nउपदिश्य परं तत्त्वं भक्तिमार्गं च शाश्वतम् ।\nतस्मिन् काले समायाते विश्वेशस्य कृपाम्बुधेः\nपादपद्मं गुरुवायुपुरनाथस्य चिन्तये\nमरुत्पुराधीश भगवन् पाहि मां सर्वतो गदात् ॥",
+          transliteration: "evam uddhavam ālokya kṛpayā parayā hariḥ |\nupadiśya paraṁ tattvaṁ bhaktimārgaṁ ca śāśvatam |\ntasmin kāle samāyāte viśveśasya kṛpāmbudheḥ\npādapadmaṁ guruvāyupuranāthasya cintaye\nmarutpurādhīśa bhagavan pāhi māṁ sarvato gadāt ||",
+          translation: "Thus, beholding Uddhava with supreme compassion, Hari taught the highest truth and the eternal path of devotion. As that time arrived, I meditate on the lotus feet of the Lord of Guruvayur, that ocean of mercy, the master of the universe. O Lord of Guruvayur, O Blessed One, protect me from all disease.",
+          commentary: "The concluding verse weaves together the narrative summary and the personal prayer. Bhattathiri connects Krishna's compassionate teaching to Uddhava with his own experience of divine grace at Guruvayur. The phrase kripambudhi (ocean of mercy) links the Lord's ancient compassion for Uddhava with His present compassion for the ailing poet. The dashaka ends with the signature invocation to the Lord of Guruvayur.",
+          words: [
+            { word: "kṛpayā parayā", meaning: "with supreme compassion" },
+            { word: "paraṁ tattvam", meaning: "the highest truth" },
+            { word: "bhaktimārgam", meaning: "the path of devotion" },
+            { word: "kṛpāmbudheḥ", meaning: "of the ocean of mercy" },
+            { word: "pādapadmam", meaning: "lotus feet" },
+            { word: "guruvāyupuranāthasya", meaning: "of the Lord of Guruvayur" },
+            { word: "marutpurādhīśa", meaning: "O Lord of Guruvayur" },
+            { word: "gadāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 81,
