@@ -30,8 +30,9 @@
   }
 
   // --- Build a single verse card HTML ---
-  function buildVerseCard(verse, query) {
+  function buildVerseCard(verse, query, prefix) {
     var num = verse.num;
+    var idPrefix = prefix || 'all';
     var isShankaraVerse = isShankara(num);
     var sectionClass = isShankaraVerse ? 'shankara-verse' : 'disciple-verse';
     var sectionTag = isShankaraVerse ? 'Shankara' : 'Disciples';
@@ -41,10 +42,11 @@
 
     var hl = query ? function (t) { return highlightText(t, query); } : function (t) { return escapeHtml(t); };
 
-    var html = '<div class="verse-card ' + sectionClass + '" id="verse-' + num + '">';
+    var cardId = idPrefix + '-verse-' + num;
+    var html = '<div class="verse-card ' + sectionClass + '" id="' + cardId + '">';
 
     // Header
-    html += '<div class="verse-header" onclick="toggleVerse(' + num + ')">';
+    html += '<div class="verse-header" onclick="toggleVerse(\'' + cardId + '\')">';
     html += '<span class="verse-number">' + num + '</span>';
     html += '<span class="verse-text-preview">' + hl(preview) + '</span>';
     html += '<span class="verse-section-tag">' + sectionTag + '</span>';
@@ -92,14 +94,14 @@
     var html = buildControls();
 
     verses.forEach(function (verse) {
-      html += buildVerseCard(verse);
+      html += buildVerseCard(verse, null, 'all');
     });
 
     container.innerHTML = html;
 
     // Expand first 3 by default
     for (var i = 1; i <= 3; i++) {
-      var el = document.getElementById('verse-' + i);
+      var el = document.getElementById('all-verse-' + i);
       if (el) el.classList.add('expanded');
     }
   }
@@ -111,7 +113,7 @@
 
     var html = buildControls();
     shankaraVerses.forEach(function (verse) {
-      html += buildVerseCard(verse);
+      html += buildVerseCard(verse, null, 'shankara');
     });
 
     container.innerHTML = html;
@@ -124,15 +126,15 @@
 
     var html = buildControls();
     discipleVerses.forEach(function (verse) {
-      html += buildVerseCard(verse);
+      html += buildVerseCard(verse, null, 'disciples');
     });
 
     container.innerHTML = html;
   }
 
   // --- Toggle verse expansion ---
-  window.toggleVerse = function (num) {
-    var el = document.getElementById('verse-' + num);
+  window.toggleVerse = function (cardId) {
+    var el = document.getElementById(cardId);
     if (el) el.classList.toggle('expanded');
   };
 
@@ -192,7 +194,7 @@
 
         var html = '';
         matches.forEach(function (verse) {
-          html += buildVerseCard(verse, query);
+          html += buildVerseCard(verse, query, 'search');
         });
         results.innerHTML = html;
 
