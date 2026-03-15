@@ -215,42 +215,6 @@ var THARPANAM_DATA = {
     },
     {
       id: 7,
-      title: "Deva Tharpanam",
-      titleSanskrit: "देवतर्पणम्",
-      subtitle: "Oblations to the Gods — Water Through Fingertips",
-      description: "Deva Tharpanam is the offering of water to the gods (devas). The sacred thread is worn in the normal upaveedhi mode (left shoulder to right). Water is offered through the tips of the fingers (devateertha). This is the first of the three categories of tharpanam — to gods, to sages, and to ancestors.",
-      procedure: "Wear the sacred thread in upaveedhi mode (left shoulder to right). Take water in the right hand and pour it through the tips of the first four fingers while chanting each mantra. Each offering is made once.",
-      mantras: [
-        {
-          devanagari: "ब्रह्मादयो ये देवाः तान् देवान् तर्पयामि",
-          text: "brahmādayo ye devāḥ tān devān tarpayāmi",
-          meaning: "I offer tarpana to the gods beginning with Brahma.",
-          instruction: "Offer water through fingertips"
-        },
-        {
-          devanagari: "सर्वान् देवान् तर्पयामि",
-          text: "sarvān devān tarpayāmi",
-          meaning: "I offer tarpana to all the gods."
-        },
-        {
-          devanagari: "सर्वदेवपत्नीः तर्पयामि",
-          text: "sarvadevapanīḥ tarpayāmi",
-          meaning: "I offer tarpana to the consorts of all the gods."
-        },
-        {
-          devanagari: "सर्वदेवगणान् तर्पयामि",
-          text: "sarvadevagaṇān tarpayāmi",
-          meaning: "I offer tarpana to the attendants of all the gods."
-        },
-        {
-          devanagari: "सर्वदेवगणपत्नीः तर्पयामि",
-          text: "sarvadevagaṇapatnīḥ tarpayāmi",
-          meaning: "I offer tarpana to the consorts of the attendants of all the gods."
-        }
-      ]
-    },
-    {
-      id: 8,
       title: "Rishi Tharpanam",
       titleSanskrit: "ऋषितर्पणम्",
       subtitle: "Oblations to the Sages — Water Through the Side of the Palm",
@@ -336,7 +300,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 9,
+      id: 8,
       title: "Pitru Tharpanam — Invocation",
       titleSanskrit: "पितृतर्पणम् — आवाहनम्",
       subtitle: "Oblations to Ancestors — Sacred Thread on Right Shoulder",
@@ -357,35 +321,89 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 10,
+      id: 9,
       title: "Pitru Varga Tharpanam",
       titleSanskrit: "पितृवर्गतर्पणम्",
       subtitle: "Oblations to the Paternal Lineage — Father, Grandfather, Great-Grandfather",
-      description: "This is the core of the Tharpanam — offering water and sesame seeds to three generations of the paternal lineage. The father is invoked in Vasu form (the celestial beings of radiance), the grandfather in Rudra form (the transformative divine forces), and the great-grandfather in Aditya form (the solar deities of illumination). Each offering is made three times. The performer must fill in their specific gotra (lineage) and ancestor names.",
-      procedure: "For each ancestor, take water with black sesame seeds in the right hand. Chant the mantra three times, pouring the offering onto the koorcham each time. Replace the blanks with your gotra and ancestor's name.",
+      description: "This is the core of the Tharpanam — offering water and sesame seeds to three generations of the paternal lineage. The father is invoked in Vasu form (the celestial beings of radiance), the grandfather in Rudra form (the transformative divine forces), and the great-grandfather in Aditya form (the solar deities of illumination). Each ancestor receives three mantras, each chanted once with a handful of water mixed with black sesame seeds poured on the koorcham. Note: If mother is alive, the oblation order becomes Pithamahi-Prapithamahi-Pithru Prapithamahi. If mother's mother is alive, the order becomes Mathamaha's Mathu-Pithamahi-Prapithamahi.",
+      procedure: "Offer a handful of water mixed with black sesame seeds (ellu) on the koorcham for Pithru Vargam after each mantra. For each ancestor, chant the Vedic mantra followed by your gotra, ancestor's name, and the tarpana formula. Father = Vasu roopan, Grandfather = Rudra roopan, Great-grandfather = Aditya roopan.",
       mantras: [
         {
-          devanagari: "___ गोत्रान् ___ शर्मणः वसुरूपान् पितॄन् स्वधा नमः तर्पयामि",
-          text: "___ gotrān ___ śarmaṇaḥ vasurūpān pitṝn svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my father, ___ of ___ gotra, in the form of the Vasus (celestial beings of radiance).",
-          instruction: "Chant 3 times. Replace blanks with your gotra and father's name. Pour water with sesame on the koorcham."
+          devanagari: "पितृ तर्पणम् — पिता को अर्पण",
+          text: "Pithru Tharpanam — Oblation to Father",
+          meaning: "The first three offerings are made to the father in Vasu form.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
         },
         {
-          devanagari: "___ गोत्रान् ___ शर्मणः रुद्ररूपान् पितामहान् स्वधा नमः तर्पयामि",
-          text: "___ gotrān ___ śarmaṇaḥ rudrarūpān pitāmahān svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my grandfather, ___ of ___ gotra, in the form of the Rudras (the transformative divine forces).",
-          instruction: "Chant 3 times. Replace blanks with your gotra and grandfather's name."
+          devanagari: "उदीरतामवर उत्परासः उन्मध्यमाः पितरः सोम्यासः।\nअसुं य ईयुरवृका ऋतज्ञाः ते नोऽवन्तु पितरो हवेषु",
+          text: "Udheeratham avara uthparasa,\nUnmadhyama pithara somyasa,\nAsum ya eeyur avyaka ruthagna,\nSthene avanthu pitharo harveshu,\n(Your gothram) Gothrān (Father's name), Sharmanah vasu roopān mama pithrūn svadhā namas tharpayāmi.",
+          meaning: "May the ancestors of the lower, upper, and middle realms arise — those gentle ones who have attained the life-breath, who are free from harm and know the cosmic order. May those ancestors protect us when we call upon them. I offer tarpana to my father of ___ gotra in Vasu form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and father's name."
         },
         {
-          devanagari: "___ गोत्रान् ___ शर्मणः आदित्यरूपान् प्रपितामहान् स्वधा नमः तर्पयामि",
-          text: "___ gotrān ___ śarmaṇaḥ ādityarūpān prapitāmahān svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my great-grandfather, ___ of ___ gotra, in the form of the Adityas (the solar deities of illumination).",
-          instruction: "Chant 3 times. Replace blanks with your gotra and great-grandfather's name."
+          devanagari: "अङ्गीरसो नः पितरो नवग्वाः अथर्वणो भृगवः सोम्यासः।\nतेषां वयुगुं सुमतौ यज्ञियानां अपि भद्रे सौमनसे स्याम",
+          text: "Angeeraso na pitharo navagwa,\nAdharvano byagava somyaasa,\nThesham vayugum sumathou yagniyanaa,\nMapi Badre soumanase syama,\n(Your gothram) Gothrān (Father's name), Sharmanah vasu roopān mama pithrūn svadhā namas tharpayāmi.",
+          meaning: "O Angirasa ancestors, Navagvas, Atharvans, Bhrigus, gentle ones — may we be in the good grace of these worshipful ones, in their auspicious benevolence. I offer tarpana to my father of ___ gotra in Vasu form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and father's name."
+        },
+        {
+          devanagari: "आ यान्तु नः पितरः सोम्यासो अग्निष्वात्ताः पथिभिर्देवयानैः।\nअस्मिन् यज्ञे स्वधया मादयन्त्वधि ब्रुवन्तु तेऽवन्त्वस्मान्",
+          text: "Aa yaanthu na pithara somyaso agnishwathā,\nPrathibhir deva yanai,\nAsmin yagne swadhaya maadhayanthw,\nAdhi bruvanthā they avanthasmān,\n(Your gothram) Gothrān (Father's name), Sharmanah vasu roopān mama pithrūn svadhā namas tharpayāmi.",
+          meaning: "May our gentle ancestors, the Agnishvattas (purified by fire), come by the divine paths. May they rejoice in this offering of svadha. May they speak on our behalf and protect us. I offer tarpana to my father of ___ gotra in Vasu form.",
+          instruction: "Pour water with sesame on the koorcham. Some books say 'pitharomanojavaso agnishwathā' and 'madantho adhi bruvanthu'."
+        },
+        {
+          devanagari: "पितामह तर्पणम् — पितामह को अर्पण",
+          text: "Pithamaha Tharpanam — Oblation to Grandfather",
+          meaning: "The next three offerings are made to the paternal grandfather in Rudra form.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
+        },
+        {
+          devanagari: "ऊर्जं वहन्तीः अमृतं घृतं पयः कीलालं परिस्रुतम्।\nस्वधा स्वधा तर्पयत मे पितॄन्",
+          text: "Oorjam vahanthir amrutham grutham paya keelālam,\nParisrutham swadhā sdhā tharpatatha me pithroon,\n(Your gothram) Gothrān (Grandfather's name), Sharmanah Rudra roopān mama pithāmahān svadhā namas tharpayāmi.",
+          meaning: "O streams bearing nourishment, nectar, ghee, milk, and the purified sweet essence — O Svadha, satisfy my ancestors. I offer tarpana to my grandfather of ___ gotra in Rudra form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and grandfather's name."
+        },
+        {
+          devanagari: "पितृभ्यः स्वाधाविभ्यः स्वधा नम। पितामहेभ्यः स्वधाविभ्यः स्वधा नम।\nप्रपितामहेभ्यः स्वधाविभ्यः स्वधा नम",
+          text: "Pithrubhya swadhavibhya swadha nama,\nPithamahebhya swadhavibhya swadha nama,\nPrapithamahebhya swadhavibhya swadha nama,\n(Your gothram) Gothrān (Grandfather's name), Sharmanah Rudra roopān mama pithāmahān svadhā namas tharpayāmi.",
+          meaning: "Svadha and salutations to the fathers with svadha. Svadha and salutations to the grandfathers with svadha. Svadha and salutations to the great-grandfathers with svadha. I offer tarpana to my grandfather of ___ gotra in Rudra form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and grandfather's name."
+        },
+        {
+          devanagari: "ये चेह पितरो ये च नेह। यांश्च विद्म यागुं उ च न प्रविद्म।\nअग्ने तान् वेत्थ यदि ते जातवेदः तया प्रत्तगुं स्वधया मदन्तु",
+          text: "Ye cheha pitharo ye cha neha,\nYagscha vidma yagm u cha na pravidma,\nAgne thaan veththa yadi the jāthavedas,\nThaya praththagm swadhaya madanthu,\n(Your gothram) Gothrān (Grandfather's name), Sharmanah Rudra roopān mama pithāmahān svadhā namas tharpayāmi.",
+          meaning: "Those ancestors who are here and those who are not here, those whom we know and those whom we do not know — O Agni Jatavedas, you know them all. May they enjoy this offering of svadha. I offer tarpana to my grandfather of ___ gotra in Rudra form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and grandfather's name."
+        },
+        {
+          devanagari: "प्रपितामह तर्पणम् — प्रपितामह को अर्पण",
+          text: "Prapithamaha Tharpanam — Oblation to Great-Grandfather",
+          meaning: "The next three offerings are made to the great-grandfather in Aditya form.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
+        },
+        {
+          devanagari: "मधु वाताः ऋतायते मधु क्षरन्ति सिन्धवः। माध्वीर्नः सन्त्वोषधीः",
+          text: "Madhu vaathā ruthāyathe madhu ksharanthi sindhavā,\nMaadweer na santhw ōshadhi,\n(Your gothram) Gothrān (Great-grandfather's name), Sharmanah Āditya roopān mama prapithāmahān svadhā namas tharpayāmi.",
+          meaning: "May the winds blow sweetness for the righteous, may the rivers flow with sweetness, may the herbs be full of sweetness for us. I offer tarpana to my great-grandfather of ___ gotra in Aditya form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and great-grandfather's name."
+        },
+        {
+          devanagari: "मधु नक्तमुतोषसि मधुमत् पार्थिवं रजः। मधु द्यौरस्तु नः पिता",
+          text: "Madhu naktham uthōshasi madu math pārthivagam raja,\nMadhu dhourastu na pithā,\n(Your gothram) Gothrān (Great-grandfather's name), Sharmanah Āditya roopān mama prapithāmahān svadhā namas tharpayāmi.",
+          meaning: "May the night be sweet, may the dawn be sweet, may the earthly region be sweet, may the heavenly father be sweet to us. I offer tarpana to my great-grandfather of ___ gotra in Aditya form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and great-grandfather's name."
+        },
+        {
+          devanagari: "मधुमान् नो वनस्पतिः मधुमान् अस्तु सूर्यः। माध्वीर्गावो भवन्तु नः",
+          text: "Madhumanno vanaspathir madhu magmā asthu soorya,\nMaadweer gāvo bavanthu na,\n(Your gothram) Gothrān (Great-grandfather's name), Sharmanah Āditya roopān mama prapithāmahān svadhā namas tharpayāmi.",
+          meaning: "May the trees be full of sweetness for us, may the sun be sweet, may the cows yield sweet milk for us. I offer tarpana to my great-grandfather of ___ gotra in Aditya form.",
+          instruction: "Pour water with sesame on the koorcham. Fill in your gotra and great-grandfather's name."
         }
       ]
     },
     {
-      id: 11,
+      id: 10,
       title: "Matru Varga Tharpanam",
       titleSanskrit: "मातृवर्गतर्पणम्",
       subtitle: "Oblations to the Paternal Mothers — Mother, Grandmother, Great-Grandmother",
@@ -393,27 +411,45 @@ var THARPANAM_DATA = {
       procedure: "Continue in Prachinaveeti mode. For each ancestor, take water with black sesame seeds in the right hand. Chant the mantra three times, pouring the offering onto the koorcham each time.",
       mantras: [
         {
-          devanagari: "___ गोत्राः ___ दाः वसुरूपाः मातॄः स्वधा नमः तर्पयामि",
-          text: "___ gotrāḥ ___ dāḥ vasurūpāḥ mātṝḥ svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my mother, ___ of ___ gotra, in the form of the Vasus.",
-          instruction: "Chant 3 times. Replace blanks with gotra and mother's name."
+          devanagari: "मातृ तर्पणम् — माता को अर्पण",
+          text: "Mathru Tharpanam — Oblation to Mother",
+          meaning: "Offering to the mother in Vasu form. This is performed only if the mother has departed.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
         },
         {
-          devanagari: "___ गोत्राः ___ दाः रुद्ररूपाः पितामही स्वधा नमः तर्पयामि",
-          text: "___ gotrāḥ ___ dāḥ rudrarūpāḥ pitāmahī svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my paternal grandmother, ___ of ___ gotra, in the form of the Rudras.",
-          instruction: "Chant 3 times. Replace blanks with gotra and grandmother's name."
+          devanagari: "___ गोत्राः ___ नाम्नी वसुरूपा मम मातुः स्वधा नमः तर्पयामि",
+          text: "(Your gothram) Gothrā (Mother's name), Nāmnee vasu roopā mama māthu svadhā namas tharpayāmi.",
+          meaning: "I offer tarpana with svadhaa to my mother, named ___ of ___ gotra, in the form of the Vasus.",
+          instruction: "Chant 3 times. Replace with your gotra and mother's name. Pour water with sesame on the koorcham."
         },
         {
-          devanagari: "___ गोत्राः ___ दाः आदित्यरूपाः प्रपितामही स्वधा नमः तर्पयामि",
-          text: "___ gotrāḥ ___ dāḥ ādityarūpāḥ prapitāmahī svadhā namaḥ tarpayāmi",
-          meaning: "I offer tarpana with svadhaa to my paternal great-grandmother, ___ of ___ gotra, in the form of the Adityas.",
-          instruction: "Chant 3 times. Replace blanks with gotra and great-grandmother's name."
+          devanagari: "पितामही तर्पणम्",
+          text: "Pithamahi Tharpanam — Oblation to Paternal Grandmother",
+          meaning: "Offering to the paternal grandmother in Rudra form.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
+        },
+        {
+          devanagari: "___ गोत्राः ___ नाम्नी रुद्ररूपा मम पितामही स्वधा नमः तर्पयामि",
+          text: "(Your gothram) Gothrā (Grandmother's name), Nāmnee Rudra roopā mama pithāmahee svadhā namas tharpayāmi.",
+          meaning: "I offer tarpana with svadhaa to my paternal grandmother, named ___ of ___ gotra, in the form of the Rudras.",
+          instruction: "Chant 3 times. Replace with gotra and grandmother's name."
+        },
+        {
+          devanagari: "प्रपितामही तर्पणम्",
+          text: "Prapithamahi Tharpanam — Oblation to Paternal Great-Grandmother",
+          meaning: "Offering to the paternal great-grandmother in Aditya form.",
+          instruction: "Offer a handful of water mixed with black ellu on the koorcham after each mantra"
+        },
+        {
+          devanagari: "___ गोत्राः ___ नाम्नी आदित्यरूपा मम प्रपितामही स्वधा नमः तर्पयामि",
+          text: "(Your gothram) Gothrā (Great-grandmother's name), Nāmnee Āditya roopā mama prapithāmahee svadhā namas tharpayāmi.",
+          meaning: "I offer tarpana with svadhaa to my paternal great-grandmother, named ___ of ___ gotra, in the form of the Adityas.",
+          instruction: "Chant 3 times. Replace with gotra and great-grandmother's name."
         }
       ]
     },
     {
-      id: 12,
+      id: 11,
       title: "Matamaha Varga Tharpanam",
       titleSanskrit: "मातामहवर्गतर्पणम्",
       subtitle: "Oblations to the Maternal Lineage — Maternal Grandfather, His Father, His Grandfather",
@@ -441,7 +477,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 13,
+      id: 12,
       title: "Matamaha Matru Varga Tharpanam",
       titleSanskrit: "मातामहमातृवर्गतर्पणम्",
       subtitle: "Oblations to Maternal Grandmothers",
@@ -469,7 +505,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 14,
+      id: 13,
       title: "Oorjam Vahanthi Mantram",
       titleSanskrit: "ऊर्जं वहन्ती मन्त्रम्",
       subtitle: "Prayer for Nourishment — After Each Set of Oblations",
@@ -490,7 +526,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 15,
+      id: 14,
       title: "Karunya Pitru Tharpanam",
       titleSanskrit: "कारुण्यपितृतर्पणम्",
       subtitle: "Compassionate Oblations — For Uncles and Other Departed Relatives",
@@ -512,7 +548,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 16,
+      id: 15,
       title: "Abhisravanam — Namah Mantras",
       titleSanskrit: "अभिश्रवणम् — नमो मन्त्राः",
       subtitle: "Salutations to Ancestors in All Their Aspects",
@@ -562,7 +598,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 17,
+      id: 16,
       title: "Visarjanam",
       titleSanskrit: "विसर्जनम्",
       subtitle: "Sending Off the Ancestors — The Farewell",
@@ -583,7 +619,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 18,
+      id: 17,
       title: "Sarva Tharpanam",
       titleSanskrit: "सर्वतर्पणम्",
       subtitle: "Universal Offering — For All Departed Souls Without Family",
@@ -598,7 +634,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 19,
+      id: 18,
       title: "Brahmarpanam & Conclusion",
       titleSanskrit: "ब्रह्मार्पणम् — समापनम्",
       subtitle: "Offering Everything to Brahman — Final Purification",
@@ -619,7 +655,7 @@ var THARPANAM_DATA = {
       ]
     },
     {
-      id: 20,
+      id: 19,
       title: "Brahma Yagnam",
       titleSanskrit: "ब्रह्मयज्ञम्",
       subtitle: "Post-Tharpanam Vedic Chanting (Recommended)",
