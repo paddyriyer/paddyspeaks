@@ -9257,7 +9257,187 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Celebrates the famous butter-stealing pastimes of child Krishna, who would raid the homes of the Gopis with His friends, eating and distributing butter, delighting all of Vraja.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 41,
+          sloka: 1,
+          devanagari: "गोपीगृहेषु प्रविशन् रहस्य-\nमुच्चैर्घटान्भिन्दन् नवनीतमश्नन् ।\nसख्यैः समं वानरसङ्घजुष्टो\nविचित्रचेष्टः किमु नादहो त्वम् ॥",
+          transliteration: "gopīgṛheṣu praviśan rahasya-\nmuccairghaṭānbhindan navanītamaśnan |\nsakhyaiḥ samaṁ vānarasaṅghajuṣṭo\nvicitraceṣṭaḥ kimu nādaho tvam ||",
+          translation: "Entering the houses of the gopis secretly, breaking the tall pots and eating the butter, accompanied by Your friends and surrounded by troops of monkeys — what marvelous exploits You performed, O Lord!",
+          commentary: "This opening verse sets the scene for Krishna's famous butter-stealing pastimes (navanīta-chaurya-līlā). As described in Bhagavatam 10.8.29-30, baby Krishna would sneak into the gopis' homes with His friends and monkeys, break the hanging pots of butter, and feast. Bhattathiri captures the playful mischief that is central to vātsalya-rasa.",
+          words: [
+            { word: "गोपीगृहेषु", transliteration: "gopīgṛheṣu", meaning: "in the houses of the gopis" },
+            { word: "रहस्यम्", transliteration: "rahasyam", meaning: "secretly, stealthily" },
+            { word: "घटान्", transliteration: "ghaṭān", meaning: "pots" },
+            { word: "भिन्दन्", transliteration: "bhindan", meaning: "breaking" },
+            { word: "नवनीतम्", transliteration: "navanītam", meaning: "fresh butter" },
+            { word: "अश्नन्", transliteration: "aśnan", meaning: "eating" },
+            { word: "वानरसङ्घ", transliteration: "vānarasaṅgha", meaning: "troop of monkeys" },
+            { word: "विचित्रचेष्टः", transliteration: "vicitraceṣṭaḥ", meaning: "of wonderful exploits" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 2,
+          devanagari: "उलूखलं निःसृतनवनीतं\nचौर्येण नीत्वा परिकल्प्य भोज्यम् ।\nस्वैः बालकैः सार्धमदः परेषां\nवितीर्य चान्यद्वानरेभ्यो ददौ त्वम् ॥",
+          transliteration: "ulūkhalaṁ niḥsṛtanavanītaṁ\ncauryeṇa nītvā parikalpya bhojyam |\nsvaiḥ bālakaiḥ sārdhamadaḥ pareṣāṁ\nvitīrya cānyadvānarebhyo dadau tvam ||",
+          translation: "Taking butter drawn from the churning mortar by stealth, preparing it as a feast, You ate it together with Your cowherd friends, and distributed the rest to the monkeys.",
+          commentary: "This verse elaborates on how Krishna would organize the stolen butter into a shared feast. The Bhagavatam describes how He would first feed His friends and then generously share with the monkeys. The ulūkhala (mortar) is a key symbol in Krishna's childhood, later becoming the instrument of His binding in the Dāmodara episode.",
+          words: [
+            { word: "उलूखलम्", transliteration: "ulūkhalam", meaning: "mortar (for churning)" },
+            { word: "निःसृत", transliteration: "niḥsṛta", meaning: "drawn out, extracted" },
+            { word: "चौर्येण", transliteration: "cauryeṇa", meaning: "by theft, by stealth" },
+            { word: "नीत्वा", transliteration: "nītvā", meaning: "having taken away" },
+            { word: "परिकल्प्य", transliteration: "parikalpya", meaning: "having prepared, arranged" },
+            { word: "भोज्यम्", transliteration: "bhojyam", meaning: "food, feast" },
+            { word: "बालकैः", transliteration: "bālakaiḥ", meaning: "with the boys" },
+            { word: "वितीर्य", transliteration: "vitīrya", meaning: "having distributed" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 3,
+          devanagari: "गोप्यस्तु संरक्षितनवनीतं\nबहुप्रयत्नेन निधाय कुम्भे ।\nगृहान्धकारे स्थितमप्यभेद्यं\nत्वद्विद्युदङ्गेन विभिन्नमासीत् ॥",
+          transliteration: "gopyas tu saṁrakṣitanavanītaṁ\nbahuprayatnena nidhāya kumbhe |\ngṛhāndhakāre sthitamapyabhedyaṁ\ntvadvidyudaṅgena vibhinnamāsīt ||",
+          translation: "The gopis would carefully protect the butter, storing it with great effort in pots placed in dark rooms. Yet even that which seemed impregnable was broken open by the radiance of Your body that lit up the darkness.",
+          commentary: "A beautiful image: the gopis would hide butter in dark corners of their homes, but Krishna's own body-lustre illuminated the darkness, revealing the hidden pots. Bhagavatam 10.8.31 describes how the gopis tried every method to protect their butter from Krishna. His body, radiant like lightning (vidyut), made darkness itself His accomplice rather than the gopis' protector.",
+          words: [
+            { word: "गोप्यः", transliteration: "gopyaḥ", meaning: "the gopis (cowherd women)" },
+            { word: "संरक्षित", transliteration: "saṁrakṣita", meaning: "carefully protected" },
+            { word: "बहुप्रयत्नेन", transliteration: "bahuprayatnena", meaning: "with great effort" },
+            { word: "निधाय", transliteration: "nidhāya", meaning: "having stored, placed" },
+            { word: "कुम्भे", transliteration: "kumbhe", meaning: "in a pot" },
+            { word: "गृहान्धकारे", transliteration: "gṛhāndhakāre", meaning: "in the darkness of the house" },
+            { word: "अभेद्यम्", transliteration: "abhedyam", meaning: "impregnable, unbreakable" },
+            { word: "विद्युदङ्गेन", transliteration: "vidyudaṅgena", meaning: "by the lightning-like body" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 4,
+          devanagari: "अन्योन्यमङ्कस्थितबालकानां\nसमुच्छ्रयं कल्पयितुं स्ववृन्दैः ।\nउच्चैर्निबद्धं नवनीतपात्रं\nभिन्दन् प्रमोदेन ननर्त बालः ॥",
+          transliteration: "anyonyamaṅkasthitabālakānāṁ\nsamucchrayaṁ kalpayituṁ svavṛndaiḥ |\nuccairnibaddhaṁ navanītapātraṁ\nbhindan pramodena nanarta bālaḥ ||",
+          translation: "Making the cowherd boys stand on each other's shoulders to reach the butter pots hung high, the child Krishna broke the pots and danced with delight.",
+          commentary: "When the gopis began hanging butter pots from high rafters, Krishna devised an ingenious solution — He had His friends climb upon one another's shoulders to reach them. Bhagavatam 10.9.8 alludes to this mischief. The image of the Supreme Lord dancing in joy after breaking a butter pot is a quintessential scene of Bāla-Krishna iconography.",
+          words: [
+            { word: "अन्योन्यम्", transliteration: "anyonyam", meaning: "on one another" },
+            { word: "अङ्कस्थित", transliteration: "aṅkasthita", meaning: "standing on the lap/shoulder" },
+            { word: "समुच्छ्रयम्", transliteration: "samucchrayam", meaning: "height, elevation" },
+            { word: "कल्पयितुम्", transliteration: "kalpayitum", meaning: "to arrange, to devise" },
+            { word: "स्ववृन्दैः", transliteration: "svavṛndaiḥ", meaning: "with His own group of friends" },
+            { word: "निबद्धम्", transliteration: "nibaddham", meaning: "tied up, fastened" },
+            { word: "नवनीतपात्रम्", transliteration: "navanītapātram", meaning: "butter pot" },
+            { word: "ननर्त", transliteration: "nanarta", meaning: "danced" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 5,
+          devanagari: "गोप्यस्तु दृष्ट्वा नवनीतचौर्यं\nमिथः समालोच्य गतां यशोदाम् ।\nसर्वाः समेत्याशु तथा वदन्त्यः\nत्वत्चापलानि प्रशशंसुरेव ॥",
+          transliteration: "gopyastu dṛṣṭvā navanītacauryaṁ\nmithaḥ samālocya gatāṁ yaśodām |\nsarvāḥ sametyāśu tathā vadantyaḥ\ntvaccāpalāni praśaśaṁsureva ||",
+          translation: "The gopis, having witnessed the butter theft, consulted among themselves and went together to Yashoda. Complaining about Your mischief, they actually ended up praising Your exploits.",
+          commentary: "A delightful psychological observation: the gopis go to Yashoda to complain about Krishna's thefts, but as they describe His pranks, their anger melts into admiration. Bhagavatam 10.8.31-33 describes this scene where the gopis' complaints become inadvertent praise. This is the nature of Krishna-bhakti — even grievances become glorification.",
+          words: [
+            { word: "नवनीतचौर्यम्", transliteration: "navanītacauryam", meaning: "butter theft" },
+            { word: "मिथः", transliteration: "mithaḥ", meaning: "among themselves, mutually" },
+            { word: "समालोच्य", transliteration: "samālocya", meaning: "having discussed, consulted" },
+            { word: "यशोदाम्", transliteration: "yaśodām", meaning: "to Yashoda" },
+            { word: "समेत्य", transliteration: "sametya", meaning: "having assembled, come together" },
+            { word: "चापलानि", transliteration: "cāpalāni", meaning: "mischievous deeds, pranks" },
+            { word: "प्रशशंसुः", transliteration: "praśaśaṁsuḥ", meaning: "praised, extolled" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 6,
+          devanagari: "गोपीजनैरुक्तनिजात्मचौर्ये\nयशोदया त्वं बहुभर्त्सितोऽपि ।\nसस्मेरनेत्रं नयनाम्बुकल्पं\nव्याजेन दृष्ट्वा जननी दयार्द्रा ॥",
+          transliteration: "gopījanairuktanijātmacaurye\nyaśodayā tvaṁ bahubhartsito'pi |\nsasmeranetraṁ nayanāmbukalpam\nvyājena dṛṣṭvā jananī dayārdrā ||",
+          translation: "When the gopis reported Your thefts and Yashoda scolded You severely, You showed eyes that were both smiling and brimming with pretended tears. Seeing this, Your mother's heart melted with compassion.",
+          commentary: "Krishna's masterful response to Yashoda's scolding reveals His irresistible charm. He simultaneously smiles and produces fake tears — a paradox that disarms His mother completely. Bhagavatam 10.8.34 describes how Yashoda could never sustain anger at Krishna. The word vyājena (by pretense) shows that even the Supreme Lord's tears are a divine play (līlā).",
+          words: [
+            { word: "गोपीजनैः", transliteration: "gopījanaiḥ", meaning: "by the gopi folk" },
+            { word: "उक्त", transliteration: "ukta", meaning: "reported, told" },
+            { word: "भर्त्सितः", transliteration: "bhartsitaḥ", meaning: "scolded, rebuked" },
+            { word: "सस्मेरनेत्रम्", transliteration: "sasmeranetraṁ", meaning: "with smiling eyes" },
+            { word: "नयनाम्बुकल्पम्", transliteration: "nayanāmbukalpaṁ", meaning: "with eyes brimming with (pretended) tears" },
+            { word: "व्याजेन", transliteration: "vyājena", meaning: "by pretense, by a ruse" },
+            { word: "जननी", transliteration: "jananī", meaning: "mother" },
+            { word: "दयार्द्रा", transliteration: "dayārdrā", meaning: "softened with compassion" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 7,
+          devanagari: "नाहं करोमीति विलज्जमानो\nगोपीकराग्रे नवनीतचिह्नः ।\nवक्त्रे विलिप्तं दधि वीक्ष्य मातुः\nमिथ्यापलापं वदतः स्मितं ते ॥",
+          transliteration: "nāhaṁ karomīti vilajjamāno\ngopīkarāgre navanītacihnaḥ |\nvaktre viliptaṁ dadhi vīkṣya mātuḥ\nmithyāpalāpaṁ vadataḥ smitaṁ te ||",
+          translation: "Saying 'I did not do it!' with feigned embarrassment, yet bearing the marks of butter on Your hands and yogurt smeared on Your face — Your false denials brought smiles even to Your mother's face.",
+          commentary: "One of the most endearing images of Bāla-Krishna: caught red-handed with butter on His fingers and yogurt on His face, He still insists on His innocence. Bhagavatam 10.8.34-35 describes these denials. The irony of the omniscient Lord feigning ignorance is the essence of His mādhurya (sweetness). Even His lies are a form of divine play that enchants devotees.",
+          words: [
+            { word: "नाहम्", transliteration: "nāham", meaning: "not I" },
+            { word: "करोमि", transliteration: "karomi", meaning: "I do" },
+            { word: "विलज्जमानः", transliteration: "vilajjamānaḥ", meaning: "acting embarrassed, feigning shame" },
+            { word: "नवनीतचिह्नः", transliteration: "navanītacihnaḥ", meaning: "bearing marks of butter" },
+            { word: "वक्त्रे", transliteration: "vaktre", meaning: "on the face" },
+            { word: "विलिप्तम्", transliteration: "viliptam", meaning: "smeared" },
+            { word: "दधि", transliteration: "dadhi", meaning: "yogurt, curd" },
+            { word: "मिथ्यापलापम्", transliteration: "mithyāpalāpam", meaning: "false denials, untrue excuses" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 8,
+          devanagari: "त्वत्कारणात्कूपनतासनेषु\nउच्चासनादौ च ददुर्विरावम् ।\nगोप्यो निरुद्धे नवनीतभाण्डे\nत्वं तत्र शब्देन समागतोऽभूः ॥",
+          transliteration: "tvatkāraṇātkūpanatāsaneṣu\nuccāsanādau ca dadurvirāvam |\ngopyo niruddhe navanītabhāṇḍe\ntvaṁ tatra śabdena samāgato'bhūḥ ||",
+          translation: "Because of You, the gopis placed their butter pots on high platforms and shelves and raised an alarm. Yet when they sealed the butter vessels, You followed the sound and still reached them.",
+          commentary: "The gopis escalated their defenses — placing pots on high shelves and platforms, and even raising alarms. But Krishna, guided by the very sounds of their protective efforts, found His way to the butter regardless. This humorous cat-and-mouse game between the Lord and the gopis illustrates that no obstacle can prevent the Lord from reaching what He desires — a metaphor for divine grace overcoming all barriers.",
+          words: [
+            { word: "त्वत्कारणात्", transliteration: "tvatkāraṇāt", meaning: "because of You" },
+            { word: "कूप", transliteration: "kūpa", meaning: "well, pit (here: deep storage)" },
+            { word: "उच्चासन", transliteration: "uccāsana", meaning: "high platform, elevated seat" },
+            { word: "विरावम्", transliteration: "virāvam", meaning: "loud cry, alarm" },
+            { word: "निरुद्धे", transliteration: "niruddhe", meaning: "sealed, blocked" },
+            { word: "नवनीतभाण्डे", transliteration: "navanītabhāṇḍe", meaning: "butter vessel" },
+            { word: "शब्देन", transliteration: "śabdena", meaning: "by the sound" },
+            { word: "समागतः", transliteration: "samāgataḥ", meaning: "arrived, reached" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 9,
+          devanagari: "स्वगेहदध्नो नवनीतमश्नन्\nपरेषु दोषारोपणं कुर्वन् ।\nव्याजस्मितैर्मोहयन् गोपनारीः\nत्वत्कैतवं तत्र कोऽपि न वेद ॥",
+          transliteration: "svagehadadhno navanītamaśnan\npareṣu doṣāropaṇaṁ kurvan |\nvyājasmitairmohayan gopanārīḥ\ntvatkaitavaṁ tatra ko'pi na veda ||",
+          translation: "Eating butter from Your own home's curd, You would blame others for the mischief. Bewildering the cowherd women with Your artful smiles, no one could fathom Your deception.",
+          commentary: "Krishna's cunning reached new heights: He would eat butter at home and then accuse others of stealing it. His disarming smiles confused the gopis completely. Bhagavatam 10.8.33 describes how no one could truly catch Him or prove His guilt. The word kaitava (deception) applied to the Lord reveals that even divine dishonesty is a source of joy in bhakti — for His lies are sweeter than others' truths.",
+          words: [
+            { word: "स्वगेह", transliteration: "svageha", meaning: "one's own home" },
+            { word: "दध्नः", transliteration: "dadhnaḥ", meaning: "of the curd" },
+            { word: "दोषारोपणम्", transliteration: "doṣāropaṇam", meaning: "casting blame, imputing fault" },
+            { word: "व्याजस्मितैः", transliteration: "vyājasmitaiḥ", meaning: "with artful/deceptive smiles" },
+            { word: "मोहयन्", transliteration: "mohayan", meaning: "bewildering, enchanting" },
+            { word: "गोपनारीः", transliteration: "gopanārīḥ", meaning: "cowherd women" },
+            { word: "कैतवम्", transliteration: "kaitavam", meaning: "deception, cunning" }
+          ]
+        },
+        {
+          dashaka: 41,
+          sloka: 10,
+          devanagari: "एवं प्रभो नवनीतचौर्य-\nलीलामृतं ते परिगीयमानम् ।\nशृण्वन्ति ये भक्तिभरेण नित्यं\nतेषां गतिस्त्वं गुरुवायुपुरेश ।\nपाहि त्वमस्मान् नवनीतचोर\nसर्वामयघ्न प्रणतार्तिहारिन् ॥",
+          transliteration: "evaṁ prabho navanītacaurya-\nlīlāmṛtaṁ te parigīyamānam |\nśṛṇvanti ye bhaktibhareṇa nityaṁ\nteṣāṁ gatistvaṁ guruvāyupureśa |\npāhi tvamasmān navanītacora\nsarvāmayaghna praṇatārtihārin ||",
+          translation: "Thus, O Lord, those who constantly hear with abundant devotion the nectar of Your butter-stealing pastimes — You are their ultimate refuge, O Lord of Guruvayur! Protect us, O Butter-thief, O destroyer of all ailments, O remover of the sorrows of those who surrender!",
+          commentary: "The concluding verse follows the traditional Narayaneeyam format, summarizing the dashaka's theme and ending with a prayer for healing. Bhattathiri affectionately addresses the Lord as Navanīta-chora (Butter-thief), converting a childhood prank into a divine epithet. The prayer for disease-removal (sarvāmayaghna) reflects the poet's ongoing physical suffering and his faith that even the playful stories of Krishna's childhood carry healing power.",
+          words: [
+            { word: "नवनीतचौर्य", transliteration: "navanītacaurya", meaning: "butter-stealing" },
+            { word: "लीलामृतम्", transliteration: "līlāmṛtam", meaning: "nectar of divine play" },
+            { word: "परिगीयमानम्", transliteration: "parigīyamānam", meaning: "being sung, celebrated" },
+            { word: "भक्तिभरेण", transliteration: "bhaktibhareṇa", meaning: "with abundance of devotion" },
+            { word: "गतिः", transliteration: "gatiḥ", meaning: "refuge, ultimate goal" },
+            { word: "गुरुवायुपुरेश", transliteration: "guruvāyupureśa", meaning: "O Lord of Guruvayur" },
+            { word: "नवनीतचोर", transliteration: "navanītacora", meaning: "O Butter-thief" },
+            { word: "सर्वामयघ्न", transliteration: "sarvāmayaghna", meaning: "destroyer of all ailments" },
+            { word: "प्रणतार्तिहारिन्", transliteration: "praṇatārtihārin", meaning: "remover of sorrows of the surrendered" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 42,
@@ -9266,7 +9446,189 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Narrates the famous episode where mother Yashoda, looking into Krishna's mouth after He ate mud, beholds the entire universe within. Overwhelmed, she is then covered by the Lord's Yoga Maya.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 42,
+          sloka: 1,
+          devanagari: "एकदा क्रीडितुं बालैर्व्रजे निर्गत्य बालकः ।\nमृदं समश्नन् गोपालैः सह खेलन् जगत्पतिः ।\nगोपबालैस्तदा दृष्टः मृदं भुञ्जान इत्यहो ॥",
+          transliteration: "ekadā krīḍituṁ bālairvaje nirgatya bālakaḥ |\nmṛdaṁ samaśnan gopālaiḥ saha khelan jagatpatiḥ |\ngopabālaistadā dṛṣṭaḥ mṛdaṁ bhuñjāna ityaho ||",
+          translation: "One day, the child went out to play in Vraja with the cowherd boys. The Lord of the universe was seen eating mud while playing with His friends. The cowherd boys saw this and exclaimed in wonder.",
+          commentary: "This verse begins the famous mṛd-bhakṣaṇa (mud-eating) episode from Bhagavatam 10.8.32-34. The Lord of all creation, who sustains the entire universe, is seen eating common earth like an ordinary child. The gopāla boys who witnessed this would soon carry the tale to Yashoda, setting in motion one of the most profound theological episodes in the Bhagavatam.",
+          words: [
+            { word: "एकदा", transliteration: "ekadā", meaning: "one day" },
+            { word: "क्रीडितुम्", transliteration: "krīḍitum", meaning: "to play" },
+            { word: "बालैः", transliteration: "bālaiḥ", meaning: "with the boys" },
+            { word: "निर्गत्य", transliteration: "nirgatya", meaning: "having gone out" },
+            { word: "मृदम्", transliteration: "mṛdam", meaning: "mud, earth" },
+            { word: "समश्नन्", transliteration: "samaśnan", meaning: "eating" },
+            { word: "जगत्पतिः", transliteration: "jagatpatiḥ", meaning: "Lord of the universe" },
+            { word: "गोपबालैः", transliteration: "gopabālaiḥ", meaning: "by the cowherd boys" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 2,
+          devanagari: "गोपबालास्तदा गत्वा यशोदां प्राहुरादरात् ।\nपुत्रस्ते मृदमश्नाति वारयस्व शुभानने ।\nयशोदा त्वरिता तत्र गत्वा पुत्रमभर्त्सयत् ॥",
+          transliteration: "gopabālāstadā gatvā yaśodāṁ prāhurādarāt |\nputraste mṛdamaśnāti vārayasva śubhānane |\nyaśodā tvaritā tatra gatvā putramabhartsayat ||",
+          translation: "The cowherd boys then went and reported to Yashoda with concern: 'Your son is eating mud! Please stop him, O fair-faced one!' Yashoda hurried there and scolded her son.",
+          commentary: "The cowherd boys act as innocent informants, running to Yashoda to report Krishna's mud-eating. Their address to Yashoda as śubhānane (fair-faced one) shows the respectful yet familiar relationship in Gokula's community. Bhagavatam 10.8.34 describes how Yashoda, alarmed for her child's health, rushed to the scene in motherly anxiety.",
+          words: [
+            { word: "गोपबालाः", transliteration: "gopabālāḥ", meaning: "the cowherd boys" },
+            { word: "गत्वा", transliteration: "gatvā", meaning: "having gone" },
+            { word: "प्राहुः", transliteration: "prāhuḥ", meaning: "said, reported" },
+            { word: "आदरात्", transliteration: "ādarāt", meaning: "with concern, respectfully" },
+            { word: "मृदम्", transliteration: "mṛdam", meaning: "mud, earth" },
+            { word: "वारयस्व", transliteration: "vārayasva", meaning: "please stop, restrain" },
+            { word: "त्वरिता", transliteration: "tvaritā", meaning: "hurried, quick" },
+            { word: "अभर्त्सयत्", transliteration: "abhartsayat", meaning: "scolded, rebuked" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 3,
+          devanagari: "नाश्नामि मृत्तिकामम्ब मिथ्या वदन्ति बालकाः ।\nयदि सत्यं तदा पश्य ममास्यं विवृतं शुभे ।\nइत्युक्त्वा त्वं मुखं तस्या विवृत्य प्रदर्शयः ॥",
+          transliteration: "nāśnāmi mṛttikāmamba mithyā vadanti bālakāḥ |\nyadi satyaṁ tadā paśya mamāsyaṁ vivṛtaṁ śubhe |\nityuktvā tvaṁ mukhaṁ tasyā vivṛtya pradarśayaḥ ||",
+          translation: "'I did not eat mud, Mother! The boys are lying. If it is true, then look — here is my open mouth, O beautiful one!' Saying this, You opened Your mouth wide and showed it to her.",
+          commentary: "Krishna first denies eating mud, then boldly challenges Yashoda to verify by looking into His mouth. Bhagavatam 10.8.35 records this exchange. His confident denial followed by the open invitation to inspect is the divine setup — the Lord is preparing to reveal His cosmic form within that tiny mouth. The address 'amba' (mother) and 'śubhe' (beautiful one) add tenderness to the scene.",
+          words: [
+            { word: "मृत्तिकाम्", transliteration: "mṛttikām", meaning: "mud, clay" },
+            { word: "अम्ब", transliteration: "amba", meaning: "mother (affectionate)" },
+            { word: "मिथ्या", transliteration: "mithyā", meaning: "falsely" },
+            { word: "वदन्ति", transliteration: "vadanti", meaning: "they say, they speak" },
+            { word: "सत्यम्", transliteration: "satyam", meaning: "truth" },
+            { word: "आस्यम्", transliteration: "āsyam", meaning: "mouth" },
+            { word: "विवृतम्", transliteration: "vivṛtam", meaning: "opened wide" },
+            { word: "प्रदर्शयः", transliteration: "pradarśayaḥ", meaning: "showed, displayed" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 4,
+          devanagari: "ददर्श सा तन्मुखमीक्षमाणा\nखं रोदसी ज्योतिषि चन्द्रसूर्यौ ।\nद्वीपान् समुद्रान् क्षितिमम्बुधींश्च\nसमस्तलोकान् भुवनानि सर्वम् ॥",
+          transliteration: "dadarśa sā tanmukhamīkṣamāṇā\nkhaṁ rodasī jyotiṣi candrasūryau |\ndvīpān samudrān kṣitimambudhīṁśca\nsamastalokān bhuvanāni sarvam ||",
+          translation: "Peering into that mouth, she beheld the sky, the earth and heavens, the luminaries — the moon and sun, the continents and oceans, the earth and seas, all the worlds and all the realms of creation.",
+          commentary: "This is the climactic moment of the episode. As described in Bhagavatam 10.8.37, Yashoda sees within her child's mouth the entire cosmos — space (kha), earth and heaven (rodasī), sun and moon, continents, oceans, and all fourteen worlds. Bhattathiri enumerates these cosmic elements to convey the overwhelming totality of the vision. This is parallel to but distinct from the Vishvarūpa shown to Arjuna — here it arises in the intimate setting of maternal love.",
+          words: [
+            { word: "ददर्श", transliteration: "dadarśa", meaning: "she saw, she beheld" },
+            { word: "मुखम्", transliteration: "mukham", meaning: "mouth, face" },
+            { word: "ईक्षमाणा", transliteration: "īkṣamāṇā", meaning: "peering into, examining" },
+            { word: "खम्", transliteration: "kham", meaning: "sky, space" },
+            { word: "रोदसी", transliteration: "rodasī", meaning: "heaven and earth" },
+            { word: "ज्योतिषि", transliteration: "jyotiṣi", meaning: "luminaries, celestial lights" },
+            { word: "द्वीपान्", transliteration: "dvīpān", meaning: "continents, islands" },
+            { word: "भुवनानि", transliteration: "bhuvanāni", meaning: "worlds, realms" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 5,
+          devanagari: "वायुं दिशो वह्निमधीश्वरांश्च\nपृथ्वीं गिरीन् सागरसारिताश्च ।\nतेजश्च सत्त्वादिगुणांश्च दृष्ट्वा\nचतुर्दशान् भूरिविलोकलोकान् ॥",
+          transliteration: "vāyuṁ diśo vahnimadhīśvarāṁśca\npṛthvīṁ girīn sāgarasāritāśca |\ntejaśca sattvādiguṇāṁśca dṛṣṭvā\ncaturdaśān bhūrivilokalokān ||",
+          translation: "She saw the wind, the directions, fire, the presiding deities, the earth, mountains, oceans and rivers, radiance itself, the three gunas of sattva and the rest, and all the fourteen expansive worlds.",
+          commentary: "Bhattathiri expands the cosmic vision further, listing the five elements (wind, fire, earth), the directions of space, the guardian deities (adhīśvara) of each element, mountains, rivers, and the three guṇas (sattva, rajas, tamas). The fourteen worlds (caturdaśa loka) of Vedic cosmology — seven upper and seven lower — are all contained within the mouth of a toddler. This systematic enumeration follows Bhagavatam 10.8.37's description.",
+          words: [
+            { word: "वायुम्", transliteration: "vāyum", meaning: "wind" },
+            { word: "दिशः", transliteration: "diśaḥ", meaning: "directions" },
+            { word: "वह्निम्", transliteration: "vahnim", meaning: "fire" },
+            { word: "अधीश्वरान्", transliteration: "adhīśvarān", meaning: "presiding deities, lords" },
+            { word: "गिरीन्", transliteration: "girīn", meaning: "mountains" },
+            { word: "सागरसारिताः", transliteration: "sāgarasāritāḥ", meaning: "oceans and rivers" },
+            { word: "सत्त्वादिगुणान्", transliteration: "sattvādiguṇān", meaning: "qualities beginning with sattva" },
+            { word: "चतुर्दशान्", transliteration: "caturdaśān", meaning: "fourteen" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 6,
+          devanagari: "तत्रैव गोकुलमथात्मजमात्मनं च\nदृष्ट्वा विमोहमगमत् सहसा यशोदा ।\nकिं स्वप्न एष उत वा भ्रम एष कोऽयं\nबालस्य मे भगवतो मुखमीदृशं किम् ॥",
+          transliteration: "tatraiva gokulamathātmajamātmanāṁ ca\ndṛṣṭvā vimohamagamat sahasā yaśodā |\nkiṁ svapna eṣa uta vā bhrama eṣa ko'yaṁ\nbālasya me bhagavato mukhamīdṛśaṁ kim ||",
+          translation: "And there within that same vision she saw Gokula itself, her own son, and even herself! Yashoda was suddenly overcome with bewilderment. 'Is this a dream? Or an illusion? What is this — is my child's mouth that of the Supreme Lord?'",
+          commentary: "The most philosophically stunning moment: within Krishna's mouth, Yashoda sees not only the cosmos but Gokula, Krishna, and herself — an infinite regression, a universe within a universe. Bhagavatam 10.8.37 describes her utter confusion. Her question 'Is this Bhagavan's mouth?' marks the moment where maternal perception collides with divine reality. She oscillates between seeing her child and recognizing the Supreme Being.",
+          words: [
+            { word: "तत्रैव", transliteration: "tatraiva", meaning: "right there, in that very place" },
+            { word: "गोकुलम्", transliteration: "gokulam", meaning: "Gokula (the village)" },
+            { word: "आत्मजम्", transliteration: "ātmajam", meaning: "her own son" },
+            { word: "आत्मानम्", transliteration: "ātmānam", meaning: "herself" },
+            { word: "विमोहम्", transliteration: "vimoham", meaning: "bewilderment, delusion" },
+            { word: "स्वप्नः", transliteration: "svapnaḥ", meaning: "dream" },
+            { word: "भ्रमः", transliteration: "bhramaḥ", meaning: "illusion, confusion" },
+            { word: "भगवतः", transliteration: "bhagavataḥ", meaning: "of the Supreme Lord" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 7,
+          devanagari: "नूनं बालोऽयमीशो भुवनमखिलमेतत्स्वकीयं वहन्नित्यं\nयत्तद्विश्वात्मकत्वं प्रकटयति मम प्रत्यक्षमेतत्कथं वा ।\nइत्थं संचिन्तयन्ती सपदि भगवतो माययाऽऽवृतधीका\nपुत्रस्नेहं पुनर्वै दधति सुतरतां वात्सल्यपूर्णा बभूव ॥",
+          transliteration: "nūnaṁ bālo'yamīśo bhuvanamakhilametatsvakyaṁ vahannityaṁ\nyattadviśvātmakatvaṁ prakaṭayati mama pratyakṣametatkathaṁ vā |\nitthaṁ saṁcintayantī sapadi bhagavato māyayā''vṛtadhīkā\nputrasnehaṁ punarvai dadhati sutaratāṁ vātsalyapūrṇā babhūva ||",
+          translation: "Thinking 'Surely this child is the Lord Himself, bearing the entire universe as His own — is He revealing His cosmic nature before my very eyes?' — as she reflected thus, the Lord's Maya suddenly enveloped her mind. She resumed her maternal affection, and once again became filled with parental love.",
+          commentary: "This verse captures the theological crux of the episode. For a fleeting moment, Yashoda glimpses the truth — her son is the Supreme Lord. But immediately, Krishna's Yoga-Māyā covers her divine insight, restoring her ordinary maternal consciousness. Bhagavatam 10.8.43 explains this as the Lord's compassionate act: He preserves the sweetness of vātsalya-rasa by preventing Yashoda's awe (aiśvarya) from destroying her intimate motherly love. In bhakti theology, this intimacy is considered higher than reverential worship.",
+          words: [
+            { word: "नूनम्", transliteration: "nūnam", meaning: "surely, certainly" },
+            { word: "ईशः", transliteration: "īśaḥ", meaning: "the Lord, the Supreme" },
+            { word: "विश्वात्मकत्वम्", transliteration: "viśvātmakatvam", meaning: "the nature of being the cosmic Self" },
+            { word: "प्रकटयति", transliteration: "prakaṭayati", meaning: "reveals, manifests" },
+            { word: "प्रत्यक्षम्", transliteration: "pratyakṣam", meaning: "before one's eyes, directly perceived" },
+            { word: "माययाऽऽवृतधीका", transliteration: "māyayāvṛtadhīkā", meaning: "one whose mind is veiled by Maya" },
+            { word: "पुत्रस्नेहम्", transliteration: "putrasneham", meaning: "maternal love for a son" },
+            { word: "वात्सल्यपूर्णा", transliteration: "vātsalyapūrṇā", meaning: "filled with parental love" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 8,
+          devanagari: "या विश्वदृष्टिर्मुहुरप्यजायत\nयशोदया तत्र तवैव माययाम् ।\nतिरोहिता सा पुनराश्रिता शिशोः\nस्नेहं परं वात्सल्यरसेन संयुता ॥",
+          transliteration: "yā viśvadṛṣṭirmuhurpyajāyata\nyaśodayā tatra tavaiva māyayām |\ntirohitā sā punarāśritā śiśoḥ\nsnehaṁ paraṁ vātsalyarasena saṁyutā ||",
+          translation: "That cosmic vision which briefly arose in Yashoda was hidden by Your Maya alone. She returned to her supreme affection for the child, united once again with the sweet rasa of maternal love.",
+          commentary: "Bhattathiri reflects on the theological significance of Maya's intervention. The viśva-dṛṣṭi (cosmic vision) was real but temporary — deliberately so. Krishna's Maya does not deceive in a negative sense; rather, it protects the higher spiritual relationship (vātsalya-rasa) from being overwhelmed by awe. This is a key principle in Gaudiya and Kerala Vaishnava theology: the intimacy of love (mādhurya) is superior to the majesty of divine revelation (aiśvarya).",
+          words: [
+            { word: "विश्वदृष्टिः", transliteration: "viśvadṛṣṭiḥ", meaning: "cosmic vision, vision of the universe" },
+            { word: "मुहुः", transliteration: "muhuḥ", meaning: "for a moment, briefly" },
+            { word: "अजायत", transliteration: "ajāyata", meaning: "arose, appeared" },
+            { word: "मायया", transliteration: "māyayā", meaning: "by Maya (divine illusion)" },
+            { word: "तिरोहिता", transliteration: "tirohitā", meaning: "concealed, hidden" },
+            { word: "आश्रिता", transliteration: "āśritā", meaning: "returned to, took refuge in" },
+            { word: "स्नेहम्", transliteration: "sneham", meaning: "affection, love" },
+            { word: "वात्सल्यरसेन", transliteration: "vātsalyarasena", meaning: "with the essence of parental love" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 9,
+          devanagari: "अङ्के निधायाथ कुमारमम्बा\nमूर्ध्नि प्रघ्राय पुलकाञ्चिताङ्गी ।\nआनन्दबाष्पं विसृजन्ती नेत्रैः\nस्वबालमालिङ्ग्य मुदं प्रपेदे ॥",
+          transliteration: "aṅke nidhāyātha kumāramamabā\nmūrdhni praghrāya pulakāñcitāṅgī |\nānandabāṣpaṁ visṛjantī netraiḥ\nvabālamāliṅgya mudaṁ prapede ||",
+          translation: "Placing the child on her lap, the mother kissed His head, her body thrilling with horripilation. Shedding tears of joy from her eyes, she embraced her baby and was filled with bliss.",
+          commentary: "After Maya restores Yashoda's normal consciousness, she expresses her love physically — placing Krishna on her lap, kissing His head, and embracing Him with tears of joy. The bodily signs (pulaka — horripilation, bāṣpa — tears) are classical indicators of bhakti-bhāva in Vaishnava literature. Yashoda's love, now free from the disturbing cosmic vision, flows unimpeded in its pure maternal form.",
+          words: [
+            { word: "अङ्के", transliteration: "aṅke", meaning: "on the lap" },
+            { word: "निधाय", transliteration: "nidhāya", meaning: "having placed" },
+            { word: "कुमारम्", transliteration: "kumāram", meaning: "the child" },
+            { word: "मूर्ध्नि", transliteration: "mūrdhni", meaning: "on the head" },
+            { word: "प्रघ्राय", transliteration: "praghrāya", meaning: "having kissed, having smelled" },
+            { word: "पुलकाञ्चिताङ्गी", transliteration: "pulakāñcitāṅgī", meaning: "with body thrilling in horripilation" },
+            { word: "आनन्दबाष्पम्", transliteration: "ānandabāṣpam", meaning: "tears of joy" },
+            { word: "आलिङ्ग्य", transliteration: "āliṅgya", meaning: "having embraced" }
+          ]
+        },
+        {
+          dashaka: 42,
+          sloka: 10,
+          devanagari: "एवं विश्वात्मकं रूपं दर्शयित्वा निजाम्बिकाम् ।\nमाययावृत्य तत्सर्वं बालभावमधारयः ।\nतं त्वां गुरुवायुपुरेश विश्व-\nरूपिणमीशं शरणं प्रपद्ये ।\nमारुताकल्प पाहि त्वं सर्वामयहरं नमः ॥",
+          transliteration: "evaṁ viśvātmakaṁ rūpaṁ darśayitvā nijāmbikām |\nmāyayāvṛtya tatsarvaṁ bālabhāvamādhārayaḥ |\ntaṁ tvāṁ guruvāyupureśa viśva-\nrūpiṇamīśaṁ śaraṇaṁ prapadye |\nmārutākalpa pāhi tvaṁ sarvāmayaharaṁ namaḥ ||",
+          translation: "Thus, having shown Your cosmic form to Your own mother and then veiling it all by Maya, You resumed Your child-nature. I take refuge in You, O Lord of Guruvayur, who bears the universal form. O Lord served by the Wind-god, protect me and remove all my ailments. Salutations to You!",
+          commentary: "The concluding verse summarizes the dashaka — the cosmic vision shown and then hidden — and ends with the standard Narayaneeyam prayer for healing. Bhattathiri takes refuge (śaraṇaṁ prapadye) in the Lord who is simultaneously the cosmic Vishvarūpin and an innocent child in Yashoda's arms. The epithet Mārutākalpa (one served by the Wind-god Vayu, after whom Guruvayur is named) connects the Bhagavatam narrative to the poet's present devotion at the temple.",
+          words: [
+            { word: "विश्वात्मकम्", transliteration: "viśvātmakam", meaning: "having the universe as its nature" },
+            { word: "रूपम्", transliteration: "rūpam", meaning: "form" },
+            { word: "दर्शयित्वा", transliteration: "darśayitvā", meaning: "having shown" },
+            { word: "निजाम्बिकाम्", transliteration: "nijāmbikām", meaning: "to His own mother" },
+            { word: "बालभावम्", transliteration: "bālabhāvam", meaning: "child-nature, childlike state" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "प्रपद्ये", transliteration: "prapadye", meaning: "I take refuge, I surrender" },
+            { word: "मारुताकल्प", transliteration: "mārutākalpa", meaning: "one served by the Wind-god" },
+            { word: "सर्वामयहरम्", transliteration: "sarvāmayaharam", meaning: "remover of all diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 43,
