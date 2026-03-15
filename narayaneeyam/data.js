@@ -14987,7 +14987,179 @@ slokas: [
       theme: "devotion",
       verseCount: 10,
       summary: "Concludes the Kuchela story: the poor brahmana returns home empty-handed but finds his hut transformed into a magnificent palace by Krishna's grace, illustrating the Lord's boundless generosity to His devotees.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 72,
+          sloka: 1,
+          devanagari: "स विप्रो निर्गतो राजन् द्वारकायाः सुविस्मितः\nकिमपि प्रतिदानं मे न दत्तं केशवेन हि ।\nतथापि तत्पादाम्भोजस्पर्शेन कृतकृत्यवत्\nप्रतस्थे स्वगृहं प्रीतो मार्गे चिन्तापरायणः ॥",
+          transliteration: "sa vipro nirgato rājan dvārakāyāḥ suvismitaḥ\nkim api pratidānaṁ me na dattaṁ keśavena hi |\ntathāpi tatpadāmbhojasparśena kṛtakṛtyavat\npratasthe svagṛhaṁ prīto mārge cintāparāyaṇaḥ ||",
+          translation: "That brahmana departed from Dwaraka, wondering: 'Keshava did not give me anything in return.' Yet, feeling fulfilled by the mere touch of the Lord's lotus feet, he set out for home, content yet lost in thought along the way.",
+          commentary: "The opening verse of the concluding chapter captures Kuchela's state of mind as he leaves Dwaraka. There is a gentle paradox: he notes that no material gift was given, yet he feels spiritually complete from the divine contact. This tension between worldly expectation and spiritual fulfillment drives the narrative forward.",
+          words: [
+            { word: "nirgataḥ", meaning: "departed, went out" },
+            { word: "suvismitaḥ", meaning: "greatly amazed" },
+            { word: "pratidānam", meaning: "gift in return, reciprocation" },
+            { word: "keśavena", meaning: "by Keshava (Krishna)" },
+            { word: "padāmbhojasparśena", meaning: "by the touch of the lotus feet" },
+            { word: "kṛtakṛtyavat", meaning: "as if fulfilled, having achieved one's purpose" },
+            { word: "cintāparāyaṇaḥ", meaning: "absorbed in thought" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 2,
+          devanagari: "न मे याचितवान् किञ्चिद् भगवान् प्रार्थयामि किम्\nभक्तेषु नैव भगवान् धनमोहं प्रयच्छति ।\nधनेन मदमापन्नो विस्मरेयं जगद्गुरुम्\nइति सञ्चिन्तयन् विप्रः कृष्णलीलां स्मरन् मुदा ॥",
+          transliteration: "na me yācitavān kiñcid bhagavān prārthayāmi kim\nbhakteṣu naiva bhagavān dhanamōhaṁ prayacchati |\ndhanena madam āpanno vismareyaṁ jagadgurum\niti sañcintayan vipraḥ kṛṣṇalīlāṁ smaran mudā ||",
+          translation: "He reflected: 'I did not ask for anything — why should I expect it? The Lord does not bestow the delusion of wealth upon His devotees. Intoxicated by riches, I might forget the Teacher of the universe.' Thinking thus, the brahmana joyfully recalled Krishna's pastimes.",
+          commentary: "Kuchela rationalizes Krishna's apparent non-giving as divine wisdom: wealth could breed arrogance and cause him to forget God. This philosophical reflection reveals the maturity of a true devotee who values spiritual connection over material gain. His joy in merely remembering Krishna's pastimes shows that the Lord's company itself is the greatest wealth.",
+          words: [
+            { word: "yācitavān", meaning: "asked for, begged" },
+            { word: "dhanamōham", meaning: "delusion of wealth" },
+            { word: "madam āpannaḥ", meaning: "intoxicated, filled with pride" },
+            { word: "vismareyam", meaning: "I might forget" },
+            { word: "jagadgurum", meaning: "teacher/lord of the universe" },
+            { word: "sañcintayan", meaning: "reflecting, pondering" },
+            { word: "kṛṣṇalīlām", meaning: "Krishna's divine pastimes" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 3,
+          devanagari: "स गच्छन् स्वपुरं प्राप्तो यत्र कुट्टिमकं पुरा\nतत्रापश्यन्महाश्चर्यं नयनाश्चर्यदायकम् ।\nयत्र स्म दीनकुटिका तत्र हर्म्यं मनोहरम्\nमणिस्तम्भसहस्रैश्च विराजत् सूर्यसन्निभम् ॥",
+          transliteration: "sa gacchan svapuraṁ prāpto yatra kuṭṭimakaṁ purā\ntatrāpaśyan mahāścaryaṁ nayanāścaryādāyakam |\nyatra sma dīnakuṭikā tatra harmyaṁ manoharam\nmaṇistambhasahasraiś ca virājat sūryasannibham ||",
+          translation: "As he reached his own village, where once stood his humble hut, he beheld a great wonder, a feast for the eyes: where his poor cottage had been, there now stood an enchanting palace, radiant as the sun, gleaming with thousands of gem-studded pillars.",
+          commentary: "The dramatic transformation scene begins. Where Kuchela's miserable hut once stood, a magnificent palace now rises. The visual contrast is deliberately extreme — from a 'dina kutika' (wretched hut) to a sun-like palace with thousands of jeweled pillars — illustrating that Krishna's grace knows no half-measures.",
+          words: [
+            { word: "svapuram", meaning: "his own village/town" },
+            { word: "kuṭṭimakam", meaning: "a humble hut" },
+            { word: "mahāścaryam", meaning: "great wonder" },
+            { word: "dīnakuṭikā", meaning: "poor, wretched cottage" },
+            { word: "harmyam", meaning: "palace, mansion" },
+            { word: "maṇistambhasahasraiḥ", meaning: "with thousands of gem-studded pillars" },
+            { word: "sūryasannibham", meaning: "resembling the sun" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 4,
+          devanagari: "उद्यानानि मनोज्ञानि सरांसि विमलानि च\nदासीदासगणैर्युक्तं हेमप्राकारशोभितम् ।\nकिमिदं स्वप्नसदृशं मायेयं वा सुदुर्लभा\nइति सन्दिग्धहृदयस्तस्थौ स द्विजसत्तमः ॥",
+          transliteration: "udyānāni manojñāni sarāṁsi vimalāni ca\ndāsīdāsagaṇair yuktaṁ hemaprākāraśobhitam |\nkim idaṁ svapnasadṛśaṁ māyeyaṁ vā sudūrlabhā\niti sandigdhahṛdayas tasthau sa dvijasattamaḥ ||",
+          translation: "Charming gardens, crystal-clear lakes, hosts of maidservants and attendants, golden ramparts gleaming all around — 'Is this a dream? Or some rare illusion?' — thus the best of brahmanas stood still, his heart filled with doubt.",
+          commentary: "The description of the transformed estate continues with gardens, lakes, servants, and golden walls. Kuchela's bewilderment is natural — the change is so drastic that he questions whether it is a dream or divine maya. This moment of disbelief heightens the dramatic impact of Krishna's unsolicited grace.",
+          words: [
+            { word: "udyānāni", meaning: "gardens" },
+            { word: "manojñāni", meaning: "charming, delightful" },
+            { word: "sarāṁsi", meaning: "lakes, ponds" },
+            { word: "dāsīdāsagaṇaiḥ", meaning: "with groups of maidservants and servants" },
+            { word: "hemaprākāra", meaning: "golden rampart/enclosure" },
+            { word: "svapnasadṛśam", meaning: "resembling a dream" },
+            { word: "sandigdhahṛdayaḥ", meaning: "with a doubting heart" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 5,
+          devanagari: "तत्रापतत् प्रियो भार्या दिव्यवस्त्रैरलङ्कृता\nकुण्डलाभ्यां विराजन्ती हारकेयूरभूषिता ।\nबालकाश्चामलाभासा दिव्याभरणमण्डिताः\nभार्या सा प्रत्यगृह्णात् तं प्रहर्षाश्रुविलोचना ॥",
+          transliteration: "tatrāpatat priyo bhāryā divyavastrair alaṅkṛtā\nkuṇḍalābhyāṁ virājantī hārakeyūrabhūṣitā |\nbālakāś cāmalābhāsā divyābharaṇamaṇḍitāḥ\nbhāryā sā pratyagṛhṇāt taṁ praharṣāśruvilocanā ||",
+          translation: "There came forth his beloved wife, adorned in divine garments, radiant with earrings, decorated with necklaces and armlets. The children too shone with a pure luster, decked in celestial ornaments. His wife received him with eyes streaming tears of joy.",
+          commentary: "The transformation extends to Kuchela's family. His wife, who was previously starving with her children, now appears adorned like a queen. The children shine in celestial ornaments. The wife's tears of joy parallel Krishna's tears when He first saw Kuchela — linking divine and human love.",
+          words: [
+            { word: "divyavastraiḥ", meaning: "in divine garments" },
+            { word: "alaṅkṛtā", meaning: "adorned, decorated" },
+            { word: "kuṇḍalābhyām", meaning: "with earrings" },
+            { word: "hārakeyūrabhūṣitā", meaning: "decorated with necklaces and armlets" },
+            { word: "amalābhāsāḥ", meaning: "of pure luster" },
+            { word: "divyābharaṇamaṇḍitāḥ", meaning: "adorned with celestial ornaments" },
+            { word: "praharṣāśruvilocanā", meaning: "with eyes streaming tears of joy" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 6,
+          devanagari: "अथ सञ्चिन्तयामास विप्रः परमविस्मितः\nमयाऽयाचितमप्येतत् कृष्णेन प्रभुणा कृतम् ।\nयस्य स्मृत्या च सम्पत्तिः दरिद्राणां प्रजायते\nकिमु तस्य करस्पर्शात् पृथुकान् प्राशतः प्रभोः ॥",
+          transliteration: "atha sañcintayāmāsa vipraḥ paramavismitaḥ\nmayā'yācitam apy etat kṛṣṇena prabhuṇā kṛtam |\nyasya smṛtyā ca sampattiḥ daridrāṇāṁ prajāyate\nkim u tasya karasparśāt pṛthukān prāśataḥ prabhoḥ ||",
+          translation: "Then the brahmana reflected with supreme wonder: 'Even without my asking, all this has been done by Lord Krishna! By whose mere remembrance wealth arises even for the destitute — what to speak of the Lord who personally touched and ate my beaten rice with His own hands!'",
+          commentary: "Kuchela's realization dawns: Krishna gave without being asked. The verse contains a beautiful logical argument (a fortiori): if merely remembering the Lord brings wealth to the poor, how much more must flow from the Lord Himself physically partaking of one's offering? The eaten beaten rice was not a humble gift received but a divine transaction of infinite grace.",
+          words: [
+            { word: "ayācitam", meaning: "without being asked" },
+            { word: "paramavismitaḥ", meaning: "supremely amazed" },
+            { word: "smṛtyā", meaning: "by remembrance" },
+            { word: "sampattiḥ", meaning: "wealth, prosperity" },
+            { word: "daridrāṇām", meaning: "of the destitute/poor" },
+            { word: "karasparśāt", meaning: "from the touch of the hand" },
+            { word: "prāśataḥ", meaning: "eating, partaking" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 7,
+          devanagari: "अन्नपानैः सुपूर्णानि कोशागाराणि सर्वतः\nधान्यराशिभिराकीर्णा धरित्री तस्य वेश्मनि ।\nगजाश्वरथसम्पन्नं बलं तस्यान्वजायत\nभृत्यवर्गैः परिवृतं सर्वकामसमृद्धिमत् ॥",
+          transliteration: "annapānaiḥ supūrṇāni kośāgārāṇi sarvataḥ\ndhānyarāśibhir ākīrṇā dharitrī tasya veśmani |\ngajāśvarathasampannaṁ balaṁ tasyānvajāyata\nbhṛtyavargaiḥ parivṛtaṁ sarvakāmasamṛddhimat ||",
+          translation: "Treasuries overflowing with food and drink on every side, the grounds heaped with mounds of grain, elephants, horses, and chariots in abundance — a veritable army arose for him, surrounded by retinues of servants, replete with the fulfillment of every desire.",
+          commentary: "This verse catalogs the abundance bestowed by Krishna's grace — overflowing granaries, treasuries, a military establishment with elephants and horses, and a full retinue of servants. The description matches that of a prosperous kingdom, emphasizing that Krishna's grace transforms not partially but completely.",
+          words: [
+            { word: "annapānaiḥ", meaning: "with food and drink" },
+            { word: "kośāgārāṇi", meaning: "treasuries, storehouses" },
+            { word: "dhānyarāśibhiḥ", meaning: "with heaps of grain" },
+            { word: "gajāśvaratha", meaning: "elephants, horses, and chariots" },
+            { word: "balam", meaning: "army, military strength" },
+            { word: "bhṛtyavargaiḥ", meaning: "with groups of servants" },
+            { word: "sarvakāmasamṛddhimat", meaning: "endowed with the fulfillment of all desires" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 8,
+          devanagari: "तथापि विपुले भोगे मग्नो नासीत् स मानवः\nकृष्णपादारविन्दे तु भक्तिस्तस्य दृढा सदा ।\nधनं विप्रगणेभ्यश्च विदधे सततं मुदा\nन कदाचित् स विस्मारि कृष्णं देवं जनार्दनम् ॥",
+          transliteration: "tathāpi vipule bhoge magno nāsīt sa mānavaḥ\nkṛṣṇapādāravinde tu bhaktis tasya dṛḍhā sadā |\ndhanaṁ vipragaṇebhyaś ca vidadhe satataṁ mudā\nna kadācit sa vismāri kṛṣṇaṁ devaṁ janārdanam ||",
+          translation: "Yet even amidst such abundant enjoyments, that man was not drowned in indulgence. His devotion to Krishna's lotus feet remained ever firm. He distributed wealth to brahmanas with constant joy, and never once did he forget Lord Krishna, Janardana.",
+          commentary: "This verse addresses the concern Kuchela himself had raised earlier — that wealth might cause him to forget God. Krishna knew His devotee better than the devotee knew himself. Despite vast riches, Kuchela's devotion only deepens, and he uses his wealth for charitable purposes, vindicating Krishna's trust in him.",
+          words: [
+            { word: "vipule bhoge", meaning: "in abundant enjoyments" },
+            { word: "magnaḥ", meaning: "drowned, immersed" },
+            { word: "pādāravinde", meaning: "at the lotus feet" },
+            { word: "dṛḍhā", meaning: "firm, steadfast" },
+            { word: "vidadhe", meaning: "distributed, bestowed" },
+            { word: "vismāri", meaning: "forgot (aorist of vi-smṛ)" },
+            { word: "janārdanam", meaning: "Janardana (Krishna, mover of people)" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 9,
+          devanagari: "एवं हि भक्तवात्सल्यं दर्शयित्वा जगत्पते\nन याचितो ददात्येव प्रभुर्भक्तजनप्रियः ।\nकिं तेन याचनायासैः यत्र कृष्णकृपा स्थिता\nसर्वं सम्पद्यते तस्य यः स्मरेत् सततं हरिम् ॥",
+          transliteration: "evaṁ hi bhaktavātsalyaṁ darśayitvā jagatpate\nna yācito dadāty eva prabhur bhaktajanapriyaḥ |\nkiṁ tena yācanāyāsaiḥ yatra kṛṣṇakṛpā sthitā\nsarvaṁ sampadyate tasya yaḥ smaret satataṁ harim ||",
+          translation: "Thus demonstrating His tender love for devotees, O Lord of the universe — the Lord who loves His devotees gives without even being asked. What need is there for the exertion of begging? Where Krishna's grace abides, everything is attained by one who constantly remembers Hari.",
+          commentary: "This verse distills the central teaching of the Kuchela episode: true bhakti needs no petition. The Lord, who loves His devotees with parental affection (vatsalya), gives unasked. The rhetorical question — 'What need for begging?' — establishes the supremacy of devotion over prayer, surrender over supplication.",
+          words: [
+            { word: "bhaktavātsalyam", meaning: "tender love for devotees" },
+            { word: "na yācitaḥ", meaning: "without being asked" },
+            { word: "bhaktajanapriyaḥ", meaning: "dear to His devotees, lover of devotees" },
+            { word: "yācanāyāsaiḥ", meaning: "with the exertion of begging" },
+            { word: "kṛṣṇakṛpā", meaning: "Krishna's grace" },
+            { word: "sampadyate", meaning: "is attained, is accomplished" },
+            { word: "harim", meaning: "Hari (the Lord who removes suffering)" }
+          ]
+        },
+        {
+          dashaka: 72,
+          sloka: 10,
+          devanagari: "एवं कुचेलचरितं पवित्रं भक्तिवर्धनम्\nश्रावयन् सर्वलोकानां त्वं वसेः सुखमव्ययम् ।\nत्वत्पादभक्तिमखिलां देहि मे भगवन् हरे\nसर्वतापान् प्रशमय गुरुवायुपुरेश पाहि पाहि माम् ॥",
+          transliteration: "evaṁ kucelacaritaṁ pavitraṁ bhaktivarddhanam\nśrāvayan sarvalokānāṁ tvaṁ vaseḥ sukham avyayam |\ntvat pādabhaktim akhilāṁ dehi me bhagavan hare\nsarvatāpān praśamaya guruvāyupureśa pāhi pāhi mām ||",
+          translation: "Thus narrating this sacred and devotion-enhancing story of Kuchela to all the worlds, may You dwell in imperishable bliss. Grant me complete devotion to Your feet, O Lord Hari! Pacify all my afflictions, O Lord of Guruvayur — protect me, protect me!",
+          commentary: "The concluding verse wraps the Kuchela narrative with Bhattathiri's personal prayer. He asks not for material wealth — the ironic lesson of the story — but for bhakti itself. The doubled 'pahi pahi mam' (protect me, protect me) conveys his urgent plea to the Lord of Guruvayur for relief from his paralytic disease, the affliction that inspired the composition of the entire Narayaneeyam.",
+          words: [
+            { word: "kucelacaritam", meaning: "the story/deeds of Kuchela" },
+            { word: "bhaktivardhanam", meaning: "that which enhances devotion" },
+            { word: "avyayam", meaning: "imperishable, eternal" },
+            { word: "pādabhaktim", meaning: "devotion to the feet" },
+            { word: "sarvatāpān", meaning: "all afflictions/sufferings" },
+            { word: "praśamaya", meaning: "pacify, calm, remove" },
+            { word: "guruvāyupureśa", meaning: "Lord of Guruvayur" },
+            { word: "pāhi pāhi mām", meaning: "protect me, protect me" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 73,
