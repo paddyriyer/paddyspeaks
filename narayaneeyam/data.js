@@ -13692,7 +13692,184 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Paints a vivid picture of Lord Krishna's daily life in the golden city of Dwaraka, His activities from dawn to night, His simultaneous presence in sixteen thousand palaces, and His role as the ideal householder.",
-      slokas: []
+            slokas: [
+        {
+          dashaka: 65,
+          sloka: 1,
+          devanagari: "द्वारकायां सुवर्णप्रभनिवसनभूः षोडशस्त्रीसहस्रैः\nसम्प्राप्तः सन्ततानामयुतशतगणैस्तत्र तत्रापि रम्ये ।\nहर्म्येषु स्फारमाणस्तिथिकृदधिकृतौ ब्राह्ममुहूर्तवेलां\nप्राप्तायामुत्थितस्त्वं किल गुरुपवनाधीश चित्तं पुनासि ॥",
+          transliteration: "dvārakāyāṁ suvarṇaprabhanivasanabhūḥ ṣoḍaśastrīsahasraiḥ\nsamprāptaḥ santatānām ayutaśatagaṇais tatra tatrāpi ramye |\nharmyeṣu sphāramāṇas tithikṛd adhikṛtau brāhmamuhūrtavelāṁ\nprāptāyām utthitas tvaṁ kila gurupavanādhīśa cittaṁ punāsi ||",
+          translation: "Dwelling in the golden-splendored city of Dwaraka with sixteen thousand wives, with progeny numbering in the hundreds of thousands, residing in magnificent palaces, You would rise at the auspicious Brahma-muhurta hour, O Lord of Guruvayur, purifying the minds of all.",
+          commentary: "The opening verse sets the grand scene of Krishna's life in Dwaraka. The city is described as golden (suvarna), and Krishna's vast family of 16,108 wives and their children is introduced. Despite this immense household, Krishna follows the disciplined routine of rising at Brahma-muhurta (the auspicious pre-dawn hour).",
+          words: [
+            { word: "dvārakāyām", meaning: "in Dwaraka" },
+            { word: "suvarṇaprabha", meaning: "golden-splendored" },
+            { word: "ṣoḍaśastrīsahasraiḥ", meaning: "with sixteen thousand wives" },
+            { word: "harmyeṣu", meaning: "in palaces/mansions" },
+            { word: "brāhmamuhūrta", meaning: "the auspicious pre-dawn hour" },
+            { word: "utthitaḥ", meaning: "having risen/awakened" },
+            { word: "cittaṁ punāsi", meaning: "You purify the mind" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 2,
+          devanagari: "उत्थायाथ प्रभाते प्रशमितकरणो योगमार्गेण सम्यक्\nध्यात्वात्मानं परात्मन् स्नपनमतनुत स्वच्छवारिप्रवाहैः ।\nअग्निं चाराध्य सम्यक् विविधहवनयुक् तर्पणं चैव कृत्वा\nसन्ध्यावन्दनपूर्वं विधिवदधिकरोः कर्मजातं त्वमीश ॥",
+          transliteration: "utthāyātha prabhāte praśamitakaraṇo yogamārgeṇa samyak\ndhyātvātmānaṁ parātman snapanam atanuta svacchavāripravāhaiḥ |\nagniṁ cārādhya samyak vividhahavanayuk tarpaṇaṁ caiva kṛtvā\nsandhyāvandanapūrvaṁ vidhivad adhikaroḥ karmajātaṁ tvam īśa ||",
+          translation: "Rising at dawn, with senses subdued, You meditated on the Self through the path of Yoga, O Supreme Self. You then bathed in streams of pure water, worshipped the sacred fire with various oblations, performed tarpana, and duly carried out the Sandhyavandana and all prescribed rites, O Lord.",
+          commentary: "Even as the Supreme Being, Krishna meticulously follows the daily rituals prescribed for a householder — morning meditation, bathing, fire-worship (agnihotra), offering water to ancestors (tarpana), and the twilight prayer (sandhyavandana). This sets the example for dharmic living.",
+          words: [
+            { word: "praśamitakaraṇaḥ", meaning: "with senses subdued" },
+            { word: "yogamārgeṇa", meaning: "through the path of yoga" },
+            { word: "snapanam", meaning: "bathing, ablution" },
+            { word: "agnim", meaning: "the sacred fire" },
+            { word: "havana", meaning: "oblation, fire offering" },
+            { word: "tarpaṇam", meaning: "ritual offering of water to ancestors" },
+            { word: "sandhyāvandana", meaning: "twilight prayer ritual" },
+            { word: "vidhivat", meaning: "according to prescribed rules" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 3,
+          devanagari: "दत्वा विप्रेषु धेनूर्बहुविधवसनैर्भूषणैश्चार्चयित्वा\nतेभ्यो दत्वा च भूमिं सधनधिषणया मङ्गलाचारपूर्वम् ।\nगोभिः सौवर्णशृङ्गैरुपहितवसनैः पूरयन् सर्वकामान्\nधर्मं त्वं सन्दधानो जनपदहितकृद् द्वारकामध्यवात्सीः ॥",
+          transliteration: "dattvā vipreṣu dhenūr bahuvidhavasanair bhūṣaṇaiś cārcayitvā\ntebhyo dattvā ca bhūmiṁ sadhanadhiṣaṇayā maṅgalācārapūrvam |\ngobhiḥ sauvarṇaśṛṅgair upahitavasanaiḥ pūrayan sarvakāmān\ndharmaṁ tvaṁ sandadhāno janapadahitakṛd dvārakām adhyavātsīḥ ||",
+          translation: "Gifting cows to Brahmins, honoring them with various garments and ornaments, granting them lands along with wealth in auspicious ceremonies, with cows adorned with golden horns and fine cloth — fulfilling all desires, upholding dharma, and working for the welfare of the people, You presided over Dwaraka.",
+          commentary: "Krishna's morning charity is described — the traditional dana of cows with golden-tipped horns and fine coverings to Brahmins, along with land grants and wealth. This generosity establishes Him as the ideal king who ensures prosperity through righteous giving.",
+          words: [
+            { word: "vipreṣu", meaning: "to the Brahmins" },
+            { word: "dhenūḥ", meaning: "cows" },
+            { word: "bhūṣaṇaiḥ", meaning: "with ornaments" },
+            { word: "sauvarṇaśṛṅgaiḥ", meaning: "with golden horns" },
+            { word: "sarvakāmān", meaning: "all desires" },
+            { word: "dharmam", meaning: "righteousness, duty" },
+            { word: "janapadahitakṛt", meaning: "working for the people's welfare" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 4,
+          devanagari: "रत्नस्तम्भैर्विराजद्भवनमुपगतः सारथिं दारुकं तं\nदृष्ट्वा रत्नाढ्यरथं सुललितहययुक् कल्पितं ते समीपे ।\nआरुह्य स्यन्दनं तं नगरजनगणैः सेव्यमानो गतस्त्वं\nसत्रं राज्ञां विधातुं सभदमनुदिनं सत्यकिप्रमुखैस्तैः ॥",
+          transliteration: "ratnastambhair virājadbhavanam upagataḥ sārathiṁ dārukaṁ taṁ\ndṛṣṭvā ratnāḍhyarathaṁ sulalitahayayuk kalpitaṁ te samīpe |\nāruhya syandanaṁ taṁ nagarajanagaṇaiḥ sevyamāno gatas tvaṁ\nsatraṁ rājñāṁ vidhātuṁ sabhadam anudinaṁ satyakipramukhais taiḥ ||",
+          translation: "Proceeding from the palace resplendent with gem-studded pillars, seeing the chariot adorned with jewels and yoked with graceful horses prepared by the charioteer Daruka, mounting that chariot, attended upon by the citizens, You proceeded daily to the royal assembly hall accompanied by Satyaki and other chiefs.",
+          commentary: "The verse describes Krishna's daily procession to the Sudharma Sabha. Daruka, His faithful charioteer, has the gem-laden chariot ready. Satyaki, one of His closest warrior-companions, accompanies Him. The citizens of Dwaraka gather to behold their Lord.",
+          words: [
+            { word: "ratnastambhaiḥ", meaning: "with gem-studded pillars" },
+            { word: "sārathim", meaning: "charioteer" },
+            { word: "dārukam", meaning: "Daruka (Krishna's charioteer)" },
+            { word: "syandanam", meaning: "chariot" },
+            { word: "nagarajanagaṇaiḥ", meaning: "by the groups of city-dwellers" },
+            { word: "satyaki", meaning: "Satyaki (a Yadava warrior chief)" },
+            { word: "anudinam", meaning: "daily, every day" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 5,
+          devanagari: "सुधर्मायां सभायां सुरवरनिर्मितायां समासीनमध्ये\nत्वां पश्यन्तः प्रमोदं बहुलमनुभवन् उद्धवः सात्यकिश्च ।\nमन्त्रिप्राज्ञैः समेतो विविधजनहितं सम्प्रधार्य प्रभो त्वं\nराज्यं यादोगणानां दृढमनुचकृषे धर्ममार्गानुसारी ॥",
+          transliteration: "sudharmāyāṁ sabhāyāṁ suravaranirmitāyāṁ samāsīnam adhye\ntvāṁ paśyantaḥ pramodaṁ bahulam anubhavan uddhavaḥ sātyakiśca |\nmantriprājñaiḥ sameto vividhajanahitaṁ sampradhārya prabho tvaṁ\nrājyaṁ yādogaṇānāṁ dṛḍham anucakṛṣe dharmamārgānusārī ||",
+          translation: "Seated in the midst of the Sudharma assembly hall built by the celestials, Uddhava, Satyaki, and others experienced supreme joy beholding You. Surrounded by wise ministers, deliberating on the welfare of all people, O Lord, You firmly governed the Yadava clans, ever following the path of dharma.",
+          commentary: "The Sudharma Sabha was a divine assembly hall brought from Indra's heaven — a mark of Dwaraka's celestial splendor. Krishna governs through consultation with wise ministers like Uddhava. His rule is dharma-centered, focused on the welfare of all subjects.",
+          words: [
+            { word: "sudharmā", meaning: "Sudharma (the divine assembly hall)" },
+            { word: "suravaranirmitāyām", meaning: "built by the chief of gods" },
+            { word: "uddhavaḥ", meaning: "Uddhava (Krishna's wise friend)" },
+            { word: "mantriprājñaiḥ", meaning: "with wise ministers" },
+            { word: "janahitam", meaning: "welfare of the people" },
+            { word: "yādogaṇānām", meaning: "of the Yadava clans" },
+            { word: "dharmamārgānusārī", meaning: "following the path of dharma" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 6,
+          devanagari: "सायाह्ने सम्प्रविष्टो भवनमथ पुनः कोटिशः स्त्रीगृहेषु\nयोगात्मा योगमायाबलवशनिहितैः स्वांशरूपैः समेतः ।\nक्रीडन् नानाविलासैर्विविधरसभरैः प्रीणयन् वल्लभास्ताः\nसर्वासामेककान्तः स्वयमपि विहरन् नित्यमात्मप्रकाशः ॥",
+          transliteration: "sāyāhne sampraviṣṭo bhavanam atha punaḥ koṭiśaḥ strīgṛheṣu\nyogātmā yogamāyābalavaśanihitaiḥ svāṁśarūpaiḥ sametaḥ |\nkrīḍan nānāvilāsair vividharasabharaiḥ prīṇayan vallabhās tāḥ\nsarvāsām ekakāntaḥ svayam api viharan nityam ātmaprakāśaḥ ||",
+          translation: "Returning home in the evening, the Lord of Yoga, through the power of Yogamaya, manifested Himself simultaneously in the countless homes of His wives in identical forms. Sporting in manifold delightful pastimes filled with varied sentiments, pleasing all His beloveds, He was the sole devoted husband to each, ever self-luminous.",
+          commentary: "This is one of the most celebrated marvels of Krishna's Dwaraka-lila: His simultaneous presence in all 16,108 palaces through Yogamaya. Each queen experienced Krishna as exclusively hers, illustrating both His divine omnipresence and His perfect love.",
+          words: [
+            { word: "sāyāhne", meaning: "in the evening" },
+            { word: "yogātmā", meaning: "the Lord of Yoga" },
+            { word: "yogamāyā", meaning: "divine illusory power" },
+            { word: "svāṁśarūpaiḥ", meaning: "with forms of His own portions" },
+            { word: "vilāsaiḥ", meaning: "with pastimes, sports" },
+            { word: "vallabhāḥ", meaning: "beloveds, wives" },
+            { word: "ekakāntaḥ", meaning: "sole devoted husband" },
+            { word: "ātmaprakāśaḥ", meaning: "self-luminous, self-revealing" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 7,
+          devanagari: "उद्यानेषु प्रफुल्लद्रुमलतिकागणैः शोभितेषु प्रसन्न-\nगन्धर्वाप्सरसां कलमधुरगिरा गायतां मध्यवासीः ।\nपद्मिन्यस्तत्र रम्या जलविहृतिपरः कान्तिनीभिः समेतो\nरेमे तासां सहस्रैर्बहुविधविहरन् कामिनीचित्तहारी ॥",
+          transliteration: "udyāneṣu praphulladrumlatikāgaṇaiḥ śobhiteṣu prasanna-\ngandharvāpsarasāṁ kalamadhuragiā gāyatāṁ madhyavāsīḥ |\npadminyastatra ramyā jalavihṛtiparaḥ kāntinībhiḥ sameto\nreme tāsāṁ sahasrair bahuvidhaviharan kāminīcittahārī ||",
+          translation: "In gardens adorned with blooming trees and creepers, amidst the sweet and melodious singing of Gandharvas and Apsaras, You dwelt. Sporting in beautiful lotus ponds, accompanied by Your radiant consorts, You delighted with thousands of them in varied pastimes, captivating the hearts of all.",
+          commentary: "Krishna's leisure time in the magnificent gardens of Dwaraka is described. Celestial musicians provide the soundtrack while He enjoys water-sports in lotus-filled lakes with His queens. The scene evokes both earthly royal pleasure and divine lila.",
+          words: [
+            { word: "udyāneṣu", meaning: "in gardens" },
+            { word: "drumalatikā", meaning: "trees and creepers" },
+            { word: "gandharvāpsarasām", meaning: "of Gandharvas and Apsaras" },
+            { word: "padminyaḥ", meaning: "lotus ponds" },
+            { word: "jalavihṛti", meaning: "water sports" },
+            { word: "kāntinībhiḥ", meaning: "with radiant consorts" },
+            { word: "viharan", meaning: "sporting, playing" },
+            { word: "kāminīcittahārī", meaning: "captivator of women's hearts" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 8,
+          devanagari: "नारीणां तासु मुख्या तव खलु महिषी रुक्मिणी देवि सत्या\nजाम्बूवत्यपि नारी कालिन्दी मित्रविन्दा शतधृतिसुभगा ।\nभद्रा चैवाथ लक्ष्मणा परमपतिव्रता अष्टपत्न्यस्तवैताः\nदिव्यामूर्तिस्वरूपाः प्रतिगृहमभजन् त्वामजस्रं मुरारे ॥",
+          transliteration: "nārīṇāṁ tāsu mukhyā tava khalu mahiṣī rukmiṇī devi satyā\njāmbūvatyapi nārī kālindī mitravindā śatadhṛtisubhagā |\nbhadrā caivātha lakṣmaṇā paramapatrivratā aṣṭapatnyastavaitāḥ\ndivyāmūrtisvarūpāḥ pratigṛham abhajan tvām ajasraṁ murāre ||",
+          translation: "Chief among those women were Your principal queens — Rukmini, Satyabhama, Jambavati, Kalindi, Mitravinda, the blessed Satya, Bhadra, and Lakshmana — these eight supremely devoted wives, divine embodiments, worshipped You ceaselessly in each palace, O Murari.",
+          commentary: "The eight principal queens (Ashtamahishi) of Krishna are enumerated. Each was won through different heroic circumstances — Rukmini through elopement, Jambavati after the Syamantaka episode, and so on. They represent different aspects of Lakshmi, the divine consort.",
+          words: [
+            { word: "mahiṣī", meaning: "chief queen" },
+            { word: "rukmiṇī", meaning: "Rukmini (chief queen of Krishna)" },
+            { word: "satyā", meaning: "Satyabhama" },
+            { word: "jāmbūvatī", meaning: "Jambavati (daughter of Jambavan)" },
+            { word: "kālindī", meaning: "Kalindi (daughter of the Sun god)" },
+            { word: "aṣṭapatnyaḥ", meaning: "the eight wives" },
+            { word: "patrivratā", meaning: "devoted to the husband" },
+            { word: "murāre", meaning: "O slayer of Mura (Krishna)" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 9,
+          devanagari: "एताभिः सम्प्रयुक्तो दशसुतनिवहान् प्रत्यपत्नीं दधानो\nलक्षं चाशीतिसहस्रं नवसुतशतकं चेत्यमोघात्मवीर्यः ।\nपौत्रान् प्रपौत्रयुक्तानगणयदधिकान् यादवानां कुलं तत्\nत्वत्सम्बन्धात्प्रवृद्धं दशभुवनगतां कीर्तिमापादयद्धि ॥",
+          transliteration: "etābhiḥ samprayukto daśasutanivahān pratyapatnīṁ dadhāno\nlakṣaṁ cāśītisahasraṁ navasutaśatakaṁ cetyamoghātmavīryaḥ |\npautrān prapautrayuktān agaṇayad adhikān yādavānāṁ kulaṁ tat\ntvatsambandāt pravṛddhaṁ daśabhuvanagātāṁ kīrtim āpādayaddhi ||",
+          translation: "United with these queens, You fathered ten sons through each wife — an innumerable host in all, of unfailing potency. With grandchildren and great-grandchildren beyond count, the Yadava clan, flourishing through kinship with You, attained fame spread across the ten directions of the world.",
+          commentary: "The vast extent of Krishna's progeny is described. Each of the 16,108 queens bore ten sons, and Pradyumna, Samba, and other famous sons had their own vast families. The Yadava dynasty became the most powerful and celebrated clan in the world through Krishna's presence.",
+          words: [
+            { word: "daśasutanivahān", meaning: "groups of ten sons" },
+            { word: "amoghātmavīryaḥ", meaning: "of unfailing potency" },
+            { word: "pautrān", meaning: "grandsons" },
+            { word: "prapautra", meaning: "great-grandsons" },
+            { word: "yādavānām", meaning: "of the Yadavas" },
+            { word: "kulam", meaning: "clan, lineage" },
+            { word: "kīrtim", meaning: "fame, glory" },
+            { word: "daśabhuvanagātām", meaning: "spread across the ten worlds" }
+          ]
+        },
+        {
+          dashaka: 65,
+          sloka: 10,
+          devanagari: "एवं द्वारावतीं तां सुखयसि भगवन् सर्वतो मङ्गलात्मन्\nनानालीलाविलासैर्दिवि भुवि च सदा सन्ततं गीयमानः ।\nधर्मं संस्थाप्य लोके सकलजनहिते विश्वरक्षां विधत्से\nतापान्मे रुन्धि रोगान् गुरुपवनपते कृष्ण विष्णो नमस्ते ॥",
+          transliteration: "evaṁ dvārāvatīṁ tāṁ sukhayasi bhagavan sarvato maṅgalātman\nnānālīlāvilāsair divi bhuvi ca sadā santataṁ gīyamānaḥ |\ndharmaṁ saṁsthāpya loke sakalajanahite viśvarakṣāṁ vidhatse\ntāpān me rundhi rogān gurupavanapate kṛṣṇa viṣṇo namaste ||",
+          translation: "Thus making Dwaraka joyful, O Lord, O soul of all auspiciousness! Celebrated ceaselessly in heaven and earth for Your manifold playful pastimes, having established dharma in the world for the welfare of all beings, You protect the entire universe. O Lord of Guruvayur, O Krishna, O Vishnu — I bow to You! Remove my afflictions and diseases!",
+          commentary: "The closing verse summarizes Krishna's Dwaraka-lila as one of supreme auspiciousness and universal welfare. Despite being the Supreme Lord, He lives as the ideal householder, king, and protector. The verse concludes with Bhattathiri's characteristic prayer to the Lord of Guruvayur for relief from his paralytic ailment.",
+          words: [
+            { word: "dvārāvatīm", meaning: "Dwaraka (also called Dvaravati)" },
+            { word: "maṅgalātman", meaning: "O soul of auspiciousness" },
+            { word: "līlāvilāsaiḥ", meaning: "with playful pastimes" },
+            { word: "gīyamānaḥ", meaning: "being sung/celebrated" },
+            { word: "viśvarakṣām", meaning: "protection of the universe" },
+            { word: "tāpān", meaning: "afflictions, sufferings" },
+            { word: "rogān", meaning: "diseases" },
+            { word: "gurupavanapate", meaning: "O Lord of Guruvayur" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 66,
@@ -13701,7 +13878,187 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes Krishna's battle against the demon Narakasura (Bhaumasura) who had kidnapped sixteen thousand princesses. Krishna slays him, liberates the princesses, and marries them all.",
-      slokas: []
+            slokas: [
+        {
+          dashaka: 66,
+          sloka: 1,
+          devanagari: "भौमो नाम नरकाख्यो दैत्यवरः प्राग्ज्योतिषाधीश्वरो\nदेवानामपि दुर्जयो बलवशात् क्षोणीसुतो दुर्मदः ।\nआदायादितिकुण्डले वरुणतश्छत्रं च मन्दारतो\nदेवानां विजयध्वजं हृतवतो मातुश्च यो राजते ॥",
+          transliteration: "bhaumo nāma narakākhyo daityavaraḥ prāgjyotiṣādhīśvaro\ndevānām api durjayo balavaśāt kṣoṇīsuto durmadaḥ |\nādāyāditikuṇḍale varuṇataś chatraṁ ca mandārato\ndevānāṁ vijayadhvajaṁ hṛtavato mātuśca yo rājate ||",
+          translation: "The demon named Narakasura, also called Bhaumasura (son of the Earth), the mighty lord of Pragjyotishapura, invincible even to the gods by sheer force, intoxicated with pride — he had seized the earrings of Aditi, the umbrella from Varuna, the banner from Mandara, and the victory-flag of the gods, and ruled arrogantly.",
+          commentary: "The dashaka opens by introducing the antagonist Narakasura (Bhaumasura), son of Bhumi (Earth) and Vishnu in the Varaha avatara. Despite his divine parentage, his asura nature made him tyrannical. His capital Pragjyotishapura corresponds to modern Assam. His crimes included stealing divine treasures from the gods.",
+          words: [
+            { word: "bhaumaḥ", meaning: "son of Bhumi (Earth), Bhaumasura" },
+            { word: "narakākhyaḥ", meaning: "named Naraka" },
+            { word: "prāgjyotiṣādhīśvaraḥ", meaning: "lord of Pragjyotishapura" },
+            { word: "durjayaḥ", meaning: "invincible, hard to conquer" },
+            { word: "kṣoṇīsutaḥ", meaning: "son of the Earth" },
+            { word: "durmadaḥ", meaning: "intoxicated with pride" },
+            { word: "āditikuṇḍale", meaning: "earrings of Aditi (mother of gods)" },
+            { word: "vijayadhvajam", meaning: "victory-flag" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 2,
+          devanagari: "षोडशस्त्रीसहस्रं नृपसुतनिवहं कारयित्वा गृहीतं\nदेवेन्द्रोऽथ त्वदन्तिकमुपगतवान् सत्यभामासमेतम् ।\nयाचन्तं तं निशम्य प्रतिभयमसुरं हन्तुमुद्युक्तचेताः\nसत्याभामां समादाय गरुडमधिरुहः प्राग्दिशं त्वं ययाथ ॥",
+          transliteration: "ṣoḍaśastrīsahasraṁ nṛpasutanivahaṁ kārayitvā gṛhītaṁ\ndevendro'tha tvad antikam upagatavān satyabhāmāsametam |\nyācantaṁ taṁ niśamya pratibhayam asuraṁ hantum udyuktacetāḥ\nsatyābhāmāṁ samādāya garuḍam adhiruhaḥ prāgdiśaṁ tvaṁ yayātha ||",
+          translation: "That demon had imprisoned sixteen thousand princesses seized from various kings. Indra then approached You, who were with Satyabhama, seeking help. Hearing his plea and resolving to slay the fearsome demon, You mounted Garuda along with Satyabhama and set forth toward the east.",
+          commentary: "Indra approaches Krishna for help against Narakasura, who had grown powerful enough to defeat even the gods. Satyabhama accompanies Krishna on this expedition — a significant detail, as she is Bhumi's incarnation and thus Narakasura's cosmic mother. The eastward direction points to Pragjyotishapura in northeastern India.",
+          words: [
+            { word: "ṣoḍaśastrīsahasram", meaning: "sixteen thousand women" },
+            { word: "nṛpasutanivahm", meaning: "groups of princesses" },
+            { word: "devendraḥ", meaning: "Indra, king of gods" },
+            { word: "pratibhayam", meaning: "fearsome, terrifying" },
+            { word: "asuram", meaning: "demon" },
+            { word: "satyābhāmām", meaning: "Satyabhama (Krishna's queen)" },
+            { word: "garuḍam", meaning: "Garuda (divine eagle-mount of Vishnu)" },
+            { word: "prāgdiśam", meaning: "toward the eastern direction" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 3,
+          devanagari: "प्राग्ज्योतिषपुरं गत्वा दुर्गमं गिरिदुर्गमैः\nयन्त्रजालैश्च संवीतं मुरासुरनिरक्षितम् ।\nचक्रेण दारयन् सर्वं यन्त्रजालसमावृतं\nमुरं पञ्चशिरस्कं तं जघ्निवान् सुदर्शनेन हि ॥",
+          transliteration: "prāgjyotiṣapuraṁ gatvā durgamaṁ giridurgamaiḥ\nyantrajālaiśca saṁvītaṁ murāsuranirarakṣitam |\ncakreṇa dārayan sarvaṁ yantrajālasamāvṛtam\nmuraṁ pañcaśiraskaṁ taṁ jaghnivān sudarśanena hi ||",
+          translation: "Reaching Pragjyotishapura, that impregnable fortress surrounded by mountain fortifications and networks of mechanical defenses guarded by the demon Mura, You shattered all those mechanical traps with Your discus and slew the five-headed Mura with the Sudarshana Chakra.",
+          commentary: "The fortification of Pragjyotishapura included natural mountain barriers and ingenious yantra-jala (mechanical defense systems). Mura, a powerful demon general guarding the city, had five heads. Krishna's discus Sudarshana destroys all defenses. It is from slaying Mura that Krishna gets the epithet Murari (enemy of Mura).",
+          words: [
+            { word: "prāgjyotiṣapuram", meaning: "city of Pragjyotisha" },
+            { word: "durgamam", meaning: "impregnable, difficult to access" },
+            { word: "giridurgamaiḥ", meaning: "by mountain fortifications" },
+            { word: "yantrajālaiḥ", meaning: "by networks of mechanical devices" },
+            { word: "murāsura", meaning: "the demon Mura" },
+            { word: "pañcaśiraskam", meaning: "five-headed" },
+            { word: "sudarśanena", meaning: "with the Sudarshana (discus)" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 4,
+          devanagari: "मुरस्य तनयान् सप्त दुर्वारानतिवीर्यवान्\nताम्रं चान्तर्धनं चैव श्रवणं विभवासनम् ।\nवसुं नभस्वानरुणं चेति सप्तसुतान् बली\nचक्रगदयोर्घातैर्जघान भगवान् मुदा ॥",
+          transliteration: "murasya tanayān sapta durvārān ativīryavān\ntāmraṁ cāntardhanaṁ caiva śravaṇaṁ vibhavāsanam |\nvasuṁ nabhasvān aruṇaṁ ceti saptasutān balī\ncakragadayorghātair jaghāna bhagavān mudā ||",
+          translation: "The seven sons of Mura — Tamra, Antardhana, Shravana, Vibhavasana, Vasu, Nabhasvan, and Aruna — all irresistible and immensely powerful warriors, the mighty Lord slew joyfully with blows of His discus and mace.",
+          commentary: "After killing Mura, Krishna faces his seven sons who rush to avenge their father. Each is a formidable warrior, but they are no match for the Lord. Krishna dispatches them with His discus (Sudarshana) and mace (Kaumodaki) effortlessly, with joy (muda).",
+          words: [
+            { word: "murasya tanayān", meaning: "sons of Mura" },
+            { word: "sapta", meaning: "seven" },
+            { word: "durvārān", meaning: "irresistible, unstoppable" },
+            { word: "ativīryavān", meaning: "possessing great valor" },
+            { word: "cakra", meaning: "discus (Sudarshana)" },
+            { word: "gadā", meaning: "mace (Kaumodaki)" },
+            { word: "jaghāna", meaning: "slew, killed" },
+            { word: "bhagavān", meaning: "the Blessed Lord" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 5,
+          devanagari: "ततो नरकदैत्येन्द्रो भौमो भूमिसुतोऽसुरः\nनिर्गत्य नगरात् क्रोधाच्छक्तिं चिक्षेप भीषणाम् ।\nत्वयि माधव तामस्त्रैरन्तरिक्षे विदारयन्\nजघन्थ गरुडोपस्थे सत्यभामासमन्वितः ॥",
+          transliteration: "tato narakadaityendro bhaumo bhūmisuto'suraḥ\nnirgatya nagarāt krodhāc chaktiṁ cikṣepa bhīṣaṇām |\ntvayi mādhava tām astrair antarikṣe vidārayan\njaghntha garuḍopasthe satyabhāmāsamanvitaḥ ||",
+          translation: "Then the demon-king Narakasura, son of Earth, rushed out of the city in rage and hurled a terrifying spear at You. O Madhava, You shattered it in mid-air with Your weapons, and seated on Garuda alongside Satyabhama, You struck him down.",
+          commentary: "The climactic confrontation begins. Narakasura emerges from his fortress in fury and launches his most powerful weapon — a terrible shakti (spear). Krishna effortlessly destroys it mid-flight and counterattacks from His seat on Garuda, with Satyabhama witnessing the battle beside Him.",
+          words: [
+            { word: "narakadaityendraḥ", meaning: "Naraka, king of demons" },
+            { word: "bhūmisutaḥ", meaning: "son of Earth (Bhumi)" },
+            { word: "krodhāt", meaning: "out of rage" },
+            { word: "śaktim", meaning: "spear, lance, power-weapon" },
+            { word: "cikṣepa", meaning: "hurled, threw" },
+            { word: "antarikṣe", meaning: "in mid-air" },
+            { word: "vidārayan", meaning: "shattering, tearing apart" },
+            { word: "garuḍopasthe", meaning: "seated on Garuda" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 6,
+          devanagari: "चक्रेण तीक्ष्णधारेण शिरोऽस्य क्षुरनिर्मलम्\nचिच्छेद भगवान् विष्णुर्भौमस्य दुरात्मनः ।\nस पपात हतो भूमौ कुण्डलोज्ज्वलमस्तकः\nभूमिर्दिव्यं वपुर्धृत्वा त्वामुपाजगमत्तदा ॥",
+          transliteration: "cakreṇa tīkṣṇadhāreṇa śiro'sya kṣuranirmalam\nciccheda bhagavān viṣṇur bhaumasya durātmanaḥ |\nsa papāta hato bhūmau kuṇḍalojjvalamastakaḥ\nbhūmir divyaṁ vapur dhṛtvā tvām upājagamat tadā ||",
+          translation: "With the sharp-edged Sudarshana discus, Lord Vishnu severed the head of the wicked Bhaumasura, bright with earrings. He fell slain to the earth. Then Mother Earth (Bhumi), assuming a divine form, approached You.",
+          commentary: "The beheading of Narakasura by the Sudarshana Chakra ends the demon's reign of terror. The poignant detail is that Bhumi-devi — the Earth goddess and Narakasura's mother — then appears before Krishna. She does not grieve but accepts her son's fate as divine justice, recognizing Krishna as the Supreme Lord.",
+          words: [
+            { word: "cakreṇa", meaning: "with the discus" },
+            { word: "tīkṣṇadhāreṇa", meaning: "with sharp edge" },
+            { word: "śiraḥ", meaning: "head" },
+            { word: "ciccheda", meaning: "severed, cut off" },
+            { word: "durātmanaḥ", meaning: "of the wicked one" },
+            { word: "kuṇḍalojjvala", meaning: "bright with earrings" },
+            { word: "bhūmiḥ", meaning: "Earth (Bhumi-devi)" },
+            { word: "divyaṁ vapuḥ", meaning: "divine form" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 7,
+          devanagari: "आदित्यकुण्डले दिव्ये वारुणं छत्रमुत्तमम्\nमणिपर्वतमैरावतं दत्वा देवेन्द्राय ते तदा ।\nभूमिश्च स्वसुतं भौमभगदत्ताभिधं शिशुम्\nत्वत्पादे न्यस्य शरणं ययाचे भक्तवत्सल ॥",
+          transliteration: "ādityakuṇḍale divye vāruṇaṁ chatram uttamam\nmaṇiparvatam airāvataṁ dattvā devendrāya te tadā |\nbhūmiśca svasutaṁ bhaumabhagadattābhidhaṁ śiśum\ntvat-pāde nyasya śaraṇaṁ yayāce bhaktavatsala ||",
+          translation: "You returned the divine earrings of Aditi, the excellent umbrella of Varuna, and other treasures to Indra. Mother Earth placed her grandson Bhagadatta, infant son of Bhaumasura, at Your feet and sought refuge, O lover of devotees.",
+          commentary: "After defeating Narakasura, Krishna restores all the stolen divine treasures to their rightful owners. Bhumi-devi's surrender of her grandson Bhagadatta to Krishna's protection shows her wisdom — she asks the Lord to guide the child onto the path of righteousness. Bhagadatta later becomes king and fights in the Mahabharata war.",
+          words: [
+            { word: "ādityakuṇḍale", meaning: "earrings of Aditi" },
+            { word: "vāruṇam chatram", meaning: "umbrella of Varuna" },
+            { word: "devendrāya", meaning: "to Indra, king of gods" },
+            { word: "bhagadatta", meaning: "Bhagadatta (Narakasura's son)" },
+            { word: "śiśum", meaning: "child, infant" },
+            { word: "tvat-pāde nyasya", meaning: "placing at Your feet" },
+            { word: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "bhaktavatsala", meaning: "O lover of devotees" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 8,
+          devanagari: "षोडशस्त्रीसहस्रं नृपकन्यकागणं\nदुर्गतास्ता विमोच्य त्वं दयालुरनन्यभाक् ।\nसर्वासां च विवाहं रचयित्वा स्वयं प्रभो\nतावद्रूपधरस्त्वं प्रत्यगारं सुखं ययौ ॥",
+          transliteration: "ṣoḍaśastrīsahasraṁ nṛpakanyakāgaṇaṁ\ndurgatās tā vimocya tvaṁ dayālur ananyabhāk |\nsarvāsāṁ ca vivāhaṁ racayitvā svayaṁ prabho\ntāvadrūpadharas tvaṁ pratyagāraṁ sukhaṁ yayau ||",
+          translation: "The sixteen thousand princesses, daughters of various kings, held in captivity and distress — You freed them all, O compassionate Lord, their sole refuge. Marrying all of them Yourself, O Lord, assuming as many forms, You went happily to each of their homes.",
+          commentary: "The rescued princesses had no option of returning home as they were considered dishonored by captivity. Krishna, out of supreme compassion, married all sixteen thousand, assuming that many identical forms simultaneously. This is the same Yogamaya power described in Dashaka 65 regarding His daily life in Dwaraka.",
+          words: [
+            { word: "ṣoḍaśastrīsahasram", meaning: "sixteen thousand women" },
+            { word: "nṛpakanyakāgaṇam", meaning: "groups of princesses" },
+            { word: "durgatāḥ", meaning: "distressed, in misfortune" },
+            { word: "vimocya", meaning: "having freed, liberated" },
+            { word: "dayāluḥ", meaning: "compassionate one" },
+            { word: "vivāham", meaning: "marriage" },
+            { word: "tāvadrūpadharaḥ", meaning: "assuming that many forms" },
+            { word: "pratyagāram", meaning: "to each home" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 9,
+          devanagari: "सत्यभामाप्रियार्थं पारिजातं सुराधिपात्\nआनिनाय भवान् दिव्यं देवराजविरोधतः ।\nइन्द्रेण सह युद्ध्वा च जित्वा तं सुरनायकं\nपारिजातं समारोप्य द्वारकामगमत्प्रभुः ॥",
+          transliteration: "satyabhāmāpriyārthaṁ pārijātaṁ surādhipāt\nāninaya bhavān divyaṁ devarājavirodhataḥ |\nindreṇa saha yuddhvā ca jitvā taṁ suranāyakaṁ\npārijātaṁ samāropya dvārakām agamat prabhuḥ ||",
+          translation: "To please Satyabhama, You brought the divine Parijata tree from Indra, the lord of gods, despite his opposition. Having fought with Indra and defeated that leader of the gods, You planted the Parijata tree and returned to Dwaraka, O Lord.",
+          commentary: "The Parijata tree episode follows the Narakasura victory. When Krishna visited Indra's heaven to return Aditi's earrings, Satyabhama desired the celestial Parijata tree. Indra refused, leading to a battle. Krishna defeated Indra and brought the tree to Dwaraka, planting it in Satyabhama's garden — illustrating Krishna's supremacy even over the king of heaven.",
+          words: [
+            { word: "satyabhāmāpriyārtham", meaning: "for the sake of pleasing Satyabhama" },
+            { word: "pārijātam", meaning: "Parijata (celestial wish-fulfilling tree)" },
+            { word: "surādhipāt", meaning: "from the lord of gods (Indra)" },
+            { word: "devarājavirodhataḥ", meaning: "despite the opposition of the king of gods" },
+            { word: "yuddhvā", meaning: "having fought" },
+            { word: "jitvā", meaning: "having defeated" },
+            { word: "samāropya", meaning: "having planted" },
+            { word: "dvārakām", meaning: "to Dwaraka" }
+          ]
+        },
+        {
+          dashaka: 66,
+          sloka: 10,
+          devanagari: "एवं नरकदैत्येन्द्रं निहत्य सुरकण्टकम्\nमोचयित्वा च कन्यास्ता धर्मं संस्थाप्य शाश्वतम् ।\nपारिजातं च सम्प्राप्य सत्यभामामनोहरम्\nपाहि मां सर्वरोगघ्न मारुतालयनायक ॥",
+          transliteration: "evaṁ narakadaityendraṁ nihatya surakaṇṭakam\nmocayitvā ca kanyās tā dharmaṁ saṁsthāpya śāśvatam |\npārijātaṁ ca samprāpya satyabhāmāmanoharam\npāhi māṁ sarvarogaghna mārutālayanāyaka ||",
+          translation: "Thus having slain Narakasura, the thorn of the gods, having freed those captive princesses, having established eternal dharma, and having obtained the beautiful Parijata tree dear to Satyabhama — O destroyer of all diseases, O Lord of the temple of Vayu (Guruvayur), protect me!",
+          commentary: "The concluding verse summarizes the entire dashaka: the destruction of Narakasura, the liberation of sixteen thousand princesses, the establishment of dharma, and the acquisition of the Parijata tree. Bhattathiri ends with his signature prayer, addressing the Lord of Guruvayur as the healer of all afflictions.",
+          words: [
+            { word: "narakadaityendram", meaning: "Narakasura, king of demons" },
+            { word: "nihatya", meaning: "having slain" },
+            { word: "surakaṇṭakam", meaning: "thorn of the gods" },
+            { word: "mocayitvā", meaning: "having freed, liberated" },
+            { word: "dharmaṁ saṁsthāpya", meaning: "having established dharma" },
+            { word: "pārijātam", meaning: "the Parijata tree" },
+            { word: "sarvarogaghna", meaning: "destroyer of all diseases" },
+            { word: "mārutālayanāyaka", meaning: "Lord of the temple of Vayu (Guruvayur)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 67,
