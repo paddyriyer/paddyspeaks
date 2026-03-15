@@ -12578,7 +12578,188 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes Krishna and Balarama's education under Guru Sandipani at Avanti, where they mastered all sciences in sixty-four days and retrieved the Guru's dead son from Yama as guru-dakshina.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 59,
+          sloka: 1,
+          devanagari: "हत्वा कंसं सबन्धुं भवति विनिहते शोकमग्ने जने तत्-\nमातुस्ते पितुश्च प्रचुरमुदमदाः कारयन् कर्मजातम् ।\nउग्रासेनं नृपेन्द्रं पुनरपि विदधद्यादवानां हिताय\nप्रापीष्ट गुरुकुलं त्वमवनिपतिसुतैः सान्दिपानेर्मुदैव ॥",
+          transliteration: "hatvā kaṃsaṁ sabandhuṁ bhavati vinihite śokamagne jane tat-\nmātuste pituśca pracuramudamadāḥ kārayan karmajātam |\nugrāsenaṁ nṛpendraṁ punarapi vidadhad yādavānāṁ hitāya\nprāpīṣṭa gurukulaṁ tvam avanipatisutaiḥ sāndipāner mudaiva ||",
+          translation: "After slaying Kamsa along with his allies, You consoled the grieving people and brought abundant joy to Your parents, performing the requisite rites. Reinstating Ugrasena as king for the welfare of the Yadavas, You then joyfully proceeded to the gurukula of Sandipani, along with princes.",
+          commentary: "This verse sets the scene after the dramatic events of Kamsa's slaying. Krishna, ever the ideal son and prince, first attends to family and civic duties before seeking education — showing that even the Supreme Lord honors worldly dharma and the tradition of formal learning under a guru.",
+          words: [
+            { word: "कंसम्", transliteration: "kaṃsam", meaning: "Kamsa (the tyrant king)" },
+            { word: "सबन्धुम्", transliteration: "sabandhuṁ", meaning: "along with relatives/allies" },
+            { word: "शोकमग्ने", transliteration: "śokamagne", meaning: "drowned in grief" },
+            { word: "उग्रासेनम्", transliteration: "ugrāsenam", meaning: "Ugrasena (Kamsa's father)" },
+            { word: "नृपेन्द्रम्", transliteration: "nṛpendram", meaning: "as king/lord of kings" },
+            { word: "यादवानाम्", transliteration: "yādavānām", meaning: "of the Yadavas" },
+            { word: "गुरुकुलम्", transliteration: "gurukulam", meaning: "the abode/school of the guru" },
+            { word: "सान्दिपानेः", transliteration: "sāndipāneḥ", meaning: "of Sandipani (the guru)" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 2,
+          devanagari: "आवन्तीं प्राप्य देशं गुरुवरचरणौ प्रार्थ्य विद्याधिगत्यै\nसम्यग्ब्रह्मोपदेशं गुरुमुखजनितं प्राप्तवान् बालभावात् ।\nचत्वारश्चैव वेदाः सकलधनुरिषु-ज्ञानमन्त्रादिविद्या\nशास्त्राणां सारमेकं दिवसचतुरषष्ट्या गृहीतं त्वयैव ॥",
+          transliteration: "āvantīṁ prāpya deśaṁ guruvaracaraṇau prārthya vidyādhigatyai\nsamyag brahmopadeśaṁ gurumukhajanitaṁ prāptavān bālabhāvāt |\ncatvāraścaiva vedāḥ sakala-dhanuriṣu-jñānamantrādividyā\nśāstrāṇāṁ sāram ekaṁ divasacaturaṣaṣṭyā gṛhītaṁ tvayaiva ||",
+          translation: "Reaching the region of Avanti and approaching the revered feet of the great Guru, seeking knowledge, You received the sacred teaching of Brahman from the Guru's lips, assuming the guise of a boy. All four Vedas, the complete science of archery and weapons, mantras, and the essence of all sciences — all were mastered by You in just sixty-four days.",
+          commentary: "The Supreme Lord who is the source of all knowledge humbly assumes the role of a student. The miraculous mastery of all sixty-four arts in sixty-four days demonstrates His divine nature even as He plays the human role. Avanti is the ancient name for Ujjain.",
+          words: [
+            { word: "आवन्तीम्", transliteration: "āvantīm", meaning: "Avanti (the region, modern Ujjain)" },
+            { word: "गुरुवरचरणौ", transliteration: "guruvaracaraṇau", meaning: "the feet of the great guru" },
+            { word: "विद्याधिगत्यै", transliteration: "vidyādhigatyai", meaning: "for the attainment of knowledge" },
+            { word: "ब्रह्मोपदेशम्", transliteration: "brahmopadeśam", meaning: "the teaching of Brahman/sacred instruction" },
+            { word: "वेदाः", transliteration: "vedāḥ", meaning: "the Vedas (sacred scriptures)" },
+            { word: "धनुरिषु", transliteration: "dhanuriṣu", meaning: "archery and weapons" },
+            { word: "शास्त्राणाम्", transliteration: "śāstrāṇām", meaning: "of the sciences/scriptures" },
+            { word: "चतुरषष्ट्या", transliteration: "caturaṣaṣṭyā", meaning: "by sixty-four (days)" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 3,
+          devanagari: "विद्यानां पारगत्वं विदधदतिदृढं गुर्वनुध्यानशीलो\nब्रह्मन् किं देयमस्ति प्रवद इति गुरोस्त्वं गिरा चोदितोऽभूः ।\nआचार्यो दक्षिणार्थं चिरमनुमनुते पुत्रमेकं मृतं स्वं\nप्राभाषीशं तवैनं प्रतिनिधिमनघं त्वं प्रदास्यामि चेति ॥",
+          transliteration: "vidyānāṁ pāragatvaṁ vidadhad atidṛḍhaṁ gurv-anudhyānaśīlo\nbrahman kiṁ deyam asti pravada iti guros tvaṁ girā coditobhūḥ |\nācāryo dakṣiṇārthaṁ ciram anumanute putram ekaṁ mṛtaṁ svaṁ\nprābhāṣīśaṁ tavainaṁ pratinidhim anaghaṁ tvaṁ pradāsyāmi ceti ||",
+          translation: "Having reached mastery of all sciences, ever devoted to meditating upon the Guru, You were prompted by the Guru's words: 'O Brahman, tell me — what may be offered as guru-dakshina?' The preceptor, long deliberating over the fee, asked for the return of his own dead son. You declared: 'I shall bring him back to you without fail.'",
+          commentary: "The tradition of guru-dakshina — offering a gift to the teacher after completing studies — is central to Vedic education. Sandipani's request for his dead son reveals both his deepest grief and his faith in Krishna's divine power.",
+          words: [
+            { word: "पारगत्वम्", transliteration: "pāragatvam", meaning: "complete mastery, reaching the other shore" },
+            { word: "गुर्वनुध्यानशीलः", transliteration: "gurv-anudhyānaśīlaḥ", meaning: "devoted to meditation on the guru" },
+            { word: "दक्षिणार्थम्", transliteration: "dakṣiṇārtham", meaning: "for the purpose of guru-fee/offering" },
+            { word: "पुत्रम्", transliteration: "putram", meaning: "son" },
+            { word: "मृतम्", transliteration: "mṛtam", meaning: "dead, deceased" },
+            { word: "प्रतिनिधिम्", transliteration: "pratinidhim", meaning: "in return, as restitution" },
+            { word: "अनघम्", transliteration: "anagham", meaning: "sinless, faultless" },
+            { word: "प्रदास्यामि", transliteration: "pradāsyāmi", meaning: "I shall give/restore" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 4,
+          devanagari: "प्रभासं प्राप्य तीर्थं रथवरमधिरुह्यात्मसूतं च कृत्वा\nदारुकं सैन्धवैस्तैर्हयवरनिवहैः सत्वरं त्वं ययाथ ।\nपुत्रं गुर्वात्मजं तं पशुपतिनगरे याम्यदूतापहृतं\nज्ञात्वा तत्रैव गत्वा यमनगरमगाः सङ्कर्षणेन सार्धम् ॥",
+          transliteration: "prabhāsaṁ prāpya tīrthaṁ rathavarām adhiruhyātmasūtaṁ ca kṛtvā\ndārukaṁ saindhavais tair hayavaranivahaiḥ satvaraṁ tvaṁ yayātha |\nputraṁ gurvātmajaṁ taṁ paśupatinagare yāmyadūtāpahṛtaṁ\njñātvā tatraiva gatvā yamanagaram agāḥ saṅkarṣaṇena sārdham ||",
+          translation: "Reaching the sacred pilgrimage site of Prabhasa, mounting a great chariot with Daruka as charioteer, drawn by swift Saindhava horses, You hastened forth. Learning that the Guru's son had been carried away by Yama's messengers, You proceeded to the city of Yama together with Balarama.",
+          commentary: "The journey to retrieve the Guru's son takes Krishna to Prabhasa, one of the most sacred tirthas in western India. Krishna's willingness to confront Yama, the god of death himself, shows the limitless nature of His devotion to His guru.",
+          words: [
+            { word: "प्रभासम्", transliteration: "prabhāsam", meaning: "Prabhasa (a sacred pilgrimage site)" },
+            { word: "तीर्थम्", transliteration: "tīrtham", meaning: "sacred place, pilgrimage site" },
+            { word: "रथवरम्", transliteration: "rathavaram", meaning: "great/excellent chariot" },
+            { word: "दारुकम्", transliteration: "dārukam", meaning: "Daruka (Krishna's charioteer)" },
+            { word: "सैन्धवैः", transliteration: "saindhavaiḥ", meaning: "Saindhava horses (from Sindhu region)" },
+            { word: "याम्यदूतापहृतम्", transliteration: "yāmyadūtāpahṛtam", meaning: "carried away by Yama's messengers" },
+            { word: "यमनगरम्", transliteration: "yamanagaram", meaning: "the city of Yama (god of death)" },
+            { word: "सङ्कर्षणेन", transliteration: "saṅkarṣaṇena", meaning: "with Sankarshana (Balarama)" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 5,
+          devanagari: "गत्वा वेगेन सिन्धोस्तटमुपगतवान् पञ्चजन्यं च दैत्यं\nशङ्खे तत्रास्थितं तं निजगदिथ वदावन्तिपुत्रं गुरोर्मे ।\nनास्त्यत्रेत्युक्तवन्तं विनिहतवदसौ शङ्खरूपो हि जातो\nमग्नस्त्वं वारिराशौ बलसहितमगाः संयमिन्याः पुरं तत् ॥",
+          transliteration: "gatvā vegena sindhos taṭam upagatavān pañcajanyaṁ ca daityaṁ\nśaṅkhe tatrāsthitaṁ taṁ nijagaditha vadāvantīputraṁ guror me |\nnāstyatrety uktavantaṁ vinihatavad asau śaṅkharūpo hi jāto\nmagnas tvaṁ vārirāśau balasahitam agāḥ saṁyaminyāḥ puraṁ tat ||",
+          translation: "Proceeding swiftly to the shore of the ocean, You confronted the demon Panchajanya who dwelt within a conch shell, demanding: 'Return the son of my Guru from Avanti!' When he replied 'He is not here,' You slew him — and he became the famous conch. Then, plunging into the ocean with Balarama, You reached Yama's abode.",
+          commentary: "This dramatic verse narrates the origin of Krishna's famous conch, Panchajanya. The demon of the same name had dwelt in a conch shell in the ocean. Samyamini is the capital city of Yama's realm.",
+          words: [
+            { word: "सिन्धोः", transliteration: "sindhoḥ", meaning: "of the ocean" },
+            { word: "पञ्चजन्यम्", transliteration: "pañcajanyam", meaning: "Panchajanya (the demon/conch)" },
+            { word: "दैत्यम्", transliteration: "daityam", meaning: "demon" },
+            { word: "शङ्खे", transliteration: "śaṅkhe", meaning: "in a conch shell" },
+            { word: "विनिहतवत्", transliteration: "vinihatavat", meaning: "having slain" },
+            { word: "वारिराशौ", transliteration: "vārirāśau", meaning: "in the ocean/mass of water" },
+            { word: "संयमिन्याः", transliteration: "saṁyaminyāḥ", meaning: "of Samyamini (Yama's city)" },
+            { word: "बलसहितम्", transliteration: "balasahitam", meaning: "together with Balarama" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 6,
+          devanagari: "यामस्य प्राप्य लोकं यमवदसि विभो पाहि मामित्युदीर्य\nत्वत्पादौ संनमन्तं स्वयमभिनमयन् वैवस्वतं धर्मराजम् ।\nगुर्वर्थं बालकं तं प्रतिददतमशु प्राप्य हृष्टो गुरोस्त्वं\nपुत्रं दत्त्वा प्रणम्य प्रमुदितमनसं तं चकर्थोपकारैः ॥",
+          transliteration: "yāmasya prāpya lokaṁ yamavadasi vibho pāhi mām ityudīrya\ntvatpādau saṁnamantaṁ svayam abhinamayan vaivasvataṁ dharmarājam |\ngurvarthaṁ bālakaṁ taṁ pratidadatam aśu prāpya hṛṣṭo guros tvaṁ\nputraṁ dattvā praṇamya pramuditamanasaṁ taṁ cakarthopakāraiḥ ||",
+          translation: "Reaching the realm of Yama, O Lord, Yama himself exclaimed 'Protect me!' and bowed at Your feet. You graciously acknowledged Dharmaraja, son of Vivasvan. He swiftly returned the boy. Joyfully, You restored the son to Your Guru, bowed before him, and delighted his heart.",
+          commentary: "Even Yama, the god of death and justice, recognizes Krishna's supreme lordship and prostrates before Him. The return of the dead child symbolizes Krishna's power over death itself.",
+          words: [
+            { word: "यामस्य", transliteration: "yāmasya", meaning: "of Yama (god of death)" },
+            { word: "वैवस्वतम्", transliteration: "vaivasvatam", meaning: "son of Vivasvan (Yama's patronymic)" },
+            { word: "धर्मराजम्", transliteration: "dharmarājam", meaning: "King of Dharma (Yama's title)" },
+            { word: "गुर्वर्थम्", transliteration: "gurvartham", meaning: "for the sake of the guru" },
+            { word: "बालकम्", transliteration: "bālakam", meaning: "the boy/child" },
+            { word: "प्रतिददतम्", transliteration: "pratidadatam", meaning: "returning, giving back" },
+            { word: "प्रणम्य", transliteration: "praṇamya", meaning: "having bowed/prostrated" },
+            { word: "उपकारैः", transliteration: "upakāraiḥ", meaning: "with services/favors" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 7,
+          devanagari: "गुर्वी प्रीतिस्तदानीमभवदतिशयं सान्दिपानेः स तेऽस्तु\nशिष्यस्त्वं वै परात्मा न पुनरिह भवेद्दुर्लभं किञ्चनापि ।\nइत्याशीर्भिः प्रपूर्णं गुरुवचनमदात् प्रीतये ते विभो तद्-\nगुर्वाज्ञां शिरसा वहन् मथुरापुरं त्वं ततो प्राविशस्तत् ॥",
+          transliteration: "gurvī prītis tadānīm abhavad atiśayaṁ sāndipāneḥ sa testu\nśiṣyas tvaṁ vai parātmā na punar iha bhaved durlabhaṁ kiñcanāpi |\nityāśīrbhiḥ prapūrṇaṁ guruvacanam adāt prītaye te vibho tad-\ngurvājñāṁ śirasā vahan mathurāpuraṁ tvaṁ tato prāviśastat ||",
+          translation: "Great joy arose then in Sandipani, who blessed You: 'You are indeed the Supreme Self as my disciple — nothing shall be unattainable for You.' Receiving those blessing-filled words, O Lord, carrying the Guru's command upon Your head, You then re-entered the city of Mathura.",
+          commentary: "Sandipani recognizes Krishna's divinity through the miraculous restoration of his son. His blessings carry the traditional guru-shishya relationship to its highest form — the guru acknowledging the disciple as the Supreme Being.",
+          words: [
+            { word: "गुर्वी", transliteration: "gurvī", meaning: "great, weighty" },
+            { word: "प्रीतिः", transliteration: "prītiḥ", meaning: "joy, love, affection" },
+            { word: "सान्दिपानेः", transliteration: "sāndipāneḥ", meaning: "of Sandipani" },
+            { word: "परात्मा", transliteration: "parātmā", meaning: "the Supreme Self" },
+            { word: "दुर्लभम्", transliteration: "durlabham", meaning: "difficult to obtain" },
+            { word: "आशीर्भिः", transliteration: "āśīrbhiḥ", meaning: "with blessings" },
+            { word: "गुरुवचनम्", transliteration: "guruvacanam", meaning: "the guru's words" },
+            { word: "मथुरापुरम्", transliteration: "mathurāpuram", meaning: "the city of Mathura" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 8,
+          devanagari: "उद्धवं चात्मतुल्यं सचिवमनुपमं बुद्धिमन्तं सदैव\nप्राप्य त्वं तेन सार्धं विविधविषयगोष्ठीः सुखं चारुचक्रे ।\nकुब्जायाः स्थानमेत्य प्रतिदिनमनघे तां विलासैर्विधाय\nसुश्रोणीं सुन्दरीं तां परमसुभगतां त्वं प्रदत्तां चकर्थ ॥",
+          transliteration: "uddhavaṁ cātmatulyaṁ sacivam anupamaṁ buddhimantaṁ sadaiva\nprāpya tvaṁ tena sārdhaṁ vividhaviṣayagoṣṭhīḥ sukhaṁ cārucakre |\nkubjāyāḥ sthānam etya pratidinam anaghe tāṁ vilāsairvidhāya\nsuśroṇīṁ sundarīṁ tāṁ paramasubhagatāṁ tvaṁ pradattāṁ cakartha ||",
+          translation: "You found Uddhava, Your equal companion and incomparable minister of great wisdom, and enjoyed with him varied conversations on many topics. Visiting the abode of Kubja daily, O sinless One, You graced her with Your playful presence and bestowed upon that beautiful woman supreme good fortune.",
+          commentary: "After returning to Mathura, Krishna's life balances the intellectual — deep philosophical discussions with the brilliant Uddhava — with the compassionate: He fulfills His promise to the hunchback woman Kubja (Trivakra), whom He had straightened during His entry into Mathura.",
+          words: [
+            { word: "उद्धवम्", transliteration: "uddhavam", meaning: "Uddhava (Krishna's friend and counselor)" },
+            { word: "आत्मतुल्यम्", transliteration: "ātmatulyam", meaning: "equal to Himself" },
+            { word: "सचिवम्", transliteration: "sacivam", meaning: "minister, counselor" },
+            { word: "बुद्धिमन्तम्", transliteration: "buddhimantam", meaning: "wise, intelligent" },
+            { word: "गोष्ठीः", transliteration: "goṣṭhīḥ", meaning: "conversations, gatherings" },
+            { word: "कुब्जायाः", transliteration: "kubjāyāḥ", meaning: "of Kubja (the hunchback woman)" },
+            { word: "विलासैः", transliteration: "vilāsaiḥ", meaning: "with playful gestures/grace" },
+            { word: "सुभगताम्", transliteration: "subhagatām", meaning: "good fortune, beauty" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 9,
+          devanagari: "अक्रूरं प्रेषयित्वा कुरुपुरमथ तत्कौरवाणां विचेष्टां\nज्ञात्वा पाण्डोः सुतानां हितमनुचकृषे भूरिकारुण्यपूर्णः ।\nज्ञानं विज्ञानमुच्चैरखिलमपि विभो सान्दिपानेर्गृहीतं\nयोगक्षेमं च मित्रे कृतवदसि कृपासागर त्वं गुरौ च ॥",
+          transliteration: "akrūraṁ preṣayitvā kurupuram atha tat kauravāṇāṁ viceṣṭāṁ\njñātvā pāṇḍoḥ sutānāṁ hitam anucakṛṣe bhūrikāruṇyapūrṇaḥ |\njñānaṁ vijñānam uccair akhilam api vibho sāndipāner gṛhītaṁ\nyogakṣemaṁ ca mitre kṛtavadasi kṛpāsāgara tvaṁ gurau ca ||",
+          translation: "Sending Akrura to Hastinapura, and learning of the Kauravas' machinations, You worked for the welfare of the sons of Pandu, full of boundless compassion. O Lord, all knowledge and wisdom You received from Sandipani, and You ensured the welfare of Your friends and guru alike — O ocean of mercy!",
+          commentary: "This verse connects the Sandipani narrative to the larger Mahabharata story. Krishna's sending of Akrura to Hastinapura to assess the Pandavas' situation shows His far-sighted political wisdom.",
+          words: [
+            { word: "अक्रूरम्", transliteration: "akrūram", meaning: "Akrura (Yadava nobleman)" },
+            { word: "कुरुपुरम्", transliteration: "kurupuram", meaning: "the city of the Kurus (Hastinapura)" },
+            { word: "कौरवाणाम्", transliteration: "kauravāṇām", meaning: "of the Kauravas" },
+            { word: "विचेष्टाम्", transliteration: "viceṣṭām", meaning: "activities, machinations" },
+            { word: "पाण्डोः सुतानाम्", transliteration: "pāṇḍoḥ sutānām", meaning: "of the sons of Pandu (Pandavas)" },
+            { word: "कारुण्यपूर्णः", transliteration: "kāruṇyapūrṇaḥ", meaning: "full of compassion" },
+            { word: "योगक्षेमम्", transliteration: "yogakṣemam", meaning: "welfare, well-being" },
+            { word: "कृपासागर", transliteration: "kṛpāsāgara", meaning: "ocean of mercy" }
+          ]
+        },
+        {
+          dashaka: 59,
+          sloka: 10,
+          devanagari: "एवं विद्यागुरूणां परमगुरुरपि त्वं हि सेवानमस्यैः\nशिष्यत्वं दर्शयित्वा गुरुजनविषये भक्तिमार्गं व्यनैषीः ।\nसर्वज्ञोऽप्यात्मविद्यां गुरुमुखत इव ग्राहयन् विश्वमेतत्\nतापान्मे पाहि कृष्ण प्रणतजनसखे मारुतागारनाथ ॥",
+          transliteration: "evaṁ vidyāgurūṇāṁ paramagurur api tvaṁ hi sevānamasyaiḥ\nśiṣyatvaṁ darśayitvā gurujanavīṣaye bhaktimārgaṁ vyanaiṣīḥ |\nsarvajñopyātmavidyāṁ gurumukha iva grāhayan viśvam etat\ntāpān me pāhi kṛṣṇa praṇatajanasakhé mārutāgāranātha ||",
+          translation: "Thus, though You are the supreme Guru of all teachers of knowledge, by demonstrating discipleship through service and prostration, You revealed the path of devotion toward one's teachers. Though omniscient, You showed the world that Self-knowledge too should be received from the guru's lips. O Krishna, friend of the surrendered, O Lord of Guruvayur, protect me from my afflictions!",
+          commentary: "The concluding verse draws the philosophical lesson: the Supreme Lord Himself models guru-bhakti for the world. Even He who is omniscient chooses to learn from a human guru, establishing the eternal validity of the guru-shishya tradition. The verse ends with the characteristic Narayaneeyam prayer to the Lord of Guruvayur for healing.",
+          words: [
+            { word: "परमगुरुः", transliteration: "paramaguruḥ", meaning: "the supreme guru" },
+            { word: "सेवानमस्यैः", transliteration: "sevānamasyaiḥ", meaning: "through service and prostration" },
+            { word: "शिष्यत्वम्", transliteration: "śiṣyatvam", meaning: "the state of being a disciple" },
+            { word: "भक्तिमार्गम्", transliteration: "bhaktimārgam", meaning: "the path of devotion" },
+            { word: "सर्वज्ञः", transliteration: "sarvajñaḥ", meaning: "the omniscient one" },
+            { word: "गुरुमुखतः", transliteration: "gurumukhataḥ", meaning: "from the guru's lips/mouth" },
+            { word: "प्रणतजनसखे", transliteration: "praṇatajanasakhé", meaning: "O friend of the surrendered" },
+            { word: "मारुतागारनाथ", transliteration: "mārutāgāranātha", meaning: "Lord of the Temple of Vayu (Guruvayur)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 60,
@@ -12587,7 +12768,183 @@ slokas: [
       theme: "devotion",
       verseCount: 10,
       summary: "Krishna sends His friend Uddhava to console the grief-stricken Gopis of Vrindavan. Uddhava, witnessing their supreme devotion, is humbled and considers the dust of the Gopis' feet sacred.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 60,
+          sloka: 1,
+          devanagari: "व्रजस्त्रीणामार्तिं निशमय बहुशो नारदमुखात्\nप्रशान्त्यर्थं तासामथ खलु भवान् उद्धवसखम् ।\nसमाहूयानन्दादवददुपयाहीति भवतो\nव्रजं सान्त्वं ब्रूहि प्रियसखि मदीयैः प्रियतमाः ॥",
+          transliteration: "vrajastrīṇām ārtiṁ niśamaya bahuśo nāradamukhāt\npraśāntyarthaṁ tāsām atha khalu bhavān uddhavasakham |\nsamāhūyānandād avadad upayāhīti bhavato\nvrajaṁ sāntvaṁ brūhi priyasakhi madīyaiḥ priyatamāḥ ||",
+          translation: "Hearing repeatedly from Narada and others of the anguish of the women of Vraja, for the purpose of consoling them, You summoned Your dear friend Uddhava and said with affection: 'Go to Vraja, O dear friend, and convey comforting words — those beloved ones are most dear to Me.'",
+          commentary: "Krishna's sending of Uddhava to Vrindavan reveals the depth of His concern for the Gopis. He does not go Himself, as His presence would make their eventual separation even more painful. Instead, He sends His wisest friend, who represents jnana (knowledge), to meet the Gopis who embody the highest prema (love).",
+          words: [
+            { word: "व्रजस्त्रीणाम्", transliteration: "vrajastrīṇām", meaning: "of the women of Vraja" },
+            { word: "आर्तिम्", transliteration: "ārtim", meaning: "anguish, distress" },
+            { word: "नारदमुखात्", transliteration: "nāradamukhāt", meaning: "from Narada's mouth/through Narada" },
+            { word: "प्रशान्त्यर्थम्", transliteration: "praśāntyartham", meaning: "for the purpose of consolation" },
+            { word: "उद्धवसखम्", transliteration: "uddhavasakham", meaning: "the friend Uddhava" },
+            { word: "सान्त्वम्", transliteration: "sāntvam", meaning: "consoling words, comfort" },
+            { word: "प्रियसखि", transliteration: "priyasakhi", meaning: "O dear friend" },
+            { word: "प्रियतमाः", transliteration: "priyatamāḥ", meaning: "most beloved ones" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 2,
+          devanagari: "स उद्धवः प्राप्य व्रजं रथेन\nनिशागमे नन्दगृहं विविक्षुः ।\nददर्श गोपान् सुमनोहराङ्गीं\nमथुराकथाविह्वलचित्तवृत्तिम् ॥",
+          transliteration: "sa uddhavaḥ prāpya vrajaṁ rathena\nniśāgame nandagṛhaṁ vivikṣuḥ |\ndadarśa gopān sumanohirāṅgīṁ\nmathurākathāvihvalacittavṛttim ||",
+          translation: "That Uddhava, reaching Vraja by chariot at nightfall, wishing to enter Nanda's house, beheld the cowherds — their beautiful forms overwhelmed by the turmoil of thoughts about Mathura.",
+          commentary: "Uddhava arrives at dusk, a poetically apt time symbolizing the twilight between Krishna's presence and His absence in the Gopis' lives. The phrase mathura-katha-vihvala-citta-vritti captures how every thought of Mathura sends the Gopis into emotional upheaval.",
+          words: [
+            { word: "उद्धवः", transliteration: "uddhavaḥ", meaning: "Uddhava" },
+            { word: "व्रजम्", transliteration: "vrajam", meaning: "Vraja (the pastoral region)" },
+            { word: "रथेन", transliteration: "rathena", meaning: "by chariot" },
+            { word: "निशागमे", transliteration: "niśāgame", meaning: "at nightfall" },
+            { word: "नन्दगृहम्", transliteration: "nandagṛham", meaning: "the house of Nanda" },
+            { word: "गोपान्", transliteration: "gopān", meaning: "the cowherds" },
+            { word: "मथुराकथा", transliteration: "mathurākathā", meaning: "stories/talk of Mathura" },
+            { word: "विह्वलचित्तवृत्तिम्", transliteration: "vihvalacittavṛttim", meaning: "with agitated mental states" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 3,
+          devanagari: "नन्दो यशोदा च समागतस्य\nउद्धवस्य पृष्ट्वा कुशलं मुरारेः ।\nकृष्णस्मृतिप्रस्खलिताश्रुवेगौ\nपप्रच्छतुः किं स सुखी मुकुन्दः ॥",
+          transliteration: "nando yaśodā ca samāgatasya\nuddhavasya pṛṣṭvā kuśalaṁ murāreḥ |\nkṛṣṇasmṛtipraskhālitāśruvegau\npapracchātuḥ kiṁ sa sukhī mukundaḥ ||",
+          translation: "Nanda and Yashoda, upon the arrival of Uddhava, inquiring about the welfare of Krishna, overwhelmed by a rush of tears triggered by the memory of Krishna, asked: 'Is that Mukunda happy?'",
+          commentary: "The parental love of Nanda and Yashoda is expressed with exquisite tenderness. Despite their own unbearable pain of separation, their first concern is whether Krishna is happy. The word praskhālita-ashru-vega conveys how the mere mention of Krishna's name breaks the dam of their suppressed grief.",
+          words: [
+            { word: "नन्दः", transliteration: "nandaḥ", meaning: "Nanda (Krishna's foster-father)" },
+            { word: "यशोदा", transliteration: "yaśodā", meaning: "Yashoda (Krishna's foster-mother)" },
+            { word: "कुशलम्", transliteration: "kuśalam", meaning: "welfare, well-being" },
+            { word: "मुरारेः", transliteration: "murāreḥ", meaning: "of the slayer of Mura (Krishna)" },
+            { word: "कृष्णस्मृति", transliteration: "kṛṣṇasmṛti", meaning: "memory of Krishna" },
+            { word: "अश्रुवेगौ", transliteration: "aśruvegau", meaning: "with a rush of tears (dual)" },
+            { word: "मुकुन्दः", transliteration: "mukundaḥ", meaning: "Mukunda (bestower of liberation — Krishna)" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 4,
+          devanagari: "प्रातः समुत्थाय व्रजाङ्गनास्ताः\nउद्धवस्य दृष्ट्वा रथमच्युतस्य ।\nमत्वा प्रियं प्रेषितमार्यपुत्रं\nसर्वाः समाजग्मुरतीवहर्षात् ॥",
+          transliteration: "prātaḥ samutthāya vrajāṅganās tāḥ\nuddhavasya dṛṣṭvā ratham acyutasya |\nmatvā priyaṁ preṣitam āryaputraṁ\nsarvāḥ samājagmur atīvaharṣāt ||",
+          translation: "Rising at dawn, the women of Vraja, seeing Uddhava's chariot (which was Krishna's own), thinking that the beloved noble one had sent a dear messenger, all gathered together with overwhelming joy.",
+          commentary: "The Gopis recognize Krishna's chariot and their hopes soar. The phrase arya-putra (noble one's son) is a term of deep endearment. Their collective gathering shows the communal nature of their devotion — they share their love and grief as one body.",
+          words: [
+            { word: "प्रातः", transliteration: "prātaḥ", meaning: "at dawn, in the morning" },
+            { word: "व्रजाङ्गनाः", transliteration: "vrajāṅganāḥ", meaning: "the women of Vraja" },
+            { word: "रथम्", transliteration: "ratham", meaning: "chariot" },
+            { word: "अच्युतस्य", transliteration: "acyutasya", meaning: "of Acyuta (the infallible one — Krishna)" },
+            { word: "प्रेषितम्", transliteration: "preṣitam", meaning: "sent, dispatched" },
+            { word: "आर्यपुत्रम्", transliteration: "āryaputram", meaning: "the noble one's son/messenger" },
+            { word: "समाजग्मुः", transliteration: "samājagmuḥ", meaning: "they all gathered" },
+            { word: "अतीवहर्षात्", transliteration: "atīvaharṣāt", meaning: "with overwhelming joy" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 5,
+          devanagari: "तासां रुदन्तीनमवेक्ष्य मध्ये\nगोविन्दसन्देशमुवाच शौरेः ।\nयोगेश्वरत्वं परमात्मभावं\nबुबोध तासामुपशान्तिहेतोः ॥",
+          transliteration: "tāsāṁ rudantīnam avekṣya madhye\ngovindasandeśam uvāca śaureḥ |\nyogeśvaratvaṁ paramātmabhāvaṁ\nbuboddha tāsām upaśāntihetoḥ ||",
+          translation: "Seeing them weeping, Uddhava in their midst conveyed the message of Govinda. He explained Krishna's nature as the Lord of Yoga and the Supreme Self, seeking to bring them peace.",
+          commentary: "Uddhava attempts to console the Gopis through Vedantic philosophy — explaining that Krishna is not an ordinary person who can be possessed, but the Supreme Self present everywhere. This well-intentioned but ultimately inadequate approach sets up the famous philosophical confrontation between jnana and prema.",
+          words: [
+            { word: "रुदन्तीनाम्", transliteration: "rudantīnām", meaning: "of those who were weeping" },
+            { word: "गोविन्दसन्देशम्", transliteration: "govindasandeśam", meaning: "the message of Govinda (Krishna)" },
+            { word: "शौरेः", transliteration: "śaureḥ", meaning: "of the descendant of Shura (Krishna)" },
+            { word: "योगेश्वरत्वम्", transliteration: "yogeśvaratvam", meaning: "the state of being Lord of Yoga" },
+            { word: "परमात्मभावम्", transliteration: "paramātmabhāvam", meaning: "the nature of the Supreme Self" },
+            { word: "उपशान्तिहेतोः", transliteration: "upaśāntihetoḥ", meaning: "for the sake of peace/consolation" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 6,
+          devanagari: "किं ज्ञानयोगैरिह नः प्रियेण\nविना सखे जीवनमेव दुःखम् ।\nतं मन्मथक्लेशहरं मुरारिं\nकदा नु द्रक्ष्यामहे वल्लवीनाम् ॥",
+          transliteration: "kiṁ jñānayogair iha naḥ priyeṇa\nvinā sakhé jīvanam eva duḥkham |\ntaṁ manmathakleśaharaṁ murāriṁ\nkadā nu drakṣyāmahe vallavīnām ||",
+          translation: "The Gopis replied: 'What use are knowledge and yoga to us? Without our Beloved, life itself is nothing but suffering. When shall we, the cowherd women, behold again that Murari who removes the torment of love?'",
+          commentary: "This is the Gopis' celebrated response to Uddhava's Vedanta. They dismiss jnana-yoga as irrelevant to their condition — their love for Krishna is not a problem to be solved by philosophy but the very essence of their being. The phrase manmatha-klesha-hara is paradoxical: Krishna both causes and removes the torment of love.",
+          words: [
+            { word: "ज्ञानयोगैः", transliteration: "jñānayogaiḥ", meaning: "with knowledge and yoga" },
+            { word: "प्रियेण", transliteration: "priyeṇa", meaning: "the beloved one" },
+            { word: "विना", transliteration: "vinā", meaning: "without" },
+            { word: "जीवनम्", transliteration: "jīvanam", meaning: "life" },
+            { word: "दुःखम्", transliteration: "duḥkham", meaning: "suffering, sorrow" },
+            { word: "मन्मथक्लेशहरम्", transliteration: "manmathakleśaharam", meaning: "remover of love's torment" },
+            { word: "मुरारिम्", transliteration: "murārim", meaning: "the enemy of Mura (Krishna)" },
+            { word: "वल्लवीनाम्", transliteration: "vallavīnām", meaning: "of the cowherd women" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 7,
+          devanagari: "भ्रमन्नलिन्दे मधुपो यदैको\nगोपीजनेनोक्तमभूत्तदानीम् ।\nरे मालकार प्रियभृत्य नूनं\nत्वमागतोऽसि प्रियसन्निधानात् ॥",
+          transliteration: "bhramann alinde madhupo yadaiko\ngopījanenóktam abhūt tadānīm |\nre mālakāra priyabhṛtya nūnaṁ\ntvam āgatosi priyasannidhānāt ||",
+          translation: "When a lone bee was buzzing on the veranda, the Gopis said to it: 'O bee, O servant of the flower-garlanded one, surely you have come from the proximity of our Beloved!'",
+          commentary: "This is the famous Bhramara-gita (Song of the Bee), one of the literary gems of the Bhagavata tradition. The Gopis, in their love-madness, address a wandering bee as Krishna's messenger, since bees frequent flowers and Krishna wears garlands. The word madhupa (bee/honey-drinker) also suggests one who drinks the nectar of beauty.",
+          words: [
+            { word: "भ्रमन्", transliteration: "bhraman", meaning: "buzzing, wandering" },
+            { word: "अलिन्दे", transliteration: "alinde", meaning: "on the veranda/terrace" },
+            { word: "मधुपः", transliteration: "madhupaḥ", meaning: "bee (lit. honey-drinker)" },
+            { word: "गोपीजनेन", transliteration: "gopījanena", meaning: "by the Gopis" },
+            { word: "मालकार", transliteration: "mālakāra", meaning: "O garland-maker/flower servant" },
+            { word: "प्रियभृत्य", transliteration: "priyabhṛtya", meaning: "O servant of the beloved" },
+            { word: "प्रियसन्निधानात्", transliteration: "priyasannidhānāt", meaning: "from the proximity of the beloved" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 8,
+          devanagari: "एतादृशीं तां परमार्तभक्तिं\nनिरीक्ष्य गोपीषु विसिस्मिये सः ।\nउद्धवो जगाद प्रणतो व्रजस्त्रीः\nधन्यास्थ यूयं किल विश्वमान्याः ॥",
+          transliteration: "etādṛśīṁ tāṁ paramārtabhaktiṁ\nnirīkṣya gopīṣu visismiyre saḥ |\nuddho jagāda praṇato vrajastrīḥ\ndhanyāstha yūyaṁ kila viśvamānyāḥ ||",
+          translation: "Witnessing such supreme and selfless devotion among the Gopis, Uddhava was utterly astonished. Bowing before the women of Vraja, he declared: 'Blessed are you! You are truly worthy of the world's reverence!'",
+          commentary: "This is the transformative moment of the entire episode. Uddhava, who came as a teacher of Vedanta, becomes a student of prema-bhakti. His prostration before the Gopis symbolizes the surrender of intellectual knowledge before the supremacy of pure love.",
+          words: [
+            { word: "परमार्तभक्तिम्", transliteration: "paramārtabhaktim", meaning: "supreme selfless devotion" },
+            { word: "निरीक्ष्य", transliteration: "nirīkṣya", meaning: "having witnessed, beholding" },
+            { word: "गोपीषु", transliteration: "gopīṣu", meaning: "among the Gopis" },
+            { word: "विसिस्मिये", transliteration: "visismiyre", meaning: "was utterly astonished" },
+            { word: "प्रणतः", transliteration: "praṇataḥ", meaning: "bowing, prostrating" },
+            { word: "व्रजस्त्रीः", transliteration: "vrajastrīḥ", meaning: "the women of Vraja" },
+            { word: "धन्याः", transliteration: "dhanyāḥ", meaning: "blessed, fortunate" },
+            { word: "विश्वमान्याः", transliteration: "viśvamānyāḥ", meaning: "worthy of the world's reverence" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 9,
+          devanagari: "आसां पदाम्भोजरजः प्रपन्नो\nभूयासमेतास्वपि जन्मजन्म ।\nइत्युद्धवो भक्तिरसेन पूर्णो\nन्यवर्त कृष्णं प्रति विस्मयार्तः ॥",
+          transliteration: "āsāṁ padāmbhojarajaḥ prapanno\nbhūyāsam etāsvapi janmajanma |\nityuddhavo bhaktirasena pūrṇo\nnyavarta kṛṣṇaṁ prati vismayārtaḥ ||",
+          translation: "Uddhava prayed: 'May I attain the dust of the lotus feet of these Gopis, birth after birth!' Thus, filled with the nectar of devotion, overcome with wonder, he returned to Krishna.",
+          commentary: "Uddhava's prayer to be born as a blade of grass in Vrindavan so that the Gopis' feet might tread upon him is one of the most celebrated expressions of humility in Vaishnavite literature. The great philosopher-minister realizes that the Gopis' simple, all-consuming love surpasses all his learning.",
+          words: [
+            { word: "पदाम्भोजरजः", transliteration: "padāmbhojarajaḥ", meaning: "the dust of the lotus feet" },
+            { word: "प्रपन्नः", transliteration: "prapannaḥ", meaning: "surrendered, devoted to" },
+            { word: "जन्मजन्म", transliteration: "janmajanma", meaning: "birth after birth" },
+            { word: "भक्तिरसेन", transliteration: "bhaktirasena", meaning: "with the nectar of devotion" },
+            { word: "पूर्णः", transliteration: "pūrṇaḥ", meaning: "filled, overflowing" },
+            { word: "न्यवर्त", transliteration: "nyavarta", meaning: "returned, turned back" },
+            { word: "विस्मयार्तः", transliteration: "vismayārtaḥ", meaning: "overcome with wonder" }
+          ]
+        },
+        {
+          dashaka: 60,
+          sloka: 10,
+          devanagari: "एवं व्रजस्त्रीभिरुदारभावैः\nसम्प्रेषितं ज्ञानमपास्य दूरात् ।\nभक्तेः परं मार्गमदर्शयस्त्वं\nतापान् प्रशामय प्रभो वातनाथ ॥",
+          transliteration: "evaṁ vrajastrībhir udārabhāvaiḥ\nsaṁpreṣitaṁ jñānam apāsya dūrāt |\nbhakteḥ paraṁ mārgam adarśayas tvaṁ\ntāpān praśāmaya prabho vātanātha ||",
+          translation: "Thus, through the noble sentiments of the women of Vraja, the path of dry knowledge was cast far aside, and You revealed the supreme path of devotion. O Lord, O Master of Guruvayur, pacify my afflictions!",
+          commentary: "The concluding verse crystallizes the theological message of the entire Uddhava episode: pure bhakti (devotion born of love) transcends jnana (intellectual knowledge of Brahman). The Gopis did not need Uddhava's philosophy — their love itself was the highest realization. The verse ends with the characteristic Narayaneeyam prayer to Vatanatha (Lord of the temple of Vayu/Guruvayur) for relief from suffering.",
+          words: [
+            { word: "व्रजस्त्रीभिः", transliteration: "vrajastrībhiḥ", meaning: "by the women of Vraja" },
+            { word: "उदारभावैः", transliteration: "udārabhāvaiḥ", meaning: "with noble/generous sentiments" },
+            { word: "ज्ञानम्", transliteration: "jñānam", meaning: "knowledge (intellectual)" },
+            { word: "अपास्य", transliteration: "apāsya", meaning: "casting aside, rejecting" },
+            { word: "भक्तेः", transliteration: "bhakteḥ", meaning: "of devotion" },
+            { word: "परम् मार्गम्", transliteration: "paraṁ mārgam", meaning: "the supreme path" },
+            { word: "प्रशामय", transliteration: "praśāmaya", meaning: "pacify, calm, heal" },
+            { word: "वातनाथ", transliteration: "vātanātha", meaning: "Lord of Vayu's temple (Guruvayur)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 61,
