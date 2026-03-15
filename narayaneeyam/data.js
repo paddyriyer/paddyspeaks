@@ -9637,7 +9637,184 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Tells how Krishna, tied to a mortar by Yashoda (Damodara leela), crawled between two Arjuna trees and uprooted them, liberating the cursed sons of Kubera trapped within.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 43,
+          sloka: 1,
+          devanagari: "एकदा दधिविक्रेत्रीगृहे दधि समुद्धरन् ।\nमातुर्भर्त्सनतः क्रुद्धो दधिभाण्डमभेदयः ।\nसान्द्राश्रुभिर्मुखं लिप्तं नेत्रे च परिमार्जयन्\nमुसलेनातिसूक्ष्मेण भिन्दन् भाण्डानि सर्वशः ॥",
+          transliteration: "ekadā dadhivikretrīgṛhe dadhi samuddharan |\nmāturbhartsanataḥ kruddho dadhibhāṇḍamabhedayaḥ |\nsāndrāśrubhirmukhaṁ liptaṁ netre ca parimārjayan\nmusalenātisūkṣmeṇa bhindan bhāṇḍāni sarvaśaḥ ||",
+          translation: 'Once, while stealing curd from a milkmaid\'s house, You were scolded by Your mother. Angered, You broke the curd pot. With tears smearing Your face and rubbing Your eyes, You broke pots all around with a small pestle.',
+          commentary: 'This opening verse sets the scene for the famous Damodara-lila. As described in Bhagavatam 10.9.1-7, Yashoda was nursing Krishna when she had to rush away to tend to overflowing milk on the stove. The angry child broke the butter pot and began feeding butter to monkeys. Bhattathiri captures the divine child\'s sulking anger — tears on His face even as He wreaks mischief — a scene of supreme tenderness.',
+          words: [
+            { word: "दधि", transliteration: "dadhi", meaning: "curd, yogurt" },
+            { word: "भर्त्सनतः", transliteration: "bhartsanataḥ", meaning: "due to scolding" },
+            { word: "क्रुद्धः", transliteration: "kruddhaḥ", meaning: "angry, enraged" },
+            { word: "भाण्डम्", transliteration: "bhāṇḍam", meaning: "pot, vessel" },
+            { word: "सान्द्राश्रुभिः", transliteration: "sāndrāśrubhiḥ", meaning: "with profuse tears" },
+            { word: "परिमार्जयन्", transliteration: "parimārjayan", meaning: "rubbing, wiping" },
+            { word: "मुसलेन", transliteration: "musalena", meaning: "with a pestle" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 2,
+          devanagari: "गत्वान्तर्गृहमाविशन्नवनीतं समश्नुवन् ।\nवानरेभ्यो वितीर्याथ मार्कटैः सह चाश्नुवन् ।\nमाता ते समुपेत्याथ दृष्ट्वा दण्डं समुद्यतम्\nप्रधावन्तमनुद्रुत्य न शशाक निगृह्य वै ॥",
+          transliteration: "gatvāntargṛhamāviśannavanītaṁ samaśnuvan |\nvānarebhyo vitīryātha mārkāṭaiḥ saha cāśnuvan |\nmātā te samupeyātha dṛṣṭvā daṇḍaṁ samudyatam\npradhāvantamanudrautya na śaśāka nigṛhya vai ||",
+          translation: 'Going inside the house, You ate the fresh butter, distributed some to the monkeys, and ate with them. When Your mother approached with a stick raised, You ran, and she chased but could not catch You.',
+          commentary: 'Bhagavatam 10.9.8-10 describes the charming chase. Krishna feeds stolen butter to monkeys — the Lord of the universe sharing with humble creatures — a beautiful image of His impartial grace. When Yashoda arrives and raises a switch, the divine child runs in apparent fear. The Supreme Being who is unattainable even by great yogis now eludes His mother in a game of chase.',
+          words: [
+            { word: "नवनीतम्", transliteration: "navanītam", meaning: "fresh butter" },
+            { word: "अश्नुवन्", transliteration: "aśnuvan", meaning: "eating" },
+            { word: "वानरेभ्यः", transliteration: "vānarebhyaḥ", meaning: "to the monkeys" },
+            { word: "वितीर्य", transliteration: "vitīrya", meaning: "having distributed" },
+            { word: "दण्डम्", transliteration: "daṇḍam", meaning: "stick, switch" },
+            { word: "समुद्यतम्", transliteration: "samudyatam", meaning: "raised up" },
+            { word: "प्रधावन्तम्", transliteration: "pradhāvantam", meaning: "running forward" },
+            { word: "निगृह्य", transliteration: "nigṛhya", meaning: "to catch, to seize" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 3,
+          devanagari: "श्रान्ता प्रस्विन्नगात्रा सा विस्रस्तकबरीरुहा ।\nगृहीत्वा बालकं भीतं रोदमानमधोमुखम् ।\nभर्त्सयन्ती सुतं बद्धुमैच्छद्रज्ज्वा यशोदिका\nबन्धने च प्रवृत्ता सा त्वां बद्धुमतिदारुणम् ॥",
+          transliteration: "śrāntā prasvinnagātrā sā visrastakabarīruhā |\ngṛhītvā bālakaṁ bhītaṁ rodamānamadhomukham |\nbhartsayantī sutaṁ baddhumaicchadrajjvā yaśodikā\nbandhane ca pravṛttā sā tvāṁ baddhumatidāruṇam ||",
+          translation: 'Exhausted, her body perspiring, her hair disheveled, Yashoda finally caught the frightened, crying, downcast child. Scolding her son, she decided to tie Him with a rope, and the determined mother set about binding You firmly.',
+          commentary: 'Bhagavatam 10.9.11-13 describes this pivotal moment. Yashoda, winded from the chase, finally catches Krishna, whose downturned face and tears show His endearing act of remorse. Her decision to tie Him to a mortar as punishment introduces the famous Damodara episode. The Lord of infinite power allows a simple cowherd woman to resolve to bind Him — this is the supreme mystery of bhakti.',
+          words: [
+            { word: "श्रान्ता", transliteration: "śrāntā", meaning: "exhausted, fatigued" },
+            { word: "प्रस्विन्नगात्रा", transliteration: "prasvinnagātrā", meaning: "with perspiring body" },
+            { word: "विस्रस्तकबरीरुहा", transliteration: "visrastakabarīruhā", meaning: "with disheveled hair from the braid" },
+            { word: "रोदमानम्", transliteration: "rodamānam", meaning: "crying, weeping" },
+            { word: "अधोमुखम्", transliteration: "adhomukham", meaning: "with face downcast" },
+            { word: "रज्ज्वा", transliteration: "rajjvā", meaning: "with a rope" },
+            { word: "बन्धने", transliteration: "bandhane", meaning: "in the act of binding" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 4,
+          devanagari: "सा तं निबध्नती रज्ज्वा दाम्ना गाढं पुनः पुनः ।\nद्व्यङ्गुलोनमभूद्दाम सर्वदा सर्वयत्नतः ।\nगोपीनां दामसङ्घातैर्यत्नैरपि न बन्धनम्\nजातं विस्मयमापन्नाः सर्वा गोपकुलाङ्गनाः ॥",
+          transliteration: "sā taṁ nibadhnātī rajjvā dāmnā gāḍhaṁ punaḥ punaḥ |\ndvyaṅgulonamabhūddāma sarvadā sarvayatnataḥ |\ngopīnāṁ dāmasaṅghātairyatnairapi na bandhanam\njātaṁ vismayamāpannāḥ sarvā gopakulāṅganāḥ ||",
+          translation: 'As she tried to bind Him with rope again and again, the rope was always two finger-widths too short, no matter how hard she tried. Even when the gopis contributed all their ropes joined together, the binding could not be accomplished. All the women of the cowherd community were struck with wonder.',
+          commentary: 'This is the theological heart of the Damodara episode (Bhagavatam 10.9.14-17). The two finger-widths that the rope always falls short represents two essential factors: the devotee\'s sincere effort and the Lord\'s grace. Neither alone suffices to bind the Infinite — both must unite.',
+          words: [
+            { word: "निबध्नती", transliteration: "nibadhnātī", meaning: "tying, binding" },
+            { word: "दाम्ना", transliteration: "dāmnā", meaning: "with a rope/cord" },
+            { word: "गाढम्", transliteration: "gāḍham", meaning: "tightly, firmly" },
+            { word: "द्व्यङ्गुलोनम्", transliteration: "dvyaṅgulonam", meaning: "short by two finger-widths" },
+            { word: "दामसङ्घातैः", transliteration: "dāmasaṅghātaiḥ", meaning: "with collections of ropes joined together" },
+            { word: "बन्धनम्", transliteration: "bandhanam", meaning: "binding, tying" },
+            { word: "विस्मयम्", transliteration: "vismayam", meaning: "wonder, astonishment" },
+            { word: "गोपकुलाङ्गनाः", transliteration: "gopakulāṅganāḥ", meaning: "women of the cowherd clan" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 5,
+          devanagari: "दामोदर इति श्रीमन् नाम ते तत्र सार्थकम् ।\nमातुर्भक्तिवशो भूत्वा बद्धस्त्वं दामभिर्मुदा ।\nयशोदायास्तु यत्नं च प्रेम चालोक्य भावतः\nत्वमेव बन्धनं प्रादाः कृपया बालचेष्टया ॥",
+          transliteration: "dāmodara iti śrīman nāma te tatra sārthakam |\nmāturbhaktivaśo bhūtvā baddhastvam dāmabhirmudā |\nyaśodāyāstu yatnaṁ ca prema cālokya bhāvataḥ\ntvameva bandhanaṁ prādāḥ kṛpayā bālaceṣṭayā ||",
+          translation: 'The glorious name Damodara became truly meaningful there. Conquered by Your mother\'s devotion, You joyfully allowed Yourself to be bound with ropes. Seeing Yashoda\'s tireless effort and the depth of her love, You Yourself granted the binding, out of grace, while acting like a child.',
+          commentary: 'Bhagavatam 10.9.18-19 reveals the profound truth: Krishna allowed Himself to be bound not because the ropes became sufficient, but because He was moved by Yashoda\'s unwavering love. The name Damodara (dama = rope, udara = belly) gains eternal significance. The Lord\'s submission to binding is an act of grace — He who binds the entire universe in His maya chooses to be bound by a mother\'s love.',
+          words: [
+            { word: "दामोदर", transliteration: "dāmodara", meaning: "one bound by a rope around the belly" },
+            { word: "सार्थकम्", transliteration: "sārthakam", meaning: "meaningful, significant" },
+            { word: "भक्तिवशः", transliteration: "bhaktivaśaḥ", meaning: "subdued by devotion" },
+            { word: "दामभिः", transliteration: "dāmabhiḥ", meaning: "with ropes" },
+            { word: "प्रेम", transliteration: "prema", meaning: "love, deep affection" },
+            { word: "बन्धनम्", transliteration: "bandhanam", meaning: "binding" },
+            { word: "कृपया", transliteration: "kṛpayā", meaning: "out of grace, compassion" },
+            { word: "बालचेष्टया", transliteration: "bālaceṣṭayā", meaning: "with childlike behavior" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 6,
+          devanagari: "बद्ध उलूखले बालस्त्वं पश्यन् यमलार्जुनौ ।\nतयोर्मध्ये स उलूखलमाकृष्य बालवत् ।\nजगाम तिर्यगायाम्य प्रचण्डबलविक्रमः\nआर्जुनौ पातयामास सशब्दं धरणीतले ॥",
+          transliteration: "baddha ulūkhale bālastvam paśyan yamalārjunau |\ntayormadhye sa ulūkhalamākṛṣya bālavat |\njagāma tiryagāyāmya pracaṇḍabalavikramaḥ\nārjunau pātayāmāsa saśabdaṁ dharaṇītale ||",
+          translation: 'Bound to the mortar, You as a child saw the twin Arjuna trees. Dragging the mortar between them like an ordinary toddler, You moved crosswise with tremendous force and felled both Arjuna trees to the ground with a thunderous crash.',
+          commentary: 'Bhagavatam 10.10.25-27 describes how baby Krishna deliberately crawled toward the twin Arjuna trees, dragging the heavy mortar behind Him. When the mortar became wedged between the trunks, Krishna pulled with divine strength, uprooting both massive trees. The contrast between the baby form and the cosmic power is the essence of this lila.',
+          words: [
+            { word: "उलूखले", transliteration: "ulūkhale", meaning: "to the mortar" },
+            { word: "यमलार्जुनौ", transliteration: "yamalārjunau", meaning: "the twin Arjuna trees" },
+            { word: "आकृष्य", transliteration: "ākṛṣya", meaning: "dragging, pulling" },
+            { word: "तिर्यक्", transliteration: "tiryak", meaning: "crosswise, sideways" },
+            { word: "प्रचण्डबल", transliteration: "pracaṇḍabala", meaning: "tremendous force" },
+            { word: "पातयामास", transliteration: "pātayāmāsa", meaning: "caused to fall, felled" },
+            { word: "सशब्दम्", transliteration: "saśabdam", meaning: "with a sound, thunderously" },
+            { word: "धरणीतले", transliteration: "dharaṇītale", meaning: "on the surface of the earth" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 7,
+          devanagari: "तरुद्वयविभेदेन निर्गतौ यक्षपुङ्गवौ ।\nनलकूबरनामा च मणिग्रीवस्तथापरः ।\nकुबेरसुनू पूर्वं तु नारदेन महात्मना\nशप्तौ मदान्धौ तौ वृक्षौ बभूवतुरनाथवत् ॥",
+          transliteration: "tarudvayavibhedena nirgatau yakṣapuṅgavau |\nnalakūbaranāmā ca maṇigrīvastatāparaḥ |\nkuberasunū pūrvaṁ tu nāradena mahātmanā\nśaptau madāndhau tau vṛkṣau babhūvaturanāthavat ||",
+          translation: 'From the splitting of the two trees emerged two foremost Yakshas — one named Nalakubara and the other Manigriva. These sons of Kubera had long ago been cursed by the great-souled Narada, and blinded by pride, they had become trees standing helplessly.',
+          commentary: 'Bhagavatam 10.10.1-22 provides the backstory. Nalakubara and Manigriva, sons of Kubera, were sporting naked with celestial women in a river, intoxicated by their wealth. When Narada passed by, they showed no shame. The compassionate sage cursed them to become trees so they would develop humility, but promised their liberation through Krishna\'s touch.',
+          words: [
+            { word: "तरुद्वय", transliteration: "tarudvaya", meaning: "the two trees" },
+            { word: "विभेदेन", transliteration: "vibhedena", meaning: "by the splitting, breaking" },
+            { word: "यक्षपुङ्गवौ", transliteration: "yakṣapuṅgavau", meaning: "the two foremost Yakshas" },
+            { word: "नलकूबर", transliteration: "nalakūbara", meaning: "Nalakubara (son of Kubera)" },
+            { word: "मणिग्रीवः", transliteration: "maṇigrīvaḥ", meaning: "Manigriva (son of Kubera)" },
+            { word: "शप्तौ", transliteration: "śaptau", meaning: "cursed (dual)" },
+            { word: "मदान्धौ", transliteration: "madāndhau", meaning: "blinded by intoxication/pride" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 8,
+          devanagari: "तौ मुक्तौ शापतः सद्यः प्रणम्य शिरसा प्रभुम् ।\nतुष्टुवाते परं भक्त्या वाग्भिर्गद्गदभूषिताभिः ।\nनारदस्यानुकम्पार्थं त्वद्रूपं प्राप्तवन्तु नौ\nकृतार्थौ स्वः कृपासिन्धो गोविन्द शरणं व्रज ॥",
+          transliteration: "tau muktau śāpataḥ sadyaḥ praṇamya śirasā prabhum |\ntuṣṭuvāte paraṁ bhaktyā vāgbhirgadgadabhūṣitābhiḥ |\nnāradasyānukampārthaṁ tvadrūpaṁ prāptavantu nau\nkṛtārthau svaḥ kṛpāsindho govinda śaraṇaṁ vraja ||",
+          translation: 'Instantly freed from the curse, the two bowed their heads before the Lord and praised Him with supreme devotion, their voices choked with emotion. They declared: Through Narada\'s compassion we have attained Your divine form. We are fulfilled, O ocean of mercy, O Govinda — we take refuge in You.',
+          commentary: 'Bhagavatam 10.10.29-38 contains the beautiful stuti offered by the liberated brothers. They recognize Narada\'s curse as the greatest blessing, for it brought them face to face with the Supreme Lord. Their prayer exemplifies the Vaishnava principle that a saint\'s apparent punishment is actually supreme grace.',
+          words: [
+            { word: "मुक्तौ", transliteration: "muktau", meaning: "freed, liberated (dual)" },
+            { word: "शापतः", transliteration: "śāpataḥ", meaning: "from the curse" },
+            { word: "प्रणम्य", transliteration: "praṇamya", meaning: "having bowed" },
+            { word: "गद्गद", transliteration: "gadgada", meaning: "choked with emotion" },
+            { word: "अनुकम्पा", transliteration: "anukampā", meaning: "compassion, mercy" },
+            { word: "कृतार्थौ", transliteration: "kṛtārthau", meaning: "fulfilled, gratified (dual)" },
+            { word: "कृपासिन्धो", transliteration: "kṛpāsindho", meaning: "O ocean of mercy" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 9,
+          devanagari: "इत्थं त्वां स्तुतवन्तौ तौ प्रदक्षिणमथाचरन् ।\nत्वत्प्रसादं समासाद्य जग्मतुर्दिवमुत्तमम् ।\nगोपा गोप्यश्च धावन्तो महापतनशब्दतः\nवृक्षौ पतितौ सम्प्रेक्ष्य बालं चोलूखलान्वितम् ॥",
+          transliteration: "itthaṁ tvāṁ stutavantau tau pradakṣiṇamathācaran |\ntvat-prasādaṁ samāsādya jagmaturdivamuattamam |\ngopā gopyaśca dhāvanto mahāpatanaśabdataḥ\nvṛkṣau patitau samprekṣya bālaṁ colūkhalānvitam ||",
+          translation: 'Having thus praised You and performed circumambulation, the two received Your grace and departed for the highest heaven. Meanwhile, the cowherds and gopis came running, alarmed by the tremendous crashing sound, and saw the two fallen trees with the child still tied to the mortar.',
+          commentary: 'Bhagavatam 10.10.39-43 describes the departure of the liberated Yakshas and the bewildered arrival of the Gokula residents. They found two massive trees uprooted and a small baby calmly sitting amid the wreckage. Some children reported that Krishna had pulled down the trees, but the adults could not fathom how a toddler could accomplish such a feat.',
+          words: [
+            { word: "स्तुतवन्तौ", transliteration: "stutavantau", meaning: "having praised (dual)" },
+            { word: "प्रदक्षिणम्", transliteration: "pradakṣiṇam", meaning: "circumambulation" },
+            { word: "प्रसादम्", transliteration: "prasādam", meaning: "grace, blessing" },
+            { word: "दिवम्", transliteration: "divam", meaning: "heaven, celestial realm" },
+            { word: "महापतनशब्दतः", transliteration: "mahāpatanaśabdataḥ", meaning: "from the great crashing sound" },
+            { word: "सम्प्रेक्ष्य", transliteration: "samprekṣya", meaning: "having seen, observed" },
+            { word: "उलूखलान्वितम्", transliteration: "ulūkhalānvitam", meaning: "tied to the mortar" }
+          ]
+        },
+        {
+          dashaka: 43,
+          sloka: 10,
+          devanagari: "एवं दामोदरलीलां विस्तार्य यमलार्जुनौ ।\nभङ्क्त्वा यक्षौ विमुच्याथ मुक्तिं दत्त्वा दयानिधे ।\nआविष्कृतमहिमा त्वं गुरुवायुपुराधिप\nसर्वामयप्रशान्त्यर्थं भक्तानां पाहि केशव ॥",
+          transliteration: "evaṁ dāmodaralīlāṁ vistārya yamalārjunau |\nbhaṅktvā yakṣau vimucyātha muktiṁ dattvā dayānidhe |\nāviṣkṛtamahimā tvaṁ guruvāyupurādhipa\nsarvāmayapraśāntyarthaṁ bhaktānāṁ pāhi keśava ||",
+          translation: 'Thus having displayed the Damodara-lila, breaking the twin Arjuna trees, liberating the two Yakshas and granting them salvation, O treasure of compassion, Your glory was made manifest. O Lord of Guruvayur, O Keshava, protect Your devotees and grant peace from all ailments.',
+          commentary: 'The concluding verse follows the classic Narayaneeyam pattern: summarizing the dashaka\'s narrative and ending with a healing prayer. Bhattathiri addresses the Lord as dayanidhi (treasure of compassion) and Guruvayupuradhipa (Lord of Guruvayur). The prayer for peace from all diseases reflects the poet\'s personal affliction and his faith that the Lord who liberates cursed souls can cure bodily ailments.',
+          words: [
+            { word: "दामोदरलीलाम्", transliteration: "dāmodaralīlām", meaning: "the Damodara pastime" },
+            { word: "विस्तार्य", transliteration: "vistārya", meaning: "having expanded/displayed" },
+            { word: "भङ्क्त्वा", transliteration: "bhaṅktvā", meaning: "having broken" },
+            { word: "विमुच्य", transliteration: "vimucya", meaning: "having liberated" },
+            { word: "दयानिधे", transliteration: "dayānidhe", meaning: "O treasure of compassion" },
+            { word: "आविष्कृतमहिमा", transliteration: "āviṣkṛtamahimā", meaning: "with glory made manifest" },
+            { word: "सर्वामयप्रशान्त्यर्थम्", transliteration: "sarvāmayapraśāntyartham", meaning: "for peace from all ailments" },
+            { word: "केशव", transliteration: "keśava", meaning: "O Keshava (Krishna)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 44,
@@ -9646,7 +9823,179 @@ var NARAYANEEYAM_DATA = {
       theme: "leela",
       verseCount: 10,
       summary: "Describes the migration of the cowherd community from Gokula to Vrindavan, and Krishna's joyous exploration of the beautiful forests and meadows of Vrindavan with His friends.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 44,
+          sloka: 1,
+          devanagari: "गोकुले बहुदुष्टानामसुराणां निपातनम् ।\nदृष्ट्वा व्रजेश्वराः सर्वे चिन्तामापुर्भयान्विताः ।\nउपानन्दो महाप्राज्ञो ब्रूयात्तानथ गोपकान्\nगोकुलं त्यज्यतामेतद्वृन्दावनमितो व्रजेत् ॥",
+          transliteration: "gokule bahuduṣṭānāmasurāṇāṁ nipātanam |\ndṛṣṭvā vrajeśvarāḥ sarve cintāmāpurbhayānvitāḥ |\nupānando mahāprājño brūyāttānatha gopakān\ngokulaṁ tyajyatāmetadvṛndāvanamito vrajet ||",
+          translation: 'Seeing the repeated attacks and destruction of many wicked demons in Gokula, all the elders of Vraja became anxious and fearful. The wise Upananda then addressed the cowherds: Let us leave Gokula and move to Vrindavan.',
+          commentary: 'This verse follows Bhagavatam 10.11.21-28, where the elder Upananda proposes the migration after a series of demonic attacks — Putana, Shakatasura, Trinavarta, and the Arjuna tree incident. His wisdom in suggesting the move reflects the divine plan: Vrindavan would become the setting for Krishna\'s most celebrated pastimes.',
+          words: [
+            { word: "दुष्टानाम्", transliteration: "duṣṭānām", meaning: "of the wicked ones" },
+            { word: "असुराणाम्", transliteration: "asurāṇām", meaning: "of the demons" },
+            { word: "निपातनम्", transliteration: "nipātanam", meaning: "destruction, falling" },
+            { word: "व्रजेश्वराः", transliteration: "vrajeśvarāḥ", meaning: "the lords/elders of Vraja" },
+            { word: "उपानन्दः", transliteration: "upānandaḥ", meaning: "Upananda (Nanda\'s elder brother)" },
+            { word: "महाप्राज्ञः", transliteration: "mahāprājñaḥ", meaning: "the greatly wise one" },
+            { word: "वृन्दावनम्", transliteration: "vṛndāvanam", meaning: "Vrindavan (forest of Vrinda/Tulasi)" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 2,
+          devanagari: "उपानन्दवचः श्रुत्वा सर्वे गोपाः सुनिश्चिताः ।\nशकटान्योजयामासुर्गोधनानि समाहरन् ।\nवृद्धबालातुरान् पृष्ठे कृत्वा सर्वपरिच्छदान्\nगोकुलात्प्रययुः सर्वे वृन्दावनमनोहरम् ॥",
+          transliteration: "upānandavacaḥ śrutvā sarve gopāḥ suniścitāḥ |\nśakaṭānyojayāmāsurgodhanāni samāharan |\nvṛddhabālāturān pṛṣṭhe kṛtvā sarvaparicchādān\ngokulātprayayuḥ sarve vṛndāvanamanoharam ||",
+          translation: 'Hearing Upananda\'s words, all the cowherds firmly resolved to move. They yoked their carts, gathered their cattle and belongings, placed the elderly, children, and infirm in the rear, and departed from Gokula toward the enchanting Vrindavan.',
+          commentary: 'Bhagavatam 10.11.29-31 describes the grand migration. The entire cowherd community moves as one — a beautiful image of collective faith and purpose. The careful arrangement of the caravan, with the vulnerable protected at the back, shows the community\'s organizational wisdom.',
+          words: [
+            { word: "शकटान्", transliteration: "śakaṭān", meaning: "carts, wagons" },
+            { word: "योजयामासुः", transliteration: "yojayāmāsuḥ", meaning: "they yoked, prepared" },
+            { word: "गोधनानि", transliteration: "godhanāni", meaning: "cattle wealth, herds" },
+            { word: "समाहरन्", transliteration: "samāharan", meaning: "gathering together" },
+            { word: "वृद्धबालातुरान्", transliteration: "vṛddhabālāturān", meaning: "the elderly, children, and infirm" },
+            { word: "परिच्छदान्", transliteration: "paricchadān", meaning: "belongings, household goods" },
+            { word: "मनोहरम्", transliteration: "manoharam", meaning: "enchanting, captivating" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 3,
+          devanagari: "गोवृन्दैरग्रतः कृत्वा शृङ्गनादैर्मनोहरैः ।\nगोपाः शकटमारूढा गोप्यो गायन्ति केशवम् ।\nकृष्णरामकथालापैर्मार्गक्लेशं विनाशयन्\nव्रजयात्रा बभूवैषा दिव्या संमोहनी शुभा ॥",
+          transliteration: "govṛndairagratḥ kṛtvā śṛṅganādairmanharaiḥ |\ngopāḥ śakaṭamārūḍhā gopyo gāyanti keśavam |\nkṛṣṇarāmakathālāpairmārgakleśaṁ vināśayan\nvrajayātrā babhūvaiṣā divyā saṁmohanī śubhā ||",
+          translation: 'With the herds of cows leading the way, their bells ringing melodiously, the cowherds mounted their carts while the gopis sang of Keshava. Dispelling the weariness of the journey with tales of Krishna and Rama, that divine, enchanting, and auspicious pilgrimage of Vraja proceeded.',
+          commentary: 'This verse captures the beauty of the processional journey. Bhagavatam 10.11.31-33 describes how the gopis sang about Krishna\'s exploits, turning the migration into a devotional procession. The cattle bells, the singing women, and the storytelling men create a picture of a community whose entire life revolves around the divine child.',
+          words: [
+            { word: "गोवृन्दैः", transliteration: "govṛndaiḥ", meaning: "with herds of cows" },
+            { word: "शृङ्गनादैः", transliteration: "śṛṅganādaiḥ", meaning: "with the sounds of horns/bells" },
+            { word: "शकटम्", transliteration: "śakaṭam", meaning: "cart, wagon" },
+            { word: "गायन्ति", transliteration: "gāyanti", meaning: "they sing" },
+            { word: "कथालापैः", transliteration: "kathālāpaiḥ", meaning: "with conversations about stories" },
+            { word: "मार्गक्लेशम्", transliteration: "mārgakleśam", meaning: "weariness of the journey" },
+            { word: "व्रजयात्रा", transliteration: "vrajayātrā", meaning: "the journey/pilgrimage of Vraja" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 4,
+          devanagari: "वृन्दावनं समासाद्य गोवर्धनसमीपतः ।\nनिवासं कल्पयामासुर्गोपा गोशालनिर्मितिम् ।\nशकटैः परिवेष्ट्याशु चन्द्रार्धाकारसंस्थितैः\nरमणीयं वनं दृष्ट्वा प्रीताः सर्वे व्रजौकसः ॥",
+          transliteration: "vṛndāvanaṁ samāsādya govardhanasamīpataḥ |\nnivāsaṁ kalpayāmāsurgopā gośālanirmitim |\nśakaṭaiḥ pariveṣṭyāśu candrārdhākārasaṁsthitaiḥ\nramaṇīyaṁ vanaṁ dṛṣṭvā prītāḥ sarve vrajaukasaḥ ||",
+          translation: 'Reaching Vrindavan near Govardhana hill, the cowherds set up their dwellings and built cow-sheds. They arranged their carts in a half-moon formation as enclosures. Seeing the beautiful forest, all the residents of Vraja were delighted.',
+          commentary: 'Bhagavatam 10.11.34-36 describes the settlement. The half-moon arrangement of carts was a practical defensive formation for the nomadic cowherd community. The proximity to Govardhana hill foreshadows the famous Govardhana-lila that would later take place there.',
+          words: [
+            { word: "समासाद्य", transliteration: "samāsādya", meaning: "having reached, arrived at" },
+            { word: "गोवर्धन", transliteration: "govardhana", meaning: "Govardhana (the mountain)" },
+            { word: "निवासम्", transliteration: "nivāsam", meaning: "dwelling, settlement" },
+            { word: "गोशाला", transliteration: "gośālā", meaning: "cow-shed" },
+            { word: "चन्द्रार्धाकार", transliteration: "candrārdhākāra", meaning: "in the shape of a half-moon" },
+            { word: "रमणीयम्", transliteration: "ramaṇīyam", meaning: "beautiful, delightful" },
+            { word: "व्रजौकसः", transliteration: "vrajaukasaḥ", meaning: "residents of Vraja" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 5,
+          devanagari: "रामकृष्णौ वयस्यैस्तु वत्सपालौ बभूवतुः ।\nवृन्दावनस्य सौन्दर्यं पश्यन्तौ विस्मयान्वितौ ।\nपुष्पिताग्रद्रुमैर्युक्तं भ्रमद्भृङ्गावलीयुतम्\nनानापक्षिरवैः पूर्णं रमणीयतमं वनम् ॥",
+          transliteration: "rāmakṛṣṇau vayasyaistu vatsapālau babhūvatuḥ |\nvṛndāvanasya saundaryaṁ paśyantau vismayānvitau |\npuṣpitāgradrumairyuktaṁ bhramadbhṛṅgāvalīyutam\nnānāpakṣiravaiḥ pūrṇaṁ ramaṇīyatamaṁ vanam ||",
+          translation: 'Rama and Krishna became calf-herders along with their friends. Beholding the beauty of Vrindavan with wonder, they saw the forest filled with trees bearing flowers at their tips, with rows of buzzing bees, and resounding with the songs of various birds — a most delightful woodland.',
+          commentary: 'Bhagavatam 10.11.37-39 marks the beginning of vatsapalana (calf-herding), Krishna and Balarama\'s first pastoral duties. The description of Vrindavan\'s natural beauty establishes the idyllic setting that would host the most celebrated divine pastimes. The Lord who creates all beauty now delights in experiencing it through His childhood form.',
+          words: [
+            { word: "वयस्यैः", transliteration: "vayasyaiḥ", meaning: "with friends of the same age" },
+            { word: "वत्सपालौ", transliteration: "vatsapālau", meaning: "calf-herders (dual)" },
+            { word: "सौन्दर्यम्", transliteration: "saundaryam", meaning: "beauty" },
+            { word: "पुष्पिताग्र", transliteration: "puṣpitāgra", meaning: "with flowering tips" },
+            { word: "द्रुमैः", transliteration: "drumaiḥ", meaning: "with trees" },
+            { word: "भृङ्गावली", transliteration: "bhṛṅgāvalī", meaning: "rows of bees" },
+            { word: "पक्षिरवैः", transliteration: "pakṣiravaiḥ", meaning: "with the songs of birds" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 6,
+          devanagari: "यमुनातीरसान्निध्ये पुलिनेषु मनोहरम् ।\nवत्सानां चारयन्तौ तौ वेणुवाद्यं प्रचक्रतुः ।\nगोपबालैः परिवृतौ क्रीडन्तौ विविधैः प्रकारैः\nवनमालाविभूषाभ्यां शोभमानौ सुरार्चितौ ॥",
+          transliteration: "yamunātīrasānnidhye pulineṣu manoharam |\nvatsānāṁ cārayantau tau veṇuvādyaṁ pracakratuḥ |\ngopabālaiḥ parivṛtau krīḍantau vividhaiḥ prakāraiḥ\nvanamālāvibhūṣābhyāṁ śobhamānau surārcitau ||",
+          translation: 'On the charming sandy banks near the Yamuna river, the two brothers grazed the calves and played the flute. Surrounded by cowherd boys, playing in various ways, adorned with forest garlands, they shone resplendent, worshipped even by the gods.',
+          commentary: 'This verse introduces the iconic image of Krishna as a flute-playing cowherd on the banks of the Yamuna. Bhagavatam 10.11.39-40 describes how Krishna and Balarama, adorned with forest flowers and leaves, would play with their friends. The phrase surarchitau (worshipped by the gods) reminds us that these two divine children are in truth the supreme Lords whom celestials adore from heaven.',
+          words: [
+            { word: "यमुनातीर", transliteration: "yamunātīra", meaning: "banks of the Yamuna" },
+            { word: "पुलिनेषु", transliteration: "pulineṣu", meaning: "on the sandy banks" },
+            { word: "वत्सानाम्", transliteration: "vatsānām", meaning: "of the calves" },
+            { word: "चारयन्तौ", transliteration: "cārayantau", meaning: "grazing, tending (dual)" },
+            { word: "वेणुवाद्यम्", transliteration: "veṇuvādyam", meaning: "flute-playing" },
+            { word: "वनमाला", transliteration: "vanamālā", meaning: "garland of forest flowers" },
+            { word: "सुरार्चितौ", transliteration: "surārcitau", meaning: "worshipped by the gods (dual)" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 7,
+          devanagari: "फलमूलमधुस्वादं भुञ्जानौ शीतलच्छदे ।\nविश्रान्तौ वृक्षमूलेषु गोपवेषधरौ प्रभू ।\nपरस्परं हसन्तौ तौ गोपबालान् विनोदयन्\nधेनुवत्सानुरागेण चरन्तौ वनभूमिषु ॥",
+          transliteration: "phalamūlamadhūsvādaṁ bhuñjānau śītalacchade |\nviśrāntau vṛkṣamūleṣu gopaveṣadharau prabhū |\nparasparaṁ hasantau tau gopabālān vinodayan\ndhenuvatsānurāgeṇa carantau vanabhūmiṣu ||",
+          translation: 'Enjoying the taste of fruits, roots, and honey under cool shade, the two Lords rested at the foot of trees in their cowherd attire. Laughing together, entertaining the cowherd boys, and wandering through the forest lands with affection for the cows and calves.',
+          commentary: 'This verse paints the quintessential Vrindavan idyll — the two divine brothers enjoying simple pastoral pleasures. Bhagavatam 10.11.40-42 describes how Krishna and Balarama would eat wild fruits and honey, rest under trees, and play with their companions. The phrase gopaveshadharau prabhu (the two Lords wearing cowherd dress) captures the paradox that the supreme rulers of all creation choose to dress as simple village boys.',
+          words: [
+            { word: "फलमूल", transliteration: "phalamūla", meaning: "fruits and roots" },
+            { word: "मधुस्वादम्", transliteration: "madhūsvādam", meaning: "the sweet taste of honey" },
+            { word: "विश्रान्तौ", transliteration: "viśrāntau", meaning: "rested (dual)" },
+            { word: "गोपवेषधरौ", transliteration: "gopaveṣadharau", meaning: "wearing cowherd attire (dual)" },
+            { word: "प्रभू", transliteration: "prabhū", meaning: "the two Lords" },
+            { word: "विनोदयन्", transliteration: "vinodayan", meaning: "entertaining, amusing" },
+            { word: "धेनुवत्सानुरागेण", transliteration: "dhenuvatsānurāgeṇa", meaning: "with affection for cows and calves" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 8,
+          devanagari: "विकसत्कमलाकीर्णा वृन्दावनविमोहिनी ।\nयमुना मन्दवाहिन्या तीरे रम्ये समन्ततः ।\nमयूरनृत्यसंयुक्ते कोकिलालापमञ्जुले\nरामकृष्णौ विरेजाते सौन्दर्यैकनिधी इव ॥",
+          transliteration: "vikasatkamalākīrṇā vṛndāvanavimōhinī |\nyamunā mandavāhinyā tīre ramye samantataḥ |\nmayūranṛtyasaṁyukte kokilālāpamañjule\nrāmakṛṣṇau virejāte saundaryaikanidhī iva ||",
+          translation: 'On the beautiful banks of the gently flowing Yamuna, strewn with blossoming lotuses that enchant all of Vrindavan, amidst dancing peacocks and the sweet calls of cuckoos, Rama and Krishna shone forth as though they were the sole treasuries of all beauty.',
+          commentary: 'Bhattathiri here composes an exquisite nature poem capturing the essence of Vrindavan\'s beauty. The blooming lotuses, gentle Yamuna, dancing peacocks, and singing cuckoos form the perfect stage for the divine brothers. The phrase saundaryaikanidhI (sole treasuries of beauty) suggests that all of Vrindavan\'s beauty is merely a reflection of the beauty of its divine Lords.',
+          words: [
+            { word: "विकसत्कमला", transliteration: "vikasatkamalā", meaning: "blossoming lotuses" },
+            { word: "विमोहिनी", transliteration: "vimōhinī", meaning: "enchanting" },
+            { word: "मन्दवाहिनी", transliteration: "mandavāhinī", meaning: "gently flowing" },
+            { word: "मयूरनृत्य", transliteration: "mayūranṛtya", meaning: "dance of peacocks" },
+            { word: "कोकिलालाप", transliteration: "kokilālāpa", meaning: "call/song of cuckoos" },
+            { word: "मञ्जुले", transliteration: "mañjule", meaning: "sweet, melodious" },
+            { word: "सौन्दर्यैकनिधी", transliteration: "saundaryaikanidhī", meaning: "the sole treasuries of beauty (dual)" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 9,
+          devanagari: "कदाचिद्वृक्षशाखासु लम्बमानौ दोलयन्तौ ।\nकदाचिज्जलकेलीषु सिञ्चन्तौ बालकैः सह ।\nहसन्तौ विविधाभिश्च क्रीडाभिर्वनभूमिषु\nवत्सान्निवर्तयन्तौ तौ सायाह्ने गोकुलं प्रति ॥",
+          transliteration: "kadācidvṛkṣaśākhāsu lambamānau dolayantau |\nkadācijjalakēlīṣu siñcantau bālakaiḥ saha |\nhansantau vividhābhiśca krīḍābhirvanabhūmiṣu\nvatsānnivartayantau tau sāyāhne gokulaṁ prati ||",
+          translation: 'Sometimes swinging from tree branches, sometimes splashing water in playful water sports with their friends, laughing and enjoying various games in the forest grounds, the two would turn the calves homeward at evening toward Gokula.',
+          commentary: 'This verse captures the daily rhythm of Krishna\'s vana-vihara (forest play) as described in Bhagavatam 10.11.43-47. The variety of their games — swinging, water play, running — portrays the boundless energy and joy of divine childhood. The evening return with the calves establishes the tender daily cycle: morning departure, daytime play, and the homeward journey at dusk.',
+          words: [
+            { word: "शाखासु", transliteration: "śākhāsu", meaning: "on the branches" },
+            { word: "लम्बमानौ", transliteration: "lambamānau", meaning: "hanging, swinging (dual)" },
+            { word: "जलकेलीषु", transliteration: "jalakēlīṣu", meaning: "in water sports" },
+            { word: "सिञ्चन्तौ", transliteration: "siñcantau", meaning: "splashing, sprinkling (dual)" },
+            { word: "क्रीडाभिः", transliteration: "krīḍābhiḥ", meaning: "with games, sports" },
+            { word: "निवर्तयन्तौ", transliteration: "nivartayantau", meaning: "turning back, directing homeward (dual)" },
+            { word: "सायाह्ने", transliteration: "sāyāhne", meaning: "in the evening" }
+          ]
+        },
+        {
+          dashaka: 44,
+          sloka: 10,
+          devanagari: "एवं वृन्दावने रम्ये गोपगोपीजनावृतः ।\nलीलाविहारसन्दोहं विस्तार्य जगदीश्वर ।\nनिखिलं ब्रह्मसौख्यं तद्वतंसयन् मुहुः प्रभो\nगुरुवायुपुरेशान मां पाहि परमात्मन् ॥",
+          transliteration: "evaṁ vṛndāvane ramye gopagopījanāvṛtaḥ |\nlīlāvihārasandohaṁ vistārya jagadīśvara |\nnikhilaṁ brahmasaukhyaṁ tadvatṁsayan muhuḥ prabho\nguruvāyupureśāna māṁ pāhi paramātman ||",
+          translation: 'Thus in beautiful Vrindavan, surrounded by cowherds and cowherd women, You displayed an abundance of divine pastimes, O Lord of the universe. Crowning all of Brahman\'s bliss again and again, O Lord of Guruvayur, O Supreme Self, protect me.',
+          commentary: 'The concluding verse summarizes the dashaka by celebrating Vrindavan as the stage for Krishna\'s divine pastimes. Bhattathiri employs the profound phrase brahmasaukhyam vatamsayan (crowning the bliss of Brahman) — suggesting that even the abstract bliss of the Upanishadic Brahman finds its fullest expression in the concrete joys of Vrindavan-lila.',
+          words: [
+            { word: "वृन्दावने", transliteration: "vṛndāvane", meaning: "in Vrindavan" },
+            { word: "गोपगोपीजन", transliteration: "gopagopījana", meaning: "the cowherd men and women" },
+            { word: "लीलाविहार", transliteration: "līlāvihāra", meaning: "divine pastimes and play" },
+            { word: "सन्दोहम्", transliteration: "sandoham", meaning: "abundance, collection" },
+            { word: "जगदीश्वर", transliteration: "jagadīśvara", meaning: "Lord of the universe" },
+            { word: "ब्रह्मसौख्यम्", transliteration: "brahmasaukhyam", meaning: "the bliss of Brahman" },
+            { word: "गुरुवायुपुरेशान", transliteration: "guruvāyupureśāna", meaning: "O Lord of Guruvayur" },
+            { word: "परमात्मन्", transliteration: "paramātman", meaning: "O Supreme Self" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 45,
