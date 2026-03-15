@@ -13710,7 +13710,186 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Narrates the battle against the thousand-armed demon Banasura, a devotee of Shiva, fought over his daughter Usha's love for Krishna's grandson Aniruddha. Krishna defeats even Shiva and spares Banasura.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 67,
+          sloka: 1,
+          devanagari: "बाणः कश्चन दैत्यो बलिसुतमहितो बाहुसाहस्रयुक्तो\nभक्त्या शम्भोर्वरिष्ठां पदवीमधिगतो युद्धकाङ्क्षी बभूव ।\nयुद्धं मे देहि देव प्रतिभटविजये त्वं वदेत्यर्थितः सन्\nध्वस्ते ध्वजे तवेति प्रवदति गिरिशे सोऽपि तत्प्रत्यभिज्ञत् ॥",
+          transliteration: "bāṇaḥ kaścana daityo balisutamahito bāhusāhasrayukto\nbhaktyā śambhor variṣṭhāṁ padavīm adhigato yuddhakāṅkṣī babhūva |\nyuddhaṁ me dehi deva pratibhaṭavijaye tvaṁ vadety arthitaḥ san\ndhvaste dhvaje taveti pravadati giriśe so'pi tatpratyabhijñat ||",
+          translation: "There was a demon named Bana, the illustrious son of Bali, endowed with a thousand arms. Having attained the highest position through his devotion to Shiva, he became desirous of battle. He entreated Shiva: 'O Lord, grant me battle with a worthy opponent!' Shiva replied: 'When your flagstaff breaks, that shall be the sign.' And Bana acknowledged this.",
+          commentary: "This opening verse introduces Banasura, one of the most powerful Asuras in Hindu mythology. As a grandson of Prahlada and son of the great Bali, he had immense spiritual merit. His thousand arms symbolize his extraordinary martial prowess, and his devotion to Shiva had earned him the position of Shiva's personal guard.",
+          words: [
+            { word: "bāṇaḥ", meaning: "Bana (the demon king)" },
+            { word: "balisuta", meaning: "son of Bali" },
+            { word: "bāhusāhasrayuktaḥ", meaning: "endowed with a thousand arms" },
+            { word: "śambhoḥ", meaning: "of Shiva (the auspicious one)" },
+            { word: "yuddhakāṅkṣī", meaning: "desirous of battle" },
+            { word: "pratibhaṭa", meaning: "worthy adversary/opponent" },
+            { word: "dhvaje", meaning: "flagstaff/banner" },
+            { word: "giriśe", meaning: "Shiva (lord of the mountain)" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 2,
+          devanagari: "तस्योषा नाम कन्या मदनसखतया स्वप्नदृष्टं किशोरं\nचित्रे लेख्यं सखीभ्यश्चित्रलेखा निपुणा दर्शयन्ती ययाचे ।\nसा तत्प्रद्युम्नसूनुं तव च नप्तारं चारुरूपानिरुद्धं\nज्ञात्वा तं योगविद्यामयवशगतया शोणिताख्यं नयन्ती ॥",
+          transliteration: "tasyoṣā nāma kanyā madanasakhatayā svapnadṛṣṭaṁ kiśoraṁ\ncitre lekhyaṁ sakhībhyaś citralekhā nipuṇā darśayantī yayāce |\nsā tatpradyumnasūnuṁ tava ca naptāraṁ cārurūpāniruddhaṁ\njñātvā taṁ yogavidyāmayavaśagatayā śoṇitākhyaṁ nayantī ||",
+          translation: "His daughter named Usha, feeling the stirring of love, saw a handsome youth in her dream. Her skilled friend Chitralekha drew portraits of various princes for her to identify. Recognizing him as Aniruddha, Your grandson through Pradyumna, beautiful of form, Chitralekha used her yogic powers to bring him to Banasura's city called Shonitapura.",
+          commentary: "The love story of Usha and Aniruddha is one of the most romantic episodes in the Bhagavatam. Chitralekha's ability to draw portraits of men she had never met and to transport Aniruddha through yogic power shows the extraordinary capabilities of beings in that era.",
+          words: [
+            { word: "uṣā", meaning: "Usha (Banasura's daughter)" },
+            { word: "madanasakhatayā", meaning: "through the friendship of Kama (love)" },
+            { word: "svapnadṛṣṭam", meaning: "seen in a dream" },
+            { word: "citralekhā", meaning: "Chitralekha (Usha's friend)" },
+            { word: "pradyumnasūnum", meaning: "son of Pradyumna" },
+            { word: "aniruddham", meaning: "Aniruddha (Krishna's grandson)" },
+            { word: "yogavidyā", meaning: "yogic knowledge/power" },
+            { word: "śoṇitākhyam", meaning: "named Shonitapura (Bana's city)" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 3,
+          devanagari: "उषया सह रमन्तमन्तःपुरे तं वीक्ष्य बाणो रुषान्धो\nबद्ध्वा नागास्त्रपाशैरनिरुद्धमबलं कारयामास रक्षाम् ।\nश्रुत्वा तद्वार्तमुग्रां यदुकुलतिलकस्त्वं महासैन्यजुष्टो\nबाणस्य प्राप्य देशं समरभूमिरभूत्तत्र घोरा सुमोहा ॥",
+          transliteration: "uṣayā saha ramantam antaḥpure taṁ vīkṣya bāṇo ruṣāndho\nbaddhvā nāgāstrapāśair aniruddham abalaṁ kārayāmāsa rakṣām |\nśrutvā tadvārtam ugrāṁ yadukulatilakas tvaṁ mahāsainyajuṣṭo\nbāṇasya prāpya deśaṁ samarabhūmir abhūt tatra ghorā sumohā ||",
+          translation: "Finding Aniruddha enjoying with Usha in the inner chambers, Bana was blinded by rage. He bound the helpless Aniruddha with serpent-weapon bonds and had him guarded. Hearing this terrible news, You, the jewel of the Yadu clan, marched with a great army to Bana's realm, where a fearsome and confounding battle ensued.",
+          commentary: "Banasura's rage at finding his daughter with Aniruddha triggers the chain of events that leads to the great battle. Krishna's response demonstrates His protective nature toward His family. The Nagastra bonds are mystical serpent-weapons that bind the victim.",
+          words: [
+            { word: "antaḥpure", meaning: "in the inner chambers/harem" },
+            { word: "ruṣāndhaḥ", meaning: "blinded by anger" },
+            { word: "nāgāstrapāśaiḥ", meaning: "with bonds of serpent-weapons" },
+            { word: "yadukulatilaka", meaning: "the ornament of the Yadu dynasty" },
+            { word: "mahāsainyajuṣṭaḥ", meaning: "accompanied by a great army" },
+            { word: "samarabhūmiḥ", meaning: "the battlefield" },
+            { word: "ghorā", meaning: "terrible, fierce" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 4,
+          devanagari: "प्रद्युम्नस्ते सुतोऽपि प्रबलरणचणो बाणपुत्रं निरुन्धन्\nसात्यक्यादींश्च वीरान् प्रचुरबलयुतान् प्रैषयस्त्वं रणाय ।\nज्वरं त्रिशिरसं घोरं माहेश्वरं तं प्रमुञ्चन्\nवैष्णवं ज्वरं सृजसि स्म तदा प्रतापनम् ॥",
+          transliteration: "pradyumnas te suto'pi prabalaraṇacaṇo bāṇaputraṁ nirundhan\nsātyakyādīṁśca vīrān pracurabalayutān praiṣayas tvaṁ raṇāya |\njvaraṁ triśirasaṁ ghoraṁ māheśvaraṁ taṁ pramuñcan\nvaiṣṇavaṁ jvaraṁ sṛjasi sma tadā pratāpanam ||",
+          translation: "Your son Pradyumna, fierce in battle, engaged Bana's son. You dispatched Satyaki and other valiant warriors endowed with great strength for the combat. When the terrible three-headed Maheshvara fever was unleashed, You then released the burning Vaishnava fever to counter it.",
+          commentary: "The battle expands as various warriors join the fray. The Maheshvara Jvara is a mystical three-headed fever-weapon sent by Shiva, representing the three types of suffering. Krishna counters it with His own Vaishnava Jvara, demonstrating the cosmic scale of this conflict.",
+          words: [
+            { word: "pradyumnaḥ", meaning: "Pradyumna (Krishna's son)" },
+            { word: "raṇacaṇaḥ", meaning: "fierce/skilled in battle" },
+            { word: "sātyaki", meaning: "Satyaki (a Yadava warrior)" },
+            { word: "jvaram", meaning: "fever (mystical weapon)" },
+            { word: "triśirasam", meaning: "three-headed" },
+            { word: "māheśvaram", meaning: "belonging to Maheshvara (Shiva)" },
+            { word: "vaiṣṇavam", meaning: "belonging to Vishnu" },
+            { word: "pratāpanam", meaning: "burning, scorching" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 5,
+          devanagari: "शम्भुस्तस्य प्रसादाद्बलवदभिरतो बाणरक्षार्थमुग्रो\nनन्दीश्वरेण सार्धं प्रमथगणयुतः प्रत्ययुध्यत्तदानीम् ।\nत्वं चापि प्रत्युदैक्षाः शरपरिकिरणैर्भूतगन्धर्वयक्ष-\nप्रेतान् सम्मोहयित्वा रणकुशलतया कार्मुकं चाप्यभैत्सीः ॥",
+          transliteration: "śambhus tasya prasādād balavad abhirato bāṇarakṣārtham ugro\nnandīśvareṇa sārdhaṁ pramathagaṇayutaḥ pratyayudhyat tadānīm |\ntvaṁ cāpi pratyudaikṣāḥ śaraparikiraṇair bhūtagandharvayakṣa-\npretān sammohayitvā raṇakuśalatayā kārmukaṁ cāpyabhaitsīḥ ||",
+          translation: "Shiva, powerfully devoted to Bana through his grace, rose fiercely to protect him. Along with Nandishvara and the hosts of Pramathas, he fought against You. You too faced him, confounding the Bhutas, Gandharvas, Yakshas and spirits with showers of arrows, and with Your battle-skill shattered his bow.",
+          commentary: "This is the extraordinary moment where Shiva and Vishnu face each other in battle. Shiva fights to honor his commitment to his devotee Bana, while Krishna fights to rescue his grandson. The Pramathas are Shiva's ghostly attendants. This rare clash of two supreme cosmic forces is resolved without lasting enmity.",
+          words: [
+            { word: "śambhuḥ", meaning: "Shiva (the auspicious one)" },
+            { word: "nandīśvareṇa", meaning: "with Nandishvara (Shiva's bull)" },
+            { word: "pramathagaṇa", meaning: "hosts of Pramathas (Shiva's attendants)" },
+            { word: "śaraparikiraṇaiḥ", meaning: "with showers of arrows" },
+            { word: "bhūtagandharvayakṣa", meaning: "spirits, celestial musicians, nature-spirits" },
+            { word: "sammohayitvā", meaning: "having confounded/bewildered" },
+            { word: "raṇakuśalatayā", meaning: "with battle-skill" },
+            { word: "kārmukam", meaning: "bow" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 6,
+          devanagari: "जृम्भास्त्रेणाथ शम्भुं जृम्भयसि विबुधं शान्तमन्युं विधाय\nस्कन्दं प्रत्यङ्गचक्रैर्व्यथयसि कुमारं सगुह्यं प्रभूतैः ।\nबाणं प्राप्याथ कोपात्तव बहुभुजगं बाहवश्छिन्नभिन्नाः\nक्षिप्रं चक्रेण धीमन् सहस्रभुजतो बाहुयुग्मं चतुष्कम् ॥",
+          transliteration: "jṛmbhāstreṇātha śambhuṁ jṛmbhayasi vibudhaṁ śāntamanyuṁ vidhāya\nskandaṁ pratyaṅgacakrair vyathayasi kumāraṁ saguhyaṁ prabhūtaiḥ |\nbāṇaṁ prāpyātha kopāt tava bahubhujagaṁ bāhavaś chinnabhinnāḥ\nkṣipraṁ cakreṇa dhīman sahasrabhujato bāhuyugmaṁ catuṣkam ||",
+          translation: "With the Jrimbha weapon You made Shiva yawn and become pacified. You afflicted Skanda and his companion Guha with various counter-weapons. Then, reaching Bana in great fury, You severed his many arms with Your discus, swiftly reducing the thousand-armed one to having only four arms.",
+          commentary: "The Jrimbhastra (yawning weapon) is a uniquely gentle way of neutralizing Shiva, inducing drowsiness rather than harm, showing Krishna's respect for Shiva even in combat. The severing of Bana's arms symbolizes the stripping away of pride and power, while leaving four arms is a mark of divine grace.",
+          words: [
+            { word: "jṛmbhāstreṇa", meaning: "with the yawning weapon" },
+            { word: "skandam", meaning: "Skanda/Kartikeya (Shiva's son)" },
+            { word: "cakreṇa", meaning: "with the discus (Sudarshana)" },
+            { word: "sahasrabhujataḥ", meaning: "from the state of having a thousand arms" },
+            { word: "chinnabhinnāḥ", meaning: "cut and broken" },
+            { word: "śāntamanyum", meaning: "with anger pacified" },
+            { word: "bāhuyugmam", meaning: "pair of arms" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 7,
+          devanagari: "चक्रे चोद्यत्सुदर्शे बलिसुतवधने शङ्करस्त्वां प्रणम्य\nबाणं रक्षेति दीनो भगवति शरणं प्रापदद्भावशुद्धः ।\nत्वं तत्प्रार्थनया च प्रशमितरभसः प्रादिशो भीमबाहुं\nमुक्त्वा बाणं चतुर्बाहुमभयमददाः शङ्करस्यानुरोधात् ॥",
+          transliteration: "cakre codyatsuddarśe balisutavadhane śaṅkaras tvāṁ praṇamya\nbāṇaṁ rakṣeti dīno bhagavati śaraṇaṁ prāpadad bhāvaśuddhaḥ |\ntvaṁ tatprārthanayā ca praśamitarabhasaḥ prādiśo bhīmabāhuṁ\nmuktvā bāṇaṁ caturbāhum abhayam adadāḥ śaṅkarasyānurodhāt ||",
+          translation: "When the blazing Sudarshana was raised to slay the son of Bali, Shiva humbly bowed before You, O Lord, and sought refuge with pure devotion, pleading: 'Protect Bana!' Appeased by his prayer, You subdued Your fury, and honoring Shiva's request, You spared Bana with four arms and granted him fearlessness.",
+          commentary: "This pivotal verse shows the beautiful relationship between Shiva and Vishnu. Shiva, setting aside all pride, begs for mercy for his devotee. Krishna, honoring the devotion of Shiva and the lineage of Prahlada, spares Bana. The four arms granted to Bana mirror Vishnu's own form, a mark of divine favor.",
+          words: [
+            { word: "sudarśe", meaning: "Sudarshana (Krishna's discus)" },
+            { word: "śaṅkaraḥ", meaning: "Shankara (Shiva)" },
+            { word: "śaraṇam", meaning: "refuge, surrender" },
+            { word: "praśamitarabhasaḥ", meaning: "with fury subdued" },
+            { word: "abhayam", meaning: "fearlessness, safety" },
+            { word: "anurodhāt", meaning: "out of regard/respect for" },
+            { word: "dīnaḥ", meaning: "humble, pitiable" },
+            { word: "bhāvaśuddhaḥ", meaning: "pure in devotion/feeling" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 8,
+          devanagari: "बद्धं नागास्त्रपाशैरनिरुद्धमथ तं मोचयित्वा कृपालुः\nऊषायुक्तं सुतोषात्प्रणतबलिसुतप्रार्थनां मानयित्वा ।\nद्वारक्यां प्राविशस्त्वं सकलयदुजनानन्दमावर्धयानो\nभक्तान् रक्षन्नजस्रं विहरसि परमानन्दसान्द्रो मुरारे ॥",
+          transliteration: "baddhaṁ nāgāstrapāśair aniruddham atha taṁ mocayitvā kṛpāluḥ\nūṣāyuktaṁ sutoṣāt praṇatabalisutaprārthanāṁ mānayitvā |\ndvārakyāṁ prāviśas tvaṁ sakalayadujanānandamāvardhayāno\nbhaktān rakṣann ajasraṁ viharasi paramānandasāndro murāre ||",
+          translation: "Then, O compassionate one, You freed Aniruddha from the serpent-weapon bonds and reunited him with Usha. Graciously honoring the prayers of the bowing son of Bali, You entered Dvaraka, increasing the joy of all the Yadavas. O slayer of Mura, You sport eternally, protecting devotees, immersed in supreme bliss.",
+          commentary: "The resolution brings all threads together harmoniously. Aniruddha and Usha are united in marriage, Bana is humbled but alive, and the Yadavas celebrate Krishna's return. The epithet Murari connects to an earlier episode while emphasizing Krishna's role as protector.",
+          words: [
+            { word: "mocayitvā", meaning: "having freed/released" },
+            { word: "kṛpāluḥ", meaning: "the compassionate one" },
+            { word: "ūṣāyuktam", meaning: "united with Usha" },
+            { word: "dvārakyām", meaning: "in Dvaraka" },
+            { word: "yadujanānandam", meaning: "the joy of the Yadava people" },
+            { word: "ajasram", meaning: "eternally, ceaselessly" },
+            { word: "paramānandasāndraḥ", meaning: "immersed in supreme bliss" },
+            { word: "murāre", meaning: "O slayer of Mura (Krishna)" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 9,
+          devanagari: "एवं बाणासुरं तं बहुभुजमतुलं शर्वपक्षं निहत्य\nप्रह्लादान्वायपुण्यं प्रतिभटमखिलं त्रासयित्वा सुरारिम् ।\nशिष्टं कृत्वा कृपालो बलिसुतमवदस्त्वं न ते भीरतीत्थं\nसर्वेषामेव पूज्यो जगति विजयसे यादवेन्द्राग्रगण्यः ॥",
+          transliteration: "evaṁ bāṇāsuraṁ taṁ bahubhujam atulaṁ śarvapakṣaṁ nihatya\nprahlādānvāyapuṇyaṁ pratibhaṭam akhilaṁ trāsayitvā surārim |\nśiṣṭaṁ kṛtvā kṛpālo balisutam avadas tvaṁ na te bhīr atītthaṁ\nsarveṣām eva pūjyo jagati vijayase yādavendrāgragaṇyaḥ ||",
+          translation: "Thus, having subdued the incomparable thousand-armed Banasura who was on Shiva's side, terrifying all the opposing enemies of the gods, and yet sparing him compassionately due to the merit of Prahlada's lineage, You declared to the son of Bali: 'Fear not!' Thus, worshipped by all in the world, You triumphed as the foremost among Yadava lords.",
+          commentary: "This verse summarizes the entire Banasura episode, highlighting the key themes: Krishna's supreme power that can overcome even Shiva's protection, His compassion that spares enemies, and His respect for the spiritual lineage of Prahlada. The granting of fearlessness is a quintessential act of divine grace.",
+          words: [
+            { word: "bahubhujam", meaning: "many-armed" },
+            { word: "śarvapakṣam", meaning: "on Shiva's side/party" },
+            { word: "prahlādānvāya", meaning: "lineage of Prahlada" },
+            { word: "surārim", meaning: "enemy of the gods" },
+            { word: "śiṣṭam", meaning: "spared, left remaining" },
+            { word: "kṛpālo", meaning: "O compassionate one" },
+            { word: "yādavendra", meaning: "lord of the Yadavas" },
+            { word: "agragaṇyaḥ", meaning: "foremost, chief" }
+          ]
+        },
+        {
+          dashaka: 67,
+          sloka: 10,
+          devanagari: "एवं बाणासुरं तं समरभुवि विभो त्वं विजित्यापि शम्भोः\nप्रीत्या रक्षन् प्रसन्नं परमदयालुत्वं विलासं व्यनैषीः ।\nसर्वेशं सर्वभूतात्मकमजमनघं वाङ्मनोऽतीतमाद्यं\nत्वां गोविन्दं भजे श्रीगुरुपवनपुरे पाहि मां सर्वतापात् ॥",
+          transliteration: "evaṁ bāṇāsuraṁ taṁ samarabhūvi vibho tvaṁ vijityāpi śambhoḥ\nprītyā rakṣan prasannaṁ paramadayālutvaṁ vilāsaṁ vyanaiṣīḥ |\nsarveśaṁ sarvabhūtātmakam ajam anaghaṁ vāṅmano'tītam ādyaṁ\ntvāṁ govindaṁ bhaje śrīgurupavanapure pāhi māṁ sarvatāpāt ||",
+          translation: "Thus, O Lord, though You conquered Banasura on the battlefield, You protected him out of love for Shiva, displaying Your supreme compassion as a divine sport. I worship You, Govinda — the Lord of all, the Self of all beings, unborn, sinless, beyond speech and mind, the primordial one — in the sacred Guruvayur. Protect me from all afflictions!",
+          commentary: "The concluding verse draws the spiritual lesson: true power lies not in destruction but in mercy. Krishna's sparing of Banasura at Shiva's request exemplifies the harmony between Shaiva and Vaishnava traditions. The verse ends with the characteristic Narayaneeyam prayer to Lord Guruvayurappan for relief from suffering.",
+          words: [
+            { word: "vijitya", meaning: "having conquered" },
+            { word: "paramadayālutvam", meaning: "supreme compassion" },
+            { word: "sarveśam", meaning: "Lord of all" },
+            { word: "sarvabhūtātmakam", meaning: "the Self of all beings" },
+            { word: "ajam", meaning: "unborn" },
+            { word: "vāṅmano'tītam", meaning: "beyond speech and mind" },
+            { word: "govindam", meaning: "Govinda (Krishna)" },
+            { word: "gurupavanapure", meaning: "in Guruvayur (the temple city)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 68,
@@ -13719,7 +13898,179 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Tells the story of King Nriga trapped as a chameleon in a well and freed by Krishna's touch, along with exploits of Balarama including his dragging of the Yamuna with his plough.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 68,
+          sloka: 1,
+          devanagari: "कूपे कश्चित्कृकलासो महान् आसीद्\nयदुकुमारैर्दृष्टः परमविस्मयकारी ।\nत्वं करस्पर्शनमात्रेण तं विभो\nदिव्यरूपं नृगं राजानमकार्षीः ॥",
+          transliteration: "kūpe kaścit kṛkalāso mahān āsīd\nyadukumārair dṛṣṭaḥ paramaviṣmayakārī |\ntvaṁ karasparśanamātreṇa taṁ vibho\ndivyarūpaṁ nṛgaṁ rājānam akārṣīḥ ||",
+          translation: "In a well there was a great chameleon, spotted by the Yadu princes, causing great wonder. By the mere touch of Your hand, O Lord, You transformed him into King Nriga of divine form.",
+          commentary: "The story of King Nriga begins with the Yadu princes discovering an enormous lizard in a well near the palace. This seemingly mundane event leads to a profound teaching about the consequences of even inadvertent dharmic transgressions. Krishna's liberating touch demonstrates His power to free beings from karmic bondage.",
+          words: [
+            { word: "kūpe", meaning: "in a well" },
+            { word: "kṛkalāsaḥ", meaning: "chameleon/lizard" },
+            { word: "yadukumāraiḥ", meaning: "by the Yadu princes" },
+            { word: "karasparśanamātreṇa", meaning: "by the mere touch of the hand" },
+            { word: "divyarūpam", meaning: "of divine form" },
+            { word: "nṛgam", meaning: "Nriga (the king)" },
+            { word: "rājānam", meaning: "king" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 2,
+          devanagari: "नृगो नाम नृपो महान् पुरा\nदानशीलो द्विजवर्यपूजकः ।\nगां दत्तां विप्रवर्याय भूपतिः\nपुनरन्यस्मै विप्राय दत्तवान् ॥",
+          transliteration: "nṛgo nāma nṛpo mahān purā\ndānaśīlo dvijavaryapūjakaḥ |\ngāṁ dattāṁ vipravaryāya bhūpatiḥ\npunar anyasmai viprāya dattavān ||",
+          translation: "Nriga was a great king of ancient times, devoted to charity and the worship of Brahmins. He had once given a cow to an eminent Brahmin, and then unknowingly gave the same cow to another Brahmin.",
+          commentary: "King Nriga's story illustrates how even well-intentioned actions can lead to karmic consequences when they involve property rights. His generous nature led to an inadvertent error — gifting a cow that had already been given away — creating an irresolvable dispute between two Brahmins.",
+          words: [
+            { word: "nṛgaḥ", meaning: "King Nriga" },
+            { word: "nṛpaḥ", meaning: "king" },
+            { word: "dānaśīlaḥ", meaning: "devoted to charity/giving" },
+            { word: "dvijavarya", meaning: "eminent Brahmin" },
+            { word: "gām", meaning: "cow" },
+            { word: "vipravaryāya", meaning: "to an excellent Brahmin" },
+            { word: "bhūpatiḥ", meaning: "lord of the earth, king" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 3,
+          devanagari: "विवदन्तौ द्विजौ तौ नृपं गत्वा\nरोषयुक्तौ परस्परं वादिनौ ।\nनापराध्यन्नपि सोऽवशात्\nकृकलासत्वमवाप यमाज्ञया ॥",
+          transliteration: "vivadantau dvijau tau nṛpaṁ gatvā\nroṣayuktau parasparaṁ vādinau |\nnāparādhyann api so'vaśāt\nkṛkalāsatvam avāpa yamājñayā ||",
+          translation: "The two disputing Brahmins, filled with mutual anger, approached the king. Though he had not sinned intentionally, by the decree of Yama he helplessly assumed the form of a chameleon.",
+          commentary: "The two Brahmins each claimed rightful ownership of the cow, and neither would accept a substitute. This created an impossible situation for Nriga. Yama, the god of justice, cursed him to become a lizard because the inadvertent taking of a Brahmin's property carries karmic weight in Vedic law.",
+          words: [
+            { word: "vivadantau", meaning: "disputing, quarreling" },
+            { word: "dvijau", meaning: "two Brahmins" },
+            { word: "roṣayuktau", meaning: "filled with anger" },
+            { word: "aparādhyan", meaning: "committing offense" },
+            { word: "avaśāt", meaning: "helplessly, involuntarily" },
+            { word: "kṛkalāsatvam", meaning: "the state of being a chameleon" },
+            { word: "yamājñayā", meaning: "by the decree of Yama" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 4,
+          devanagari: "त्वत्स्पर्शादेव मुक्तो नृगनृपतिवरो\nदिव्यदेहं प्रपन्नः स्तुत्वा त्वां भक्तियोगात् ।\nविमानमारुह्य दिव्यं स्वर्गलोकं गतः प्रभो\nत्वं चोवाच धर्मं यदुजनेभ्यः ॥",
+          transliteration: "tvatsparśād eva mukto nṛganṛpativaro\ndivyadehaṁ prapannaḥ stutvā tvāṁ bhaktiyogāt |\nvimānam āruhya divyaṁ svargalokaṁ gataḥ prabho\ntvaṁ covāca dharmaṁ yadujanebhyaḥ ||",
+          translation: "Liberated by Your touch alone, the noble King Nriga attained a divine body. Praising You with devotion, he ascended a celestial chariot and departed for heaven. You then spoke to the Yadavas about dharma.",
+          commentary: "The liberation of Nriga demonstrates that contact with the Supreme Lord can instantly dissolve even powerful karmic bondage. Krishna uses this event as a teaching moment, instructing the Yadavas about the importance of never taking what belongs to a Brahmin and the subtle workings of karma.",
+          words: [
+            { word: "tvatsparśāt", meaning: "by Your touch" },
+            { word: "muktaḥ", meaning: "liberated, freed" },
+            { word: "divyadeham", meaning: "divine body" },
+            { word: "bhaktiyogāt", meaning: "through the yoga of devotion" },
+            { word: "vimānam", meaning: "celestial chariot/vehicle" },
+            { word: "svargalokam", meaning: "the heavenly realm" },
+            { word: "dharmam", meaning: "righteousness, moral law" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 5,
+          devanagari: "अथ बलभद्रो भवत्प्रियो महा-\nबलश्च तीर्थयात्रां चकार सः ।\nनैमिषारण्यमादौ गतो बली\nसरस्वतीतीरे तपस्विनां वने ॥",
+          transliteration: "atha balabhadro bhavatpriyo mahā-\nbalaśca tīrthayātrāṁ cakāra saḥ |\nnaimiṣāraṇyam ādau gato balī\nsarasvatītīre tapasvinām vane ||",
+          translation: "Then Balarama, Your dear brother of immense strength, undertook a sacred pilgrimage. The mighty one first went to Naimisharanya, the forest of ascetics on the banks of the Sarasvati.",
+          commentary: "The narrative now shifts to Balarama's independent adventures. His pilgrimage occurs during the period of the Mahabharata war, which he chose not to participate in. Naimisharanya is one of the most sacred pilgrimage sites in India, where the Puranas were traditionally recited.",
+          words: [
+            { word: "balabhadraḥ", meaning: "Balarama (the auspicious strong one)" },
+            { word: "mahābalaḥ", meaning: "of great strength" },
+            { word: "tīrthayātrām", meaning: "sacred pilgrimage" },
+            { word: "naimiṣāraṇyam", meaning: "Naimisharanya (a sacred forest)" },
+            { word: "sarasvatītīre", meaning: "on the banks of the Sarasvati" },
+            { word: "tapasvinām", meaning: "of the ascetics" },
+            { word: "balī", meaning: "the mighty one" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 6,
+          devanagari: "तत्र सूतं समासीनमुच्चासने\nमुनिभ्योऽपि पूज्यतां गतम् ।\nवीक्ष्य रोषाद्धलायुधः सूतं तं\nकुशाग्रेण जघान मुषलधृक् ॥",
+          transliteration: "tatra sūtaṁ samāsīnam uccāsane\nmunibhyo'pi pūjyatāṁ gatam |\nvīkṣya roṣād dhalāyudhaḥ sūtaṁ taṁ\nkuśāgreṇa jaghāna muṣaladhṛk ||",
+          translation: "There he saw a Suta seated on a high seat, being honored even above the sages. Seeing this, Balarama, the wielder of the plough and mace, slew that Suta with the tip of a kusha grass blade, filled with righteous anger.",
+          commentary: "This episode shows Balarama's fierce sense of dharmic propriety. The Suta (bard Romaharsana), though learned, was of a lower varna and should not have remained seated when a Kshatriya of Balarama's stature arrived. Balarama's act enforces the ritual protocols of the age.",
+          words: [
+            { word: "sūtam", meaning: "Suta (the bard Romaharsana)" },
+            { word: "uccāsane", meaning: "on a high seat" },
+            { word: "munibhyaḥ", meaning: "than the sages" },
+            { word: "halāyudhaḥ", meaning: "wielder of the plough (Balarama)" },
+            { word: "kuśāgreṇa", meaning: "with the tip of kusha grass" },
+            { word: "muṣaladhṛk", meaning: "holder of the mace" },
+            { word: "roṣāt", meaning: "out of anger" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 7,
+          devanagari: "मुनिभिः प्रार्थितस्तत्सुतं सूतजं\nतत्पदे स्थापयित्वा दीर्घमायुः प्रदाय ।\nप्रायश्चित्तार्थमिल्वलात्मजं\nबल्वलं दैत्यमुग्रं निजघ्ने बलः ॥",
+          transliteration: "munibhiḥ prārthitas tatsutaṁ sūtajaṁ\ntatpade sthāpayitvā dīrgham āyuḥ pradāya |\nprāyaścittārtham ilvalātmajaṁ\nbalvalaṁ daityam ugraṁ nijaghne balaḥ ||",
+          translation: "Entreated by the sages, Balarama installed the Suta's son in his father's position and granted him long life. As atonement, the mighty Balarama slew the fierce demon Balvala, son of Ilvala, who had been tormenting the sages.",
+          commentary: "Balarama's act of installing Romaharsana's son Ugrasravas ensures the continuity of the sacred recitation tradition. The slaying of Balvala, who had been disrupting the sages' sacrifices with showers of filth, serves as his prayaschitta (atonement).",
+          words: [
+            { word: "munibhiḥ", meaning: "by the sages" },
+            { word: "sūtajam", meaning: "son of the Suta" },
+            { word: "dīrgham āyuḥ", meaning: "long life" },
+            { word: "prāyaścittārtham", meaning: "for the purpose of atonement" },
+            { word: "ilvalātmajam", meaning: "son of Ilvala" },
+            { word: "balvalam", meaning: "Balvala (a demon)" },
+            { word: "nijaghne", meaning: "slew, killed" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 8,
+          devanagari: "ततो बहूनि तीर्थानि सेवित्वा\nहलधृक् प्रभासं पुनरागतः ।\nकुरूणां पाण्डवानां च युद्धवार्तां\nश्रुत्वा हास्तिनपुरं ययौ बलः ॥",
+          transliteration: "tato bahūni tīrthāni sevitvā\nhaladhṛk prabhāsaṁ punar āgataḥ |\nkurūṇāṁ pāṇḍavānāṁ ca yuddhavārtāṁ\nśrutvā hāstinapuraṁ yayau balaḥ ||",
+          translation: "Then, having visited many sacred sites, the wielder of the plough returned to Prabhasa. Hearing news of the war between the Kurus and the Pandavas, the mighty Balarama went to Hastinapura.",
+          commentary: "Balarama's pilgrimage takes him through the major sacred sites of ancient India. His arrival at Hastinapura during the Mahabharata war creates a tense moment, as he had students on both sides of the conflict.",
+          words: [
+            { word: "tīrthāni", meaning: "sacred places/pilgrimage sites" },
+            { word: "haladhṛk", meaning: "wielder of the plough (Balarama)" },
+            { word: "prabhāsam", meaning: "Prabhasa (a sacred site)" },
+            { word: "kurūṇām", meaning: "of the Kurus" },
+            { word: "pāṇḍavānām", meaning: "of the Pandavas" },
+            { word: "yuddhavārtām", meaning: "news of the war" },
+            { word: "hāstinapuram", meaning: "Hastinapura (the Kuru capital)" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 9,
+          devanagari: "यमुनां चापि कर्षन् हलेन\nमामनुसर चेत्युक्त्वा सरस्वतीम् ।\nहास्तिनपुरं समीपमानयन्\nहलभृतो बलमतुलं व्यनैषीत् ॥",
+          transliteration: "yamunāṁ cāpi karṣan halena\nmām anusara cety uktvā sarasvatīm |\nhāstinapuraṁ samīpam ānayan\nhalabhṛto balam atulaṁ vyanaiṣīt ||",
+          translation: "Dragging the Yamuna with his plough, commanding her 'Follow me!' and bringing her close to Hastinapura, the bearer of the plough displayed his incomparable strength.",
+          commentary: "One of the most dramatic episodes of Balarama's exploits. When the Yamuna refused to change her course at his request, the mighty Balarama hooked her with his plough and dragged her, demonstrating the immense power of Shesha incarnate.",
+          words: [
+            { word: "yamunām", meaning: "the Yamuna river" },
+            { word: "karṣan", meaning: "dragging, pulling" },
+            { word: "halena", meaning: "with the plough" },
+            { word: "anusara", meaning: "follow" },
+            { word: "hāstinapuram", meaning: "Hastinapura" },
+            { word: "halabhṛtaḥ", meaning: "the bearer of the plough" },
+            { word: "atulam", meaning: "incomparable, matchless" }
+          ]
+        },
+        {
+          dashaka: 68,
+          sloka: 10,
+          devanagari: "एवं बलस्य विक्रमं नृगस्य मोक्षणं तथा\nलीलया कुर्वतो विभो तवानन्तं पराक्रमम् ।\nस्मरन्नहं भक्तियुतो नमामि ते\nपदाम्बुजं मारुतगेहनायक ॥",
+          transliteration: "evaṁ balasya vikramaṁ nṛgasya mokṣaṇaṁ tathā\nlīlayā kurvato vibho tavānantaṁ parākramam |\nsmrann ahaṁ bhaktiyuto namāmi te\npadāmbujaṁ mārutagehanāyaka ||",
+          translation: "Thus, remembering the valor of Balarama, the liberation of Nriga, and Your infinite prowess performed as divine sport, O Lord, I bow with devotion at Your lotus feet, O Master of the temple of the Wind God (Guruvayur)!",
+          commentary: "The concluding verse weaves together the two narratives of this dashaka — Nriga's liberation and Balarama's exploits — attributing all to Krishna's supreme lordship. The address 'Marutagehanayaka' (Lord of the temple of Vayu) is the signature ending of Narayaneeyam verses, referring to the Guruvayur temple.",
+          words: [
+            { word: "vikramam", meaning: "valor, prowess" },
+            { word: "mokṣaṇam", meaning: "liberation, freeing" },
+            { word: "līlayā", meaning: "as divine sport/play" },
+            { word: "anantam", meaning: "infinite, endless" },
+            { word: "parākramam", meaning: "prowess, heroic deeds" },
+            { word: "padāmbujam", meaning: "lotus feet" },
+            { word: "bhaktiyutaḥ", meaning: "endowed with devotion" },
+            { word: "mārutagehanāyaka", meaning: "Lord of the temple of the Wind God (Guruvayur)" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 69,
