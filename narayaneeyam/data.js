@@ -4831,18 +4831,8 @@ var NARAYANEEYAM_DATA = {
         {
           dashaka: 22,
           sloka: 1,
-          devanagari: "अजामिलो नाम महापतिव्रतो
-द्विजस्तु पापेषु निमग्नमानसः ।
-वेश्यासक्तो दशमे वयस्यसौ
-पुत्रं हि नारायणनामधेयकम् ।
-सन्तापयुक्तो मरणे ह्यवोचत
-नारायणेति स्वसुतस्य नाम तत् ॥",
-          transliteration: "ajāmilō nāma mahāpativratō
-dvijāstu pāpēṣu nimagnamānasaḥ |
-vēśyāsaktō daśamē vayasyasau
-putraṁ hi nārāyaṇanāmadhēyakam |
-santāpayuktō maraṇē hyavōcata
-nārāyaṇēti svasutasya nāma tat ||",
+          devanagari: "अजामिलो नाम महापतिव्रतो\nद्विजस्तु पापेषु निमग्नमानसः ।\nवेश्यासक्तो दशमे वयस्यसौ\nपुत्रं हि नारायणनामधेयकम् ।\nसन्तापयुक्तो मरणे ह्यवोचत\nनारायणेति स्वसुतस्य नाम तत् ॥",
+          transliteration: "ajāmilō nāma mahāpativratō\ndvijāstu pāpēṣu nimagnamānasaḥ |\nvēśyāsaktō daśamē vayasyasau\nputraṁ hi nārāyaṇanāmadhēyakam |\nsantāpayuktō maraṇē hyavōcata\nnārāyaṇēti svasutasya nāma tat ||",
           translation: "The brahmana Ajamila, once a man of great virtue, had sunk deeply into sin. Attached to a courtesan and reaching old age, he had a son named Narayana. In his torment at the moment of death, he called out 'Narayana!' — the name of his own child.",
           commentary: "This opening verse recapitulates the Ajamila narrative from Dashaka 20, reminding the listener of the essential setup. Ajamila's fall from grace — from a devoted brahmana to a man enslaved by vice — is compressed here. The critical detail is that his youngest son bore the name 'Narayana.' Bhattathiri emphasizes that at the moment of death (marane), driven by paternal attachment (not devotion), Ajamila uttered the divine name. This sets up the theological crux of the entire dashaka: does the Name's power depend on intent?",
           words: [
@@ -4863,18 +4853,8 @@ nārāyaṇēti svasutasya nāma tat ||",
         {
           dashaka: 22,
           sloka: 2,
-          devanagari: "तं पापिनं घोरतमैरनेकधा
-पापैर्भृतं मृत्युसमीपमागतम् ।
-यमस्य दूता भृशपाशहस्तका
-विरूपदेहा अतिभीषणाकृतिः ।
-समाययुस्तत्र महाभयंकराः
-प्राणान्विधातुं यमलोकमुद्यताः ॥",
-          transliteration: "taṁ pāpinaṁ ghōratamairanēkadhā
-pāpairbhṛtaṁ mṛtyusamīpamāgatam |
-yamasya dūtā bhṛśapāśahastakā
-virūpadēhā atibhīṣaṇākṛtiḥ |
-samāyayustatra mahābhayaṁkarāḥ
-prāṇānvidhātuṁ yamalōkamudyatāḥ ||",
+          devanagari: "तं पापिनं घोरतमैरनेकधा\nपापैर्भृतं मृत्युसमीपमागतम् ।\nयमस्य दूता भृशपाशहस्तका\nविरूपदेहा अतिभीषणाकृतिः ।\nसमाययुस्तत्र महाभयंकराः\nप्राणान्विधातुं यमलोकमुद्यताः ॥",
+          transliteration: "taṁ pāpinaṁ ghōratamairanēkadhā\npāpairbhṛtaṁ mṛtyusamīpamāgatam |\nyamasya dūtā bhṛśapāśahastakā\nvirūpadēhā atibhīṣaṇākṛtiḥ |\nsamāyayustatra mahābhayaṁkarāḥ\nprāṇānvidhātuṁ yamalōkamudyatāḥ ||",
           translation: "To that sinner burdened with countless terrible sins, who had arrived at the threshold of death, came the messengers of Yama — ropes firmly in hand, with hideous bodies and terrifying forms, fearsome indeed — intent on dragging his soul to the realm of Yama.",
           commentary: "The arrival of the Yamadutas is painted with visceral imagery befitting the terror of the moment. Their deformed bodies (virupa-deha), terrifying appearance (atibhishana-akriti), and tight ropes (bhrisha-pasha-hastaka) represent the inexorable mechanism of karmic justice. Bhattathiri draws from Bhagavatam 6.1.19-22, where these emissaries are described as the embodiment of death's inevitability. The emphasis on Ajamila's accumulated sin (ghoratamair-anekadha-papaih) makes the subsequent rescue all the more astonishing.",
           words: [
@@ -4895,18 +4875,8 @@ prāṇānvidhātuṁ yamalōkamudyatāḥ ||",
         {
           dashaka: 22,
           sloka: 3,
-          devanagari: "तावत्समुत्तीर्य विभो भवत्पदा-
-दायान्ति दिव्या भवदीयकिङ्कराः ।
-तेजस्विनो दिव्यतनुप्रभान्विताः
-पीताम्बरालङ्कृतचारुविग्रहाः ।
-तिष्ठेति तिष्ठेति वदन्तमोजसा
-यमस्य दूतान् प्रतिरुध्य तस्थिरे ॥",
-          transliteration: "tāvatsamuttīrya vibhō bhavatpadā-
-dāyānti divyā bhavadīyakiṅkarāḥ |
-tējasvinō divyatanūprabhānvitāḥ
-pītāmbarālaṅkṛtacāruvigrahāḥ |
-tiṣṭhēti tiṣṭhēti vadantamōjasā
-yamasya dūtān pratirudhya tasthirē ||",
+          devanagari: "तावत्समुत्तीर्य विभो भवत्पदा-\nदायान्ति दिव्या भवदीयकिङ्कराः ।\nतेजस्विनो दिव्यतनुप्रभान्विताः\nपीताम्बरालङ्कृतचारुविग्रहाः ।\nतिष्ठेति तिष्ठेति वदन्तमोजसा\nयमस्य दूतान् प्रतिरुध्य तस्थिरे ॥",
+          transliteration: "tāvatsamuttīrya vibhō bhavatpadā-\ndāyānti divyā bhavadīyakiṅkarāḥ |\ntējasvinō divyatanūprabhānvitāḥ\npītāmbarālaṅkṛtacāruvigrahāḥ |\ntiṣṭhēti tiṣṭhēti vadantamōjasā\nyamasya dūtān pratirudhya tasthirē ||",
           translation: "At that very moment, O Lord, from Your divine abode came Your own radiant servants — luminous beings, graced with divine forms, adorned in yellow garments with beautiful figures. Crying 'Stop! Stop!' with mighty authority, they obstructed Yama's messengers and stood firm.",
           commentary: "The dramatic intervention of the Vishnudutas creates one of the most cinematic moments in the Bhagavatam narrative. The contrast between the hideous Yamadutas and the radiant Vishnudutas — luminous (tejasvinah), divinely embodied (divya-tanu-prabhanvitah), beautifully adorned in pitambara — is deliberate theological symbolism: dharma embodied vs. mere legalistic punishment. The doubled imperative 'tishtha! tishtha!' (Stop! Stop!) conveys the absolute authority of Vishnu's command over even Yama's jurisdiction.",
           words: [
@@ -4927,18 +4897,8 @@ yamasya dūtān pratirudhya tasthirē ||",
         {
           dashaka: 22,
           sloka: 4,
-          devanagari: "यमस्य दूता अतिविस्मयान्विता
-ऊचुस्तदा विष्णुपदानुचारिणः ।
-कोऽयं विलङ्घ्य प्रभुणो विधिं खलान्
-निवारयन्नस्य पतत्यधर्मिणः ।
-लोकत्रये धर्ममयं यमस्य यत्
-शासं कथं वा खलु लङ्घ्यतेऽत्र वः ॥",
-          transliteration: "yamasya dūtā ativismayānvitā
-ūcustadā viṣṇupadānucāriṇaḥ |
-kō'yaṁ vilaṅghya prabhuṇō vidhiṁ khalān
-nivārayannasya patatyādharmiṇaḥ |
-lōkatrayē dharmamayaṁ yamasya yat
-śāsaṁ kathaṁ vā khalu laṅghyatē'tra vaḥ ||",
+          devanagari: "यमस्य दूता अतिविस्मयान्विता\nऊचुस्तदा विष्णुपदानुचारिणः ।\nकोऽयं विलङ्घ्य प्रभुणो विधिं खलान्\nनिवारयन्नस्य पतत्यधर्मिणः ।\nलोकत्रये धर्ममयं यमस्य यत्\nशासं कथं वा खलु लङ्घ्यतेऽत्र वः ॥",
+          transliteration: "yamasya dūtā ativismayānvitā\nūcustadā viṣṇupadānucāriṇaḥ |\nkō'yaṁ vilaṅghya prabhuṇō vidhiṁ khalān\nnivārayannasya patatyādharmiṇaḥ |\nlōkatrayē dharmamayaṁ yamasya yat\nśāsaṁ kathaṁ vā khalu laṅghyatē'tra vaḥ ||",
           translation: "The messengers of Yama, filled with great astonishment, then addressed the followers of Lord Vishnu: 'Who are you who transgress the decree of our master and prevent this sinner from falling to punishment? The rule of Yama, rooted in dharma, extends across all three worlds — how dare you violate it here?'",
           commentary: "The Yamadutas' challenge represents the position of karmic legalism — the strict accounting of merit and demerit. Their argument has real force: Yama's jurisdiction (shasam) is dharma-based (dharma-mayam) and extends across all three worlds (loka-traye). From their perspective, this intervention is lawless. The word 'ativismaya' (great astonishment) reveals they have never encountered such resistance before. Bhattathiri sets up the debate with genuine intellectual fairness, giving the legalist position its due before demolishing it.",
           words: [
@@ -4959,18 +4919,8 @@ lōkatrayē dharmamayaṁ yamasya yat
         {
           dashaka: 22,
           sloka: 5,
-          devanagari: "इत्थं ब्रुवाणान् यमदूतकान् प्रति
-प्रत्यूचुरुच्चैर्भवदीयकिङ्कराः ।
-नाम्नैव नारायणशब्दमात्रतः
-सर्वं कृतं पापमशेषमस्य तत् ।
-प्रध्वस्तमेवेति हि नामसंकृति-
-र्ज्ञानादज्ञानाद्वपि मुक्तिकारिणी ॥",
-          transliteration: "itthaṁ bruvāṇān yamadūtakān prati
-pratyūcuruccairbhavadīyakiṅkarāḥ |
-nāmnaiva nārāyaṇaśabdamātrataḥ
-sarvaṁ kṛtaṁ pāpamaśēṣamasya tat |
-pradhvastamēvēti hi nāmasaṁkṛti-
-rjñānādajñānādvapi muktikāriṇī ||",
+          devanagari: "इत्थं ब्रुवाणान् यमदूतकान् प्रति\nप्रत्यूचुरुच्चैर्भवदीयकिङ्कराः ।\nनाम्नैव नारायणशब्दमात्रतः\nसर्वं कृतं पापमशेषमस्य तत् ।\nप्रध्वस्तमेवेति हि नामसंकृति-\nर्ज्ञानादज्ञानाद्वपि मुक्तिकारिणी ॥",
+          transliteration: "itthaṁ bruvāṇān yamadūtakān prati\npratyūcuruccairbhavadīyakiṅkarāḥ |\nnāmnaiva nārāyaṇaśabdamātrataḥ\nsarvaṁ kṛtaṁ pāpamaśēṣamasya tat |\npradhvastamēvēti hi nāmasaṁkṛti-\nrjñānādajñānādvapi muktikāriṇī ||",
           translation: "To the Yamadutas speaking thus, Your servants replied with thundering voices: 'By the Name alone — merely by the utterance of the word Narayana — all the accumulated sin of this man, without remainder, has been utterly destroyed. For the chanting of the Name brings liberation whether done with knowledge or in ignorance.'",
           commentary: "This is the theological heart of the entire Ajamila episode and one of the most important declarations in the Bhagavatam. The Vishnudutas' counter-argument rests on a radical principle: the Name (nama) operates independently of the speaker's intent or knowledge. The phrase 'jnanad-ajnanad-vapi' (whether from knowledge or ignorance) demolishes the legalistic framework entirely. It is not the purity of the devotee that matters but the inherent power (shakti) of the divine Name itself. This doctrine of nama-mahatmya became central to all bhakti movements across India.",
           words: [
@@ -4992,18 +4942,8 @@ rjñānādajñānādvapi muktikāriṇī ||",
         {
           dashaka: 22,
           sloka: 6,
-          devanagari: "यथाग्निरिद्धः सहसा तृणान्यधो
-दहत्यशेषं न च वेत्ति तत्क्रियाम् ।
-तथैव नामापि हरेरुदीरितं
-दहत्यघौघान् न च भक्तितादृशी ।
-अपेक्ष्यतेऽत्र स्वत एव शुद्ध्यति
-प्रभोः स्वनामैव हि तत्स्वभावतः ॥",
-          transliteration: "yathāgniriddhaḥ sahasā tṛṇānyadhō
-dahatyaśēṣaṁ na ca vētti tatkṛyām |
-tathāiva nāmāpi harērudīritaṁ
-dahatyaghaughān na ca bhaktitādṛśī |
-apēkṣyatē'tra svata ēva śuddhyati
-prabhōḥ svanāmaiva hi tatsvabhāvataḥ ||",
+          devanagari: "यथाग्निरिद्धः सहसा तृणान्यधो\nदहत्यशेषं न च वेत्ति तत्क्रियाम् ।\nतथैव नामापि हरेरुदीरितं\nदहत्यघौघान् न च भक्तितादृशी ।\nअपेक्ष्यतेऽत्र स्वत एव शुद्ध्यति\nप्रभोः स्वनामैव हि तत्स्वभावतः ॥",
+          transliteration: "yathāgniriddhaḥ sahasā tṛṇānyadhō\ndahatyaśēṣaṁ na ca vētti tatkṛyām |\ntathāiva nāmāpi harērudīritaṁ\ndahatyaghaughān na ca bhaktitādṛśī |\napēkṣyatē'tra svata ēva śuddhyati\nprabhōḥ svanāmaiva hi tatsvabhāvataḥ ||",
           translation: "Just as a blazing fire instantly burns all the dry grass placed upon it without the grass knowing the process, even so the Name of Hari when uttered burns away heaps of sin — and no special quality of devotion is required here, for the Lord's own Name purifies by its very nature.",
           commentary: "The fire-and-grass analogy (agni-trina) is a masterstroke of theological argumentation. Fire does not ask whether the grass consents or understands — it burns by its inherent nature (sva-bhavata). Similarly, the divine Name possesses intrinsic purifying power that operates regardless of the devotee's qualification. The phrase 'na ca bhakti-tadrishi apekshyate' (no such devotion is required) is revolutionary — it removes all prerequisites and qualifications from the salvific mechanism. This verse encapsulates the Bhagavatam's most radical theological claim about nama-mahatmya.",
           words: [
@@ -5024,18 +4964,8 @@ prabhōḥ svanāmaiva hi tatsvabhāvataḥ ||",
         {
           dashaka: 22,
           sloka: 7,
-          devanagari: "निशम्य वाणीममृतोपमां विभोः
-पार्षदानामतिदिव्यभाषितम् ।
-यमस्य दूताः सविषादमानसाः
-पराजिता नाम विवादसंगरे ।
-विमुच्य पाशान् द्विजमन्तिकस्थितं
-ययुर्यमस्यालयमाशु लज्जिताः ॥",
-          transliteration: "niśamya vāṇīmamṛtōpamāṁ vibhōḥ
-pārṣadānāmatidivyabhāṣitam |
-yamasya dūtāḥ saviṣādamānasāḥ
-parājitā nāma vivādasaṁgarē |
-vimucya pāśān dvijamantikasthitaṁ
-yayuryamasyālayamāśu lajjitāḥ ||",
+          devanagari: "निशम्य वाणीममृतोपमां विभोः\nपार्षदानामतिदिव्यभाषितम् ।\nयमस्य दूताः सविषादमानसाः\nपराजिता नाम विवादसंगरे ।\nविमुच्य पाशान् द्विजमन्तिकस्थितं\nययुर्यमस्यालयमाशु लज्जिताः ॥",
+          transliteration: "niśamya vāṇīmamṛtōpamāṁ vibhōḥ\npārṣadānāmatidivyabhāṣitam |\nyamasya dūtāḥ saviṣādamānasāḥ\nparājitā nāma vivādasaṁgarē |\nvimucya pāśān dvijamantikasthitaṁ\nyayuryamasyālayamāśu lajjitāḥ ||",
           translation: "Hearing the nectar-like speech of the Lord's divine attendants — their supremely celestial words — the messengers of Yama, with dejected hearts, defeated in the battle of debate, released their nooses from the brahmana standing nearby and departed swiftly to Yama's abode, ashamed.",
           commentary: "The defeat of the Yamadutas is portrayed as both intellectual ('vivada-samgare' — in the battle of debate) and emotional ('savishada-manasah' — with dejected minds, 'lajjitah' — ashamed). The Vishnudutas' words are described as 'amrita-upamam' (comparable to nectar) — sweet but devastating to the opposition. The releasing of the nooses (vimucya pashan) symbolizes the victory of grace over karmic law. Bhattathiri conveys that in the hierarchy of cosmic principles, Vishnu's mercy supersedes Yama's justice.",
           words: [
@@ -5056,18 +4986,8 @@ yayuryamasyālayamāśu lajjitāḥ ||",
         {
           dashaka: 22,
           sloka: 8,
-          devanagari: "ततो यमं प्राप्य निजालयस्थितं
-यमस्य दूताः कथयन्ति विस्मयात् ।
-स धर्मराजोऽपि विचार्य तत्त्वतो
-जगाद दूतान् स्वयमिष्टदेवताम् ।
-विष्णोः परं नास्ति हि लोकपालनं
-त्वन्नामकीर्तिः सकलाघनाशिनी ॥",
-          transliteration: "tatō yamaṁ prāpya nijālayasthitaṁ
-yamasya dūtāḥ kathayanti vismayāt |
-sa dharmarājō'pi vicārya tattvatō
-jagāda dūtān svayamiṣṭadēvatām |
-viṣṇōḥ paraṁ nāsti hi lōkapālanaṁ
-tvannāmakīrtiḥ sakalāghanāśinī ||",
+          devanagari: "ततो यमं प्राप्य निजालयस्थितं\nयमस्य दूताः कथयन्ति विस्मयात् ।\nस धर्मराजोऽपि विचार्य तत्त्वतो\nजगाद दूतान् स्वयमिष्टदेवताम् ।\nविष्णोः परं नास्ति हि लोकपालनं\nत्वन्नामकीर्तिः सकलाघनाशिनी ॥",
+          transliteration: "tatō yamaṁ prāpya nijālayasthitaṁ\nyamasya dūtāḥ kathayanti vismayāt |\nsa dharmarājō'pi vicārya tattvatō\njagāda dūtān svayamiṣṭadēvatām |\nviṣṇōḥ paraṁ nāsti hi lōkapālanaṁ\ntvannāmakīrtiḥ sakalāghanāśinī ||",
           translation: "Then, reaching Yama seated in his own abode, his messengers narrated the event with great wonder. That Dharmaraja too, reflecting on the truth, himself instructed his servants about his own chosen deity: 'There is no protector of the world greater than Vishnu. The fame of His Name destroys all sin.'",
           commentary: "Yama's response is theologically crucial — he does not rage against the Vishnudutas but acknowledges their authority. As Dharmaraja (the righteous king), his integrity compels him to affirm what is true: Vishnu's supremacy (Vishnoh param nasti). Remarkably, Yama calls Vishnu his own 'ishta-devata' (chosen deity), revealing that even the lord of death is a Vaishnava. His declaration that the Lord's Name destroys all sin (sakala-agha-nashini) ratifies the Vishnudutas' argument from the mouth of the opposing party's own lord.",
           words: [
@@ -5088,22 +5008,8 @@ tvannāmakīrtiḥ sakalāghanāśinī ||",
         {
           dashaka: 22,
           sloka: 9,
-          devanagari: "अजामिलोऽसावपि विस्मयं गतो
-विलोक्य सर्वं भवदीयचेष्टितम् ।
-विरक्तचित्तो विषयेष्वशेषतो
-जगाम तीर्थं हरिद्वारमुत्तमम् ।
-तपश्चचार द्विजसत्तमस्तदा
-भवत्पदध्यानरतो दृढव्रतः ।
-समस्तपापक्षयमाप्य निर्मलो
-भवत्प्रसादं परमं समश्नुत ॥",
-          transliteration: "ajāmilō'sāvapi vismayaṁ gatō
-vilōkya sarvaṁ bhavadīyacēṣṭitam |
-viraktacittō viṣayēṣvaśēṣatō
-jagāma tīrthaṁ haridvāramuttamam |
-tapaścacāra dvijasattamastadā
-bhavatpadādhyānaratō dṛḍhavrataḥ |
-samastapāpakṣayamāpya nirmalō
-bhavatprasādaṁ paramaṁ samaśnuta ||",
+          devanagari: "अजामिलोऽसावपि विस्मयं गतो\nविलोक्य सर्वं भवदीयचेष्टितम् ।\nविरक्तचित्तो विषयेष्वशेषतो\nजगाम तीर्थं हरिद्वारमुत्तमम् ।\nतपश्चचार द्विजसत्तमस्तदा\nभवत्पदध्यानरतो दृढव्रतः ।\nसमस्तपापक्षयमाप्य निर्मलो\nभवत्प्रसादं परमं समश्नुत ॥",
+          transliteration: "ajāmilō'sāvapi vismayaṁ gatō\nvilōkya sarvaṁ bhavadīyacēṣṭitam |\nviraktacittō viṣayēṣvaśēṣatō\njagāma tīrthaṁ haridvāramuttamam |\ntapaścacāra dvijasattamastadā\nbhavatpadādhyānaratō dṛḍhavrataḥ |\nsamastapāpakṣayamāpya nirmalō\nbhavatprasādaṁ paramaṁ samaśnuta ||",
           translation: "Ajamila too, filled with wonder, beholding all Your divine play, became completely detached from worldly objects in his mind. He went to the sacred pilgrimage site of Haridwar. That best of brahmanas then performed intense austerities, absorbed in meditation on Your feet, firm in his vows. Having achieved the destruction of all sins and become spotless, he attained Your supreme grace.",
           commentary: "Ajamila's transformation represents the complete arc of redemption through nama-mahatmya. The initial accidental utterance of 'Narayana' saved him from Yama, but it also awakened genuine spiritual aspiration. His dispassion (virakta-citta) toward all sense objects (vishayeshu-asheshatah), his pilgrimage to Haridwar, and his firm austerities (dridha-vrata) show that the Name's grace does not merely cancel punishment — it transforms the soul. Bhattathiri emphasizes that the grace received (bhavat-prasadam paramam) comes through the combination of the Name's autonomous power and Ajamila's subsequent conscious surrender.",
           words: [
@@ -5124,22 +5030,8 @@ bhavatprasādaṁ paramaṁ samaśnuta ||",
         {
           dashaka: 22,
           sloka: 10,
-          devanagari: "त्यक्त्वा कलेवरमिदं भगवद्विभूतिं
-प्राप्तो द्विजः परमभागवतो महात्मा ।
-दिव्यं विमानमधिरुह्य विराजमानो
-वैकुण्ठमापदचिरेण भवत्प्रसादात् ।
-त्वन्नामनिष्ठितमहापुरुषो ह्यजामि-
-लस्तत्प्रभावमिदमाह जगत्सु कृष्ण ।
-मारुत्पुराधिप मुकुन्द भवन्तमीडे
-त्वं पाहि नित्यमजितेन्द्रियमाशु भक्तम् ॥",
-          transliteration: "tyaktvā kalēvaramidaṁ bhagavadvibhūtiṁ
-prāptō dvijaḥ paramabhāgavatō mahātmā |
-divyaṁ vimānamdhiruhya virājamānō
-vaikuṇṭhamāpadacirēṇa bhavatprasādāt |
-tvannāmaniṣṭhitamahāpuruṣō hyajāmi-
-lastatprabhāvamidamāha jagatsu kṛṣṇa |
-mārutpurādhipa mukunda bhavantamīḍē
-tvaṁ pāhi nityamajitēndriyamāśu bhaktam ||",
+          devanagari: "त्यक्त्वा कलेवरमिदं भगवद्विभूतिं\nप्राप्तो द्विजः परमभागवतो महात्मा ।\nदिव्यं विमानमधिरुह्य विराजमानो\nवैकुण्ठमापदचिरेण भवत्प्रसादात् ।\nत्वन्नामनिष्ठितमहापुरुषो ह्यजामि-\nलस्तत्प्रभावमिदमाह जगत्सु कृष्ण ।\nमारुत्पुराधिप मुकुन्द भवन्तमीडे\nत्वं पाहि नित्यमजितेन्द्रियमाशु भक्तम् ॥",
+          transliteration: "tyaktvā kalēvaramidaṁ bhagavadvibhūtiṁ\nprāptō dvijaḥ paramabhāgavatō mahātmā |\ndivyaṁ vimānamdhiruhya virājamānō\nvaikuṇṭhamāpadacirēṇa bhavatprasādāt |\ntvannāmaniṣṭhitamahāpuruṣō hyajāmi-\nlastatprabhāvamidamāha jagatsu kṛṣṇa |\nmārutpurādhipa mukunda bhavantamīḍē\ntvaṁ pāhi nityamajitēndriyamāśu bhaktam ||",
           translation: "Casting off this mortal body, that brahmana — now a supreme devotee, a great soul — ascended a divine aerial chariot, resplendent, and reached Vaikuntha swiftly by Your grace. Thus Ajamila, established in Your Name, became a great soul, and this glory is proclaimed across the worlds, O Krishna! O Lord of Guruvayur, O Mukunda, I praise You — protect always and swiftly this devotee who has not yet conquered his senses!",
           commentary: "The concluding verse accomplishes three things simultaneously. First, it completes Ajamila's narrative arc: the former sinner ascends to Vaikuntha in a divine vimana, the ultimate vindication of nama-mahatmya. Second, the phrase 'tvat-nama-nishthita-maha-purusha' (great soul established in Your Name) declares the theological conclusion: the Name alone elevates one to the highest spiritual state. Third, Bhattathiri inserts his characteristic personal prayer — 'ajita-indriyam ashu bhaktam' (a devotee who has not yet conquered his senses) — a humble self-reference acknowledging his own imperfection while claiming the same grace that saved Ajamila. The address 'Marutpuradhipa Mukunda' (Lord of Guruvayur, giver of liberation) perfectly ties the cosmic narrative to the poet's own devotional reality.",
           words: [
@@ -7727,7 +7619,237 @@ tvaṁ pāhi nityamajitēndriyamāśu bhaktam ||",
       theme: "avatar",
       verseCount: 10,
       summary: "Begins the Krishna narrative with the divine prophecy foretelling Kamsa's death at the hands of Devaki's eighth child. Kamsa imprisons Devaki and Vasudeva in fear.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 35,
+          sloka: 1,
+          devanagari: "भूभारक्लेशदुःखैरतिविकलधियां देवतानां कदाचित्\nब्रह्मा सार्धं समेत्य क्षितितलमगमत्क्षीरसिन्धोस्तटान्तम् ।\nतत्र स्तुत्वा मुरारिं बहुविधनुतिभिः प्रार्थयामास देवान्\nआश्वास्याश्वास्य वाणीमुदितवति हरौ लब्धसन्तोषमासन् ॥",
+          transliteration: "bhūbhārakleśaduḥkhair ativikaladhiyāṁ devatānāṁ kadācit\nbrahma sārdhaṁ sametya kṣititalam agamat kṣīrasindhostaTāntam |\ntatra stutvā murāriṁ bahuvidhanutibhiḥ prārthayāmāsa devān\nāśvāsyāśvāsya vāṇīm uditavati harau labdhasantoṣam āsan ||",
+          translation: "Once, when the devas were greatly distressed in mind due to the burden of the earth's suffering, Brahma together with them went to the shore of the Milk Ocean. There, having praised Murari with many kinds of hymns, he prayed. When Lord Hari uttered reassuring words, they became consoled and satisfied.",
+          commentary: "This opening verse sets the stage for the Krishna avatar narrative as told in Bhagavatam Book 10. The earth, burdened by demonic kings, seeks divine relief. Brahma leads the devas to the Milk Ocean (Kshirasagara), the abode of Vishnu in his cosmic sleep, echoing the Bhumi-bharaharana theme central to the Dashavatara framework.",
+          words: [
+            { word: "भूभार", transliteration: "bhūbhāra", meaning: "burden of the earth" },
+            { word: "क्लेशदुःखैः", transliteration: "kleśaduḥkhaiḥ", meaning: "by afflictions and sorrows" },
+            { word: "अतिविकलधियाम्", transliteration: "ativikaladhiyām", meaning: "of those whose minds were greatly agitated" },
+            { word: "देवतानाम्", transliteration: "devatānām", meaning: "of the gods" },
+            { word: "ब्रह्मा", transliteration: "brahmā", meaning: "Lord Brahma, the creator" },
+            { word: "क्षीरसिन्धोः", transliteration: "kṣīrasindhoḥ", meaning: "of the Milk Ocean" },
+            { word: "तटान्तम्", transliteration: "taṭāntam", meaning: "to the shore" },
+            { word: "स्तुत्वा", transliteration: "stutvā", meaning: "having praised" },
+            { word: "मुरारिम्", transliteration: "murārim", meaning: "the enemy of Mura (Vishnu)" },
+            { word: "बहुविधनुतिभिः", transliteration: "bahuvidhanutibhiḥ", meaning: "with many kinds of hymns" },
+            { word: "प्रार्थयामास", transliteration: "prārthayāmāsa", meaning: "prayed, entreated" },
+            { word: "आश्वास्य", transliteration: "āśvāsya", meaning: "having reassured" },
+            { word: "लब्धसन्तोषम्", transliteration: "labdhasantoṣam", meaning: "having obtained satisfaction" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 2,
+          devanagari: "देवक्यां वासुदेवात् अवतरणमहं कर्तुकामः कदाचित्\nमत्कृष्णं रूपमेकं सकलभुवनपालं विधास्ये सुराणाम् ।\nयादोवंशे प्रसूतो भवति मम तनुः शुद्धसत्त्वैकमूर्तिः\nइत्यूचे वाणीमेनां भगवति गिरिशे तुष्टिमापुः सुरेशाः ॥",
+          transliteration: "devakyāṁ vāsudevāt avataraṇam ahaṁ kartukāmaḥ kadācit\nmatkṛṣṇaṁ rūpam ekaṁ sakalabhuvanapālaṁ vidhāsye surāṇām |\nyādovaṁśe prasūto bhavati mama tanuḥ śuddhasattvaikamūrtiḥ\nityūce vāṇīm enāṁ bhagavati giriśe tuṣṭim āpuḥ sureśāḥ ||",
+          translation: "The Lord declared: 'I shall descend from Vasudeva through Devaki, assuming My form as Krishna, the sole protector of all worlds. Born in the Yadu dynasty, My body shall be the very embodiment of pure sattva.' When the Lord spoke these words, the chiefs of the gods attained great joy.",
+          commentary: "This verse conveys Vishnu's promise to incarnate, drawn from Bhagavatam 10.1. The Lord specifies both parents — Devaki and Vasudeva — and the Yadu lineage, fulfilling cosmic dharmic requirements. The term 'śuddhasattva' distinguishes the Lord's transcendental body from the three gunas of prakriti, a key Vaishnava theological point emphasized by Bhattathiri.",
+          words: [
+            { word: "देवक्याम्", transliteration: "devakyām", meaning: "in Devaki, from Devaki" },
+            { word: "वासुदेवात्", transliteration: "vāsudevāt", meaning: "from Vasudeva" },
+            { word: "अवतरणम्", transliteration: "avataraṇam", meaning: "descent, incarnation" },
+            { word: "कर्तुकामः", transliteration: "kartukāmaḥ", meaning: "desiring to do" },
+            { word: "कृष्णम्", transliteration: "kṛṣṇam", meaning: "Krishna, the dark one" },
+            { word: "सकलभुवनपालम्", transliteration: "sakalabhuvanapālam", meaning: "protector of all worlds" },
+            { word: "विधास्ये", transliteration: "vidhāsye", meaning: "I shall create/assume" },
+            { word: "यादोवंशे", transliteration: "yādovaṁśe", meaning: "in the Yadu dynasty" },
+            { word: "प्रसूतः", transliteration: "prasūtaḥ", meaning: "born, produced" },
+            { word: "शुद्धसत्त्वैकमूर्तिः", transliteration: "śuddhasattvaikamūrtiḥ", meaning: "the sole form of pure sattva" },
+            { word: "भगवति", transliteration: "bhagavati", meaning: "the Lord, the blessed one" },
+            { word: "तुष्टिम्", transliteration: "tuṣṭim", meaning: "satisfaction, joy" },
+            { word: "सुरेशाः", transliteration: "sureśāḥ", meaning: "lords of the gods" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 3,
+          devanagari: "उग्रसेनस्य पुत्रः स खलु मथुरायां कंस एवाभिषिक्तः\nतस्यासीत् भगिनी सा खलु सुललितगात्री च देवक्यभिज्ञा ।\nतस्याः कालेन योग्यं वरमुपगतवान् वासुदेवो महात्मा\nविख्यातो यादवेषु प्रथितगुणगणः शूरसेनात्मजो यः ॥",
+          transliteration: "ugrasenas ya putraḥ sa khalu mathurāyāṁ kaṁsa evābhiṣiktaḥ\ntasyāsīt bhaginī sā khalu sulalitagātrī ca devaky abhijñā |\ntasyāḥ kālena yogyaṁ varam upagatavān vāsudevo mahātmā\nvikhyāto yādaveṣu prathitaguṇagaṇaḥ śūrasenātmajo yaḥ ||",
+          translation: "Kamsa, the son of Ugrasena, was indeed the crowned ruler of Mathura. He had a sister named Devaki, of graceful form and noble bearing. In due time, the great-souled Vasudeva — famous among the Yadavas, renowned for his many virtues, son of Shurasena — came as her worthy bridegroom.",
+          commentary: "Bhattathiri introduces the key dramatis personae of the Krishna narrative. Kamsa's position as king of Mathura (having usurped his father Ugrasena's throne) and Devaki's beauty are established. Vasudeva's noble lineage from Shurasena and his prominence among the Yadavas set the stage for the divine couple who will become Krishna's parents, as described in Bhagavatam 10.1.28-31.",
+          words: [
+            { word: "उग्रसेनस्य", transliteration: "ugrasenasya", meaning: "of Ugrasena" },
+            { word: "पुत्रः", transliteration: "putraḥ", meaning: "son" },
+            { word: "मथुरायाम्", transliteration: "mathurāyām", meaning: "in Mathura" },
+            { word: "कंसः", transliteration: "kaṁsaḥ", meaning: "Kamsa" },
+            { word: "अभिषिक्तः", transliteration: "abhiṣiktaḥ", meaning: "crowned, anointed" },
+            { word: "भगिनी", transliteration: "bhaginī", meaning: "sister" },
+            { word: "सुललितगात्री", transliteration: "sulalitagātrī", meaning: "one with graceful limbs" },
+            { word: "देवकी", transliteration: "devakī", meaning: "Devaki" },
+            { word: "वरम्", transliteration: "varam", meaning: "bridegroom" },
+            { word: "वासुदेवः", transliteration: "vāsudevaḥ", meaning: "Vasudeva" },
+            { word: "महात्मा", transliteration: "mahātmā", meaning: "great-souled one" },
+            { word: "यादवेषु", transliteration: "yādaveṣu", meaning: "among the Yadavas" },
+            { word: "शूरसेनात्मजः", transliteration: "śūrasenātmajaḥ", meaning: "son of Shurasena" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 4,
+          devanagari: "विवाहोत्सवसम्पन्ने रथमारुह्य सोदरीम्\nकंसः स्वयं ययौ हर्तुं प्रीत्या सारथ्यमाचरन् ।\nतावत् खे वागुवाचोच्चैः अष्टमो गर्भसम्भवः |\nदेवक्यास्त्वां हनिष्यति इत्यशरीरवाक् स्फुटम् ॥",
+          transliteration: "vivāhotsavasampanne ratham āruhya sodarīm\nkaṁsaḥ svayaṁ yayau hartuṁ prītyā sārathyam ācaran |\ntāvat khe vāg uvācoccaiḥ aṣṭamo garbhasambhavaḥ\ndevakyās tvāṁ haniṣyati ity aśarīravāk sphuṭam ||",
+          translation: "When the wedding festivities were complete, Kamsa himself mounted the chariot to escort his sister, lovingly acting as her charioteer. At that very moment, a voice from the sky spoke aloud clearly: 'The eighth child born from Devaki's womb shall slay you!' — thus rang the disembodied prophecy.",
+          commentary: "This pivotal verse captures the dramatic turning point from Bhagavatam 10.1.34. Kamsa's affectionate gesture of personally driving his sister's chariot is shattered by the ashariri (disembodied divine voice). The juxtaposition of familial love and cosmic destiny is masterfully rendered. The prophecy of the eighth child becomes the engine driving all subsequent events of the Krishna narrative.",
+          words: [
+            { word: "विवाहोत्सव", transliteration: "vivāhotsava", meaning: "wedding celebration" },
+            { word: "रथम्", transliteration: "ratham", meaning: "chariot" },
+            { word: "आरुह्य", transliteration: "āruhya", meaning: "having mounted" },
+            { word: "सोदरीम्", transliteration: "sodarīm", meaning: "his own sister" },
+            { word: "सारथ्यम्", transliteration: "sārathyam", meaning: "the role of charioteer" },
+            { word: "आचरन्", transliteration: "ācaran", meaning: "performing, acting as" },
+            { word: "खे", transliteration: "khe", meaning: "in the sky" },
+            { word: "वाक्", transliteration: "vāk", meaning: "voice, speech" },
+            { word: "अष्टमः", transliteration: "aṣṭamaḥ", meaning: "the eighth" },
+            { word: "गर्भसम्भवः", transliteration: "garbhasambhavaḥ", meaning: "born from the womb" },
+            { word: "हनिष्यति", transliteration: "haniṣyati", meaning: "shall slay, will kill" },
+            { word: "अशरीरवाक्", transliteration: "aśarīravāk", meaning: "disembodied voice" },
+            { word: "स्फुटम्", transliteration: "sphuṭam", meaning: "clearly, distinctly" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 5,
+          devanagari: "तच्छ्रुत्वा भीतचेताः क्षणमपि विकलः कंस उग्रस्वभावः\nदेवक्याः केशपाशं कठिनमभिगृहन् खड्गमुद्यम्य रौद्रम् ।\nहन्तुं तामुद्यतोऽभूत् भगिनिमपि निजां नैव लज्जां दधानः\nक्रूरो राक्षसवृत्तिः सकलजनभयं सम्प्रवृद्धं तदानीम् ॥",
+          transliteration: "tacchrutvā bhītacetāḥ kṣaṇam api vikalaḥ kaṁsa ugra-svabhāvaḥ\ndevakyāḥ keśapāśaṁ kaṭhinam abhigṛhan khaḍgam udyamya raudram |\nhantuṁ tām udyato'bhūt bhaginim api nijāṁ naiva lajjāṁ dadhānaḥ\nkrūro rākṣasavṛttiḥ sakalajana-bhayaṁ sampravṛddhaṁ tadānīm ||",
+          translation: "Hearing that prophecy, Kamsa — fierce by nature — became terrified and agitated in an instant. Seizing Devaki's hair with a cruel grip and raising his terrible sword, he was ready to kill even his own sister, feeling no shame whatsoever. That demon-natured cruel one caused the fear of all people to multiply greatly at that moment.",
+          commentary: "Bhattathiri vividly depicts Kamsa's demonic nature erupting at the prophecy, following Bhagavatam 10.1.35. The act of seizing his sister's hair on her wedding day — a moment meant to be auspicious — reveals his rākṣasa-vṛtti (demonic disposition). This establishes Kamsa as an asura incarnate, fitting the Bhagavatam's identification of him as the demon Kalanemi reborn.",
+          words: [
+            { word: "भीतचेताः", transliteration: "bhītacetāḥ", meaning: "with a terrified mind" },
+            { word: "विकलः", transliteration: "vikalaḥ", meaning: "agitated, distressed" },
+            { word: "उग्रस्वभावः", transliteration: "ugra-svabhāvaḥ", meaning: "fierce by nature" },
+            { word: "केशपाशम्", transliteration: "keśapāśam", meaning: "mass of hair, tresses" },
+            { word: "कठिनम्", transliteration: "kaṭhinam", meaning: "cruelly, harshly" },
+            { word: "अभिगृहन्", transliteration: "abhigṛhan", meaning: "seizing, grasping" },
+            { word: "खड्गम्", transliteration: "khaḍgam", meaning: "sword" },
+            { word: "उद्यम्य", transliteration: "udyamya", meaning: "raising, brandishing" },
+            { word: "रौद्रम्", transliteration: "raudram", meaning: "terrible, fierce" },
+            { word: "भगिनिम्", transliteration: "bhaginim", meaning: "sister" },
+            { word: "लज्जाम्", transliteration: "lajjām", meaning: "shame, modesty" },
+            { word: "क्रूरः", transliteration: "krūraḥ", meaning: "cruel one" },
+            { word: "राक्षसवृत्तिः", transliteration: "rākṣasavṛttiḥ", meaning: "of demonic disposition" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 6,
+          devanagari: "तत्राभूत् वासुदेवः प्रशमितमनसा साधुवादं ब्रुवाणो\nमा मा कंसाग्रजे त्वं कुरु कृपणदशां स्त्रीवधो नैव धर्मः ।\nअष्टमे सम्भवे ते यदि भयमधिकं तत्सुतान् मे प्रदास्ये\nइत्युक्त्वा सान्त्वयामास स खलु तमसुरं बुद्धिसम्पन्नवाचा ॥",
+          transliteration: "tatrābhūt vāsudevaḥ praśamitamanasā sādhuvādaṁ bruvāṇo\nmā mā kaṁsāgraje tvaṁ kuru kṛpaṇadaśāṁ strīvadho naiva dharmaḥ |\naṣṭame sambhave te yadi bhayam adhikaṁ tatsutān me pradāsye\nityuktvā sāntvayāmāsa sa khalu tam asuraṁ buddhisampannavācā ||",
+          translation: "Then Vasudeva, with a calmed mind, speaking words of wisdom said: 'O Kamsa, do not, do not reduce yourself to such a pitiable state! Killing a woman is never righteous. If your great fear is of the eighth child, I shall hand over my sons to you.' Having spoken thus with words full of intelligence, he pacified that demon.",
+          commentary: "Vasudeva's diplomatic wisdom shines here, paralleling Bhagavatam 10.1.37-44. His argument is threefold: appealing to dharma (strī-vadha is adharmic), to Kamsa's self-interest (why act rashly now?), and offering a practical solution. The phrase 'buddhisampannavācā' highlights Vasudeva's sagacity. Bhattathiri portrays this as a temporary reprieve arranged by divine providence.",
+          words: [
+            { word: "प्रशमितमनसा", transliteration: "praśamitamanasā", meaning: "with a calmed mind" },
+            { word: "साधुवादम्", transliteration: "sādhuvādam", meaning: "words of wisdom, good counsel" },
+            { word: "ब्रुवाणः", transliteration: "bruvāṇaḥ", meaning: "speaking, saying" },
+            { word: "कृपणदशाम्", transliteration: "kṛpaṇadaśām", meaning: "pitiable condition" },
+            { word: "स्त्रीवधः", transliteration: "strīvadhaḥ", meaning: "killing of a woman" },
+            { word: "धर्मः", transliteration: "dharmaḥ", meaning: "righteousness, duty" },
+            { word: "अष्टमे", transliteration: "aṣṭame", meaning: "in the eighth" },
+            { word: "सम्भवे", transliteration: "sambhave", meaning: "birth, arising" },
+            { word: "भयम्", transliteration: "bhayam", meaning: "fear" },
+            { word: "सुतान्", transliteration: "sutān", meaning: "sons, children" },
+            { word: "प्रदास्ये", transliteration: "pradāsye", meaning: "I shall hand over" },
+            { word: "सान्त्वयामास", transliteration: "sāntvayāmāsa", meaning: "pacified, consoled" },
+            { word: "बुद्धिसम्पन्नवाचा", transliteration: "buddhisampannavācā", meaning: "with words full of intelligence" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 7,
+          devanagari: "कालेन प्राप्य तत्र प्रकटितविविधो नारदो दैवचिन्ती\nकंसं सम्बोध्य वाचा विषमतरगिरा भीतिमुत्पाद्य भूयः ।\nदेवक्याः सर्वगर्भाः तव खलु रिपवः देवसङ्घाश्च सर्वे\nयादोवंशे प्रसूताः इति विदधदमुं घोरसन्देहमग्नम् ॥",
+          transliteration: "kālena prāpya tatra prakaṭitavividho nārado daivacintī\nkaṁsaṁ sambodhya vācā viṣamataragirā bhītim utpādya bhūyaḥ |\ndevakyāḥ sarvagarbhāḥ tava khalu ripavaḥ devasaṅghāśca sarve\nyādovaṁśe prasūtāḥ iti vidadhadamuṁ ghorasandehavagnam ||",
+          translation: "In time, Narada — the divine sage who reveals hidden truths — arrived there and addressed Kamsa with extremely alarming words, generating even greater fear: 'All of Devaki's children are indeed your enemies! And all the hosts of devas have been born in the Yadu dynasty!' Thus he plunged Kamsa into terrible doubt and suspicion.",
+          commentary: "Narada's intervention is a crucial plot device in Bhagavatam 10.1.63-66. While apparently harmful, Narada's purpose is to accelerate the divine plan — by making Kamsa paranoid about all children, he ensures the conditions that necessitate Krishna's miraculous birth. Bhattathiri captures the irony: Narada the devotee seemingly aids the demon, yet serves the Lord's purpose perfectly.",
+          words: [
+            { word: "प्रकटितविविधः", transliteration: "prakaṭitavividhaḥ", meaning: "one who reveals various things" },
+            { word: "नारदः", transliteration: "nāradaḥ", meaning: "Narada, the celestial sage" },
+            { word: "दैवचिन्ती", transliteration: "daivacintī", meaning: "one who contemplates divine matters" },
+            { word: "सम्बोध्य", transliteration: "sambodhya", meaning: "having addressed, having informed" },
+            { word: "विषमतरगिरा", transliteration: "viṣamataragirā", meaning: "with extremely alarming speech" },
+            { word: "भीतिम्", transliteration: "bhītim", meaning: "fear, terror" },
+            { word: "उत्पाद्य", transliteration: "utpādya", meaning: "having generated, having caused" },
+            { word: "सर्वगर्भाः", transliteration: "sarvagarbhāḥ", meaning: "all the children of the womb" },
+            { word: "रिपवः", transliteration: "ripavaḥ", meaning: "enemies" },
+            { word: "देवसङ्घाः", transliteration: "devasaṅghāḥ", meaning: "hosts of gods" },
+            { word: "यादोवंशे", transliteration: "yādovaṁśe", meaning: "in the Yadu dynasty" },
+            { word: "घोरसन्देहमग्नम्", transliteration: "ghorasandehāmagnam", meaning: "plunged into terrible doubt" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 8,
+          devanagari: "एवं नारदवाक्यैः परमभयवशात् कंस उग्रप्रतापः\nदेवक्या वासुदेवं सह निगडयुगे बद्ध्वा कारागृहान्तः ।\nएकैकं जातमात्रं शिशुमपि सुतरां निर्दयो निर्जघान\nषट् पुत्रान् एवमेषां प्रतिजनिमवधीत् क्रूरबुद्धिः सदैव ॥",
+          transliteration: "evaṁ nāradavākyaiḥ paramabhayavaśāt kaṁsa ugrapratāpaḥ\ndevakyā vāsudevaṁ saha nigaḍayuge baddhvā kārāgṛhāntaḥ |\nekaikaṁ jātamātraṁ śiśum api sutarāṁ nirdayo nirjaghāna\nṣaṭ putrān evam eṣāṁ pratijanim avadhīt krūrabuddhiḥ sadaiva ||",
+          translation: "Thus, driven by supreme terror from Narada's words, Kamsa of fierce prowess bound Devaki together with Vasudeva in shackles and cast them into prison. Each child, the moment it was born, the merciless one slaughtered — thus he killed six sons of theirs, one birth after another, his cruel mind ever unrelenting.",
+          commentary: "This verse compresses the tragic events of Bhagavatam 10.1.56-68. The imprisonment in 'nigaḍa' (iron shackles) and the systematic murder of six infants underscore Kamsa's demonic cruelty. Bhattathiri's use of 'ekaikam jātamātram' (each one, the moment born) conveys the horror efficiently. The six slain children are identified in Bhagavatam as Marici and other devas cursed by Brahma.",
+          words: [
+            { word: "नारदवाक्यैः", transliteration: "nāradavākyaiḥ", meaning: "by the words of Narada" },
+            { word: "परमभयवशात्", transliteration: "paramabhayavaśāt", meaning: "due to supreme fear" },
+            { word: "उग्रप्रतापः", transliteration: "ugrapratāpaḥ", meaning: "of fierce prowess" },
+            { word: "निगडयुगे", transliteration: "nigaḍayuge", meaning: "in a pair of iron shackles" },
+            { word: "बद्ध्वा", transliteration: "baddhvā", meaning: "having bound" },
+            { word: "कारागृहान्तः", transliteration: "kārāgṛhāntaḥ", meaning: "inside the prison" },
+            { word: "जातमात्रम्", transliteration: "jātamātram", meaning: "the moment it was born" },
+            { word: "शिशुम्", transliteration: "śiśum", meaning: "infant, child" },
+            { word: "निर्दयः", transliteration: "nirdayaḥ", meaning: "merciless, without compassion" },
+            { word: "निर्जघान", transliteration: "nirjaghāna", meaning: "slaughtered, killed" },
+            { word: "षट्", transliteration: "ṣaṭ", meaning: "six" },
+            { word: "प्रतिजनिम्", transliteration: "pratijanim", meaning: "at each birth" },
+            { word: "क्रूरबुद्धिः", transliteration: "krūrabuddhiḥ", meaning: "one of cruel mind" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 9,
+          devanagari: "सप्तमे गर्भमासाद्य योगमायासहायतः\nसङ्कर्षणं महासत्त्वं रोहिण्या गर्भमाविशत् ।\nनन्दगोपगृहे तस्या गर्भसंक्रमणं व्यधात्\nगर्भस्रावं प्रसिद्धं ततोऽवदन् देवकीमुखात् ॥",
+          transliteration: "saptame garbham āsādya yogamāyāsahāyataḥ\nsaṅkarṣaṇaṁ mahāsattvaṁ rohiṇyā garbham āviśat |\nnandagopagṛhe tasyā garbhasaṁkramaṇaṁ vyadhāt\ngarbhasrāvaṁ prasiddhaṁ tato'vadan devakīmukhāt ||",
+          translation: "When the seventh conception arrived, through the aid of Yogamaya, the great-souled Sankarshana (Balarama) entered the womb of Rohini. In the house of Nanda the cowherd, Yogamaya effected this transfer of the embryo. Thereafter it was announced from Devaki's side that a miscarriage had occurred.",
+          commentary: "This verse describes the mystical transfer of the seventh child from Bhagavatam 10.2.8. Sankarshana (Balarama), being Vishnu's first expansion (adi-shesha), is transferred by Yogamaya from Devaki's womb to that of Rohini, Vasudeva's other wife living in Nanda's household in Vraja. The apparent 'miscarriage' conceals the divine operation, earning Balarama the name Sankarsana ('one who was drawn across').",
+          words: [
+            { word: "सप्तमे", transliteration: "saptame", meaning: "in the seventh" },
+            { word: "गर्भम्", transliteration: "garbham", meaning: "embryo, womb" },
+            { word: "आसाद्य", transliteration: "āsādya", meaning: "having reached, having attained" },
+            { word: "योगमाया", transliteration: "yogamāyā", meaning: "the divine power of illusion" },
+            { word: "सहायतः", transliteration: "sahāyataḥ", meaning: "with the help of" },
+            { word: "सङ्कर्षणम्", transliteration: "saṅkarṣaṇam", meaning: "Sankarshana (Balarama)" },
+            { word: "महासत्त्वम्", transliteration: "mahāsattvam", meaning: "the great-souled one" },
+            { word: "रोहिण्याः", transliteration: "rohiṇyāḥ", meaning: "of Rohini" },
+            { word: "नन्दगोपगृहे", transliteration: "nandagopagṛhe", meaning: "in the house of cowherd Nanda" },
+            { word: "गर्भसंक्रमणम्", transliteration: "garbhasaṁkramaṇam", meaning: "transfer of the embryo" },
+            { word: "व्यधात्", transliteration: "vyadhāt", meaning: "effected, arranged" },
+            { word: "गर्भस्रावम्", transliteration: "garbhasrāvam", meaning: "miscarriage" },
+            { word: "प्रसिद्धम्", transliteration: "prasiddham", meaning: "well-known, announced" }
+          ]
+        },
+        {
+          dashaka: 35,
+          sloka: 10,
+          devanagari: "अथ खलु भवतः प्रसादलब्ध्या देवगणाः संहृष्टमानसास्ते ।\nप्रतिपालयन्ति दिव्यं जन्म तव गोपिकानन्दकन्दम् ।\nत्वं मे गुरुपवनपुरेश सान्द्रकरुणा-\nपूरेण भूयो भवरोगमाशु नाशय ॥",
+          transliteration: "atha khalu bhavataḥ prasādalabdhyā devagaṇāḥ saṁhṛṣṭamānasāste |\npratipālayanti divyaṁ janma tava gopikānandakandam |\ntvaṁ me gurupavanapureśa sāndrakaruṇā-\npūreṇa bhūyo bhavarōgam āśu nāśaya ||",
+          translation: "And so, having received Your gracious assurance, the hosts of devas waited with joyful hearts for Your divine birth — You who are the root of bliss for the gopis. O Lord of Guruvayur, with the flood of Your abundant compassion, swiftly destroy my disease of worldly existence once again!",
+          commentary: "The concluding verse follows Bhattathiri's signature pattern of returning to the personal and devotional. The devas' anticipation of Krishna's birth transitions into the poet's own prayer to Guruvayurappan. The term 'gopikānandakandam' (root of the gopis' bliss) foreshadows the Vraja-lila to come. The closing plea for relief from 'bhavaroga' (disease of samsara — but also his literal illness) is characteristic of every dashaka's final verse in Narayaneeyam.",
+          words: [
+            { word: "प्रसादलब्ध्या", transliteration: "prasādalabdhyā", meaning: "by receiving grace" },
+            { word: "देवगणाः", transliteration: "devagaṇāḥ", meaning: "hosts of gods" },
+            { word: "संहृष्टमानसाः", transliteration: "saṁhṛṣṭamānasāḥ", meaning: "with joyful minds" },
+            { word: "प्रतिपालयन्ति", transliteration: "pratipālayanti", meaning: "they await, they watch for" },
+            { word: "दिव्यम्", transliteration: "divyam", meaning: "divine" },
+            { word: "जन्म", transliteration: "janma", meaning: "birth" },
+            { word: "गोपिकानन्दकन्दम्", transliteration: "gopikānandakandam", meaning: "root of the gopis' bliss" },
+            { word: "गुरुपवनपुरेश", transliteration: "gurupavanapureśa", meaning: "O Lord of Guruvayur" },
+            { word: "सान्द्रकरुणा", transliteration: "sāndrakaruṇā", meaning: "intense compassion" },
+            { word: "पूरेण", transliteration: "pūreṇa", meaning: "with the flood of" },
+            { word: "भवरोगम्", transliteration: "bhavarōgam", meaning: "disease of worldly existence" },
+            { word: "आशु", transliteration: "āśu", meaning: "swiftly, quickly" },
+            { word: "नाशय", transliteration: "nāśaya", meaning: "destroy, remove" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 36,
@@ -7736,7 +7858,238 @@ tvaṁ pāhi nityamajitēndriyamāśu bhaktam ||",
       theme: "avatar",
       verseCount: 10,
       summary: "Describes the miraculous birth of Lord Krishna in the prison of Kamsa at midnight, the divine vision granted to His parents, and Vasudeva's journey carrying the infant across the Yamuna to Gokula.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 36,
+          sloka: 1,
+          devanagari: "प्रसवसमये तस्याः कंसस्य घोरे निरोधे\nनिशि निशिचरघ्नस्त्वं शौरिजायागृहे तत् ।\nउपहितमहायोगं स्वेच्छावशाद्भूमिभारो-\nत्तरणमतिमनोज्ञं रूपमाविर्भभूव ॥",
+          transliteration: "prasava-samaye tasyāḥ kaṁsasya ghore nirodhe\nniśi niśicaraghnas tvaṁ śaurijāyā-gṛhe tat |\nupahita-mahāyogaṁ svecchāvaśād bhūmibhāro-\nttaraṇam atimanojñaṁ rūpam āvirbhabhūva ||",
+          translation: "At the time of delivery, in the terrible prison of Kamsa, in the dead of night, O slayer of demons, You manifested in the home of Vasudeva's wife that supremely enchanting form, endowed with great divine power, assumed by Your own will for the removal of the earth's burden.",
+          commentary: "This opening verse sets the scene of Krishna's birth as described in Bhagavatam 10.3.1-7. The poet emphasizes that the Lord's incarnation was entirely of His own free will (svecchā), not compelled by karma. The term 'niśicaraghna' (slayer of night-wandering demons) foreshadows Krishna's mission. The 'ghora nirodha' (terrible imprisonment) highlights the contrast between divine glory and earthly confinement.",
+          words: [
+            { word: "प्रसवसमये", transliteration: "prasava-samaye", meaning: "at the time of delivery/birth" },
+            { word: "कंसस्य", transliteration: "kaṁsasya", meaning: "of Kamsa" },
+            { word: "घोरे", transliteration: "ghore", meaning: "terrible, dreadful" },
+            { word: "निरोधे", transliteration: "nirodhe", meaning: "in confinement, imprisonment" },
+            { word: "निशि", transliteration: "niśi", meaning: "at night" },
+            { word: "निशिचरघ्नः", transliteration: "niśicaraghnaḥ", meaning: "slayer of night-roaming demons" },
+            { word: "शौरिजाया", transliteration: "śaurijāyā", meaning: "wife of Vasudeva (Devaki)" },
+            { word: "उपहितमहायोगम्", transliteration: "upahita-mahāyogam", meaning: "endowed with supreme yogic power" },
+            { word: "स्वेच्छावशात्", transliteration: "svecchāvaśāt", meaning: "by one's own will" },
+            { word: "भूमिभारोत्तरणम्", transliteration: "bhūmibhārottaraṇam", meaning: "for removing the burden of the earth" },
+            { word: "अतिमनोज्ञम्", transliteration: "atimanojñam", meaning: "supremely enchanting" },
+            { word: "रूपम्", transliteration: "rūpam", meaning: "form, appearance" },
+            { word: "आविर्बभूव", transliteration: "āvirbabhūva", meaning: "manifested, appeared" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 2,
+          devanagari: "शङ्खं चक्रं गदां पद्ममपि दधतमुद्यत्किरीटं सुवस्त्रं\nकौस्तुभोद्भासिहारं सुमणिगणमयश्रीकटीसूत्रभूषम् ।\nश्रीवत्साङ्कं प्रसन्नं सरसकमलकान्त्या समग्रं विभान्तं\nत्वामालोक्योन्मिषन्तं पितरमिव शिशुं वीक्षतामास देवी ॥",
+          transliteration: "śaṅkhaṁ cakraṁ gadāṁ padmam api dadhatam udyat-kirīṭaṁ suvastraṁ\nkaustubhodbhāsi-hāraṁ sumaṇi-gaṇamaya-śrī-kaṭīsūtra-bhūṣam |\nśrīvatsāṅkaṁ prasannaṁ sarasa-kamala-kāntyā samagraṁ vibhāntaṁ\ntvām ālokya unmiṣantaṁ pitaram iva śiśuṁ vīkṣatām āsa devī ||",
+          translation: "Bearing the conch, disc, mace, and lotus, with a resplendent crown rising aloft, clad in fine garments, adorned with a necklace radiant with the Kaustubha gem, wearing a jewel-studded golden waist-cord, marked with the Srivatsa sign, gracious, shining completely with the luster of a fresh lotus — beholding You thus manifest, Devaki gazed upon You as a child would gaze upon its father.",
+          commentary: "This verse closely follows Bhagavatam 10.3.9-10 describing the chaturbhuja (four-armed) form of Vishnu that appeared before Devaki. The elaborate description of divine attributes — Shankha, Chakra, Gada, Padma, Kaustubha, and Srivatsa — establishes that this is no ordinary birth but the direct descent of the Supreme Lord. The simile of a child gazing at a father reverses the expected parent-child relationship, emphasizing devotional wonder.",
+          words: [
+            { word: "शङ्खम्", transliteration: "śaṅkham", meaning: "conch (Panchajanya)" },
+            { word: "चक्रम्", transliteration: "cakram", meaning: "discus (Sudarshana)" },
+            { word: "गदाम्", transliteration: "gadām", meaning: "mace (Kaumodaki)" },
+            { word: "पद्मम्", transliteration: "padmam", meaning: "lotus" },
+            { word: "उद्यत्किरीटम्", transliteration: "udyat-kirīṭam", meaning: "with upraised/gleaming crown" },
+            { word: "कौस्तुभोद्भासिहारम्", transliteration: "kaustubhodbhāsi-hāram", meaning: "necklace shining with Kaustubha gem" },
+            { word: "श्रीकटीसूत्रभूषम्", transliteration: "śrī-kaṭīsūtra-bhūṣam", meaning: "adorned with sacred waist-cord" },
+            { word: "श्रीवत्साङ्कम्", transliteration: "śrīvatsāṅkam", meaning: "bearing the Srivatsa mark" },
+            { word: "प्रसन्नम्", transliteration: "prasannam", meaning: "gracious, serene" },
+            { word: "सरसकमलकान्त्या", transliteration: "sarasa-kamala-kāntyā", meaning: "with the luster of a fresh lotus" },
+            { word: "विभान्तम्", transliteration: "vibhāntam", meaning: "shining, radiant" },
+            { word: "आलोक्य", transliteration: "ālokya", meaning: "beholding, seeing" },
+            { word: "देवी", transliteration: "devī", meaning: "the goddess (Devaki)" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 3,
+          devanagari: "देवक्याः स्तुतिभिस्तुष्टो वसुदेवस्य चाञ्जलेः\nत्वं प्राचीनजनित्रोक्तिं स्मारयन् प्राक्तनं वरम् ।\nपृशनिग्रहदम्पत्योर्भूत्वाहं वामनाकृतिः\nअदृश्यमाय तत्रैव पूर्वजन्मस्मृतिं ददौ ॥",
+          transliteration: "devakyāḥ stutibhis tuṣṭo vasudevasya cāñjaleḥ\ntvaṁ prācīna-janitr-oktiṁ smārayan prāktanaṁ varam |\npṛśanigrahad ampatyor bhūtvāhaṁ vāmanākṛtiḥ\nadṛśyam āya tatraiva pūrvajanma-smṛtiṁ dadau ||",
+          translation: "Pleased by Devaki's hymns and Vasudeva's folded hands, You reminded them of the boon granted in a former birth, saying: 'Having been born as Vamana to the couple Prishni and Sutapa, I have now appeared here again.' Thus You bestowed upon them the memory of their previous births.",
+          commentary: "This verse draws from Bhagavatam 10.3.32-44 where Krishna reveals to His parents that He had previously appeared as their son in two earlier births — first as Prishnigarbha to Prishni and Sutapa, and then as Vamana to Aditi and Kashyapa. The Lord's reminder of prāktana vara (ancient boon) refers to the couple's wish, after severe austerities, to have God Himself as their son. Bhattathiri compresses this profound theological revelation into a single verse.",
+          words: [
+            { word: "देवक्याः", transliteration: "devakyāḥ", meaning: "of Devaki" },
+            { word: "स्तुतिभिः", transliteration: "stutibhiḥ", meaning: "by hymns of praise" },
+            { word: "तुष्टः", transliteration: "tuṣṭaḥ", meaning: "pleased, satisfied" },
+            { word: "अञ्जलेः", transliteration: "añjaleḥ", meaning: "from the folded hands (salutation)" },
+            { word: "प्राचीनजनित्रोक्तिम्", transliteration: "prācīna-janitroktiṁ", meaning: "the account of former parents" },
+            { word: "स्मारयन्", transliteration: "smārayan", meaning: "reminding, causing to remember" },
+            { word: "प्राक्तनम्", transliteration: "prāktanam", meaning: "ancient, of former times" },
+            { word: "वरम्", transliteration: "varam", meaning: "boon, blessing" },
+            { word: "पृशनिग्रह", transliteration: "pṛśanigraha", meaning: "Prishni and Sutapa (the couple)" },
+            { word: "वामनाकृतिः", transliteration: "vāmanākṛtiḥ", meaning: "in the form of Vamana" },
+            { word: "अदृश्यम्", transliteration: "adṛśyam", meaning: "invisible, unseen" },
+            { word: "पूर्वजन्मस्मृतिम्", transliteration: "pūrvajanma-smṛtim", meaning: "memory of previous births" },
+            { word: "ददौ", transliteration: "dadau", meaning: "gave, bestowed" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 4,
+          devanagari: "गोकुले नन्दगेहे तु यशोदा प्रसवोन्मुखी\nतत्रैनं नयतात्पत्नीं तत्रत्यामानयस्व च ।\nमायां विधाय सकलं स्वापयिष्ये जनं तथा\nइत्युक्त्वा शिशुरूपं त्वं सद्यस्त्वावापुरात्मजम् ॥",
+          transliteration: "gokule nandagehe tu yaśodā prasavonmukhī\ntatrainaṁ nayatāt patnīṁ tatratyām ānayasva ca |\nmāyāṁ vidhāya sakalaṁ svāpayiṣye janaṁ tathā\nity uktvā śiśu-rūpaṁ tvaṁ sadyas tvāvāpur ātmajam ||",
+          translation: "You instructed: 'In Gokula, in Nanda's house, Yashoda is about to give birth. Carry this child there and bring back her daughter. I shall, by My Maya, put everyone to sleep.' Having said this, You immediately assumed the form of an infant, and the parents received You as their own son.",
+          commentary: "This verse captures the pivotal instruction from Bhagavatam 10.3.47-48 where the Lord commands Vasudeva to exchange Him with Yashoda's newborn. The theological significance is immense — the Supreme Lord voluntarily submits to being carried as a helpless infant. The mention of Yogamaya putting everyone to sleep (svāpayiṣye) shows the divine orchestration behind the apparently miraculous events. The transformation from chaturbhuja form to infant form signals the beginning of Krishna's human-like leela.",
+          words: [
+            { word: "गोकुले", transliteration: "gokule", meaning: "in Gokula" },
+            { word: "नन्दगेहे", transliteration: "nandagehe", meaning: "in Nanda's house" },
+            { word: "यशोदा", transliteration: "yaśodā", meaning: "Yashoda (Nanda's wife)" },
+            { word: "प्रसवोन्मुखी", transliteration: "prasavonmukhī", meaning: "about to give birth" },
+            { word: "नयतात्", transliteration: "nayatāt", meaning: "carry, take (imperative)" },
+            { word: "पत्नीम्", transliteration: "patnīm", meaning: "wife, the daughter" },
+            { word: "आनयस्व", transliteration: "ānayasva", meaning: "bring back" },
+            { word: "मायाम्", transliteration: "māyām", meaning: "divine illusion, Yogamaya" },
+            { word: "विधाय", transliteration: "vidhāya", meaning: "having employed, arranging" },
+            { word: "स्वापयिष्ये", transliteration: "svāpayiṣye", meaning: "I shall put to sleep" },
+            { word: "शिशुरूपम्", transliteration: "śiśu-rūpam", meaning: "the form of an infant" },
+            { word: "सद्यः", transliteration: "sadyaḥ", meaning: "immediately, at once" },
+            { word: "आत्मजम्", transliteration: "ātmajam", meaning: "their own son" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 5,
+          devanagari: "कारागृहस्य द्वाराणि स्वयमेवाप्यजायत\nमुक्तानि शृङ्खलापाशा विगलन्ति स्म सर्वशः ।\nरक्षिणः कंसदूतास्ते निद्रामापुर्विमोहिताः\nयोगमायाबलेनैव सर्वमासीत्सुसंवृतम् ॥",
+          transliteration: "kārāgṛhasya dvārāṇi svayam evāpy ajāyata\nmuktāni śṛṅkhalā-pāśā vigalanti sma sarvaśaḥ |\nrakṣiṇaḥ kaṁsa-dūtās te nidrām āpur vimohitāḥ\nyogamāyā-balenaiva sarvam āsīt susaṁvṛtam ||",
+          translation: "The doors of the prison opened of their own accord; the fetters and chains fell away completely on all sides. The guards, Kamsa's sentinels, fell into deep sleep, overpowered by delusion. By the power of Yogamaya alone, everything was perfectly arranged.",
+          commentary: "Bhagavatam 10.3.48-50 describes these miraculous events accompanying Krishna's birth. The self-opening doors (svayam eva muktāni) symbolize liberation — just as the Lord's advent frees the soul from bondage. The falling chains represent the dissolution of material bonds. Bhattathiri attributes all these events to Yogamaya's power, consistent with the Bhagavatam's theology that the Lord's internal potency orchestrates His leelas while He remains untouched.",
+          words: [
+            { word: "कारागृहस्य", transliteration: "kārāgṛhasya", meaning: "of the prison" },
+            { word: "द्वाराणि", transliteration: "dvārāṇi", meaning: "doors, gates" },
+            { word: "स्वयमेव", transliteration: "svayam eva", meaning: "of their own accord" },
+            { word: "मुक्तानि", transliteration: "muktāni", meaning: "opened, released" },
+            { word: "शृङ्खलापाशाः", transliteration: "śṛṅkhalā-pāśāḥ", meaning: "chains and fetters" },
+            { word: "विगलन्ति", transliteration: "vigalanti", meaning: "fell away, dissolved" },
+            { word: "सर्वशः", transliteration: "sarvaśaḥ", meaning: "completely, on all sides" },
+            { word: "रक्षिणः", transliteration: "rakṣiṇaḥ", meaning: "guards, watchmen" },
+            { word: "कंसदूताः", transliteration: "kaṁsa-dūtāḥ", meaning: "Kamsa's sentinels/agents" },
+            { word: "निद्राम्", transliteration: "nidrām", meaning: "sleep" },
+            { word: "विमोहिताः", transliteration: "vimohitāḥ", meaning: "deluded, overpowered" },
+            { word: "योगमायाबलेन", transliteration: "yogamāyā-balena", meaning: "by the power of Yogamaya" },
+            { word: "सुसंवृतम्", transliteration: "susaṁvṛtam", meaning: "well-arranged, perfectly covered" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 6,
+          devanagari: "अथ शिशुमुपादाय त्वां वसुदेवो जगाम ह\nतमसि मुषिते मार्गे वर्षधाराभिराकुले ।\nपवनचलितोद्धूतां भीतिमावह्य सत्वरं\nयमुनातटमासाद्य स्थितवान् सस्मितो मुदा ॥",
+          transliteration: "atha śiśum upādāya tvāṁ vasudevo jagāma ha\ntamasi muṣite mārge varṣadhārābhir ākule |\npavana-calita-uddhūtāṁ bhītim āvahya satvaraṁ\nyamunā-taṭam āsādya sthitavān sasmito mudā ||",
+          translation: "Then, taking You up as an infant, Vasudeva set forth along the path shrouded in darkness, assailed by torrents of rain. Carrying the fear stirred by the wind-tossed storm, he hastened onward and, reaching the bank of the Yamuna, stood there with a smile and joy.",
+          commentary: "This verse depicts the dramatic scene from Bhagavatam 10.3.50-51 of Vasudeva's perilous nocturnal journey. The contrast between the violent storm (varṣadhārā, pavana) and Vasudeva's inner joy (sasmita, mudā) illustrates the transformative power of carrying the Lord — external afflictions cannot diminish the bliss of divine proximity. The darkness (tamasi) is both literal and symbolic, representing the ignorance that shrouds the world before Krishna's light spreads.",
+          words: [
+            { word: "शिशुम्", transliteration: "śiśum", meaning: "infant, baby" },
+            { word: "उपादाय", transliteration: "upādāya", meaning: "having taken up, carrying" },
+            { word: "वसुदेवः", transliteration: "vasudevaḥ", meaning: "Vasudeva (Krishna's father)" },
+            { word: "जगाम", transliteration: "jagāma", meaning: "went, set forth" },
+            { word: "तमसि", transliteration: "tamasi", meaning: "in darkness" },
+            { word: "मार्गे", transliteration: "mārge", meaning: "on the path, road" },
+            { word: "वर्षधाराभिः", transliteration: "varṣadhārābhiḥ", meaning: "by torrents of rain" },
+            { word: "आकुले", transliteration: "ākule", meaning: "agitated, assailed" },
+            { word: "पवनचलित", transliteration: "pavana-calita", meaning: "stirred by wind" },
+            { word: "भीतिम्", transliteration: "bhītim", meaning: "fear, dread" },
+            { word: "सत्वरम्", transliteration: "satvaram", meaning: "hastily, quickly" },
+            { word: "यमुनातटम्", transliteration: "yamunā-taṭam", meaning: "the bank of the Yamuna" },
+            { word: "सस्मितः", transliteration: "sasmitaḥ", meaning: "with a smile" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 7,
+          devanagari: "यमुना पूरिता पूर्वं वर्षवेगेन भीषणा\nतवाङ्घ्रिस्पर्शसंयोगाद्विववृत्तोभयस्थली ।\nजलमार्गं ददौ शेषो भोगपर्यङ्कमस्तके\nधारयन्नातपत्रं वा रक्षां चक्रे महाफणैः ॥",
+          transliteration: "yamunā pūritā pūrvaṁ varṣavegena bhīṣaṇā\ntavāṅghri-sparśa-saṁyogād vivavrttobhayasthalī |\njala-mārgaṁ dadau śeṣo bhoga-paryaṅkam astake\ndhārayan ātapatraṁ vā rakṣāṁ cakre mahāphaṇaiḥ ||",
+          translation: "The Yamuna, previously swollen and terrifying with the force of the rains, parted on both sides upon contact with Your feet, yielding a path through the waters. Shesha, holding his great hood as a canopy over Your head like a royal parasol, provided protection with his mighty hoods.",
+          commentary: "This celebrated episode from Bhagavatam 10.3.50 parallels the parting of the Red Sea in Abrahamic tradition. The Yamuna's parting at the touch of Krishna's feet (aṅghri-sparśa) is theologically significant — the same Lord whose feet sanctified the Ganga now parts the Yamuna. Shesha (Ananta), the cosmic serpent who serves as Vishnu's couch in Vaikuntha, here performs the intimate service of sheltering the infant Lord, demonstrating that even in human-seeming incarnation, the Lord's eternal attendants recognize and serve Him.",
+          words: [
+            { word: "यमुना", transliteration: "yamunā", meaning: "the river Yamuna" },
+            { word: "पूरिता", transliteration: "pūritā", meaning: "filled, swollen" },
+            { word: "वर्षवेगेन", transliteration: "varṣavegena", meaning: "by the force of rain" },
+            { word: "भीषणा", transliteration: "bhīṣaṇā", meaning: "terrifying, formidable" },
+            { word: "अङ्घ्रिस्पर्शसंयोगात्", transliteration: "aṅghri-sparśa-saṁyogāt", meaning: "from the contact/touch of the feet" },
+            { word: "विवव्रे", transliteration: "vivavre", meaning: "parted, opened up" },
+            { word: "जलमार्गम्", transliteration: "jala-mārgam", meaning: "a path through the water" },
+            { word: "ददौ", transliteration: "dadau", meaning: "gave, yielded" },
+            { word: "शेषः", transliteration: "śeṣaḥ", meaning: "Shesha (cosmic serpent)" },
+            { word: "भोगपर्यङ्कम्", transliteration: "bhoga-paryaṅkam", meaning: "serpent-couch/canopy" },
+            { word: "आतपत्रम्", transliteration: "ātapatram", meaning: "parasol, umbrella" },
+            { word: "रक्षाम्", transliteration: "rakṣām", meaning: "protection" },
+            { word: "महाफणैः", transliteration: "mahāphaṇaiḥ", meaning: "with great hoods" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 8,
+          devanagari: "गोकुलं प्राप्य नन्दस्य गृहे सुप्तजनावृते\nयशोदापार्श्वगां बालां गृहीत्वा तत्र शायिताम् ।\nनिधाय देवकीपुत्रं तस्या एव करान्तरे\nसत्वरं तां कुमारीं तु गृहीत्वा कारागारमाययौ ॥",
+          transliteration: "gokulaṁ prāpya nandasya gṛhe supta-janāvṛte\nyaśodā-pārśvagāṁ bālāṁ gṛhītvā tatra śāyitām |\nnidhāya devakī-putraṁ tasyā eva karāntare\nsatvaraṁ tāṁ kumārīṁ tu gṛhītvā kārāgāram āyayau ||",
+          translation: "Reaching Gokula, in Nanda's house where all were asleep, he took the baby girl lying beside Yashoda and placed Devaki's son in her arms instead. Then, quickly taking the girl child, he returned to the prison.",
+          commentary: "This verse describes the critical exchange narrated in Bhagavatam 10.3.51-53. The entire household sleeps under Yogamaya's spell (supta-janāvṛte), enabling the exchange. The girl child is actually Yogamaya herself — Vishnu's divine potency incarnate. Bhattathiri's terse narration of this exchange highlights its seamless divine orchestration. The placement of Krishna in Yashoda's arms fulfills the Lord's promise that He would grow up in Gokula, establishing the setting for His childhood pastimes.",
+          words: [
+            { word: "गोकुलम्", transliteration: "gokulam", meaning: "Gokula (the cowherd settlement)" },
+            { word: "प्राप्य", transliteration: "prāpya", meaning: "having reached" },
+            { word: "नन्दस्य", transliteration: "nandasya", meaning: "of Nanda" },
+            { word: "सुप्तजनावृते", transliteration: "supta-janāvṛte", meaning: "surrounded by sleeping people" },
+            { word: "यशोदापार्श्वगाम्", transliteration: "yaśodā-pārśvagām", meaning: "lying beside Yashoda" },
+            { word: "बालाम्", transliteration: "bālām", meaning: "baby girl" },
+            { word: "गृहीत्वा", transliteration: "gṛhītvā", meaning: "having taken" },
+            { word: "निधाय", transliteration: "nidhāya", meaning: "having placed" },
+            { word: "देवकीपुत्रम्", transliteration: "devakī-putram", meaning: "the son of Devaki" },
+            { word: "करान्तरे", transliteration: "karāntare", meaning: "in the arms" },
+            { word: "सत्वरम्", transliteration: "satvaram", meaning: "quickly, hastily" },
+            { word: "कुमारीम्", transliteration: "kumārīm", meaning: "the girl child" },
+            { word: "कारागारम्", transliteration: "kārāgāram", meaning: "to the prison" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 9,
+          devanagari: "कुमारीरोदनं श्रुत्वा कंसो धावन्नुपाययौ\nशिलायां ताडयामास सा तु व्योम्नि समुत्पतत् ।\nअष्टभुजा दिव्यरूपा दुर्गा साक्षान्महेश्वरी\nप्राह मूढ तवान्ता ह्ययं जातो यत्र कुत्रचित् ॥",
+          transliteration: "kumārī-rodanaṁ śrutvā kaṁso dhāvann upāyayau\nśilāyāṁ tāḍayāmāsa sā tu vyomni samutpatat |\naṣṭabhujā divya-rūpā durgā sākṣān maheśvarī\nprāha mūḍha tavāntā hy ayaṁ jāto yatra kutracit ||",
+          translation: "Hearing the baby girl's cry, Kamsa came rushing. He dashed her upon the stone, but she flew up into the sky. With eight arms, in a divine form — Durga herself, the great goddess — she declared: 'O fool! Your destroyer has already been born somewhere else!'",
+          commentary: "This dramatic scene from Bhagavatam 10.4.1-12 is the theological climax of the birth narrative. Yogamaya, appearing as Durga with eight arms (aṣṭabhujā), represents the Lord's inscrutable potency that both conceals and reveals. Her warning to Kamsa (tavāntā jātaḥ — 'your destroyer is born') drives the subsequent narrative of Kamsa's paranoid massacre of infants. The word 'mūḍha' (fool) echoes the Gita's characterization of those who cannot recognize the divine. Kamsa's violence against the girl child proves futile against divine will.",
+          words: [
+            { word: "कुमारीरोदनम्", transliteration: "kumārī-rodanam", meaning: "the baby girl's crying" },
+            { word: "श्रुत्वा", transliteration: "śrutvā", meaning: "having heard" },
+            { word: "कंसः", transliteration: "kaṁsaḥ", meaning: "Kamsa" },
+            { word: "धावन्", transliteration: "dhāvan", meaning: "rushing, running" },
+            { word: "शिलायाम्", transliteration: "śilāyām", meaning: "upon the stone/rock" },
+            { word: "ताडयामास", transliteration: "tāḍayāmāsa", meaning: "struck, dashed" },
+            { word: "व्योम्नि", transliteration: "vyomni", meaning: "in the sky" },
+            { word: "समुत्पतत्", transliteration: "samutpatat", meaning: "flew up, soared" },
+            { word: "अष्टभुजा", transliteration: "aṣṭabhujā", meaning: "eight-armed" },
+            { word: "दिव्यरूपा", transliteration: "divya-rūpā", meaning: "of divine form" },
+            { word: "दुर्गा", transliteration: "durgā", meaning: "Goddess Durga" },
+            { word: "मूढ", transliteration: "mūḍha", meaning: "O fool" },
+            { word: "अन्ता", transliteration: "antā", meaning: "the destroyer, the end" }
+          ]
+        },
+        {
+          dashaka: 36,
+          sloka: 10,
+          devanagari: "गोकुले नन्दगोपस्तु पुत्रोत्सवसमाकुलः\nसानन्दं गोपवृद्धैश्च जातकर्माकरोत्तदा ।\nगावो नृत्यन्ति गोप्यश्च गीतवाद्यादिमङ्गलैः\nत्वामेवं गोकुलानन्दं गुरुपवनपुरेश्वरं भजामि नित्यम् ॥",
+          transliteration: "gokule nandagopas tu putrotsava-samākulaḥ\nsānandaṁ gopavṛddhaiś ca jātakarmākarot tadā |\ngāvo nṛtyanti gopyaś ca gīta-vādyādi-maṅgalaiḥ\ntvām evaṁ gokulānandaṁ gurupavanapureśvaraṁ bhajāmi nityam ||",
+          translation: "In Gokula, Nanda the cowherd chief, overwhelmed with joy at the birth of a son, joyfully performed the birth ceremonies with the elder Gopas. The cows danced, the Gopis sang with music and auspicious festivities. Thus I eternally worship You, the bliss of Gokula, O Lord of Guruvayurappan!",
+          commentary: "The concluding verse shifts from the dramatic tension of the birth narrative to the joyous celebration in Gokula (Bhagavatam 10.5.1-16). Nanda's jātakarma (birth rites) and the spontaneous festivity of all beings — cows, Gopis, Gopas — prefigure the universal joy that Krishna's presence will bring. Bhattathiri concludes with his signature devotional flourish, linking the historical narrative to his present worship at Guruvayur. The epithet 'Gokulānanda' (bliss of Gokula) captures Krishna's essential nature as the source of all joy, while 'Gurupavanapureśvara' grounds the eternal Lord in the sacred geography of Guruvayur.",
+          words: [
+            { word: "नन्दगोपः", transliteration: "nandagopaḥ", meaning: "Nanda the cowherd chief" },
+            { word: "पुत्रोत्सव", transliteration: "putrotsava", meaning: "celebration of a son's birth" },
+            { word: "समाकुलः", transliteration: "samākulaḥ", meaning: "overwhelmed, filled with" },
+            { word: "सानन्दम्", transliteration: "sānandam", meaning: "with joy, joyfully" },
+            { word: "गोपवृद्धैः", transliteration: "gopavṛddhaiḥ", meaning: "with the elder cowherds" },
+            { word: "जातकर्म", transliteration: "jātakarma", meaning: "birth ceremony/rites" },
+            { word: "गावः", transliteration: "gāvaḥ", meaning: "cows" },
+            { word: "नृत्यन्ति", transliteration: "nṛtyanti", meaning: "dance" },
+            { word: "गोप्यः", transliteration: "gopyaḥ", meaning: "Gopis (cowherd women)" },
+            { word: "गीतवाद्यादि", transliteration: "gīta-vādyādi", meaning: "songs, instruments, etc." },
+            { word: "मङ्गलैः", transliteration: "maṅgalaiḥ", meaning: "with auspicious rites" },
+            { word: "गोकुलानन्दम्", transliteration: "gokulānandam", meaning: "the bliss of Gokula" },
+            { word: "गुरुपवनपुरेश्वरम्", transliteration: "gurupavanapureśvaram", meaning: "the Lord of Guruvayur" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 37,
