@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Missing Note — PaddySpeaks</title>
+<meta name="description" content="Why video platforms are failing 200 million music students — and the billion-dollar feature hiding in plain sight. A visual essay by Paddy Iyer.">
+<meta property="og:title" content="The Missing Note — PaddySpeaks">
+<meta property="og:description" content="Why video platforms are failing 200 million music students — and the billion-dollar feature hiding in plain sight.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://paddyspeaks.com/articles/the-missing-note-paddyspeaks.html">
+<meta property="og:image" content="https://paddyspeaks.com/images/the-missing-note-cover.svg">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Missing Note — PaddySpeaks">
+<meta name="twitter:description" content="Why video platforms are failing 200 million music students — and the billion-dollar feature hiding in plain sight.">
+<link rel="canonical" href="https://paddyspeaks.com/articles/the-missing-note-paddyspeaks.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,700;1,9..144,400&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -280,7 +292,7 @@ p { margin-bottom: 24px; font-size: 17px; }
 
 .score-bar { height: 4px; background: rgba(255,255,255,.06); border-radius: 2px; overflow: hidden; margin-top: 4px; }
 
-.score-bar-fill { height: 100%; border-radius: 2px; transition: width 1.8s cubic-bezier(.22,1,.36,1); }
+.score-bar-fill { height: 100%; border-radius: 2px; transition: width 1.8s cubic-bezier(.22,1,.36,1); will-change: width; }
 .score-bar-fill.green { background: linear-gradient(90deg, #2E7D32, #4CAF50); }
 .score-bar-fill.yellow { background: linear-gradient(90deg, #F57F17, #FFC107); }
 
@@ -335,6 +347,7 @@ p { margin-bottom: 24px; font-size: 17px; }
   position: absolute; top: 2px; bottom: 2px; width: 8px; border-radius: 4px;
   background: var(--score-green);
   transition: left .5s cubic-bezier(.22,1,.36,1);
+  will-change: left;
 }
 
 .shruti-cents {
@@ -564,7 +577,7 @@ p { margin-bottom: 24px; font-size: 17px; }
   border-radius: 4px; overflow: hidden;
 }
 
-.progress-fill { height: 100%; border-radius: 4px; transition: width 2s cubic-bezier(.22,1,.36,1); }
+.progress-fill { height: 100%; border-radius: 4px; transition: width 2s cubic-bezier(.22,1,.36,1); will-change: width; }
 .progress-fill.blue { background: var(--zoom-blue); }
 .progress-fill.teal { background: var(--teal); }
 .progress-fill.rust { background: var(--rust); }
@@ -741,8 +754,14 @@ p { margin-bottom: 24px; font-size: 17px; }
 </head>
 <body>
 
+<!-- ══════════════════════════ NAV ══════════════════════════ -->
+<nav style="position:fixed;top:0;left:0;right:0;z-index:100;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(245,240,232,.85);backdrop-filter:blur(8px);border-bottom:1px solid rgba(212,197,169,.3);transition:transform .3s ease;" id="articleNav">
+  <a href="../index.html" style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--rust);text-decoration:none;">← PaddySpeaks</a>
+  <span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;">The Missing Note</span>
+</nav>
+
 <!-- ══════════════════════════ HERO ══════════════════════════ -->
-<div class="hero">
+<div class="hero" style="padding-top:80px;">
   <div class="hero-label">PaddySpeaks · Visual Essay</div>
   <h1>The <em>Missing</em> Note</h1>
   <p class="hero-sub">Why video platforms are failing 200 million music students — and the billion-dollar feature hiding in plain sight.</p>
@@ -1777,12 +1796,21 @@ p { margin-bottom: 24px; font-size: 17px; }
 </div>
 
 <div class="foot">
-  <div>PADDYSPEAKS · <a href="https://paddyspeaks.com">paddyspeaks.com</a></div>
+  <div><a href="../index.html" style="color:var(--rust);text-decoration:none;">← Back to PaddySpeaks</a></div>
+  <div style="margin-top:12px;">PADDYSPEAKS · <a href="https://paddyspeaks.com">paddyspeaks.com</a></div>
   <div style="margin-top:8px;opacity:.5;">The audio stream is already flowing. Just listen to it.</div>
 </div>
 
 <!-- ══════════════════════════ SCRIPTS ══════════════════════════ -->
 <script>
+// ═══ PAGE VISIBILITY — pause all animations when tab is hidden ═══
+let pageVisible = true;
+document.addEventListener('visibilitychange', () => {
+  pageVisible = !document.hidden;
+  if (pageVisible && !isPlaying) cancelAnimationFrame(waveAnimFrame);
+  if (pageVisible) renderWaves();
+});
+
 // ═══ SCROLL REVEAL ═══
 const observer = new IntersectionObserver((entries) => {
   entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
@@ -1828,17 +1856,18 @@ function toggleCard(el) {
 
 // ═══ ANIMATED SHRUTI NEEDLE ═══
 let shrutiDrift = 0;
+const shrutiNeedle = document.getElementById('shrutiNeedle');
+const shrutiCents = document.getElementById('shrutiCents');
 setInterval(() => {
+  if (!pageVisible) return;
   shrutiDrift += (Math.random() - 0.48) * 2;
   shrutiDrift = Math.max(-8, Math.min(12, shrutiDrift));
   const pct = 50 + shrutiDrift * 1.5;
-  const needle = document.getElementById('shrutiNeedle');
-  const cents = document.getElementById('shrutiCents');
-  if (needle) needle.style.left = pct + '%';
-  if (cents) {
+  if (shrutiNeedle) shrutiNeedle.style.left = pct + '%';
+  if (shrutiCents) {
     const c = Math.round(shrutiDrift);
-    cents.textContent = (c >= 0 ? '+' : '') + c + ' cents';
-    cents.style.color = Math.abs(c) <= 8 ? 'var(--score-green)' : 'var(--score-yellow)';
+    shrutiCents.textContent = (c >= 0 ? '+' : '') + c + ' cents';
+    shrutiCents.style.color = Math.abs(c) <= 8 ? 'var(--score-green)' : 'var(--score-yellow)';
   }
 }, 600);
 
@@ -1846,6 +1875,25 @@ setInterval(() => {
 let pitchPoints = [];
 let refPoints = [];
 const PITCH_LEN = 60;
+const refPathEl = document.getElementById('refPath');
+const studentPathEl = document.getElementById('studentPath');
+const gamakaMarkersEl = document.getElementById('gamakaMarkers');
+
+// Pre-allocate gamaka marker pool to avoid DOM thrashing
+const MARKER_POOL_SIZE = 15;
+const markerPool = [];
+if (gamakaMarkersEl) {
+  for (let i = 0; i < MARKER_POOL_SIZE; i++) {
+    const diamond = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    diamond.setAttribute('fill', '#FFC107');
+    diamond.setAttribute('font-size', '6');
+    diamond.setAttribute('text-anchor', 'middle');
+    diamond.textContent = '\u25C6';
+    diamond.style.display = 'none';
+    gamakaMarkersEl.appendChild(diamond);
+    markerPool.push(diamond);
+  }
+}
 
 function initPitchData() {
   refPoints = [];
@@ -1858,56 +1906,64 @@ function initPitchData() {
 
 initPitchData();
 
+function toPath(pts) {
+  let d = 'M';
+  for (let i = 0; i < pts.length; i++) {
+    const x = (i / (PITCH_LEN - 1)) * 300;
+    d += (i === 0 ? '' : ' L') + x.toFixed(1) + ',' + pts[i].toFixed(1);
+  }
+  return d;
+}
+
 function updatePitchSvg() {
+  if (!pageVisible) return;
   // Shift data left, add new point
   pitchPoints.shift();
   const lastRef = refPoints[refPoints.length - 1];
   const newStudent = lastRef + (Math.random() - 0.5) * 14 + Math.sin(Date.now() * 0.002) * 3;
   pitchPoints.push(Math.max(5, Math.min(75, newStudent)));
 
-  const toPath = (pts) => {
-    let d = 'M';
-    pts.forEach((p, i) => {
+  if (refPathEl) refPathEl.setAttribute('d', toPath(refPoints));
+  if (studentPathEl) studentPathEl.setAttribute('d', toPath(pitchPoints));
+
+  // Reuse pooled gamaka markers instead of recreating DOM nodes
+  let markerIdx = 0;
+  for (let i = 2; i < pitchPoints.length - 2 && markerIdx < MARKER_POOL_SIZE; i++) {
+    const d1 = pitchPoints[i] - pitchPoints[i-1];
+    const d2 = pitchPoints[i+1] - pitchPoints[i];
+    if (Math.abs(d1) > 5 && Math.sign(d1) !== Math.sign(d2)) {
       const x = (i / (PITCH_LEN - 1)) * 300;
-      d += (i === 0 ? '' : ' L') + x.toFixed(1) + ',' + p.toFixed(1);
-    });
-    return d;
-  };
-
-  const refEl = document.getElementById('refPath');
-  const stuEl = document.getElementById('studentPath');
-  if (refEl) refEl.setAttribute('d', toPath(refPoints));
-  if (stuEl) stuEl.setAttribute('d', toPath(pitchPoints));
-
-  // Gamaka markers (oscillation detection)
-  const markers = document.getElementById('gamakaMarkers');
-  if (markers) {
-    markers.innerHTML = '';
-    for (let i = 2; i < pitchPoints.length - 2; i++) {
-      const d1 = pitchPoints[i] - pitchPoints[i-1];
-      const d2 = pitchPoints[i+1] - pitchPoints[i];
-      if (Math.abs(d1) > 5 && Math.sign(d1) !== Math.sign(d2)) {
-        const x = (i / (PITCH_LEN - 1)) * 300;
-        const diamond = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        diamond.setAttribute('x', x);
-        diamond.setAttribute('y', pitchPoints[i] - 5);
-        diamond.setAttribute('fill', '#FFC107');
-        diamond.setAttribute('font-size', '6');
-        diamond.setAttribute('text-anchor', 'middle');
-        diamond.textContent = '◆';
-        markers.appendChild(diamond);
-      }
+      const m = markerPool[markerIdx];
+      m.setAttribute('x', x);
+      m.setAttribute('y', pitchPoints[i] - 5);
+      m.style.display = '';
+      markerIdx++;
     }
+  }
+  // Hide unused markers
+  for (let i = markerIdx; i < MARKER_POOL_SIZE; i++) {
+    markerPool[i].style.display = 'none';
   }
 }
 
 setInterval(updatePitchSvg, 200);
 
 // ═══ WAVEFORM SVG ANIMATION ═══
-let waveAnimFrame;
+let waveAnimFrame = null;
 let wavePhase = 0;
 let isPlaying = false;
 let playProgress = 0;
+let wavesSectionVisible = false;
+
+// Only animate waves when section is in viewport
+const waveSectionObs = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    wavesSectionVisible = e.isIntersecting;
+    if (e.isIntersecting && !waveAnimFrame) renderWaves();
+  });
+}, { threshold: 0.05 });
+const compSection = document.querySelector('.comparison-mockup');
+if (compSection) waveSectionObs.observe(compSection);
 
 const compData = {
   swara: { refColor: '#4CAF50', stuColor: '#7C4DFF', score: 84, label: '↑ 9% from Lesson 8' },
@@ -1959,7 +2015,12 @@ function renderWaves() {
     if (playProgress >= 100) { isPlaying = false; document.getElementById('playBtn').textContent = '▶'; }
   }
 
-  waveAnimFrame = requestAnimationFrame(renderWaves);
+  // Only continue animating if section is visible and page is active
+  if (wavesSectionVisible && pageVisible) {
+    waveAnimFrame = requestAnimationFrame(renderWaves);
+  } else {
+    waveAnimFrame = null;
+  }
 }
 
 renderWaves();
@@ -2020,6 +2081,19 @@ const dashObserver = new IntersectionObserver((entries) => {
 }, { threshold: 0.2 });
 
 document.querySelectorAll('.dashboard-mockup').forEach(el => dashObserver.observe(el));
+
+// ═══ NAV HIDE ON SCROLL DOWN, SHOW ON SCROLL UP ═══
+let lastScrollY = 0;
+const nav = document.getElementById('articleNav');
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (y > lastScrollY && y > 100) {
+    nav.style.transform = 'translateY(-100%)';
+  } else {
+    nav.style.transform = 'translateY(0)';
+  }
+  lastScrollY = y;
+}, { passive: true });
 
 // ═══ CLASS HEATMAP ═══
 const students = [
