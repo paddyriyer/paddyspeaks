@@ -15896,7 +15896,188 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes the attack by King Shalva with his flying vehicle Saubha on Dwaraka during Krishna's absence, and Krishna's destruction of both the aerial city and the king upon His return.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 77,
+          sloka: 1,
+          devanagari: "शिशुपाले हते कृष्ण शाल्वस्तस्य सुहृत्तमः ।\nद्वारकां सौभयानेन प्रत्यभिद्रवदुद्धतः ।\nमायामयं पुरं दिव्यं खेचरं दुरतिक्रमम्\nप्राप्य मयविनिर्मितं सर्वतो व्यद्रवद्बलम् ॥",
+          transliteration: "śiśupāle hate kṛṣṇa śālvas tasya suhṛttamaḥ |\ndvārakāṁ saubhayānena pratyabhidravad uddhataḥ |\nmāyāmayaṁ puraṁ divyaṁ khecaraṁ duratikramam\nprāpya mayavinirmitaṁ sarvato vyaadravad balam ||",
+          translation: "O Krishna, when Shishupala was slain, his close ally Shalva, arrogant and enraged, attacked Dwaraka with his aerial vehicle Saubha — that magical flying city, celestial and impenetrable, constructed by the demon-architect Maya, and he unleashed his forces from all sides.",
+          commentary: "Shalva had been a close friend of Shishupala and had sworn to avenge his death. The Saubha was a legendary aerial fortress gifted to him by Lord Shiva after severe penance. Its attack on Dwaraka while Krishna was away at the Rajasuya represents the asuric forces striking at the heart of divine protection.",
+          words: [
+            { word: "शिशुपाले हते", transliteration: "śiśupāle hate", meaning: "when Shishupala was slain" },
+            { word: "शाल्वः", transliteration: "śālvaḥ", meaning: "Shalva (king, ally of Shishupala)" },
+            { word: "सुहृत्तमः", transliteration: "suhṛttamaḥ", meaning: "closest friend" },
+            { word: "सौभयानेन", transliteration: "saubhayānena", meaning: "with the aerial vehicle Saubha" },
+            { word: "मायामयम्", transliteration: "māyāmayam", meaning: "made of illusion, magical" },
+            { word: "खेचरम्", transliteration: "khecaram", meaning: "moving in the sky, aerial" },
+            { word: "दुरतिक्रमम्", transliteration: "duratikramam", meaning: "difficult to overcome, impenetrable" },
+            { word: "मयविनिर्मितम्", transliteration: "mayavinirmitam", meaning: "constructed by Maya (the demon architect)" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 2,
+          devanagari: "वर्षन्नश्मानमायांसि शस्त्रवृष्टिं च दारुणाम् ।\nसौभमार्गेण चाकाशे विचरन्नितरेतरम् ।\nद्वारकावासिनो लोकान्भीषयामास दुर्मतिः\nप्रद्युम्नस्तं प्रत्ययुध्यत्त्वद्गतेऽसति माधव ॥",
+          transliteration: "varṣann aśmāna māyāṁsi śastravṛṣṭiṁ ca dāruṇām |\nsaubhamārgeṇa cākāśe vicarann itaretaram |\ndvārakāvāsino lokān bhīṣayāmāsa durmatiḥ\npradyumnas taṁ pratyayudhyat tvadgate'sati mādhava ||",
+          translation: "Raining down rocks, illusions, and terrible showers of weapons, moving across the sky by means of the Saubha here and there, the wicked Shalva terrified the residents of Dwaraka. In Your absence, O Madhava, Pradyumna fought against him.",
+          commentary: "The aerial bombardment of Dwaraka creates a scene of terror — Shalva's Saubha rains supernatural weapons from above. Pradyumna, Krishna's son and an incarnation of Kamadeva, steps up as the defender. This tests whether the divine city can stand without Krishna's direct presence, demonstrating the valor of His lineage.",
+          words: [
+            { word: "वर्षन्", transliteration: "varṣan", meaning: "raining, showering" },
+            { word: "अश्मानि", transliteration: "aśmāni", meaning: "rocks, stones" },
+            { word: "मायांसि", transliteration: "māyāṁsi", meaning: "illusions, magical deceptions" },
+            { word: "शस्त्रवृष्टिम्", transliteration: "śastravṛṣṭim", meaning: "a shower of weapons" },
+            { word: "आकाशे", transliteration: "ākāśe", meaning: "in the sky" },
+            { word: "भीषयामास", transliteration: "bhīṣayāmāsa", meaning: "terrified, frightened" },
+            { word: "प्रद्युम्नः", transliteration: "pradyumnaḥ", meaning: "Pradyumna (Krishna's son)" },
+            { word: "प्रत्ययुध्यत्", transliteration: "pratyayudhyat", meaning: "fought against, counter-attacked" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 3,
+          devanagari: "प्रद्युम्नो वीरमुख्यस्तु साम्बश्चैवाति तेजसा ।\nशाल्वसैन्यं विनिर्भिद्य बाणैः सन्नतपर्वभिः ।\nशाल्वं सौभं च संरुध्य युयुधाते महाबलौ\nकिन्तु मायाबलं तस्य दुर्जयं सर्वतोऽभवत् ॥",
+          transliteration: "pradyumno vīramukhyas tu sāmbaścaivāti tejasā |\nśālvasainyaṁ vinirbhidya bāṇaiḥ sannataparvabhiḥ |\nśālvaṁ saubhaṁ ca saṁrudhya yuyudhāte mahābalau\nkintu māyābalaṁ tasya durjayaṁ sarvato'bhavat ||",
+          translation: "The heroic Pradyumna and the mighty Samba, with great valor, pierced through Shalva's army with their sharp-pointed arrows and, confronting both Shalva and the Saubha, fought valiantly. Yet the power of his illusions remained unconquerable from every side.",
+          commentary: "Pradyumna and Samba represent the next generation of Yadava warriors, brave and skilled. Despite their valor, the Saubha's maya-shakti proves beyond their capacity — establishing that only Krishna himself can overcome certain forms of cosmic evil. This narrative pattern underscores the avatara's unique role.",
+          words: [
+            { word: "प्रद्युम्नः", transliteration: "pradyumnaḥ", meaning: "Pradyumna (Krishna's son)" },
+            { word: "वीरमुख्यः", transliteration: "vīramukhyaḥ", meaning: "foremost among heroes" },
+            { word: "साम्बः", transliteration: "sāmbaḥ", meaning: "Samba (Krishna's son)" },
+            { word: "सैन्यम्", transliteration: "sainyam", meaning: "army, forces" },
+            { word: "विनिर्भिद्य", transliteration: "vinirbhidya", meaning: "having pierced through" },
+            { word: "बाणैः", transliteration: "bāṇaiḥ", meaning: "with arrows" },
+            { word: "मायाबलम्", transliteration: "māyābalam", meaning: "the power of illusion" },
+            { word: "दुर्जयम्", transliteration: "durjayam", meaning: "unconquerable, difficult to defeat" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 4,
+          devanagari: "ततस्त्वमागतो वीर ज्ञात्वा सौभस्य विभ्रमम् ।\nद्वारकायां जनक्लेशं विलोक्य करुणानिधे ।\nशाल्वं प्रत्युद्ययौ तूर्णं रथमास्थाय दैवतम्\nशार्ङ्गचक्रगदापाणिः सिंह इव मदोत्कटः ॥",
+          transliteration: "tatas tvam āgato vīra jñātvā saubhasya vibhramam |\ndvārakāyāṁ janakleśaṁ vilokya karuṇānidhe |\nśālvaṁ pratyudyayau tūrṇaṁ ratham āsthāya daivatam\nśārṅgacakragadāpāṇiḥ siṁha iva madotkaṭaḥ ||",
+          translation: "Then You arrived, O valiant one, O treasury of compassion, having learned of the havoc of the Saubha. Seeing the distress of the people of Dwaraka, You swiftly advanced against Shalva, mounting Your divine chariot, bearing the Sharnga bow, Chakra, and mace — like a majestic lion.",
+          commentary: "Krishna's arrival shifts the entire dynamic. The simile of a lion (simha) captures both His regal bearing and the inevitability of the predator's victory. The divine weapons enumerated — Sharnga, Sudarshana Chakra, and Kaumodaki mace — represent the full panoply of Vishnu's cosmic arsenal now brought to bear.",
+          words: [
+            { word: "आगतः", transliteration: "āgataḥ", meaning: "arrived, came" },
+            { word: "सौभस्य विभ्रमम्", transliteration: "saubhasya vibhramam", meaning: "the havoc/illusion of the Saubha" },
+            { word: "जनक्लेशम्", transliteration: "janakleśam", meaning: "the distress of the people" },
+            { word: "करुणानिधे", transliteration: "karuṇānidhe", meaning: "O treasury of compassion" },
+            { word: "प्रत्युद्ययौ", transliteration: "pratyudyayau", meaning: "advanced against, marched forth" },
+            { word: "शार्ङ्गचक्रगदापाणिः", transliteration: "śārṅgacakragadāpāṇiḥ", meaning: "holding Sharnga bow, Chakra, and mace" },
+            { word: "सिंहः इव", transliteration: "siṁhaḥ iva", meaning: "like a lion" },
+            { word: "मदोत्कटः", transliteration: "madotkaṭaḥ", meaning: "majestic, supremely powerful" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 5,
+          devanagari: "शाल्वस्तु मायया कृष्ण वसुदेवं तवात्मजम् ।\nमायामयं शिरश्छिन्नं दर्शयन्नवदत्ततः ।\nपश्य कृष्ण तवापीतं पिता संनिहतो मया\nकिमर्थं युध्यसे मूढ इत्युक्त्वा प्राहसद्भृशम् ॥",
+          transliteration: "śālvas tu māyayā kṛṣṇa vasudevaṁ tavātmajam |\nmāyāmayaṁ śiraśchinnaṁ darśayann avadat tataḥ |\npaśya kṛṣṇa tavāpītaṁ pitā saṁnihato mayā\nkimarthaṁ yudhyase mūḍha ityuktvā prāhasad bhṛśam ||",
+          translation: "O Krishna, Shalva through his illusion displayed before You a phantom of Your father Vasudeva with his head severed, and declared: 'Look, Krishna! Your beloved father has been slain by me. Why do you fight on, O fool?' — and he laughed aloud.",
+          commentary: "Shalva's cruelest stratagem is psychological warfare through maya — presenting the illusion of Vasudeva's beheading. This tests whether even the Lord can be shaken by emotional manipulation. The episode demonstrates that asuric power operates not just through physical force but through deception aimed at the heart.",
+          words: [
+            { word: "मायया", transliteration: "māyayā", meaning: "through illusion, by magical power" },
+            { word: "वसुदेवम्", transliteration: "vasudevam", meaning: "Vasudeva (Krishna's father)" },
+            { word: "शिरश्छिन्नम्", transliteration: "śiraśchinnam", meaning: "with head severed" },
+            { word: "दर्शयन्", transliteration: "darśayan", meaning: "showing, displaying" },
+            { word: "अवदत्", transliteration: "avadat", meaning: "spoke, declared" },
+            { word: "संनिहतः", transliteration: "saṁnihataḥ", meaning: "slain, killed" },
+            { word: "मूढ", transliteration: "mūḍha", meaning: "O fool, deluded one" },
+            { word: "प्राहसत्", transliteration: "prāhasat", meaning: "laughed aloud" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 6,
+          devanagari: "क्षणं मोहं गतो भूत्वा स्मृत्वात्मानमजं विभुम् ।\nमायेयमिति विज्ञाय प्रत्यभिज्ञाय तत्त्वतः ।\nशाल्वमायां विनिर्भिद्य शरवर्षेण भीषणम्\nसौभं प्रत्यद्रवो वीर गदां कौमोदकीं दधत् ॥",
+          transliteration: "kṣaṇaṁ mohaṁ gato bhūtvā smṛtvātmānam ajaṁ vibhum |\nmāyeyam iti vijñāya pratyabhijñāya tattvataḥ |\nśālvamāyāṁ vinirbhidya śaravarṣeṇa bhīṣaṇam\nsaubhaṁ pratyadravo vīra gadāṁ kaumodakīṁ dadhat ||",
+          translation: "Though momentarily affected, You recalled Your own nature as the unborn, all-pervading Lord. Recognizing this as mere illusion and seeing through its truth, You shattered Shalva's maya with a terrifying shower of arrows, and charged toward the Saubha, wielding the Kaumodaki mace.",
+          commentary: "The momentary moha (delusion) of Krishna is a profound theological point — the Lord in His human form experiences emotions authentically, yet His divine nature instantly reasserts. The recognition 'māyeyam iti' (this is illusion) mirrors the jnani's awakening from avidya. Krishna's response shifts from the defensive to the overwhelmingly offensive.",
+          words: [
+            { word: "क्षणम्", transliteration: "kṣaṇam", meaning: "for a moment" },
+            { word: "मोहम्", transliteration: "moham", meaning: "delusion, bewilderment" },
+            { word: "आत्मानम् अजम्", transliteration: "ātmānam ajam", meaning: "Himself as the unborn" },
+            { word: "विभुम्", transliteration: "vibhum", meaning: "the all-pervading Lord" },
+            { word: "मायेयम्", transliteration: "māyeyam", meaning: "this is illusion" },
+            { word: "विज्ञाय", transliteration: "vijñāya", meaning: "having recognized, having discerned" },
+            { word: "शरवर्षेण", transliteration: "śaravarṣeṇa", meaning: "with a shower of arrows" },
+            { word: "कौमोदकीम्", transliteration: "kaumodakīm", meaning: "the Kaumodaki (Krishna's mace)" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 7,
+          devanagari: "ततः सौभं समाविध्य गदया भीमवेगया ।\nचूर्णीकृतं क्षणेनैव पपात सलिलेऽम्बरात् ।\nविमानं तन्महद्दिव्यं सहस्रद्वारभूषितम्\nचकर्थ भस्मसात्कृष्ण दिव्यास्त्रेण महाप्रभो ॥",
+          transliteration: "tataḥ saubhaṁ samāvidhya gadayā bhīmavegayā |\ncūrṇīkṛtaṁ kṣaṇenaiva papāta salile'mbarāt |\nvimānaṁ tan mahad divyaṁ sahasradvārabhūṣitam\ncakartha bhasmasāt kṛṣṇa divyāstreṇa mahāprabho ||",
+          translation: "Then, striking the Saubha with the mace of tremendous force, You pulverized it in an instant. That great celestial aircraft, adorned with a thousand gateways, fell from the sky into the waters. You reduced it to ashes, O Krishna, O great Lord, with Your divine weapon.",
+          commentary: "The destruction of the Saubha is a spectacular moment — the seemingly invincible aerial fortress, with its thousand gates, is reduced to cinders. Its fall from sky to sea symbolizes the inevitable descent of adharmic power, no matter how high it soars. The Kaumodaki mace here represents irresistible divine force.",
+          words: [
+            { word: "सौभम्", transliteration: "saubham", meaning: "the Saubha (aerial city)" },
+            { word: "समाविध्य", transliteration: "samāvidhya", meaning: "having struck forcefully" },
+            { word: "गदया", transliteration: "gadayā", meaning: "with the mace" },
+            { word: "चूर्णीकृतम्", transliteration: "cūrṇīkṛtam", meaning: "pulverized, reduced to powder" },
+            { word: "सलिले", transliteration: "salile", meaning: "into the waters" },
+            { word: "अम्बरात्", transliteration: "ambarāt", meaning: "from the sky" },
+            { word: "सहस्रद्वारभूषितम्", transliteration: "sahasradvārabhūṣitam", meaning: "adorned with a thousand gateways" },
+            { word: "भस्मसात्", transliteration: "bhasmasāt", meaning: "to ashes" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 8,
+          devanagari: "सौभे विनाशिते तस्मिन्शाल्वः क्रोधसमन्वितः ।\nगदामुद्यम्य वेगेन प्रत्यधावत केशवम् ।\nतस्य तां गदयाऽऽयान्तीं चिच्छेद निशितैः शरैः\nततः शाल्वं महाबाहो चक्रेण क्षुरनेमिना ॥",
+          transliteration: "saubhe vināśite tasmin śālvaḥ krodhasamanvitaḥ |\ngadām udyamya vegena pratyadhāvata keśavam |\ntasya tāṁ gadayā''yāntīṁ ciccheda niśitaiḥ śaraiḥ\ntataḥ śālvaṁ mahābāho cakreṇa kṣuraṇeminā ||",
+          translation: "When the Saubha was destroyed, Shalva, filled with fury, rushed toward Keshava raising his mace with great speed. You shattered his oncoming mace with sharp arrows, and then, O mighty-armed one, You struck Shalva with the razor-edged Chakra.",
+          commentary: "Stripped of his aerial fortress, Shalva is reduced to a lone warrior charging with a mace — a futile gesture against the cosmic Lord. The progression from Saubha's destruction to Shalva's personal charge to his beheading follows the pattern of asuric power being methodically dismantled from its outer fortifications to its core.",
+          words: [
+            { word: "विनाशिते", transliteration: "vināśite", meaning: "when destroyed" },
+            { word: "क्रोधसमन्वितः", transliteration: "krodhasamanvitaḥ", meaning: "filled with fury" },
+            { word: "गदाम् उद्यम्य", transliteration: "gadām udyamya", meaning: "raising the mace" },
+            { word: "प्रत्यधावत", transliteration: "pratyadhāvata", meaning: "rushed toward, charged at" },
+            { word: "चिच्छेद", transliteration: "ciccheda", meaning: "shattered, cut asunder" },
+            { word: "निशितैः शरैः", transliteration: "niśitaiḥ śaraiḥ", meaning: "with sharp arrows" },
+            { word: "चक्रेण", transliteration: "cakreṇa", meaning: "with the discus (Sudarshana)" },
+            { word: "क्षुरनेमिना", transliteration: "kṣuraṇeminā", meaning: "with razor-sharp rim" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 9,
+          devanagari: "हते शाल्वे दन्तवक्त्रो रिपुस्ते मधुसूदन ।\nगदामुद्यम्य संक्रुद्धो द्वन्द्वयुद्धमुपागमत् ।\nतस्य चैकेन वेगेन कौमोदक्या महाप्रभो\nउरस्यभिहतस्येशो जीवो निर्गत्य ते ययौ ॥",
+          transliteration: "hate śālve dantavaktro ripus te madhusūdana |\ngadām udyamya saṁkruddho dvandvayuddham upāgamat |\ntasya caikena vegena kaumodakyā mahāprabho\nurasyabhihitasyeśo jīvo nirgatya te yayau ||",
+          translation: "When Shalva was slain, Your enemy Dantavaktra, enraged, took up his mace and came for a single combat. O great Lord, with one mighty stroke of the Kaumodaki upon his chest, his life-force departed and merged into You, O Lord Madhusudana.",
+          commentary: "Dantavaktra, like Shishupala, was a rebirth of Jaya or Vijaya, one of the cursed gatekeepers of Vaikuntha. His straightforward mace-to-mace combat contrasts with Shalva's elaborate illusions. The soul merging into Krishna upon death confirms that even his enmity was a path to liberation — the completion of the three-birth curse.",
+          words: [
+            { word: "दन्तवक्त्रः", transliteration: "dantavaktraḥ", meaning: "Dantavaktra (enemy king)" },
+            { word: "रिपुः", transliteration: "ripuḥ", meaning: "enemy, foe" },
+            { word: "संक्रुद्धः", transliteration: "saṁkruddhaḥ", meaning: "greatly enraged" },
+            { word: "द्वन्द्वयुद्धम्", transliteration: "dvandvayuddham", meaning: "single combat, duel" },
+            { word: "कौमोदक्या", transliteration: "kaumodakyā", meaning: "with the Kaumodaki mace" },
+            { word: "उरसि", transliteration: "urasi", meaning: "on the chest" },
+            { word: "अभिहतस्य", transliteration: "abhihatasya", meaning: "of the one struck" },
+            { word: "जीवः निर्गत्य", transliteration: "jīvaḥ nirgatya", meaning: "the life-force having departed" }
+          ]
+        },
+        {
+          dashaka: 77,
+          sloka: 10,
+          devanagari: "एवं शाल्वं दन्तवक्त्रं च हत्वा सर्वं पुरं रक्षित्वा द्वारकाख्यम् ।\nशान्तिं कृत्वा सर्वतो यादवानां मारुतगेहनाथ परिपाहि रोगात् ॥",
+          transliteration: "evaṁ śālvaṁ dantavaktraṁ ca hatvā sarvaṁ puraṁ rakṣitvā dvārakākhyam |\nśāntiṁ kṛtvā sarvato yādavānāṁ mārutagehanātha paripāhi rogāt ||",
+          translation: "Thus, having slain Shalva and Dantavaktra and having protected the entire city of Dwaraka, You established peace on all sides for the Yadavas. O Lord of Guruvayur, protect me from disease!",
+          commentary: "The concluding verse summarizes the dashaka's narrative arc — from siege to liberation — and pivots to Bhattathiri's personal prayer. The protection of Dwaraka mirrors the protection the devotee seeks from the Lord of Guruvayur. Just as Krishna shielded His city from external assault, the poet asks for defense against the assault of illness.",
+          words: [
+            { word: "हत्वा", transliteration: "hatvā", meaning: "having slain" },
+            { word: "रक्षित्वा", transliteration: "rakṣitvā", meaning: "having protected" },
+            { word: "द्वारकाख्यम्", transliteration: "dvārakākhyam", meaning: "called Dwaraka" },
+            { word: "शान्तिम्", transliteration: "śāntim", meaning: "peace, tranquility" },
+            { word: "यादवानाम्", transliteration: "yādavānām", meaning: "of the Yadavas" },
+            { word: "मारुतगेहनाथ", transliteration: "mārutagehanātha", meaning: "O Lord of the temple of Vayu (Guruvayur)" },
+            { word: "परिपाहि", transliteration: "paripāhi", meaning: "protect completely" },
+            { word: "रोगात्", transliteration: "rogāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 78,
@@ -15905,7 +16086,188 @@ slokas: [
       theme: "leela",
       verseCount: 10,
       summary: "Describes Krishna's role as friend, guide, and protector of the Pandavas through their trials, including His service as Arjuna's charioteer and His pivotal role in the Mahabharata war.",
-      slokas: []
+      slokas: [
+        {
+          dashaka: 78,
+          sloka: 1,
+          devanagari: "पाण्डवास्ते प्रियसखा धर्मपुत्रमुखाः प्रभो ।\nत्वां विना नैव तिष्ठन्ति प्राणा देहमिवाश्रिताः ।\nत्वत्स्नेहबद्धहृदयाः सर्वदा त्वत्परायणाः\nत्वं च तेषु सदा प्रीतो बन्धुवत्परिपालयन् ॥",
+          transliteration: "pāṇḍavās te priyasakhā dharmaputramukhāḥ prabho |\ntvāṁ vinā naiva tiṣṭhanti prāṇā deham ivāśritāḥ |\ntvatsnehabaddhahṛdayāḥ sarvadā tvatparāyaṇāḥ\ntvaṁ ca teṣu sadā prīto bandhuvat paripālayan ||",
+          translation: "The Pandavas, led by Yudhishthira, are Your beloved companions, O Lord. They cannot exist without You, just as the vital breath cannot exist without the body. Their hearts are bound by love for You, always devoted to You alone, and You too are always pleased with them, protecting them as a kinsman.",
+          commentary: "This opening verse establishes the unique relationship between Krishna and the Pandavas — a bond deeper than friendship or kinship. The simile of prana and body expresses total mutual dependence. Krishna's relationship with the Pandavas is the supreme model of divine-human friendship in Hindu tradition.",
+          words: [
+            { word: "पाण्डवाः", transliteration: "pāṇḍavāḥ", meaning: "the Pandavas (sons of Pandu)" },
+            { word: "प्रियसखाः", transliteration: "priyasakhāḥ", meaning: "beloved companions, dear friends" },
+            { word: "धर्मपुत्रमुखाः", transliteration: "dharmaputramukhāḥ", meaning: "led by Yudhishthira (son of Dharma)" },
+            { word: "प्राणाः", transliteration: "prāṇāḥ", meaning: "vital breaths, life-force" },
+            { word: "स्नेहबद्धहृदयाः", transliteration: "snehabaddhahṛdayāḥ", meaning: "with hearts bound by affection" },
+            { word: "त्वत्परायणाः", transliteration: "tvatparāyaṇāḥ", meaning: "wholly devoted to You" },
+            { word: "बन्धुवत्", transliteration: "bandhuvat", meaning: "like a kinsman" },
+            { word: "परिपालयन्", transliteration: "paripālayan", meaning: "protecting, guarding" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 2,
+          devanagari: "अर्जुनस्ते सखा भूत्वा प्राणेभ्योऽपि गरीयसी ।\nप्रीतिरासीदनिर्वाच्या युवयोर्लोकविश्रुता ।\nनरनारायणावेतौ पूर्वं बदरिकाश्रमे\nतपस्यन्तौ जगद्धित्यै तावेव पुनरागतौ ॥",
+          transliteration: "arjunas te sakhā bhūtvā prāṇebhyo'pi garīyasī |\nprītir āsīd anirvācyā yuvayor lokaviśrutā |\nnaranārāyaṇāv etau pūrvaṁ badarikāśrame\ntapasyantau jagaddhityai tāveva punar āgatau ||",
+          translation: "Arjuna, having become Your friend, shared with You a love dearer than life itself — an indescribable bond celebrated throughout the world. These two, Nara and Narayana, who had once performed austerities at Badarikashrama for the welfare of the world, had now returned again as these very two.",
+          commentary: "The Krishna-Arjuna friendship is revealed as the continuation of the eternal Nara-Narayana partnership. Their bond at Badarikashrama — the human and divine aspects of reality working together — now manifests in the world of action. This theological identity elevates their friendship beyond the personal to the cosmic.",
+          words: [
+            { word: "अर्जुनः", transliteration: "arjunaḥ", meaning: "Arjuna (the Pandava warrior)" },
+            { word: "सखा", transliteration: "sakhā", meaning: "friend, companion" },
+            { word: "प्राणेभ्यः अपि", transliteration: "prāṇebhyaḥ api", meaning: "even more than life" },
+            { word: "गरीयसी", transliteration: "garīyasī", meaning: "greater, more precious" },
+            { word: "अनिर्वाच्या", transliteration: "anirvācyā", meaning: "indescribable, beyond words" },
+            { word: "नरनारायणौ", transliteration: "naranārāyaṇau", meaning: "Nara and Narayana (the divine pair)" },
+            { word: "बदरिकाश्रमे", transliteration: "badarikāśrame", meaning: "at the Badarika hermitage" },
+            { word: "जगद्धित्यै", transliteration: "jagaddhityai", meaning: "for the welfare of the world" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 3,
+          devanagari: "द्रौपदी पाञ्चाली साध्वी भक्तिमत्यतिधार्मिकी ।\nत्वामेव शरणं प्राप्ता दुःशासनविमर्दने ।\nसभामध्ये विवस्त्रायां कृष्णेति तव नाम सा\nक्रोशन्ती प्रापितानन्तमम्बरं त्वत्प्रसादतः ॥",
+          transliteration: "draupadī pāñcālī sādhvī bhaktimatyatiddhārmikī |\ntvāmeva śaraṇaṁ prāptā duḥśāsanavimardane |\nsabhāmadhye vivastrāyāṁ kṛṣṇeti tava nāma sā\nkrośantī prāpitānantam ambaraṁ tvatprasādataḥ ||",
+          translation: "Draupadi, the virtuous princess of Panchala, supremely devoted and righteous, took refuge in You alone when Duhshasana tried to humiliate her. As she was being disrobed in the assembly and cried out 'Krishna!', invoking Your name, she received endless cloth by Your divine grace.",
+          commentary: "Draupadi's cry of 'Krishna!' in her moment of supreme vulnerability is one of the most powerful expressions of sharanagati (surrender) in all of Indian literature. Her letting go of her own grip on the cloth and relying entirely on the Lord's name is the perfect model of absolute devotion. The endless cloth symbolizes limitless divine protection.",
+          words: [
+            { word: "द्रौपदी", transliteration: "draupadī", meaning: "Draupadi (wife of the Pandavas)" },
+            { word: "साध्वी", transliteration: "sādhvī", meaning: "virtuous, chaste woman" },
+            { word: "भक्तिमती", transliteration: "bhaktimatī", meaning: "one full of devotion" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "विवस्त्रायाम्", transliteration: "vivastrāyām", meaning: "when being disrobed" },
+            { word: "क्रोशन्ती", transliteration: "krośantī", meaning: "crying out, calling aloud" },
+            { word: "अनन्तम् अम्बरम्", transliteration: "anantam ambaram", meaning: "endless cloth/garment" },
+            { word: "त्वत्प्रसादतः", transliteration: "tvatprasādataḥ", meaning: "by Your grace" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 4,
+          devanagari: "वनवासे चिरं क्लिष्टान्पाण्डवांस्त्वं जगत्पते ।\nसान्त्वयन्दूतकर्माणि कुर्वन्बन्धुजनप्रियः ।\nधर्मे स्थापयितुं नित्यं तेषां बुद्धिं प्रचोदयन्\nकष्टेषु रक्षकस्तेषां सर्वदा त्वमभूः प्रभो ॥",
+          transliteration: "vanavāse ciraṁ kliṣṭān pāṇḍavāṁs tvaṁ jagatpate |\nsāntvayan dūtakarmāṇi kurvan bandhujanapriyaḥ |\ndharme sthāpayituṁ nityaṁ teṣāṁ buddhiṁ pracodayan\nkaṣṭeṣu rakṣakas teṣāṁ sarvadā tvam abhūḥ prabho ||",
+          translation: "When the Pandavas were long afflicted in their forest exile, O Lord of the universe, You consoled them, performed the role of emissary, dear to all kinsmen, constantly inspiring their minds to remain established in dharma. In all their hardships, You were always their protector, O Lord.",
+          commentary: "During the thirteen years of exile, Krishna maintained constant contact with the Pandavas — visiting, counseling, and keeping their spirits aligned with dharma. His role as duta (emissary) later to the Kaurava court demonstrates that the Lord exhausts every peaceful avenue before resorting to war, modeling the dharmic approach to conflict.",
+          words: [
+            { word: "वनवासे", transliteration: "vanavāse", meaning: "during forest exile" },
+            { word: "क्लिष्टान्", transliteration: "kliṣṭān", meaning: "afflicted, suffering" },
+            { word: "सान्त्वयन्", transliteration: "sāntvayan", meaning: "consoling, comforting" },
+            { word: "दूतकर्माणि", transliteration: "dūtakarmāṇi", meaning: "duties of a messenger/emissary" },
+            { word: "बन्धुजनप्रियः", transliteration: "bandhujanapriyaḥ", meaning: "dear to kinsmen" },
+            { word: "धर्मे स्थापयितुम्", transliteration: "dharme sthāpayitum", meaning: "to establish in dharma" },
+            { word: "बुद्धिम् प्रचोदयन्", transliteration: "buddhiṁ pracodayan", meaning: "inspiring the intellect" },
+            { word: "रक्षकः", transliteration: "rakṣakaḥ", meaning: "protector, guardian" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 5,
+          devanagari: "दौत्यं च कौरवसभां गतवान्जगन्नाथ\nशान्तिं विधातुमखिलं पृथिवीहिताय ।\nविश्वं दर्शयित्वा धृतराष्ट्रसभायां\nधर्मं ब्रुवन्नपि न तैः परिगृह्य उक्तम् ॥",
+          transliteration: "dautyaṁ ca kauravasabhāṁ gatavān jagannātha\nśāntiṁ vidhātum akhilaṁ pṛthivīhitāya |\nviśvaṁ darśayitvā dhṛtarāṣṭrasabhāyāṁ\ndharmaṁ bruvann api na taiḥ parigṛhya uktam ||",
+          translation: "You went as an emissary to the Kaurava court, O Lord of the universe, to bring about peace for the welfare of the entire earth. Revealing Your universal form in the court of Dhritarashtra, and speaking of dharma — yet even so, Your words were not accepted by them.",
+          commentary: "Krishna's peace mission to Hastinapura is one of the most dramatic episodes in the Mahabharata. Despite revealing His vishvarupa to the Kaurava court — a terrifying preview of what the Gita would later show Arjuna — the Kauravas rejected peace. This demonstrates that the Lord offers every opportunity for reform before divine justice is enacted.",
+          words: [
+            { word: "दौत्यम्", transliteration: "dautyam", meaning: "ambassadorial mission, embassy" },
+            { word: "कौरवसभाम्", transliteration: "kauravasabhām", meaning: "to the Kaurava court/assembly" },
+            { word: "शान्तिम् विधातुम्", transliteration: "śāntiṁ vidhātum", meaning: "to bring about peace" },
+            { word: "पृथिवीहिताय", transliteration: "pṛthivīhitāya", meaning: "for the welfare of the earth" },
+            { word: "विश्वम्", transliteration: "viśvam", meaning: "the universal form, the cosmos" },
+            { word: "दर्शयित्वा", transliteration: "darśayitvā", meaning: "having revealed, having shown" },
+            { word: "धर्मम् ब्रुवन्", transliteration: "dharmaṁ bruvan", meaning: "speaking of dharma/righteousness" },
+            { word: "न परिगृह्य", transliteration: "na parigṛhya", meaning: "not accepted, not heeded" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 6,
+          devanagari: "पार्थस्य सारथ्यमथो गृहीत्वा त्वं भक्तवत्सल ।\nरथं दिव्यं समास्थाय केशवार्जुनसंयुतम् ।\nकुरुक्षेत्रे महायुद्धे धर्मस्थापनकारणात्\nजगतामुपकाराय योद्धुं प्रैषयः पाण्डवान् ॥",
+          transliteration: "pārthasya sārathyam atho gṛhītvā tvaṁ bhaktavatsala |\nrathaṁ divyaṁ samāsthāya keśavārjunasaṁyutam |\nkurukṣetre mahāyuddhe dharmasthāpanakāraṇāt\njagatām upakārāya yoddhuṁ praiṣayaḥ pāṇḍavān ||",
+          translation: "O lover of devotees, You accepted the role of Arjuna's charioteer. Mounting that divine chariot bearing both Keshava and Arjuna, on the great battlefield of Kurukshetra, for the establishment of dharma and the welfare of all worlds, You sent the Pandavas forth to fight.",
+          commentary: "The supreme Lord becoming a charioteer — the servant of His own devotee — is the most astonishing act of divine humility. Krishna's sārathya (charioteering) for Arjuna inverts all hierarchy: the master serves, the infinite supports the finite. The chariot of Keshava-Arjuna becomes the vehicle of dharma itself.",
+          words: [
+            { word: "सारथ्यम्", transliteration: "sārathyam", meaning: "the role of charioteer" },
+            { word: "गृहीत्वा", transliteration: "gṛhītvā", meaning: "having accepted, having taken up" },
+            { word: "भक्तवत्सल", transliteration: "bhaktavatsala", meaning: "O lover of devotees" },
+            { word: "केशवार्जुनसंयुतम्", transliteration: "keśavārjunasaṁyutam", meaning: "bearing both Keshava and Arjuna" },
+            { word: "कुरुक्षेत्रे", transliteration: "kurukṣetre", meaning: "on the field of Kurukshetra" },
+            { word: "महायुद्धे", transliteration: "mahāyuddhe", meaning: "in the great war" },
+            { word: "धर्मस्थापनकारणात्", transliteration: "dharmasthāpanakāraṇāt", meaning: "for the cause of establishing dharma" },
+            { word: "उपकाराय", transliteration: "upakārāya", meaning: "for the benefit, for the welfare" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 7,
+          devanagari: "विषादमोहे पतितं किरीटिनं समीक्ष्य कृष्ण त्वमुवाच तत्त्ववित् ।\nगीतामृतं तं परमं शुभोदयं जगद्धितार्थं च जगत्प्रकाशयन् ।\nआत्मानमक्षय्यमजं पुरातनं प्रदर्श्य विश्वं च गुरो प्रबोधयन् ॥",
+          transliteration: "viṣādamohe patitaṁ kirīṭinaṁ samīkṣya kṛṣṇa tvam uvāca tattvavit |\ngītāmṛtaṁ taṁ paramaṁ śubhodayaṁ jagaddhitārthaṁ ca jagatprakāśayan |\nātmānam akṣayyam ajaṁ purātanaṁ pradarśya viśvaṁ ca guro prabodhayan ||",
+          translation: "Seeing the crowned Arjuna fallen into despondent delusion, You, O Krishna, the knower of truth, spoke the nectar of the Gita — that supreme, auspicious teaching — illuminating the world for its benefit, revealing Yourself as the imperishable, unborn, and ancient Self, and awakening him to the cosmic vision, O Guru.",
+          commentary: "The Bhagavad Gita emerges from Arjuna's crisis of despair. Krishna's response transforms a personal breakdown into humanity's greatest spiritual teaching. The term 'gītāmṛtam' (nectar of the Gita) captures how this discourse is the elixir that cures the fundamental disease of ignorance. The vishvarupa darshana that follows seals the teaching with direct divine revelation.",
+          words: [
+            { word: "विषादमोहे", transliteration: "viṣādamohe", meaning: "in despondent delusion" },
+            { word: "किरीटिनम्", transliteration: "kirīṭinam", meaning: "the crowned one (Arjuna)" },
+            { word: "तत्त्ववित्", transliteration: "tattvavit", meaning: "knower of truth/reality" },
+            { word: "गीतामृतम्", transliteration: "gītāmṛtam", meaning: "the nectar of the Gita" },
+            { word: "शुभोदयम्", transliteration: "śubhodayam", meaning: "giving rise to auspiciousness" },
+            { word: "अक्षय्यम्", transliteration: "akṣayyam", meaning: "imperishable, inexhaustible" },
+            { word: "अजम् पुरातनम्", transliteration: "ajam purātanam", meaning: "unborn and ancient" },
+            { word: "प्रबोधयन्", transliteration: "prabodhayan", meaning: "awakening, enlightening" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 8,
+          devanagari: "भीष्मद्रोणादिवीराणां सैन्यं दृष्ट्वा सुदुर्जयम् ।\nपाण्डवानां बलं रक्षन्नुपायांश्च प्रदर्शयन् ।\nयुद्धे धर्मं समास्थाय नीतिज्ञः सर्वदर्शनः\nत्वमेव कारयामास विजयं धर्मनन्दने ॥",
+          transliteration: "bhīṣmadroṇādivīrāṇāṁ sainyaṁ dṛṣṭvā sudurjayam |\npāṇḍavānāṁ balaṁ rakṣann upāyāṁśca pradarśayan |\nyuddhe dharmaṁ samāsthāya nītijñaḥ sarvadarśanaḥ\ntvameva kārayāmāsa vijayaṁ dharmanandane ||",
+          translation: "Seeing the army of mighty warriors like Bhishma and Drona, so difficult to conquer, You protected the Pandava forces and revealed strategic means. Established in dharma during the war, the all-knowing master of statecraft, You alone brought about victory for Yudhishthira.",
+          commentary: "Krishna's role in the Mahabharata war extends far beyond charioteering — He is the supreme strategist. His guidance navigated the seemingly impossible challenges posed by invincible warriors like Bhishma and Drona. The term 'kārayāmāsa' (caused to happen) reveals that the Pandavas' victory was ultimately Krishna's doing, not merely their own valor.",
+          words: [
+            { word: "भीष्मद्रोणादिवीराणाम्", transliteration: "bhīṣmadroṇādivīrāṇām", meaning: "of heroes like Bhishma and Drona" },
+            { word: "सुदुर्जयम्", transliteration: "sudurjayam", meaning: "very difficult to conquer" },
+            { word: "बलम् रक्षन्", transliteration: "balam rakṣan", meaning: "protecting the army/strength" },
+            { word: "उपायान्", transliteration: "upāyān", meaning: "strategies, means" },
+            { word: "प्रदर्शयन्", transliteration: "pradarśayan", meaning: "showing, revealing" },
+            { word: "नीतिज्ञः", transliteration: "nītijñaḥ", meaning: "knower of statecraft/policy" },
+            { word: "सर्वदर्शनः", transliteration: "sarvadarśanaḥ", meaning: "the all-seeing one" },
+            { word: "धर्मनन्दने", transliteration: "dharmanandane", meaning: "in Yudhishthira (son of Dharma)" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 9,
+          devanagari: "युद्धान्ते धर्मराज्यं प्रतिष्ठाप्य धरातले ।\nशोकमोहनिमग्नं तं शान्तिपर्वमुपादिशन् ।\nभीष्मेण सह संवादं कारयित्वा युधिष्ठिरम्\nज्ञानवैराग्यसम्पन्नं चकर्थ त्वं जगत्पते ॥",
+          transliteration: "yuddhānte dharmarājyaṁ pratiṣṭhāpya dharātale |\nśokamohaninimagnaṁ taṁ śāntiparvam upādiśan |\nbhīṣmeṇa saha saṁvādaṁ kārayitvā yudhiṣṭhiram\njñānavairāgyasampannaṁ cakartha tvaṁ jagatpate ||",
+          translation: "After the war, having established the righteous kingdom on earth, You instructed Yudhishthira, who was sunk in grief and delusion, through the teachings of the Shanti Parva. Arranging his dialogue with Bhishma, You made him endowed with wisdom and dispassion, O Lord of the universe.",
+          commentary: "Yudhishthira's post-war grief at the carnage is healed through Bhishma's teachings on the bed of arrows — the Shanti and Anushasana Parvas. Krishna orchestrates this instruction, knowing that ruling requires not just victory but wisdom. The transformation from guilt-stricken warrior to wise king completes Krishna's guidance of the Pandavas.",
+          words: [
+            { word: "युद्धान्ते", transliteration: "yuddhānte", meaning: "after the war" },
+            { word: "धर्मराज्यम्", transliteration: "dharmarājyam", meaning: "righteous kingdom" },
+            { word: "प्रतिष्ठाप्य", transliteration: "pratiṣṭhāpya", meaning: "having established" },
+            { word: "शोकमोहनिमग्नम्", transliteration: "śokamohaninimagnam", meaning: "sunk in grief and delusion" },
+            { word: "शान्तिपर्वम्", transliteration: "śāntiparvam", meaning: "the Shanti Parva (book of peace)" },
+            { word: "संवादम्", transliteration: "saṁvādam", meaning: "dialogue, conversation" },
+            { word: "ज्ञानवैराग्यसम्पन्नम्", transliteration: "jñānavairāgyasampannam", meaning: "endowed with wisdom and dispassion" },
+            { word: "कारयित्वा", transliteration: "kārayitvā", meaning: "having caused, having arranged" }
+          ]
+        },
+        {
+          dashaka: 78,
+          sloka: 10,
+          devanagari: "एवं पाण्डवपालनं सुमहत्कृत्वा लीलया जगत्पते ।\nधर्मं संस्थाप्य विश्वस्मिन्पवनपुरपते पाहि मां सर्वरोगात् ॥",
+          transliteration: "evaṁ pāṇḍavapālanaṁ sumahatkṛtvā līlayā jagatpate |\ndharmaṁ saṁsthāpya viśvasmin pavanapurapate pāhi māṁ sarvarogāt ||",
+          translation: "Thus, having accomplished the great task of protecting the Pandavas with playful ease, O Lord of the universe, and having established dharma throughout the world, O Lord of Guruvayur, protect me from all diseases!",
+          commentary: "The closing verse encapsulates the entire Pandava narrative as a divine lila — an effortless cosmic play. The word 'līlayā' (with playful ease) transforms the epic's vast struggle into a graceful expression of divine will. Bhattathiri then draws the parallel to his own situation — if Krishna could uphold dharma for the whole world, surely He can cure one devotee's ailments.",
+          words: [
+            { word: "पाण्डवपालनम्", transliteration: "pāṇḍavapālanam", meaning: "the protection of the Pandavas" },
+            { word: "सुमहत्", transliteration: "sumahat", meaning: "very great, magnificent" },
+            { word: "लीलया", transliteration: "līlayā", meaning: "with playful ease, as divine sport" },
+            { word: "धर्मम्", transliteration: "dharmam", meaning: "righteousness, cosmic law" },
+            { word: "संस्थाप्य", transliteration: "saṁsthāpya", meaning: "having firmly established" },
+            { word: "विश्वस्मिन्", transliteration: "viśvasmin", meaning: "in the entire world" },
+            { word: "पवनपुरपते", transliteration: "pavanapurapate", meaning: "O Lord of Guruvayur (city of Vayu)" },
+            { word: "सर्वरोगात्", transliteration: "sarvarogāt", meaning: "from all diseases" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 79,
