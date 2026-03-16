@@ -20138,12 +20138,183 @@ slokas: [
     },
     {
       dashaka: 99,
-      titleSanskrit: "मुक्तिप्रार्थना",
-      titleEnglish: "Prayer for Liberation",
-      theme: "prayer",
+      titleSanskrit: "केशादिपादवर्णनम्",
+      titleEnglish: "Description from Head to Foot (Kesadi Pada Varnanam)",
+      theme: "devotion",
       verseCount: 10,
-      summary: "A moving prayer for spiritual liberation, requesting freedom from the cycle of birth and death, and seeking eternal residence at the Lord's lotus feet in Vaikuntha.",
-      slokas: []
+      summary: "The famous concluding meditation — a detailed description of the Lord's divine form starting from the crown and hair down to the lotus feet. Each verse is a meditation on a specific part of the Lord's transcendent beauty, building toward the complete vision of Guruvayurappan.",
+      slokas: [
+        {
+          dashaka: 99,
+          sloka: 1,
+          devanagari: "कुञ्चित्कुन्तलमन्दरं सुललितं सिन्दूरपूरारुणं\nस्निग्धं नीलनिचोलकान्तिललितं केशं तवाभ्यर्चये ।\nभास्वत्केतकमालिकाभिरभितो भूषं दधानं शिरो\nमञ्जुस्वर्णमुकुटप्रभातिशयितं ध्यायामि ते मूर्धजम् ॥",
+          transliteration: "kuñcit-kuntala-mandaraṁ sulalitaṁ sindūra-pūrāruṇaṁ\nsnigdhaṁ nīla-nicolakānti-lalitaṁ keśaṁ tavābhyarcaye |\nbhāsvat-ketaka-mālikābhir abhito bhūṣaṁ dadhānaṁ śiro\nmañju-svarṇa-mukuṭa-prabhātiśayitaṁ dhyāyāmi te mūrdhajam ||",
+          translation: "I worship Your hair — curling, beautiful, reddened with vermilion, glossy with the lustre of dark blue silk. I meditate upon Your head, adorned all around with garlands of radiant ketaki flowers, surpassed in splendour only by the lovely golden crown.",
+          words: [
+            { word: "कुञ्चित्कुन्तलम्", transliteration: "kuñcit-kuntalam", meaning: "with curling locks of hair" },
+            { word: "सुललितम्", transliteration: "sulalitam", meaning: "very beautiful, graceful" },
+            { word: "सिन्दूरपूरारुणम्", transliteration: "sindūra-pūrāruṇam", meaning: "reddened with an abundance of vermilion" },
+            { word: "स्निग्धम्", transliteration: "snigdham", meaning: "glossy, smooth, lustrous" },
+            { word: "केशम्", transliteration: "keśam", meaning: "hair" },
+            { word: "अभ्यर्चये", transliteration: "abhyarcaye", meaning: "I worship, I adore" },
+            { word: "केतकमालिकाभिः", transliteration: "ketaka-mālikābhiḥ", meaning: "with garlands of ketaki (screw-pine) flowers" },
+            { word: "स्वर्णमुकुटप्रभा", transliteration: "svarṇa-mukuṭa-prabhā", meaning: "the radiance of the golden crown" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 2,
+          devanagari: "फालं ते विमलं प्रशस्तमतुलं चन्द्रार्धचूडान्वितं\nकस्तूरीतिलकेन भूषितमहो लावण्यधाराश्रयम् ।\nभ्रूयुग्मं मनसिजचापसदृशं सान्द्रं मनोहारिणं\nनेत्रे ते कमलायतेक्षणयुगं ध्यायामि नित्यं हरे ॥",
+          transliteration: "phālaṁ te vimalaṁ praśastam atulaṁ candrārdha-cūḍānvitaṁ\nkastūrī-tilakena bhūṣitam aho lāvaṇya-dhārāśrayam |\nbhrū-yugmaṁ manasija-cāpa-sadṛśaṁ sāndraṁ manohāriṇaṁ\nnetre te kamalāyatekṣaṇa-yugaṁ dhyāyāmi nityaṁ hare ||",
+          translation: "Your forehead is spotless, auspicious, incomparable, bearing the half-moon crest, adorned with the musk tilaka — truly the abode of flowing grace. Your pair of eyebrows resembles the bow of Cupid, rich and captivating. I meditate always, O Hari, upon Your pair of lotus-wide eyes.",
+          words: [
+            { word: "फालम्", transliteration: "phālam", meaning: "forehead" },
+            { word: "विमलम्", transliteration: "vimalam", meaning: "spotless, pure" },
+            { word: "कस्तूरीतिलकेन", transliteration: "kastūrī-tilakena", meaning: "with the musk tilaka mark" },
+            { word: "लावण्यधाराश्रयम्", transliteration: "lāvaṇya-dhārāśrayam", meaning: "the abode of flowing grace/beauty" },
+            { word: "भ्रूयुग्मम्", transliteration: "bhrū-yugmam", meaning: "the pair of eyebrows" },
+            { word: "मनसिजचापसदृशम्", transliteration: "manasija-cāpa-sadṛśam", meaning: "resembling the bow of Kamadeva (Cupid)" },
+            { word: "कमलायतेक्षणयुगम्", transliteration: "kamalāyatekṣaṇa-yugam", meaning: "the pair of lotus-wide eyes" },
+            { word: "ध्यायामि", transliteration: "dhyāyāmi", meaning: "I meditate upon" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 3,
+          devanagari: "ईषद्रक्तान्तनेत्रं करुणरसभरं प्रेमवर्षं दधानं\nकर्णान्तायत्सुदीर्घं मृदुतरहसितोद्भासि गण्डस्थलं ते ।\nनासाग्रे मौक्तिकं ते विलसति सुभगं कुण्डले चामलाभे\nकर्णद्वन्द्वं मनोज्ञं मणिमयकनकश्रीसमालम्बमानम् ॥",
+          transliteration: "īṣad-raktānta-netraṁ karuṇa-rasa-bharaṁ prema-varṣaṁ dadhānaṁ\nkarṇāntāyat-sudīrghaṁ mṛdutara-hasitod-bhāsi gaṇḍasthalaṁ te |\nnāsāgre mauktikaṁ te vilasati subhagaṁ kuṇḍale cāmalābhe\nkarṇa-dvandvaṁ manojñaṁ maṇimaya-kanaka-śrī-samālambamānam ||",
+          translation: "Your eyes, slightly reddened at the corners, brimming with the sentiment of compassion, showering love, stretching long toward the ears — and Your cheeks gleaming with the gentlest smile. On the tip of Your nose a pearl shines beautifully; and a pair of lustrous earrings adorns Your charming ears, resplendent with gems set in gold.",
+          words: [
+            { word: "ईषद्रक्तान्तनेत्रम्", transliteration: "īṣad-raktānta-netram", meaning: "eyes slightly reddened at the corners" },
+            { word: "करुणरसभरम्", transliteration: "karuṇa-rasa-bharam", meaning: "brimming with the sentiment of compassion" },
+            { word: "प्रेमवर्षम्", transliteration: "prema-varṣam", meaning: "showering love" },
+            { word: "गण्डस्थलम्", transliteration: "gaṇḍasthalam", meaning: "the surface of the cheeks" },
+            { word: "मृदुतरहसित", transliteration: "mṛdutara-hasita", meaning: "gentlest smile" },
+            { word: "नासाग्रे", transliteration: "nāsāgre", meaning: "on the tip of the nose" },
+            { word: "मौक्तिकम्", transliteration: "mauktikam", meaning: "pearl" },
+            { word: "कुण्डले", transliteration: "kuṇḍale", meaning: "earrings (dual)" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 4,
+          devanagari: "बिम्बाधरं रक्ततरं प्रसन्नं मन्दस्मितालोकमनोहरं ते ।\nवक्त्रं समस्ताखिलसौन्दर्यनिधानं दन्तपङ्क्त्या विराजत् ।\nजिह्वा सदा माधुरतां दधाना वाणी तवामृतधाराप्रवाहा\nवक्त्रारविन्दं तव चिन्तयामि चन्द्रातिशायि स्मितशोभमानम् ॥",
+          transliteration: "bimbādharaṁ raktataram prasannaṁ manda-smitāloka-manoharam te |\nvaktraṁ samastākhila-saundarya-nidhānaṁ danta-paṅktyā virājat |\njihvā sadā mādhurataṁ dadhānā vāṇī tavāmṛta-dhārā-pravāhā\nvaktrāravindaṁ tava cintayāmi candrātiśāyi smita-śobhamānam ||",
+          translation: "Your bimba-fruit-red lips are radiant and serene, captivating with a gentle smile. Your face is the treasury of all beauty, shining with rows of teeth. Your tongue ever bears sweetness, and Your speech flows as a stream of nectar. I contemplate Your lotus face, resplendent with a smile surpassing the moon.",
+          words: [
+            { word: "बिम्बाधरम्", transliteration: "bimbādharam", meaning: "lips red like the bimba fruit" },
+            { word: "मन्दस्मित", transliteration: "manda-smita", meaning: "gentle smile" },
+            { word: "वक्त्रम्", transliteration: "vaktram", meaning: "face, mouth" },
+            { word: "सौन्दर्यनिधानम्", transliteration: "saundarya-nidhānam", meaning: "treasure-house of beauty" },
+            { word: "दन्तपङ्क्त्या", transliteration: "danta-paṅktyā", meaning: "with rows of teeth" },
+            { word: "अमृतधाराप्रवाहा", transliteration: "amṛta-dhārā-pravāhā", meaning: "a flowing stream of nectar" },
+            { word: "वक्त्रारविन्दम्", transliteration: "vaktrāravindam", meaning: "lotus face" },
+            { word: "चन्द्रातिशायि", transliteration: "candrātiśāyi", meaning: "surpassing the moon" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 5,
+          devanagari: "कम्बुग्रीवां सुवृत्तां तव विलसदलङ्कारभूषास्पदं तां\nहारैर्मुक्ताफलैश्च प्रवरकनकभूषावलीसम्भृतां ते ।\nबाहुद्वन्द्वं चतुर्भिः परिलसदभयं शङ्खचक्रादिचिह्नं\nकेयूरादिप्रशस्तैरभिनवकनकैर्भूषितं चिन्तयामि ॥",
+          transliteration: "kambu-grīvāṁ suvṛttāṁ tava vilasad-alaṅkāra-bhūṣāspadaṁ tāṁ\nhārair muktāphalaiś ca pravara-kanaka-bhūṣāvalī-sambhṛtāṁ te |\nbāhu-dvandvaṁ caturbhiḥ parilasad-abhayaṁ śaṅkha-cakrādi-cihnaṁ\nkeyūrādi-praśastair abhinava-kanakair bhūṣitaṁ cintayāmi ||",
+          translation: "I meditate upon Your conch-shaped, well-rounded neck, the seat of gleaming ornaments, enriched with necklaces of pearls and garlands of finest gold. I contemplate Your four resplendent arms displaying the gesture of fearlessness and bearing the marks of conch and discus, adorned with armlets and other splendid ornaments of fresh gold.",
+          words: [
+            { word: "कम्बुग्रीवाम्", transliteration: "kambu-grīvām", meaning: "conch-shaped neck (marked with three lines)" },
+            { word: "सुवृत्ताम्", transliteration: "suvṛttām", meaning: "well-rounded, shapely" },
+            { word: "अलङ्कारभूषास्पदम्", transliteration: "alaṅkāra-bhūṣāspadam", meaning: "the seat/abode of ornaments" },
+            { word: "मुक्ताफलैः", transliteration: "muktāphalaiḥ", meaning: "with pearls" },
+            { word: "बाहुद्वन्द्वम्", transliteration: "bāhu-dvandvam", meaning: "the pair of arms" },
+            { word: "शङ्खचक्रादिचिह्नम्", transliteration: "śaṅkha-cakrādi-cihnam", meaning: "bearing the marks of conch, discus, etc." },
+            { word: "केयूरादि", transliteration: "keyūrādi", meaning: "armlets and other ornaments" },
+            { word: "चिन्तयामि", transliteration: "cintayāmi", meaning: "I meditate upon, I contemplate" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 6,
+          devanagari: "वक्षस्थलं विस्तृतमुज्ज्वलं ते श्रीवत्सचिह्नेन विभूषमानम् ।\nकौस्तुभश्रीमणिदीप्तिजुष्टं वनमालया शोभितमप्रमेयम् ।\nलक्ष्मीकरस्पर्शसुखं दधानं हृत्पद्मनाभं सकलाश्रयं ते\nवक्षो विशालं मम चिन्तनीयं सदा भजे कृष्ण तवोरुदेशम् ॥",
+          transliteration: "vakṣas-thalaṁ vistṛtam ujjvalaṁ te śrīvatsa-cihnena vibhūṣamānam |\nkaustubha-śrī-maṇi-dīpti-juṣṭaṁ vanamālayā śobhitam aprameyam |\nlakṣmī-kara-sparśa-sukhaṁ dadhānaṁ hṛt-padma-nābhaṁ sakalāśrayaṁ te\nvakṣo viśālaṁ mama cintanīyaṁ sadā bhaje kṛṣṇa tavorudeśam ||",
+          translation: "Your broad, radiant chest is adorned with the Shrivatsa mark, graced by the lustre of the Kaustubha gem, beautified by the forest garland, immeasurable. It bears the delight of Lakshmi's touch, with the lotus-navel as the heart of all, the refuge of everything. I contemplate Your vast chest and ever worship, O Krishna, the region of Your form.",
+          words: [
+            { word: "वक्षस्थलम्", transliteration: "vakṣas-thalam", meaning: "the chest, the broad chest" },
+            { word: "श्रीवत्सचिह्नेन", transliteration: "śrīvatsa-cihnena", meaning: "with the Shrivatsa mark" },
+            { word: "कौस्तुभश्रीमणि", transliteration: "kaustubha-śrī-maṇi", meaning: "the auspicious Kaustubha gem" },
+            { word: "वनमालया", transliteration: "vanamālayā", meaning: "with the forest-flower garland (Vanamala)" },
+            { word: "अप्रमेयम्", transliteration: "aprameyam", meaning: "immeasurable, beyond comprehension" },
+            { word: "लक्ष्मीकरस्पर्शसुखम्", transliteration: "lakṣmī-kara-sparśa-sukham", meaning: "bearing the delight of Lakshmi's hand-touch" },
+            { word: "पद्मनाभम्", transliteration: "padma-nābham", meaning: "the lotus-naveled one" },
+            { word: "सकलाश्रयम्", transliteration: "sakalāśrayam", meaning: "the refuge of all, support of everything" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 7,
+          devanagari: "मध्यं सूक्ष्मं त्रिवलिवलितं रोमराजिप्रणीतं\nनाभीपद्मं सरसिजभवस्यैकमूलस्थलं ते ।\nपीताम्बरं कटितटे तव कान्तिवन्तं\nमञ्जीरनूपुररवं मणिमेखलाढ्यम् ।\nकटिं विचिन्तयामि ते विशालां\nरत्नमेखलावलयशोभितमद्भुतां ते ॥",
+          transliteration: "madhyaṁ sūkṣmaṁ trivalivalitaṁ romarāji-praṇītaṁ\nnābhī-padmaṁ sarasijabhavasya-eka-mūla-sthalaṁ te |\npītāmbaraṁ kaṭi-taṭe tava kāntivantaṁ\nmañjīra-nūpura-ravaṁ maṇi-mekhalāḍhyam |\nkaṭiṁ vicintayāmi te viśālāṁ\nratna-mekhalāvalaya-śobhitam adbhutāṁ te ||",
+          translation: "Your slender waist is graced by three folds and a line of fine hair. Your lotus-navel is the very source from which the lotus-born Brahma arose. The yellow silk garment at Your hip-region is resplendent, rich with the tinkling of anklet-bells and gem-studded girdle. I meditate upon Your broad, wondrous waist adorned with jeweled girdle and ornamental bands.",
+          words: [
+            { word: "मध्यम्", transliteration: "madhyam", meaning: "waist, middle" },
+            { word: "त्रिवलिवलितम्", transliteration: "trivalivalitam", meaning: "graced by three folds (of skin)" },
+            { word: "रोमराजि", transliteration: "romarāji", meaning: "line of fine hair (on the abdomen)" },
+            { word: "नाभीपद्मम्", transliteration: "nābhī-padmam", meaning: "the lotus-navel" },
+            { word: "सरसिजभवस्य", transliteration: "sarasijabhavasya", meaning: "of the lotus-born one (Brahma)" },
+            { word: "पीताम्बरम्", transliteration: "pītāmbaram", meaning: "yellow silk garment" },
+            { word: "मणिमेखला", transliteration: "maṇi-mekhalā", meaning: "gem-studded girdle" },
+            { word: "कटिम्", transliteration: "kaṭim", meaning: "waist, hip region" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 8,
+          devanagari: "ऊरू ते करिकरसमौ विस्तृतौ चारुदेशौ\nजानुद्वन्द्वं सुवृत्तं मृदुतरमधिकं चारु जङ्घायुगं ते ।\nगुल्फौ चोज्ज्वलदीप्तौ नवनवमणिभिर्नूपुराभ्यां विभातौ\nसुस्निग्धौ पादपद्मौ मम हृदि सततं संनिधत्तां चिराय ॥",
+          transliteration: "ūrū te karikarasamau vistṛtau cāru-deśau\njānu-dvandvaṁ suvṛttaṁ mṛdutaram adhikaṁ cāru jaṅghāyugaṁ te |\ngulphau cojjvala-dīptau nava-nava-maṇibhir nūpurābhyāṁ vibhātau\nsusnigdhau pādapadmau mama hṛdi satataṁ sannidhattāṁ cirāya ||",
+          translation: "Your thighs are like elephant trunks — broad and of beautiful proportions. Your pair of knees is well-rounded and exceedingly soft. Lovely are Your pair of calves. Your ankles shine brilliantly with anklets set with ever-fresh gems. May Your smooth lotus feet abide in my heart forever and always.",
+          words: [
+            { word: "ऊरू", transliteration: "ūrū", meaning: "thighs (dual)" },
+            { word: "करिकरसमौ", transliteration: "karikarasamau", meaning: "resembling elephant trunks" },
+            { word: "जानुद्वन्द्वम्", transliteration: "jānu-dvandvam", meaning: "the pair of knees" },
+            { word: "जङ्घायुगम्", transliteration: "jaṅghāyugam", meaning: "the pair of calves/shanks" },
+            { word: "गुल्फौ", transliteration: "gulphau", meaning: "the two ankles" },
+            { word: "नूपुराभ्याम्", transliteration: "nūpurābhyām", meaning: "with the two anklets" },
+            { word: "पादपद्मौ", transliteration: "pādapadmau", meaning: "the two lotus feet" },
+            { word: "संनिधत्ताम्", transliteration: "sannidhattām", meaning: "may they abide, may they be present" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 9,
+          devanagari: "पादाङ्गुलीनखमणिप्रभया विभातौ\nपादौ तवारुणतलौ शरणागतानाम् ।\nरक्षाकरौ दुरितसंहतिनाशनौ तौ\nलक्ष्म्याः करेण परिमृष्टसुशोभनौ ते ।\nचक्राङ्कितौ ध्वजवज्रादिसुचिह्नयुक्तौ\nभक्तार्तिनाशनपरौ भगवन् नमामि ॥",
+          transliteration: "pādāṅgulī-nakha-maṇi-prabhayā vibhātau\npādau tavāruṇatalau śaraṇāgatānām |\nrakṣākarau durita-saṁhati-nāśanau tau\nlakṣmyāḥ kareṇa parimṛṣṭa-suśobhanau te |\ncakrāṅkitau dhvaja-vajrādi-sucihna-yuktau\nbhaktārti-nāśana-parau bhagavan namāmi ||",
+          translation: "Your feet shine with the lustre of toe-nails like gems, with reddish soles — the refuge of all who surrender. They are the protectors, the destroyers of accumulated sins, beautified by the touch of Lakshmi's hands. Marked with the discus, flag, thunderbolt, and other auspicious signs, devoted to destroying the sorrows of devotees — O Lord, I bow to them.",
+          words: [
+            { word: "पादाङ्गुलीनखमणि", transliteration: "pādāṅgulī-nakha-maṇi", meaning: "toe-nails like gems" },
+            { word: "अरुणतलौ", transliteration: "aruṇatalau", meaning: "with reddish soles" },
+            { word: "शरणागतानाम्", transliteration: "śaraṇāgatānām", meaning: "of those who have taken refuge" },
+            { word: "रक्षाकरौ", transliteration: "rakṣākarau", meaning: "the two that give protection" },
+            { word: "दुरितसंहतिनाशनौ", transliteration: "durita-saṁhati-nāśanau", meaning: "destroyers of accumulated sins" },
+            { word: "चक्राङ्कितौ", transliteration: "cakrāṅkitau", meaning: "marked with the discus sign" },
+            { word: "ध्वजवज्रादि", transliteration: "dhvaja-vajrādi", meaning: "flag, thunderbolt, and other (auspicious marks)" },
+            { word: "भक्तार्तिनाशनपरौ", transliteration: "bhaktārti-nāśana-parau", meaning: "devoted to destroying the sorrows of devotees" }
+          ]
+        },
+        {
+          dashaka: 99,
+          sloka: 10,
+          devanagari: "एवं प्रसन्नवपुषं पदवीक्षणाद्यैः\nसम्पूज्य केशपदपर्यन्तं मुरारे ।\nआनन्दबाष्पनयनो गदगद्यमानो\nभक्त्या समर्पितमनाः शरणं प्रपद्ये ।\nमारुतालयनिवासिन् गोपवेष प्रभो\nआयुरारोग्यसौख्यं प्रदिश गुरुवायुपुरेश कृष्ण ॥",
+          transliteration: "evaṁ prasanna-vapuṣaṁ padavīkṣaṇādyaiḥ\nsampūjya keśa-pada-paryantaṁ murāre |\nānanda-bāṣpa-nayano gadagadyamāno\nbhaktyā samarpita-manāḥ śaraṇaṁ prapadye |\nmārutālaya-nivāsin gopa-veṣa prabho\nāyur-ārogya-saukhyaṁ pradiśa guruvāyupureśa kṛṣṇa ||",
+          translation: "Thus having worshipped Your gracious form from head to foot through devoted gazing, O slayer of Mura — with eyes brimming with tears of joy, voice choked with emotion, mind offered through devotion, I take refuge in You. O Dweller of the Temple of the Wind-God, O Lord in the garb of a cowherd, grant me long life, health, and happiness, O Lord of Guruvayur, O Krishna!",
+          words: [
+            { word: "प्रसन्नवपुषम्", transliteration: "prasanna-vapuṣam", meaning: "the gracious/serene divine form" },
+            { word: "केशपदपर्यन्तम्", transliteration: "keśa-pada-paryantam", meaning: "from head (hair) to foot" },
+            { word: "आनन्दबाष्पनयनः", transliteration: "ānanda-bāṣpa-nayanaḥ", meaning: "with eyes filled with tears of joy" },
+            { word: "गदगद्यमानः", transliteration: "gadagadyamānaḥ", meaning: "voice choked with emotion" },
+            { word: "समर्पितमनाः", transliteration: "samarpita-manāḥ", meaning: "with mind surrendered/offered" },
+            { word: "मारुतालयनिवासिन्", transliteration: "mārutālaya-nivāsin", meaning: "O Dweller of the Temple of the Wind-God (Guruvayur)" },
+            { word: "गोपवेष", transliteration: "gopa-veṣa", meaning: "in the garb of a cowherd" },
+            { word: "आयुरारोग्यसौख्यम्", transliteration: "āyur-ārogya-saukhyam", meaning: "long life, health, and happiness" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 100,
