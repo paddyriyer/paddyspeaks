@@ -16641,21 +16641,383 @@ slokas: [
     },
     {
       dashaka: 81,
-      titleSanskrit: "उद्धवगीता",
-      titleEnglish: "Uddhava Gita",
+      titleSanskrit: "उद्धवोपदेशम् — भक्तियोगः",
+      titleEnglish: "Teaching to Uddhava — Bhakti Yoga as Supreme",
       theme: "philosophy",
       verseCount: 10,
-      summary: "Continues the Uddhava Gita with Krishna's teachings on the story of the Avadhuta and his twenty-four gurus, illustrating how wisdom can be gleaned from every aspect of nature and life.",
-      slokas: []
+      summary: "Krishna teaches Uddhava that bhakti yoga is the supreme path, that mere ritualism without devotion is futile, that the Lord should be seen in all beings, and describes the marks of a true devotee.",
+      slokas: [
+        {
+          dashaka: 81,
+          sloka: 1,
+          devanagari: "भक्तियोगः परो मार्गो मुक्तिदो भवनाशनः ।\nन कर्मणा न विद्यया तं प्राप्नोति परात्परम् ।\nकेवलं भक्तिभावेन लभ्यते पुरुषोत्तमः\nइत्युद्धवं प्रबोधयन् कृष्णो वचनमब्रवीत् ॥",
+          transliteration: "bhaktiyogaḥ paro mārgo muktido bhavanāśanaḥ |\nna karmaṇā na vidyayā taṁ prāpnoti parātparam |\nkevalaṁ bhaktibhāvena labhyate puruṣottamaḥ\nityuddhavaṁ prabodhayan kṛṣṇo vacanam abravīt ||",
+          translation: "Bhakti yoga is the supreme path, bestowing liberation and destroying worldly bondage. Neither by rituals nor by learning alone can one attain the Supreme beyond the supreme. Only through the spirit of devotion is the Supreme Lord obtained — thus did Krishna speak, enlightening Uddhava.",
+          commentary: "The dashaka opens with Krishna's unequivocal declaration that bhakti is the highest path. This echoes the Bhagavata's central teaching that jnana and karma, while valuable, are insufficient without devotion. The phrase parātparam (beyond the supreme) elevates the Lord above even abstract Brahman.",
+          words: [
+            { word: "bhaktiyogaḥ", meaning: "the yoga of devotion" },
+            { word: "muktidaḥ", meaning: "bestower of liberation" },
+            { word: "bhavanāśanaḥ", meaning: "destroyer of worldly existence" },
+            { word: "karmaṇā", meaning: "by rituals, by action" },
+            { word: "vidyayā", meaning: "by learning, by knowledge" },
+            { word: "parātparam", meaning: "the Supreme beyond the supreme" },
+            { word: "bhaktibhāvena", meaning: "through the spirit of devotion" },
+            { word: "puruṣottamaḥ", meaning: "the Supreme Person, the highest Lord" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 2,
+          devanagari: "यज्ञदानतपांसि च कर्माणि विविधानि च ।\nमद्भक्तिरहितानि स्युर्निष्फलानि कलौ युगे ।\nबहिरङ्गक्रियामात्रं चित्तशुद्धिविवर्जितम्\nन मां प्रीणयते किञ्चित् कर्म शुष्कं निरर्थकम् ॥",
+          transliteration: "yajñadānatapāṁsi ca karmāṇi vividhāni ca |\nmadbhaktirahitāni syur niṣphalāni kalau yuge |\nbahiraṅgakriyāmātraṁ cittaśuddhivivarjitam\nna māṁ prīṇayate kiñcit karma śuṣkaṁ nirarthakam ||",
+          translation: "Sacrifices, charity, austerities, and various rituals — if devoid of devotion to Me, they become fruitless in the Kali age. Mere external action without purification of the mind does not please Me at all — such dry ritual is meaningless.",
+          commentary: "Krishna critiques empty ritualism, a theme central to the Bhagavata's reform of Vedic religion. The emphasis shifts from external observance to internal transformation. The word śuṣka (dry) powerfully conveys the barrenness of devotionless action.",
+          words: [
+            { word: "yajñadānatapāṁsi", meaning: "sacrifices, charity, and austerities" },
+            { word: "karmāṇi", meaning: "rituals, actions" },
+            { word: "madbhaktirahitāni", meaning: "devoid of devotion to Me" },
+            { word: "niṣphalāni", meaning: "fruitless, barren" },
+            { word: "bahiraṅgakriyā", meaning: "external ritualistic action" },
+            { word: "cittaśuddhi", meaning: "purification of the mind" },
+            { word: "prīṇayate", meaning: "pleases, gratifies" },
+            { word: "śuṣkam", meaning: "dry, hollow, lifeless" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 3,
+          devanagari: "सर्वभूतेषु यो मां तु वासुदेवं प्रपश्यति ।\nस एव पण्डितो लोके स योगी स च मद्भक्तः ।\nआत्मवत्सर्वभूतानि यः पश्यति स पश्यति\nद्वेषरागविमुक्तात्मा समदर्शी स उच्यते ॥",
+          transliteration: "sarvabhūteṣu yo māṁ tu vāsudevaṁ prapaśyati |\nsa eva paṇḍito loke sa yogī sa ca madbhaktaḥ |\nātmavat sarvabhūtāni yaḥ paśyati sa paśyati\ndveṣarāgavimuktātmā samadarśī sa ucyate ||",
+          translation: "He who sees Me, Vasudeva, in all beings — he alone is the wise one in this world, he is the true yogi, and he is My devotee. He who sees all beings as his own self — he truly sees. Free from hatred and attachment, he is called the one of equal vision.",
+          commentary: "This verse presents the Bhagavata's vision of practical devotion — not withdrawal from the world but seeing the Divine in all beings. The samadarshi (one of equal vision) theme connects to the Gita's sthitaprajna, but here it is explicitly grounded in devotion rather than mere philosophical detachment.",
+          words: [
+            { word: "sarvabhūteṣu", meaning: "in all beings" },
+            { word: "vāsudevam", meaning: "Vasudeva, the all-pervading Lord" },
+            { word: "prapaśyati", meaning: "sees, perceives clearly" },
+            { word: "paṇḍitaḥ", meaning: "the wise one, the learned" },
+            { word: "yogī", meaning: "the true yogi" },
+            { word: "ātmavat", meaning: "as one's own self" },
+            { word: "dveṣarāgavimuktātmā", meaning: "one whose self is free from hatred and attachment" },
+            { word: "samadarśī", meaning: "one of equal vision" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 4,
+          devanagari: "मयि सर्वं समारोप्य सर्वभूतात्मभावनः ।\nभजते यः परां भक्तिं स मे प्रियतमो नरः ।\nन द्वेष्टि किञ्चिदात्मानं न च किञ्चिदपेक्षते\nशान्तो दान्तः कृपापूर्णो मद्भक्तस्य लक्षणम् ॥",
+          transliteration: "mayi sarvaṁ samāropya sarvabhūtātmabhāvanaḥ |\nbhajate yaḥ parāṁ bhaktiṁ sa me priyatamo naraḥ |\nna dveṣṭi kiñcid ātmānaṁ na ca kiñcid apekṣate\nśānto dāntaḥ kṛpāpūrṇo madbhaktasya lakṣaṇam ||",
+          translation: "He who, having offered everything unto Me and seeing the Self in all beings, worships Me with supreme devotion — he is the dearest of men to Me. He hates nothing, expects nothing, is peaceful, self-controlled, and full of compassion — these are the marks of My devotee.",
+          commentary: "Krishna describes the lakshanas (marks) of a true devotee, paralleling the Gita's description in Chapter 12. The ideal devotee combines inner surrender with outward compassion. The phrase kripapurna (full of compassion) shows that true devotion naturally flows into love for all beings.",
+          words: [
+            { word: "samāropya", meaning: "having offered, having placed upon" },
+            { word: "sarvabhūtātmabhāvanaḥ", meaning: "one who sees the Self in all beings" },
+            { word: "priyatamaḥ", meaning: "the dearest, most beloved" },
+            { word: "dveṣṭi", meaning: "hates, despises" },
+            { word: "apekṣate", meaning: "expects, depends upon" },
+            { word: "śāntaḥ", meaning: "peaceful, tranquil" },
+            { word: "dāntaḥ", meaning: "self-controlled, disciplined" },
+            { word: "lakṣaṇam", meaning: "mark, characteristic, sign" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 5,
+          devanagari: "अनिकेतः स्थिरमतिर्मुनिर्मद्भक्तिलक्षणः ।\nतुल्यनिन्दास्तुतिर्मौनी सन्तुष्टो येनकेनचित् ।\nसमलोष्टाश्मकाञ्चनः स्थिरबुद्धिरकम्पितः\nमय्यर्पितमनोबुद्धिः स भक्तो मम वल्लभः ॥",
+          transliteration: "aniketaḥ sthiramatir munir madbhaktilakṣaṇaḥ |\ntulyanindāstutir maunī santuṣṭo yenakena cit |\nsamaloṣṭāśmakāñcanaḥ sthirabuddhir akampitaḥ\nmayyarpitamanobuddhiḥ sa bhakto mama vallabhaḥ ||",
+          translation: "Homeless, firm of mind, silent, satisfied with whatever comes, treating praise and blame alike — this is the mark of My devotee. To whom a clod of earth, a stone, and gold are equal, whose intellect is steady and unshaken, whose mind and intellect are offered to Me — that devotee is dear to Me.",
+          commentary: "The portrait of the ideal devotee continues with qualities of vairagya (dispassion). The dramatic image of treating gold and a lump of earth equally conveys total freedom from material attachment. Yet this is not stoic indifference — it is grounded in arpita (offering) to the Lord.",
+          words: [
+            { word: "aniketaḥ", meaning: "without a fixed home, homeless" },
+            { word: "sthiramatiḥ", meaning: "firm of mind, steady-minded" },
+            { word: "muniḥ", meaning: "the silent sage" },
+            { word: "tulyanindāstutiḥ", meaning: "to whom blame and praise are equal" },
+            { word: "maunī", meaning: "one observing silence, contemplative" },
+            { word: "samaloṣṭāśmakāñcanaḥ", meaning: "to whom earth, stone, and gold are equal" },
+            { word: "akampitaḥ", meaning: "unshaken, unwavering" },
+            { word: "arpitamanobuddhiḥ", meaning: "one whose mind and intellect are offered" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 6,
+          devanagari: "न हि कर्मसु सिद्धिः स्याद्विना भक्तिं जनार्दने ।\nयथा जलं विना बीजं न कदाचित्प्ररोहति ।\nतथा कर्म विना भक्तिं शुष्यत्येव न संशयः\nभक्तिर्मूलं परं तस्माद्भक्तिमेव समाश्रयेत् ॥",
+          transliteration: "na hi karmasu siddhiḥ syād vinā bhaktiṁ janārdane |\nyathā jalaṁ vinā bījaṁ na kadācit praroahti |\ntathā karma vinā bhaktiṁ śuṣyatyeva na saṁśayaḥ\nbhaktir mūlaṁ paraṁ tasmād bhaktim eva samāśrayet ||",
+          translation: "There is no success in rituals without devotion to Janardana. Just as a seed never sprouts without water, so too does action without devotion surely wither — there is no doubt. Devotion is the supreme root; therefore, one should take refuge in devotion alone.",
+          commentary: "Krishna uses the vivid agricultural metaphor of seed and water to illustrate the indispensability of bhakti. Karma is the seed, but without the water of devotion, it cannot bear fruit. This metaphor would have resonated deeply in the agrarian culture of Kerala.",
+          words: [
+            { word: "karmasu", meaning: "in rituals, in actions" },
+            { word: "siddhiḥ", meaning: "success, perfection" },
+            { word: "bhaktim", meaning: "devotion" },
+            { word: "bījam", meaning: "seed" },
+            { word: "praroahti", meaning: "sprouts, germinates" },
+            { word: "śuṣyati", meaning: "dries up, withers" },
+            { word: "mūlam", meaning: "root, foundation" },
+            { word: "samāśrayet", meaning: "should take refuge in, should resort to" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 7,
+          devanagari: "अर्चायामेव हरये पूजां यः कुरुते नरः ।\nन तद्भक्तेषु मैत्रीं च स भक्तः प्राकृतः स्मृतः ।\nमद्भक्तेषु च यो भक्तो मयि भक्तिं करोति सः\nपूजार्हो भागवतेषु स मध्यमो भक्त उच्यते ॥",
+          transliteration: "arcāyām eva haraye pūjāṁ yaḥ kurute naraḥ |\nna tadbhakteṣu maitrīṁ ca sa bhaktaḥ prākṛtaḥ smṛtaḥ |\nmadbhakteṣu ca yo bhakto mayi bhaktiṁ karoti saḥ\npūjārho bhāgavateṣu sa madhyamo bhakta ucyate ||",
+          translation: "He who worships Lord Hari only in the temple image but has no friendliness toward His devotees — that devotee is considered elementary. He who is devoted to My devotees and worships Me through them, worthy of honor among the Bhagavatas — he is called a middling devotee.",
+          commentary: "Krishna classifies devotees into grades, drawing from the Bhagavata's famous tripartite classification (11.2.47). The prakrita (elementary) devotee worships only the image; the madhyama (middling) extends devotion to fellow devotees. This teaching emphasizes that true bhakti must expand beyond ritual worship to embrace the community of devotees.",
+          words: [
+            { word: "arcāyām", meaning: "in the temple image, in the idol" },
+            { word: "pūjām", meaning: "worship, ritual offering" },
+            { word: "prākṛtaḥ", meaning: "elementary, beginner-level" },
+            { word: "maitrīm", meaning: "friendliness, fellowship" },
+            { word: "madbhakteṣu", meaning: "among My devotees" },
+            { word: "pūjārhaḥ", meaning: "worthy of worship, honorable" },
+            { word: "bhāgavateṣu", meaning: "among the devotees of the Lord" },
+            { word: "madhyamaḥ", meaning: "middling, intermediate" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 8,
+          devanagari: "सर्वभूतेषु यः पश्येद्भगवद्भावमात्मनः ।\nभूतानि भगवत्यात्मन्यत्र विश्वात्मके हरौ ।\nस भक्तो मम सर्वेषामुत्तम इति कीर्तितः\nयोगिनामपि सर्वेषां मद्गतेनान्तरात्मना ॥",
+          transliteration: "sarvabhūteṣu yaḥ paśyed bhagavadbhāvam ātmanaḥ |\nbhūtāni bhagavatyātmany atra viśvātmake harau |\nsa bhakto mama sarveṣām uttama iti kīrtitaḥ\nyoginām api sarveṣāṁ madgatenāntarātmanā ||",
+          translation: "He who sees the presence of the Lord in all beings, and all beings in the all-pervading Lord Hari — that devotee of Mine is proclaimed the highest of all. Even among all yogis, he whose inner self is absorbed in Me is the greatest.",
+          commentary: "The uttama bhakta (supreme devotee) sees God everywhere and everything in God — the pinnacle of Bhagavata spirituality. This cosmic vision transcends the limitations of temple worship and community devotion, arriving at the universal presence of the Divine. The verse echoes Gita 6.30: yo mam pashyati sarvatra.",
+          words: [
+            { word: "sarvabhūteṣu", meaning: "in all beings" },
+            { word: "bhagavadbhāvam", meaning: "the presence of the Lord" },
+            { word: "viśvātmake", meaning: "in the all-pervading Self, the universal Soul" },
+            { word: "uttamaḥ", meaning: "the highest, the supreme" },
+            { word: "kīrtitaḥ", meaning: "proclaimed, celebrated" },
+            { word: "yoginām", meaning: "among yogis" },
+            { word: "madgatena", meaning: "absorbed in Me" },
+            { word: "antarātmanā", meaning: "with the inner self" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 9,
+          devanagari: "तस्माद्भक्तिमतां श्रेष्ठो यो मद्भक्तः स मे प्रियः ।\nसत्सङ्गेन विशुद्धात्मा मद्गुणश्रवणादरः ।\nमत्कथासु च यो रक्तो मच्चित्तो मद्गतप्राणः\nतस्य नित्याभियुक्तस्य योगक्षेमं वहाम्यहम् ॥",
+          transliteration: "tasmād bhaktimatāṁ śreṣṭho yo madbhaktaḥ sa me priyaḥ |\nsatsaṅgena viśuddhātmā madguṇaśravaṇādaraḥ |\nmatkathāsu ca yo rakto maccitto madgataprāṇaḥ\ntasya nityābhiyuktasya yogakṣemaṁ vahāmyaham ||",
+          translation: "Therefore, the greatest among devotees — My devotee — is dear to Me. Purified by holy company, reverent in hearing My qualities, devoted to My stories, with mind fixed on Me and life-breath offered to Me — for such a one who is ever devoted, I personally bear the burden of welfare and security.",
+          commentary: "Krishna makes His most personal promise — yogakshemam vahamyaham — echoing Gita 9.22. The Lord Himself ensures the welfare of the single-minded devotee. The qualities listed form a practical devotional program: satsanga (holy company), shravana (listening), and complete absorption in the Lord.",
+          words: [
+            { word: "bhaktimatām", meaning: "among those possessed of devotion" },
+            { word: "śreṣṭhaḥ", meaning: "the greatest, the best" },
+            { word: "satsaṅgena", meaning: "by holy company" },
+            { word: "viśuddhātmā", meaning: "one whose soul is purified" },
+            { word: "madguṇaśravaṇa", meaning: "hearing My divine qualities" },
+            { word: "matkathāsu", meaning: "in My stories, in narratives about Me" },
+            { word: "madgataprāṇaḥ", meaning: "whose life-breath is offered to Me" },
+            { word: "yogakṣemam", meaning: "welfare and security, sustenance and protection" }
+          ]
+        },
+        {
+          dashaka: 81,
+          sloka: 10,
+          devanagari: "एवं भक्तिपरं धर्मं शिक्षयन्नुद्धवं प्रभुः ।\nसर्वधर्मपरित्यागं भक्तिमेकां प्रशंसयन् ।\nउद्धवो हृष्टमनसा तद्वचः प्रतिगृह्य च\nपादाम्बुजं गुरुवायुपुरेशस्य संस्मरन्\nमरुत्पुराधीश भगवन् पाहि मां सर्वतो गदात् ॥",
+          transliteration: "evaṁ bhaktiparaṁ dharmaṁ śikṣayann uddhavaṁ prabhuḥ |\nsarvadharmāparityāgaṁ bhaktim ekāṁ praśaṁsayan |\nuddhavo hṛṣṭamanasā tadvacaḥ pratigṛhya ca\npādāmbujaṁ guruvāyupureśasya saṁsmaran\nmarutpurādhīśa bhagavan pāhi māṁ sarvato gadāt ||",
+          translation: "Thus the Lord taught Uddhava the supreme religion of devotion, praising devotion alone above the abandonment of all other dharmas. Uddhava received those words with a joyful heart. Remembering the lotus feet of the Lord of Guruvayur — O Lord of Guruvayur, O Blessed One, protect me from all disease.",
+          commentary: "The concluding verse summarizes the dashaka's teaching and returns to Bhattathiri's personal prayer. The phrase sarvadharmāparityāga echoes the Gita's charama shloka but reframes it — it is not merely abandoning dharma but embracing bhakti as the one true dharma. Uddhava's joyful acceptance mirrors the ideal response of the devotee to divine teaching.",
+          words: [
+            { word: "bhaktiparam", meaning: "supreme devotion, devotion as the highest" },
+            { word: "śikṣayan", meaning: "teaching, instructing" },
+            { word: "sarvadharmāparityāgam", meaning: "the abandonment of all other dharmas" },
+            { word: "praśaṁsayan", meaning: "praising, extolling" },
+            { word: "hṛṣṭamanasā", meaning: "with a joyful heart" },
+            { word: "pratigṛhya", meaning: "having received, having accepted" },
+            { word: "pādāmbujam", meaning: "lotus feet" },
+            { word: "gadāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 82,
-      titleSanskrit: "उद्धवगीता - मध्यभागम्",
-      titleEnglish: "Uddhava Gita Continued",
+      titleSanskrit: "उद्धवोपदेशम् — सांख्ययोगः",
+      titleEnglish: "Teaching to Uddhava — Sankhya and Yoga",
       theme: "philosophy",
       verseCount: 10,
-      summary: "Further teachings of the Uddhava Gita covering the distinctions between the three gunas, the nature of devotion, detachment, and the practice of meditation on the Supreme.",
-      slokas: []
+      summary: "Krishna expounds Sankhya philosophy to Uddhava — the twenty-five tattvas, the distinction between purusha and prakriti, the practice of yoga, and meditation on the Lord's divine form as the means to liberation.",
+      slokas: [
+        {
+          dashaka: 82,
+          sloka: 1,
+          devanagari: "सांख्ययोगं प्रवक्ष्यामि तत्त्वज्ञानं सनातनम् ।\nयज्ज्ञात्वा मुच्यते जन्तुः संसारान्नात्र संशयः ।\nपञ्चविंशतितत्त्वानि प्रकृतेर्विकृतेस्तथा\nपुरुषस्य च सम्बन्धं शृणु तत्त्वार्थनिश्चयम् ॥",
+          transliteration: "sāṁkhyayogaṁ pravakṣyāmi tattvajñānaṁ sanātanam |\nyajjñātvā mucyate jantuḥ saṁsārān nātra saṁśayaḥ |\npañcaviṁśatitattvāni prakṛter vikṛtes tathā\npuruṣasya ca sambandhaṁ śṛṇu tattvārthaniscayam ||",
+          translation: "I shall now expound Sankhya yoga, the eternal knowledge of reality. Knowing which, a being is freed from the cycle of birth and death — there is no doubt. The twenty-five tattvas, their origin from prakriti and its modifications, and the relationship of purusha — hear this definitive teaching on the truth.",
+          commentary: "Krishna introduces the Sankhya framework, the oldest systematic philosophy of India. The twenty-five tattvas provide a complete map of creation from the unmanifest prakriti to the individual soul. Bhattathiri follows the Bhagavata's integration of Sankhya into a theistic framework, unlike the atheistic classical Sankhya of Kapila.",
+          words: [
+            { word: "sāṁkhyayogam", meaning: "Sankhya yoga, the yoga of analytical knowledge" },
+            { word: "tattvajñānam", meaning: "knowledge of reality, knowledge of the tattvas" },
+            { word: "sanātanam", meaning: "eternal, timeless" },
+            { word: "mucyate", meaning: "is freed, is liberated" },
+            { word: "saṁsārāt", meaning: "from the cycle of worldly existence" },
+            { word: "pañcaviṁśatitattvāni", meaning: "the twenty-five tattvas (categories of existence)" },
+            { word: "prakṛteḥ", meaning: "from prakriti, from material nature" },
+            { word: "puruṣasya", meaning: "of the purusha, of the conscious Self" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 2,
+          devanagari: "प्रकृतिः पुरुषश्चैव मूलतत्त्वद्वयं स्मृतम् ।\nप्रकृतिर्जडरूपा च पुरुषश्चेतनात्मकः ।\nगुणत्रयमयी माया प्रकृतिर्विश्वकारणम्\nपुरुषस्तु परो नित्यो निर्गुणो निर्विकारवान् ॥",
+          transliteration: "prakṛtiḥ puruṣaścaiva mūlatattvadvayaṁ smṛtam |\nprakṛtir jaḍarūpā ca puruṣaścetanātmakaḥ |\nguṇatrayamayī māyā prakṛtir viśvakāraṇam\npuruṣastu paro nityo nirguṇo nirvikāravān ||",
+          translation: "Prakriti and purusha — these two are known as the fundamental pair of tattvas. Prakriti is inert in nature, while purusha is of the nature of consciousness. Prakriti, consisting of the three gunas, is Maya, the cause of the universe. But purusha is supreme, eternal, beyond the gunas, and changeless.",
+          commentary: "The fundamental duality of Sankhya is laid out: prakriti (inert matter) and purusha (conscious spirit). Bhattathiri follows the Bhagavata's theistic Sankhya where both are ultimately under the Lord's control. The contrast between jada (inert) and cetana (conscious) is the cornerstone of all Indian philosophical analysis.",
+          words: [
+            { word: "prakṛtiḥ", meaning: "primordial nature, material cause" },
+            { word: "puruṣaḥ", meaning: "the conscious Self, spirit" },
+            { word: "mūlatattvadvayam", meaning: "the fundamental pair of categories" },
+            { word: "jaḍarūpā", meaning: "inert in nature, unconscious" },
+            { word: "cetanātmakaḥ", meaning: "of the nature of consciousness" },
+            { word: "guṇatrayamayī", meaning: "consisting of the three gunas" },
+            { word: "viśvakāraṇam", meaning: "the cause of the universe" },
+            { word: "nirvikāravān", meaning: "changeless, without modification" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 3,
+          devanagari: "महत्तत्त्वमहङ्कारः पञ्च तन्मात्रकाणि च ।\nदशेन्द्रियाणि पञ्चैव भूतानि च नभोऽनिलौ ।\nतेजश्चापस्तथा भूमिर्मनश्चैकं तथोच्यते\nएतत्पञ्चविंशतितत्त्वं विज्ञेयं तत्त्वचिन्तकैः ॥",
+          transliteration: "mahattattvam ahaṅkāraḥ pañca tanmātrakāṇi ca |\ndaśendriyāṇi pañcaiva bhūtāni ca nabho'nilau |\ntejaścāpas tathā bhūmir manaścaikaṁ tathocyate\netat pañcaviṁśatitattvam vijñeyaṁ tattvacintakaiḥ ||",
+          translation: "The mahat-tattva, ahankara, the five tanmatras, the ten indriyas, the five gross elements — space, wind, fire, water, and earth — and the mind as one more: thus are enumerated the twenty-five tattvas to be understood by seekers of truth.",
+          commentary: "The twenty-five tattvas of Sankhya are systematically enumerated: prakriti, mahat (cosmic intelligence), ahankara (ego), five tanmatras (subtle elements), ten indriyas (five sense organs and five organs of action), five mahabhutas (gross elements), mind, and purusha. This framework provides a comprehensive ontological map for the spiritual aspirant.",
+          words: [
+            { word: "mahattattvam", meaning: "the great principle, cosmic intelligence" },
+            { word: "ahaṅkāraḥ", meaning: "ego, the principle of individuation" },
+            { word: "tanmātrakāṇi", meaning: "the subtle elements (sound, touch, form, taste, smell)" },
+            { word: "daśendriyāṇi", meaning: "the ten sense organs (five of knowledge, five of action)" },
+            { word: "bhūtāni", meaning: "the gross elements" },
+            { word: "nabhaḥ", meaning: "space, ether" },
+            { word: "manaḥ", meaning: "mind, the internal organ" },
+            { word: "tattvacintakaiḥ", meaning: "by thinkers on reality, by philosophers" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 4,
+          devanagari: "प्रकृत्या सम्प्रयुक्तस्य पुरुषस्यानुमानतः ।\nजायन्ते विविधा भावा रागद्वेषभयादयः ।\nन तु धर्मा अमी जीवे प्रकृतेरेव ते गुणाः\nमायोपाधिवशात्तत्र भ्रान्तिरेव हि कारणम् ॥",
+          transliteration: "prakṛtyā samprayuktasya puruṣasyānumānataḥ |\njāyante vividhā bhāvā rāgadveṣabhayādayaḥ |\nna tu dharmā amī jīve prakṛtereva te guṇāḥ\nmāyopādhivaśāt tatra bhrāntir eva hi kāraṇam ||",
+          translation: "When purusha is conjoined with prakriti, various states arise by inference — desire, hatred, fear, and others. But these are not the properties of the soul; they are qualities of prakriti alone. Due to the limiting adjuncts of Maya, delusion alone is the cause of this confusion.",
+          commentary: "This verse addresses the central problem of Sankhya: if purusha is pure and changeless, how does suffering arise? The answer lies in upadhi (limiting adjunct) — just as a clear crystal appears colored when placed near a red flower, the pure soul appears to undergo modifications due to its proximity to prakriti. The confusion is not real but a bhhranti (error).",
+          words: [
+            { word: "samprayuktasya", meaning: "conjoined with, associated with" },
+            { word: "anumānataḥ", meaning: "by inference, apparently" },
+            { word: "rāgadveṣabhayādayaḥ", meaning: "desire, hatred, fear, and others" },
+            { word: "dharmāḥ", meaning: "properties, attributes" },
+            { word: "jīve", meaning: "in the individual soul" },
+            { word: "guṇāḥ", meaning: "qualities, attributes" },
+            { word: "māyopādhivaśāt", meaning: "due to the limiting adjuncts of Maya" },
+            { word: "bhrāntiḥ", meaning: "delusion, error, confusion" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 5,
+          devanagari: "विवेकेन विजानीयात्पुरुषं प्रकृतेः परम् ।\nद्रष्टारं साक्षिणं शान्तं निर्लेपं निरहङ्कृतिम् ।\nक्षेत्रक्षेत्रज्ञयोर्भेदं ज्ञात्वा मुच्येत बन्धनात्\nयथा ह्यग्निं जलात्तद्वत्पुरुषं प्रकृतेर्बुधः ॥",
+          transliteration: "vivekena vijānīyāt puruṣaṁ prakṛteḥ param |\ndraṣṭāraṁ sākṣiṇaṁ śāntaṁ nirlepaṁ nirahaṅkṛtim |\nkṣetrakṣetrajñayor bhedaṁ jñātvā mucyeta bandhanāt\nyathā hyagniṁ jalāt tadvat puruṣaṁ prakṛter budhaḥ ||",
+          translation: "Through discrimination one should know purusha as transcending prakriti — the seer, the witness, peaceful, untainted, free from ego. Knowing the distinction between the field and the knower of the field, one is freed from bondage — just as one separates fire from water, so the wise one separates purusha from prakriti.",
+          commentary: "The practice of viveka (discrimination) is the key to Sankhya liberation. The purusha is characterized as the drashta (seer), sakshi (witness) — terms drawn from the Upanishads. The kshetra-kshetrajna distinction echoes Gita Chapter 13. The fire-water analogy illustrates the need for clear discernment between spirit and matter.",
+          words: [
+            { word: "vivekena", meaning: "through discrimination, through discernment" },
+            { word: "draṣṭāram", meaning: "the seer, the observer" },
+            { word: "sākṣiṇam", meaning: "the witness" },
+            { word: "nirlepam", meaning: "untainted, free from contact" },
+            { word: "nirahaṅkṛtim", meaning: "free from ego" },
+            { word: "kṣetrakṣetrajñayoḥ", meaning: "of the field and the knower of the field" },
+            { word: "bhedaṁ jñātvā", meaning: "having known the distinction" },
+            { word: "budhaḥ", meaning: "the wise one" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 6,
+          devanagari: "अथ योगं प्रवक्ष्यामि येन चित्तं विशोधयेत् ।\nआसनं सुस्थिरं कृत्वा प्राणायामेन चेतसः ।\nप्रत्याहारेण चेन्द्रियं धारणाध्यानयोगतः\nसमाधौ परमानन्दं विन्दते योगसाधकः ॥",
+          transliteration: "atha yogaṁ pravakṣyāmi yena cittaṁ viśodhayet |\nāsanaṁ susthiraṁ kṛtvā prāṇāyāmena cetasaḥ |\npratyāhāreṇa cendriyaṁ dhāraṇādhyānayogataḥ\nsamādhau paramānandaṁ vindate yogasādhakaḥ ||",
+          translation: "Now I shall explain yoga, by which one purifies the mind. Having established a steady posture, through pranayama one controls the mind; through pratyahara one withdraws the senses; through dharana and dhyana, the practitioner of yoga finds supreme bliss in samadhi.",
+          commentary: "Krishna now transitions from theoretical Sankhya to practical yoga, following the ashtanga yoga scheme of Patanjali. The progression from asana through pranayama, pratyahara, dharana, and dhyana to samadhi represents the inward journey from body to mind to spirit. Bhattathiri integrates this yogic framework into the Bhagavata's theistic context.",
+          words: [
+            { word: "yogam", meaning: "yoga, the practice of spiritual union" },
+            { word: "cittam", meaning: "the mind, consciousness" },
+            { word: "viśodhayet", meaning: "should purify, should cleanse" },
+            { word: "āsanam", meaning: "posture, seat" },
+            { word: "prāṇāyāmena", meaning: "by breath control" },
+            { word: "pratyāhāreṇa", meaning: "by withdrawal of the senses" },
+            { word: "dhāraṇādhyānayogataḥ", meaning: "through concentration, meditation, and union" },
+            { word: "samādhau", meaning: "in the state of deep absorption" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 7,
+          devanagari: "मद्रूपं ध्यायतो योगी हृदये परमेश्वरम् ।\nशङ्खचक्रगदापद्मैर्विराजन्तं चतुर्भुजम् ।\nपीताम्बरधरं शान्तं श्रीवत्सकौस्तुभोज्ज्वलम्\nध्यायन्नेवं हरिं चित्ते सर्वदुःखाद्विमुच्यते ॥",
+          transliteration: "madrūpaṁ dhyāyato yogī hṛdaye parameśvaram |\nśaṅkhacakragadāpadmair virājantaṁ caturbhujam |\npītāmbaradharaṁ śāntaṁ śrīvatsakaustubhojjvalam\ndhyāyannevaṁ hariṁ citte sarvaduḥkhād vimucyate ||",
+          translation: "The yogi who meditates upon My form — the Supreme Lord in the heart, resplendent with conch, discus, mace, and lotus, four-armed, wearing yellow garments, serene, radiant with the Shrivatsa mark and Kaustubha gem — meditating thus on Hari in the mind, one is freed from all sorrow.",
+          commentary: "The abstract philosophy of Sankhya and the austere practice of yoga are here united with the warm devotion of bhakti through saguna dhyana (meditation on the Lord's form). The specific iconographic details — chaturbhuja (four-armed), pitambara (yellow-robed), with Shrivatsa and Kaustubha — describe the Guruvayurappan form that Bhattathiri himself worshipped daily.",
+          words: [
+            { word: "madrūpam", meaning: "My form, My divine image" },
+            { word: "dhyāyataḥ", meaning: "of one who meditates" },
+            { word: "śaṅkhacakragadāpadmaiḥ", meaning: "with conch, discus, mace, and lotus" },
+            { word: "caturbhujam", meaning: "four-armed" },
+            { word: "pītāmbaradharam", meaning: "wearing yellow garments" },
+            { word: "śrīvatsakaustubhojjvalam", meaning: "radiant with the Shrivatsa and Kaustubha" },
+            { word: "hṛdaye", meaning: "in the heart" },
+            { word: "sarvaduḥkhāt", meaning: "from all sorrow" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 8,
+          devanagari: "योगेन जितचित्तस्तु ज्ञानेन विगतस्पृहः ।\nभक्त्या मयि समाविष्टो नान्यत्किञ्चिदपेक्षते ।\nज्ञानयोगो विरक्तानां भक्तियोगस्तु सर्वतः\nश्रेयान् भजनमेवाहं वदामि परमं पदम् ॥",
+          transliteration: "yogena jitacittastu jñānena vigataspṛhaḥ |\nbhaktyā mayi samāviṣṭo nānyat kiñcid apekṣate |\njñānayogo viraktānāṁ bhaktiyogastu sarvataḥ\nśreyān bhajanam evāhaṁ vadāmi paramaṁ padam ||",
+          translation: "With a mind conquered by yoga, free from desire through knowledge, absorbed in Me through devotion — he expects nothing else. Jnana yoga is for the dispassionate, but bhakti yoga is universally supreme. Worship of Me alone, I declare, is the highest goal.",
+          commentary: "Krishna synthesizes the three paths — karma, jnana, and bhakti — but decisively places bhakti above all. While jnana yoga requires the prerequisite of virakti (dispassion), bhakti is accessible to all (sarvataḥ śreyān). This verse encapsulates the Bhagavata's distinctive contribution to Indian philosophy.",
+          words: [
+            { word: "jitacittaḥ", meaning: "one who has conquered the mind" },
+            { word: "vigataspṛhaḥ", meaning: "free from desire, without longing" },
+            { word: "samāviṣṭaḥ", meaning: "fully absorbed, completely immersed" },
+            { word: "jñānayogaḥ", meaning: "the yoga of knowledge" },
+            { word: "viraktānām", meaning: "of the dispassionate ones" },
+            { word: "bhaktiyogaḥ", meaning: "the yoga of devotion" },
+            { word: "śreyān", meaning: "superior, more excellent" },
+            { word: "paramaṁ padam", meaning: "the highest goal, the supreme state" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 9,
+          devanagari: "एवं सांख्यं च योगं च भक्तिं चोपदिशन् हरिः ।\nत्रिविधं मोक्षमार्गं तमुद्धवाय न्यरूपयत् ।\nसर्वेषामेव मार्गाणां भक्तिरेव गरीयसी\nइति निश्चित्य मनसा मद्भक्तो मामुपाश्रयेत् ॥",
+          transliteration: "evaṁ sāṁkhyaṁ ca yogaṁ ca bhaktiṁ copadiśan hariḥ |\ntrividhaṁ mokṣamārgaṁ tam uddhavāya nyarūpayat |\nsarveṣām eva mārgāṇāṁ bhaktireva garīyasī\niti niścitya manasā madbhakto mām upāśrayet ||",
+          translation: "Thus Hari taught Sankhya, yoga, and bhakti — presenting the threefold path of liberation to Uddhava. Among all paths, devotion alone is the greatest. Having determined this firmly in the mind, My devotee should take refuge in Me.",
+          commentary: "Krishna brings together the three streams of teaching — analytical knowledge (Sankhya), practice (yoga), and love (bhakti). While all three are valid paths to moksha, bhakti is declared gariyasi (the greatest). This hierarchical synthesis is the distinctive hallmark of the Bhagavata Purana's philosophical position.",
+          words: [
+            { word: "sāṁkhyam", meaning: "Sankhya, analytical philosophy" },
+            { word: "yogam", meaning: "yoga, practical discipline" },
+            { word: "bhaktim", meaning: "devotion" },
+            { word: "upadiśan", meaning: "teaching, instructing" },
+            { word: "trividham", meaning: "threefold" },
+            { word: "mokṣamārgam", meaning: "the path of liberation" },
+            { word: "garīyasī", meaning: "the greatest, the most excellent" },
+            { word: "upāśrayet", meaning: "should take refuge in" }
+          ]
+        },
+        {
+          dashaka: 82,
+          sloka: 10,
+          devanagari: "एवमुद्धवमाज्ञाप्य सांख्ययोगविचक्षणः ।\nकृष्णो भगवतां श्रेष्ठो भक्तिमार्गप्रदर्शकः ।\nतत्पदं परमं ध्यायन् गुरुवायुपुरालये\nपादपद्मं परं वन्दे मरुत्पुरपतेर्हरेः\nमरुत्पुराधीश भगवन् पाहि मां सर्वतो गदात् ॥",
+          transliteration: "evam uddhavam ājñāpya sāṁkhyayogavicakṣaṇaḥ |\nkṛṣṇo bhagavatāṁ śreṣṭho bhaktimārgapradarśakaḥ |\ntatpadaṁ paramaṁ dhyāyan guruvāyupurālaye\npādapadmaṁ paraṁ vande marutpurapater hareḥ\nmarutpurādhīśa bhagavan pāhi māṁ sarvato gadāt ||",
+          translation: "Thus, having instructed Uddhava, Krishna — the foremost among the divine, the revealer of the path of devotion, the master of Sankhya and yoga — taught the highest truth. Meditating on that supreme state in the temple of Guruvayur, I bow to the supreme lotus feet of Hari, the Lord of Guruvayur. O Lord of Guruvayur, O Blessed One, protect me from all disease.",
+          commentary: "The closing verse crowns Krishna as both philosopher and devotional guide — sāṁkhyayogavicakṣaṇaḥ (master of Sankhya and yoga) and bhaktimārgapradarśakaḥ (revealer of the path of devotion). Bhattathiri brings the teaching back to his immediate reality at Guruvayur, where the abstract philosophy becomes the living presence of Hari in the temple.",
+          words: [
+            { word: "ājñāpya", meaning: "having instructed, having commanded" },
+            { word: "sāṁkhyayogavicakṣaṇaḥ", meaning: "master of Sankhya and yoga" },
+            { word: "bhaktimārgapradarśakaḥ", meaning: "revealer of the path of devotion" },
+            { word: "tatpadam", meaning: "that state, that goal" },
+            { word: "guruvāyupurālaye", meaning: "in the temple of Guruvayur" },
+            { word: "pādapadmam", meaning: "lotus feet" },
+            { word: "marutpurapateḥ", meaning: "of the Lord of Guruvayur" },
+            { word: "gadāt", meaning: "from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 83,
