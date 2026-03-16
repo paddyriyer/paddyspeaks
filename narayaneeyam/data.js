@@ -19787,12 +19787,183 @@ slokas: [
     },
     {
       dashaka: 98,
-      titleSanskrit: "भगवद्गुणवर्णनम्",
-      titleEnglish: "Description of the Lord's Attributes",
-      theme: "devotion",
+      titleSanskrit: "आयुरारोग्यप्रार्थना",
+      titleEnglish: "Prayer for Health and Long Life (Ayur-Arogya-Prarthana)",
+      theme: "prayer",
       verseCount: 10,
-      summary: "Enumerates and celebrates the divine attributes of the Lord including His omniscience, omnipotence, compassion, beauty, and His quality of being easily accessible to sincere devotees.",
-      slokas: []
+      summary: "Bhattathiri, afflicted by severe paralytic disease (vata-roga), offers heartfelt prayers to Lord Guruvayurappan for relief from his bodily suffering. He describes the Lord's healing touch as divine balm, implores strength to continue his worship and poetic composition, and surrenders his broken body at the Lord's lotus feet with the faith that divine grace alone can restore health and enable continued devotion.",
+      slokas: [
+        {
+          dashaka: 98,
+          sloka: 1,
+          devanagari: "वातरोगपरीतस्य मम देहस्य केशव ।\nत्वमेव शरणं नाथ कृपया पाहि मां प्रभो ।\nसर्वाङ्गेषु रुजा घोरा चेष्टाशक्तिं निरुन्धती\nत्वत्पादस्मरणं हि एकं मे भैषजं गुरुवायुपुरेश ॥",
+          transliteration: "vāta-roga-parītasya mama dehasya keśava |\ntvam eva śaraṇaṁ nātha kṛpayā pāhi māṁ prabho |\nsarvāṅgeṣu rujā ghorā ceṣṭā-śaktiṁ nirundhatī\ntvat-pāda-smaraṇaṁ hi ekaṁ me bhaiṣajaṁ guruvāyupureśa ||",
+          translation: "O Keshava, You alone are the refuge of my body which is afflicted by the paralytic disease. O Lord, protect me with Your compassion! The terrible pain pervading all my limbs obstructs my power of movement. The remembrance of Your feet alone is my sole medicine, O Lord of Guruvayur!",
+          words: [
+            { word: "वातरोग", transliteration: "vāta-roga", meaning: "paralytic disease, wind-born ailment" },
+            { word: "परीतस्य", transliteration: "parītasya", meaning: "of one who is afflicted, seized" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "कृपया", transliteration: "kṛpayā", meaning: "with compassion, mercifully" },
+            { word: "सर्वाङ्गेषु", transliteration: "sarvāṅgeṣu", meaning: "in all limbs, throughout the body" },
+            { word: "रुजा", transliteration: "rujā", meaning: "pain, disease" },
+            { word: "चेष्टाशक्तिम्", transliteration: "ceṣṭā-śaktim", meaning: "power of movement, capacity to act" },
+            { word: "भैषजम्", transliteration: "bhaiṣajam", meaning: "medicine, remedy, cure" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 2,
+          devanagari: "स्तम्भीभूतमिदं शरीरमखिलं प्राणा अपि क्षीयन्ते\nजिह्वापि स्तुतिकर्मणि प्रतिहता हस्तौ न चालं गतौ ।\nएतादृक्षु दशासु मादृशजने कारुण्यमालम्ब्य ते\nत्वं विष्णो कुरु सान्निध्यं भगवन् गुरुवायुपुराधीश्वर ॥",
+          transliteration: "stambhī-bhūtam idaṁ śarīram akhilaṁ prāṇā api kṣīyante\njihvāpi stuti-karmaṇi pratihatā hastau na cālaṁ gatau |\netādṛkṣu daśāsu mādṛśa-jane kāruṇyam ālambya te\ntvaṁ viṣṇo kuru sānnidhyaṁ bhagavan guruvāyupurādhīśvara ||",
+          translation: "This entire body has become paralyzed, my life-breaths too are waning, my tongue is impeded in the act of praise, my hands cannot move. In such dire conditions, taking compassion upon a person like me, O Vishnu, grant Your presence, O blessed Lord of Guruvayur!",
+          words: [
+            { word: "स्तम्भीभूतम्", transliteration: "stambhī-bhūtam", meaning: "become paralyzed, turned stiff" },
+            { word: "प्राणाः", transliteration: "prāṇāḥ", meaning: "life-breaths, vital airs" },
+            { word: "क्षीयन्ते", transliteration: "kṣīyante", meaning: "are waning, diminishing" },
+            { word: "जिह्वा", transliteration: "jihvā", meaning: "tongue" },
+            { word: "प्रतिहता", transliteration: "pratihatā", meaning: "obstructed, impeded" },
+            { word: "दशासु", transliteration: "daśāsu", meaning: "in conditions, in states" },
+            { word: "कारुण्यम्", transliteration: "kāruṇyam", meaning: "compassion, mercy" },
+            { word: "सान्निध्यम्", transliteration: "sānnidhyam", meaning: "presence, proximity" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 3,
+          devanagari: "पुरा त्वया हि संस्पृष्टो मृतसञ्जीवनं यथा ।\nपरीक्षितो रक्षितश्च गर्भे कुन्त्याश्च बालकः ।\nतथा मां स्पर्शमात्रेण भवदीयकराम्बुजात्\nसञ्जीवय महाबाहो मृतकल्पं कलेवरम् ॥",
+          transliteration: "purā tvayā hi saṁspṛṣṭo mṛta-sañjīvanaṁ yathā |\nparīkṣito rakṣitaś ca garbhe kuntyāś ca bālakaḥ |\ntathā māṁ sparśa-mātreṇa bhavadīya-karāmbujāt\nsañjīvaya mahābāho mṛta-kalpaṁ kalevaram ||",
+          translation: "Just as in ancient times, by Your touch, Parikshit was revived like life-restoring nectar, and the child in Kunti's womb was protected — so too, by the mere touch of Your lotus hand, O mighty-armed Lord, revive this body of mine which is as good as dead!",
+          words: [
+            { word: "संस्पृष्टः", transliteration: "saṁspṛṣṭaḥ", meaning: "touched, contacted" },
+            { word: "मृतसञ्जीवनम्", transliteration: "mṛta-sañjīvanam", meaning: "that which revives the dead, life-restoring" },
+            { word: "परीक्षितः", transliteration: "parīkṣitaḥ", meaning: "Parikshit (grandson of Arjuna)" },
+            { word: "गर्भे", transliteration: "garbhe", meaning: "in the womb" },
+            { word: "स्पर्शमात्रेण", transliteration: "sparśa-mātreṇa", meaning: "by mere touch alone" },
+            { word: "करांबुजात्", transliteration: "karāmbujāt", meaning: "from the lotus hand" },
+            { word: "सञ्जीवय", transliteration: "sañjīvaya", meaning: "revive, bring back to life" },
+            { word: "मृतकल्पम्", transliteration: "mṛta-kalpam", meaning: "as good as dead, nearly lifeless" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 4,
+          devanagari: "त्वद्धस्तसंस्पर्शमहौषधेन\nत्वद्दृष्टिपातामृतसेचनेन ।\nत्वत्पादतीर्थस्य च मर्दनेन\nवातामयाद्रक्ष गुरुवायुपुरेश मां त्वम् ।\nदेहे चैतन्यमूर्जां प्रणयतु भगवन्\nत्वत्कृपालेशमात्रं तेन जीवामि नाथ ॥",
+          transliteration: "tvad-hasta-saṁsparśa-mahauṣadhena\ntvad-dṛṣṭi-pātāmṛta-secanena |\ntvat-pāda-tīrthasya ca mardanena\nvātāmayād rakṣa guruvāyupureśa māṁ tvam |\ndehe caitanyam ūrjāṁ praṇayatu bhagavan\ntvat-kṛpā-leśa-mātraṁ tena jīvāmi nātha ||",
+          translation: "By the great medicine of the touch of Your hand, by the sprinkling of the nectar of Your glance, and by the anointing of the sacred water from Your feet — protect me from this wind-disease, O Lord of Guruvayur! May even a mere fraction of Your grace infuse vitality and energy into my body. By that alone I live, O Lord!",
+          words: [
+            { word: "हस्तसंस्पर्श", transliteration: "hasta-saṁsparśa", meaning: "touch of the hand" },
+            { word: "महौषधेन", transliteration: "mahauṣadhena", meaning: "by the great medicine" },
+            { word: "दृष्टिपातामृत", transliteration: "dṛṣṭi-pātāmṛta", meaning: "the nectar of the fall of the glance" },
+            { word: "सेचनेन", transliteration: "secanena", meaning: "by sprinkling, by bathing" },
+            { word: "पादतीर्थ", transliteration: "pāda-tīrtha", meaning: "sacred water from the feet" },
+            { word: "वातामयात्", transliteration: "vātāmayāt", meaning: "from the wind-disease, from paralysis" },
+            { word: "चैतन्यम्", transliteration: "caitanyam", meaning: "consciousness, vitality" },
+            { word: "कृपालेशमात्रम्", transliteration: "kṛpā-leśa-mātram", meaning: "a mere fraction of grace" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 5,
+          devanagari: "जिह्वां मे देहि सामर्थ्यं तव नामानि कीर्तितुम् ।\nहस्ताभ्यां पूजनं कर्तुं पादाभ्यां तव मन्दिरम् ।\nगन्तुं प्रयच्छ मे शक्तिं नेत्राभ्यां दर्शनं तव\nश्रवणाभ्यां कथाः श्रोतुं बलं देहि जनार्दन ॥",
+          transliteration: "jihvāṁ me dehi sāmarthyaṁ tava nāmāni kīrtitum |\nhastābhyāṁ pūjanaṁ kartuṁ pādābhyāṁ tava mandiram |\ngantuṁ prayaccha me śaktiṁ netrābhyāṁ darśanaṁ tava\nśravaṇābhyāṁ kathāḥ śrotuṁ balaṁ dehi janārdana ||",
+          translation: "Grant my tongue the power to chant Your names! Grant my hands the ability to perform Your worship, and my feet the strength to walk to Your temple! Give me the capacity to behold You with my eyes, and the strength to hear Your stories with my ears, O Janardana!",
+          words: [
+            { word: "जिह्वाम्", transliteration: "jihvām", meaning: "tongue" },
+            { word: "सामर्थ्यम्", transliteration: "sāmarthyam", meaning: "power, capacity, ability" },
+            { word: "कीर्तितुम्", transliteration: "kīrtitum", meaning: "to chant, to praise, to glorify" },
+            { word: "पूजनम्", transliteration: "pūjanam", meaning: "worship, adoration" },
+            { word: "मन्दिरम्", transliteration: "mandiram", meaning: "temple, abode" },
+            { word: "शक्तिम्", transliteration: "śaktim", meaning: "strength, power" },
+            { word: "दर्शनम्", transliteration: "darśanam", meaning: "vision, sight, beholding" },
+            { word: "बलम्", transliteration: "balam", meaning: "strength, force" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 6,
+          devanagari: "कविता मम जीवनं हरे तव पादार्चनमेव सर्वदा ।\nरचनाशक्तिमेतां मे देहि त्वं करुणानिधे ।\nशतकं पूरयित्वा हि नारायणगुणात्मकम्\nकृतकृत्यो भवेयं ते कृपया गुरुवायुपुरेश्वर ॥",
+          transliteration: "kavitā mama jīvanaṁ hare tava pādārcanam eva sarvadā |\nracanā-śaktim etāṁ me dehi tvaṁ karuṇānidhe |\nśatakaṁ pūrayitvā hi nārāyaṇa-guṇātmakam\nkṛta-kṛtyo bhaveyaṁ te kṛpayā guruvāyupureśvara ||",
+          translation: "Poetry is my very life, O Hari, and the worship of Your feet is my constant practice. Grant me this power of composition, O treasure of compassion! Having completed the hundred (dashakas) filled with the glories of Narayana, may I become fulfilled by Your grace, O Lord of Guruvayur!",
+          words: [
+            { word: "कविता", transliteration: "kavitā", meaning: "poetry, poetic composition" },
+            { word: "जीवनम्", transliteration: "jīvanam", meaning: "life, livelihood" },
+            { word: "पादार्चनम्", transliteration: "pādārcanam", meaning: "worship of the feet" },
+            { word: "रचनाशक्तिम्", transliteration: "racanā-śaktim", meaning: "power of composition, creative ability" },
+            { word: "शतकम्", transliteration: "śatakam", meaning: "a century, the hundred (dashakas)" },
+            { word: "पूरयित्वा", transliteration: "pūrayitvā", meaning: "having completed, having fulfilled" },
+            { word: "कृतकृत्यः", transliteration: "kṛta-kṛtyaḥ", meaning: "one who has fulfilled his purpose" },
+            { word: "गुरुवायुपुरेश्वर", transliteration: "guruvāyupureśvara", meaning: "O Lord of Guruvayur" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 7,
+          devanagari: "धन्वन्तरे देवभिषक्प्रभो त्वं\nक्षीराब्धितो मन्थनजो बभूव ।\nतदंशभूतो गुरुवायुपुरे\nत्वमेव वैद्यो मम रोगहारी ।\nनान्यत्र विश्वासममुं दधामि\nत्वत्पादपद्मं मम भेषजं हि ॥",
+          transliteration: "dhanvantare deva-bhiṣak-prabho tvaṁ\nkṣīrābdhito manthana-jo babhūva |\ntad-aṁśa-bhūto guruvāyupure\ntvam eva vaidyo mama roga-hārī |\nnānyatra viśvāsam amuṁ dadhāmi\ntvat-pāda-padmaṁ mama bheṣajaṁ hi ||",
+          translation: "O Dhanvantari, Lord of divine physicians, You arose from the churning of the Milk Ocean. As a manifestation of that very power in Guruvayur, You alone are my healer, the remover of my disease. I place my trust in no other. Your lotus feet are indeed my medicine.",
+          words: [
+            { word: "धन्वन्तरे", transliteration: "dhanvantare", meaning: "O Dhanvantari (divine physician)" },
+            { word: "देवभिषक्", transliteration: "deva-bhiṣak", meaning: "physician of the gods" },
+            { word: "क्षीराब्धितः", transliteration: "kṣīrābdhitaḥ", meaning: "from the Milk Ocean" },
+            { word: "मन्थनजः", transliteration: "manthana-jaḥ", meaning: "born from churning" },
+            { word: "वैद्यः", transliteration: "vaidyaḥ", meaning: "physician, healer" },
+            { word: "रोगहारी", transliteration: "roga-hārī", meaning: "remover of disease" },
+            { word: "विश्वासम्", transliteration: "viśvāsam", meaning: "trust, faith, confidence" },
+            { word: "भेषजम्", transliteration: "bheṣajam", meaning: "medicine, remedy" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 8,
+          devanagari: "त्वद्भक्तेषु कृपां कुर्वन् रोगार्तान् मोचयन् सदा ।\nकूर्मान्धवामनादीनां व्याधिमुक्तिश्च ते श्रुता ।\nशूलपाणेः पुरा रोगो निवृत्तस्त्वत्प्रसादतः\nतद्वन्मम गदं हन्यास्त्वं हि सर्वामयापहः ॥",
+          transliteration: "tvad-bhakteṣu kṛpāṁ kurvan rogārtān mocayan sadā |\nkūrmāndha-vāmanādīnāṁ vyādhi-muktiś ca te śrutā |\nśūla-pāṇeḥ purā rogo nivṛttas tvat-prasādataḥ\ntadvan mama gadaṁ hanyās tvaṁ hi sarvāmayāpahaḥ ||",
+          translation: "You always show mercy to Your devotees and free them from disease. The healing of the blind, the lame, and others is well-known from Your legends. Even Shiva's ailment was cured by Your grace in ancient times. Likewise, may You destroy my affliction, for You are the remover of all diseases!",
+          words: [
+            { word: "भक्तेषु", transliteration: "bhakteṣu", meaning: "among devotees" },
+            { word: "रोगार्तान्", transliteration: "rogārtān", meaning: "those afflicted by disease" },
+            { word: "मोचयन्", transliteration: "mocayan", meaning: "freeing, releasing, liberating" },
+            { word: "व्याधिमुक्तिः", transliteration: "vyādhi-muktiḥ", meaning: "freedom from illness" },
+            { word: "शूलपाणेः", transliteration: "śūla-pāṇeḥ", meaning: "of Shiva (the trident-bearer)" },
+            { word: "प्रसादतः", transliteration: "prasādataḥ", meaning: "by grace, through favor" },
+            { word: "गदम्", transliteration: "gadam", meaning: "disease, malady, affliction" },
+            { word: "सर्वामयापहः", transliteration: "sarvāmayāpahaḥ", meaning: "remover of all diseases" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 9,
+          devanagari: "भवरोगश्च देहार्तिः द्वयमेतन्निवारय ।\nत्वत्स्मृत्या सर्वरोगाणां नाशो भवति निश्चितम् ।\nभवतापत्रयात्त्रातुं त्वमेव प्रभुरीश्वरः\nमनःप्रसादं भगवन् देहारोग्यं च मे दिश ॥",
+          transliteration: "bhava-rogaś ca dehārtiḥ dvayam etan nivāraya |\ntvat-smṛtyā sarva-rogāṇāṁ nāśo bhavati niścitam |\nbhava-tāpa-trayāt trātuṁ tvam eva prabhur īśvaraḥ\nmanaḥ-prasādaṁ bhagavan dehārogyaṁ ca me diśa ||",
+          translation: "The disease of worldly existence and the suffering of the body — remove both of these! By the remembrance of You, the destruction of all diseases is certain. You alone are the Lord capable of saving me from the threefold afflictions of existence. O Lord, grant me peace of mind and health of body!",
+          words: [
+            { word: "भवरोगः", transliteration: "bhava-rogaḥ", meaning: "disease of worldly existence, spiritual malady" },
+            { word: "देहार्तिः", transliteration: "dehārtiḥ", meaning: "bodily suffering, physical affliction" },
+            { word: "निवारय", transliteration: "nivāraya", meaning: "remove, ward off, prevent" },
+            { word: "स्मृत्या", transliteration: "smṛtyā", meaning: "by remembrance, by recollection" },
+            { word: "तापत्रयात्", transliteration: "tāpa-trayāt", meaning: "from the threefold afflictions" },
+            { word: "त्रातुम्", transliteration: "trātum", meaning: "to save, to protect" },
+            { word: "मनःप्रसादम्", transliteration: "manaḥ-prasādam", meaning: "peace of mind, mental serenity" },
+            { word: "आरोग्यम्", transliteration: "ārogyam", meaning: "health, freedom from disease" }
+          ]
+        },
+        {
+          dashaka: 98,
+          sloka: 10,
+          devanagari: "इति व्याधिपरिक्लिष्टो भट्टाथिरिरहं प्रभो ।\nप्रार्थये त्वां सदा भक्त्या कृपां कुरु जगत्पते ।\nआयुरारोग्यमैश्वर्यं त्वत्पादे भक्तिमुत्तमाम्\nदेहि गोपिकानाथ त्वं भवतापं निवारय ॥",
+          transliteration: "iti vyādhi-parikliṣṭo bhaṭṭāthirir ahaṁ prabho |\nprārthaye tvāṁ sadā bhaktyā kṛpāṁ kuru jagatpate |\nāyur-ārogyam aiśvaryaṁ tvat-pāde bhaktim uttamām\ndehi gopikānātha tvaṁ bhava-tāpaṁ nivāraya ||",
+          translation: "Thus, I, Bhattathiri, tormented by disease, O Lord, pray to You always with devotion — show me mercy, O Lord of the universe! Grant me long life, health, prosperity, and supreme devotion at Your feet. O Lord of the Gopis, remove the burning affliction of worldly existence!",
+          words: [
+            { word: "व्याधिपरिक्लिष्टः", transliteration: "vyādhi-parikliṣṭaḥ", meaning: "tormented by disease, afflicted by illness" },
+            { word: "भट्टाथिरिः", transliteration: "bhaṭṭāthiriḥ", meaning: "Bhattathiri (the poet Narayana Bhattathiri)" },
+            { word: "प्रार्थये", transliteration: "prārthaye", meaning: "I pray, I beseech" },
+            { word: "भक्त्या", transliteration: "bhaktyā", meaning: "with devotion" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "long life, lifespan" },
+            { word: "ऐश्वर्यम्", transliteration: "aiśvaryam", meaning: "prosperity, divine wealth" },
+            { word: "भवतापम्", transliteration: "bhava-tāpam", meaning: "the burning of worldly existence" },
+            { word: "निवारय", transliteration: "nivāraya", meaning: "remove, dispel, ward off" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 99,
