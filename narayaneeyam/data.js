@@ -19778,12 +19778,183 @@ slokas: [
     },
     {
       dashaka: 97,
-      titleSanskrit: "विश्वरूपवर्णनम्",
-      titleEnglish: "Description of the Cosmic Form (Vishvarupa)",
-      theme: "philosophy",
+      titleSanskrit: "प्रपदनस्तुतिः",
+      titleEnglish: "Prayer of Surrender (Prapadana-Stuti)",
+      theme: "devotion",
       verseCount: 10,
-      summary: "Describes the awe-inspiring Vishvarupa, the cosmic form of the Lord encompassing all creation, all beings, all time, and all space within His infinite body.",
-      slokas: []
+      summary: "An intense prayer born of suffering, expressing the poet's complete helplessness as he throws himself at the Lord's feet. Bhattathiri recounts how the Lord saved past devotees in distress — Gajendra, Prahlada, Dhruva, and others — and beseeches the Lord for the same compassionate rescue.",
+      slokas: [
+        {
+          dashaka: 97,
+          sloka: 1,
+          devanagari: "रोगार्तो दीनमानसः शरणं त्वां प्रपद्येऽहम् ।\nआर्तत्राणपरायण प्रभो नास्ति मेऽन्या गतिः ।\nदुःखाम्बुधौ निमज्जन्तं विषयैर्बद्धमानसम्\nउद्धर त्वं कृपासिन्धो गुरुवायुपुराधिप ॥",
+          transliteration: "rogārto dīna-mānasaḥ śaraṇaṁ tvāṁ prapadye'ham |\nārta-trāṇa-parāyaṇa prabho nāsti me'nyā gatiḥ |\nduḥkhāmbudhau nimajjantaṁ viṣayair baddha-mānasam\nuddhara tvaṁ kṛpā-sindho guruvāyupurādhipa ||",
+          translation: "Afflicted by disease and dejected in mind, I take refuge in You. O Lord who is devoted to rescuing the distressed, there is no other path for me. I am sinking in the ocean of sorrow with a mind bound by sense-objects — lift me up, O ocean of compassion, O sovereign of Guruvayur!",
+          words: [
+            { word: "रोगार्तः", transliteration: "rogārtaḥ", meaning: "afflicted by disease" },
+            { word: "दीनमानसः", transliteration: "dīna-mānasaḥ", meaning: "dejected in mind, broken-hearted" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "प्रपद्ये", transliteration: "prapadye", meaning: "I take refuge, I surrender" },
+            { word: "आर्तत्राणपरायण", transliteration: "ārta-trāṇa-parāyaṇa", meaning: "devoted to rescuing the distressed" },
+            { word: "दुःखाम्बुधौ", transliteration: "duḥkhāmbudhau", meaning: "in the ocean of sorrow" },
+            { word: "निमज्जन्तम्", transliteration: "nimajjantam", meaning: "sinking, drowning" },
+            { word: "कृपासिन्धो", transliteration: "kṛpā-sindho", meaning: "O ocean of compassion" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 2,
+          devanagari: "अशक्तोऽहं विषह्यानि दुःखानि सोढुं प्रभो ।\nशरीरे व्याधिपीडायां मनो मे विह्वलं सदा ।\nन शक्नोमि स्वयं कर्तुं मम कल्याणमण्वपि\nत्वदेकशरणो भूत्वा करुणां विद्धि माधव ॥",
+          transliteration: "aśakto'haṁ viṣahyāni duḥkhāni soḍhuṁ prabho |\nśarīre vyādhi-pīḍāyāṁ mano me vihvalaṁ sadā |\nna śaknomi svayaṁ kartuṁ mama kalyāṇam aṇvapi\ntvad-eka-śaraṇo bhūtvā karuṇāṁ viddhi mādhava ||",
+          translation: "I am unable to endure these unbearable sufferings, O Lord. With the body tormented by disease, my mind is always in anguish. I cannot bring about even the slightest good for myself. Having become one whose sole refuge is You, know my pitiable state, O Madhava!",
+          words: [
+            { word: "अशक्तः", transliteration: "aśaktaḥ", meaning: "unable, powerless" },
+            { word: "विषह्यानि", transliteration: "viṣahyāni", meaning: "unbearable, intolerable" },
+            { word: "सोढुम्", transliteration: "soḍhum", meaning: "to endure, to bear" },
+            { word: "व्याधिपीडायाम्", transliteration: "vyādhi-pīḍāyām", meaning: "in the torment of disease" },
+            { word: "विह्वलम्", transliteration: "vihvalam", meaning: "agitated, anguished, bewildered" },
+            { word: "कल्याणम्", transliteration: "kalyāṇam", meaning: "welfare, good fortune" },
+            { word: "त्वदेकशरणः", transliteration: "tvad-eka-śaraṇaḥ", meaning: "one whose sole refuge is You" },
+            { word: "माधव", transliteration: "mādhava", meaning: "O Madhava (epithet of Krishna)" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 3,
+          devanagari: "गजेन्द्रो ग्राहगृहीतपादो\nयदा त्वामाक्रन्दत् सरसि निमग्नः ।\nसहस्रवर्षं परिपीड्यमानो\nभवन्तमेकं शरणं प्रपेदे ।\nगरुडारूढस्त्वमुपेत्य तूर्णं\nचक्रेण तं ग्राहमभिन्नवान् हरे\nतथा ममापि प्रणतस्य देव\nसंरक्षणं कर्तुमिहार्हसि त्वम् ॥",
+          transliteration: "gajendro grāha-gṛhīta-pādo\nyadā tvām ākrandat sarasi nimagnaḥ |\nsahasra-varṣaṁ paripīḍyamāno\nbhavantam ekaṁ śaraṇaṁ prapede |\ngaruḍārūḍhas tvam upetya tūrṇaṁ\ncakreṇa taṁ grāham abhinnavān hare\ntathā mamāpi praṇatasya deva\nsaṁrakṣaṇaṁ kartum ihārhasi tvam ||",
+          translation: "When Gajendra, his foot seized by the crocodile, cried out to You while sinking in the lake — tormented for a thousand years, he sought You as his sole refuge. Mounted on Garuda, You swiftly arrived and split that crocodile with Your discus, O Hari. In the same way, O Lord, You ought to protect me too, who am bowed before You.",
+          words: [
+            { word: "गजेन्द्रः", transliteration: "gajendraḥ", meaning: "Gajendra, the king of elephants" },
+            { word: "ग्राहगृहीतपादः", transliteration: "grāha-gṛhīta-pādaḥ", meaning: "whose foot was seized by a crocodile" },
+            { word: "आक्रन्दत्", transliteration: "ākrandat", meaning: "cried out, called in distress" },
+            { word: "निमग्नः", transliteration: "nimagnaḥ", meaning: "submerged, sinking" },
+            { word: "परिपीड्यमानः", transliteration: "paripīḍyamānaḥ", meaning: "being tormented, being afflicted" },
+            { word: "गरुडारूढः", transliteration: "garuḍārūḍhaḥ", meaning: "mounted on Garuda" },
+            { word: "तूर्णम्", transliteration: "tūrṇam", meaning: "swiftly, quickly" },
+            { word: "प्रणतस्य", transliteration: "praṇatasya", meaning: "of one who is bowed, of the prostrate one" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 4,
+          devanagari: "प्रह्लादो दैत्यतनयो भक्त्या त्वां समुपाश्रितः ।\nपित्रा हिरण्यकशिपुना बहुधा पीडितोऽपि सन् ।\nअग्नौ प्रक्षिप्तदेहोऽपि सर्पैर्दष्टोऽपि वारणैः\nन त्वत्पादं विहायैष त्वत्कृपायाः पदं गतः ॥",
+          transliteration: "prahlādo daitya-tanayo bhaktyā tvāṁ samupāśritaḥ |\npitrā hiraṇyakaśipunā bahudhā pīḍito'pi san |\nagnau prakṣipta-deho'pi sarpair daṣṭo'pi vāraṇaiḥ\nna tvat-pādaṁ vihāyaiṣa tvat-kṛpāyāḥ padaṁ gataḥ ||",
+          translation: "Prahlada, the son of a demon, took refuge in You through devotion. Though tormented in many ways by his father Hiranyakashipu — his body cast into fire, bitten by serpents, trampled by elephants — he never abandoned Your feet, and thus attained the abode of Your grace.",
+          words: [
+            { word: "प्रह्लादः", transliteration: "prahlādaḥ", meaning: "Prahlada, the devotee-prince" },
+            { word: "दैत्यतनयः", transliteration: "daitya-tanayaḥ", meaning: "son of a demon" },
+            { word: "समुपाश्रितः", transliteration: "samupāśritaḥ", meaning: "took complete refuge" },
+            { word: "हिरण्यकशिपुना", transliteration: "hiraṇyakaśipunā", meaning: "by Hiranyakashipu" },
+            { word: "पीडितः", transliteration: "pīḍitaḥ", meaning: "tormented, oppressed" },
+            { word: "प्रक्षिप्तदेहः", transliteration: "prakṣipta-dehaḥ", meaning: "one whose body was thrown, cast bodily" },
+            { word: "सर्पैर्दष्टः", transliteration: "sarpair daṣṭaḥ", meaning: "bitten by serpents" },
+            { word: "त्वत्कृपायाः पदम्", transliteration: "tvat-kṛpāyāḥ padam", meaning: "the abode of Your grace" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 5,
+          devanagari: "ध्रुवश्च बालः सुतरां निरस्तः\nसापत्नमात्रा पितुरङ्कतश्च ।\nवनं गतो भक्तिबलेन तेन\nध्रुवं पदं प्राप तवैव तुष्ट्या ।\nस्ववत्सलत्वं खलु दर्शयित्वा\nत्वं तस्य बालस्य कृपां विधाय\nतथैव मह्यं परिपाहि कृष्ण\nदीनं दयालो शरणागतं माम् ॥",
+          transliteration: "dhruvaś ca bālaḥ sutarāṁ nirastaḥ\nsāpatna-mātrā pitur aṅkataś ca |\nvanaṁ gato bhakti-balena tena\ndhruvaṁ padaṁ prāpa tavaiva tuṣṭyā |\nsva-vatsalatvaṁ khalu darśayitvā\ntvaṁ tasya bālasya kṛpāṁ vidhāya\ntathiva mahyaṁ paripāhi kṛṣṇa\ndīnaṁ dayālo śaraṇāgataṁ mām ||",
+          translation: "Young Dhruva too, cruelly turned away from his father's lap by his step-mother, went to the forest and by the power of his devotion attained the eternal station through Your pleasure alone. Having shown Your tender love for dependents, having bestowed grace upon that child — in the same manner protect me too, O Krishna, O compassionate Lord, me who am wretched and have come to You for refuge!",
+          words: [
+            { word: "ध्रुवः", transliteration: "dhruvaḥ", meaning: "Dhruva, the child-devotee" },
+            { word: "बालः", transliteration: "bālaḥ", meaning: "child, young boy" },
+            { word: "निरस्तः", transliteration: "nirastaḥ", meaning: "cast aside, rejected" },
+            { word: "सापत्नमात्रा", transliteration: "sāpatna-mātrā", meaning: "by the step-mother" },
+            { word: "भक्तिबलेन", transliteration: "bhakti-balena", meaning: "by the power of devotion" },
+            { word: "ध्रुवं पदम्", transliteration: "dhruvaṁ padam", meaning: "the eternal station (the Pole Star)" },
+            { word: "वत्सलत्वम्", transliteration: "vatsalatvam", meaning: "tender love for dependents" },
+            { word: "शरणागतम्", transliteration: "śaraṇāgatam", meaning: "one who has come for refuge" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 6,
+          devanagari: "द्रौपदी च सभामध्ये दुःशासनकरार्दिता ।\nवस्त्राक्षेपे प्रवृत्ते तु त्वामेकं शरणं गता ।\nअक्षय्यवस्त्रदानेन रक्षितास्या जनार्दन\nमम त्वमार्तिं शमय त्वां विना को मे गतिर्भवेत् ॥",
+          transliteration: "draupadī ca sabhā-madhye duḥśāsana-karārditā |\nvastrākṣepe pravṛtte tu tvām ekaṁ śaraṇaṁ gatā |\nakṣayya-vastra-dānena rakṣitāsyā janārdana\nmama tvam ārtiṁ śamaya tvāṁ vinā ko me gatir bhavet ||",
+          translation: "Draupadi too, tormented by the hand of Duhshasana in the midst of the assembly, when the disrobing commenced, took refuge in You alone. By granting her an inexhaustible garment You protected her, O Janardana. Quell my agony likewise — without You, who would be my refuge?",
+          words: [
+            { word: "द्रौपदी", transliteration: "draupadī", meaning: "Draupadi, queen of the Pandavas" },
+            { word: "सभामध्ये", transliteration: "sabhā-madhye", meaning: "in the midst of the assembly" },
+            { word: "दुःशासनकरार्दिता", transliteration: "duḥśāsana-karārditā", meaning: "tormented by the hand of Duhshasana" },
+            { word: "वस्त्राक्षेपे", transliteration: "vastrākṣepe", meaning: "in the act of disrobing" },
+            { word: "अक्षय्यवस्त्रदानेन", transliteration: "akṣayya-vastra-dānena", meaning: "by the granting of an inexhaustible garment" },
+            { word: "रक्षिता", transliteration: "rakṣitā", meaning: "protected, saved" },
+            { word: "आर्तिम्", transliteration: "ārtim", meaning: "agony, distress, suffering" },
+            { word: "गतिः", transliteration: "gatiḥ", meaning: "refuge, recourse, path" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 7,
+          devanagari: "अजामिलो नामपरो महापापी\nमृत्योर्भयाद् ध्वस्तधृतिः समन्तात् ।\nनारायणेत्यात्मसुतस्य नाम\nव्याजेन भक्त्या तव नाम गायन् ।\nत्वत्पार्षदैः संरक्षितो यमाद् वै\nवैकुण्ठलोकं समवाप सोऽपि\nपापी ममापि प्रणतस्य नाथ\nपापक्षयं कर्तुमिहार्हसि त्वम् ॥",
+          transliteration: "ajāmilo nāma-paro mahā-pāpī\nmṛtyor bhayād dhvasta-dhṛtiḥ samantāt |\nnārāyaṇety ātma-sutasya nāma\nvyājena bhaktyā tava nāma gāyan |\ntvat-pārṣadaiḥ saṁrakṣito yamād vai\nvaikuṇṭha-lokaṁ samavāpa so'pi\npāpī mamāpi praṇatasya nātha\npāpa-kṣayaṁ kartum ihārhasi tvam ||",
+          translation: "Ajamila, a great sinner, his composure shattered all around by the fear of death, uttered Your name 'Narayana' — though as a pretext to call his son — and thus chanted Your name with devotion. Protected from Yama by Your attendants, even he attained the world of Vaikuntha. O Lord, You ought to destroy the sins of me too, a sinner who is bowed before You.",
+          words: [
+            { word: "अजामिलः", transliteration: "ajāmilaḥ", meaning: "Ajamila, the reformed sinner" },
+            { word: "महापापी", transliteration: "mahā-pāpī", meaning: "a great sinner" },
+            { word: "मृत्योर्भयात्", transliteration: "mṛtyor bhayāt", meaning: "from fear of death" },
+            { word: "ध्वस्तधृतिः", transliteration: "dhvasta-dhṛtiḥ", meaning: "one whose composure is shattered" },
+            { word: "व्याजेन", transliteration: "vyājena", meaning: "as a pretext, under the guise of" },
+            { word: "पार्षदैः", transliteration: "pārṣadaiḥ", meaning: "by the attendants (of the Lord)" },
+            { word: "वैकुण्ठलोकम्", transliteration: "vaikuṇṭha-lokam", meaning: "the world of Vaikuntha, the supreme abode" },
+            { word: "पापक्षयम्", transliteration: "pāpa-kṣayam", meaning: "destruction of sins" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 8,
+          devanagari: "एतादृशी ते करुणा पुराणी\nभक्तेषु नित्यं परिरक्षणार्थम् ।\nकिं दुर्लभं तव कृपासमृद्धैः\nसन्तोषितस्य प्रभो सद्गुणौघैः ।\nसोऽहं तु पापी च रोगार्तदेहः\nकिं पात्रमस्मि तव भक्तिपूर्तेः\nतथापि विश्वासवशात्प्रपन्नो\nमा भैरिति त्वं वद वायुगेहिन् ॥",
+          transliteration: "etādṛśī te karuṇā purāṇī\nbhakteṣu nityaṁ parirakṣaṇārtham |\nkiṁ durlabhaṁ tava kṛpā-samṛddhaiḥ\nsantoṣitasya prabho sad-guṇaughaiḥ |\nso'haṁ tu pāpī ca rogārta-dehaḥ\nkiṁ pātram asmi tava bhakti-pūrteḥ\ntathāpi viśvāsa-vaśāt prapanno\nmā bhair iti tvaṁ vada vāyugehin ||",
+          translation: "Such is Your ancient compassion, always aimed at protecting Your devotees. What is unattainable for one enriched by Your grace and satisfied by the flood of Your virtues, O Lord? I am indeed a sinner with a disease-ridden body — am I a worthy vessel for the fulfillment of devotion to You? Yet, compelled by faith, I have surrendered. Speak the words 'Fear not!' to me, O dweller in the temple of Vayu!",
+          words: [
+            { word: "करुणा", transliteration: "karuṇā", meaning: "compassion, mercy" },
+            { word: "पुराणी", transliteration: "purāṇī", meaning: "ancient, of old" },
+            { word: "परिरक्षणार्थम्", transliteration: "parirakṣaṇārtham", meaning: "for the purpose of protecting" },
+            { word: "कृपासमृद्धैः", transliteration: "kṛpā-samṛddhaiḥ", meaning: "enriched by (Your) grace" },
+            { word: "रोगार्तदेहः", transliteration: "rogārta-dehaḥ", meaning: "one with a disease-afflicted body" },
+            { word: "पात्रम्", transliteration: "pātram", meaning: "vessel, worthy recipient" },
+            { word: "विश्वासवशात्", transliteration: "viśvāsa-vaśāt", meaning: "compelled by faith, out of trust" },
+            { word: "वायुगेहिन्", transliteration: "vāyugehin", meaning: "O dweller in the temple of Vayu (Guruvayurappan)" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 9,
+          devanagari: "न जाने योगमार्गं न च विदितमिदं ज्ञानतत्त्वं कथञ्चित्\nन वा शक्तिर्विरक्तौ विषयभरजुषो जन्तुनोऽस्य प्रभूता ।\nएकं जानामि नाथ त्वमसि शरणमित्येव मे निश्चयोऽयं\nत्वत्पादाम्भोजयुग्मं मम भव भगवन् मृत्युजन्मापहारि ॥",
+          transliteration: "na jāne yoga-mārgaṁ na ca viditam idaṁ jñāna-tattvaṁ kathañcit\nna vā śaktir viraktau viṣaya-bhara-juṣo jantunosya prabhūtā |\nekaṁ jānāmi nātha tvam asi śaraṇam ityeva me niścayo'yaṁ\ntvat-pādāmbhoja-yugmaṁ mama bhava bhagavan mṛtyu-janmāpahāri ||",
+          translation: "I know not the path of yoga, nor have I somehow grasped the truth of knowledge, nor does this creature, steeped in a load of sense-objects, possess the power of renunciation. One thing alone I know, O Lord — that You are my refuge: this alone is my firm conviction. May Your pair of lotus feet be for me, O Blessed One, the destroyer of death and rebirth!",
+          words: [
+            { word: "योगमार्गम्", transliteration: "yoga-mārgam", meaning: "the path of yoga" },
+            { word: "ज्ञानतत्त्वम्", transliteration: "jñāna-tattvam", meaning: "the truth/essence of knowledge" },
+            { word: "विरक्तौ", transliteration: "viraktau", meaning: "in renunciation, in dispassion" },
+            { word: "विषयभरजुषः", transliteration: "viṣaya-bhara-juṣaḥ", meaning: "one who indulges in a load of sense-objects" },
+            { word: "जन्तुनः", transliteration: "jantunaḥ", meaning: "of a creature, of a being" },
+            { word: "निश्चयः", transliteration: "niścayaḥ", meaning: "firm conviction, certainty" },
+            { word: "पादाम्भोजयुग्मम्", transliteration: "pādāmbhoja-yugmam", meaning: "the pair of lotus feet" },
+            { word: "मृत्युजन्मापहारि", transliteration: "mṛtyu-janmāpahāri", meaning: "destroyer of death and rebirth" }
+          ]
+        },
+        {
+          dashaka: 97,
+          sloka: 10,
+          devanagari: "सर्वं क्षमस्व भगवन् परिपाहि रोगात्\nदीनं च माम् अवितथं कुरु चात्मभक्तम् ।\nत्वत्पादपद्मममलं ममसन्निधत्स्व\nआयुर्बलं च विमलां च धियं च देहि ।\nक्षीणस्य मे कृपणवादिन एव हेतो\nश्रीवायुगेहभगवन् परिपाहि विष्णो\nआयुष्यमारोग्यमनामयं च\nभूयो भवत्पादसरोजभक्तिम् ॥",
+          transliteration: "sarvaṁ kṣamasva bhagavan paripāhi rogāt\ndīnaṁ ca mām avitathaṁ kuru cātma-bhaktam |\ntvat-pāda-padmam amalaṁ mama sannidhatsva\nāyur-balaṁ ca vimalāṁ ca dhiyaṁ ca dehi |\nkṣīṇasya me kṛpaṇa-vādina eva heto\nśrī-vāyugeha-bhagavan paripāhi viṣṇo\nāyuṣyam ārogyam anāmayaṁ ca\nbhūyo bhavat-pāda-saroja-bhaktim ||",
+          translation: "Forgive everything, O Blessed Lord, and protect me from disease. Make this wretched one a true devotee of Yours. Place Your pure lotus feet before me; grant me life, strength, and a clear intellect. For the sake of this diminished one who pleads pitifully — O Lord of the blessed temple of Vayu, protect me, O Vishnu! Grant me long life, health, freedom from illness, and above all, renewed devotion to Your lotus feet!",
+          words: [
+            { word: "क्षमस्व", transliteration: "kṣamasva", meaning: "forgive, pardon" },
+            { word: "परिपाहि", transliteration: "paripāhi", meaning: "protect fully, guard" },
+            { word: "अवितथम्", transliteration: "avitatham", meaning: "true, genuine, unfailing" },
+            { word: "सन्निधत्स्व", transliteration: "sannidhatsva", meaning: "place near, make present" },
+            { word: "विमलाम् धियम्", transliteration: "vimalāṁ dhiyam", meaning: "a pure/clear intellect" },
+            { word: "क्षीणस्य", transliteration: "kṣīṇasya", meaning: "of one who is diminished, weakened" },
+            { word: "कृपणवादिनः", transliteration: "kṛpaṇa-vādinaḥ", meaning: "of one who pleads pitifully" },
+            { word: "आरोग्यम्", transliteration: "ārogyam", meaning: "health, freedom from disease" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 98,
