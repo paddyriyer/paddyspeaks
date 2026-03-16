@@ -16351,39 +16351,798 @@ slokas: [
     },
     {
       dashaka: 89,
-      titleSanskrit: "भगवद्ध्यानम्",
-      titleEnglish: "Meditation on the Lord",
-      theme: "prayer",
+      titleSanskrit: "विष्णुमाहात्म्यम्",
+      titleEnglish: "Glory of Vishnu",
+      theme: "devotion",
       verseCount: 10,
-      summary: "Describes the practice of meditation on the divine form of the Lord, the method of fixing the mind on each limb and attribute, leading to absorption in the Supreme Being.",
-      slokas: []
+      summary: "Extols Vishnu as the supreme reality transcending all other deities. Bhattathiri celebrates His supremacy over Brahma and Shiva, invokes the essence of the Vishnu Sahasranama, and meditates on His all-pervading nature as the ultimate refuge of all beings.",
+      slokas: [
+        {
+          dashaka: 89,
+          sloka: 1,
+          devanagari: "विष्णुं विश्वस्य मूलं सकलभुवनगं सर्वकारणकारणम्\nआनन्दैकस्वरूपं प्रणवपदगतं वेदवेदान्तगम्यम् ।\nसर्वज्ञं सर्वशक्तं सकलगुणनिधिं शाश्वतं शान्तमूर्तिं\nतं वन्दे वासुदेवं गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "viṣṇuṁ viśvasya mūlaṁ sakalabhuvanagaṁ sarvakāraṇakāraṇam\nānandaikasvarūpaṁ praṇavapadagataṁ vedavedāntagamyam |\nsarvajñaṁ sarvaśaktaṁ sakalaguṇanidhiṁ śāśvataṁ śāntamūrtiṁ\ntaṁ vande vāsudevaṁ gurupavanāpate pāhi māmāmayebhyaḥ ||",
+          translation: "I salute Vishnu, the root of the universe, pervading all worlds, the cause of all causes, whose nature is bliss alone, accessible through the syllable Om, known through the Vedas and Vedanta, omniscient, omnipotent, the treasure-house of all virtues, eternal, the embodiment of peace. O Lord of Guruvayur, protect me from all ailments.",
+          words: [
+            { word: "विष्णुम्", transliteration: "viṣṇum", meaning: "Vishnu (the all-pervading one)" },
+            { word: "विश्वस्य मूलम्", transliteration: "viśvasya mūlam", meaning: "the root of the universe" },
+            { word: "सकलभुवनगम्", transliteration: "sakalabhuvanagam", meaning: "pervading all worlds" },
+            { word: "सर्वकारणकारणम्", transliteration: "sarvakāraṇakāraṇam", meaning: "the cause of all causes" },
+            { word: "आनन्दैकस्वरूपम्", transliteration: "ānandaikasvarūpam", meaning: "whose nature is bliss alone" },
+            { word: "प्रणवपदगतम्", transliteration: "praṇavapadagatam", meaning: "accessible through the syllable Om" },
+            { word: "वेदवेदान्तगम्यम्", transliteration: "vedavedāntagamyam", meaning: "known through the Vedas and Vedanta" },
+            { word: "सर्वज्ञम्", transliteration: "sarvajñam", meaning: "omniscient, all-knowing" },
+            { word: "सर्वशक्तम्", transliteration: "sarvaśaktam", meaning: "omnipotent, all-powerful" },
+            { word: "सकलगुणनिधिम्", transliteration: "sakalaguṇanidhim", meaning: "treasure-house of all virtues" },
+            { word: "शाश्वतम्", transliteration: "śāśvatam", meaning: "eternal, everlasting" },
+            { word: "शान्तमूर्तिम्", transliteration: "śāntamūrtim", meaning: "embodiment of peace" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 2,
+          devanagari: "ब्रह्मा तत्पादपद्मात् प्रभवति भगवान् रुद्र एतल्ललाटात्\nइन्द्रादिर्देवसङ्घस्त्वदधिकनियतिं नैव लङ्घेत कश्चित् ।\nसर्वेषामीश्वरस्त्वं परमपुरुषो नारायणो विश्वमूर्ते\nत्वत्तुल्यो नास्ति कश्चित् क्वचिदपि भगवन् पाहि मामामयघ्न ॥",
+          transliteration: "brahmā tatpādapadmāt prabhavati bhagavān rudra etallaLāṭāt\nindrādir devasaṅghas tvadadhikaniyatiṁ naiva laṅgheta kaścit |\nsarveṣām īśvaras tvaṁ paramapuruṣo nārāyaṇo viśvamūrte\ntvattulyō nāsti kaścit kvacidapi bhagavan pāhi māmāmayaghna ||",
+          translation: "Brahma arises from Your lotus feet, Lord Rudra from Your forehead; Indra and the host of gods cannot transgress the order You have set. You are the Lord of all, the Supreme Person, Narayana, whose form is the universe. None is equal to You anywhere, O Lord. O destroyer of afflictions, protect me.",
+          words: [
+            { word: "ब्रह्मा", transliteration: "brahmā", meaning: "Brahma, the creator" },
+            { word: "तत्पादपद्मात्", transliteration: "tat-pāda-padmāt", meaning: "from His lotus feet" },
+            { word: "प्रभवति", transliteration: "prabhavati", meaning: "arises, is born" },
+            { word: "रुद्रः", transliteration: "rudraḥ", meaning: "Rudra (Shiva)" },
+            { word: "ललाटात्", transliteration: "lalāṭāt", meaning: "from the forehead" },
+            { word: "देवसङ्घः", transliteration: "devasaṅghaḥ", meaning: "the host of gods" },
+            { word: "नियतिम्", transliteration: "niyatim", meaning: "the ordained order" },
+            { word: "ईश्वरः", transliteration: "īśvaraḥ", meaning: "the Lord, the ruler" },
+            { word: "परमपुरुषः", transliteration: "paramapuruṣaḥ", meaning: "the Supreme Person" },
+            { word: "नारायणः", transliteration: "nārāyaṇaḥ", meaning: "Narayana (refuge of all beings)" },
+            { word: "विश्वमूर्ते", transliteration: "viśvamūrte", meaning: "O one whose form is the universe" },
+            { word: "आमयघ्न", transliteration: "āmayaghna", meaning: "O destroyer of afflictions" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 3,
+          devanagari: "यस्मात् सर्वं प्रसूतं यदिदमखिलगं यत्र सर्वं प्रलीनं\nयस्मिन् सर्वं प्रतिष्ठं सदसदखिलमेतत् त्वमेवाधिशेषे ।\nत्वन्मायाशक्तिरेषा त्रिगुणमयजगत् कल्पयन्ती विचित्रं\nत्वं तस्याः पार एको गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "yasmāt sarvaṁ prasūtaṁ yadidam akhilagaṁ yatra sarvaṁ pralīnaṁ\nyasmin sarvaṁ pratiṣṭhaṁ sadasadakhilametat tvamevādhiśeṣe |\ntvanmāyāśaktireṣā triguṇamayajagat kalpayantī vicitraṁ\ntvaṁ tasyāḥ pāra eko gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "From whom all this has sprung, in whom all pervades, into whom all dissolves, in whom all is established — You alone preside over all this, both real and unreal. Your Maya-Shakti fashions this wondrous world of three gunas, yet You alone are beyond her. O Lord of Guruvayur, protect me from all ailments.",
+          words: [
+            { word: "यस्मात्", transliteration: "yasmāt", meaning: "from whom" },
+            { word: "प्रसूतम्", transliteration: "prasūtam", meaning: "has sprung forth, is born" },
+            { word: "अखिलगम्", transliteration: "akhilagam", meaning: "pervading everything" },
+            { word: "प्रलीनम्", transliteration: "pralīnam", meaning: "dissolved, merged" },
+            { word: "प्रतिष्ठम्", transliteration: "pratiṣṭham", meaning: "is established, rests" },
+            { word: "सदसत्", transliteration: "sadasat", meaning: "the real and the unreal" },
+            { word: "अधिशेषे", transliteration: "adhiśeṣe", meaning: "You preside over, You rule" },
+            { word: "मायाशक्तिः", transliteration: "māyāśaktiḥ", meaning: "the power of Maya/illusion" },
+            { word: "त्रिगुणमयजगत्", transliteration: "triguṇamayajagat", meaning: "the world made of three gunas" },
+            { word: "कल्पयन्ती", transliteration: "kalpayantī", meaning: "fashioning, creating" },
+            { word: "विचित्रम्", transliteration: "vicitram", meaning: "wondrous, marvellous" },
+            { word: "पारः", transliteration: "pāraḥ", meaning: "beyond, the far shore" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 4,
+          devanagari: "सहस्रशीर्षा पुरुषः सहस्राक्षः सहस्रपात्\nइत्यादिवेदवाक्यैस्त्वं गीयसे विश्वतोमुख ।\nविराट्स्वरूपमखिलं त्वदीयं व्याप्य तिष्ठति\nत्वमेव सर्वं भगवन् गुरुवातपुरेश्वर ॥",
+          transliteration: "sahasraśīrṣā puruṣaḥ sahasrākṣaḥ sahasrapāt\nityādivedavākyais tvaṁ gīyase viśvatomukha |\nvirāṭsvarūpam akhilaṁ tvadīyaṁ vyāpya tiṣṭhati\ntvameva sarvaṁ bhagavan guruvātapureśvara ||",
+          translation: "The Purusha with a thousand heads, a thousand eyes, a thousand feet — thus do the Vedic hymns sing of You, O You who face all directions. Your cosmic form pervades and sustains everything. You alone are all, O Lord of Guruvayur.",
+          words: [
+            { word: "सहस्रशीर्षा", transliteration: "sahasraśīrṣā", meaning: "with a thousand heads" },
+            { word: "पुरुषः", transliteration: "puruṣaḥ", meaning: "the Supreme Person" },
+            { word: "सहस्राक्षः", transliteration: "sahasrākṣaḥ", meaning: "with a thousand eyes" },
+            { word: "सहस्रपात्", transliteration: "sahasrapāt", meaning: "with a thousand feet" },
+            { word: "वेदवाक्यैः", transliteration: "vedavākyaiḥ", meaning: "by Vedic declarations" },
+            { word: "गीयसे", transliteration: "gīyase", meaning: "You are sung, praised" },
+            { word: "विश्वतोमुख", transliteration: "viśvatomukha", meaning: "O one who faces all directions" },
+            { word: "विराट्स्वरूपम्", transliteration: "virāṭsvarūpam", meaning: "the cosmic form" },
+            { word: "व्याप्य", transliteration: "vyāpya", meaning: "pervading" },
+            { word: "तिष्ठति", transliteration: "tiṣṭhati", meaning: "stands, remains" },
+            { word: "गुरुवातपुरेश्वर", transliteration: "guruvātapureśvara", meaning: "O Lord of Guruvayur" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 5,
+          devanagari: "विष्णोर्नामसहस्रं यत् परमपावनमुत्तमम्\nभीष्मेण कथितं पूर्वं धर्मराजहितैषिणा ।\nतन्नामामृतपानेन संसारभयनाशनम्\nत्वं विश्वम्भरो विष्णुर्गोविन्दो मधुसूदनः ॥",
+          transliteration: "viṣṇor nāmasahasraṁ yat paramapāvanam uttamam\nbhīṣmeṇa kathitaṁ pūrvaṁ dharmarājahitaiṣiṇā |\ntannāmāmṛtapānena saṁsārabhayānāśanam\ntvaṁ viśvambharo viṣṇur govindo madhusūdanaḥ ||",
+          translation: "The Thousand Names of Vishnu, supremely purifying and exalted, were spoken of old by Bhishma, who wished the welfare of Dharmaraja. By drinking the nectar of those names, the fear of worldly existence is destroyed. You are Vishvambhara, Vishnu, Govinda, Madhusudana.",
+          words: [
+            { word: "नामसहस्रम्", transliteration: "nāmasahasram", meaning: "the thousand names" },
+            { word: "परमपावनम्", transliteration: "paramapāvanam", meaning: "supremely purifying" },
+            { word: "भीष्मेण", transliteration: "bhīṣmeṇa", meaning: "by Bhishma" },
+            { word: "कथितम्", transliteration: "kathitam", meaning: "narrated, spoken" },
+            { word: "धर्मराजहितैषिणा", transliteration: "dharmarājahitaiṣiṇā", meaning: "by one desiring the welfare of Dharmaraja" },
+            { word: "नामामृतपानेन", transliteration: "nāmāmṛtapānena", meaning: "by drinking the nectar of the names" },
+            { word: "संसारभयनाशनम्", transliteration: "saṁsārabhayānāśanam", meaning: "destroying the fear of worldly existence" },
+            { word: "विश्वम्भरः", transliteration: "viśvambharaḥ", meaning: "the sustainer of the universe" },
+            { word: "गोविन्दः", transliteration: "govindaḥ", meaning: "Govinda (finder of cows/senses)" },
+            { word: "मधुसूदनः", transliteration: "madhusūdanaḥ", meaning: "slayer of the demon Madhu" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 6,
+          devanagari: "त्रिविक्रमस्त्वं वामनो हृषीकेशो जनार्दनः\nनारायणो वासुदेवः संकर्षणपरायणः ।\nप्रद्युम्नश्चानिरुद्धश्च पुरुषोत्तम ईश्वरः\nसर्वनामधरस्त्वं हि गुरुवायुपुराधिप ॥",
+          transliteration: "trivikramas tvaṁ vāmano hṛṣīkeśo janārdanaḥ\nnārāyaṇo vāsudevaḥ saṁkarṣaṇaparāyaṇaḥ |\npradyumnaś cāniruddhaś ca puruṣottama īśvaraḥ\nsarvanāmadharas tvaṁ hi guruvāyupurādhipa ||",
+          translation: "You are Trivikrama, Vamana, Hrishikesha, Janardana, Narayana, Vasudeva, the goal of Sankarshana, Pradyumna, and Aniruddha — the Supreme Person, the Lord. You indeed bear all names, O ruler of Guruvayur.",
+          words: [
+            { word: "त्रिविक्रमः", transliteration: "trivikramaḥ", meaning: "one who conquered the three worlds in three strides" },
+            { word: "वामनः", transliteration: "vāmanaḥ", meaning: "the dwarf incarnation" },
+            { word: "हृषीकेशः", transliteration: "hṛṣīkeśaḥ", meaning: "lord of the senses" },
+            { word: "जनार्दनः", transliteration: "janārdanaḥ", meaning: "one who afflicts the wicked" },
+            { word: "संकर्षणः", transliteration: "saṁkarṣaṇaḥ", meaning: "Sankarshana (the attracting one)" },
+            { word: "प्रद्युम्नः", transliteration: "pradyumnaḥ", meaning: "Pradyumna (supremely mighty)" },
+            { word: "अनिरुद्धः", transliteration: "aniruddhaḥ", meaning: "Aniruddha (the unobstructed)" },
+            { word: "पुरुषोत्तमः", transliteration: "puruṣottamaḥ", meaning: "the Supreme Person" },
+            { word: "सर्वनामधरः", transliteration: "sarvanāmadharaḥ", meaning: "bearer of all names" },
+            { word: "गुरुवायुपुराधिप", transliteration: "guruvāyupurādhipa", meaning: "O ruler of Guruvayur" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 7,
+          devanagari: "अणोरणीयान् महतो महीयान् यस्य सर्वमिदं जगत्\nशरीरमेव भगवन् त्वमात्मा सर्वदेहिनाम् ।\nअन्तर्बहिश्च सर्वत्र व्याप्य नारायणः स्थितः\nत्वां विना नास्ति किञ्चित् गुरुवातपुराधिप ॥",
+          transliteration: "aṇor aṇīyān mahato mahīyān yasya sarvam idaṁ jagat\nśarīram eva bhagavan tvam ātmā sarvadehinām |\nantarbahiś ca sarvatra vyāpya nārāyaṇaḥ sthitaḥ\ntvāṁ vinā nāsti kiñcit guruvātapurādhipa ||",
+          translation: "Subtler than the subtlest, greater than the greatest — this entire universe is but Your body, O Lord. You are the Self of all embodied beings. Narayana stands pervading everything, within and without. Without You, nothing exists, O Lord of Guruvayur.",
+          words: [
+            { word: "अणोरणीयान्", transliteration: "aṇor aṇīyān", meaning: "subtler than the subtle" },
+            { word: "महतो महीयान्", transliteration: "mahato mahīyān", meaning: "greater than the great" },
+            { word: "शरीरम्", transliteration: "śarīram", meaning: "body" },
+            { word: "आत्मा", transliteration: "ātmā", meaning: "the Self, the soul" },
+            { word: "सर्वदेहिनाम्", transliteration: "sarvadehinām", meaning: "of all embodied beings" },
+            { word: "अन्तर्बहिः", transliteration: "antarbahiḥ", meaning: "within and without" },
+            { word: "सर्वत्र", transliteration: "sarvatra", meaning: "everywhere" },
+            { word: "व्याप्य", transliteration: "vyāpya", meaning: "pervading" },
+            { word: "स्थितः", transliteration: "sthitaḥ", meaning: "stands, is established" },
+            { word: "किञ्चित्", transliteration: "kiñcit", meaning: "anything whatsoever" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 8,
+          devanagari: "शिवो वदति यत्तत्त्वं विष्णोः परमकारणम्\nब्रह्मा वदति यत्तत्त्वं विष्णोः परतरं नहि ।\nवेदा वदन्ति यत्तत्त्वं विष्णोः परतमं पदम्\nतमेकं शरणं यामो गुरुवायुपुरेश्वरम् ॥",
+          transliteration: "śivo vadati yat tattvaṁ viṣṇoḥ paramakāraṇam\nbrahmā vadati yat tattvaṁ viṣṇoḥ parataraṁ nahi |\nvedā vadanti yat tattvaṁ viṣṇoḥ paramatamaṁ padam\ntam ekaṁ śaraṇaṁ yāmo guruvāyupureśvaram ||",
+          translation: "Shiva declares that Vishnu is the supreme cause; Brahma declares there is nothing higher than Vishnu; the Vedas declare that the supreme abode is that of Vishnu. Let us take refuge in that one Lord of Guruvayur.",
+          words: [
+            { word: "शिवः", transliteration: "śivaḥ", meaning: "Shiva" },
+            { word: "वदति", transliteration: "vadati", meaning: "declares, says" },
+            { word: "तत्त्वम्", transliteration: "tattvam", meaning: "the truth, the reality" },
+            { word: "परमकारणम्", transliteration: "paramakāraṇam", meaning: "the supreme cause" },
+            { word: "परतरम्", transliteration: "parataram", meaning: "anything higher" },
+            { word: "नहि", transliteration: "nahi", meaning: "not indeed" },
+            { word: "वेदाः", transliteration: "vedāḥ", meaning: "the Vedas" },
+            { word: "परतमम् पदम्", transliteration: "paramatamaṁ padam", meaning: "the supreme abode" },
+            { word: "शरणम्", transliteration: "śaraṇam", meaning: "refuge, shelter" },
+            { word: "यामः", transliteration: "yāmaḥ", meaning: "let us go, let us take" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 9,
+          devanagari: "नित्यं ध्यायामि हृत्स्थं तव पदकमलं योगिनां ध्येयरूपं\nसच्चिदानन्दमूर्तिं प्रणवगतिपदं ज्योतिषामन्तरात्मन् ।\nत्वं ब्रह्मा त्वं च विष्णुस्त्वमसि भगवते रुद्र एकस्त्वमेव\nसर्वात्मा सर्वसाक्षी गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "nityaṁ dhyāyāmi hṛtsthaṁ tava padakamalaṁ yogināṁ dhyeyarūpaṁ\nsaccidānandamūrtiṁ praṇavagatipadaṁ jyotiṣām antarātman |\ntvaṁ brahmā tvaṁ ca viṣṇus tvamasi bhagavate rudra ekas tvameva\nsarvātmā sarvasākṣī gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "I constantly meditate on Your lotus feet dwelling in my heart, the form to be meditated upon by yogis, the embodiment of existence-consciousness-bliss, the goal reached through Om, the inner Self of all luminaries. You are Brahma, You are Vishnu, You are Lord Rudra — You alone are the one, the Self of all, the witness of all. O Lord of Guruvayur, protect me from ailments.",
+          words: [
+            { word: "नित्यम्", transliteration: "nityam", meaning: "constantly, always" },
+            { word: "ध्यायामि", transliteration: "dhyāyāmi", meaning: "I meditate" },
+            { word: "हृत्स्थम्", transliteration: "hṛtstham", meaning: "dwelling in the heart" },
+            { word: "पदकमलम्", transliteration: "padakamalam", meaning: "lotus feet" },
+            { word: "ध्येयरूपम्", transliteration: "dhyeyarūpam", meaning: "the form worthy of meditation" },
+            { word: "सच्चिदानन्दमूर्तिम्", transliteration: "saccidānandamūrtim", meaning: "embodiment of existence-consciousness-bliss" },
+            { word: "प्रणवगतिपदम्", transliteration: "praṇavagatipadam", meaning: "the goal reached through Om" },
+            { word: "ज्योतिषाम् अन्तरात्मन्", transliteration: "jyotiṣām antarātman", meaning: "inner Self of all luminaries" },
+            { word: "सर्वात्मा", transliteration: "sarvātmā", meaning: "the Self of all" },
+            { word: "सर्वसाक्षी", transliteration: "sarvasākṣī", meaning: "the witness of all" }
+          ]
+        },
+        {
+          dashaka: 89,
+          sloka: 10,
+          devanagari: "एवं स्तुत्वा विभुं तं सकलभुवनपं विष्णुमाद्यं पुराणं\nसर्वाधारं सदानन्दमयमजमचिन्त्यं परं धाम विष्णोः ।\nभक्त्या नित्यं प्रणम्य प्रणतजनसुहृत् त्वत्पदाब्जे निवासं\nकुर्यां नित्यं मुरारे गुरुपवनपते पाहि मामामयौघात् ॥",
+          transliteration: "evaṁ stutvā vibhuṁ taṁ sakalabhuvanapaṁ viṣṇum ādyaṁ purāṇaṁ\nsarvādhāraṁ sadānandamayam ajam acintyaṁ paraṁ dhāma viṣṇoḥ |\nbhaktyā nityaṁ praṇamya praṇatajana-suhṛt tvat-padābje nivāsaṁ\nkuryāṁ nityaṁ murāre gurupavanapate pāhi māmāmayaughāt ||",
+          translation: "Having thus praised that all-pervading Vishnu, the protector of all worlds, the primal and ancient one, the support of everything, ever-blissful, unborn, inconceivable — that supreme abode of Vishnu — may I, bowing daily with devotion, O friend of the devoted, dwell ever at Your lotus feet. O slayer of Mura, Lord of Guruvayur, protect me from the flood of ailments.",
+          words: [
+            { word: "स्तुत्वा", transliteration: "stutvā", meaning: "having praised" },
+            { word: "विभुम्", transliteration: "vibhum", meaning: "the all-pervading Lord" },
+            { word: "आद्यम्", transliteration: "ādyam", meaning: "the primal, the first" },
+            { word: "पुराणम्", transliteration: "purāṇam", meaning: "the ancient one" },
+            { word: "सर्वाधारम्", transliteration: "sarvādhāram", meaning: "the support of everything" },
+            { word: "सदानन्दमयम्", transliteration: "sadānandamayam", meaning: "ever-blissful" },
+            { word: "अजम्", transliteration: "ajam", meaning: "unborn" },
+            { word: "अचिन्त्यम्", transliteration: "acintyam", meaning: "inconceivable" },
+            { word: "प्रणतजनसुहृत्", transliteration: "praṇatajana-suhṛt", meaning: "friend of the devoted" },
+            { word: "निवासम्", transliteration: "nivāsam", meaning: "dwelling, abode" },
+            { word: "मुरारे", transliteration: "murāre", meaning: "O slayer of Mura" },
+            { word: "आमयौघात्", transliteration: "āmayaughāt", meaning: "from the flood of ailments" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 90,
-      titleSanskrit: "दिव्यरूपवर्णनम्",
-      titleEnglish: "Description of the Divine Form",
+      titleSanskrit: "दशावतारस्तुतिः",
+      titleEnglish: "Praise of the Ten Avatars",
       theme: "devotion",
       verseCount: 10,
-      summary: "A rapturous description of Lord Vishnu's divine form adorned with the Kaustubha gem, Vanamala, conch, discus, mace, and lotus, radiating supreme beauty and grace.",
-      slokas: []
+      summary: "A glorious hymn celebrating the ten avatars of Lord Vishnu — Matsya, Kurma, Varaha, Narasimha, Vamana, Parashurama, Rama, Balarama, Krishna, and Kalki — each incarnation's purpose, valor, and divine play for the protection of dharma.",
+      slokas: [
+        {
+          dashaka: 90,
+          sloka: 1,
+          devanagari: "प्रलयपयसि घोरे वेदरक्षार्थमादौ\nमकरवपुषमाद्यं बिभ्रतं त्वां भजामि ।\nनिगमगणमशेषं सोमकाद्धृत्य भूयो\nविधिमुखसुरवर्गे दत्तवन्तं नमामि ॥",
+          transliteration: "pralayapayasi ghore vedarakṣārtham ādau\nmakaravapuṣam ādyaṁ bibhrataṁ tvāṁ bhajāmi |\nnigamagaṇam aśeṣaṁ somakād dhṛtya bhūyo\nvidhimukhasuravarge dattavantaṁ namāmi ||",
+          translation: "In the dreadful waters of dissolution, You first assumed the form of a great fish (Matsya) to rescue the Vedas. Retrieving all the Vedic scriptures from the demon Somaka, You restored them to Brahma and the gods. I worship and bow to You.",
+          words: [
+            { word: "प्रलयपयसि", transliteration: "pralayapayasi", meaning: "in the waters of dissolution" },
+            { word: "घोरे", transliteration: "ghore", meaning: "dreadful, terrible" },
+            { word: "वेदरक्षार्थम्", transliteration: "vedarakṣārtham", meaning: "for the purpose of rescuing the Vedas" },
+            { word: "मकरवपुषम्", transliteration: "makaravapuṣam", meaning: "having the body of a fish" },
+            { word: "आद्यम्", transliteration: "ādyam", meaning: "the first, the primal" },
+            { word: "बिभ्रतम्", transliteration: "bibhratam", meaning: "assuming, bearing" },
+            { word: "निगमगणम्", transliteration: "nigamagaṇam", meaning: "the collection of Vedas" },
+            { word: "सोमकात्", transliteration: "somakāt", meaning: "from the demon Somaka" },
+            { word: "विधिमुखसुरवर्गे", transliteration: "vidhimukhasuravarge", meaning: "to the group of gods headed by Brahma" },
+            { word: "दत्तवन्तम्", transliteration: "dattavantam", meaning: "having given, having restored" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 2,
+          devanagari: "मन्दरं धारयन्तं कमठवपुषमाश्रित्य दुग्धाब्धिमध्ये\nदेवानामृतलाभे विदधतमतुलं सेवये त्वां मुरारे ।\nपृष्ठे मन्दरभारं सहत दयानिधे क्षीरसागरमन्थे\nकूर्मात्मा त्वं प्रभासि गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "mandaraṁ dhārayantaṁ kamaṭhavapuṣam āśritya dugdhābdhimadhye\ndevānāmṛtalābhe vidadhatam atulaṁ sevaye tvāṁ murāre |\npṛṣṭhe mandarabhāraṁ sahata dayānidhe kṣīrasāgaramanthe\nkūrmātmā tvaṁ prabhāsi gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "I serve You, O slayer of Mura, who assumed the form of a tortoise (Kurma) in the midst of the ocean of milk, supporting Mount Mandara on Your back to enable the gods to obtain the nectar of immortality. O treasure of compassion, bearing the weight of Mandara during the churning of the milk-ocean, You shine as the Tortoise. O Lord of Guruvayur, protect me from ailments.",
+          words: [
+            { word: "मन्दरम्", transliteration: "mandaram", meaning: "Mount Mandara" },
+            { word: "धारयन्तम्", transliteration: "dhārayantam", meaning: "supporting, bearing" },
+            { word: "कमठवपुषम्", transliteration: "kamaṭhavapuṣam", meaning: "having the body of a tortoise" },
+            { word: "दुग्धाब्धिमध्ये", transliteration: "dugdhābdhimadhye", meaning: "in the midst of the milk-ocean" },
+            { word: "अमृतलाभे", transliteration: "amṛtalābhe", meaning: "for obtaining the nectar" },
+            { word: "अतुलम्", transliteration: "atulam", meaning: "incomparable, matchless" },
+            { word: "पृष्ठे", transliteration: "pṛṣṭhe", meaning: "on the back" },
+            { word: "मन्दरभारम्", transliteration: "mandarabhāram", meaning: "the weight of Mount Mandara" },
+            { word: "क्षीरसागरमन्थे", transliteration: "kṣīrasāgaramanthe", meaning: "during the churning of the milk-ocean" },
+            { word: "कूर्मात्मा", transliteration: "kūrmātmā", meaning: "having the nature of the tortoise" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 3,
+          devanagari: "हिरण्याक्षं हत्वा वरदमखिलां भूमिमुद्धृत्य तोयात्\nवाराहं रूपमाद्यं दधतमतिभयं दंष्ट्रया भ्राजमानम् ।\nक्रोडाकारं महान्तं प्रलयजलधिगं भूधरं त्वां भजामि\nत्वं भूमेरुद्धरस्त्वं गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "hiraṇyākṣaṁ hatvā varadam akhilāṁ bhūmim uddhṛtya toyāt\nvārāhaṁ rūpam ādyaṁ dadhatam atibhayaṁ daṁṣṭrayā bhrājamānam |\nkroḍākāraṁ mahāntaṁ pralayajaladhigaṁ bhūdharaṁ tvāṁ bhajāmi\ntvaṁ bhūmer uddharas tvaṁ gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "Having slain Hiranyaksha and lifted the entire earth from the cosmic waters, You assumed the primordial Boar form (Varaha), terrifying yet bountiful, gleaming with Your tusks. I worship You, the great Boar who traversed the waters of dissolution and upheld the earth. You are the rescuer of the earth. O Lord of Guruvayur, protect me from ailments.",
+          words: [
+            { word: "हिरण्याक्षम्", transliteration: "hiraṇyākṣam", meaning: "the demon Hiranyaksha" },
+            { word: "हत्वा", transliteration: "hatvā", meaning: "having slain" },
+            { word: "भूमिम्", transliteration: "bhūmim", meaning: "the earth" },
+            { word: "उद्धृत्य", transliteration: "uddhṛtya", meaning: "having lifted up" },
+            { word: "तोयात्", transliteration: "toyāt", meaning: "from the waters" },
+            { word: "वाराहम्", transliteration: "vārāham", meaning: "the Boar form" },
+            { word: "दंष्ट्रया", transliteration: "daṁṣṭrayā", meaning: "with the tusk" },
+            { word: "भ्राजमानम्", transliteration: "bhrājamānam", meaning: "gleaming, shining" },
+            { word: "क्रोडाकारम्", transliteration: "kroḍākāram", meaning: "having the form of a boar" },
+            { word: "भूधरम्", transliteration: "bhūdharam", meaning: "upholder of the earth" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 4,
+          devanagari: "हिरण्यकशिपुं दैत्यं विदार्य निजपाणिना\nस्तम्भाद्विनिर्गतं रूपं नृसिंहमद्भुतं महत् ।\nप्रह्लादवरदं देवं सर्वलोकभयापहम्\nउग्रं सौम्यं च युगपत् गुरुवायुपुरे भजे ॥",
+          transliteration: "hiraṇyakaśipuṁ daityaṁ vidārya nijapāṇinā\nstambhād vinirgatam rūpaṁ nṛsiṁham adbhutaṁ mahat |\nprahlādavaradaṁ devaṁ sarvalokabhayāpaham\nugraṁ saumyaṁ ca yugapat guruvāyupure bhaje ||",
+          translation: "Tearing apart the demon Hiranyakashipu with His own hands, the wondrous and mighty Man-Lion form (Narasimha) emerged from the pillar. I worship at Guruvayur that God who grants boons to Prahlada, who dispels the fear of all worlds, who is simultaneously fierce and gentle.",
+          words: [
+            { word: "हिरण्यकशिपुम्", transliteration: "hiraṇyakaśipum", meaning: "the demon Hiranyakashipu" },
+            { word: "विदार्य", transliteration: "vidārya", meaning: "having torn apart" },
+            { word: "निजपाणिना", transliteration: "nijapāṇinā", meaning: "with His own hands" },
+            { word: "स्तम्भात्", transliteration: "stambhāt", meaning: "from the pillar" },
+            { word: "विनिर्गतम्", transliteration: "vinirgatam", meaning: "emerged, came forth" },
+            { word: "नृसिंहम्", transliteration: "nṛsiṁham", meaning: "the Man-Lion" },
+            { word: "अद्भुतम्", transliteration: "adbhutam", meaning: "wondrous, marvellous" },
+            { word: "प्रह्लादवरदम्", transliteration: "prahlādavaradam", meaning: "granter of boons to Prahlada" },
+            { word: "उग्रम्", transliteration: "ugram", meaning: "fierce, terrible" },
+            { word: "सौम्यम्", transliteration: "saumyam", meaning: "gentle, benign" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 5,
+          devanagari: "बलिं छलयितुं विप्ररूपं वामनमाश्रितं\nत्रिभिः क्रमैस्त्रयं लोकं क्रान्तवन्तं त्रिविक्रमम् ।\nसर्वलोकाधिपत्यं च दैत्यराजे निवारितं\nवामनं विष्णुमीडे श्रीगुरुवायुपुरेश्वरम् ॥",
+          transliteration: "baliṁ chalayituṁ viprarūpaṁ vāmanam āśritaṁ\ntribhiḥ kramais trayaṁ lokaṁ krāntavantaṁ trivikramam |\nsarvalokādhipatyaṁ ca daityarāje nivāritaṁ\nvāmanaṁ viṣṇum īḍe śrīguruvāyupureśvaram ||",
+          translation: "To humble the demon-king Bali, You assumed the form of a Brahmin dwarf (Vamana) and with three strides conquered the three worlds — the mighty Trivikrama. Having checked the sovereignty of the demon-king over all worlds, I praise that Vamana-Vishnu, the Lord of Guruvayur.",
+          words: [
+            { word: "बलिम्", transliteration: "balim", meaning: "the demon-king Bali" },
+            { word: "छलयितुम्", transliteration: "chalayitum", meaning: "to humble, to deceive" },
+            { word: "विप्ररूपम्", transliteration: "viprarūpam", meaning: "the form of a Brahmin" },
+            { word: "वामनम्", transliteration: "vāmanam", meaning: "the Dwarf (Vamana)" },
+            { word: "त्रिभिः क्रमैः", transliteration: "tribhiḥ kramaiḥ", meaning: "with three strides" },
+            { word: "त्रयं लोकम्", transliteration: "trayaṁ lokam", meaning: "the three worlds" },
+            { word: "क्रान्तवन्तम्", transliteration: "krāntavantam", meaning: "having conquered" },
+            { word: "त्रिविक्रमम्", transliteration: "trivikramam", meaning: "Trivikrama (conqueror of three worlds)" },
+            { word: "दैत्यराजे", transliteration: "daityarāje", meaning: "in the case of the demon-king" },
+            { word: "निवारितम्", transliteration: "nivāritam", meaning: "checked, restrained" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 6,
+          devanagari: "क्षत्रियक्षयकर्तारं भार्गवं राममद्भुतम्\nपरशुधारिणं वीरं सर्वशस्त्रभृतां वरम् ।\nएकवीरं महातेजं जामदग्न्यं प्रणम्य तं\nक्षत्रधर्पहरं देवं गुरुवायुपुरे भजे ॥",
+          transliteration: "kṣatriyakṣayakartāraṁ bhārgavaṁ rāmam adbhutam\nparaśudhāriṇaṁ vīraṁ sarvaśastrabhṛtāṁ varam |\nekavīraṁ mahātejaṁ jāmadagnyaṁ praṇamya taṁ\nkṣatradharpaharaṁ devaṁ guruvāyupure bhaje ||",
+          translation: "I bow to and worship at Guruvayur the wondrous Rama of the Bhrigu clan (Parashurama), destroyer of the warrior class, wielder of the axe, heroic, the foremost among all weapon-bearers, the lone warrior of great splendor, son of Jamadagni, the God who crushed the pride of the Kshatriyas.",
+          words: [
+            { word: "क्षत्रियक्षयकर्तारम्", transliteration: "kṣatriyakṣayakartāram", meaning: "the destroyer of the Kshatriya race" },
+            { word: "भार्गवम्", transliteration: "bhārgavam", meaning: "of the Bhrigu clan" },
+            { word: "परशुधारिणम्", transliteration: "paraśudhāriṇam", meaning: "wielder of the axe" },
+            { word: "वीरम्", transliteration: "vīram", meaning: "heroic, valiant" },
+            { word: "सर्वशस्त्रभृताम् वरम्", transliteration: "sarvaśastrabhṛtāṁ varam", meaning: "the best among all weapon-bearers" },
+            { word: "एकवीरम्", transliteration: "ekavīram", meaning: "the lone warrior" },
+            { word: "महातेजम्", transliteration: "mahātejam", meaning: "of great splendor" },
+            { word: "जामदग्न्यम्", transliteration: "jāmadagnyam", meaning: "son of Jamadagni" },
+            { word: "क्षत्रधर्पहरम्", transliteration: "kṣatradharpaharaṁ", meaning: "remover of Kshatriya pride" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 7,
+          devanagari: "दशरथतनयं श्रीरामचन्द्रं रघूत्तमं\nरावणान्तकरं देवं सीतावल्लभमव्ययम् ।\nधर्मविग्रहमेकान्तं कोदण्डधरमच्युतं\nरामं दाशरथिं वन्दे गुरुवायुपुरेश्वरम् ॥",
+          transliteration: "daśarathatanayaṁ śrīrāmacandraṁ raghūttamaṁ\nrāvaṇāntakaraṁ devaṁ sītāvallabham avyayam |\ndharmavigraham ekāntaṁ kodaṇḍadharam acyutaṁ\nrāmaṁ dāśarathiṁ vande guruvāyupureśvaram ||",
+          translation: "I salute the son of Dasharatha, Shri Ramachandra, the best of the Raghu dynasty, the destroyer of Ravana, the imperishable Lord and beloved of Sita, the very embodiment of dharma, the wielder of the Kodanda bow, the infallible one — that Rama, son of Dasharatha, the Lord of Guruvayur.",
+          words: [
+            { word: "दशरथतनयम्", transliteration: "daśarathatanayam", meaning: "son of Dasharatha" },
+            { word: "रघूत्तमम्", transliteration: "raghūttamam", meaning: "the best of the Raghu dynasty" },
+            { word: "रावणान्तकरम्", transliteration: "rāvaṇāntakaram", meaning: "destroyer of Ravana" },
+            { word: "सीतावल्लभम्", transliteration: "sītāvallabham", meaning: "beloved of Sita" },
+            { word: "अव्ययम्", transliteration: "avyayam", meaning: "imperishable" },
+            { word: "धर्मविग्रहम्", transliteration: "dharmavigraham", meaning: "embodiment of dharma" },
+            { word: "कोदण्डधरम्", transliteration: "kodaṇḍadharam", meaning: "wielder of the Kodanda bow" },
+            { word: "अच्युतम्", transliteration: "acyutam", meaning: "the infallible one" },
+            { word: "दाशरथिम्", transliteration: "dāśarathim", meaning: "son of Dasharatha" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 8,
+          devanagari: "हलधरं बलभद्रं रेवतीवल्लभं प्रभुम्\nनीलवस्त्रधरं शान्तं मुसलायुधधारिणम् ।\nरोहिणीप्रियपुत्रं तं सङ्कर्षणमनन्तकं\nबलरामं भजे नित्यं गुरुवायुपुरे स्थितम् ॥",
+          transliteration: "haladharaṁ balabhadraṁ revatīvallabhaṁ prabhum\nnīlavastradharaṁ śāntaṁ musalāyudhadhāriṇam |\nrohiṇīpriyaputraṁ taṁ saṅkarṣaṇam anantakaṁ\nbalarāmaṁ bhaje nityaṁ guruvāyupure sthitam ||",
+          translation: "I worship always the plough-bearer Balabhadra, the beloved of Revati, the master, clad in blue garments, serene, wielding the pestle as His weapon, the dear son of Rohini, that Sankarshana who is the infinite Ananta — that Balarama who abides in Guruvayur.",
+          words: [
+            { word: "हलधरम्", transliteration: "haladharam", meaning: "bearer of the plough" },
+            { word: "बलभद्रम्", transliteration: "balabhadram", meaning: "Balabhadra (auspiciously strong)" },
+            { word: "रेवतीवल्लभम्", transliteration: "revatīvallabham", meaning: "beloved of Revati" },
+            { word: "नीलवस्त्रधरम्", transliteration: "nīlavastradharaṁ", meaning: "clad in blue garments" },
+            { word: "मुसलायुधधारिणम्", transliteration: "musalāyudhadhāriṇam", meaning: "wielding the pestle as weapon" },
+            { word: "रोहिणीप्रियपुत्रम्", transliteration: "rohiṇīpriyaputram", meaning: "dear son of Rohini" },
+            { word: "सङ्कर्षणम्", transliteration: "saṅkarṣaṇam", meaning: "Sankarshana (the attracting one)" },
+            { word: "अनन्तकम्", transliteration: "anantakam", meaning: "the infinite one (Ananta)" },
+            { word: "बलरामम्", transliteration: "balarāmam", meaning: "Balarama" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 9,
+          devanagari: "गोपालं वेणुवादं मधुरमतिलसत्पीतवस्त्रं मनोज्ञं\nगोवर्धनोद्धरं श्रीकृष्णं कंसमर्दनम् ।\nगोपीनां प्राणवल्लभं जगत्प्रभुं देवकीनन्दनं तं\nसर्वावतारबीजं गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "gopālaṁ veṇuvādaṁ madhuram atilasatpītavastraṁ manojñaṁ\ngovardhanoddharaṁ śrīkṛṣṇaṁ kaṁsamardanam |\ngopīnāṁ prāṇavallabhaṁ jagatprabhuṁ devakīnandanaṁ taṁ\nsarvāvatārabījaṁ gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "The cowherd who plays the flute sweetly, resplendent in shining yellow garments, charming, the lifter of Govardhana, Shri Krishna the crusher of Kamsa, the beloved of the Gopis' very life-breath, the Lord of the universe, the son of Devaki — the seed of all incarnations. O Lord of Guruvayur, protect me from ailments.",
+          words: [
+            { word: "गोपालम्", transliteration: "gopālam", meaning: "the cowherd, protector of cows" },
+            { word: "वेणुवादम्", transliteration: "veṇuvādam", meaning: "flute-player" },
+            { word: "मधुरम्", transliteration: "madhuram", meaning: "sweet, melodious" },
+            { word: "पीतवस्त्रम्", transliteration: "pītavastram", meaning: "clad in yellow garments" },
+            { word: "मनोज्ञम्", transliteration: "manojñam", meaning: "charming, captivating" },
+            { word: "गोवर्धनोद्धरम्", transliteration: "govardhanoddharaṁ", meaning: "lifter of Govardhana hill" },
+            { word: "कंसमर्दनम्", transliteration: "kaṁsamardanam", meaning: "crusher of Kamsa" },
+            { word: "गोपीनां प्राणवल्लभम्", transliteration: "gopīnāṁ prāṇavallabham", meaning: "beloved of the Gopis' life-breath" },
+            { word: "देवकीनन्दनम्", transliteration: "devakīnandanam", meaning: "son of Devaki" },
+            { word: "सर्वावतारबीजम्", transliteration: "sarvāvatārabījam", meaning: "the seed of all incarnations" }
+          ]
+        },
+        {
+          dashaka: 90,
+          sloka: 10,
+          devanagari: "कलियुगान्ते भवितारमीश्वरं कल्किनामानमजं निरामयम्\nश्वेताश्ववाहनमसिप्रधारिणं धर्मसंस्थापनतत्परं हरिम् ।\nम्लेच्छध्वंसकरं दिव्यमव्ययं सत्ययुगप्रवर्तकं भगवन्\nदशधा मूर्तिमुपेयुषं नमो गुरुवायुपुराधिपं भजे ॥",
+          transliteration: "kaliyugānte bhavitāram īśvaraṁ kalkinām ānam ajaṁ nirāmayam\nśvetāśvavāhanam asipradhāriṇaṁ dharmasaṁsthāpanatatparaṁ harim |\nmlecchdhvaṁsakaraṁ divyam avyayaṁ satyayugapravartakaṁ bhagavan\ndaśadhā mūrtim upeyuṣaṁ namo guruvāyupurādhipaṁ bhaje ||",
+          translation: "The Lord who shall appear at the end of Kali Yuga, named Kalki, unborn and free from all disease, riding a white horse, bearing a sword, devoted to the re-establishment of dharma, the destroyer of the barbarians, divine, imperishable, the initiator of a new Satya Yuga — I bow to and worship the Lord of Guruvayur who has assumed tenfold forms.",
+          words: [
+            { word: "कलियुगान्ते", transliteration: "kaliyugānte", meaning: "at the end of the Kali age" },
+            { word: "भवितारम्", transliteration: "bhavitāram", meaning: "who shall come into being" },
+            { word: "कल्किनामानम्", transliteration: "kalkinām ānam", meaning: "named Kalki" },
+            { word: "निरामयम्", transliteration: "nirāmayam", meaning: "free from all disease" },
+            { word: "श्वेताश्ववाहनम्", transliteration: "śvetāśvavāhanam", meaning: "riding a white horse" },
+            { word: "असिप्रधारिणम्", transliteration: "asipradhāriṇam", meaning: "bearing a sword" },
+            { word: "धर्मसंस्थापनतत्परम्", transliteration: "dharmasaṁsthāpanatatparam", meaning: "devoted to re-establishing dharma" },
+            { word: "म्लेच्छध्वंसकरम्", transliteration: "mlecchdhvaṁsakaram", meaning: "destroyer of the barbarians" },
+            { word: "सत्ययुगप्रवर्तकम्", transliteration: "satyayugapravartakam", meaning: "initiator of the Satya Yuga" },
+            { word: "दशधा मूर्तिम्", transliteration: "daśadhā mūrtim", meaning: "tenfold forms" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 91,
-      titleSanskrit: "भक्तिप्रार्थना",
-      titleEnglish: "Prayer for Devotion",
-      theme: "prayer",
-      verseCount: 14,
-      summary: "An intense prayer seeking the gift of unwavering devotion, requesting the Lord to bestow pure bhakti that transcends all material desires and leads to eternal communion with the Divine.",
-      slokas: []
+      titleSanskrit: "गुरुवायुपुरेशस्तुतिः",
+      titleEnglish: "Hymn to the Lord of Guruvayur",
+      theme: "devotion",
+      verseCount: 10,
+      summary: "A devoted hymn celebrating the glory of Guruvayur kshetra, the compassion of the presiding deity, the transformative power of His darshan, the sacred spiritual atmosphere of the temple, and the Lord's gracious accessibility to all devotees who seek Him with sincerity.",
+      slokas: [
+        {
+          dashaka: 91,
+          sloka: 1,
+          devanagari: "गुरुवायुपुरे दिव्ये वातालयविराजिते\nवसन्तमीशं परमं लक्ष्मीकान्तं सनातनम् ।\nसेवन्ते यं सुराः सर्वे ब्रह्मरुद्रपुरोगमाः\nतं प्रपद्ये जगन्नाथं कृपासागरमव्ययम् ॥",
+          transliteration: "guruvāyupure divye vātālayavirājite\nvasantam īśaṁ paramaṁ lakṣmīkāntaṁ sanātanam |\nsevante yaṁ surāḥ sarve brahmarudrapurogamāḥ\ntaṁ prapadye jagannāthaṁ kṛpāsāgaram avyayam ||",
+          translation: "In the divine Guruvayur, resplendent with its sacred temple, I take refuge in the Supreme Lord who dwells there, the eternal beloved of Lakshmi. All the gods, with Brahma and Rudra at their head, serve Him. I surrender to that Lord of the universe, the ocean of compassion, the imperishable one.",
+          words: [
+            { word: "गुरुवायुपुरे", transliteration: "guruvāyupure", meaning: "in Guruvayur" },
+            { word: "दिव्ये", transliteration: "divye", meaning: "divine, sacred" },
+            { word: "वातालयविराजिते", transliteration: "vātālayavirājite", meaning: "resplendent with the temple of the wind-god" },
+            { word: "वसन्तम्", transliteration: "vasantam", meaning: "dwelling, residing" },
+            { word: "लक्ष्मीकान्तम्", transliteration: "lakṣmīkāntam", meaning: "beloved of Lakshmi" },
+            { word: "सनातनम्", transliteration: "sanātanam", meaning: "eternal, ancient" },
+            { word: "ब्रह्मरुद्रपुरोगमाः", transliteration: "brahmarudrapurogamāḥ", meaning: "led by Brahma and Rudra" },
+            { word: "प्रपद्ये", transliteration: "prapadye", meaning: "I take refuge, I surrender" },
+            { word: "कृपासागरम्", transliteration: "kṛpāsāgaram", meaning: "ocean of compassion" },
+            { word: "अव्ययम्", transliteration: "avyayam", meaning: "imperishable" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 2,
+          devanagari: "गुरुणा वायुना चैव स्थापिता मूर्तिरुत्तमा\nयत्र साक्षात् परं ब्रह्म मानुषं रूपमास्थितम् ।\nतत्क्षेत्रं पावनं पुण्यं सर्वपापविनाशनम्\nगुरुवायुपुरं वन्दे मुक्तिदं भुक्तिदं सदा ॥",
+          transliteration: "guruṇā vāyunā caiva sthāpitā mūrtir uttamā\nyatra sākṣāt paraṁ brahma mānuṣaṁ rūpam āsthitam |\ntatkṣetraṁ pāvanaṁ puṇyaṁ sarvapāpavināśanam\nguruvāyupuraṁ vande muktidam bhuktidam sadā ||",
+          translation: "The supreme image was installed by Guru (Brihaspati) and Vayu, where the Supreme Brahman Itself has assumed a form accessible to mortals. That sacred field, purifying and meritorious, which destroys all sins — I salute Guruvayur, which ever bestows both liberation and worldly fulfillment.",
+          words: [
+            { word: "गुरुणा", transliteration: "guruṇā", meaning: "by Guru (Brihaspati)" },
+            { word: "वायुना", transliteration: "vāyunā", meaning: "by Vayu (the wind-god)" },
+            { word: "स्थापिता", transliteration: "sthāpitā", meaning: "installed, established" },
+            { word: "मूर्तिः", transliteration: "mūrtiḥ", meaning: "the image, the form" },
+            { word: "साक्षात्", transliteration: "sākṣāt", meaning: "directly, in person" },
+            { word: "परं ब्रह्म", transliteration: "paraṁ brahma", meaning: "the Supreme Brahman" },
+            { word: "मानुषं रूपम्", transliteration: "mānuṣaṁ rūpam", meaning: "a form accessible to mortals" },
+            { word: "पावनम्", transliteration: "pāvanam", meaning: "purifying" },
+            { word: "मुक्तिदम्", transliteration: "muktidam", meaning: "bestowing liberation" },
+            { word: "भुक्तिदम्", transliteration: "bhuktidam", meaning: "bestowing worldly fulfillment" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 3,
+          devanagari: "प्रातर्दर्शनमात्रेण हृदयग्रन्थिभेदनम्\nभवतीह गुरुवायुपुरे दिव्यमनोहरे ।\nसंसारतापसन्तप्तं जनं यः परिमोचयेत्\nतं कृष्णमम्बुजाक्षं श्रीगुरुवायुपुरे भजे ॥",
+          transliteration: "prātar darśanamātreṇa hṛdayagranthbhedanam\nbhavatīha guruvāyupure divyamanohare |\nsaṁsāratāpasantaptaṁ janaṁ yaḥ parimocayet\ntaṁ kṛṣṇam ambujākṣaṁ śrīguruvāyupure bhaje ||",
+          translation: "By the mere morning darshan here in divine and enchanting Guruvayur, the knot of the heart is severed. He who liberates people scorched by the heat of worldly existence — that lotus-eyed Krishna I worship in Guruvayur.",
+          words: [
+            { word: "प्रातः", transliteration: "prātaḥ", meaning: "in the morning, at dawn" },
+            { word: "दर्शनमात्रेण", transliteration: "darśanamātreṇa", meaning: "by the mere act of seeing/beholding" },
+            { word: "हृदयग्रन्थिभेदनम्", transliteration: "hṛdayagranthibhedanam", meaning: "the severing of the knot of the heart" },
+            { word: "दिव्यमनोहरे", transliteration: "divyamanohare", meaning: "divine and enchanting" },
+            { word: "संसारतापसन्तप्तम्", transliteration: "saṁsāratāpasantaptam", meaning: "scorched by the heat of worldly existence" },
+            { word: "परिमोचयेत्", transliteration: "parimocayet", meaning: "liberates, frees completely" },
+            { word: "अम्बुजाक्षम्", transliteration: "ambujākṣam", meaning: "lotus-eyed" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 4,
+          devanagari: "दीपालोकेषु रम्यं तुलसिकुसुमितं चन्दनाच्छन्नमूर्तिं\nमन्त्रघोषोज्ज्वलन्तं मधुरतरनिनादैः सुपूजाभिरामम् ।\nभक्तानां मानसेषु स्फुरति परमपद्मानने यत्प्रकाशं\nतन्मन्दस्मेरवक्त्रं गुरुपवनपते पाहि मामामयेभ्यः ॥",
+          transliteration: "dīpālokeṣu ramyaṁ tulasikusumitaṁ candanācchannamūrtiṁ\nmantraghōṣojjvalantaṁ madhurataranināidaiḥ supūjābhirāmam |\nbhaktānāṁ mānaseṣu sphurati paramapadmānane yatprakāśaṁ\ntanmandasmeravaktraṁ gurupavanapate pāhi māmāmayebhyaḥ ||",
+          translation: "Beautiful in the glow of oil-lamps, adorned with tulasi blossoms, the form anointed with sandal-paste, radiant with the chanting of mantras, delightful with sweet ritual worship — that light which flashes in the minds of devotees from His supreme lotus-face, that gently smiling countenance — O Lord of Guruvayur, protect me from ailments.",
+          words: [
+            { word: "दीपालोकेषु", transliteration: "dīpālokeṣu", meaning: "in the glow of lamps" },
+            { word: "रम्यम्", transliteration: "ramyam", meaning: "beautiful, charming" },
+            { word: "तुलसिकुसुमितम्", transliteration: "tulasikusumitam", meaning: "adorned with tulasi blossoms" },
+            { word: "चन्दनाच्छन्नमूर्तिम्", transliteration: "candanācchannamūrtim", meaning: "form covered with sandal-paste" },
+            { word: "मन्त्रघोषोज्ज्वलन्तम्", transliteration: "mantraghōṣojjvalantam", meaning: "radiant with the sound of mantras" },
+            { word: "सुपूजाभिरामम्", transliteration: "supūjābhirāmam", meaning: "delightful with beautiful worship" },
+            { word: "स्फुरति", transliteration: "sphurati", meaning: "flashes, manifests" },
+            { word: "मन्दस्मेरवक्त्रम्", transliteration: "mandasmeravaktram", meaning: "gently smiling face" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 5,
+          devanagari: "प्रदक्षिणं प्रकुर्वन् यो भक्त्या गुरुमरुत्पुरे\nतस्य पापानि नश्यन्ति जन्मकोटिसमुद्भवाः ।\nनमस्कारप्रणामेन शतजन्मार्जितं फलम्\nलभते नात्र सन्देहो गुरुवायुपुरे हरेः ॥",
+          transliteration: "pradakṣiṇaṁ prakurvan yo bhaktyā gurumarutpure\ntasya pāpāni naśyanti janmakoṭisamudbhavāḥ |\nnamaskārapraṇāmena śatajanmārjitaṁ phalam\nlabhate nātra sandeho guruvāyupure hareḥ ||",
+          translation: "One who performs circumambulation at Guruvayur with devotion — his sins accumulated over crores of births are destroyed. By a single prostration to Lord Hari at Guruvayur, one obtains the fruit earned over a hundred lifetimes. There is no doubt about this.",
+          words: [
+            { word: "प्रदक्षिणम्", transliteration: "pradakṣiṇam", meaning: "circumambulation" },
+            { word: "प्रकुर्वन्", transliteration: "prakurvan", meaning: "performing, doing" },
+            { word: "भक्त्या", transliteration: "bhaktyā", meaning: "with devotion" },
+            { word: "गुरुमरुत्पुरे", transliteration: "gurumarutpure", meaning: "in Guruvayur (city of Guru and Vayu)" },
+            { word: "पापानि", transliteration: "pāpāni", meaning: "sins" },
+            { word: "नश्यन्ति", transliteration: "naśyanti", meaning: "are destroyed" },
+            { word: "जन्मकोटिसमुद्भवाः", transliteration: "janmakoṭisamudbhavāḥ", meaning: "accumulated over crores of births" },
+            { word: "नमस्कारप्रणामेन", transliteration: "namaskārapraṇāmena", meaning: "by a single prostration" },
+            { word: "शतजन्मार्जितम्", transliteration: "śatajanmārjitam", meaning: "earned over a hundred lifetimes" },
+            { word: "फलम्", transliteration: "phalam", meaning: "fruit, result" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 6,
+          devanagari: "अज्ञानिनोऽपि ये केचित् गुरुवायुपुरं गताः\nते यान्ति परमं स्थानं विष्णोर्यत् परमं पदम् ।\nकिं पुनर्ये विशुद्धात्मा भक्तिभावेन सेवते\nतेषां मुक्तिः करस्था गुरुवायुपुरे हरौ ॥",
+          transliteration: "ajñānino'pi ye kecit guruvāyupuraṁ gatāḥ\nte yānti paramaṁ sthānaṁ viṣṇor yat paramaṁ padam |\nkiṁ punar ye viśuddhātmā bhaktibhāvena sevate\nteṣāṁ muktiḥ karasthā guruvāyupure harau ||",
+          translation: "Even the ignorant who somehow reach Guruvayur attain the supreme state, that highest abode of Vishnu. How much more then for the pure-souled ones who serve the Lord there with devotion — for them liberation is in the palm of their hand at Guruvayur.",
+          words: [
+            { word: "अज्ञानिनः", transliteration: "ajñāninaḥ", meaning: "the ignorant ones" },
+            { word: "अपि", transliteration: "api", meaning: "even" },
+            { word: "गताः", transliteration: "gatāḥ", meaning: "having gone, having reached" },
+            { word: "परमं स्थानम्", transliteration: "paramaṁ sthānam", meaning: "the supreme abode" },
+            { word: "परमं पदम्", transliteration: "paramaṁ padam", meaning: "the highest state" },
+            { word: "विशुद्धात्मा", transliteration: "viśuddhātmā", meaning: "pure-souled" },
+            { word: "भक्तिभावेन", transliteration: "bhaktibhāvena", meaning: "with devotional feeling" },
+            { word: "मुक्तिः", transliteration: "muktiḥ", meaning: "liberation" },
+            { word: "करस्था", transliteration: "karasthā", meaning: "in the palm of the hand, readily available" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 7,
+          devanagari: "त्वमेव माता च पिता त्वमेव त्वमेव बन्धुश्च सखा त्वमेव\nत्वमेव सर्वं मम देवदेव गुरुवायुपुरेश दीनबन्धो ।\nनान्यत्किञ्चित् प्रपद्ये त्वदीयचरणाम्बुजं विना\nत्वत्पादसेवनं मे सदा भवतु जन्मनि जन्मनि ॥",
+          transliteration: "tvameva mātā ca pitā tvameva tvameva bandhuś ca sakhā tvameva\ntvameva sarvaṁ mama devadeva guruvāyupureśa dīnabandho |\nnānyat kiñcit prapadye tvadīyacaraṇāmbujaṁ vinā\ntvatpādasevanaṁ me sadā bhavatu janmani janmani ||",
+          translation: "You alone are my mother and father, You alone are my kinsman and friend, You are everything to me, O God of gods, Lord of Guruvayur, friend of the destitute. I seek nothing else besides Your lotus feet. May the service of Your feet be mine always, in birth after birth.",
+          words: [
+            { word: "माता", transliteration: "mātā", meaning: "mother" },
+            { word: "पिता", transliteration: "pitā", meaning: "father" },
+            { word: "बन्धुः", transliteration: "bandhuḥ", meaning: "kinsman, relative" },
+            { word: "सखा", transliteration: "sakhā", meaning: "friend" },
+            { word: "देवदेव", transliteration: "devadeva", meaning: "God of gods" },
+            { word: "दीनबन्धो", transliteration: "dīnabandho", meaning: "O friend of the destitute" },
+            { word: "चरणाम्बुजम्", transliteration: "caraṇāmbujam", meaning: "lotus feet" },
+            { word: "पादसेवनम्", transliteration: "pādasevanam", meaning: "service of the feet" },
+            { word: "जन्मनि जन्मनि", transliteration: "janmani janmani", meaning: "in birth after birth" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 8,
+          devanagari: "भागवतप्रियं देवं शरणागतवत्सलम्\nआर्तानां कल्पवृक्षं कामधेनुं मनीषिणाम् ।\nविपद्विमोचनं नित्यं सर्वाभीष्टप्रदायकम्\nगुरुवायुपुरावासं प्रणमामि मुहुर्मुहुः ॥",
+          transliteration: "bhāgavatapriyaṁ devaṁ śaraṇāgatavatsalam\nārtānāṁ kalpavṛkṣaṁ kāmadhenuṁ manīṣiṇām |\nvipadvimocanaṁ nityaṁ sarvābhīṣṭapradāyakam\nguruvāyupurāvāsaṁ praṇamāmi muhurmuhuḥ ||",
+          translation: "I bow again and again to the Lord who dwells in Guruvayur — dear to His devotees, tender to those who take refuge, the wish-fulfilling tree for the distressed, the divine cow of plenty for the wise, the constant deliverer from calamities, the bestower of all desires.",
+          words: [
+            { word: "भागवतप्रियम्", transliteration: "bhāgavatapriyam", meaning: "dear to the devotees" },
+            { word: "शरणागतवत्सलम्", transliteration: "śaraṇāgatavatsalam", meaning: "tender/loving toward those who seek refuge" },
+            { word: "आर्तानाम्", transliteration: "ārtānām", meaning: "of the distressed" },
+            { word: "कल्पवृक्षम्", transliteration: "kalpavṛkṣam", meaning: "the wish-fulfilling tree" },
+            { word: "कामधेनुम्", transliteration: "kāmadhenuṁ", meaning: "the divine cow of plenty" },
+            { word: "मनीषिणाम्", transliteration: "manīṣiṇām", meaning: "of the wise" },
+            { word: "विपद्विमोचनम्", transliteration: "vipadvimocanaṁ", meaning: "deliverer from calamities" },
+            { word: "सर्वाभीष्टप्रदायकम्", transliteration: "sarvābhīṣṭapradāyakam", meaning: "bestower of all desires" },
+            { word: "मुहुर्मुहुः", transliteration: "muhurmuhuḥ", meaning: "again and again" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 9,
+          devanagari: "निर्धनो वा सधनो वा विद्वान् वा मूर्ख एव वा\nउच्चो वा नीचजातो वा सर्वानुग्रहकारकम् ।\nसमदर्शनशीलं तं न जात्या न च कर्मणा\nभक्तिमात्रप्रसन्नं तं गुरुवायुपुरे भजे ॥",
+          transliteration: "nirdhano vā sadhano vā vidvān vā mūrkha eva vā\nucco vā nīcajāto vā sarvānugrahakārakam |\nsamadarśanaśīlaṁ taṁ na jātyā na ca karmaṇā\nbhaktimātraprasannaṁ taṁ guruvāyupure bhaje ||",
+          translation: "Whether poor or wealthy, learned or foolish, born high or low — He bestows grace upon all equally. He of impartial vision, pleased not by birth or deed but by devotion alone — Him I worship at Guruvayur.",
+          words: [
+            { word: "निर्धनः", transliteration: "nirdhanaḥ", meaning: "poor, without wealth" },
+            { word: "सधनः", transliteration: "sadhanaḥ", meaning: "wealthy" },
+            { word: "विद्वान्", transliteration: "vidvān", meaning: "learned, wise" },
+            { word: "मूर्खः", transliteration: "mūrkhaḥ", meaning: "foolish, ignorant" },
+            { word: "सर्वानुग्रहकारकम्", transliteration: "sarvānugrahakārakam", meaning: "bestowing grace upon all" },
+            { word: "समदर्शनशीलम्", transliteration: "samadarśanaśīlam", meaning: "of impartial vision" },
+            { word: "जात्या", transliteration: "jātyā", meaning: "by birth" },
+            { word: "कर्मणा", transliteration: "karmaṇā", meaning: "by deed" },
+            { word: "भक्तिमात्रप्रसन्नम्", transliteration: "bhaktimātraprasannam", meaning: "pleased by devotion alone" }
+          ]
+        },
+        {
+          dashaka: 91,
+          sloka: 10,
+          devanagari: "इदं क्षेत्रं परं पुण्यं सर्वक्षेत्रोत्तमोत्तमम्\nयत्र विष्णुः स्वयं साक्षात् सदा सन्निहितो हरिः ।\nगुरुवायुपुराधीशं वन्दे कोटिसहस्रशः\nआयुरारोग्यसौख्यं च प्रदिशतु भवान् गोपिकानाथ विष्णो ॥",
+          transliteration: "idaṁ kṣetraṁ paraṁ puṇyaṁ sarvakṣetrottamottamam\nyatra viṣṇuḥ svayaṁ sākṣāt sadā sannihito hariḥ |\nguruvāyupurādhīśaṁ vande koṭisahasraśaḥ\nāyur ārogya saukhyaṁ ca pradiśatu bhavān gopikānātha viṣṇo ||",
+          translation: "This sacred field is supremely holy, the best of all holy places, where Lord Vishnu Himself is ever directly present. I salute the Lord of Guruvayur a thousand crore times. May You grant long life, health, and happiness, O Lord of the Gopis, O Vishnu.",
+          words: [
+            { word: "क्षेत्रम्", transliteration: "kṣetram", meaning: "sacred field, holy place" },
+            { word: "सर्वक्षेत्रोत्तमोत्तमम्", transliteration: "sarvakṣetrottamottamam", meaning: "the best of the best of all sacred places" },
+            { word: "स्वयम्", transliteration: "svayam", meaning: "Himself, personally" },
+            { word: "सन्निहितः", transliteration: "sannihitaḥ", meaning: "ever present, close at hand" },
+            { word: "कोटिसहस्रशः", transliteration: "koṭisahasraśaḥ", meaning: "a thousand crore times" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "long life" },
+            { word: "आरोग्यम्", transliteration: "ārogyam", meaning: "health, freedom from disease" },
+            { word: "सौख्यम्", transliteration: "saukhyam", meaning: "happiness, well-being" },
+            { word: "प्रदिशतु", transliteration: "pradiśatu", meaning: "may He grant, may He bestow" },
+            { word: "गोपिकानाथ", transliteration: "gopikānātha", meaning: "O Lord of the Gopis" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 92,
-      titleSanskrit: "गुरुवायुपुरमाहात्म्यम्",
-      titleEnglish: "Greatness of Guruvayur",
+      titleSanskrit: "रोगशान्तिप्रार्थना",
+      titleEnglish: "Prayer for Healing",
       theme: "prayer",
-      verseCount: 13,
-      summary: "Glorifies the sacred temple of Guruvayur, its divine origin, the power of worshipping the Lord there, and how the deity was installed by Vayu and Brihaspati (Guru) giving the place its name.",
-      slokas: []
+      verseCount: 10,
+      summary: "An intensely personal prayer in which Bhattathiri describes his affliction with vata-roga (rheumatic disease), appeals to the Lord as the supreme physician, and seeks divine grace as the cure for all bodily and spiritual ailments, surrendering completely to the healing power of Guruvayurappan.",
+      slokas: [
+        {
+          dashaka: 92,
+          sloka: 1,
+          devanagari: "वातरोगपरीतस्य मम देहोऽयमातुरः\nसर्वाङ्गेषु च दुःखेन पीड्यते दारुणं प्रभो ।\nत्वमेव वैद्यः परमो भवरोगस्य भेषजम्\nकृपालो गुरुवायुस्थ मम रोगान् प्रशामय ॥",
+          transliteration: "vātarogaparītasya mama deho'yam āturaḥ\nsarvāṅgeṣu ca duḥkhena pīḍyate dāruṇaṁ prabho |\ntvameva vaidyaḥ paramo bhavarōgasya bheṣajam\nkṛpālo guruvāyustha mama rogān praśāmaya ||",
+          translation: "My body, seized by the vata-disease, is ailing and afflicted with terrible pain in every limb, O Lord. You alone are the supreme physician, the medicine for the disease of worldly existence. O compassionate one who dwells in Guruvayur, pacify my ailments.",
+          words: [
+            { word: "वातरोगपरीतस्य", transliteration: "vātarogaparītasya", meaning: "of one seized by wind-disease (rheumatism)" },
+            { word: "आतुरः", transliteration: "āturaḥ", meaning: "ailing, afflicted" },
+            { word: "सर्वाङ्गेषु", transliteration: "sarvāṅgeṣu", meaning: "in all limbs" },
+            { word: "दुःखेन", transliteration: "duḥkhena", meaning: "with pain, with suffering" },
+            { word: "पीड्यते", transliteration: "pīḍyate", meaning: "is tormented" },
+            { word: "दारुणम्", transliteration: "dāruṇam", meaning: "terrible, severe" },
+            { word: "वैद्यः", transliteration: "vaidyaḥ", meaning: "physician, healer" },
+            { word: "भवरोगस्य", transliteration: "bhavarōgasya", meaning: "of the disease of worldly existence" },
+            { word: "भेषजम्", transliteration: "bheṣajam", meaning: "medicine, remedy" },
+            { word: "प्रशामय", transliteration: "praśāmaya", meaning: "pacify, heal" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 2,
+          devanagari: "हस्तपादचलनं हि दुर्लभं नेत्रयोरपि च मन्दता गता\nवाक्प्रयोगविकलं च मे मुखं सर्वमिन्द्रियमशक्तमद्य मे ।\nकेवलं तव पदाम्बुजद्वये चेतसा नियमितं मया स्थिरम्\nमन्दभाग्यमपि मां दयानिधे गुरुवायुपते सम्प्रसीद ॥",
+          transliteration: "hastapādacalanaṁ hi durlabhaṁ netrayorapi ca mandatā gatā\nvākprayogavikalaṁ ca me mukhaṁ sarvam indriyam aśaktam adya me |\nkevalaṁ tava padāmbujadvaye cetasā niyamitaṁ mayā sthiram\nmandabhāgyamapi māṁ dayānidhe guruvāyupate samprasīda ||",
+          translation: "Movement of hands and feet has become difficult; dimness has overtaken my eyes; my mouth falters in speech; all my senses are powerless now. Only upon Your pair of lotus feet have I firmly fixed my mind. Even upon this unfortunate wretch, O treasure of compassion, O Lord of Guruvayur, be gracious.",
+          words: [
+            { word: "हस्तपादचलनम्", transliteration: "hastapādacalanam", meaning: "movement of hands and feet" },
+            { word: "दुर्लभम्", transliteration: "durlabham", meaning: "difficult to obtain" },
+            { word: "नेत्रयोः", transliteration: "netrayoḥ", meaning: "of the two eyes" },
+            { word: "मन्दता", transliteration: "mandatā", meaning: "dimness, weakness" },
+            { word: "वाक्प्रयोगविकलम्", transliteration: "vākprayogavikalam", meaning: "faltering in the use of speech" },
+            { word: "इन्द्रियम्", transliteration: "indriyam", meaning: "sense organ" },
+            { word: "अशक्तम्", transliteration: "aśaktam", meaning: "powerless, incapable" },
+            { word: "पदाम्बुजद्वये", transliteration: "padāmbujadvaye", meaning: "upon the pair of lotus feet" },
+            { word: "नियमितम्", transliteration: "niyamitam", meaning: "fixed, controlled" },
+            { word: "मन्दभाग्यम्", transliteration: "mandabhāgyam", meaning: "of poor fortune, unfortunate" },
+            { word: "सम्प्रसीद", transliteration: "samprasīda", meaning: "be gracious, be pleased" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 3,
+          devanagari: "क्षीरसागरवासिन् त्वं शेषपर्यङ्कशायिनम्\nलक्ष्मीं दयां च बिभ्राणं सर्वरोगापहारिणम् ।\nत्वदीयं चरणाम्भोजं ध्यात्वा सर्वामयापहम्\nआरोग्यं देहि मे कृष्ण गुरुवायुपुरप्रभो ॥",
+          transliteration: "kṣīrasāgaravāsin tvaṁ śeṣaparyaṅkaśāyinam\nlakṣmīṁ dayāṁ ca bibhrāṇaṁ sarvarōgāpahāriṇam |\ntvadīyaṁ caraṇāmbhojaṁ dhyātvā sarvāmayāpaham\nārogyaṁ dehi me kṛṣṇa guruvāyupuraprabho ||",
+          translation: "O You who reside on the ocean of milk, reclining on the serpent-couch, bearing Lakshmi and compassion, the remover of all diseases — meditating on Your lotus feet which dispel all ailments, grant me health, O Krishna, O Lord of Guruvayur.",
+          words: [
+            { word: "क्षीरसागरवासिन्", transliteration: "kṣīrasāgaravāsin", meaning: "O dweller in the ocean of milk" },
+            { word: "शेषपर्यङ्कशायिनम्", transliteration: "śeṣaparyaṅkaśāyinam", meaning: "reclining on the serpent-couch of Shesha" },
+            { word: "दयाम्", transliteration: "dayām", meaning: "compassion" },
+            { word: "बिभ्राणम्", transliteration: "bibhrāṇam", meaning: "bearing, holding" },
+            { word: "सर्वरोगापहारिणम्", transliteration: "sarvarōgāpahāriṇam", meaning: "remover of all diseases" },
+            { word: "ध्यात्वा", transliteration: "dhyātvā", meaning: "having meditated upon" },
+            { word: "सर्वामयापहम्", transliteration: "sarvāmayāpaham", meaning: "that which dispels all ailments" },
+            { word: "आरोग्यम्", transliteration: "ārogyam", meaning: "health, freedom from disease" },
+            { word: "देहि", transliteration: "dehi", meaning: "grant, give" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 4,
+          devanagari: "धन्वन्तरिस्वरूपेण पुरा त्वमुदितोऽम्बुधेः\nअमृतं बिभ्रदमरैर्वन्दितो भिषजां पतिः ।\nतमेव त्वां प्रपन्नोऽहं चिकित्सां कुरु मे प्रभो\nवातव्याधिमहाघोरात् मोचयस्व दयानिधे ॥",
+          transliteration: "dhanvantarisvarūpeṇa purā tvam udito'mbudheḥ\namṛtaṁ bibhrad amarair vandito bhiṣajāṁ patiḥ |\ntam eva tvāṁ prapanno'haṁ cikitsāṁ kuru me prabho\nvātavyādhimahāghorāt mocayasva dayānidhe ||",
+          translation: "In the form of Dhanvantari You once rose from the ocean, bearing the nectar of immortality, worshipped by the gods, the lord of all physicians. I have taken refuge in that very You. Heal me, O Lord. Release me from the terrible vata-disease, O treasure of compassion.",
+          words: [
+            { word: "धन्वन्तरिस्वरूपेण", transliteration: "dhanvantarisvarūpeṇa", meaning: "in the form of Dhanvantari" },
+            { word: "उदितः", transliteration: "uditaḥ", meaning: "rose, emerged" },
+            { word: "अम्बुधेः", transliteration: "ambudheḥ", meaning: "from the ocean" },
+            { word: "अमृतम्", transliteration: "amṛtam", meaning: "the nectar of immortality" },
+            { word: "बिभ्रत्", transliteration: "bibhrat", meaning: "bearing, carrying" },
+            { word: "भिषजाम् पतिः", transliteration: "bhiṣajāṁ patiḥ", meaning: "lord of physicians" },
+            { word: "प्रपन्नः", transliteration: "prapannaḥ", meaning: "having taken refuge" },
+            { word: "चिकित्साम्", transliteration: "cikitsām", meaning: "healing, treatment" },
+            { word: "वातव्याधिमहाघोरात्", transliteration: "vātavyādhimahāghorāt", meaning: "from the terrible vata-disease" },
+            { word: "मोचयस्व", transliteration: "mocayasva", meaning: "release me, free me" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 5,
+          devanagari: "त्वन्नामसङ्कीर्तनमात्रतो हि\nरोगाः प्रणश्यन्ति नरस्य सर्वे ।\nकिं पुनः साक्षाद्दर्शने तव प्रभो\nगुरुवायुपुरे सन्निधौ कृपामयम् ॥",
+          transliteration: "tvan-nāma-saṅkīrtana-mātra-to hi\nrogāḥ praṇaśyanti narasya sarve |\nkiṁ punaḥ sākṣād darśane tava prabho\nguruvāyupure sannidhau kṛpāmayam ||",
+          translation: "By the mere chanting of Your name, all diseases of a person are destroyed. How much more then by directly beholding You, O Lord, in Your gracious presence at Guruvayur.",
+          words: [
+            { word: "नामसङ्कीर्तनमात्रतः", transliteration: "nāmasaṅkīrtanamātrataḥ", meaning: "by the mere chanting of the name" },
+            { word: "रोगाः", transliteration: "rogāḥ", meaning: "diseases" },
+            { word: "प्रणश्यन्ति", transliteration: "praṇaśyanti", meaning: "are completely destroyed" },
+            { word: "नरस्य", transliteration: "narasya", meaning: "of a person" },
+            { word: "साक्षात्", transliteration: "sākṣāt", meaning: "directly, in person" },
+            { word: "दर्शने", transliteration: "darśane", meaning: "in the beholding, in the vision" },
+            { word: "सन्निधौ", transliteration: "sannidhau", meaning: "in the presence" },
+            { word: "कृपामयम्", transliteration: "kṛpāmayam", meaning: "full of compassion, made of grace" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 6,
+          devanagari: "अहं हि पापी दुरितैरनेकैः\nसंसारकूपे पतितो महान्धे ।\nत्वमेव रक्षा भवसागरे मे\nसमुद्धरस्व प्रभो पावनाङ्घ्रे ॥\nतापत्रयेण दग्धस्य शरीरं मम जर्जरम्\nत्वत्कृपाञ्जनसंयोगात् पुनर्जीवतु माधव ॥",
+          transliteration: "ahaṁ hi pāpī duritair anekaiḥ\nsaṁsārakūpe patito mahāndhe |\ntvam eva rakṣā bhavasāgare me\nsamuddharasva prabho pāvanāṅghre ||\ntāpatrayeṇa dagdhasya śarīraṁ mama jarjaram\ntvatkṛpāñjanasaṁyogāt punarjīvatu mādhava ||",
+          translation: "I am indeed a sinner, fallen into the dark well of worldly existence through many transgressions. You alone are my protection in the ocean of samsara. Lift me up, O Lord of purifying feet. My body, burned by the threefold afflictions, is shattered. By the application of the collyrium of Your grace, may it live again, O Madhava.",
+          words: [
+            { word: "पापी", transliteration: "pāpī", meaning: "sinner" },
+            { word: "दुरितैः", transliteration: "duritaiḥ", meaning: "by transgressions, sins" },
+            { word: "संसारकूपे", transliteration: "saṁsārakūpe", meaning: "in the well of worldly existence" },
+            { word: "पतितः", transliteration: "patitaḥ", meaning: "fallen" },
+            { word: "महान्धे", transliteration: "mahāndhe", meaning: "in great darkness" },
+            { word: "समुद्धरस्व", transliteration: "samuddharasva", meaning: "lift me up, rescue me" },
+            { word: "पावनाङ्घ्रे", transliteration: "pāvanāṅghre", meaning: "O one whose feet purify" },
+            { word: "तापत्रयेण", transliteration: "tāpatrayeṇa", meaning: "by the threefold afflictions" },
+            { word: "जर्जरम्", transliteration: "jarjaram", meaning: "shattered, broken" },
+            { word: "कृपाञ्जनसंयोगात्", transliteration: "kṛpāñjanasaṁyogāt", meaning: "by the application of the collyrium of grace" },
+            { word: "पुनर्जीवतु", transliteration: "punarjīvatu", meaning: "may it live again" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 7,
+          devanagari: "भवतापभुजङ्गेन दष्टस्याखिलदेहिनः\nत्वत्पादपद्मामृतमेव गारुडं तत् महौषधम् ।\nसर्वव्याधिहरं दिव्यं सर्वपापप्रणाशनम्\nत्वत्कृपाकटाक्षमात्रेण सर्वं भवतु सुन्दरम् ॥",
+          transliteration: "bhavatāpabhujaṅgena daṣṭasyākhiladehinaḥ\ntvatpādapadmāmṛtam eva gāruḍaṁ tat mahauṣadham |\nsarvavyādhiharaṁ divyaṁ sarvapāpapraṇāśanam\ntvatkṛpākaṭākṣamātreṇa sarvaṁ bhavatu sundaram ||",
+          translation: "For embodied beings bitten by the serpent of worldly affliction, the nectar from Your lotus feet is the great Garuda-medicine. It is divine, removing all diseases and destroying all sins. By the mere glance of Your compassion, may everything become auspicious.",
+          words: [
+            { word: "भवतापभुजङ्गेन", transliteration: "bhavatāpabhujaṅgena", meaning: "by the serpent of worldly affliction" },
+            { word: "दष्टस्य", transliteration: "daṣṭasya", meaning: "of one who has been bitten" },
+            { word: "पादपद्मामृतम्", transliteration: "pādapadmāmṛtam", meaning: "the nectar from the lotus feet" },
+            { word: "गारुडम्", transliteration: "gāruḍam", meaning: "Garuda-medicine (anti-venom)" },
+            { word: "महौषधम्", transliteration: "mahauṣadham", meaning: "the great medicine" },
+            { word: "सर्वव्याधिहरम्", transliteration: "sarvavyādhiharam", meaning: "removing all diseases" },
+            { word: "सर्वपापप्रणाशनम्", transliteration: "sarvapāpapraṇāśanam", meaning: "destroying all sins" },
+            { word: "कटाक्षमात्रेण", transliteration: "kaṭākṣamātreṇa", meaning: "by the mere side-glance" },
+            { word: "सुन्दरम्", transliteration: "sundaram", meaning: "auspicious, beautiful" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 8,
+          devanagari: "गजेन्द्रमोक्षणं कृत्वा ग्राहग्रस्तं पुरा त्वया\nद्रौपदीवस्त्रदानेन रक्षितं कुरुसंसदि ।\nतथा मामपि देवेश रोगग्रस्तं दयानिधे\nकिमसाध्यं तव प्रभो गुरुवातपुरेश्वर ॥",
+          transliteration: "gajendramokṣaṇaṁ kṛtvā grāhagrastaṁ purā tvayā\ndraupadīvastradānena rakṣitaṁ kurusaṁsadi |\ntathā māmapi deveśa rogagrastaṁ dayānidhe\nkim asādhyaṁ tava prabho guruvātapureśvara ||",
+          translation: "Of old, You rescued the king of elephants seized by the crocodile; You protected Draupadi in the Kuru assembly by granting her garments. Likewise, O God of gods, rescue me too who am seized by disease, O treasure of compassion. What is impossible for You, O Lord of Guruvayur?",
+          words: [
+            { word: "गजेन्द्रमोक्षणम्", transliteration: "gajendramokṣaṇam", meaning: "the liberation of the elephant-king" },
+            { word: "ग्राहग्रस्तम्", transliteration: "grāhagrastam", meaning: "seized by the crocodile" },
+            { word: "द्रौपदीवस्त्रदानेन", transliteration: "draupadīvastradānena", meaning: "by granting garments to Draupadi" },
+            { word: "रक्षितम्", transliteration: "rakṣitam", meaning: "protected" },
+            { word: "कुरुसंसदि", transliteration: "kurusaṁsadi", meaning: "in the Kuru assembly" },
+            { word: "रोगग्रस्तम्", transliteration: "rogagrastam", meaning: "seized by disease" },
+            { word: "किमसाध्यम्", transliteration: "kim asādhyam", meaning: "what is impossible?" },
+            { word: "गुरुवातपुरेश्वर", transliteration: "guruvātapureśvara", meaning: "O Lord of Guruvayur" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 9,
+          devanagari: "नाहं याचे धनं वा सुखविषयसुखं राज्यवैभोगलक्ष्मीं\nनाहं याचे च मुक्तिं भवभयविगमं योगसिद्धिं च नैव ।\nत्वत्पादाम्भोजसेवामनुदिनमखिलं देहि मे भक्तिमेकां\nरोगं हत्वा प्रभो मे गुरुपवनपते तावदायुः प्रयच्छ ॥",
+          transliteration: "nāhaṁ yāce dhanaṁ vā sukhaviṣayasukhaṁ rājyavaibhogalakṣmīṁ\nnāhaṁ yāce ca muktiṁ bhavabhayavigamaṁ yogasiddhiṁ ca naiva |\ntvatpādāmbhojasevām anudinam akhilaṁ dehi me bhaktim ekāṁ\nrogaṁ hatvā prabho me gurupavanapate tāvadāyuḥ prayaccha ||",
+          translation: "I do not ask for wealth, or the pleasures of the senses, or the splendor of a kingdom. I do not ask even for liberation, freedom from the fear of existence, or yogic powers. Grant me only this: daily service at Your lotus feet and single-pointed devotion. Having destroyed my disease, O Lord of Guruvayur, grant me just that much life.",
+          words: [
+            { word: "याचे", transliteration: "yāce", meaning: "I ask for, I beg" },
+            { word: "धनम्", transliteration: "dhanam", meaning: "wealth" },
+            { word: "सुखविषयसुखम्", transliteration: "sukhaviṣayasukham", meaning: "pleasures of sense-objects" },
+            { word: "राज्यवैभोगलक्ष्मीम्", transliteration: "rājyavaibhogalakṣmīm", meaning: "the splendor and wealth of a kingdom" },
+            { word: "मुक्तिम्", transliteration: "muktim", meaning: "liberation" },
+            { word: "योगसिद्धिम्", transliteration: "yogasiddhim", meaning: "yogic powers" },
+            { word: "पादाम्भोजसेवाम्", transliteration: "pādāmbhojasevām", meaning: "service at the lotus feet" },
+            { word: "भक्तिम् एकाम्", transliteration: "bhaktim ekām", meaning: "single-pointed devotion" },
+            { word: "रोगं हत्वा", transliteration: "rogaṁ hatvā", meaning: "having destroyed the disease" },
+            { word: "आयुः प्रयच्छ", transliteration: "āyuḥ prayaccha", meaning: "grant life/longevity" }
+          ]
+        },
+        {
+          dashaka: 92,
+          sloka: 10,
+          devanagari: "मर्त्यानामयनं हरे पशुपते कारुण्यपाथोनिधे\nत्वं नारायण वासुदेव भगवन् श्रीकृष्ण विष्णो हरे ।\nआयुष्यं कुरु मामकं सपदि मे रोगान् विनाश्याखिलान्\nआरोग्यं विततं च देहि भगवन् गुरुवायुपुराधिप ।\nआयुरारोग्यसौख्यं च प्रदिशतु भवान् गोपिकानाथ विष्णो ॥",
+          transliteration: "martyānām ayanaṁ hare paśupate kāruṇyapāthonidhe\ntvaṁ nārāyaṇa vāsudeva bhagavan śrīkṛṣṇa viṣṇo hare |\nāyuṣyaṁ kuru māmakaṁ sapadi me rogān vināśyākhilān\nārogyaṁ vitataṁ ca dehi bhagavan guruvāyupurādhipa |\nāyur ārogya saukhyaṁ ca pradiśatu bhavān gopikānātha viṣṇo ||",
+          translation: "O Hari, refuge of mortals, O Lord of all beings, O ocean of compassion, O Narayana, Vasudeva, Bhagavan, Shri Krishna, Vishnu, Hari — make my life enduring, destroy all my diseases at once, and grant me abundant health, O Lord of Guruvayur. May You bestow long life, health, and happiness, O Lord of the Gopis, O Vishnu.",
+          words: [
+            { word: "मर्त्यानाम् अयनम्", transliteration: "martyānām ayanam", meaning: "refuge of mortals" },
+            { word: "पशुपते", transliteration: "paśupate", meaning: "O Lord of all beings" },
+            { word: "कारुण्यपाथोनिधे", transliteration: "kāruṇyapāthonidhe", meaning: "O ocean of compassion" },
+            { word: "आयुष्यम्", transliteration: "āyuṣyam", meaning: "life, longevity" },
+            { word: "सपदि", transliteration: "sapadi", meaning: "at once, immediately" },
+            { word: "विनाश्य", transliteration: "vināśya", meaning: "having destroyed" },
+            { word: "आरोग्यम्", transliteration: "ārogyam", meaning: "health, freedom from disease" },
+            { word: "विततम्", transliteration: "vitatam", meaning: "abundant, extended" },
+            { word: "आयुः", transliteration: "āyuḥ", meaning: "long life" },
+            { word: "सौख्यम्", transliteration: "saukhyam", meaning: "happiness, well-being" },
+            { word: "प्रदिशतु", transliteration: "pradiśatu", meaning: "may He grant" },
+            { word: "गोपिकानाथ", transliteration: "gopikānātha", meaning: "O Lord of the Gopis" }
+          ]
+        }
+      ]
     },
     {
       dashaka: 93,
