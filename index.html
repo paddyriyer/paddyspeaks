@@ -92,8 +92,14 @@
         <h3>Sacred Texts</h3>
     </div>
 
+    <!-- View Toggle -->
+    <div class="sacred-view-toggle">
+        <button class="sacred-view-btn active" data-view="mandala">Mandala</button>
+        <button class="sacred-view-btn" data-view="timeline">Timeline</button>
+    </div>
+
     <!-- Sacred Texts Mandala -->
-    <div class="mandala-container">
+    <div class="mandala-container sacred-view" id="sacred-view-mandala">
         <div class="mandala-wheel" id="mandala-wheel">
             <!-- SVG decorative rings -->
             <svg class="mandala-svg" viewBox="0 0 700 700" xmlns="http://www.w3.org/2000/svg">
@@ -141,6 +147,16 @@
                 <p class="mandala-detail-quote" id="mandala-detail-quote"></p>
                 <a class="mandala-detail-link" id="mandala-detail-link" href="#">Explore &rarr;</a>
             </div>
+        </div>
+    </div>
+
+    <!-- Sacred Texts Timeline -->
+    <div class="timeline-container sacred-view" id="sacred-view-timeline" style="display:none;">
+        <div class="timeline-header-om">&#x0950;</div>
+        <h4 class="timeline-title">The River of Sacred Sound</h4>
+        <p class="timeline-subtitle">From Shruti to Bhakti — a journey through millennia of divine revelation</p>
+        <div class="timeline-river" id="timeline-river">
+            <!-- Built by JS -->
         </div>
     </div>
 
@@ -2088,6 +2104,146 @@
 
     layoutNodes();
     window.addEventListener('resize', layoutNodes);
+})();
+
+/* ═══════════════════════════════════════ */
+/* SACRED TEXTS TIMELINE                   */
+/* ═══════════════════════════════════════ */
+(function() {
+    var eras = [
+        { label: 'Vedic Era', date: '~1500–800 BCE', ids: ['rudram','mahanyasam','purusha','sri-suktam','sandhya','durga-suktam','medha-suktam'] },
+        { label: 'Epic Era', date: '~500 BCE – 200 CE', ids: ['vishnu','gita','aditya','rama-raksha'] },
+        { label: 'Puranic Era', date: '~300–700 CE', ids: ['lalitha'] },
+        { label: 'Advaita Era', date: '~8th Century CE', ids: ['soundarya','bhaja'] },
+        { label: 'Bhakti Era', date: '~1400–1700 CE', ids: ['hanuman','abhirami','narayaneeyam','shashti','apaduddharaka'] },
+        { label: 'Living Traditions', date: 'Timeless', ids: ['tharpanam'] }
+    ];
+
+    // Build a lookup from the mandala's sacredTexts data
+    // We'll grab them from the DOM nodes' data attributes + the JS array
+    // Easier: just redeclare the map inline
+    var textMap = {};
+    var allTexts = [
+        { id:'rudram', href:'rudramchamakam/', name:'Sri Rudram', sanskrit:'रुद्रम्', symbol:'रु', category:'vedic',
+          desc:'The supreme Vedic hymn to Lord Rudra from the Krishna Yajurveda — 11 Anuvakas of Namakam and 11 of Chamakam.',
+          quote:'The Vedas didn\'t whisper Rudra\'s name — they thundered it.' },
+        { id:'mahanyasam', href:'mahAnyAsam/', name:'Mahanyasam', sanskrit:'न्यासम्', symbol:'म', category:'vedic',
+          desc:'The Great Vedic Self-Consecration — 21 sections of mantras from the Taittiriya tradition.',
+          quote:'Before you pour sacred water on Shiva, the Vedas ask you to become the temple yourself.' },
+        { id:'purusha', href:'purusha-suktam/', name:'Purusha Suktam', sanskrit:'पुरुषसूक्तम्', symbol:'पु', category:'vedic',
+          desc:'The Hymn of the Cosmic Being — 16 mantras from Rig Veda 10.90.',
+          quote:'All beings are but one quarter of Him. Three quarters are immortal in heaven.' },
+        { id:'sri-suktam', href:'sri-suktam/', name:'Sri Suktam', sanskrit:'श्रीसूक्तम्', symbol:'श्री', category:'vedic',
+          desc:'The Hymn of Divine Prosperity — 19 mantras from the Rig Veda Khilani.',
+          quote:'When you invoke Her, it is not wealth that arrives. It is the grace that makes you worthy of it.' },
+        { id:'sandhya', href:'sandhyavandanam/', name:'Sandhyavandanam', sanskrit:'सन्ध्यावन्दनम्', symbol:'स', category:'vedic',
+          desc:'A Forgotten Science — 50 curated Q&A exploring the Vedic daily practice.',
+          quote:'The sun doesn\'t need your prayer to rise. But you need the prayer to rise with it.' },
+        { id:'durga-suktam', href:'durga-suktam/', name:'Durga Suktam', sanskrit:'दुर्गासूक्तम्', symbol:'दु', category:'vedic',
+          desc:'The Hymn of the Invincible Goddess — 9 mantras from the Mahanarayana Upanishad.',
+          quote:'The Veda does not promise the absence of storms — it promises a boat.' },
+        { id:'medha-suktam', href:'medha-suktam/', name:'Medha Suktam', sanskrit:'मेधासूक्तम्', symbol:'मे', category:'vedic',
+          desc:'The Hymn of Divine Intelligence — 11 mantras from the Mahanarayana Upanishad.',
+          quote:'The Veda\'s boldest claim: that the sharpest mind is not built — it is invoked.' },
+        { id:'lalitha', href:'lalitha-sahasranama/', name:'Lalitha Sahasranama', sanskrit:'श्रीललितासहस्रनाम', symbol:'ल', category:'stotra',
+          desc:'The Thousand Divine Names of the Supreme Goddess from the Brahmanda Purana.',
+          quote:'Each name is a vibration, a key that unlocks a dimension of the Divine Mother within you.' },
+        { id:'vishnu', href:'vishnu-sahasranama/', name:'Vishnu Sahasranama', sanskrit:'श्रीविष्णुसहस्रनाम', symbol:'वि', category:'stotra',
+          desc:'The Thousand Names of Lord Vishnu from the Mahabharata with Shankaracharya\'s Bhashya.',
+          quote:'Bhishma lay on a bed of arrows, yet chose to gift the world a thousand names of peace.' },
+        { id:'soundarya', href:'soundarya-Lahari/', name:'Soundarya Lahari', sanskrit:'सौन्दर्यलहरी', symbol:'सौ', category:'stotra',
+          desc:'The Wave of Beauty — all 103 verses by Adi Shankaracharya with Sri Vidya interpretations.',
+          quote:'Even Advaita bows before the Mother.' },
+        { id:'rama-raksha', href:'rama-raksha-stotram/', name:'Rama Raksha Stotram', sanskrit:'श्रीरामरक्षास्तोत्रम्', symbol:'रा', category:'stotra',
+          desc:'The Vajra Panjara (Diamond Cage) of Lord Rama — 38 verses of divine protection.',
+          quote:'Rama doesn\'t just protect — He becomes the fortress around you.' },
+        { id:'aditya', href:'aditya-hridayam/', name:'Aditya Hridayam', sanskrit:'आदित्यहृदयम्', symbol:'आ', category:'stotra',
+          desc:'The Heart of the Sun God — 31 verses from the Valmiki Ramayana.',
+          quote:'The gods sent a sage, not a weapon. Because the greatest weapon is the light you invoke from within.' },
+        { id:'hanuman', href:'hanumanchalisa/', name:'Hanuman Chalisa', sanskrit:'हनुमान चालीसा', symbol:'ह', category:'devotional',
+          desc:'The beloved 40 verses by Goswami Tulsidas praising Lord Hanuman.',
+          quote:'Tulsidas didn\'t write a hymn. He wrote a hug for God.' },
+        { id:'abhirami', href:'abhirami-andhadhi/', name:'Abhirami Andhadhi', sanskrit:'அபிராமி அந்தாதி', symbol:'அ', category:'devotional',
+          desc:'100 verses of devotion to Goddess Abhirami by Abhirami Bhattar.',
+          quote:'Bhattar didn\'t compose these verses — he wept them.' },
+        { id:'shashti', href:'shashtikavacham/', name:'Kanda Shashti Kavacham', sanskrit:'கந்த சஷ்டி கவசம்', symbol:'க', category:'devotional',
+          desc:'The protective armour of Lord Murugan by Devaraya Swamigal.',
+          quote:'Every syllable is a spear of Murugan standing guard over your life.' },
+        { id:'narayaneeyam', href:'narayaneeyam/', name:'Narayaneeyam', sanskrit:'नारायणीयम्', symbol:'ना', category:'devotional',
+          desc:'1,034 verses condensing Srimad Bhagavatam — composed at Guruvayur Temple, 1586 CE.',
+          quote:'A paralyzed poet condensed 18,000 verses into 1,034 — and walked out healed.' },
+        { id:'apaduddharaka', href:'ApaduddharakaStotram/', name:'Apaduddharaka Stotram', sanskrit:'श्रीरामापदुद्धारकस्तोत्रम्', symbol:'आपु', category:'devotional',
+          desc:'Prayer to Lord Rama for deliverance from calamities.',
+          quote:'Rama is already standing on the other side, holding the door open.' },
+        { id:'gita', href:'bhagavad-gita/', name:'Srimad Bhagavad Gita', sanskrit:'श्रीमद्भगवद्गीता', symbol:'गी', category:'philosophy',
+          desc:'The Song of the Supreme — with word-by-word breakdown, translations, and modern interpretations.',
+          quote:'The Gita is not a book you finish. It is a book that finishes you.' },
+        { id:'bhaja', href:'bhaja-govindam/', name:'Bhaja Govindam', sanskrit:'भज गोविन्दम्', symbol:'भ', category:'philosophy',
+          desc:'The Hammer that Shatters Delusion — Adi Shankaracharya\'s 31 verses of awakening.',
+          quote:'He wrote it for the old man inside every scholar — the one still memorizing rules while life slips away.' },
+        { id:'tharpanam', href:'amavasya-tharpanam/', name:'Amavasya Tharpanam', sanskrit:'अमावास्या तर्पणम्', symbol:'त', category:'philosophy',
+          desc:'The sacred Vedic ritual of offering water and sesame to ancestors on the new moon day.',
+          quote:'A handful of water and sesame — this is how the living keep the departed alive.' }
+    ];
+    allTexts.forEach(function(t) { textMap[t.id] = t; });
+
+    var river = document.getElementById('timeline-river');
+    var side = 0; // alternates 0=left, 1=right
+
+    eras.forEach(function(era) {
+        // Era marker
+        var eraDiv = document.createElement('div');
+        eraDiv.className = 'timeline-era';
+        eraDiv.innerHTML = '<span class="timeline-era-label">' + era.label + '<span class="timeline-era-date">' + era.date + '</span></span>';
+        river.appendChild(eraDiv);
+
+        // Text items in this era
+        era.ids.forEach(function(id) {
+            var t = textMap[id];
+            if (!t) return;
+            var dir = side % 2 === 0 ? 'left' : 'right';
+            side++;
+
+            var item = document.createElement('a');
+            item.href = t.href;
+            item.className = 'timeline-item ' + dir;
+            item.innerHTML =
+                '<div class="timeline-dot"></div>' +
+                '<div class="timeline-card">' +
+                    '<div class="timeline-card-symbol ' + t.category + '">' + t.symbol + '</div>' +
+                    '<div class="timeline-card-name">' + t.name + '</div>' +
+                    '<div class="timeline-card-sanskrit">' + t.sanskrit + '</div>' +
+                    '<div class="timeline-card-desc">' + t.desc + '</div>' +
+                    '<div class="timeline-card-quote">"' + t.quote + '"</div>' +
+                    '<span class="timeline-card-explore">Explore</span>' +
+                '</div>';
+            river.appendChild(item);
+        });
+    });
+
+    // End marker
+    var endDiv = document.createElement('div');
+    endDiv.className = 'timeline-end';
+    endDiv.innerHTML = '<div class="timeline-end-diamond"></div><div class="timeline-end-text">You are here</div>';
+    river.appendChild(endDiv);
+})();
+
+/* ═══════════════════════════════════════ */
+/* VIEW TOGGLE LOGIC                       */
+/* ═══════════════════════════════════════ */
+(function() {
+    var btns = document.querySelectorAll('.sacred-view-btn');
+    var views = document.querySelectorAll('.sacred-view');
+    btns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var target = btn.getAttribute('data-view');
+            btns.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            views.forEach(function(v) {
+                v.style.display = v.id === 'sacred-view-' + target ? '' : 'none';
+            });
+        });
+    });
 })();
 
 /* ═══════════════════════════════════════ */
