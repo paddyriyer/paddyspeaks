@@ -13,6 +13,17 @@ with open("article_metadata.json", "r") as f:
 # Existing manually-crafted articles (keep their original data)
 existing_articles = [
     {
+        "title": "Why Most AI Users Are Still Pre-Literate",
+        "date": "2026-03-18T00:00:00",
+        "category": "ai",
+        "read_time": 12,
+        "subtitle": "The real skill gap in the AI age isn't access — it's understanding",
+        "slug": "ai-preliterate-complete.html",
+        "has_image": False,
+        "image": "",
+        "excerpt": "You can type a prompt. That doesn't mean you can read. The real skill gap in the AI age isn't access — it's understanding what you're actually holding in your hands.",
+    },
+    {
         "title": "The Great AI Job Apocalypse: Who Pays the Bills?",
         "date": "2026-02-25T00:00:00",
         "category": "ai",
