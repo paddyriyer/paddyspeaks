@@ -23,6 +23,23 @@
     return escaped.replace(regex, '<mark>$1</mark>');
   }
 
+  // --- Build word grid HTML ---
+  function buildWordGrid(words) {
+    if (!words || words.length === 0) return '';
+    var html = '<div class="word-grid">';
+    words.forEach(function (w) {
+      html += '<div class="word-card">';
+      html += '<div class="word-devanagari">' + escapeHtml(w.word) + '</div>';
+      if (w.transliteration) {
+        html += '<div class="word-transliteration">' + escapeHtml(w.transliteration) + '</div>';
+      }
+      html += '<div class="word-meaning">' + escapeHtml(w.meaning) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
   // --- Build a single verse card HTML ---
   function buildVerseCard(sloka) {
     var num = sloka.num;
@@ -52,6 +69,12 @@
 
     // Transliteration
     html += '<div class="transliteration-block">' + escapeHtml(sloka.transliteration) + '</div>';
+
+    // Word-by-word grid
+    if (sloka.words && sloka.words.length > 0) {
+      html += '<div class="word-section-label">Word Split</div>';
+      html += buildWordGrid(sloka.words);
+    }
 
     // Meaning
     html += '<div class="meaning-block">';
@@ -174,6 +197,23 @@
     html += '<div class="verse-body">';
     html += '<div class="sanskrit-block">' + highlightText(sloka.sanskrit, query) + '</div>';
     html += '<div class="transliteration-block">' + highlightText(sloka.transliteration, query) + '</div>';
+
+    // Word-by-word grid with highlights
+    if (sloka.words && sloka.words.length > 0) {
+      html += '<div class="word-section-label">Word Split</div>';
+      html += '<div class="word-grid">';
+      sloka.words.forEach(function (w) {
+        html += '<div class="word-card">';
+        html += '<div class="word-devanagari">' + highlightText(w.word, query) + '</div>';
+        if (w.transliteration) {
+          html += '<div class="word-transliteration">' + highlightText(w.transliteration, query) + '</div>';
+        }
+        html += '<div class="word-meaning">' + highlightText(w.meaning, query) + '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
     html += '<div class="meaning-block">';
     html += '<div class="meaning-label">Meaning</div>';
     html += '<div class="meaning-text">' + highlightText(sloka.meaning, query) + '</div>';
@@ -205,13 +245,26 @@
         }
 
         var matches = slokas.filter(function (sloka) {
-          return (
+          if (
             String(sloka.num) === query ||
             sloka.sanskrit.toLowerCase().includes(query) ||
             sloka.transliteration.toLowerCase().includes(query) ||
             sloka.meaning.toLowerCase().includes(query) ||
             sloka.esoteric.toLowerCase().includes(query)
-          );
+          ) return true;
+
+          if (sloka.words) {
+            for (var i = 0; i < sloka.words.length; i++) {
+              var w = sloka.words[i];
+              if (
+                w.word.toLowerCase().indexOf(query) !== -1 ||
+                (w.transliteration && w.transliteration.toLowerCase().indexOf(query) !== -1) ||
+                w.meaning.toLowerCase().indexOf(query) !== -1
+              ) return true;
+            }
+          }
+
+          return false;
         });
 
         count.textContent = matches.length + ' found';
