@@ -320,8 +320,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 46,
-    sanskrit: "ललाटं लावण्यद्युतिवमलं आभाति तव यत्\nद्वितीयं तन्मन्ये मकुटघटितं चन्द्रशकलम् ।\nविपर्यासन्यासादुभयमपि सम्भूय च मिथः\nसुधालेपस्यूतिः परिणमति राकाहिमकरः ॥ ४६ ॥",
-    transliteration: "lalāṭaṃ lāvaṇya-dyuti-vimalam ābhāti tava yat\ndvitīyaṃ tan manye makuṭa-ghaṭitaṃ candra-śakalam |\nviparyāsa-nyāsād ubhayam api sambhūya ca mithaḥ\nsudhā-lepa-syūtiḥ pariṇamati rākā-himakaraḥ || 46 ||",
+    sanskrit: "ललाटं लावण्यद्युतिविमलमाभाति तव य-\nद्द्वितीयं तन्मन्ये मकुटघटितं चन्द्रशकलम् ।\nविपर्यासन्यासादुभयमपि संभूय च मिथः\nसुधालेपस्यूतिः परिणमति राकाहिमकरः ॥ ४६ ॥",
+    transliteration: "lalāṭaṃ lāvaṇya-dyuti-vimalam ābhāti tava ya-\nddvitīyaṃ tan manye makuṭa-ghaṭitaṃ candra-śakalam |\nviparyāsa-nyāsād ubhayam api saṃbhūya ca mithaḥ\nsudhā-lepa-syūtiḥ pariṇamati rākā-himakaraḥ || 46 ||",
     meaning: "Your forehead, radiant with the splendor of beauty, appears to me as a second crescent moon. When combined with the crescent moon in Your crown — and their positions reversed and joined — they form the full moon, dripping with nectar.",
     esoteric: "The forehead represents the Ajna Chakra region. Two crescents forming a full moon symbolizes the union of the waxing (Shukla) and waning (Krishna) aspects of consciousness — or Pravritti and Nivritti (outward and inward movements). The full moon (Raka) dripping nectar (Sudha) refers to the Soma that flows from the Chandra-Mandala (lunar sphere) in the upper brain during advanced meditation. In Sri Vidya, the sixteen phases (Kalas) of the moon correspond to the sixteen Nitya Devis, and the full moon represents the complete manifestation of Devi as Sodashi."
   },
@@ -677,8 +677,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 97,
-    sanskrit: "गिरामाहुर्देवीं द्रुहिणगृहिणीमागमविदो\nहरेः पत्नीं पद्मां हरसहचरीमद्रितनयाम् ।\nतुरीया कापि त्वं दुरधिगमनिस्सीमाधिमहिम्नः\nमहामायाविश्वं भ्रमयसि परब्रह्ममहिषि ॥ ९७ ॥",
-    transliteration: "girāmāhurdevīṃ druhiṇagṛhiṇīmāgamavido\nhareḥ patnīṃ padmāṃ harasahacarīmadritanayām |\nturīyā kāpi tvaṃ duradhigamanissīmamahimā\nmahāmāyā viśvaṃ bhramayasi parabrahmamahiṣi || 97 ||",
+    sanskrit: "गिरामाहुर्देवीं द्रुहिणगृहिणीमागमविदो\nहरेः पत्नीं पद्मां हरसहचरीमद्रितनयाम् ।\nतुरीया कापि त्वं दुरधिगमनिःसीममहिमा\nमहामाया विश्वं भ्रमयसि परब्रह्ममहिषि ॥ ९७ ॥",
+    transliteration: "girāmāhurdevīṃ druhiṇagṛhiṇīmāgamavido\nhareḥ patnīṃ padmāṃ harasahacarīmadritanayām |\nturīyā kāpi tvaṃ duradhigamaniḥsīmamahimā\nmahāmāyā viśvaṃ bhramayasi parabrahmamahiṣi || 97 ||",
     meaning: "The Agama-knowers call You the Goddess of Speech (Saraswati), wife of Brahma; Padma (Lakshmi), wife of Vishnu; the Mountain's daughter (Parvati), consort of Shiva. But You are the Fourth (Turiya) — a limitless glory beyond comprehension, the Maha-Maya who spins the universe, O Queen of Para-Brahman.",
     esoteric: "This is the supreme philosophical declaration of the Soundarya Lahari. Devi is not merely any one of the three goddesses (Saraswati, Lakshmi, Parvati) but the Turiya — the transcendent fourth state beyond all three. As Turiya, She encompasses and transcends the three Gunas, three states of consciousness, and three cosmic functions. She is Maha-Maya — not mere illusion but the 'Great Measuring Power' that manifests Brahman into the universe. 'Para-Brahma-Mahishi' (Queen of the Absolute) establishes Her as the sovereign power OF the Absolute, not separate from It. This is the quintessence of Sri Vidya philosophy — the Divine Feminine as the ultimate reality."
   },
