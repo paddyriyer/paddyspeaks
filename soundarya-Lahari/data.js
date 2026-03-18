@@ -418,10 +418,10 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 60,
-    sanskrit: "सरस्वत्या लक्ष्म्या विधिहरिसपत्नो विहरते\nरतेः पातिव्रत्यं शिथिलयति रम्येण वपुषा ।\nचिरं जीवन्नेव क्षपितपशुपाशव्यतिकरः\nपरानन्दाभिख्यं रसयति रसं त्वद्भजनवान् ॥ ६० ॥",
-    transliteration: "sarasvatyā lakṣmyā vidhiharisapatno viharate\nrateḥ pātivratyaṃ śithilayati ramyeṇa vapuṣā |\nciraṃ jīvanneva kṣapitapaśupāśavyatikaraḥ\nparānandābhikhyaṃ rasayati rasaṃ tvadbhajanavān || 60 ||",
-    meaning: "Your devotee sports as a rival of Brahma and Vishnu (in the company of Saraswati and Lakshmi), shakes the fidelity of Rati (Kama's wife) with his charming form, lives long with all bondages destroyed, and experiences the bliss called Para-Ananda.",
-    esoteric: "This verse reveals the feedback loop of cosmic sound. Saraswati (manifested wisdom) pours hymns into Devi's ears (the source of all wisdom), creating a circuit of knowledge — from source to manifestation and back. Devi's head-nodding is the cosmic affirmation (the original 'Yes' of creation). The earring-sounds replying represent the Anahata Nada — the unstruck sound that responds to every articulated prayer. In meditation practice, this describes the experience of hearing the inner sound (Nada) that responds to one's mantra — the divine feedback that confirms the practitioner is heard. The ear-cup (Shravana-Chuluka) is the yogic technique of cupping the ears to hear inner sounds."
+    sanskrit: "सरस्वत्याः सूक्तीरमृतलहरीकौशलहरीः\nपिबन्त्याः शर्वाणि श्रवणचुलुकाभ्यामविरलम् ।\nचमत्कारश्लाघाचलितशिरसः कुण्डलगणो\nझणत्कारैस्तारैः प्रतिवचनमाचष्ट इव ते ॥ ६० ॥",
+    transliteration: "sarasvatyāḥ sūktīramṛtalaharīkauśalaharīḥ\npibantyāḥ śarvāṇi śravaṇaculukābhyāmaviralam |\ncamatkāraślāghācalitaśirasaḥ kuṇḍalagaṇo\njhaṇatkāraistāraiḥ prativacnamācaṣṭa iva te || 60 ||",
+    meaning: "O Sharvani, as You drink the nectar-waves of Saraswati's hymns through the cup-like hollows of Your ears, nodding Your head in appreciative wonder, the tinkling of Your earrings seems to offer a melodious reply.",
+    esoteric: "This phala-shruti (fruit) verse describes the transformation of the Sri Vidya practitioner. Rivaling Brahma and Vishnu means attaining creative and preserving powers. Attracting Rati (embodiment of desire) means mastering Kama-Shakti. Long life with destroyed bondages represents Jivanmukti (liberation while alive). Para-Ananda is the highest bliss — beyond even Brahma-Ananda. The verse promises that dedicated worship (Bhajana) of Devi leads to complete mastery of life while simultaneously experiencing transcendent bliss — the twin fruits of Bhoga (enjoyment) and Moksha (liberation) that only Sri Vidya grants simultaneously."
   },
   {
     num: 61,
@@ -551,7 +551,7 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 79,
-    sanskrit: "निसर्गक्षीणस्य स्तनतटभरेण क्लमजुषो\nनमन्मूर्तेर्नारीतिलक शनकैस्त्रुट्यत इव ।\nचिरं ते मध्यस्य त्रुटित इव तटीपातनवशात्\nसमावस्था स्थेम्नो भवतु कुशलं शातकम्बरम् ॥ ७९ ॥",
+    sanskrit: "निसर्गक्षीणस्य स्तनतटभरेण क्लमजुषो\nनमन्मूर्तेर्नारीतिलक शनकैस्त्रुट्यत इव ।\nचिरं ते मध्यस्य त्रुटिततटिनीतीरतरुणा\nसमावस्थास्थेम्नो भवतु कुशलं शैलतनये ॥ ७९ ॥",
     transliteration: "nisargakṣīṇasya stanataṭabhareṇa klamajuṣo\nnamanmūrternārītilaka śanakaistruṭyata iva |\nciraṃ te madhyasya truṭitataṭinītīrataruṇā\nsamāvasthāsthemno bhavatu kuśalaṃ śailatanaye || 79 ||",
     meaning: "O Tilaka among women, Your waist — naturally slender, weighed down by the burden of Your breasts, bending Your form, seeming about to break — may the golden girdle (Kanchana-Mekhala) provide the stability to keep it safe forever.",
     esoteric: "The waist about to break under the weight of the breasts carries a profound metaphysical teaching. The slender waist is the Bindu (point of consciousness), and the heavy breasts are the weight of creation (Prakriti) it must support. The near-breaking represents the precariousness of the manifest world — consciousness (Bindu) barely holds together the weight of manifestation. The golden girdle (Mekhala) that saves it is the structured practice of Sri Vidya — ritual, mantra, and meditation that stabilize the relationship between consciousness and creation. This verse reveals why spiritual practice (Sadhana) is essential: without it, the connection between the absolute and the relative becomes strained."
@@ -691,10 +691,10 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 99,
-    sanskrit: "सरस्वत्याः सूक्तीरमृतलहरीकौशलहरीः\nपिबन्त्याः शर्वाणि श्रवणचुलुकाभ्यामविरलम् ।\nचमत्कारश्लाघाचलितशिरसः कुण्डलगणो\nझणत्कारैस्तारैः प्रतिवचनमाचष्ट इव ते ॥ ९९ ॥",
-    transliteration: "sarasvatyāḥ sūktīramṛtalaharīkauśalaharīḥ\npibantyāḥ śarvāṇi śravaṇaculukābhyāmaviralam |\ncamatkāraślāghācalitaśirasaḥ kuṇḍalagaṇo\njhaṇatkāraistāraiḥ prativacnamācaṣṭa iva te || 99 ||",
-    meaning: "O Sharvani, as You drink the nectar-waves of Saraswati's hymns through the cup-like hollows of Your ears, nodding Your head in appreciative wonder, the tinkling of Your earrings seems to offer a melodious reply.",
-    esoteric: "This phala-shruti (fruit) verse describes the transformation of the Sri Vidya practitioner. Rivaling Brahma and Vishnu means attaining creative and preserving powers. Attracting Rati (embodiment of desire) means mastering Kama-Shakti. Long life with destroyed bondages represents Jivanmukti (liberation while alive). Para-Ananda is the highest bliss — beyond even Brahma-Ananda. The verse promises that dedicated worship (Bhajana) of Devi leads to complete mastery of life while simultaneously experiencing transcendent bliss — the twin fruits of Bhoga (enjoyment) and Moksha (liberation) that only Sri Vidya grants simultaneously."
+    sanskrit: "सरस्वत्या लक्ष्म्या विधिहरिसपत्नो विहरते\nरतेः पातिव्रत्यं शिथिलयति रम्येण वपुषा ।\nचिरं जीवन्नेव क्षपितपशुपाशव्यतिकरः\nपरानन्दाभिख्यं रसयति रसं त्वद्भजनवान् ॥ ९९ ॥",
+    transliteration: "sarasvatyā lakṣmyā vidhiharisapatno viharate\nrateḥ pātivratyaṃ śithilayati ramyeṇa vapuṣā |\nciraṃ jīvanneva kṣapitapaśupāśavyatikaraḥ\nparānandābhikhyaṃ rasayati rasaṃ tvadbhajanavān || 99 ||",
+    meaning: "Your devotee sports as a rival of Brahma and Vishnu (in the company of Saraswati and Lakshmi), shakes the fidelity of Rati (Kama's wife) with his charming form, lives long with all bondages destroyed, and experiences the bliss called Para-Ananda.",
+    esoteric: "This verse reveals the feedback loop of cosmic sound. Saraswati (manifested wisdom) pours hymns into Devi's ears (the source of all wisdom), creating a circuit of knowledge — from source to manifestation and back. Devi's head-nodding is the cosmic affirmation (the original 'Yes' of creation). The earring-sounds replying represent the Anahata Nada — the unstruck sound that responds to every articulated prayer. In meditation practice, this describes the experience of hearing the inner sound (Nada) that responds to one's mantra — the divine feedback that confirms the practitioner is heard. The ear-cup (Shravana-Chuluka) is the yogic technique of cupping the ears to hear inner sounds."
   },
   {
     num: 100,
