@@ -12,8 +12,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 2,
-    sanskrit: "तनीयांसं पांसुं तव चरणपङ्केरुहभवं\nविरिञ्चिस्सन्धत्ते विरचयितुं लोकानविकलम् ।\nवहत्येनं शौरिः कथमपि सहस्रेण शिरसां\nहरस्संक्षुद्यैनं भजति भसितोद्धूलनविधिम् ॥ २ ॥",
-    transliteration: "tanīyāṃsaṃ pāṃsuṃ tava caraṇapaṅkeruhabhavaṃ\nviriñcissandhatte viracayituṃ lokānavikalam |\nvahatyenaṃ śauriḥ kathamapi sahasreṇa śirasāṃ\nharassaṅkṣudyainaṃ bhajati bhasitoddhūlanavidhim || 2 ||",
+    sanskrit: "तनीयांसं पांसुं तव चरणपङ्केरुहभवं\nविरिञ्चिस्सञ्चिन्वन् विरचयति लोकानविकलम् ।\nवहत्येनं शौरिः कथमपि सहस्रेण शिरसां\nहरस्संक्षुद्यैनं भजति भसितोद्धूलनविधिम् ॥ २ ॥",
+    transliteration: "tanīyāṃsaṃ pāṃsuṃ tava caraṇapaṅkeruhabhavaṃ\nviriñcissañcinvan viracayati lokānavikalam |\nvahatyenaṃ śauriḥ kathamapi sahasreṇa śirasāṃ\nharassaṅkṣudyainaṃ bhajati bhasitoddhūlanavidhim || 2 ||",
     meaning: "Brahma collects the fine dust from Your lotus feet to create the worlds perfectly. Vishnu bears it with difficulty upon His thousand heads (as Adishesha). Shiva, crushing this dust, performs His ritual of smearing sacred ash upon Himself.",
     esoteric: "The dust of Devi's feet symbolizes the subtle creative matrix (Maya-Shakti). Brahma using it for creation represents Srishti-Shakti, Vishnu bearing it represents Sthiti-Shakti (sustaining power), and Shiva using it as ash represents Samhara-Shakti (dissolution). The verse also alludes to the Bhasma (sacred ash) as the final reality — all creation returns to the subtle essence of the Divine Mother. In Sri Vidya, the feet of the Goddess represent the lowest point of the Sri Chakra, the Bhu-pura, from which all manifestation begins."
   },
@@ -89,8 +89,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 13,
-    sanskrit: "नरं वर्षीयांसं नयनविरसं नर्मसु जडं\nतवापाङ्गालोके पतितमनुधावन्ति शतशः ।\nगलद्वेणीबन्धाः कुचकलशविस्रस्तसिचया\nहठात् त्रुट्यत्काञ्चीदशनमिव विज्ञानवती ॥ १३ ॥",
-    transliteration: "naraṃ varṣīyāṃsaṃ nayanavirasaṃ narmasu jaḍaṃ\ntavāpāṅgāloke patitamanudhāvanti śataśaḥ |\ngaladveṇībandhāḥ kucakalaśavisrastasicayā\nhaṭhāt truṭyatkāñcīdaśanamiva vijñānavati || 13 ||",
+    sanskrit: "नरं वर्षीयांसं नयनविरसं नर्मसु जडं\nतवापाङ्गालोके पतितमनुधावन्ति शतशः ।\nगलद्वेणीबन्धाः कुचकलशविस्रस्तसिचया\nहठात् त्रुट्यत्काञ्च्यो विगलितदुकूला युवतयः ॥ १३ ॥",
+    transliteration: "naraṃ varṣīyāṃsaṃ nayanavirasaṃ narmasu jaḍaṃ\ntavāpāṅgāloke patitamanudhāvanti śataśaḥ |\ngaladveṇībandhāḥ kucakalaśavisrastasicayā\nhaṭhāt truṭyatkāñcyo vigalitadukūlā yuvatayaḥ || 13 ||",
     meaning: "When Your sidelong glance falls upon a man, even if he be old, unattractive, and dull in the ways of love — hundreds of women chase after him, their braids loosening, their garments slipping from their pitcher-like breasts, their girdles snapping.",
     esoteric: "The 'sidelong glance' (Apanga) represents Shakti-Pata — the descent of divine grace. The man receiving this glance symbolizes the Sadhaka upon whom Devi's grace falls. The women rushing toward him represent the Siddhis (spiritual powers) that automatically come to one blessed by the Goddess. The loosening of hair, garments, and girdle symbolizes the dissolution of the three Granthis (knots) — Brahma-Granthi, Vishnu-Granthi, and Rudra-Granthi — that bind consciousness. This verse is used as a mantra for attraction (Vashikarana) in tantric practice."
   },
@@ -110,7 +110,7 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 16,
-    sanskrit: "कविन्द्राणां चेतःकमलवनबालातपरुचिं\nभजन्ते ये सन्तः कतिचिदरुणामेव भवतीम् ।\nविरिञ्चिप्रेयस्यास्तरुणतरश‍ृङ्गारलहरी-\nगभीराभिर्वाग्भिर्विदधति सतां रञ्जनममी ॥ १६ ॥",
+    sanskrit: "कवीन्द्राणां चेतःकमलवनबालातपरुचिं\nभजन्ते ये सन्तः कतिचिदरुणामेव भवतीम् ।\nविरिञ्चिप्रेयस्यास्तरुणतरश‍ृङ्गारलहरी-\nगभीराभिर्वाग्भिर्विदधति सतां रञ्जनममी ॥ १६ ॥",
     transliteration: "kavīndrāṇāṃ cetaḥ-kamala-vana-bālātapa-ruciṃ\nbhajante ye santaḥ katicid aruṇām eva bhavatīm |\nviriñci-preyasyās taruṇa-tara-śṛṅgāra-laharī-\ngabhīrābhir vāgbhir vidadhati satāṃ rañjanam amī || 16 ||",
     meaning: "Those few blessed ones who worship You in Your crimson radiance — the sunrise that opens the lotus-garden of great poets' hearts — they compose poetry endowed with the deep waves of youthful Shringara (romantic sentiment), delighting the hearts of the wise, as if rivaling Saraswati herself.",
     esoteric: "The 'Aruna' (crimson/dawn) form of Devi is the Aruna-Shakti — the first manifestation of light from the absolute. Worshipping this form bestows Vak-Siddhi (mastery over speech). The lotus-garden opening at sunrise symbolizes the awakening of the Anahata chakra (heart). The Shringara Rasa mentioned here is not mere eroticism but the Madhura Bhakti — the highest form of devotion expressed through the language of love. In Sri Vidya, this Aruna form corresponds to the outer triangle of the Sri Yantra."
@@ -215,8 +215,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 31,
-    sanskrit: "चतुः षष्ट्या तन्त्रैः सकलमतिसन्धाय भुवनं\nस्थितस्तत्तत्सिद्धिप्रसवपरतन्त्रैः पशुपतिः ।\nपुनस्त्वन्निर्बन्धादखिलपुरुषार्थैकघटना-\nस्वतन्त्रं ते तन्त्रं क्षितितलमवातीतरदिदम् ॥ ३१ ॥",
-    transliteration: "catuḥ-ṣaṣṭyā tantraiḥ sakalam ati-sandhāya bhuvanaṃ\nsthitas tat-tat-siddhi-prasava-para-tantraiḥ paśupatiḥ |\npunas tvan-nirbandhād akhila-puruṣārtha-ika-ghaṭanā-\nsvatantraṃ te tantraṃ kṣiti-talam avātītarad idam || 31 ||",
+    sanskrit: "चतुष्षष्ट्या तन्त्रैः सकलमतिसन्धाय भुवनं\nस्थितस्तत्तत्सिद्धिप्रसवपरतन्त्रैः पशुपतिः ।\nपुनस्त्वन्निर्बन्धादखिलपुरुषार्थैकघटना-\nस्वतन्त्रं ते तन्त्रं क्षितितलमवातीतरदिदम् ॥ ३१ ॥",
+    transliteration: "catuṣ-ṣaṣṭyā tantraiḥ sakalam ati-sandhāya bhuvanaṃ\nsthitas tat-tat-siddhi-prasava-para-tantraiḥ paśupatiḥ |\npunas tvan-nirbandhād akhila-puruṣārtha-ika-ghaṭanā-\nsvatantraṃ te tantraṃ kṣiti-talam avātītarad idam || 31 ||",
     meaning: "Lord Pashupati (Shiva) confused the world through sixty-four Tantras, each promising different Siddhis. But at Your insistence, He revealed Your Tantra (Sri Vidya) — which alone grants all four Purusharthas — and it descended to earth.",
     esoteric: "The 64 Tantras are the traditional corpus of tantric texts classified under different schools. Each grants limited Siddhis. But Sri Vidya (Devi's own Tantra) is declared supreme because it alone integrates Dharma, Artha, Kama, AND Moksha in one system. 'Sva-tantra' means both 'Your Tantra' and 'independent/free' — Sri Vidya leads to total freedom. The verse historically establishes Sri Vidya's supremacy over other tantric paths. Shiva initially kept it secret (through 64 partial revelations) until Devi insisted on revealing the complete path to humanity."
   },
@@ -250,8 +250,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 36,
-    sanskrit: "तवाज्ञाचक्रस्थं तपनशशिकोटिद्युतिधरं\nपरं शम्भुं वन्दे परिमिलितपार्श्वं परचिता ।\nयमाराध्यन् भक्त्या रविशशिशुचीनामविषये\nनिरालोके ऽलोके निवसति हि भालोकभवने ॥ ३६ ॥",
-    transliteration: "tavājñā-cakra-sthaṃ tapana-śaśi-koṭi-dyuti-dharaṃ\nparaṃ śambhuṃ vande parimilita-pārśvaṃ para-citā |\nyam ārādhyan bhaktyā ravi-śaśi-śucīnām aviṣaye\nnirāloke 'loke nivasati hi bhā-loka-bhavane || 36 ||",
+    sanskrit: "तवाज्ञाचक्रस्थं तपनशशिकोटिद्युतिधरं\nपरं शम्भुं वन्दे परिमिलितपार्श्वं परचिता ।\nयमाराध्यन् भक्त्या रविशशिशुचीनामविषये\nनिरालोके ऽलोके निवसति हि भालोकभुवने ॥ ३६ ॥",
+    transliteration: "tavājñā-cakra-sthaṃ tapana-śaśi-koṭi-dyuti-dharaṃ\nparaṃ śambhuṃ vande parimilita-pārśvaṃ para-citā |\nyam ārādhyan bhaktyā ravi-śaśi-śucīnām aviṣaye\nnirāloke 'loke nivasati hi bhā-loka-bhuvane || 36 ||",
     meaning: "I salute the Supreme Shambhu stationed in Your Ajna Chakra, blazing with the radiance of millions of suns and moons, embraced by You (Para-Chiti). One who worships Him with devotion dwells in a realm of light beyond the reach of sun, moon, and fire.",
     esoteric: "The Ajna Chakra (Third Eye center) is where Shiva and Shakti are united as Ardhanarishwara. The brilliance of 'millions of suns and moons' represents the blinding light of pure awareness seen during deep meditation at this center. 'Para-Chiti' (Supreme Consciousness) embracing Shambhu indicates the non-dual union. The realm 'beyond sun, moon, and fire' echoes the Kathopanishad: 'na tatra suryo bhati' — the Self-luminous realm where no external light is needed. This verse guides practitioners to concentrate at the Ajna for the ultimate realization."
   },
@@ -278,15 +278,15 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 40,
-    sanskrit: "तटित्वन्तं शक्त्या तिमिरपरिपन्थिस्फुरणया\nस्फुरन्नानारत्नाभरणपरिणद्धेन्द्रधनुषम् ।\nतव श्यामं मेघं कमपि मणिपूरैकशरणं\nनिषेवे वर्षन्तं हरमिहिरतप्तं त्रिभुवनम् ॥ ४० ॥",
-    transliteration: "taṭit-vantaṃ śaktyā timira-paripanthi-sphuraṇayā\nsphurann-ānā-ratna-ābharaṇa-pariṇaddha-indra-dhanuṣam |\ntava śyāmaṃ meghaṃ kam api maṇi-pūra-ika-śaraṇaṃ\nniṣeve varṣantaṃ hara-mihira-taptaṃ tri-bhuvanam || 40 ||",
+    sanskrit: "तटित्त्वन्तं शक्त्या तिमिरपरिपन्थिस्फुरणया\nस्फुरन्नानारत्नाभरणपरिणद्धेन्द्रधनुषम् ।\nतव श्यामं मेघं कमपि मणिपूरैकशरणं\nनिषेवे वर्षन्तं हरमिहिरतप्तं त्रिभुवनम् ॥ ४० ॥",
+    transliteration: "taṭit-tvantaṃ śaktyā timira-paripanthi-sphuraṇayā\nsphurann-ānā-ratna-ābharaṇa-pariṇaddha-indra-dhanuṣam |\ntava śyāmaṃ meghaṃ kam api maṇi-pūra-ika-śaraṇaṃ\nniṣeve varṣantaṃ hara-mihira-taptaṃ tri-bhuvanam || 40 ||",
     meaning: "I worship the dark cloud (Shiva) residing in Your Manipura Chakra, with lightning (Shakti) as His companion, adorned with a rainbow of various gems, showering rain upon the three worlds scorched by the sun-like destroyer.",
     esoteric: "The Manipura Chakra (navel center, city of gems) is described through the cloud-rain metaphor. Shiva as the dark cloud represents the stored potential (like monsoon clouds). Shakti as lightning represents the flash of transformative energy. The rainbow of gems refers to the ten petals of Manipura, each associated with a specific energy. The 'rain' is the outpouring of vital energy (Prana-Shakti) that nourishes the three bodies (Sthula, Sukshma, Karana). This center governs willpower and transformation — the fire element here is the digestive fire (Jatharagni) and its spiritual counterpart (Tapas)."
   },
   {
     num: 41,
-    sanskrit: "तवाधारे मूले सह समयया लास्यपरया\nनवात्मानं मन्ये नवरसमहाताण्डवनटम् ।\nउभाभ्यामेताभ्यामुदयविधिमुद्दिश्य दयया\nसनाथाभ्यां जज्ञे जनकजननीमत्जगदिदम् ॥ ४१ ॥",
-    transliteration: "tavādhāre mūle saha samayayā lāsya-parayā\nnavātmānaṃ manye nava-rasa-mahā-tāṇḍava-naṭam |\nubhābhyām etābhyām udaya-vidhim uddiśya dayayā\nsanāthābhyāṃ jajñe janaka-jananī-mat jagad idam || 41 ||",
+    sanskrit: "तवाधारे मूले सह समयया लास्यपरया\nनवात्मानं मन्ये नवरसमहाताण्डवनटम् ।\nउभाभ्यामेताभ्यामुदयविधिमुद्दिश्य दयया\nसनाथाभ्यां जज्ञे जनकजननीमज्जगदिदम् ॥ ४१ ॥",
+    transliteration: "tavādhāre mūle saha samayayā lāsya-parayā\nnavātmānaṃ manye nava-rasa-mahā-tāṇḍava-naṭam |\nubhābhyām etābhyām udaya-vidhim uddiśya dayayā\nsanāthābhyāṃ jajñe janaka-jananī-maj jagad idam || 41 ||",
     meaning: "In Your Muladhara, I envision the nine-formed Shiva performing the cosmic Tandava dance of nine Rasas, together with Samaya (Shakti) who performs the graceful Lasya dance. From these two — Father and Mother of the universe — this world was born through their compassionate will to create.",
     esoteric: "This is the final verse of the Ananda Lahari section, and it brings the Kundalini journey full circle — back to the Muladhara. The nine Rasas (Shringara, Hasya, Karuna, Raudra, Vira, Bhayanaka, Bibhatsa, Adbhuta, Shanta) performed in Tandava represent all possible human experiences. Lasya (graceful dance) and Tandava (vigorous dance) represent the complementary dynamics of Shakti and Shiva. The Muladhara is revealed as the seed-point of all creation — the place where the cosmic dance begins. This verse bridges to the Soundarya Lahari section that follows, moving from the esoteric (inner yoga) to the exoteric (divine beauty)."
   },
@@ -313,10 +313,10 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 45,
-    sanskrit: "अराला केशेषु प्रकृतिसरला मन्दहसिते\nशिरीषाभा चित्ते दृषदुपलशोभा कुचतटे ।\nभृशं तन्वी मध्ये पृथुरुरसिजारोहविषये\nजगत्त्रातुं शम्भोर्जयति करुणा काचिदरुणा ॥ ४५ ॥",
-    transliteration: "arālā keśeṣu prakṛti-saralā manda-hasite\nśirīṣā-ābhā citte dṛṣad-upala-śobhā kuca-taṭe |\nbhṛśaṃ tanvī madhye pṛthur urasi-ja-āroha-viṣaye\njagat trātuṃ śambhor jayati karuṇā kācid aruṇā || 45 ||",
-    meaning: "Curly in the hair, naturally simple in the smile, delicate as Shirisha flowers in the heart, hard as stone on the bosom, extremely slender at the waist, broad in the hips — there triumphs a certain crimson compassion of Shambhu to protect the world.",
-    esoteric: "This verse describes Devi through paradoxes — She is simultaneously curly and straight, soft and hard, slender and broad. These contradictions reveal Her as encompassing all opposites — the coincidentia oppositorum of mystical theology. The 'crimson compassion' (Karuna Aruna) merging Shiva's grace with Shakti's form shows their non-separation. Each physical attribute maps to a spiritual quality: curly hair = the coils of Maya, simple smile = Sahaja (natural) bliss, stone-hard breasts = unwavering nurturing, thin waist = the point of Bindu, broad hips = expansive creation."
+    sanskrit: "अरालैः स्वाभाव्यादलिकलभसश्रीभिरलकैः\nपरीतं ते वक्त्रं परिहसति पङ्केरुहरुचिम् ।\nदरस्मेरे यस्मिन् दशनरुचिकिञ्जल्करुचिरे\nसुगन्धौ माद्यन्ति स्मरदहनचक्षुर्मधुलिहः ॥ ४५ ॥",
+    transliteration: "arālaiḥ svābhāvyād ali-kalabha-saśrībhir alakaiḥ\nparītaṃ te vaktraṃ parihasati paṅkeruha-rucim |\ndasmere yasmin daśana-ruci-kiñjalka-rucire\nsugandhau mādyanti smara-dahana-cakṣur-madhulihaḥ || 45 ||",
+    meaning: "Your face, surrounded by naturally curly locks beautiful like young bees, mocks the beauty of lotus flowers. In that slightly smiling, fragrant face — made charming by the lustre of Your teeth resembling lotus filaments — the bee-like eyes of Shiva (the destroyer of Kama) revel intoxicated.",
+    esoteric: "The face of the Goddess is compared to a lotus, but declared superior. The curly locks (Alakas) are like young bees (Ali-Kalabha) — both beautiful and drawn to the lotus-face. The teeth as Kinjalkam (lotus filaments) complete the lotus imagery. Shiva's eyes as bees (Madhuliha) drawn to this lotus reveal that even the supreme ascetic who burnt Kama is intoxicated by Devi's beauty. In Sri Vidya, this maps to the meditation on Devi's face at the Bindu of Sri Yantra, where the practitioner's consciousness (Shiva) becomes absorbed in divine beauty (Soundarya)."
   },
   {
     num: 46,
@@ -327,8 +327,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 47,
-    sanskrit: "भ्रुवौ भुग्ने किञ्चित्भुवनभयभङ्गव्यसनिनि\nत्वदीये नेत्राभ्यां मधुकररुचिभ्यां धृतगुणम् ।\nधनुर्मन्ये सव्येतरकरगृहीतं रतिपतेः\nप्रकोष्ठे मुष्टौ च स्थगयति निगूढान्तरमुमे ॥ ४७ ॥",
-    transliteration: "bhruvau bhugne kiñcid bhuvana-bhaya-bhaṅga-vyasanini\ntvadīye netrābhyāṃ madhukara-rucibhyāṃ dhṛta-guṇam |\ndhanur manye savye-tara-kara-gṛhītaṃ rati-pateḥ\nprakoṣṭhe muṣṭau ca sthagayati nigūḍhāntaram ume || 47 ||",
+    sanskrit: "भ्रुवौ भुग्ने किंचिद्भुवनभयभङ्गव्यसनिनि\nत्वदीये नेत्राभ्यां मधुकररुचिभ्यां धृतगुणम् ।\nधनुर्मन्ये सव्येतरकरगृहीतं रतिपतेः\nप्रकोष्ठे मुष्टौ च स्थगयति निगूढान्तरमुमे ॥ ४७ ॥",
+    transliteration: "bhruvau bhugne kiṃcid bhuvana-bhaya-bhaṅga-vyasanini\ntvadīye netrābhyāṃ madhukara-rucibhyāṃ dhṛta-guṇam |\ndhanur manye savye-tara-kara-gṛhītaṃ rati-pateḥ\nprakoṣṭhe muṣṭau ca sthagayati nigūḍhāntaram ume || 47 ||",
     meaning: "O Uma, Your eyebrows — slightly curved, ever engaged in dispelling the fears of the world — with Your bee-dark eyes as the bowstring, I imagine this to be the bow of Kamadeva, held concealed between his forearm and fist.",
     esoteric: "The eyebrows as Kama's bow reveals the Ajna Chakra as the seat of desire in its purest, most powerful form. The eyes as bowstring means that sight (perception) is the mechanism through which desire operates. 'Dispelling fear' (Bhuvana-Bhaya-Bhanga) through curved brows indicates that Devi's graceful expression itself is enough to remove cosmic fear — the fear of Samsara. In Tantra, the space between the eyebrows (Bhru-Madhya) is where the practitioner focuses to transcend the duality of desire and aversion."
   },
@@ -348,8 +348,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 50,
-    sanskrit: "कवीनां सन्दर्भस्तबकमकरन्दैकरसिकं\nकटाक्षव्याक्षेपभ्रमरकलभौ कर्णयुगलम् ।\nअमुञ्चन्तौ दृष्ट्वा तव नवरसास्वादतरलौ-\nअसूयासंसर्गादलिकनयनं किञ्चिदरुणम् ॥ ५० ॥",
-    transliteration: "kavīnāṃ sandarbha-stabaka-makaranda-ika-rasikaṃ\nkaṭākṣa-vyākṣepa-bhramara-kalabhau karṇa-yugalam |\namuñcantau dṛṣṭvā tava nava-rasa-āsvāda-taralau\nasūyā-saṃsargād alika-nayanaṃ kiñcid aruṇam || 50 ||",
+    sanskrit: "कवीनां संदर्भस्तबकमकरन्दैकरसिकं\nकटाक्षव्याक्षेपभ्रमरकलभौ कर्णयुगलम् ।\nअमुञ्चन्तौ दृष्ट्वा तव नवरसास्वादतरलौ-\nअसूयासंसर्गादलिकनयनं किञ्चिदरुणम् ॥ ५० ॥",
+    transliteration: "kavīnāṃ saṃdarbha-stabaka-makaranda-ika-rasikaṃ\nkaṭākṣa-vyākṣepa-bhramara-kalabhau karṇa-yugalam |\namuñcantau dṛṣṭvā tava nava-rasa-āsvāda-taralau\nasūyā-saṃsargād alika-nayanaṃ kiñcid aruṇam || 50 ||",
     meaning: "Your sidelong glances, like young bees, hover around Your ears — which are like flower-clusters relishing the nectar of poetic compositions. Seeing these two eyes restless with the enjoyment of nine Rasas, Your third eye on the forehead becomes slightly reddened with jealousy.",
     esoteric: "This playful verse conceals a deep teaching about the three states of consciousness. The two eyes (dual awareness — subject/object) enjoy the nine Rasas (all worldly experiences). The third eye (non-dual awareness) becomes 'jealous' — meaning it activates when the two eyes are engrossed in duality. The reddening of the third eye is the awakening of inner fire (Agni) at the Ajna chakra. The 'bees hovering near ears' represent the sacred sounds (Mantras) that are transmitted through hearing (Shravana). This is the Nada Yoga teaching embedded in the beauty description."
   },
@@ -425,8 +425,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 61,
-    sanskrit: "असौ नासावंशस्तुहिनगिरिवंशध्वजपटी\nत्वदीयो नेदीयः फलतु फलमस्माकमुचितम् ।\nवहन्नन्तर्मुक्ताः शिशिरकरनिश्वासगलितं\nसमृद्ध्या यत्तासां बहिरपि च मुक्तामणिधरम् ॥ ६१ ॥",
-    transliteration: "asau nāsāvaṃśastuhiṇagirivaṃśadhvajapaṭī\ntvadīyo nedīyaḥ phalatu phalamasmākamucitam |\nvahannantarmuktāḥ śiśirakaranirniśvāsagalitaṃ\nsamṛddhyā yattāsāṃ bahirapi ca muktāmaṇidharam || 61 ||",
+    sanskrit: "असौ नासावंशस्तुहिनगिरिवंशध्वजपटी\nत्वदीयो नेदीयः फलतु फलमस्माकमुचितम् ।\nवहन्नन्तर्मुक्ताः शिशिरकरनिश्वासगलितं\nसमृद्ध्या यत्तासां बहिरपि च मुक्तामणिधरः ॥ ६१ ॥",
+    transliteration: "asau nāsāvaṃśastuhiṇagirivaṃśadhvajapaṭī\ntvadīyo nedīyaḥ phalatu phalamasmākamucitam |\nvahannantarmuktāḥ śiśirakaranirniśvāsagalitaṃ\nsamṛddhyā yattāsāṃ bahirapi ca muktāmaṇidharaḥ || 61 ||",
     meaning: "Your nose, the banner-staff of the Himalaya dynasty, may it grant us the fruit we deserve. It carries pearls within (nasal septum) and, enriched by the cool moon-like breath, bears a pearl ornament on the outside too.",
     esoteric: "The nose as a 'banner of the Himalaya dynasty' represents the Meru-Danda (the central axis/spine) in its microcosmic form. The 'pearls within' are the Bindu-drops that form in the nasal passages during Pranayama, visible to advanced practitioners. The 'cool breath' is the Chandra-Nadi (Ida) breath that produces calming, nectar-like Prana. The outer pearl ornament reflects the inner attainment — as within, so without. This verse teaches that breath mastery (Pranayama through the nose) is the gateway to both inner treasures (spiritual pearls/Bindus) and outer prosperity."
   },
@@ -502,8 +502,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 72,
-    sanskrit: "समं देवि स्कन्दद्विपवदनपीतं स्तनयुगं\nतवेदं नः खेदं हरतु सततं प्रस्नुतमुखम् ।\nयदालोक्याशङ्काकुलितहृदयो हासजनकः\nस्वकुम्भौ हेरम्बः परिमृशति हस्तेन झटिति ॥ ७२ ॥",
-    transliteration: "samaṃ devi skanda-dvipa-vadana-pītaṃ stana-yugaṃ\ntavedaṃ naḥ khedaṃ haratu satataṃ prasnuta-mukham |\nyad ālokya-āśaṅkā-kulita-hṛdayo hāsa-janakaḥ\nsva-kumbhau herambaḥ parimṛśati hastena jhaṭiti || 72 ||",
+    sanskrit: "समं देवि स्कन्दद्विपवदनपीतं स्तनयुगं\nतवेदं नः खेदं हरतु सततं प्रस्नुतमुखम् ।\nयदालोक्याशङ्काकुलितहृदयो हासजनकः\nस्वकुम्भौ हेरम्बः परिमृशति हस्तेन झडिति ॥ ७२ ॥",
+    transliteration: "samaṃ devi skanda-dvipa-vadana-pītaṃ stana-yugaṃ\ntavedaṃ naḥ khedaṃ haratu satataṃ prasnuta-mukham |\nyad ālokya-āśaṅkā-kulita-hṛdayo hāsa-janakaḥ\nsva-kumbhau herambaḥ parimṛśati hastena jhaḍiti || 72 ||",
     meaning: "O Devi, may Your pair of breasts — suckled equally by Skanda and the elephant-faced Ganesha, constantly flowing with milk — remove our sorrows. Seeing them, Ganesha amusingly touches his own head-globes in confusion, wondering if they are his own.",
     esoteric: "The breasts represent the nurturing aspect of the Divine Mother — Poshana-Shakti. Being suckled by both Skanda (war/action) and Ganesha (wisdom/obstacle-removal) means that Devi nourishes both dynamic action and contemplative wisdom equally. The 'constantly flowing milk' is the Amrita (nectar of immortality) that flows perpetually from the Divine Mother to sustain all beings. Ganesha confusing the breasts with his own frontal globes humorously illustrates the mirror-principle: the child sees itself in the mother. This is Pratyabhijna — recognition of the Self in the Divine, and the Divine in the Self."
   },
@@ -593,7 +593,7 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 85,
-    sanskrit: "नमोवाकं ब्रूमो नयनरमणीयाय पदयोः\nतवास्मै द्वन्द्वाय स्फुटरुचिरसालक्तकवते ।\nअसूयत्यत्यन्तं यदभिहननाय स्पृहयते\nपशूनामीशानः प्रमदवनकंकेलितरवे ॥ ८५ ॥",
+    sanskrit: "नमोवाकं ब्रूमो नयनरमणीयाय पदयोः\nतवास्मै द्वन्द्वाय स्फुटरुचिरसालक्तकवते ।\nअसूयत्यत्यन्तं यदभिहननाय स्पृहयते\nपशूनामीशानः प्रमदवनकङ्केलितरवे ॥ ८५ ॥",
     transliteration: "namovākaṃ brūmo nayanaramaṇīyāya padayoḥ\ntavāsmai dvandvāya sphuṭarucirasālaktakavate |\nasūyatyatyantaṃ yadabhihananāya spṛhayate\npaśūnāmīśānaḥ pramadavanakaṅkelitarave || 85 ||",
     meaning: "We bow to Your feet — a feast for the eyes, brilliantly adorned with red lac. Pashupati (Shiva) is so jealous of the Ashoka tree in the pleasure garden (which You kick to make it bloom) that He desires to become that tree, just to be struck by Your feet.",
     esoteric: "The Ashoka tree blooming when kicked by a beautiful woman is a classical motif with deep esoteric meaning. The tree represents the Sadhaka (aspirant) who 'blooms' (awakens spiritually) when touched by Devi's feet (receives Pada-Diksha/foot-initiation). Shiva's jealousy of the tree means that even Shiva desires the touch of Shakti's feet — the dynamic power that activates static consciousness. The red lac (Alaktaka) on the feet represents the Rakta-Bindu (red point) in the Sri Yantra — the activating principle. The pleasure garden (Pramada-Vana) is the Nandana-Vana of spiritual delight where this foot-touch initiates flowering of consciousness."
@@ -670,8 +670,8 @@ const SOUNDARYA_LAHARI_DATA = [
   },
   {
     num: 96,
-    sanskrit: "कलत्रं वैधात्रं कतिकति भजन्ते न कविताम्\nश्रियो देव्याः को वा न भवति पतिः कैरपि धनैः ।\nमहादेवं हित्वा तव सति सतीनामचरमे\nकुचाभ्यामासङ्गः कुरविकतरोरप्यसुलभः ॥ ९६ ॥",
-    transliteration: "kalatraṃ vaidhātraṃ katikati bhajante na kavayaḥ\nśriyo devyāḥ ko vā na bhavati patiḥ kairapi dhanaiḥ |\nmahādevaṃ hitvā tava sati satīnāmacarame\nkucābhyāmāsaṅgaḥ kuravikataroryapyasulabhaḥ || 96 ||",
+    sanskrit: "कलत्रं वैधात्रं कतिकति भजन्ते न कविताम्\nश्रियो देव्याः को वा न भवति पतिः कैरपि धनैः ।\nमहादेवं हित्वा तव सति सतीनामचरमे\nकुचाभ्यामासङ्गः कुरवकतरोरप्यसुलभः ॥ ९६ ॥",
+    transliteration: "kalatraṃ vaidhātraṃ katikati bhajante na kavayaḥ\nśriyo devyāḥ ko vā na bhavati patiḥ kairapi dhanaiḥ |\nmahādevaṃ hitvā tava sati satīnāmacarame\nkucābhyāmāsaṅgaḥ kuravataroryapyasulabhaḥ || 96 ||",
     meaning: "Many attain poetic genius (Saraswati's gift), and anyone with wealth can be Lakshmi's lord. But O Sati, foremost among faithful wives, other than Mahadeva, even the Kuravaka tree cannot hope for the embrace of Your breasts.",
     esoteric: "This verse establishes the hierarchy of divine feminine energies: Saraswati (knowledge) and Lakshmi (wealth) are accessible to many, but Shakti Herself (embodied as Sati/Parvati) is exclusively united with Shiva. The Kuravaka tree (which blooms at the touch of a woman's foot) being denied the breast-embrace means that even the highest natural phenomenon cannot access the intimate union of Shiva-Shakti. Esoterically, this teaches that the final realization (Shiva-Shakti Aikya/union) is not achievable through external means — only pure consciousness (Mahadeva) can unite with pure energy (Shakti). No amount of Karma or Jnana alone can achieve this; only Bhakti born of identity leads to this ultimate union."
   },
