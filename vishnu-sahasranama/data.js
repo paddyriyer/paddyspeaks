@@ -779,13 +779,14 @@ const VISHNU_DATA = {
     },
     {
       "num": 35,
-      "text": "rucirahguṇabṛcchandavṛṣo jananolanaḥ .\nsatīrthaḥ satavṛttaḥ satyaḥ satyanāmā sāttvataḥ samaḥ ..",
+      "text": "acyutaḥ prathitaḥ prāṇaḥ prāṇadō vāsavānujaḥ .\napāṃnidhiradhiṣṭhānam apramattaḥ pratiṣṭhitaḥ ..",
       "halves": [
-        "rucirahguṇabṛcchandavṛṣo jananolanaḥ",
-        "satīrthaḥ satavṛttaḥ satyaḥ satyanāmā sāttvataḥ samaḥ"
+        "acyutaḥ prathitaḥ prāṇaḥ prāṇadō vāsavānujaḥ",
+        "apāṃnidhiradhiṣṭhānam apramattaḥ pratiṣṭhitaḥ"
       ],
       "translations": [
-        ""
+        "The Infallible; The Famous; The Life-breath; The Giver of life; The Younger brother of Indra",
+        "The Ocean; The Substratum; The Ever-vigilant; The Firmly established"
       ],
       "english_halves": [
         "Achyutah-prathithah pranah pranado vasa-vanujah",
