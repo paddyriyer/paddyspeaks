@@ -142,10 +142,10 @@ const VISHNU_DATA = {
           "translation": "I shall recite for the welfare of all, those celebrated names of the great Soul which have been sung by the sages."
         },
         {
-          "sanskrit": "viṣṇornāmasahasrasya vedavyāso mahāmuniḥ .\nchando'nuṣṭup tathā devaḥ bhagavān devakīsutaḥ ..",
-          "devanagari": "विष्णोर्नामसहस्रस्य वेदव्यासो महामुनिः ।\nछन्दोऽनुष्टुप् तथा देवः भगवान् देवकीसुतः ॥",
-          "english": "Rushirnamnam Sahasrasya Vedhavyaso Mahamunihi |\nChandoNushtup Thadha Dhevo Bhaghavan DhevageeSuthaha ||",
-          "translation": "The great sage Vedavyasa is the Rishi of the Vishnu Sahasranama; the meter is Anushtup; the deity is Bhagavan, the son of Devaki."
+          "sanskrit": "ṛṣirnāmnāṁ sahasrasya vedavyāsō mahāmuniḥ .\nchaṁdōnuṣṭup tathā devō bhagavān devakīsutaḥ ..",
+          "devanagari": "ऋषिर्नाम्नां सहस्रस्य वेदव्यासो महामुनिः ।\nछन्दोनुष्टुप् तथा देवो भगवान् देवकीसुतः ॥",
+          "english": "Rushir-namnam Sahasrasya Vedavyaso Mahamunih |\nChando-nushtup Tatha Devo Bhagavan Devakee-sutah ||",
+          "translation": "The great sage Vedavyasa is the Rishi of the thousand names; the meter is Anushtup; the deity is Bhagavan, the son of Devaki."
         },
         {
           "sanskrit": "amṛtāṃśūdbhavo bījaṃ śaktirdevakīnandanaḥ .\ntrisāmā hṛdayaṃ tasya śāntyarthe viniyujyate ..",
@@ -7985,6 +7985,33 @@ const VISHNU_DATA = {
       }
     ],
   "postStotra": [
+    {
+      "label": "Samhara — Concluding Protection",
+      "label_sanskrit": "संहारः",
+      "verses": [
+        {
+          "devanagari": "वनमाली गदी शार्ङ्गी शङ्खी चक्री च नन्दकी ।\nश्रीमान् नारायणो विष्णुर्वासुदेवोऽभिरक्षतु ॥",
+          "sanskrit": "vanamālī gadī śārṅgī śaṅkhī cakrī ca nandakī .\nśrīmān nārāyaṇō viṣṇurvāsudēvōbhirakṣatu ..",
+          "english": "Vanamaalee gadee shaarnghee shankhee chakree cha nandakee |\nShreemaan Naaraayano Vishnur-Vaasu-devo-bhirakshatu ||",
+          "translation": "May the Lord who wears the garland of wild flowers, who holds the mace, the bow Sharnga, the conch, the discus, and the sword Nandaka — the glorious Narayana, Vishnu, Vasudeva — protect us. (Chant 3 times)"
+        },
+        {
+          "devanagari": "वनमाली गदी शार्ङ्गी शङ्खी चक्री च नन्दकी ।\nश्रीमान् नारायणो विष्णुर्वासुदेवोऽभिरक्षतु ॥",
+          "sanskrit": "vanamālī gadī śārṅgī śaṅkhī cakrī ca nandakī .\nśrīmān nārāyaṇō viṣṇurvāsudēvōbhirakṣatu ..",
+          "english": "Vanamaalee gadee shaarnghee shankhee chakree cha nandakee |\nShreemaan Naaraayano Vishnur-Vaasu-devo-bhirakshatu ||"
+        },
+        {
+          "devanagari": "वनमाली गदी शार्ङ्गी शङ्खी चक्री च नन्दकी ।\nश्रीमान् नारायणो विष्णुर्वासुदेवोऽभिरक्षतु ॥",
+          "sanskrit": "vanamālī gadī śārṅgī śaṅkhī cakrī ca nandakī .\nśrīmān nārāyaṇō viṣṇurvāsudēvōbhirakṣatu ..",
+          "english": "Vanamaalee gadee shaarnghee shankhee chakree cha nandakee |\nShreemaan Naaraayano Vishnur-Vaasu-devo-bhirakshatu ||"
+        },
+        {
+          "devanagari": "श्री वासुदेवोऽभिरक्षतु ॐ नम इति ।",
+          "sanskrit": "śrī vāsudēvōbhirakṣatu ōṁ nama iti .",
+          "english": "Shree Vasudevo-bhirakshatu Om Nama Iti |"
+        }
+      ]
+    },
     {
       "label": "Uttaranyasah, Phalashrutih",
       "label_sanskrit": "उत्तरन्यासः, फलश्रुतिः",
