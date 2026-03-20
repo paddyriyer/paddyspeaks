@@ -20,6 +20,7 @@ SOURCE_DIR = "/home/user/paddyspeaks/Articles/Articles"
 IMAGE_DIR = "/home/user/paddyspeaks/images/articles"
 MAPPING_FILE = "/home/user/paddyspeaks/image_mapping.json"
 COVER_CACHE = "/home/user/paddyspeaks/cover_image_cache.json"
+API_TIMEOUT = int(os.environ.get('API_TIMEOUT_MS', '30000')) / 1000  # convert ms to seconds
 
 
 def get_article_slug(filename):
@@ -45,7 +46,7 @@ def fetch_og_image(url, retries=3):
                               'AppleWebKit/537.36 (KHTML, like Gecko) '
                               'Chrome/120.0.0.0 Safari/537.36'
             })
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT) as response:
                 page_html = response.read().decode('utf-8', errors='ignore')
                 # Extract og:image content
                 match = re.search(
@@ -84,7 +85,7 @@ def download_image(url, filepath_base, retries=3):
             req = urllib.request.Request(url, headers={
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
             })
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT) as response:
                 data = response.read()
                 ext = detect_image_format(data)
                 filepath = os.path.splitext(filepath_base)[0] + ext

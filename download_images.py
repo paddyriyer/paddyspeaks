@@ -17,6 +17,7 @@ from html.parser import HTMLParser
 SOURCE_DIR = "/tmp/linkedin_export/Articles/Articles"
 IMAGE_DIR = "/home/user/paddyspeaks/images/articles"
 MAPPING_FILE = "/home/user/paddyspeaks/image_mapping.json"
+API_TIMEOUT = int(os.environ.get('API_TIMEOUT_MS', '30000')) / 1000  # convert ms to seconds
 
 
 class ImageExtractor(HTMLParser):
@@ -80,7 +81,7 @@ def download_image(url, filepath_base, retries=3):
             req = urllib.request.Request(url, headers={
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'
             })
-            with urllib.request.urlopen(req, timeout=30) as response:
+            with urllib.request.urlopen(req, timeout=API_TIMEOUT) as response:
                 data = response.read()
                 # Detect actual format and use correct extension
                 ext = detect_image_format(data)
