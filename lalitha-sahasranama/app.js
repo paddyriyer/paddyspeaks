@@ -272,18 +272,17 @@
       }
       shlokaHtml += '</div>';
 
-      // Build names breakdown
-      var namesHtml = '<div class="names-breakdown">';
+      // Build names as word-split cards
+      var namesHtml = '<div class="word-section-label">Word Split</div>';
+      namesHtml += '<div class="word-grid">';
       nameNums.forEach(function (nNum) {
         var name = namesMap[nNum];
         if (name) {
-          namesHtml += '<div class="name-row">';
-          namesHtml += '<span class="name-num">' + nNum + '.</span>';
-          namesHtml += '<div class="name-details">';
-          namesHtml += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
-          namesHtml += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
-          namesHtml += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
-          namesHtml += '</div>';
+          namesHtml += '<div class="word-card">';
+          namesHtml += '<div class="word-num">' + nNum + '</div>';
+          namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+          namesHtml += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
+          namesHtml += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
           namesHtml += '</div>';
         }
       });
@@ -511,17 +510,17 @@
         html += '</div>';
       }
 
-      // Names breakdown
+      // Names as word-split cards
       if (nameNums.length > 0) {
-        html += '<div class="names-table">';
+        html += '<div class="word-grid">';
         nameNums.forEach(function (nNum) {
           var name = namesMap[nNum];
           if (name) {
-            html += '<div class="name-entry">';
-            html += '<span class="name-num">' + nNum + '.</span>';
-            html += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
-            html += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
-            html += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
+            html += '<div class="word-card">';
+            html += '<div class="word-num">' + nNum + '</div>';
+            html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+            html += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
+            html += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
             html += '</div>';
           }
         });
@@ -590,14 +589,13 @@
       '.separator { color: #b8860b; font-weight: 600; }',
       '.shloka-translation { padding: 0.3rem 0.75rem; font-size: 0.78rem; color: #6b5744; font-style: italic; background: #f7efe3; }',
 
-      // Names
-      '.names-table { padding: 0.3rem 0.75rem 0.5rem; }',
-      '.name-entry { display: flex; align-items: baseline; gap: 0.4rem; padding: 0.2rem 0; border-bottom: 1px dotted #e8ddd0; font-size: 0.82rem; }',
-      '.name-entry:last-child { border-bottom: none; }',
-      '.name-num { min-width: 2.2rem; color: #b8860b; font-weight: 600; flex-shrink: 0; }',
-      '.name-iast { min-width: 10rem; color: #3a2518; flex-shrink: 0; }',
-      '.name-devanagari { font-family: "Noto Sans Devanagari", sans-serif; min-width: 8rem; color: #8b1a1a; flex-shrink: 0; }',
-      '.name-meaning { color: #6b5744; font-style: italic; }',
+      // Word cards
+      '.word-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.4rem; padding: 0.3rem 0.75rem 0.5rem; }',
+      '.word-card { border: 1px solid #e8ddd0; border-radius: 4px; padding: 0.4rem 0.3rem; text-align: center; background: #fdf8f0; }',
+      '.word-num { font-size: 0.6rem; color: #b8860b; font-weight: 600; margin-bottom: 0.15rem; }',
+      '.word-devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 0.9rem; font-weight: 600; color: #8b1a1a; margin-bottom: 0.15rem; }',
+      '.word-transliteration { font-size: 0.7rem; font-style: italic; color: #b8860b; margin-bottom: 0.1rem; }',
+      '.word-meaning { font-size: 0.65rem; color: #6b5744; line-height: 1.3; }',
 
       // Closing
       '.closing { text-align: center; border-top: 2px solid #b8860b; padding-top: 1.5rem; margin-top: 2rem; }',
