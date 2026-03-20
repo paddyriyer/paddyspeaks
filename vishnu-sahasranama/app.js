@@ -431,6 +431,7 @@
     // Vowels (long forms first to prevent partial matches)
     ['ā', 'ा'], ['ī', 'ी'], ['ū', 'ू'], ['ṝ', 'ॄ'], ['ṛ', 'ृ'], ['ḷ', 'ॢ'],
     ['ai', 'ै'], ['au', 'ौ'],
+    ['ō', 'ो'], ['ē', 'े'],
     ['a', ''], ['i', 'ि'], ['u', 'ु'], ['e', 'े'], ['o', 'ो'],
     // Anusvara, Visarga, Chandrabindu
     ['ṃ', 'ं'], ['ṁ', 'ं'], ['ḥ', 'ः'], ['~', 'ँ'],
@@ -487,28 +488,6 @@
         i++;
         continue;
       }
-      if (ch === 'ō') {
-        // Map ō to ो (same as o for Devanagari)
-        var lastChar = result.length > 0 ? result[result.length - 1] : '';
-        if (consonants.indexOf(lastChar) >= 0) {
-          result += 'ो';
-        } else {
-          result += 'ओ';
-        }
-        i++;
-        continue;
-      }
-      if (ch === 'ē') {
-        var lastChar2 = result.length > 0 ? result[result.length - 1] : '';
-        if (consonants.indexOf(lastChar2) >= 0) {
-          result += 'े';
-        } else {
-          result += 'ए';
-        }
-        i++;
-        continue;
-      }
-
       // Try matching longest IAST sequence
       var matched = false;
       for (var m = 0; m < IAST_TO_DEVA.length; m++) {
@@ -520,7 +499,8 @@
           if (isVowel && seq !== 'ṁ' && seq !== 'ṃ' && seq !== 'ḥ') {
             var lastDeva = result.length > 0 ? result[result.length - 1] : '';
             // Check if last char is a consonant (needs matra) or start of word (needs independent vowel)
-            if (consonants.indexOf(lastDeva) >= 0 || lastDeva === '्') {
+            // Note: must check lastDeva.length > 0 because ''.indexOf('') === 0 in JS
+            if (lastDeva.length > 0 && (consonants.indexOf(lastDeva) >= 0 || lastDeva === '्')) {
               // After halant, remove halant and add matra
               if (lastDeva === '्') {
                 result = result.substring(0, result.length - 1);
