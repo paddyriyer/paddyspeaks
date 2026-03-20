@@ -283,6 +283,17 @@
           namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
           namesHtml += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
           namesHtml += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
+          if (name.morphemes && name.morphemes.length > 1) {
+            namesHtml += '<div class="morpheme-split">';
+            name.morphemes.forEach(function (m, idx) {
+              if (idx > 0) namesHtml += '<span class="morpheme-sep">+</span>';
+              namesHtml += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
+              namesHtml += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
+              if (m.meaning) namesHtml += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
+              namesHtml += '</span>';
+            });
+            namesHtml += '</div>';
+          }
           namesHtml += '</div>';
         }
       });
@@ -521,6 +532,17 @@
             html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
             html += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
             html += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
+            if (name.morphemes && name.morphemes.length > 1) {
+              html += '<div class="morpheme-split">';
+              name.morphemes.forEach(function (m, idx) {
+                if (idx > 0) html += '<span class="morpheme-sep">+</span>';
+                html += '<span class="morpheme">';
+                html += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
+                if (m.meaning) html += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
+                html += '</span>';
+              });
+              html += '</div>';
+            }
             html += '</div>';
           }
         });
@@ -596,6 +618,13 @@
       '.word-devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 0.9rem; font-weight: 600; color: #8b1a1a; margin-bottom: 0.15rem; }',
       '.word-transliteration { font-size: 0.7rem; font-style: italic; color: #b8860b; margin-bottom: 0.1rem; }',
       '.word-meaning { font-size: 0.65rem; color: #6b5744; line-height: 1.3; }',
+
+      // Morpheme splits
+      '.morpheme-split { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.1rem; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed #e8ddd0; }',
+      '.morpheme { display: flex; flex-direction: column; align-items: center; }',
+      '.morpheme-text { font-size: 0.55rem; font-style: italic; color: #c41e3a; font-weight: 500; }',
+      '.morpheme-meaning { font-size: 0.5rem; color: #6b5744; }',
+      '.morpheme-sep { font-size: 0.5rem; color: #b8860b; font-weight: 600; margin: 0 0.03rem; }',
 
       // Closing
       '.closing { text-align: center; border-top: 2px solid #b8860b; padding-top: 1.5rem; margin-top: 2rem; }',
