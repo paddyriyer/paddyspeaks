@@ -434,6 +434,139 @@
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // --- IAST to Devanagari Converter ---
+  var IAST_TO_DEVA = [
+    // Vowels (long forms first to prevent partial matches)
+    ['ā', 'ा'], ['ī', 'ी'], ['ū', 'ू'], ['ṝ', 'ॄ'], ['ṛ', 'ृ'], ['ḷ', 'ॢ'],
+    ['ai', 'ै'], ['au', 'ौ'],
+    ['a', ''], ['i', 'ि'], ['u', 'ु'], ['e', 'े'], ['o', 'ो'],
+    // Anusvara, Visarga, Chandrabindu
+    ['ṃ', 'ं'], ['ṁ', 'ं'], ['ḥ', 'ः'], ['~', 'ँ'],
+    // Consonants (conjuncts/aspirates first)
+    ['kh', 'ख'], ['gh', 'घ'], ['ṅ', 'ङ'],
+    ['ch', 'छ'], ['jh', 'झ'], ['ñ', 'ञ'],
+    ['ṭh', 'ठ'], ['ḍh', 'ढ'], ['ṇ', 'ण'],
+    ['th', 'थ'], ['dh', 'ध'], ['n', 'न'],
+    ['ph', 'फ'], ['bh', 'भ'], ['m', 'म'],
+    ['k', 'क'], ['g', 'ग'], ['c', 'च'], ['j', 'ज'],
+    ['ṭ', 'ट'], ['ḍ', 'ड'], ['t', 'त'], ['d', 'द'],
+    ['p', 'प'], ['b', 'ब'],
+    ['y', 'य'], ['r', 'र'], ['l', 'ल'], ['v', 'व'],
+    ['ś', 'श'], ['ṣ', 'ष'], ['s', 'स'], ['h', 'ह']
+  ];
+
+  var DEVA_VOWELS_INDEPENDENT = {
+    'ा': 'आ', 'ि': 'इ', 'ी': 'ई', 'ु': 'उ', 'ू': 'ऊ', 'ृ': 'ऋ', 'ॄ': 'ॠ',
+    'े': 'ए', 'ै': 'ऐ', 'ो': 'ओ', 'ौ': 'औ', 'ॢ': 'ऌ',
+    '': 'अ'
+  };
+
+  function iastToDevanagari(iast) {
+    if (!iast) return '';
+    var result = '';
+    var i = 0;
+    var src = iast.toLowerCase();
+    var consonants = 'कखगघङचछजझञटठडढणतथदधनपफबभमयरलवशषसह';
+
+    while (i < src.length) {
+      // Skip spaces, punctuation, digits, pipes
+      var ch = src[i];
+      if (ch === ' ' || ch === '.' || ch === '|' || ch === '\n' || ch === '-' || ch === ',' || ch === ';' || ch === '(' || ch === ')') {
+        if (ch === '.' && i + 1 < src.length && src[i + 1] === '.') {
+          result += ' ॥';
+          i += 2;
+        } else if (ch === '.') {
+          result += ' ।';
+          i++;
+        } else {
+          result += ch;
+          i++;
+        }
+        continue;
+      }
+      if (ch === '\'') {
+        // Avagraha
+        result += 'ऽ';
+        i++;
+        continue;
+      }
+      if (ch >= '0' && ch <= '9') {
+        result += ch;
+        i++;
+        continue;
+      }
+      if (ch === 'ō') {
+        // Map ō to ो (same as o for Devanagari)
+        var lastChar = result.length > 0 ? result[result.length - 1] : '';
+        if (consonants.indexOf(lastChar) >= 0) {
+          result += 'ो';
+        } else {
+          result += 'ओ';
+        }
+        i++;
+        continue;
+      }
+      if (ch === 'ē') {
+        var lastChar2 = result.length > 0 ? result[result.length - 1] : '';
+        if (consonants.indexOf(lastChar2) >= 0) {
+          result += 'े';
+        } else {
+          result += 'ए';
+        }
+        i++;
+        continue;
+      }
+
+      // Try matching longest IAST sequence
+      var matched = false;
+      for (var m = 0; m < IAST_TO_DEVA.length; m++) {
+        var seq = IAST_TO_DEVA[m][0];
+        var deva = IAST_TO_DEVA[m][1];
+        if (src.substring(i, i + seq.length) === seq) {
+          var isVowel = 'aāiīuūṛṝḷeēoōaiauṁṃḥ'.indexOf(seq[0]) >= 0 && 'khghṅchjhñṭhḍhṇthdhnphbhmyrlvśṣsh'.indexOf(seq) < 0;
+
+          if (isVowel && seq !== 'ṁ' && seq !== 'ṃ' && seq !== 'ḥ') {
+            var lastDeva = result.length > 0 ? result[result.length - 1] : '';
+            // Check if last char is a consonant (needs matra) or start of word (needs independent vowel)
+            if (consonants.indexOf(lastDeva) >= 0 || lastDeva === '्') {
+              // After halant, remove halant and add matra
+              if (lastDeva === '्') {
+                result = result.substring(0, result.length - 1);
+              }
+              result += deva; // matra form (or empty for 'a')
+            } else {
+              // Independent vowel
+              var indep = DEVA_VOWELS_INDEPENDENT[deva];
+              result += indep !== undefined ? indep : deva;
+            }
+          } else if (seq === 'ṁ' || seq === 'ṃ' || seq === 'ḥ') {
+            // Anusvara/Visarga - remove trailing halant if present
+            if (result.length > 0 && result[result.length - 1] === '्') {
+              result = result.substring(0, result.length - 1);
+            }
+            result += deva;
+          } else {
+            // Consonant - add halant after it
+            result += deva + '्';
+          }
+          i += seq.length;
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        result += src[i];
+        i++;
+      }
+    }
+
+    // Remove halant before anusvara/visarga (they attach to the preceding consonant)
+    result = result.replace(/्([ंः])/g, '$1');
+
+    return result;
+  }
+
   // --- Render Stotram (Main Chanting View) ---
   function renderStotram() {
     var container = document.getElementById('stotram-container');
@@ -451,12 +584,25 @@
       var nameNums = VERSE_NAMES[verseNum] || [];
       var halves = verse.halves || [];
 
-      // Build shloka text display with English transliteration and IAST
+      // Build shloka text display: Devanagari first, then English, then IAST
       var translations = verse.translations || [];
       var englishHalves = verse.english_halves || [];
       var shlokaHtml = '<div class="shloka-text">';
 
-      // English transliteration (primary display)
+      // Devanagari (generated from IAST halves, split for easy pronunciation)
+      if (halves.length > 0) {
+        shlokaHtml += '<div class="shloka-devanagari">';
+        halves.forEach(function (half, idx) {
+          shlokaHtml += '<span class="shloka-line devanagari-line">' + escapeHtml(iastToDevanagari(half)) + '</span>';
+          if (idx < halves.length - 1) {
+            shlokaHtml += '<span class="shloka-separator devanagari-sep">।</span>';
+          }
+        });
+        shlokaHtml += '<span class="shloka-separator devanagari-sep">॥ ' + verseNum + ' ॥</span>';
+        shlokaHtml += '</div>';
+      }
+
+      // English transliteration (split for easy pronunciation)
       if (englishHalves.length > 0) {
         shlokaHtml += '<div class="shloka-english">';
         englishHalves.forEach(function (half, idx) {
@@ -469,7 +615,7 @@
         shlokaHtml += '</div>';
       }
 
-      // IAST transliteration (secondary)
+      // IAST transliteration (scholarly reference)
       shlokaHtml += '<div class="shloka-iast">';
       halves.forEach(function (half, idx) {
         shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
@@ -493,24 +639,26 @@
       }
       shlokaHtml += '</div>';
 
-      // Build names breakdown
-      var namesHtml = '<div class="names-breakdown">';
-      nameNums.forEach(function (nNum) {
-        var name = namesMap[nNum];
-        if (name) {
-          namesHtml += '<div class="name-row">';
-          namesHtml += '<span class="name-num">' + nNum + '.</span>';
-          namesHtml += '<div class="name-details">';
-          namesHtml += '<span class="name-iast">' + escapeHtml(name.name_iast || '') + '</span>';
-          if (name.name_devanagari) {
-            namesHtml += '<span class="name-devanagari">' + escapeHtml(name.name_devanagari) + '</span>';
+      // Build word cards (like Soundarya Lahari / Bhagavad Gita)
+      var namesHtml = '';
+      if (nameNums.length > 0) {
+        namesHtml += '<div class="word-section-label">Divine Names in this Shloka</div>';
+        namesHtml += '<div class="word-grid">';
+        nameNums.forEach(function (nNum) {
+          var name = namesMap[nNum];
+          if (name) {
+            namesHtml += '<div class="word-card">';
+            if (name.name_devanagari) {
+              namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+            }
+            namesHtml += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
+            namesHtml += '<div class="word-num">' + nNum + '</div>';
+            namesHtml += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
+            namesHtml += '</div>';
           }
-          namesHtml += '<span class="name-meaning">' + escapeHtml(name.meaning) + '</span>';
-          namesHtml += '</div>';
-          namesHtml += '</div>';
-        }
-      });
-      namesHtml += '</div>';
+        });
+        namesHtml += '</div>';
+      }
 
       // Preview text (prefer English transliteration)
       var preview = englishHalves.length > 0 ? englishHalves[0] : (halves.length > 0 ? halves[0] : '');
