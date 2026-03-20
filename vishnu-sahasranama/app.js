@@ -145,18 +145,15 @@
         }
         html += '</div>';
 
-        // Render verses
+        // Render verses: Devanagari first, then English, then translation (no IAST)
         if (section.verses) {
           section.verses.forEach(function (v) {
             html += '<div class="dhyana-verse">';
-            if (v.english) {
-              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
-            }
             if (v.devanagari) {
               html += '<div class="devanagari-text">' + escapeHtml(v.devanagari) + '</div>';
             }
-            if (v.sanskrit) {
-              html += '<div class="transliteration iast-transliteration">' + escapeHtml(v.sanskrit) + '</div>';
+            if (v.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
             }
             if (v.translation) {
               html += '<div class="translation">' + escapeHtml(v.translation) + '</div>';
@@ -165,15 +162,15 @@
           });
         }
 
-        // Render prose (for viniyoga)
+        // Render prose (for viniyoga): Devanagari first, then English
         if (section.prose) {
           section.prose.forEach(function (p) {
             html += '<div class="dhyana-verse viniyoga-text">';
-            if (p.english) {
-              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
-            }
             if (p.devanagari) {
               html += '<div class="devanagari-text">' + escapeHtml(p.devanagari) + '</div>';
+            }
+            if (p.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
             }
             if (p.translation) {
               html += '<div class="translation">' + escapeHtml(p.translation) + '</div>';
@@ -212,18 +209,15 @@
           html += '</div>';
         }
 
-        // Render verses
+        // Render verses: Devanagari first, then English, then translation (no IAST)
         if (section.verses) {
           section.verses.forEach(function (v) {
             html += '<div class="dhyana-verse">';
-            if (v.english) {
-              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
-            }
             if (v.devanagari) {
               html += '<div class="devanagari-text">' + escapeHtml(v.devanagari) + '</div>';
             }
-            if (v.sanskrit) {
-              html += '<div class="transliteration iast-transliteration">' + escapeHtml(v.sanskrit) + '</div>';
+            if (v.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(v.english) + '</div>';
             }
             if (v.translation) {
               html += '<div class="translation">' + escapeHtml(v.translation) + '</div>';
@@ -232,15 +226,15 @@
           });
         }
 
-        // Render prose
+        // Render prose: Devanagari first, then English
         if (section.prose) {
           section.prose.forEach(function (p) {
             html += '<div class="dhyana-verse viniyoga-text">';
-            if (p.english) {
-              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
-            }
             if (p.devanagari) {
               html += '<div class="devanagari-text">' + escapeHtml(p.devanagari) + '</div>';
+            }
+            if (p.english) {
+              html += '<div class="transliteration english-transliteration">' + escapeHtml(p.english) + '</div>';
             }
             if (p.translation) {
               html += '<div class="translation">' + escapeHtml(p.translation) + '</div>';
@@ -308,9 +302,8 @@
         if (section.verses) {
           section.verses.forEach(function (v) {
             html += '<div class="verse-block">';
-            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
             if (v.devanagari) html += '<div class="dev">' + esc(v.devanagari) + '</div>';
-            if (v.sanskrit) html += '<div class="iast">' + esc(v.sanskrit) + '</div>';
+            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
             if (v.translation) html += '<div class="tl">' + esc(v.translation) + '</div>';
             html += '</div>';
           });
@@ -318,8 +311,8 @@
         if (section.prose) {
           section.prose.forEach(function (p) {
             html += '<div class="verse-block">';
-            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
             if (p.devanagari) html += '<div class="dev prose">' + esc(p.devanagari) + '</div>';
+            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
             if (p.translation) html += '<div class="tl">' + esc(p.translation) + '</div>';
             html += '</div>';
           });
@@ -339,16 +332,16 @@
 
       html += '<div class="stotram-verse">';
 
-      // English transliteration
-      if (englishHalves.length > 0) {
-        html += '<div class="eng"><span class="v-num">' + verseNum + '.</span> ';
-        html += esc(englishHalves.join(' | ')) + ' ||</div>';
+      // Devanagari (generated from IAST)
+      if (halves.length > 0) {
+        html += '<div class="dev"><span class="v-num">' + verseNum + '.</span> ';
+        html += esc(halves.map(function(h) { return iastToDevanagari(h); }).join(' । ')) + ' ॥</div>';
       }
 
-      // Devanagari (from halves — construct from IAST since we don't have devanagari for main verses)
-      // IAST
-      if (halves.length > 0) {
-        html += '<div class="iast">' + esc(halves.join(' | ')) + ' ||</div>';
+      // English transliteration
+      if (englishHalves.length > 0) {
+        html += '<div class="eng">';
+        html += esc(englishHalves.join(' | ')) + ' ||</div>';
       }
 
       // Translations (name meanings per half)
@@ -394,9 +387,8 @@
         if (section.verses) {
           section.verses.forEach(function (v) {
             html += '<div class="verse-block">';
-            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
             if (v.devanagari) html += '<div class="dev">' + esc(v.devanagari) + '</div>';
-            if (v.sanskrit) html += '<div class="iast">' + esc(v.sanskrit) + '</div>';
+            if (v.english) html += '<div class="eng">' + esc(v.english) + '</div>';
             if (v.translation) html += '<div class="tl">' + esc(v.translation) + '</div>';
             html += '</div>';
           });
@@ -404,8 +396,8 @@
         if (section.prose) {
           section.prose.forEach(function (p) {
             html += '<div class="verse-block">';
-            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
             if (p.devanagari) html += '<div class="dev prose">' + esc(p.devanagari) + '</div>';
+            if (p.english) html += '<div class="eng prose">' + esc(p.english) + '</div>';
             if (p.translation) html += '<div class="tl">' + esc(p.translation) + '</div>';
             html += '</div>';
           });
@@ -584,7 +576,7 @@
       var nameNums = VERSE_NAMES[verseNum] || [];
       var halves = verse.halves || [];
 
-      // Build shloka text display: Devanagari first, then English, then IAST
+      // Build shloka text display: Devanagari first, then English
       var translations = verse.translations || [];
       var englishHalves = verse.english_halves || [];
       var shlokaHtml = '<div class="shloka-text">';
@@ -614,19 +606,6 @@
         shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
         shlokaHtml += '</div>';
       }
-
-      // IAST transliteration (scholarly reference)
-      shlokaHtml += '<div class="shloka-iast">';
-      halves.forEach(function (half, idx) {
-        shlokaHtml += '<span class="shloka-line">' + escapeHtml(half) + '</span>';
-        if (idx < halves.length - 1) {
-          shlokaHtml += '<span class="shloka-separator">|</span>';
-        }
-      });
-      if (englishHalves.length === 0) {
-        shlokaHtml += '<span class="shloka-separator">|| ' + verseNum + ' ||</span>';
-      }
-      shlokaHtml += '</div>';
 
       if (translations.length > 0) {
         shlokaHtml += '<div class="shloka-translations">';
