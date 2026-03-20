@@ -8333,9 +8333,57 @@ const VISHNU_DATA = {
           "translation": "By the medicine of chanting the names Achyuta, Ananta, and Govinda, all diseases are destroyed — truly, truly, I declare this."
         },
         {
-          "devanagari": "सत्यं सत्यं पुनस्सत्यमुद्भूत्य भुजमुच्यते ।\nवेदाच्छास्त्रं परं नास्ति न दैवं केशवात्परम् ॥",
-          "sanskrit": "satyaṃ satyaṃ punassatyamubhūtya bhujamucyate .\nvedācchāstraṃ paraṃ nāsti na daivaṃ keśavātparam ..",
-          "english": "Satyam satyam punassatyamubhutya bhujamuchyate |\nVedachchhastram param nasti na daivam keshavat-param ||",
+          "devanagari": "अच्युतानन्त गोविन्द विष्णो नारायणामृत ।\nरोगान् मे नाशयाशेषान् आशु धन्वन्तरे हरे ॥",
+          "sanskrit": "acyutānanta govinda viṣṇo nārāyaṇāmṛta .\nrogān me nāśayāśeṣān āśu dhanvantare hare ..",
+          "english": "Achyutananta govinda vishno narayanamruta |\nRogan me nashayasheshaan ashu dhanvantare hare ||",
+          "translation": "O Achyuta, Ananta, Govinda, Vishnu, Narayana, O Immortal One! O Dhanvantari, O Hari! Destroy all my diseases quickly."
+        },
+        {
+          "devanagari": "अच्युतानन्त गोविन्द विष्णो धन्वन्तरे हरे ।\nवासुदेवाखिलानस्य रोगान् नाशय नाशय ॥",
+          "sanskrit": "acyutānanta govinda viṣṇo dhanvantare hare .\nvāsudevākhilānasya rogān nāśaya nāśaya ..",
+          "english": "Achyutananta govinda vishno dhanvantare hare |\nVasudevakhilanasya rogan nashaya nashaya ||",
+          "translation": "O Achyuta, Ananta, Govinda, Vishnu, Dhanvantari, Hari! O Vasudeva! Destroy, destroy all diseases."
+        },
+        {
+          "devanagari": "अच्युतानन्त गोविन्द सच्चिदानन्द शाश्वत ।\nमच्चेतो रमतां नित्यं त्वच्चारु चरणाम्बुजे ॥",
+          "sanskrit": "acyutānanta govinda saccidānanda śāśvata .\nmacceto ramatāṃ nityaṃ tvaccāru caraṇāmbuje ..",
+          "english": "Achyutananta govinda sachchidananda shashvata |\nMachcheto ramatam nityam tvachcharu charanambuje ||",
+          "translation": "O Achyuta, Ananta, Govinda, O Eternal Existence-Consciousness-Bliss! May my mind always delight in Thy beautiful lotus feet."
+        },
+        {
+          "devanagari": "यज्ञेशाच्युत गोविन्द माधवानन्त केशव ।\nकृष्ण विष्णो हृषीकेश वासुदेव नमोऽस्तु ते ॥",
+          "sanskrit": "yajñeśācyuta govinda mādhavānanta keśava .\nkṛṣṇa viṣṇo hṛṣīkeśa vāsudeva namo'stu te ..",
+          "english": "Yajneshachyuta govinda madhvananta keshava |\nKrishna vishno hrisheekesha vasudeva namostu te ||",
+          "translation": "O Lord of Sacrifices, Achyuta, Govinda, Madhava, Ananta, Keshava, Krishna, Vishnu, Hrishikesha, Vasudeva — salutations to Thee!"
+        },
+        {
+          "devanagari": "श्री कृष्ण विष्णो नृहरे मुरारे प्रद्युम्न सङ्कर्षण वासुदेव ।\nअजानिरुद्धामल विश्वरूप त्वं पाहि नः सर्वभयादजस्रम् ॥",
+          "sanskrit": "śrī kṛṣṇa viṣṇo nṛhare murāre pradyumna saṅkarṣaṇa vāsudeva .\najāniruddhāmala viśvarūpa tvaṃ pāhi naḥ sarvabhayādajasram ..",
+          "english": "Shri krishna vishno nruhare murare pradyumna sankarshana vasudeva |\nAjaniruddhamala vishvaroopa tvam pahi nah sarvabhayad-ajasram ||",
+          "translation": "O Sri Krishna, Vishnu, Narasimha, Slayer of Mura, Pradyumna, Sankarshana, Vasudeva, Unborn Aniruddha, Pure One, Universal Form — protect us always from all fears."
+        },
+        {
+          "devanagari": "हरे राम हरे राम राम राम हरे हरे ।\nहरे कृष्ण हरे कृष्ण कृष्ण कृष्ण हरे हरे ॥",
+          "sanskrit": "hare rāma hare rāma rāma rāma hare hare .\nhare kṛṣṇa hare kṛṣṇa kṛṣṇa kṛṣṇa hare hare ..",
+          "english": "Hare rama hare rama rama rama hare hare |\nHare krishna hare krishna krishna krishna hare hare ||",
+          "translation": "Hare Rama, Hare Rama, Rama Rama, Hare Hare. Hare Krishna, Hare Krishna, Krishna Krishna, Hare Hare."
+        },
+        {
+          "devanagari": "जले विष्णुः स्थले विष्णुः विष्णुराकाशमुच्यते ।\nस्थावरं जङ्गमं विष्णुः सर्वं विष्णुमयं जगत् ॥",
+          "sanskrit": "jale viṣṇuḥ sthale viṣṇuḥ viṣṇurākāśamucyate .\nsthāvaraṃ jaṅgamaṃ viṣṇuḥ sarvaṃ viṣṇumayaṃ jagat ..",
+          "english": "Jale vishnuh sthale vishnuh vishnurakashamuchyate |\nSthavaram jangamam vishnuh sarvam vishnumayam jagat ||",
+          "translation": "Vishnu is in water, Vishnu is on land, Vishnu pervades the sky. All that is stationary and moving is Vishnu. The entire universe is filled with Vishnu."
+        },
+        {
+          "devanagari": "सर्वधर्मान् परित्यज्य मामेकं शरणं व्रज ।\nअहं त्वा सर्वपापेभ्यो मोक्षयिष्यामि मा शुचः ॥",
+          "sanskrit": "sarvadharmān parityajya māmekaṃ śaraṇaṃ vraja .\nahaṃ tvā sarvapāpebhyo mokṣayiṣyāmi mā śucaḥ ..",
+          "english": "Sarvadharman parityajya mamekam sharanam vraja |\nAham tva sarvapapebhyo mokshayishyami ma shuchah ||",
+          "translation": "Abandoning all dharmas, take refuge in Me alone. I shall liberate you from all sins; do not grieve."
+        },
+        {
+          "devanagari": "सत्यं सत्यं पुनस्सत्यमुद्धृत्य भुजमुच्यते ।\nवेदाच्छास्त्रं परं नास्ति न दैवं केशवात्परम् ॥",
+          "sanskrit": "satyaṃ satyaṃ punassatyamuddhṛtya bhujamucyate .\nvedācchāstraṃ paraṃ nāsti na daivaṃ keśavātparam ..",
+          "english": "Satyam satyam punassatyamuddhrutya bhujamuchyate |\nVedachchhastram param nasti na daivam keshavat-param ||",
           "translation": "Truth, truth, again truth — raising the arm, it is declared: there is no scripture higher than the Vedas, and no God higher than Keshava."
         },
         {
@@ -8351,6 +8399,12 @@ const VISHNU_DATA = {
           "translation": "Having churned all the scriptures and reflected upon them again and again, this one conclusion stands firm: Narayana, Hari, alone is to be meditated upon."
         },
         {
+          "devanagari": "कायेन वाचा मनसेन्द्रियैर्वा बुद्ध्यात्मना वा प्रकृतेः स्वभावात् ।\nकरोमि यद्यत् सकलं परस्मै नारायणायेति समर्पयामि ॥",
+          "sanskrit": "kāyena vācā manasendriyairvā buddhyātmanā vā prakṛteḥ svabhāvāt .\nkaromi yadyat sakalaṃ parasmai nārāyaṇāyeti samarpayāmi ..",
+          "english": "Kayena vacha manasendriyairva buddhyatmana va prakruteh svabhavat |\nKaromi yadyat sakalam parasmai narayanayeti samarpayami ||",
+          "translation": "Whatever I do with my body, speech, mind, senses, intellect, or soul, whether by nature or by habit — I offer all of it to the Supreme Lord Narayana."
+        },
+        {
           "devanagari": "यदक्षरपदभ्रष्टं मात्राहीनं तु यद्भवेत् ।\nतत्सर्वं क्षम्यतां देव नारायण नमोऽस्तु ते ॥",
           "sanskrit": "yadakṣarapadabhraṣṭaṃ mātrāhīnaṃ tu yadbhavet .\ntatsarvaṃ kṣamyatāṃ deva nārāyaṇa namo'stu te ..",
           "english": "Yadaksharapadabhrashtam matraheenam tu yadbhavet |\nTatsarvam kshamyatam deva narayana namostu te ||",
@@ -8361,18 +8415,12 @@ const VISHNU_DATA = {
           "sanskrit": "visargabindumātrāṇi padapādākṣarāṇi ca .\nnyūnāni cātirikṭāni kṣamasva puruṣottama ..",
           "english": "Visargabindumatrani padapadaksharani cha |\nNyunani chatirikṭani kshamasva purushottama ||",
           "translation": "Whatever is deficient or excess in visargas, bindus, matras, words, feet, or syllables — forgive all that, O Purushottama."
-        }
-      ]
-    },
-    {
-      "label": "Samarpana",
-      "label_sanskrit": "समर्पणम्",
-      "verses": [
+        },
         {
-          "devanagari": "कायेन वाचा मनसेन्द्रियैर्वा बुद्ध्यात्मना वा प्रकृतेः स्वभावात् ।\nकरोमि यद्यत् सकलं परस्मै नारायणायेति समर्पयामि ॥ ३३ ॥",
-          "sanskrit": "kāyena vācā manasendriyairvā buddhyātmanā vā prakṛteḥ svabhāvāt .\nkaromi yadyat sakalaṃ parasmai nārāyaṇāyeti samarpayāmi .. 33 ..",
-          "english": "Kayena vacha manasendriyairva buddhyatmana va prakruteh svabhavat |\nKaromi yadyat sakalam parasmai narayanayeti samarpayami || 33 ||",
-          "translation": "Whatever I do with my body, speech, mind, senses, intellect, or soul, whether by nature or by habit — I offer all of it to the Supreme Lord Narayana."
+          "devanagari": "अन्यथा शरणं नास्ति त्वमेव शरणं मम ।\nतस्मात् कारुण्यभावेन रक्ष रक्ष जनार्दन ॥",
+          "sanskrit": "anyathā śaraṇaṃ nāsti tvameva śaraṇaṃ mama .\ntasmāt kāruṇyabhāvena rakṣa rakṣa janārdana ..",
+          "english": "Anyatha sharanam nasti tvameva sharanam mama |\nTasmat karunyabhavena raksha raksha janardana ||",
+          "translation": "There is no other refuge; Thou alone art my refuge. Therefore, out of compassion, protect me, protect me, O Janardana!"
         }
       ]
     },
@@ -8381,9 +8429,9 @@ const VISHNU_DATA = {
       "label_sanskrit": "",
       "prose": [
         {
-          "devanagari": "इति श्रीविष्णोर्दिव्यसहस्रनामस्तोत्रं सम्पूर्णम् ।\nॐ तत् सत् ।\nमहाभारते अनुशासनपर्वणि अध्यायः १४९",
-          "english": "Iti Sri Vishnor-divya-sahasra-nama-stotram sampurnam |\nOm tat sat |\nMahabharate Anushasana Parvani Adhyayah 149",
-          "translation": "Thus ends the divine thousand names of Sri Vishnu. Om, that is the Truth. From the Mahabharata, Anushasana Parva, Chapter 149."
+          "devanagari": "॥ ॐ तत् सत् श्री ब्रह्मार्पणमस्तु ॥\nइति श्रीविष्णोर्दिव्यसहस्रनामस्तोत्रं सम्पूर्णम् ।\nमहाभारते अनुशासनपर्वणि अध्यायः १४९",
+          "english": "|| Om tat sat Sri Brahmarpanam astu ||\nIti Sri Vishnor-divya-sahasra-nama-stotram sampurnam |\nMahabharate Anushasana Parvani Adhyayah 149",
+          "translation": "Om, that is the Truth. May this be an offering to Brahman. Thus ends the divine thousand names of Sri Vishnu. From the Mahabharata, Anushasana Parva, Chapter 149."
         }
       ]
     }
