@@ -288,6 +288,7 @@
             name.morphemes.forEach(function (m, idx) {
               if (idx > 0) namesHtml += '<span class="morpheme-sep">+</span>';
               namesHtml += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
+              if (m.devanagari) namesHtml += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
               namesHtml += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
               if (m.meaning) namesHtml += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
               namesHtml += '</span>';
@@ -537,6 +538,7 @@
               name.morphemes.forEach(function (m, idx) {
                 if (idx > 0) html += '<span class="morpheme-sep">+</span>';
                 html += '<span class="morpheme">';
+                if (m.devanagari) html += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
                 html += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
                 if (m.meaning) html += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
                 html += '</span>';
@@ -622,6 +624,7 @@
       // Morpheme splits
       '.morpheme-split { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.1rem; margin-top: 0.25rem; padding-top: 0.25rem; border-top: 1px dashed #e8ddd0; }',
       '.morpheme { display: flex; flex-direction: column; align-items: center; }',
+      '.morpheme-devanagari { font-family: "Noto Sans Devanagari", sans-serif; font-size: 0.65rem; font-weight: 600; color: #8b1a1a; }',
       '.morpheme-text { font-size: 0.55rem; font-style: italic; color: #c41e3a; font-weight: 500; }',
       '.morpheme-meaning { font-size: 0.5rem; color: #6b5744; }',
       '.morpheme-sep { font-size: 0.5rem; color: #b8860b; font-weight: 600; margin: 0 0.03rem; }',
