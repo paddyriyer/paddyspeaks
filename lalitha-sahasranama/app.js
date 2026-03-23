@@ -280,7 +280,16 @@
         if (name) {
           namesHtml += '<div class="word-card">';
           namesHtml += '<div class="word-num">' + nNum + '</div>';
-          namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+          if (name.morphemes && name.morphemes.length > 1) {
+            namesHtml += '<div class="word-devanagari">';
+            name.morphemes.forEach(function (m, idx) {
+              if (idx > 0) namesHtml += ' ';
+              namesHtml += escapeHtml(m.devanagari || '');
+            });
+            namesHtml += '</div>';
+          } else {
+            namesHtml += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+          }
           namesHtml += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
           namesHtml += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
           if (name.morphemes && name.morphemes.length > 1) {
@@ -289,8 +298,7 @@
               if (idx > 0) namesHtml += '<span class="morpheme-sep">+</span>';
               namesHtml += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
               if (m.devanagari) namesHtml += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
-              namesHtml += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
-              if (m.meaning) namesHtml += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
+              namesHtml += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
               namesHtml += '</span>';
             });
             namesHtml += '</div>';
@@ -530,17 +538,25 @@
           if (name) {
             html += '<div class="word-card">';
             html += '<div class="word-num">' + nNum + '</div>';
-            html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+            if (name.morphemes && name.morphemes.length > 1) {
+              html += '<div class="word-devanagari">';
+              name.morphemes.forEach(function (m, idx) {
+                if (idx > 0) html += ' ';
+                html += escapeHtml(m.devanagari || '');
+              });
+              html += '</div>';
+            } else {
+              html += '<div class="word-devanagari">' + escapeHtml(name.name_devanagari) + '</div>';
+            }
             html += '<div class="word-transliteration">' + escapeHtml(name.name_iast || '') + '</div>';
             html += '<div class="word-meaning">' + escapeHtml(name.meaning) + '</div>';
             if (name.morphemes && name.morphemes.length > 1) {
               html += '<div class="morpheme-split">';
               name.morphemes.forEach(function (m, idx) {
                 if (idx > 0) html += '<span class="morpheme-sep">+</span>';
-                html += '<span class="morpheme">';
+                html += '<span class="morpheme" title="' + escapeHtml(m.meaning) + '">';
                 if (m.devanagari) html += '<span class="morpheme-devanagari">' + escapeHtml(m.devanagari) + '</span>';
-                html += '<span class="morpheme-text">' + escapeHtml(m.transliteration) + '</span>';
-                if (m.meaning) html += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
+                html += '<span class="morpheme-meaning">' + escapeHtml(m.meaning) + '</span>';
                 html += '</span>';
               });
               html += '</div>';
