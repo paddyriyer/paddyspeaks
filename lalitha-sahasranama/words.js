@@ -1,6 +1,98 @@
 // Lalitha Sahasranama - Morpheme Splits for Compound Names
 // Adds morpheme breakdown data to LALITHA_DATA names
 (function () {
+  // IAST to Devanagari transliteration
+  function iastToDevanagari(iast) {
+    if (!iast) return '';
+    var vowelMap = {
+      'ā': 'ा', 'i': 'ि', 'ī': 'ी', 'u': 'ु', 'ū': 'ू',
+      'ṛ': 'ृ', 'ṝ': 'ॄ', 'ḷ': 'ॢ', 'ḹ': 'ॣ', 'e': 'े',
+      'ai': 'ै', 'o': 'ो', 'au': 'ौ', 'ṁ': 'ं', 'ḥ': 'ः',
+      'ã': 'ँ'
+    };
+    var indepVowelMap = {
+      'a': 'अ', 'ā': 'आ', 'i': 'इ', 'ī': 'ई', 'u': 'उ', 'ū': 'ऊ',
+      'ṛ': 'ऋ', 'ṝ': 'ॠ', 'ḷ': 'ऌ', 'ḹ': 'ॡ', 'e': 'ए',
+      'ai': 'ऐ', 'o': 'ओ', 'au': 'औ'
+    };
+    var consonantMap = {
+      'k': 'क', 'kh': 'ख', 'g': 'ग', 'gh': 'घ', 'ṅ': 'ङ',
+      'c': 'च', 'ch': 'छ', 'j': 'ज', 'jh': 'झ', 'ñ': 'ञ',
+      'ṭ': 'ट', 'ṭh': 'ठ', 'ḍ': 'ड', 'ḍh': 'ढ', 'ṇ': 'ण',
+      't': 'त', 'th': 'थ', 'd': 'द', 'dh': 'ध', 'n': 'न',
+      'p': 'प', 'ph': 'फ', 'b': 'ब', 'bh': 'भ', 'm': 'म',
+      'y': 'य', 'r': 'र', 'l': 'ल', 'v': 'व',
+      'ś': 'श', 'ṣ': 'ष', 's': 'स', 'h': 'ह'
+    };
+    var virama = '्';
+    var result = '';
+    var i = 0;
+    var text = iast.toLowerCase().replace(/[\-\s']+/g, '');
+    var afterConsonant = false;
+    while (i < text.length) {
+      // Try two-char consonant first (kh, gh, ch, jh, ṭh, ḍh, th, dh, ph, bh)
+      var twoChar = text.substring(i, i + 2);
+      var oneChar = text.charAt(i);
+      // Two-char vowels (ai, au)
+      if (twoChar === 'ai' || twoChar === 'au') {
+        if (afterConsonant) {
+          result += vowelMap[twoChar];
+        } else {
+          result += indepVowelMap[twoChar];
+        }
+        afterConsonant = false;
+        i += 2;
+        continue;
+      }
+      // Two-char consonants
+      if (consonantMap[twoChar]) {
+        if (afterConsonant) result += virama;
+        result += consonantMap[twoChar];
+        afterConsonant = true;
+        i += 2;
+        continue;
+      }
+      // One-char consonant
+      if (consonantMap[oneChar]) {
+        if (afterConsonant) result += virama;
+        result += consonantMap[oneChar];
+        afterConsonant = true;
+        i += 1;
+        continue;
+      }
+      // Vowel 'a' after consonant = inherent, skip
+      if (oneChar === 'a' && afterConsonant) {
+        afterConsonant = false;
+        i += 1;
+        continue;
+      }
+      // Vowel
+      if (afterConsonant && vowelMap[oneChar]) {
+        result += vowelMap[oneChar];
+        afterConsonant = false;
+        i += 1;
+        continue;
+      }
+      if (!afterConsonant && indepVowelMap[oneChar]) {
+        result += indepVowelMap[oneChar];
+        afterConsonant = false;
+        i += 1;
+        continue;
+      }
+      // anusvara / visarga
+      if (oneChar === 'ṁ' || oneChar === 'ḥ' || oneChar === 'ã') {
+        if (afterConsonant) afterConsonant = false;
+        result += vowelMap[oneChar];
+        i += 1;
+        continue;
+      }
+      // Unknown char - skip
+      i += 1;
+    }
+    if (afterConsonant) result += virama;
+    return result;
+  }
+
   var M = {};
 
   M[1] = [["śrī", "sacred/auspicious"], ["mātā", "mother"]];
@@ -722,7 +814,7 @@
     LALITHA_DATA.names.forEach(function (name) {
       if (M[name.num]) {
         name.morphemes = M[name.num].map(function (m) {
-          return { transliteration: m[0], meaning: m[1] };
+          return { transliteration: m[0], meaning: m[1], devanagari: iastToDevanagari(m[0]) };
         });
       }
     });
