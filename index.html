@@ -195,7 +195,24 @@
     <a href="#sacred-texts">Sacred Texts</a>
     <a href="#data-lab">Data Lab</a>
     <a href="about.html">About</a>
+    <button class="nav-search-btn" id="openSearch" aria-label="Search articles" title="Search (Ctrl+K)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </button>
 </nav>
+
+<!-- Search Overlay -->
+<div class="search-overlay" id="searchOverlay">
+    <div class="search-modal">
+        <div class="search-header">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="searchInput" class="search-input" placeholder="Search articles..." autocomplete="off" autofocus>
+            <kbd class="search-kbd">ESC</kbd>
+        </div>
+        <div class="search-results" id="searchResults">
+            <div class="search-empty">Type to search across all articles</div>
+        </div>
+    </div>
+</div>
 
 <div class="content">
 
@@ -2675,6 +2692,178 @@ var sacredTexts = [
     } else {
         update();
     }
+})();
+
+/* ═══════════════════════════════════════ */
+/* SEARCH ENGINE                          */
+/* ═══════════════════════════════════════ */
+(function() {
+    var overlay  = document.getElementById('searchOverlay');
+    var input    = document.getElementById('searchInput');
+    var results  = document.getElementById('searchResults');
+    var openBtn  = document.getElementById('openSearch');
+
+    // Build search index from deck cards
+    var index = [];
+    document.querySelectorAll('.deck-card').forEach(function(card) {
+        var title    = (card.querySelector('h4') || {}).textContent || '';
+        var excerpt  = (card.querySelector('.deck-card-body p') || {}).textContent || '';
+        var category = card.getAttribute('data-category') || '';
+        var href     = card.getAttribute('href') || '';
+        var meta     = (card.querySelector('.article-meta') || {}).textContent || '';
+        // Build keyword string: title + excerpt + category (lowercase for matching)
+        var searchable = (title + ' ' + excerpt + ' ' + category).toLowerCase();
+        index.push({ title: title, excerpt: excerpt, category: category, href: href, meta: meta.trim(), searchable: searchable });
+    });
+
+    var catLabels = { 'ai': 'AI & Future', 'technology': 'Technology', 'philosophy': 'Philosophy' };
+    var activeIdx = -1;
+
+    function openSearch() {
+        overlay.classList.add('open');
+        input.value = '';
+        activeIdx = -1;
+        renderDefault();
+        setTimeout(function() { input.focus(); }, 50);
+    }
+
+    function closeSearch() {
+        overlay.classList.remove('open');
+        input.value = '';
+        activeIdx = -1;
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function highlightMatch(text, terms) {
+        if (!terms.length) return escapeHtml(text);
+        var escaped = escapeHtml(text);
+        terms.forEach(function(t) {
+            var re = new RegExp('(' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+            escaped = escaped.replace(re, '<mark>$1</mark>');
+        });
+        return escaped;
+    }
+
+    function renderDefault() {
+        results.innerHTML = '<div class="search-empty">Type to search across all ' + index.length + ' articles</div>';
+    }
+
+    function renderResults(query) {
+        if (!query.trim()) { renderDefault(); return; }
+
+        var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+        var scored = [];
+
+        index.forEach(function(item, i) {
+            var score = 0;
+            var titleLower = item.title.toLowerCase();
+            terms.forEach(function(term) {
+                // Title matches score higher
+                if (titleLower.indexOf(term) !== -1) score += 10;
+                // Exact word match in title gets bonus
+                if (titleLower.split(/\s+/).indexOf(term) !== -1) score += 5;
+                // Excerpt/category matches
+                if (item.searchable.indexOf(term) !== -1) score += 3;
+            });
+            if (score > 0) scored.push({ item: item, score: score, idx: i });
+        });
+
+        scored.sort(function(a, b) { return b.score - a.score; });
+
+        if (scored.length === 0) {
+            results.innerHTML =
+                '<div class="search-no-results">' +
+                    '<div class="snr-icon">&#x2205;</div>' +
+                    '<p>No articles match &ldquo;' + escapeHtml(query) + '&rdquo;</p>' +
+                    '<p class="snr-hint">Try broader keywords like &ldquo;karma&rdquo;, &ldquo;data&rdquo;, or &ldquo;AI&rdquo;</p>' +
+                '</div>';
+            activeIdx = -1;
+            return;
+        }
+
+        var html = '';
+        scored.slice(0, 12).forEach(function(s, i) {
+            var item = s.item;
+            var catLabel = catLabels[item.category] || item.category;
+            html +=
+                '<a href="' + item.href + '" class="search-result-item" data-ridx="' + i + '">' +
+                    '<span class="sr-cat">' + escapeHtml(catLabel) + '</span>' +
+                    '<div class="sr-body">' +
+                        '<h4>' + highlightMatch(item.title, terms) + '</h4>' +
+                        '<p>' + highlightMatch(item.excerpt, terms) + '</p>' +
+                        '<div class="sr-meta">' + escapeHtml(item.meta) + '</div>' +
+                    '</div>' +
+                '</a>';
+        });
+        if (scored.length > 12) {
+            html += '<div class="search-empty">' + (scored.length - 12) + ' more results — refine your search</div>';
+        }
+        results.innerHTML = html;
+        activeIdx = -1;
+    }
+
+    function updateActive() {
+        var items = results.querySelectorAll('.search-result-item');
+        items.forEach(function(el, i) {
+            el.classList.toggle('active', i === activeIdx);
+        });
+        if (activeIdx >= 0 && items[activeIdx]) {
+            items[activeIdx].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
+    // Auto-open if ?q= param present (matches SearchAction schema)
+    var urlQ = new URLSearchParams(window.location.search).get('q');
+    if (urlQ) {
+        setTimeout(function() {
+            openSearch();
+            input.value = urlQ;
+            renderResults(urlQ);
+        }, 300);
+    }
+
+    // Event listeners
+    openBtn.addEventListener('click', openSearch);
+
+    overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) closeSearch();
+    });
+
+    input.addEventListener('input', function() {
+        renderResults(input.value);
+    });
+
+    document.addEventListener('keydown', function(e) {
+        // Ctrl+K or Cmd+K to open
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            if (overlay.classList.contains('open')) closeSearch();
+            else openSearch();
+            return;
+        }
+        if (!overlay.classList.contains('open')) return;
+
+        if (e.key === 'Escape') { closeSearch(); return; }
+
+        var items = results.querySelectorAll('.search-result-item');
+        if (!items.length) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIdx = Math.min(activeIdx + 1, items.length - 1);
+            updateActive();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIdx = Math.max(activeIdx - 1, 0);
+            updateActive();
+        } else if (e.key === 'Enter' && activeIdx >= 0 && items[activeIdx]) {
+            e.preventDefault();
+            items[activeIdx].click();
+        }
+    });
 })();
 
 /* ═══════════════════════════════════════ */
