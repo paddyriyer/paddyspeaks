@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The New Language of Data — PaddySpeaks</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;0,900;1,300;1,400;1,700&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,300;1,6..72,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FDF8EF;--bone:#F5EFE4;--sand:#E8DDCD;--parch:#F0E6D5;
+  --gray:#8A7F74;--char:#2D2924;--ink:#161310;
+  --ember:#D4622B;--ember2:#E8864A;--ember-g:rgba(212,98,43,.12);
+  --teal:#1F7A6D;--teal2:#30A08F;--teal-g:rgba(31,122,109,.1);
+  --gold:#BF9522;--gold-g:rgba(191,149,34,.1);
+  --slate:#3D6285;--slate-g:rgba(61,98,133,.1);
+  --rose:#C45858;
+  --ff-d:'Cormorant Garamond',Georgia,serif;
+  --ff-b:'Newsreader',Georgia,serif;
+  --ff-m:'DM Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--char);font-family:var(--ff-b);font-size:17px;line-height:1.8;overflow-x:hidden}
+
+/* ══════════ STICKY NAV ══════════ */
+.nav{position:fixed;top:0;left:0;right:0;z-index:999;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 2.5rem;background:rgba(253,248,239,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(232,221,205,.5);transform:translateY(-100%);transition:transform .45s cubic-bezier(.22,1,.36,1)}
+.nav.show{transform:translateY(0)}
+.nav-brand{font-family:var(--ff-d);font-weight:700;font-size:.85rem;color:var(--ink);white-space:nowrap}
+.nav-brand em{color:var(--ember);font-style:italic}
+.nav-links{display:flex;gap:.15rem;overflow-x:auto;scrollbar-width:none}
+.nav-links::-webkit-scrollbar{display:none}
+.nav-links a{font-family:var(--ff-m);font-size:.56rem;letter-spacing:.12em;text-transform:uppercase;text-decoration:none;color:var(--gray);padding:.35rem .65rem;border-radius:5px;white-space:nowrap;transition:all .25s;position:relative}
+.nav-links a:hover,.nav-links a.on{color:var(--ember);background:var(--ember-g)}
+.nav-links a.on::after{content:'';position:absolute;bottom:2px;left:25%;right:25%;height:2px;background:var(--ember);border-radius:1px}
+.nav-dot{width:3px;height:3px;border-radius:50%;background:var(--sand);flex-shrink:0;align-self:center}
+section[id]{scroll-margin-top:62px}
+
+/* ══════════ HERO ══════════ */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:4rem 2rem;position:relative;overflow:hidden;background:linear-gradient(175deg,var(--bg) 0%,var(--bone) 45%,var(--parch) 100%)}
+#heroCanvas{position:absolute;inset:0;pointer-events:none;z-index:1}
+.hero-content{position:relative;z-index:2}
+.hero-badge{font-family:var(--ff-m);font-size:.62rem;letter-spacing:.4em;text-transform:uppercase;color:var(--ember);background:var(--ember-g);padding:.55rem 2rem;border-radius:2rem;margin-bottom:2.5rem;display:inline-block;opacity:0;animation:riseIn .7s .2s forwards}
+.hero h1{font-family:var(--ff-d);font-weight:300;font-size:clamp(3.5rem,9vw,8.5rem);line-height:.98;color:var(--ink);max-width:900px;opacity:0;animation:riseIn .8s .35s forwards}
+.hero h1 strong{font-weight:900}
+.hero h1 em{font-style:italic;color:var(--ember);font-weight:700}
+.hero-type{font-family:var(--ff-m);font-size:.95rem;color:var(--gray);margin-top:2rem;height:1.5em;opacity:0;animation:riseIn .7s .7s forwards}
+.hero-type .cursor{display:inline-block;width:2px;height:1.1em;background:var(--ember);vertical-align:middle;margin-left:2px;animation:blink .7s step-end infinite}
+@keyframes blink{50%{opacity:0}}
+.hero-pills{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;margin-top:2.5rem;opacity:0;animation:riseIn .7s 1s forwards}
+.hero-pills a{font-family:var(--ff-m);font-size:.7rem;letter-spacing:.04em;padding:.45rem 1.1rem;border-radius:2rem;text-decoration:none;border:1px solid;transition:all .3s cubic-bezier(.22,1,.36,1);cursor:pointer}
+.hero-pills a:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 6px 20px rgba(0,0,0,.07)}
+.pill-e{color:var(--ember);border-color:rgba(212,98,43,.35);background:rgba(212,98,43,.04)}
+.pill-t{color:var(--teal);border-color:rgba(31,122,109,.35);background:rgba(31,122,109,.04)}
+.pill-g{color:var(--gold);border-color:rgba(191,149,34,.35);background:rgba(191,149,34,.04)}
+.pill-s{color:var(--slate);border-color:rgba(61,98,133,.35);background:rgba(61,98,133,.04)}
+.scroll-hint{position:absolute;bottom:2.5rem;z-index:2;display:flex;flex-direction:column;align-items:center;gap:.4rem;opacity:0;animation:riseIn .6s 1.4s forwards}
+.scroll-hint span{font-family:var(--ff-m);font-size:.55rem;letter-spacing:.25em;text-transform:uppercase;color:var(--gray)}
+.scroll-arrow{width:18px;height:28px;border:1.5px solid var(--gray);border-radius:9px;position:relative}
+.scroll-arrow::after{content:'';position:absolute;left:50%;transform:translateX(-50%);width:3px;height:7px;background:var(--ember);border-radius:1.5px;top:5px;animation:sDrop 1.6s infinite}
+@keyframes sDrop{0%,100%{top:5px;opacity:1}60%{top:14px;opacity:.2}}
+@keyframes riseIn{from{opacity:0;transform:translateY(35px)}to{opacity:1;transform:translateY(0)}}
+
+/* ══════════ MANIFESTO ══════════ */
+.manifesto{max-width:700px;margin:0 auto;padding:7rem 2rem 4rem}
+.manifesto p{margin-bottom:1.5rem;font-size:1.1rem}
+.manifesto .dc::first-letter{font-family:var(--ff-d);font-size:5.5rem;float:left;line-height:.72;margin:.05em .14em 0 0;color:var(--ember);font-weight:900}
+.pq{font-family:var(--ff-d);font-size:1.7rem;font-weight:700;color:var(--ink);border-left:4px solid var(--ember);padding:1rem 0 1rem 1.6rem;margin:3rem 0;line-height:1.35;position:relative}
+.pq::before{content:'\201C';font-family:var(--ff-d);font-size:6rem;color:var(--ember);opacity:.12;position:absolute;top:-1.2rem;left:.3rem;line-height:1}
+
+/* ══════════ SECTION BREAKS ══════════ */
+.break{text-align:center;padding:3.5rem 0;position:relative}
+.break::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:280px;height:1px;background:linear-gradient(90deg,transparent,var(--sand),transparent)}
+.break span{display:inline-block;background:var(--bg);padding:0 1.8rem;position:relative;z-index:1;font-family:var(--ff-m);font-size:.6rem;letter-spacing:.35em;color:var(--gray)}
+.break-alt{background:var(--bone)}.break-alt span{background:var(--bone)}
+
+/* ══════════ COINED TERMS ══════════ */
+.ct{font-family:var(--ff-m);font-size:.86em;color:var(--ember);background:var(--ember-g);padding:.1em .5em;border-radius:4px;white-space:nowrap}
+.ct-t{font-family:var(--ff-m);font-size:.86em;color:var(--teal);background:var(--teal-g);padding:.1em .5em;border-radius:4px;white-space:nowrap}
+
+/* ══════════ SCENES ══════════ */
+.scene{padding:5.5rem 2rem;position:relative;overflow:hidden}
+.scene:nth-child(even){background:var(--bone)}
+.scene-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;align-items:center}
+.scene.flip .scene-grid{direction:rtl}
+.scene.flip .scene-grid>*{direction:ltr}
+.sn{font-family:var(--ff-d);font-size:8rem;font-weight:900;background:linear-gradient(135deg,rgba(212,98,43,.08),rgba(212,98,43,.02));-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1;margin-bottom:-.6rem}
+.sl{font-family:var(--ff-m);font-size:.58rem;letter-spacing:.4em;text-transform:uppercase;color:var(--ember);margin-bottom:.8rem}
+.scene h2{font-family:var(--ff-d);font-size:clamp(1.8rem,3.2vw,2.6rem);font-weight:900;color:var(--ink);line-height:1.15;margin-bottom:1.2rem}
+.scene-text p{font-size:1rem;margin-bottom:.9rem}
+.tc{display:flex;align-items:baseline;gap:.6rem;padding:.7rem 1.2rem;border-radius:8px;margin:1.2rem 0;font-family:var(--ff-m);font-size:.76rem}
+.tc-e{background:var(--ember-g);border:1px solid rgba(212,98,43,.2);color:var(--ember)}
+.tc-t{background:var(--teal-g);border:1px solid rgba(31,122,109,.2);color:var(--teal)}
+.tc .td{font-family:var(--ff-b);font-size:.82rem;color:var(--char);font-style:italic}
+.cb{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-top:1.2rem}
+.cb>div{padding:.85rem 1rem;border-radius:8px;font-family:var(--ff-m);font-size:.73rem;line-height:1.5}
+.cb-o{background:rgba(138,127,116,.07);border:1px solid rgba(138,127,116,.14);color:var(--gray)}
+.cb-n{background:var(--teal-g);border:1px solid rgba(31,122,109,.18);color:var(--teal)}
+.cb-l{display:block;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;opacity:.65;margin-bottom:.3rem}
+
+/* ══════════ VISUAL CONTAINERS ══════════ */
+.vis{display:flex;align-items:center;justify-content:center;min-height:380px}
+.vbox{width:100%;max-width:500px;aspect-ratio:4/3;border-radius:16px;position:relative;overflow:hidden;background:var(--bg);box-shadow:0 2px 4px rgba(22,19,16,.04),0 12px 40px rgba(22,19,16,.07),0 40px 80px rgba(22,19,16,.04);border:1px solid rgba(232,221,205,.7)}
+.vbox canvas{display:block;width:100%;height:100%}
+
+/* ══════════ STACK DIAGRAM ══════════ */
+.stack-section{max-width:820px;margin:0 auto;padding:4rem 2rem 3rem}
+.stack-section h2{font-family:var(--ff-d);font-size:clamp(1.8rem,3.5vw,2.8rem);font-weight:900;color:var(--ink);margin-bottom:.5rem}
+.stack-section .stack-sub{font-family:var(--ff-d);font-style:italic;font-size:1.1rem;color:var(--gray);margin-bottom:2.5rem}
+.stack-layers{display:flex;flex-direction:column;gap:0}
+.stack-layer{display:grid;grid-template-columns:180px 1fr;gap:1.5rem;padding:1.2rem 1.5rem;border-left:3px solid transparent;transition:all .3s}
+.stack-layer:hover{background:rgba(255,255,255,.5);border-left-color:var(--ember)}
+.stack-layer:nth-child(1){border-left-color:var(--slate)}
+.stack-layer:nth-child(2){border-left-color:var(--gold)}
+.stack-layer:nth-child(3){border-left-color:var(--ember)}
+.stack-layer:nth-child(4){border-left-color:var(--teal)}
+.stack-layer:nth-child(5){border-left-color:var(--rose)}
+.stack-lnum{font-family:var(--ff-m);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gray);margin-bottom:.2rem}
+.stack-lname{font-family:var(--ff-d);font-size:1.2rem;font-weight:700;color:var(--ink)}
+.stack-ldesc{font-size:.9rem;color:var(--char);line-height:1.6}
+.stack-ldesc code{font-family:var(--ff-m);font-size:.78rem;color:var(--gray);background:rgba(138,127,116,.08);padding:.1em .35em;border-radius:3px}
+.stack-punch{font-family:var(--ff-d);font-size:1.4rem;font-weight:700;color:var(--ink);border-left:4px solid var(--ember);padding-left:1.2rem;margin:2.5rem 0 0;line-height:1.35}
+
+/* ══════════ INTENT CAST SHOWCASE (Hero Level) ══════════ */
+.ic-showcase{
+  padding:5rem 2rem 4.5rem;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,var(--parch) 0%,var(--bone) 40%,var(--bg) 100%);
+}
+.ic-showcase::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 500px 350px at 20% 30%,rgba(212,98,43,.05),transparent),
+    radial-gradient(ellipse 400px 400px at 80% 70%,rgba(31,122,109,.04),transparent);
+  pointer-events:none;
+}
+.ic-showcase-inner{max-width:1020px;margin:0 auto;position:relative;z-index:2}
+.ic-showcase-header{text-align:center;margin-bottom:2.5rem}
+.ic-badge{
+  font-family:var(--ff-m);font-size:.62rem;letter-spacing:.35em;text-transform:uppercase;
+  color:var(--ember);background:var(--ember-g);
+  padding:.5rem 1.6rem;border-radius:2rem;display:inline-block;margin-bottom:1.2rem;
+}
+.ic-showcase-header h2{
+  font-family:var(--ff-d);font-size:clamp(2rem,4.5vw,3.2rem);font-weight:900;
+  color:var(--ink);line-height:1.1;margin-bottom:1rem;
+}
+.ic-showcase-header h2 em{color:var(--ember);font-style:italic}
+.ic-sub{
+  font-family:var(--ff-b);font-size:1rem;color:var(--gray);
+  max-width:620px;margin:0 auto;line-height:1.7;
+}
+
+.ic-tabs{display:flex;gap:.5rem;justify-content:center;margin-bottom:1.5rem;flex-wrap:wrap}
+.ex-tab{
+  font-family:var(--ff-m);font-size:.7rem;letter-spacing:.05em;
+  padding:.65rem 1.4rem;border-radius:8px;border:1px solid var(--sand);
+  background:white;color:var(--gray);cursor:pointer;
+  transition:all .3s cubic-bezier(.22,1,.36,1);display:flex;align-items:center;gap:.5rem;
+}
+.ex-tab:hover{border-color:rgba(212,98,43,.3);color:var(--ember);transform:translateY(-1px)}
+.ex-tab.active{
+  background:var(--ember-g);border-color:rgba(212,98,43,.4);color:var(--ember);font-weight:500;
+  box-shadow:0 4px 12px rgba(212,98,43,.08);
+}
+.ex-tab-num{font-size:.55rem;opacity:.5}
+
+.ic-canvas-stage{position:relative}
+.ex-canvases{position:relative}
+.ex-canvas-wrap{
+  width:100%;aspect-ratio:16/10;border-radius:16px;overflow:hidden;position:relative;
+  background:white;
+  box-shadow:
+    0 2px 4px rgba(22,19,16,.03),
+    0 8px 24px rgba(22,19,16,.06),
+    0 24px 64px rgba(22,19,16,.05),
+    0 0 0 1px rgba(232,221,205,.5);
+  display:none;
+}
+.ex-canvas-wrap.active{display:block}
+.ex-canvas-wrap canvas{display:block;width:100%;height:100%}
+
+.ex-auto-bar{width:100%;max-width:400px;height:3px;background:var(--sand);border-radius:2px;margin:1rem auto 0;overflow:hidden}
+.ex-auto-fill{height:100%;width:0%;background:var(--ember);border-radius:2px;transition:width .1s linear}
+
+/* ══════════ SKEPTIC ══════════ */
+.skeptic{max-width:700px;margin:0 auto;padding:2rem 2rem 4rem}
+.skeptic-box{background:var(--bone);border-radius:10px;padding:1.8rem 2rem;border:1px solid var(--sand)}
+.skeptic-box h3{font-family:var(--ff-d);font-size:1.2rem;font-weight:700;color:var(--ink);margin-bottom:.6rem}
+.skeptic-box p{font-size:.95rem;margin-bottom:.6rem}
+.skeptic-box p:last-child{margin-bottom:0}
+.skeptic-punchline{font-family:var(--ff-d);font-weight:700;color:var(--ember);font-size:1.05rem}
+
+@media(max-width:768px){
+  .stack-layer{grid-template-columns:1fr}
+  .ex-output{grid-template-columns:1fr}
+}
+
+/* ══════════ GLOSSARY ══════════ */
+.glossary{max-width:960px;margin:0 auto;padding:5.5rem 2rem}
+.glossary-hd{font-family:var(--ff-d);font-size:clamp(2.2rem,4.5vw,3.5rem);font-weight:900;color:var(--ink);text-align:center;margin-bottom:.5rem}
+.glossary-sub{text-align:center;font-family:var(--ff-d);font-style:italic;font-size:1.2rem;color:var(--gray);margin-bottom:3.5rem}
+.gg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.2rem}
+.gc{background:white;border-radius:10px;padding:1.5rem 1.5rem 1.3rem;border:1px solid var(--sand);position:relative;overflow:hidden;transition:transform .35s cubic-bezier(.22,1,.36,1),box-shadow .35s}
+.gc:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 12px 32px rgba(22,19,16,.07)}
+.gc::before{content:'';position:absolute;top:0;left:0;width:4px;height:100%}
+.gc.s::before{background:var(--ember)}.gc.a::before{background:var(--teal)}
+.gc.u::before{background:var(--gold)}.gc.p::before{background:var(--slate)}
+.gc-cat{font-family:var(--ff-m);font-size:.52rem;letter-spacing:.28em;text-transform:uppercase;margin-bottom:.35rem}
+.gc.s .gc-cat{color:var(--ember)}.gc.a .gc-cat{color:var(--teal)}.gc.u .gc-cat{color:var(--gold)}.gc.p .gc-cat{color:var(--slate)}
+.gc-t{font-family:var(--ff-d);font-size:1.35rem;font-weight:700;color:var(--ink);margin-bottom:.25rem}
+.gc-h{font-family:var(--ff-m);font-size:.72rem;margin-bottom:.45rem}
+.gc.s .gc-h{color:var(--ember)}.gc.a .gc-h{color:var(--teal)}.gc.u .gc-h{color:var(--gold)}.gc.p .gc-h{color:var(--slate)}
+.gc-d{font-size:.87rem;color:var(--char);line-height:1.6}
+.gc-r{font-family:var(--ff-m);font-size:.66rem;color:var(--gray);margin-top:.55rem;padding-top:.55rem;border-top:1px solid var(--sand)}
+
+/* ══════════ CLOSING ══════════ */
+.closing{max-width:700px;margin:0 auto;padding:5rem 2rem 7rem;text-align:center}
+.closing h2{font-family:var(--ff-d);font-size:clamp(2rem,4.5vw,3.2rem);font-weight:900;color:var(--ink);margin-bottom:1.5rem;line-height:1.15}
+.closing p{font-size:1.05rem;max-width:560px;margin:0 auto 1rem}
+.closing .sig{margin-top:2.5rem;font-family:var(--ff-d);font-style:italic;font-size:1.2rem;color:var(--ember)}
+
+/* ══════════ SCROLL ANIM ══════════ */
+.rv{opacity:0;transform:translateY(45px);transition:opacity .75s,transform .75s cubic-bezier(.22,1,.36,1)}
+.rv.v{opacity:1;transform:translateY(0)}
+
+@media(max-width:768px){
+  .scene-grid{grid-template-columns:1fr;gap:2rem}.scene.flip .scene-grid{direction:ltr}
+  .cb{grid-template-columns:1fr}.gg{grid-template-columns:1fr}
+  .nav{padding:0 1rem}.nav-brand{display:none}.nav-links a{font-size:.5rem;padding:.3rem .45rem}
+}
+</style>
+</head>
+<body>
+<nav class="nav" id="nav">
+  <div class="nav-brand">The New <em>Language</em> of Data</div>
+  <div class="nav-links">
+    <a href="#example">#IntentCast Live</a><a href="#manifesto">Manifesto</a><span class="nav-dot"></span>
+    <a href="#s1">#LivingBrief</a><a href="#s2">#IntentCast</a><a href="#s3">#SignalStream</a><a href="#s4">#IntelligenceSurface</a><a href="#s5">#AmbientAwareness</a>
+    <span class="nav-dot"></span><a href="#stack">Stack</a><a href="#lexicon">Lexicon</a><a href="#closing">Closing</a>
+  </div>
+</nav>
+
+<section class="hero" id="hero">
+  <canvas id="heroCanvas"></canvas>
+  <div class="hero-content">
+    <div class="hero-badge">PaddySpeaks · The AI Age Collection</div>
+    <h1><strong>The New</strong><br><em>Language</em> of Data</h1>
+    <div class="hero-type"><span id="typeTarget"></span><span class="cursor"></span></div>
+    <div class="hero-pills">
+      <a href="#s4" class="pill-e">#IntelligenceSurface</a><a href="#s2" class="pill-t">#IntentCast</a><a href="#s3" class="pill-g">#SignalCard</a><a href="#s5" class="pill-s">#AmbientAwareness</a><a href="#s1" class="pill-e">#LivingBrief</a><a href="#s2" class="pill-t">#NarrativePane</a>
+    </div>
+  </div>
+  <div class="scroll-hint"><span>Scroll to witness</span><div class="scroll-arrow"></div></div>
+</section>
+
+<!-- ══════════ INTENT CAST SHOWCASE — HERO LEVEL ══════════ -->
+<section class="ic-showcase" id="example">
+  <div class="ic-showcase-inner">
+    <div class="ic-showcase-header rv">
+      <div class="ic-badge">#IntentCast · Live</div>
+      <h2>Three questions. Three investigations.<br><em>Zero SQL.</em></h2>
+      <p class="ic-sub">Watch an agentic model receive a question in English, investigate across your data substrate, and deliver a complete answer — with root cause, evidence, and action — in seconds.</p>
+    </div>
+    <div class="ic-tabs rv">
+      <button class="ex-tab active" data-idx="0"><span class="ex-tab-num">01</span> LATAM Conversion Drop</button>
+      <button class="ex-tab" data-idx="1"><span class="ex-tab-num">02</span> Enterprise Churn Risk</button>
+      <button class="ex-tab" data-idx="2"><span class="ex-tab-num">03</span> Campaign ROI Anomaly</button>
+    </div>
+    <div class="ic-canvas-stage rv">
+      <div class="ex-canvases">
+        <div class="ex-canvas-wrap active" data-panel="0"><canvas id="cEx1"></canvas></div>
+        <div class="ex-canvas-wrap" data-panel="1"><canvas id="cEx2"></canvas></div>
+        <div class="ex-canvas-wrap" data-panel="2"><canvas id="cEx3"></canvas></div>
+      </div>
+      <div class="ex-auto-bar"><div class="ex-auto-fill" id="exAutoFill"></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="manifesto" id="manifesto">
+  <p class="dc rv">Three things happened in the same month. Jensen Huang stood on stage at GTC and declared the "agentic AI inflection point has arrived" — then compared OpenClaw to Linux and said every company needs a strategy for it. Anthropic signed a $200M partnership with Snowflake to deploy Claude-powered agents across 12,600 enterprises. And quietly, engineering teams at companies you've heard of started typing <code>/ask</code> in Slack channels instead of opening Tableau.</p>
+  <p class="rv">That last one matters most. Because it reveals the real interaction pattern of the agentic era: you don't sit in front of a computer and operate a BI tool. You spawn a process from a Slack channel, a Teams thread, or an iMessage. The agent works in the background — querying, cross-referencing, verifying — and sends you a notification when it's done. "Your LATAM conversion analysis is ready. Estimated root cause identified. Delivery: 3 minutes." You read the result on your phone between meetings. You never opened a dashboard. You never wrote a query. You never left the conversation you were already in.</p>
+  <div class="pq rv">The dashboard required you to go to the data. The agentic system brings the data to wherever you already are — Slack, email, your lock screen. The human is no longer the operator. The human is the reviewer.</div>
+  <p class="rv">This isn't a product demo. It's the architectural consequence of what Huang, Anthropic, and the open-model ecosystem are building simultaneously. Huang builds the factory floor — Vera Rubin, the $1 trillion compute demand, tokens per watt as the new CEO metric. Anthropic builds the reasoning layer — Claude as enterprise infrastructure, Agent Skills as an open standard, MCP donated to the Linux Foundation. OpenClaw becomes the orchestration OS. And the five-layer stack that emerges from this convergence doesn't have dashboards anywhere in it. What it has instead is a new vocabulary.</p>
+</section>
+
+<div class="break"><span>FIVE SCENES</span></div>
+
+<section class="scene" id="s1"><div class="scene-grid"><div class="scene-text rv"><div class="sn">01</div><div class="sl">The Monday Ritual Dies</div><h2>From Dashboard Morning to the Living Brief</h2><p>Monday, 6:47 AM. The VP of Sales hasn't opened her laptop yet. Her phone buzzes with a Slack notification from <code>@data-agent</code>:</p><p><em>"Weekly sales brief ready. Revenue ↑ 8% WoW, driven by APAC enterprise. 3 deals closed early on quarter-end urgency. Pipeline coverage for next month is thin — 3 actions recommended. Full brief attached. Reading time: 90 seconds."</em></p><p>She reads it on her phone while making coffee. She replies <code>/brief expand pipeline-risk</code> — the agent deepens that section and posts an updated version in 40 seconds. She forwards it to her CRO. Total time at a screen: zero. The <span class="ct">#LivingBrief</span> was composed overnight by a model fine-tuned on CRM, pipeline, and revenue data. It didn't wait to be asked. It ran on a schedule — like a CI/CD pipeline, but for business intelligence. The economics are simple: an overnight inference job costs a few dollars in tokens. The Monday morning ritual it replaces cost 40 minutes of executive time × 52 weeks × every VP in the company.</p><div class="tc tc-e"><strong>#LivingBrief</strong><span class="td">— Proactive. Scheduled. Delivered to Slack before you wake up.</span></div><div class="cb"><div class="cb-o"><span class="cb-l">SaaS Era</span>Open laptop → 6 dashboards → 40 min → slides → guesswork</div><div class="cb-n"><span class="cb-l">Agentic Era</span>Phone buzzes → 90-sec read → /brief expand → done</div></div></div><div class="vis rv"><div class="vbox"><canvas id="c1"></canvas></div></div></div></section>
+
+<section class="scene flip" id="s2"><div class="scene-grid"><div class="scene-text rv"><div class="sn">02</div><div class="sl">The Jira Ticket to Analytics Dies</div><h2>From Query Queues to the Intent Cast</h2><p>A PM types in the #product-analytics Slack channel:</p><p><code>/ask are mobile-first users stickier than desktop?</code></p><p>The agent responds in 2 seconds: <em>"Investigating. Checking retention by platform, cohort, geography, and pricing tier. Sarah (Data) ran a similar analysis 12 days ago — 70% of the underlying data is reusable. Refreshing the last 12 days only. Estimated delivery: 45 seconds."</em></p><p>This is the <span class="ct">#IntentCast</span> — but notice what just happened. The agent didn't start from scratch. It checked the <em>history of prior analyses across the org</em>, found a reusable artifact, and told you upfront. 45 seconds later, a threaded reply appears: a narrated finding with an auto-generated chart, posted in a <span class="ct-t">#NarrativePane</span> right inside Slack. The PM asks a follow-up in the thread: "Does this hold for enterprise tier?" The chart morphs. The conversation <em>is</em> the analysis. No one opened a BI tool. No one left Slack.</p><div class="tc tc-t"><strong>#IntentCast</strong><span class="td">— /ask from Slack. Background processing. ETA on delivery. Historical reuse.</span></div><div class="tc tc-e"><strong>#NarrativePane</strong><span class="td">— The Slack thread becomes the analysis surface.</span></div><div class="cb"><div class="cb-o"><span class="cb-l">SaaS Era</span>Jira → analyst → 2 days → chart in Slack with no context</div><div class="cb-n"><span class="cb-l">Agentic Era</span>/ask → "45 sec, reusing Sarah's data" → narrated thread</div></div></div><div class="vis rv"><div class="vbox"><canvas id="c2"></canvas></div></div></div></section>
+
+<section class="scene" id="s3"><div class="scene-grid"><div class="scene-text rv"><div class="sn">03</div><div class="sl">The Unseen Anomaly Speaks</div><h2>From Threshold Alerts to the Signal Stream</h2><p>Tuesday, 2:14 PM. Nobody asked a question. But the #ops-alerts Slack channel gets a message from <code>@signal-agent</code>:</p><p><em>"⚡ Anomaly detected: Unusual churn cluster in Brazil — 3.1σ deviation from baseline. Investigating... [working]"</em></p><p>90 seconds later, a follow-up: <em>"Root cause identified: payment gateway latency spike (340ms avg, Tue–Wed). 14,200 checkout sessions abandoned. Revenue at risk: $180K. Historical precedent: similar incident 90 days ago resolved in 5 days (provider-side). Escalation ticket drafted. Approve to send? /approve or /modify"</em></p><p>The Head of Ops reads this on her phone during a meeting. She taps <code>/approve</code>. The ticket goes to the payments team. Total human involvement: one tap. This is the <span class="ct">#SignalStream</span> — continuous inference that monitors every metric, every segment, every correlation. The <span class="ct-t">Aware Metrics</span> don't wait for a human to set a threshold. They detect their own anomalies and deliver the investigation to you, not the other way around.</p><div class="tc tc-e"><strong>#SignalStream</strong><span class="td">— The agent finds the anomaly. You approve the action. One tap.</span></div><div class="tc tc-t"><strong>#AwareMetric</strong><span class="td">— Self-diagnosing. Delivers root cause before anyone asks.</span></div><div class="cb"><div class="cb-o"><span class="cb-l">SaaS Era</span>"Churn > 5%" → red tile → someone investigates manually</div><div class="cb-n"><span class="cb-l">Agentic Era</span>Agent detects → investigates → /approve in Slack → done</div></div></div><div class="vis rv"><div class="vbox"><canvas id="c3"></canvas></div></div></div></section>
+
+<section class="scene flip" id="s4"><div class="scene-grid"><div class="scene-text rv"><div class="sn">04</div><div class="sl">The Board Deck Rewrites Itself</div><h2>From Stale Slides to the Intelligence Surface</h2><p>Thursday, 4 PM. The CFO types in the #finance Slack channel:</p><p><code>/prepare board-deck Q3 --format exec-summary --deadline friday-9am</code></p><p>The agent responds: <em>"Acknowledged. Pulling live actuals from data substrate. Checking: last quarter's board deck had 14 slides — board engaged with slides 2, 4, 7, 11 (based on discussion transcripts). Recommending 11 slides this quarter. Revenue narrative needs fresh data (refreshing now). Margin commentary reusable from FP&A's Tuesday model — updating with Thursday actuals only. Estimated delivery: Friday 6:00 AM. I'll post a draft link for your review by 11 PM tonight."</em></p><p>The CFO goes home. At 11:07 PM, a Slack notification: <em>"Draft ready for review. 3 items flagged for your judgment: (1) margin compression narrative — two interpretations possible, (2) APAC deep-dive recommended based on last quarter's board interest, (3) slide 9 removable — low engagement history. Review link attached."</em></p><p>This is the <span class="ct">#IntelligenceSurface</span> — a living layer that pulls real-time actuals, auto-generates <span class="ct-t">#SignalCards</span> for every KPI, and drafts narrative that updates when the numbers move. The CFO's job: review, choose between the two margin interpretations, approve. Assembly is gone. Judgment remains.</p><div class="tc tc-e"><strong>#IntelligenceSurface</strong><span class="td">— /prepare from Slack. Background assembly. Draft by 11 PM. Human reviews.</span></div><div class="tc tc-t"><strong>#SignalCard</strong><span class="td">— Each KPI arrives with its own explanation, trend, and recommendation.</span></div><div class="cb"><div class="cb-o"><span class="cb-l">SaaS Era</span>5 teams → 5 tools → 7 days → stale on delivery</div><div class="cb-n"><span class="cb-l">Agentic Era</span>/prepare → background work → draft by 11 PM → human judgment</div></div></div><div class="vis rv"><div class="vbox"><canvas id="c4"></canvas></div></div></div></section>
+
+<section class="scene" id="s5"><div class="scene-grid"><div class="scene-text rv"><div class="sn">05</div><div class="sl">The Relay Race Collapses</div><h2>From Six Humans to One Intent — Ambient Awareness</h2><p>Wednesday, 9:15 AM. The CEO is walking into an all-hands meeting. She texts from iMessage:</p><p><em>"Prep me for the QBR tomorrow. Focus on what the board will actually ask about."</em></p><p>The agent responds: <em>"On it. Pulling actuals, pipeline, churn, and NPS. Checking last 3 board transcripts for recurring question patterns. Mark (RevOps) ran a revenue drill-down yesterday — reusing his APAC segment data. Jake (FP&A) updated the forecast model 2 hours ago — pulling latest. Estimated delivery: your calendar shows a 45-min gap at 2 PM. I'll have the complete QBR brief, talking points, and a 12-slide deck ready by 1:55 PM."</em></p><p>At 1:55 PM, it arrives: a complete deliverable posted to her private Slack channel. Data pulled from 4 sources. Story identified. Narrative drafted. Slides built. Talking points formatted for mobile reading. Three decision items flagged for her input. She reads it during her 2 PM coffee break.</p><p>This is <span class="ct">#AmbientAwareness</span>. The agent didn't just execute a task — it checked what other people in the org had already produced, reused what was fresh, only recomputed what was stale, estimated delivery based on her actual calendar, and delivered to where she'd actually read it. Six humans, four tools, three days — collapsed into one iMessage and a 1:55 PM notification. The human never sat at a computer.</p><div class="tc tc-e"><strong>#AmbientAwareness</strong><span class="td">— Spawned from iMessage. Delivered to your calendar gap. Reuses the org's work.</span></div><div class="cb"><div class="cb-o"><span class="cb-l">SaaS Era</span>6 humans → 4 tools → 3 days → 1 deck</div><div class="cb-n"><span class="cb-l">Agentic Era</span>1 text → reuse org data → deliver to calendar gap → complete QBR</div></div></div><div class="vis rv"><div class="vbox"><canvas id="c5"></canvas></div></div></div></section>
+
+<div class="break break-alt"><span>THE ARCHITECTURE</span></div>
+
+<!-- ══════════ THE STACK ══════════ -->
+<section class="stack-section" id="stack">
+  <h2 class="rv">The Stack Beneath the Lexicon</h2>
+  <p class="stack-sub rv">This is not magic. It has five layers.</p>
+  <div class="stack-layers">
+    <div class="stack-layer rv">
+      <div><div class="stack-lnum">Layer 1</div><div class="stack-lname">Data Substrate</div></div>
+      <div class="stack-ldesc">Warehouse / lakehouse + semantic layer + event streams + knowledge graph. This is the <code>Delta Lake</code>, <code>Iceberg</code>, <code>Unity Catalog</code> layer — the governed, versioned truth. Nothing above it works without lineage and access control here.</div>
+    </div>
+    <div class="stack-layer rv">
+      <div><div class="stack-lnum">Layer 2</div><div class="stack-lname">Business Memory</div></div>
+      <div class="stack-ldesc">Metrics definitions, governance rules, access policies, historical decisions, audit trails. This is the institutional context the model needs to reason correctly — not just data, but the <em>rules about the data</em>.</div>
+    </div>
+    <div class="stack-layer rv">
+      <div><div class="stack-lnum">Layer 3</div><div class="stack-lname">Agentic Reasoning Layer</div></div>
+      <div class="stack-ldesc">Fine-tuned / open models + tool use + retrieval + planning + verification. This is where <code>Nemotron</code>, <code>Llama</code>, <code>Mistral</code> get tuned on your domain data and connected to your systems via <code>OpenClaw</code> / <code>NemoClaw</code>. The model reasons, queries, cross-references, and verifies before it speaks.</div>
+    </div>
+    <div class="stack-layer rv">
+      <div><div class="stack-lnum">Layer 4</div><div class="stack-lname">Narrative Interface Layer</div></div>
+      <div class="stack-ldesc">This is where the lexicon lives. Living Briefs, Signal Cards, Narrative Panes, Intent Casts — the surfaces through which intelligence reaches humans. English is the rendering engine. Charts become evidence, not product.</div>
+    </div>
+    <div class="stack-layer rv">
+      <div><div class="stack-lnum">Layer 5</div><div class="stack-lname">Action Loop</div></div>
+      <div class="stack-ldesc">Ticket creation, slide generation, CRM updates, workflow triggers, forecast adjustments, escalation routing. The output isn't a report. It's <em>work done</em>. This is where "selling outcomes" becomes literal.</div>
+    </div>
+  </div>
+  <div class="stack-punch rv">The dashboard was a rendering layer. The agentic system is a reasoning-and-action layer.</div>
+</section>
+
+<!-- ══════════ SKEPTIC ══════════ -->
+<section class="skeptic" id="skeptic">
+  <div class="skeptic-box rv">
+    <h3>No, not everything disappears.</h3>
+    <p>Regulated workflows, audit trails, financial controls, SOX compliance, and human sign-off will preserve visual surfaces for years. Operations centers, trading floors, and production monitoring genuinely benefit from spatial, glanceable, real-time displays. Those aren't going anywhere.</p>
+    <p>But the role changes. The chart stops being the product. <span class="skeptic-punchline">It becomes evidence attached to an agentic conclusion.</span></p>
+    <p>The governance layer — lineage, access control, explainability — doesn't go away. It gets <em>harder</em>, because the consumer of the insight is now further from the source than ever. That's not a reason to keep dashboards. That's a reason to build better Layer 2 business memory.</p>
+  </div>
+</section>
+
+<div class="break break-alt"><span>THE LEXICON</span></div>
+
+<section class="glossary" id="lexicon">
+  <h2 class="glossary-hd rv">The Post-Query Lexicon</h2>
+  <p class="glossary-sub rv">12 terms for a world where English is the only query language.</p>
+  <div class="gg">
+    <div class="gc s rv"><div class="gc-cat">Surface</div><div class="gc-t">Intelligence Surface</div><div class="gc-h">#IntelligenceSurface</div><div class="gc-d">A connected, self-updating layer where data renders as awareness — not charts.</div><div class="gc-r">Replaces → Dashboard, BI Portal</div></div>
+    <div class="gc s rv"><div class="gc-cat">Surface</div><div class="gc-t">Living Brief</div><div class="gc-h">#LivingBrief</div><div class="gc-d">A self-composing narrative that replaces the weekly report. Writes itself overnight.</div><div class="gc-r">Replaces → Weekly Report, Exec Summary</div></div>
+    <div class="gc s rv"><div class="gc-cat">Surface</div><div class="gc-t">Narrative Pane</div><div class="gc-h">#NarrativePane</div><div class="gc-d">The conversational surface where insight unfolds through dialogue.</div><div class="gc-r">Replaces → Report Viewer, Analytics Tab</div></div>
+    <div class="gc a rv"><div class="gc-cat">Action</div><div class="gc-t">Intent Cast</div><div class="gc-h">#IntentCast</div><div class="gc-d">Throwing intent in English. The system catches meaning, investigates, narrates.</div><div class="gc-r">Replaces → SQL Query, Analytics Ticket</div></div>
+    <div class="gc a rv"><div class="gc-cat">Action</div><div class="gc-t">Reasoning Layer</div><div class="gc-h">#ReasoningLayer</div><div class="gc-d">The inference bridge between human intent and data infrastructure. Where the model plans which tools to call, which tables to query, and how to verify..</div><div class="gc-r">Replaces → Query Editor, SQL Console, Semantic Layer UI</div></div>
+    <div class="gc a rv"><div class="gc-cat">Action</div><div class="gc-t">Prompt-to-Insight</div><div class="gc-h">#P2I</div><div class="gc-d">Human language in, narrated insight out. The ETL of the AI age.</div><div class="gc-r">Replaces → ETL-to-Dashboard Pipeline</div></div>
+    <div class="gc u rv"><div class="gc-cat">Unit</div><div class="gc-t">Signal Card</div><div class="gc-h">#SignalCard</div><div class="gc-d">Not a number — a signal with context, cause, trend, and action baked in.</div><div class="gc-r">Replaces → KPI Tile, Metric Card</div></div>
+    <div class="gc u rv"><div class="gc-cat">Unit</div><div class="gc-t">Aware Metric</div><div class="gc-h">#AwareMetric</div><div class="gc-d">Knows when it's abnormal and says so — with deviation and precedent.</div><div class="gc-r">Replaces → Threshold Alert, Red/Green Indicator</div></div>
+    <div class="gc u rv"><div class="gc-cat">Unit</div><div class="gc-t">Insight Atom</div><div class="gc-h">#InsightAtom</div><div class="gc-d">The smallest indivisible unit of data intelligence. Portable, embeddable, composable — like an atom that bonds into larger narratives.</div><div class="gc-r">Replaces → Chart Annotation, Tooltip, Data Point</div></div>
+    <div class="gc p rv"><div class="gc-cat">Paradigm</div><div class="gc-t">Ambient Awareness</div><div class="gc-h">#AmbientAwareness</div><div class="gc-d">You don't seek data. It finds you — pre-digested, narrated, ready to act on.</div><div class="gc-r">Replaces → Scheduled Reports, Dashboard Check-ins</div></div>
+    <div class="gc p rv"><div class="gc-cat">Paradigm</div><div class="gc-t">Signal Stream</div><div class="gc-h">#SignalStream</div><div class="gc-d">Continuous intelligence monitoring every metric and correlation.</div><div class="gc-r">Replaces → Alert Rules, Monitoring Dashboards</div></div>
+    <div class="gc p rv"><div class="gc-cat">Paradigm</div><div class="gc-t">Narrative Analytics</div><div class="gc-h">#NarrativeAnalytics</div><div class="gc-d">Output is English, not axes. The story is the analysis.</div><div class="gc-r">Replaces → Visual Analytics, Chart-First BI</div></div>
+  </div>
+</section>
+
+<section class="closing" id="closing">
+  <h2 class="rv">The vocabulary exists now.<br>The interaction pattern is already here.</h2>
+  <p class="rv">None of this is science fiction. Engineers already type <code>/deploy</code> in Slack and get a notification when the build is done. DevOps already runs background pipelines that notify on failure. The only thing that's new is applying that same pattern — spawn, background process, ETA, deliver — to <em>business intelligence</em>. The models are shipping. The orchestration layer is open source. The enterprise governance is being built by Anthropic, Snowflake, and the Nemotron Coalition in real time.</p>
+  <p class="rv">The question is not whether people will spend less time in front of dashboards. They will. The question is whether your company is building the agent that replaces the dashboard — or still buying the SaaS license that assumes a human is sitting in front of one.</p>
+  <div class="sig rv">— PaddySpeaks</div>
+</section>
+
+<script>
+// ══════════ HERO PARTICLE CANVAS ══════════
+!function(){
+  const cv=document.getElementById('heroCanvas'),cx=cv.getContext('2d');
+  let W,H,pts=[];const E='#D4622B',T='#1F7A6D',G='#BF9522';
+  function sz(){W=cv.width=cv.offsetWidth;H=cv.height=cv.offsetHeight}
+  window.addEventListener('resize',sz);sz();
+  class P{
+    constructor(){this.reset()}
+    reset(){this.x=Math.random()*W;this.y=Math.random()*H;this.vx=(Math.random()-.5)*.35;this.vy=(Math.random()-.5)-.12;this.r=Math.random()*2.8+.4;this.life=1;this.decay=Math.random()*.003+.001;this.color=[E,T,G,'#8A7F74'][~~(Math.random()*4)];this.isHash=Math.random()<.1}
+    update(){this.x+=this.vx;this.y+=this.vy;this.life-=this.decay;if(this.life<=0||this.x<-10||this.x>W+10||this.y<-10||this.y>H+10)this.reset()}
+    draw(){cx.globalAlpha=this.life*(this.isHash?.25:.35);if(this.isHash){cx.font=(10+this.r*6)+'px DM Mono';cx.fillStyle=this.color;cx.fillText('#',this.x,this.y)}else{cx.beginPath();cx.arc(this.x,this.y,this.r,0,6.28);cx.fillStyle=this.color;cx.fill()}cx.globalAlpha=1}
+  }
+  for(let i=0;i<100;i++)pts.push(new P);
+  function loop(){cx.clearRect(0,0,W,H);for(let i=0;i<pts.length;i++){for(let j=i+1;j<pts.length;j++){const dx=pts[i].x-pts[j].x,dy=pts[i].y-pts[j].y,d=Math.sqrt(dx*dx+dy*dy);if(d<110){cx.strokeStyle=E;cx.globalAlpha=(1-d/110)*.055*pts[i].life*pts[j].life;cx.beginPath();cx.moveTo(pts[i].x,pts[i].y);cx.lineTo(pts[j].x,pts[j].y);cx.stroke();cx.globalAlpha=1}}pts[i].update();pts[i].draw()}requestAnimationFrame(loop)}loop()
+}();
+
+// ══════════ TYPEWRITER ══════════
+!function(){
+  const phrases=['/ask from Slack. The agent investigates.','Your brief arrives before you wake up.','Reusing Sarah\'s data. ETA: 45 seconds.','The human reviews. The agent operates.','#LivingBrief  #IntentCast  #SignalStream'];
+  const el=document.getElementById('typeTarget');let pi=0,ci=0,del=false,wait=0;
+  function tick(){if(wait>0){wait--;requestAnimationFrame(tick);return}if(!del){ci++;el.textContent=phrases[pi].slice(0,ci);if(ci===phrases[pi].length){wait=120;del=true}}else{ci--;el.textContent=phrases[pi].slice(0,ci);if(ci===0){del=false;pi=(pi+1)%phrases.length;wait=30}}setTimeout(()=>requestAnimationFrame(tick),del?22:45)}setTimeout(tick,1800)
+}();
+
+// ══════════ CANVAS INIT ══════════
+function initCanvas(id,fn){
+  const cv=document.getElementById(id);if(!cv)return;const cx=cv.getContext('2d');let f=0,run=false;
+  function sz(){const r=devicePixelRatio||1,rc=cv.getBoundingClientRect();cv.width=rc.width*r;cv.height=rc.height*r;cx.scale(r,r)}
+  new ResizeObserver(sz).observe(cv);sz();
+  new IntersectionObserver(e=>{run=e[0].isIntersecting;if(run)raf()},{threshold:.1}).observe(cv);
+  function raf(){if(!run)return;const rc=cv.getBoundingClientRect();cx.clearRect(0,0,rc.width,rc.height);fn(cx,rc.width,rc.height,f);f++;requestAnimationFrame(raf)}
+}
+function rr(c,x,y,w,h,r){c.beginPath();c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);c.closePath()}
+
+// ═══ SHARED: Draw a Slack-style message bubble ═══
+function slackMsg(c,w,h,x,y,mw,avatar,name,nameCol,lines,alpha){
+  c.globalAlpha=alpha;
+  var lh=h*.035; // proportional line height
+  if(lh<12)lh=12;if(lh>18)lh=18;
+  var fs=w*.016;if(fs<8)fs=8;if(fs>14)fs=14;
+  var nfs=w*.017;if(nfs<9)nfs=9;if(nfs>15)nfs=15;
+  // Avatar circle
+  var ar=Math.min(9,w*.02);
+  c.beginPath();c.arc(x+ar,y+ar,ar,0,6.28);c.fillStyle=nameCol;c.fill();
+  c.font='700 '+Math.max(7,ar*1.2)+'px DM Mono';c.fillStyle='white';c.textAlign='center';c.fillText(avatar,x+ar,y+ar+3);c.textAlign='left';
+  // Name
+  c.font='700 '+nfs+'px Newsreader';c.fillStyle=nameCol;c.fillText(name,x+ar*2+6,y+ar+3);
+  // Lines
+  lines.forEach(function(ln,i){
+    c.font=ln.mono?fs+'px DM Mono':fs+'px Newsreader';
+    c.fillStyle=ln.col||'#161310';
+    c.fillText(ln.t,x+ar*2+6,y+ar*2+6+i*lh);
+  });
+  c.globalAlpha=1;
+  return y+ar*2+6+lines.length*lh+4; // return bottom Y for stacking
+}
+// ═══ SHARED: Draw pipeline chips — auto-wraps into rows ═══
+function drawPipeline(c,w,h,x,y,chips,t,f){
+  var GR='#8A7F74';
+  c.font='500 '+Math.max(6,w*.01)+'px DM Mono';c.fillStyle=GR;
+  c.fillText('AGENT PIPELINE',x,y);
+  var chipW=w*.19;var chipH=Math.max(12,h*.035);var gap=w*.015;
+  var maxPerRow=Math.floor((w*.9)/(chipW+gap));
+  chips.forEach(function(ch,i){
+    var row=Math.floor(i/maxPerRow),col=i%maxPerRow;
+    var ca=Math.min(1,(t-i*.03)*8);if(ca<=0)return;
+    var cx=x+col*(chipW+gap),cy=y+6+row*(chipH+4);
+    c.globalAlpha=ca;
+    c.fillStyle=ch.bg;rr(c,cx,cy,chipW,chipH,chipH/2);c.fill();
+    c.font='500 '+Math.max(6,w*.01)+'px DM Mono';c.fillStyle=ch.c;
+    c.fillText(ch.l,cx+6,cy+chipH*.7);
+    if(ch.done){
+      c.font=Math.max(7,w*.012)+'px Newsreader';c.fillStyle='#1F7A6D';c.fillText('✓',cx+chipW-12,cy+chipH*.7);
+    }else{
+      c.save();c.translate(cx+chipW-10,cy+chipH/2);c.rotate(f*.1);
+      for(var d=0;d<3;d++){c.globalAlpha=ca*(.15+.2*d/3);c.beginPath();c.arc(3*Math.cos(d*2.09),3*Math.sin(d*2.09),1.3,0,6.28);c.fillStyle=ch.c;c.fill()}
+      c.restore();
+    }
+    c.globalAlpha=1;
+  });
+  var rows=Math.ceil(chips.length/maxPerRow);
+  return y+8+rows*(chipH+4)+4; // return bottom Y
+}
+
+// ═══ SHARED: Slack channel header ═══
+function slackHeader(c,w,h,channel,timestamp){
+  c.fillStyle='white';c.fillRect(0,0,w,h*.07);
+  c.strokeStyle='#E8DDCD';c.lineWidth=1;c.beginPath();c.moveTo(0,h*.07);c.lineTo(w,h*.07);c.stroke();
+  c.font='700 '+Math.max(9,w*.018)+'px Newsreader';c.fillStyle='#161310';c.fillText(channel,w*.04,h*.048);
+  if(timestamp){c.font=Math.max(7,w*.012)+'px DM Mono';c.fillStyle='#8A7F74';c.fillText(timestamp,w*.6,h*.048)}
+}
+
+// ═══ SCENE 1: Living Brief ═══
+initCanvas('c1',function(c,w,h,f){
+  var t=(f%600)/600,E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',GR='#8A7F74',INK='#161310',px=w*.04,curY;
+  c.fillStyle='#F8F5F0';c.fillRect(0,0,w,h);
+  slackHeader(c,w,h,'#sales-intelligence','MON 6:47 AM');
+  curY=h*.09;
+  if(t>.02){var a=Math.min(1,(t-.02)/.08);
+    curY=slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[
+      {t:'Weekly sales brief ready.',col:INK},
+      {t:'Revenue ↑ 8% WoW · APAC enterprise driving.',col:T},
+      {t:'Pipeline thin for next month.',col:INK},
+    ],a);curY+=h*.015;}
+  if(t>.12){curY=drawPipeline(c,w,h,px+w*.02,curY,[
+    {l:'📂 CATALOG',c:T,bg:'rgba(31,122,109,.08)',done:t>.16},
+    {l:'🔒 PERMISSIONS',c:S,bg:'rgba(61,98,133,.08)',done:t>.19},
+    {l:'🛡 PII SCAN',c:E,bg:'rgba(212,98,43,.08)',done:t>.22},
+    {l:'📊 CRM+PIPE',c:G,bg:'rgba(191,149,34,.08)',done:t>.25},
+  ],t-.12,f);curY+=h*.015;}
+  if(t>.3){var bp=Math.min(1,(t-.3)/.12);c.globalAlpha=bp;
+    var cH=h*.22;c.fillStyle='white';c.strokeStyle='#E8DDCD';c.lineWidth=.8;rr(c,px+w*.02,curY,w*.88,cH,6);c.fill();c.stroke();
+    c.fillStyle=E;c.fillRect(px+w*.02,curY,3,cH);
+    c.font='500 '+Math.max(6,w*.011)+'px DM Mono';c.fillStyle=E;c.fillText('#LIVINGBRIEF · EXTERNAL-SAFE · NO PII',px+w*.05,curY+h*.025);
+    var lh2=h*.04;
+    [{d:T,t:'Revenue ↑ 8% WoW — APAC enterprise'},{d:G,t:'3 deals closed early — quarter-end urgency'},{d:E,t:'⚠ Pipeline thin — 3 actions recommended'},{d:S,t:'Governance: L2 cleared · 90 sec read'}].forEach(function(ln,i){
+      var lp=Math.max(0,Math.min(1,(bp-i*.08)*5));if(!lp)return;c.globalAlpha=lp;var ly=curY+h*.05+i*lh2;
+      c.beginPath();c.arc(px+w*.05,ly,2.5,0,6.28);c.fillStyle=ln.d;c.fill();
+      c.font=Math.max(7,w*.015)+'px Newsreader';c.fillStyle=INK;c.fillText(ln.t,px+w*.07,ly+3);
+    });c.globalAlpha=1;curY+=cH+h*.015;}
+  if(t>.58){var rp=Math.min(1,(t-.58)/.08);curY=slackMsg(c,w,h,px,curY,0,'V','VP Sales',E,[{t:'/brief expand pipeline-risk',mono:true,col:E}],rp);curY+=h*.01}
+  if(t>.7){var up=Math.min(1,(t-.7)/.1);slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[{t:'Updated. Pipeline section expanded.',col:T}],up)}
+});
+
+// ═══ SCENE 2: Intent Cast ═══
+initCanvas('c2',function(c,w,h,f){
+  var t=(f%650)/650,E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',GR='#8A7F74',INK='#161310',px=w*.04,curY;
+  c.fillStyle='#F8F5F0';c.fillRect(0,0,w,h);
+  slackHeader(c,w,h,'#product-analytics','');
+  curY=h*.09;
+  if(t>.02){var a=Math.min(1,t*10);curY=slackMsg(c,w,h,px,curY,0,'P','PM · Ravi',S,[{t:'/ask are mobile-first users stickier?',mono:true,col:E}],a);curY+=h*.01}
+  if(t>.08){var a2=Math.min(1,(t-.08)/.06);curY=slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[
+    {t:'Investigating retention by platform, cohort, geo.',col:INK},
+    {t:'Sarah ran similar 12d ago — 70% reusable. ETA: 45s.',col:T},
+  ],a2);curY+=h*.01}
+  if(t>.16){curY=drawPipeline(c,w,h,px+w*.02,curY,[
+    {l:'📂 CATALOG',c:T,bg:'rgba(31,122,109,.08)',done:t>.2},
+    {l:'🔒 RBAC',c:S,bg:'rgba(61,98,133,.08)',done:t>.23},
+    {l:'♻ REUSE 70%',c:G,bg:'rgba(191,149,34,.08)',done:t>.26},
+    {l:'🔄 REFRESH Δ',c:E,bg:'rgba(212,98,43,.08)',done:t>.33},
+  ],t-.16,f);curY+=h*.01}
+  if(t>.38){var rp=Math.min(1,(t-.38)/.1);curY=slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[
+    {t:'✅ Mobile-first: 23% higher D30 retention.',col:T},
+    {t:'Enterprise: 11% gap. Geo outlier: Japan.',col:INK},
+    {t:'L2 cleared · No PII · Reuse saved 70% compute.',col:S},
+  ],rp);curY+=h*.01}
+  if(t>.58){var fp=Math.min(1,(t-.58)/.08);curY=slackMsg(c,w,h,px,curY,0,'P','PM · Ravi',S,[{t:'Does this hold for enterprise tier?',col:INK}],fp);curY+=h*.01}
+  if(t>.7){var fp2=Math.min(1,(t-.7)/.1);slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[{t:'Partially — 11% gap. Geo matters. Expanding...',col:T}],fp2)}
+});
+
+// ═══ SCENE 3: Signal Stream ═══
+initCanvas('c3',function(c,w,h,f){
+  var t=(f%550)/550,E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',GR='#8A7F74',INK='#161310',px=w*.04,curY;
+  c.fillStyle='#F8F5F0';c.fillRect(0,0,w,h);
+  slackHeader(c,w,h,'#ops-alerts','TUE 2:14 PM · PROACTIVE');
+  curY=h*.09;
+  if(t>.02){var a=Math.min(1,t*8);curY=slackMsg(c,w,h,px,curY,0,'S','@signal-agent',E,[
+    {t:'⚡ Anomaly: churn cluster Brazil — 3.1σ.',col:E},
+    {t:'Investigating...',col:GR},
+  ],a);curY+=h*.01}
+  if(t>.1){curY=drawPipeline(c,w,h,px+w*.02,curY,[
+    {l:'📂 CATALOG',c:T,bg:'rgba(31,122,109,.08)',done:t>.15},
+    {l:'🔒 GOVERN',c:S,bg:'rgba(61,98,133,.08)',done:t>.18},
+    {l:'🛡 PII REDACT',c:E,bg:'rgba(212,98,43,.08)',done:t>.21},
+    {l:'🔗 CORRELATE',c:G,bg:'rgba(191,149,34,.08)',done:t>.28},
+    {l:'📜 PRECEDENT',c:S,bg:'rgba(61,98,133,.08)',done:t>.32},
+  ],t-.1,f);curY+=h*.01}
+  if(t>.36){var rp=Math.min(1,(t-.36)/.1);curY=slackMsg(c,w,h,px,curY,0,'S','@signal-agent',E,[
+    {t:'Root cause: gateway latency 340ms Tue–Wed.',col:E},
+    {t:'14,200 sessions abandoned. Risk: $180K.',col:INK},
+    {t:'Precedent: resolved 5d. PII redacted.',col:S},
+  ],rp);curY+=h*.01}
+  if(t>.52){var bp=Math.min(1,(t-.52)/.08);c.globalAlpha=bp;
+    var btnH=Math.max(14,h*.035);
+    c.fillStyle='rgba(31,122,109,.08)';rr(c,px+w*.02,curY,w*.2,btnH,btnH/2);c.fill();
+    c.strokeStyle='rgba(31,122,109,.3)';c.lineWidth=.8;rr(c,px+w*.02,curY,w*.2,btnH,btnH/2);c.stroke();
+    c.font='500 '+Math.max(7,w*.013)+'px DM Mono';c.fillStyle=T;c.fillText('/approve',px+w*.05,curY+btnH*.7);
+    c.fillStyle='rgba(138,127,116,.06)';rr(c,px+w*.25,curY,w*.18,btnH,btnH/2);c.fill();
+    c.strokeStyle='rgba(138,127,116,.2)';rr(c,px+w*.25,curY,w*.18,btnH,btnH/2);c.stroke();
+    c.fillStyle=GR;c.fillText('/modify',px+w*.28,curY+btnH*.7);
+    c.globalAlpha=1;curY+=btnH+h*.015;}
+  if(t>.64){var ap=Math.min(1,(t-.64)/.06);curY=slackMsg(c,w,h,px,curY,0,'M','Head of Ops',S,[{t:'/approve',mono:true,col:T}],ap);curY+=h*.01}
+  if(t>.74){var dp=Math.min(1,(t-.74)/.1);slackMsg(c,w,h,px,curY,0,'S','@signal-agent',T,[{t:'✅ Ticket ESC-4217 sent. ETA: 3–5 days.',col:T}],dp)}
+});
+
+// ═══ SCENE 4: Intelligence Surface ═══
+initCanvas('c4',function(c,w,h,f){
+  var t=(f%700)/700,E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',GR='#8A7F74',INK='#161310',px=w*.04,curY;
+  c.fillStyle='#F8F5F0';c.fillRect(0,0,w,h);
+  slackHeader(c,w,h,'#finance','THU 4:00 PM');
+  curY=h*.09;
+  if(t>.02){var a=Math.min(1,t*8);curY=slackMsg(c,w,h,px,curY,0,'C','CFO',S,[
+    {t:'/prepare board-deck Q3 --deadline fri-9am',mono:true,col:E},
+  ],a);curY+=h*.01}
+  if(t>.08){var a2=Math.min(1,(t-.08)/.07);curY=slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[
+    {t:'Pulling actuals. Board engaged slides 2,4,7,11.',col:INK},
+    {t:'FP&A (Jake, Tue) reusable. Draft: 11 PM.',col:T},
+  ],a2);curY+=h*.01}
+  if(t>.18){curY=drawPipeline(c,w,h,px+w*.02,curY,[
+    {l:'📂 CATALOG',c:T,bg:'rgba(31,122,109,.08)',done:t>.22},
+    {l:'🔒 BOARD-LVL',c:S,bg:'rgba(61,98,133,.08)',done:t>.25},
+    {l:'🛡 PII REDACT',c:E,bg:'rgba(212,98,43,.08)',done:t>.28},
+    {l:'♻ REUSE FP&A',c:G,bg:'rgba(191,149,34,.08)',done:t>.32},
+    {l:'📜 BOARD HIST',c:S,bg:'rgba(61,98,133,.08)',done:t>.36},
+  ],t-.18,f);curY+=h*.01}
+  if(t>.42){c.globalAlpha=Math.min(1,(t-.42)/.04);c.fillStyle=GR;c.font=Math.max(6,w*.011)+'px DM Mono';c.fillText('— 11:07 PM —',w*.42,curY);c.globalAlpha=1;curY+=h*.025}
+  if(t>.46){var dp=Math.min(1,(t-.46)/.1);curY=slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[
+    {t:'Draft ready. 11 slides. 3 judgment items:',col:T},
+    {t:'① Margin: 2 options. ② Add APAC. ③ Cut slide 9.',col:INK},
+    {t:'L3 board · PII redacted · External-safe.',col:S},
+  ],dp);curY+=h*.01}
+  if(t>.64){var rp=Math.min(1,(t-.64)/.07);curY=slackMsg(c,w,h,px,curY,0,'C','CFO',S,[{t:'/approve --margin-A --add-apac',mono:true,col:T}],rp);curY+=h*.01}
+  if(t>.76){var fp=Math.min(1,(t-.76)/.1);slackMsg(c,w,h,px,curY,0,'D','@data-agent',T,[{t:'✅ Final deck → Board Portal. Fri 6 AM.',col:T}],fp)}
+});
+
+// ═══ SCENE 5: Ambient Awareness ═══
+initCanvas('c5',function(c,w,h,f){
+  var t=(f%650)/650,E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',GR='#8A7F74',INK='#161310',px=w*.04,curY;
+  c.fillStyle='#F8F5F0';c.fillRect(0,0,w,h);
+  slackHeader(c,w,h,'iMessage → @work-agent','WED 9:15 AM');
+  curY=h*.09;
+  if(t>.02){var a=Math.min(1,t*8);c.globalAlpha=a;
+    var bubH=h*.05;c.fillStyle='#007AFF';rr(c,w*.28,curY,w*.64,bubH,bubH/2.5);c.fill();
+    c.font=Math.max(7,w*.014)+'px Newsreader';c.fillStyle='white';
+    c.fillText('Prep me for QBR. Focus on board questions.',w*.31,curY+bubH*.65);
+    c.globalAlpha=1;curY+=bubH+h*.015;}
+  if(t>.08){var a2=Math.min(1,(t-.08)/.07);curY=slackMsg(c,w,h,px,curY,0,'A','@work-agent',T,[
+    {t:'On it. Pulling actuals, pipeline, churn, NPS.',col:INK},
+    {t:'Mark APAC data reusable. Jake forecast 2h old.',col:T},
+    {t:'Calendar gap: 2 PM. Ready by 1:55 PM.',col:GR},
+  ],a2);curY+=h*.01}
+  if(t>.2){curY=drawPipeline(c,w,h,px+w*.02,curY,[
+    {l:'📂 4 SOURCES',c:T,bg:'rgba(31,122,109,.08)',done:t>.25},
+    {l:'🔒 EXEC-LVL',c:S,bg:'rgba(61,98,133,.08)',done:t>.28},
+    {l:'♻ REUSE MARK',c:G,bg:'rgba(191,149,34,.08)',done:t>.31},
+    {l:'♻ REUSE JAKE',c:G,bg:'rgba(191,149,34,.08)',done:t>.34},
+    {l:'🛡 PII CLEAN',c:E,bg:'rgba(212,98,43,.08)',done:t>.37},
+  ],t-.2,f);curY+=h*.01}
+  if(t>.42){c.globalAlpha=Math.min(1,(t-.42)/.04);c.fillStyle=GR;c.font=Math.max(6,w*.011)+'px DM Mono';c.fillText('— 1:55 PM · PRIVATE CHANNEL —',w*.3,curY);c.globalAlpha=1;curY+=h*.025}
+  if(t>.48){var dp=Math.min(1,(t-.48)/.1);curY=slackMsg(c,w,h,px,curY,0,'A','@work-agent',T,[
+    {t:'✅ QBR prep complete. 12 slides + talking points.',col:T},
+    {t:'Reused Mark + Jake data (saved 40% compute).',col:G},
+    {t:'L3 exec · PII clean · External-safe.',col:S},
+  ],dp);curY+=h*.015}
+  if(t>.68){var pp=Math.min(1,(t-.68)/.1);c.globalAlpha=pp;
+    c.fillStyle='rgba(212,98,43,.05)';rr(c,w*.08,curY,w*.84,h*.04,6);c.fill();
+    c.font='500 '+Math.max(7,w*.012)+'px DM Mono';c.fillStyle=E;c.textAlign='center';
+    c.fillText('THE CEO NEVER SAT AT A COMPUTER.',w*.5,curY+h*.027);c.textAlign='left';c.globalAlpha=1}
+});
+
+// ═══ INTENT CAST WORKFLOW HELPER ═══
+function drawWorkflow(c,w,h,f,config){
+  const totalDur=config.dur||800;
+  const t=(f%totalDur)/totalDur;
+  const E='#D4622B',T='#1F7A6D',G='#BF9522',S='#3D6285',INK='#161310',GR='#8A7F74',BONE='#F5EFE4';
+  const pad=w*.04;
+
+  // Header
+  c.font=`500 ${w*.013}px DM Mono`;c.fillStyle=E;
+  c.fillText('#INTENTCAST · '+config.tag,pad,h*.05);
+
+  // Question
+  const qA=Math.min(1,t*12);c.globalAlpha=qA;
+  c.fillStyle=BONE;rr(c,pad,h*.075,w*.92,h*.07,8);c.fill();
+  c.fillStyle=E;c.fillRect(pad,h*.075,3.5,h*.07);
+  c.font=`italic ${w*.022}px Newsreader`;c.fillStyle=INK;
+  c.fillText(config.question,pad+w*.02,h*.118);c.globalAlpha=1;
+
+  // Left: Steps
+  const topY=h*.175;
+  c.font=`500 ${w*.011}px DM Mono`;c.fillStyle=GR;c.fillText('AGENT WORKFLOW',pad,topY);
+
+  config.steps.forEach((s,i)=>{
+    const trig=.05+i*.09;
+    const sP=Math.max(0,Math.min(1,(t-trig)/.06));
+    if(sP<=0)return;
+    const sy=topY+h*.035+i*h*.078;c.globalAlpha=sP;
+    c.beginPath();c.arc(pad+10,sy+7,8,0,6.28);c.fillStyle=s.col||T;c.fill();
+    c.font=`500 ${w*.013}px DM Mono`;c.fillStyle='white';c.textAlign='center';
+    c.fillText(''+(i+1),pad+10,sy+11);c.textAlign='left';
+    c.font=`${w*.018}px Newsreader`;c.fillStyle=INK;c.fillText(s.txt,pad+26,sy+11);
+    if(i<config.steps.length-1){c.strokeStyle=s.col||T;c.globalAlpha=sP*.15;c.lineWidth=1;c.beginPath();c.moveTo(pad+10,sy+15);c.lineTo(pad+10,sy+h*.078-2);c.stroke()}
+    c.globalAlpha=1;
+  });
+
+  // Spinner
+  const aStep=Math.floor((t-.05)/.09);
+  if(aStep>=0&&aStep<config.steps.length&&t<.05+config.steps.length*.09){
+    const spY=topY+h*.035+aStep*h*.078;
+    c.save();c.translate(w*.47,spY+7);c.rotate(f*.07);
+    for(let d=0;d<3;d++){c.globalAlpha=.15+.25*(d/3);c.beginPath();c.arc(5*Math.cos(d*2.09),5*Math.sin(d*2.09),1.8,0,6.28);c.fillStyle=T;c.fill()}
+    c.restore();c.globalAlpha=1;
+  }
+
+  // Right: Visualizations
+  const rx=w*.52,ry=topY;
+  c.font=`500 ${w*.011}px DM Mono`;c.fillStyle=GR;
+  if(t>.1){c.globalAlpha=Math.min(1,(t-.1)/.06);c.fillText('DATA ASSEMBLED',rx,ry);c.globalAlpha=1}
+
+  // Viz 1
+  if(config.viz1&&t>config.viz1.trig){
+    const vp=Math.min(1,(t-config.viz1.trig)/.1);c.globalAlpha=vp;
+    c.fillStyle='rgba(255,255,255,.5)';rr(c,rx,ry+h*.025,w*.42,h*.2,6);c.fill();
+    c.strokeStyle='#E8DDCD';c.lineWidth=.5;rr(c,rx,ry+h*.025,w*.42,h*.2,6);c.stroke();
+    c.font=`500 ${w*.01}px DM Mono`;c.fillStyle=GR;c.fillText(config.viz1.title,rx+w*.015,ry+h*.05);
+    config.viz1.draw(c,w,h,rx,ry+h*.025,vp,f);
+    c.globalAlpha=1;
+  }
+
+  // Viz 2: Anomaly / highlight card
+  if(config.viz2&&t>config.viz2.trig){
+    const vp=Math.min(1,(t-config.viz2.trig)/.08);c.globalAlpha=vp;
+    c.fillStyle='rgba(255,255,255,.5)';rr(c,rx,ry+h*.26,w*.42,h*.12,6);c.fill();
+    c.strokeStyle=config.viz2.borderCol||E;c.lineWidth=.8;rr(c,rx,ry+h*.26,w*.42,h*.12,6);c.stroke();
+    c.font=`500 ${w*.01}px DM Mono`;c.fillStyle=config.viz2.borderCol||E;
+    c.fillText(config.viz2.label,rx+w*.015,ry+h*.285);
+    c.font=`${w*.017}px Newsreader`;c.fillStyle=INK;c.fillText(config.viz2.line1,rx+w*.015,ry+h*.32);
+    c.font=`${w*.014}px Newsreader`;c.fillStyle=GR;c.fillText(config.viz2.line2,rx+w*.015,ry+h*.35);
+    c.globalAlpha=1;
+  }
+
+  // Viz 3: Big number / metric
+  if(config.viz3&&t>config.viz3.trig){
+    const vp=Math.min(1,(t-config.viz3.trig)/.1);c.globalAlpha=vp;
+    c.fillStyle='rgba(255,255,255,.5)';rr(c,rx,ry+h*.41,w*.42,h*.14,6);c.fill();
+    c.font=`500 ${w*.01}px DM Mono`;c.fillStyle=config.viz3.col||G;
+    c.fillText(config.viz3.label,rx+w*.015,ry+h*.44);
+    c.font=`700 ${w*.042}px Cormorant Garamond`;c.fillStyle=config.viz3.numCol||E;
+    const num=config.viz3.prefix+(Math.min(config.viz3.max,Math.floor(config.viz3.max*vp)))+config.viz3.suffix;
+    c.fillText(num,rx+w*.015,ry+h*.52);
+    c.font=`${w*.013}px Newsreader`;c.fillStyle=GR;c.fillText(config.viz3.detail,rx+w*.015,ry+h*.55);
+    c.fillStyle='rgba(212,98,43,.08)';rr(c,rx+w*.015,ry+h*.56,w*.38,h*.013,3);c.fill();
+    c.fillStyle=config.viz3.numCol||E;rr(c,rx+w*.015,ry+h*.56,w*.38*vp,h*.013,3);c.fill();
+    c.globalAlpha=1;
+  }
+
+  // Connection line
+  if(t>.12&&aStep>=0&&aStep<config.steps.length){
+    c.setLineDash([3,4]);c.strokeStyle='rgba(31,122,109,.12)';c.lineWidth=1;
+    const ay=topY+h*.035+Math.min(config.steps.length-1,aStep)*h*.078+7;
+    c.beginPath();c.moveTo(w*.47,ay);c.lineTo(rx-5,ay);c.stroke();c.setLineDash([]);
+  }
+
+  // Output cards
+  const outTrig=.05+config.steps.length*.09+.04;
+  if(t>outTrig){
+    const oP=Math.min(1,(t-outTrig)/.1);c.globalAlpha=oP;
+    c.font=`500 ${w*.011}px DM Mono`;c.fillStyle=GR;c.fillText('OUTPUT DELIVERED',pad,h*.87);
+    const cW=(w-pad*2-w*.04)/3;
+    config.outputs.forEach((cd,i)=>{
+      const cp=Math.max(0,Math.min(1,(oP-i*.15)*3));if(cp<=0)return;c.globalAlpha=cp;
+      const cx=pad+i*(cW+w*.02),cy=h*.89;
+      c.fillStyle=cd.bg;c.strokeStyle=cd.border;c.lineWidth=.8;rr(c,cx,cy,cW,h*.095,6);c.fill();c.stroke();
+      c.font=`500 ${w*.01}px DM Mono`;c.fillStyle=cd.col;c.fillText(cd.hash,cx+7,cy+h*.022);
+      c.font=`700 ${w*.015}px Newsreader`;c.fillStyle=INK;c.fillText(cd.title,cx+7,cy+h*.05);
+      c.font=`${w*.012}px Newsreader`;c.fillStyle=GR;c.fillText(cd.detail,cx+7,cy+h*.075);
+    });c.globalAlpha=1;
+  }
+}
+
+// ═══ WORKFLOW 1: LATAM Conversion ═══
+initCanvas('cEx1',function(c,w,h,f){
+  drawWorkflow(c,w,h,f,{
+    tag:'LATAM CONVERSION',dur:780,
+    question:'"Why did conversion drop in LATAM last week?"',
+    steps:[
+      {txt:'Query conversion by region / channel / device',col:'#1F7A6D'},
+      {txt:'Isolate Brazil + Android (3.1σ deviation)',col:'#1F7A6D'},
+      {txt:'Cross-ref payment gateway → 340ms spike Tue–Wed',col:'#D4622B'},
+      {txt:'14,200 abandoned sessions in latency window',col:'#D4622B'},
+      {txt:'Historical precedent: resolved 5 days (90d ago)',col:'#3D6285'},
+      {txt:'Revenue at risk: $180K estimated',col:'#BF9522'},
+      {txt:'Draft escalation ticket to payments team',col:'#D4622B'},
+    ],
+    viz1:{trig:.1,title:'CONVERSION BY REGION',draw:function(c,w,h,rx,ry,vp,f){
+      var regions=[{n:'NA',v:.72,cl:'rgba(31,122,109,.5)'},{n:'EMEA',v:.68,cl:'rgba(31,122,109,.4)'},{n:'APAC',v:.65,cl:'rgba(31,122,109,.3)'},{n:'LATAM',v:.42,cl:'#D4622B'}];
+      regions.forEach(function(r,i){var bx=rx+w*.02+i*w*.09;var maxH=h*.1;var bh=r.v*maxH*vp;c.fillStyle=r.cl;c.fillRect(bx,ry+h*.17-bh,w*.055,bh);c.font=w*.009+'px DM Mono';c.fillStyle='#8A7F74';c.textAlign='center';c.fillText(r.n,bx+w*.027,ry+h*.19);if(r.n==='LATAM'&&vp>.8){c.fillStyle='#D4622B';c.fillText('↓ 12%',bx+w*.027,ry+h*.06)}c.textAlign='left'});
+    }},
+    viz2:{trig:.22,borderCol:'#D4622B',label:'⚡ ANOMALY ISOLATED',line1:'Brazil · Android · 3.1σ deviation',line2:'Payment gateway latency: 340ms spike Tue–Wed'},
+    viz3:{trig:.42,col:'#BF9522',label:'REVENUE AT RISK',numCol:'#D4622B',prefix:'$',max:180,suffix:'K',detail:'14,200 sessions × avg cart value'},
+    outputs:[
+      {hash:'#SignalCard',title:'LATAM Conversion',detail:'↓ 12% · Brazil/Android',col:'#D4622B',bg:'rgba(212,98,43,.06)',border:'rgba(212,98,43,.2)'},
+      {hash:'#NarrativePane',title:'Root Cause',detail:'Gateway latency → abandonment',col:'#1F7A6D',bg:'rgba(31,122,109,.06)',border:'rgba(31,122,109,.2)'},
+      {hash:'#ActionLoop',title:'Auto-Escalated',detail:'Ticket + 3-slide summary',col:'#BF9522',bg:'rgba(191,149,34,.06)',border:'rgba(191,149,34,.2)'},
+    ]
+  });
+});
+
+// ═══ WORKFLOW 2: Enterprise Churn Risk ═══
+initCanvas('cEx2',function(c,w,h,f){
+  drawWorkflow(c,w,h,f,{
+    tag:'ENTERPRISE CHURN',dur:780,
+    question:'"Which enterprise accounts are at risk of churning this quarter?"',
+    steps:[
+      {txt:'Pull all enterprise accounts with renewal in 90 days',col:'#1F7A6D'},
+      {txt:'Score engagement: login freq, feature adoption, support tickets',col:'#1F7A6D'},
+      {txt:'Flag 12 accounts below engagement threshold',col:'#D4622B'},
+      {txt:'Cross-ref NPS scores — 4 accounts dropped 20+ pts',col:'#D4622B'},
+      {txt:'Check CSM activity logs — 2 accounts have no contact in 45 days',col:'#3D6285'},
+      {txt:'Calculate ARR at risk: $2.4M across flagged accounts',col:'#BF9522'},
+      {txt:'Generate save playbooks per account + schedule CSM outreach',col:'#D4622B'},
+    ],
+    viz1:{trig:.1,title:'ENGAGEMENT HEATMAP (90-DAY RENEWALS)',draw:function(c,w,h,rx,ry,vp,f){
+      var cols=['#1F7A6D','#30A08F','#BF9522','#D4622B','#C45858'];
+      for(var row=0;row<4;row++){for(var col=0;col<8;col++){var ci=Math.floor(Math.random()*100)>70&&row>1?3+Math.floor(Math.random()*2):Math.floor(Math.random()*3);if(f%780<20)ci=Math.floor(Math.random()*5);c.globalAlpha=vp*.7;c.fillStyle=cols[ci];var bx=rx+w*.02+col*w*.048,by=ry+h*.055+row*h*.03;c.fillRect(bx,by,w*.04,h*.022)}}c.globalAlpha=vp;
+    }},
+    viz2:{trig:.25,borderCol:'#D4622B',label:'⚠ HIGH-RISK ACCOUNTS',line1:'12 flagged · 4 with NPS drop · 2 no CSM contact',line2:'Engagement below threshold for 30+ days'},
+    viz3:{trig:.42,col:'#BF9522',label:'ARR AT RISK',numCol:'#D4622B',prefix:'$',max:2400,suffix:'K',detail:'Across 12 enterprise accounts renewing in Q2'},
+    outputs:[
+      {hash:'#SignalCard',title:'Churn Risk: 12 Accts',detail:'$2.4M ARR · 4 critical',col:'#D4622B',bg:'rgba(212,98,43,.06)',border:'rgba(212,98,43,.2)'},
+      {hash:'#LivingBrief',title:'Save Playbooks',detail:'Per-account intervention plan',col:'#1F7A6D',bg:'rgba(31,122,109,.06)',border:'rgba(31,122,109,.2)'},
+      {hash:'#ActionLoop',title:'CSM Outreach',detail:'7 meetings auto-scheduled',col:'#BF9522',bg:'rgba(191,149,34,.06)',border:'rgba(191,149,34,.2)'},
+    ]
+  });
+});
+
+// ═══ WORKFLOW 3: Campaign ROI Anomaly ═══
+initCanvas('cEx3',function(c,w,h,f){
+  drawWorkflow(c,w,h,f,{
+    tag:'CAMPAIGN ROI ANOMALY',dur:780,
+    question:'"Why is paid search ROI 3x higher than last month?"',
+    steps:[
+      {txt:'Pull campaign spend + attribution data by channel',col:'#1F7A6D'},
+      {txt:'Isolate Google Ads branded terms — CPC dropped 40%',col:'#1F7A6D'},
+      {txt:'Check: competitor "Acme Corp" paused their brand bidding',col:'#3D6285'},
+      {txt:'Verify with auction insights — our impression share ↑ 35%',col:'#D4622B'},
+      {txt:'Calculate true incremental lift vs. brand halo effect',col:'#BF9522'},
+      {txt:'Flag risk: ROI reverts when competitor resumes bidding',col:'#D4622B'},
+      {txt:'Draft recommendation: reallocate excess to non-brand terms',col:'#1F7A6D'},
+    ],
+    viz1:{trig:.1,title:'PAID SEARCH ROI · LAST 8 WEEKS',draw:function(c,w,h,rx,ry,vp,f){
+      c.beginPath();c.lineWidth=1.5;c.strokeStyle='#8A7F74';
+      var pts1=[[0,.4],[1,.42],[2,.38],[3,.41],[4,.39]];
+      pts1.forEach(function(p,i){var x=rx+w*.03+i*w*.07,y=ry+h*.16-p[1]*h*.2;i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();
+      c.beginPath();c.lineWidth=2.5;c.strokeStyle='#1F7A6D';
+      var pts2=[[5,.55],[6,.78],[7,.92]];
+      pts1.slice(-1).concat(pts2).forEach(function(p,i){var x=rx+w*.03+(p[0])*w*.07*vp,y=ry+h*.16-p[1]*h*.2*vp;i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();
+      if(vp>.8){c.font=w*.012+'px DM Mono';c.fillStyle='#1F7A6D';c.fillText('3x ↑',rx+w*.34,ry+h*.05);c.fillStyle='#8A7F74';c.fillText('baseline',rx+w*.15,ry+h*.18)}
+    }},
+    viz2:{trig:.22,borderCol:'#3D6285',label:'🔍 ROOT CAUSE IDENTIFIED',line1:'Competitor "Acme Corp" paused brand bidding',line2:'Our impression share surged 35% — CPC ↓ 40%'},
+    viz3:{trig:.40,col:'#D4622B',label:'RISK FLAG',numCol:'#D4622B',prefix:'',max:100,suffix:'%',detail:'ROI reverts when competitor resumes bidding'},
+    outputs:[
+      {hash:'#SignalCard',title:'Paid Search ROI',detail:'3x spike · Competitor-driven',col:'#D4622B',bg:'rgba(212,98,43,.06)',border:'rgba(212,98,43,.2)'},
+      {hash:'#AwareMetric',title:'False Signal',detail:'Not organic lift — external factor',col:'#3D6285',bg:'rgba(61,98,133,.06)',border:'rgba(61,98,133,.2)'},
+      {hash:'#ActionLoop',title:'Budget Realloc',detail:'Shift $40K to non-brand terms',col:'#1F7A6D',bg:'rgba(31,122,109,.06)',border:'rgba(31,122,109,.2)'},
+    ]
+  });
+});
+
+// ═══ EXAMPLE TAB SWITCHER + AUTO-ROTATE ═══
+!function(){
+  const tabs=document.querySelectorAll('.ex-tab');
+  const panels=document.querySelectorAll('.ex-canvases .ex-canvas-wrap');
+  const fill=document.getElementById('exAutoFill');
+  let current=0,autoTimer=null,startTime=0;
+  const CYCLE=12000; // 12 seconds per workflow
+
+  function switchTo(idx){
+    current=idx;
+    tabs.forEach((t,i)=>t.classList.toggle('active',i===idx));
+    panels.forEach((p,i)=>p.classList.toggle('active',i===idx));
+    startTime=Date.now();
+  }
+
+  function autoAdvance(){
+    const elapsed=Date.now()-startTime;
+    const pct=Math.min(100,(elapsed/CYCLE)*100);
+    if(fill)fill.style.width=pct+'%';
+    if(elapsed>=CYCLE){switchTo((current+1)%3)}
+    autoTimer=requestAnimationFrame(autoAdvance);
+  }
+
+  tabs.forEach(t=>t.addEventListener('click',function(){
+    switchTo(parseInt(this.dataset.idx));
+  }));
+
+  // Start
+  switchTo(0);startTime=Date.now();autoAdvance();
+
+  // Pause on hover
+  const section=document.querySelector('.ic-showcase');
+  if(section){
+    section.addEventListener('mouseenter',()=>{if(autoTimer)cancelAnimationFrame(autoTimer);autoTimer=null});
+    section.addEventListener('mouseleave',()=>{startTime=Date.now();autoAdvance()});
+  }
+}();
+
+// ══════════ NAV + SCROLL ══════════
+!function(){
+  const nav=document.getElementById('nav'),hero=document.querySelector('.hero'),secs=document.querySelectorAll('section[id]'),links=document.querySelectorAll('.nav-links a');
+  new IntersectionObserver(e=>{nav.classList.toggle('show',!e[0].isIntersecting)},{threshold:.05}).observe(hero);
+  secs.forEach(s=>new IntersectionObserver(e=>{if(e[0].isIntersecting)links.forEach(l=>l.classList.toggle('on',l.getAttribute('href')==='#'+e[0].target.id))},{threshold:.2,rootMargin:'-60px 0px -35% 0px'}).observe(s));
+  [...links,...document.querySelectorAll('.hero-pills a')].forEach(l=>l.addEventListener('click',e=>{e.preventDefault();document.querySelector(l.getAttribute('href'))?.scrollIntoView({behavior:'smooth',block:'start'})}));
+  const rv=document.querySelectorAll('.rv'),ro=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('v')})},{threshold:.12,rootMargin:'0px 0px -30px 0px'});rv.forEach(el=>ro.observe(el))
+}();
+</script>
+</body>
+</html>
