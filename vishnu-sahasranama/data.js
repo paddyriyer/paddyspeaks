@@ -48,25 +48,17 @@ const VISHNU_DATA = {
       ]
     },
     {
-      "label": "Vaishampayana Uvacha",
-      "label_sanskrit": "वैशम्पायन उवाच",
       "verses": [
         {
-          "sanskrit": "śrutvā dharmānaśeṣeṇa pāvanāni ca sarvaśaḥ .\nyudhiṣṭhiraḥ śāntanavaṃ punareva abhyabhāṣata ..",
-          "devanagari": "श्रुत्वा धर्मानशेषेण पावनानि च सर्वशः ।\nयुधिष्ठिरः शान्तनवं पुनरेव अभ्यभाषत ॥",
-          "english": "Shrutva dharma nasheshana pavanani cha sarvashah |\nYudhishthirah shantanavam punareva abhya-bhashata ||",
+          "sanskrit": "vaiśampāyana uvāca\nśrutvā dharmānaśeṣeṇa pāvanāni ca sarvaśaḥ .\nyudhiṣṭhiraḥ śāntanavaṃ punareva abhyabhāṣata ..",
+          "devanagari": "वैशम्पायन उवाच\nश्रुत्वा धर्मानशेषेण पावनानि च सर्वशः ।\nयुधिष्ठिरः शान्तनवं पुनरेव अभ्यभाषत ॥",
+          "english": "Vaishampayana Uvacha\nShrutva dharma nasheshana pavanani cha sarvashah |\nYudhishthirah shantanavam punareva abhya-bhashata ||",
           "translation": "Having heard all the dharmas in their entirety and all that is purifying, Yudhishthira again spoke to the son of Shantanu (Bhishma)."
-        }
-      ]
-    },
-    {
-      "label": "Yudhishthira Uvacha",
-      "label_sanskrit": "युधिष्ठिर उवाच",
-      "verses": [
+        },
         {
-          "sanskrit": "kimekam daivatam loke kiṃ vāpyekaṃ parāyaṇam .\nstuvantaḥ kaṃ kamarcantaḥ prāpnuyurmānavāḥ śubham ..",
-          "devanagari": "किमेकं दैवतं लोके किं वाप्येकं परायणम् ।\nस्तुवन्तः कं कमर्चन्तः प्राप्नुयुर्मानवाः शुभम् ॥",
-          "english": "Kimekam daivatam loke kim vapyekam parayanam |\nStuvantah kam ka marchantah prapnuyuh manavah-shubham ||",
+          "sanskrit": "yudhiṣṭhira uvāca\nkimekam daivatam loke kiṃ vāpyekaṃ parāyaṇam .\nstuvantaḥ kaṃ kamarcantaḥ prāpnuyurmānavāḥ śubham ..",
+          "devanagari": "युधिष्ठिर उवाच\nकिमेकं दैवतं लोके किं वाप्येकं परायणम् ।\nस्तुवन्तः कं कमर्चन्तः प्राप्नुयुर्मानवाः शुभम् ॥",
+          "english": "Yudhishthira Uvacha\nKimekam daivatam loke kim vapyekam parayanam |\nStuvantah kam ka marchantah prapnuyuh manavah-shubham ||",
           "translation": "Who is the one great God in the world? Who is the one supreme refuge? By praising and worshipping whom can a person attain auspiciousness?"
         },
         {
@@ -74,17 +66,11 @@ const VISHNU_DATA = {
           "devanagari": "को धर्मः सर्वधर्माणां भवतः परमो मतः ।\nकिं जपन्मुच्यते जन्तुर्जन्मसंसारबन्धनात् ॥",
           "english": "Ko dharmah sarva-dharmanam bhavatah paramo matah |\nKim japanmuchyate janthuh janma samsara-bandhanat ||",
           "translation": "What is, in your opinion, the greatest Dharma of all? By chanting whose name can a being be freed from the bonds of birth and rebirth?"
-        }
-      ]
-    },
-    {
-      "label": "Bhishma Uvacha",
-      "label_sanskrit": "भीष्म उवाच",
-      "verses": [
+        },
         {
-          "sanskrit": "jagat prabhum devadevamanantaṃ puruṣottamam .\nstuvannāmasahasreṇa puruṣaḥ satatotthitaḥ ..",
-          "devanagari": "जगत्प्रभुं देवदेवमनन्तं पुरुषोत्तमम् ।\nस्तुवन्नामसहस्रेण पुरुषः सततोत्थितः ॥",
-          "english": "Jagat-prabhum deva-devam anantam purusho-tamam |\nSthuva nnama-sahasrena purushah satatottitah ||",
+          "sanskrit": "bhīṣma uvāca\njagat prabhum devadevamanantaṃ puruṣottamam .\nstuvannāmasahasreṇa puruṣaḥ satatotthitaḥ ..",
+          "devanagari": "भीष्म उवाच\nजगत्प्रभुं देवदेवमनन्तं पुरुषोत्तमम् ।\nस्तुवन्नामसहस्रेण पुरुषः सततोत्थितः ॥",
+          "english": "Bhishma Uvacha\nJagat-prabhum deva-devam anantam purusho-tamam |\nSthuva nnama-sahasrena purushah satatottitah ||",
           "translation": "By always rising up and praising with a thousand names the Lord of the Universe, the God of gods, the Infinite, the Supreme Being (Purushottama) — one attains the highest good."
         },
         {
@@ -8027,13 +8013,11 @@ const VISHNU_DATA = {
     {
       "label": "Uttaranyasah, Phalashrutih",
       "label_sanskrit": "उत्तरन्यासः, फलश्रुतिः",
-      "speaker": "Bhishma Uvacha",
-      "speaker_sanskrit": "भीष्म उवाच",
       "verses": [
         {
-          "devanagari": "इतीदं कीर्तनीयस्य केशवस्य महात्मनः ।\nनाम्नां सहस्रं दिव्यानामशेषेण प्रकीर्तितम् ॥ १ ॥",
-          "sanskrit": "itīdaṃ kīrtanīyasya keśavasya mahātmanaḥ .\nnāmnāṃ sahasraṃ divyānāmaśeṣeṇa prakīrtitam .. 1 ..",
-          "english": "Iteedam keertaneeyasya keshvasya mahatmanah |\nNamnam sahasram divyanamasheshena prakeertitam || 1 ||",
+          "devanagari": "भीष्म उवाच\nइतीदं कीर्तनीयस्य केशवस्य महात्मनः ।\nनाम्नां सहस्रं दिव्यानामशेषेण प्रकीर्तितम् ॥ १ ॥",
+          "sanskrit": "bhīṣma uvāca\nitīdaṃ kīrtanīyasya keśavasya mahātmanaḥ .\nnāmnāṃ sahasraṃ divyānāmaśeṣeṇa prakīrtitam .. 1 ..",
+          "english": "Bhishma Uvacha\nIteedam keertaneeyasya keshvasya mahatmanah |\nNamnam sahasram divyanamasheshena prakeertitam || 1 ||",
           "translation": "Thus has been sung in its entirety the thousand divine names of Keshava, the great soul, who is worthy of being praised."
         },
         {
@@ -8170,117 +8154,73 @@ const VISHNU_DATA = {
       ]
     },
     {
-      "label": "Arjuna Uvacha",
-      "label_sanskrit": "अर्जुन उवाच",
       "verses": [
         {
-          "devanagari": "पद्मपत्रविशालाक्ष पद्मनाभ सुरोत्तम ।\nभक्तानामनुरक्तानां त्राता भव जनार्दन ॥ २३ ॥",
-          "sanskrit": "padmapatraviśālākṣa padmanābha surottama .\nbhaktānāmanüraktānāṃ trātā bhava janārdana .. 23 ..",
-          "english": "Padmapatra-vishalaksha padmanabha surottama |\nBhaktanam-anuraktanam trata bhava janardana || 23 ||",
+          "devanagari": "अर्जुन उवाच\nपद्मपत्रविशालाक्ष पद्मनाभ सुरोत्तम ।\nभक्तानामनुरक्तानां त्राता भव जनार्दन ॥ २३ ॥",
+          "sanskrit": "arjuna uvāca\npadmapatraviśālākṣa padmanābha surottama .\nbhaktānāmanüraktānāṃ trātā bhava janārdana .. 23 ..",
+          "english": "Arjuna Uvacha\nPadmapatra-vishalaksha padmanabha surottama |\nBhaktanam-anuraktanam trata bhava janardana || 23 ||",
           "translation": "O Lotus-eyed one, O Padmanabha, O best of the gods, be the protector of Your loving devotees, O Janardana!"
-        }
-      ]
-    },
-    {
-      "label": "Sri Bhagavan Uvacha",
-      "label_sanskrit": "श्रीभगवानुवाच",
-      "verses": [
+        },
         {
-          "devanagari": "यो मां नामसहस्रेण स्तोतुमिच्छति पाण्डव ।\nसोऽहमेकेन श्लोकेन स्तुत एव न संशयः ॥ २५ ॥",
-          "sanskrit": "yo māṃ nāmasahasreṇa stotumicchati pāṇḍava .\nso'hamekena ślokena stuta eva na saṃśayaḥ .. 25 ..",
-          "english": "Yo mam namasahasrena stotumicchati Pandava |\nSohamekena shlokena stuta eva na samshayah || 25 ||",
+          "devanagari": "श्रीभगवानुवाच\nयो मां नामसहस्रेण स्तोतुमिच्छति पाण्डव ।\nसोऽहमेकेन श्लोकेन स्तुत एव न संशयः ॥ २५ ॥",
+          "sanskrit": "śrībhagavān uvāca\nyo māṃ nāmasahasreṇa stotumicchati pāṇḍava .\nso'hamekena ślokena stuta eva na saṃśayaḥ .. 25 ..",
+          "english": "Sri Bhagavan Uvacha\nYo mam namasahasrena stotumicchati Pandava |\nSohamekena shlokena stuta eva na samshayah || 25 ||",
           "translation": "He who wishes to praise Me with a thousand names, O Pandava — I am indeed praised by even one shloka, there is no doubt."
         },
         {
           "devanagari": "स्तुत एव न संशय ॐ नम इति ।",
           "sanskrit": "stuta eva na saṃśaya om nama iti .",
           "english": "Stuta eva na samshaya Om nama iti."
-        }
-      ]
-    },
-    {
-      "label": "Vyasa Uvacha",
-      "label_sanskrit": "व्यास उवाच",
-      "verses": [
+        },
         {
-          "devanagari": "वासनाद्वासुदेवस्य वासितं भुवनत्रयम् ।\nसर्वभूतनिवासोऽसि वासुदेव नमोऽस्तु ते ॥ २५ ॥",
-          "sanskrit": "vāsanādvāsudevasya vāsitaṃ bhuvanatrayam .\nsarvabhūtanivāso'si vāsudeva namo'stu te .. 25 ..",
-          "english": "Vasanad-vasudevasya vasitam bhuvanatrayam |\nSarvabhuta-nivaso'si vasudeva namo'stu te || 25 ||",
+          "devanagari": "व्यास उवाच\nवासनाद्वासुदेवस्य वासितं भुवनत्रयम् ।\nसर्वभूतनिवासोऽसि वासुदेव नमोऽस्तु ते ॥ २५ ॥",
+          "sanskrit": "vyāsa uvāca\nvāsanādvāsudevasya vāsitaṃ bhuvanatrayam .\nsarvabhūtanivāso'si vāsudeva namo'stu te .. 25 ..",
+          "english": "Vyasa Uvacha\nVasanad-vasudevasya vasitam bhuvanatrayam |\nSarvabhuta-nivaso'si vasudeva namo'stu te || 25 ||",
           "translation": "The three worlds are pervaded by the fragrance of Vasudeva. You are the abode of all beings, O Vasudeva, salutations to You!"
         },
         {
           "devanagari": "श्रीवासुदेव नमोऽस्तु त ॐ नम इति ।",
           "sanskrit": "śrīvāsudeva namo'stu ta om nama iti .",
           "english": "Sri Vasudeva namo'stu ta Om nama iti."
-        }
-      ]
-    },
-    {
-      "label": "Parvati Uvacha",
-      "label_sanskrit": "पार्वत्युवाच",
-      "verses": [
+        },
         {
-          "devanagari": "केनोपायेन लघुना विष्णोर्नामसहस्रकम् ।\nपठ्यते पण्डितैर्नित्यं श्रोतुमिच्छाम्यहं प्रभो ॥ २६ ॥",
-          "sanskrit": "kenopāyena laghunā viṣṇornāmasahasrakam .\npaṭhyate paṇḍitairnityaṃ śrotumicchāmyahaṃ prabho .. 26 ..",
-          "english": "Kenopayena laghuna vishnor-nama-sahasrakam |\nPathyate panditairnityam shrotumicchhamyaham prabho || 26 ||",
+          "devanagari": "पार्वत्युवाच\nकेनोपायेन लघुना विष्णोर्नामसहस्रकम् ।\nपठ्यते पण्डितैर्नित्यं श्रोतुमिच्छाम्यहं प्रभो ॥ २६ ॥",
+          "sanskrit": "pārvatyuvāca\nkenopāyena laghunā viṣṇornāmasahasrakam .\npaṭhyate paṇḍitairnityaṃ śrotumicchāmyahaṃ prabho .. 26 ..",
+          "english": "Parvati Uvacha\nKenopayena laghuna vishnor-nama-sahasrakam |\nPathyate panditairnityam shrotumicchhamyaham prabho || 26 ||",
           "translation": "By what easy means can the thousand names of Vishnu be recited? I wish to hear this, O Lord!"
-        }
-      ]
-    },
-    {
-      "label": "Ishvara Uvacha",
-      "label_sanskrit": "ईश्वर उवाच",
-      "verses": [
+        },
         {
-          "devanagari": "श्रीरामरामरामेति रमे रामे मनोरमे ।\nसहस्रनामतत्तुल्यं रामनाम वरानने ॥ २७ ॥",
-          "sanskrit": "śrīrāmarāmarāmeti rame rāme manorame .\nsahasranāmatattulyaṃ rāmanāma varānane .. 27 ..",
-          "english": "Sri Rama Rama Rameti rame Rame manorame |\nSahasra-namatattultyam Ramanama varanane || 27 ||",
+          "devanagari": "ईश्वर उवाच\nश्रीरामरामरामेति रमे रामे मनोरमे ।\nसहस्रनामतत्तुल्यं रामनाम वरानने ॥ २७ ॥",
+          "sanskrit": "īśvara uvāca\nśrīrāmarāmarāmeti rame rāme manorame .\nsahasranāmatattulyaṃ rāmanāma varānane .. 27 ..",
+          "english": "Ishvara Uvacha\nSri Rama Rama Rameti rame Rame manorame |\nSahasra-namatattultyam Ramanama varanane || 27 ||",
           "translation": "By chanting 'Sri Rama, Rama, Rama,' I delight in Rama, who is charming. The name of Rama, O beautiful one, is equal to the thousand names."
         },
         {
           "devanagari": "श्रीरामनाम वरानन ॐ नम इति ।",
           "sanskrit": "śrīrāmanāma varānana om nama iti .",
           "english": "Sri Ramanama varanana Om nama iti."
-        }
-      ]
-    },
-    {
-      "label": "Brahma Uvacha",
-      "label_sanskrit": "ब्रह्मोवाच",
-      "verses": [
+        },
         {
-          "devanagari": "नमोऽस्त्वनन्ताय सहस्रमूर्तये\nसहस्रपादाक्षिशिरोरुबाहवे ।\nसहस्रनाम्ने पुरुषाय शाश्वते\nसहस्रकोटियुगधारिणे नमः ॥ २८ ॥",
-          "sanskrit": "namo'stvanantāya sahasramūrtaye\nsahasrapādākṣiśirorubāhave .\nsahasranāmne puruṣāya śāśvate\nsahasrakoṭiyugadhāriṇe namaḥ .. 28 ..",
-          "english": "Namo'stvanantaya sahasra-murtaye\nSahasra-padakshi-shirorubahave |\nSahasra-namne purushaya shashvate\nSahasra-koti-yugadharine namah || 28 ||",
+          "devanagari": "ब्रह्मोवाच\nनमोऽस्त्वनन्ताय सहस्रमूर्तये\nसहस्रपादाक्षिशिरोरुबाहवे ।\nसहस्रनाम्ने पुरुषाय शाश्वते\nसहस्रकोटियुगधारिणे नमः ॥ २८ ॥",
+          "sanskrit": "brahmovāca\nnamo'stvanantāya sahasramūrtaye\nsahasrapādākṣiśirorubāhave .\nsahasranāmne puruṣāya śāśvate\nsahasrakoṭiyugadhāriṇe namaḥ .. 28 ..",
+          "english": "Brahma Uvacha\nNamo'stvanantaya sahasra-murtaye\nSahasra-padakshi-shirorubahave |\nSahasra-namne purushaya shashvate\nSahasra-koti-yugadharine namah || 28 ||",
           "translation": "Salutations to the Infinite One of a thousand forms, with a thousand feet, eyes, heads, thighs, and arms. Salutations to Him of a thousand names, the eternal Purusha, who sustains a thousand crore yugas."
         },
         {
           "devanagari": "सहस्रकोटियुगधारिणे नम ॐ नम इति ।",
           "sanskrit": "sahasrakoṭiyugadhāriṇe nama om nama iti .",
           "english": "Sahasra-koti-yugadharine nama Om nama iti."
-        }
-      ]
-    },
-    {
-      "label": "Sanjaya Uvacha",
-      "label_sanskrit": "सञ्जय उवाच",
-      "verses": [
+        },
         {
-          "devanagari": "यत्र योगेश्वरः कृष्णो यत्र पार्थो धनुर्धरः ।\nतत्र श्रीर्विजयो भूतिर्ध्रुवा नीतिर्मतिर्मम ॥ २९ ॥",
-          "sanskrit": "yatra yogeśvaraḥ kṛṣṇo yatra pārtho dhanurdharaḥ .\ntatra śrīrvijayo bhūtirdhruvā nītirmatirmama .. 29 ..",
-          "english": "Yatra yogeshvarah krishno yatra partho dhanurdharah |\nTatra shreervijayo bhootir-dhruva neetirmatirmama || 29 ||",
+          "devanagari": "सञ्जय उवाच\nयत्र योगेश्वरः कृष्णो यत्र पार्थो धनुर्धरः ।\nतत्र श्रीर्विजयो भूतिर्ध्रुवा नीतिर्मतिर्मम ॥ २९ ॥",
+          "sanskrit": "sañjaya uvāca\nyatra yogeśvaraḥ kṛṣṇo yatra pārtho dhanurdharaḥ .\ntatra śrīrvijayo bhūtirdhruvā nītirmatirmama .. 29 ..",
+          "english": "Sanjaya Uvacha\nYatra yogeshvarah krishno yatra partho dhanurdharah |\nTatra shreervijayo bhootir-dhruva neetirmatirmama || 29 ||",
           "translation": "Where there is Krishna, the Lord of Yoga, and where there is Partha (Arjuna), the wielder of the bow — there abide prosperity, victory, glory, and eternal righteousness. This is my conviction."
-        }
-      ]
-    },
-    {
-      "label": "Sri Bhagavan Uvacha",
-      "label_sanskrit": "श्रीभगवानुवाच",
-      "verses": [
+        },
         {
-          "devanagari": "अनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते ।\nतेषां नित्याभियुक्तानां योगक्षेमं वहाम्यहम् ॥ ३० ॥",
-          "sanskrit": "ananyāścintayanto māṃ ye janāḥ paryupāsate .\nteṣāṃ nityābhiyuktānāṃ yogakṣemaṃ vahāmyaham .. 30 ..",
-          "english": "Ananyashchintayanto mam ye janah paryupasate |\nTesham nityabhiyuktanam yogakshemam vahamyaham || 30 ||",
+          "devanagari": "श्रीभगवानुवाच\nअनन्याश्चिन्तयन्तो मां ये जनाः पर्युपासते ।\nतेषां नित्याभियुक्तानां योगक्षेमं वहाम्यहम् ॥ ३० ॥",
+          "sanskrit": "śrībhagavān uvāca\nananyāścintayanto māṃ ye janāḥ paryupāsate .\nteṣāṃ nityābhiyuktānāṃ yogakṣemaṃ vahāmyaham .. 30 ..",
+          "english": "Sri Bhagavan Uvacha\nAnanyashchintayanto mam ye janah paryupasate |\nTesham nityabhiyuktanam yogakshemam vahamyaham || 30 ||",
           "translation": "Those who, thinking of nothing else, worship Me with single-minded devotion — to those ever-devoted ones, I carry what they lack and preserve what they have."
         },
         {
