@@ -138,12 +138,21 @@
 
     if (VISHNU_DATA.preStotra) {
       VISHNU_DATA.preStotra.forEach(function (section) {
+        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
         html += '<div class="pre-stotra-section">';
-        html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
-        if (section.label_sanskrit) {
-          html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+        if (isUvacha) {
+          html += '<div class="speaker-label">' + escapeHtml(section.label);
+          if (section.label_sanskrit) {
+            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+          }
+          html += '</div>';
+        } else {
+          html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
+          if (section.label_sanskrit) {
+            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+          }
+          html += '</div>';
         }
-        html += '</div>';
 
         // Render verses: Devanagari first, then English, then translation (no IAST)
         if (section.verses) {
@@ -194,12 +203,21 @@
 
     if (VISHNU_DATA.postStotra) {
       VISHNU_DATA.postStotra.forEach(function (section) {
+        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
         html += '<div class="pre-stotra-section">';
-        html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
-        if (section.label_sanskrit) {
-          html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+        if (isUvacha) {
+          html += '<div class="speaker-label">' + escapeHtml(section.label);
+          if (section.label_sanskrit) {
+            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+          }
+          html += '</div>';
+        } else {
+          html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
+          if (section.label_sanskrit) {
+            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
+          }
+          html += '</div>';
         }
-        html += '</div>';
 
         if (section.speaker) {
           html += '<div class="speaker-label">' + escapeHtml(section.speaker);
@@ -295,9 +313,16 @@
     // --- Pre-Stotra ---
     if (VISHNU_DATA.preStotra) {
       VISHNU_DATA.preStotra.forEach(function (section) {
-        html += '<div class="sec">' + esc(section.label);
-        if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
-        html += '</div>';
+        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
+        if (isUvacha) {
+          html += '<div class="speaker">' + esc(section.label);
+          if (section.label_sanskrit) html += ' <span class="sk">' + esc(section.label_sanskrit) + '</span>';
+          html += '</div>';
+        } else {
+          html += '<div class="sec">' + esc(section.label);
+          if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
+          html += '</div>';
+        }
 
         if (section.verses) {
           section.verses.forEach(function (v) {
@@ -374,9 +399,16 @@
     // --- Post-Stotra / Phalashruti ---
     if (VISHNU_DATA.postStotra) {
       VISHNU_DATA.postStotra.forEach(function (section) {
-        html += '<div class="sec">' + esc(section.label);
-        if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
-        html += '</div>';
+        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
+        if (isUvacha) {
+          html += '<div class="speaker">' + esc(section.label);
+          if (section.label_sanskrit) html += ' <span class="sk">' + esc(section.label_sanskrit) + '</span>';
+          html += '</div>';
+        } else {
+          html += '<div class="sec">' + esc(section.label);
+          if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
+          html += '</div>';
+        }
 
         if (section.speaker) {
           html += '<div class="speaker">' + esc(section.speaker);
