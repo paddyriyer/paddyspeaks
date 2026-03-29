@@ -228,6 +228,17 @@ const VISHNU_DATA = {
           "devanagari": "सशङ्खचक्रं सकिरीटकुण्डलं सपीतवस्त्रं सरसीरुहेक्षणम् ।\nसहारवक्षःस्थलशोभि कौस्तुभं नमामि विष्णुं शिरसा चतुर्भुजम् ॥",
           "english": "Sashamkha-chakram-sakrireeta-kundalam sapeetha-vastram-saraseeru-he kshanam |\nSahara-vaksha sthala-shobi-kaustubham namami-vishnum-seerasaa chatur bhujam ||",
           "translation": "I bow my head to Vishnu, the four-armed one, who bears the conch and discus, who wears a crown and earrings, who is clad in yellow garments, whose eyes are like lotuses, whose chest adorned with garlands shines with the Kaustubha gem."
+        },
+        {
+          "sanskrit": "chāyāyāṁ pārijātasya hēmasiṁhāsanōpari .\nāsīnamaṁbudaśyāmamāyatākṣamalaṁkr̥tam ..",
+          "devanagari": "छायायां पारिजातस्य हेमसिंहासनोपरि ।\nआसीनमम्बुदश्यामम् आयताक्षमलंकृतम् ॥",
+          "english": "Chaayayaam paarijatasya hema-simhasanopari |\nAaseenam-ambudashyaamam-aayataaksham-alankrutam ||"
+        },
+        {
+          "sanskrit": "caṁdrānanaṁ caturbāhuṁ śrīvatsāṁkita vakṣasam .\nrukmiṇīsatyabhāmābhyāṁ sahitaṁ kr̥ṣṇamāśrayē ..",
+          "devanagari": "चन्द्राननं चतुर्बाहुं श्रीवत्साङ्कित वक्षसम् ।\nरुक्मिणीसत्यभामाभ्यां सहितं कृष्णमाश्रये ॥",
+          "english": "Chandraananam chaturbahum shreevatsankita-vakshasam |\nRukminee-satyabhamabhyaam sahitam Krishnam-aashraye ||",
+          "translation": "Under the shade of the Parijata tree, seated upon a golden throne, dark as a rain cloud, with large beautiful eyes and adorned — moon-faced, four-armed, with the Srivatsa mark on His chest, accompanied by Rukmini and Satyabhama — I take refuge in that Krishna."
         }
       ]
     }
