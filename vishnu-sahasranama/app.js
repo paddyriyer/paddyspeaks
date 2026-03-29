@@ -138,15 +138,8 @@
 
     if (VISHNU_DATA.preStotra) {
       VISHNU_DATA.preStotra.forEach(function (section) {
-        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
         html += '<div class="pre-stotra-section">';
-        if (isUvacha) {
-          html += '<div class="speaker-label">' + escapeHtml(section.label);
-          if (section.label_sanskrit) {
-            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
-          }
-          html += '</div>';
-        } else {
+        if (section.label) {
           html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
           if (section.label_sanskrit) {
             html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
@@ -203,26 +196,11 @@
 
     if (VISHNU_DATA.postStotra) {
       VISHNU_DATA.postStotra.forEach(function (section) {
-        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
         html += '<div class="pre-stotra-section">';
-        if (isUvacha) {
-          html += '<div class="speaker-label">' + escapeHtml(section.label);
-          if (section.label_sanskrit) {
-            html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
-          }
-          html += '</div>';
-        } else {
+        if (section.label) {
           html += '<div class="pre-stotra-label">' + escapeHtml(section.label);
           if (section.label_sanskrit) {
             html += ' <span class="label-sanskrit">' + escapeHtml(section.label_sanskrit) + '</span>';
-          }
-          html += '</div>';
-        }
-
-        if (section.speaker) {
-          html += '<div class="speaker-label">' + escapeHtml(section.speaker);
-          if (section.speaker_sanskrit) {
-            html += ' <span class="label-sanskrit">' + escapeHtml(section.speaker_sanskrit) + '</span>';
           }
           html += '</div>';
         }
@@ -313,12 +291,7 @@
     // --- Pre-Stotra ---
     if (VISHNU_DATA.preStotra) {
       VISHNU_DATA.preStotra.forEach(function (section) {
-        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
-        if (isUvacha) {
-          html += '<div class="speaker">' + esc(section.label);
-          if (section.label_sanskrit) html += ' <span class="sk">' + esc(section.label_sanskrit) + '</span>';
-          html += '</div>';
-        } else {
+        if (section.label) {
           html += '<div class="sec">' + esc(section.label);
           if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
           html += '</div>';
@@ -399,20 +372,9 @@
     // --- Post-Stotra / Phalashruti ---
     if (VISHNU_DATA.postStotra) {
       VISHNU_DATA.postStotra.forEach(function (section) {
-        var isUvacha = section.label && section.label.toLowerCase().indexOf('uvacha') !== -1;
-        if (isUvacha) {
-          html += '<div class="speaker">' + esc(section.label);
-          if (section.label_sanskrit) html += ' <span class="sk">' + esc(section.label_sanskrit) + '</span>';
-          html += '</div>';
-        } else {
+        if (section.label) {
           html += '<div class="sec">' + esc(section.label);
           if (section.label_sanskrit) html += '<span class="sk">' + esc(section.label_sanskrit) + '</span>';
-          html += '</div>';
-        }
-
-        if (section.speaker) {
-          html += '<div class="speaker">' + esc(section.speaker);
-          if (section.speaker_sanskrit) html += ' <span class="sk">' + esc(section.speaker_sanskrit) + '</span>';
           html += '</div>';
         }
 
