@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Connector Map — How Claude Talks to Your Tools | PaddySpeaks</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bone:#FAF7F2;--cream:#F5F0E8;--warm-white:#FFFDF9;--amber:#C8956C;--amber-deep:#A07048;--amber-light:#E8C4A0;--charcoal:#2A2520;--charcoal-soft:#3D362F;--slate:#6B6560;--stone:#8E8880;--sage:#7A8B6F;--sage-light:#C2D4B4;--terracotta:#C27852;--terracotta-muted:#D4A88C;--ink:#1A1714;--parchment:#F0EBE0;--divider:#D8D0C4;--blue-soft:#6a9bcc;--blue-bg:#EDF4FB}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{font-size:18px;scroll-behavior:smooth;background:var(--bone)}
+  body{font-family:'Newsreader',Georgia,serif;color:var(--charcoal);background:var(--bone);line-height:1.78;-webkit-font-smoothing:antialiased}
+
+  .hero{min-height:92vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:4rem 2rem;position:relative;overflow:hidden;background:linear-gradient(165deg,var(--warm-white) 0%,var(--cream) 40%,var(--parchment) 100%)}
+  .hero::before{content:'';position:absolute;top:-100px;right:-60px;width:450px;height:450px;border-radius:50%;background:radial-gradient(circle,rgba(106,155,204,0.12) 0%,transparent 70%);animation:float 14s ease-in-out infinite}
+  .hero::after{content:'';position:absolute;bottom:-80px;left:-40px;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(200,149,108,0.10) 0%,transparent 70%);animation:float 11s ease-in-out infinite reverse}
+  @keyframes float{0%,100%{transform:translate(0,0)}50%{transform:translate(18px,-25px)}}
+  .hero-series{font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.25em;text-transform:uppercase;color:var(--amber);margin-bottom:1.5rem;opacity:0;animation:fadeUp .8s ease forwards .3s}
+  .hero h1{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(2.5rem,5.5vw,4.8rem);font-weight:300;line-height:1.1;color:var(--ink);margin-bottom:1rem;opacity:0;animation:fadeUp .8s ease forwards .5s}
+  .hero h1 em{font-style:italic;font-weight:400;color:var(--amber-deep)}
+  .hero-subtitle{font-family:'Newsreader',Georgia,serif;font-size:1.12rem;font-weight:300;color:var(--slate);max-width:600px;margin:0 auto 2.5rem;font-style:italic;opacity:0;animation:fadeUp .8s ease forwards .7s}
+  .hero-meta{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.15em;color:var(--stone);text-transform:uppercase;opacity:0;animation:fadeUp .8s ease forwards .9s}
+  .hero-meta span{margin:0 .6rem}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+
+  .content-wrapper{max-width:740px;margin:0 auto;padding:0 2rem 6rem}
+  .section{margin-bottom:4.5rem;opacity:0;transform:translateY(30px);transition:opacity .7s ease,transform .7s ease}
+  .section.visible{opacity:1;transform:translateY(0)}
+  .section-number{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.3em;text-transform:uppercase;color:var(--amber);display:block;margin-bottom:.5rem}
+  h2{font-family:'Cormorant Garamond',Georgia,serif;font-size:clamp(1.8rem,3.5vw,2.5rem);font-weight:400;color:var(--ink);margin-bottom:1.2rem;line-height:1.2}
+  h3{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.35rem;font-weight:500;color:var(--charcoal-soft);margin:2rem 0 .8rem;line-height:1.3}
+  p{margin-bottom:1.2rem;color:var(--charcoal-soft)}
+  p.lead{font-size:1.15rem;font-weight:300;color:var(--charcoal);line-height:1.85}
+  strong{color:var(--ink)}
+
+  .editorial-divider{text-align:center;margin:4rem 0;position:relative}
+  .editorial-divider::before{content:'';position:absolute;top:50%;left:0;right:0;height:1px;background:var(--divider)}
+  .editorial-divider span{background:var(--bone);padding:0 1.2rem;position:relative;font-family:'Cormorant Garamond',Georgia,serif;font-size:1.3rem;color:var(--amber);font-style:italic}
+
+  /* ANALOGY BOX */
+  .analogy-box{background:linear-gradient(135deg,var(--warm-white) 0%,var(--cream) 100%);border:1px solid var(--divider);border-radius:8px;padding:2rem 2.2rem;margin:2rem 0;position:relative}
+  .analogy-box::before{content:'💡';position:absolute;top:-12px;left:20px;background:var(--bone);padding:0 6px;font-size:1.1rem}
+  .analogy-label{font-family:'DM Mono',monospace;font-size:.6rem;letter-spacing:.25em;text-transform:uppercase;color:var(--amber);margin-bottom:.6rem;display:block}
+  .analogy-box p{font-size:.92rem;line-height:1.7;color:var(--charcoal-soft);margin-bottom:.5rem}
+  .analogy-box p:last-child{margin-bottom:0}
+
+  /* CONNECTOR CARD */
+  .conn-card{background:var(--warm-white);border:1px solid var(--divider);border-radius:8px;margin:1.5rem 0;overflow:hidden;transition:box-shadow .3s ease}
+  .conn-card:hover{box-shadow:0 4px 20px rgba(42,37,32,0.06)}
+  .conn-header{display:flex;align-items:center;gap:.8rem;padding:1.2rem 1.5rem;cursor:pointer;transition:background .2s ease}
+  .conn-card.open .conn-header{background:var(--cream);border-bottom:1px solid var(--divider)}
+  .conn-icon{font-size:1.4rem;flex-shrink:0}
+  .conn-name{font-family:'DM Mono',monospace;font-size:.82rem;font-weight:500;color:var(--ink)}
+  .conn-badges{display:flex;gap:.3rem;margin-left:auto;flex-wrap:wrap;justify-content:flex-end}
+  .conn-badge{font-family:'DM Mono',monospace;font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;padding:.15rem .4rem;border-radius:3px;border:1px solid var(--divider);color:var(--stone);background:var(--bone)}
+  .conn-badge.read{border-color:var(--sage-light);color:var(--sage);background:#F4F8F0}
+  .conn-badge.write{border-color:var(--amber-light);color:var(--amber-deep);background:#FDF8F3}
+  .conn-badge.interactive{border-color:var(--blue-soft);color:var(--blue-soft);background:var(--blue-bg)}
+  .conn-chevron{color:var(--stone);transition:transform .3s ease;font-size:.8rem;margin-left:.5rem}
+  .conn-card.open .conn-chevron{transform:rotate(90deg)}
+  .conn-body{max-height:0;overflow:hidden;transition:max-height .5s cubic-bezier(.4,0,.2,1)}
+  .conn-card.open .conn-body{max-height:800px}
+  .conn-body-inner{padding:1.2rem 1.5rem}
+  .conn-body-inner p{font-size:.88rem;line-height:1.65;color:var(--slate);margin-bottom:.6rem}
+  .conn-body-inner p:last-child{margin-bottom:0}
+  .conn-actions{margin-top:.8rem}
+  .conn-actions-label{font-family:'DM Mono',monospace;font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--amber);margin-bottom:.4rem;display:block}
+  .conn-action-list{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--charcoal-soft);line-height:1.8}
+  .conn-action-list .ca-read{color:var(--sage)}
+  .conn-action-list .ca-write{color:var(--amber-deep)}
+
+  /* SCENARIO BOX */
+  .scenario-box{background:var(--ink);border-radius:8px;padding:1.5rem 1.8rem;margin:1.5rem 0}
+  .scenario-label{font-family:'DM Mono',monospace;font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin-bottom:.4rem;display:block}
+  .scenario-box p{font-family:'Newsreader',Georgia,serif;font-size:.9rem;color:var(--cream);font-style:italic;margin:0;line-height:1.65}
+  .scenario-result{margin-top:.8rem;padding-top:.8rem;border-top:1px solid #2E2A24}
+  .scenario-result p{color:var(--stone);font-style:normal;font-size:.82rem}
+
+  /* CAVEAT */
+  .caveat-box{background:linear-gradient(135deg,#FDF6EE 0%,#FBF0E2 100%);border:1px solid var(--terracotta-muted);border-radius:6px;padding:1.5rem 1.8rem;margin:2rem 0;position:relative}
+  .caveat-box::before{content:'⚠';position:absolute;top:-10px;left:18px;background:var(--terracotta);color:white;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.7rem}
+  .caveat-box h4{font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;color:var(--terracotta);margin-bottom:.6rem}
+  .caveat-box p{font-size:.88rem;line-height:1.65;color:var(--charcoal-soft);margin-bottom:.5rem}
+  .caveat-box p:last-child{margin-bottom:0}
+
+  /* SETUP STEPS */
+  .setup-steps{background:var(--warm-white);border:1px solid var(--divider);border-radius:8px;padding:1.5rem 1.8rem;margin:1.5rem 0;counter-reset:setup}
+  .setup-step{display:flex;gap:1rem;align-items:flex-start;padding:.6rem 0;border-bottom:1px solid var(--divider)}
+  .setup-step:last-child{border-bottom:none}
+  .setup-step::before{counter-increment:setup;content:counter(setup);font-family:'DM Mono',monospace;font-size:.72rem;color:var(--amber);min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:1px solid var(--amber);border-radius:50%;flex-shrink:0;margin-top:2px}
+  .setup-step p{font-size:.85rem;color:var(--charcoal-soft);line-height:1.5;margin:0}
+
+  /* CATEGORY OVERVIEW GRID */
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.5rem 0}
+  .cat-card{background:var(--warm-white);border:1px solid var(--divider);border-radius:6px;padding:1.2rem;transition:all .3s ease}
+  .cat-card:hover{border-color:var(--amber-light);box-shadow:0 4px 16px rgba(42,37,32,0.06)}
+  .cat-icon{font-size:1.4rem;margin-bottom:.4rem}
+  .cat-name{font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;color:var(--ink);margin-bottom:.2rem}
+  .cat-count{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--stone);margin-bottom:.4rem}
+  .cat-tools{font-size:.78rem;color:var(--slate);line-height:1.5}
+
+  /* FLOW DIAGRAM */
+  .flow-diagram{background:var(--warm-white);border:1px solid var(--divider);border-radius:8px;padding:2rem;margin:2rem 0;display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap}
+  .flow-node{text-align:center;padding:.8rem 1rem;border-radius:6px;font-family:'DM Mono',monospace;font-size:.72rem;min-width:100px}
+  .flow-node.you{background:var(--cream);border:1px solid var(--divider);color:var(--charcoal)}
+  .flow-node.claude{background:var(--amber);color:white;border:1px solid var(--amber-deep)}
+  .flow-node.mcp{background:var(--ink);color:var(--cream);border:1px solid var(--charcoal)}
+  .flow-node.app{background:var(--sage);color:white;border:1px solid #5E7350}
+  .flow-arrow{font-size:1rem;color:var(--stone)}
+
+  /* PERMISSIONS TABLE */
+  .perm-table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.82rem}
+  .perm-table th{font-family:'DM Mono',monospace;font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;color:var(--stone);text-align:left;padding:.6rem .8rem;border-bottom:2px solid var(--divider);background:var(--cream)}
+  .perm-table td{padding:.6rem .8rem;border-bottom:1px solid var(--divider);color:var(--charcoal-soft);vertical-align:top;line-height:1.45}
+  .perm-table tr:hover td{background:var(--warm-white)}
+
+  .footer{text-align:center;padding:3rem 2rem;border-top:1px solid var(--divider);margin-top:2rem}
+  .footer-logo{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.1rem;font-weight:600;color:var(--amber-deep);letter-spacing:.05em}
+  .footer-note{font-family:'DM Mono',monospace;font-size:.62rem;color:var(--stone);margin-top:.5rem;letter-spacing:.1em}
+
+  @media(max-width:640px){
+    html{font-size:16px}
+    .content-wrapper{padding:0 1.2rem 4rem}
+    .cat-grid{grid-template-columns:1fr}
+    .flow-diagram{flex-direction:column}
+    .flow-arrow{transform:rotate(90deg)}
+    .conn-badges{display:none}
+  }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="hero-series">PaddySpeaks · AI for Everyone · Part 3 of 3</div>
+  <h1>The <em>Connector</em> Map</h1>
+  <p class="hero-subtitle">Skills taught Claude how to do things. Connectors teach it where to find things — your Drive, your inbox, your Slack, your calendar. Here's the complete landscape.</p>
+  <div class="hero-meta"><span>March 2026</span><span>·</span><span>18 min read</span><span>·</span><span>paddyspeaks.com</span></div>
+</section>
+
+<div class="content-wrapper">
+
+  <!-- INTRO -->
+  <section class="section">
+    <p class="lead">In Part 1, we opened the Skill files and showed you the recipe books. In Part 2, we watched them work in real scenarios. But there's a gap in both stories: Claude could create a beautiful pitch deck, but it couldn't look at your actual sales data in Google Sheets. It could write a perfect email, but it couldn't check your Calendar before suggesting a meeting time.</p>
+    <p><strong>Connectors close that gap.</strong> They're the bridges between Claude and the apps you already use — Google Drive, Gmail, Slack, Notion, Figma, Jira, and 50+ others. Where Skills give Claude expertise, Connectors give Claude <em>access</em>.</p>
+  </section>
+
+  <div class="editorial-divider"><span>I</span></div>
+
+  <!-- WHAT ARE CONNECTORS -->
+  <section class="section">
+    <span class="section-number">The Basics</span>
+    <h2>What Are Connectors?</h2>
+
+    <div class="analogy-box">
+      <span class="analogy-label">Continuing the Restaurant Analogy</span>
+      <p>In Parts 1 and 2, Skills were the recipe books and tools in the kitchen. Connectors are the <strong>delivery routes</strong> — the doors that let the kitchen reach your pantry (Google Drive), your phone (Gmail), your team's table (Slack), and your schedule (Calendar).</p>
+      <p>Without Connectors, the chef cooks brilliantly but can only use ingredients you physically carry into the restaurant. With Connectors, the chef can raid your fridge, check your grocery list, and text your family about dinner plans — all from the kitchen.</p>
+    </div>
+
+    <p>Technically, every Connector is built on something called <strong>MCP</strong> — the Model Context Protocol. But you don't need to know that to use them. Here's the simple version:</p>
+
+    <h3>MCP in One Sentence</h3>
+    <p>MCP is a <strong>universal adapter</strong> that lets Claude plug into any app. Instead of building a custom cable for every tool (one for Slack, one for Gmail, one for Notion...), Anthropic created one standard plug that works with everything. App developers build an MCP server once, and it works with Claude, Claude Code, and any other AI that supports the same standard.</p>
+
+    <div class="flow-diagram">
+      <div class="flow-node you">You<br><span style="font-size:.6rem;opacity:.7">ask Claude something</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node claude">Claude<br><span style="font-size:.6rem;opacity:.7">needs data from an app</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node mcp">MCP<br><span style="font-size:.6rem;opacity:.7">the universal adapter</span></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node app">Your App<br><span style="font-size:.6rem;opacity:.7">Slack, Drive, Jira...</span></div>
+    </div>
+
+    <p>That's the whole flow. You ask Claude a question. Claude realizes it needs data from one of your apps. It reaches through the MCP connection to that app. The app responds with data. Claude uses it in its answer. You never leave the conversation.</p>
+
+    <h3>How to Set Up a Connector (30 seconds)</h3>
+    <div class="setup-steps">
+      <div class="setup-step"><p>Go to <strong>Customize → Connectors</strong> in Claude (or click the <strong>+</strong> button in any chat)</p></div>
+      <div class="setup-step"><p>Click the <strong>+</strong> next to Connectors, then <strong>Browse connectors</strong></p></div>
+      <div class="setup-step"><p>Find the app you want (e.g., Google Drive) and click <strong>Connect</strong></p></div>
+      <div class="setup-step"><p>You'll be redirected to that app's login page — sign in and grant permissions</p></div>
+      <div class="setup-step"><p>Done. The Connector is now available in all your conversations.</p></div>
+    </div>
+
+    <div class="caveat-box">
+      <h4>Permissions Matter</h4>
+      <p>When you connect a service, you're granting Claude access to that app using <em>your</em> permissions. Claude can only see what you can see. Each Connector has a <strong>Tool Permissions</strong> section where you can set each capability to "Always allow," "Needs approval," or "Never allow." Review these. If you don't want Claude to send Slack messages without asking you first, set the write tools to "Needs approval."</p>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>II</span></div>
+
+  <!-- DEEP DIVE: PRODUCTIVITY -->
+  <section class="section">
+    <span class="section-number">Deep Dive</span>
+    <h2>Productivity Connectors — The Core Four</h2>
+
+    <p>These are the Connectors most people set up first. Together, they give Claude access to your documents, your email, your calendar, and your team conversations. They cover 80% of what knowledge workers need.</p>
+
+    <!-- GOOGLE DRIVE -->
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">📁</span>
+        <span class="conn-name">Google Drive</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Write</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Claude can search your Drive files, read document contents, create new files, and organize folders. This is the Connector that turns "look at this spreadsheet I uploaded" into "look at the spreadsheet that's already in my Drive."</p>
+        <div class="conn-actions">
+          <span class="conn-actions-label">What Claude Can Do</span>
+          <div class="conn-action-list">
+            <span class="ca-read">📖 Search files by name, content, or type</span><br>
+            <span class="ca-read">📖 Read Google Docs, Sheets, and Slides</span><br>
+            <span class="ca-read">📖 List folder contents and recent files</span><br>
+            <span class="ca-write">✏️ Create new documents and files</span><br>
+            <span class="ca-write">✏️ Organize files into folders</span>
+          </div>
+        </div>
+        <div class="scenario-box" style="margin-top:1rem">
+          <span class="scenario-label">Real Scenario</span>
+          <p>"Find the Q3 marketing budget spreadsheet in my Drive, read the total spend by channel, and create a one-page summary as a new Google Doc."</p>
+          <div class="scenario-result">
+            <p>Claude searches Drive → finds "Q3 Marketing Budget.xlsx" → reads channel spend data → creates "Q3 Budget Summary" as a new Doc in the same folder. No uploads. No downloads. Everything stays in Drive.</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- GMAIL -->
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">✉️</span>
+        <span class="conn-name">Gmail</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Draft</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Claude can search your inbox, read email threads, and draft replies. It doesn't send emails directly — it creates drafts that you review and send yourself. This is a deliberate safety choice: Claude never sends anything on your behalf without you pressing Send.</p>
+        <div class="conn-actions">
+          <span class="conn-actions-label">What Claude Can Do</span>
+          <div class="conn-action-list">
+            <span class="ca-read">📖 Search emails by sender, subject, date, keywords</span><br>
+            <span class="ca-read">📖 Read email threads and attachments</span><br>
+            <span class="ca-write">✏️ Draft reply emails (saved to Drafts)</span><br>
+            <span class="ca-write">✏️ Compose new email drafts</span>
+          </div>
+        </div>
+        <div class="scenario-box" style="margin-top:1rem">
+          <span class="scenario-label">Real Scenario</span>
+          <p>"Find all emails from our vendor Acme Corp in the last 30 days, summarize the key updates, and draft a reply to their latest email asking about the delivery timeline."</p>
+          <div class="scenario-result">
+            <p>Claude searches inbox → finds 7 emails from Acme Corp → summarizes: "They confirmed pricing, requested logo files, and flagged a shipping delay to March 15" → creates a draft reply in Gmail asking about updated timelines. You open Gmail, review the draft, and hit Send.</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- GOOGLE CALENDAR -->
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">📅</span>
+        <span class="conn-name">Google Calendar</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Write</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Claude can see your schedule, find free time, create events, and cross-reference your availability. This is what makes Claude a genuine scheduling assistant — it doesn't guess about your calendar, it reads it.</p>
+        <div class="conn-actions">
+          <span class="conn-actions-label">What Claude Can Do</span>
+          <div class="conn-action-list">
+            <span class="ca-read">📖 View events on all your calendars</span><br>
+            <span class="ca-read">📖 Check availability for specific time slots</span><br>
+            <span class="ca-read">📖 Search events by name, date, or participant</span><br>
+            <span class="ca-write">✏️ Create new calendar events</span><br>
+            <span class="ca-write">✏️ Update or cancel existing events</span>
+          </div>
+        </div>
+        <div class="scenario-box" style="margin-top:1rem">
+          <span class="scenario-label">Real Scenario</span>
+          <p>"What does my Thursday look like? I need to find 90 minutes for a design review with the team, preferably after lunch."</p>
+          <div class="scenario-result">
+            <p>Claude reads your Thursday schedule → identifies you have a 1:00-1:30 meeting and a 4:00-5:00 call → suggests 2:00-3:30 PM as the best window → offers to create the event with a title, location, and attendees if you confirm.</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- SLACK -->
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">💬</span>
+        <span class="conn-name">Slack</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Write</span>
+          <span class="conn-badge interactive">Interactive</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>The most powerful Connector in the directory. Full two-way: Claude can search your Slack channels, read threads, summarize conversations, <em>and</em> draft/preview messages before posting. The January 2026 interactive update means you see Slack's interface rendered directly inside Claude — you can approve messages before they're sent.</p>
+        <p><strong>The use case most people overlook:</strong> asking Claude to summarize a busy channel you haven't checked in two days before you respond to something you don't have full context on.</p>
+        <div class="conn-actions">
+          <span class="conn-actions-label">What Claude Can Do</span>
+          <div class="conn-action-list">
+            <span class="ca-read">📖 Search messages across channels</span><br>
+            <span class="ca-read">📖 Read thread conversations in context</span><br>
+            <span class="ca-read">📖 Summarize channel activity for a time period</span><br>
+            <span class="ca-write">✏️ Draft messages for review before posting</span><br>
+            <span class="ca-write">✏️ Post approved messages to channels/DMs</span>
+          </div>
+        </div>
+        <div class="scenario-box" style="margin-top:1rem">
+          <span class="scenario-label">Multi-Connector Scenario</span>
+          <p>"I've been on PTO for three days. Summarize the key discussions in #engineering and #product, check if anyone scheduled meetings for me while I was out, and draft a Slack message to the team saying I'm back."</p>
+          <div class="scenario-result">
+            <p>Three Connectors work together: <strong>Slack</strong> reads channel history and extracts key threads → <strong>Calendar</strong> checks for newly added events → Claude synthesizes a briefing ("3 decisions were made, 2 meetings added to your Thursday") → <strong>Slack</strong> renders a draft message preview for your approval before posting.</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="caveat-box">
+      <h4>The Power of Combining Connectors</h4>
+      <p>The real magic isn't any single Connector — it's using them together. "Find the project timeline in Drive, check who's available Thursday on Calendar, and post a meeting invite to Slack" uses three Connectors in one request. Claude figures out the orchestration automatically. You just ask for what you need in normal language.</p>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>III</span></div>
+
+  <!-- DEEP DIVE: ENGINEERING & DATA -->
+  <section class="section">
+    <span class="section-number">Deep Dive</span>
+    <h2>Engineering & Data Connectors</h2>
+
+    <p>For technical teams, Connectors turn Claude from "AI that writes code" into "AI that's plugged into our actual systems." These integrations let Claude read real issues, query real databases, and review real pull requests.</p>
+
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">🐙</span>
+        <span class="conn-name">GitHub</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Write</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Claude can read repos, browse code, create issues, open PRs, and review diffs. Combined with Claude Code, this creates a workflow where Claude implements a feature from a GitHub issue and opens the PR — without you copy-pasting anything.</p>
+        <div class="conn-actions">
+          <span class="conn-actions-label">What Claude Can Do</span>
+          <div class="conn-action-list">
+            <span class="ca-read">📖 Browse repository files and code</span><br>
+            <span class="ca-read">📖 Read issues, PRs, and discussions</span><br>
+            <span class="ca-write">✏️ Create issues and pull requests</span><br>
+            <span class="ca-write">✏️ Review and comment on PRs</span>
+          </div>
+        </div>
+        <div class="scenario-box" style="margin-top:1rem">
+          <span class="scenario-label">Real Scenario</span>
+          <p>"Look at issue #247 in our backend repo. Implement the fix described in the issue, write tests, and open a PR with a description that explains the changes."</p>
+          <div class="scenario-result">
+            <p>Claude reads the issue → understands the bug → writes the fix and tests in Claude Code → creates a PR with a descriptive title, linked issue reference, and code explanation. Reviewers see a clean PR, not "AI generated this."</p>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">📊</span>
+        <span class="conn-name">Hex (BI & Analytics)</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+          <span class="conn-badge write">Query</span>
+          <span class="conn-badge interactive">Interactive</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Hex is a business intelligence tool, and its Connector lets Claude run data queries and visualize results. For data teams, this makes Claude a conversational interface for business questions — ask "what was our churn rate last quarter by segment?" and get a chart, not a SQL lesson.</p>
+        <p><strong>The bridge it builds:</strong> data teams write the queries, but business stakeholders can ask the questions in plain English. Claude translates between the two.</p>
+      </div></div>
+    </div>
+
+    <div class="conn-card" onclick="this.classList.toggle('open')">
+      <div class="conn-header">
+        <span class="conn-icon">📈</span>
+        <span class="conn-name">Amplitude</span>
+        <div class="conn-badges">
+          <span class="conn-badge read">Read</span>
+        </div>
+        <span class="conn-chevron">›</span>
+      </div>
+      <div class="conn-body"><div class="conn-body-inner">
+        <p>Product analytics directly in Claude. Ask questions about user behavior, funnel conversion, feature adoption, and retention — Claude queries Amplitude and explains the results in plain language. Particularly useful for PMs who need data for specs and stakeholder updates without learning Amplitude's query builder.</p>
+      </div></div>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>IV</span></div>
+
+  <!-- CATEGORY OVERVIEW -->
+  <section class="section">
+    <span class="section-number">The Full Map</span>
+    <h2>Every Category at a Glance</h2>
+
+    <p>The Connector Directory has 50+ integrations as of March 2026, organized by category. Here's what's available in each:</p>
+
+    <div class="cat-grid">
+      <div class="cat-card">
+        <div class="cat-icon">🗂</div>
+        <div class="cat-name">Project Management</div>
+        <div class="cat-count">7+ connectors</div>
+        <div class="cat-tools">Asana, Linear, Jira, Monday.com, ClickUp, Notion, Airtable. Create issues, update tasks, search boards — most have Interactive mode with live task boards inside Claude.</div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🎨</div>
+        <div class="cat-name">Design & Content</div>
+        <div class="cat-count">6+ connectors</div>
+        <div class="cat-tools">Figma, Canva, Notion, WordPress.com, Box, Gamma. Read designs, create presentations, manage content — Figma and Canva render interactive canvases inside Claude.</div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">💰</div>
+        <div class="cat-name">Financial Services</div>
+        <div class="cat-count">5+ connectors</div>
+        <div class="cat-tools">Stripe, Airwallex, FactSet, MSCI, and more. Query payment data, monitor transactions, access financial research and filings.</div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">📣</div>
+        <div class="cat-name">Sales & Marketing</div>
+        <div class="cat-count">6+ connectors</div>
+        <div class="cat-tools">HubSpot, Clay, Apollo, Outreach, Similarweb, Ahrefs. Enrich leads, plan campaigns, audit SEO, analyze competitors.</div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🏥</div>
+        <div class="cat-name">Healthcare & Life Sciences</div>
+        <div class="cat-count">4+ connectors</div>
+        <div class="cat-tools">Apple Health, PubMed, Benchling, 10x Genomics. Access health data, search medical literature, interact with lab platforms.</div>
+      </div>
+      <div class="cat-card">
+        <div class="cat-icon">🏢</div>
+        <div class="cat-name">Enterprise</div>
+        <div class="cat-count">5+ connectors</div>
+        <div class="cat-tools">Microsoft 365 (Team/Enterprise only), Salesforce (coming), Box, DocuSign, LegalZoom. Access enterprise content, manage contracts, handle legal workflows.</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>V</span></div>
+
+  <!-- INTERACTIVE vs READ-ONLY -->
+  <section class="section">
+    <span class="section-number">Interactive Apps</span>
+    <h2>The Interactive Upgrade — Live Apps Inside Claude</h2>
+
+    <p>In January 2026, Anthropic launched <strong>MCP Apps</strong> — an extension that lets Connectors render live interfaces directly inside your Claude conversation. Instead of Claude describing what's in your Asana board, you see the actual board. Instead of Claude listing your Figma frames, you see the designs.</p>
+
+    <p>Look for the <span style="font-family:'DM Mono',monospace;font-size:.82rem;color:var(--blue-soft);border:1px solid var(--blue-soft);padding:.1rem .4rem;border-radius:3px;background:var(--blue-bg)">Interactive</span> badge in the Connector Directory. Current interactive Connectors include:</p>
+
+    <table class="perm-table">
+      <thead><tr><th>Connector</th><th>What Renders Inside Claude</th></tr></thead>
+      <tbody>
+        <tr><td>Slack</td><td>Message composer with preview — draft, review, and approve before posting</td></tr>
+        <tr><td>Asana</td><td>Live task boards with drag-and-drop status updates</td></tr>
+        <tr><td>Figma</td><td>Design previews with frame navigation and annotation</td></tr>
+        <tr><td>Canva</td><td>Design canvas for viewing and editing visuals</td></tr>
+        <tr><td>Hex</td><td>Data visualizations and query results with interactive charts</td></tr>
+        <tr><td>Monday.com</td><td>Project boards with status tracking and updates</td></tr>
+      </tbody>
+    </table>
+
+    <p>The shift is subtle but significant. Before Interactive: Claude describes your data. After Interactive: Claude shows you your data. You can manipulate it without leaving the conversation — check off a task, adjust a chart parameter, approve a message. The conversation <em>is</em> the workspace.</p>
+  </section>
+
+  <div class="editorial-divider"><span>VI</span></div>
+
+  <!-- CUSTOM CONNECTORS -->
+  <section class="section">
+    <span class="section-number">Build Your Own</span>
+    <h2>Custom Connectors — When the Directory Isn't Enough</h2>
+
+    <p>If the app you need isn't in the Connector Directory, you can point Claude at any MCP server URL. This is how teams connect Claude to internal tools, proprietary databases, and niche services.</p>
+
+    <h3>How to Add a Custom Connector</h3>
+    <div class="setup-steps">
+      <div class="setup-step"><p>Go to <strong>Customize → Connectors → Add custom connector</strong></p></div>
+      <div class="setup-step"><p>Enter the connector's <strong>name</strong> (e.g., "Internal Wiki")</p></div>
+      <div class="setup-step"><p>Enter the <strong>MCP server URL</strong> — get this from your app's documentation or your engineering team</p></div>
+      <div class="setup-step"><p>Optionally add OAuth credentials if the server requires authentication</p></div>
+      <div class="setup-step"><p>Click <strong>Add</strong> — Claude can now access that service</p></div>
+    </div>
+
+    <p><strong>Available on:</strong> All paid plans (Pro, Max, Team, Enterprise). Free users get one custom connector.</p>
+
+    <p>For teams building MCP servers from scratch, Claude's own <strong>mcp-builder Skill</strong> (covered in Part 1) provides a four-phase guide: research, implementation, testing, and evaluation. It supports TypeScript and Python, with project templates and best practices built in. Skills and Connectors, working together — one builds the other.</p>
+
+    <div class="caveat-box">
+      <h4>Custom Connector Security</h4>
+      <p>Custom Connectors are not verified by Anthropic. When you connect Claude to an unverified MCP server, you're trusting that server with your conversation data. Only connect to servers from trusted organizations — your own company, known vendors, or well-established open-source projects. Review the OAuth permissions carefully. And if you're building an MCP server for your team, follow the MCP security best practices: validate inputs, scope permissions narrowly, and log all tool invocations.</p>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>VII</span></div>
+
+  <!-- SKILLS + CONNECTORS TOGETHER -->
+  <section class="section">
+    <span class="section-number">The Complete Picture</span>
+    <h2>Skills + Connectors = The Full Stack</h2>
+
+    <p>Now you have the complete picture of how Claude works behind the scenes. Let's put it all together with one final example that uses everything:</p>
+
+    <div class="scenario-box">
+      <span class="scenario-label">The Ultimate Multi-Tool Request</span>
+      <p>"Check my Slack for the latest product feedback thread, pull the customer survey data from our Google Drive spreadsheet, analyze the NPS scores, create a summary presentation with charts, and post the key findings to #product-updates."</p>
+    </div>
+
+    <p><strong>Here's what activates:</strong></p>
+    <table class="perm-table">
+      <thead><tr><th>Step</th><th>What Activates</th><th>What It Does</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td><strong>Slack Connector</strong></td><td>Searches #product-feedback, reads the latest thread</td></tr>
+        <tr><td>2</td><td><strong>Google Drive Connector</strong></td><td>Finds the customer survey spreadsheet, reads the NPS data</td></tr>
+        <tr><td>3</td><td><strong>xlsx Skill</strong></td><td>Analyzes the data — calculates NPS by segment, identifies trends</td></tr>
+        <tr><td>4</td><td><strong>pptx Skill</strong></td><td>Creates a presentation with formatted slides and charts</td></tr>
+        <tr><td>5</td><td><strong>Slack Connector</strong></td><td>Drafts a summary message with key findings, renders preview for approval</td></tr>
+      </tbody>
+    </table>
+
+    <p>Five tools. One sentence. Skills handled the creation (the presentation, the analysis). Connectors handled the access (Slack, Drive). You didn't need to upload anything, download anything, or switch apps. Claude orchestrated the entire workflow from a single conversation.</p>
+
+    <div class="analogy-box" style="border-color:var(--sage)">
+      <span class="analogy-label">The Three-Part Summary</span>
+      <p><strong>Part 1 — Skills are Claude's recipe books.</strong> They teach it how to create Word documents, presentations, spreadsheets, PDFs, and websites. They're folders with instruction files and code.</p>
+      <p><strong>Part 2 — Skills work automatically.</strong> Ask for a "PowerPoint" and the pptx Skill activates. Ask to "read this PDF" and the PDF Reading Skill takes over. You don't need to know they exist.</p>
+      <p><strong>Part 3 — Connectors are Claude's delivery routes.</strong> They give Claude access to your Drive, inbox, calendar, Slack, and 50+ other tools. Skills create things; Connectors find things. Together, they make Claude an actual collaborator, not just a chatbot.</p>
+    </div>
+  </section>
+
+  <div class="editorial-divider"><span>VIII</span></div>
+
+  <!-- PRACTICAL ADVICE -->
+  <section class="section">
+    <span class="section-number">Getting Started</span>
+    <h2>The Three-Connector Start</h2>
+
+    <p>Don't connect everything at once. Start with the three tools you use most and build workflows that save you real time. Here's the recommendation by role:</p>
+
+    <table class="perm-table">
+      <thead><tr><th>If You're a…</th><th>Start With These Three</th></tr></thead>
+      <tbody>
+        <tr><td>Knowledge worker</td><td>Google Drive + Gmail + Calendar</td></tr>
+        <tr><td>Engineer</td><td>GitHub + Slack + Linear/Jira</td></tr>
+        <tr><td>Product manager</td><td>Slack + Notion + Amplitude</td></tr>
+        <tr><td>Marketer</td><td>Slack + HubSpot + Google Drive</td></tr>
+        <tr><td>Founder</td><td>Gmail + Calendar + Slack</td></tr>
+        <tr><td>Data professional</td><td>Google Drive + Hex + Slack</td></tr>
+      </tbody>
+    </table>
+
+    <p>Use them for a week. Notice which workflows feel like magic ("I can't believe I used to do this manually") and which feel forced. Expand from there. The directory grows every week — check back quarterly.</p>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-logo">PaddySpeaks</div>
+    <div class="footer-note">AI · Data Architecture · Ancient Wisdom · Technology Philosophy</div>
+  </footer>
+</div>
+
+<script>
+document.querySelectorAll('.section').forEach(s=>{
+  new IntersectionObserver(([e])=>{if(e.isIntersecting)e.target.classList.add('visible')},{threshold:.08,rootMargin:'0px 0px -40px 0px'}).observe(s);
+});
+</script>
+
+</body>
+</html>
