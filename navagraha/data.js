@@ -43,7 +43,8 @@ const NAVAGRAHA_DATA = {
                 { word: "भुवना", transliteration: "bhuvanā", meaning: "the worlds" },
                 { word: "विपश्यन्", transliteration: "vipaśyan", meaning: "beholding, observing all" }
               ],
-              translation: "Moving through the cosmic space with truth, setting in their rightful place both the immortal gods and mortal beings — the radiant god Savitar travels on his golden chariot, beholding all the worlds."
+              translation: "Moving through the cosmic space with truth, setting in their rightful place both the immortal gods and mortal beings — the radiant god Savitar travels on his golden chariot, beholding all the worlds.",
+              significance: "Esoterically, Savitar represents the Atman — the inner Sun of consciousness. His 'golden chariot' is the subtle body (sukshma sharira) through which awareness travels across the planes of existence. 'Setting in place the immortal and the mortal' reveals the soul's role as the bridge between spirit and matter. The word 'satyena' (with truth) indicates that consciousness moves through creation not by force but by the power of Rta — cosmic truth. When you chant this mantra, you are invoking the inner Savitar to awaken self-awareness, to 'see all worlds' — i.e., to become the witness (sakshi) of all experience."
             },
             {
               stotra: "suktam",
@@ -61,7 +62,8 @@ const NAVAGRAHA_DATA = {
                 { word: "यज्ञस्य", transliteration: "yajñasya", meaning: "sacrifice" },
                 { word: "सुक्रतुम्", transliteration: "sukratum", meaning: "the one of good deeds / excellent performer" }
               ],
-              translation: "We choose Agni as our messenger, the all-knowing invoker-priest, the excellent performer of this sacrifice."
+              translation: "We choose Agni as our messenger, the all-knowing invoker-priest, the excellent performer of this sacrifice.",
+              significance: "Agni is the Adhidevata (presiding deity) of Surya. In the inner sacrifice (antaryaga), Agni represents the fire of awareness — the faculty that 'digests' experience and transforms it into knowledge. Choosing Agni as the 'messenger' (duta) means using the fire of concentration to carry our spiritual aspirations upward. 'Vishvavedas' (all-knowing) hints that this inner fire, when kindled, reveals the interconnectedness of all knowledge — nothing remains unknown to the awakened consciousness."
             },
             {
               stotra: "suktam",
@@ -87,7 +89,8 @@ const NAVAGRAHA_DATA = {
                 { word: "यजमानस्य", transliteration: "yajamānasya", meaning: "of the performer of the sacrifice" },
                 { word: "सन्तु", transliteration: "santu", meaning: "may there be" }
               ],
-              translation: "Pashupati (Rudra) is the lord of all creatures — both the four-footed and the two-footed. May this redeemed one attain his rightful share of the sacrifice. May abundance of wealth be upon the one who performs this worship."
+              translation: "Pashupati (Rudra) is the lord of all creatures — both the four-footed and the two-footed. May this redeemed one attain his rightful share of the sacrifice. May abundance of wealth be upon the one who performs this worship.",
+              significance: "Rudra (Shiva) as Pashupati is the Pratydhidevata of Surya. 'Pashu' means the bound soul, and 'Pati' means lord — so Pashupati is the lord who liberates bound souls. The 'four-footed' and 'two-footed' are not just animals and humans — they represent beings at different levels of consciousness. 'Nishkrita' (redeemed) refers to the soul freed from karmic debt through the solar fire of self-knowledge. This verse encodes the promise: when you align with Surya-tattva (the principle of illumination), even your material life (rayasposhaa = wealth) flourishes, because inner clarity naturally produces outer abundance."
             }
           ]
         },
@@ -118,7 +121,8 @@ const NAVAGRAHA_DATA = {
                 { word: "वाजस्य", transliteration: "vājasya", meaning: "of nourishment / vital force" },
                 { word: "सङ्गथे", transliteration: "saṅgathe", meaning: "in the gathering / at the place of union" }
               ],
-              translation: "O Soma, may you be nourished! May virile strength come to you from all sides. Be present at the gathering place of vital nourishment."
+              translation: "O Soma, may you be nourished! May virile strength come to you from all sides. Be present at the gathering place of vital nourishment.",
+              significance: "Soma is the deity of the Moon and represents Manas (the mind). 'Aapyaayasva' (may you swell) is a prayer for the mind to become full — not with thoughts but with receptivity. The Moon reflects the Sun's light; likewise the mind reflects the light of the Atman. 'Vrishnyam' (virile strength) from all sides means the mind drawing spiritual vitality from every experience. The 'sangatha' (gathering place) of nourishment is the heart-center (hridaya), where all impressions converge. This mantra is chanted to strengthen the mind's capacity to receive and reflect divine light."
             },
             {
               stotra: "suktam",
@@ -141,7 +145,8 @@ const NAVAGRAHA_DATA = {
                 { word: "च", transliteration: "ca", meaning: "and" },
                 { word: "विश्वभेषजीः", transliteration: "viśvabheṣajīḥ", meaning: "the universal healers" }
               ],
-              translation: "Soma declared to me: 'Within the waters dwell all medicines. Agni is beneficial to all, and the waters are the universal healers.'"
+              translation: "Soma declared to me: 'Within the waters dwell all medicines. Agni is beneficial to all, and the waters are the universal healers.'",
+              significance: "The 'waters' (Apas) are the Adhidevata of Chandra. Esoterically, Apas represents not physical water but the flow of prana and consciousness. 'All medicines dwell within the waters' means that the healing power of the universe resides in the flow of awareness itself. When the mind (Soma) is calm like still water, it becomes self-healing. Agni within the waters represents the fire of digestion — both physical and psychological. This verse reveals the Vedic understanding that consciousness (Soma), energy (Agni), and flow (Apas) together constitute the complete healing principle."
             },
             {
               stotra: "suktam",
@@ -165,7 +170,8 @@ const NAVAGRAHA_DATA = {
                 { word: "परमे", transliteration: "parame", meaning: "in the highest" },
                 { word: "व्योमन्", transliteration: "vyoman", meaning: "sky, heaven" }
               ],
-              translation: "The radiant Gauri (sacred speech) has measured out the waters and fashions creation. She is one-footed, two-footed, four-footed, eight-footed, nine-footed — having become of a thousand syllables in the highest heaven."
+              translation: "The radiant Gauri (sacred speech) has measured out the waters and fashions creation. She is one-footed, two-footed, four-footed, eight-footed, nine-footed — having become of a thousand syllables in the highest heaven.",
+              significance: "Gauri (Parvati) is the Pratydhidevata of Chandra. Here Gauri represents Vak — sacred speech, the creative Word. The progression from one-footed to thousand-syllabled maps the manifestation of consciousness through increasingly complex forms — from the single primordial vibration (Omkara) through the four Vedas (four-footed), the eight prakritis, the nine forms of devotion, to the infinite expressions of the cosmos (sahasrakshara). This verse encodes the entire cosmology in the metaphor of speech: the Moon governs the mind, and the mind creates through the power of Vak. In 'parame vyoman' (the highest heaven), all these forms dissolve back into silence — the ultimate source."
             }
           ]
         },
@@ -196,7 +202,8 @@ const NAVAGRAHA_DATA = {
                 { word: "रेतांसि", transliteration: "retāṁsi", meaning: "the essences, the seeds" },
                 { word: "जिन्वति", transliteration: "jinvati", meaning: "enlivens, sets in motion" }
               ],
-              translation: "Agni is the head of heaven, the peak of the sky, the lord of this earth. He enlivens the seed-essences of the waters."
+              translation: "Agni is the head of heaven, the peak of the sky, the lord of this earth. He enlivens the seed-essences of the waters.",
+              significance: "Mars represents raw energy (virya), and his Adhidevata Bhumi (Earth) grounds this fiery force. Agni being simultaneously the 'head of heaven' and 'lord of earth' reveals that the Mars-principle operates at every level of existence — from the cosmic fire of stars to the metabolic fire within our bodies. 'Apam retamsi jinvati' (enlivening the seed-essences of waters) is profoundly esoteric: it means that the fire of will-power activates the dormant potential within the pranic currents. This is the principle behind tapas (spiritual austerity) — directed inner fire that transforms latent potential into manifest power."
             },
             {
               stotra: "suktam",
@@ -215,7 +222,8 @@ const NAVAGRAHA_DATA = {
                 { word: "शर्म", transliteration: "śarma", meaning: "shelter, happiness" },
                 { word: "सप्रथाः", transliteration: "saprathaḥ", meaning: "wide, expansive" }
               ],
-              translation: "O Earth, be pleasant and thorn-free as our dwelling place. Grant us wide-reaching shelter and happiness."
+              translation: "O Earth, be pleasant and thorn-free as our dwelling place. Grant us wide-reaching shelter and happiness.",
+              significance: "Bhumi (Earth) is Mars's Adhidevata. Praying to the Earth to be 'thorn-free' is not merely physical — it asks that our field of action (kshetra) be cleared of obstacles. 'Anrikshara' (without thorns) means a life-path free of karmic obstructions. 'Sharma saprathah' (wide-reaching shelter) represents the expansive state of consciousness where one feels safe and grounded in any situation. This verse teaches that Mars-energy, when properly channeled, doesn't create conflict — it creates space. The warrior's true gift is not aggression but the ability to make the world safe for others."
             },
             {
               stotra: "suktam",
@@ -238,7 +246,8 @@ const NAVAGRAHA_DATA = {
                 { word: "मृडाति", transliteration: "mṛḍāti", meaning: "may he be gracious" },
                 { word: "ईदृशे", transliteration: "īdṛśe", meaning: "in this manner, for such purpose" }
               ],
-              translation: "With the lord of the field (Kshetrapati), we conquer in all that is beneficial. Nourishing our cattle and horses, may he be gracious to us in this way."
+              translation: "With the lord of the field (Kshetrapati), we conquer in all that is beneficial. Nourishing our cattle and horses, may he be gracious to us in this way.",
+              significance: "Kshetrapala (Guardian of the field) is Mars's Pratydhidevata. In the Gita, Krishna calls the body 'kshetra' (the field) and the soul 'kshetrajna' (knower of the field). This verse invokes the protector of our field of karma — the principle that guards our life's work. 'Jayamasi' (we conquer) through Mars is not violent conquest but dharmic victory — winning in what is 'hita' (beneficial). The cattle (go) represent senses and the horse (ashva) represents prana. Nourishing them means disciplining the senses and vital energy. A well-governed Mars makes one a protector, not a destroyer."
             }
           ]
         },
@@ -276,7 +285,8 @@ const NAVAGRAHA_DATA = {
                 { word: "तन्तुम्", transliteration: "tantum", meaning: "the thread (of sacrifice)" },
                 { word: "एतम्", transliteration: "etam", meaning: "this" }
               ],
-              translation: "O Agni, awaken! Watch over this worshipper. May you bestow upon him the fruits of sacrifice and good deeds. Making your father youthful again, he has stretched this thread of sacrifice in you."
+              translation: "O Agni, awaken! Watch over this worshipper. May you bestow upon him the fruits of sacrifice and good deeds. Making your father youthful again, he has stretched this thread of sacrifice in you.",
+              significance: "Mercury governs Buddhi (intellect, discernment). 'Udbudhyasva' (awaken!) is the primal call to the discriminative faculty — wake up from the sleep of ignorance. The 'thread' (tantu) stretched in Agni represents the continuity of conscious awareness linking past, present and future — Mercury's domain of connecting knowledge. 'Making the father youthful again' is a stunning esoteric image: through the fire of true understanding, we renew our connection to the source (the father-principle, Brahman), making the ancient wisdom feel perpetually fresh. This is Budha's gift — making the eternal relevant to the present."
             },
             {
               stotra: "suktam",
@@ -295,7 +305,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अस्य", transliteration: "asya", meaning: "his" },
                 { word: "पांसुरे", transliteration: "pāṁsure", meaning: "in the dust / in the earth" }
               ],
-              translation: "Vishnu strode across this entire universe. In three steps he established his foot. The whole world is gathered in the dust of his feet."
+              translation: "Vishnu strode across this entire universe. In three steps he established his foot. The whole world is gathered in the dust of his feet.",
+              significance: "Vishnu is the Adhidevata of Budha. The famous 'three strides of Vishnu' (trivikrama) represent the three states of consciousness — waking (earth), dreaming (atmosphere), and deep sleep (heaven). Mercury-intellect, when aligned with Vishnu-consciousness, can traverse all three realms. 'Samudham asya pamsure' (gathered in the dust of his feet) means that all knowledge, however vast, is merely a particle of the infinite awareness of Vishnu. This teaches intellectual humility — the highest function of Mercury is to recognize that the intellect is a tool of the divine, not the master."
             },
             {
               stotra: "suktam",
@@ -320,7 +331,8 @@ const NAVAGRAHA_DATA = {
                 { word: "विष्णवे", transliteration: "viṣṇave", meaning: "for Vishnu" },
                 { word: "त्वा", transliteration: "tvā", meaning: "you (I dedicate)" }
               ],
-              translation: "You are the forehead of Vishnu, the back of Vishnu, the sinews of Vishnu, the binding thread of Vishnu, the firm foundation of Vishnu. All belongs to Vishnu — I dedicate you to Vishnu."
+              translation: "You are the forehead of Vishnu, the back of Vishnu, the sinews of Vishnu, the binding thread of Vishnu, the firm foundation of Vishnu. All belongs to Vishnu — I dedicate you to Vishnu.",
+              significance: "This extraordinary verse maps the entire body of reality onto Vishnu — every part is divine. Esoterically, it means that Mercury's analytical faculty, which naturally divides and categorizes, must ultimately recognize that every fragment it examines is Vishnu (the all-pervading). The forehead (rarata) is the seat of intellect, the back (prishtha) is support, the sinews (snaptre) are connections, the thread (syura) is continuity, and the firm ground (dhruva) is the unchanging foundation. When Mercury (intellect) sees Vishnu (divinity) in every category it creates, analysis becomes worship. 'Vishnave tva' — I dedicate all my knowledge to the All-Pervading."
             }
           ]
         },
@@ -358,7 +370,8 @@ const NAVAGRAHA_DATA = {
                 { word: "धेहि", transliteration: "dhehi", meaning: "bestow, place" },
                 { word: "चित्रम्", transliteration: "citram", meaning: "wonderful, manifold" }
               ],
-              translation: "O Brihaspati, that which shines brilliantly beyond the noble ones, illuminating sacred wisdom among the people — bestow upon us that wonderful and manifold wealth."
+              translation: "O Brihaspati, that which shines brilliantly beyond the noble ones, illuminating sacred wisdom among the people — bestow upon us that wonderful and manifold wealth.",
+              significance: "Brihaspati literally means 'Lord of the Vast' (Brihat + Pati) — the principle that governs expansive consciousness. The 'wealth' (dravinam) sought here is not gold but 'chitram' — the wonderful, the variegated, the multicolored tapestry of wisdom. Jupiter-Guru energy doesn't give you one answer — it gives you the capacity to see truth in its infinite expressions. 'Dyumat vibhati' (shines brilliantly) indicates that true wisdom is self-luminous — it doesn't need external validation. When Jupiter is strong in consciousness, knowledge 'shines among the people' naturally, without effort. The Guru doesn't push wisdom; wisdom radiates from the Guru."
             },
             {
               stotra: "suktam",
@@ -384,7 +397,8 @@ const NAVAGRAHA_DATA = {
                 { word: "कवयः", transliteration: "kavayaḥ", meaning: "the wise seers" },
                 { word: "सुयज्ञाः", transliteration: "suyajñāḥ", meaning: "performers of good sacrifice" }
               ],
-              translation: "O Indra, accompanied by the Maruts, drink the Soma here, just as you drank at Sharyata's sacrifice. Under your guidance and protection, O mighty one, the wise seers and good sacrificers seek to serve you."
+              translation: "O Indra, accompanied by the Maruts, drink the Soma here, just as you drank at Sharyata's sacrifice. Under your guidance and protection, O mighty one, the wise seers and good sacrificers seek to serve you.",
+              significance: "Indra is the Adhidevata of Jupiter. Indra represents the cosmic mind (mahat-tattva) — the first principle of intelligence in creation. The Maruts (storm-gods) are the pranic forces that accompany wisdom. 'Drinking Soma' is not literal intoxication but the absorption of refined consciousness — the Guru drinks deeply of understanding. The reference to Sharyata's sacrifice points to a specific historical moment when Indra accepted worship despite obstacles, teaching that the Guru-principle persists even when challenged. 'Kavayah suyajnah' (wise seers performing good sacrifice) — true students don't just receive knowledge, they offer themselves in the fire of learning."
             },
             {
               stotra: "suktam",
@@ -412,7 +426,8 @@ const NAVAGRAHA_DATA = {
                 { word: "च", transliteration: "ca", meaning: "and" },
                 { word: "विवः", transliteration: "vivaḥ", meaning: "he revealed, he entered" }
               ],
-              translation: "Brahman, manifesting first in the beginning, came forth from the horizon as brilliant light. From the depths arose the highest forms of this reality — he revealed the source of both the existent and the non-existent."
+              translation: "Brahman, manifesting first in the beginning, came forth from the horizon as brilliant light. From the depths arose the highest forms of this reality — he revealed the source of both the existent and the non-existent.",
+              significance: "Brahma is Jupiter's Pratydhidevata. This is one of the most metaphysically profound verses in all of Vedic literature. 'Brahma jajnanam prathamam' — Brahman (the Absolute) manifested first, before all else. From the 'visimata' (boundaries of the known) came 'suruchah' (brilliant light). This describes the moment of cosmic dawn — not just the Big Bang but the first flash of self-awareness in the Infinite. 'Satah cha yonim asatah cha vivah' — he revealed the source of both being and non-being. Jupiter-consciousness, at its highest, knows both existence and the void from which existence springs. This is para-vidya — the supreme knowledge that the Guru-principle ultimately transmits."
             }
           ]
         },
@@ -443,7 +458,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अग्नये", transliteration: "agnaye", meaning: "to Agni (fire)" },
                 { word: "सुपूतम्", transliteration: "supūtam", meaning: "well-purified" }
               ],
-              translation: "Bring forth your offerings to the brilliant and radiant Shukra. Offer the well-purified oblation and devotion to Agni."
+              translation: "Bring forth your offerings to the brilliant and radiant Shukra. Offer the well-purified oblation and devotion to Agni.",
+              significance: "Shukra means 'the bright, the pure' — Venus is the planet of refinement. 'Suputam' (well-purified) is key: Venus-energy demands that our offerings to life — our art, love, devotion — be purified, not raw or crude. The 'havya' (oblation) is our creative expression, and 'mati' (thought/devotion) is the inner attitude behind it. This verse teaches that beauty is not indulgence — it is purified offering. When Venus is properly understood, aesthetics become a form of yajna (sacrifice). Every act of creating beauty is an offering to the divine fire."
             },
             {
               stotra: "suktam",
@@ -461,7 +477,8 @@ const NAVAGRAHA_DATA = {
                 { word: "विद्मना", transliteration: "vidmanā", meaning: "with wisdom, with knowledge" },
                 { word: "जिगाति", transliteration: "jigāti", meaning: "pervades, moves through" }
               ],
-              translation: "He who pervades with wisdom all the divine and human births, moving through all the worlds with knowledge."
+              translation: "He who pervades with wisdom all the divine and human births, moving through all the worlds with knowledge.",
+              significance: "This verse reveals Venus's deeper nature — not merely sensual pleasure but 'vidmana' (wisdom) that pervades both divine and human realms. Shukra was the guru of the Asuras (demons), meaning Venus-wisdom can illuminate even the darkest aspects of existence. 'Antar vishvani jigati' — moving within all worlds — shows that the Venus-principle is not escapist beauty but an intelligence that penetrates everywhere, finding the sacred even in the profane. This is why Shukracharya possessed Sanjeevani Vidya (the knowledge of resurrection) — Venus-consciousness can revive what seems dead."
             },
             {
               stotra: "suktam",
@@ -485,7 +502,8 @@ const NAVAGRAHA_DATA = {
                 { word: "मरते", transliteration: "marate", meaning: "dies" },
                 { word: "पतिः", transliteration: "patiḥ", meaning: "husband (lord)" }
               ],
-              translation: "I have heard that Indrani is the most fortunate wife among all women. Indeed, her husband (Indra) shall never die of old age."
+              translation: "I have heard that Indrani is the most fortunate wife among all women. Indeed, her husband (Indra) shall never die of old age.",
+              significance: "Indrani (Sachi Devi) is the Adhidevata of Shukra. She represents Shakti — the feminine creative power inseparable from consciousness. Being the 'most fortunate wife' (supatni) means that when the creative feminine is honored, the masculine principle (Indra/consciousness) becomes immortal — 'jarasa marate patih' (her husband never dies of old age). This is the secret of Venus: when we honor beauty, love, and devotion (Shakti), our consciousness remains eternally youthful. Neglect the feminine and consciousness withers; honor it, and it becomes deathless."
             },
             {
               stotra: "suktam",
@@ -504,7 +522,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अस्तु", transliteration: "astu", meaning: "may he be" },
                 { word: "केवलः", transliteration: "kevalaḥ", meaning: "exclusively, solely" }
               ],
-              translation: "We invoke Indra from all sides, from among all the peoples. May he be ours exclusively."
+              translation: "We invoke Indra from all sides, from among all the peoples. May he be ours exclusively.",
+              significance: "Indra as Pratydhidevata of Shukra represents sovereign will united with beauty. 'Kevala' (exclusively) is a loaded word in Vedanta — it means 'the absolute, the alone.' The prayer is not selfish exclusivity but a request for undivided attention from the divine — the kind of total absorption that characterizes both deep love and deep meditation. Venus, at its highest, is not about possessing beauty but about being so fully present to beauty that subject and object dissolve — and only 'kevala' (the Alone, the Absolute) remains."
             }
           ]
         },
@@ -536,7 +555,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अभिस्रवन्तु", transliteration: "abhisravantu", meaning: "may they flow towards" },
                 { word: "नः", transliteration: "naḥ", meaning: "us" }
               ],
-              translation: "May the divine waters be auspicious for our welfare. May they be blissful for our drinking. May they flow towards us bringing happiness and health."
+              translation: "May the divine waters be auspicious for our welfare. May they be blissful for our drinking. May they flow towards us bringing happiness and health.",
+              significance: "Saturn governs time, discipline, and karma. The prayer for auspicious waters is deceptively simple — it asks that the flow of time itself be benevolent. 'Sham' (auspiciousness) appears twice, encoding Saturn's hidden gift: Shani doesn't just punish — he can bestow deep peace (shanti) to those who accept discipline. The waters flowing for 'pitaye' (drinking) represent karma flowing in a way we can absorb and learn from, rather than being overwhelmed. This mantra transforms Saturn from a feared taskmaster into a source of purifying, nourishing flow — if you approach time and karma with humility."
             },
             {
               stotra: "suktam",
@@ -565,7 +585,8 @@ const NAVAGRAHA_DATA = {
                 { word: "पतयः", transliteration: "patayaḥ", meaning: "lords, masters" },
                 { word: "रयीणाम्", transliteration: "rayīṇām", meaning: "of riches" }
               ],
-              translation: "O Prajapati, none other than you has encompassed all these created beings. With whatever desires we offer oblations to you, may those be fulfilled. May we become lords of riches."
+              translation: "O Prajapati, none other than you has encompassed all these created beings. With whatever desires we offer oblations to you, may those be fulfilled. May we become lords of riches.",
+              significance: "Prajapati (Brahma, the Creator) is Saturn's Adhidevata — a profound pairing. Saturn restricts, yet his presiding deity is the Creator. This paradox reveals Saturn's deepest truth: limitation is the precondition of creation. A potter must limit clay to create a pot. 'Na tvad etani anyah' — no one else has encompassed all creation — means that the principle of structured limitation (Saturn) is what gives form to the formless. 'Patayo rayeenam' (lords of riches) — mastering Saturn's lessons of discipline, patience, and acceptance makes one truly wealthy, because real wealth is the ability to create within constraints."
             },
             {
               stotra: "suktam",
@@ -593,7 +614,8 @@ const NAVAGRAHA_DATA = {
                 { word: "हविषा", transliteration: "haviṣā", meaning: "with the oblation" },
                 { word: "मादयस्व", transliteration: "mādayasva", meaning: "be delighted, rejoice" }
               ],
-              translation: "O Yama, be seated on this sacred seat, in harmony with the Angirasa sages and the ancestors. May the sacred hymns praised by the wise seers bring you here. O King, rejoice with this oblation."
+              translation: "O Yama, be seated on this sacred seat, in harmony with the Angirasa sages and the ancestors. May the sacred hymns praised by the wise seers bring you here. O King, rejoice with this oblation.",
+              significance: "Yama (lord of death) is Saturn's Pratydhidevata. Inviting Yama to 'be seated' (sida) on the sacred grass is extraordinary — death is not rejected but honored as a guest. 'Samvidanah' (in harmony) with the ancestors (pitris) means that Saturn-consciousness connects us to our ancestral lineage and the accumulated karma of generations. The 'mantras praised by seers' (kavishasta) that 'carry' Yama represent how sacred knowledge transforms our relationship with mortality — instead of fearing death, we offer it hospitality. 'Madayasva' (rejoice) — when even death rejoices at our offering, what remains to fear? This is Saturn's ultimate liberation."
             }
           ]
         },
@@ -624,7 +646,8 @@ const NAVAGRAHA_DATA = {
                 { word: "शचिष्ठया", transliteration: "śaciṣṭhayā", meaning: "with the most powerful help" },
                 { word: "वृता", transliteration: "vṛtā", meaning: "chosen, surrounded" }
               ],
-              translation: "With what protection may the wonderful, ever-prospering friend come to us? With what most powerful help is he accompanied?"
+              translation: "With what protection may the wonderful, ever-prospering friend come to us? With what most powerful help is he accompanied?",
+              significance: "Rahu is the planet of mystery, obsession, and worldly ambition. The mantra opens with 'kaya' (by what means?) — a question, not a statement. This is Rahu's nature: uncertainty, seeking, grasping for what we cannot quite define. The 'chitra' (wonderful, strange) friend who is 'sadavridhah' (ever-growing) represents Rahu's insatiable hunger — desire that perpetually expands. Yet the verse doesn't condemn this seeking; it asks how to channel it properly. 'Shachishthaya' (most powerful help) suggests that Rahu's tremendous energy can be redirected from material obsession to spiritual seeking. The same force that drives worldly ambition can, when purified, become the most powerful spiritual aspiration."
             },
             {
               stotra: "suktam",
@@ -646,7 +669,8 @@ const NAVAGRAHA_DATA = {
                 { word: "प्रयन्", transliteration: "prayan", meaning: "going towards" },
                 { word: "सुवः", transliteration: "suvaḥ", meaning: "the sun / heaven" }
               ],
-              translation: "This dappled ray of light has come forth, reaching the mother (earth) again and going towards the father (heaven/sun)."
+              translation: "This dappled ray of light has come forth, reaching the mother (earth) again and going towards the father (heaven/sun).",
+              significance: "The 'dappled cow' (gauh prishnih) represents mixed light — partly illuminated, partly shadowed — which is Rahu's exact nature as the shadow planet that creates eclipses. 'Reaching the mother (earth) and going towards the father (sun)' maps the soul's journey between material embodiment and spiritual aspiration — Rahu's eternal oscillation. The verse reveals that Rahu is not evil but transitional — a force that moves between darkness and light, between mother-matter and father-spirit. Eclipses are not destruction but temporary passages. Rahu teaches that every shadow is cast by a greater light trying to emerge."
             },
             {
               stotra: "suktam",
@@ -676,7 +700,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अद्धि", transliteration: "addhi", meaning: "eat, enjoy" },
                 { word: "प्रमुक्तः", transliteration: "pramuktaḥ", meaning: "freed, released" }
               ],
-              translation: "That inescapable cord which the goddess Nirriti has bound around your neck — I untie it for you, not from the middle of your life (not prematurely). Then, freed and alive, enjoy nourishing food."
+              translation: "That inescapable cord which the goddess Nirriti has bound around your neck — I untie it for you, not from the middle of your life (not prematurely). Then, freed and alive, enjoy nourishing food.",
+              significance: "Nirriti (goddess of misfortune and dissolution) is Rahu's Adhidevata, and Durga is his Pratydhidevata. The 'inescapable cord around the neck' is the most powerful image of karmic bondage — Rahu's grip of obsessive desire that strangles our freedom. 'Vishyami' (I untie) — the mantra itself becomes the act of liberation. 'Ayusho na madhyat' (not from the middle of life) means this liberation doesn't require death or renunciation — it happens while you're alive, in full vitality. 'Pitumaddhi pramuktah' (freed, eat nourishing food) — after Rahu's grip is loosened, you can enjoy the world again, but now as a free being. This is Rahu's ultimate teaching: desire is not the enemy — bondage to desire is. Freed from the cord, you feast on life itself."
             }
           ]
         },
@@ -706,7 +731,8 @@ const NAVAGRAHA_DATA = {
                 { word: "उषद्भिः", transliteration: "uṣadbhiḥ", meaning: "with the dawns" },
                 { word: "अजायथाः", transliteration: "ajāyathāḥ", meaning: "you were born" }
               ],
-              translation: "Creating a banner of light for the formless, giving form to the formless — O mortal one, you were born together with the dawns."
+              translation: "Creating a banner of light for the formless, giving form to the formless — O mortal one, you were born together with the dawns.",
+              significance: "Ketu means 'banner' or 'flag' — and this verse is his defining mantra. 'Ketum krinvan aketave' — creating a sign for the signless, a form for the formless — is the paradox of spiritual realization. Ketu represents moksha (liberation), which is the formless becoming known. 'Pesho marya apeshase' — giving beauty to the formless — means that liberation is not colorless void but the most radiant beauty of all. 'Samushadbhih ajayathah' (born with the dawns) — Ketu-consciousness is born anew each moment of awakening. Unlike Rahu who clings to the past, Ketu is perpetually fresh, perpetually at dawn. This is why Ketu gives spiritual insight — it creates a visible banner pointing toward the invisible Absolute."
             },
             {
               stotra: "suktam",
@@ -732,7 +758,8 @@ const NAVAGRAHA_DATA = {
                 { word: "अत्येति", transliteration: "atyeti", meaning: "passes through, transcends" },
                 { word: "रेभन्", transliteration: "rebhan", meaning: "resounding, singing" }
               ],
-              translation: "Brahma among the gods, the guide among seers, the sage among the learned, the mighty bull among animals, the eagle among birds, the axe among forests — Soma, the purifier, passes through all, resounding."
+              translation: "Brahma among the gods, the guide among seers, the sage among the learned, the mighty bull among animals, the eagle among birds, the axe among forests — Soma, the purifier, passes through all, resounding.",
+              significance: "Brahma is Ketu's Adhidevata. This verse lists Soma's supremacy in every category of existence — he is the best among each class. Esoterically, this reveals that the Ketu-principle (liberation) is not separate from the world but is the pinnacle of every domain. The 'axe among forests' (svadhitir vananam) is especially telling — Ketu, like an axe, cuts through the dense forest of illusion. 'Pavitram atyeti rebhan' — the purifier passes through everything, singing. Ketu-consciousness moves through all of life's experiences, purifying each one, and its 'song' (rebhan) is the unstruck sound (anahata nada) of spiritual realization that pervades all creation once the veil of ignorance is cut."
             },
             {
               stotra: "suktam",
@@ -756,7 +783,8 @@ const NAVAGRAHA_DATA = {
                 { word: "गृणते", transliteration: "gṛṇate", meaning: "to the one who praises / sings" },
                 { word: "युवस्व", transliteration: "yuvasva", meaning: "unite with, bestow upon" }
               ],
-              translation: "O brilliant ruler, bestow upon us the most wonderful, illuminating, life-sustaining wealth — shining, vast, rich in heroes. Unite this with the one who sings your shining praises."
+              translation: "O brilliant ruler, bestow upon us the most wonderful, illuminating, life-sustaining wealth — shining, vast, rich in heroes. Unite this with the one who sings your shining praises.",
+              significance: "Chitragupta is Ketu's Pratydhidevata — the one who records all karmic accounts. 'Chitra' appears five times in this verse — chitra (wonderful), chitayantam (illuminating), chitrakshatra (brilliant ruler), chitratamam (most brilliant), and even implicitly in chandra (shining). This cascading repetition creates a mantra within a mantra — the vibration of 'chitra' dissolves the boundary between seer and seen. 'Vayodham' (sustainer of life-force) tells us Ketu doesn't diminish life but sustains its deepest vitality. 'Grinata yuvasva' (unite with the one who praises) — the final prayer of the entire Navagraha Suktam asks for union. Ketu's ultimate gift is not detachment from life but merger with the luminous source of all life."
             }
           ]
         }
