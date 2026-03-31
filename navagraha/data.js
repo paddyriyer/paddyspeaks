@@ -1074,6 +1074,324 @@ const NAVAGRAHA_DATA = {
           ]
         }
       ]
+    },
+    {
+      id: "navaratna",
+      titleSanskrit: "श्री आञ्जनेय नवरत्नमाला स्तोत्रम्",
+      titleEnglish: "Sri Anjaneya Navaratna Mala Stotram",
+      titleMeaning: "The Navaratna (Nine Gems) Garland of Hanuman — from Sundara Kanda",
+      summary: "The Anjaneya Navaratna Mala Stotram is a unique composition of nine verses selected from the Sundara Kanda of the Ramayana. Each verse is mapped to one of the nine gemstones (navaratna) which correspond to the nine grahas. By reciting these verses of Hanuman's glory, one gains the protective power of each gemstone and the grace of each planet. This stotram reveals that devotion to Hanuman is itself a complete planetary remedy.",
+      grahas: [
+        {
+          graha: 1,
+          grahaName: "Surya",
+          grahaNameSanskrit: "सूर्यः",
+          grahaEnglish: "Sun",
+          grahaCssClass: "graha-surya",
+          summary: "Manikya (Ruby) — the gemstone of Surya. This verse from Sundara Kanda describes Hanuman's resolve to find Sita, reflecting the Sun's qualities of determination and leadership.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 1,
+              sloka: 1,
+              devanagari: "माणिक्यं –\nततो रावणनीतायाः सीतायाः शत्रुकर्शनः ।\nइयेष पदमन्वेष्टुं चारणाचरिते पथि ॥ १ ॥",
+              transliteration: "māṇikyaṁ –\ntato rāvaṇanītāyāḥ sītāyāḥ śatruka rśanaḥ |\niyeṣa padam anveṣṭuṁ cāraṇācarite pathi || 1 ||",
+              words: [
+                { word: "माणिक्यम्", transliteration: "māṇikyam", meaning: "Ruby (gemstone of Surya)" },
+                { word: "ततः", transliteration: "tataḥ", meaning: "then, thereafter" },
+                { word: "रावणनीतायाः", transliteration: "rāvaṇanītāyāḥ", meaning: "of her who was taken away by Ravana" },
+                { word: "सीतायाः", transliteration: "sītāyāḥ", meaning: "of Sita" },
+                { word: "शत्रुकर्शनः", transliteration: "śatrukarśanaḥ", meaning: "the tormentor of enemies (Hanuman)" },
+                { word: "इयेष", transliteration: "iyeṣa", meaning: "desired, resolved" },
+                { word: "पदम्", transliteration: "padam", meaning: "the trace, the whereabouts" },
+                { word: "अन्वेष्टुम्", transliteration: "anveṣṭum", meaning: "to search for, to seek" },
+                { word: "चारणाचरिते", transliteration: "cāraṇācarite", meaning: "traversed by celestial beings (Charanas)" },
+                { word: "पथि", transliteration: "pathi", meaning: "on the path, in the sky" }
+              ],
+              translation: "Then, the tormentor of enemies (Hanuman) resolved to search for the whereabouts of Sita, who had been taken away by Ravana, travelling on the celestial path traversed by the Charanas.",
+              significance: "The Ruby (Manikya) represents Surya — willpower, leadership, and the soul's radiance. Hanuman's unwavering resolve to find Sita mirrors the Sun's nature: it never wavers from its course. 'Shatrukarshana' (tormentor of enemies) is a solar quality — the Sun dispels all darkness without negotiation. The 'path traversed by celestial beings' represents the higher planes of consciousness that open when solar determination is activated. When you chant this verse, you invoke Hanuman's Surya-quality: the blazing resolve that nothing can obstruct."
+            }
+          ]
+        },
+        {
+          graha: 2,
+          grahaName: "Chandra",
+          grahaNameSanskrit: "चन्द्रः",
+          grahaEnglish: "Moon",
+          grahaCssClass: "graha-chandra",
+          summary: "Mutya (Pearl) — the gemstone of Chandra. This verse praises the four qualities of mind that ensure success, reflecting the Moon's governance of the mind.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 2,
+              sloka: 1,
+              devanagari: "मुत्यं –\nयस्य त्वेतानि चत्वारि वानरेन्द्र यथा तव ।\nस्मृतिर्मतिर्धृतिर्दाक्ष्यं स कर्मसु न सीदति ॥ २ ॥",
+              transliteration: "mutyaṁ –\nyasya tv etāni catvāri vānarendra yathā tava |\nsmṛtir matir dhṛtir dākṣyaṁ sa karmasu na sīdati || 2 ||",
+              words: [
+                { word: "मुत्यम्", transliteration: "mutyam", meaning: "Pearl (gemstone of Chandra)" },
+                { word: "यस्य", transliteration: "yasya", meaning: "of whom, whoever has" },
+                { word: "तु", transliteration: "tu", meaning: "indeed" },
+                { word: "एतानि", transliteration: "etāni", meaning: "these" },
+                { word: "चत्वारि", transliteration: "catvāri", meaning: "four" },
+                { word: "वानरेन्द्र", transliteration: "vānarendra", meaning: "O king of Vanaras (Sugriva addressing Hanuman)" },
+                { word: "यथा", transliteration: "yathā", meaning: "just as" },
+                { word: "तव", transliteration: "tava", meaning: "yours" },
+                { word: "स्मृतिः", transliteration: "smṛtiḥ", meaning: "memory, mindfulness" },
+                { word: "मतिः", transliteration: "matiḥ", meaning: "intellect, wisdom" },
+                { word: "धृतिः", transliteration: "dhṛtiḥ", meaning: "steadfastness, courage" },
+                { word: "दाक्ष्यम्", transliteration: "dākṣyam", meaning: "skill, dexterity" },
+                { word: "सः", transliteration: "saḥ", meaning: "he" },
+                { word: "कर्मसु", transliteration: "karmasu", meaning: "in actions, in tasks" },
+                { word: "न", transliteration: "na", meaning: "never" },
+                { word: "सीदति", transliteration: "sīdati", meaning: "fails, falters" }
+              ],
+              translation: "O king of Vanaras! Whoever possesses these four qualities — just as you do — memory, intellect, steadfastness, and skill — he never fails in his undertakings.",
+              significance: "The Pearl (Mutya) represents Chandra — the mind, memory, and emotional intelligence. The four qualities listed are the four pillars of a well-governed Moon: Smriti (memory/mindfulness — retaining what matters), Mati (intellect — processing wisely), Dhriti (steadfastness — emotional stability), and Dakshya (skill — practical application). Hanuman embodies the perfected mind. When the Moon is afflicted, one loses these qualities; this verse, as a lunar remedy, restores them. The promise 'sa karmasu na sidati' (he never fails) is the Moon's highest gift — a mind so balanced that no task overwhelms it."
+            }
+          ]
+        },
+        {
+          graha: 3,
+          grahaName: "Mangala",
+          grahaNameSanskrit: "मङ्गलः",
+          grahaEnglish: "Mars",
+          grahaCssClass: "graha-mangala",
+          summary: "Pravala (Coral) — the gemstone of Mangala. This verse teaches that tireless perseverance (anirveda) is the root of all prosperity, reflecting Mars's indomitable energy.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 3,
+              sloka: 1,
+              devanagari: "प्रवालं –\nअनिर्वेदः श्रियो मूलं अनिर्वेदः परं सुखम् ।\nअनिर्वेदो हि सततं सर्वार्थेषु प्रवर्तकः ॥ ३ ॥",
+              transliteration: "pravālaṁ –\nanirvedaḥ śriyo mūlaṁ anirvedaḥ paraṁ sukham |\nanirvedo hi satataṁ sarvārtheṣu pravartakaḥ || 3 ||",
+              words: [
+                { word: "प्रवालम्", transliteration: "pravālam", meaning: "Coral (gemstone of Mangala/Mars)" },
+                { word: "अनिर्वेदः", transliteration: "anirvedaḥ", meaning: "freedom from despair, tireless perseverance" },
+                { word: "श्रियः", transliteration: "śriyaḥ", meaning: "of prosperity, of Lakshmi" },
+                { word: "मूलम्", transliteration: "mūlam", meaning: "the root, the foundation" },
+                { word: "अनिर्वेदः", transliteration: "anirvedaḥ", meaning: "tireless perseverance" },
+                { word: "परम्", transliteration: "param", meaning: "the highest, supreme" },
+                { word: "सुखम्", transliteration: "sukham", meaning: "happiness" },
+                { word: "अनिर्वेदः", transliteration: "anirvedaḥ", meaning: "tireless perseverance" },
+                { word: "हि", transliteration: "hi", meaning: "indeed, certainly" },
+                { word: "सततम्", transliteration: "satatam", meaning: "constantly, always" },
+                { word: "सर्वार्थेषु", transliteration: "sarvārtheṣu", meaning: "in all endeavors" },
+                { word: "प्रवर्तकः", transliteration: "pravartakaḥ", meaning: "the impeller, the driving force" }
+              ],
+              translation: "Tireless perseverance is the root of prosperity. Tireless perseverance is the supreme happiness. Tireless perseverance is indeed the constant driving force in all endeavors.",
+              significance: "Coral (Pravala) represents Mars — energy, courage, and the refusal to surrender. 'Anirveda' appears three times, creating a mantra of unstoppable resolve. This is Mars at its highest: not aggression but the spiritual warrior's refusal to despair. 'Shriyo mulam' — it is the very root of Lakshmi (prosperity), meaning that wealth doesn't come from cleverness alone but from the Mars-quality of never giving up. Hanuman, crossing the ocean to Lanka, embodied this perfectly. When Mars is weak, we feel defeated before we begin; this verse reignites the inner fire that says 'I will not stop.'"
+            }
+          ]
+        },
+
+        {
+          graha: 4,
+          grahaName: "Budha",
+          grahaNameSanskrit: "बुधः",
+          grahaEnglish: "Mercury",
+          grahaCssClass: "graha-budha",
+          summary: "Marakata (Emerald) — the gemstone of Budha. This verse offers salutations to Rama, Lakshmana, Sita, and the cosmic deities, reflecting Mercury's power of sacred speech and communication.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 4,
+              sloka: 1,
+              devanagari: "मरकतं –\nनमोऽस्तु रामाय सलक्ष्मणाय\nदेव्यै च तस्यै जनकात्मजायै ।\nनमोऽस्तु रुद्रेन्द्रयमानिलेभ्यः\nनमोऽस्तु चन्द्रार्कमरुद्गणेभ्यः ॥ ४ ॥",
+              transliteration: "marakataṁ –\nnamo'stu rāmāya salakṣmaṇāya\ndevyai ca tasyai janakātmajāyai |\nnamo'stu rudrendraya-mānile-bhyaḥ\nnamo'stu candrārka-marudgaṇebhyaḥ || 4 ||",
+              words: [
+                { word: "मरकतम्", transliteration: "marakatam", meaning: "Emerald (gemstone of Budha/Mercury)" },
+                { word: "नमः", transliteration: "namaḥ", meaning: "salutations" },
+                { word: "अस्तु", transliteration: "astu", meaning: "let there be" },
+                { word: "रामाय", transliteration: "rāmāya", meaning: "to Lord Rama" },
+                { word: "सलक्ष्मणाय", transliteration: "salakṣmaṇāya", meaning: "along with Lakshmana" },
+                { word: "देव्यै", transliteration: "devyai", meaning: "to the divine lady" },
+                { word: "च", transliteration: "ca", meaning: "and" },
+                { word: "तस्यै", transliteration: "tasyai", meaning: "to her" },
+                { word: "जनकात्मजायै", transliteration: "janakātmajāyai", meaning: "the daughter of Janaka (Sita)" },
+                { word: "रुद्रेन्द्रयमानिलेभ्यः", transliteration: "rudrendraya-mānilebhyaḥ", meaning: "to Rudra, Indra, Yama, and Vayu" },
+                { word: "चन्द्रार्कमरुद्गणेभ्यः", transliteration: "candrārka-marudgaṇebhyaḥ", meaning: "to Chandra, Surya, and the Marut-ganas" }
+              ],
+              translation: "Salutations to Lord Rama along with Lakshmana, and to the divine Sita, daughter of Janaka. Salutations to Rudra, Indra, Yama, and Vayu. Salutations to the Moon, Sun, and the hosts of Maruts.",
+              significance: "The Emerald (Marakata) represents Mercury — speech, communication, and the power of sacred invocation. This verse is pure Namaskaara — the art of addressing the divine correctly. Mercury governs how we name, invoke, and connect through language. Hanuman, the supreme devotee, demonstrates perfect Mercury — he knows exactly whom to honor and in what order: first Rama (the beloved), then Sita (the shakti), then the cosmic guardians. Every name spoken with devotion becomes a mantra. When Mercury is strong, your words become bridges to the divine; when weak, words become noise. This verse restores Mercury's sacred function: speech as worship."
+            }
+          ]
+        },
+        {
+          graha: 5,
+          grahaName: "Guru",
+          grahaNameSanskrit: "गुरुः",
+          grahaEnglish: "Jupiter",
+          grahaCssClass: "graha-guru",
+          summary: "Pushyaraga (Yellow Sapphire) — the gemstone of Guru. This verse teaches the wisdom of non-attachment to both pleasure and pain, reflecting Jupiter's philosophical depth.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 5,
+              sloka: 1,
+              devanagari: "पुष्यरागं –\nप्रियात्र सम्भवेदुःखं अप्रियादधिकं भयम् ।\nताभ्यां हि ये वियुज्यन्ते नमस्तेषां महात्मनाम् ॥ ५ ॥",
+              transliteration: "puṣyarāgaṁ –\npriyātra sambhaved duḥkhaṁ apriyād adhikaṁ bhayam |\ntābhyāṁ hi ye viyujyante namas teṣāṁ mahātmanām || 5 ||",
+              words: [
+                { word: "पुष्यरागम्", transliteration: "puṣyarāgam", meaning: "Yellow Sapphire (gemstone of Guru/Jupiter)" },
+                { word: "प्रियात्", transliteration: "priyāt", meaning: "from the pleasant, from the beloved" },
+                { word: "र", transliteration: "ra", meaning: "(connective)" },
+                { word: "सम्भवेत्", transliteration: "sambhavet", meaning: "arises, is born" },
+                { word: "दुःखम्", transliteration: "duḥkham", meaning: "sorrow, suffering" },
+                { word: "अप्रियात्", transliteration: "apriyāt", meaning: "from the unpleasant" },
+                { word: "अधिकम्", transliteration: "adhikam", meaning: "greater, excessive" },
+                { word: "भयम्", transliteration: "bhayam", meaning: "fear" },
+                { word: "ताभ्याम्", transliteration: "tābhyām", meaning: "from both of these" },
+                { word: "हि", transliteration: "hi", meaning: "indeed" },
+                { word: "ये", transliteration: "ye", meaning: "those who" },
+                { word: "वियुज्यन्ते", transliteration: "viyujyante", meaning: "are freed, are detached" },
+                { word: "नमः", transliteration: "namaḥ", meaning: "salutations" },
+                { word: "तेषाम्", transliteration: "teṣām", meaning: "to them" },
+                { word: "महात्मनाम्", transliteration: "mahātmanām", meaning: "to those great souls" }
+              ],
+              translation: "From the pleasant arises sorrow; from the unpleasant arises greater fear. Salutations to those great souls who are freed from both.",
+              significance: "Yellow Sapphire (Pushyaraga) represents Jupiter — wisdom, dharma, and the guru's perspective. This verse contains the essence of Vedantic wisdom: both pleasure (priya) and pain (apriya) are traps. Pleasure breeds attachment and eventual sorrow; the unpleasant breeds fear. The 'Mahatmas' who transcend both are those with perfected Jupiter-consciousness — the ability to see reality without the distortion of likes and dislikes. Hanuman exemplifies this: he felt no elation in success nor despair in obstacles. When Jupiter is strong, one gains this equanimity — the supreme philosophical vision that neither clings to joy nor recoils from suffering."
+            }
+          ]
+        },
+        {
+          graha: 6,
+          grahaName: "Shukra",
+          grahaNameSanskrit: "शुक्रः",
+          grahaEnglish: "Venus",
+          grahaCssClass: "graha-shukra",
+          summary: "Hiraka (Diamond) — the gemstone of Shukra. This verse describes Rama's captivating beauty and divine form, reflecting Venus's domain of beauty, love, and attraction.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 6,
+              sloka: 1,
+              devanagari: "हीरकं –\nरामः कमलपत्राक्षः सर्वसत्त्वमनोहरः ।\nरूपदाक्षिण्यसम्पन्नः प्रसूतो जनकात्मजे ॥ ६ ॥",
+              transliteration: "hīrakaṁ –\nrāmaḥ kamalapatrākṣaḥ sarvasattvamanōharaḥ |\nrūpadākṣiṇyasampannaḥ prasūto janakātmaje || 6 ||",
+              words: [
+                { word: "हीरकम्", transliteration: "hīrakam", meaning: "Diamond (gemstone of Shukra/Venus)" },
+                { word: "रामः", transliteration: "rāmaḥ", meaning: "Lord Rama" },
+                { word: "कमलपत्राक्षः", transliteration: "kamalapatrākṣaḥ", meaning: "lotus-petal-eyed" },
+                { word: "सर्वसत्त्वमनोहरः", transliteration: "sarvasattva-manōharaḥ", meaning: "captivating the hearts of all beings" },
+                { word: "रूपदाक्षिण्यसम्पन्नः", transliteration: "rūpadākṣiṇya-sampannaḥ", meaning: "endowed with beauty and grace" },
+                { word: "प्रसूतः", transliteration: "prasūtaḥ", meaning: "was born, manifested" },
+                { word: "जनकात्मजे", transliteration: "janakātmaje", meaning: "for the daughter of Janaka (for Sita)" }
+              ],
+              translation: "Rama, whose eyes are like lotus petals, who captivates the hearts of all beings, endowed with beauty and grace — he manifested for the sake of Sita, the daughter of Janaka.",
+              significance: "The Diamond (Hiraka) represents Venus — beauty, love, and divine attraction. Rama is described here not as a warrior but as the embodiment of beauty (rupa) and grace (dakshinyam). 'Sarvasattva-manoharah' — he steals the hearts of ALL beings, not through force but through irresistible divine beauty. This is Venus at its highest: beauty that serves love, not ego. The stunning detail 'prasuto Janakamtaje' — he manifested FOR Sita — reveals that divine beauty exists for the sake of divine love. Venus-consciousness teaches that true beauty is not self-serving but exists to delight the beloved. Rama's beauty is complete only in relation to Sita."
+            }
+          ]
+        },
+        {
+          graha: 7,
+          grahaName: "Shani",
+          grahaNameSanskrit: "शनिः",
+          grahaEnglish: "Saturn",
+          grahaCssClass: "graha-shani",
+          summary: "Indranila (Blue Sapphire) — the gemstone of Shani. This verse declares the victory of Rama, Lakshmana, Sugriva, and Hanuman, reflecting Saturn's rewards for duty, loyalty, and selfless service.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 7,
+              sloka: 1,
+              devanagari: "इन्द्रनीलं –\nजयत्यतिबलो रामो लक्ष्मणश्च महाबलः ।\nराजा जयति सुग्रीवो राघवेणाभिपालितः ।\nदासोऽहं कोसलेन्द्रस्य रामस्याक्लिष्टकर्मणः ।\nहनुमान् शत्रुसैन्यानां निहन्ता मारुतात्मजः ॥ ७ ॥",
+              transliteration: "indranīlaṁ –\njayaty atibalō rāmō lakṣmaṇaśca mahābalaḥ |\nrājā jayati sugrīvō rāghaveṇābhipālitaḥ |\ndāsō'haṁ kōsalendrasya rāmasyākliṣṭakarmaṇaḥ |\nhanumān śatrusainyānāṁ nihantā mārutātmajaḥ || 7 ||",
+              words: [
+                { word: "इन्द्रनीलम्", transliteration: "indranīlam", meaning: "Blue Sapphire (gemstone of Shani/Saturn)" },
+                { word: "जयति", transliteration: "jayati", meaning: "is victorious" },
+                { word: "अतिबलः", transliteration: "atibalaḥ", meaning: "of supreme strength" },
+                { word: "रामः", transliteration: "rāmaḥ", meaning: "Lord Rama" },
+                { word: "लक्ष्मणः", transliteration: "lakṣmaṇaḥ", meaning: "Lakshmana" },
+                { word: "च", transliteration: "ca", meaning: "and" },
+                { word: "महाबलः", transliteration: "mahābalaḥ", meaning: "of great strength" },
+                { word: "राजा", transliteration: "rājā", meaning: "the king" },
+                { word: "सुग्रीवः", transliteration: "sugrīvaḥ", meaning: "Sugriva" },
+                { word: "राघवेण", transliteration: "rāghaveṇa", meaning: "by Raghava (Rama)" },
+                { word: "अभिपालितः", transliteration: "abhipālitaḥ", meaning: "protected, supported" },
+                { word: "दासः", transliteration: "dāsaḥ", meaning: "servant" },
+                { word: "अहम्", transliteration: "aham", meaning: "I am" },
+                { word: "कोसलेन्द्रस्य", transliteration: "kōsalendrasya", meaning: "of the lord of Kosala" },
+                { word: "रामस्य", transliteration: "rāmasya", meaning: "of Rama" },
+                { word: "अक्लिष्टकर्मणः", transliteration: "akliṣṭakarmaṇaḥ", meaning: "whose actions are effortless/unwearied" },
+                { word: "हनुमान्", transliteration: "hanumān", meaning: "Hanuman" },
+                { word: "शत्रुसैन्यानाम्", transliteration: "śatrusainyānām", meaning: "of the enemy armies" },
+                { word: "निहन्ता", transliteration: "nihantā", meaning: "the destroyer" },
+                { word: "मारुतात्मजः", transliteration: "mārutātmajaḥ", meaning: "the son of the Wind-god" }
+              ],
+              translation: "Victorious is the supremely powerful Rama, and the mighty Lakshmana! Victorious is King Sugriva, protected by Raghava! I am the servant of the lord of Kosala, Rama, whose deeds are effortless. I am Hanuman, the son of Vayu, the destroyer of enemy armies.",
+              significance: "Blue Sapphire (Indranila) represents Saturn — duty, service, hierarchy, and karma. This is the most Saturn-appropriate verse: Hanuman declares 'Daso'ham' — 'I am the servant.' This is Saturn's highest expression: willing, joyful service to a righteous master. Saturn tests whether you can subordinate ego to duty. Hanuman doesn't say 'I am mighty' first — he says 'I am Rama's servant' first, THEN 'I destroy enemies.' The order matters: Saturn rewards those who put dharmic service before personal glory. 'Aklishta-karmana' (effortless action) reveals Saturn's secret: when duty is performed with love, even the hardest work becomes effortless. This is Saturn's liberation — finding freedom through surrender to dharma."
+            }
+          ]
+        },
+        {
+          graha: 8,
+          grahaName: "Rahu",
+          grahaNameSanskrit: "राहुः",
+          grahaEnglish: "Rahu (North Node)",
+          grahaCssClass: "graha-rahu",
+          summary: "Gomedika (Hessonite) — the gemstone of Rahu. This verse invokes the power of Sita's chastity to cool the fire that threatens her, reflecting the ability to overcome Rahu's illusions through truth.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 8,
+              sloka: 1,
+              devanagari: "गोमेधिकं –\nयचस्ति पतिशुश्रूषा यचस्ति चरितं तपः ।\nयदि वास्त्येकपत्नीत्वं शीतो भव हनूमतः ॥ ८ ॥",
+              transliteration: "gōmedhikaṁ –\nyacasti patiśuśrūṣā yacasti caritaṁ tapaḥ |\nyadi vāsty ekapatnītvaṁ śītō bhava hanūmataḥ || 8 ||",
+              words: [
+                { word: "गोमेधिकम्", transliteration: "gōmedhikam", meaning: "Hessonite (gemstone of Rahu)" },
+                { word: "यत्", transliteration: "yat", meaning: "if" },
+                { word: "च", transliteration: "ca", meaning: "and" },
+                { word: "अस्ति", transliteration: "asti", meaning: "there is" },
+                { word: "पतिशुश्रूषा", transliteration: "patiśuśrūṣā", meaning: "devotion to my husband" },
+                { word: "यत्", transliteration: "yat", meaning: "if" },
+                { word: "च", transliteration: "ca", meaning: "and" },
+                { word: "अस्ति", transliteration: "asti", meaning: "there is" },
+                { word: "चरितम्", transliteration: "caritam", meaning: "practiced, performed" },
+                { word: "तपः", transliteration: "tapaḥ", meaning: "penance, austerity" },
+                { word: "यदि", transliteration: "yadi", meaning: "if" },
+                { word: "वा", transliteration: "vā", meaning: "or" },
+                { word: "अस्ति", transliteration: "asti", meaning: "there is" },
+                { word: "एकपत्नीत्वम्", transliteration: "ekapatnītvam", meaning: "the virtue of being devoted to one husband" },
+                { word: "शीतः", transliteration: "śītaḥ", meaning: "cool" },
+                { word: "भव", transliteration: "bhava", meaning: "become" },
+                { word: "हनूमतः", transliteration: "hanūmataḥ", meaning: "for Hanuman (to Hanuman's fire)" }
+              ],
+              translation: "If my devotion to my husband is true, if my practiced austerity is real, if my faithfulness as a devoted wife is genuine — then become cool for Hanuman (O Fire!).",
+              significance: "Hessonite (Gomedika) represents Rahu — illusion, confusion, and the shadow that obscures truth. This verse is Sita's invocation when Hanuman's tail was set on fire by Ravana. She commands fire itself to become cool — and it obeys. Rahu creates illusions that burn; Sita's truth extinguishes them. The three-fold assertion (pati-shushrusha, tapas, ekapatnitvam) represents the triple shield against Rahu's deceptions: devotion, discipline, and integrity. When Rahu afflicts, we feel trapped in burning illusions. This verse teaches that absolute truthfulness — not cleverness — is what makes the uncontrollable fire of Rahu's obsessions become cool. Truth is the only antidote to illusion."
+            }
+          ]
+        },
+        {
+          graha: 9,
+          grahaName: "Ketu",
+          grahaNameSanskrit: "केतुः",
+          grahaEnglish: "Ketu (South Node)",
+          grahaCssClass: "graha-ketu",
+          summary: "Vaidurya (Cat's Eye) — the gemstone of Ketu. This verse envisions Rama's triumphant return and coronation in Ayodhya, reflecting Ketu's promise of spiritual fulfillment and completion.",
+          slokas: [
+            {
+              stotra: "navaratna",
+              graha: 9,
+              sloka: 1,
+              devanagari: "वैडूर्यं –\nनिवृत्तवनवासं तं त्वया सार्धमरिन्दमम् ।\nअभिषिक्तमयोध्यायां क्षिप्रं द्रक्ष्यसि राघवम् ॥ ९ ॥",
+              transliteration: "vaiḍūryaṁ –\nnivṛttavanavāsaṁ taṁ tvayā sārdham arindamam |\nabhiṣiktam ayōdhyāyāṁ kṣipraṁ drakṣyasi rāghavam || 9 ||",
+              words: [
+                { word: "वैडूर्यम्", transliteration: "vaiḍūryam", meaning: "Cat's Eye (gemstone of Ketu)" },
+                { word: "निवृत्तवनवासम्", transliteration: "nivṛttavanavāsam", meaning: "having completed the forest exile" },
+                { word: "तम्", transliteration: "tam", meaning: "him" },
+                { word: "त्वया", transliteration: "tvayā", meaning: "with you" },
+                { word: "सार्धम्", transliteration: "sārdham", meaning: "together" },
+                { word: "अरिन्दमम्", transliteration: "arindamam", meaning: "the subduer of enemies" },
+                { word: "अभिषिक्तम्", transliteration: "abhiṣiktam", meaning: "coronated, anointed" },
+                { word: "अयोध्यायाम्", transliteration: "ayōdhyāyām", meaning: "in Ayodhya" },
+                { word: "क्षिप्रम्", transliteration: "kṣipram", meaning: "soon, quickly" },
+                { word: "द्रक्ष्यसि", transliteration: "drakṣyasi", meaning: "you shall see" },
+                { word: "राघवम्", transliteration: "rāghavam", meaning: "Raghava (Rama)" }
+              ],
+              translation: "Soon you shall see Raghava (Rama), having completed his forest exile, together with you, the subduer of enemies, coronated in Ayodhya.",
+              significance: "Cat's Eye (Vaidurya) represents Ketu — liberation, completion, and the end of cycles. This is the perfect final verse: it envisions the END of exile, the COMPLETION of suffering, the RETURN home. Ketu governs endings and spiritual fulfillment — and 'nivrtta-vanavasa' (exile completed) is exactly that. 'Abhishiktam Ayodhyayam' — coronated in the unconquerable city — Ayodhya literally means 'where there is no war.' Ketu's ultimate promise is not escape from the world but arriving at the place of eternal peace AFTER completing your karmic journey. Hanuman delivers this promise to Sita: your suffering has a purpose and an end. You WILL see Rama crowned. This is Ketu's liberation — not running from life but fulfilling it completely."
+            }
+          ]
+        }
+      ]
     }
   ]
 };
