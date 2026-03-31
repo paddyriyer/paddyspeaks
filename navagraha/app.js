@@ -152,6 +152,14 @@
     html += '<div class="translation-text">' + escapeHtml(sloka.translation) + '</div>';
     html += '</div>';
 
+    // Esoteric significance
+    if (sloka.significance) {
+      html += '<div class="modern-insight">';
+      html += '<div class="modern-insight-label">Esoteric Significance</div>';
+      html += '<div class="modern-insight-text">' + escapeHtml(sloka.significance) + '</div>';
+      html += '</div>';
+    }
+
     html += '</div>'; // verse-body
     html += '</div>'; // verse-card
 
