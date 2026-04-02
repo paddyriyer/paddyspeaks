@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Decision Abyss — Part 2: The Abyss Map | PaddySpeaks</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bone: #F5F0E8; --cream: #FAF7F2; --amber: #C8956C; --amber-light: #E8C4A0;
+    --amber-dark: #9E6B3A; --charcoal: #2A2A28; --charcoal-light: #4A4A46;
+    --ink: #1A1A18; --warm-gray: #8A857D; --warm-gray-light: #B5AFA6;
+    --abyss-dark: #1A1420; --abyss-purple: #2D1F3D; --abyss-glow: #6B4C8A;
+    --signal-green: #5A8A6C; --signal-red: #C45C4A; --signal-amber: #D4A054;
+    --code-bg: #1E1E1E; --code-bg-light: #252526; --code-border: #333;
+    --code-key: #9CDCFE; --code-string: #CE9178; --code-number: #B5CEA8;
+    --code-bool: #569CD6; --code-comment: #6A9955; --code-null: #808080;
+    --code-bracket: #888; --code-highlight: rgba(200,149,108,0.08);
+    --code-fn: #DCDCAA; --code-type: #4EC9B0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--cream); color: var(--charcoal); font-family: 'Newsreader', Georgia, serif; font-size: 18px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+
+  /* ─── SERIES NAV ─── */
+  .series-nav { position: sticky; top: 0; z-index: 100; background: var(--ink); border-bottom: 2px solid var(--amber); overflow-x: auto; }
+  .series-nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: stretch; min-height: 52px; }
+  .series-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--amber); padding: 16px 20px; white-space: nowrap; display: flex; align-items: center; border-right: 1px solid rgba(200,149,108,0.2); }
+  .chapter-tabs { display: flex; list-style: none; flex: 1; }
+  .chapter-tabs li { flex: 1; }
+  .chapter-tabs a { display: flex; align-items: center; justify-content: center; height: 100%; padding: 12px 16px; font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--warm-gray); text-decoration: none; transition: all 0.3s ease; white-space: nowrap; border-right: 1px solid rgba(200,149,108,0.1); position: relative; }
+  .chapter-tabs a:hover { color: var(--bone); background: rgba(200,149,108,0.08); }
+  .chapter-tabs a.active { color: var(--amber); background: rgba(200,149,108,0.12); }
+  .chapter-tabs a.active::after { content: ''; position: absolute; bottom: 0; left: 20%; right: 20%; height: 2px; background: var(--amber); }
+  .chapter-tabs a .ch-num { font-weight: 500; margin-right: 6px; color: var(--amber); opacity: 0.6; }
+
+  /* ─── CHAPTER HERO ─── */
+  .chapter-hero { background: linear-gradient(170deg, var(--ink) 0%, var(--abyss-dark) 50%, #1A1018 100%); padding: 100px 24px 80px; text-align: center; position: relative; overflow: hidden; }
+  .chapter-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse 800px 400px at 50% 60%, rgba(107,76,138,0.1) 0%, transparent 70%); pointer-events: none; }
+  .grid-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; pointer-events: none; opacity: 0.06; }
+  .grid-bg svg { width: 100%; height: 100%; }
+  .chapter-hero .ch-tag { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--amber); margin-bottom: 20px; position: relative; z-index: 2; opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s; }
+  .chapter-hero h1 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(36px, 6vw, 64px); font-weight: 300; color: var(--bone); line-height: 1.15; max-width: 700px; margin: 0 auto 16px; position: relative; z-index: 2; opacity: 0; animation: fadeUp 0.7s ease forwards 0.4s; }
+  .chapter-hero h1 em { font-style: italic; color: var(--signal-red); }
+  .chapter-hero .ch-deck { font-family: 'Newsreader', Georgia, serif; font-size: clamp(15px, 2vw, 19px); font-weight: 300; color: var(--warm-gray-light); max-width: 560px; margin: 0 auto; line-height: 1.6; position: relative; z-index: 2; opacity: 0; animation: fadeUp 0.7s ease forwards 0.6s; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ─── ARTICLE ─── */
+  .article-body { max-width: 720px; margin: 0 auto; padding: 80px 24px; }
+  .article-body p { margin-bottom: 24px; font-size: 18px; line-height: 1.8; color: var(--charcoal-light); }
+  .article-body p.lede { font-size: 21px; font-weight: 400; color: var(--charcoal); line-height: 1.75; }
+  .article-body p strong { color: var(--charcoal); font-weight: 600; }
+  .article-body h2 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 500; color: var(--ink); margin: 56px 0 20px; line-height: 1.3; }
+  .pull-quote { margin: 48px -40px; padding: 32px 40px; border-left: 3px solid var(--amber); background: rgba(200,149,108,0.04); }
+  .pull-quote p { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 24px; font-weight: 400; font-style: italic; color: var(--charcoal); line-height: 1.5; margin-bottom: 8px !important; }
+  .data-callout { background: var(--bone); border: 1px solid rgba(200,149,108,0.2); padding: 28px 32px; margin: 40px 0; position: relative; }
+  .data-callout::before { content: 'SIGNAL'; position: absolute; top: -9px; left: 24px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--amber); background: var(--bone); padding: 0 8px; }
+
+  /* ─── SILO SECTION ─── */
+  .silo-section { margin: 64px -80px; padding: 60px 32px; background: var(--ink); position: relative; overflow: hidden; }
+  .silo-section::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse 500px 300px at 20% 40%, rgba(107,76,138,0.07) 0%, transparent 70%), radial-gradient(ellipse 500px 300px at 80% 60%, rgba(200,149,108,0.05) 0%, transparent 70%); pointer-events: none; }
+  .silo-section-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--amber); text-align: center; margin-bottom: 8px; position: relative; z-index: 2; }
+  .silo-section-subtitle { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 26px; font-weight: 400; color: var(--bone); text-align: center; margin-bottom: 48px; position: relative; z-index: 2; }
+  .silo-archipelago { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 780px; margin: 0 auto 40px; position: relative; z-index: 2; }
+  .silo-island { background: rgba(255,255,255,0.03); border: 1px solid rgba(200,149,108,0.12); padding: 24px 20px; transition: all 0.4s ease; opacity: 0; transform: translateY(16px); transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.3s ease, background 0.3s ease; }
+  .silo-island.visible { opacity: 1; transform: translateY(0); }
+  .silo-island:hover { border-color: rgba(200,149,108,0.35); background: rgba(200,149,108,0.05); }
+  .silo-icon { font-size: 28px; margin-bottom: 12px; }
+  .silo-name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 17px; font-weight: 600; color: var(--bone); margin-bottom: 6px; }
+  .silo-holds { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--amber); margin-bottom: 8px; }
+  .silo-desc { font-family: 'Newsreader', Georgia, serif; font-size: 13px; color: var(--warm-gray-light); line-height: 1.55; }
+  .silo-blind { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(200,149,108,0.1); font-family: 'DM Mono', monospace; font-size: 10px; color: var(--signal-red); letter-spacing: 0.5px; }
+  .silo-gap-label { text-align: center; padding: 16px 0; position: relative; z-index: 2; }
+  .silo-gap-label span { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--signal-red); opacity: 0.6; background: rgba(196,92,74,0.08); padding: 4px 14px; border: 1px dashed rgba(196,92,74,0.2); }
+
+  /* ─── WATERFALL ─── */
+  .waterfall-section { margin: 56px 0; padding: 40px 0; border-top: 1px solid rgba(200,149,108,0.15); border-bottom: 1px solid rgba(200,149,108,0.15); }
+  .waterfall-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--amber); margin-bottom: 24px; }
+  .waterfall-row { display: flex; align-items: center; margin-bottom: 12px; gap: 12px; opacity: 0; transform: translateX(-16px); transition: all 0.5s ease; }
+  .waterfall-row.visible { opacity: 1; transform: translateX(0); }
+  .wf-system { width: 140px; flex-shrink: 0; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--charcoal); text-align: right; letter-spacing: 0.5px; }
+  .wf-bar-track { flex: 1; height: 28px; background: var(--bone); position: relative; overflow: hidden; border-radius: 2px; }
+  .wf-bar-fill { height: 100%; position: absolute; left: 0; top: 0; border-radius: 2px; transition: width 1.2s ease; width: 0; display: flex; align-items: center; padding-left: 10px; }
+  .wf-bar-fill span { font-family: 'DM Mono', monospace; font-size: 10px; color: #fff; white-space: nowrap; }
+  .wf-bar-fill.knows { background: var(--signal-green); }
+  .wf-bar-fill.partial { background: var(--signal-amber); }
+  .wf-bar-fill.blind { background: var(--signal-red); }
+  .wf-bar-fill.void { background: var(--charcoal-light); }
+  .wf-legend { display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap; }
+  .wf-legend-item { display: flex; align-items: center; gap: 6px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--warm-gray); }
+  .wf-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  /* ─── PRIVACY WALLS ─── */
+  .privacy-walls { margin: 56px -40px; padding: 40px; background: var(--bone); border: 1px solid rgba(200,149,108,0.15); position: relative; }
+  .privacy-walls::before { content: 'THE WALLS'; position: absolute; top: -9px; left: 24px; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; color: var(--amber-dark); background: var(--bone); padding: 0 8px; }
+  .wall-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+  .wall-card { padding: 20px; border: 1px solid rgba(200,149,108,0.15); background: var(--cream); }
+  .wall-card-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--signal-red); margin-bottom: 8px; }
+  .wall-card p { font-family: 'Newsreader', Georgia, serif; font-size: 14px; line-height: 1.55; color: var(--charcoal-light); margin-bottom: 0 !important; }
+
+  /* ─── COST GRID ─── */
+  .cost-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 40px 0; }
+  .cost-card { padding: 24px; background: var(--bone); border: 1px solid rgba(200,149,108,0.15); text-align: center; }
+  .cost-card .cost-num { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 32px; font-weight: 600; color: var(--signal-red); margin-bottom: 4px; }
+  .cost-card .cost-label { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray); letter-spacing: 0.5px; line-height: 1.5; }
+
+  /* ═══════ CODE VISUALIZATION SYSTEM ═══════ */
+  .code-section { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid var(--code-border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-header { background: var(--code-bg-light); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--code-border); }
+  .code-header-title { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--amber); letter-spacing: 0.5px; }
+  .code-header-badge { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 3px; }
+  .badge-schema { background: rgba(200,149,108,0.15); color: var(--amber); }
+  .badge-python { background: rgba(78,201,176,0.15); color: var(--code-type); }
+  .badge-sql { background: rgba(86,156,214,0.15); color: var(--code-bool); }
+  .badge-arch { background: rgba(107,76,138,0.15); color: var(--abyss-glow); }
+  .code-body { background: var(--code-bg); padding: 20px 24px; overflow-x: auto; font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.7; color: #D4D4D4; }
+  .code-body pre { margin: 0; white-space: pre; }
+  .ck { color: var(--code-key); } .cs { color: var(--code-string); } .cn { color: var(--code-number); }
+  .cb { color: var(--code-bool); } .cc { color: var(--code-comment); } .cnl { color: var(--code-null); }
+  .cbr { color: var(--code-bracket); } .chi { background: var(--code-highlight); display: inline; padding: 1px 0; }
+  .cfn { color: var(--code-fn); } .ctp { color: var(--code-type); }
+  .code-annotation { background: var(--code-bg-light); padding: 12px 20px; border-top: 1px solid var(--code-border); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray-light); line-height: 1.6; }
+  .code-annotation em { color: var(--signal-red); font-style: normal; font-weight: 500; }
+  .code-annotation strong { color: var(--amber); font-weight: 500; }
+
+  /* Tabbed code viewer */
+  .code-tabs-container { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid var(--code-border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-tabs-bar { background: var(--code-bg-light); display: flex; border-bottom: 1px solid var(--code-border); overflow-x: auto; }
+  .code-tab { padding: 10px 18px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray); background: none; border: none; border-right: 1px solid var(--code-border); cursor: pointer; transition: all 0.2s ease; white-space: nowrap; letter-spacing: 0.5px; }
+  .code-tab:hover { color: var(--bone); background: rgba(255,255,255,0.03); }
+  .code-tab.active { color: var(--amber); background: var(--code-bg); border-bottom: 2px solid var(--amber); margin-bottom: -1px; }
+  .code-tab-panel { display: none; background: var(--code-bg); padding: 20px 24px; }
+  .code-tab-panel.active { display: block; }
+  .code-tab-panel pre { font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.7; color: #D4D4D4; margin: 0; white-space: pre; overflow-x: auto; }
+
+  /* ─── NEXT CHAPTER + FOOTER ─── */
+  .next-chapter { margin-top: 80px; padding: 48px 40px; background: var(--ink); text-align: center; }
+  .next-chapter-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--warm-gray); margin-bottom: 12px; }
+  .next-chapter h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 28px; font-weight: 400; color: var(--bone); margin-bottom: 12px; }
+  .next-chapter p { font-family: 'Newsreader', Georgia, serif; font-size: 15px; color: var(--warm-gray-light); max-width: 500px; margin: 0 auto 24px; line-height: 1.6; }
+  .next-chapter-cta { display: inline-block; font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--amber); text-decoration: none; padding: 12px 32px; border: 1px solid var(--amber); transition: all 0.3s ease; cursor: pointer; }
+  .next-chapter-cta:hover { background: var(--amber); color: var(--ink); }
+  .article-footer { text-align: center; padding: 40px 24px; border-top: 1px solid rgba(200,149,108,0.15); }
+  .footer-logo { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 18px; font-weight: 500; color: var(--amber); letter-spacing: 2px; margin-bottom: 8px; }
+  .footer-meta { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray); letter-spacing: 0.5px; }
+
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 768px) {
+    .series-label { display: none; } .chapter-tabs a { padding: 10px 8px; font-size: 9px; } .chapter-tabs a .ch-label { display: none; }
+    .article-body { padding: 48px 20px; } .silo-section { margin: 48px -20px; padding: 40px 16px; } .silo-archipelago { grid-template-columns: 1fr; }
+    .pull-quote { margin: 32px 0; padding: 24px; } .privacy-walls { margin: 40px 0; } .cost-grid { grid-template-columns: 1fr; }
+    .wf-system { width: 80px; font-size: 9px; } .code-section, .code-tabs-container { margin: 32px -10px; }
+    .code-body { font-size: 11px; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="series-nav"><div class="series-nav-inner">
+  <div class="series-label">The Decision Abyss</div>
+  <ul class="chapter-tabs">
+    <li><a href="#part1"><span class="ch-num">01</span><span class="ch-label">The Search</span></a></li>
+    <li><a href="#part2" class="active"><span class="ch-num">02</span><span class="ch-label">The Abyss Map</span></a></li>
+    <li><a href="#part3"><span class="ch-num">03</span><span class="ch-label">The AI Intermediary</span></a></li>
+    <li><a href="#part4"><span class="ch-num">04</span><span class="ch-label">The Signal Chain</span></a></li>
+    <li><a href="#part5"><span class="ch-num">05</span><span class="ch-label">Economics of Fog</span></a></li>
+  </ul>
+</div></nav>
+
+<header class="chapter-hero" id="part2">
+  <div class="grid-bg"><svg viewBox="0 0 1200 500" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse"><path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(200,149,108,0.5)" stroke-width="0.5"/></pattern></defs><rect width="100%" height="100%" fill="url(#grid)"/></svg></div>
+  <div class="ch-tag">Part Two of Five</div>
+  <h1>The Abyss <em>Map</em></h1>
+  <p class="ch-deck">A systems-level teardown of the fragmented infrastructure that turns purchase intent into data dust. Six silos. Zero shared memory. One enormous blind spot.</p>
+</header>
+
+<article class="article-body">
+
+  <p class="lede reveal">In Part One, we watched a single user's purchase intent fragment across seven tabs and four platforms before vanishing entirely. Now let's look at the other side — the systems that were supposed to catch that signal, and understand why none of them did.</p>
+
+  <p class="reveal">The modern digital commerce stack is not a system. It's an <strong>archipelago</strong> — a chain of isolated islands, each with its own language, its own currency, its own gravitational pull. Data flows into each island but rarely flows out. And the ocean between them? That's the Abyss.</p>
+
+  <h2 class="reveal">The Six Silos</h2>
+
+  <p class="reveal">Every business that sells anything online depends on at least six distinct data systems. Each one captures a different fragment of the customer's journey. Each one is optimized for a different business objective. And each one is structurally incapable of seeing what the others see.</p>
+
+  <div class="silo-section reveal">
+    <div class="silo-section-title">Interactive Architecture</div>
+    <div class="silo-section-subtitle">The Silo Archipelago</div>
+    <div class="silo-archipelago" id="silo-grid">
+      <div class="silo-island" data-delay="0"><div class="silo-icon">🔍</div><div class="silo-name">Search Platform</div><div class="silo-holds">Holds: Query intent</div><div class="silo-desc">Google, Bing, Perplexity. Captures what the user typed, what they clicked, and what they ignored.</div><div class="silo-blind">Blind to: Why they searched. What they did after leaving.</div></div>
+      <div class="silo-island" data-delay="100"><div class="silo-icon">📱</div><div class="silo-name">Social Platform</div><div class="silo-holds">Holds: Interest signals</div><div class="silo-desc">YouTube, Instagram, TikTok, Reddit. Captures watch time, likes, shares, comments.</div><div class="silo-blind">Blind to: Purchase timeline. Budget constraints. Competing options.</div></div>
+      <div class="silo-island" data-delay="200"><div class="silo-icon">🤖</div><div class="silo-name">AI Layer</div><div class="silo-holds">Holds: Synthesized answers</div><div class="silo-desc">Google AI Overviews, ChatGPT, Perplexity, Claude. Generates confident summaries from crawled content.</div><div class="silo-blind">Blind to: User context. Financial situation. Prior purchase history.</div></div>
+      <div class="silo-island" data-delay="300"><div class="silo-icon">🛒</div><div class="silo-name">Commerce Platform</div><div class="silo-holds">Holds: Browse + cart data</div><div class="silo-desc">Apple.com, Amazon, Shopify. Captures page views, product configs, cart additions, abandonment.</div><div class="silo-blind">Blind to: The six tabs before. The text message that killed the sale.</div></div>
+      <div class="silo-island" data-delay="400"><div class="silo-icon">📊</div><div class="silo-name">CRM / Analytics</div><div class="silo-holds">Holds: Customer records</div><div class="silo-desc">Salesforce, HubSpot, GA4. Identity, segments, attribution models. Stitches sessions into "journeys."</div><div class="silo-blind">Blind to: Cross-platform behavior. Private channel decisions.</div></div>
+      <div class="silo-island" data-delay="500"><div class="silo-icon">🏭</div><div class="silo-name">ERP / Supply Chain</div><div class="silo-holds">Holds: Inventory + operations</div><div class="silo-desc">SAP, Oracle, NetSuite. Stock levels, procurement, fulfillment. Forecasts, not real-time intent.</div><div class="silo-blind">Blind to: Demand signals that never converted. The 67% who walked away.</div></div>
+    </div>
+    <div class="silo-gap-label"><span>⚠ No shared memory · No common identity · No signal handoff</span></div>
+  </div>
+
+  <p class="reveal">Those six cards look clean on a diagram. But the real story is in the data structures — what each system actually stores. Let's open the hood on each one.</p>
+
+  <!-- ═══════ TECHNICAL: SIX SILO DATA SCHEMAS ═══════ -->
+  <div class="code-tabs-container reveal">
+    <div class="code-tabs-bar">
+      <button class="code-tab active" onclick="showTab(event,'schema-ga')">GA4 Event</button>
+      <button class="code-tab" onclick="showTab(event,'schema-yt')">YouTube</button>
+      <button class="code-tab" onclick="showTab(event,'schema-shopify')">Shopify</button>
+      <button class="code-tab" onclick="showTab(event,'schema-sfdc')">Salesforce CRM</button>
+      <button class="code-tab" onclick="showTab(event,'schema-sap')">SAP ERP</button>
+      <button class="code-tab" onclick="showTab(event,'schema-meta')">Meta Ads</button>
+    </div>
+
+    <div class="code-tab-panel active" id="schema-ga"><pre><span class="cc">// ─── Google Analytics 4 — Event Schema ───</span>
+<span class="cc">// What Google Analytics stores for each user interaction</span>
+
+<span class="cb">CREATE TABLE</span> <span class="ctp">ga4_events</span> <span class="cbr">(</span>
+  <span class="ck">event_date</span>          <span class="cb">DATE</span>,
+  <span class="ck">event_timestamp</span>     <span class="cb">INT64</span>,        <span class="cc">-- microseconds since epoch</span>
+  <span class="ck">event_name</span>          <span class="cb">STRING</span>,       <span class="cc">-- 'page_view', 'scroll', 'click'</span>
+  <span class="ck">user_pseudo_id</span>      <span class="cb">STRING</span>,       <span class="cc">-- anonymous cookie-based ID</span>
+  <span class="ck">user_id</span>             <span class="cb">STRING</span>,       <span class="cc">-- NULL unless logged in</span>
+  <span class="ck">device.category</span>     <span class="cb">STRING</span>,       <span class="cc">-- 'desktop', 'mobile', 'tablet'</span>
+  <span class="ck">device.browser</span>      <span class="cb">STRING</span>,
+  <span class="ck">geo.country</span>         <span class="cb">STRING</span>,
+  <span class="ck">geo.city</span>            <span class="cb">STRING</span>,
+  <span class="ck">traffic_source.source</span>   <span class="cb">STRING</span>,  <span class="cc">-- 'google', 'direct', 'youtube'</span>
+  <span class="ck">traffic_source.medium</span>   <span class="cb">STRING</span>,  <span class="cc">-- 'organic', 'cpc', 'referral'</span>
+  <span class="ck">event_params</span>        <span class="cb">RECORD</span>,       <span class="cc">-- nested key-value pairs</span>
+  <span class="ck">ecommerce.purchase_revenue</span>  <span class="cb">FLOAT</span>, <span class="cc">-- only populated on purchase</span>
+  <span class="ck">ecommerce.items</span>     <span class="cb">RECORD</span>        <span class="cc">-- product array</span>
+<span class="cbr">)</span>;
+
+<span class="cc chi">-- KEY LIMITATION: user_pseudo_id is cookie-based</span>
+<span class="cc chi">-- If user switches browser, device, or clears cookies → new ID</span>
+<span class="cc chi">-- Same person on Chrome + Safari = TWO "users" in GA4</span>
+<span class="cc chi">-- Fields that DO NOT EXIST: intent, emotion, budget, decision_outcome</span></pre>
+    </div>
+
+    <div class="code-tab-panel" id="schema-yt"><pre><span class="cc">// ─── YouTube Analytics — Internal Watch Record ───</span>
+<span class="cc">// What YouTube stores per video session (simplified)</span>
+
+<span class="cbr">{</span>
+  <span class="ck">"watch_id"</span>:              <span class="cs">"w_8f7a6b5c4d"</span>,
+  <span class="ck">"video_id"</span>:              <span class="cs">"dQw4w9WgXcQ"</span>,
+  <span class="ck">"channel_id"</span>:            <span class="cs">"UCxyz123"</span>,
+  <span class="ck">"viewer"</span>: <span class="cbr">{</span>
+    <span class="ck">"google_account_id"</span>:   <span class="cs">"acc_12345"</span>,  <span class="cc">// if signed in</span>
+    <span class="ck">"anonymous_id"</span>:        <span class="cnl">null</span>,        <span class="cc">// if not signed in</span>
+    <span class="ck">"age_range"</span>:           <span class="cs">"25-34"</span>,     <span class="cc">// from Google account</span>
+    <span class="ck">"gender"</span>:              <span class="cs">"male"</span>,
+    <span class="ck">"interests"</span>:           <span class="cbr">[</span><span class="cs">"Technology"</span>, <span class="cs">"Computers"</span><span class="cbr">]</span>
+  <span class="cbr">}</span>,
+  <span class="ck">"watch_time_seconds"</span>:    <span class="cn">342</span>,
+  <span class="ck">"video_length_seconds"</span>:  <span class="cn">504</span>,
+  <span class="ck">"avg_view_percentage"</span>:   <span class="cn">67.8</span>,
+  <span class="ck">"traffic_source_type"</span>:   <span class="cs">"EXT_SEARCH"</span>,  <span class="cc">// came from Google</span>
+  <span class="ck">"traffic_source_detail"</span>: <span class="cs">"google.com"</span>,
+  <span class="ck">"engagement_actions"</span>: <span class="cbr">{</span>
+    <span class="ck">"liked"</span>: <span class="cb">false</span>, <span class="ck">"shared"</span>: <span class="cb">false</span>, <span class="ck">"subscribed"</span>: <span class="cb">false</span>
+  <span class="cbr">}</span>,
+  <span class="ck">"ad_impressions"</span>:        <span class="cn">2</span>,
+  <span class="ck">"ad_clicks"</span>:             <span class="cn">0</span>
+<span class="cbr">}</span>
+<span class="cc chi">// YouTube knows: watch time, source, demographics (if signed in)</span>
+<span class="cc chi">// YouTube DOES NOT track: what user did AFTER watching</span>
+<span class="cc chi">// No "purchased_product_discussed_in_video" field exists</span></pre>
+    </div>
+
+    <div class="code-tab-panel" id="schema-shopify"><pre><span class="cc">// ─── Shopify / Commerce Platform — Order + Abandoned Cart Schema ───</span>
+
+<span class="cc">// What the store sees when someone BUYS:</span>
+<span class="cbr">{</span>
+  <span class="ck">"order_id"</span>:        <span class="cs">"ORD-20260402-7891"</span>,
+  <span class="ck">"customer"</span>: <span class="cbr">{</span>
+    <span class="ck">"id"</span>:             <span class="cs">"cust_abc123"</span>,
+    <span class="ck">"email"</span>:          <span class="cs">"user@email.com"</span>,
+    <span class="ck">"total_orders"</span>:   <span class="cn">3</span>,
+    <span class="ck">"total_spent"</span>:    <span class="cn">2847.00</span>
+  <span class="cbr">}</span>,
+  <span class="ck">"line_items"</span>: <span class="cbr">[{</span>
+    <span class="ck">"product"</span>:    <span class="cs">"MacBook Air M4 15-inch"</span>,
+    <span class="ck">"sku"</span>:        <span class="cs">"MBA-M4-15-256"</span>,
+    <span class="ck">"price"</span>:      <span class="cn">1099.00</span>,
+    <span class="ck">"quantity"</span>:   <span class="cn">1</span>
+  <span class="cbr">}]</span>,
+  <span class="ck">"attribution"</span>: <span class="cbr">{</span>
+    <span class="ck">"landing_page"</span>:  <span class="cs">"/shop/buy-mac/macbook-air"</span>,
+    <span class="ck">"referrer"</span>:      <span class="cs">"google.com"</span>,
+    <span class="ck">"utm_source"</span>:    <span class="cnl">null</span>,  <span class="cc">// organic, no UTM tags</span>
+    <span class="ck">"utm_campaign"</span>:  <span class="cnl">null</span>
+  <span class="cbr">}</span>
+<span class="cbr">}</span>
+
+<span class="cc chi">// What the store sees when someone DOESN'T BUY:</span>
+<span class="cbr">{</span>
+  <span class="ck">"type"</span>: <span class="cs">"abandoned_checkout"</span>,
+  <span class="ck">"customer"</span>: <span class="cnl">null</span>,  <span class="cc chi">// ← anonymous. They never signed in.</span>
+  <span class="ck">"items"</span>: <span class="cbr">[]</span>,        <span class="cc chi">// ← empty. They never added to cart.</span>
+  <span class="ck">"reason"</span>: <span class="cnl">null</span>      <span class="cc chi">// ← this field literally does not exist</span>
+<span class="cbr">}</span>
+<span class="cc chi">// The store has RICH data on buyers, ALMOST NOTHING on non-buyers</span>
+<span class="cc chi">// The 67% who walked away? Ghost records. Empty sessions.</span></pre>
+    </div>
+
+    <div class="code-tab-panel" id="schema-sfdc"><pre><span class="cc">// ─── Salesforce CRM — Contact + Opportunity Record ───</span>
+
+<span class="cb">Contact</span> <span class="cbr">{</span>
+  <span class="ck">Id</span>:                  <span class="cs">"003Dn00000xyz789"</span>,
+  <span class="ck">FirstName</span>:           <span class="cs">"(known only if they filled a form)"</span>,
+  <span class="ck">Email</span>:               <span class="cs">"user@email.com"</span>,
+  <span class="ck">LeadSource</span>:          <span class="cs">"Web"</span>,
+  <span class="ck">Account.Industry</span>:   <span class="cs">"Technology"</span>,
+  <span class="ck">Last_Activity_Date</span>: <span class="cs">"2026-04-02"</span>,
+  <span class="ck">Lifecycle_Stage</span>:     <span class="cs">"Marketing Qualified Lead"</span>
+<span class="cbr">}</span>
+
+<span class="cb">Opportunity</span> <span class="cbr">{</span>
+  <span class="ck">Name</span>:        <span class="cs">"MacBook Air Purchase — user@email.com"</span>,
+  <span class="ck">Stage</span>:       <span class="cs">"Prospecting"</span>,  <span class="cc">// ← a guess. They never talked to sales.</span>
+  <span class="ck">Amount</span>:      <span class="cn">1299.00</span>,       <span class="cc">// ← assumed. Based on page view.</span>
+  <span class="ck">CloseDate</span>:   <span class="cs">"2026-05-02"</span>,  <span class="cc">// ← fabricated. Standard 30-day window.</span>
+  <span class="ck">Probability</span>: <span class="cn">20</span>             <span class="cc">// ← a default percentage. Means nothing.</span>
+<span class="cbr">}</span>
+
+<span class="cc chi">// CRM "knows" this person. But everything after the email is fiction.</span>
+<span class="cc chi">// The "Opportunity" is a data entry ritual, not actual intelligence.</span>
+<span class="cc chi">// If the user never filled a form? This record DOESN'T EXIST AT ALL.</span></pre>
+    </div>
+
+    <div class="code-tab-panel" id="schema-sap"><pre><span class="cc">// ─── SAP S/4HANA ERP — Material Demand Record ───</span>
+<span class="cc">// What the supply chain sees (or doesn't see)</span>
+
+<span class="cb">TABLE</span> <span class="ctp">VBAK</span> <span class="cc">-- Sales Document Header</span>
+<span class="cbr">{</span>
+  <span class="ck">VBELN</span>:   <span class="cs">"0000012345"</span>,        <span class="cc">-- Sales order number</span>
+  <span class="ck">AUART</span>:   <span class="cs">"TA"</span>,                <span class="cc">-- Standard order type</span>
+  <span class="ck">KUNNR</span>:   <span class="cs">"CUST-00789"</span>,        <span class="cc">-- Customer number</span>
+  <span class="ck">NETWR</span>:   <span class="cn">1099.00</span>,             <span class="cc">-- Net value</span>
+  <span class="ck">WAERK</span>:   <span class="cs">"USD"</span>,               <span class="cc">-- Currency</span>
+  <span class="ck">ERDAT</span>:   <span class="cs">"20260402"</span>           <span class="cc">-- Created date</span>
+<span class="cbr">}</span>
+
+<span class="cb">TABLE</span> <span class="ctp">VBAP</span> <span class="cc">-- Sales Document Item</span>
+<span class="cbr">{</span>
+  <span class="ck">MATNR</span>:   <span class="cs">"MBA-M4-15-256"</span>,     <span class="cc">-- Material number</span>
+  <span class="ck">KWMENG</span>:  <span class="cn">1.000</span>,               <span class="cc">-- Quantity</span>
+  <span class="ck">NETPR</span>:   <span class="cn">1099.00</span>              <span class="cc">-- Net price</span>
+<span class="cbr">}</span>
+
+<span class="cc chi">// ERP ONLY gets a record when a PURCHASE HAPPENS.</span>
+<span class="cc chi">// For our MacBook searcher who didn't buy:</span>
+<span class="cc chi">//   SELECT * FROM VBAK WHERE KUNNR = 'our_user';</span>
+<span class="cc chi">//   → 0 rows returned.</span>
+<span class="cc chi">//</span>
+<span class="cc chi">// The ERP has NO concept of "demand that didn't convert"</span>
+<span class="cc chi">// No table for: abandoned_intent, browsed_but_left, almost_bought</span>
+<span class="cc chi">// Demand forecasting = extrapolation from PAST SALES ONLY</span>
+<span class="cc chi">// Result: inventory decisions based on 33% of actual demand</span></pre>
+    </div>
+
+    <div class="code-tab-panel" id="schema-meta"><pre><span class="cc">// ─── Meta Ads Manager — Conversion Event Schema ───</span>
+
+<span class="cbr">{</span>
+  <span class="ck">"event_name"</span>:      <span class="cs">"ViewContent"</span>,
+  <span class="ck">"event_time"</span>:      <span class="cn">1712073612</span>,
+  <span class="ck">"event_source_url"</span>: <span class="cs">"https://apple.com/shop/buy-mac/macbook-air"</span>,
+  <span class="ck">"user_data"</span>: <span class="cbr">{</span>
+    <span class="ck">"em"</span>:  <span class="cs">"[SHA256 hashed email]"</span>,  <span class="cc">// if pixel fires</span>
+    <span class="ck">"ph"</span>:  <span class="cnl">null</span>,
+    <span class="ck">"fbp"</span>: <span class="cs">"fb.1.1712073600.987654321"</span>,
+    <span class="ck">"fbc"</span>: <span class="cnl">null</span>  <span class="cc">// no Facebook click ID — user came from Google</span>
+  <span class="cbr">}</span>,
+  <span class="ck">"custom_data"</span>: <span class="cbr">{</span>
+    <span class="ck">"content_name"</span>: <span class="cs">"MacBook Air M5"</span>,
+    <span class="ck">"content_type"</span>: <span class="cs">"product"</span>,
+    <span class="ck">"value"</span>:        <span class="cn">1299.00</span>,
+    <span class="ck">"currency"</span>:     <span class="cs">"USD"</span>
+  <span class="cbr">}</span>,
+  <span class="ck">"action_source"</span>: <span class="cs">"website"</span>
+<span class="cbr">}</span>
+
+<span class="cc chi">// Meta received this event via the Facebook Pixel on Apple.com</span>
+<span class="cc chi">// But wait — Safari and Firefox BLOCK the _fbp cookie</span>
+<span class="cc chi">// Chrome deprecated third-party cookies in 2025</span>
+<span class="cc chi">// Result: Meta sees MAYBE 35% of actual website activity</span>
+<span class="cc chi">// Attribution model: "We think our ad caused this view"</span>
+<span class="cc chi">// Reality: User came from Google Search. Meta had nothing to do with it.</span></pre>
+    </div>
+  </div>
+
+  <p class="reveal">
+    Look at this architecture and ask a simple question: <strong>which system knows that a specific user searched Google, watched two YouTube comparisons, configured a product on the store, checked their bank balance, texted a friend, and then closed the tab?</strong>
+  </p>
+
+  <p class="reveal">The answer is none of them. Not one. Each system sees its own fragment and assumes the rest doesn't exist. And the data formats confirm it — different schemas, different ID spaces, different timestamps, different purposes. These systems weren't designed to talk to each other. They were designed to serve their own business model.</p>
+
+  <h2 class="reveal">The Failed Join</h2>
+
+  <p class="reveal">Suppose you tried to stitch these silos together. An analyst, armed with a data warehouse and good intentions, might write something like this:</p>
+
+  <!-- ═══════ TECHNICAL: THE FAILED JOIN ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">resolve_customer_journey() — The Query That Always Fails</span>
+      <span class="code-header-badge badge-python">PSEUDO-CODE</span>
+    </div>
+    <div class="code-body"><pre><span class="cb">def</span> <span class="cfn">resolve_customer_journey</span><span class="cbr">(</span><span class="ck">user_signal</span><span class="cbr">)</span>:
+    <span class="cs">"""Attempt to reconstruct a complete customer journey
+    across all six silos. Spoiler: this doesn't work."""</span>
+
+    <span class="cc">## Step 1: Start with the Google search event</span>
+    search = ga4.query<span class="cbr">(</span>
+        event_name=<span class="cs">"search"</span>,
+        search_term=<span class="cs">"m4 macbook air vs m5"</span>,
+        date=<span class="cs">"2026-04-02"</span>
+    <span class="cbr">)</span>
+    google_id = search.user_pseudo_id  <span class="cc"># "GA1.2.1234567890"</span>
+
+    <span class="cc">## Step 2: Try to match to YouTube watch session</span>
+    youtube = youtube_analytics.query<span class="cbr">(</span>
+        viewer_id=google_id   <span class="cc chi"># ✗ FAILS — YouTube uses different ID space</span>
+    <span class="cbr">)</span>                              <span class="cc chi"># GA4 pseudo_id ≠ YouTube viewer_id</span>
+                                    <span class="cc chi"># Even if same Google account, IDs don't map</span>
+
+    <span class="cc">## Step 3: Try to match to Apple.com visit</span>
+    apple = apple_analytics.query<span class="cbr">(</span>
+        session_id=google_id  <span class="cc chi"># ✗ FAILS — Apple uses its own session IDs</span>
+    <span class="cbr">)</span>                              <span class="cc chi"># Third-party cookies blocked → no cross-site link</span>
+                                    <span class="cc chi"># referrer="google.com" exists but can't identify WHO</span>
+
+    <span class="cc">## Step 4: Try to match to CRM record</span>
+    crm = salesforce.query<span class="cbr">(</span>
+        email=<span class="cs">???</span>             <span class="cc chi"># ✗ FAILS — user never filled a form</span>
+    <span class="cbr">)</span>                              <span class="cc chi"># No email → no CRM record → person doesn't exist in CRM</span>
+
+    <span class="cc">## Step 5: Try to match to ERP demand signal</span>
+    erp = sap.query<span class="cbr">(</span>
+        customer_id=<span class="cs">???</span>      <span class="cc chi"># ✗ FAILS — no purchase → no ERP record at all</span>
+    <span class="cbr">)</span>                              <span class="cc chi"># ERP literally has zero rows for non-buyers</span>
+
+    <span class="cc">## Step 6: Try to match to private conversation</span>
+    imessage = private_channel.query<span class="cbr">(</span>
+        user=<span class="cs">???</span>              <span class="cc chi"># ✗ IMPOSSIBLE — encrypted, off-platform, no API</span>
+    <span class="cbr">)</span>
+
+    <span class="cc">## Result:</span>
+    <span class="cb">return</span> <span class="cbr">{</span>
+        <span class="cs">"google_search"</span>:   search,       <span class="cc"># ✓ Have this</span>
+        <span class="cs">"youtube_watch"</span>:   <span class="cnl">None</span>,         <span class="cc chi"># ✗ Can't link</span>
+        <span class="cs">"apple_visit"</span>:     <span class="cnl">None</span>,         <span class="cc chi"># ✗ Can't link</span>
+        <span class="cs">"crm_record"</span>:      <span class="cnl">None</span>,         <span class="cc chi"># ✗ Doesn't exist</span>
+        <span class="cs">"erp_demand"</span>:      <span class="cnl">None</span>,         <span class="cc chi"># ✗ Doesn't exist</span>
+        <span class="cs">"private_decision"</span>: <span class="cnl">None</span>,        <span class="cc chi"># ✗ Impossible</span>
+        <span class="cs">"journey_completeness"</span>: <span class="cs">"16.7%"</span>  <span class="cc chi"># 1 of 6 silos resolved</span>
+    <span class="cbr">}</span></pre>
+    </div>
+    <div class="code-annotation">
+      Six systems queried. <strong>One returned data.</strong> Five returned <em>None</em>. Journey completeness: <em>16.7%</em>. This isn't a query optimization problem. It's a structural impossibility. The IDs don't match, the schemas don't align, and the data that would connect them either doesn't exist or is behind walls you can't legally cross.
+    </div>
+  </div>
+
+  <h2 class="reveal">The Data Knows / Doesn't Know Matrix</h2>
+
+  <p class="reveal">Let's make this concrete. For our MacBook Air searcher from Part One, here's exactly what each system knows and doesn't know across the key dimensions of a purchase decision.</p>
+
+  <div class="waterfall-section reveal" id="waterfall">
+    <div class="waterfall-title">Signal Distribution — Who Sees What</div>
+    <div class="waterfall-row" data-delay="0"><div class="wf-system">What product</div><div class="wf-bar-track"><div class="wf-bar-fill knows" data-width="85"><span>Search · Commerce · AI</span></div></div></div>
+    <div class="waterfall-row" data-delay="80"><div class="wf-system">Price sensitivity</div><div class="wf-bar-track"><div class="wf-bar-fill partial" data-width="30"><span>Commerce (inferred)</span></div></div></div>
+    <div class="waterfall-row" data-delay="160"><div class="wf-system">Comparison set</div><div class="wf-bar-track"><div class="wf-bar-fill partial" data-width="45"><span>Search · Social</span></div></div></div>
+    <div class="waterfall-row" data-delay="240"><div class="wf-system">Purchase timeline</div><div class="wf-bar-track"><div class="wf-bar-fill blind" data-width="8"><span>CRM (guess)</span></div></div></div>
+    <div class="waterfall-row" data-delay="320"><div class="wf-system">Budget / financial</div><div class="wf-bar-track"><div class="wf-bar-fill void" data-width="2"><span></span></div></div></div>
+    <div class="waterfall-row" data-delay="400"><div class="wf-system">Emotional state</div><div class="wf-bar-track"><div class="wf-bar-fill void" data-width="2"><span></span></div></div></div>
+    <div class="waterfall-row" data-delay="480"><div class="wf-system">Social influence</div><div class="wf-bar-track"><div class="wf-bar-fill void" data-width="2"><span></span></div></div></div>
+    <div class="waterfall-row" data-delay="560"><div class="wf-system">Decision outcome</div><div class="wf-bar-track"><div class="wf-bar-fill blind" data-width="12"><span>Commerce (if purchased)</span></div></div></div>
+    <div class="wf-legend">
+      <div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--signal-green)"></div> Well captured</div>
+      <div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--signal-amber)"></div> Partially captured</div>
+      <div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--signal-red)"></div> Barely captured</div>
+      <div class="wf-legend-item"><div class="wf-legend-dot" style="background:var(--charcoal-light)"></div> Invisible</div>
+    </div>
+  </div>
+
+  <p class="reveal">The pattern is devastating. The systems are good at knowing <em>what</em>. They're mediocre at knowing <em>how much</em> and <em>compared to what.</em> And they're functionally blind to the dimensions that actually determine whether someone buys: <strong>can they afford it, how do they feel about it, who's influencing them, and what did they ultimately decide.</strong></p>
+
+  <div class="pull-quote reveal"><p>We have built trillion-dollar platforms that can tell you exactly which pixel a user's mouse hovered over, but cannot tell you whether that user went home happy or frustrated.</p></div>
+
+  <h2 class="reveal">The Three Tracking Paradigms</h2>
+
+  <p class="reveal">To understand why these silos can't talk to each other, it helps to see the three fundamentally different tracking architectures that currently coexist — and why each one has a different kind of blindness.</p>
+
+  <!-- ═══════ TECHNICAL: THREE TRACKING PARADIGMS ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">Three Tracking Architectures — How Data Flows (or Doesn't)</span>
+      <span class="code-header-badge badge-arch">ARCHITECTURE</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+<span class="cc">// PARADIGM 1: Third-Party Cookies (dying)</span>
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+
+  <span class="cs">User</span> ──visits──→ <span class="cs">apple.com</span>
+                      │
+                      ├── Sets apple.com cookie (first-party) ✓
+                      ├── Sets facebook.com cookie (third-party) <span class="cc chi">✗ BLOCKED</span>
+                      ├── Sets doubleclick.net cookie (third-party) <span class="cc chi">✗ BLOCKED</span>
+                      └── Sets criteo.com cookie (third-party) <span class="cc chi">✗ BLOCKED</span>
+
+  <span class="cc">Status: Safari blocked since 2020. Firefox since 2021. Chrome since 2025.</span>
+  <span class="cc">Cross-site identity: DEAD for ~85% of web traffic.</span>
+
+
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+<span class="cc">// PARADIGM 2: First-Party Data + Server-Side Tagging</span>
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+
+  <span class="cs">User</span> ──visits──→ <span class="cs">apple.com</span>
+                      │
+                      ├── Sets first-party cookie ✓
+                      └── apple.com server ──sends event──→ <span class="cs">Google</span> (server-to-server)
+                                                       ──→ <span class="cs">Meta</span>  (Conversions API)
+                                                       ──→ <span class="cs">TikTok</span> (Events API)
+
+  <span class="cc">Status: Works, but requires user to be ON THE BUSINESS'S SITE.</span>
+  <span class="cc">Limitation: Can only track what happens ON apple.com.</span>
+  <span class="cc chi">Cannot see: Google search, YouTube watch, Reddit browse, text to friend</span>
+
+
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+<span class="cc">// PARADIGM 3: Walled Garden Login-Based Identity</span>
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+
+  <span class="cs">User (signed into Google)</span> ──search──→ <span class="cs">Google Search</span>
+                                     ──watch───→ <span class="cs">YouTube</span>
+                                     ──maps────→ <span class="cs">Google Maps</span>
+                                     ──email───→ <span class="cs">Gmail</span>
+
+  <span class="cc">Status: Works WITHIN the walled garden. Google sees all Google.</span>
+  <span class="cc">Limitation: Stops at the garden wall.</span>
+  <span class="cc chi">Cannot see: What user did on apple.com, Amazon, Reddit, iMessage</span>
+  <span class="cc chi">Each walled garden (Google, Meta, Amazon, Apple) sees ONLY its own world</span>
+  <span class="cc chi">Result: 4 parallel universes, each containing ~20% of the journey</span></pre>
+    </div>
+    <div class="code-annotation">
+      Three paradigms. <strong>The first is dead. The second only sees your own property. The third only sees its own walled garden.</strong> No paradigm can see the complete journey. This is not a bug — <em>it's the architecture.</em>
+    </div>
+  </div>
+
+  <h2 class="reveal">The Privacy Walls (Justified but Compounding)</h2>
+
+  <p class="reveal">Here's the uncomfortable nuance: many of these silos exist for very good reasons. Privacy regulations, competitive dynamics, and genuine user protection have created walls between systems. These walls are not the villain of this story. But they are a structural reality that makes the problem exponentially harder to solve.</p>
+
+  <div class="privacy-walls reveal">
+    <div class="wall-grid">
+      <div class="wall-card"><div class="wall-card-title">Regulatory Walls</div><p>GDPR, CCPA, and emerging AI regulations restrict how data moves between systems and jurisdictions. Cross-platform identity resolution is increasingly illegal without explicit consent.</p></div>
+      <div class="wall-card"><div class="wall-card-title">Competitive Walls</div><p>Google will never share search intent data with Meta. Apple will never share Safari browsing data with Google. Each platform's data is its competitive moat.</p></div>
+      <div class="wall-card"><div class="wall-card-title">Technical Walls</div><p>Cookie deprecation, App Tracking Transparency, fingerprinting restrictions. The technical bridges between platforms are being burned faster than new ones can be built.</p></div>
+      <div class="wall-card"><div class="wall-card-title">Architectural Walls</div><p>ERP systems speak batch. CRMs speak API. Analytics speaks events. Social speaks engagement. There is no universal protocol for "a human is trying to make a decision."</p></div>
+    </div>
+  </div>
+
+  <p class="reveal">These walls create what I call <strong>compounding blindness</strong>. Each wall blocks a small piece of the picture. But when you stack six silos behind four types of walls, the total visibility isn't "slightly reduced" — it's catastrophically fragmented. The business ends up making decisions based on the 15–20% of the customer journey that happens to be visible to whatever system they're looking at.</p>
+
+  <h2 class="reveal">The Cost of Fragmentation</h2>
+
+  <p class="reveal">This isn't an abstract architectural problem. It has a measurable cost — in revenue, in efficiency, and in human experience.</p>
+
+  <div class="cost-grid reveal">
+    <div class="cost-card"><div class="cost-num">$3.1T</div><div class="cost-label">Estimated annual global cost of poor data quality in commerce decisions (Gartner, projected 2026)</div></div>
+    <div class="cost-card"><div class="cost-num">73%</div><div class="cost-label">of marketing attribution models use incomplete cross-platform data — making budget allocation partly fictional</div></div>
+    <div class="cost-card"><div class="cost-num">40%</div><div class="cost-label">of ERP demand forecasts miss actual demand shifts because they can't see pre-purchase intent signals</div></div>
+    <div class="cost-card"><div class="cost-num">6.2×</div><div class="cost-label">cost to acquire a new customer vs. retaining one — but retention systems can't see why customers hesitate</div></div>
+  </div>
+
+  <p class="reveal">These numbers represent an enormous, systemic inefficiency. Businesses are spending billions on advertising to generate demand, while simultaneously losing billions because they can't see the demand that already exists.</p>
+
+  <h2 class="reveal">The Abyss Is Not Empty</h2>
+
+  <p class="reveal">Here's the thing about the Abyss: it's not actually empty. The data exists. The signal was generated. Every search, every scroll, every hesitation, every closed tab — these all happened in the real world and left traces. The problem is that those traces are scattered across incompatible systems, locked behind privacy walls, and decaying at different rates.</p>
+
+  <p class="reveal"><strong>The Abyss is not a lack of data. It's a lack of architecture.</strong> The data is there. The connections are not. And until very recently, there was no technology capable of bridging these gaps without violating the privacy walls that rightly exist between them.</p>
+
+  <p class="reveal">That technology is now arriving. It's called AI. And it's doing something nobody planned for — it's inserting itself as a new layer between the user and every other system, simultaneously making the problem worse <em>and</em> offering the first credible path to solving it.</p>
+
+  <p class="reveal">That's what we'll examine next.</p>
+
+  <div class="next-chapter reveal">
+    <div class="next-chapter-label">Up Next — Chapter 03</div>
+    <h3>The AI Intermediary</h3>
+    <p>AI is now making purchasing recommendations — but businesses can't see it happen, track it, or verify it. A new opaque layer has been inserted into the decision stack.</p>
+    <a class="next-chapter-cta" href="#part3">Continue Reading →</a>
+  </div>
+
+</article>
+
+<footer class="article-footer">
+  <div class="footer-logo">PaddySpeaks</div>
+  <div class="footer-meta">The Decision Abyss — Part 2 of 5 · April 2026</div>
+</footer>
+
+<script>
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); } });
+  }, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
+  revealEls.forEach(el => revealObs.observe(el));
+
+  const siloGrid = document.getElementById('silo-grid');
+  const siloObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.querySelectorAll('.silo-island').forEach((island, i) => { setTimeout(() => island.classList.add('visible'), i * 120); }); siloObs.unobserve(e.target); } });
+  }, { threshold: 0.1 });
+  if (siloGrid) siloObs.observe(siloGrid);
+
+  const waterfall = document.getElementById('waterfall');
+  const wfObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.querySelectorAll('.waterfall-row').forEach((row, i) => { const delay = parseInt(row.dataset.delay) || 0; setTimeout(() => { row.classList.add('visible'); const bar = row.querySelector('.wf-bar-fill'); if (bar) bar.style.width = bar.dataset.width + '%'; }, delay); }); wfObs.unobserve(e.target); } });
+  }, { threshold: 0.2 });
+  if (waterfall) wfObs.observe(waterfall);
+
+  function showTab(e, tabId) {
+    const container = e.target.closest('.code-tabs-container');
+    container.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+    container.querySelectorAll('.code-tab-panel').forEach(p => p.classList.remove('active'));
+    e.target.classList.add('active');
+    container.querySelector('#' + tabId).classList.add('active');
+  }
+</script>
+</body>
+</html>

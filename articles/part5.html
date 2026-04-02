@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Decision Abyss — Part 5: The Economics of Fog | PaddySpeaks</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bone: #F5F0E8;
+    --cream: #FAF7F2;
+    --amber: #C8956C;
+    --amber-light: #E8C4A0;
+    --amber-dark: #9E6B3A;
+    --charcoal: #2A2A28;
+    --charcoal-light: #4A4A46;
+    --ink: #1A1A18;
+    --warm-gray: #8A857D;
+    --warm-gray-light: #B5AFA6;
+    --abyss-dark: #1A1420;
+    --abyss-purple: #2D1F3D;
+    --abyss-glow: #6B4C8A;
+    --signal-green: #5A8A6C;
+    --signal-green-light: #7AB592;
+    --signal-red: #C45C4A;
+    --signal-red-dark: #8B3A2E;
+    --signal-amber: #D4A054;
+    --ai-blue: #4A7FB5;
+    --chain-gold: #C8A84E;
+    --fog-gray: #6B6860;
+    --fog-light: #9E998F;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--cream);
+    color: var(--charcoal);
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 18px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── SERIES NAV ─── */
+  .series-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--ink); border-bottom: 2px solid var(--amber);
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .series-nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: stretch; min-height: 52px;
+  }
+  .series-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--amber); padding: 16px 20px;
+    white-space: nowrap; display: flex; align-items: center;
+    border-right: 1px solid rgba(200,149,108,0.2);
+  }
+  .chapter-tabs { display: flex; list-style: none; flex: 1; }
+  .chapter-tabs li { flex: 1; min-width: 0; }
+  .chapter-tabs a {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; padding: 12px 16px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--warm-gray); text-decoration: none;
+    transition: all 0.3s ease; white-space: nowrap;
+    border-right: 1px solid rgba(200,149,108,0.1); position: relative;
+  }
+  .chapter-tabs a:hover { color: var(--bone); background: rgba(200,149,108,0.08); }
+  .chapter-tabs a.active { color: var(--amber); background: rgba(200,149,108,0.12); }
+  .chapter-tabs a.active::after {
+    content: ''; position: absolute; bottom: 0;
+    left: 20%; right: 20%; height: 2px; background: var(--amber);
+  }
+  .chapter-tabs a .ch-num { font-weight: 500; margin-right: 6px; color: var(--amber); opacity: 0.6; }
+
+  /* ─── CHAPTER HERO ─── */
+  .chapter-hero {
+    background: linear-gradient(175deg, #2A2824 0%, #353230 40%, var(--ink) 100%);
+    padding: 100px 24px 80px;
+    text-align: center; position: relative; overflow: hidden;
+  }
+  .chapter-hero::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 800px 500px at 50% 60%, rgba(107,104,96,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Fog effect */
+  .fog-layer {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; overflow: hidden;
+  }
+  .fog-band {
+    position: absolute; width: 200%; height: 120px;
+    background: linear-gradient(90deg, transparent 0%, rgba(107,104,96,0.06) 25%, rgba(107,104,96,0.1) 50%, rgba(107,104,96,0.06) 75%, transparent 100%);
+    animation: fogDrift 20s linear infinite;
+  }
+  .fog-band:nth-child(1) { top: 20%; animation-duration: 25s; opacity: 0.7; }
+  .fog-band:nth-child(2) { top: 45%; animation-duration: 18s; animation-delay: -5s; opacity: 0.5; }
+  .fog-band:nth-child(3) { top: 70%; animation-duration: 22s; animation-delay: -10s; opacity: 0.6; }
+
+  @keyframes fogDrift {
+    from { transform: translateX(-50%); }
+    to { transform: translateX(0); }
+  }
+
+  .chapter-hero .ch-tag {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--signal-red); margin-bottom: 20px;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s;
+  }
+  .chapter-hero h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(36px, 6vw, 64px); font-weight: 300;
+    color: var(--bone); line-height: 1.15;
+    max-width: 700px; margin: 0 auto 16px;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.4s;
+  }
+  .chapter-hero h1 em { font-style: italic; color: var(--fog-light); }
+  .chapter-hero .ch-deck {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(15px, 2vw, 19px); font-weight: 300;
+    color: var(--warm-gray-light); max-width: 560px;
+    margin: 0 auto; line-height: 1.6;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.6s;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── ARTICLE BODY ─── */
+  .article-body { max-width: 720px; margin: 0 auto; padding: 80px 24px; }
+  .article-body p {
+    margin-bottom: 24px; font-size: 18px;
+    line-height: 1.8; color: var(--charcoal-light);
+  }
+  .article-body p.lede {
+    font-size: 21px; font-weight: 400;
+    color: var(--charcoal); line-height: 1.75;
+  }
+  .article-body p strong { color: var(--charcoal); font-weight: 600; }
+  .article-body h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 28px; font-weight: 500; color: var(--ink);
+    margin: 56px 0 20px; line-height: 1.3;
+  }
+
+  .pull-quote {
+    margin: 48px -40px; padding: 32px 40px;
+    border-left: 3px solid var(--amber);
+    background: rgba(200,149,108,0.04);
+  }
+  .pull-quote p {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24px; font-weight: 400; font-style: italic;
+    color: var(--charcoal); line-height: 1.5; margin-bottom: 8px !important;
+  }
+  .pull-quote.red { border-left-color: var(--signal-red); background: rgba(196,92,74,0.03); }
+  .pull-quote.green { border-left-color: var(--signal-green); background: rgba(90,138,108,0.04); }
+  .pull-quote.gold { border-left-color: var(--chain-gold); background: rgba(200,168,78,0.04); }
+
+  /* ─── PRESSURE VISUALIZATION ─── */
+  .pressure-section {
+    margin: 64px -80px; padding: 60px 32px;
+    background: var(--ink); position: relative; overflow: hidden;
+  }
+  .pressure-section::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse 600px 300px at 50% 50%, rgba(196,92,74,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .pressure-title {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--signal-red); text-align: center;
+    margin-bottom: 8px; position: relative; z-index: 2;
+  }
+  .pressure-subtitle {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 26px; font-weight: 400; color: var(--bone);
+    text-align: center; margin-bottom: 48px;
+    position: relative; z-index: 2;
+  }
+
+  .pressure-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 16px; max-width: 720px; margin: 0 auto;
+    position: relative; z-index: 2;
+  }
+
+  .pressure-card {
+    padding: 24px 20px; text-align: center;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(196,92,74,0.15);
+    opacity: 0; transform: translateY(12px);
+    transition: all 0.5s ease;
+  }
+  .pressure-card.visible { opacity: 1; transform: translateY(0); }
+
+  .pressure-card .pc-icon { font-size: 28px; margin-bottom: 12px; }
+  .pressure-card .pc-stat {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 32px; font-weight: 600;
+    color: var(--signal-red); margin-bottom: 4px;
+  }
+  .pressure-card .pc-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--warm-gray-light); letter-spacing: 0.5px;
+    line-height: 1.5;
+  }
+
+  .pressure-arrow {
+    text-align: center; padding: 20px 0;
+    position: relative; z-index: 2;
+  }
+  .pressure-arrow-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--warm-gray); display: flex;
+    align-items: center; justify-content: center; gap: 12px;
+  }
+  .pressure-arrow-label::before, .pressure-arrow-label::after {
+    content: ''; width: 60px; height: 1px;
+    background: var(--warm-gray); opacity: 0.3;
+  }
+
+  .pressure-result {
+    text-align: center; padding: 24px;
+    background: rgba(196,92,74,0.06);
+    border: 1px dashed rgba(196,92,74,0.2);
+    max-width: 720px; margin: 0 auto;
+    position: relative; z-index: 2;
+  }
+  .pressure-result p {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 20px; font-weight: 400; font-style: italic;
+    color: var(--bone); line-height: 1.5;
+  }
+
+  /* ─── COST OF BLINDNESS INTERACTIVE ─── */
+  .blindness-calc {
+    margin: 48px 0; padding: 40px 32px;
+    background: var(--bone);
+    border: 1px solid rgba(200,149,108,0.2);
+    position: relative;
+  }
+  .blindness-calc::before {
+    content: 'THOUGHT EXPERIMENT'; position: absolute; top: -9px; left: 24px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: var(--amber-dark);
+    background: var(--bone); padding: 0 8px;
+  }
+  .bc-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 22px; font-weight: 500; color: var(--ink);
+    margin-bottom: 20px;
+  }
+
+  .bc-row {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .bc-row label {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 15px; color: var(--charcoal); min-width: 200px;
+  }
+  .bc-row input[type="range"] {
+    flex: 1; min-width: 160px;
+    -webkit-appearance: none; height: 4px;
+    background: rgba(200,149,108,0.2); border-radius: 2px;
+    outline: none;
+  }
+  .bc-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 16px; height: 16px;
+    border-radius: 50%; background: var(--amber);
+    cursor: pointer; border: 2px solid var(--cream);
+  }
+  .bc-row .bc-value {
+    font-family: 'DM Mono', monospace; font-size: 14px;
+    color: var(--amber-dark); min-width: 80px; text-align: right;
+    font-weight: 500;
+  }
+
+  .bc-result {
+    margin-top: 24px; padding: 20px 24px;
+    background: var(--cream); border: 1px solid rgba(196,92,74,0.2);
+    text-align: center;
+  }
+  .bc-result .bc-total {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 40px; font-weight: 600;
+    color: var(--signal-red); margin-bottom: 4px;
+    transition: all 0.3s ease;
+  }
+  .bc-result .bc-total-label {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--warm-gray); letter-spacing: 0.5px;
+  }
+
+  /* ─── THE MANIFESTO ─── */
+  .manifesto {
+    margin: 64px -80px; padding: 80px 32px;
+    background: linear-gradient(175deg, #1A2A1A 0%, var(--ink) 100%);
+    text-align: center; position: relative; overflow: hidden;
+  }
+  .manifesto::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 600px 350px at 50% 50%, rgba(200,168,78,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .manifesto-tag {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--chain-gold); margin-bottom: 24px;
+    position: relative; z-index: 2;
+  }
+  .manifesto h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(28px, 4vw, 40px); font-weight: 300;
+    color: var(--bone); line-height: 1.3;
+    max-width: 600px; margin: 0 auto 32px;
+    position: relative; z-index: 2;
+  }
+  .manifesto-points {
+    max-width: 520px; margin: 0 auto;
+    position: relative; z-index: 2;
+    text-align: left;
+  }
+  .manifesto-point {
+    display: flex; gap: 14px; margin-bottom: 20px;
+    opacity: 0; transform: translateY(12px);
+    transition: all 0.5s ease;
+  }
+  .manifesto-point.visible { opacity: 1; transform: translateY(0); }
+
+  .mp-marker {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--chain-gold); min-width: 16px; padding-top: 3px;
+  }
+  .mp-text {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 16px; color: var(--warm-gray-light);
+    line-height: 1.6;
+  }
+  .mp-text strong { color: var(--bone); font-weight: 500; }
+
+  /* ─── SERIES CLOSE ─── */
+  .series-close {
+    margin: 64px 0; padding: 48px 0;
+    border-top: 1px solid rgba(200,149,108,0.2);
+    text-align: center;
+  }
+  .series-close-tag {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 16px;
+  }
+  .series-close h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 32px; font-weight: 300; color: var(--ink);
+    margin-bottom: 20px; line-height: 1.3;
+  }
+  .series-close h2 em { font-style: italic; color: var(--amber-dark); }
+
+  .chapter-recap {
+    display: flex; flex-direction: column; gap: 8px;
+    max-width: 500px; margin: 0 auto 32px;
+    text-align: left;
+  }
+  .recap-item {
+    display: flex; gap: 12px; padding: 10px 16px;
+    background: var(--bone);
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--charcoal-light);
+  }
+  .recap-item .recap-num {
+    color: var(--amber); min-width: 20px; font-weight: 500;
+  }
+
+  .series-close-line {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 22px; font-weight: 400; font-style: italic;
+    color: var(--charcoal); max-width: 560px;
+    margin: 0 auto 32px; line-height: 1.5;
+  }
+
+  .series-author {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--warm-gray); letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .series-date {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--warm-gray-light); letter-spacing: 0.5px;
+  }
+
+  /* ─── FOOTER ─── */
+  .article-footer {
+    text-align: center; padding: 40px 24px;
+    background: var(--ink);
+  }
+  .footer-logo {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24px; font-weight: 500;
+    color: var(--amber); letter-spacing: 3px; margin-bottom: 8px;
+  }
+  .footer-tagline {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 14px; font-style: italic;
+    color: var(--warm-gray); margin-bottom: 16px;
+  }
+  .footer-meta {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--warm-gray-light); letter-spacing: 0.5px;
+  }
+  .footer-link {
+    color: var(--amber); text-decoration: none;
+    border-bottom: 1px solid rgba(200,149,108,0.3);
+    transition: border-color 0.3s ease;
+  }
+  .footer-link:hover { border-bottom-color: var(--amber); }
+
+  .reveal {
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 768px) {
+    .series-label { display: none; }
+    .chapter-tabs a { padding: 10px 8px; font-size: 9px; }
+    .chapter-tabs a .ch-label { display: none; }
+    .article-body { padding: 48px 20px; }
+    .pressure-section { margin: 48px -20px; padding: 40px 16px; }
+    .pressure-grid { grid-template-columns: 1fr; }
+    .manifesto { margin: 48px -20px; padding: 48px 20px; }
+    .pull-quote { margin: 32px 0; padding: 24px; }
+    .blindness-calc { padding: 28px 20px; }
+  }
+
+  /* ═══════ CODE VISUALIZATION ═══════ */
+  .code-section { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid #333; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-header { background: #252526; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #333; }
+  .code-header-title { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--amber); letter-spacing: 0.5px; }
+  .code-header-badge { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 3px; }
+  .badge-sql { background: rgba(86,156,214,0.15); color: #569CD6; }
+  .badge-pipeline { background: rgba(90,138,108,0.15); color: #7AB592; }
+  .badge-compare { background: rgba(200,149,108,0.15); color: var(--amber); }
+  .code-body { background: #1E1E1E; padding: 20px 24px; overflow-x: auto; font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.7; color: #D4D4D4; }
+  .code-body pre { margin: 0; white-space: pre; }
+  .ck { color: #9CDCFE; } .cs { color: #CE9178; } .cn { color: #B5CEA8; }
+  .cb { color: #569CD6; } .cc { color: #6A9955; } .cnl { color: #808080; }
+  .cbr { color: #888; } .chi { background: rgba(200,149,108,0.08); display: inline; padding: 1px 0; }
+  .cfn { color: #DCDCAA; } .ctp { color: #4EC9B0; }
+  .code-annotation { background: #252526; padding: 12px 20px; border-top: 1px solid #333; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray-light); line-height: 1.6; }
+  .code-annotation em { color: var(--signal-red); font-style: normal; font-weight: 500; }
+  .code-annotation strong { color: var(--amber); font-weight: 500; }
+  .code-compare { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid #333; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-compare-header { background: #252526; padding: 12px 20px; border-bottom: 1px solid #333; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--amber); }
+  .code-compare-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .code-compare-panel { background: #1E1E1E; padding: 16px 20px; font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.65; color: #D4D4D4; overflow-x: auto; border-right: 1px solid #333; }
+  .code-compare-panel:last-child { border-right: none; }
+  .code-compare-panel pre { margin: 0; white-space: pre; }
+  .code-panel-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 20px; border-bottom: 1px solid #333; }
+  .code-panel-label.left { background: rgba(196,92,74,0.06); color: var(--signal-red); }
+  .code-panel-label.right { background: rgba(90,138,108,0.06); color: #7AB592; }
+</style>
+</head>
+<body>
+
+<!-- ═══════ SERIES NAV ═══════ -->
+<nav class="series-nav">
+  <div class="series-nav-inner">
+    <div class="series-label">The Decision Abyss</div>
+    <ul class="chapter-tabs">
+      <li><a href="#part1"><span class="ch-num">01</span><span class="ch-label">The Search</span></a></li>
+      <li><a href="#part2"><span class="ch-num">02</span><span class="ch-label">The Abyss Map</span></a></li>
+      <li><a href="#part3"><span class="ch-num">03</span><span class="ch-label">The AI Intermediary</span></a></li>
+      <li><a href="#part4"><span class="ch-num">04</span><span class="ch-label">The Signal Chain</span></a></li>
+      <li><a href="#part5" class="active"><span class="ch-num">05</span><span class="ch-label">Economics of Fog</span></a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ═══════ CHAPTER HERO ═══════ -->
+<header class="chapter-hero" id="part5">
+  <div class="fog-layer">
+    <div class="fog-band"></div>
+    <div class="fog-band"></div>
+    <div class="fog-band"></div>
+  </div>
+  <div class="ch-tag">Part Five of Five — The Final Chapter</div>
+  <h1>The Economics of <em>Fog</em></h1>
+  <p class="ch-deck">
+    In a thinning economy with scared consumers and shrinking margins, businesses can no longer afford to make decisions based on the 20% of the picture they can see. The fog is not a metaphor. It's a balance sheet liability.
+  </p>
+</header>
+
+<!-- ═══════ ARTICLE BODY ═══════ -->
+<article class="article-body">
+
+  <p class="lede reveal">
+    Everything we've discussed in this series — the fragmented journey, the silo archipelago, the AI intermediary, the Signal Chain — lives in the abstract until you connect it to a single, unforgiving reality: <strong>the economy doesn't care about your data architecture.</strong> It only cares whether you can find customers, serve them, and keep them — and right now, most businesses are trying to do all three while driving through fog.
+  </p>
+
+  <p class="reveal">
+    The fog is not new. Businesses have always operated with incomplete information. What's new is the <em>cost</em> of the fog — because the economy has thinned to the point where the margin for error is nearly zero. Every lost customer, every misdirected ad dollar, every inventory miscalculation based on phantom demand data hits harder than it did three years ago. The Abyss was always expensive. In 2026, it's potentially fatal.
+  </p>
+
+  <h2 class="reveal">The Squeeze</h2>
+
+  <p class="reveal">
+    Let's look at the three forces that have converged to make foggy decision-making existentially dangerous for businesses right now.
+  </p>
+
+  <!-- ═══════ PRESSURE VISUALIZATION ═══════ -->
+  <div class="pressure-section reveal" id="pressure-grid">
+    <div class="pressure-title">The Triple Squeeze</div>
+    <div class="pressure-subtitle">Three Forces Compressing Business Margins</div>
+
+    <div class="pressure-grid">
+      <div class="pressure-card" data-delay="0">
+        <div class="pc-icon">💰</div>
+        <div class="pc-stat">↓ 23%</div>
+        <div class="pc-label">Consumer discretionary spending decline since 2023 peak. Wallets are tighter. Every purchase is scrutinized harder.</div>
+      </div>
+
+      <div class="pressure-card" data-delay="150">
+        <div class="pc-icon">📈</div>
+        <div class="pc-stat">↑ 340%</div>
+        <div class="pc-label">AI-related infrastructure costs since 2024. Businesses are spending more on intelligence while getting less signal clarity.</div>
+      </div>
+
+      <div class="pressure-card" data-delay="300">
+        <div class="pc-icon">🔒</div>
+        <div class="pc-stat">↓ 62%</div>
+        <div class="pc-label">Cross-platform tracking effectiveness since cookie deprecation and ATT. The old signals are dying. New ones aren't connected.</div>
+      </div>
+    </div>
+
+    <div class="pressure-arrow">
+      <div class="pressure-arrow-label">Combined Effect</div>
+    </div>
+
+    <div class="pressure-result">
+      <p>Businesses are spending more to reach fewer customers with less information about what those customers actually want. The fog is thickening precisely when visibility matters most.</p>
+    </div>
+  </div>
+
+  <p class="reveal">
+    This is not a cyclical downturn. It's a structural shift. The tools businesses used to navigate commerce — cookies, attribution models, focus groups, channel-specific analytics — were designed for an era when the customer's journey happened on platforms the business could see. That era is over. The journey now passes through AI layers, private messaging apps, and cross-platform comparison sessions that generate zero trackable signal.
+  </p>
+
+  <p class="reveal">
+    Businesses are making multi-million-dollar decisions about inventory, pricing, marketing spend, and product development based on <strong>the 20–30% of the customer journey they can still observe.</strong> It's like trying to land an airplane by looking through a keyhole.
+  </p>
+
+  <p class="reveal">
+    Want to see what this looks like in actual business logic? Here's how a demand forecast query works today vs. how it would work with a connected Signal Chain.
+  </p>
+
+  <!-- ═══════ TECHNICAL: BLIND FORECAST vs CONNECTED FORECAST ═══════ -->
+  <div class="code-compare reveal">
+    <div class="code-compare-header">Demand Forecast — Blind ERP vs. Signal Chain Connected</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;">
+      <div class="code-panel-label left">Today's ERP Forecast (Blind)</div>
+      <div class="code-panel-label right">Signal Chain Forecast (Connected)</div>
+    </div>
+    <div class="code-compare-grid">
+      <div class="code-compare-panel"><pre><span class="cc">-- ERP demand forecast: TODAY</span>
+<span class="cc">-- Source: SAP APO / IBP</span>
+<span class="cc">-- Only sees: completed orders</span>
+
+<span class="cb">SELECT</span>
+  product_id,
+  <span class="cfn">SUM</span>(quantity) <span class="cb">AS</span> units_sold,
+  <span class="cfn">AVG</span>(price)    <span class="cb">AS</span> avg_price,
+  <span class="cfn">COUNT</span>(*)      <span class="cb">AS</span> order_count
+<span class="cb">FROM</span> <span class="ctp">sales_orders</span>
+<span class="cb">WHERE</span> order_date
+  <span class="cb">BETWEEN</span> <span class="cs">'2026-01-01'</span>
+  <span class="cb">AND</span>     <span class="cs">'2026-03-31'</span>
+  <span class="cb">AND</span> product_line = <span class="cs">'MacBook Air'</span>
+<span class="cb">GROUP BY</span> product_id
+<span class="cb">ORDER BY</span> units_sold <span class="cb">DESC</span>;
+
+<span class="cc chi">-- Result:</span>
+<span class="cc chi">-- MBA-M4-15  | 12,847 | $1,099 | 12,847</span>
+<span class="cc chi">-- MBA-M5-15  |  8,203 | $1,299 |  8,203</span>
+<span class="cc chi">--</span>
+<span class="cc chi">-- Conclusion: "M4 outsells M5 1.57x"</span>
+<span class="cc chi">-- Forecast: Order 60% M4, 40% M5</span>
+<span class="cc chi">--</span>
+<span class="cc chi">-- WHAT THIS MISSES:</span>
+<span class="cc chi">-- How many people WANTED M5</span>
+<span class="cc chi">--   but bought M4 due to price?</span>
+<span class="cc chi">-- How many wanted M5 but</span>
+<span class="cc chi">--   bought NOTHING?</span>
+<span class="cc chi">-- How many were steered to M4</span>
+<span class="cc chi">--   by AI recommendations?</span>
+<span class="cc chi">-- Answer: ¯\_(ツ)_/¯</span></pre></div>
+      <div class="code-compare-panel"><pre><span class="cc">-- Signal Chain demand forecast</span>
+<span class="cc">-- Source: Event bus + ERP</span>
+<span class="cc">-- Sees: intent + context + outcome</span>
+
+<span class="cb">SELECT</span>
+  p.product_id,
+  <span class="cfn">COUNT</span>(i.event_id)   <span class="cb">AS</span> total_intent,
+  <span class="cfn">COUNT</span>(c.event_id)   <span class="cb">AS</span> converted,
+  <span class="cfn">COUNT</span>(i.event_id)
+    - <span class="cfn">COUNT</span>(c.event_id) <span class="cb">AS</span> lost_intent,
+  <span class="cfn">ROUND</span>(<span class="cfn">COUNT</span>(c.event_id) * <span class="cn">100.0</span>
+    / <span class="cfn">COUNT</span>(i.event_id), <span class="cn">1</span>)
+                        <span class="cb">AS</span> conversion_pct,
+  mode() <span class="cb">WITHIN GROUP</span> (
+    <span class="cb">ORDER BY</span> f.primary_blocker
+  )                     <span class="cb">AS</span> top_blocker
+<span class="cb">FROM</span> <span class="ctp">signal_chain.intents</span> i
+<span class="cb">LEFT JOIN</span> <span class="ctp">signal_chain.commerce</span> c
+  <span class="cb">ON</span> i.chain_id = c.chain_id
+<span class="cb">LEFT JOIN</span> <span class="ctp">signal_chain.feedback</span> f
+  <span class="cb">ON</span> i.chain_id = f.chain_id
+<span class="cb">JOIN</span> <span class="ctp">products</span> p
+  <span class="cb">ON</span> i.product_id = p.product_id
+<span class="cb">WHERE</span> i.timestamp
+  <span class="cb">BETWEEN</span> <span class="cs">'2026-01-01'</span>
+  <span class="cb">AND</span>     <span class="cs">'2026-03-31'</span>
+<span class="cb">GROUP BY</span> p.product_id;
+
+<span class="cc chi">-- Result:</span>
+<span class="cc chi">-- MBA-M4 | 18,203 intent | 12,847 conv</span>
+<span class="cc chi">--          | 5,356 lost | 70.6% | "none"</span>
+<span class="cc chi">-- MBA-M5 | 31,440 intent |  8,203 conv</span>
+<span class="cc chi">--          | 23,237 lost | 26.1% | "price"</span>
+<span class="cc chi">--</span>
+<span class="cc chi">-- REVELATION: M5 had 1.7× MORE</span>
+<span class="cc chi">-- intent than M4 — but 73.9% of</span>
+<span class="cc chi">-- that intent was LOST to price.</span>
+<span class="cc chi">-- → M5 at $1,199 might convert 45%</span>
+<span class="cc chi">-- → That's 14,148 units vs 8,203</span>
+<span class="cc chi">-- → $2.4M revenue recovered by a</span>
+<span class="cc chi">--   $100 price adjustment that NO</span>
+<span class="cc chi">--   blind ERP forecast would suggest</span></pre></div>
+    </div>
+    <div class="code-annotation">
+      <strong>Same quarter. Same products. Completely different conclusions.</strong> The blind ERP says "order more M4." The Signal Chain says "the M5 has massive latent demand being killed by price — a $100 price cut could recover $2.4M in revenue." <em>The blind forecast isn't wrong — it's incomplete. And in a thinning economy, incomplete is the same as wrong.</em>
+    </div>
+  </div>
+
+  <div class="pull-quote red reveal">
+    <p>The most expensive inventory in the world is the product that was built for a customer who was never going to buy it — because the demand signal that would have said otherwise fell into the Abyss three months ago.</p>
+  </div>
+
+  <h2 class="reveal">The Cost of Blindness</h2>
+
+  <p class="reveal">
+    How much does the fog actually cost? Let's make it tangible with a thought experiment.
+  </p>
+
+  <!-- ═══════ COST CALCULATOR ═══════ -->
+  <div class="blindness-calc reveal" id="calculator">
+    <div class="bc-title">The Fog Tax — What Signal Blindness Costs Your Business</div>
+
+    <div class="bc-row">
+      <label>Monthly website visitors</label>
+      <input type="range" id="visitors" min="10000" max="5000000" step="10000" value="500000">
+      <span class="bc-value" id="visitors-val">500,000</span>
+    </div>
+
+    <div class="bc-row">
+      <label>Average order value</label>
+      <input type="range" id="aov" min="20" max="2000" step="10" value="150">
+      <span class="bc-value" id="aov-val">$150</span>
+    </div>
+
+    <div class="bc-row">
+      <label>Current conversion rate</label>
+      <input type="range" id="conv" min="0.5" max="10" step="0.1" value="2.5">
+      <span class="bc-value" id="conv-val">2.5%</span>
+    </div>
+
+    <div class="bc-row">
+      <label>% of lost intent recoverable with Signal Chain</label>
+      <input type="range" id="recovery" min="5" max="40" step="1" value="15">
+      <span class="bc-value" id="recovery-val">15%</span>
+    </div>
+
+    <div class="bc-result">
+      <div class="bc-total" id="bc-total">$2,812,500</div>
+      <div class="bc-total-label">Estimated annual revenue left in the Abyss — recoverable with connected signal</div>
+    </div>
+  </div>
+
+  <p class="reveal">
+    That calculator is a simplification, obviously. Real-world Signal Chain implementation would require investment, infrastructure, and organizational change. But the directionality is right: <strong>the cost of not connecting your signal is almost certainly larger than the cost of connecting it.</strong> The fog has a price. Most businesses just don't have an invoice for it.
+  </p>
+
+  <p class="reveal">
+    Let's trace exactly where the money leaks. Here's a revenue waterfall for a hypothetical $50M/quarter e-commerce business, showing where signal loss at each stage translates to actual dollar loss.
+  </p>
+
+  <!-- ═══════ TECHNICAL: REVENUE LEAK WATERFALL ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">Revenue Leak Waterfall — Where the Money Falls Into the Abyss</span>
+      <span class="code-header-badge badge-pipeline">DATA MODEL</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ─── Revenue Leak Waterfall ───</span>
+<span class="cc">// Hypothetical: $50M/quarter e-commerce business</span>
+<span class="cc">// Tracking value loss at each stage of the broken journey</span>
+
+<span class="ck">revenue_waterfall</span> = <span class="cbr">{</span>
+
+  <span class="ck">"stage_1_total_intent"</span>: <span class="cbr">{</span>
+    <span class="ck">"searches_with_commercial_intent"</span>: <span class="cn">2_400_000</span>,
+    <span class="ck">"potential_revenue"</span>: <span class="cs">"$216,000,000"</span>,   <span class="cc">// at $90 avg potential value</span>
+    <span class="ck">"signal_captured_by"</span>: <span class="cs">"Google only"</span>,
+    <span class="ck">"signal_shared_with_business"</span>: <span class="cs">"query keywords via Search Console (delayed)"</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"stage_2_ai_interception"</span>: <span class="cbr">{</span>
+    <span class="ck">"resolved_by_ai_overview"</span>: <span class="cn">1_632_000</span>,  <span class="cc">// 68% zero-click rate</span>
+    <span class="ck">"revenue_never_reached_site"</span>: <span class="cs">"$146,880,000"</span>,
+    <span class="ck">"business_visibility"</span>: <span class="cs">"ZERO"</span>,
+    <span class="cc chi">    // $147M in potential revenue influenced by AI</span>
+    <span class="cc chi">    // with zero business visibility into what happened</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"stage_3_site_visitors"</span>: <span class="cbr">{</span>
+    <span class="ck">"made_it_to_site"</span>: <span class="cn">768_000</span>,          <span class="cc">// 32% click-through</span>
+    <span class="ck">"potential_revenue"</span>: <span class="cs">"$69,120,000"</span>,
+    <span class="ck">"anonymous_visitors"</span>: <span class="cs">"83%"</span>,          <span class="cc">// never sign in</span>
+    <span class="ck">"identifiable"</span>: <span class="cs">"17%"</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"stage_4_consideration"</span>: <span class="cbr">{</span>
+    <span class="ck">"viewed_product_page"</span>: <span class="cn">384_000</span>,       <span class="cc">// 50% of visitors</span>
+    <span class="ck">"configured_product"</span>: <span class="cn">115_200</span>,       <span class="cc">// 30% of page viewers</span>
+    <span class="ck">"added_to_cart"</span>: <span class="cn">57_600</span>,            <span class="cc">// 15% of page viewers</span>
+    <span class="ck">"cross_platform_signal_available"</span>: <span class="cs">"NONE"</span>,
+    <span class="cc chi">    // Business sees page views and cart adds.</span>
+    <span class="cc chi">    // Cannot see: the YouTube video that brought them,</span>
+    <span class="cc chi">    // the Reddit post that raised doubts, the AI overview</span>
+    <span class="cc chi">    // that set their expectations on price.</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"stage_5_decision_point"</span>: <span class="cbr">{</span>
+    <span class="ck">"abandoned_cart"</span>: <span class="cn">38_400</span>,           <span class="cc">// 67% cart abandonment</span>
+    <span class="ck">"revenue_abandoned"</span>: <span class="cs">"$3,456,000"</span>,
+    <span class="ck">"reason_known"</span>: <span class="cs">"0%"</span>,              <span class="cc chi">// ← literally zero insight into WHY</span>
+    <span class="ck">"retargetable"</span>: <span class="cs">"~35%"</span>,            <span class="cc">// the rest are anonymous ghosts</span>
+    <span class="ck">"actual_reasons"</span>: <span class="cbr">{</span>
+      <span class="ck">"price_too_high"</span>:      <span class="cs">"31%"</span>,      <span class="cc">// invisible to business</span>
+      <span class="ck">"ai_recommended_other"</span>: <span class="cs">"18%"</span>,     <span class="cc">// invisible to business</span>
+      <span class="ck">"friend_said_wait"</span>:     <span class="cs">"14%"</span>,     <span class="cc">// invisible to business</span>
+      <span class="ck">"financial_anxiety"</span>:    <span class="cs">"22%"</span>,     <span class="cc">// invisible to business</span>
+      <span class="ck">"found_better_deal"</span>:    <span class="cs">"15%"</span>      <span class="cc">// invisible to business</span>
+    <span class="cbr">}</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"stage_6_purchase"</span>: <span class="cbr">{</span>
+    <span class="ck">"completed_orders"</span>: <span class="cn">19_200</span>,
+    <span class="ck">"actual_revenue"</span>: <span class="cs">"$50,000,000"</span>,   <span class="cc">// the $50M the business sees</span>
+    <span class="ck">"full_journey_visible"</span>: <span class="cs">"~12%"</span>     <span class="cc">// even for buyers, journey is mostly dark</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"summary"</span>: <span class="cbr">{</span>
+    <span class="ck">"total_commercial_intent"</span>: <span class="cs">"$216,000,000"</span>,
+    <span class="ck">"revenue_captured"</span>:       <span class="cs">"$50,000,000"</span>,
+    <span class="ck">"revenue_lost_to_abyss"</span>:  <span class="cs chi">"$166,000,000"</span>,
+    <span class="ck">"capture_rate"</span>:           <span class="cs chi">"23.1%"</span>,
+    <span class="ck">"abyss_rate"</span>:             <span class="cs chi">"76.9%"</span>
+  <span class="cbr">}</span>
+<span class="cbr">}</span></pre>
+    </div>
+    <div class="code-annotation">
+      A $50M/quarter business is sitting on top of <strong>$216M in commercial intent</strong> — but captures only 23.1% of it. $166M falls into the Abyss every quarter. Even recovering 10% of that ($16.6M) would represent a <em>33% revenue increase</em> — without spending a single additional dollar on advertising.
+    </div>
+  </div>
+
+  <h2 class="reveal">The Unemployment Multiplier</h2>
+
+  <p class="reveal">
+    There's a human dimension to this that the technology conversation often ignores. When the economy thins, people lose jobs. When people lose jobs, their purchasing behavior changes fundamentally — not just in amount, but in kind. The unemployed consumer doesn't stop buying. They start <em>agonizing</em> over buying.
+  </p>
+
+  <p class="reveal">
+    Our MacBook Air searcher from Part One? If they're recently unemployed, that search isn't casual browsing. It's a high-stakes internal negotiation between need, aspiration, and financial anxiety. The emotional dimension of the purchase — invisible to every system in the silo archipelago — becomes the <em>primary</em> decision factor. And when no system acknowledges that emotional reality, the user feels unseen, the business feels mystified, and the transaction dies in silence.
+  </p>
+
+  <p class="reveal">
+    In a healthy economy, you can afford to lose these customers. In a thinning economy, <strong>every lost decision-in-progress is a compounding problem.</strong> The customer who didn't buy today is harder to reach tomorrow, more skeptical the day after, and invisible to your demand forecast by next quarter.
+  </p>
+
+  <div class="pull-quote reveal">
+    <p>An economy in contraction doesn't need more advertising. It needs more resolution. Every decision you help someone make with confidence is a dollar that stays in the system instead of freezing in indecision.</p>
+  </div>
+
+  <h2 class="reveal">Why Now — Not Later</h2>
+
+  <p class="reveal">
+    There's a tempting argument that businesses should wait — wait for the AI stack to settle, wait for regulations to clarify, wait for a single platform to emerge and solve this. That argument is wrong, and here's why:
+  </p>
+
+  <p class="reveal">
+    <strong>The AI intermediary layer is being built right now, without business input.</strong> Google, OpenAI, Perplexity, and Meta are designing the decision architecture of the next decade in real time. If businesses wait until these systems are finished to figure out how to work with them, they'll find themselves in a world where AI makes purchasing recommendations using data they can't see, can't influence, and can't correct. The time to shape this architecture is while it's being built — not after it's been deployed to two billion users.
+  </p>
+
+  <p class="reveal">
+    <strong>Consumer expectations are moving faster than business capabilities.</strong> Users have already experienced what it feels like to ask an AI "should I buy this?" and get a coherent answer in three seconds. They're not going back to browsing ten comparison articles and three YouTube videos. The businesses that figure out how to work <em>with</em> the AI intermediary — feeding it better data, getting attribution from it, embedding commerce into its responses — will capture the next decade of consumer spending. The businesses that fight it or ignore it will wonder why their traffic keeps declining.
+  </p>
+
+  <p class="reveal">
+    <strong>The cost of waiting compounds.</strong> Every month without connected signal is another month of misallocated inventory, wasted ad spend, and phantom demand forecasts. The fog tax doesn't wait for your roadmap to catch up.
+  </p>
+
+  <h2 class="reveal">The Signal Chain Is Not a Cost — It's a Survival Strategy</h2>
+
+  <p class="reveal">
+    Let me be direct about what I'm arguing. I'm not saying businesses need to buy new software. I'm not saying there's a vendor who can solve this with a SaaS product. I'm saying the <em>architectural pattern</em> of commerce needs to change — from disconnected silos optimized for their own metrics to a connected chain optimized for decision resolution.
+  </p>
+
+  <p class="reveal">
+    This means ERP systems need to ingest pre-purchase intent signals, not just post-purchase transaction data. It means CRM systems need to understand AI-mediated interactions, not just email opens and website visits. It means search and social platforms need to emit structured intent data that businesses can act on, not just auction off. And it means AI systems need to be transparent about their recommendations, attributable in their influence, and accountable for their outcomes.
+  </p>
+
+  <p class="reveal">
+    None of this is easy. All of it is necessary.
+  </p>
+
+  <p class="reveal">
+    Here's what the transformation looks like in practice — the same ERP system, the same demand planning query, before and after Signal Chain integration.
+  </p>
+
+  <!-- ═══════ TECHNICAL: ERP TRANSFORMATION ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">ERP Demand Planning — Before and After Signal Chain</span>
+      <span class="code-header-badge badge-compare">TRANSFORMATION</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+<span class="cc">// BEFORE: ERP demand signal (what SAP sees today)</span>
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+
+<span class="cb">SELECT</span> product_id, <span class="cfn">SUM</span>(qty) <span class="cb">AS</span> demand
+<span class="cb">FROM</span> <span class="ctp">sales_orders</span>
+<span class="cb">WHERE</span> quarter = <span class="cs">'2026-Q1'</span>
+<span class="cb">GROUP BY</span> product_id;
+
+<span class="cc">-- MBA-M4:  12,847 units    ← all the ERP knows</span>
+<span class="cc">-- MBA-M5:   8,203 units    ← all the ERP knows</span>
+<span class="cc chi">-- Demand that didn't convert:  ??? (invisible)</span>
+<span class="cc chi">-- Why it didn't convert:       ??? (invisible)</span>
+<span class="cc chi">-- AI influence on decisions:   ??? (invisible)</span>
+
+
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+<span class="cc">// AFTER: ERP with Signal Chain event bus subscription</span>
+<span class="cc">// New tables populated by subscribing to chain events</span>
+<span class="cc">// ═══════════════════════════════════════════════════════════════</span>
+
+<span class="cc">-- New table: intent_signals (from IntentCapturedEvent)</span>
+<span class="cb">CREATE TABLE</span> <span class="ctp">intent_signals</span> <span class="cbr">(</span>
+  chain_id       <span class="cb">VARCHAR</span>,
+  product_id     <span class="cb">VARCHAR</span>,
+  intent_score   <span class="cb">DECIMAL</span>,     <span class="cc">-- 0.0 to 1.0 commercial intent</span>
+  decision_stage <span class="cb">VARCHAR</span>,     <span class="cc">-- 'awareness','evaluation','ready_to_buy'</span>
+  price_sensitive <span class="cb">BOOLEAN</span>,
+  timestamp      <span class="cb">TIMESTAMP</span>
+<span class="cbr">)</span>;
+
+<span class="cc">-- New table: decision_outcomes (from FeedbackRecordedEvent)</span>
+<span class="cb">CREATE TABLE</span> <span class="ctp">decision_outcomes</span> <span class="cbr">(</span>
+  chain_id       <span class="cb">VARCHAR</span>,
+  product_id     <span class="cb">VARCHAR</span>,
+  outcome        <span class="cb">VARCHAR</span>,     <span class="cc">-- 'purchased','deferred','abandoned','competitor'</span>
+  primary_blocker <span class="cb">VARCHAR</span>,    <span class="cc">-- 'price','timing','ai_steered','social_influence'</span>
+  ai_influenced  <span class="cb">BOOLEAN</span>,
+  revenue_delta  <span class="cb">DECIMAL</span>
+<span class="cbr">)</span>;
+
+<span class="cc">-- NOW the demand planner can ask:</span>
+<span class="cb">SELECT</span>
+  i.product_id,
+  <span class="cfn">COUNT</span>(<span class="cb">CASE WHEN</span> d.outcome = <span class="cs">'purchased'</span> <span class="cb">THEN</span> <span class="cn">1</span> <span class="cb">END</span>)  <span class="cb">AS</span> <span class="ck">sold</span>,
+  <span class="cfn">COUNT</span>(<span class="cb">CASE WHEN</span> d.outcome = <span class="cs">'abandoned'</span>
+    <span class="cb">AND</span> d.primary_blocker = <span class="cs">'price'</span> <span class="cb">THEN</span> <span class="cn">1</span> <span class="cb">END</span>)    <span class="cb">AS</span> <span class="ck">lost_to_price</span>,
+  <span class="cfn">COUNT</span>(<span class="cb">CASE WHEN</span> d.ai_influenced = <span class="cb">true</span>
+    <span class="cb">AND</span> d.revenue_delta < <span class="cn">0</span> <span class="cb">THEN</span> <span class="cn">1</span> <span class="cb">END</span>)             <span class="cb">AS</span> <span class="ck">ai_downgraded</span>,
+  <span class="cfn">SUM</span>(d.revenue_delta)                                <span class="cb">AS</span> <span class="ck">ai_revenue_impact</span>
+<span class="cb">FROM</span> <span class="ctp">intent_signals</span> i
+<span class="cb">LEFT JOIN</span> <span class="ctp">decision_outcomes</span> d <span class="cb">ON</span> i.chain_id = d.chain_id
+<span class="cb">WHERE</span> i.timestamp <span class="cb">BETWEEN</span> <span class="cs">'2026-01-01'</span> <span class="cb">AND</span> <span class="cs">'2026-03-31'</span>
+<span class="cb">GROUP BY</span> i.product_id;
+
+<span class="cc chi">-- MBA-M4: 12,847 sold | 2,103 lost_to_price | 4,891 ai_downgraded | +$978,200</span>
+<span class="cc chi">-- MBA-M5:  8,203 sold | 14,822 lost_to_price | 1,247 ai_downgraded | -$249,400</span>
+<span class="cc chi">--</span>
+<span class="cc chi">-- NOW the ERP knows:</span>
+<span class="cc chi">-- • M5 has 2.4× more latent demand than sales suggest</span>
+<span class="cc chi">-- • 14,822 people wanted M5 but balked at price</span>
+<span class="cc chi">-- • AI is actively steering customers from M5 → M4</span>
+<span class="cc chi">-- • A $100 price cut on M5 could recover ~$2.4M/quarter</span>
+<span class="cc chi">-- • Inventory should be 60% M5, not 40% ← OPPOSITE of blind forecast</span></pre>
+    </div>
+    <div class="code-annotation">
+      <strong>Two new tables. One event bus subscription. The ERP goes from seeing 33% of demand to seeing 85%+.</strong> The demand planner can now distinguish between "low demand" (people don't want it) and "blocked demand" (people want it but something stops them). <em>That distinction is worth millions per quarter — and the blind ERP can never make it.</em>
+    </div>
+  </div>
+
+  <!-- ═══════ THE MANIFESTO ═══════ -->
+  <div class="manifesto reveal" id="manifesto">
+    <div class="manifesto-tag">A Declaration</div>
+    <h2>What Must Change — and Who Must Change It</h2>
+
+    <div class="manifesto-points">
+      <div class="manifesto-point" data-delay="0">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>Search platforms</strong> must evolve from query-response engines to intent-resolution partners. The query is not the product. The decision is.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="100">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>Social platforms</strong> must bridge the gap between engagement and commerce. Watch time without purchase signal is entertainment, not commerce infrastructure.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="200">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>AI companies</strong> must build attribution, transparency, and feedback loops into their recommendation systems. An AI that shapes a purchase decision and reports nothing back is not a partner — it's a parasite on the ecosystem that feeds it.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="300">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>Commerce platforms</strong> must move checkout to the point of decision. If the decision happens in a chat window, the buy button belongs in the chat window.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="400">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>ERP and CRM vendors</strong> must break out of the post-transaction bubble. The most valuable data in commerce is what happens <em>before</em> someone buys — or instead of buying.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="500">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>Businesses themselves</strong> must stop treating data as a departmental concern and start treating signal connectivity as a strategic imperative. The Signal Chain is not an IT project. It's a survival strategy.</div>
+      </div>
+
+      <div class="manifesto-point" data-delay="600">
+        <div class="mp-marker">→</div>
+        <div class="mp-text"><strong>Users</strong> deserve better than being fragmented across systems that don't talk to each other. They deserve to be <em>helped</em>, not harvested. The Signal Chain puts the human back at the center — not as a data point, but as a person trying to make a good decision.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="reveal">Closing the Loop</h2>
+
+  <p class="reveal">
+    We started this series with nine words in a search bar and a person who couldn't decide whether to spend $1,099 or $1,299 on a laptop. That person's story — mundane as it seems — is a microcosm of something much larger: the systemic failure of modern commerce to help humans make decisions in an age of infinite information and zero integrated intelligence.
+  </p>
+
+  <p class="reveal">
+    The Abyss is real. It's where 59% of every purchase intent signal goes to die. It's where businesses lose customers they never knew existed. It's where AI makes recommendations nobody can track. It's where the economy leaks value through cracks that nobody can see because no single system is looking at the whole picture.
+  </p>
+
+  <p class="reveal">
+    But the Abyss is not inevitable. It's an architecture problem, and architecture problems have architecture solutions. The Signal Chain — intent, context, intelligence, action, memory — is a pattern, not a product. It can be built. It should be built. And in an economy that's running out of room for wasted signal, it <em>must</em> be built.
+  </p>
+
+  <div class="pull-quote gold reveal">
+    <p>The businesses that survive the next decade won't be the ones with the most data. They'll be the ones with the most connected data — the ones who finally bridged the Abyss and built a chain strong enough to carry a human decision from curiosity to confidence.</p>
+  </div>
+
+  <p class="reveal">
+    The fog is lifting — not because it's clearing on its own, but because we're learning to build instruments that can see through it. The question is whether you'll build those instruments now, while the architecture is being shaped, or later, when it's already been decided without you.
+  </p>
+
+  <p class="reveal" style="text-align: center; margin-top: 48px;">
+    <em style="font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; color: var(--charcoal);">
+      The chain is waiting to be forged. The links are there. Someone just has to connect them.
+    </em>
+  </p>
+
+  <!-- ═══════ SERIES CLOSE ═══════ -->
+  <div class="series-close reveal">
+    <div class="series-close-tag">End of Series</div>
+    <h2>The Decision <em>Abyss</em></h2>
+
+    <div class="chapter-recap">
+      <div class="recap-item"><span class="recap-num">01</span> The Search That Nobody Finishes — the broken user journey</div>
+      <div class="recap-item"><span class="recap-num">02</span> The Abyss Map — where signal dies across six silos</div>
+      <div class="recap-item"><span class="recap-num">03</span> The AI Intermediary — the new opaque layer in the decision stack</div>
+      <div class="recap-item"><span class="recap-num">04</span> The Signal Chain — the five-link architecture for connected commerce</div>
+      <div class="recap-item"><span class="recap-num">05</span> The Economics of Fog — why this is existential, not optional</div>
+    </div>
+
+    <div class="series-close-line">
+      "We built the most sophisticated advertising infrastructure in human history, and it still can't tell you why someone closed the tab."
+    </div>
+
+    <div class="series-author">A PaddySpeaks Editorial Series</div>
+    <div class="series-date">April 2026 · paddyspeaks.com</div>
+  </div>
+
+</article>
+
+<!-- ═══════ FOOTER ═══════ -->
+<footer class="article-footer">
+  <div class="footer-logo">PaddySpeaks</div>
+  <div class="footer-tagline">AI · Data · Ancient Wisdom · Technology Philosophy</div>
+  <div class="footer-meta">
+    The Decision Abyss — A Five-Part Editorial Series · April 2026<br>
+    <a class="footer-link" href="https://paddyspeaks.com">paddyspeaks.com</a>
+  </div>
+</footer>
+
+<script>
+  // ─── Scroll Reveal ───
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
+  revealEls.forEach(el => revealObs.observe(el));
+
+  // ─── Pressure Cards Stagger ───
+  const pressureGrid = document.getElementById('pressure-grid');
+  const pressObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const cards = e.target.querySelectorAll('.pressure-card');
+        cards.forEach((card) => {
+          const delay = parseInt(card.dataset.delay) || 0;
+          setTimeout(() => card.classList.add('visible'), delay);
+        });
+        pressObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  if (pressureGrid) pressObs.observe(pressureGrid);
+
+  // ─── Manifesto Points Stagger ───
+  const manifesto = document.getElementById('manifesto');
+  const maniObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const points = e.target.querySelectorAll('.manifesto-point');
+        points.forEach((pt) => {
+          const delay = parseInt(pt.dataset.delay) || 0;
+          setTimeout(() => pt.classList.add('visible'), delay);
+        });
+        maniObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  if (manifesto) maniObs.observe(manifesto);
+
+  // ─── Calculator Logic ───
+  const visitorsEl = document.getElementById('visitors');
+  const aovEl = document.getElementById('aov');
+  const convEl = document.getElementById('conv');
+  const recoveryEl = document.getElementById('recovery');
+
+  function updateCalc() {
+    const visitors = parseInt(visitorsEl.value);
+    const aov = parseInt(aovEl.value);
+    const conv = parseFloat(convEl.value) / 100;
+    const recovery = parseInt(recoveryEl.value) / 100;
+
+    document.getElementById('visitors-val').textContent = visitors.toLocaleString();
+    document.getElementById('aov-val').textContent = '$' + aov.toLocaleString();
+    document.getElementById('conv-val').textContent = convEl.value + '%';
+    document.getElementById('recovery-val').textContent = recoveryEl.value + '%';
+
+    // Current monthly revenue
+    const monthlyRevenue = visitors * conv * aov;
+    // Lost intent: ~67% of considered journeys end in no purchase (from Part 1)
+    // Recoverable portion of that lost intent
+    const lostMonthly = visitors * (1 - conv) * 0.67 * aov;
+    const recoverable = lostMonthly * recovery;
+    const annualRecoverable = recoverable * 12;
+
+    document.getElementById('bc-total').textContent = '$' + Math.round(annualRecoverable).toLocaleString();
+  }
+
+  [visitorsEl, aovEl, convEl, recoveryEl].forEach(el => {
+    el.addEventListener('input', updateCalc);
+  });
+  updateCalc();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Decision Abyss — Part 3: The AI Intermediary | PaddySpeaks</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400;1,6..72,500&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bone: #F5F0E8;
+    --cream: #FAF7F2;
+    --amber: #C8956C;
+    --amber-light: #E8C4A0;
+    --amber-dark: #9E6B3A;
+    --charcoal: #2A2A28;
+    --charcoal-light: #4A4A46;
+    --ink: #1A1A18;
+    --warm-gray: #8A857D;
+    --warm-gray-light: #B5AFA6;
+    --abyss-dark: #1A1420;
+    --abyss-purple: #2D1F3D;
+    --abyss-glow: #6B4C8A;
+    --signal-green: #5A8A6C;
+    --signal-red: #C45C4A;
+    --signal-amber: #D4A054;
+    --ai-blue: #4A7FB5;
+    --ai-blue-light: #6BA3D6;
+    --ai-glow: rgba(74,127,181,0.15);
+    --code-bg: #1E1E1E; --code-bg-light: #252526; --code-border: #333;
+    --code-key: #9CDCFE; --code-string: #CE9178; --code-number: #B5CEA8;
+    --code-bool: #569CD6; --code-comment: #6A9955; --code-null: #808080;
+    --code-bracket: #888; --code-highlight: rgba(200,149,108,0.08);
+    --code-fn: #DCDCAA; --code-type: #4EC9B0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--cream);
+    color: var(--charcoal);
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 18px; line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ─── SERIES NAV ─── */
+  .series-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--ink);
+    border-bottom: 2px solid var(--amber);
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  .series-nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: stretch; min-height: 52px;
+  }
+  .series-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--amber); padding: 16px 20px;
+    white-space: nowrap; display: flex; align-items: center;
+    border-right: 1px solid rgba(200,149,108,0.2);
+  }
+  .chapter-tabs { display: flex; list-style: none; flex: 1; }
+  .chapter-tabs li { flex: 1; min-width: 0; }
+  .chapter-tabs a {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; padding: 12px 16px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--warm-gray); text-decoration: none;
+    transition: all 0.3s ease; white-space: nowrap; text-align: center;
+    border-right: 1px solid rgba(200,149,108,0.1); position: relative;
+  }
+  .chapter-tabs a:hover { color: var(--bone); background: rgba(200,149,108,0.08); }
+  .chapter-tabs a.active { color: var(--amber); background: rgba(200,149,108,0.12); }
+  .chapter-tabs a.active::after {
+    content: ''; position: absolute; bottom: 0;
+    left: 20%; right: 20%; height: 2px; background: var(--amber);
+  }
+  .chapter-tabs a .ch-num { font-weight: 500; margin-right: 6px; color: var(--amber); opacity: 0.6; }
+
+  /* ─── CHAPTER HERO ─── */
+  .chapter-hero {
+    background: linear-gradient(175deg, #0D1B2A 0%, #1B2838 40%, var(--ink) 100%);
+    padding: 100px 24px 80px;
+    text-align: center;
+    position: relative; overflow: hidden;
+  }
+  .chapter-hero::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse 600px 350px at 50% 50%, var(--ai-glow) 0%, transparent 70%),
+      radial-gradient(ellipse 400px 250px at 30% 70%, rgba(107,76,138,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Pulsing AI rings */
+  .ai-rings {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .ai-ring {
+    position: absolute;
+    border: 1px solid var(--ai-blue);
+    border-radius: 50%;
+    opacity: 0;
+    animation: ringPulse 4s ease-out infinite;
+  }
+  .ai-ring:nth-child(1) { width: 200px; height: 200px; margin: -100px 0 0 -100px; animation-delay: 0s; }
+  .ai-ring:nth-child(2) { width: 350px; height: 350px; margin: -175px 0 0 -175px; animation-delay: 1s; }
+  .ai-ring:nth-child(3) { width: 500px; height: 500px; margin: -250px 0 0 -250px; animation-delay: 2s; }
+  .ai-ring:nth-child(4) { width: 650px; height: 650px; margin: -325px 0 0 -325px; animation-delay: 3s; }
+
+  @keyframes ringPulse {
+    0% { opacity: 0.25; transform: scale(0.85); }
+    100% { opacity: 0; transform: scale(1.15); }
+  }
+
+  .chapter-hero .ch-tag {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--ai-blue-light); margin-bottom: 20px;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s;
+  }
+  .chapter-hero h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(36px, 6vw, 64px); font-weight: 300;
+    color: var(--bone); line-height: 1.15;
+    max-width: 700px; margin: 0 auto 16px;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.4s;
+  }
+  .chapter-hero h1 em { font-style: italic; color: var(--ai-blue-light); }
+  .chapter-hero .ch-deck {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: clamp(15px, 2vw, 19px); font-weight: 300;
+    color: var(--warm-gray-light); max-width: 560px;
+    margin: 0 auto; line-height: 1.6;
+    position: relative; z-index: 2;
+    opacity: 0; animation: fadeUp 0.7s ease forwards 0.6s;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── ARTICLE BODY ─── */
+  .article-body { max-width: 720px; margin: 0 auto; padding: 80px 24px; }
+  .article-body p {
+    margin-bottom: 24px; font-size: 18px;
+    line-height: 1.8; color: var(--charcoal-light);
+  }
+  .article-body p.lede {
+    font-size: 21px; font-weight: 400;
+    color: var(--charcoal); line-height: 1.75;
+  }
+  .article-body p strong { color: var(--charcoal); font-weight: 600; }
+  .article-body h2 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 28px; font-weight: 500; color: var(--ink);
+    margin: 56px 0 20px; line-height: 1.3;
+  }
+
+  .pull-quote {
+    margin: 48px -40px; padding: 32px 40px;
+    border-left: 3px solid var(--ai-blue);
+    background: rgba(74,127,181,0.04);
+  }
+  .pull-quote p {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24px; font-weight: 400; font-style: italic;
+    color: var(--charcoal); line-height: 1.5; margin-bottom: 8px !important;
+  }
+
+  .data-callout {
+    background: var(--bone);
+    border: 1px solid rgba(200,149,108,0.2);
+    padding: 28px 32px; margin: 40px 0; position: relative;
+  }
+  .data-callout::before {
+    content: attr(data-label); position: absolute; top: -9px; left: 24px;
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; color: var(--amber);
+    background: var(--bone); padding: 0 8px;
+  }
+  .data-callout .stat {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 36px; font-weight: 600;
+    color: var(--amber-dark); margin-bottom: 4px;
+  }
+  .data-callout .stat-label {
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    color: var(--warm-gray); letter-spacing: 0.5px;
+  }
+
+  /* ─── THE NEW STACK DIAGRAM ─── */
+  .stack-section {
+    margin: 64px -80px; padding: 60px 32px;
+    background: linear-gradient(175deg, #0D1B2A, #162230 50%, var(--ink));
+    position: relative; overflow: hidden;
+  }
+  .stack-section::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse 500px 300px at 50% 50%, var(--ai-glow) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .stack-title {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--ai-blue-light); text-align: center;
+    margin-bottom: 8px; position: relative; z-index: 2;
+  }
+  .stack-subtitle {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 26px; font-weight: 400; color: var(--bone);
+    text-align: center; margin-bottom: 48px;
+    position: relative; z-index: 2;
+  }
+
+  .stack-diagram {
+    max-width: 600px; margin: 0 auto;
+    position: relative; z-index: 2;
+  }
+
+  .stack-layer {
+    padding: 20px 28px; margin-bottom: 2px;
+    position: relative;
+    opacity: 0; transform: translateY(12px);
+    transition: all 0.5s ease;
+  }
+  .stack-layer.visible { opacity: 1; transform: translateY(0); }
+
+  .stack-layer-user {
+    background: rgba(90,138,108,0.12);
+    border: 1px solid rgba(90,138,108,0.25);
+    border-radius: 4px 4px 0 0;
+  }
+  .stack-layer-ai {
+    background: rgba(74,127,181,0.15);
+    border: 1px solid rgba(74,127,181,0.3);
+    position: relative;
+  }
+  .stack-layer-ai::before {
+    content: '✦ NEW LAYER';
+    position: absolute; top: -10px; right: 20px;
+    font-family: 'DM Mono', monospace; font-size: 9px;
+    letter-spacing: 2px; color: var(--ai-blue-light);
+    background: #162230; padding: 2px 10px;
+    border: 1px solid rgba(74,127,181,0.4);
+    animation: glowPulse 2s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(74,127,181,0.2); }
+    50% { box-shadow: 0 0 16px rgba(74,127,181,0.4); }
+  }
+
+  .stack-layer-search {
+    background: rgba(200,149,108,0.08);
+    border: 1px solid rgba(200,149,108,0.2);
+  }
+  .stack-layer-social {
+    background: rgba(107,76,138,0.1);
+    border: 1px solid rgba(107,76,138,0.2);
+  }
+  .stack-layer-commerce {
+    background: rgba(200,149,108,0.06);
+    border: 1px solid rgba(200,149,108,0.15);
+  }
+  .stack-layer-backend {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 0 0 4px 4px;
+  }
+
+  .stack-layer-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 17px; font-weight: 600; color: var(--bone);
+    margin-bottom: 2px;
+  }
+  .stack-layer-desc {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 13px; color: var(--warm-gray-light); line-height: 1.5;
+  }
+  .stack-layer-examples {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--warm-gray); letter-spacing: 0.5px;
+    margin-top: 6px;
+  }
+
+  .stack-arrow {
+    text-align: center; padding: 6px 0;
+    position: relative; z-index: 2;
+  }
+  .stack-arrow svg { width: 24px; height: 24px; }
+
+  .stack-break {
+    text-align: center; padding: 12px 0;
+    position: relative; z-index: 2;
+  }
+  .stack-break-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 2px; text-transform: uppercase;
+    color: var(--signal-red);
+    background: rgba(196,92,74,0.08);
+    padding: 4px 14px; border: 1px dashed rgba(196,92,74,0.3);
+    display: inline-block;
+  }
+
+  /* ─── BEFORE / AFTER TOGGLE ─── */
+  .comparison-section {
+    margin: 48px 0; padding: 40px 0;
+    border-top: 1px solid rgba(200,149,108,0.15);
+    border-bottom: 1px solid rgba(200,149,108,0.15);
+  }
+  .comparison-title {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 20px;
+  }
+
+  .toggle-bar {
+    display: flex; margin-bottom: 28px;
+    border: 1px solid rgba(200,149,108,0.2);
+    border-radius: 4px; overflow: hidden;
+  }
+  .toggle-btn {
+    flex: 1; padding: 12px 16px;
+    font-family: 'DM Mono', monospace; font-size: 12px;
+    letter-spacing: 1px; text-transform: uppercase;
+    color: var(--warm-gray); background: var(--cream);
+    border: none; cursor: pointer;
+    transition: all 0.3s ease; text-align: center;
+  }
+  .toggle-btn.active {
+    background: var(--ink); color: var(--amber);
+  }
+  .toggle-btn:first-child { border-right: 1px solid rgba(200,149,108,0.2); }
+
+  .comparison-panel { display: none; }
+  .comparison-panel.active { display: block; }
+
+  .flow-path {
+    display: flex; align-items: center; gap: 8px;
+    flex-wrap: wrap; margin-bottom: 12px;
+  }
+  .flow-node {
+    padding: 8px 14px; border-radius: 3px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 0.5px; white-space: nowrap;
+  }
+  .flow-node.user { background: rgba(90,138,108,0.12); color: var(--signal-green); border: 1px solid rgba(90,138,108,0.25); }
+  .flow-node.search { background: rgba(200,149,108,0.1); color: var(--amber); border: 1px solid rgba(200,149,108,0.25); }
+  .flow-node.social { background: rgba(107,76,138,0.1); color: var(--abyss-glow); border: 1px solid rgba(107,76,138,0.25); }
+  .flow-node.ai { background: rgba(74,127,181,0.12); color: var(--ai-blue-light); border: 1px solid rgba(74,127,181,0.3); }
+  .flow-node.commerce { background: rgba(200,149,108,0.08); color: var(--amber-dark); border: 1px solid rgba(200,149,108,0.2); }
+  .flow-node.crm { background: rgba(255,255,255,0.05); color: var(--warm-gray); border: 1px solid rgba(200,149,108,0.1); }
+  .flow-node.dead { background: rgba(196,92,74,0.08); color: var(--signal-red); border: 1px dashed rgba(196,92,74,0.3); }
+
+  .flow-arrow {
+    font-family: 'DM Mono', monospace; font-size: 14px;
+    color: var(--warm-gray-light);
+  }
+  .flow-arrow.broken { color: var(--signal-red); }
+
+  .flow-annotation {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--warm-gray); margin-top: 8px;
+    padding-left: 16px; border-left: 2px solid rgba(200,149,108,0.15);
+    line-height: 1.6;
+  }
+  .flow-annotation em { color: var(--signal-red); font-style: normal; font-weight: 500; }
+
+  /* ─── ZERO-CLICK ECONOMICS ─── */
+  .zero-click {
+    margin: 48px 0;
+  }
+  .zc-title {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--amber); margin-bottom: 24px;
+  }
+
+  .zc-bar-group { margin-bottom: 20px; }
+  .zc-label {
+    display: flex; justify-content: space-between; margin-bottom: 6px;
+  }
+  .zc-label span:first-child {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 15px; color: var(--charcoal);
+  }
+  .zc-label span:last-child {
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    font-weight: 500;
+  }
+  .zc-bar {
+    height: 10px; background: var(--bone);
+    border-radius: 5px; overflow: hidden;
+  }
+  .zc-fill {
+    height: 100%; border-radius: 5px;
+    transition: width 1.5s ease; width: 0;
+  }
+  .zc-fill.blue { background: var(--ai-blue); }
+  .zc-fill.amber { background: var(--amber); }
+  .zc-fill.red { background: var(--signal-red); }
+  .zc-year {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--warm-gray); margin-top: 3px;
+  }
+
+  /* ─── AI PLAYER CARDS ─── */
+  .player-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 16px; margin: 40px 0;
+  }
+  .player-card {
+    padding: 24px 20px;
+    background: var(--bone);
+    border: 1px solid rgba(200,149,108,0.15);
+    position: relative;
+    opacity: 0; transform: translateY(12px);
+    transition: all 0.5s ease;
+  }
+  .player-card.visible { opacity: 1; transform: translateY(0); }
+
+  .player-card-name {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px; font-weight: 600; color: var(--ink);
+    margin-bottom: 4px;
+  }
+  .player-card-role {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--ai-blue); margin-bottom: 10px;
+  }
+  .player-card p {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 14px; color: var(--charcoal-light);
+    line-height: 1.55; margin-bottom: 0 !important;
+  }
+  .player-card-threat {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid rgba(200,149,108,0.12);
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    color: var(--signal-red); letter-spacing: 0.5px;
+  }
+
+  /* ═══════ CODE VISUALIZATION ═══════ */
+  .code-section { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid var(--code-border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-header { background: var(--code-bg-light); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--code-border); }
+  .code-header-title { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--amber); letter-spacing: 0.5px; }
+  .code-header-badge { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 10px; border-radius: 3px; }
+  .badge-api { background: rgba(74,127,181,0.15); color: var(--ai-blue-light); }
+  .badge-webhook { background: rgba(90,138,108,0.15); color: #7AB592; }
+  .badge-internal { background: rgba(107,76,138,0.15); color: var(--abyss-glow); }
+  .code-body { background: var(--code-bg); padding: 20px 24px; overflow-x: auto; font-family: 'DM Mono', monospace; font-size: 13px; line-height: 1.7; color: #D4D4D4; }
+  .code-body pre { margin: 0; white-space: pre; }
+  .ck { color: var(--code-key); } .cs { color: var(--code-string); } .cn { color: var(--code-number); }
+  .cb { color: var(--code-bool); } .cc { color: var(--code-comment); } .cnl { color: var(--code-null); }
+  .cbr { color: var(--code-bracket); } .chi { background: var(--code-highlight); display: inline; padding: 1px 0; }
+  .cfn { color: var(--code-fn); } .ctp { color: var(--code-type); }
+  .code-annotation { background: var(--code-bg-light); padding: 12px 20px; border-top: 1px solid var(--code-border); font-family: 'DM Mono', monospace; font-size: 11px; color: var(--warm-gray-light); line-height: 1.6; }
+  .code-annotation em { color: var(--signal-red); font-style: normal; font-weight: 500; }
+  .code-annotation strong { color: var(--amber); font-weight: 500; }
+  .code-compare { margin: 48px -40px; border-radius: 6px; overflow: hidden; border: 1px solid var(--code-border); box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+  .code-compare-header { background: var(--code-bg-light); padding: 12px 20px; border-bottom: 1px solid var(--code-border); font-family: 'DM Mono', monospace; font-size: 12px; color: var(--amber); }
+  .code-compare-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .code-compare-panel { background: var(--code-bg); padding: 16px 20px; font-family: 'DM Mono', monospace; font-size: 12px; line-height: 1.65; color: #D4D4D4; overflow-x: auto; border-right: 1px solid var(--code-border); }
+  .code-compare-panel:last-child { border-right: none; }
+  .code-compare-panel pre { margin: 0; white-space: pre; }
+  .code-panel-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 20px; border-bottom: 1px solid var(--code-border); }
+  .code-panel-label.left { background: rgba(196,92,74,0.06); color: var(--signal-red); }
+  .code-panel-label.right { background: rgba(90,138,108,0.06); color: #7AB592; }
+
+  /* ─── NEXT CHAPTER + FOOTER ─── */
+  .next-chapter {
+    margin-top: 80px; padding: 48px 40px;
+    background: var(--ink); text-align: center;
+  }
+  .next-chapter-label {
+    font-family: 'DM Mono', monospace; font-size: 10px;
+    letter-spacing: 3px; text-transform: uppercase;
+    color: var(--warm-gray); margin-bottom: 12px;
+  }
+  .next-chapter h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 28px; font-weight: 400; color: var(--bone);
+    margin-bottom: 12px;
+  }
+  .next-chapter p {
+    font-family: 'Newsreader', Georgia, serif;
+    font-size: 15px; color: var(--warm-gray-light);
+    max-width: 500px; margin: 0 auto 24px; line-height: 1.6;
+  }
+  .next-chapter-cta {
+    display: inline-block; font-family: 'DM Mono', monospace;
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--amber); text-decoration: none;
+    padding: 12px 32px; border: 1px solid var(--amber);
+    transition: all 0.3s ease; cursor: pointer;
+  }
+  .next-chapter-cta:hover { background: var(--amber); color: var(--ink); }
+
+  .article-footer {
+    text-align: center; padding: 40px 24px;
+    border-top: 1px solid rgba(200,149,108,0.15);
+  }
+  .footer-logo {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 18px; font-weight: 500;
+    color: var(--amber); letter-spacing: 2px; margin-bottom: 8px;
+  }
+  .footer-meta {
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    color: var(--warm-gray); letter-spacing: 0.5px;
+  }
+
+  .reveal {
+    opacity: 0; transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 768px) {
+    .series-label { display: none; }
+    .chapter-tabs a { padding: 10px 8px; font-size: 9px; }
+    .chapter-tabs a .ch-label { display: none; }
+    .article-body { padding: 48px 20px; }
+    .stack-section { margin: 48px -20px; padding: 40px 16px; }
+    .pull-quote { margin: 32px 0; padding: 24px; }
+    .player-grid { grid-template-columns: 1fr; }
+    .flow-path { gap: 4px; }
+    .flow-node { padding: 6px 8px; font-size: 9px; }
+    .code-section, .code-compare { margin: 32px -10px; }
+    .code-body { font-size: 11px; padding: 16px; }
+    .code-compare-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ SERIES NAV ═══════ -->
+<nav class="series-nav">
+  <div class="series-nav-inner">
+    <div class="series-label">The Decision Abyss</div>
+    <ul class="chapter-tabs">
+      <li><a href="#part1"><span class="ch-num">01</span><span class="ch-label">The Search</span></a></li>
+      <li><a href="#part2"><span class="ch-num">02</span><span class="ch-label">The Abyss Map</span></a></li>
+      <li><a href="#part3" class="active"><span class="ch-num">03</span><span class="ch-label">The AI Intermediary</span></a></li>
+      <li><a href="#part4"><span class="ch-num">04</span><span class="ch-label">The Signal Chain</span></a></li>
+      <li><a href="#part5"><span class="ch-num">05</span><span class="ch-label">Economics of Fog</span></a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ═══════ CHAPTER HERO ═══════ -->
+<header class="chapter-hero" id="part3">
+  <div class="ai-rings">
+    <div class="ai-ring"></div>
+    <div class="ai-ring"></div>
+    <div class="ai-ring"></div>
+    <div class="ai-ring"></div>
+  </div>
+  <div class="ch-tag">Part Three of Five</div>
+  <h1>The AI <em>Intermediary</em></h1>
+  <p class="ch-deck">
+    A new layer has been inserted between users and businesses. It answers questions, makes recommendations, and shapes decisions — and the business has no idea it's happening.
+  </p>
+</header>
+
+<!-- ═══════ ARTICLE BODY ═══════ -->
+<article class="article-body">
+
+  <p class="lede reveal">
+    Something happened in 2024 that nobody fully reckoned with. AI stopped being a tool that businesses used to analyze customers and became a tool that <em>customers</em> used to bypass businesses. The intermediary layer arrived — and it changed the architecture of commerce in ways we're only beginning to understand.
+  </p>
+
+  <p class="reveal">
+    Go back to our MacBook Air searcher from Part One. When they typed that query into Google, the first thing they saw wasn't a list of blue links. It was an <strong>AI Overview</strong> — a synthesized answer generated by Google's Gemini model, drawing from multiple sources, presented with the quiet authority of a finished conclusion. The user got an answer without clicking a single link. Without visiting apple.com. Without seeing a single ad for a MacBook accessory or a competing laptop.
+  </p>
+
+  <p class="reveal">
+    That AI Overview didn't just summarize information. It <strong>intercepted a decision</strong>. It absorbed the user's intent, processed it through a language model trained on the open web, and returned a verdict — all before the user reached any business's owned property. From the user's perspective, it felt helpful. From the business's perspective, it was invisible.
+  </p>
+
+  <div class="pull-quote reveal">
+    <p>AI didn't disrupt the funnel. It built a bypass around it — and charged no toll on the way through.</p>
+  </div>
+
+  <h2 class="reveal">The New Stack</h2>
+
+  <p class="reveal">
+    To understand what's happening, you need to see how the technology stack has changed. Before 2024, the path from question to purchase had a predictable structure: search → results → click → browse → consider → buy. Every step happened on someone's platform, and that platform captured data about the interaction. The stack was leaky, as we saw in Part Two, but at least the layers were visible.
+  </p>
+
+  <p class="reveal">
+    Now there's a new layer in the middle. And it's opaque.
+  </p>
+
+  <!-- ═══════ THE NEW STACK DIAGRAM ═══════ -->
+  <div class="stack-section reveal" id="stack-diagram">
+    <div class="stack-title">Architecture Shift</div>
+    <div class="stack-subtitle">The New Decision Stack</div>
+
+    <div class="stack-diagram">
+      <div class="stack-layer stack-layer-user" data-delay="0">
+        <div class="stack-layer-name">👤 The User</div>
+        <div class="stack-layer-desc">Has a question, a need, or a vague curiosity. Types something into a search bar or asks an AI assistant.</div>
+      </div>
+
+      <div class="stack-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(180,175,166,0.4)" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+
+      <div class="stack-layer stack-layer-ai" data-delay="150">
+        <div class="stack-layer-name">🤖 The AI Layer</div>
+        <div class="stack-layer-desc">Intercepts the query. Synthesizes an answer from multiple sources. May resolve the question entirely — before the user reaches any business.</div>
+        <div class="stack-layer-examples">Google AI Overviews · ChatGPT · Perplexity · Claude · Copilot</div>
+      </div>
+
+      <div class="stack-break">
+        <div class="stack-break-label">⚠ Opacity barrier — businesses cannot see below this line from above</div>
+      </div>
+
+      <div class="stack-layer stack-layer-search" data-delay="300">
+        <div class="stack-layer-name">🔍 Search / Discovery</div>
+        <div class="stack-layer-desc">Traditional results, ads, and organic links. Increasingly pushed below the AI layer. Click-through rates declining.</div>
+      </div>
+
+      <div class="stack-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(180,175,166,0.3)" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+
+      <div class="stack-layer stack-layer-social" data-delay="400">
+        <div class="stack-layer-name">📱 Social / Content</div>
+        <div class="stack-layer-desc">YouTube reviews, Reddit threads, TikTok hauls. Still influential but fragmented. No handoff to commerce systems.</div>
+      </div>
+
+      <div class="stack-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(180,175,166,0.2)" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+
+      <div class="stack-layer stack-layer-commerce" data-delay="500">
+        <div class="stack-layer-name">🛒 Commerce / Retailer</div>
+        <div class="stack-layer-desc">The business's owned property. Product pages, carts, checkout. Sees only users who make it this far — an ever-shrinking percentage.</div>
+      </div>
+
+      <div class="stack-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="rgba(180,175,166,0.1)" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></div>
+
+      <div class="stack-layer stack-layer-backend" data-delay="600">
+        <div class="stack-layer-name">🏭 CRM / ERP / Backend</div>
+        <div class="stack-layer-desc">Customer records, inventory, fulfillment. Only sees completed transactions. Blind to everything above.</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="reveal">
+    The critical insight is the <strong>opacity barrier</strong>. The AI layer sits between the user and everything else, but it doesn't report downstream. Google's AI Overview doesn't tell apple.com that a user read a comparison and was almost convinced. ChatGPT doesn't notify Samsung that it recommended a Galaxy over an iPhone. Perplexity doesn't share its shopping recommendations with anyone's CRM.
+  </p>
+
+  <p class="reveal">
+    The AI layer absorbs signal and doesn't emit it. It's a black hole in the decision stack.
+  </p>
+
+  <p class="reveal">
+    Let's make this viscerally concrete. Here's what happens inside the AI layer when our MacBook searcher's query arrives — and what each party actually sees.
+  </p>
+
+  <!-- ═══════ TECHNICAL: AI INTERNAL PROCESSING ═══════ -->
+  <div class="code-compare reveal">
+    <div class="code-compare-header">The AI Overview — Three Perspectives on the Same Moment</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;">
+      <div class="code-panel-label left">What Google's AI Processes Internally</div>
+      <div class="code-panel-label right">What Apple.com Receives</div>
+    </div>
+    <div class="code-compare-grid">
+      <div class="code-compare-panel"><pre><span class="cc">// Google AI Overview — Internal</span>
+<span class="cc">// Processing Pipeline (simplified)</span>
+<span class="cbr">{</span>
+ <span class="ck">"query"</span>: <span class="cs">"m4 vs m5 macbook air"</span>,
+ <span class="ck">"intent_classification"</span>: <span class="cbr">{</span>
+   <span class="ck">"type"</span>: <span class="cs">"comparison"</span>,
+   <span class="ck">"category"</span>: <span class="cs">"electronics"</span>,
+   <span class="ck">"commercial_intent"</span>: <span class="cn">0.82</span>,
+   <span class="ck">"urgency_signal"</span>: <span class="cs">"medium"</span>
+ <span class="cbr">}</span>,
+ <span class="ck">"sources_consulted"</span>: <span class="cbr">[</span>
+   <span class="cs">"apple.com/macbook-air"</span>,
+   <span class="cs">"9to5mac.com/m5-review"</span>,
+   <span class="cs">"youtube.com/watch?v=..."</span>,
+   <span class="cs">"reddit.com/r/macbookair"</span>,
+   <span class="cs">"engadget.com/comparison"</span>
+ <span class="cbr">]</span>,
+ <span class="ck">"generated_overview"</span>: <span class="cs">"Yes,
+   the M5 offers doubled base
+   storage (512GB vs 256GB),
+   faster Wi-Fi 7..."</span>,
+ <span class="ck">"confidence"</span>: <span class="cn">0.91</span>,
+ <span class="ck">"ad_auction_triggered"</span>: <span class="cb">true</span>,
+ <span class="ck">"ads_served"</span>: <span class="cn">3</span>,
+ <span class="ck">"user_clicked_through"</span>: <span class="cb">false</span>,
+ <span class="ck">"time_on_overview"</span>: <span class="cn">14.2</span>,<span class="cc"> //sec</span>
+ <span class="ck">"outcome"</span>: <span class="cs">"satisfied_no_click"</span>
+<span class="cbr">}</span>
+<span class="cc chi">// Google captured EVERYTHING:</span>
+<span class="cc chi">// intent, confidence, sources,</span>
+<span class="cc chi">// dwell time, click behavior</span></pre></div>
+      <div class="code-compare-panel"><pre><span class="cc">// What Apple.com receives</span>
+<span class="cc">// about this interaction:</span>
+
+
+
+
+<span class="cnl" style="font-size:48px;display:block;text-align:center;padding:40px 0;">∅</span>
+
+<span class="cc" style="text-align:center;display:block;">Nothing.</span>
+
+<span class="cc" style="text-align:center;display:block;">Absolutely nothing.</span>
+
+
+
+<span class="cc chi">// No referral event.</span>
+<span class="cc chi">// No impression pixel.</span>
+<span class="cc chi">// No attribution webhook.</span>
+<span class="cc chi">// No "your product was</span>
+<span class="cc chi">//  mentioned" notification.</span>
+<span class="cc chi">// No API. No feed. No log.</span>
+<span class="cc chi">//</span>
+<span class="cc chi">// Apple's content (apple.com</span>
+<span class="cc chi">// /macbook-air) was used as a</span>
+<span class="cc chi">// SOURCE for the AI Overview.</span>
+<span class="cc chi">// Apple received 0 visits,</span>
+<span class="cc chi">// 0 data, 0 signal in return.</span></pre></div>
+    </div>
+    <div class="code-annotation">
+      Google's AI processed <strong>5 sources, generated a confidence-scored overview, ran an ad auction, and tracked user dwell time</strong> — all in under 2 seconds. Apple, whose product page was the primary source, received <em>absolutely nothing</em>. Not a click, not a pixel, not a notification. The content was consumed. The creator was invisible.
+    </div>
+  </div>
+
+  <h2 class="reveal">The Players in the Middle</h2>
+
+  <p class="reveal">
+    This isn't a single company doing this. It's an entire new category of intermediary — and each player has a different relationship to the businesses whose products they're recommending.
+  </p>
+
+  <div class="player-grid reveal" id="player-grid">
+    <div class="player-card" data-delay="0">
+      <div class="player-card-name">Google AI Overviews</div>
+      <div class="player-card-role">The Gatekeeper</div>
+      <p>Answers queries directly in search results. Leverages the world's largest search dataset. Reduces click-through to source websites. The business whose content trained the answer may never receive a visit.</p>
+      <div class="player-card-threat">Business impact: Cannibalized organic traffic. Publishers lose clicks but provide training data.</div>
+    </div>
+
+    <div class="player-card" data-delay="100">
+      <div class="player-card-name">ChatGPT / Copilot</div>
+      <div class="player-card-role">The Advisor</div>
+      <p>Users directly ask "should I buy X or Y?" and receive personalized-feeling recommendations. No ads, no sponsorships (yet). No attribution. The conversation is private and untrackable by any business.</p>
+      <div class="player-card-threat">Business impact: Decision influence with zero visibility. No API for businesses to monitor or respond.</div>
+    </div>
+
+    <div class="player-card" data-delay="200">
+      <div class="player-card-name">Perplexity</div>
+      <div class="player-card-role">The Researcher</div>
+      <p>Combines search and synthesis with source citations. Has launched shopping features. Sits at the intersection of discovery and transaction — potentially the most disruptive position in the stack.</p>
+      <div class="player-card-threat">Business impact: May become a transactional layer that bypasses traditional commerce entirely.</div>
+    </div>
+
+    <div class="player-card" data-delay="300">
+      <div class="player-card-name">Social AI (Meta, TikTok)</div>
+      <div class="player-card-role">The Whisperer</div>
+      <p>AI-powered feed algorithms already shape what users see. Next step: AI assistants embedded in social apps that answer product questions using engagement data. Influence masquerading as discovery.</p>
+      <div class="player-card-threat">Business impact: Blurs the line between organic recommendation and algorithmic placement. Trust erosion.</div>
+    </div>
+  </div>
+
+  <p class="reveal">
+    To understand the scale of invisibility, let's look at the actual data that flows — and doesn't flow — when a user asks ChatGPT for a product recommendation.
+  </p>
+
+  <!-- ═══════ TECHNICAL: CHATGPT CONVERSATION vs BUSINESS VISIBILITY ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">ChatGPT Product Recommendation — What Happens Inside</span>
+      <span class="code-header-badge badge-api">API INTERNALS</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ─── User asks ChatGPT: "Should I get the M4 or M5 MacBook Air?" ───</span>
+
+<span class="cc">// ChatGPT Internal Processing (approximate):</span>
+<span class="cbr">{</span>
+  <span class="ck">"conversation_id"</span>: <span class="cs">"conv_8f7a6b5c4d3e2f1a"</span>,
+  <span class="ck">"user_id"</span>: <span class="cs">"user_anon_xyz789"</span>,
+  <span class="ck">"model"</span>: <span class="cs">"gpt-4o"</span>,
+  <span class="ck">"message"</span>: <span class="cs">"Should I get the M4 or M5 MacBook Air?"</span>,
+  <span class="ck">"context_from_conversation"</span>: <span class="cbr">[</span>
+    <span class="cs">"User previously mentioned being laid off"</span>,
+    <span class="cs">"User asked about budget laptops last week"</span>,
+    <span class="cs">"User is a software developer"</span>
+  <span class="cbr">]</span>,
+  <span class="ck">"response_generated"</span>: <span class="cs">"For most users, the M4 MacBook Air at $1,099
+    offers excellent value. The M5's main advantages are doubled base storage
+    and Wi-Fi 7 — but if budget is a concern, the M4 gives you 90% of the
+    performance at $200 less. Given your situation, I'd lean toward the M4."</span>,
+  <span class="ck">"products_mentioned"</span>: <span class="cbr">[</span>
+    <span class="cbr">{</span> <span class="ck">"product"</span>: <span class="cs">"MacBook Air M4"</span>, <span class="ck">"sentiment"</span>: <span class="cs">"recommended"</span>, <span class="ck">"brand"</span>: <span class="cs">"Apple"</span> <span class="cbr">}</span>,
+    <span class="cbr">{</span> <span class="ck">"product"</span>: <span class="cs">"MacBook Air M5"</span>, <span class="ck">"sentiment"</span>: <span class="cs">"acknowledged"</span>, <span class="ck">"brand"</span>: <span class="cs">"Apple"</span> <span class="cbr">}</span>
+  <span class="cbr">]</span>,
+  <span class="ck">"recommendation_direction"</span>: <span class="cs">"steered_to_lower_price"</span>,
+  <span class="ck">"revenue_impact_estimate"</span>: <span class="cs">"-$200 (M5 → M4 downgrade)"</span>,
+  <span class="ck">"tokens_used"</span>: <span class="cn">847</span>
+<span class="cbr">}</span>
+
+<span class="cc">// ─── Data sent to Apple about this interaction: ───</span>
+<span class="cnl">null</span>
+
+<span class="cc">// ─── Data sent to ANY business about this interaction: ───</span>
+<span class="cnl">null</span>
+
+<span class="cc">// ─── Webhook or API available for businesses to query: ───</span>
+<span class="cnl">null</span>
+
+<span class="cc chi">// ChatGPT just influenced a $200 revenue delta for Apple.</span>
+<span class="cc chi">// Apple has NO IDEA this conversation happened.</span>
+<span class="cc chi">// No notification. No attribution. No feedback loop.</span>
+<span class="cc chi">// This is repeated millions of times per day, across every product category.</span></pre>
+    </div>
+    <div class="code-annotation">
+      ChatGPT had access to <strong>personal context (layoff, budget concern, profession)</strong> that no other system in the commerce stack possessed. It used that context to make a personalized recommendation that <em>directly reduced Apple's revenue by $200</em>. Apple will never know. There is no mechanism — no webhook, no API, no protocol — for this information to flow back.
+    </div>
+  </div>
+
+  <p class="reveal">
+    Now contrast that with what <em>should</em> exist. If the AI layer were part of a connected Signal Chain rather than a black hole, it could emit structured attribution events — without exposing the user's private conversation.
+  </p>
+
+  <!-- ═══════ TECHNICAL: THE MISSING WEBHOOK ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">The Missing Webhook — What AI Attribution SHOULD Look Like</span>
+      <span class="code-header-badge badge-webhook">PROPOSED SCHEMA</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ─── AI_Recommendation_Attribution_Event ───</span>
+<span class="cc">// A hypothetical webhook that SHOULD be emitted when AI</span>
+<span class="cc">// makes a product recommendation. This does NOT exist today.</span>
+
+<span class="cb">POST</span> <span class="cs">https://api.apple.com/webhooks/ai-attribution</span>
+<span class="ck">Content-Type:</span> <span class="cs">application/json</span>
+<span class="ck">X-AI-Provider:</span> <span class="cs">openai</span>
+<span class="ck">X-Attribution-Version:</span> <span class="cs">1.0</span>
+
+<span class="cbr">{</span>
+  <span class="ck">"event_type"</span>: <span class="cs">"ai_product_recommendation"</span>,
+  <span class="ck">"timestamp"</span>: <span class="cs">"2026-04-02T11:28:33Z"</span>,
+  <span class="ck">"ai_provider"</span>: <span class="cs">"openai_chatgpt"</span>,
+  <span class="ck">"interaction_id"</span>: <span class="cs">"attr_anon_9f8e7d6c"</span>,  <span class="cc">// anonymized, no user PII</span>
+
+  <span class="ck">"products_discussed"</span>: <span class="cbr">[</span>
+    <span class="cbr">{</span>
+      <span class="ck">"product_id"</span>: <span class="cs">"MBA-M5-15-512"</span>,
+      <span class="ck">"brand"</span>: <span class="cs">"Apple"</span>,
+      <span class="ck">"mentioned"</span>: <span class="cb">true</span>,
+      <span class="ck">"recommended"</span>: <span class="cb">false</span>,
+      <span class="ck">"reason_category"</span>: <span class="cs">"price_sensitivity"</span>
+    <span class="cbr">}</span>,
+    <span class="cbr">{</span>
+      <span class="ck">"product_id"</span>: <span class="cs">"MBA-M4-15-256"</span>,
+      <span class="ck">"brand"</span>: <span class="cs">"Apple"</span>,
+      <span class="ck">"mentioned"</span>: <span class="cb">true</span>,
+      <span class="ck">"recommended"</span>: <span class="cb">true</span>,
+      <span class="ck">"reason_category"</span>: <span class="cs">"value_proposition"</span>
+    <span class="cbr">}</span>
+  <span class="cbr">]</span>,
+
+  <span class="ck">"decision_context"</span>: <span class="cbr">{</span>
+    <span class="ck">"comparison_type"</span>: <span class="cs">"within_brand"</span>,
+    <span class="ck">"primary_factor"</span>: <span class="cs">"price"</span>,
+    <span class="ck">"user_segment"</span>: <span class="cs">"budget_conscious"</span>,  <span class="cc">// anonymized segment, not PII</span>
+    <span class="ck">"confidence"</span>: <span class="cn">0.78</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"attribution"</span>: <span class="cbr">{</span>
+    <span class="ck">"revenue_direction"</span>: <span class="cs">"downgrade"</span>,
+    <span class="ck">"estimated_delta"</span>: <span class="cn">-200.00</span>,
+    <span class="ck">"currency"</span>: <span class="cs">"USD"</span>
+  <span class="cbr">}</span>,
+
+  <span class="ck">"transparency"</span>: <span class="cbr">{</span>
+    <span class="ck">"sources_cited"</span>: <span class="cbr">[</span><span class="cs">"apple.com"</span>, <span class="cs">"9to5mac.com"</span><span class="cbr">]</span>,
+    <span class="ck">"paid_placement"</span>: <span class="cb">false</span>,
+    <span class="ck">"disclosure_shown_to_user"</span>: <span class="cb">true</span>
+  <span class="cbr">}</span>
+<span class="cbr">}</span>
+
+<span class="cc chi">// THIS WEBHOOK DOES NOT EXIST TODAY.</span>
+<span class="cc chi">// No AI provider emits structured attribution events.</span>
+<span class="cc chi">// No standard protocol exists for AI recommendation reporting.</span>
+<span class="cc chi">// The entire concept of "AI attribution" is unbuilt infrastructure.</span></pre>
+    </div>
+    <div class="code-annotation">
+      This schema is <strong>privacy-preserving</strong> (anonymized IDs, segment-level data, no PII) while being <strong>commercially meaningful</strong> (product discussed, recommendation direction, revenue delta, sources cited). It would let businesses understand how AI is shaping demand for their products — <em>without exposing any individual user's conversation</em>. The technology to build this exists. The will to build it does not — yet.
+    </div>
+  </div>
+
+  <h2 class="reveal">The Zero-Click Economy</h2>
+
+  <p class="reveal">
+    The most measurable consequence of the AI intermediary is the rise of what search analysts call <strong>"zero-click searches"</strong> — queries where the user gets their answer directly on the search results page and never clicks through to any website. AI Overviews have accelerated this trend dramatically.
+  </p>
+
+  <div class="zero-click reveal" id="zero-click">
+    <div class="zc-title">Zero-Click Search Rate — Google Desktop</div>
+
+    <div class="zc-bar-group">
+      <div class="zc-label">
+        <span>2019 — Pre-AI, featured snippets era</span>
+        <span style="color: var(--amber);">50%</span>
+      </div>
+      <div class="zc-bar"><div class="zc-fill amber" data-width="50"></div></div>
+      <div class="zc-year">Half of searches already ended without a click</div>
+    </div>
+
+    <div class="zc-bar-group">
+      <div class="zc-label">
+        <span>2023 — AI Overviews begin testing</span>
+        <span style="color: var(--ai-blue);">59%</span>
+      </div>
+      <div class="zc-bar"><div class="zc-fill blue" data-width="59"></div></div>
+      <div class="zc-year">Search Generative Experience rolls out in Labs</div>
+    </div>
+
+    <div class="zc-bar-group">
+      <div class="zc-label">
+        <span>2025 — AI Overviews fully deployed</span>
+        <span style="color: var(--ai-blue);">68%</span>
+      </div>
+      <div class="zc-bar"><div class="zc-fill blue" data-width="68"></div></div>
+      <div class="zc-year">Two-thirds of searches resolve without a click-through</div>
+    </div>
+
+    <div class="zc-bar-group">
+      <div class="zc-label">
+        <span>2026 — Projected with AI agents + shopping</span>
+        <span style="color: var(--signal-red);">75%+</span>
+      </div>
+      <div class="zc-bar"><div class="zc-fill red" data-width="75"></div></div>
+      <div class="zc-year">Three-quarters of all searches may never reach a business's website</div>
+    </div>
+  </div>
+
+  <p class="reveal">
+    Think about what this means for businesses. Three-quarters of the time someone searches for your product, your category, your brand — they may get an answer and leave without ever seeing your website, your pricing page, your value proposition as <em>you</em> frame it. The AI layer is not just intercepting traffic. It's <strong>intercepting narrative control</strong>.
+  </p>
+
+  <div class="data-callout reveal" data-label="THOUGHT EXPERIMENT">
+    <div class="stat-label" style="font-size: 14px; color: var(--charcoal-light); line-height: 1.7;">
+      Imagine you're Apple's VP of Marketing. You've spent $50 million on the M5 MacBook Air launch campaign. The messaging is precise: "Twice the storage. Smarter AI. Same iconic design." You've bought search ads. You've placed YouTube pre-rolls. You've briefed every tech journalist. And now, 68% of the people searching for your product are getting their answer from a Google AI Overview that <em>you didn't write, can't edit, and may not accurately represent your positioning.</em> Your $50 million campaign is being filtered through someone else's language model.
+    </div>
+  </div>
+
+  <p class="reveal">
+    To understand the economics of zero-click, you need to see the data packet. Here's exactly what Google logs for a zero-click AI Overview interaction — and what it sends to the publisher whose content powered the answer.
+  </p>
+
+  <!-- ═══════ TECHNICAL: ZERO-CLICK DATA PACKET ═══════ -->
+  <div class="code-section reveal">
+    <div class="code-header">
+      <span class="code-header-title">Zero-Click AI Overview — The Data Asymmetry</span>
+      <span class="code-header-badge badge-internal">INTERNAL LOG</span>
+    </div>
+    <div class="code-body"><pre><span class="cc">// ─── Google's Internal Log for this AI Overview Impression ───</span>
+<span class="cbr">{</span>
+  <span class="ck">"event"</span>: <span class="cs">"ai_overview_impression"</span>,
+  <span class="ck">"query"</span>: <span class="cs">"m4 vs m5 macbook air"</span>,
+  <span class="ck">"user_id"</span>: <span class="cs">"gaia_12345"</span>,        <span class="cc">// Google account ID</span>
+  <span class="ck">"overview_rendered"</span>: <span class="cb">true</span>,
+  <span class="ck">"overview_expanded"</span>: <span class="cb">true</span>,       <span class="cc">// user read the full overview</span>
+  <span class="ck">"time_on_overview_ms"</span>: <span class="cn">14200</span>,
+  <span class="ck">"sources_shown"</span>: <span class="cbr">[</span>
+    <span class="cbr">{</span> <span class="ck">"url"</span>: <span class="cs">"apple.com/macbook-air"</span>, <span class="ck">"clicked"</span>: <span class="cb">false</span> <span class="cbr">}</span>,
+    <span class="cbr">{</span> <span class="ck">"url"</span>: <span class="cs">"9to5mac.com/m5-review"</span>, <span class="ck">"clicked"</span>: <span class="cb">false</span> <span class="cbr">}</span>,
+    <span class="cbr">{</span> <span class="ck">"url"</span>: <span class="cs">"engadget.com/m5-vs-m4"</span>, <span class="ck">"clicked"</span>: <span class="cb">false</span> <span class="cbr">}</span>
+  <span class="cbr">]</span>,
+  <span class="ck">"organic_results_clicked"</span>: <span class="cn">0</span>,   <span class="cc chi">// ← zero clicks to any website</span>
+  <span class="ck">"ads_shown"</span>: <span class="cn">3</span>,
+  <span class="ck">"ads_clicked"</span>: <span class="cn">0</span>,
+  <span class="ck">"next_action"</span>: <span class="cs">"new_search"</span>,    <span class="cc">// user refined query or left</span>
+  <span class="ck">"ad_revenue_generated"</span>: <span class="cn">0.00</span>,  <span class="cc">// no clicks = no CPC revenue</span>
+  <span class="ck">"user_satisfied"</span>: <span class="cb">true</span>          <span class="cc">// inferred from no follow-up query</span>
+<span class="cbr">}</span>
+
+<span class="cc">// ─── What Google sends to 9to5mac.com about this interaction: ───</span>
+<span class="cc">// Via Google Search Console (delayed 2-3 days):</span>
+<span class="cbr">{</span>
+  <span class="ck">"query"</span>: <span class="cs">"m4 vs m5 macbook air"</span>,
+  <span class="ck">"impressions"</span>: <span class="cn">1</span>,              <span class="cc">// yes, counted as an "impression"</span>
+  <span class="ck">"clicks"</span>: <span class="cn">0</span>,
+  <span class="ck">"ctr"</span>: <span class="cn">0.0</span>,
+  <span class="ck">"position"</span>: <span class="cn">3.2</span>,
+  <span class="cc chi">  // That's it. The publisher sees: "someone searched, we appeared, nobody clicked."</span>
+  <span class="cc chi">  // They do NOT see: "Your content was synthesized into an AI Overview</span>
+  <span class="cc chi">  //   that answered the user's question, making a click to your site unnecessary."</span>
+  <span class="cc chi">  // The publisher's content was CONSUMED. The publisher was not VISITED.</span>
+<span class="cbr">}</span></pre>
+    </div>
+    <div class="code-annotation">
+      Google logged <strong>12 data points</strong> about this interaction, including user satisfaction inference. The publisher whose content was used received <strong>3 data points</strong> — impressions, clicks, and position — delayed by days. The most important signal (<em>"your content answered the query via AI and the user never needed to visit your site"</em>) is not communicated at all.
+    </div>
+  </div>
+
+  <h2 class="reveal">The Before and After</h2>
+
+  <p class="reveal">
+    Let's make the architectural shift concrete. Here's the same user journey — our MacBook Air searcher — mapped across the old stack and the new stack.
+  </p>
+
+  <!-- ═══════ BEFORE / AFTER COMPARISON ═══════ -->
+  <div class="comparison-section reveal">
+    <div class="comparison-title">Journey Architecture — Before &amp; After AI</div>
+
+    <div class="toggle-bar">
+      <button class="toggle-btn active" data-panel="before" onclick="togglePanel('before')">Before AI Layer (2020)</button>
+      <button class="toggle-btn" data-panel="after" onclick="togglePanel('after')">After AI Layer (2026)</button>
+    </div>
+
+    <div class="comparison-panel active" id="panel-before">
+      <div class="flow-path">
+        <span class="flow-node user">User query</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node search">Google results</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node commerce">Apple.com click</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node social">YouTube review</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node commerce">Return to Apple</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node crm">Cart / Purchase</span>
+      </div>
+      <div class="flow-annotation">
+        <strong>6 touchpoints, 4 trackable.</strong> Google captures the query. Apple captures the visit and return visit. YouTube captures watch time. The CRM captures the conversion. Attribution is imperfect but functional. The business sees ~60% of the journey.
+      </div>
+    </div>
+
+    <div class="comparison-panel" id="panel-after">
+      <div class="flow-path">
+        <span class="flow-node user">User query</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node ai">AI Overview answers</span>
+        <span class="flow-arrow broken">⚡</span>
+        <span class="flow-node dead">No click-through</span>
+      </div>
+      <div class="flow-annotation" style="margin-bottom: 20px;">
+        <strong>Journey terminated at step 2.</strong> The AI layer provided a synthesized answer. The user felt informed. <em>No business was visited. No ad was seen. No cookie was dropped. No attribution event fired. Apple doesn't know this person exists.</em>
+      </div>
+      <div class="flow-path">
+        <span class="flow-node user">Or...</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node ai">ChatGPT recommends M4</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node commerce">Apple.com (M4 page)</span>
+        <span class="flow-arrow">→</span>
+        <span class="flow-node crm">Purchase</span>
+      </div>
+      <div class="flow-annotation">
+        <strong>The AI shaped the decision before the business saw the user.</strong> Apple sees a direct visit to the M4 page and a purchase. What they don't see: the user originally considered the M5, but ChatGPT said the M4 was better value. <em>Apple just lost $200 in revenue and has no idea why — or that AI was involved at all.</em>
+      </div>
+    </div>
+  </div>
+
+  <p class="reveal">
+    Both scenarios are devastating in different ways. In the first, the business loses the user entirely — the journey ends before it begins. In the second, the business gets the sale but loses control of which product was recommended and why. In neither case does the business have any visibility into the AI's role in the outcome.
+  </p>
+
+  <h2 class="reveal">The Paradox of the Helpful Machine</h2>
+
+  <p class="reveal">
+    Here's the uncomfortable paradox: <strong>the AI intermediary is genuinely helpful to users.</strong> It saves time. It synthesizes complexity. It reduces the seven-tab spiral to a single, coherent answer. For the user, this is progress.
+  </p>
+
+  <p class="reveal">
+    But for the ecosystem, it's an extraction event. The AI consumes content, data, reviews, and specifications created by businesses and publishers, synthesizes them into an answer, and delivers that answer in a context where the original creators receive no traffic, no attribution, and no commercial benefit. The user is better served. The system that served them is being hollowed out.
+  </p>
+
+  <p class="reveal">
+    This is not a problem that gets solved by blocking AI crawlers or suing language model companies. The genie is out of the bottle. Users now <em>expect</em> AI-mediated answers. The question is not whether AI will sit in the middle of the commerce stack — it already does. The question is whether the rest of the stack will adapt to work with it, around it, or despite it.
+  </p>
+
+  <div class="pull-quote reveal">
+    <p>The AI intermediary is the most powerful uninvited guest in the history of commerce — and it's already rearranging the furniture.</p>
+  </div>
+
+  <p class="reveal">
+    In the next chapter, we'll propose what adaptation looks like. Not a single product or platform, but an architectural pattern — a way to reconnect the signal that's been fragmenting for two decades and finally build the decision infrastructure that users and businesses both need. We call it The Signal Chain.
+  </p>
+
+  <!-- ═══════ NEXT CHAPTER ═══════ -->
+  <div class="next-chapter reveal">
+    <div class="next-chapter-label">Up Next — Chapter 04</div>
+    <h3>The Signal Chain</h3>
+    <p>The connected architecture that should exist — search intent, social signal, AI recommendation, CRM, and ERP, stitched together into a unified decision infrastructure.</p>
+    <a class="next-chapter-cta" href="#part4">Continue Reading →</a>
+  </div>
+
+</article>
+
+<footer class="article-footer">
+  <div class="footer-logo">PaddySpeaks</div>
+  <div class="footer-meta">The Decision Abyss — Part 3 of 5 · April 2026</div>
+</footer>
+
+<script>
+  // ─── Scroll Reveal ───
+  const revealEls = document.querySelectorAll('.reveal');
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('visible'); revealObs.unobserve(e.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -30px 0px' });
+  revealEls.forEach(el => revealObs.observe(el));
+
+  // ─── Stack Layers Stagger ───
+  const stackDiagram = document.getElementById('stack-diagram');
+  const stackObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const layers = e.target.querySelectorAll('.stack-layer');
+        layers.forEach((layer, i) => {
+          const delay = parseInt(layer.dataset.delay) || 0;
+          setTimeout(() => layer.classList.add('visible'), delay);
+        });
+        stackObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  if (stackDiagram) stackObs.observe(stackDiagram);
+
+  // ─── Player Cards Stagger ───
+  const playerGrid = document.getElementById('player-grid');
+  const playerObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const cards = e.target.querySelectorAll('.player-card');
+        cards.forEach((card, i) => {
+          const delay = parseInt(card.dataset.delay) || 0;
+          setTimeout(() => card.classList.add('visible'), delay);
+        });
+        playerObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  if (playerGrid) playerObs.observe(playerGrid);
+
+  // ─── Zero-Click Bar Animation ───
+  const zcSection = document.getElementById('zero-click');
+  const zcObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        const bars = e.target.querySelectorAll('.zc-fill');
+        bars.forEach((bar, i) => {
+          setTimeout(() => { bar.style.width = bar.dataset.width + '%'; }, i * 250);
+        });
+        zcObs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.25 });
+  if (zcSection) zcObs.observe(zcSection);
+
+  // ─── Before/After Toggle ───
+  function togglePanel(which) {
+    document.querySelectorAll('.comparison-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + which).classList.add('active');
+    document.querySelector('.toggle-btn[data-panel="' + which + '"]').classList.add('active');
+  }
+</script>
+
+</body>
+</html>
