@@ -556,49 +556,45 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 1",
       titleSanskrit: "प्रथमोऽनुवाकः",
-      subtitle: "Arthendram — Invocation of Twenty Gods with Indra",
-      description: "Known as the 'Arthendram' anuvaka, this section clubs all Gods with Indra as the Antaryami (indwelling Lord) and co-sharer in all sacrificial oblations. Twenty deities are invoked paired with Indra, who as the God of Gods receives a share of every offering. Each deity represents a cosmic power that bestows specific psychological and spiritual faculties — Agni embodies the power of will, Brihaspati signifies vastness, Savitar the Supreme Creator. The prayer asks that all these divine powers grow within us, as a child grows in the mother's womb.",
+      subtitle: "Body, Breath, Senses, and Integrated Faculties",
+      description: "The opening anuvaka of the Chamakam prays for 36 blessings relating to food, vital breaths, senses, mental faculties, bodily structure, and longevity. The word कल्पतां (may be available) from the tenth anuvaka must be attached to all words. The word च (and) indicates togetherness — all these should be available together.",
       mantras: [
-        {
-          devanagari: "अग्निश्च म इन्द्रश्च मे सोमश्च म इन्द्रश्च मे",
-          text: "agniśca ma indraśca me somaśca ma indraśca me",
-          meaning: "May Agni and Indra bless me, may Soma and Indra bless me."
-        },
-        {
-          devanagari: "सविता च म इन्द्रश्च मे बृहस्पतिश्च म इन्द्रश्च मे",
-          text: "savitā ca ma indraśca me bṛhaspatiśca ma indraśca me",
-          meaning: "May Savitar and Indra bless me, may Brihaspati and Indra bless me."
-        },
-        {
-          devanagari: "मित्रश्च म इन्द्रश्च मे वरुणश्च म इन्द्रश्च मे",
-          text: "mitraśca ma indraśca me varuṇaśca ma indraśca me",
-          meaning: "May Mitra and Indra bless me, may Varuna and Indra bless me."
-        },
-        {
-          devanagari: "त्वष्टा च म इन्द्रश्च मे धाता च म इन्द्रश्च मे",
-          text: "tvaṣṭā ca ma indraśca me dhātā ca ma indraśca me",
-          meaning: "May Tvashtar and Indra bless me, may Dhatar and Indra bless me."
-        },
-        {
-          devanagari: "विष्णुश्च म इन्द्रश्च मे अश्विनौ च म इन्द्रश्च मे",
-          text: "viṣṇuśca ma indraśca me aśvinau ca ma indraśca me",
-          meaning: "May Vishnu and Indra bless me, may the Ashvins and Indra bless me."
-        },
-        {
-          devanagari: "मरुतश्च म इन्द्रश्च मे विश्वेदेवाश्च म इन्द्रश्च मे",
-          text: "marutaśca ma indraśca me viśvedevāśca ma indraśca me",
-          meaning: "May the Maruts and Indra bless me, may the Vishvedevas and Indra bless me."
-        },
-        {
-          devanagari: "पृथिवी च म इन्द्रश्च मे अन्तरिक्षं च म इन्द्रश्च मे",
-          text: "pṛthivī ca ma indraśca me antarikṣaṁ ca ma indraśca me",
-          meaning: "May the Earth and Indra bless me, may the Atmosphere and Indra bless me."
-        },
-        {
-          devanagari: "द्यौश्च म इन्द्रश्च मे दिशश्च म इन्द्रश्च मे",
-          text: "dyauśca ma indraśca me diśaśca ma indraśca me",
-          meaning: "May Heaven and Indra bless me, may the Directions and Indra bless me."
-        }
+        { devanagari: "वाजः", text: "vājaḥ", meaning: "Food — nourishment-strength, the fuel that makes every other capacity possible." },
+        { devanagari: "प्रसवः", text: "prasavaḥ", meaning: "Permission — for making food available, eating it, etc. Wherever I go, I should get this kind of permission." },
+        { devanagari: "प्रयतिः", text: "prayatiḥ", meaning: "Purity — cleanliness and sanctity required before partaking of food." },
+        { devanagari: "प्रसितिः", text: "prasitiḥ", meaning: "Yearning — on seeing food, staying there with desire to eat." },
+        { devanagari: "धीतिः", text: "dhītiḥ", meaning: "Acceptance — the act of accepting food offered to oneself." },
+        { devanagari: "क्रतुः", text: "kratuḥ", meaning: "Yagna — the sacrifice that is the cause of food production." },
+        { devanagari: "स्वरः", text: "svaraḥ", meaning: "Intonation — the proper Vedic accent (Udātta etc.) in chanting mantras." },
+        { devanagari: "श्लोकः", text: "ślokaḥ", meaning: "Praise — hymns of glorification and poetic expression." },
+        { devanagari: "श्रावः", text: "śrāvaḥ", meaning: "Eloquence — capacity to speak such that many people enjoy listening." },
+        { devanagari: "श्रुतिः", text: "śrutiḥ", meaning: "Listening — capacity to enjoy and absorb what is heard." },
+        { devanagari: "ज्योतिः", text: "jyotiḥ", meaning: "Light — illumination, both physical and spiritual." },
+        { devanagari: "सुवः", text: "suvaḥ", meaning: "Swarga — the heavenly realm, higher state of being." },
+        { devanagari: "प्राणः", text: "prāṇaḥ", meaning: "Prāṇavāyu — the air going from outside into the body (inhalation)." },
+        { devanagari: "अपानः", text: "apānaḥ", meaning: "Apānavāyu — the air emerging out of the body (exhalation)." },
+        { devanagari: "व्यानः", text: "vyānaḥ", meaning: "Vyānavāyu — the air present in the joints of limbs (circulation)." },
+        { devanagari: "असुः", text: "asuḥ", meaning: "Air — the vital air in general that sustains life." },
+        { devanagari: "चित्तम्", text: "cittam", meaning: "Mind-knowledge — awareness and knowledge present in the mind." },
+        { devanagari: "अधीतम्", text: "adhītam", meaning: "Learned knowledge — matters appearing in that knowledge through study." },
+        { devanagari: "वाक्", text: "vāk", meaning: "Speech — the organ and faculty of speech." },
+        { devanagari: "मनः", text: "manaḥ", meaning: "Mind — the thinking faculty, the inner instrument of thought." },
+        { devanagari: "चक्षुः", text: "cakṣuḥ", meaning: "Eye — the faculty of sight and perception." },
+        { devanagari: "श्रोत्रम्", text: "śrotram", meaning: "Ear — the faculty of hearing and discernment." },
+        { devanagari: "दक्षः", text: "dakṣaḥ", meaning: "Dexterity — capacity and fine functioning of the Jñānendriyas (sense organs)." },
+        { devanagari: "बलम्", text: "balam", meaning: "Strength — capacity and power of the Karmendriyas (action organs)." },
+        { devanagari: "ओजः", text: "ojaḥ", meaning: "Virulence — the vital vigour (eighth dhātu) that is the cause of strength." },
+        { devanagari: "सहः", text: "sahaḥ", meaning: "Endurance — capacity to attack and overcome the enemy." },
+        { devanagari: "आयुः", text: "āyuḥ", meaning: "Lifespan — the full duration of one's life." },
+        { devanagari: "जरा", text: "jarā", meaning: "Old age — life till attaining a venerable and respected old age." },
+        { devanagari: "आत्मा", text: "ātmā", meaning: "Ātmā — the Paramātmā, the Self reputed in the Śāstras." },
+        { devanagari: "तनूः", text: "tanūḥ", meaning: "Body — a handsome, well-formed body." },
+        { devanagari: "शर्म", text: "śarma", meaning: "Comfort — ease, happiness, and shelter." },
+        { devanagari: "वर्म", text: "varma", meaning: "Armour — protection for the body, both physical and subtle." },
+        { devanagari: "अङ्गानि", text: "aṅgāni", meaning: "Limbs — full and complete limbs of the body." },
+        { devanagari: "अस्थानि", text: "asthāni", meaning: "Bones — bones properly placed in required positions." },
+        { devanagari: "परूंषि", text: "parūṁṣi", meaning: "Joints — the joints in hands, legs, and other parts." },
+        { devanagari: "शरीराणि", text: "śarīrāṇi", meaning: "Body parts — all other parts and systems of the body." }
       ]
     },
     {
@@ -606,39 +602,47 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 2",
       titleSanskrit: "द्वितीयोऽनुवाकः",
-      subtitle: "Perfection of Speech, Senses, Body, and Vital Breaths",
-      description: "This anuvaka prays for the perfection of the human body, which is the cornerstone for upholding Dharma. It encompasses thirty-six items relating to the sensory and internal organs, mental faculties, bodily structure, vital breaths, and longevity. The prayer seeks that all these powers be perfectly revealed in us in complete harmony with each other, enabling successful performance of all tasks in everyday life.",
+      subtitle: "Excellence, Leadership, Truth, Play, and Legacy",
+      description: "This anuvaka prays for prominence, leadership, righteous anger, victory, truth, faith, wealth, self-mastery, play, and legacy. It encompasses 38 aspirations relating to character, worldly success, and the wisdom to manage both present and future.",
       mantras: [
-        {
-          devanagari: "वाक् च मे मनश्च मे चक्षुश्च मे श्रोत्रं च मे",
-          text: "vāk ca me manaśca me cakṣuśca me śrotraṁ ca me",
-          meaning: "May the power of speech be mine, may a clear and sound mind be mine, may keen eyesight and perception be mine, may discriminatory hearing be mine."
-        },
-        {
-          devanagari: "दक्षश्च मे बलं च म ओजश्च मे सहश्च मे",
-          text: "dakṣaśca me balaṁ ca ma ojaśca me sahaśca me",
-          meaning: "May the fine functioning of all sense organs be mine, may the strength of body organs be mine, may virility and the highest intelligence be mine, may the power to overcome foes be mine."
-        },
-        {
-          devanagari: "आत्मा च मे तनूश्च मे शर्म च मे वर्म च मे",
-          text: "ātmā ca me tanūśca me śarma ca me varma ca me",
-          meaning: "May a seasoned and necessary ego be mine, may a perfected and well-built body be mine, may happiness be mine, may safeguarding of the body be mine."
-        },
-        {
-          devanagari: "अङ्गानि च मे अस्थीनि च मे परूंषि च मे शरीराणि च मे",
-          text: "aṅgāni ca me asthīni ca me parūṁṣi ca me śarīrāṇi ca me",
-          meaning: "May excellent limbs be mine, may perfected and well-set bones be mine, may well-set joints be mine, may excellent body parts be mine."
-        },
-        {
-          devanagari: "आयुश्च मे जरा च मे आत्मा च मे तनूश्च मे",
-          text: "āyuśca me jarā ca me ātmā ca me tanūśca me",
-          meaning: "May prolonged active life and longevity be mine, may a venerable and respected old age be mine, may a seasoned ego be mine, may a well-built body be mine."
-        },
-        {
-          devanagari: "प्राणश्च मेऽपानश्च मे व्यानश्च मेऽसुश्च मे",
-          text: "prāṇaśca me'pānaśca me vyānaśca me'suśca me",
-          meaning: "May the regular function of the main breath be mine, may the downward breath be mine, may the distributing breath be mine, may the vital function of these airs be mine."
-        }
+        { devanagari: "ज्यैष्ठ्यम्", text: "jyaiṣṭhyam", meaning: "Excellence — eminence and superiority in everything." },
+        { devanagari: "आधिपत्यम्", text: "ādhipatyam", meaning: "Lordship — leadership and sovereignty over one's domain." },
+        { devanagari: "मन्युः", text: "manyuḥ", meaning: "Mental anger — inner righteous fire, needed on certain occasions." },
+        { devanagari: "भामः", text: "bhāmaḥ", meaning: "Expressed anger — anger expressing in external signs when required." },
+        { devanagari: "अमः", text: "amaḥ", meaning: "Inscrutability — a nature that cannot be deciphered by enemies." },
+        { devanagari: "अम्भः", text: "ambhaḥ", meaning: "Water — cool, sweet, wholesome drinking water." },
+        { devanagari: "जेमा", text: "jemā", meaning: "Victory — capacity to win and prevail over adversaries." },
+        { devanagari: "महिमा", text: "mahimā", meaning: "Greatness — possessing wealth etc. obtained through success." },
+        { devanagari: "वरिमा", text: "varimā", meaning: "Honour — being valued and respected by others." },
+        { devanagari: "प्रथिमा", text: "prathimā", meaning: "Expansion — growth in properties like house, land, etc." },
+        { devanagari: "वर्ष्मा", text: "varṣmā", meaning: "Stature — excellent bodies of son, grandson, etc." },
+        { devanagari: "द्राघुया", text: "drāghuyā", meaning: "Lineage — growth and continuity of the family line." },
+        { devanagari: "वृद्धम्", text: "vṛddham", meaning: "Abundant wealth — plentiful food and material prosperity." },
+        { devanagari: "वृद्धिः", text: "vṛddhiḥ", meaning: "Growth — honour through learning and accomplishments." },
+        { devanagari: "सत्यम्", text: "satyam", meaning: "Truth — the practice of speaking truth always." },
+        { devanagari: "श्रद्धा", text: "śraddhā", meaning: "Faith — faith in the existence of after-worlds and higher order." },
+        { devanagari: "जगत्", text: "jagat", meaning: "Movable wealth — cattle and other movable property." },
+        { devanagari: "धनम्", text: "dhanam", meaning: "Wealth — other forms of riches and possessions." },
+        { devanagari: "वशः", text: "vaśaḥ", meaning: "Self-mastery — bringing all under one's own control." },
+        { devanagari: "त्विषिः", text: "tviṣiḥ", meaning: "Radiance — the natural shine and lustre of the body." },
+        { devanagari: "क्रीडा", text: "krīḍā", meaning: "Play — recreation, sport, and healthy enjoyment." },
+        { devanagari: "मोदः", text: "modaḥ", meaning: "Delight — joy and happiness on account of play and life." },
+        { devanagari: "जातम्", text: "jātam", meaning: "Children born — offspring already brought into the world." },
+        { devanagari: "जनिष्यमाणम्", text: "janiṣyamāṇam", meaning: "Children yet to be born — future progeny and descendants." },
+        { devanagari: "सूक्तम्", text: "sūktam", meaning: "Good hymns — a group of Ṛk mantras, well-composed praise." },
+        { devanagari: "सुकृतम्", text: "sukṛtam", meaning: "Merit — the spiritual merit earned from chanting those Ṛks." },
+        { devanagari: "वित्तम्", text: "vittam", meaning: "Wealth earned — riches and resources already acquired." },
+        { devanagari: "वेद्यम्", text: "vedyam", meaning: "Wealth to be earned — future resources yet to be obtained." },
+        { devanagari: "भूतम्", text: "bhūtam", meaning: "Past possessions — land etc. already with me." },
+        { devanagari: "भविष्यत्", text: "bhaviṣyat", meaning: "Future possessions — land etc. to be acquired in future." },
+        { devanagari: "सुगम्", text: "sugam", meaning: "Good places — places to be surely visited, village of relatives etc." },
+        { devanagari: "सुपथम्", text: "supatham", meaning: "Good path — a road free from thieves and dangers." },
+        { devanagari: "ऋद्धम्", text: "ṛddham", meaning: "Fruit of past karma — wealth accumulated from actions performed so far." },
+        { devanagari: "ऋद्धिः", text: "ṛddhiḥ", meaning: "Future fruit — fruit of yāga called Satra, to be performed in future." },
+        { devanagari: "कॢप्तम्", text: "kḷptam", meaning: "Materials — all materials required for performing karmas." },
+        { devanagari: "कॢप्तिः", text: "kḷptiḥ", meaning: "Capability — one's own capacity and preparedness to act." },
+        { devanagari: "मतिः", text: "matiḥ", meaning: "Intelligence — determination and judgement in ordinary matters." },
+        { devanagari: "सुमतिः", text: "sumatiḥ", meaning: "Wise discernment — determination of very intricate royal matters." }
       ]
     },
     {
@@ -646,39 +650,45 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 3",
       titleSanskrit: "तृतीयोऽनुवाकः",
-      subtitle: "Prominence, Leadership, and Worldly Splendor",
-      description: "This anuvaka prays for prominence and leadership, common sense, intellectual acumen, the capability to face adversity, spiritual elevation, and worldly splendor. These are the goals to be attained with the powers of body and mind requested in the previous anuvaka. It encompasses thirty-eight aspirations ranging from eminence among people to freedom from disease, from the duties of sacred rituals to comfortable dwelling and auspicious days.",
+      subtitle: "Comfort, Desire, Health, Fearlessness, and Good Sleep",
+      description: "This anuvaka prays for emotional and ethical health — peace in this world and the next, aligned desire, good fortune, guidance, freedom from disease and fear, and the simple blessing of a good night's sleep and an auspicious dawn.",
       mantras: [
-        {
-          devanagari: "ज्यैष्ठ्यं च म आधिपत्यं च मे मन्युश्च मे भामश्च मे",
-          text: "jyaiṣṭhyaṁ ca ma ādhipatyaṁ ca me manyuśca me bhāmaśca me",
-          meaning: "May elderliness and eminence among people be mine, may overlordship and leadership be mine, may controlled resentment be mine, may the sustainable manifestation of righteous anger be mine."
-        },
-        {
-          devanagari: "अमश्च मेऽम्भश्च मे जेमा च मे महिमा च मे",
-          text: "amaśca me'mbhaśca me jemā ca me mahimā ca me",
-          meaning: "May in-depth mind and sterling character be mine, may sweet wholesome drinking water be mine, may the upper hand and success over foes be mine, may resultant fame and wealth from victories be mine."
-        },
-        {
-          devanagari: "वरिमा च मे प्रथिमा च मे वर्ष्मा च मे द्राघ्या च मे",
-          text: "varimā ca me prathimā ca me varṣmā ca me drāghyā ca me",
-          meaning: "May being valued and respected by others be mine, may increase in abounding wealth and accomplishments be mine, may worthy progeny of sons and grandsons be mine, may the unbreakable continuity of sumptuous grandeur be mine."
-        },
-        {
-          devanagari: "ऋतं च मेऽमृतं च मेऽयक्ष्मं च मेऽनामयच्च मे",
-          text: "ṛtaṁ ca me'mṛtaṁ ca me'yakṣmaṁ ca me'nāmayacca me",
-          meaning: "May the faithful performance of the duties of yajnas be mine, may the immortal fruits of those yajnas be mine, may the prevention of incurable diseases be mine, may a body devoid of ailments be mine."
-        },
-        {
-          devanagari: "जीवातुश्च मे दीर्घायुत्वं च मेऽनमित्रं च मेऽभयं च मे",
-          text: "jīvātuśca me dīrghāyutvaṁ ca me'namitraṁ ca me'bhayaṁ ca me",
-          meaning: "May medicines that sustain life be mine, may prolonged longevity be mine, may a life without enemies be mine, may a life free from fear be mine."
-        },
-        {
-          devanagari: "सुगं च मे शयनं च मे सूषा च मे सुदिनं च मे",
-          text: "sugaṁ ca me śayanaṁ ca me sūṣā ca me sudinaṁ ca me",
-          meaning: "May good behavior acceptable to all be mine, may comfortable beds for restful sleep be mine, may a pleasing early morning be mine, may a good day fit for rituals and Vedic studies be mine."
-        }
+        { devanagari: "शम्", text: "śam", meaning: "Comfort — peace and happiness in this world." },
+        { devanagari: "मयः", text: "mayaḥ", meaning: "Bliss — comfort and happiness in the next world." },
+        { devanagari: "प्रियम्", text: "priyam", meaning: "Beloved object — that which is dear and loved in this world." },
+        { devanagari: "अनुकामः", text: "anukāmaḥ", meaning: "Aligned desire — an object much loved; indicates greater love than priyam." },
+        { devanagari: "कामः", text: "kāmaḥ", meaning: "Pleasure — enjoyment in the next world, Swarga etc." },
+        { devanagari: "सौमनसः", text: "saumanasaḥ", meaning: "Peace of mind — relatives and companions who provide mental peace." },
+        { devanagari: "भद्रम्", text: "bhadram", meaning: "Auspiciousness — beautiful and auspicious objects of this world." },
+        { devanagari: "श्रेयः", text: "śreyaḥ", meaning: "Highest good — that which leads to good in the next world." },
+        { devanagari: "वस्यः", text: "vasyaḥ", meaning: "Dwelling — a house and comfortable place for living." },
+        { devanagari: "यशः", text: "yaśaḥ", meaning: "Fame — reputation and renown among people." },
+        { devanagari: "भगः", text: "bhagaḥ", meaning: "Good luck — fortune and divine grace." },
+        { devanagari: "द्रविणम्", text: "draviṇam", meaning: "Wealth — material riches and financial resources." },
+        { devanagari: "यन्ता", text: "yantā", meaning: "Guide — an Ācārya or teacher who gives instructions." },
+        { devanagari: "धर्ता", text: "dhartā", meaning: "Sustainer — a father or protector who safeguards." },
+        { devanagari: "क्षेमः", text: "kṣemaḥ", meaning: "Security — the power to preserve existing wealth." },
+        { devanagari: "धृतिः", text: "dhṛtiḥ", meaning: "Steadfastness — not getting shaken even during times of danger." },
+        { devanagari: "विश्वम्", text: "viśvam", meaning: "All-favourableness — being favourable to all, universality." },
+        { devanagari: "महः", text: "mahaḥ", meaning: "Adoration — respect done by us to superiors, or by many to us." },
+        { devanagari: "संवित्", text: "saṁvit", meaning: "Vedic knowledge — knowledge of the Vedas and Śāstras." },
+        { devanagari: "ज्ञात्रम्", text: "jñātram", meaning: "Recall — capacity to remember knowledge at the right time." },
+        { devanagari: "सूः", text: "sūḥ", meaning: "Generative power — capacity to engage sons etc. in activities." },
+        { devanagari: "प्रसूः", text: "prasūḥ", meaning: "Authority — capacity to order and direct servants." },
+        { devanagari: "सीरम्", text: "sīram", meaning: "Plough — possession of plough, bull, and farming instruments." },
+        { devanagari: "लयः", text: "layaḥ", meaning: "Restoration — undoing of damages to those implements." },
+        { devanagari: "ऋतम्", text: "ṛtam", meaning: "Sacred duty — karmas like yajña, cosmic order." },
+        { devanagari: "अमृतम्", text: "amṛtam", meaning: "Immortal fruit — the fruits of those sacred karmas." },
+        { devanagari: "अयक्ष्मम्", text: "ayakṣmam", meaning: "Freedom from TB — freedom from incurable, serious disease (yakṣmā)." },
+        { devanagari: "अनामयम्", text: "anāmayam", meaning: "Freedom from illness — freedom from ordinary diseases like fever etc." },
+        { devanagari: "जीवातुः", text: "jīvātuḥ", meaning: "Medicine — cause of life; medicine to cure disease." },
+        { devanagari: "दीर्घायुत्वम्", text: "dīrghāyutvam", meaning: "Long life — freedom from untimely death." },
+        { devanagari: "अनमित्रम्", text: "anamitram", meaning: "Freedom from enemies — a life without adversaries." },
+        { devanagari: "अभयम्", text: "abhayam", meaning: "Fearlessness — complete freedom from fear." },
+        { devanagari: "सुगम्", text: "sugam", meaning: "Good conduct — behaviour acceptable to all people." },
+        { devanagari: "शयनम्", text: "śayanam", meaning: "Good bed — a comfortable bed for restful sleep." },
+        { devanagari: "सूषा", text: "sūṣā", meaning: "Good dawn — an auspicious morning with bath, Sandhyāvandanam etc." },
+        { devanagari: "सुदिनम्", text: "sudinam", meaning: "Good day — an auspicious day with yajña, dānam, and Vedic study." }
       ]
     },
     {
@@ -686,39 +696,47 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 4",
       titleSanskrit: "चतुर्थोऽनुवाकः",
-      subtitle: "Food, Nourishment, and Material Abundance",
-      description: "This anuvaka prays for all forms of food, nourishment, and material abundance essential for sustaining life and performing sacred duties. It encompasses wholesome food and pleasing speech, the richness of dairy and agriculture, the bounty of seasonal rains and fertile lands, and the fullness of wealth in all its forms. The prayer progresses from basic sustenance to overflowing abundance, culminating in the aspiration for an everlasting, inexhaustible supply of all that supports life.",
+      subtitle: "Food, Rain, Grain, and Abundance",
+      description: "This anuvaka prays for all forms of food, nourishment, dairy, agriculture, rain, and specific grains. The seven words from vibhu to akṣiti indicate progressive increase in growth of foodgrains. It names at least a dozen specific grains — an agricultural census of Vedic civilization.",
       mantras: [
-        {
-          devanagari: "ऊर्क् च मे सूनृता च मे पयश्च मे रसश्च मे",
-          text: "ūrk ca me sūnṛtā ca me payaśca me rasaśca me",
-          meaning: "May wholesome food be mine, may pleasing and endearing speech be mine, may nourishing milk be mine, may tasteful sweet juices be mine."
-        },
-        {
-          devanagari: "घृतं च मे मधु च मे सगधिश्च मे सपीतिश्च मे",
-          text: "ghṛtaṁ ca me madhu ca me sagadhiśca me sapītiśca me",
-          meaning: "May clarified ghee be mine, may sweet honey be mine, may the joy of eating with relatives be mine, may the joy of drinking with relatives be mine."
-        },
-        {
-          devanagari: "कृषिश्च मे वृष्टिश्च मे जैत्रं च म औद्भिद्यं च मे",
-          text: "kṛṣiśca me vṛṣṭiśca me jaitraṁ ca ma audbhidyaṁ ca me",
-          meaning: "May thriving agriculture be mine, may timely seasonal rains be mine, may worthy fertile lands for cultivation be mine, may clusters of foliage with tall flourishing trees be mine."
-        },
-        {
-          devanagari: "रयिश्च मे रायश्च मे पुष्टं च मे पुष्टिश्च मे",
-          text: "rayiśca me rāyaśca me puṣṭaṁ ca me puṣṭiśca me",
-          meaning: "May gold be mine, may the nine precious gems be mine, may abundant wealth be mine, may a well-built healthy body be mine."
-        },
-        {
-          devanagari: "विभु च मे प्रभु च मे बहु च मे भूयश्च मे",
-          text: "vibhu ca me prabhu ca me bahu ca me bhūyaśca me",
-          meaning: "May an abundant variety of pulses and cereals be mine, may a profuse quantity of provisions be mine, may many multiples of these be mine, may further development and increase be mine."
-        },
-        {
-          devanagari: "पूर्णं च मे पूर्णतरं च मेऽक्षितिश्च मे कूयवाश्च मे",
-          text: "pūrṇaṁ ca me pūrṇataraṁ ca me'kṣitiśca me kūyavāśca me",
-          meaning: "May provisions filled up to the brim be mine, may supply even above the maximum extent be mine, may an everlasting incessant supply be mine, may small cereals and fine grains be mine."
-        }
+        { devanagari: "ऊर्क्", text: "ūrk", meaning: "Food material — wholesome nourishing food." },
+        { devanagari: "सूनृता", text: "sūnṛtā", meaning: "Good word — pleasing, truthful, and endearing speech." },
+        { devanagari: "पयः", text: "payaḥ", meaning: "Milk — nourishing dairy." },
+        { devanagari: "रसः", text: "rasaḥ", meaning: "Taste — the sweetness and flavour in milk and food." },
+        { devanagari: "घृतम्", text: "ghṛtam", meaning: "Ghee — clarified butter, essential for yajña and nourishment." },
+        { devanagari: "मधु", text: "madhu", meaning: "Honey — natural sweetness." },
+        { devanagari: "सग्धिः", text: "sagdhiḥ", meaning: "Shared eating — the joy of eating together with relatives." },
+        { devanagari: "सपीतिः", text: "sapītiḥ", meaning: "Shared drinking — the joy of drinking together with relatives." },
+        { devanagari: "कृषिः", text: "kṛṣiḥ", meaning: "Agriculture — farming and cultivation of crops." },
+        { devanagari: "वृष्टिः", text: "vṛṣṭiḥ", meaning: "Rain — timely, seasonal rainfall essential for crops." },
+        { devanagari: "जैत्रम्", text: "jaitram", meaning: "Victorious land — good-yielding, fertile, successful land." },
+        { devanagari: "औद्भिद्यम्", text: "audbhidyam", meaning: "Sprouting growth — growth of plants, creepers, and vegetation." },
+        { devanagari: "रयिः", text: "rayiḥ", meaning: "Gold — precious metal wealth." },
+        { devanagari: "रायः", text: "rāyaḥ", meaning: "Gems — precious stones and jewels." },
+        { devanagari: "पुष्टम्", text: "puṣṭam", meaning: "Abundance — plentiful gems, pearls, and treasures." },
+        { devanagari: "पुष्टिः", text: "puṣṭiḥ", meaning: "Bodily strength — a well-nourished, robust physique." },
+        { devanagari: "विभु", text: "vibhu", meaning: "Plenty (1st degree) — progressive increase in foodgrains begins here." },
+        { devanagari: "प्रभु", text: "prabhu", meaning: "Profuse (2nd degree) — a higher growth than the first." },
+        { devanagari: "बहु", text: "bahu", meaning: "Much (3rd degree) — many multiples of provisions." },
+        { devanagari: "भूयः", text: "bhūyaḥ", meaning: "More (4th degree) — further development and increase." },
+        { devanagari: "पूर्णम्", text: "pūrṇam", meaning: "Full (5th degree) — provisions filled to the brim." },
+        { devanagari: "पूर्णतरम्", text: "pūrṇataram", meaning: "Overflowing (6th degree) — supply above the maximum extent." },
+        { devanagari: "अक्षितिः", text: "akṣitiḥ", meaning: "Inexhaustible (7th degree) — an everlasting, incessant supply." },
+        { devanagari: "कूयवाः", text: "kūyavāḥ", meaning: "Minor foodgrains — small cereals and fine grains." },
+        { devanagari: "अन्नम्", text: "annam", meaning: "Reputed food — staple, well-known food." },
+        { devanagari: "अक्षुत्", text: "akṣut", meaning: "Freedom from hunger — relief from starvation." },
+        { devanagari: "व्रीहयः", text: "vrīhayaḥ", meaning: "Paddy — rice in its unhusked form." },
+        { devanagari: "यवाः", text: "yavāḥ", meaning: "Barley — one of the oldest cultivated grains." },
+        { devanagari: "माषाः", text: "māṣāḥ", meaning: "Black gram — urad dal." },
+        { devanagari: "तिलाः", text: "tilāḥ", meaning: "Sesame — gingelly seeds." },
+        { devanagari: "मुद्गाः", text: "mudgāḥ", meaning: "Green gram — kidney-bean, moong dal." },
+        { devanagari: "खल्वाः", text: "khalvāḥ", meaning: "Beans — another variety of legume." },
+        { devanagari: "गोधूमाः", text: "godhūmāḥ", meaning: "Wheat — a staple grain across civilizations." },
+        { devanagari: "मसुराः", text: "masurāḥ", meaning: "Lentils — masoor dal." },
+        { devanagari: "प्रियङ्गवः", text: "priyaṅgavaḥ", meaning: "Long pepper — priyaṅgu millet." },
+        { devanagari: "अणवः", text: "aṇavaḥ", meaning: "Thin paddy — fine, delicate rice variety." },
+        { devanagari: "श्यामाकाः", text: "śyāmākāḥ", meaning: "Corn — śyāmāka millet, a coarse grain." },
+        { devanagari: "नीवाराः", text: "nīvārāḥ", meaning: "Wild rice — rice that grows naturally without cultivation." }
       ]
     },
     {
@@ -726,44 +744,42 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 5",
       titleSanskrit: "पञ्चमोऽनुवाकः",
-      subtitle: "Grains, Minerals, and Harmony with Nature",
-      description: "This anuvaka prays for harmony with all aspects of the natural world. It begins with horses and cattle essential for Vedic life, proceeds through every variety of food grain and cereal that sustains the body, and culminates with the elemental foundations of nature: stones, earth, hills, mountains, sand, trees, gold, and metals. The prayer reflects the Vedic vision that the human being must live in balance with the mineral, vegetable, and animal kingdoms alike.",
+      subtitle: "Stone, Metals, Herbs, Animals, and Purpose",
+      description: "This anuvaka prays for the natural world — stone, soil, mountains, metals, fire, water, herbs, crops, and animals. The seal 'yajñena kalpantām' (may all be attained through yajña) turns every resource into a responsibility. It ends with a complete work philosophy: karma, śakti, artha, gati.",
       mantras: [
-        {
-          devanagari: "अश्वपरिः च मे गोपरिश्च मे",
-          text: "aśvapariḥ ca me gopariśca me",
-          meaning: "May abundance of horses be mine, may abundance of cattle be mine."
-        },
-        {
-          devanagari: "अन्नं च मेऽक्षुच्च मे व्रीहयश्च मे यवाश्च मे",
-          text: "annaṁ ca me'kṣucca me vrīhayaśca me yavāśca me",
-          meaning: "May food be mine, may sugarcane be mine, may rice be mine, may barley be mine."
-        },
-        {
-          devanagari: "माषाश्च मे तिलाश्च मे मुद्गाश्च मे खल्वाश्च मे",
-          text: "māṣāśca me tilāśca me mudgāśca me khalvāśca me",
-          meaning: "May black gram be mine, may sesame be mine, may green gram be mine, may beans be mine."
-        },
-        {
-          devanagari: "गोधूमाश्च मे मसुराश्च मे प्रियङ्गवश्च मेऽणवश्च मे",
-          text: "godhūmāśca me masurāśca me priyaṅgavaśca me'ṇavaśca me",
-          meaning: "May wheat be mine, may lentils be mine, may millet be mine, may fine rice be mine."
-        },
-        {
-          devanagari: "श्यामाकाश्च मे नीवाराश्च मे",
-          text: "śyāmākāśca me nīvārāśca me",
-          meaning: "May wild rice be mine, may wild grains be mine."
-        },
-        {
-          devanagari: "अश्मा च मे मृत्तिका च मे गिरयश्च मे पर्वताश्च मे",
-          text: "aśmā ca me mṛttikā ca me girayaśca me parvatāśca me",
-          meaning: "May precious stones be mine, may fertile earth and soil be mine, may protective hills be mine, may huge mountains with their resources be mine."
-        },
-        {
-          devanagari: "सिकताश्च मे वनस्पतयश्च मे हिरण्यं च मेऽयश्च मे",
-          text: "sikatāśca me vanaspatayaśca me hiraṇyaṁ ca me'yaśca me",
-          meaning: "May sand for sacred rituals be mine, may fruit-bearing trees be mine, may gold be mine, may strong steel and metals be mine."
-        }
+        { devanagari: "अश्माः", text: "aśmāḥ", meaning: "Stone — precious and useful stones." },
+        { devanagari: "मृत्तिकाः", text: "mṛttikāḥ", meaning: "Soil — fertile earth and clay." },
+        { devanagari: "गिरयः", text: "girayaḥ", meaning: "Sacred mountains — mountains worthy of worship, Kulāchala ranges." },
+        { devanagari: "पर्वताः", text: "parvatāḥ", meaning: "Ordinary mountains — hills and mountain ranges." },
+        { devanagari: "सिकताः", text: "sikatāḥ", meaning: "Sand — fine sand used in rituals and construction." },
+        { devanagari: "वनस्पतयः", text: "vanaspatayaḥ", meaning: "Trees — trees that bear fruit without flowering." },
+        { devanagari: "हिरण्यम्", text: "hiraṇyam", meaning: "Gold — the most precious of metals." },
+        { devanagari: "अयः", text: "ayaḥ", meaning: "Iron — strong metal for tools and implements." },
+        { devanagari: "सीसम्", text: "sīsam", meaning: "Lead — a heavy, useful metal." },
+        { devanagari: "त्रपुः", text: "trapuḥ", meaning: "Tin — a soft, workable metal." },
+        { devanagari: "श्यामम्", text: "śyāmam", meaning: "Rock salt — dark-coloured mineral salt." },
+        { devanagari: "लोहम्", text: "loham", meaning: "Bronze/Copper — reddish metals for vessels and tools." },
+        { devanagari: "अग्निः", text: "agniḥ", meaning: "Fire — the sacred element of transformation." },
+        { devanagari: "आपः", text: "āpaḥ", meaning: "Water — the element that sustains all life." },
+        { devanagari: "वीरुधः", text: "vīrudhaḥ", meaning: "Plants — creepers and general vegetation." },
+        { devanagari: "ओषधयः", text: "oṣadhayaḥ", meaning: "Medicinal herbs — plants with healing properties." },
+        { devanagari: "कृष्टपच्यम्", text: "kṛṣṭapacyam", meaning: "Cultivated crops — produce grown by planting and farming." },
+        { devanagari: "अकृष्टपच्यम्", text: "akṛṣṭapacyam", meaning: "Wild produce — crops that grow on their own without farming." },
+        { devanagari: "ग्राम्याः पशवः", text: "grāmyāḥ paśavaḥ", meaning: "Domestic animals — animals growing in villages." },
+        { devanagari: "आरण्याश्च", text: "āraṇyāśca", meaning: "Wild animals — animals growing in forests." },
+        { devanagari: "यज्ञेन कल्पन्ताम्", text: "yajñena kalpantām", meaning: "Through yajña — may all become capable of doing their acts through sacrifice." },
+        { devanagari: "वित्तम्", text: "vittam", meaning: "Wealth earned — resources already acquired." },
+        { devanagari: "वित्तिः", text: "vittiḥ", meaning: "Profit — wealth and profit yet to be obtained." },
+        { devanagari: "भूतम्", text: "bhūtam", meaning: "Wealthy progeny — prosperous sons and descendants." },
+        { devanagari: "भूतिः", text: "bhūtiḥ", meaning: "Prosperity — wealth and possessions owned by me." },
+        { devanagari: "वसु", text: "vasu", meaning: "Cattle — cows etc. required for living." },
+        { devanagari: "वसतिः", text: "vasatiḥ", meaning: "Dwelling — a house and place for living." },
+        { devanagari: "कर्म", text: "karma", meaning: "Action — karmas like Agnihotram and sacred duties." },
+        { devanagari: "शक्तिः", text: "śaktiḥ", meaning: "Capacity — the power and ability to perform those karmas." },
+        { devanagari: "अर्थः", text: "arthaḥ", meaning: "Purpose — the benefit and meaning derived from actions." },
+        { devanagari: "एमः", text: "emaḥ", meaning: "Pleasure — the joy and satisfaction to be attained." },
+        { devanagari: "इतिः", text: "itiḥ", meaning: "Means — the method and means of attaining that pleasure." },
+        { devanagari: "गतिः", text: "gatiḥ", meaning: "Forward movement — attaining the desired object, progress." }
       ]
     },
     {
@@ -771,39 +787,29 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 6",
       titleSanskrit: "षष्ठोऽनुवाकः",
-      subtitle: "Vedic Sacrifices, Sacred Fires, and Ritual Knowledge",
-      description: "This is the prime prayer concerning Vedic ritual contents. It invokes the sacrificial fires, specific yajnas such as the Pravargya and Ashvamedha, cosmic deities including Earth, Aditi, Diti, and Heaven, and the full corpus of Vedic knowledge: Rig mantras, Sama chants, Yajur formulas, and the sacred meters. It also seeks the disciplines of initiation, penance, seasonal observances, and sacred vows. The two great Sama Veda hymns Brihat and Rathantara are invoked as the culminating blessing.",
+      subtitle: "Twenty Deities Paired with Indra",
+      description: "In this anuvaka, every deity is paired with Indra. As Indra enjoys pleasures equal to each deity, he is cited alongside each one. The prayer asks that all these divine powers be favourable. मूर्धा (Ūrdhvadik) is mentioned separately as the upward direction is considered more important than all others.",
       mantras: [
-        {
-          devanagari: "अग्निश्च मे घर्मश्च मेऽर्कश्च मे सूर्यश्च मे",
-          text: "agniśca me gharmaśca me'rkaśca me sūryaśca me",
-          meaning: "May the sacrificial fire be mine, may the Pravargya hot-milk offering for the Soma Yaga be mine, may the Arka Yagna with Indra as its presiding deity be mine, may the Surya Yagna be mine."
-        },
-        {
-          devanagari: "प्राणश्च मेऽश्वमेधश्च मे पृथिवी च मेऽदितिश्च मे",
-          text: "prāṇaśca me'śvamedhaśca me pṛthivī ca me'ditiśca me",
-          meaning: "May the Prana Homa be mine, may the great Ashvamedha horse sacrifice be mine, may the Earth with her presiding deity be mine, may the blessings of Aditi and her devatas be mine."
-        },
-        {
-          devanagari: "दितिश्च मे द्यौश्च मे शक्वरीरङ्गुलयो दिशश्च मे",
-          text: "ditiśca me dyauśca me śakvarīraṅgulayo diśaśca me",
-          meaning: "May the blessings of Diti and her devatas be mine, may Heaven and its deity be mine, may the Shakvari chandas and the pointing finger of the Cosmic Being (Virat Purusha) be mine, may the cardinal directions be mine."
-        },
-        {
-          devanagari: "यज्ञेन कल्पन्तां ऋक् च मे साम च मे स्तोमश्च मे",
-          text: "yajñena kalpantāṁ ṛk ca me sāma ca me stomaśca me",
-          meaning: "May all these be attained through sacrifice. May the Rig Veda mantras be mine, may the Sama Veda musical chants be mine, may the Stoma (the counted arrangements of Sama hymns) be mine."
-        },
-        {
-          devanagari: "यजुश्च मे दीक्षा च मे तपश्च मे ऋतुश्च मे",
-          text: "yajuśca me dīkṣā ca me tapaśca me ṛtuśca me",
-          meaning: "May the Yajur Veda mantras be mine, may the sacred initiation (Diksha) into yagna be mine, may penance for the dilution of sins be mine, may the proper seasons for performing rituals be mine."
-        },
-        {
-          devanagari: "व्रतं च मेऽहोरात्रयोर्वृष्ट्या बृहद्रथन्तरे च मे",
-          text: "vrataṁ ca me'horātrayorvṛṣṭyā bṛhadrathantare ca me",
-          meaning: "May sacred vows such as the Ekastana Vratam be mine, may the rains of day and night be mine, may the two great hymns Brihat and Rathantara of the Sama Veda be mine."
-        }
+        { devanagari: "अग्निश्च म इन्द्रश्च मे", text: "agniśca ma indraśca me", meaning: "Agni (fire deity) and Indra — may both be favourable to me." },
+        { devanagari: "सोमश्च म इन्द्रश्च मे", text: "somaśca ma indraśca me", meaning: "Soma (moon deity / sacred juice) and Indra — may both be favourable to me." },
+        { devanagari: "सविता च म इन्द्रश्च मे", text: "savitā ca ma indraśca me", meaning: "Savitā (the impeller, Sun as creator) and Indra — may both be favourable to me." },
+        { devanagari: "सरस्वती च म इन्द्रश्च मे", text: "sarasvatī ca ma indraśca me", meaning: "Sarasvatī (goddess of wisdom and speech) and Indra — may both be favourable to me." },
+        { devanagari: "पूषा च म इन्द्रश्च मे", text: "pūṣā ca ma indraśca me", meaning: "Pūṣā (deity of nourishment and journeys) and Indra — may both be favourable to me." },
+        { devanagari: "बृहस्पतिश्च म इन्द्रश्च मे", text: "bṛhaspatiśca ma indraśca me", meaning: "Bṛhaspati (preceptor of the gods) and Indra — may both be favourable to me." },
+        { devanagari: "मित्रश्च म इन्द्रश्च मे", text: "mitraśca ma indraśca me", meaning: "Mitra (deity of friendship and contracts) and Indra — may both be favourable to me." },
+        { devanagari: "वरुणश्च म इन्द्रश्च मे", text: "varuṇaśca ma indraśca me", meaning: "Varuṇa (deity of cosmic order and waters) and Indra — may both be favourable to me." },
+        { devanagari: "त्वष्टा च म इन्द्रश्च मे", text: "tvaṣṭā ca ma indraśca me", meaning: "Tvaṣṭā (the divine craftsman) and Indra — may both be favourable to me." },
+        { devanagari: "धाता च म इन्द्रश्च मे", text: "dhātā ca ma indraśca me", meaning: "Dhātā (the creator, establisher) and Indra — may both be favourable to me." },
+        { devanagari: "विष्णुश्च म इन्द्रश्च मे", text: "viṣṇuśca ma indraśca me", meaning: "Viṣṇu (the all-pervading preserver) and Indra — may both be favourable to me." },
+        { devanagari: "अश्विनौ च म इन्द्रश्च मे", text: "aśvinau ca ma indraśca me", meaning: "Aśvinī Devas (the twin divine physicians) and Indra — may both be favourable to me." },
+        { devanagari: "मरुतश्च म इन्द्रश्च मे", text: "marutaśca ma indraśca me", meaning: "Maruts (storm gods, Indra's companions) and Indra — may both be favourable to me." },
+        { devanagari: "विश्वे च मे देवा इन्द्रश्च मे", text: "viśve ca me devā indraśca me", meaning: "Viśvedevas (all the gods collectively) and Indra — may both be favourable to me." },
+        { devanagari: "पृथिवी च म इन्द्रश्च मे", text: "pṛthivī ca ma indraśca me", meaning: "Pṛthivī (Earth deity) and Indra — may both be favourable to me." },
+        { devanagari: "अन्तरिक्षं च म इन्द्रश्च मे", text: "antarikṣaṁ ca ma indraśca me", meaning: "Antarikṣa (intermediate space / atmosphere deity) and Indra — may both be favourable to me." },
+        { devanagari: "द्यौश्च म इन्द्रश्च मे", text: "dyauśca ma indraśca me", meaning: "Dyuloka (heaven / Swarga deity) and Indra — may both be favourable to me." },
+        { devanagari: "दिशश्च म इन्द्रश्च मे", text: "diśaśca ma indraśca me", meaning: "Diśas (deities of the cardinal directions) and Indra — may both be favourable to me." },
+        { devanagari: "मूर्धा च म इन्द्रश्च मे", text: "mūrdhā ca ma indraśca me", meaning: "Mūrdhā (Ūrdhvadik — the upward direction, considered most important) and Indra — may both be favourable to me." },
+        { devanagari: "प्रजापतिश्च म इन्द्रश्च मे", text: "prajāpatiśca ma indraśca me", meaning: "Prajāpati (Lord of all creatures) and Indra — may both be favourable to me." }
       ]
     },
     {
@@ -811,39 +817,37 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 7",
       titleSanskrit: "सप्तमोऽनुवाकः",
-      subtitle: "Vessels, Implements, and Powers of the Soma Sacrifice",
-      description: "This anuvaka lists the various vessels, implements, and ritual elements necessary for the Soma Yaga sacrifice. Each vessel and instrument represents an aspect of self-offering to the respective deity. The prayer encompasses the sacred bricks of the fire altar, the nourishing power within the rituals, the Vedic hymns and formulas, the grace of Prajapati and the heavenly realm, the sacrificial fires including the great Vaishvanara, and the power that sustains the entire sacrificial enterprise.",
+      subtitle: "Soma Vessels and Ritual Implements (Graha)",
+      description: "The items in this anuvaka are specific vessels called 'Graha', used in Somayāga. Raśmi is not a Graha but is mentioned as it is used for picking up Ādābhya. The word Adhipati indicates Dadhigraha, which is the greatest of all Grahas. The Graha Dhruvam is indicated by the term Vaiśvānara. The Grahas Sārasvata and Pauṣṇa are used in Vikṛtiyāga.",
       mantras: [
-        {
-          devanagari: "इष्टकाश्च म ऊर्जश्वतीश्च मे ऋक्सामे च मे",
-          text: "iṣṭakāśca ma ūrjaśvatīśca me ṛksāme ca me",
-          meaning: "May the sacred bricks of the fire altar be mine, may those filled with nourishing power be mine, may the combined Rig and Sama Veda hymns be mine."
-        },
-        {
-          devanagari: "स्तोमश्च मे यजुश्च मे दीक्षा च मे",
-          text: "stomaśca me yajuśca me dīkṣā ca me",
-          meaning: "May the Stoma arrangements of Sama chants be mine, may the Yajur Veda sacrificial formulas be mine, may the sacred initiation into sacrifice be mine."
-        },
-        {
-          devanagari: "प्रजापतिश्च मे सौवर्गश्च मे",
-          text: "prajāpatiśca me sauvarrgaśca me",
-          meaning: "May the grace of Prajapati, the Lord of all creatures, be mine, may the attainment of the heavenly realm be mine."
-        },
-        {
-          devanagari: "अग्निश्च मे घर्मश्च मेऽर्कश्च मे",
-          text: "agniśca me gharmaśca me'rkaśca me",
-          meaning: "May the sacrificial fire be mine, may the hot Pravargya oblation be mine, may the Arka ritual chant be mine."
-        },
-        {
-          devanagari: "महावैश्वानरश्च मे अग्निश्च मे",
-          text: "mahāvaiśvānaraśca me agniśca me",
-          meaning: "May the great Vaishvanara fire that pervades all beings be mine, may the sacred sacrificial fire be mine."
-        },
-        {
-          devanagari: "यज्ञश्च मे यज्ञस्य शक्तिश्च मे",
-          text: "yajñaśca me yajñasya śaktiśca me",
-          meaning: "May the complete sacrifice be mine, may the full power and potency of the sacrifice be mine."
-        }
+        { devanagari: "अंशुः", text: "aṁśuḥ", meaning: "Aṁśu — the Soma plant stalk; the primary ingredient of the Soma sacrifice." },
+        { devanagari: "रश्मिः", text: "raśmiḥ", meaning: "Raśmi — the ray/rope used for picking up the Ādābhya graha; not a graha itself." },
+        { devanagari: "अदाभ्यः", text: "adābhyaḥ", meaning: "Ādābhya — a specific Soma vessel that cannot be harmed or deceived." },
+        { devanagari: "अधिपतिः", text: "adhipatiḥ", meaning: "Adhipati — indicates the Dadhigraha; greatest among all Grahas as per Śruti." },
+        { devanagari: "उपांशुः", text: "upāṁśuḥ", meaning: "Upāṁśu — a Soma cup offered silently, in a low voice." },
+        { devanagari: "अन्तर्यामः", text: "antaryāmaḥ", meaning: "Antaryāma — a Soma cup offered to the inner controller." },
+        { devanagari: "ऐन्द्रवायवः", text: "aindrāvāyavaḥ", meaning: "Aindrāvāyava — the Soma cup offered jointly to Indra and Vāyu." },
+        { devanagari: "मैत्रावरुणः", text: "maitrāvaruṇaḥ", meaning: "Maitrāvaruṇa — the Soma cup offered jointly to Mitra and Varuṇa." },
+        { devanagari: "आश्विनः", text: "āśvinaḥ", meaning: "Āśvina — the Soma cup offered to the twin Aśvinī Devas." },
+        { devanagari: "प्रतिप्रस्थानः", text: "pratiprasthānaḥ", meaning: "Pratiprasthāna — a secondary Soma cup used in the ritual sequence." },
+        { devanagari: "शुक्रः", text: "śukraḥ", meaning: "Śukra — the bright, clear Soma cup; a graha of luminous Soma juice." },
+        { devanagari: "मन्थी", text: "manthī", meaning: "Manthī — the churned Soma cup; Soma mixed and stirred with grain." },
+        { devanagari: "आग्रयणः", text: "āgrayaṇaḥ", meaning: "Āgrayaṇa — the first-offering cup; the initial Soma extraction." },
+        { devanagari: "वैश्वदेवः", text: "vaiśvadevaḥ", meaning: "Vaiśvadeva (first) — the Soma cup for all gods in Prātaḥsavanam (morning pressing)." },
+        { devanagari: "ध्रुवः", text: "dhruvaḥ", meaning: "Dhruva — the fixed/stable Soma cup; sometimes called Vaiśvānara." },
+        { devanagari: "वैश्वानरः", text: "vaiśvānaraḥ", meaning: "Vaiśvānara — indicates the Dhruva graha; used on specific occasions." },
+        { devanagari: "ऋतुग्रहाः", text: "ṛtugrahāḥ", meaning: "Ṛtugraha — seasonal Soma cups, offered according to the time of year." },
+        { devanagari: "अतिग्राह्याः", text: "atigrāhyāḥ", meaning: "Atigrāhya — extra or additional Soma cups beyond the standard set." },
+        { devanagari: "ऐन्द्राग्नः", text: "aindrāgnaḥ", meaning: "Aindrāgna — the Soma cup offered jointly to Indra and Agni." },
+        { devanagari: "वैश्वदेवः", text: "vaiśvadevaḥ (second)", meaning: "Vaiśvadeva (second) — the Soma cup for all gods in Tṛtīyasavanam (third pressing)." },
+        { devanagari: "मरुत्वतीयाः", text: "marutvatīyāḥ", meaning: "Marutvatīya — Soma cups associated with the Maruts (storm gods)." },
+        { devanagari: "माहेन्द्रः", text: "māhendraḥ", meaning: "Māhendra — the great Soma cup offered to Mahendra (great Indra)." },
+        { devanagari: "आदित्यः", text: "ādityaḥ", meaning: "Āditya — the Soma cup offered to the Sun deity." },
+        { devanagari: "सावित्रः", text: "sāvitraḥ", meaning: "Sāvitra — the Soma cup offered to Savitā, the impelling deity." },
+        { devanagari: "सारस्वतः", text: "sārasvataḥ", meaning: "Sārasvata — the Soma cup offered to Sarasvatī; used in Vikṛtiyāga." },
+        { devanagari: "पौष्णः", text: "pauṣṇaḥ", meaning: "Pauṣṇa — the Soma cup offered to Pūṣā; used in Vikṛtiyāga." },
+        { devanagari: "पात्नीवतः", text: "pātnīvataḥ", meaning: "Pātnīvata — the Soma cup associated with the wife of the yajamāna." },
+        { devanagari: "हारियोजनः", text: "hāriyojanaḥ", meaning: "Hāriyojana — the Soma cup associated with Indra's horses (Hari)." }
       ]
     },
     {
@@ -851,39 +855,31 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 8",
       titleSanskrit: "अष्टमोऽनुवाकः",
-      subtitle: "Odd Numbers — Divine and Cosmic Forces",
-      description: "This celebrated anuvaka invokes blessings through the odd numbers from 1 to 33, each representing a specific divine or cosmic force. Odd numbers are associated with the realm of the devatas (gods). A profound mathematical insight underlies this section: when two odd numbers are added together, the result is always even, signifying that humans were created by the devatas. Each number corresponds to specific Vedic metres, fire-altar configurations, soma pressings, and cosmic principles that together represent the fullness of divine creation.",
+      subtitle: "Tools, Vessels, and Articles of Yāga",
+      description: "All items in this anuvaka are articles used in yāga (sacrifice). They are well known in Yajñaprakaraṇam. The prayer asks that all these instruments, spaces, and ritual processes be favourable and properly available.",
       mantras: [
-        {
-          devanagari: "एका च मे तिस्रश्च मे पञ्च च मे सप्त च मे",
-          text: "ekā ca me tisraśca me pañca ca me sapta ca me",
-          meaning: "May the power of one (the singular cosmic fire Agni) be mine, may three (the three Vedas and triple world) be mine, may five (the five seasons and Pancha Bhutas) be mine, may seven (the seven metres and seven Rishis) be mine."
-        },
-        {
-          devanagari: "नव च म एकादश च मे त्रयोदश च मे",
-          text: "nava ca ma ekādaśa ca me trayodaśa ca me",
-          meaning: "May nine (the nine forms of Agni and the Navagrahas) be mine, may eleven (the eleven Rudras) be mine, may thirteen (the thirteen months of the ritual year) be mine."
-        },
-        {
-          devanagari: "पञ्चदश च मे सप्तदश च मे नवदश च मे",
-          text: "pañcadaśa ca me saptadaśa ca me navadaśa ca me",
-          meaning: "May fifteen (the fifteen nights of the waxing moon and the Stoma hymn arrangements) be mine, may seventeen (the Saptadasa Stoma) be mine, may nineteen (the Ekavimsastoma and cosmic principles) be mine."
-        },
-        {
-          devanagari: "एकविंशतिश्च मे त्रयोविंशतिश्च मे पञ्चविंशतिश्च मे",
-          text: "ekaviṁśatiśca me trayoviṁśatiśca me pañcaviṁśatiśca me",
-          meaning: "May twenty-one (the Ekavimsastoma and the twenty-one layers of creation) be mine, may twenty-three (higher Stoma configurations) be mine, may twenty-five (the twenty-five cosmic principles of Sankhya) be mine."
-        },
-        {
-          devanagari: "सप्तविंशतिश्च मे नवविंशतिश्च मे",
-          text: "saptaviṁśatiśca me navaviṁśatiśca me",
-          meaning: "May twenty-seven (the twenty-seven Nakshatras and cosmic stations) be mine, may twenty-nine (the higher sacred configurations) be mine."
-        },
-        {
-          devanagari: "एकत्रिंशच्च मे त्रयस्त्रिंशच्च मे",
-          text: "ekatriṁśacca me trayastriṁśacca me",
-          meaning: "May thirty-one (the culminating Stoma arrangement) be mine, may thirty-three (the thirty-three devatas who govern all cosmic functions) be mine."
-        }
+        { devanagari: "इध्मः", text: "idhmaḥ", meaning: "Fuel sticks — the sacred firewood used to kindle the sacrificial fire." },
+        { devanagari: "बर्हिः", text: "barhiḥ", meaning: "Sacred grass — kuśa/darbha grass spread on the altar for seating deities." },
+        { devanagari: "वेदिः", text: "vediḥ", meaning: "Altar — the sacred platform built to precise geometric rules for the sacrifice." },
+        { devanagari: "दिष्णियाः", text: "diṣṇiyāḥ", meaning: "Subsidiary fire-seats — smaller fire-pits for assistant priests." },
+        { devanagari: "स्रुचः", text: "srucaḥ", meaning: "Ladles — wooden spoons used for pouring ghee into the fire." },
+        { devanagari: "चमसाः", text: "camasāḥ", meaning: "Cups — wooden vessels used for holding and offering Soma juice." },
+        { devanagari: "ग्रावाणः", text: "grāvāṇaḥ", meaning: "Pressing stones — stones used to press and extract Soma juice." },
+        { devanagari: "स्वरवः", text: "svaravaḥ", meaning: "Wooden boards — upper boards used in the Soma pressing process." },
+        { devanagari: "उपरवाः", text: "uparavāḥ", meaning: "Lower boards — the base boards on which Soma is pressed." },
+        { devanagari: "अधिषवणे", text: "adhiṣavaṇe", meaning: "Pressing pits — the pair of vessels where Soma extraction happens." },
+        { devanagari: "द्रोणकलशः", text: "droṇakalaśaḥ", meaning: "Droṇa pot — the large wooden trough for collecting pressed Soma." },
+        { devanagari: "वायव्यानि", text: "vāyavyāni", meaning: "Wind vessels — vessels associated with Vāyu (wind deity) in the ritual." },
+        { devanagari: "पूतभृत्", text: "pūtabhṛt", meaning: "Purifying vessel — the container that holds filtered/purified Soma." },
+        { devanagari: "आधवनीयः", text: "ādhavānīyaḥ", meaning: "Washing vessel — the vessel used for washing and rinsing Soma stalks." },
+        { devanagari: "आग्नीध्रम्", text: "āgnīdhram", meaning: "Fire-priest's station — the seat/enclosure of the Āgnīdhra priest." },
+        { devanagari: "हविर्धानम्", text: "havirdhānam", meaning: "Oblation shed — the shed housing the Soma cart and offerings." },
+        { devanagari: "गृहाः", text: "gṛhāḥ", meaning: "Ritual chambers — the enclosed spaces used during the sacrifice." },
+        { devanagari: "सदः", text: "sadaḥ", meaning: "Assembly hall — the hall where priests gather during the sacrifice." },
+        { devanagari: "पुरोडाशाः", text: "puroḍāśāḥ", meaning: "Sacrificial cakes — rice cakes offered on potsherds in the fire." },
+        { devanagari: "पचताः", text: "pacatāḥ", meaning: "Cooking fires — the fires used for cooking sacrificial offerings." },
+        { devanagari: "अवभृथः", text: "avabhṛthaḥ", meaning: "Concluding bath — the purificatory bath taken after completing the sacrifice." },
+        { devanagari: "स्वगाकारः", text: "svagākāraḥ", meaning: "Utterance of Svāhā — the sacred declaration 'Svāhā' as the offering enters the fire." }
       ]
     },
     {
@@ -891,29 +887,32 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 9",
       titleSanskrit: "नवमोऽनुवाकः",
-      subtitle: "Even Numbers — Human and Material Realm",
-      description: "Complementing the odd numbers of the previous anuvaka, this section invokes blessings through multiples of four from 4 to 48. While odd numbers belong to the divine realm, even numbers relate to the human and material realm, representing cosmic mathematical harmonies. Each number corresponds to specific Vedic metres, fire-altar brick layers, soma vessel counts, and ritual configurations. Together with the odd-number series, these form the complete numerical framework of the Vedic sacrifice, expressing the harmony between the divine and human orders.",
+      subtitle: "Sacrificial Fires, Vedas, Disciplines, and Vows",
+      description: "This anuvaka prays for specific yāgas, cosmic deities, the three Vedas, and the disciplines of initiation, tapas, seasons, and vows. The closing line prays for rain during day and night and the two great Sāma hymns Bṛhat and Rathantara.",
       mantras: [
-        {
-          devanagari: "चतस्रश्च मेऽष्टौ च मे द्वादश च मे",
-          text: "catasraśca me'ṣṭau ca me dvādaśa ca me",
-          meaning: "May four (the four Vedas and four directions) be mine, may eight (the eight Vasus and Ashta Dikpalakas) be mine, may twelve (the twelve Adityas and twelve months) be mine."
-        },
-        {
-          devanagari: "षोडश च मे विंशतिश्च मे चतुर्विंशतिश्च मे",
-          text: "ṣoḍaśa ca me viṁśatiśca me caturviṁśatiśca me",
-          meaning: "May sixteen (the sixteen ritual priests and sixteen kalas) be mine, may twenty (the twenty bricks of the fire altar) be mine, may twenty-four (the twenty-four syllables of the Gayatri) be mine."
-        },
-        {
-          devanagari: "अष्टाविंशतिश्च मे द्वात्रिंशच्च मे षट्त्रिंशच्च मे",
-          text: "aṣṭāviṁśatiśca me dvātriṁśacca me ṣaṭtriṁśacca me",
-          meaning: "May twenty-eight (the twenty-eight Nakshatras in the lunar cycle) be mine, may thirty-two (the sacred syllabic configurations) be mine, may thirty-six (the expanded cosmic arrangements) be mine."
-        },
-        {
-          devanagari: "चत्वारिंशच्च मे चतुश्चत्वारिंशच्च मे अष्टाचत्वारिंशच्च मे",
-          text: "catvāriṁśacca me catuścatvāriṁśacca me aṣṭācatvāriṁśacca me",
-          meaning: "May forty (the forty days of sacred observance) be mine, may forty-four (the extended ritual configurations) be mine, may forty-eight (the culminating number representing the fullness of all cosmic and ritual harmonies) be mine."
-        }
+        { devanagari: "अग्निः", text: "agniḥ", meaning: "Agni — the fire used in the Sāyanam yāga (evening sacrifice)." },
+        { devanagari: "धर्मः", text: "dharmaḥ", meaning: "Dharma — the karma called Pravargyam (hot-milk oblation)." },
+        { devanagari: "अर्कः", text: "arkaḥ", meaning: "Arka — the yāga indicated by the passage 'indrāyārkavate puroḍāśam'." },
+        { devanagari: "सूर्यः", text: "sūryaḥ", meaning: "Sūrya — the yāga indicated by the passage 'sauryaṁ carum'." },
+        { devanagari: "प्राणः", text: "prāṇaḥ", meaning: "Prāṇa — the Homam indicated by 'prāṇāya svāhā'." },
+        { devanagari: "अश्वमेधः", text: "aśvamedhaḥ", meaning: "Aśvamedha — the great horse sacrifice; the supreme Vedic ritual." },
+        { devanagari: "पृथिवी", text: "pṛthivī", meaning: "Earth — the Earth deity and her presiding powers." },
+        { devanagari: "अदितिः", text: "aditiḥ", meaning: "Aditi — the mother of the Ādityas, deity of boundless freedom." },
+        { devanagari: "दितिः", text: "ditiḥ", meaning: "Diti — the mother of the Daityas, deity of division." },
+        { devanagari: "द्यौः", text: "dyauḥ", meaning: "Heaven — the celestial realm and its presiding deity." },
+        { devanagari: "शक्वरीः अङ्गुलयः", text: "śakvarīḥ aṅgulayaḥ", meaning: "Fingers of Virāṭ Purusha — the Śakvarī metre and the finger-like limbs of the Cosmic Being, viz. deities Pṛthivī, Aditi, Diti, Dyau." },
+        { devanagari: "दिशः", text: "diśaḥ", meaning: "Directions — the cardinal directions. The 'cha' also indicates Vidiks (intermediate directions)." },
+        { devanagari: "यज्ञेन कल्पन्ताम्", text: "yajñena kalpantām", meaning: "Through yajña — may all these become capable of doing their duties through sacrifice." },
+        { devanagari: "ऋक्", text: "ṛk", meaning: "Ṛg Veda — the Ṛk mantras, hymns of praise." },
+        { devanagari: "साम", text: "sāma", meaning: "Sāma Veda — the Sāma mantras, musical chants." },
+        { devanagari: "स्तोमः", text: "stomaḥ", meaning: "Stoma — continuous rendering of Sāma hymns in a specific arrangement." },
+        { devanagari: "यजुः", text: "yajuḥ", meaning: "Yajur Veda — the Yajur mantras, sacrificial formulas." },
+        { devanagari: "दीक्षा", text: "dīkṣā", meaning: "Initiation — the consecration and saṁskāra for the yajamāna (performer of yāga)." },
+        { devanagari: "तपः", text: "tapaḥ", meaning: "Tapas — fasting and austerities performed for annihilation of sins." },
+        { devanagari: "ऋतुः", text: "ṛtuḥ", meaning: "Season — the right and proper time for performing the yajña." },
+        { devanagari: "व्रतम्", text: "vratam", meaning: "Sacred vow — discipline and rules observed during the yajña." },
+        { devanagari: "बृहद्रथन्तरे", text: "bṛhadrathantare", meaning: "Bṛhat and Rathantara — the two great Sāma Veda hymns." },
+        { devanagari: "अहोरात्रयोः वृष्ट्या", text: "ahorātrayoḥ vṛṣṭyā", meaning: "By rain during day and night — may my crops grow in fertile manner through timely rainfall." }
       ]
     },
     {
@@ -921,34 +920,39 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 10",
       titleSanskrit: "दशमोऽनुवाकः",
-      subtitle: "Cosmic Deities, Vedic Knowledge, and the Omnipresent Lord",
-      description: "This anuvaka is the closing prayer of the number series, invoking the cosmic deities and forces that govern food production, the heavens, and dissolution. It calls upon the Sun as the source of all energy, the sky and its devatas, the deity presiding over cosmic dissolution, and culminates in the declaration of the omnipotent, omnipresent Lord as the Antaryami (indwelling Self) of all. The anuvaka then reaffirms the desire for the complete corpus of Vedic knowledge and the disciplines of sacred initiation, penance, seasonal observance, and vows.",
+      subtitle: "Cattle, Life Stages, and the Virtuous Cycle of Sacrifice",
+      description: "This anuvaka is a complete census of livestock at every life-stage and gender, followed by a profound pivot: all vital faculties (life, breath, mind, speech, the Self) are said to be 'accomplished through yajña.' The final line is recursive: 'may sacrifice itself be accomplished through sacrifice' — the act of giving creates the capacity for more giving.",
       mantras: [
-        {
-          devanagari: "वाजश्च प्रसवश्च अपिजश्च क्रतुश्च सुवश्च मूर्धा च",
-          text: "vājaśca prasavaśca apijaśca kratuśca suvaśca mūrdhā ca",
-          meaning: "May food be mine, may the production of food be mine, may continuous production be mine, may the use of food in yagna be mine, may the Sun as the source of all energy be mine, may the sky be mine."
-        },
-        {
-          devanagari: "व्यश्नियश्चान्त्यायनश्चान्त्यश्च भौवनश्च भुवनश्च",
-          text: "vyaśniyaścāntyāyanaścāntyaśca bhauvanaśca bhuvanaśca",
-          meaning: "May the sky devatas be mine, may the deity of Pralaya (cosmic dissolution) be mine, may the one present at the end of consummation be mine, may the devatas presiding on earth be mine, may the entire Universe be mine."
-        },
-        {
-          devanagari: "अधिपतिश्च मे यज्ञेन कल्पन्ताम्",
-          text: "adhipatiśca me yajñena kalpantām",
-          meaning: "May the omnipotent and omnipresent Lord who dwells as the Antaryami in all beings be mine; may all these be attained through sacrifice."
-        },
-        {
-          devanagari: "ऋक् च मे साम च मे स्तोमश्च मे यजुश्च मे",
-          text: "ṛk ca me sāma ca me stomaśca me yajuśca me",
-          meaning: "May the Rig Veda mantras be mine, may the Sama Veda musical chants be mine, may the Stoma arrangements be mine, may the Yajur Veda sacrificial formulas be mine."
-        },
-        {
-          devanagari: "दीक्षा च मे तपश्च मे ऋतुश्च मे व्रतं च मे",
-          text: "dīkṣā ca me tapaśca me ṛtuśca me vrataṁ ca me",
-          meaning: "May sacred initiation into yagna be mine, may penance for the dilution of sins be mine, may the proper seasons for rituals be mine, may sacred vows and observances be mine."
-        }
+        { devanagari: "गर्भाः", text: "garbhāḥ", meaning: "Calves in womb — unborn cattle still developing." },
+        { devanagari: "वत्साः", text: "vatsāḥ", meaning: "Young calves — calves less than one year old." },
+        { devanagari: "त्र्यविः", text: "tryaviḥ", meaning: "Bull (1½ years) — a bull one and a half years old." },
+        { devanagari: "त्र्यवी", text: "tryavī", meaning: "Cow (1½ years) — a cow one and a half years old." },
+        { devanagari: "दित्यवाट्", text: "dityavāṭ", meaning: "Bull (2 years) — a bull two years old." },
+        { devanagari: "दित्यौही", text: "dityauhī", meaning: "Cow (2 years) — a cow two years old." },
+        { devanagari: "पञ्चाविः", text: "pañcāviḥ", meaning: "Bull (2½ years) — a bull two and a half years old." },
+        { devanagari: "पञ्चावी", text: "pañcāvī", meaning: "Cow (2½ years) — a cow two and a half years old." },
+        { devanagari: "त्रिवत्सः", text: "trivatsaḥ", meaning: "Bull (3 years) — a bull three years old." },
+        { devanagari: "त्रिवत्सा", text: "trivatsā", meaning: "Cow (3 years) — a cow three years old." },
+        { devanagari: "तुर्यवाट्", text: "turyavāṭ", meaning: "Bull (3½ years) — a bull three and a half years old." },
+        { devanagari: "तुर्यौही", text: "turyauhī", meaning: "Cow (3½ years) — a cow three and a half years old." },
+        { devanagari: "पष्ठवाट्", text: "paṣṭhavāṭ", meaning: "Bull (4 years) — a bull four years old." },
+        { devanagari: "पष्ठौही", text: "paṣṭhauhī", meaning: "Cow (4 years) — a cow four years old." },
+        { devanagari: "उक्षा", text: "ukṣā", meaning: "Breeding bull — a bull capable of producing progeny." },
+        { devanagari: "वशा", text: "vaśā", meaning: "Barren cow — a cow that does not bear calves." },
+        { devanagari: "ऋषभः", text: "ṛṣabhaḥ", meaning: "Senior bull — a bull older than Ukṣā, fully mature." },
+        { devanagari: "वेहत्", text: "vehat", meaning: "Cow that lost foetus — a cow which has lost its foetus due to attack by a bull." },
+        { devanagari: "अनड्वान्", text: "anaḍvān", meaning: "Draught bull — a bull bearing burden in cart etc., a working ox." },
+        { devanagari: "धेनुः", text: "dhenuḥ", meaning: "Milking cow — a cow with a young calf, producing milk." },
+        { devanagari: "आयुर्यज्ञेन कल्पताम्", text: "āyuryajñena kalpatām", meaning: "May lifespan be accomplished through sacrifice." },
+        { devanagari: "प्राणो यज्ञेन कल्पताम्", text: "prāṇo yajñena kalpatām", meaning: "May Prāṇa (life-breath) be accomplished through sacrifice." },
+        { devanagari: "अपानो यज्ञेन कल्पताम्", text: "apāno yajñena kalpatām", meaning: "May Apāna (downward breath) be accomplished through sacrifice." },
+        { devanagari: "व्यानो यज्ञेन कल्पताम्", text: "vyāno yajñena kalpatām", meaning: "May Vyāna (circulating breath) be accomplished through sacrifice." },
+        { devanagari: "चक्षुर्यज्ञेन कल्पताम्", text: "cakṣuryajñena kalpatām", meaning: "May sight be accomplished through sacrifice." },
+        { devanagari: "श्रोत्रं यज्ञेन कल्पताम्", text: "śrotraṁ yajñena kalpatām", meaning: "May hearing be accomplished through sacrifice." },
+        { devanagari: "मनो यज्ञेन कल्पताम्", text: "mano yajñena kalpatām", meaning: "May mind be accomplished through sacrifice." },
+        { devanagari: "वाग्यज्ञेन कल्पताम्", text: "vāgyajñena kalpatām", meaning: "May speech be accomplished through sacrifice." },
+        { devanagari: "आत्मा यज्ञेन कल्पताम्", text: "ātmā yajñena kalpatām", meaning: "May the Self be accomplished through sacrifice." },
+        { devanagari: "यज्ञो यज्ञेन कल्पताम्", text: "yajño yajñena kalpatām", meaning: "May sacrifice itself be accomplished through sacrifice — the recursive, self-sustaining cycle of giving." }
       ]
     },
     {
@@ -956,49 +960,49 @@ var RUDRAM_DATA = {
       part: "chamakam",
       title: "Anuvaka 11",
       titleSanskrit: "एकादशोऽनुवाकः",
-      subtitle: "Worldly Happiness, Heavenly Bliss, and Spiritual Fulfillment",
-      description: "The concluding anuvaka of the Chamakam is a grand summation that seeks total fulfillment across both the worldly and spiritual planes. Beginning with worldly happiness (sham) and heavenly happiness (maya), it proceeds through all that makes life pleasing, from endearing relationships and material comforts to fame, fortune, wealth, and wisdom. It asks for proper guidance from teachers, steadfastness in adversity, the courage to face difficulties, abundant spiritual knowledge of the Vedas, and the capacity to command and encourage others. It culminates by seeking the sacred duties and immortal fruits of yajnas, freedom from disease, and prolonged longevity, ending with the threefold peace chant.",
+      subtitle: "The Sacred Numbers — Odd and Even",
+      description: "By the odd numbers from 1 to 33, Chandas (metres) liked by Devas are attained. By the even numbers from 4 to 48, Chandas liked by humans are attained. Both are mentioned to gain the love of Devas as well as humans. The twelve words from Vāja to Adhipati may also be taken as names of the twelve months from Chaitra to Phālguna. Translated by: P R Kannan, Navi Mumbai.",
       mantras: [
-        {
-          devanagari: "शं च मे मयश्च मे प्रियं च मेऽनुकामश्च मे",
-          text: "śaṁ ca me mayaśca me priyaṁ ca me'nukāmaśca me",
-          meaning: "May worldly happiness be mine, may heavenly happiness be mine, may all pleasing objects be mine, may tempting objects that fulfill desires be mine."
-        },
-        {
-          devanagari: "कामश्च मे सौमनसश्च मे भद्रं च मे श्रेयश्च मे",
-          text: "kāmaśca me saumanasaśca me bhadraṁ ca me śreyaśca me",
-          meaning: "May the longing for experience in the other world be mine, may the pleasure of possessing endearing relations be mine, may progress, welfare, and wisdom be mine, may good prospects and auspicious outcomes be mine."
-        },
-        {
-          devanagari: "वसीयश्च मे यशश्च मे भगश्च मे द्रविणं च मे",
-          text: "vasīyaśca me yaśaśca me bhagaśca me draviṇaṁ ca me",
-          meaning: "May comfortable dwelling places be mine, may reputation and fame be mine, may fortune and good luck be mine, may huge wealth be mine."
-        },
-        {
-          devanagari: "यन्ता च मे धर्ता च मे क्षेमश्च मे धृतिश्च मे",
-          text: "yantā ca me dhartā ca me kṣemaśca me dhṛtiśca me",
-          meaning: "May proper guidance from elders and teachers be mine, may steadfastness in crucial circumstances like that of a father be mine, may the capacity to protect assets and property be mine, may courage in difficult periods be mine."
-        },
-        {
-          devanagari: "विश्वं च मे महश्च मे संविच्च मे ज्ञात्रं च मे",
-          text: "viśvaṁ ca me mahaśca me saṁvicca me jñātraṁ ca me",
-          meaning: "May co-operation from all people be mine, may respect and glory be mine, may abundant spiritual knowledge in the Vedas be mine, may the capacity to imbibe and recollect that knowledge be mine."
-        },
-        {
-          devanagari: "सूश्च मे प्रसूश्च मे सीरं च मे लयश्च मे",
-          text: "sūśca me prasūśca me sīraṁ ca me layaśca me",
-          meaning: "May the ability to promote and command sons be mine, may the capacity to encourage and guide serving persons be mine, may the wealth of ploughs, bulls, and agricultural instruments be mine, may the power to avert hurdles and destroy resistance be mine."
-        },
-        {
-          devanagari: "ऋतं च मेऽमृतं च मेऽयक्ष्मं च मेऽनामयच्च मे जीवातुश्च मे दीर्घायुत्वं च मे",
-          text: "ṛtaṁ ca me'mṛtaṁ ca me'yakṣmaṁ ca me'nāmayacca me jīvātuśca me dīrghāyutvaṁ ca me",
-          meaning: "May the faithful performance of the duties of yajnas be mine, may the immortal fruits of those yajnas be mine, may the prevention of incurable diseases be mine, may a body devoid of all ailments be mine, may medicines that sustain life and existence be mine, may prolonged longevity be mine."
-        },
-        {
-          devanagari: "ॐ शान्तिः शान्तिः शान्तिः",
-          text: "oṁ śāntiḥ śāntiḥ śāntiḥ",
-          meaning: "Om, peace, peace, peace."
-        }
+        { devanagari: "एका", text: "ekā", meaning: "One (1) — the first odd number; the singular cosmic principle." },
+        { devanagari: "तिस्रः", text: "tisraḥ", meaning: "Three (3) — the three Vedas, three worlds, three guṇas." },
+        { devanagari: "पञ्च", text: "pañca", meaning: "Five (5) — the five elements, five senses, five prāṇas." },
+        { devanagari: "सप्त", text: "sapta", meaning: "Seven (7) — the seven metres, seven ṛṣis, seven flames." },
+        { devanagari: "नव", text: "nava", meaning: "Nine (9) — the nine bodily gates, nine forms of devotion." },
+        { devanagari: "एकादश", text: "ekādaśa", meaning: "Eleven (11) — the eleven Rudras." },
+        { devanagari: "त्रयोदश", text: "trayodaśa", meaning: "Thirteen (13) — the thirteen months of the ritual year." },
+        { devanagari: "पञ्चदश", text: "pañcadaśa", meaning: "Fifteen (15) — the fifteen nights of the waxing moon (śukla pakṣa)." },
+        { devanagari: "सप्तदश", text: "saptadaśa", meaning: "Seventeen (17) — the Saptadaśa Stoma arrangement." },
+        { devanagari: "नवदश", text: "navadaśa", meaning: "Nineteen (19) — higher Stoma and cosmic configurations." },
+        { devanagari: "एकविंशतिः", text: "ekaviṁśatiḥ", meaning: "Twenty-one (21) — the Ekaviṁśa Stoma; layers of creation." },
+        { devanagari: "त्रयोविंशतिः", text: "trayoviṁśatiḥ", meaning: "Twenty-three (23) — higher Stoma configurations." },
+        { devanagari: "पञ्चविंशतिः", text: "pañcaviṁśatiḥ", meaning: "Twenty-five (25) — the twenty-five tattvas of Sāṅkhya." },
+        { devanagari: "सप्तविंशतिः", text: "saptaviṁśatiḥ", meaning: "Twenty-seven (27) — the twenty-seven Nakṣatras (lunar stations)." },
+        { devanagari: "नवविंशतिः", text: "navaviṁśatiḥ", meaning: "Twenty-nine (29) — higher sacred configurations." },
+        { devanagari: "एकत्रिंशत्", text: "ekatriṁśat", meaning: "Thirty-one (31) — the culminating Stoma arrangement." },
+        { devanagari: "त्रयस्त्रिंशत्", text: "trayastriṁśat", meaning: "Thirty-three (33) — the thirty-three Devas who govern all cosmic functions." },
+        { devanagari: "चतस्रः", text: "catasraḥ", meaning: "Four (4) — the four Vedas, four directions, four puruṣārthas." },
+        { devanagari: "अष्टौ", text: "aṣṭau", meaning: "Eight (8) — the eight Vasus, eight directions." },
+        { devanagari: "द्वादश", text: "dvādaśa", meaning: "Twelve (12) — the twelve Ādityas, twelve months." },
+        { devanagari: "षोडश", text: "ṣoḍaśa", meaning: "Sixteen (16) — the sixteen kalās (phases of the moon)." },
+        { devanagari: "विंशतिः", text: "viṁśatiḥ", meaning: "Twenty (20) — sacred ritual configurations." },
+        { devanagari: "चतुर्विंशतिः", text: "caturviṁśatiḥ", meaning: "Twenty-four (24) — the 24 syllables of the Gāyatrī metre." },
+        { devanagari: "अष्टाविंशतिः", text: "aṣṭāviṁśatiḥ", meaning: "Twenty-eight (28) — the Uṣṇik metre; 28 Nakṣatras in the lunar cycle." },
+        { devanagari: "द्वात्रिंशत्", text: "dvātriṁśat", meaning: "Thirty-two (32) — the Anuṣṭup metre (32 syllables)." },
+        { devanagari: "षट्त्रिंशत्", text: "ṣaṭtriṁśat", meaning: "Thirty-six (36) — the Bṛhatī metre (36 syllables)." },
+        { devanagari: "चत्वारिंशत्", text: "catvāriṁśat", meaning: "Forty (40) — the Paṅkti metre (40 syllables)." },
+        { devanagari: "चतुश्चत्वारिंशत्", text: "catuścatvāriṁśat", meaning: "Forty-four (44) — the Triṣṭup metre (44 syllables)." },
+        { devanagari: "अष्टाचत्वारिंशत्", text: "aṣṭācatvāriṁśat", meaning: "Forty-eight (48) — the Jagatī metre (48 syllables); the fullness of all cosmic and ritual harmonies." },
+        { devanagari: "वाजः", text: "vājaḥ", meaning: "Food — nourishment; also the name of month Chaitra." },
+        { devanagari: "प्रसवः", text: "prasavaḥ", meaning: "Production — its production; also Vaiśākha." },
+        { devanagari: "अपिजः", text: "apijaḥ", meaning: "Frequent production — its repeated generation; also Jyeṣṭha." },
+        { devanagari: "क्रतुः", text: "kratuḥ", meaning: "Resolve — the resolve to enjoy it, or yāga; also Āṣāḍha." },
+        { devanagari: "सुवः", text: "suvaḥ", meaning: "Sūrya — the Sun, cause of food production; also Śrāvaṇa." },
+        { devanagari: "मूर्धा", text: "mūrdhā", meaning: "Sky — the crown, the vault of heaven; also Bhādrapada." },
+        { devanagari: "व्यश्नियः", text: "vyaśniyaḥ", meaning: "Born in sky — celestial being; also Āśvina." },
+        { devanagari: "अन्त्यः", text: "antyaḥ", meaning: "Born at the end — the final one; also Kārttika." },
+        { devanagari: "भौवनः", text: "bhauvanaḥ", meaning: "Born in the world — of worldly origin; also Mārgaśīrṣa." },
+        { devanagari: "भुवनः", text: "bhuvanaḥ", meaning: "The world — the entire universe itself; also Puṣya (Pauṣa)." },
+        { devanagari: "अधिपतिः", text: "adhipatiḥ", meaning: "King/Lord — the sovereign ruler of all; also Māgha. May all this be very favourable to me." }
       ]
     }
   ]
