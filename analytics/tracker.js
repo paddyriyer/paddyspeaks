@@ -35,8 +35,9 @@
   });
 
   // ── Send (non-blocking) ──────────────────────────────
+  var blob = new Blob([data], { type: 'application/json' });
   if (navigator.sendBeacon) {
-    navigator.sendBeacon(ENDPOINT, data);
+    navigator.sendBeacon(ENDPOINT, blob);
   } else {
     var x = new XMLHttpRequest();
     x.open('POST', ENDPOINT, true);
