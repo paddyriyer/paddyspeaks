@@ -8,7 +8,7 @@
   'use strict';
 
   // ── Configuration ────────────────────────────────────
-  var ENDPOINT = 'https://paddyspeaks-analytics.YOUR_SUBDOMAIN.workers.dev/collect';
+  var ENDPOINT = 'https://paddyspeaks.paddy-iyer.workers.dev/collect';
 
   // ── Guards ───────────────────────────────────────────
   if (navigator.doNotTrack === '1') return;
