@@ -1,0 +1,37 @@
+name: Deploy Analytics Worker
+
+# Runs when you push changes to the worker, or manually from GitHub UI
+on:
+  push:
+    paths:
+      - 'analytics/worker/**'
+  workflow_dispatch:
+    inputs:
+      setup_database:
+        description: 'Run database schema setup (first time only)'
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare Workers
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup D1 Database Schema
+        if: ${{ github.event.inputs.setup_database == 'true' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: analytics/worker
+          command: d1 execute paddyspeaks-analytics --file=schema.sql
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: analytics/worker
+          command: deploy
