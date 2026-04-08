@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>PaddySpeaks Analytics</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700&family=Source+Serif+4:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --ink: #1a2332;
+            --paper: #eef3f9;
+            --cream: #e2ebf4;
+            --blue: #2563a8;
+            --blue-light: #a8c8e8;
+            --blue-dark: #1a4f8a;
+            --rust: #c44b2b;
+            --sage: #2a7a4a;
+            --muted: #556677;
+            --border: #c8d6e5;
+            --white: #ffffff;
+            --font-display: 'Playfair Display', Georgia, serif;
+            --font-body: 'Source Serif 4', Georgia, serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--paper);
+            color: var(--ink);
+            min-height: 100vh;
+        }
+
+        /* ═══ Login Screen ═══ */
+        .login-overlay {
+            position: fixed; inset: 0; z-index: 9999;
+            background: var(--paper);
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.4s, visibility 0.4s;
+        }
+        .login-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+        .login-box {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 48px 40px;
+            max-width: 400px; width: 90%;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(26, 35, 50, 0.08);
+        }
+        .login-box h1 {
+            font-family: var(--font-display);
+            font-size: 1.6rem; font-weight: 700;
+            margin-bottom: 8px; color: var(--ink);
+        }
+        .login-box p { color: var(--muted); font-size: 0.95rem; margin-bottom: 28px; }
+        .login-input {
+            width: 100%; padding: 12px 16px;
+            border: 1.5px solid var(--border); border-radius: 8px;
+            font-family: var(--font-mono); font-size: 0.95rem;
+            background: var(--paper); color: var(--ink);
+            outline: none; transition: border-color 0.2s;
+        }
+        .login-input:focus { border-color: var(--blue); }
+        .login-btn {
+            width: 100%; margin-top: 16px; padding: 12px;
+            background: var(--blue); color: var(--white);
+            border: none; border-radius: 8px; cursor: pointer;
+            font-family: var(--font-body); font-size: 1rem; font-weight: 600;
+            transition: background 0.2s;
+        }
+        .login-btn:hover { background: var(--blue-dark); }
+        .login-error {
+            color: var(--rust); font-size: 0.85rem;
+            margin-top: 12px; display: none;
+        }
+
+        /* ═══ Dashboard Header ═══ */
+        .dash-header {
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 12px;
+            position: sticky; top: 0; z-index: 100;
+        }
+        .dash-title {
+            font-family: var(--font-display);
+            font-size: 1.3rem; font-weight: 700;
+        }
+        .dash-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .period-btn {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+            background: var(--white); color: var(--muted); cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+        .period-btn.active { background: var(--blue); color: var(--white); border-color: var(--blue); }
+        .period-btn:hover:not(.active) { border-color: var(--blue); color: var(--blue); }
+        .dash-logout {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid var(--rust);
+            background: transparent; color: var(--rust); cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.8rem;
+        }
+        .dash-refresh {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid var(--sage);
+            background: transparent; color: var(--sage); cursor: pointer;
+            font-family: var(--font-mono); font-size: 0.8rem;
+        }
+
+        /* ═══ Content ═══ */
+        .dash-content {
+            max-width: 1400px; margin: 0 auto;
+            padding: 24px;
+        }
+        .dash-content.locked { filter: blur(20px); pointer-events: none; user-select: none; }
+
+        /* ═══ Stat Cards ═══ */
+        .stat-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px; margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px 24px;
+            text-align: center;
+        }
+        .stat-label { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--font-mono); }
+        .stat-value { font-size: 2.2rem; font-weight: 700; color: var(--ink); margin-top: 4px; font-family: var(--font-display); }
+        .stat-card.highlight { border-left: 4px solid var(--blue); }
+        .stat-card.highlight .stat-value { color: var(--blue); }
+
+        /* ═══ Chart Panels ═══ */
+        .panel {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px; margin-bottom: 20px;
+        }
+        .panel-title {
+            font-family: var(--font-display);
+            font-size: 1.1rem; font-weight: 600;
+            margin-bottom: 16px; color: var(--ink);
+        }
+        .chart-container { position: relative; width: 100%; }
+        .chart-container.line { height: 300px; }
+        .chart-container.doughnut { height: 260px; max-width: 280px; margin: 0 auto; }
+
+        /* ═══ Grid Layouts ═══ */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        @media (max-width: 900px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+
+        /* ═══ Data Tables ═══ */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th {
+            text-align: left; font-family: var(--font-mono); font-size: 0.75rem;
+            color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+            padding: 8px 12px; border-bottom: 2px solid var(--border);
+        }
+        .data-table td {
+            padding: 10px 12px; border-bottom: 1px solid var(--cream);
+            font-size: 0.9rem;
+        }
+        .data-table tr:last-child td { border-bottom: none; }
+        .data-table .num {
+            text-align: right; font-family: var(--font-mono);
+            font-weight: 500; color: var(--blue-dark);
+        }
+
+        /* ═══ Bar inside table ═══ */
+        .bar-cell { position: relative; }
+        .bar-bg {
+            position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+            height: 24px; background: var(--cream); border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .bar-label { position: relative; z-index: 1; }
+
+        /* ═══ Referrer formatting ═══ */
+        .ref-domain {
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--blue-dark);
+            max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+
+        /* ═══ Real-time pulse ═══ */
+        .realtime-dot {
+            display: inline-block; width: 8px; height: 8px;
+            background: var(--sage); border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* ═══ Loading state ═══ */
+        .loading-spinner {
+            text-align: center; padding: 60px;
+            color: var(--muted); font-family: var(--font-mono);
+        }
+        .loading-spinner::after {
+            content: ''; display: block; width: 32px; height: 32px;
+            margin: 16px auto 0; border: 3px solid var(--border);
+            border-top-color: var(--blue); border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ═══ Footer ═══ */
+        .dash-footer {
+            text-align: center; padding: 24px;
+            color: var(--muted); font-size: 0.8rem;
+            font-family: var(--font-mono);
+        }
+    </style>
+</head>
+<body>
+
+<!-- ═══════════ Login Overlay ═══════════ -->
+<div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+        <h1>PaddySpeaks Analytics</h1>
+        <p>Enter your password to view the dashboard</p>
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+            <input type="password" class="login-input" id="loginPassword" placeholder="Password" autocomplete="off" autofocus>
+            <button type="submit" class="login-btn">Unlock Dashboard</button>
+        </form>
+        <div class="login-error" id="loginError">Incorrect password. Please try again.</div>
+    </div>
+</div>
+
+<!-- ═══════════ Dashboard ═══════════ -->
+<header class="dash-header">
+    <div class="dash-title">PaddySpeaks Analytics</div>
+    <div class="dash-controls">
+        <span id="realtimeBadge" style="font-family:var(--font-mono);font-size:0.85rem;color:var(--sage)">
+            <span class="realtime-dot"></span><span id="realtimeCount">-</span> active now
+        </span>
+        <button class="period-btn" data-period="1d">Today</button>
+        <button class="period-btn active" data-period="7d">7 days</button>
+        <button class="period-btn" data-period="30d">30 days</button>
+        <button class="period-btn" data-period="90d">90 days</button>
+        <button class="period-btn" data-period="all">All time</button>
+        <button class="dash-refresh" onclick="loadDashboard()">Refresh</button>
+        <button class="dash-logout" onclick="logout()">Logout</button>
+    </div>
+</header>
+
+<div class="dash-content locked" id="dashContent">
+
+    <!-- Loading -->
+    <div class="loading-spinner" id="loadingState">Loading analytics...</div>
+
+    <!-- Stats will be injected here -->
+    <div id="dashBody" style="display:none">
+
+        <!-- ── Summary Cards ── -->
+        <div class="stat-row" id="statCards">
+            <div class="stat-card highlight">
+                <div class="stat-label">Page Views</div>
+                <div class="stat-value" id="totalViews">-</div>
+            </div>
+            <div class="stat-card highlight">
+                <div class="stat-label">Unique Visitors</div>
+                <div class="stat-value" id="uniqueVisitors">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top Page</div>
+                <div class="stat-value" id="topPage" style="font-size:1rem;font-family:var(--font-mono);word-break:break-all">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top Country</div>
+                <div class="stat-value" id="topCountry" style="font-size:1.6rem">-</div>
+            </div>
+        </div>
+
+        <!-- ── Visitors Over Time ── -->
+        <div class="panel">
+            <div class="panel-title">Visitors Over Time</div>
+            <div class="chart-container line">
+                <canvas id="chartDaily"></canvas>
+            </div>
+        </div>
+
+        <!-- ── Top Pages + Geography ── -->
+        <div class="grid-2">
+            <div class="panel">
+                <div class="panel-title">Top Pages</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tablePages"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Countries</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableCountries"><tbody></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- ── Cities ── -->
+        <div class="panel">
+            <div class="panel-title">Cities</div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableCities"><tbody></tbody></table></div>
+        </div>
+
+        <!-- ── Devices / Browsers / OS ── -->
+        <div class="grid-3">
+            <div class="panel">
+                <div class="panel-title">Devices</div>
+                <div class="chart-container doughnut">
+                    <canvas id="chartDevices"></canvas>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Browsers</div>
+                <div class="chart-container doughnut">
+                    <canvas id="chartBrowsers"></canvas>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Operating Systems</div>
+                <div class="chart-container doughnut">
+                    <canvas id="chartOS"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Referrers + Screen + Language ── -->
+        <div class="grid-3">
+            <div class="panel">
+                <div class="panel-title">Referrers</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableReferrers"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Screen Resolutions</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableScreens"><tbody></tbody></table></div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Languages</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableLanguages"><tbody></tbody></table></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer class="dash-footer">
+    PaddySpeaks Analytics &mdash; Self-hosted, cookie-free, privacy-respecting
+</footer>
+
+<script>
+(function() {
+    'use strict';
+
+    // ── Configuration ────────────────────────
+    // SETUP: Replace with your deployed Cloudflare Worker URL
+    var API_BASE = 'https://paddyspeaks-analytics.YOUR_SUBDOMAIN.workers.dev';
+
+    var authToken = null;
+    var currentPeriod = '7d';
+    var charts = {};
+
+    // ── Chart.js Defaults ────────────────────
+    Chart.defaults.font.family = "'Source Serif 4', Georgia, serif";
+    Chart.defaults.color = '#556677';
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.padding = 16;
+
+    var CHART_COLORS = ['#2563a8', '#c44b2b', '#2a7a4a', '#d4a017', '#7c3aed', '#e8597a', '#06b6d4', '#f59e0b', '#8b5cf6', '#10b981'];
+
+    // ── Login ────────────────────────────────
+    window.handleLogin = async function(e) {
+        e.preventDefault();
+        var pw = document.getElementById('loginPassword').value;
+        if (!pw) return false;
+
+        // SHA-256 hash the password
+        var enc = new TextEncoder().encode(pw);
+        var hashBuf = await crypto.subtle.digest('SHA-256', enc);
+        var hashArr = Array.from(new Uint8Array(hashBuf));
+        authToken = hashArr.map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+
+        // Test authentication
+        try {
+            var res = await fetch(API_BASE + '/api/realtime', {
+                headers: { 'Authorization': 'Bearer ' + authToken }
+            });
+            if (res.status === 401) {
+                document.getElementById('loginError').style.display = 'block';
+                authToken = null;
+                return false;
+            }
+            // Success
+            sessionStorage.setItem('_ps_auth', authToken);
+            document.getElementById('loginOverlay').classList.add('hidden');
+            document.getElementById('dashContent').classList.remove('locked');
+            loadDashboard();
+            loadRealtime();
+            setInterval(loadRealtime, 30000);
+        } catch (err) {
+            document.getElementById('loginError').textContent = 'Connection error. Is the worker deployed?';
+            document.getElementById('loginError').style.display = 'block';
+        }
+        return false;
+    };
+
+    window.logout = function() {
+        authToken = null;
+        sessionStorage.removeItem('_ps_auth');
+        document.getElementById('loginOverlay').classList.remove('hidden');
+        document.getElementById('dashContent').classList.add('locked');
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginError').style.display = 'none';
+    };
+
+    // ── Auto-login from session ──────────────
+    var saved = sessionStorage.getItem('_ps_auth');
+    if (saved) {
+        authToken = saved;
+        document.getElementById('loginOverlay').classList.add('hidden');
+        document.getElementById('dashContent').classList.remove('locked');
+        loadDashboard();
+        loadRealtime();
+        setInterval(loadRealtime, 30000);
+    }
+
+    // ── Period Buttons ───────────────────────
+    document.querySelectorAll('.period-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.period-btn').forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            currentPeriod = this.dataset.period;
+            loadDashboard();
+        });
+    });
+
+    // ── API Fetch ────────────────────────────
+    async function apiFetch(path) {
+        var res = await fetch(API_BASE + path, {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (res.status === 401) { window.logout(); throw new Error('Unauthorized'); }
+        return res.json();
+    }
+
+    // ── Load Dashboard ───────────────────────
+    window.loadDashboard = async function() {
+        if (!authToken) return;
+        document.getElementById('loadingState').style.display = 'block';
+        document.getElementById('dashBody').style.display = 'none';
+
+        try {
+            var data = await apiFetch('/api/stats?period=' + currentPeriod);
+            renderDashboard(data);
+        } catch (err) {
+            console.error('Dashboard load error:', err);
+        }
+    };
+
+    // ── Load Realtime ────────────────────────
+    async function loadRealtime() {
+        if (!authToken) return;
+        try {
+            var data = await apiFetch('/api/realtime');
+            document.getElementById('realtimeCount').textContent = data.active_visitors || 0;
+        } catch (e) {}
+    }
+
+    // ── Render Dashboard ─────────────────────
+    function renderDashboard(data) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('dashBody').style.display = 'block';
+
+        // Summary cards
+        var ov = data.overview || {};
+        document.getElementById('totalViews').textContent = fmt(ov.total_views || 0);
+        document.getElementById('uniqueVisitors').textContent = fmt(ov.unique_visitors || 0);
+
+        if (data.topPages && data.topPages.length) {
+            var tp = data.topPages[0].page;
+            document.getElementById('topPage').textContent = tp.length > 30 ? tp.slice(0, 30) + '...' : tp;
+        }
+        if (data.countries && data.countries.length) {
+            var tc = data.countries[0];
+            document.getElementById('topCountry').textContent = countryFlag(tc.country) + ' ' + tc.country;
+        }
+
+        // Daily chart
+        renderDailyChart(data.daily || []);
+
+        // Tables
+        renderPagesTable(data.topPages || []);
+        renderCountriesTable(data.countries || []);
+        renderCitiesTable(data.cities || []);
+        renderReferrersTable(data.referrers || []);
+        renderSimpleTable('tableScreens', data.screens || [], 'screen', 'views');
+        renderSimpleTable('tableLanguages', data.languages || [], 'language', 'views');
+
+        // Doughnut charts
+        renderDoughnut('chartDevices', data.devices || []);
+        renderDoughnut('chartBrowsers', data.browsers || []);
+        renderDoughnut('chartOS', data.oses || []);
+    }
+
+    // ── Daily Line Chart ─────────────────────
+    function renderDailyChart(daily) {
+        var ctx = document.getElementById('chartDaily');
+        if (charts.daily) charts.daily.destroy();
+
+        charts.daily = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: daily.map(function(d) { return formatDate(d.date); }),
+                datasets: [
+                    {
+                        label: 'Page Views',
+                        data: daily.map(function(d) { return d.views; }),
+                        borderColor: '#2563a8',
+                        backgroundColor: 'rgba(37,99,168,0.08)',
+                        fill: true, tension: 0.3, pointRadius: 3,
+                        pointBackgroundColor: '#2563a8',
+                    },
+                    {
+                        label: 'Visitors',
+                        data: daily.map(function(d) { return d.visitors; }),
+                        borderColor: '#2a7a4a',
+                        backgroundColor: 'rgba(42,122,74,0.05)',
+                        fill: true, tension: 0.3, pointRadius: 3,
+                        pointBackgroundColor: '#2a7a4a',
+                    }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: { legend: { position: 'top' } },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
+    // ── Doughnut Charts ──────────────────────
+    function renderDoughnut(canvasId, items) {
+        var ctx = document.getElementById(canvasId);
+        if (charts[canvasId]) charts[canvasId].destroy();
+
+        var key = items.length && items[0].device_type ? 'device_type'
+                : items.length && items[0].browser ? 'browser'
+                : items.length && items[0].os ? 'os' : 'label';
+
+        charts[canvasId] = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: items.map(function(d) { return d[key] || d.browser || d.os || d.device_type || 'Unknown'; }),
+                datasets: [{
+                    data: items.map(function(d) { return d.views; }),
+                    backgroundColor: CHART_COLORS.slice(0, items.length),
+                    borderWidth: 2, borderColor: '#ffffff',
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                cutout: '55%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { size: 11 } } }
+                }
+            }
+        });
+    }
+
+    // ── Top Pages Table ──────────────────────
+    function renderPagesTable(pages) {
+        var maxViews = pages.length ? pages[0].views : 1;
+        var html = '<thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th></tr></thead><tbody>';
+        pages.forEach(function(p) {
+            var w = Math.round((p.views / maxViews) * 100);
+            var label = p.page.replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
+            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem" title="' + escHtml(p.page) + '">' + escHtml(label) + '</span></td>';
+            html += '<td class="num">' + fmt(p.views) + '</td>';
+            html += '<td class="num">' + fmt(p.visitors) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tablePages').innerHTML = html;
+    }
+
+    // ── Countries Table ──────────────────────
+    function renderCountriesTable(countries) {
+        var maxViews = countries.length ? countries[0].views : 1;
+        var html = '<thead><tr><th>Country</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th></tr></thead><tbody>';
+        countries.forEach(function(c) {
+            var w = Math.round((c.views / maxViews) * 100);
+            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + countryFlag(c.country) + ' ' + escHtml(c.country) + '</span></td>';
+            html += '<td class="num">' + fmt(c.views) + '</td>';
+            html += '<td class="num">' + fmt(c.visitors) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableCountries').innerHTML = html;
+    }
+
+    // ── Cities Table ─────────────────────────
+    function renderCitiesTable(cities) {
+        var maxViews = cities.length ? cities[0].views : 1;
+        var html = '<thead><tr><th>City</th><th>Country</th><th style="text-align:right">Views</th></tr></thead><tbody>';
+        cities.forEach(function(c) {
+            var w = Math.round((c.views / maxViews) * 100);
+            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + escHtml(c.city) + '</span></td>';
+            html += '<td>' + countryFlag(c.country) + ' ' + escHtml(c.country) + '</td>';
+            html += '<td class="num">' + fmt(c.views) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableCities').innerHTML = html;
+    }
+
+    // ── Referrers Table ──────────────────────
+    function renderReferrersTable(refs) {
+        var html = '<thead><tr><th>Source</th><th style="text-align:right">Views</th></tr></thead><tbody>';
+        if (!refs.length) {
+            html += '<tr><td colspan="2" style="color:var(--muted);text-align:center">No referrer data yet</td></tr>';
+        }
+        refs.forEach(function(r) {
+            var domain = r.referrer;
+            try { domain = new URL(r.referrer).hostname; } catch(e) {}
+            html += '<tr><td class="ref-domain" title="' + escHtml(r.referrer) + '">' + escHtml(domain) + '</td>';
+            html += '<td class="num">' + fmt(r.views) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableReferrers').innerHTML = html;
+    }
+
+    // ── Simple Table ─────────────────────────
+    function renderSimpleTable(tableId, items, labelKey, valueKey) {
+        var html = '<thead><tr><th>' + capitalize(labelKey) + '</th><th style="text-align:right">Views</th></tr></thead><tbody>';
+        if (!items.length) {
+            html += '<tr><td colspan="2" style="color:var(--muted);text-align:center">No data yet</td></tr>';
+        }
+        items.forEach(function(d) {
+            html += '<tr><td style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(d[labelKey] || 'Unknown') + '</td>';
+            html += '<td class="num">' + fmt(d[valueKey]) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById(tableId).innerHTML = html;
+    }
+
+    // ── Utility Functions ────────────────────
+    function fmt(n) {
+        return Number(n).toLocaleString();
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '';
+        var parts = dateStr.split('-');
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[parseInt(parts[1], 10) - 1] + ' ' + parseInt(parts[2], 10);
+    }
+
+    function countryFlag(code) {
+        if (!code || code === 'Unknown' || code.length !== 2) return '';
+        return code.toUpperCase().replace(/./g, function(c) {
+            return String.fromCodePoint(127397 + c.charCodeAt(0));
+        });
+    }
+
+    function escHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function capitalize(s) {
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+})();
+</script>
+</body>
+</html>
