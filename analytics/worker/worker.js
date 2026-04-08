@@ -2,58 +2,63 @@
  * PaddySpeaks Analytics — Cloudflare Worker (Optimized)
  *
  * Endpoints:
- *   POST /collect         — Record a page view (non-blocking DB write)
- *   GET  /api/stats       — Dashboard data (60s edge cache)
- *   GET  /api/realtime    — Visitors in last 5 minutes
+ *   POST /api/v             — Record a page view (non-blocking DB write)
+ *   GET  /api/stats         — Dashboard data (60s edge cache)
+ *   GET  /api/realtime      — Visitors in last 5 minutes
  *
  * Performance:
- *   - /collect returns instantly, DB write happens via waitUntil
+ *   - /api/v returns instantly, DB write happens via waitUntil
  *   - /api/stats cached at edge for 60s (no D1 hit on repeat loads)
  *   - D1 queries batched into single batch() call
- *   - Bot traffic filtered out from /collect
+ *   - Bot traffic filtered out
  */
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+function cors(request) {
+  const origin = request.headers.get('Origin') || 'https://paddyspeaks.com';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const ch = cors(request);
 
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS_HEADERS });
+      return new Response(null, { headers: ch });
     }
 
     if ((url.pathname === '/collect' || url.pathname === '/api/v') && request.method === 'POST') {
-      return handleCollect(request, env, ctx);
+      return handleCollect(request, env, ctx, ch);
     }
 
     if (url.pathname === '/api/stats' && request.method === 'GET') {
-      return handleStats(request, env, url);
+      return handleStats(request, env, url, ch);
     }
 
     if (url.pathname === '/api/realtime' && request.method === 'GET') {
-      return handleRealtime(request, env);
+      return handleRealtime(request, env, ch);
     }
 
-    return new Response('Not found', { status: 404, headers: CORS_HEADERS });
+    return new Response('Not found', { status: 404, headers: ch });
   },
 };
 
 /* ───────── Collect Page View (non-blocking) ───────── */
 
-async function handleCollect(request, env, ctx) {
+async function handleCollect(request, env, ctx, ch) {
   try {
     const data = await request.json();
     const cf = request.cf || {};
     const ua = request.headers.get('User-Agent') || '';
 
-    // Filter bots — don't waste D1 writes
+    // Filter bots
     if (/bot|crawl|spider|slurp|facebook|twitter|whatsapp|telegram|preview/i.test(ua)) {
-      return new Response('ok', { headers: CORS_HEADERS });
+      return new Response('ok', { headers: ch });
     }
 
     // Return immediately — write to D1 in background
@@ -76,16 +81,16 @@ async function handleCollect(request, env, ctx) {
       ).run().catch(e => console.error('DB write error:', e.message))
     );
 
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: ch });
   } catch (e) {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: ch });
   }
 }
 
 /* ───────── Dashboard Stats (cached) ───────── */
 
-async function handleStats(request, env, url) {
-  const authError = authenticate(request, env);
+async function handleStats(request, env, url, ch) {
+  const authError = authenticate(request, env, ch);
   if (authError) return authError;
 
   // Edge cache: serve cached response for 60 seconds
@@ -93,10 +98,9 @@ async function handleStats(request, env, url) {
   const cache = caches.default;
   let cached = await cache.match(cacheKey);
   if (cached) {
-    // Return cached but add CORS headers
     const body = await cached.text();
     return new Response(body, {
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'X-Cache': 'HIT' },
+      headers: { ...ch, 'Content-Type': 'application/json', 'X-Cache': 'HIT' },
     });
   }
 
@@ -135,12 +139,7 @@ async function handleStats(request, env, url) {
   };
 
   const response = new Response(JSON.stringify(data), {
-    headers: {
-      ...CORS_HEADERS,
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60',
-      'X-Cache': 'MISS',
-    },
+    headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60', 'X-Cache': 'MISS' },
   });
 
   // Store in edge cache (non-blocking)
@@ -154,8 +153,8 @@ async function handleStats(request, env, url) {
 
 /* ───────── Realtime ───────── */
 
-async function handleRealtime(request, env) {
-  const authError = authenticate(request, env);
+async function handleRealtime(request, env, ch) {
+  const authError = authenticate(request, env, ch);
   if (authError) return authError;
 
   const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
@@ -164,26 +163,22 @@ async function handleRealtime(request, env) {
     FROM page_views WHERE created_at >= ?
   `).bind(fiveMinAgo).first();
 
-  return jsonResponse(result);
+  return new Response(JSON.stringify(result), {
+    headers: { ...ch, 'Content-Type': 'application/json' },
+  });
 }
 
 /* ───────── Helpers ───────── */
 
-function authenticate(request, env) {
+function authenticate(request, env, ch) {
   const auth = request.headers.get('Authorization') || '';
   if (!auth.startsWith('Bearer ') || auth.slice(7) !== env.ADMIN_PASSWORD_HASH) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+      headers: { ...ch, 'Content-Type': 'application/json' },
     });
   }
   return null;
-}
-
-function jsonResponse(data) {
-  return new Response(JSON.stringify(data), {
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-  });
 }
 
 function sanitize(str) {
