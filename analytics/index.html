@@ -439,6 +439,47 @@
         document.getElementById('loginError').style.display = 'none';
     };
 
+    // ── API Fetch ────────────────────────────
+    async function apiFetch(path) {
+        var res = await fetch(API_BASE + path, {
+            headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (res.status === 401) { window.logout(); throw new Error('Unauthorized'); }
+        return res.json();
+    }
+
+    // ── Load Dashboard ───────────────────────
+    function loadDashboard() {
+        if (!authToken) return;
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('dashBody').style.display = 'block';
+        showSkeletons();
+
+        apiFetch('/api/stats?period=' + currentPeriod).then(function(data) {
+            renderDashboard(data);
+        }).catch(function(err) {
+            console.error('Dashboard load error:', err);
+        });
+    }
+    window.loadDashboard = loadDashboard;
+
+    function showSkeletons() {
+        ['totalViews','uniqueVisitors','topPage','topCountry'].forEach(function(id) {
+            document.getElementById(id).innerHTML = '<div class="skeleton skeleton-value"></div>';
+        });
+        document.querySelectorAll('.panel, .stat-card').forEach(function(el) {
+            el.classList.remove('loaded');
+        });
+    }
+
+    // ── Load Realtime ────────────────────────
+    function loadRealtime() {
+        if (!authToken) return;
+        apiFetch('/api/realtime').then(function(data) {
+            document.getElementById('realtimeCount').textContent = data.active_visitors || 0;
+        }).catch(function() {});
+    }
+
     // ── Auto-login from session ──────────────
     var saved = sessionStorage.getItem('_ps_auth');
     if (saved) {
@@ -459,49 +500,6 @@
             loadDashboard();
         });
     });
-
-    // ── API Fetch ────────────────────────────
-    async function apiFetch(path) {
-        var res = await fetch(API_BASE + path, {
-            headers: { 'Authorization': 'Bearer ' + authToken }
-        });
-        if (res.status === 401) { window.logout(); throw new Error('Unauthorized'); }
-        return res.json();
-    }
-
-    // ── Load Dashboard ───────────────────────
-    window.loadDashboard = async function() {
-        if (!authToken) return;
-        // Show layout with skeletons immediately (no blank screen)
-        document.getElementById('loadingState').style.display = 'none';
-        document.getElementById('dashBody').style.display = 'block';
-        showSkeletons();
-
-        try {
-            var data = await apiFetch('/api/stats?period=' + currentPeriod);
-            renderDashboard(data);
-        } catch (err) {
-            console.error('Dashboard load error:', err);
-        }
-    };
-
-    function showSkeletons() {
-        ['totalViews','uniqueVisitors','topPage','topCountry'].forEach(function(id) {
-            document.getElementById(id).innerHTML = '<div class="skeleton skeleton-value"></div>';
-        });
-        document.querySelectorAll('.panel, .stat-card').forEach(function(el) {
-            el.classList.remove('loaded');
-        });
-    }
-
-    // ── Load Realtime ────────────────────────
-    async function loadRealtime() {
-        if (!authToken) return;
-        try {
-            var data = await apiFetch('/api/realtime');
-            document.getElementById('realtimeCount').textContent = data.active_visitors || 0;
-        } catch (e) {}
-    }
 
     // ── Render Dashboard ─────────────────────
     function renderDashboard(data) {
