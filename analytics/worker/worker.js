@@ -27,7 +27,7 @@ export default {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
-    if (url.pathname === '/collect' && request.method === 'POST') {
+    if ((url.pathname === '/collect' || url.pathname === '/api/v') && request.method === 'POST') {
       return handleCollect(request, env, ctx);
     }
 
