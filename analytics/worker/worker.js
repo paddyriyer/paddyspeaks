@@ -1,13 +1,16 @@
 /**
- * PaddySpeaks Analytics — Cloudflare Worker
+ * PaddySpeaks Analytics — Cloudflare Worker (Optimized)
  *
  * Endpoints:
- *   POST /collect         — Record a page view (called by tracker.js)
- *   GET  /api/stats       — Return dashboard data (requires auth)
+ *   POST /collect         — Record a page view (non-blocking DB write)
+ *   GET  /api/stats       — Dashboard data (60s edge cache)
  *   GET  /api/realtime    — Visitors in last 5 minutes
  *
- * Geo data (country, city, region) comes free from request.cf
- * Browser/OS/device parsed from User-Agent server-side
+ * Performance:
+ *   - /collect returns instantly, DB write happens via waitUntil
+ *   - /api/stats cached at edge for 60s (no D1 hit on repeat loads)
+ *   - D1 queries batched into single batch() call
+ *   - Bot traffic filtered out from /collect
  */
 
 const CORS_HEADERS = {
@@ -17,7 +20,7 @@ const CORS_HEADERS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -25,7 +28,7 @@ export default {
     }
 
     if (url.pathname === '/collect' && request.method === 'POST') {
-      return handleCollect(request, env);
+      return handleCollect(request, env, ctx);
     }
 
     if (url.pathname === '/api/stats' && request.method === 'GET') {
@@ -40,134 +43,113 @@ export default {
   },
 };
 
-/* ───────── Collect Page View ───────── */
+/* ───────── Collect Page View (non-blocking) ───────── */
 
-async function handleCollect(request, env) {
+async function handleCollect(request, env, ctx) {
   try {
     const data = await request.json();
     const cf = request.cf || {};
     const ua = request.headers.get('User-Agent') || '';
 
-    await env.DB.prepare(`
-      INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      sanitize(data.p || '/'),
-      sanitize(data.r || ''),
-      cf.country || 'Unknown',
-      cf.city || 'Unknown',
-      cf.region || 'Unknown',
-      parseBrowser(ua),
-      parseOS(ua),
-      parseDevice(ua),
-      sanitize(data.s || ''),
-      sanitize(data.l || ''),
-      sanitize(data.sid || '')
-    ).run();
+    // Filter bots — don't waste D1 writes
+    if (/bot|crawl|spider|slurp|facebook|twitter|whatsapp|telegram|preview/i.test(ua)) {
+      return new Response('ok', { headers: CORS_HEADERS });
+    }
+
+    // Return immediately — write to D1 in background
+    ctx.waitUntil(
+      env.DB.prepare(`
+        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        sanitize(data.p || '/'),
+        sanitize(data.r || ''),
+        cf.country || 'Unknown',
+        cf.city || 'Unknown',
+        cf.region || 'Unknown',
+        parseBrowser(ua),
+        parseOS(ua),
+        parseDevice(ua),
+        sanitize(data.s || ''),
+        sanitize(data.l || ''),
+        sanitize(data.sid || '')
+      ).run().catch(e => console.error('DB write error:', e.message))
+    );
 
     return new Response('ok', { headers: CORS_HEADERS });
   } catch (e) {
-    console.error('Collect error:', e.message);
-    return new Response('error', { status: 500, headers: CORS_HEADERS });
+    return new Response('ok', { headers: CORS_HEADERS });
   }
 }
 
-/* ───────── Dashboard Stats ───────── */
+/* ───────── Dashboard Stats (cached) ───────── */
 
 async function handleStats(request, env, url) {
   const authError = authenticate(request, env);
   if (authError) return authError;
 
+  // Edge cache: serve cached response for 60 seconds
+  const cacheKey = new Request(request.url, { headers: { 'Authorization': '' } });
+  const cache = caches.default;
+  let cached = await cache.match(cacheKey);
+  if (cached) {
+    // Return cached but add CORS headers
+    const body = await cached.text();
+    return new Response(body, {
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', 'X-Cache': 'HIT' },
+    });
+  }
+
   const period = url.searchParams.get('period') || '7d';
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
-
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  const queries = [
-    // 0: overview
-    env.DB.prepare(`
-      SELECT COUNT(*) as total_views,
-             COUNT(DISTINCT session_id) as unique_visitors
-      FROM page_views WHERE created_at >= ?`).bind(since).first(),
+  // Batch all queries into a single D1 round-trip
+  const batch = await env.DB.batch([
+    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ?`).bind(since),
+    env.DB.prepare(`SELECT DATE(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date`).bind(since),
+    env.DB.prepare(`SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY page ORDER BY views DESC LIMIT 25`).bind(since),
+    env.DB.prepare(`SELECT country, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY country ORDER BY views DESC LIMIT 30`).bind(since),
+    env.DB.prepare(`SELECT city, country, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY city, country ORDER BY views DESC LIMIT 25`).bind(since),
+    env.DB.prepare(`SELECT browser, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY browser ORDER BY views DESC`).bind(since),
+    env.DB.prepare(`SELECT os, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY os ORDER BY views DESC`).bind(since),
+    env.DB.prepare(`SELECT device_type, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY device_type ORDER BY views DESC`).bind(since),
+    env.DB.prepare(`SELECT referrer, COUNT(*) as views FROM page_views WHERE created_at >= ? AND referrer != '' GROUP BY referrer ORDER BY views DESC LIMIT 20`).bind(since),
+    env.DB.prepare(`SELECT screen, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY screen ORDER BY views DESC LIMIT 15`).bind(since),
+    env.DB.prepare(`SELECT language, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY language ORDER BY views DESC LIMIT 15`).bind(since),
+  ]);
 
-    // 1: daily
-    env.DB.prepare(`
-      SELECT DATE(created_at) as date, COUNT(*) as views,
-             COUNT(DISTINCT session_id) as visitors
-      FROM page_views WHERE created_at >= ?
-      GROUP BY DATE(created_at) ORDER BY date`).bind(since).all(),
-
-    // 2: top pages
-    env.DB.prepare(`
-      SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors
-      FROM page_views WHERE created_at >= ?
-      GROUP BY page ORDER BY views DESC LIMIT 25`).bind(since).all(),
-
-    // 3: countries
-    env.DB.prepare(`
-      SELECT country, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors
-      FROM page_views WHERE created_at >= ?
-      GROUP BY country ORDER BY views DESC LIMIT 30`).bind(since).all(),
-
-    // 4: cities
-    env.DB.prepare(`
-      SELECT city, country, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY city, country ORDER BY views DESC LIMIT 25`).bind(since).all(),
-
-    // 5: browsers
-    env.DB.prepare(`
-      SELECT browser, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY browser ORDER BY views DESC`).bind(since).all(),
-
-    // 6: OS
-    env.DB.prepare(`
-      SELECT os, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY os ORDER BY views DESC`).bind(since).all(),
-
-    // 7: devices
-    env.DB.prepare(`
-      SELECT device_type, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY device_type ORDER BY views DESC`).bind(since).all(),
-
-    // 8: referrers
-    env.DB.prepare(`
-      SELECT referrer, COUNT(*) as views
-      FROM page_views WHERE created_at >= ? AND referrer != ''
-      GROUP BY referrer ORDER BY views DESC LIMIT 20`).bind(since).all(),
-
-    // 9: screens
-    env.DB.prepare(`
-      SELECT screen, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY screen ORDER BY views DESC LIMIT 15`).bind(since).all(),
-
-    // 10: languages
-    env.DB.prepare(`
-      SELECT language, COUNT(*) as views
-      FROM page_views WHERE created_at >= ?
-      GROUP BY language ORDER BY views DESC LIMIT 15`).bind(since).all(),
-  ];
-
-  const results = await Promise.all(queries);
-
-  return jsonResponse({
+  const data = {
     period,
-    overview: results[0],
-    daily: results[1].results,
-    topPages: results[2].results,
-    countries: results[3].results,
-    cities: results[4].results,
-    browsers: results[5].results,
-    oses: results[6].results,
-    devices: results[7].results,
-    referrers: results[8].results,
-    screens: results[9].results,
-    languages: results[10].results,
+    overview: batch[0].results[0] || { total_views: 0, unique_visitors: 0 },
+    daily: batch[1].results,
+    topPages: batch[2].results,
+    countries: batch[3].results,
+    cities: batch[4].results,
+    browsers: batch[5].results,
+    oses: batch[6].results,
+    devices: batch[7].results,
+    referrers: batch[8].results,
+    screens: batch[9].results,
+    languages: batch[10].results,
+  };
+
+  const response = new Response(JSON.stringify(data), {
+    headers: {
+      ...CORS_HEADERS,
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=60',
+      'X-Cache': 'MISS',
+    },
   });
+
+  // Store in edge cache (non-blocking)
+  const cacheResponse = new Response(JSON.stringify(data), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
+  });
+  cache.put(cacheKey, cacheResponse).catch(() => {});
+
+  return response;
 }
 
 /* ───────── Realtime ───────── */
@@ -178,8 +160,7 @@ async function handleRealtime(request, env) {
 
   const fiveMinAgo = new Date(Date.now() - 5 * 60000).toISOString();
   const result = await env.DB.prepare(`
-    SELECT COUNT(DISTINCT session_id) as active_visitors,
-           COUNT(*) as recent_views
+    SELECT COUNT(DISTINCT session_id) as active_visitors, COUNT(*) as recent_views
     FROM page_views WHERE created_at >= ?
   `).bind(fiveMinAgo).first();
 

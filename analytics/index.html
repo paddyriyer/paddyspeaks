@@ -220,6 +220,22 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ═══ Skeleton loading ═══ */
+        .skeleton {
+            background: linear-gradient(90deg, var(--cream) 25%, var(--paper) 50%, var(--cream) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 6px;
+        }
+        .skeleton-value { height: 2.2rem; width: 80px; margin: 8px auto 0; }
+        .skeleton-chart { height: 200px; width: 100%; margin-top: 8px; }
+        .skeleton-row { height: 18px; width: 100%; margin: 10px 0; }
+        @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+        /* ═══ Fade-in for panels ═══ */
+        .panel, .stat-card { opacity: 0; transform: translateY(8px); transition: opacity 0.3s, transform 0.3s; }
+        .panel.loaded, .stat-card.loaded { opacity: 1; transform: translateY(0); }
+
         /* ═══ Footer ═══ */
         .dash-footer {
             text-align: center; padding: 24px;
@@ -456,8 +472,10 @@
     // ── Load Dashboard ───────────────────────
     window.loadDashboard = async function() {
         if (!authToken) return;
-        document.getElementById('loadingState').style.display = 'block';
-        document.getElementById('dashBody').style.display = 'none';
+        // Show layout with skeletons immediately (no blank screen)
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('dashBody').style.display = 'block';
+        showSkeletons();
 
         try {
             var data = await apiFetch('/api/stats?period=' + currentPeriod);
@@ -466,6 +484,15 @@
             console.error('Dashboard load error:', err);
         }
     };
+
+    function showSkeletons() {
+        ['totalViews','uniqueVisitors','topPage','topCountry'].forEach(function(id) {
+            document.getElementById(id).innerHTML = '<div class="skeleton skeleton-value"></div>';
+        });
+        document.querySelectorAll('.panel, .stat-card').forEach(function(el) {
+            el.classList.remove('loaded');
+        });
+    }
 
     // ── Load Realtime ────────────────────────
     async function loadRealtime() {
@@ -481,7 +508,7 @@
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('dashBody').style.display = 'block';
 
-        // Summary cards
+        // Summary cards — fade in with stagger
         var ov = data.overview || {};
         document.getElementById('totalViews').textContent = fmt(ov.total_views || 0);
         document.getElementById('uniqueVisitors').textContent = fmt(ov.unique_visitors || 0);
@@ -510,6 +537,12 @@
         renderDoughnut('chartDevices', data.devices || []);
         renderDoughnut('chartBrowsers', data.browsers || []);
         renderDoughnut('chartOS', data.oses || []);
+
+        // Staggered fade-in for all panels and cards
+        var els = document.querySelectorAll('.panel, .stat-card');
+        els.forEach(function(el, i) {
+            setTimeout(function() { el.classList.add('loaded'); }, i * 50);
+        });
     }
 
     // ── Daily Line Chart ─────────────────────
