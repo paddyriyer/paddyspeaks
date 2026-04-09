@@ -304,6 +304,26 @@
             </div>
         </div>
 
+        <!-- ── Engagement Cards ── -->
+        <div class="stat-row" id="engagementCards">
+            <div class="stat-card">
+                <div class="stat-label">Avg Time on Page</div>
+                <div class="stat-value" id="avgDuration" style="font-size:1.8rem">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Scroll Depth</div>
+                <div class="stat-value" id="avgScroll" style="font-size:1.8rem">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">New Visitors</div>
+                <div class="stat-value" id="newVisitors" style="font-size:1.8rem;color:var(--color-sage)">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Returning</div>
+                <div class="stat-value" id="returningVisitors" style="font-size:1.8rem;color:var(--color-gold-dark)">-</div>
+            </div>
+        </div>
+
         <!-- ── Visitors Over Time ── -->
         <div class="panel">
             <div class="panel-title">Visitors Over Time</div>
@@ -365,6 +385,26 @@
             <div class="panel">
                 <div class="panel-title">Languages</div>
                 <div style="overflow-x:auto"><table class="data-table" id="tableLanguages"><tbody></tbody></table></div>
+            </div>
+        </div>
+
+        <!-- ── UTM Campaigns ── -->
+        <div class="panel">
+            <div class="panel-title">UTM Campaigns</div>
+            <div style="overflow-x:auto"><table class="data-table" id="tableCampaigns"><tbody></tbody></table></div>
+        </div>
+
+        <!-- ── Hourly Traffic + Timezones ── -->
+        <div class="grid-2">
+            <div class="panel">
+                <div class="panel-title">Traffic by Hour (UTC)</div>
+                <div class="chart-container line" style="height:220px">
+                    <canvas id="chartHourly"></canvas>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-title">Visitor Timezones</div>
+                <div style="overflow-x:auto"><table class="data-table" id="tableTimezones"><tbody></tbody></table></div>
             </div>
         </div>
     </div>
@@ -520,6 +560,14 @@
             document.getElementById('topCountry').textContent = countryFlag(tc.country) + ' ' + tc.country;
         }
 
+        // Engagement cards
+        var avgDur = ov.avg_duration || 0;
+        document.getElementById('avgDuration').textContent = avgDur > 0 ? fmtTime(avgDur) : '-';
+        var avgScr = ov.avg_scroll || 0;
+        document.getElementById('avgScroll').textContent = avgScr > 0 ? avgScr + '%' : '-';
+        document.getElementById('newVisitors').textContent = fmt(ov.new_visitors || 0);
+        document.getElementById('returningVisitors').textContent = fmt(ov.returning_visitors || 0);
+
         // Daily chart
         renderDailyChart(data.daily || []);
 
@@ -535,6 +583,13 @@
         renderDoughnut('chartDevices', data.devices || []);
         renderDoughnut('chartBrowsers', data.browsers || []);
         renderDoughnut('chartOS', data.oses || []);
+
+        // v2: UTM Campaigns
+        renderCampaignsTable(data.campaigns || []);
+        // v2: Hourly traffic
+        renderHourlyChart(data.hourly || []);
+        // v2: Timezones
+        renderSimpleTable('tableTimezones', data.timezones || [], 'timezone', 'views');
 
         // Staggered fade-in for all panels and cards
         var els = document.querySelectorAll('.panel, .stat-card');
@@ -615,13 +670,14 @@
     // ── Top Pages Table ──────────────────────
     function renderPagesTable(pages) {
         var maxViews = pages.length ? pages[0].views : 1;
-        var html = '<thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th></tr></thead><tbody>';
+        var html = '<thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Avg Time</th><th style="text-align:right">Scroll</th></tr></thead><tbody>';
         pages.forEach(function(p) {
             var w = Math.round((p.views / maxViews) * 100);
             var label = p.page.replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
             html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem" title="' + escHtml(p.page) + '">' + escHtml(label) + '</span></td>';
             html += '<td class="num">' + fmt(p.views) + '</td>';
-            html += '<td class="num">' + fmt(p.visitors) + '</td></tr>';
+            html += '<td class="num">' + (p.avg_time ? fmtTime(p.avg_time) : '-') + '</td>';
+            html += '<td class="num">' + (p.avg_scroll ? p.avg_scroll + '%' : '-') + '</td></tr>';
         });
         html += '</tbody>';
         document.getElementById('tablePages').innerHTML = html;
@@ -685,7 +741,64 @@
         document.getElementById(tableId).innerHTML = html;
     }
 
+    // ── UTM Campaigns Table ─────────────────
+    function renderCampaignsTable(campaigns) {
+        var html = '<thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th></tr></thead><tbody>';
+        if (!campaigns.length) {
+            html += '<tr><td colspan="5" style="color:var(--muted);text-align:center">No UTM data yet. Add <code>?utm_source=linkedin&amp;utm_medium=social</code> to your shared links.</td></tr>';
+        }
+        campaigns.forEach(function(c) {
+            html += '<tr><td style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(c.utm_source) + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(c.utm_medium || '-') + '</td>';
+            html += '<td style="font-family:var(--font-mono);font-size:0.85rem">' + escHtml(c.utm_campaign || '-') + '</td>';
+            html += '<td class="num">' + fmt(c.views) + '</td>';
+            html += '<td class="num">' + fmt(c.visitors) + '</td></tr>';
+        });
+        html += '</tbody>';
+        document.getElementById('tableCampaigns').innerHTML = html;
+    }
+
+    // ── Hourly Traffic Chart ────────────────
+    function renderHourlyChart(hourly) {
+        var ctx = document.getElementById('chartHourly');
+        if (!ctx) return;
+        if (charts.hourly) charts.hourly.destroy();
+
+        // Fill all 24 hours
+        var hourData = new Array(24).fill(0);
+        hourly.forEach(function(h) { hourData[h.hour] = h.views; });
+
+        charts.hourly = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: hourData.map(function(_, i) { return i + ':00'; }),
+                datasets: [{
+                    label: 'Views',
+                    data: hourData,
+                    backgroundColor: 'rgba(37,99,168,0.6)',
+                    borderRadius: 3,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 9 }, maxRotation: 0 } },
+                    y: { beginAtZero: true, ticks: { precision: 0, font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
     // ── Utility Functions ────────────────────
+    function fmtTime(seconds) {
+        if (!seconds || seconds < 1) return '-';
+        var m = Math.floor(seconds / 60);
+        var s = Math.round(seconds % 60);
+        if (m > 0) return m + 'm ' + s + 's';
+        return s + 's';
+    }
+
     function fmt(n) {
         return Number(n).toLocaleString();
     }

@@ -1,16 +1,13 @@
 /**
- * PaddySpeaks Analytics — Cloudflare Worker (Optimized)
+ * PaddySpeaks Analytics — Cloudflare Worker v2
  *
  * Endpoints:
- *   POST /api/v             — Record a page view (non-blocking DB write)
+ *   POST /api/v             — Record page view or exit event
  *   GET  /api/stats         — Dashboard data (60s edge cache)
  *   GET  /api/realtime      — Visitors in last 5 minutes
  *
- * Performance:
- *   - /api/v returns instantly, DB write happens via waitUntil
- *   - /api/stats cached at edge for 60s (no D1 hit on repeat loads)
- *   - D1 queries batched into single batch() call
- *   - Bot traffic filtered out
+ * v2 additions: time-on-page, scroll depth, new vs returning,
+ *               UTM campaigns, dark mode, timezone, visitor ID
  */
 
 function cors(request) {
@@ -48,7 +45,7 @@ export default {
   },
 };
 
-/* ───────── Collect Page View (non-blocking) ───────── */
+/* ───────── Collect (page view + exit events) ───────── */
 
 async function handleCollect(request, env, ctx, ch) {
   try {
@@ -61,11 +58,28 @@ async function handleCollect(request, env, ctx, ch) {
       return new Response('ok', { headers: ch });
     }
 
-    // Return immediately — write to D1 in background
+    // Exit event — update duration and scroll depth on existing row
+    if (data.t === 'exit') {
+      ctx.waitUntil(
+        env.DB.prepare(`
+          UPDATE page_views SET duration = ?, scroll_depth = ?
+          WHERE session_id = ? AND page = ?
+          ORDER BY id DESC LIMIT 1
+        `).bind(
+          Math.min(data.dur || 0, 3600),
+          Math.min(data.scroll || 0, 100),
+          sanitize(data.sid || ''),
+          sanitize(data.p || '/')
+        ).run().catch(e => console.error('Exit update error:', e.message))
+      );
+      return new Response('ok', { headers: ch });
+    }
+
+    // Page view event — insert new row with all dimensions
     ctx.waitUntil(
       env.DB.prepare(`
-        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO page_views (page, referrer, country, city, region, browser, os, device_type, screen, language, session_id, visitor_id, is_new, viewport, utm_source, utm_medium, utm_campaign, dark_mode, timezone)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         sanitize(data.p || '/'),
         sanitize(data.r || ''),
@@ -77,7 +91,15 @@ async function handleCollect(request, env, ctx, ch) {
         parseDevice(ua),
         sanitize(data.s || ''),
         sanitize(data.l || ''),
-        sanitize(data.sid || '')
+        sanitize(data.sid || ''),
+        sanitize(data.vid || ''),
+        data.new ? 1 : 0,
+        sanitize(data.v || ''),
+        sanitize(data.ut_s || ''),
+        sanitize(data.ut_m || ''),
+        sanitize(data.ut_c || ''),
+        data.dark ? 1 : 0,
+        cf.timezone || ''
       ).run().catch(e => console.error('DB write error:', e.message))
     );
 
@@ -93,7 +115,6 @@ async function handleStats(request, env, url, ch) {
   const authError = authenticate(request, env, ch);
   if (authError) return authError;
 
-  // Edge cache: serve cached response for 60 seconds
   const cacheKey = new Request(request.url, { headers: { 'Authorization': '' } });
   const cache = caches.default;
   let cached = await cache.match(cacheKey);
@@ -108,19 +129,35 @@ async function handleStats(request, env, url, ch) {
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
-  // Batch all queries into a single D1 round-trip
   const batch = await env.DB.batch([
-    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors FROM page_views WHERE created_at >= ?`).bind(since),
+    // 0: overview (with avg duration, avg scroll, new vs returning)
+    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors, COUNT(DISTINCT visitor_id) as unique_people, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_duration, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll, SUM(CASE WHEN is_new = 1 THEN 1 ELSE 0 END) as new_visitors, SUM(CASE WHEN is_new = 0 THEN 1 ELSE 0 END) as returning_visitors FROM page_views WHERE created_at >= ?`).bind(since),
+    // 1: daily
     env.DB.prepare(`SELECT DATE(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date`).bind(since),
-    env.DB.prepare(`SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY page ORDER BY views DESC LIMIT 25`).bind(since),
+    // 2: top pages (with avg time and scroll)
+    env.DB.prepare(`SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll FROM page_views WHERE created_at >= ? GROUP BY page ORDER BY views DESC LIMIT 25`).bind(since),
+    // 3: countries
     env.DB.prepare(`SELECT country, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY country ORDER BY views DESC LIMIT 30`).bind(since),
+    // 4: cities
     env.DB.prepare(`SELECT city, country, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY city, country ORDER BY views DESC LIMIT 25`).bind(since),
+    // 5: browsers
     env.DB.prepare(`SELECT browser, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY browser ORDER BY views DESC`).bind(since),
+    // 6: OS
     env.DB.prepare(`SELECT os, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY os ORDER BY views DESC`).bind(since),
+    // 7: devices
     env.DB.prepare(`SELECT device_type, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY device_type ORDER BY views DESC`).bind(since),
+    // 8: referrers
     env.DB.prepare(`SELECT referrer, COUNT(*) as views FROM page_views WHERE created_at >= ? AND referrer != '' GROUP BY referrer ORDER BY views DESC LIMIT 20`).bind(since),
+    // 9: screens
     env.DB.prepare(`SELECT screen, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY screen ORDER BY views DESC LIMIT 15`).bind(since),
+    // 10: languages
     env.DB.prepare(`SELECT language, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY language ORDER BY views DESC LIMIT 15`).bind(since),
+    // 11: UTM campaigns
+    env.DB.prepare(`SELECT utm_source, utm_medium, utm_campaign, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? AND utm_source != '' GROUP BY utm_source, utm_medium, utm_campaign ORDER BY views DESC LIMIT 20`).bind(since),
+    // 12: hourly heatmap
+    env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY hour ORDER BY hour`).bind(since),
+    // 13: timezones
+    env.DB.prepare(`SELECT timezone, COUNT(*) as views FROM page_views WHERE created_at >= ? AND timezone != '' GROUP BY timezone ORDER BY views DESC LIMIT 15`).bind(since),
   ]);
 
   const data = {
@@ -136,13 +173,15 @@ async function handleStats(request, env, url, ch) {
     referrers: batch[8].results,
     screens: batch[9].results,
     languages: batch[10].results,
+    campaigns: batch[11].results,
+    hourly: batch[12].results,
+    timezones: batch[13].results,
   };
 
   const response = new Response(JSON.stringify(data), {
     headers: { ...ch, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60', 'X-Cache': 'MISS' },
   });
 
-  // Store in edge cache (non-blocking)
   const cacheResponse = new Response(JSON.stringify(data), {
     headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' },
   });
@@ -181,9 +220,7 @@ function authenticate(request, env, ch) {
   return null;
 }
 
-function sanitize(str) {
-  return String(str).slice(0, 500);
-}
+function sanitize(str) { return String(str).slice(0, 500); }
 
 function parseBrowser(ua) {
   if (/Edg\//.test(ua)) return 'Edge';
