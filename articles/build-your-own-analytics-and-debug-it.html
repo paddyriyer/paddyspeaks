@@ -537,6 +537,14 @@ copy(document.title)
   Simulate slow connections. See how your site behaves
   on bad networks.</div>
 
+  <h3>Real example: ps.js loaded but no outbound request</h3>
+  <p>In this screenshot, notice that <code>ps.js</code> loaded successfully (200) but there is no <code>collect</code> or <code>v</code> request. The tracker script ran but exited silently — this was caused by <code>navigator.doNotTrack</code> being enabled:</p>
+  <img src="/images/articles/analytics-dashboard/network-no-collect.png" alt="Chrome Network tab showing ps.js loaded with status 200 but no collect request — Do Not Track caused silent exit" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
+  <h3>Real example: dashboard API calls working</h3>
+  <p>When the dashboard is working correctly, you see the <code>realtime</code> API calls returning 200 with preflight checks passing:</p>
+  <img src="/images/articles/analytics-dashboard/network-realtime-200.png" alt="Chrome Network tab showing realtime API calls returning 200 with successful CORS preflight" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
   <div class="callout"><p>If your request doesn't appear in the Network tab, it never left the browser. The code either didn't run, hit a guard clause and returned early, or was blocked before execution. This is the most important signal: presence means "it tried", absence means "it didn't."</p></div>
 </div>
 
@@ -564,6 +572,11 @@ copy(document.title)
   </div>
 
   <p>To verify the tracker session ID exists, go to <strong>Application &rarr; Session Storage &rarr; your domain</strong> and look for <code>_ps_sid</code>.</p>
+
+  <h3>The Elements panel in action</h3>
+  <p>Here is what the Elements panel looks like when inspecting our analytics article. Notice the DOM tree on top showing every section, and the Styles pane below showing computed CSS for the <code>&lt;body&gt;</code> element:</p>
+  <img src="/images/articles/analytics-dashboard/elements-panel-dom.png" alt="Chrome DevTools Elements panel showing DOM tree of the analytics article with CSS styles pane below" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+  <p class="grounding-note">The Elements panel is your X-ray vision into any webpage. Right-click any element on the page &rarr; Inspect to jump straight to it in the DOM tree. Change text, toggle CSS properties, and see results instantly.</p>
 </div>
 
 <!-- ── Section 08: Ad Blockers ── -->
@@ -576,6 +589,15 @@ copy(document.title)
     <h4>What it means</h4>
     <p>A browser extension (usually an ad blocker like uBlock Origin or AdBlock Plus) killed the request before it reached the server. The browser's network stack was told: "don't even try."</p>
   </div>
+
+  <p>Here is what it looks like in the Console — a red error that tells you the resource was killed before reaching the server:</p>
+  <img src="/images/articles/analytics-dashboard/console-err-blocked.png" alt="Chrome Console showing Failed to load resource: net::ERR_BLOCKED_BY_CLIENT for tracker.js" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
+  <p>And in the Network tab, the request shows as <code>(blocked)</code> with type <code>ping</code> — the ad blocker intercepted the <code>sendBeacon</code> call. Click the request to see the Headers panel showing "Provisional headers" — meaning the request never actually left:</p>
+  <img src="/images/articles/analytics-dashboard/network-collect-blocked.png" alt="Chrome Network tab showing collect request blocked by ad blocker with provisional headers and DNT:1 header visible" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
+  <p>After renaming the endpoint from <code>/collect</code> to <code>/api/v</code>, the ad blocker STILL blocked it — this time matching on the <code>workers.dev</code> domain:</p>
+  <img src="/images/articles/analytics-dashboard/network-v-blocked.png" alt="Chrome Network tab showing /api/v request still blocked — ad blocker matching on workers.dev domain" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
 
   <p>Ad blockers use pattern matching on URLs, domains, and request types. Here is our debugging timeline — four attempts before success:</p>
 
@@ -607,6 +629,12 @@ copy(document.title)
     <div class="cors-step"><span class="cors-actor cors-b">Browser</span><span class="cors-arr">&rarr;</span><span class="cors-msg">POST /api/v (actual request)</span><span class="cors-arr">&rarr;</span><span class="cors-actor cors-s">Server</span></div>
   </div>
 
+  <p>Here is what a CORS error looks like in the Network tab. Notice the preflight (OPTIONS) returned 200, but the actual <code>ping</code> request shows <code>CORS error</code>. The Issues panel at the bottom flags it: "Ensure credentialed requests are not sent to CORS resources with origin wildcards":</p>
+  <img src="/images/articles/analytics-dashboard/network-cors-error.png" alt="Chrome Network tab showing CORS error — preflight 200 but actual request failed due to wildcard origin with credentials" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
+  <p>And here is the full browser view — the page loaded fine, but the analytics beacon failed silently with a CORS error visible only in DevTools:</p>
+  <img src="/images/articles/analytics-dashboard/full-page-network-cors.png" alt="Full browser view showing Durga Suktam page with DevTools open revealing CORS error on analytics beacon" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+
   <p>Our specific issue: <code>ps.paddyspeaks.com</code> is a subdomain, so cookies for <code>.paddyspeaks.com</code> are sent automatically. This makes it a <strong>credentialed request</strong> — and credentialed requests cannot use the wildcard <code>*</code> origin.</p>
 
   <div class="problem-card">
@@ -629,7 +657,9 @@ copy(document.title)
 <div class="section reveal" id="s-console">
   <div class="section-number">13 — Console Errors Decoded</div>
   <h2>Reading the Red Text</h2>
-  <p>The Console tab (F12 &rarr; Console) shows JavaScript errors. Here are the three we hit and what each one teaches:</p>
+  <p>The Console tab (F12 &rarr; Console) shows JavaScript errors. Here is what multiple errors look like stacked together — each one telling a different story:</p>
+  <img src="/images/articles/analytics-dashboard/console-multiple-errors.png" alt="Chrome Console showing multiple errors: ERR_BLOCKED_BY_CLIENT, SyntaxError, and another blocked resource" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:20px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
+  <p>Read each error from top to bottom. The file and line number on the right (e.g., <code>resume.html:610</code>) is a clickable link — it takes you directly to the problem in the Sources panel. Here are the three errors we hit and what each one teaches:</p>
 
   <div class="error-card">
     <div class="error-msg">Uncaught ReferenceError: loadDashboard is not defined</div>
@@ -641,6 +671,7 @@ copy(document.title)
   <div class="error-card">
     <div class="error-msg">Uncaught SyntaxError: Unexpected end of input (at resume.html:610)</div>
     <h4>A script tag inside a template literal</h4>
+    <img src="/images/articles/analytics-dashboard/console-syntax-error.png" alt="Chrome Console showing Uncaught SyntaxError: Unexpected end of input at resume.html:610" style="width:100%;border-radius:10px;border:1px solid var(--sand);margin:16px 0;box-shadow:0 4px 20px rgba(0,0,0,.08)" loading="lazy">
     <p>When we injected the tracker using <code>sed</code> before every <code>&lt;/body&gt;</code>, it also matched <code>&lt;/body&gt;</code> tags inside JavaScript template strings (backtick strings for print/export). The injected <code>&lt;script&gt;</code> tag broke the template literal's syntax.</p>
     <div class="fix"><strong>Fix:</strong> After bulk injection, check files with template literals or inline JavaScript. Remove any tracker tags that ended up inside JS strings.</div>
   </div>
