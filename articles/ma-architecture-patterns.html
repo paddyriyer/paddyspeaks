@@ -1918,6 +1918,363 @@
   </div>
 
 
+  <!-- ==================== NEW: ERP SYSTEM LANDSCAPE ==================== -->
+  <div class="divider reveal"><span>The System Landscape</span></div>
+
+  <div class="closing reveal">
+    <h3>Connecting the Dots: When SAP Meets Oracle Meets Everything Else</h3>
+
+    <p>The six scenarios in this article each focus on one collision — one domain, one data type, one resolution pattern. But in reality, an M&amp;A integration doesn't happen in isolation. The mothership's SAP S/4HANA is connected to its Salesforce CRM, which feeds its Snowflake warehouse, which powers its Tableau dashboards, which the CFO uses to close the books. The acquired company's Oracle EBS is connected to its HubSpot CRM, which feeds its Redshift cluster, which powers its Looker dashboards, which nobody at the mothership has ever seen.</p>
+
+    <p>When you merge two companies, you're not merging two databases. You're merging two <em>ecosystems</em> — webs of 15–40 interconnected systems where a change in one creates a cascade through a dozen others. And the ERP sits at the center of both webs, holding the master data that everything else depends on.</p>
+  </div>
+
+  <!-- VISUAL: The Two Ecosystems — Side by Side -->
+  <div class="data-flow reveal">
+    <div class="data-flow-label">Mothership Ecosystem (Typical Enterprise Stack)</div>
+    <div class="flow-row">
+      <div class="flow-box flow-source-a" style="min-width:80px;">SAP<br>S/4HANA<br><span style="font-size:9px;opacity:0.7;">ERP Core</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">Salesforce<br><span style="font-size:9px;opacity:0.7;">CRM</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">Workday<br><span style="font-size:9px;opacity:0.7;">HRIS</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">ADP<br><span style="font-size:9px;opacity:0.7;">Payroll</span></div>
+    </div>
+    <div class="flow-row" style="margin-top:4px;">
+      <div class="flow-box" style="visibility:hidden;padding:8px 12px;">sp</div>
+      <span class="flow-arrow" style="visibility:hidden;">→</span>
+      <div class="flow-box flow-resolve">Snowflake<br><span style="font-size:9px;opacity:0.7;">Warehouse</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-golden">Tableau<br><span style="font-size:9px;opacity:0.7;">BI</span></div>
+      <span class="flow-arrow">←</span>
+      <div class="flow-box flow-stage">Kafka<br><span style="font-size:9px;opacity:0.7;">Event Bus</span></div>
+      <span class="flow-arrow">←</span>
+      <div class="flow-box flow-stage">Stripe<br><span style="font-size:9px;opacity:0.7;">Billing</span></div>
+    </div>
+  </div>
+
+  <div class="data-flow reveal">
+    <div class="data-flow-label">Acquired Company Ecosystem</div>
+    <div class="flow-row">
+      <div class="flow-box flow-source-b" style="min-width:80px;">Oracle<br>EBS<br><span style="font-size:9px;opacity:0.7;">ERP Core</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">HubSpot<br><span style="font-size:9px;opacity:0.7;">CRM</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">Success-<br>Factors<br><span style="font-size:9px;opacity:0.7;">HRIS</span></div>
+      <span class="flow-arrow">↔</span>
+      <div class="flow-box flow-stage">Paychex<br><span style="font-size:9px;opacity:0.7;">Payroll</span></div>
+    </div>
+    <div class="flow-row" style="margin-top:4px;">
+      <div class="flow-box" style="visibility:hidden;padding:8px 12px;">sp</div>
+      <span class="flow-arrow" style="visibility:hidden;">→</span>
+      <div class="flow-box flow-resolve">Redshift<br><span style="font-size:9px;opacity:0.7;">Warehouse</span></div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-golden">Looker<br><span style="font-size:9px;opacity:0.7;">BI</span></div>
+      <span class="flow-arrow">←</span>
+      <div class="flow-box flow-stage">RabbitMQ<br><span style="font-size:9px;opacity:0.7;">Queue</span></div>
+      <span class="flow-arrow">←</span>
+      <div class="flow-box flow-stage">Chargebee<br><span style="font-size:9px;opacity:0.7;">Billing</span></div>
+    </div>
+  </div>
+
+  <div class="closing reveal">
+    <p>These two diagrams are simplified. The real topology includes 15–40 systems each, connected by API calls, batch extracts, CDC streams, flat-file drops, and — in at least three cases — someone copy-pasting between browser tabs. The ERP is the gravitational center because it holds the master records: customer, vendor, material, employee, chart of accounts, cost center. Every other system either reads from or writes to the ERP. Change the ERP, and the entire web shakes.</p>
+  </div>
+
+  <!-- VISUAL: The Cross-System Collision Map -->
+  <div class="closing reveal">
+    <h3>Where the Systems Actually Collide</h3>
+
+    <p>The scenarios in this article treat each collision independently. In practice, they're connected. The customer identity collision in the CRM feeds the revenue reporting collision in the warehouse, which feeds the regulatory reporting collision in the ledger. Here's the real collision map:</p>
+  </div>
+
+  <div class="data-sample reveal">
+    <div class="data-sample-header"><span class="sys-dot sys-conflict"></span> Cross-System Collision Map — What Touches What</div>
+    <table>
+      <tr><th>Master Record</th><th>Mothership System</th><th>Acquired System</th><th>Downstream Dependencies</th><th>Blast Radius if Wrong</th></tr>
+      <tr>
+        <td><strong>Customer</strong></td>
+        <td>SAP SD + Salesforce</td>
+        <td>Oracle AR + HubSpot</td>
+        <td>Billing, Revenue Rec, CRM, Marketing, Support, Analytics</td>
+        <td class="cell-conflict">8–12 systems get wrong customer data</td>
+      </tr>
+      <tr>
+        <td><strong>Vendor / Supplier</strong></td>
+        <td>SAP MM</td>
+        <td>Oracle Purchasing</td>
+        <td>Procurement, AP, Quality, Compliance, Contracts</td>
+        <td class="cell-conflict">Wrong vendor → wrong PO → wrong material</td>
+      </tr>
+      <tr>
+        <td><strong>Material / Product</strong></td>
+        <td>SAP MM + SAP PP</td>
+        <td>Oracle INV + Oracle BOM</td>
+        <td>Production, MES, Quality, Procurement, Costing</td>
+        <td class="cell-conflict">Wrong spec → production scrap or overspend</td>
+      </tr>
+      <tr>
+        <td><strong>Employee</strong></td>
+        <td>Workday + ADP</td>
+        <td>SuccessFactors + Paychex</td>
+        <td>Payroll, Benefits, Org Chart, Access Control, Expense</td>
+        <td class="cell-conflict">Wrong comp → wrong paycheck → lawsuit</td>
+      </tr>
+      <tr>
+        <td><strong>Chart of Accounts</strong></td>
+        <td>SAP FI (4-digit CoA)</td>
+        <td>Oracle GL (6-digit CoA)</td>
+        <td>Every financial report, tax filing, audit, board deck</td>
+        <td class="cell-conflict">CFO can't close books. Period.</td>
+      </tr>
+      <tr>
+        <td><strong>Cost Center</strong></td>
+        <td>SAP CO (hierarchical)</td>
+        <td>Oracle GL (flat structure)</td>
+        <td>Budget allocation, P&amp;L by business unit, headcount planning</td>
+        <td class="cell-conflict">VP asks "what's my budget?" — no answer</td>
+      </tr>
+      <tr>
+        <td><strong>Bill of Materials</strong></td>
+        <td>SAP PP (multi-level BOM)</td>
+        <td>Oracle BOM (flat BOM)</td>
+        <td>Production planning, MRP, costing, procurement</td>
+        <td class="cell-conflict">MRP run generates wrong purchase reqs</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- VISUAL: The "Which System Survives?" Decision -->
+  <div class="closing reveal">
+    <h3>Which ERP Survives? The $50M Question</h3>
+
+    <p>Every M&amp;A with two ERPs faces the same question: SAP or Oracle? (Or Dynamics, or NetSuite, or the custom ERP that the founder built in 2009 and nobody can maintain.) The decision isn't technical. It's financial, political, and irreversible.</p>
+  </div>
+
+  <div class="matrix-wrap reveal" style="margin-bottom:12px;">
+    <table class="decision-table">
+      <thead>
+        <tr><th>Condition</th><th>SAP Survives</th><th>Oracle Survives</th><th>Both Survive (Bridged)</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Mothership is SAP, acquired is Oracle</td>
+          <td class="dt-choose">Default. Mothership wins. 70% of deals.</td>
+          <td class="dt-avoid">Rare. Only if Oracle is newer and SAP is end-of-life (ECC 6.0).</td>
+          <td>Common for 12–24 months during strangler-fig migration.</td>
+        </tr>
+        <tr>
+          <td>Acquired has a vertical-specific ERP</td>
+          <td class="dt-avoid">Don't force SAP onto a vertical that SAP doesn't serve well (e.g., discrete MFG with Epicor/Infor).</td>
+          <td class="dt-avoid">Same logic.</td>
+          <td class="dt-choose">Bridge with integration bus. Migrate shared masters only.</td>
+        </tr>
+        <tr>
+          <td>Both on SAP but different versions</td>
+          <td class="dt-choose">Consolidate to S/4HANA. Treat ECC→S/4 migration as part of integration.</td>
+          <td>N/A</td>
+          <td class="dt-avoid">Running two SAP instances is the worst of all worlds — SAP licensing costs double.</td>
+        </tr>
+        <tr>
+          <td>Acquired runs NetSuite / mid-market ERP</td>
+          <td class="dt-choose">If mothership is enterprise-scale, absorb. NetSuite data model is simpler → migration is faster.</td>
+          <td class="dt-choose">Same logic for Oracle-house.</td>
+          <td>Only if acquired entity operates as a standalone P&amp;L (PE bolt-on model).</td>
+        </tr>
+        <tr>
+          <td>Chart of accounts structures differ fundamentally</td>
+          <td colspan="3" style="color:var(--rust);font-weight:600;">Neither survives as-is. Build a canonical CoA mapping first. This is the #1 blocker for financial consolidation. Get Finance to agree on the CoA <em>before</em> touching any system.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- VISUAL: The ERP Data Volume Reality -->
+  <div class="closing reveal">
+    <h3>The Data Volume Problem Nobody Budgets For</h3>
+
+    <p>Mid-market ERPs hold millions of records. Enterprise ERPs hold billions. And the volume isn't just rows — it's the <em>complexity per row</em>. A single SAP sales order (table VBAK + VBAP + VBEP + VBKD + KONV) spans 5 tables, 200+ fields, and carries pricing conditions, partner functions, delivery schedules, and credit check results. An Oracle equivalent (OE_ORDER_HEADERS_ALL + OE_ORDER_LINES_ALL + ...) has a different normalization, different field naming, and different extension mechanisms (Oracle DFF vs. SAP custom Z-fields).</p>
+  </div>
+
+  <div class="data-sample reveal">
+    <div class="data-sample-header"><span class="sys-dot sys-conflict"></span> ERP Data Volume — Real Numbers</div>
+    <table>
+      <tr><th>Data Domain</th><th>SAP (Typical Enterprise)</th><th>Oracle EBS (Typical Enterprise)</th><th>Why This Matters for M&amp;A</th></tr>
+      <tr>
+        <td><strong>Material Masters</strong></td>
+        <td>150K–500K active records<br><span style="font-size:10px;color:var(--slate);">MARA + MARC + MARD + MBEW: ~40 tables</span></td>
+        <td>100K–300K active items<br><span style="font-size:10px;color:var(--slate);">MTL_SYSTEM_ITEMS_B + org assignments</span></td>
+        <td class="cell-conflict">Each material has org-specific data (plant, storage, valuation). Merging materials means merging at the plant level, not just the header.</td>
+      </tr>
+      <tr>
+        <td><strong>Customer Masters</strong></td>
+        <td>50K–200K business partners<br><span style="font-size:10px;color:var(--slate);">BP + KNA1 + KNVV + KNVP: sales area dependent</span></td>
+        <td>30K–150K accounts<br><span style="font-size:10px;color:var(--slate);">HZ_PARTIES + HZ_CUST_ACCOUNTS + sites</span></td>
+        <td class="cell-conflict">SAP's sales-area model (sales org × distribution channel × division) creates combinatorial explosion. One customer = 12 records in SAP vs. 1 in Oracle.</td>
+      </tr>
+      <tr>
+        <td><strong>GL Transactions</strong></td>
+        <td>10M–500M line items/year<br><span style="font-size:10px;color:var(--slate);">BKPF + BSEG (or ACDOCA in S/4)</span></td>
+        <td>5M–200M journals/year<br><span style="font-size:10px;color:var(--slate);">GL_JE_HEADERS + GL_JE_LINES</span></td>
+        <td class="cell-conflict">Historical data migration is measured in terabytes. Most teams migrate only open items + 2 years of history. The rest stays in a read-only archive.</td>
+      </tr>
+      <tr>
+        <td><strong>Purchase Orders</strong></td>
+        <td>100K–2M POs/year<br><span style="font-size:10px;color:var(--slate);">EKKO + EKPO + EKET + EKBE</span></td>
+        <td>50K–1M POs/year<br><span style="font-size:10px;color:var(--slate);">PO_HEADERS_ALL + PO_LINES_ALL</span></td>
+        <td class="cell-conflict">Open POs during cutover are the nightmare. You can't migrate a half-received PO without reconciling GR/IR (goods receipt/invoice receipt) across both systems.</td>
+      </tr>
+      <tr>
+        <td><strong>BOM / Routing</strong></td>
+        <td>20K–100K BOMs<br><span style="font-size:10px;color:var(--slate);">STPO + PLPO + PLKO</span></td>
+        <td>10K–60K BOMs<br><span style="font-size:10px;color:var(--slate);">BOM_STRUCTURES_B + operations</span></td>
+        <td class="cell-conflict">SAP multi-level BOMs vs. Oracle flat BOMs. Structural difference — not just data migration but BOM re-architecture.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- VISUAL: The Cascade Problem -->
+  <div class="data-flow reveal">
+    <div class="data-flow-label">The Cascade: How One Bad Customer Merge Poisons Everything</div>
+    <div class="flow-row">
+      <div class="flow-box" style="background:rgba(239,68,68,0.2);color:#fca5a5;border:1px solid rgba(239,68,68,0.3);">❌ Wrong<br>Customer<br>Merge</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-stage">CRM sees<br>duplicate<br>account</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-stage">Sales quotes<br>wrong<br>pricing tier</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-resolve">Billing sends<br>wrong<br>invoice</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);">Revenue<br>misrecognized<br>in GL</div>
+    </div>
+    <div class="flow-row" style="margin-top:4px;">
+      <div class="flow-box" style="visibility:hidden;padding:8px 14px;">sp</div>
+      <span class="flow-arrow" style="visibility:hidden;">→</span>
+      <div class="flow-box" style="visibility:hidden;padding:8px 14px;">sp</div>
+      <span class="flow-arrow" style="visibility:hidden;">→</span>
+      <div class="flow-box flow-stage">Support routes<br>tickets to<br>wrong team</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box flow-resolve">Customer<br>churns</div>
+      <span class="flow-arrow">→</span>
+      <div class="flow-box" style="background:rgba(239,68,68,0.15);color:#fca5a5;border:1px solid rgba(239,68,68,0.25);">CFO restates<br>churn in<br>board deck</div>
+    </div>
+    <div style="text-align:center;color:rgba(245,240,232,0.4);font-size:12px;font-family:'DM Mono',monospace;padding-top:10px;">One bad customer merge → 8 systems poisoned → 2 quarters to untangle. This is why customer master is always Day 1.</div>
+  </div>
+
+  <!-- VISUAL: The Integration Sequencing -->
+  <div class="closing reveal">
+    <h3>The Integration Sequence — What Migrates When</h3>
+
+    <p>The most common mistake in ERP-centric M&amp;A: trying to migrate everything at once. The correct sequence is dictated by dependencies — and it's the same across almost every deal:</p>
+  </div>
+
+  <div class="evolution reveal">
+    <div class="evolution-label">ERP Migration Sequence (Dependency-Driven)</div>
+    <div class="evo-step">
+      <div class="evo-marker">Phase 0</div>
+      <div class="evo-bar duct-tape"></div>
+      <div class="evo-content">
+        <div class="evo-phase duct-tape">Chart of Accounts (Before Anything Else)</div>
+        <p>Map the mothership's CoA to the acquired CoA. This is a Finance decision, not a tech decision. If the CoA structures are fundamentally different (4-digit hierarchical vs. 6-digit flat), build a canonical mapping table. Nothing else can consolidate until Finance agrees on how money gets categorized. <em>This blocks everything.</em></p>
+      </div>
+    </div>
+    <div class="evo-step">
+      <div class="evo-marker">Phase 1</div>
+      <div class="evo-bar partial"></div>
+      <div class="evo-content">
+        <div class="evo-phase partial">Master Data (Customer, Vendor, Material, Employee)</div>
+        <p>Migrate in this order: (1) Customer — because billing, CRM, and revenue reporting depend on it. (2) Vendor/Supplier — because procurement savings require consolidated contracts. (3) Material — because production and inventory depend on it. (4) Employee — because HR has its own timeline (benefits, works councils). Each master migrates through the resolution logic from the scenarios above.</p>
+      </div>
+    </div>
+    <div class="evo-step">
+      <div class="evo-marker">Phase 2</div>
+      <div class="evo-bar stable"></div>
+      <div class="evo-content">
+        <div class="evo-phase stable">Transactional Data (Open Items Only)</div>
+        <p>Open sales orders, open POs, open invoices, open production orders. Closed/historical transactions stay in the source system as a read-only archive. Migrating 5 years of closed GL transactions into SAP is a $2M mistake that adds zero business value — the data is needed for audit, not for operations, and it's cheaper to query the archive than to migrate it.</p>
+      </div>
+    </div>
+    <div class="evo-step">
+      <div class="evo-marker">Phase 3</div>
+      <div class="evo-bar golden"></div>
+      <div class="evo-content">
+        <div class="evo-phase golden">Analytics &amp; Reporting Consolidation</div>
+        <p>Warehouse merge (Snowflake + Redshift → Snowflake, or Redshift + Redshift → one instance). BI tool consolidation (Tableau vs. Looker — the political war nobody wants to fight). This is last because analytics can run on top of both systems via a semantic layer while the transactional systems migrate underneath.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- VISUAL: The CRM-ERP Collision — The Gap Nobody Sees -->
+  <div class="closing reveal">
+    <h3>The CRM–ERP Gap: Where Revenue Gets Lost</h3>
+
+    <p>The dirtiest secret in M&amp;A data integration: the CRM and the ERP never agree on revenue. The mothership's Salesforce says $42M ARR. The mothership's SAP says $39.8M. The $2.2M gap? Some of it is timing (Salesforce books an opportunity as "Closed Won" before SAP posts the invoice). Some of it is definition (Salesforce counts a 3-year deal at full contract value; SAP recognizes revenue monthly per ASC 606). Some of it is dirt (14 Salesforce opportunities that were never converted to SAP sales orders because the sales rep forgot).</p>
+
+    <p>Now multiply this by two. The acquired company has the same gap between HubSpot and Oracle. After the merger, you have four sources of "revenue" — Salesforce, HubSpot, SAP, Oracle — and none of them agree.</p>
+  </div>
+
+  <div class="data-sample reveal">
+    <div class="data-sample-header"><span class="sys-dot sys-conflict"></span> The Revenue Reconciliation — Four Sources, Zero Agreement</div>
+    <table>
+      <tr><th>System</th><th>Company</th><th>"Revenue" Number</th><th>Definition</th><th>Why It's Different</th></tr>
+      <tr>
+        <td>Salesforce</td>
+        <td>Mothership</td>
+        <td class="cell-conflict">$42.0M ARR</td>
+        <td>Closed-Won opportunity value, annualized</td>
+        <td>Includes renewals not yet invoiced. Excludes churn not yet recorded.</td>
+      </tr>
+      <tr>
+        <td>SAP FI</td>
+        <td>Mothership</td>
+        <td class="cell-win">$39.8M</td>
+        <td>Recognized revenue per ASC 606</td>
+        <td>Monthly recognition. Excludes contracted-but-not-invoiced.</td>
+      </tr>
+      <tr>
+        <td>HubSpot</td>
+        <td>Acquired</td>
+        <td class="cell-conflict">$18.5M ARR</td>
+        <td>Deal value × annualization</td>
+        <td>Includes pilot deals at full value. Pipeline leakage: ~8%.</td>
+      </tr>
+      <tr>
+        <td>Oracle AR</td>
+        <td>Acquired</td>
+        <td class="cell-win">$16.9M</td>
+        <td>Invoiced receivables, net of credits</td>
+        <td>Excludes $1.6M in disputed invoices parked in Oracle.</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-weight:700;color:var(--navy);">Combined "Revenue"</td>
+        <td class="cell-conflict">$42M + $18.5M = $60.5M (CRM)<br>$39.8M + $16.9M = $56.7M (ERP)</td>
+        <td colspan="2" style="color:var(--rust);font-weight:600;">$3.8M gap. The board deck shows $60.5M. The auditor sees $56.7M. The CFO needs one number by Day 45.</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="resolution-rules reveal">
+    <div class="resolution-rules-label">Revenue Resolution — Who Wins?</div>
+    <div class="rule-row"><span class="rule-badge mothership-wins">ERP Wins</span><span><strong>For financial reporting &amp; audit:</strong> SAP/Oracle recognized revenue is the legal truth. CRM numbers are <em>operational</em> — useful for forecasting, not for closing books. The auditor doesn't care what Salesforce says.</span></div>
+    <div class="rule-row"><span class="rule-badge acquired-wins">CRM Wins</span><span><strong>For pipeline &amp; forecasting:</strong> Sales leadership needs the CRM view to project next quarter. The ERP is backward-looking. You need both — but you label them.</span></div>
+    <div class="rule-row"><span class="rule-badge escalate">Escalate</span><span><strong>For the board deck:</strong> Neither CRM nor ERP is appropriate alone. Build a reconciliation view that shows ERP-recognized revenue + CRM-contracted-not-yet-invoiced + adjustments. The CFO signs off on the reconciliation, not on either source number.</span></div>
+    <div class="rule-row"><span class="rule-badge overwrite">Overwrite</span><span><strong>The $3.8M gap:</strong> This gets closed by a task force — not by architecture. Finance reviews every Salesforce opportunity that doesn't have a corresponding SAP sales order. Every HubSpot deal that doesn't have an Oracle invoice. The gap is part data quality, part process debt, part "the sales rep bookmarked this and never came back."</span></div>
+  </div>
+
+  <div class="failure-mode reveal">
+    <div class="failure-mode-label">Failure Mode: When the Revenue Gap Goes Unresolved</div>
+    <p><strong>The board sees $60.5M.</strong> The auditor sees $56.7M. The gap is "under investigation." Month 2: the gap grows to $4.2M because new deals are booking in CRM but the ERP migration isn't processing invoices from the acquired system yet. Month 3: the auditor qualifies the opinion. Month 4: the board asks why the synergy model assumed $60M when the real number is $56M. The CFO explains that $4M was "pipeline attribution" from the CRM. The board hears: "we overcounted by 7%."</p>
+    <div class="headline-box">"Post-Merger Revenue Restatement Wipes $4.2M from Board Deck; CFO Cites 'CRM-ERP Attribution Gap'"</div>
+    <p><strong>Cost of not reconciling:</strong> Revenue credibility destroyed. Auditor trust eroded. Board confidence shaken. And the real cost: every subsequent financial presentation is questioned — "is this the real number or the CRM number?"</p>
+  </div>
+
+  <div class="callout reveal">
+    <div class="callout-label">If You Remember One Thing About the System Landscape</div>
+    <p>You're not merging two databases. You're merging two ecosystems of 15–40 systems each, where a bad customer merge cascades through CRM, billing, revenue recognition, support routing, and the board deck. The ERP is the gravitational center. The CRM–ERP revenue gap is the #1 financial finding in post-merger audits. And the Chart of Accounts mapping — the thing nobody wants to do — blocks everything else.</p>
+  </div>
+
+
   <!-- ==================== NEW: OBSERVABILITY ==================== -->
   <div class="closing reveal">
     <h3>Observability &amp; Drift Detection: How You Know It's Broken</h3>
