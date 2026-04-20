@@ -457,6 +457,7 @@ footer.page-footer a:hover { color:var(--warm-white); }
 <li><a href="#p09-8-the-mock-interview-loop">The Mock Interview Loop</a></li>
 <li><a href="#p09-9-the-pre-interview-checklist">The Pre-Interview Checklist</a></li>
 <li><a href="#p09-10-day-of-playbook">Day-Of Playbook</a></li>
+<li><a href="#p09-11-tricky-behavioral-questions">Tricky Behavioral Questions — Model Answers</a></li>
 </ol>
 </li>
 </ol>
@@ -869,37 +870,71 @@ footer.page-footer a:hover { color:var(--warm-white); }
 <span id="p01-cb6-19"><a href="#p01-cb6-19" aria-hidden="true"></a>);</span></code></pre></div>
 <p>Pros: a single row per order gives "lead time analysis" trivially. Cons: heavy on updates (updates are the enemy of columnar engines). Use when the process has bounded, well-defined milestones.</p>
 <h3 id="p01-additivity">Additivity</h3>
+<p>Additivity is the single most-often-wrong attribute in a fact table. Get it wrong and every dashboard off that table is silently lying. The taxonomy is three-way, but the real skill is <em>recognizing which bucket any given measure falls into across domains</em>. The table below expands the usual starter examples into a cross-industry reference you can pattern-match against.</p>
+
 <table>
 <thead>
 <tr class="header">
 <th>Additivity</th>
 <th>Sum across any dim?</th>
-<th>Example measures</th>
+<th>Representative measures</th>
 <th>Warehouse pattern</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
-<td>Additive</td>
-<td>Yes</td>
-<td>watch_ms, revenue, quantity, seeks</td>
-<td><code>SUM()</code> everywhere</td>
-</tr>
-<tr class="even">
-<td>Semi-additive</td>
-<td>Some dims only</td>
-<td>account_balance, inventory_on_hand, headcount</td>
-<td><code>SUM()</code> across non-time dims; <code>AVG()</code> or <code>LAST_VALUE()</code> across time</td>
-</tr>
-<tr class="odd">
-<td>Non-additive</td>
-<td>Never</td>
-<td>ratios, percentages, averages, unit_price</td>
-<td>Store numerator + denominator; compute ratio at query time</td>
-</tr>
+<tr><td><strong>Additive</strong></td><td>Yes</td><td>revenue, quantity_sold, watch_ms, clicks, impressions, seeks, bytes_transferred, kWh_consumed, calls_handled, miles_driven, tickets_sold, pageviews, messages_sent, COGS, gross_margin_dollars</td><td><code>SUM()</code> everywhere</td></tr>
+<tr><td><strong>Semi-additive</strong></td><td>Some dims only</td><td>account_balance, loan_principal_outstanding, inventory_on_hand, headcount, open_positions, active_users_point_in_time, queue_depth, subscriber_count, MRR/ARR snapshot, portfolio_market_value, occupancy_count, beds_available, in-flight_aircraft, open_tickets, WIP_units, cache_entry_count</td><td><code>SUM()</code> across non-time dims; <code>AVG()</code>, <code>LAST_VALUE()</code>, or <code>MAX(snapshot_date)</code> across time</td></tr>
+<tr><td><strong>Non-additive</strong></td><td>Never</td><td>unit_price, margin_pct, conversion_rate, bounce_rate, CTR, CPC, CPM, ROAS, churn_rate, NPS, CSAT, avg_session_duration, LTV, CAC_ratio, z_score, cohort_retention_pct, exchange_rate, utilization_pct, SLA_pct, fill_rate_pct, stock_price, cap_rate, interest_rate</td><td>Store numerator + denominator; compute ratio in SELECT. Never pre-aggregate the ratio itself.</td></tr>
 </tbody>
 </table>
-<p><strong>The canonical non-additive mistake</strong>: you have <code>fact_product_daily(product_key, date_key, avg_price)</code>. BI user computes "average price this week = AVG(avg_price) across 7 days." That's an average of averages — not the weighted average they want. Fix: store <code>sum_of_prices</code> and <code>price_count</code>, compute the ratio in the SELECT.</p>
+
+<h4>Domain-specific additivity cheat sheet</h4>
+
+<p>Use this to pattern-match new domains against known ones. The same measure shape shows up again and again.</p>
+
+<table>
+<thead>
+<tr class="header"><th>Domain</th><th>Additive</th><th>Semi-additive (snapshot)</th><th>Non-additive (ratios)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>SaaS / subscription</strong></td><td>signups, cancellations, payments_received, refunds, feature_events</td><td>MRR, ARR, active_subscribers, seats_in_use, storage_GB_used</td><td>churn_rate, gross_retention_pct, NRR, ARPU, LTV/CAC</td></tr>
+<tr><td><strong>E-commerce / retail</strong></td><td>orders_placed, units_sold, revenue, returns, shipping_cost, gift_cards_issued</td><td>inventory_on_hand, cart_value_total, wishlist_size, open_orders</td><td>conversion_rate, AOV, return_rate, margin_pct, sell_through_rate</td></tr>
+<tr><td><strong>Fintech / banking</strong></td><td>deposits, withdrawals, transactions_count, interest_accrued, fees_charged</td><td>account_balance, loan_outstanding, credit_exposure, AUM</td><td>APR, NPL_ratio, NIM, capital_ratio, Sharpe_ratio</td></tr>
+<tr><td><strong>Payments / fraud</strong></td><td>transactions, approved_count, declined_count, chargebacks, refunds_dollar</td><td>active_card_count, in_review_queue_depth, fraud_blocklist_size</td><td>approval_rate, fraud_rate_bps, false_positive_rate, chargeback_ratio</td></tr>
+<tr><td><strong>Advertising / adtech</strong></td><td>impressions, clicks, conversions, spend_dollars, video_starts, video_completes</td><td>active_campaigns, remaining_budget, inventory_available</td><td>CTR, CPC, CPM, CPA, ROAS, viewability_pct, VTR</td></tr>
+<tr><td><strong>Streaming media</strong></td><td>watch_ms, starts, completes, seeks, downloads, new_titles_added</td><td>concurrent_streams, active_accounts, catalog_size</td><td>completion_rate, stream_start_success_rate, rebuffer_ratio</td></tr>
+<tr><td><strong>Gaming</strong></td><td>sessions, purchases, XP_earned, deaths, matches_played, currency_spent</td><td>active_players, open_lobbies, inventory_items_held, mmr_snapshot</td><td>D1/D7/D30_retention, ARPDAU, win_rate, K/D_ratio, match_fill_rate</td></tr>
+<tr><td><strong>Ride-share / logistics</strong></td><td>rides_completed, miles_driven, fares_collected, driver_hours_online, tips</td><td>drivers_online, riders_in_queue, open_requests, fleet_size</td><td>acceptance_rate, cancellation_rate, utilization_pct, ETA_accuracy, $/mile</td></tr>
+<tr><td><strong>IoT / industrial</strong></td><td>readings_count, alerts_raised, kWh, bytes_telemetered, maintenance_events</td><td>devices_online, queue_depth, battery_level_snapshot, firmware_version_count</td><td>uptime_pct, packet_loss_rate, alert_false_positive_rate, MTBF</td></tr>
+<tr><td><strong>Healthcare / payer</strong></td><td>claims_submitted, visits, prescriptions_filled, procedures, payments</td><td>members_enrolled, authorizations_open, beds_occupied, PMPM_exposure</td><td>denial_rate, readmission_rate, MLR, PMPM_cost_trend, claim_cycle_time</td></tr>
+<tr><td><strong>Ops / on-call</strong></td><td>incidents_opened, pages_sent, deploys, rollbacks, PRs_merged</td><td>open_incidents, queue_depth, on_call_count</td><td>MTTR, change_failure_rate, deploy_freq_norm, SLO_pct, error_budget_remaining</td></tr>
+<tr><td><strong>Marketplace (two-sided)</strong></td><td>listings_created, bookings, transactions, disputes_opened</td><td>active_supply_nodes, active_demand_nodes, open_listings</td><td>match_rate, take_rate, supply/demand_ratio, repeat_use_rate</td></tr>
+</tbody>
+</table>
+
+<h4>Measures that <em>look</em> additive but aren't</h4>
+
+<p>The following look like counts — they are not safely sum-able without context. Each has a specific remediation.</p>
+
+<table>
+<thead>
+<tr class="header"><th>Misleading measure</th><th>Why it breaks</th><th>Fix</th></tr>
+</thead>
+<tbody>
+<tr><td><code>distinct_users</code> per day</td><td>Summing two days double-counts users active in both</td><td>Store <code>users_active_hll</code> (HyperLogLog sketch); merge sketches, then cardinality</td></tr>
+<tr><td><code>unique_sessions</code></td><td>Sessions can span day boundaries; naive sum over-counts or under-counts</td><td>Sessionize with a fixed boundary (e.g., always assign to session-start day)</td></tr>
+<tr><td><code>avg_session_duration</code> per day</td><td>Average of averages weights each day equally regardless of traffic</td><td>Store <code>sum_duration_ms</code> + <code>session_count</code>; divide at query time</td></tr>
+<tr><td><code>median_order_value</code></td><td>Medians don't aggregate linearly</td><td>Store a t-digest or KLL sketch per day; merge sketches, then query percentiles</td></tr>
+<tr><td><code>max_concurrent_streams</code></td><td>Summing daily maxes ≠ global max; daily max can coincide or not</td><td>Store interval-level counts; compute max over intersection in SELECT</td></tr>
+<tr><td><code>returning_visitor_count</code></td><td>"Returning" is relative to a baseline that shifts per query window</td><td>Reclassify per query; store <code>first_seen_ts</code> per visitor, derive returning flag on demand</td></tr>
+<tr><td><code>churn_rate</code> (pre-computed)</td><td>Churn % cannot be averaged across cohorts of different sizes</td><td>Store <code>churned_count</code> + <code>cohort_size</code>; compute ratio in SELECT</td></tr>
+<tr><td><code>weighted_avg_price</code></td><td>Re-weighted averages don't compose</td><td>Store <code>sum_price_times_qty</code> + <code>sum_qty</code>; divide in SELECT</td></tr>
+<tr><td><code>rank_position</code> from LIMIT queries</td><td>Rank is relative to the surrounding rowset, not intrinsic</td><td>Never persist rank as a column; compute via window function on read</td></tr>
+<tr><td><code>latency_p99</code> per minute</td><td>Percentiles don't average — p99 of (p99s) is not the global p99</td><td>Store histogram buckets or a sketch; query-time merge</td></tr>
+</tbody>
+</table>
+
+<p><strong>The canonical non-additive mistake</strong>: you have <code>fact_product_daily(product_key, date_key, avg_price)</code>. A BI user computes "average price this week = AVG(avg_price) across 7 days." That's an average of averages — not the weighted average they want. Fix: store <code>sum_of_prices</code> and <code>price_count</code>, compute the ratio in the <code>SELECT</code>. Same rule for everything in the third table above — the shape is always "store the components, derive the ratio on read."</p>
 <h3 id="p01-factless-fact-tables">Factless fact tables</h3>
 <p>A fact table with only FKs — no measures. Models events or eligibility:</p>
 <div class="sourceCode" id="p01-cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="p01-cb7-1"><a href="#p01-cb7-1" aria-hidden="true"></a><span class="co">-- &quot;Which users had access to which titles on which day&quot;</span></span>
@@ -1142,49 +1177,76 @@ signup                   X         -          X          X         X        X
 <span id="p01-cb19-6"><a href="#p01-cb19-6" aria-hidden="true"></a><span class="co">-- Current view (resolve through natural key)</span></span>
 <span id="p01-cb19-7"><a href="#p01-cb19-7" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user_current d <span class="kw">ON</span> d.user_id <span class="op">=</span> f.user_id</span></code></pre></div>
 <h3 id="p01-picking-a-type-per-attribute">Picking a type per attribute</h3>
-<p>Attributes within one dimension can use different types:</p>
+<p>Attributes within one dimension almost always use <em>different</em> types. The skill is choosing correctly per attribute. The expanded table below covers the attributes you'll see in most real dimensions, with the reasoning.</p>
+
 <table>
-<thead>
-<tr class="header">
-<th>Attribute</th>
-<th>Type</th>
-<th>Why</th>
-</tr>
-</thead>
+<thead><tr class="header"><th>Attribute</th><th>Type</th><th>Why</th></tr></thead>
 <tbody>
-<tr class="odd">
-<td>date_of_birth</td>
-<td>0</td>
-<td>Immutable</td>
-</tr>
-<tr class="even">
-<td>email (post-typo-fix)</td>
-<td>1</td>
-<td>Corrections shouldn't create history</td>
-</tr>
-<tr class="odd">
-<td>country_code</td>
-<td>2</td>
-<td>Matters historically</td>
-</tr>
-<tr class="even">
-<td>subscription_tier</td>
-<td>2</td>
-<td>Matters historically</td>
-</tr>
-<tr class="odd">
-<td>churn_date</td>
-<td>1 (with audit)</td>
-<td>Single most-recent value sufficient</td>
-</tr>
-<tr class="even">
-<td>display_name</td>
-<td>6 (current + history)</td>
-<td>Display needs current name always</td>
-</tr>
+<tr><td colspan="3"><strong>Customer / user dimension</strong></td></tr>
+<tr><td><code>date_of_birth</code></td><td>0</td><td>Immutable; a correction is rare and reported as data-entry fix</td></tr>
+<tr><td><code>signup_date</code></td><td>0</td><td>Facts of origin; never changes</td></tr>
+<tr><td><code>birth_country</code></td><td>0</td><td>Cannot change retroactively</td></tr>
+<tr><td><code>email</code> (typo-fix)</td><td>1</td><td>Corrections should replace silently, not create a history row</td></tr>
+<tr><td><code>gdpr_erased_flag</code></td><td>1</td><td>Privacy operations overwrite by design</td></tr>
+<tr><td><code>country_code_current</code></td><td>2</td><td>Relocations must not retro-attribute old orders</td></tr>
+<tr><td><code>subscription_tier</code></td><td>2</td><td>Revenue attribution by tier depends on tier at event time</td></tr>
+<tr><td><code>loyalty_level</code></td><td>2</td><td>Historical level drove the discount historically given</td></tr>
+<tr><td><code>referred_by_user_id</code></td><td>3 (prev + curr)</td><td>Short history matters; full history rarely queried</td></tr>
+<tr><td><code>display_name</code></td><td>6</td><td>UI needs current name everywhere; analytics may need point-in-time</td></tr>
+<tr><td><code>full_name</code> (post-marriage)</td><td>6</td><td>Same — current in app, historical for compliance</td></tr>
+<tr><td><code>last_churn_date</code></td><td>1 + audit log</td><td>Most-recent value is the useful one; audit trail elsewhere</td></tr>
+<tr><td colspan="3"><strong>Product / SKU dimension</strong></td></tr>
+<tr><td><code>product_id</code> (natural)</td><td>0</td><td>Primary identity, must never mutate</td></tr>
+<tr><td><code>product_name_display</code></td><td>1</td><td>Rebrand should update cleanly; history of names is noise</td></tr>
+<tr><td><code>category_hierarchy</code></td><td>2</td><td>Reorganizations break historical category rollups if overwritten</td></tr>
+<tr><td><code>list_price</code></td><td>2</td><td>Revenue by price-tier depends on price-at-order-time</td></tr>
+<tr><td><code>cost_of_goods</code></td><td>2</td><td>Margin math requires the historical COGS at order time</td></tr>
+<tr><td><code>is_active</code> flag</td><td>2</td><td>Window of availability matters for supply analyses</td></tr>
+<tr><td><code>current_inventory</code></td><td>— (not a dim attr)</td><td>Move to a periodic-snapshot fact, not a dimension</td></tr>
+<tr><td colspan="3"><strong>Store / location dimension</strong></td></tr>
+<tr><td><code>store_open_date</code></td><td>0</td><td>Facts of origin</td></tr>
+<tr><td><code>manager_name</code></td><td>2</td><td>Attribution by manager-of-record at event time</td></tr>
+<tr><td><code>store_format</code> (big-box vs mall)</td><td>2</td><td>Format reshapes affect historical comps</td></tr>
+<tr><td><code>physical_address</code></td><td>2</td><td>Tax jurisdiction is historical</td></tr>
+<tr><td><code>branding_name</code></td><td>1</td><td>Marketing rename; no analytical impact</td></tr>
+<tr><td><code>square_footage</code></td><td>2</td><td>Renovations affect per-sqft metrics historically</td></tr>
+<tr><td colspan="3"><strong>Employee / HR dimension</strong></td></tr>
+<tr><td><code>hire_date</code></td><td>0</td><td>Origin fact</td></tr>
+<tr><td><code>legal_name</code></td><td>6</td><td>Legal name history retained for compliance; display uses current</td></tr>
+<tr><td><code>employment_status</code></td><td>2</td><td>Employed-at-event-time drives most HR analytics</td></tr>
+<tr><td><code>reporting_manager</code></td><td>2</td><td>Org-chart snapshots matter historically</td></tr>
+<tr><td><code>level_band</code> / grade</td><td>2</td><td>Promotion-aware analyses need the level at event time</td></tr>
+<tr><td><code>salary_band</code></td><td>2</td><td>Compensation history drives budget rollups</td></tr>
+<tr><td><code>personal_email</code></td><td>1</td><td>Pure contact info update</td></tr>
+<tr><td colspan="3"><strong>Marketing campaign dimension</strong></td></tr>
+<tr><td><code>campaign_id</code></td><td>0</td><td>Identity</td></tr>
+<tr><td><code>launch_date</code></td><td>0</td><td>Origin</td></tr>
+<tr><td><code>budget_usd</code></td><td>2</td><td>Budget revisions attribute to the window they applied</td></tr>
+<tr><td><code>internal_name</code></td><td>1</td><td>Naming hygiene only</td></tr>
+<tr><td><code>channel</code></td><td>2</td><td>Channel reclassification affects attribution history</td></tr>
+<tr><td><code>owning_team</code></td><td>2</td><td>Ownership transfers need historical accuracy for credit</td></tr>
+<tr><td colspan="3"><strong>Account / subscription dimension (B2B)</strong></td></tr>
+<tr><td><code>account_id</code></td><td>0</td><td>Identity</td></tr>
+<tr><td><code>contract_start_date</code></td><td>0</td><td>Origin</td></tr>
+<tr><td><code>plan_name</code></td><td>2</td><td>Historical plan drives historical entitlement</td></tr>
+<tr><td><code>seats_purchased</code></td><td>2</td><td>Contract-size history is revenue math</td></tr>
+<tr><td><code>renewal_date</code></td><td>1</td><td>Current renewal date is the useful one</td></tr>
+<tr><td><code>owner_account_exec</code></td><td>2</td><td>Historical ownership for commission attribution</td></tr>
+<tr><td><code>industry_classification</code></td><td>2</td><td>Reclassification should not rewrite historical industry rollups</td></tr>
 </tbody>
 </table>
-<p>Document per-attribute decisions in your data catalog.</p>
+
+<p>Document every per-attribute decision in the data catalog. A newcomer should be able to read the catalog and predict whether an update to <code>country_code</code> produces a new row in <code>dim_user</code>. If the answer is ambiguous, the catalog is incomplete.</p>
+
+<h4>The red-flag shapes</h4>
+
+<p>Three attribute categories warrant extra suspicion when choosing an SCD type:</p>
+
+<ul>
+<li><strong>Anything regulatory.</strong> Legal name, address, tax ID, consent flags — treat as Type 2 minimum, plus a separate audit trail, regardless of analytical need. Compliance trumps modeling elegance.</li>
+<li><strong>Anything that drives financial attribution.</strong> Tier, plan, price, territory assignment, account executive ownership — always Type 2. A future auditor will ask "who owned this account when the deal closed." Type 1 cannot answer that.</li>
+<li><strong>Anything computed.</strong> Lifetime value, segment classification, engagement score — don't SCD these; move them to a periodic snapshot fact. Dimensions should hold identity and attributes; computed aggregates belong with the facts.</li>
+</ul>
 <h2 id="p01-8-date--time-dimensions-done-right">8. Date &amp; Time Dimensions Done Right</h2>
 <p>A first-class date dimension makes fiscal/holiday/weekend/quarter queries trivial. Generate it once, populate 20 years of rows, never touch again.</p>
 <h3 id="p01-generating-dim_date-postgres">Generating dim_date (Postgres)</h3>
@@ -2748,6 +2810,95 @@ def critical_path(nodes, edges, duration):
 <h3>The "restart at noon" drill</h3>
 
 <p>Interviewers love to ask: "Yesterday's job failed at 11pm. You rerun at noon today. What happens downstream?" The senior answer enumerates: <em>which tables get rewritten, which downstream caches invalidate, which dashboards see a stale→fresh transition, which SLAs trip</em>. If you can't answer this for your own pipelines, you don't own them operationally — no matter what the org chart says.</p>
+
+
+<hr>
+
+<h2 id="p02-17-partition-key-decision-examples">17. Partition Key Decisions by Domain</h2>
+
+<p>Choosing a partition key is the single highest-leverage physical-design decision in a lakehouse or warehouse table. A good choice makes common queries prune 99% of the data; a bad one produces billion-row scans for every dashboard. Below is a pattern-match table of typical domains, the natural partition key, the access patterns that justify it, and the most common wrong choice candidates reach for first.</p>
+
+<table>
+<thead>
+<tr class="header">
+<th>Domain / table</th>
+<th>Recommended partition key</th>
+<th>Secondary (clustering/sort)</th>
+<th>Why</th>
+<th>Common wrong pick</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><strong>Events</strong> (app, web, mobile)</td><td><code>event_date</code></td><td><code>user_id</code>, <code>event_name</code></td><td>Nearly all queries bound by a date range</td><td><code>user_id</code> — cardinality explosion, files per user explode</td></tr>
+<tr><td><strong>Orders / transactions</strong></td><td><code>order_date</code></td><td><code>customer_id</code>, <code>region</code></td><td>Daily batches, MoM reports, finance closes — all date-bounded</td><td><code>order_id</code> — gives one row per partition</td></tr>
+<tr><td><strong>Clickstream / impressions</strong></td><td><code>event_date</code> + <code>hour</code> (hourly)</td><td><code>session_id</code>, <code>campaign_id</code></td><td>High volume; hourly grain keeps partitions under ~1 TB</td><td><code>campaign_id</code> — skew on hero campaigns</td></tr>
+<tr><td><strong>Payments / ledger</strong></td><td><code>posting_date</code></td><td><code>merchant_id</code>, <code>account_id</code></td><td>Financial close runs on posting date</td><td><code>merchant_id</code> — power-law skew</td></tr>
+<tr><td><strong>Subscription billing</strong></td><td><code>invoice_month</code></td><td><code>account_id</code></td><td>Billing cycles are monthly</td><td><code>account_id</code> — tenant skew; too few files for small tenants</td></tr>
+<tr><td><strong>CDC / change log</strong></td><td><code>change_date</code></td><td><code>source_table</code>, <code>pk_hash</code></td><td>Replay and backfill are date-bounded</td><td><code>source_table</code> — one huge partition per high-volume table</td></tr>
+<tr><td><strong>IoT telemetry</strong></td><td><code>ingest_date</code> + <code>hour</code></td><td><code>device_id</code> bucket (16–64 buckets)</td><td>Continuous high-volume stream; hourly prevents partition bloat</td><td><code>device_id</code> raw — cardinality blowup</td></tr>
+<tr><td><strong>Logs (systems)</strong></td><td><code>log_date</code> + <code>hour</code></td><td><code>service</code>, <code>severity</code></td><td>Investigations bounded by time; joining across services is rare</td><td><code>host_id</code> — millions of tiny partitions</td></tr>
+<tr><td><strong>Media catalog</strong></td><td>— (no partition; small)</td><td><code>title_id</code> cluster</td><td>A catalog of 10–100 K items is too small to benefit from partitioning</td><td>partitioning by <code>genre</code> — rarely prunes</td></tr>
+<tr><td><strong>Playback / watch events</strong></td><td><code>event_date</code></td><td><code>title_id</code>, <code>region</code></td><td>Engagement reporting is date-bounded; title-level rollups are frequent enough to cluster on</td><td><code>title_id</code> — one-hit wonders create skew</td></tr>
+<tr><td><strong>Ad impressions</strong></td><td><code>event_date</code> + <code>hour</code></td><td><code>advertiser_id</code>, <code>placement_id</code></td><td>Volume is extreme; hourly is the right grain</td><td><code>advertiser_id</code> — top advertiser dominates</td></tr>
+<tr><td><strong>Inventory snapshots</strong></td><td><code>snapshot_date</code></td><td><code>warehouse_id</code>, <code>sku</code></td><td>Snapshots are by date; comparisons are date-vs-date</td><td><code>sku</code> — SKU count is in the millions</td></tr>
+<tr><td><strong>Clinical claims</strong></td><td><code>service_date</code></td><td><code>payer_id</code>, <code>provider_id</code></td><td>Service date anchors claims processing and audit</td><td><code>patient_id</code> — cardinality and privacy issues</td></tr>
+<tr><td><strong>Ride / trip data</strong></td><td><code>trip_end_date</code></td><td><code>city_id</code>, <code>driver_id</code></td><td>Operational reporting is daily per city</td><td><code>driver_id</code> — long tail of one-trip drivers</td></tr>
+<tr><td><strong>Support tickets</strong></td><td><code>opened_date</code></td><td><code>product_area</code>, <code>priority</code></td><td>SLA and backlog queries are date-bounded</td><td><code>customer_id</code> — sparse per customer</td></tr>
+<tr><td><strong>CRM activity</strong></td><td><code>activity_date</code></td><td><code>owner_id</code>, <code>account_id</code></td><td>Rep productivity reports run by week/month</td><td><code>account_id</code> — uneven size</td></tr>
+<tr><td><strong>Search queries</strong></td><td><code>query_date</code></td><td><code>query_hash</code> bucket</td><td>Investigations and model training are both date-bounded</td><td><code>query_text</code> — one partition per unique query</td></tr>
+<tr><td><strong>Model training features</strong></td><td><code>feature_date</code></td><td><code>entity_id</code> bucket</td><td>Training sets are date-bounded; entity_id is bucketed to avoid skew</td><td><code>entity_id</code> raw — skew + small partitions</td></tr>
+</tbody>
+</table>
+
+<h3>Sizing heuristic</h3>
+
+<p>Aim for partitions in the ~100 MB – ~10 GB range after compaction. Below that, metadata overhead dominates. Above it, a single consumer reading one partition loses parallelism. For a daily-partitioned 1 TB/day fact, that's ideal. For a 100 GB/day fact, daily is still fine. For a 10 TB/day fact, move to hourly.</p>
+
+<h3>The bucketed-id trick</h3>
+
+<p>When you have a high-cardinality key (user_id, device_id) that users filter on but can't partition on directly, <em>hash it into a fixed number of buckets</em> and use that as a secondary partition. The query can push the bucket predicate down (<code>WHERE user_bucket = hash(user_id) % 32</code>), pruning ~97% of partitions while keeping each partition reasonable size. This is how Iceberg's hidden partitioning works under the hood for bucket transforms.</p>
+
+<pre><code>-- Iceberg: hidden bucketing — no user code changes
+CREATE TABLE events (
+  event_date DATE,
+  user_id BIGINT,
+  event_name STRING,
+  ...
+)
+USING ICEBERG
+PARTITIONED BY (event_date, bucket(32, user_id));
+
+-- Queries that filter on user_id automatically prune 31/32 buckets
+SELECT * FROM events
+WHERE event_date = '2026-04-20' AND user_id = 12345;</code></pre>
+
+<h2 id="p02-18-null-semantics-by-domain">18. NULL Semantics — Examples by Domain</h2>
+
+<p>NULL is never a single thing. It carries different meanings across columns and domains, and conflating them is a root cause of subtle downstream bugs. The rule: <em>every nullable column in a contract must document which meaning applies</em>. Examples below.</p>
+
+<table>
+<thead>
+<tr class="header"><th>NULL meaning</th><th>Column examples</th><th>Recommended handling</th></tr></thead>
+<tbody>
+<tr><td><strong>Unknown</strong> (value exists but not captured)</td><td><code>customer_dob</code>, <code>visit_purpose</code>, <code>referrer_url</code></td><td>Leave NULL; document that absence ≠ absence-of-fact</td></tr>
+<tr><td><strong>Not applicable</strong> (value cannot exist for this row)</td><td><code>spouse_name</code> for single customers, <code>return_reason</code> for non-returns, <code>churn_date</code> for active users</td><td>Leave NULL; contract explicitly enumerates which combinations preclude the column</td></tr>
+<tr><td><strong>Pending</strong> (value will arrive later)</td><td><code>shipped_ts</code>, <code>paid_ts</code>, <code>resolved_ts</code> in an accumulating snapshot</td><td>NULL is the signal; downstream code tests <code>IS NULL</code> explicitly</td></tr>
+<tr><td><strong>Sentinel for "no match"</strong></td><td><code>fraud_model_score</code> on transactions the model declined to score, <code>segment_id</code> for un-enrollable users</td><td>Prefer a sentinel value over NULL: <code>-1</code> for scores, <code>'UNASSIGNED'</code> for enums</td></tr>
+<tr><td><strong>Soft-deleted</strong></td><td><code>deleted_at</code> populated = row is logically deleted; NULL = active</td><td>NULL means "not deleted"; every consumer must filter on <code>deleted_at IS NULL</code></td></tr>
+<tr><td><strong>End-date of open interval</strong></td><td><code>valid_to</code>, <code>employment_end_date</code>, <code>lease_end_date</code></td><td>NULL means "still valid"; OR set to <code>9999-12-31</code> for range-join friendliness</td></tr>
+<tr><td><strong>Privacy-suppressed</strong></td><td><code>customer_ip</code>, <code>email</code> post-GDPR</td><td>Prefer an explicit status column (<code>pii_status='erased'</code>) alongside NULL</td></tr>
+<tr><td><strong>Default-not-set</strong></td><td><code>preferred_language</code>, <code>notification_opt_in</code></td><td>Fill with a system default (<code>'en-US'</code>, <code>FALSE</code>); NULL here is usually a bug</td></tr>
+<tr><td><strong>Zero vs NULL</strong> (the classic)</td><td><code>refund_amount</code>, <code>discount_amount</code>, <code>gift_card_value</code></td><td>Zero when we know no refund occurred; NULL only if we don't know. The two are different rows in finance.</td></tr>
+</tbody>
+</table>
+
+<h3>The aggregation trap</h3>
+
+<p><code>SUM(column_with_nulls)</code> ignores NULLs, but <code>SUM(column_with_nulls) / COUNT(*)</code> does not — <code>COUNT(*)</code> includes NULL rows. If you want the average over non-null rows, use <code>AVG(col)</code> or <code>SUM(col) / COUNT(col)</code>. Mixing <code>SUM</code> and <code>COUNT(*)</code> is the single most common "the numbers are off" bug in dashboards that mix nullable measures.</p>
+
+<h3>The NULL-vs-zero revenue bug</h3>
+
+<p>Finance often wants "revenue = 0 for days with no sales." If your fact table uses NULL to mean "no sales," your MoM chart will produce NULL MoM for zero-revenue-days, not "down 100%." Generate a dense calendar grid (see Q4 in Part 09's SQL bank), <code>COALESCE</code> NULLs to 0, and you're safe.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-03" class="part-section" data-part="03">
@@ -5429,6 +5580,47 @@ SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;</code></pre>
 <h3>The meta-lesson</h3>
 
 <p>Reaching for a hint is a smell. Before hinting, confirm: (a) statistics are up-to-date, (b) the query is written in a shape the optimizer can reason about, (c) you've run <code>EXPLAIN ANALYZE</code> and understand the plan. Interviewers are suspicious of candidates who volunteer hints as a first-resort tuning move.</p>
+
+
+<hr>
+
+<h2 id="p05-19-window-function-choice-examples">19. Window Function Choice — Examples by Intent</h2>
+
+<p>Pick the wrong window function and the query is subtly wrong in ways the optimizer won't flag. The table below maps the business intent to the correct function, with the most common wrong pick for each.</p>
+
+<table>
+<thead><tr class="header"><th>You want to…</th><th>Use</th><th>Common wrong pick</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Rank with strict ordering, break ties arbitrarily</td><td><code>ROW_NUMBER()</code></td><td><code>RANK()</code></td><td>ROW_NUMBER gives exactly N rows for top-N; RANK may return more than N on ties</td></tr>
+<tr><td>Rank with ties, preserving count</td><td><code>DENSE_RANK()</code></td><td><code>RANK()</code></td><td>RANK leaves gaps (1,1,3); DENSE_RANK doesn't (1,1,2) — pick by whether gaps matter</td></tr>
+<tr><td>Top-N with "include all tied at Nth"</td><td><code>DENSE_RANK()</code></td><td><code>ROW_NUMBER()</code></td><td>ROW_NUMBER arbitrarily picks one of the ties</td></tr>
+<tr><td>Previous row's value per group</td><td><code>LAG(col)</code></td><td>self-join</td><td>LAG is one pass; self-join is N² in the worst case</td></tr>
+<tr><td>Next row's value per group</td><td><code>LEAD(col)</code></td><td>self-join</td><td>Same reason</td></tr>
+<tr><td>Running total</td><td><code>SUM(col) OVER (ORDER BY …)</code></td><td>correlated subquery</td><td>Correlated subquery is O(N²); windowed sum is O(N)</td></tr>
+<tr><td>Moving 7-day sum</td><td><code>SUM(col) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)</code></td><td><code>RANGE</code> frame</td><td>ROWS counts rows; RANGE counts values — with date gaps, RANGE gives different results</td></tr>
+<tr><td>Moving 7-calendar-day sum (including empty days)</td><td>Generate a dense date grid first, then windowed sum</td><td>naive ROWS frame</td><td>Sparse data breaks ROW-based windows silently</td></tr>
+<tr><td>First/last row per group, ordered</td><td><code>FIRST_VALUE() / LAST_VALUE()</code> with explicit frame</td><td>no frame</td><td>Default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> — <code>LAST_VALUE</code> returns the current row, not the group's last row</td></tr>
+<tr><td>Percentile within group</td><td><code>PERCENT_RANK()</code> or <code>NTILE(100)</code></td><td><code>ROW_NUMBER() / COUNT(*)</code></td><td>Manual division gives wrong semantics for ties</td></tr>
+<tr><td>Session number per user (gaps-and-islands)</td><td><code>SUM(new_session_flag) OVER (PARTITION BY user ORDER BY ts)</code></td><td>recursive CTE</td><td>Recursive is correct but 10–100x slower</td></tr>
+<tr><td>"Nth most recent" per group</td><td><code>ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ts DESC)</code> + filter <code>= N</code></td><td><code>ORDER BY ts DESC LIMIT N</code></td><td>LIMIT applies to the entire result; won't give N-per-group</td></tr>
+<tr><td>Cumulative distinct count</td><td>HyperLogLog sketch + windowed merge</td><td><code>COUNT(DISTINCT col) OVER (…)</code></td><td>Most engines don't support window COUNT(DISTINCT); performance is terrible where they do</td></tr>
+<tr><td>Lagged value N rows back</td><td><code>LAG(col, N)</code></td><td><code>LAG(LAG(LAG(col)))</code></td><td>LAG takes an offset argument; no need to nest</td></tr>
+<tr><td>Percent of total per group</td><td><code>col / SUM(col) OVER (PARTITION BY grp)</code></td><td>subquery grouping</td><td>Windowed is one pass; subquery-grouping is two scans</td></tr>
+</tbody>
+</table>
+
+<h3>The frame-clause trap</h3>
+
+<p>The three functions that surprise people most are <code>LAST_VALUE</code>, <code>SUM OVER ORDER BY</code>, and <code>FIRST_VALUE</code>. Their default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>, which is almost never what the user intended for <code>LAST_VALUE</code>. Always write the frame clause explicitly when using these:</p>
+
+<pre><code>-- Wrong: returns the CURRENT row's value, not the group's last
+LAST_VALUE(col) OVER (PARTITION BY g ORDER BY ts)
+
+-- Right: explicitly extends the frame to the group end
+LAST_VALUE(col) OVER (
+  PARTITION BY g ORDER BY ts
+  ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+)</code></pre>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-06" class="part-section" data-part="06">
@@ -9055,6 +9247,144 @@ AND f1.follower_id &lt; f1.followee_id;</code></pre>
 <li>Write a 30-minute debrief: one page per round, covering what you were asked, what you answered, what you wish you'd answered.</li>
 <li>Send a brief thank-you within 24 hours to each interviewer, referencing one specific thing they said. Generic thank-yous are neutral; specific ones are memorable.</li>
 <li>Don't re-litigate the loop mentally. You're done. Wait.</li>
+</ul>
+
+<hr>
+
+<h2 id="p09-11-tricky-behavioral-questions">11. Tricky Behavioral Questions — Model Answers</h2>
+
+<p>Managers ask a specific class of behavioral questions that don't fit the neat STAR frames above. They are deliberately probing for the seams: how you handle a peer who won't back down, how you revive an idea after it's been shot down, how you absorb tough feedback without losing your footing. This section gives the specific moves, with worked examples and phrases you can actually say in the room.</p>
+
+<blockquote>
+<p>The underlying skill these questions test isn't "do you avoid conflict" — it's <em>can you stay in the conversation when it gets uncomfortable without either capitulating or escalating</em>. Most candidates fail by doing one or the other.</p>
+</blockquote>
+
+<h3>11.1 — "Tell me about a time you had a conflict with a peer"</h3>
+
+<h4>What the interviewer is really probing</h4>
+<p>Three things at once: (a) can you surface disagreement directly or do you route around it; (b) do you separate the person from the position; (c) do you walk away with a working relationship intact. The candidates who fail this question do so by describing a conflict where they were entirely right, the other person was entirely wrong, and the outcome was that the other person "came around." That sounds like a win — it signals weak empathy and low collaboration to experienced interviewers.</p>
+
+<h4>The move — the four-beat answer</h4>
+<ol>
+<li><strong>Name the tension in neutral terms.</strong> "We disagreed on whether to refactor the upstream service before building the new feature."</li>
+<li><strong>State your actual conviction — and acknowledge theirs.</strong> "I was confident the new feature would accumulate tech debt if we skipped the refactor. My peer was equally confident that the refactor would burn three sprints for marginal gain."</li>
+<li><strong>Describe the move you made that took the heat out.</strong> "I proposed we spike the feature without the refactor for one sprint, instrument the specific debt I was worried about, and let the data tell us whether to refactor before continuing."</li>
+<li><strong>Close with the relationship, not just the outcome.</strong> "We ended up shipping on a hybrid plan. Three months later he was the first person I asked when a related decision came up."</li>
+</ol>
+
+<h4>Sample phrases that land</h4>
+<ul>
+<li><em>"I notice we're solving two different problems — can we agree on which problem we're actually disagreeing about?"</em> This single sentence defuses more engineering conflicts than any other.</li>
+<li><em>"You might be right, and if you are, here's what I'd want to see in the data to know."</em> Concedes possibility without conceding the decision.</li>
+<li><em>"Let me restate your position back — tell me if I have it right before I respond."</em> Most conflicts are people talking past each other; this breaks the pattern.</li>
+</ul>
+
+<h3>11.2 — "What if the peer is cocky and won't back down?"</h3>
+
+<h4>What the interviewer is really probing</h4>
+<p>Whether you escalate at the right threshold. "I went to my manager" too early signals avoidance; "I just kept pushing" signals bad judgment. The answer lives in the middle: you invest meaningfully in the 1:1 path, you collect evidence, and you escalate with a <em>process</em> proposal, not a <em>person</em> complaint.</p>
+
+<h4>The move — four stages, named</h4>
+
+<ol>
+<li><strong>Stage 1 — ask for the underlying principle.</strong> Cocky disagreement is often surface-level. Ask: "If the data showed X, would your position change?" If the answer is "no, regardless of data" — you now know it's not a technical disagreement, it's identity. Route accordingly.</li>
+<li><strong>Stage 2 — take the work offline.</strong> "Let's not solve this in the standup. I'll put the comparison in a doc by Friday, you add your counter, we regroup Monday." The written form neutralizes verbal dominance games.</li>
+<li><strong>Stage 3 — bring a third technical voice.</strong> Not your manager. A respected senior outside both of your reporting lines. Frame it as "we both respect X, let's get their read." This is very different from escalation — you're enlarging the decision-making set, not appealing to authority.</li>
+<li><strong>Stage 4 — genuine escalation.</strong> If stages 1–3 fail and the decision must be made, surface to both managers together with a written doc that fairly represents both positions. The last move is <em>always</em> process-oriented: "we need a decision, here's the doc with both sides, we need you to adjudicate."</li>
+</ol>
+
+<h4>The sentences that work on a cocky peer</h4>
+<ul>
+<li><em>"I hear your conclusion. I don't yet hear the reasoning that got you there — can you walk me through it?"</em> Invites specificity without conceding anything.</li>
+<li><em>"We've been going in circles on this for 20 minutes. Let's write it up instead."</em> Breaks the verbal dynamic entirely.</li>
+<li><em>"I may be wrong. Tell me what I'd need to believe to agree with you."</em> Surprisingly disarming; invites them to articulate the model, which often exposes where the disagreement actually lives.</li>
+</ul>
+
+<h4>What not to say</h4>
+<ul>
+<li><em>"I'll defer to you on this one."</em> — you just told the interviewer you fold under pressure.</li>
+<li><em>"He was just being a jerk."</em> — even if true, you've revealed you can't frame people charitably.</li>
+<li><em>"I went to my manager."</em> — unless you've first described the 1:1 investment. Manager-first is a red flag.</li>
+</ul>
+
+<h3>11.3 — "You presented a new idea. One peer is hell-bent on rejecting it, and he has reasons. How do you handle it?"</h3>
+
+<h4>What's actually being tested</h4>
+<p>Whether you can distinguish <em>good-faith opposition</em> from <em>obstruction</em>, and whether you can use good-faith opposition to make the idea better instead of defending it. The best idea-pushers treat a rigorous objector as a gift. That mindset is a strong hire signal.</p>
+
+<h4>The move — steelman then separate</h4>
+
+<ol>
+<li><strong>Steelman their objection out loud.</strong> "Let me restate what I hear you saying, and tell me if it's right. You believe the approach is the wrong move because of [specific reason 1], [specific reason 2], [specific reason 3]. Did I miss anything?" Do not skip this. Most objectors are never accurately restated back — just doing it creates real goodwill.</li>
+<li><strong>Ask what evidence would change their mind.</strong> "If [specific outcome], would that address [specific objection]?" Two outcomes: (a) they give you a concrete test, which is a gift — now you can address it; (b) they can't name any evidence that would change their mind, which means the objection isn't actually technical. Now you know what you're working with.</li>
+<li><strong>Separate the decidable from the undecidable.</strong> Some parts of the objection can be settled with a prototype, benchmark, or pilot. Others are pure judgment calls where reasonable people differ. Address the decidable ones with actual work; name the judgment calls as judgment calls and propose how the org should decide them (usually: someone with the authority to adjudicate decides, and you commit either way).</li>
+<li><strong>Invite them to co-own the next step.</strong> "If we ran the pilot for four weeks with [metric] as the kill criterion, would you be willing to co-design the pilot?" The skeptic who co-designs the pilot becomes your most credible advocate or your most credible killer — either way you're unstuck.</li>
+</ol>
+
+<h4>Phrases that change the room</h4>
+<ul>
+<li><em>"You're asking a good question — I don't have the answer yet. Give me two days to come back with data."</em> Protects your credibility better than faking an answer.</li>
+<li><em>"If we're going to kill this, let's be clear on the criteria — what would have to be true for us to revisit?"</em> Turns a rejection into a conditional rejection, which is recoverable.</li>
+<li><em>"I'd rather we killed this for the right reason than ship it and regret it."</em> Signals that you're attached to the outcome, not the idea.</li>
+</ul>
+
+<h4>The failure mode</h4>
+
+<p>The worst thing to do is double down and try to "win" by sheer persistence. Even if you win the meeting, you've spent political capital that took years to accumulate. The senior move is to separate being right from being heard — and to recognize that an idea killed today can be revived in three months with better data.</p>
+
+<h3>11.4 — "Tell me about a time you received feedback that was hard to hear"</h3>
+
+<h4>What the interviewer is probing</h4>
+<p>Whether you can hold feedback without either (a) performing humility theater or (b) getting defensive. The bad answer: "I got feedback that my communication was too blunt and I realized I should be nicer." The interviewer has heard that 400 times and it lands as canned.</p>
+
+<h4>The senior answer shape</h4>
+<p>Name the feedback specifically. Name your initial reaction honestly — including the part where it stung. Name what you did with it over the next 90 days, with a specific behavior change. Close with what you'd do differently now if you got the same feedback earlier.</p>
+
+<p><em>"A director told me in my six-month review that I wrote beautiful design docs that no one finished reading — they were too long and too exhaustive for anyone but me. My first reaction, honestly, was defensive: I thought the docs were my strength. I sat with it for a week before I could see that what felt like thoroughness to me felt like friction to readers. I rewrote my last three docs to cap at one page for the executive summary, with a linked appendix for the depth. Response rate on my doc reviews roughly tripled. The feedback I wish I'd gotten six months earlier was the specific diagnosis — 'too long' is easy to hear once, hard to internalize; 'nobody finishes them' forced me to re-examine the format."</em></p>
+
+<h3>11.5 — "Tell me about a decision you made that turned out to be wrong"</h3>
+
+<h4>The honest answer</h4>
+<p>Bad answers for this question are versions of "I took a risk that didn't pay off but I'd do it again." That's not a mistake — that's a risk. The interviewer wants an actual wrong call you made.</p>
+
+<p>Good answer shape: name the decision, name your reasoning at the time, name the signal you <em>had</em> that you ignored or under-weighted, name the outcome, name what you do differently now when that signal reappears.</p>
+
+<p><em>"In 2023 I picked PostgreSQL as the primary store for a new system where the read pattern was going to be 98% aggregated analytics. My reasoning was that PostgreSQL was battle-tested and we had the operational expertise. The signal I under-weighted: our own internal latency requirements said p99 under 200 ms for queries touching 30 days of data, and I did not actually benchmark whether PostgreSQL could hit that with the data we'd be accumulating. Six months in, a BI dashboard that needed to scan 500 M rows was taking 12 seconds. We migrated to a columnar warehouse, which was the right answer from day one. What I do now: if the access pattern is 90%+ analytics at any projected scale, I start from the analytics store and justify the OLTP side, not the other way around."</em></p>
+
+<h3>11.6 — "Describe a situation where you had to push back on a manager"</h3>
+
+<h4>What's actually being tested</h4>
+<p>Whether you can disagree with authority without either rolling over or becoming a problem. Most candidates err in one direction or the other — both are disqualifying for staff+.</p>
+
+<h4>The shape of the good answer</h4>
+<p>Your manager asked for something that you had reason to believe was the wrong call. You invested in understanding their reasoning before pushing back. You made your counter-case in writing with specifics, not in a meeting with heat. You accepted the final decision whether it went your way or not, and if it didn't go your way you executed <em>as if it were your idea</em>.</p>
+
+<p>That last sentence — "I executed as if it were my idea" — is what separates senior from staff. Pushing back is an IC skill. Executing the manager's call with your full effort after you pushed back is a leadership skill. Demonstrate both.</p>
+
+<h3>11.7 — "What do you do when you realize mid-project that the plan won't work?"</h3>
+
+<h4>Why this question gets asked</h4>
+<p>Most real projects do not go to plan. Interviewers want to see whether you escalate early and clearly, or whether you try to hero-ship and only surface the problem once it's catastrophic.</p>
+
+<h4>The four-move answer</h4>
+
+<ol>
+<li><strong>Quantify the miss.</strong> Don't say "we're behind." Say "we're three weeks behind on an eight-week plan, and the current trajectory puts us at 12 weeks if nothing changes."</li>
+<li><strong>Reassess the goal, not just the plan.</strong> Sometimes the goal itself has drifted and the old plan was chasing the wrong thing. Restate what we're actually trying to achieve.</li>
+<li><strong>Present three options with honest trade-offs.</strong> "Option A: keep the scope, slip the date. Option B: cut scope X and Y, hit the original date. Option C: add two engineers, hit the original date with full scope. I recommend B because…" Options are respectful; single-recommendation-only feels like you've already decided.</li>
+<li><strong>Escalate to whoever owns the trade-off.</strong> Schedule the decision, don't wait for it to surface. Attach a deadline: "we need a decision by Thursday to preserve optionality on Option C."</li>
+</ol>
+
+<h3>11.8 — The meta-pattern these questions share</h3>
+
+<p>Across all of the above, the interviewer is testing a single underlying capability: <strong>can you hold tension in a working relationship without either collapsing into it or blowing it up?</strong> The candidates who score highest on behavioral rounds never have the cleanest stories — they have stories where both people had real points, where the outcome was messy, where the candidate's growth is named specifically, and where the relationship survived and often improved.</p>
+
+<p>Three practices that make this easier to do live in the interview:</p>
+
+<ul>
+<li><strong>Name the other person charitably before you describe the disagreement.</strong> "A senior engineer I respected…" is much stronger framing than "this guy who insisted…". The framing signals to the interviewer what kind of colleague you are.</li>
+<li><strong>Include at least one sentence where you were wrong, misjudged, or had to revise.</strong> Stories with a 100% success rate for the narrator are suspect.</li>
+<li><strong>End with what you'd do differently now or how the experience changed a default you operate with.</strong> Without that, the story is an anecdote; with it, it's evidence of growth.</li>
 </ul>
 
 <hr>

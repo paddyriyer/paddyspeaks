@@ -658,37 +658,71 @@ footer.page-footer a:hover { color: var(--warm-white); }
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true"></a>);</span></code></pre></div>
 <p>Pros: a single row per order gives "lead time analysis" trivially. Cons: heavy on updates (updates are the enemy of columnar engines). Use when the process has bounded, well-defined milestones.</p>
 <h3 id="additivity">Additivity</h3>
+<p>Additivity is the single most-often-wrong attribute in a fact table. Get it wrong and every dashboard off that table is silently lying. The taxonomy is three-way, but the real skill is <em>recognizing which bucket any given measure falls into across domains</em>. The table below expands the usual starter examples into a cross-industry reference you can pattern-match against.</p>
+
 <table>
 <thead>
 <tr class="header">
 <th>Additivity</th>
 <th>Sum across any dim?</th>
-<th>Example measures</th>
+<th>Representative measures</th>
 <th>Warehouse pattern</th>
 </tr>
 </thead>
 <tbody>
-<tr class="odd">
-<td>Additive</td>
-<td>Yes</td>
-<td>watch_ms, revenue, quantity, seeks</td>
-<td><code>SUM()</code> everywhere</td>
-</tr>
-<tr class="even">
-<td>Semi-additive</td>
-<td>Some dims only</td>
-<td>account_balance, inventory_on_hand, headcount</td>
-<td><code>SUM()</code> across non-time dims; <code>AVG()</code> or <code>LAST_VALUE()</code> across time</td>
-</tr>
-<tr class="odd">
-<td>Non-additive</td>
-<td>Never</td>
-<td>ratios, percentages, averages, unit_price</td>
-<td>Store numerator + denominator; compute ratio at query time</td>
-</tr>
+<tr><td><strong>Additive</strong></td><td>Yes</td><td>revenue, quantity_sold, watch_ms, clicks, impressions, seeks, bytes_transferred, kWh_consumed, calls_handled, miles_driven, tickets_sold, pageviews, messages_sent, COGS, gross_margin_dollars</td><td><code>SUM()</code> everywhere</td></tr>
+<tr><td><strong>Semi-additive</strong></td><td>Some dims only</td><td>account_balance, loan_principal_outstanding, inventory_on_hand, headcount, open_positions, active_users_point_in_time, queue_depth, subscriber_count, MRR/ARR snapshot, portfolio_market_value, occupancy_count, beds_available, in-flight_aircraft, open_tickets, WIP_units, cache_entry_count</td><td><code>SUM()</code> across non-time dims; <code>AVG()</code>, <code>LAST_VALUE()</code>, or <code>MAX(snapshot_date)</code> across time</td></tr>
+<tr><td><strong>Non-additive</strong></td><td>Never</td><td>unit_price, margin_pct, conversion_rate, bounce_rate, CTR, CPC, CPM, ROAS, churn_rate, NPS, CSAT, avg_session_duration, LTV, CAC_ratio, z_score, cohort_retention_pct, exchange_rate, utilization_pct, SLA_pct, fill_rate_pct, stock_price, cap_rate, interest_rate</td><td>Store numerator + denominator; compute ratio in SELECT. Never pre-aggregate the ratio itself.</td></tr>
 </tbody>
 </table>
-<p><strong>The canonical non-additive mistake</strong>: you have <code>fact_product_daily(product_key, date_key, avg_price)</code>. BI user computes "average price this week = AVG(avg_price) across 7 days." That's an average of averages — not the weighted average they want. Fix: store <code>sum_of_prices</code> and <code>price_count</code>, compute the ratio in the SELECT.</p>
+
+<h4>Domain-specific additivity cheat sheet</h4>
+
+<p>Use this to pattern-match new domains against known ones. The same measure shape shows up again and again.</p>
+
+<table>
+<thead>
+<tr class="header"><th>Domain</th><th>Additive</th><th>Semi-additive (snapshot)</th><th>Non-additive (ratios)</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>SaaS / subscription</strong></td><td>signups, cancellations, payments_received, refunds, feature_events</td><td>MRR, ARR, active_subscribers, seats_in_use, storage_GB_used</td><td>churn_rate, gross_retention_pct, NRR, ARPU, LTV/CAC</td></tr>
+<tr><td><strong>E-commerce / retail</strong></td><td>orders_placed, units_sold, revenue, returns, shipping_cost, gift_cards_issued</td><td>inventory_on_hand, cart_value_total, wishlist_size, open_orders</td><td>conversion_rate, AOV, return_rate, margin_pct, sell_through_rate</td></tr>
+<tr><td><strong>Fintech / banking</strong></td><td>deposits, withdrawals, transactions_count, interest_accrued, fees_charged</td><td>account_balance, loan_outstanding, credit_exposure, AUM</td><td>APR, NPL_ratio, NIM, capital_ratio, Sharpe_ratio</td></tr>
+<tr><td><strong>Payments / fraud</strong></td><td>transactions, approved_count, declined_count, chargebacks, refunds_dollar</td><td>active_card_count, in_review_queue_depth, fraud_blocklist_size</td><td>approval_rate, fraud_rate_bps, false_positive_rate, chargeback_ratio</td></tr>
+<tr><td><strong>Advertising / adtech</strong></td><td>impressions, clicks, conversions, spend_dollars, video_starts, video_completes</td><td>active_campaigns, remaining_budget, inventory_available</td><td>CTR, CPC, CPM, CPA, ROAS, viewability_pct, VTR</td></tr>
+<tr><td><strong>Streaming media</strong></td><td>watch_ms, starts, completes, seeks, downloads, new_titles_added</td><td>concurrent_streams, active_accounts, catalog_size</td><td>completion_rate, stream_start_success_rate, rebuffer_ratio</td></tr>
+<tr><td><strong>Gaming</strong></td><td>sessions, purchases, XP_earned, deaths, matches_played, currency_spent</td><td>active_players, open_lobbies, inventory_items_held, mmr_snapshot</td><td>D1/D7/D30_retention, ARPDAU, win_rate, K/D_ratio, match_fill_rate</td></tr>
+<tr><td><strong>Ride-share / logistics</strong></td><td>rides_completed, miles_driven, fares_collected, driver_hours_online, tips</td><td>drivers_online, riders_in_queue, open_requests, fleet_size</td><td>acceptance_rate, cancellation_rate, utilization_pct, ETA_accuracy, $/mile</td></tr>
+<tr><td><strong>IoT / industrial</strong></td><td>readings_count, alerts_raised, kWh, bytes_telemetered, maintenance_events</td><td>devices_online, queue_depth, battery_level_snapshot, firmware_version_count</td><td>uptime_pct, packet_loss_rate, alert_false_positive_rate, MTBF</td></tr>
+<tr><td><strong>Healthcare / payer</strong></td><td>claims_submitted, visits, prescriptions_filled, procedures, payments</td><td>members_enrolled, authorizations_open, beds_occupied, PMPM_exposure</td><td>denial_rate, readmission_rate, MLR, PMPM_cost_trend, claim_cycle_time</td></tr>
+<tr><td><strong>Ops / on-call</strong></td><td>incidents_opened, pages_sent, deploys, rollbacks, PRs_merged</td><td>open_incidents, queue_depth, on_call_count</td><td>MTTR, change_failure_rate, deploy_freq_norm, SLO_pct, error_budget_remaining</td></tr>
+<tr><td><strong>Marketplace (two-sided)</strong></td><td>listings_created, bookings, transactions, disputes_opened</td><td>active_supply_nodes, active_demand_nodes, open_listings</td><td>match_rate, take_rate, supply/demand_ratio, repeat_use_rate</td></tr>
+</tbody>
+</table>
+
+<h4>Measures that <em>look</em> additive but aren't</h4>
+
+<p>The following look like counts — they are not safely sum-able without context. Each has a specific remediation.</p>
+
+<table>
+<thead>
+<tr class="header"><th>Misleading measure</th><th>Why it breaks</th><th>Fix</th></tr>
+</thead>
+<tbody>
+<tr><td><code>distinct_users</code> per day</td><td>Summing two days double-counts users active in both</td><td>Store <code>users_active_hll</code> (HyperLogLog sketch); merge sketches, then cardinality</td></tr>
+<tr><td><code>unique_sessions</code></td><td>Sessions can span day boundaries; naive sum over-counts or under-counts</td><td>Sessionize with a fixed boundary (e.g., always assign to session-start day)</td></tr>
+<tr><td><code>avg_session_duration</code> per day</td><td>Average of averages weights each day equally regardless of traffic</td><td>Store <code>sum_duration_ms</code> + <code>session_count</code>; divide at query time</td></tr>
+<tr><td><code>median_order_value</code></td><td>Medians don't aggregate linearly</td><td>Store a t-digest or KLL sketch per day; merge sketches, then query percentiles</td></tr>
+<tr><td><code>max_concurrent_streams</code></td><td>Summing daily maxes ≠ global max; daily max can coincide or not</td><td>Store interval-level counts; compute max over intersection in SELECT</td></tr>
+<tr><td><code>returning_visitor_count</code></td><td>"Returning" is relative to a baseline that shifts per query window</td><td>Reclassify per query; store <code>first_seen_ts</code> per visitor, derive returning flag on demand</td></tr>
+<tr><td><code>churn_rate</code> (pre-computed)</td><td>Churn % cannot be averaged across cohorts of different sizes</td><td>Store <code>churned_count</code> + <code>cohort_size</code>; compute ratio in SELECT</td></tr>
+<tr><td><code>weighted_avg_price</code></td><td>Re-weighted averages don't compose</td><td>Store <code>sum_price_times_qty</code> + <code>sum_qty</code>; divide in SELECT</td></tr>
+<tr><td><code>rank_position</code> from LIMIT queries</td><td>Rank is relative to the surrounding rowset, not intrinsic</td><td>Never persist rank as a column; compute via window function on read</td></tr>
+<tr><td><code>latency_p99</code> per minute</td><td>Percentiles don't average — p99 of (p99s) is not the global p99</td><td>Store histogram buckets or a sketch; query-time merge</td></tr>
+</tbody>
+</table>
+
+<p><strong>The canonical non-additive mistake</strong>: you have <code>fact_product_daily(product_key, date_key, avg_price)</code>. A BI user computes "average price this week = AVG(avg_price) across 7 days." That's an average of averages — not the weighted average they want. Fix: store <code>sum_of_prices</code> and <code>price_count</code>, compute the ratio in the <code>SELECT</code>. Same rule for everything in the third table above — the shape is always "store the components, derive the ratio on read."</p>
 <h3 id="factless-fact-tables">Factless fact tables</h3>
 <p>A fact table with only FKs — no measures. Models events or eligibility:</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="co">-- &quot;Which users had access to which titles on which day&quot;</span></span>
@@ -931,49 +965,76 @@ signup                   X         -          X          X         X        X
 <span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a><span class="co">-- Current view (resolve through natural key)</span></span>
 <span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user_current d <span class="kw">ON</span> d.user_id <span class="op">=</span> f.user_id</span></code></pre></div>
 <h3 id="picking-a-type-per-attribute">Picking a type per attribute</h3>
-<p>Attributes within one dimension can use different types:</p>
+<p>Attributes within one dimension almost always use <em>different</em> types. The skill is choosing correctly per attribute. The expanded table below covers the attributes you'll see in most real dimensions, with the reasoning.</p>
+
 <table>
-<thead>
-<tr class="header">
-<th>Attribute</th>
-<th>Type</th>
-<th>Why</th>
-</tr>
-</thead>
+<thead><tr class="header"><th>Attribute</th><th>Type</th><th>Why</th></tr></thead>
 <tbody>
-<tr class="odd">
-<td>date_of_birth</td>
-<td>0</td>
-<td>Immutable</td>
-</tr>
-<tr class="even">
-<td>email (post-typo-fix)</td>
-<td>1</td>
-<td>Corrections shouldn't create history</td>
-</tr>
-<tr class="odd">
-<td>country_code</td>
-<td>2</td>
-<td>Matters historically</td>
-</tr>
-<tr class="even">
-<td>subscription_tier</td>
-<td>2</td>
-<td>Matters historically</td>
-</tr>
-<tr class="odd">
-<td>churn_date</td>
-<td>1 (with audit)</td>
-<td>Single most-recent value sufficient</td>
-</tr>
-<tr class="even">
-<td>display_name</td>
-<td>6 (current + history)</td>
-<td>Display needs current name always</td>
-</tr>
+<tr><td colspan="3"><strong>Customer / user dimension</strong></td></tr>
+<tr><td><code>date_of_birth</code></td><td>0</td><td>Immutable; a correction is rare and reported as data-entry fix</td></tr>
+<tr><td><code>signup_date</code></td><td>0</td><td>Facts of origin; never changes</td></tr>
+<tr><td><code>birth_country</code></td><td>0</td><td>Cannot change retroactively</td></tr>
+<tr><td><code>email</code> (typo-fix)</td><td>1</td><td>Corrections should replace silently, not create a history row</td></tr>
+<tr><td><code>gdpr_erased_flag</code></td><td>1</td><td>Privacy operations overwrite by design</td></tr>
+<tr><td><code>country_code_current</code></td><td>2</td><td>Relocations must not retro-attribute old orders</td></tr>
+<tr><td><code>subscription_tier</code></td><td>2</td><td>Revenue attribution by tier depends on tier at event time</td></tr>
+<tr><td><code>loyalty_level</code></td><td>2</td><td>Historical level drove the discount historically given</td></tr>
+<tr><td><code>referred_by_user_id</code></td><td>3 (prev + curr)</td><td>Short history matters; full history rarely queried</td></tr>
+<tr><td><code>display_name</code></td><td>6</td><td>UI needs current name everywhere; analytics may need point-in-time</td></tr>
+<tr><td><code>full_name</code> (post-marriage)</td><td>6</td><td>Same — current in app, historical for compliance</td></tr>
+<tr><td><code>last_churn_date</code></td><td>1 + audit log</td><td>Most-recent value is the useful one; audit trail elsewhere</td></tr>
+<tr><td colspan="3"><strong>Product / SKU dimension</strong></td></tr>
+<tr><td><code>product_id</code> (natural)</td><td>0</td><td>Primary identity, must never mutate</td></tr>
+<tr><td><code>product_name_display</code></td><td>1</td><td>Rebrand should update cleanly; history of names is noise</td></tr>
+<tr><td><code>category_hierarchy</code></td><td>2</td><td>Reorganizations break historical category rollups if overwritten</td></tr>
+<tr><td><code>list_price</code></td><td>2</td><td>Revenue by price-tier depends on price-at-order-time</td></tr>
+<tr><td><code>cost_of_goods</code></td><td>2</td><td>Margin math requires the historical COGS at order time</td></tr>
+<tr><td><code>is_active</code> flag</td><td>2</td><td>Window of availability matters for supply analyses</td></tr>
+<tr><td><code>current_inventory</code></td><td>— (not a dim attr)</td><td>Move to a periodic-snapshot fact, not a dimension</td></tr>
+<tr><td colspan="3"><strong>Store / location dimension</strong></td></tr>
+<tr><td><code>store_open_date</code></td><td>0</td><td>Facts of origin</td></tr>
+<tr><td><code>manager_name</code></td><td>2</td><td>Attribution by manager-of-record at event time</td></tr>
+<tr><td><code>store_format</code> (big-box vs mall)</td><td>2</td><td>Format reshapes affect historical comps</td></tr>
+<tr><td><code>physical_address</code></td><td>2</td><td>Tax jurisdiction is historical</td></tr>
+<tr><td><code>branding_name</code></td><td>1</td><td>Marketing rename; no analytical impact</td></tr>
+<tr><td><code>square_footage</code></td><td>2</td><td>Renovations affect per-sqft metrics historically</td></tr>
+<tr><td colspan="3"><strong>Employee / HR dimension</strong></td></tr>
+<tr><td><code>hire_date</code></td><td>0</td><td>Origin fact</td></tr>
+<tr><td><code>legal_name</code></td><td>6</td><td>Legal name history retained for compliance; display uses current</td></tr>
+<tr><td><code>employment_status</code></td><td>2</td><td>Employed-at-event-time drives most HR analytics</td></tr>
+<tr><td><code>reporting_manager</code></td><td>2</td><td>Org-chart snapshots matter historically</td></tr>
+<tr><td><code>level_band</code> / grade</td><td>2</td><td>Promotion-aware analyses need the level at event time</td></tr>
+<tr><td><code>salary_band</code></td><td>2</td><td>Compensation history drives budget rollups</td></tr>
+<tr><td><code>personal_email</code></td><td>1</td><td>Pure contact info update</td></tr>
+<tr><td colspan="3"><strong>Marketing campaign dimension</strong></td></tr>
+<tr><td><code>campaign_id</code></td><td>0</td><td>Identity</td></tr>
+<tr><td><code>launch_date</code></td><td>0</td><td>Origin</td></tr>
+<tr><td><code>budget_usd</code></td><td>2</td><td>Budget revisions attribute to the window they applied</td></tr>
+<tr><td><code>internal_name</code></td><td>1</td><td>Naming hygiene only</td></tr>
+<tr><td><code>channel</code></td><td>2</td><td>Channel reclassification affects attribution history</td></tr>
+<tr><td><code>owning_team</code></td><td>2</td><td>Ownership transfers need historical accuracy for credit</td></tr>
+<tr><td colspan="3"><strong>Account / subscription dimension (B2B)</strong></td></tr>
+<tr><td><code>account_id</code></td><td>0</td><td>Identity</td></tr>
+<tr><td><code>contract_start_date</code></td><td>0</td><td>Origin</td></tr>
+<tr><td><code>plan_name</code></td><td>2</td><td>Historical plan drives historical entitlement</td></tr>
+<tr><td><code>seats_purchased</code></td><td>2</td><td>Contract-size history is revenue math</td></tr>
+<tr><td><code>renewal_date</code></td><td>1</td><td>Current renewal date is the useful one</td></tr>
+<tr><td><code>owner_account_exec</code></td><td>2</td><td>Historical ownership for commission attribution</td></tr>
+<tr><td><code>industry_classification</code></td><td>2</td><td>Reclassification should not rewrite historical industry rollups</td></tr>
 </tbody>
 </table>
-<p>Document per-attribute decisions in your data catalog.</p>
+
+<p>Document every per-attribute decision in the data catalog. A newcomer should be able to read the catalog and predict whether an update to <code>country_code</code> produces a new row in <code>dim_user</code>. If the answer is ambiguous, the catalog is incomplete.</p>
+
+<h4>The red-flag shapes</h4>
+
+<p>Three attribute categories warrant extra suspicion when choosing an SCD type:</p>
+
+<ul>
+<li><strong>Anything regulatory.</strong> Legal name, address, tax ID, consent flags — treat as Type 2 minimum, plus a separate audit trail, regardless of analytical need. Compliance trumps modeling elegance.</li>
+<li><strong>Anything that drives financial attribution.</strong> Tier, plan, price, territory assignment, account executive ownership — always Type 2. A future auditor will ask "who owned this account when the deal closed." Type 1 cannot answer that.</li>
+<li><strong>Anything computed.</strong> Lifetime value, segment classification, engagement score — don't SCD these; move them to a periodic snapshot fact. Dimensions should hold identity and attributes; computed aggregates belong with the facts.</li>
+</ul>
 <h2 id="8-date--time-dimensions-done-right">8. Date &amp; Time Dimensions Done Right</h2>
 <p>A first-class date dimension makes fiscal/holiday/weekend/quarter queries trivial. Generate it once, populate 20 years of rows, never touch again.</p>
 <h3 id="generating-dim_date-postgres">Generating dim_date (Postgres)</h3>
