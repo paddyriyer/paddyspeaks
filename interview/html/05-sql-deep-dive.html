@@ -882,6 +882,108 @@ elif index exists on inner.join_key:         index nested loop
 </code></pre>
 <p>That sequence solves 80% of production SQL problems.</p>
 
+
+<hr>
+
+<h2 id="15-cte-materialization-inlined-vs-cached">15. CTE Materialization — Inlined vs Cached</h2>
+
+<p>Common Table Expressions look syntactically identical across engines but behave very differently under the hood. Senior candidates know which engine inlines CTEs (treating them as view substitutions) and which materializes them (computing once, reading N times).</p>
+
+<h3>Engine-by-engine behavior</h3>
+
+<table>
+<thead><tr><th>Engine</th><th>Default behavior</th><th>Override</th></tr></thead>
+<tbody>
+<tr><td>Postgres ≤ 11</td><td>Always materialized (optimization barrier)</td><td>Upgrade to 12+</td></tr>
+<tr><td>Postgres ≥ 12</td><td>Inlined if referenced once, materialized otherwise</td><td><code>MATERIALIZED</code> / <code>NOT MATERIALIZED</code> keyword</td></tr>
+<tr><td>Snowflake</td><td>Inlined always</td><td>Use <code>TEMP TABLE</code> to force materialization</td></tr>
+<tr><td>BigQuery</td><td>Inlined always</td><td>Use <code>CREATE TEMP TABLE</code></td></tr>
+<tr><td>Spark SQL</td><td>Inlined</td><td><code>CACHE TABLE</code> on a subquery</td></tr>
+</tbody>
+</table>
+
+<h3>The performance trap</h3>
+
+<p>A CTE referenced twice in an inlined engine is computed twice. If the CTE does a 10-billion-row scan, you're doing 20 billion rows' worth of work. For anything expensive referenced more than once, materialize explicitly.</p>
+
+<pre><code>-- Bad: scans 20B rows
+WITH heavy AS (SELECT ... FROM 10B_row_fact WHERE ...)
+SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;
+
+-- Good: scans 10B rows once, joins on materialized result
+CREATE TEMP TABLE heavy AS SELECT ... FROM 10B_row_fact WHERE ...;
+SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;</code></pre>
+
+<h2 id="16-approximate-aggregations">16. Approximate Aggregations — HLL, t-Digest, CMS</h2>
+
+<p>Exact <code>COUNT(DISTINCT)</code> on a billion rows requires shuffling every row. Approximate counterparts (HyperLogLog, t-digest, Count-Min Sketch) give 99% accuracy for 0.01% of the cost. Senior candidates know what each sketch does and when to reach for it.</p>
+
+<h3>HyperLogLog — cardinality</h3>
+
+<p><code>APPROX_COUNT_DISTINCT()</code>. Uses ~16 KB of state per distinct-count regardless of input size. Answer within ~2% of exact. Mergeable: HLL sketches from separate shards combine into a single sketch; you can pre-aggregate into daily sketches and then combine across a month for monthly distinct counts without rereading raw data.</p>
+
+<h3>T-digest / KLL — quantiles</h3>
+
+<p><code>APPROX_PERCENTILE()</code>. Stores a compressed histogram of value distributions. Supports arbitrary percentiles (p50, p95, p99, p999) from the same sketch. Use for latency dashboards, revenue distributions, any quantile metric on high-cardinality numeric data.</p>
+
+<h3>Count-Min Sketch — frequency</h3>
+
+<p>Given a stream of events, estimate the frequency of any specific item. Supports "heavy hitters" queries — who are the top-K most-frequent items — cheaply. Less common in SQL engines than HLL but worth naming in interviews for top-K at scale.</p>
+
+<h3>When NOT to use sketches</h3>
+
+<ul>
+<li>Compliance-sensitive reporting (finance, regulatory). "Approximate" is never the right word on an audit trail.</li>
+<li>Small datasets under a few million rows — the exact version runs in seconds; approximations add complexity for no gain.</li>
+<li>Critical correctness where a 2% error would change a decision (e.g., fraud thresholds that depend on exact distinct counts).</li>
+</ul>
+
+<h2 id="17-materialized-views-and-incremental-refresh">17. Materialized Views and Incremental Refresh</h2>
+
+<p>A materialized view is a cached query result. The interesting question is <em>how it stays fresh</em>. Three refresh strategies, each with its own correctness and cost profile.</p>
+
+<h3>Full refresh</h3>
+
+<p>Recompute the view from scratch on each refresh. Simple, always correct. Cost scales with base-table size. Use when the view is small, refresh is infrequent, or the base table changes too unpredictably for incremental logic.</p>
+
+<h3>Incremental refresh</h3>
+
+<p>Apply only the delta since the last refresh. Requires the engine to reason about which base-table rows feed which view rows — a non-trivial analysis that engines support for <em>restricted</em> query shapes only (single table, or simple aggregations over joins with specific key structure).</p>
+
+<ul>
+<li><strong>Snowflake:</strong> "Dynamic Tables" support incremental refresh on many join patterns.</li>
+<li><strong>BigQuery:</strong> "Materialized views" support incremental for aggregations and filters over a single base table.</li>
+<li><strong>Postgres:</strong> Native <code>MATERIALIZED VIEW</code> only supports full refresh; incremental requires third-party tools (pg_ivm) or manual triggers.</li>
+</ul>
+
+<h3>Lakehouse MERGE-based patterns</h3>
+
+<p>In Iceberg / Delta, the pattern is: compute the delta in a staging table, <code>MERGE INTO</code> the materialized output. The engine doesn't call it a materialized view, but operationally it is one. Write your own refresh job and schedule it in the orchestrator.</p>
+
+<h2 id="18-query-hints-per-engine">18. Query Hints — Per-Engine Grammar</h2>
+
+<p>Query hints override the optimizer. They are a sharp tool; use them only when you've measured that the optimizer is wrong and can't be fixed upstream. Major engines:</p>
+
+<h3>Snowflake</h3>
+
+<p>Snowflake exposes few hints — the philosophy is "trust the optimizer." What exists: <code>USE_CACHED_RESULT=FALSE</code>, query tags, and clustering hints via <code>CLUSTER BY</code> at table DDL time. The right lever in Snowflake is often <em>reshaping the query or the clustering key</em>, not a hint.</p>
+
+<h3>BigQuery</h3>
+
+<p>Also minimal: <code>@@optimizer_mode</code>, <code>JOIN HASH</code> hint, <code>GROUP BY ROLLUP</code>. For join-order control you often rewrite the query; inline views or CTEs with explicit ordering work where hints don't.</p>
+
+<h3>Spark SQL</h3>
+
+<p>Rich hint grammar: <code>/*+ BROADCAST(t1), MERGE(t1, t2), SHUFFLE_HASH(t1), SKEW('t1','skewed_key', (1,2,3)) */</code>. The BROADCAST hint is the most common: force broadcast of a dim table the optimizer refused to broadcast because its statistics were stale.</p>
+
+<h3>Postgres</h3>
+
+<p>No hints by default — the philosophy is "hints lie over time as data distributions change." The extension <code>pg_hint_plan</code> adds them for those who insist. Preferred tools in Postgres: <code>ANALYZE</code>, <code>VACUUM</code>, index creation, and <code>EXPLAIN (ANALYZE, BUFFERS)</code>.</p>
+
+<h3>The meta-lesson</h3>
+
+<p>Reaching for a hint is a smell. Before hinting, confirm: (a) statistics are up-to-date, (b) the query is written in a shape the optimizer can reason about, (c) you've run <code>EXPLAIN ANALYZE</code> and understand the plan. Interviewers are suspicious of candidates who volunteer hints as a first-resort tuning move.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="04-spark-internals.html">← Part 04 · Spark Internals</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="06-python-de.html">Part 06 · Python for DE →</a></nav>

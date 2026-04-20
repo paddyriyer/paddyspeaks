@@ -967,6 +967,154 @@ dev = [&quot;pytest&quot;, &quot;mypy&quot;, &quot;ruff&quot;, &quot;chispa&quot
 <h2 id="closing-principle">Closing principle</h2>
 <p>The best DE Python is mostly not Python — it's NumPy/Arrow/Pandas/Polars/Spark calls with Python orchestration. Your job is to make the data move from one fast engine to another with minimum overhead. Get that right and everything else gets easier.</p>
 
+
+<hr>
+
+<h2 id="15-asyncio-for-io-bound-pipelines">15. AsyncIO for IO-Bound Pipelines</h2>
+
+<p>A data engineer writes plenty of ETL that is bottlenecked on HTTP calls, S3 listings, BigQuery API pagination, and Kafka producer acks — not CPU. For that shape of work, <code>asyncio</code> is dramatically faster than threads and infinitely cheaper than processes.</p>
+
+<h3>The mental model</h3>
+
+<p>A single thread runs an event loop. Each coroutine yields control at <code>await</code> points. While one coroutine waits on a network socket, the loop runs other coroutines. You get concurrency without threads, without GIL concerns, and with far lower per-task overhead (~1 KB per coroutine vs ~1 MB per thread).</p>
+
+<h3>Worked example — S3 key inventory</h3>
+
+<pre><code>import asyncio, aioboto3
+
+async def list_prefix(sess, bucket, prefix):
+    async with sess.client('s3') as s3:
+        keys = []
+        paginator = s3.get_paginator('list_objects_v2')
+        async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            keys.extend(o['Key'] for o in page.get('Contents', []))
+        return keys
+
+async def inventory(buckets, prefixes):
+    sess = aioboto3.Session()
+    tasks = [list_prefix(sess, b, p) for b in buckets for p in prefixes]
+    return await asyncio.gather(*tasks)
+
+# Sequential: O(N*M) calls x ~80ms each = minutes
+# asyncio: ~80ms total for reasonable N*M (bounded by S3 throttle)
+results = asyncio.run(inventory(['b1','b2'], ['p1','p2','p3']))</code></pre>
+
+<h3>Pitfalls</h3>
+
+<ul>
+<li><strong>Don't call synchronous libraries from async code.</strong> A blocking <code>requests.get()</code> stalls the entire event loop. Use the async equivalent (<code>aiohttp</code>, <code>httpx</code>).</li>
+<li><strong>Bound concurrency with <code>asyncio.Semaphore</code>.</strong> Launching 10,000 coroutines at once will get you rate-limited by the target API and crash your memory.</li>
+<li><strong>Async is not faster for CPU-bound work.</strong> A coroutine doing SHA-256 holds the loop hostage until it finishes. CPU-bound needs <code>multiprocessing</code> or a native library.</li>
+</ul>
+
+<h2 id="16-duckdb-polars-and-arrow-zero-copy">16. DuckDB, Polars, and Arrow — The Zero-Copy Trinity</h2>
+
+<p>The last three years have reshaped single-node analytics. Three tools dominate, and they share a common substrate: Apache Arrow columnar format. Senior candidates understand how they compose.</p>
+
+<h3>Arrow — the interchange format</h3>
+
+<p>Columnar, in-memory, language-agnostic. The key property: Python, Rust, Java, C++ can all read the same memory region without serialization. A 10 GB DataFrame handed from Pandas to DuckDB to Spark via Arrow costs zero CPU for the handoff.</p>
+
+<h3>DuckDB — SQL on a laptop</h3>
+
+<p>Embedded analytical SQL engine. Runs inside your Python process. Reads Parquet, Arrow, Pandas DataFrames, and remote S3 directly. For datasets that fit in memory or can be streamed, DuckDB is often 10x faster than Spark with zero cluster setup. Ideal for data-quality checks, CI tests, ad-hoc analysis.</p>
+
+<h3>Polars — Pandas for the modern era</h3>
+
+<p>DataFrame library written in Rust, Arrow-native. Multi-threaded by default, lazy evaluation on expression chains, query optimizer. Typically 5–20x faster than Pandas on equivalent operations, with similar-enough API for reasonable migration. When a Pandas job starts being slow on a single machine, Polars is almost always the right next step before reaching for Spark.</p>
+
+<h3>The composition pattern</h3>
+
+<pre><code>import duckdb, polars as pl
+
+# Read S3 parquet directly with DuckDB, hand to Polars as Arrow
+df = duckdb.sql("""
+  SELECT region, SUM(amount) AS rev
+  FROM read_parquet('s3://bucket/orders/*.parquet')
+  WHERE order_ts &gt;= CURRENT_DATE - INTERVAL 30 DAY
+  GROUP BY region
+""").pl()  # zero-copy to Polars
+
+# Enrich in Polars
+df = df.join(regions_df, on='region').sort('rev', descending=True)</code></pre>
+
+<h2 id="17-pydantic-and-dataclass-contracts">17. Pydantic and Dataclass Contracts</h2>
+
+<p>Data pipelines fail at boundaries. Python gives you three levels of structure for enforcing contracts at those boundaries — pick the right one for the scale.</p>
+
+<h3>Level 1 — <code>dataclass</code></h3>
+
+<p>Zero-dependency, type-hint-aware, no runtime validation. Use for internal data structures where static typing (mypy) is enough and runtime validation would be overhead.</p>
+
+<pre><code>from dataclasses import dataclass
+@dataclass
+class Order:
+    order_id: int
+    amount: float
+    currency: str</code></pre>
+
+<h3>Level 2 — <code>pydantic.BaseModel</code></h3>
+
+<p>Runtime validation, coercion, JSON schema generation, great error messages. Use at API boundaries, ingestion layers, config files. The one-line cost is well worth it when the data source is outside your control.</p>
+
+<pre><code>from pydantic import BaseModel, Field, field_validator
+
+class Order(BaseModel):
+    order_id: int
+    amount: float = Field(gt=0)
+    currency: str = Field(pattern=r'^[A-Z]{3}$')
+
+    @field_validator('currency')
+    @classmethod
+    def known_currency(cls, v):
+        if v not in {'USD','EUR','GBP','JPY'}: raise ValueError(f'unknown currency {v}')
+        return v
+
+# Raises ValidationError with a precise path if the JSON violates the contract
+order = Order.model_validate(json_payload)</code></pre>
+
+<h3>Level 3 — External schema registry</h3>
+
+<p>For cross-service contracts, Python validation is not enough — the producer and consumer may be written in different languages. Use Avro or Protobuf with a schema registry (Confluent Schema Registry, Buf). Pydantic is the consumer-side validator; the <em>source of truth</em> lives outside Python.</p>
+
+<h2 id="18-packaging-pip-poetry-uv">18. Packaging — pip, Poetry, uv</h2>
+
+<p>Python packaging is legendarily messy. Three modern tools cover most of the ground for data teams. Senior candidates have opinions on which to use and why.</p>
+
+<h3>pip + requirements.txt</h3>
+
+<p>The baseline. Works everywhere. Dependency resolution is weak; no lockfile; easy to drift. Fine for scripts; wrong for production pipelines shared across a team.</p>
+
+<h3>Poetry</h3>
+
+<p>Real dependency resolver, lockfile, virtualenv management, publishing workflow. The dominant choice in open-source Python for the last five years. Slow on large dependency graphs (2+ minutes to resolve a medium project isn't unusual). Well-understood, well-documented.</p>
+
+<h3>uv</h3>
+
+<p>Written in Rust. 10–100x faster than Poetry at install and resolve. Drop-in compatible with most pip / Poetry workflows. Still maturing on edge cases but rapidly becoming the default for new projects. Worth naming in interviews as the direction the ecosystem is moving.</p>
+
+<h3>The team-level recommendation</h3>
+
+<ul>
+<li>Greenfield Python project: uv.</li>
+<li>Existing Poetry project: stay on Poetry until a specific pain justifies migration.</li>
+<li>One-off notebooks / scripts: pip is still fine.</li>
+<li>Multi-Python-version dev (e.g., testing against 3.10 and 3.12): uv handles this cleanly via its own Python-version manager.</li>
+</ul>
+
+<h3>The Docker layering discipline</h3>
+
+<p>Regardless of tool, your Dockerfile should install dependencies in a separate layer from your code. Change your code, rebuild is 5 seconds. Change one dependency, rebuild is the full install. Messing up this ordering is a 100x slowdown on every CI run.</p>
+
+<pre><code>FROM python:3.12-slim
+WORKDIR /app
+# Layer 1: dependencies (changes rarely)
+COPY pyproject.toml uv.lock ./
+RUN pip install uv &amp;&amp; uv sync --frozen
+# Layer 2: source code (changes often)
+COPY src/ ./src/
+CMD ["python", "-m", "src.main"]</code></pre>
+
 </main>
 
 <nav class="breadcrumb"><a href="05-sql-deep-dive.html">← Part 05 · SQL Deep Dive</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="07-lakehouse-iceberg.html">Part 07 · Lakehouse: Iceberg & Delta →</a></nav>

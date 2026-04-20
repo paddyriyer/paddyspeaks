@@ -1378,6 +1378,138 @@ signup                   X         -          X          X         X        X
 <hr />
 <p>Next: <a href="02-batch-processing.html"><code>02-batch-processing.md</code></a> — the theory and mechanics of bounded-data processing, idempotency, MERGE patterns, file formats, and partition design.</p>
 
+
+<hr>
+
+<h2 id="14-surrogate-key-strategies-in-depth">14. Surrogate Key Strategies in Depth</h2>
+
+<p>A surrogate key is an engineered stand-in for a natural key. Choosing the wrong surrogate strategy is a recurring source of production bugs, late-arriving data hell, and expensive re-keying projects two years in.</p>
+
+<h3>The three strategies</h3>
+
+<p><strong>Sequence (identity column).</strong> Monotonic integer issued by the database. Tiny, fast, great for indexing. Fatal weakness: you cannot generate it independently in two systems. If you load facts in Spark and dimensions in Snowflake, you need a round-trip to assign keys. That round-trip is slow, fragile, and forbids truly distributed pipelines.</p>
+
+<p><strong>Hash (deterministic on business key).</strong> Apply a collision-resistant hash (SHA-256, xxhash) to the natural key tuple and store the hash. Any system can produce the same key without coordination. Works beautifully for Data Vault and lakehouse pipelines. Trade-off: keys are larger (16–32 bytes) and not human-readable. Birthday-paradox collisions are theoretically possible but practically never occur at data-warehouse scale with 128+ bit hashes.</p>
+
+<p><strong>UUID (random).</strong> Nice for unordered distributed generation but terrible for range scans and clustering. Never use random UUIDs as a primary key in a columnar warehouse — they destroy compression and min/max pruning. UUIDv7 (time-sortable) is acceptable if you really want UUID semantics.</p>
+
+<h3>Decision table</h3>
+
+<table>
+<thead><tr><th>Requirement</th><th>Sequence</th><th>Hash</th><th>UUID</th></tr></thead>
+<tbody>
+<tr><td>Cross-system generation</td><td>No</td><td><strong>Yes</strong></td><td>Yes</td></tr>
+<tr><td>Clustered storage efficiency</td><td><strong>Best</strong></td><td>Good</td><td>Worst</td></tr>
+<tr><td>Human-readable</td><td>Yes</td><td>No</td><td>No</td></tr>
+<tr><td>Idempotent re-run</td><td>No (re-assigns)</td><td><strong>Yes</strong></td><td>No</td></tr>
+<tr><td>Size</td><td>4–8 bytes</td><td>16–32 bytes</td><td>16 bytes</td></tr>
+</tbody>
+</table>
+
+<h3>Hashed surrogate — worked example</h3>
+
+<pre><code>-- Snowflake / BigQuery / Spark all agree on this pattern
+SELECT
+  MD5(CONCAT_WS('|',
+    LOWER(TRIM(source_system)),
+    CAST(source_id AS STRING),
+    CAST(effective_date AS STRING)
+  )) AS customer_sk,
+  source_system,
+  source_id,
+  effective_date,
+  ...
+FROM staging_customer;</code></pre>
+
+<p>Key properties: lowercase + trim on text columns (defensive against inconsistent casing), an explicit delimiter that cannot appear in the payload, and inclusion of the temporal component for SCD Type 2. The same row re-ingested produces the same key — idempotency for free.</p>
+
+<h2 id="15-bridge-tables-and-many-to-many-dimensions">15. Bridge Tables and Many-to-Many Dimensions</h2>
+
+<p>Not every dimension attaches to a fact with a clean foreign key. A policy can have multiple beneficiaries. An insurance claim can have multiple diagnosis codes. A marketing touch can belong to multiple campaigns. These require <em>bridge tables</em> — and bridge tables are where naive data modelers get caught.</p>
+
+<h3>The problem with denormalizing</h3>
+
+<p>Tempting shortcut: flatten the many-to-many into a wide fact with <code>diagnosis_code_1, diagnosis_code_2, diagnosis_code_3, …</code>. This works until the day you get a claim with 12 codes. Now you either drop data, create a 20-column wasteland, or reshape the fact — which breaks every downstream consumer. Avoid this pattern.</p>
+
+<h3>The bridge table pattern</h3>
+
+<p>Three tables: the fact (<code>fct_claim</code>), the dimension (<code>dim_diagnosis</code>), and the bridge (<code>bridge_claim_diagnosis</code>). The bridge stores one row per (claim_sk, diagnosis_sk) with an optional weight column.</p>
+
+<pre><code>CREATE TABLE bridge_claim_diagnosis (
+  claim_sk        BIGINT NOT NULL,
+  diagnosis_sk    BIGINT NOT NULL,
+  is_primary      BOOLEAN NOT NULL,
+  weight          DECIMAL(6,4),  -- optional: allocate claim value across codes
+  PRIMARY KEY (claim_sk, diagnosis_sk)
+);</code></pre>
+
+<p><strong>The weight column is not optional.</strong> Without it, you cannot aggregate claim dollars by diagnosis without double-counting. Ten codes on a claim would cause the same dollars to be attributed ten times when joined naively. Interviewers probe for this.</p>
+
+<h3>Aggregation safely across a bridge</h3>
+
+<pre><code>-- Correct: weighted allocation
+SELECT
+  d.diagnosis_category,
+  SUM(f.claim_amount * b.weight) AS allocated_amount
+FROM fct_claim f
+JOIN bridge_claim_diagnosis b ON b.claim_sk = f.claim_sk
+JOIN dim_diagnosis d           ON d.diagnosis_sk = b.diagnosis_sk
+GROUP BY d.diagnosis_category;
+
+-- Wrong: naive join double-counts
+SELECT d.diagnosis_category, SUM(f.claim_amount) FROM ...  -- DO NOT</code></pre>
+
+<h2 id="16-late-arriving-facts-and-dimensions">16. Late-Arriving Facts and Dimensions</h2>
+
+<p>"Late-arriving" data is the term of art for rows whose business timestamp is in the past but whose arrival timestamp is now. Two distinct cases, each with its own playbook.</p>
+
+<h3>Late-arriving facts</h3>
+
+<p>A mobile app emits an event on Tuesday but the SDK holds it in local cache due to offline mode, and uploads it Thursday. The fact has a business date of Tuesday. You must decide: does Tuesday's daily aggregate get corrected retroactively, or is the late record attributed to Thursday?</p>
+
+<p>The senior answer is: <em>both tables exist</em>. A "by business date" partition table recomputes Tuesday's totals when the late row arrives. A "by arrival date" partition table leaves Tuesday alone and attributes the row to Thursday. Each serves different consumers — finance cares about business date, operations cares about arrival date — and conflating them is a classic bug.</p>
+
+<h3>Late-arriving dimensions</h3>
+
+<p>A fact arrives referencing a new customer_id that doesn't exist in <code>dim_customer</code> yet. Three strategies:</p>
+
+<ol>
+<li><strong>Inferred member.</strong> Insert a placeholder row into dim_customer with the known natural key and NULL attributes. The fact joins successfully. When the full dim row arrives later, update in place (SCD Type 1) or issue a new version (SCD Type 2). <em>Best default.</em></li>
+<li><strong>Quarantine.</strong> Hold the fact in a quarantine table until the dim row appears. Replay when it does. <em>Use when joining with missing context would be meaningless.</em></li>
+<li><strong>Orphan facts.</strong> Let the fact land with a NULL dim key. Never recommended — downstream SQL silently drops rows.</li>
+</ol>
+
+<h2 id="17-accumulating-snapshot-fact-tables">17. Accumulating Snapshot Fact Tables</h2>
+
+<p>Most facts are transactional (one row per event) or periodic (one row per entity per period). The third, less-known kind is the <em>accumulating snapshot</em> — one row per business process instance, updated in place as the process progresses. The canonical example is an order lifecycle.</p>
+
+<h3>Structure</h3>
+
+<p>One row per order. Columns for every milestone: <code>placed_ts</code>, <code>paid_ts</code>, <code>shipped_ts</code>, <code>delivered_ts</code>, <code>returned_ts</code>. Plus computed lag columns: <code>days_to_ship</code>, <code>days_to_deliver</code>. The row is created at order placement and UPDATEd at every milestone. NULL columns mean "hasn't happened yet."</p>
+
+<pre><code>CREATE TABLE fct_order_lifecycle (
+  order_sk         BIGINT NOT NULL,
+  customer_sk      BIGINT NOT NULL,
+  placed_ts        TIMESTAMP NOT NULL,
+  paid_ts          TIMESTAMP,
+  shipped_ts       TIMESTAMP,
+  delivered_ts     TIMESTAMP,
+  returned_ts      TIMESTAMP,
+  days_to_pay      INT,
+  days_to_ship     INT,
+  days_to_deliver  INT,
+  order_amount     DECIMAL(10,2) NOT NULL,
+  current_status   VARCHAR(20) NOT NULL
+);</code></pre>
+
+<h3>Why this fact type exists</h3>
+
+<p>Without it, "how long does it take to ship a paid order" requires a self-join on a transactional fact across millions of rows. With accumulating snapshot, it's <code>AVG(days_to_ship)</code>. The cost is maintenance complexity: every milestone update has to find and update the right row, ideally via a MERGE on the natural key.</p>
+
+<h3>Lakehouse implementation</h3>
+
+<p>On Iceberg or Delta, accumulating snapshots are implemented via <code>MERGE INTO</code>. The row is inserted on the first event and updated on every subsequent event. Use a <code>current_status</code> column to track where in the lifecycle the row currently sits — this makes recovery after a failed merge straightforward.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="00-readme.html">← Index · Data Engineering Deep Dive — Index</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="02-batch-processing.html">Part 02 · Batch Processing →</a></nav>

@@ -1232,6 +1232,117 @@ Merge-on-read (Iceberg v2, Delta with deletion vectors):
 <hr />
 <p>Next: <a href="03-streaming-processing.html"><code>03-streaming-processing.md</code></a> — unbounded data, event-time processing, watermark math, Flink and Kafka internals, exactly-once proofs.</p>
 
+
+<hr>
+
+<h2 id="13-dependency-graphs-and-critical-path">13. Dependency Graphs and Critical Path Analysis</h2>
+
+<p>A batch "pipeline" at scale is never a chain — it's a directed acyclic graph of hundreds of tasks with cross-dataset dependencies. Two questions dominate: <em>when will the whole graph finish</em>, and <em>which node, if it slips, slips the whole graph</em>? These are critical-path questions.</p>
+
+<h3>Modeling the graph</h3>
+
+<p>Each node is a task with a duration. Each edge expresses "task B cannot start until task A succeeds." Total graph completion time is the longest-path sum from any source to any sink. That longest path is the <em>critical path</em>.</p>
+
+<p>Nodes off the critical path have slack — the amount they can slip without affecting total completion time. Nodes <em>on</em> the critical path have zero slack. A single extra minute on any critical-path task adds a minute to the whole pipeline.</p>
+
+<h3>Why this matters for interviews</h3>
+
+<p>"Our daily pipeline finishes at 6am but the business wants it by 4am — how do you speed it up?" Wrong answer: "I'd optimize the slowest job." Right answer: "I'd find the critical path and optimize the longest task on it. Optimizing off-path tasks won't move completion time at all."</p>
+
+<h3>The Airflow / Dagster reality</h3>
+
+<p>Most orchestrators expose task duration logs. Extract them, build the adjacency matrix, compute longest-path via topological sort + dynamic programming. O(V+E). For a 500-task graph, runs in sub-second and tells you exactly which five tasks you must optimize.</p>
+
+<pre><code># Simplified: compute critical path duration
+def critical_path(nodes, edges, duration):
+    # topological sort
+    indeg = {n: 0 for n in nodes}
+    for a, b in edges: indeg[b] += 1
+    order, q = [], [n for n,d in indeg.items() if d == 0]
+    while q:
+        n = q.pop(0); order.append(n)
+        for a, b in edges:
+            if a == n:
+                indeg[b] -= 1
+                if indeg[b] == 0: q.append(b)
+    # DP: earliest finish time
+    finish = {n: duration[n] for n in nodes}
+    for n in order:
+        for a, b in edges:
+            if a == n:
+                finish[b] = max(finish[b], finish[n] + duration[b])
+    return max(finish.values())</code></pre>
+
+<h2 id="14-batch-cost-model">14. The Batch Cost Model</h2>
+
+<p>Senior candidates should be able to estimate batch cost without invoking the cloud-provider pricing page. The model has four terms.</p>
+
+<h3>The four costs</h3>
+
+<ol>
+<li><strong>Storage.</strong> GB-months × $/GB-month. Flat. For S3 Standard, ~$0.023/GB-month. For Glacier, ~1/10 of that.</li>
+<li><strong>Compute.</strong> Core-hours × $/core-hour. EC2 spot typically $0.01–0.02 per vCPU-hour; on-demand 3x that.</li>
+<li><strong>Shuffle / intermediate I/O.</strong> Bytes written to local disk or the shuffle service. On ephemeral disk, free but capacity-limited. On remote shuffle (cloud managed), charged per GB.</li>
+<li><strong>Egress.</strong> Cross-region or internet egress. The silent killer. $0.02–0.09 per GB depending on direction. Can dwarf compute cost for lift-and-shift workloads.</li>
+</ol>
+
+<h3>Worked estimate — 10 TB daily batch</h3>
+
+<p>Input 10 TB. One Spark job with a 3-way join producing 2 TB output. Shuffle amplification typically 2–4x input — say 30 TB of shuffle. Runtime 40 min on 100 vCPUs.</p>
+
+<ul>
+<li>Compute: 100 vCPU × 0.67 hour × $0.02 = $1.33</li>
+<li>Storage (same-region S3, input rereadable): negligible incremental</li>
+<li>Shuffle: 30 TB local disk, free</li>
+<li>Egress: zero if same region, ~$900 if cross-region output</li>
+</ul>
+
+<p>The answer "this job costs roughly $1.50 same-region, $900+ cross-region" is the senior-level answer. Notice the 600x swing just on egress — that's why "lift-and-shift to another region" is so often the wrong design move.</p>
+
+<h2 id="15-parallelism-math-and-the-skew-tax">15. Parallelism Math and the Skew Tax</h2>
+
+<p>Perfectly parallel work distributes across N workers with speedup ≈ N. Real work rarely achieves this. Two sources of loss: <em>sequential fraction</em> (Amdahl's law) and <em>skew</em> (one partition is fatter than the rest).</p>
+
+<h3>The skew tax, quantified</h3>
+
+<p>If you partition 1 TB of work into 100 evenly-sized pieces of 10 GB each, total wall-clock time is ≈ (10 GB work / per-worker throughput). If instead one partition is 500 GB and the other 99 average 5 GB, total wall-clock is bounded below by 500 GB / throughput — <em>50x slower</em> than the balanced case, despite the same total work. That's the skew tax.</p>
+
+<h3>Detecting skew ahead of time</h3>
+
+<ul>
+<li>Compute partition size distribution: <code>SELECT part_key, COUNT(*), SUM(bytes) FROM … GROUP BY 1 ORDER BY 2 DESC LIMIT 20</code>. If the top partition is 10x the median, you have skew.</li>
+<li>Coefficient of variation (stddev / mean) on partition sizes. Above 0.5 = significant skew.</li>
+</ul>
+
+<h3>Mitigations</h3>
+
+<ul>
+<li><strong>Salting.</strong> Suffix the skewed key with a small random integer (<code>key + '_' + RAND(10)</code>), join, then aggregate up. Fixes the shuffle but doubles join complexity.</li>
+<li><strong>Broadcast.</strong> If the other side is small, broadcast it and avoid shuffling the skewed key entirely.</li>
+<li><strong>Isolate the hotspot.</strong> Split the skewed keys into a separate job with different parallelism.</li>
+<li><strong>AQE.</strong> Spark's adaptive skew-join detects skewed partitions at runtime and splits them. Configure <code>spark.sql.adaptive.skewJoin.enabled=true</code>, know what <code>skewedPartitionThresholdInBytes</code> controls.</li>
+</ul>
+
+<h2 id="16-checkpoint-and-restart-semantics">16. Checkpoint and Restart Semantics</h2>
+
+<p>Batch jobs are not point-in-time atomic. A 6-hour job that fails at hour 4 either resumes from a checkpoint (if designed for it) or restarts from zero. The senior design decision is which.</p>
+
+<h3>Three restart strategies</h3>
+
+<ol>
+<li><strong>Fully idempotent restart from start.</strong> Every job is safe to rerun end-to-end. Requires deterministic inputs and idempotent sinks (MERGE on business key). Simple; operationally resilient. Cost: wasted compute on every failure.</li>
+<li><strong>Task-level checkpointing.</strong> Orchestrator records task completion; restart resumes at the failed task. Works for DAG-structured jobs. Requires each task's output to be written atomically (typically via temp-then-rename).</li>
+<li><strong>Intra-task checkpointing.</strong> A long task persists progress state (e.g., partition cursor) and resumes from it. Necessary for multi-hour jobs. Expensive to implement right; usually worth it only for jobs that exceed ~2 hours.</li>
+</ol>
+
+<h3>The atomic-write discipline</h3>
+
+<p>Every job output must be all-or-nothing. The pattern: write to a temp location, validate, then atomic rename or commit. Never "write in place and pray." Lakehouse formats (Iceberg, Delta) get you atomic commits for free. Hive partitioned tables do not — use <code>_SUCCESS</code> markers and write to a staging path first.</p>
+
+<h3>The "restart at noon" drill</h3>
+
+<p>Interviewers love to ask: "Yesterday's job failed at 11pm. You rerun at noon today. What happens downstream?" The senior answer enumerates: <em>which tables get rewritten, which downstream caches invalidate, which dashboards see a stale→fresh transition, which SLAs trip</em>. If you can't answer this for your own pipelines, you don't own them operationally — no matter what the org chart says.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="01-data-modeling.html">← Part 01 · Data Modeling</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="03-streaming-processing.html">Part 03 · Streaming Processing →</a></nav>

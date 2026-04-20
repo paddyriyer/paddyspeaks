@@ -1188,6 +1188,109 @@ log after compaction:
 <hr />
 <p>Next: <a href="04-spark-internals.html"><code>04-spark-internals.md</code></a> — Catalyst, AQE, shuffle internals, join algorithms, and skew.</p>
 
+
+<hr>
+
+<h2 id="16-idempotent-producers-and-eos-in-kafka">16. Idempotent Producers and Exactly-Once in Kafka</h2>
+
+<p>"Exactly-once" in Kafka is three separate guarantees composed: idempotent producer, transactional writes across partitions, and transactional consumer-offset commits. Handwaving past any of them produces bugs. Senior candidates can dissect each layer.</p>
+
+<h3>Layer 1 — Idempotent producer</h3>
+
+<p>The producer attaches a <code>producer_id</code> + <code>sequence_number</code> to each record. The broker tracks the highest sequence seen per (producer, partition). Duplicates — retries from the producer after a network blip — are detected and dropped at the broker. This alone gives you "no duplicates within a single producer session to a single partition."</p>
+
+<p>Limits: the guarantee breaks across producer restarts (new producer_id) and across partitions (no coordination). For exactly-once <em>across partitions</em>, you need transactions.</p>
+
+<h3>Layer 2 — Producer transactions</h3>
+
+<p>Enable with <code>transactional.id</code> and bracket writes with <code>beginTransaction()</code> / <code>commitTransaction()</code>. The producer writes a <em>transaction marker</em> to each affected partition's commit-coordinator. Consumers configured with <code>read_committed</code> filter uncommitted records out of their stream. Aborted transactions leave tombstone markers.</p>
+
+<h3>Layer 3 — The two-phase commit sink</h3>
+
+<p>For true end-to-end exactly-once (consume → process → produce), the processor must commit its source offsets <em>and</em> its output records atomically. Kafka supports this via the <code>sendOffsetsToTransaction()</code> API — the source offset commit is included in the same producer transaction as the output records. Flink's TwoPhaseCommit sink implements this pattern.</p>
+
+<h3>What can still go wrong</h3>
+
+<ul>
+<li><strong>Zombie producers.</strong> A restarted producer with a new <code>transactional.id</code> epoch fences the old one. If you reuse <code>transactional.id</code> naively across pods, you will see fence exceptions in production.</li>
+<li><strong>External side effects.</strong> If your processor writes to Kafka <em>and</em> calls a REST API, only Kafka is in the transaction. The REST call can happen twice.</li>
+<li><strong>Read_uncommitted consumers.</strong> A downstream consumer not set to <code>read_committed</code> sees uncommitted records. EOS is a <em>configured</em> guarantee, not a default.</li>
+</ul>
+
+<h2 id="17-complex-event-processing-and-match-recognize">17. Complex Event Processing and MATCH_RECOGNIZE</h2>
+
+<p>When the interview question is "find users who did X then Y then Z within 10 minutes," you've hit a Complex Event Processing (CEP) problem. Three implementation paths.</p>
+
+<h3>Path 1 — Flink CEP library</h3>
+
+<p>Flink ships a native CEP API: <code>Pattern.begin("a").where(...).next("b").where(...).within(Time.minutes(10))</code>. The engine compiles to an NFA (non-deterministic finite automaton) and matches against the event stream with full watermark-aware correctness.</p>
+
+<h3>Path 2 — SQL MATCH_RECOGNIZE</h3>
+
+<p>Standardized in SQL:2016, supported by Flink SQL, Oracle, and Snowflake. Expresses pattern-match queries declaratively:</p>
+
+<pre><code>SELECT *
+FROM events
+MATCH_RECOGNIZE (
+  PARTITION BY user_id
+  ORDER BY event_ts
+  MEASURES A.event_ts AS start_ts, C.event_ts AS end_ts
+  ONE ROW PER MATCH
+  PATTERN (A B* C)
+  DEFINE
+    A AS A.event_name = 'view_plan',
+    B AS B.event_name IN ('hesitate','back','scroll'),
+    C AS C.event_name = 'purchase'
+         AND C.event_ts &lt;= A.event_ts + INTERVAL '10' MINUTE
+);</code></pre>
+
+<h3>Path 3 — Hand-rolled stateful operator</h3>
+
+<p>For simple patterns (A then B), a stateful Flink operator keyed by user_id is often cleanest. Store a last-seen-A timestamp per key; on each B event, check whether last-seen-A is within the window. Trade-off: simpler code than CEP, but doesn't generalize to longer patterns.</p>
+
+<h3>Interview probe</h3>
+
+<p>"How would you detect account-takeover patterns in real time?" Strong answer: pattern-match on [login-success, IP-change, password-change, payment-added] within N minutes; use MATCH_RECOGNIZE on Flink SQL with a 30-minute watermark; emit to an alert topic; tune false positives with threshold + allow-list.</p>
+
+<h2 id="18-stream-table-duality-in-depth">18. Stream-Table Duality in Depth</h2>
+
+<p>Every table is a compressed history of a stream. Every stream is the log of changes to a table. Systems that expose this duality directly (Kafka Streams, Flink, ksqlDB, Debezium + materialized views) let you reason about processing without the batch/stream dichotomy. Senior candidates internalize this until it becomes the natural lens.</p>
+
+<h3>Table → Stream (changelog)</h3>
+
+<p>Given a table of current state, emit its change log. Tools: CDC from the database's write-ahead log (Debezium on Postgres MySQL Oracle), or <code>DELETE+INSERT</code> triggers, or a MERGE-with-history pattern. The changelog is itself a topic others can subscribe to.</p>
+
+<h3>Stream → Table (materialized view)</h3>
+
+<p>Given a changelog stream, maintain a current-state table by replaying with upsert semantics. In Kafka Streams, this is <code>KTable</code>. In Flink, it's the result of <code>SELECT ... GROUP BY key</code> with retractions. The table updates in real time as events arrive.</p>
+
+<h3>The two join semantics</h3>
+
+<ul>
+<li><strong>Stream-table join.</strong> Each event on the stream is enriched with the <em>current</em> value of the table. No watermarks needed on the stream side.</li>
+<li><strong>Stream-stream join.</strong> Two streams joined within a time window; both need watermarks; late arrivals produce retractions. Substantially more expensive to reason about.</li>
+</ul>
+
+<h3>The temporal table join</h3>
+
+<p>Sometimes you want "enrich this event with the table state <em>as of the event's timestamp</em>" — not the current value. This is a temporal table join. Flink supports it natively; implementing it by hand requires a versioned table with valid-from / valid-to per row and an as-of subquery.</p>
+
+<h2 id="19-stateful-functions-and-application-patterns">19. Stateful Functions and Application-Level Patterns</h2>
+
+<p>Flink's Stateful Functions and Kafka Streams' Processor API blur the line between stream processing and general-purpose event-driven applications. Three patterns to recognize.</p>
+
+<h3>Pattern A — Stateful session accumulation</h3>
+
+<p>Keyed by user. State: list of events in current session, last-seen timestamp. Trigger: session window close on 30-minute inactivity. Emit: one summary record per session. Classic streaming sessionization — preferable to SQL sessionization when you need the result within seconds, not the next batch.</p>
+
+<h3>Pattern B — The operator-as-state-machine</h3>
+
+<p>Keyed by order_id. State: current lifecycle phase (placed, paid, shipped, delivered). Input: milestone events. Transitions: (placed, payment_received) → paid. Invalid transitions emit to a dead-letter side-output. Gives you an accumulating snapshot in streaming form, with explicit invariants.</p>
+
+<h3>Pattern C — Distributed cache with TTL</h3>
+
+<p>Keyed by feature_id. State: cached value + expiry. Periodic timer refreshes entries before expiry. Serves as an online feature store that can live alongside the pipeline rather than in a separate system. Useful when the feature set is small enough to fit in state and latency matters more than scale.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="02-batch-processing.html">← Part 02 · Batch Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="04-spark-internals.html">Part 04 · Spark Internals →</a></nav>

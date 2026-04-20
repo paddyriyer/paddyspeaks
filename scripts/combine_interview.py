@@ -30,6 +30,7 @@ PARTS = [
     ("06", "06-python-de.html",               "Python for Data Engineering", "python-de"),
     ("07", "07-lakehouse-iceberg.html",       "Lakehouse: Iceberg & Delta", "lakehouse-iceberg"),
     ("08", "08-interview-qa-scenarios.html",  "Interview Q&A — Real Scenarios", "interview-qa"),
+    ("09", "09-prep-program.html",            "The Prep Program",               "prep-program"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}

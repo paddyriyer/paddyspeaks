@@ -910,6 +910,111 @@ s3://bucket/warehouse/silver/fact_playback/
 <h2 id="closing-principle">Closing principle</h2>
 <p>Iceberg/Delta turned object storage into a real database. The cost: you have to operate it like one — compaction, expiration, schema discipline, conflict handling. Get the maintenance jobs right and the lakehouse just works. Skip them and you'll be on a 3am page within 90 days.</p>
 
+
+<hr>
+
+<h2 id="16-iceberg-vs-delta-vs-hudi-feature-matrix">16. Iceberg vs Delta vs Hudi — The Feature Matrix</h2>
+
+<p>In every lakehouse interview at least one question probes your table-format opinions. The informed answer goes beyond "Iceberg has better engine support" — here's the matrix of real differences.</p>
+
+<table>
+<thead>
+<tr><th>Capability</th><th>Iceberg</th><th>Delta Lake</th><th>Hudi</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Snapshot isolation</strong></td><td>Manifest-list based</td><td>JSON transaction log</td><td>Commit timeline + file groups</td></tr>
+<tr><td><strong>MERGE semantics</strong></td><td>Copy-on-write (v1) or merge-on-read (v2)</td><td>Copy-on-write default, deletion vectors for MoR</td><td>MoR default (merge-on-read with log files)</td></tr>
+<tr><td><strong>Hidden partitioning</strong></td><td><strong>Yes</strong> — partition spec evolution</td><td>No (Liquid clustering is the answer)</td><td>Partial (partition fields declared)</td></tr>
+<tr><td><strong>Schema evolution</strong></td><td>Add, drop, rename, reorder, type-widen — all safe</td><td>Add, type-widen only (drop/rename require explicit config)</td><td>Add, rename (field IDs)</td></tr>
+<tr><td><strong>Time travel</strong></td><td>Snapshot ID, timestamp</td><td>Version, timestamp</td><td>Commit timestamp</td></tr>
+<tr><td><strong>Row-level deletes</strong></td><td>Position or equality delete files</td><td>Deletion vectors (since 3.0)</td><td>Native</td></tr>
+<tr><td><strong>Engine support</strong></td><td>Spark, Trino, Flink, DuckDB, many</td><td>Spark (native), Trino (read), others growing</td><td>Spark (native), Trino (read)</td></tr>
+<tr><td><strong>Cross-engine writes</strong></td><td>Excellent via REST catalog</td><td>Historically Spark-first; improving</td><td>Spark-first</td></tr>
+<tr><td><strong>Streaming ingest optimization</strong></td><td>Good (compact-on-write)</td><td>Good</td><td>Best (MoR designed for upsert streams)</td></tr>
+</tbody>
+</table>
+
+<h3>How to pick — the decision heuristic</h3>
+
+<ul>
+<li><strong>Multiple engines writing the same table?</strong> → Iceberg. Cross-engine write semantics are its strongest suit.</li>
+<li><strong>Single-engine Databricks shop?</strong> → Delta. Best native integration, newer features land there first.</li>
+<li><strong>High-volume upsert workload (CDC ingest, slowly-changing)?</strong> → Hudi. MoR was designed for this.</li>
+<li><strong>Analytics-heavy with occasional updates?</strong> → Iceberg or Delta; both fit well.</li>
+</ul>
+
+<h2 id="17-catalog-architectures-in-depth">17. Catalog Architectures — Hive, Glue, REST, Unity, Polaris</h2>
+
+<p>The <em>catalog</em> layer decides which engine can write the same table and how metadata is shared across boundaries. It's also the single biggest lock-in risk in a lakehouse.</p>
+
+<h3>Hive Metastore (HMS)</h3>
+
+<p>The original. Stores table metadata in a relational DB (MySQL/Postgres). Thrift API. Good: every query engine in the world speaks it. Bad: single-master, schema-less for table formats, no native ACLs, no multi-tenancy.</p>
+
+<h3>AWS Glue</h3>
+
+<p>Managed HMS-equivalent. Same API, fewer operational headaches. Lock-in to AWS for metadata. Supports Iceberg and Delta as catalog entries. Fine for AWS-centric shops; painful if you plan a multi-cloud future.</p>
+
+<h3>Iceberg REST Catalog</h3>
+
+<p>Open spec. HTTP API that any engine can call. Backend-agnostic (can be backed by HMS, Glue, Nessie, Polaris). The direction the industry is moving for vendor-neutral catalogs.</p>
+
+<h3>Unity Catalog (Databricks)</h3>
+
+<p>Centralized governance across Delta tables, files, ML models, and views. Strong on ACLs, lineage, attribute-based access control. Works best inside Databricks; open-source Unity is catching up on ecosystem support.</p>
+
+<h3>Polaris (Snowflake)</h3>
+
+<p>Open-source Iceberg REST catalog from Snowflake. Aimed at the same "centralized governance, open engine access" thesis as Unity. Still early but strategically significant.</p>
+
+<h3>The migration trap</h3>
+
+<p>Switching catalogs is <em>not</em> a metadata-only operation even though it sounds like one. Every engine's configuration must point at the new catalog, every table must be re-registered with matching paths, and any engine-specific extensions (Delta vacuum retention, Iceberg snapshot expiration) must be preserved. A catalog migration is a project, not a weekend. Plan for it the same way you'd plan a table-format migration.</p>
+
+<h2 id="18-write-amplification-and-compaction-strategy">18. Write Amplification and Compaction Strategy</h2>
+
+<p>Copy-on-write tables pay a cost each time a partition is updated: the entire partition gets rewritten. That cost is called <em>write amplification</em> — the ratio of bytes rewritten to bytes actually changed.</p>
+
+<h3>Quantifying write amplification</h3>
+
+<p>Suppose a 1 TB daily partition is written once then a MERGE statement touches 0.1% of rows the next day. Copy-on-write rewrites the whole 1 TB partition to land 1 GB of changes. Write amplification = 1000x. At 30 such MERGEs per day, you're writing 30 TB to land 30 GB of logical changes.</p>
+
+<h3>Merge-on-read as the fix</h3>
+
+<p>Delta's deletion vectors and Iceberg's v2 delete-files let you write a small side-file containing "these rows are deleted / updated to X." Readers apply the overlay at query time. Write cost collapses. Read cost rises — by how much depends on how many overlays have accumulated. That's where compaction comes in.</p>
+
+<h3>Compaction strategies</h3>
+
+<ul>
+<li><strong>Bin-pack.</strong> Merge many small files into fewer larger ones. Cheapest form of compaction; doesn't touch overlays.</li>
+<li><strong>Sort.</strong> Rewrite with a clustering key (<code>ZORDER</code> in Delta, sort-order in Iceberg). Improves read performance by improving min/max pruning and compression. More expensive to run.</li>
+<li><strong>Delete-vector application.</strong> Materialize deletions into main data files. Reclaims the read-time overlay cost. Run periodically (weekly / monthly) based on overlay ratio.</li>
+</ul>
+
+<h3>Operational rule of thumb</h3>
+
+<p>If your read queries on a table are getting slower over time without the data growing, it's probably compaction debt. Monitor the ratio of delete-file bytes to data-file bytes; when it crosses ~5–10%, schedule compaction.</p>
+
+<h2 id="19-multi-table-transactions-and-the-two-phase-commit">19. Multi-Table Transactions and the Two-Phase Commit</h2>
+
+<p>Lakehouse formats provide atomic commits <em>per table</em>. They don't provide atomic commits <em>across tables</em> by default. If your pipeline updates a fact and a dimension that must move together, you need to solve this yourself.</p>
+
+<h3>The problem, stated precisely</h3>
+
+<p>Pipeline writes <code>fct_order</code> and <code>dim_customer</code>. If <code>fct_order</code> commits but <code>dim_customer</code> fails, consumer queries see new orders referencing missing customer keys. Data corruption.</p>
+
+<h3>Three mitigation strategies</h3>
+
+<ol>
+<li><strong>Staging table pattern.</strong> Write to <code>staging_*</code> tables. Once both staging writes succeed, do a "rename" commit — point the final-table catalog entries at the staging paths atomically. Works; requires careful metadata choreography; error-recovery is tricky.</li>
+<li><strong>Two-phase commit via external coordinator.</strong> Use a transaction coordinator (Zookeeper, a custom service, or an orchestrator checkpoint). Prepare writes to both tables; only both commits succeed or both roll back. Heavy; rarely worth the complexity.</li>
+<li><strong>Ordering + idempotent consumers.</strong> Pick an ordering where the "most dangerous" side is committed last. If dim is committed before fact, consumers can handle missing dim keys gracefully (inferred members). Accept at-least-once committing; downstream consumers tolerate it. This is the most common production pattern.</li>
+</ol>
+
+<h3>Iceberg's multi-table transaction feature</h3>
+
+<p>Iceberg (as of v1.4+) supports a <code>Transactions</code> API that commits against multiple tables atomically <em>if the catalog supports it</em>. REST Catalog does; Glue doesn't. When supported, it eliminates the strategies above for its scope. Still worth understanding the fallbacks because catalog support is uneven.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="06-python-de.html">← Part 06 · Python for DE</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="08-interview-qa-scenarios.html">Part 08 · Interview Q&A: Real Scenarios →</a></nav>
