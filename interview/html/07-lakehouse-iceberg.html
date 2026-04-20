@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lakehouse: Iceberg & Delta — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 07 · Senior / L5 Data Engineering Reference</div>
+  <h1>Lakehouse: Iceberg & Delta</h1>
+  <p class="subhead">Iceberg & Delta on-disk layout, snapshot isolation, MERGE internals, compaction, hidden partitioning, time travel, schema evolution semantics.</p>
+  <div class="meta-strip">
+    <span>Snapshots · MERGE · Compaction · Time Travel</span>
+    <span>~3,647 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="06-python-de.html">← Part 06 · Python for DE</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="08-interview-qa-scenarios.html">Part 08 · Interview Q&A: Real Scenarios →</a></nav>
+
+<main class="content">
+<blockquote>
+<p><em>"A lakehouse table is a directory of immutable files plus a manifest that says which of those files are 'now'. Everything else — ACID, time travel, schema evolution, hidden partitioning — is a side effect of how that manifest is structured."</em></p>
+</blockquote>
+<p>This chapter unpacks the table format internals: how Iceberg and Delta organize bytes on disk, what makes a snapshot atomic, how MERGE actually works (copy-on-write vs merge-on-read), how compaction is planned, what hidden partitioning gives you, and how time travel and schema evolution are implemented.</p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#why">Why open table formats exist</a></li>
+<li><a href="#iceberg-disk">Iceberg on disk: the layered metadata</a></li>
+<li><a href="#delta-disk">Delta on disk: the transaction log</a></li>
+<li><a href="#acid">Snapshot isolation: how ACID is achieved on object storage</a></li>
+<li><a href="#hidden">Hidden partitioning: Iceberg's killer feature</a></li>
+<li><a href="#merge">MERGE under the hood: COW vs MOR</a></li>
+<li><a href="#compaction">Compaction: bin-packing, sorting, Z-ORDER</a></li>
+<li><a href="#time-travel">Time travel and snapshot expiration</a></li>
+<li><a href="#schema">Schema evolution: column-id semantics</a></li>
+<li><a href="#deletes">Delete files: position vs equality</a></li>
+<li><a href="#vs">Iceberg vs Delta vs Hudi — the trade table</a></li>
+<li><a href="#catalog">Catalog choices: Hive Metastore, Glue, Nessie, Polaris, Unity</a></li>
+<li><a href="#ops">Operating a lakehouse: gotchas and patterns</a></li>
+</ol>
+<hr />
+<p><a id="why"></a></p>
+<h2 id="1-why-open-table-formats-exist">1. Why open table formats exist</h2>
+<p>Pre-lakehouse, you had two camps:</p>
+<ul>
+<li><strong>Data warehouse</strong> (Snowflake, BigQuery, Redshift): proprietary storage; ACID, fast queries; expensive; hard to integrate with non-SQL tools (ML).</li>
+<li><strong>Data lake</strong> (Parquet on S3 + Hive Metastore): cheap storage, multi-tool, but no ACID, no concurrent writes, no schema evolution beyond Hive's limited model, no transactions, no time travel.</li>
+</ul>
+<p>Open table formats — <strong>Iceberg</strong> (Netflix → Apache 2018), <strong>Delta Lake</strong> (Databricks 2019), <strong>Hudi</strong> (Uber 2017) — sit between: a metadata layer over Parquet/ORC files in object storage that gives you:</p>
+<ul>
+<li>ACID transactions</li>
+<li>Snapshot isolation</li>
+<li>Schema evolution</li>
+<li>Time travel</li>
+<li>Hidden partitioning (Iceberg)</li>
+<li>Multi-engine read/write (Spark, Trino, Flink, Snowflake, BigQuery, …)</li>
+<li>The data files are still Parquet — query engines read them directly.</li>
+</ul>
+<hr />
+<p><a id="iceberg-disk"></a></p>
+<h2 id="2-iceberg-on-disk-the-layered-metadata">2. Iceberg on disk: the layered metadata</h2>
+<p>The brilliance of Iceberg: a tree of metadata pointers, where every write produces new immutable metadata and a single atomic swap of the "current pointer" commits.</p>
+<pre><code>Catalog (HMS / Glue / Nessie):
+  table: silver.fact_playback
+  current_metadata_pointer: s3://.../metadata/v00042.metadata.json
+
+s3://bucket/warehouse/silver/fact_playback/
+├── data/                              # immutable Parquet/ORC files
+│   ├── event_date=2026-04-15/
+│   │   ├── 00000-1234-5678.parquet
+│   │   └── 00001-1234-5678.parquet
+│   └── event_date=2026-04-14/
+│       └── ...
+└── metadata/
+    ├── v00041.metadata.json           # previous table state
+    ├── v00042.metadata.json           # current — what catalog points to
+    │   └─ schemas, partition specs, sort orders, snapshots[]
+    │      └─ each snapshot has manifest_list pointer
+    ├── snap-7843290023-1-...avro      # manifest list for snapshot 7843290023
+    │   └─ rows: each is (manifest_file_path, partitions_summary)
+    ├── 8743-1-...avro                 # manifest file
+    │   └─ rows: each is (data_file_path, partition, lower_bounds, upper_bounds, record_count)
+    └── 8744-1-...avro
+</code></pre>
+<h3 id="21-the-four-metadata-levels-top-to-bottom">2.1 The four metadata levels (top to bottom)</h3>
+<ol>
+<li><p><strong>Table metadata</strong> (<code>vNN.metadata.json</code>):</p>
+<ul>
+<li><code>table-uuid</code>, <code>format-version</code> (2 in modern usage)</li>
+<li><code>schemas[]</code> list (for evolution)</li>
+<li><code>partition-specs[]</code> (for hidden partitioning evolution)</li>
+<li><code>sort-orders[]</code></li>
+<li><code>snapshots[]</code> history</li>
+<li><code>current-snapshot-id</code></li>
+<li><code>properties</code> (compression, format, etc.)</li>
+</ul></li>
+<li><p><strong>Snapshot</strong> (entry in <code>snapshots[]</code>):</p>
+<ul>
+<li><code>snapshot-id</code></li>
+<li><code>parent-snapshot-id</code></li>
+<li><code>timestamp-ms</code></li>
+<li><code>summary</code> (added/removed records, files)</li>
+<li><code>manifest-list</code> pointer</li>
+</ul></li>
+<li><p><strong>Manifest list</strong> (<code>snap-NNN-...avro</code>):</p>
+<ul>
+<li>One row per <strong>manifest</strong> in the snapshot.</li>
+<li>Includes per-partition summaries (lower/upper bounds for each partition column) — used for <strong>manifest-level pruning</strong> before opening individual manifests.</li>
+</ul></li>
+<li><p><strong>Manifest</strong> (Avro file):</p>
+<ul>
+<li>One row per <strong>data file</strong>.</li>
+<li>Includes per-column statistics: lower/upper bounds, null count, value count, NaN count.</li>
+<li>File-level filtering happens here.</li>
+</ul></li>
+</ol>
+<h3 id="22-what-a-query-does">2.2 What a query does</h3>
+<p>For <code>SELECT ... WHERE event_date = '2026-04-15' AND user_id = 1234</code>:</p>
+<ol>
+<li>Catalog → current metadata file.</li>
+<li>Read metadata, get current snapshot's manifest-list.</li>
+<li>Read manifest list; filter manifests whose partition summaries don't include 2026-04-15. Most pruned away.</li>
+<li>Read remaining manifests; filter data files whose <code>event_date</code> and <code>user_id</code> bounds don't match. Many pruned away.</li>
+<li>Open and scan the surviving Parquet files; use Parquet's row-group stats and Bloom filters for further row-group pruning.</li>
+</ol>
+<p>Every level is a multiplicative pruning step. <strong>This is why Iceberg dominates.</strong></p>
+<h3 id="23-the-atomic-commit">2.3 The atomic commit</h3>
+<p>A commit:</p>
+<ol>
+<li>Write new data files to <code>data/</code>.</li>
+<li>Write new manifest files referring to them.</li>
+<li>Write a new manifest list.</li>
+<li>Write a new metadata.json (<code>vNN+1.metadata.json</code>) with the new snapshot.</li>
+<li><strong>Atomic swap of the catalog pointer</strong> from <code>vNN</code> to <code>vNN+1</code>.</li>
+</ol>
+<p>The atomic swap is the only operation that needs synchronization. On HMS/Glue: single-row update with optimistic concurrency. On Nessie / Polaris / Unity: branch-aware semantics. On filesystems: rename, with conflict detection.</p>
+<p>If two writers race:</p>
+<ul>
+<li>Both build their metadata in parallel.</li>
+<li>One wins the swap.</li>
+<li>The loser's commit fails; it must rebase (re-apply on top of the winner's snapshot) and retry.</li>
+</ul>
+<hr />
+<p><a id="delta-disk"></a></p>
+<h2 id="3-delta-on-disk-the-transaction-log">3. Delta on disk: the transaction log</h2>
+<p>Delta uses a different organization — a transaction log of <strong>JSON files</strong> (then periodic Parquet checkpoints) describes the table state as a sequence of additions/removals.</p>
+<pre><code>s3://bucket/warehouse/silver/fact_playback/
+├── _delta_log/
+│   ├── 00000000000000000000.json     # initial commit
+│   ├── 00000000000000000001.json     # next commit, etc.
+│   ├── ...
+│   ├── 00000000000000000010.checkpoint.parquet  # Parquet checkpoint of state
+│   ├── 00000000000000000010.json
+│   └── _last_checkpoint              # pointer to most recent checkpoint
+└── (data files, optionally partition-prefixed)
+    ├── part-00000-abc.snappy.parquet
+    └── ...
+</code></pre>
+<h3 id="31-whats-in-a-json-commit">3.1 What's in a JSON commit</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;commitInfo&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">}}</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;protocol&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;minReaderVersion&quot;</span><span class="fu">:</span> <span class="dv">1</span><span class="fu">,</span> <span class="dt">&quot;minWriterVersion&quot;</span><span class="fu">:</span> <span class="dv">4</span><span class="fu">}}</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;metaData&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...schema</span><span class="fu">,</span> <span class="er">partitionColumns</span><span class="fu">,</span> <span class="er">format</span><span class="fu">,</span> <span class="er">properties...</span><span class="fu">}}</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;add&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="st">&quot;part-...parquet&quot;</span><span class="fu">,</span> <span class="dt">&quot;partitionValues&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="er">...</span><span class="fu">},</span> <span class="dt">&quot;size&quot;</span><span class="fu">:</span> <span class="dv">1234567</span><span class="fu">,</span> <span class="dt">&quot;stats&quot;</span><span class="fu">:</span> <span class="st">&quot;{json}&quot;</span><span class="fu">,</span> <span class="er">...</span><span class="fu">}}</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;add&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="st">&quot;...&quot;</span><span class="fu">,</span> <span class="er">...</span><span class="fu">}}</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="fu">{</span><span class="dt">&quot;remove&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;path&quot;</span><span class="fu">:</span> <span class="st">&quot;old-file.parquet&quot;</span><span class="fu">,</span> <span class="dt">&quot;deletionTimestamp&quot;</span><span class="fu">:</span> <span class="er">...</span><span class="fu">,</span> <span class="er">...</span><span class="fu">}}</span></span></code></pre></div>
+<p>State at version V = replay all JSON files from 0 to V (or from the last checkpoint to V).</p>
+<p><code>stats</code> JSON contains <code>numRecords</code>, <code>minValues</code>, <code>maxValues</code>, <code>nullCount</code> per column → identical purpose to Iceberg manifest stats.</p>
+<h3 id="32-checkpoints">3.2 Checkpoints</h3>
+<p>Replaying thousands of JSON files for each query is wasteful. Every 10 commits (configurable), Delta writes a Parquet checkpoint that snapshots the full state. New readers replay from the checkpoint forward.</p>
+<h3 id="33-atomic-commit">3.3 Atomic commit</h3>
+<p>The commit log file (<code>NNNNNN.json</code>) is created with a <strong>conditional put</strong> (S3 <code>If-None-Match: *</code>). If a file with that version already exists, the writer loses the race and retries.</p>
+<p>This requires conditional writes — supported by S3, Azure Blob, GCS, ADLS Gen2 since various dates. (Pre-2024 S3 needed DynamoDB-based locking via <code>delta-storage-s3-dynamodb</code> because S3 didn't have conditional puts; this is no longer required.)</p>
+<hr />
+<p><a id="acid"></a></p>
+<h2 id="4-snapshot-isolation-how-acid-is-achieved-on-object-storage">4. Snapshot isolation: how ACID is achieved on object storage</h2>
+<p>Object storage is the wild west: no rename atomicity, no per-object locks (until conditional writes), eventual consistency historically.</p>
+<p>Both Iceberg and Delta achieve <strong>serializable</strong> isolation through immutability + a single atomic swap point.</p>
+<h3 id="41-the-protocol">4.1 The protocol</h3>
+<ol>
+<li><strong>Read your start snapshot</strong>: <code>S0 = current_snapshot()</code>.</li>
+<li><strong>Compute the changes</strong> (which files to add, which to remove).</li>
+<li><strong>Write data + metadata</strong> without touching the catalog/log pointer.</li>
+<li><strong>Attempt atomic swap</strong>: change pointer from <code>S0</code> to <code>S0+1</code>.</li>
+<li>If pointer is no longer <code>S0</code> (someone committed in between), <strong>conflict</strong>: rebase.</li>
+<li>Rebase: re-evaluate whether your changes still apply against the latest snapshot. If safe, retry the swap.</li>
+</ol>
+<h3 id="42-conflict-resolution-rules">4.2 Conflict resolution rules</h3>
+<p>For Iceberg/Delta, two writers conflict if they:</p>
+<ul>
+<li>Both modify the same file (one removes a file the other read).</li>
+<li>Both INSERT into the same partition with overlapping logic.</li>
+<li>One writer's MERGE source overlaps with another writer's INSERT.</li>
+</ul>
+<p>Conflict-free patterns:</p>
+<ul>
+<li>Two append-only writers to disjoint partitions: <strong>never conflict</strong>.</li>
+<li>One MERGE writer + one append writer to disjoint files: <strong>may not conflict</strong>.</li>
+<li>Two MERGE writers to overlapping data: <strong>always conflict</strong>; one wins, one retries.</li>
+</ul>
+<h3 id="43-read-your-writes-semantics">4.3 Read-your-writes semantics</h3>
+<p>A reader gets a consistent snapshot — they see all files included in the snapshot they pinned, none of the files added after. That's snapshot isolation.</p>
+<p><strong>Caveat</strong>: Iceberg snapshots can be expired (cleaned up by a maintenance job). A long-running reader can fail with "snapshot not found" if expiration runs aggressively. Mitigations: increase retention; pin <code>snapshot-id</code> explicitly; don't run multi-hour queries.</p>
+<hr />
+<p><a id="hidden"></a></p>
+<h2 id="5-hidden-partitioning-icebergs-killer-feature">5. Hidden partitioning: Iceberg's killer feature</h2>
+<p>In Hive-style partitioning, the partition column is part of the directory path (<code>event_date=2026-04-15/...</code>). Queries must filter on the partition column literally:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="co">-- Old Hive trap</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> <span class="kw">events</span> <span class="kw">WHERE</span> <span class="dt">DATE</span>(event_ts) <span class="op">=</span> <span class="st">&#39;2026-04-15&#39;</span>;</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a><span class="co">-- DATE(event_ts) doesn&#39;t match the event_date partition column → full scan</span></span></code></pre></div>
+<p>Iceberg separates the <strong>logical column</strong> from the <strong>partition transform</strong>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> (</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  event_ts <span class="dt">TIMESTAMP</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  user_id BIGINT,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  <span class="op">..</span>.</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>PARTITIONED <span class="kw">BY</span> (days(event_ts), bucket(<span class="dv">16</span>, user_id));</span></code></pre></div>
+<p>Now the query:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> <span class="kw">events</span> <span class="kw">WHERE</span> event_ts <span class="op">&gt;=</span> <span class="st">&#39;2026-04-15&#39;</span> <span class="kw">AND</span> event_ts <span class="op">&lt;</span> <span class="st">&#39;2026-04-16&#39;</span>;</span></code></pre></div>
+<p>Iceberg knows that <code>days(event_ts)</code> is the partition; it computes the matching partition values automatically and prunes. <strong>No partition column needed in the query.</strong></p>
+<h3 id="51-available-transforms">5.1 Available transforms</h3>
+<ul>
+<li><code>identity(col)</code>: same as raw value (Hive-style).</li>
+<li><code>bucket(N, col)</code>: hash bucket. Distribute writes evenly.</li>
+<li><code>truncate(N, col)</code>: prefix string (e.g. first N chars), or value mod N for ints.</li>
+<li><code>year(ts) / month(ts) / day(ts) / hour(ts)</code>: time-based.</li>
+</ul>
+<h3 id="52-partition-spec-evolution">5.2 Partition spec evolution</h3>
+<p>You can change partitioning over time. Old data stays under the old spec; new data uses the new spec; queries handle both transparently.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">SET</span> <span class="kw">PARTITION</span> SPEC (days(event_ts));</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="co">-- evolves from hour(event_ts) to day(event_ts)</span></span></code></pre></div>
+<p>Files written before keep <code>hour</code> partition; new files use <code>day</code>. Iceberg's manifest tracks which spec each file was written under.</p>
+<hr />
+<p><a id="merge"></a></p>
+<h2 id="6-merge-under-the-hood-cow-vs-mor">6. MERGE under the hood: COW vs MOR</h2>
+<p>MERGE = upsert + delete + insert in one atomic operation. Both Iceberg and Delta support it. Two execution strategies, with massive performance differences.</p>
+<h3 id="61-copy-on-write-cow--the-original">6.1 Copy-on-Write (COW) — the original</h3>
+<p>For each affected data file:</p>
+<ol>
+<li>Read the entire file.</li>
+<li>Apply MERGE changes in memory.</li>
+<li>Write a NEW file with the changed rows.</li>
+<li>Mark the old file as removed in the new snapshot.</li>
+</ol>
+<p><strong>Cost</strong>: rewriting touched files. If 1% of rows change in a 1 GB file, you rewrite 1 GB. <strong>Write amplification: 100×</strong>.</p>
+<p><strong>Read cost</strong>: zero overhead. Each file is a clean Parquet.</p>
+<p>Default for most lakehouse tables historically. Best for write-rare, read-heavy workloads.</p>
+<h3 id="62-merge-on-read-mor--the-streaming-friendly-mode">6.2 Merge-on-Read (MOR) — the streaming-friendly mode</h3>
+<p>Two strategies for representing the deletes:</p>
+<ul>
+<li><strong>Position deletes</strong>: per data file, a delete file listing positions (row_index) of deleted rows.</li>
+<li><strong>Equality deletes</strong>: a small delete file listing values (e.g. <code>user_id = 1234</code>) — at read time, rows matching are filtered out.</li>
+</ul>
+<p>Updates = delete + insert: position-delete the old row, write a new row.</p>
+<p><strong>Cost on write</strong>: write the new rows + the delete file. Cheap. <strong>Write amplification: 1×.</strong></p>
+<p><strong>Cost on read</strong>: read data files + apply delete files. Overhead per file with a delete file. Compaction is required periodically to prevent runaway delete-file growth.</p>
+<h3 id="63-choosing-cow-vs-mor">6.3 Choosing COW vs MOR</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Workload</th>
+<th>COW</th>
+<th>MOR</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GDPR deletes (rare, scattered)</td>
+<td>bad (rewrites lots of data)</td>
+<td>good (small delete files)</td>
+</tr>
+<tr class="even">
+<td>Daily SCD2 merge (5% changed)</td>
+<td>OK</td>
+<td>good</td>
+</tr>
+<tr class="odd">
+<td>Hourly streaming upsert (always changing)</td>
+<td>bad</td>
+<td>good</td>
+</tr>
+<tr class="even">
+<td>Read-heavy, infrequent writes</td>
+<td>good</td>
+<td>OK</td>
+</tr>
+<tr class="odd">
+<td>Time-series append-only</td>
+<td>both fine; COW simpler</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Set per-table:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.fact_playback <span class="kw">SET</span> TBLPROPERTIES (</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>  <span class="st">&#39;write.delete.mode&#39;</span> <span class="op">=</span> <span class="st">&#39;merge-on-read&#39;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>  <span class="st">&#39;write.update.mode&#39;</span> <span class="op">=</span> <span class="st">&#39;merge-on-read&#39;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>  <span class="st">&#39;write.merge.mode&#39;</span>  <span class="op">=</span> <span class="st">&#39;merge-on-read&#39;</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>);</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a><span class="co">-- Delta (deletion vectors are roughly equivalent to position deletes)</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.fact_playback <span class="kw">SET</span> TBLPROPERTIES (</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true"></a>  <span class="st">&#39;delta.enableDeletionVectors&#39;</span> <span class="op">=</span> <span class="st">&#39;true&#39;</span></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true"></a>);</span></code></pre></div>
+<h3 id="64-delta-deletion-vectors-the-equivalent-of-mor">6.4 Delta deletion vectors (the equivalent of MOR)</h3>
+<p>A bitmap (RoaringBitmap) per data file marking deleted rows. Reads apply the bitmap to skip deleted rows. Writes only touch the bitmap, not the data file.</p>
+<p>Trade-offs same as Iceberg position deletes.</p>
+<h3 id="65-merge-example">6.5 MERGE example</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> silver.dim_user t</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="kw">USING</span> staging.user_updates s</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>  <span class="kw">ON</span> t.user_id <span class="op">=</span> s.user_id</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> s.is_deleted <span class="cf">THEN</span> <span class="kw">DELETE</span></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> s.hash_diff <span class="op">&lt;&gt;</span> t.hash_diff <span class="cf">THEN</span> <span class="kw">UPDATE</span> <span class="kw">SET</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>    <span class="kw">plan</span> <span class="op">=</span> s.<span class="kw">plan</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>    country_id <span class="op">=</span> s.country_id,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>    updated_ts <span class="op">=</span> <span class="fu">current_timestamp</span>()</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="cf">THEN</span> <span class="kw">INSERT</span> (user_id, <span class="kw">plan</span>, country_id, updated_ts)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true"></a>                     <span class="kw">VALUES</span> (s.user_id, s.<span class="kw">plan</span>, s.country_id, <span class="fu">current_timestamp</span>());</span></code></pre></div>
+<p>Multi-match ambiguity: by spec, if a single target row matches multiple source rows, the operation is undefined and Iceberg/Delta will throw. Ensure your source has a unique key.</p>
+<hr />
+<p><a id="compaction"></a></p>
+<h2 id="7-compaction-bin-packing-sorting-z-order">7. Compaction: bin-packing, sorting, Z-ORDER</h2>
+<p>Streaming writers produce many small files. Updates with MOR produce many delete files. Both kill query performance. Compaction rewrites them periodically.</p>
+<h3 id="71-bin-packing-size-compaction">7.1 Bin-packing (size compaction)</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_data_files(</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>  <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.fact_playback&#39;</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>  options <span class="op">=&gt;</span> map(<span class="st">&#39;target-file-size-bytes&#39;</span>, <span class="st">&#39;536870912&#39;</span>)  <span class="co">-- 512 MB</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>);</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true"></a></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true"></a>OPTIMIZE silver.fact_playback;</span></code></pre></div>
+<p>Algorithm: pick a partition; pick groups of small files whose total size &lt; target; rewrite each group as one file. New file appears, old ones marked removed. Atomic snapshot.</p>
+<h3 id="72-sort-compaction">7.2 Sort compaction</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_data_files(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>  <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.fact_playback&#39;</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>  strategy <span class="op">=&gt;</span> <span class="st">&#39;sort&#39;</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>  sort_order <span class="op">=&gt;</span> <span class="st">&#39;event_ts ASC, user_id ASC&#39;</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a>);</span></code></pre></div>
+<p>Sorts within each output file. Improves Parquet's row-group min/max stats → better zone-map pruning at query time.</p>
+<h3 id="73-z-order-delta--others">7.3 Z-ORDER (Delta + others)</h3>
+<p>Multi-column locality. The Z-order curve interleaves the bits of two coordinates so that nearby points in N-dimensional space are nearby in linear order.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>OPTIMIZE silver.fact_playback ZORDER <span class="kw">BY</span> (user_id, title_id);</span></code></pre></div>
+<p>Result: within a file, rows are clustered in 2D space of (user_id, title_id). A predicate on either column prunes a large fraction of files.</p>
+<p>Math: on N columns, Z-order gives ~N^(1/N) selectivity per column, vs sort-by-first-only which gives 1 for the first column and 0 for others. For N=2 it's a real win; for N=4 the benefit shrinks.</p>
+<h3 id="74-manifest-compaction">7.4 Manifest compaction</h3>
+<p>Iceberg maintains many small manifest files when many commits add a few files each. Manifest compaction merges them.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_manifests(<span class="st">&#39;silver.fact_playback&#39;</span>);</span></code></pre></div>
+<p>Cheap and runs fast; do it daily for high-write tables.</p>
+<h3 id="75-equality--position-delete-compaction">7.5 Equality / position delete compaction</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_position_delete_files(<span class="st">&#39;silver.fact_playback&#39;</span>);</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a><span class="co">-- For more aggressive compaction that absorbs deletes into data files:</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_data_files(</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a>  <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.fact_playback&#39;</span>,</span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a>  options <span class="op">=&gt;</span> map(<span class="st">&#39;delete-file-threshold&#39;</span>, <span class="st">&#39;1&#39;</span>)   <span class="co">-- rewrite any data file with &gt;=1 delete</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true"></a>);</span></code></pre></div>
+<h3 id="76-maintenance-pattern">7.6 Maintenance pattern</h3>
+<p>Daily / hourly cron:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="co">-- Compact small files, absorb deletes</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_data_files(<span class="st">&#39;silver.fact_playback&#39;</span>);</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a><span class="co">-- Compact manifests</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_manifests(<span class="st">&#39;silver.fact_playback&#39;</span>);</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true"></a><span class="co">-- Expire old snapshots (default keeps 5 days)</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.expire_snapshots(</span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true"></a>  <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.fact_playback&#39;</span>,</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true"></a>  older_than <span class="op">=&gt;</span> <span class="dt">TIMESTAMP</span> <span class="st">&#39;2026-04-09 00:00:00&#39;</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true"></a>);</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true"></a></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true"></a><span class="co">-- Remove orphan files (data files no longer referenced by any snapshot)</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.remove_orphan_files(<span class="st">&#39;silver.fact_playback&#39;</span>);</span></code></pre></div>
+<hr />
+<p><a id="time-travel"></a></p>
+<h2 id="8-time-travel-and-snapshot-expiration">8. Time travel and snapshot expiration</h2>
+<p>Both formats preserve old snapshots until you expire them.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="co">-- Iceberg: query by snapshot ID or timestamp</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> silver.fact_playback <span class="cf">FOR</span> VERSION <span class="kw">AS</span> <span class="kw">OF</span> <span class="dv">7843290023</span>;</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> silver.fact_playback <span class="cf">FOR</span> <span class="dt">TIMESTAMP</span> <span class="kw">AS</span> <span class="kw">OF</span> <span class="st">&#39;2026-04-15 12:00:00&#39;</span>;</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> silver.fact_playback VERSION <span class="kw">AS</span> <span class="kw">OF</span> <span class="dv">42</span>;</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> silver.fact_playback <span class="dt">TIMESTAMP</span> <span class="kw">AS</span> <span class="kw">OF</span> <span class="st">&#39;2026-04-15 12:00:00&#39;</span>;</span></code></pre></div>
+<h3 id="81-practical-uses">8.1 Practical uses</h3>
+<ul>
+<li><strong>Audit</strong>: "show me what the table looked like before yesterday's bad merge".</li>
+<li><strong>Reproducibility</strong>: ML training reading a frozen snapshot ID.</li>
+<li><strong>Rollback</strong>: undo a bad write with a single CALL.</li>
+<li><strong>CDC</strong>: Iceberg snapshot diff or Delta CDF gives per-snapshot row changes.</li>
+</ul>
+<h3 id="82-expiration-trade-off">8.2 Expiration trade-off</h3>
+<p>Long retention = huge storage cost (you keep every old version of every file). Short retention = no recovery from incidents.</p>
+<p>Common default: 5–7 days. Audit-required tables: longer (90+ days), with cost to match.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.fact_playback <span class="kw">SET</span> TBLPROPERTIES (</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>  <span class="st">&#39;history.expire.min-snapshots-to-keep&#39;</span> <span class="op">=</span> <span class="st">&#39;20&#39;</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>  <span class="st">&#39;history.expire.max-snapshot-age-ms&#39;</span>   <span class="op">=</span> <span class="st">&#39;604800000&#39;</span>  <span class="co">-- 7 days</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>);</span></code></pre></div>
+<h3 id="83-rollback">8.3 Rollback</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rollback_to_snapshot(<span class="st">&#39;silver.fact_playback&#39;</span>, <span class="dv">7843290023</span>);</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a>RESTORE <span class="kw">TABLE</span> silver.fact_playback <span class="kw">TO</span> VERSION <span class="kw">AS</span> <span class="kw">OF</span> <span class="dv">42</span>;</span></code></pre></div>
+<p>Atomic: just swap the current snapshot pointer. The "rolled back" data files reappear (assuming not yet expired).</p>
+<hr />
+<p><a id="schema"></a></p>
+<h2 id="9-schema-evolution-column-id-semantics">9. Schema evolution: column-id semantics</h2>
+<p>Hive's schema evolution is positional and brittle. Iceberg tracks every column by an immutable <strong>column ID</strong>, not by name or position.</p>
+<h3 id="91-whats-safe">9.1 What's safe</h3>
+<ul>
+<li>Add column: new ID, default value if not in older files.</li>
+<li>Drop column: ID retired; old files keep their data but it's not exposed.</li>
+<li>Rename column: same ID, new name (no file rewrite!).</li>
+<li>Reorder columns: doesn't matter; ID-based reads.</li>
+<li>Promote types: int → long, float → double, decimal precision up. Done in metadata.</li>
+</ul>
+<h3 id="92-whats-not-safe-requires-rewrite-or-fails">9.2 What's not safe (requires rewrite or fails)</h3>
+<ul>
+<li>Rename when other engines map by name (some catalogs).</li>
+<li>Change type incompatibly (string → int).</li>
+<li>Change a NOT NULL constraint on existing data with NULLs.</li>
+</ul>
+<h3 id="93-why-parquet-just-works">9.3 Why Parquet "just works"</h3>
+<p>Parquet stores column names, not IDs by default. Iceberg requires writing files with <strong>field IDs in Parquet metadata</strong> so that reads can map by ID even if names changed. Older readers without ID support fall back to name-based mapping.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">ADD</span> <span class="kw">COLUMN</span> device_class STRING;</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">RENAME</span> <span class="kw">COLUMN</span> device_class <span class="kw">TO</span> device_type;</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">DROP</span> <span class="kw">COLUMN</span> device_type;</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">ALTER</span> <span class="kw">COLUMN</span> price <span class="kw">TYPE</span> <span class="dt">decimal</span>(<span class="dv">18</span>, <span class="dv">4</span>);  <span class="co">-- promotion</span></span></code></pre></div>
+<p>All metadata-only operations. No data file rewrite.</p>
+<h3 id="94-delta-schema-evolution">9.4 Delta schema evolution</h3>
+<p>Similar capabilities; column IDs introduced in Delta's protocol versions ≥ 2. Older Delta tables (without column mapping) need <code>ALTER TABLE ... SET TBLPROPERTIES('delta.columnMapping.mode' = 'name')</code> to enable rename/drop.</p>
+<hr />
+<p><a id="deletes"></a></p>
+<h2 id="10-delete-files-position-vs-equality">10. Delete files: position vs equality</h2>
+<p>In Iceberg's MOR mode, two flavors of delete file:</p>
+<h3 id="101-position-deletes">10.1 Position deletes</h3>
+<p>Per data file, lists row positions (offsets in row order) to skip.</p>
+<pre><code>delete-file-1.parquet:
+  file_path                        | pos
+  --------------------------------+-----
+  data/event_date=.../00001.parquet | 42
+  data/event_date=.../00001.parquet | 1003
+  data/event_date=.../00002.parquet | 7
+</code></pre>
+<p>Read-time cost: low. Per-file applied as a row-position bitmap.</p>
+<h3 id="102-equality-deletes">10.2 Equality deletes</h3>
+<p>Lists values that should be deleted.</p>
+<pre><code>delete-file-1.parquet:
+  user_id | event_id
+  --------+----------
+  1234    | abc
+  5678    | xyz
+</code></pre>
+<p>At read time, every row is checked against the equality predicate.</p>
+<p>Read-time cost: higher (requires per-row evaluation). But useful when you don't know exact positions (e.g. CDC stream just says "delete user_id=1234").</p>
+<h3 id="103-when-each-is-used">10.3 When each is used</h3>
+<ul>
+<li><strong>Position deletes</strong>: produced by MERGE/UPDATE/DELETE that knows the affected file+row.</li>
+<li><strong>Equality deletes</strong>: produced by streaming sinks (Flink) that don't want to read the data file to find positions.</li>
+</ul>
+<p>Iceberg can mix both within a snapshot.</p>
+<hr />
+<p><a id="vs"></a></p>
+<h2 id="11-iceberg-vs-delta-vs-hudi--the-trade-table">11. Iceberg vs Delta vs Hudi — the trade table</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Feature</th>
+<th>Iceberg</th>
+<th>Delta</th>
+<th>Hudi</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Origin</td>
+<td>Netflix</td>
+<td>Databricks</td>
+<td>Uber</td>
+</tr>
+<tr class="even">
+<td>Governance</td>
+<td>Apache</td>
+<td>Linux Foundation (Delta Lake)</td>
+<td>Apache</td>
+</tr>
+<tr class="odd">
+<td>Engine support</td>
+<td>Spark, Flink, Trino, Snowflake, BigQuery, Athena, ClickHouse</td>
+<td>Spark (best), Trino, Flink, Synapse</td>
+<td>Spark (best), Trino, Flink</td>
+</tr>
+<tr class="even">
+<td>Hidden partitioning</td>
+<td>yes</td>
+<td>no</td>
+<td>partial</td>
+</tr>
+<tr class="odd">
+<td>Schema evolution</td>
+<td>column IDs</td>
+<td>column mapping (opt-in)</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>MERGE strategies</td>
+<td>COW + MOR (position + equality deletes)</td>
+<td>COW + deletion vectors (position equivalent)</td>
+<td>COW + MOR</td>
+</tr>
+<tr class="odd">
+<td>Time travel</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr class="even">
+<td>Branches / tags</td>
+<td>yes (with Nessie/Polaris/Iceberg V3)</td>
+<td>no (clone is similar)</td>
+<td>savepoints</td>
+</tr>
+<tr class="odd">
+<td>Concurrent writers</td>
+<td>optimistic; conflict on file overlap</td>
+<td>optimistic; conflict on file overlap</td>
+<td>optimistic</td>
+</tr>
+<tr class="even">
+<td>Catalog options</td>
+<td>HMS, Glue, REST (Polaris), Nessie, JDBC</td>
+<td>Hive, Unity (Databricks), Glue (limited)</td>
+<td>HMS</td>
+</tr>
+<tr class="odd">
+<td>Streaming ingestion</td>
+<td>Flink, Spark Streaming</td>
+<td>Spark Streaming, Flink</td>
+<td>Streamer (own tool)</td>
+</tr>
+<tr class="even">
+<td>Industry traction (2026)</td>
+<td>dominant for new builds, Snowflake/BigQuery/Databricks all support</td>
+<td>strong on Databricks, Unity Catalog</td>
+<td>declining outside Hudi-native shops</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The honest take</strong>: Iceberg has won the open standard race. Delta is excellent on Databricks. Hudi is fine if you're already on Hudi.</p>
+<hr />
+<p><a id="catalog"></a></p>
+<h2 id="12-catalog-choices-hive-metastore-glue-nessie-polaris-unity">12. Catalog choices: Hive Metastore, Glue, Nessie, Polaris, Unity</h2>
+<p>The catalog stores <code>table → current metadata pointer</code>. The catalog choice determines:</p>
+<ul>
+<li>Atomic commit semantics</li>
+<li>Multi-engine interop</li>
+<li>Branch/tag support</li>
+<li>Access control</li>
+<li>Lineage</li>
+</ul>
+<h3 id="121-hive-metastore-hms">12.1 Hive Metastore (HMS)</h3>
+<p>The original. Thrift API, MySQL/Postgres backend. Universally supported. No branches. Limited ACL. Single-region typically.</p>
+<h3 id="122-aws-glue-data-catalog">12.2 AWS Glue Data Catalog</h3>
+<p>HMS-compatible API, managed, multi-region. Good with EMR / Athena / Redshift Spectrum / Snowflake (via Iceberg integration). No branches.</p>
+<h3 id="123-project-nessie">12.3 Project Nessie</h3>
+<p>Git-like semantics for catalogs. Branches, tags, commit history per table change. Great for ML reproducibility ("this experiment trained on the <code>prod-2026-04-15</code> tag").</p>
+<h3 id="124-apache-polaris-snowflakes-contributed-rest-catalog">12.4 Apache Polaris (Snowflake's contributed REST catalog)</h3>
+<p>Open-source REST catalog implementing Iceberg's REST spec. Multi-engine, RBAC, support for branches / Nessie-style semantics over time. The strongest contender for "the universal Iceberg catalog".</p>
+<h3 id="125-unity-catalog-databricks">12.5 Unity Catalog (Databricks)</h3>
+<p>Databricks's metastore with fine-grained ACL, lineage, audit. Native to Databricks; expanding interop via Iceberg REST.</p>
+<h3 id="126-the-pragmatic-choice">12.6 The pragmatic choice</h3>
+<p>For Iceberg in 2026: <strong>Polaris (REST) or Glue</strong> if you're cloud-native; <strong>Nessie</strong> if you want git-like branching; <strong>Unity</strong> if you're on Databricks. HMS for legacy.</p>
+<hr />
+<p><a id="ops"></a></p>
+<h2 id="13-operating-a-lakehouse-gotchas-and-patterns">13. Operating a lakehouse: gotchas and patterns</h2>
+<h3 id="131-the-small-files-killer">13.1 The small-files killer</h3>
+<p>Streaming writers (Flink/Spark Structured Streaming) commit every checkpoint interval. With a 30-second checkpoint and 100 partitions, that's 200 small files per minute → 288K per day. Run compaction.</p>
+<p>Mitigations:</p>
+<ul>
+<li>Increase checkpoint interval (1–5 minutes is usually fine).</li>
+<li>Use distribution mode <code>hash</code> so each writer covers a single partition.</li>
+<li>Enable Iceberg's auto-compaction (write-side) if available.</li>
+<li>Schedule daily compaction job.</li>
+</ul>
+<h3 id="132-the-expiration-trap">13.2 The expiration trap</h3>
+<p>Aggressively expiring snapshots breaks long-running readers. Aggressively expiring orphan files can DELETE files an in-flight reader needed.</p>
+<p>Pattern:</p>
+<ul>
+<li>Set <code>expire_snapshots</code> <code>older_than</code> to "older than the longest possible query" (e.g. 24h).</li>
+<li>Run <code>remove_orphan_files</code> with <code>older_than</code> even longer (e.g. 72h).</li>
+<li>Never run <code>remove_orphan_files</code> with a low threshold — you risk deleting files referenced by a snapshot you're about to expire but haven't yet.</li>
+</ul>
+<h3 id="133-concurrent-writers-conflict-spiral">13.3 Concurrent writers conflict spiral</h3>
+<p>Pattern: stream + batch both writing same table → conflict → batch retries → still conflicts → fails.</p>
+<p>Fix:</p>
+<ul>
+<li>Partition by time so stream and batch write to different partitions.</li>
+<li>Or have one writer; use staging tables and merge in a single writer.</li>
+<li>Or use REST catalog with retry-with-backoff.</li>
+</ul>
+<h3 id="134-cross-region-reads">13.4 Cross-region reads</h3>
+<p>Iceberg metadata is small; data files are large. If reading from another region, the metadata cost is negligible but data egress is real. Replicate data files with S3 cross-region replication; the catalog can point at the regional bucket; consider per-region copies of the table.</p>
+<h3 id="135-auditing--data-contracts">13.5 Auditing / data contracts</h3>
+<p>Both formats store commit metadata: who, when, what changed. Surface this in your data catalog.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a><span class="kw">FROM</span> silver.fact_playback.snapshots</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a><span class="kw">ORDER</span> <span class="kw">BY</span> committed_at <span class="kw">DESC</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a><span class="kw">LIMIT</span> <span class="dv">10</span>;</span></code></pre></div>
+<p>Iceberg metadata tables (<code>.snapshots</code>, <code>.history</code>, <code>.files</code>, <code>.partitions</code>, <code>.manifests</code>) are first-class queryable views on the table's state. Use them for monitoring, alerting on anomalous commits, and observability.</p>
+<h3 id="136-cost-monitoring">13.6 Cost monitoring</h3>
+<p>S3 LIST and small-file PUT operations are real cost drivers at scale. Monitor:</p>
+<ul>
+<li>Number of files per table per day.</li>
+<li>Average file size.</li>
+<li>Number of manifests.</li>
+<li>Snapshot accumulation.</li>
+</ul>
+<p>A healthy table has files in the 128 MB – 1 GB range, manifests merged daily, snapshots expired weekly.</p>
+<hr />
+<h2 id="closing-principle">Closing principle</h2>
+<p>Iceberg/Delta turned object storage into a real database. The cost: you have to operate it like one — compaction, expiration, schema discipline, conflict handling. Get the maintenance jobs right and the lakehouse just works. Skip them and you'll be on a 3am page within 90 days.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="06-python-de.html">← Part 06 · Python for DE</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="08-interview-qa-scenarios.html">Part 08 · Interview Q&A: Real Scenarios →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 07</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/07-lakehouse-iceberg.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

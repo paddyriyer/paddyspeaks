@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spark Internals — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 04 · Senior / L5 Data Engineering Reference</div>
+  <h1>Spark Internals</h1>
+  <p class="subhead">Catalyst rules, AQE behavior, shuffle service, broadcast vs SMJ vs SHJ math, skew detection algorithms, memory model, Tungsten.</p>
+  <div class="meta-strip">
+    <span>Catalyst · AQE · Shuffle · Tungsten</span>
+    <span>~5,270 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="03-streaming-processing.html">← Part 03 · Streaming Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="05-sql-deep-dive.html">Part 05 · SQL Deep Dive →</a></nav>
+
+<main class="content">
+<blockquote>
+<p><em>"Spark is a distributed compiler and memory manager that happens to execute SQL."</em> — if you can hold that sentence and defend it, you're at L5.</p>
+</blockquote>
+<p>This chapter goes past the "Spark has an optimizer" talking points. We walk through what Catalyst actually does rule-by-rule, how Adaptive Query Execution (AQE) re-plans at runtime, how the shuffle service works on disk and over the network, how each join algorithm is chosen with the actual math, how skew is detected and split, and how Tungsten manages memory off-heap with its own binary format.</p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#layered">The layered architecture you must carry in your head</a></li>
+<li><a href="#catalyst">Catalyst: logical plan → optimized plan → physical plan</a></li>
+<li><a href="#cost">The cost model (such as it is) and why it's wrong</a></li>
+<li><a href="#aqe">Adaptive Query Execution (AQE): the runtime re-planner</a></li>
+<li><a href="#shuffle">Shuffle: the disk-and-network truth</a></li>
+<li><a href="#joins">Join algorithms with real math: BHJ, SMJ, SHJ, BNLJ</a></li>
+<li><a href="#skew">Skew: detection, splitting, salting, AQE handling</a></li>
+<li><a href="#tungsten">Tungsten: off-heap memory, UnsafeRow, codegen</a></li>
+<li><a href="#memory">Memory model: execution, storage, user, reserved</a></li>
+<li><a href="#partitioning">Partitioning, coalesce, repartition — when each is wrong</a></li>
+<li><a href="#broadcast">Broadcast internals: why 10 MB default and how to push it</a></li>
+<li><a href="#pandas-udf">Pandas UDFs, Arrow, and the JVM↔︎Python boundary</a></li>
+<li><a href="#walkthrough">Writing the plan diff: a real query walkthrough</a></li>
+<li><a href="#configs">Configuration cheat sheet — what each knob actually does</a></li>
+</ol>
+<hr />
+<p><a id="layered"></a></p>
+<h2 id="1-the-layered-architecture-you-must-carry-in-your-head">1. The layered architecture you must carry in your head</h2>
+<p>When a user submits <code>spark.sql("SELECT ...")</code>, control flows through five distinct layers. Know the layer that owns the problem and you'll skip 90% of the debugging time:</p>
+<ol>
+<li><strong>SQL parser / DataFrame API</strong> — produces an unresolved logical plan (tree of <code>LogicalPlan</code> nodes).</li>
+<li><strong>Analyzer</strong> — resolves identifiers against the catalog, types, UDFs. Output: resolved logical plan.</li>
+<li><strong>Optimizer (Catalyst)</strong> — rule-based rewrites on the logical plan. Output: optimized logical plan.</li>
+<li><strong>Planner</strong> — translates logical operators to physical operators (with strategies). Output: physical plan.</li>
+<li><strong>Execution (Tungsten + shuffle + RDD)</strong> — whole-stage codegen compiles physical operators into bytecode, shuffle ships data between stages, tasks run on executors.</li>
+</ol>
+<p>Debugging rule: if <code>EXPLAIN FORMATTED</code> doesn't show what you expect at layer N, don't go looking at layer N+1. A filter that fails to push down is an <em>optimizer</em> problem, not a <em>shuffle</em> problem.</p>
+<p>Use:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a>df.explain(mode<span class="op">=</span><span class="st">&quot;formatted&quot;</span>)  <span class="co"># full plan</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>df.explain(mode<span class="op">=</span><span class="st">&quot;cost&quot;</span>)       <span class="co"># plan + cost statistics (post-AQE if enabled)</span></span></code></pre></div>
+<p>For even deeper diagnosis:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a>spark.conf.<span class="bu">set</span>(<span class="st">&quot;spark.sql.planChangeLog.level&quot;</span>, <span class="st">&quot;WARN&quot;</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="co"># prints every rule that fires during optimization</span></span></code></pre></div>
+<hr />
+<p><a id="catalyst"></a></p>
+<h2 id="2-catalyst-logical-plan--optimized-plan--physical-plan">2. Catalyst: logical plan → optimized plan → physical plan</h2>
+<p>Catalyst is a <strong>tree-rewriting</strong> framework with four passes:</p>
+<pre><code>Parser  →  Unresolved Logical Plan
+Analyzer →  Resolved Logical Plan   (binds column names, checks types)
+Optimizer →  Optimized Logical Plan (rule-based, equivalent rewrites)
+Planner  →  Physical Plan          (chooses strategies: join, aggregate, etc.)
+</code></pre>
+<h3 id="21-the-tree">2.1 The tree</h3>
+<p>A logical plan is an immutable tree of nodes (<code>Project</code>, <code>Filter</code>, <code>Join</code>, <code>Aggregate</code>, <code>LeafNode</code> like <code>Relation</code>). Optimizations are <strong>rules</strong> — functions <code>LogicalPlan → LogicalPlan</code> that pattern-match on subtrees and return a rewritten tree.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode scala"><code class="sourceCode scala"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="co">// Simplified Catalyst rule idea</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="kw">object</span> PushDownFilter <span class="kw">extends</span> Rule[LogicalPlan] {</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>  <span class="kw">def</span> <span class="fu">apply</span>(plan: LogicalPlan): LogicalPlan = plan transform {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    <span class="kw">case</span> Filter(cond, <span class="fu">Project</span>(fields, child)) <span class="kw">if</span> cond.<span class="fu">references</span>.<span class="fu">subsetOf</span>(child.<span class="fu">outputSet</span>) =&gt;</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>      <span class="fu">Project</span>(fields, Filter(cond, child))  <span class="co">// push Filter under Project</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>  }</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="22-the-rule-batches-what-actually-fires-in-order">2.2 The rule batches (what actually fires, in order)</h3>
+<p>The optimizer runs batches of rules, many to fixed point. The production list is long; memorize the <strong>greatest hits</strong>:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Batch</th>
+<th>Key rules</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Finish Analysis</td>
+<td><code>ResolveReferences</code>, <code>ResolveSubquery</code></td>
+<td>resolves names, types</td>
+</tr>
+<tr class="even">
+<td>Subquery</td>
+<td><code>RewritePredicateSubquery</code></td>
+<td>correlated subquery → semi/anti join</td>
+</tr>
+<tr class="odd">
+<td>Infer Filters</td>
+<td><code>InferFiltersFromConstraints</code></td>
+<td><code>a = b AND a = 5</code> infers <code>b = 5</code></td>
+</tr>
+<tr class="even">
+<td>Operator Optimizations</td>
+<td><code>PushDownPredicate</code>, <code>ColumnPruning</code>, <code>CombineFilters</code>, <code>ConstantFolding</code>, <code>BooleanSimplification</code>, <code>SimplifyCasts</code>, <code>NullPropagation</code>, <code>EliminateOuterJoin</code></td>
+<td>the heart of Catalyst</td>
+</tr>
+<tr class="odd">
+<td>Join Reorder</td>
+<td><code>ReorderJoin</code>, <code>CostBasedJoinReorder</code></td>
+<td>left-deep tree by row-count estimate</td>
+</tr>
+<tr class="even">
+<td>Decimal Optimizations</td>
+<td><code>DecimalAggregates</code></td>
+<td>promote decimals for overflow safety</td>
+</tr>
+<tr class="odd">
+<td>LocalRelation</td>
+<td><code>ConvertToLocalRelation</code></td>
+<td>fold static literals</td>
+</tr>
+</tbody>
+</table>
+<p>Two rules do 80% of the work:</p>
+<ul>
+<li><strong>PushDownPredicate</strong>: drives filter push-down through <code>Project</code>, <code>Join</code>, <code>Aggregate</code>, down into the <code>FileSource</code> so Parquet reads the minimum bytes.</li>
+<li><strong>ColumnPruning</strong>: keeps only needed columns, eliminating entire column chunks from Parquet/ORC reads.</li>
+</ul>
+<p><strong>When they don't fire</strong>: UDFs (treated as opaque black boxes for filter push-down unless you declare them <code>deterministic = true</code> in a certain shape), non-deterministic expressions, window functions (blocks push-down), and expressions on partition columns that use <code>cast</code> into incompatible types.</p>
+<h3 id="23-analyzing-the-optimized-plan">2.3 Analyzing the optimized plan</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>df <span class="op">=</span> (spark.table(<span class="st">&quot;bronze.playback_events&quot;</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>      .<span class="bu">filter</span>(<span class="st">&quot;event_date = &#39;2026-04-15&#39;&quot;</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>      .<span class="bu">filter</span>(<span class="st">&quot;user_id = 1234&quot;</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>      .select(<span class="st">&quot;title_id&quot;</span>, <span class="st">&quot;watch_ms&quot;</span>))</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>df.explain(mode<span class="op">=</span><span class="st">&quot;formatted&quot;</span>)</span></code></pre></div>
+<p>Optimized logical plan (expected):</p>
+<pre><code>== Optimized Logical Plan ==
+Project [title_id#1, watch_ms#2]
++- Filter (event_date = 2026-04-15 AND user_id = 1234)
+   +- Relation bronze.playback_events[...] parquet
+</code></pre>
+<p>Both filters combined, column pruning applied. Now at physical:</p>
+<pre><code>== Physical Plan ==
+*(1) Project [title_id#1, watch_ms#2]
++- *(1) Filter (user_id = 1234)
+   +- *(1) ColumnarToRow
+      +- FileScan parquet bronze.playback_events
+            PartitionFilters: [event_date = 2026-04-15]
+            PushedFilters: [EqualTo(user_id, 1234)]
+            ReadSchema: struct&lt;title_id:bigint,watch_ms:bigint&gt;
+</code></pre>
+<p>The <code>*(1)</code> prefix means <strong>whole-stage codegen stage 1</strong>. <code>PartitionFilters</code> = Hive/directory-level pruning. <code>PushedFilters</code> = Parquet row-group filter using min/max statistics.</p>
+<h3 id="24-when-plans-go-wrong-the-why-didnt-it-push-down-checklist">2.4 When plans go wrong: the "why didn't it push down" checklist</h3>
+<p>In order of likelihood:</p>
+<ol>
+<li>A UDF touched the column (Catalyst treats most UDFs as opaque).</li>
+<li>The column is inside a <code>Window</code> or <code>collect_list</code> boundary.</li>
+<li>A <code>COALESCE(col, 0) = 5</code> — push down works only on simple forms; coalesce blocks it. Rewrite as <code>col = 5 OR (col IS NULL AND 5 = 0)</code>.</li>
+<li>Parquet file has no statistics (written by an old or broken writer).</li>
+<li>Data type mismatch (<code>string</code> column filtered against <code>int</code>) → implicit cast disables pushdown.</li>
+<li>You used <code>cache()</code> above the filter; filter no longer pushes past the cache node.</li>
+</ol>
+<hr />
+<p><a id="cost"></a></p>
+<h2 id="3-the-cost-model-such-as-it-is-and-why-its-wrong">3. The cost model (such as it is) and why it's wrong</h2>
+<p>Spark's <strong>Cost-Based Optimizer (CBO)</strong> uses statistics from <code>ANALYZE TABLE ... COMPUTE STATISTICS</code> stored in the catalog. Disabled by default (<code>spark.sql.cbo.enabled=false</code>).</p>
+<p>Key statistics collected:</p>
+<ul>
+<li>Row count, size in bytes</li>
+<li>Per-column: min, max, nullCount, distinctCount (approx, HyperLogLog), avgLen, maxLen</li>
+<li>Histograms (<code>ANALYZE TABLE ... FOR COLUMNS ... WITH HISTOGRAM</code>)</li>
+</ul>
+<h3 id="31-why-the-cbo-is-a-paper-tiger">3.1 Why the CBO is a paper tiger</h3>
+<ul>
+<li><strong>Stale statistics</strong>: nobody re-runs <code>ANALYZE TABLE</code> after every write. The stats you have are from last week.</li>
+<li><strong>Partial statistics</strong>: CBO falls back to row-count heuristics when columns lack histograms.</li>
+<li><strong>Bias</strong>: join selectivity estimation assumes uniform distribution. Real data is Zipfian (a few users do 100× the activity of the median).</li>
+<li><strong>AQE made it less necessary</strong>: at runtime, AQE has real shuffle statistics, which beats any plan-time estimate.</li>
+</ul>
+<h3 id="32-the-two-cases-where-cbo-actually-earns-its-keep">3.2 The two cases where CBO actually earns its keep</h3>
+<ol>
+<li><strong>Star schema join reordering</strong>: building a left-deep join tree that probes the smallest dimension first. Makes a measurable difference at 10+ joins.</li>
+<li><strong>Choosing broadcast for a reasonably-sized dimension</strong>: if the stats say the dimension is 50 MB and <code>spark.sql.autoBroadcastJoinThreshold = 100 MB</code>, CBO chooses BHJ pre-AQE.</li>
+</ol>
+<h3 id="33-what-to-run">3.3 What to run</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">ANALYZE</span> <span class="kw">TABLE</span> silver.dim_title <span class="kw">COMPUTE</span> <span class="kw">STATISTICS</span>;</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="kw">ANALYZE</span> <span class="kw">TABLE</span> silver.dim_title <span class="kw">COMPUTE</span> <span class="kw">STATISTICS</span> <span class="cf">FOR</span> <span class="kw">COLUMNS</span> title_id, genre;</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a><span class="kw">ANALYZE</span> <span class="kw">TABLE</span> silver.dim_title <span class="kw">COMPUTE</span> <span class="kw">STATISTICS</span> <span class="cf">FOR</span> <span class="kw">ALL</span> <span class="kw">COLUMNS</span>;</span></code></pre></div>
+<p>For partitioned tables you can also do <code>FOR COLUMNS ... PARTITION (event_date='2026-04-15')</code>.</p>
+<hr />
+<p><a id="aqe"></a></p>
+<h2 id="4-adaptive-query-execution-aqe-the-runtime-re-planner">4. Adaptive Query Execution (AQE): the runtime re-planner</h2>
+<p><strong>AQE is the single most important Spark performance feature of the last five years.</strong> It flips the model from "compile once, execute" to "compile stage-by-stage, with real statistics from the previous stage's shuffle".</p>
+<p>Enabled by default in Spark 3.2+:</p>
+<pre><code>spark.sql.adaptive.enabled = true
+</code></pre>
+<h3 id="41-what-aqe-actually-does">4.1 What AQE actually does</h3>
+<p>AQE splits execution at <strong>materialization barriers</strong> (shuffle, broadcast exchange). After each barrier, it:</p>
+<ol>
+<li>Reads the actual shuffle map output sizes (per partition).</li>
+<li>Re-optimizes the remainder of the plan with those real numbers.</li>
+<li>Executes the next stage.</li>
+</ol>
+<p>The three main AQE rules:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Rule</th>
+<th>What it does</th>
+<th>Key config</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Coalesce Shuffle Partitions</strong></td>
+<td>merges small post-shuffle partitions into fewer, larger ones (reduces task overhead)</td>
+<td><code>spark.sql.adaptive.coalescePartitions.enabled=true</code>, <code>spark.sql.adaptive.advisoryPartitionSizeInBytes=64MB</code></td>
+</tr>
+<tr class="even">
+<td><strong>Skew Join Handling</strong></td>
+<td>detects skewed partitions, splits them across multiple tasks</td>
+<td><code>spark.sql.adaptive.skewJoin.enabled=true</code>, <code>skewedPartitionFactor=5.0</code>, <code>skewedPartitionThresholdInBytes=256MB</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Dynamic Join Strategy</strong></td>
+<td>converts a planned SMJ to a BHJ at runtime if one side turned out small</td>
+<td><code>spark.sql.adaptive.localShuffleReader.enabled=true</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-the-coalesce-algorithm">4.2 The coalesce algorithm</h3>
+<p>Before AQE: you set <code>spark.sql.shuffle.partitions=200</code> globally. After a selective filter, you might have 200 tiny partitions of 5 MB each and 200 tasks of overhead. Waste.</p>
+<p>AQE algorithm (simplified):</p>
+<pre><code>target_bytes = advisoryPartitionSizeInBytes  # e.g. 64 MB
+sorted_partitions = sort_by_size(shuffle_map_output)
+groups = []
+current = []
+current_size = 0
+for p in sorted_partitions:
+    if current_size + p.size &gt; target_bytes and current:
+        groups.append(current)
+        current, current_size = [], 0
+    current.append(p)
+    current_size += p.size
+if current: groups.append(current)
+# Each group becomes one reduce task reading contiguous map output
+</code></pre>
+<p>Result: ~the right number of tasks at the right size, without user tuning.</p>
+<h3 id="43-the-skew-handling-algorithm">4.3 The skew handling algorithm</h3>
+<p>Detection:</p>
+<pre><code>median_size = median(partition_sizes)
+is_skewed(p) = p.size &gt; median_size * skewedPartitionFactor
+               AND p.size &gt; skewedPartitionThresholdInBytes
+</code></pre>
+<p>Split: AQE reads the skewed partition in <code>ceil(p.size / advisoryPartitionSizeInBytes)</code> sub-tasks, each doing a streaming join against the full (small) other side.</p>
+<p>Trade-off: the "other side" is read once per sub-task — so skew handling only helps when the skewed side is much larger than the other. AQE is conservative: it won't split if the cost is worse.</p>
+<h3 id="44-dynamic-join-strategy-conversion">4.4 Dynamic join strategy conversion</h3>
+<p>The plan said SMJ, but after filter and aggregation one side's shuffle output is 40 MB (under broadcast threshold). AQE converts to <strong>Broadcast Hash Join using the shuffle map output as the broadcast table</strong> — cheaper than re-reading the source.</p>
+<h3 id="45-verifying-aqe-fired">4.5 Verifying AQE fired</h3>
+<p>In Spark UI, the SQL tab shows the <strong>Initial Plan</strong> and the <strong>Final Plan</strong> after AQE. Look for <code>AdaptiveSparkPlan</code> wrapper nodes and <code>CustomShuffleReader</code> with <code>coalesced</code> / <code>skewed</code> indicators.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>df.explain(mode<span class="op">=</span><span class="st">&quot;formatted&quot;</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="co"># post-execution to see AQE&#39;s final plan:</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>spark.sparkContext.uiWebUrl  <span class="co"># browse to SQL tab</span></span></code></pre></div>
+<h3 id="46-when-to-turn-aqe-off-rare">4.6 When to turn AQE off (rare)</h3>
+<ul>
+<li>Very small queries where re-optimization adds measurable latency (streaming, sub-second).</li>
+<li>Determinism tests where you need plan stability.</li>
+<li>Broken UDFs that crash when the number of partitions changes.</li>
+</ul>
+<p>Otherwise: leave it on.</p>
+<hr />
+<p><a id="shuffle"></a></p>
+<h2 id="5-shuffle-the-disk-and-network-truth">5. Shuffle: the disk-and-network truth</h2>
+<p>Shuffle is the single biggest cost in any non-trivial Spark job. Understanding exactly what happens buys you a lot of optimization.</p>
+<h3 id="51-the-shuffle-lifecycle">5.1 The shuffle lifecycle</h3>
+<p>Consider a stage boundary like <code>GROUP BY user_id</code>:</p>
+<pre><code>[Map Stage]                     [Shuffle]                       [Reduce Stage]
+ Task 1 ──► writes 200 files     Block manager + ESS             Task 1 ──► reads 1 block
+ Task 2 ──► writes 200 files     advertises locations            Task 2 ──► reads 1 block
+ ...                             to driver                       ...
+ Task M ──► writes 200 files                                     Task N ──► reads 1 block
+
+Each map task writes N files (one per reducer).
+Total files on disk: M × N (for sort-based shuffle: M × 1 file + M index files)
+</code></pre>
+<p>Modern Spark uses <strong>sort-based shuffle</strong> (<code>SortShuffleManager</code>):</p>
+<ol>
+<li>Map task partitions output by <code>partitioner(key)</code> → reducer ID.</li>
+<li>Inserts records into an in-memory buffer, sorted by (partition_id, key).</li>
+<li>When buffer full: spills to disk as a sorted file.</li>
+<li>At end of map task: merges all spill files into ONE data file + ONE index file.</li>
+<li>Index file: N entries, each an (offset, length) for reducer R's block.</li>
+</ol>
+<h3 id="52-the-external-shuffle-service-ess">5.2 The External Shuffle Service (ESS)</h3>
+<p>By default, map outputs live in the executor's local disk. If the executor dies, reduce tasks can't fetch their blocks — they have to be recomputed. With dynamic allocation, executors die routinely.</p>
+<p>The <strong>External Shuffle Service (ESS)</strong> is a long-running process per NodeManager (or K8s daemonset) that serves shuffle blocks independently of executor lifecycle. Executors <em>write</em> shuffle files locally, but the ESS <em>reads and serves</em> them to reduce tasks.</p>
+<pre><code>spark.shuffle.service.enabled = true  # enables ESS
+spark.dynamicAllocation.enabled = true  # now safe to dynamically scale executors
+</code></pre>
+<h3 id="53-push-based-shuffle-magnet--spark-32">5.3 Push-based shuffle (Magnet — Spark 3.2+)</h3>
+<p><strong>Problem</strong>: the fetch side of shuffle is N reducers × M mappers = random-I/O storm on the ESS disk.</p>
+<p><strong>Solution</strong>: Magnet pushes mapper output to pre-assigned merger nodes as soon as map tasks finish. The reducer fetches ONE pre-merged block per partition instead of M small blocks.</p>
+<pre><code>spark.shuffle.push.enabled = true
+spark.shuffle.push.server.mergedShuffleFileManagerImpl = ...
+</code></pre>
+<p>Benefit: sequential reads on ESS, typically 2–3× faster shuffle read for large jobs.</p>
+<h3 id="54-shuffle-size-math">5.4 Shuffle size math</h3>
+<p>For a job with:</p>
+<ul>
+<li><code>M</code> map tasks (input partitions)</li>
+<li><code>N</code> reducer tasks (<code>spark.sql.shuffle.partitions</code>)</li>
+<li><code>D</code> bytes of shuffled data</li>
+</ul>
+<p>Network transfer: <code>D</code> bytes (all must cross the network).
+Disk writes (map side): <code>D</code> bytes.
+Disk reads (reduce side): <code>D</code> bytes.
+Number of fetch connections (without push-based): <code>M × N</code> (tiny messages hurt).</p>
+<p>Common mistake: setting <code>spark.sql.shuffle.partitions</code> too high. If <code>D = 10 GB</code> and <code>N = 1000</code>, each partition is 10 MB — fine. If <code>N = 10000</code>, each is 1 MB — task overhead dominates. Target: <code>advisoryPartitionSizeInBytes = 64–128 MB</code>.</p>
+<h3 id="55-shuffle-on-object-storage--the-netflix--emr-pattern">5.5 Shuffle on object storage — the Netflix / EMR pattern</h3>
+<p>On-prem: local NVMe disks + ESS. Cloud: executors are ephemeral, local disks are tiny.</p>
+<p>Options:</p>
+<ul>
+<li><strong>EMR on EBS</strong>: local but slower; ESS works fine.</li>
+<li><strong>Shuffle plugins</strong> that write to S3 (Celeborn, Uniffle, Apache Spark SS on S3): decouples shuffle from executors entirely. Slower per-byte, but enables spot instances / fast scale-down.</li>
+<li><strong>Remote shuffle service</strong> (RSS): Celeborn (formerly Aliyun/RSS), Uber's Uniffle. Now dominant at large shops.</li>
+</ul>
+<hr />
+<p><a id="joins"></a></p>
+<h2 id="6-join-algorithms-with-real-math-bhj-smj-shj-bnlj">6. Join algorithms with real math: BHJ, SMJ, SHJ, BNLJ</h2>
+<p>Spark has four join strategies. Catalyst's planner chooses one based on hints, statistics, and sizes. Know the decision tree and its failure modes.</p>
+<h3 id="61-decision-tree-simplified">6.1 Decision tree (simplified)</h3>
+<pre><code>if user hint &quot;broadcast(small)&quot;:  → BroadcastHashJoin
+elif one side &lt; spark.sql.autoBroadcastJoinThreshold (default 10 MB):  → BHJ
+elif one side fits in memory and has less rows (estimated):  → ShuffledHashJoin (rare)
+elif keys sortable:  → SortMergeJoin
+else:  → BroadcastNestedLoopJoin  (correctness last resort)
+</code></pre>
+<h3 id="62-broadcast-hash-join-bhj">6.2 Broadcast Hash Join (BHJ)</h3>
+<p><strong>Cost</strong>: <code>O(|large|)</code> per executor. Broadcast cost: <code>driver-collect |small| + fan-out |small| to each executor</code>.</p>
+<p><strong>How it works</strong>:</p>
+<ol>
+<li>Driver collects small side (<code>collect()</code> over RDD) into a <code>HashedRelation</code>.</li>
+<li>Broadcast via Spark's torrent-based broadcast.</li>
+<li>Each executor joins its slice of the large side by probing the hash table.</li>
+<li><strong>No shuffle</strong>.</li>
+</ol>
+<p><strong>Math</strong>:</p>
+<ul>
+<li>Driver memory: <code>|small|</code>. Rule of thumb: the broadcast table is ~3× larger in driver memory than the raw Parquet size (decompressed, Java object overhead).</li>
+<li>Executor memory: same <code>|small|</code> on every executor.</li>
+<li>Network: <code>|small| × #executors</code>.</li>
+</ul>
+<p><strong>When it breaks</strong>:</p>
+<ul>
+<li>Driver OOM at <code>collect()</code>.</li>
+<li><code>spark.driver.maxResultSize</code> (default 1 GB) too small.</li>
+<li>Skewed small side's hash table too big per executor when bumped beyond the default 10 MB limit.</li>
+</ul>
+<p><strong>Tuning</strong>:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a>spark.conf.<span class="bu">set</span>(<span class="st">&quot;spark.sql.autoBroadcastJoinThreshold&quot;</span>, <span class="st">&quot;100MB&quot;</span>)  <span class="co"># raise with care</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a><span class="co"># Or hint:</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> broadcast</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>large.join(broadcast(small), <span class="st">&quot;user_id&quot;</span>)</span></code></pre></div>
+<h3 id="63-sort-merge-join-smj">6.3 Sort-Merge Join (SMJ)</h3>
+<p><strong>Cost</strong>: <code>O(|L| log|L| + |R| log|R|)</code> for the shuffle sort; merge itself is <code>O(|L| + |R|)</code>.</p>
+<p><strong>How it works</strong>:</p>
+<ol>
+<li>Both sides shuffled by join key.</li>
+<li>Within each partition, sorted by join key.</li>
+<li>Two pointers walk the sorted streams and emit matches.</li>
+</ol>
+<p><strong>Math</strong>:</p>
+<ul>
+<li>Memory: bounded (sort-based merge is streaming after the sort).</li>
+<li>Disk: both sides are sorted → spills possible during sort.</li>
+<li>Network: shuffle both sides = <code>|L| + |R|</code>.</li>
+</ul>
+<p><strong>Why it's the default for large-large joins</strong>: predictable memory behavior, handles arbitrary size.</p>
+<h3 id="64-shuffled-hash-join-shj">6.4 Shuffled Hash Join (SHJ)</h3>
+<p>Both sides shuffled, then one side built into an in-memory hash table per partition.</p>
+<p><strong>When chosen</strong>:</p>
+<ul>
+<li>CBO thinks the build side fits in memory.</li>
+<li><code>spark.sql.join.preferSortMergeJoin=false</code> (default <code>true</code> in most Spark versions — SHJ is disabled by default because it can OOM).</li>
+</ul>
+<p><strong>Use case</strong>: one medium-sized side that fits in executor memory but is too big to broadcast.</p>
+<h3 id="65-broadcast-nested-loop-join-bnlj">6.5 Broadcast Nested-Loop Join (BNLJ)</h3>
+<p>Fallback for non-equijoin conditions (<code>ON a.x &lt; b.y</code>). Cartesian by default, filtered.</p>
+<p><strong>Cost</strong>: <code>O(|L| × |R|)</code>.</p>
+<p>If you see BNLJ in a plan and you didn't intend a cross join, <strong>fix the query</strong>. Rewrite inequality joins as range joins or pre-filter.</p>
+<h3 id="66-join-types--strategies--whats-supported">6.6 Join types × strategies — what's supported</h3>
+<p>Not every strategy supports every join type. INNER, LEFT OUTER, RIGHT OUTER are universal. FULL OUTER needs SMJ (or BHJ with specific conditions). LEFT SEMI / LEFT ANTI are universal. The EXPLAIN tells you what Catalyst picked:</p>
+<pre><code>*(3) BroadcastHashJoin [user_id#1], [user_id#10], Inner, BuildRight
+*(4) SortMergeJoin [user_id#1], [user_id#10], Inner
+*(5) ShuffledHashJoin [user_id#1], [user_id#10], Inner, BuildLeft
+</code></pre>
+<hr />
+<p><a id="skew"></a></p>
+<h2 id="7-skew-detection-splitting-salting-aqe-handling">7. Skew: detection, splitting, salting, AQE handling</h2>
+<p>Data skew kills Spark jobs. Here's how to detect and mitigate, in order of sophistication.</p>
+<h3 id="71-detecting-skew">7.1 Detecting skew</h3>
+<p><strong>Symptoms in the Spark UI</strong>:</p>
+<ul>
+<li>One task in a stage takes 10× the median duration.</li>
+<li>GC Time column shows 50%+ on the slow task.</li>
+<li>Shuffle Read Size shows a massive outlier partition.</li>
+</ul>
+<p><strong>Programmatic check</strong> before the job:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> col, count, percentile_approx</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>skew_check <span class="op">=</span> (df.groupBy(<span class="st">&quot;join_key&quot;</span>)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a>              .count()</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a>              .selectExpr(<span class="st">&quot;percentile_approx(count, 0.50) as p50&quot;</span>,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a>                          <span class="st">&quot;percentile_approx(count, 0.99) as p99&quot;</span>,</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a>                          <span class="st">&quot;max(count) as max&quot;</span>))</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true"></a>skew_check.show()</span></code></pre></div>
+<p>If <code>p99 / p50 &gt; 5</code> you have skew.</p>
+<h3 id="72-aqe-skew-handling-the-easy-fix">7.2 AQE skew handling (the easy fix)</h3>
+<p>With <code>spark.sql.adaptive.skewJoin.enabled=true</code>, AQE splits any partition that's:</p>
+<ul>
+<li><code>&gt; skewedPartitionFactor × median</code> (default 5.0), AND</li>
+<li><code>&gt; skewedPartitionThresholdInBytes</code> (default 256 MB)</li>
+</ul>
+<p>This handles ~80% of skew cases without code changes.</p>
+<p>Where it <em>doesn't</em> help: pre-shuffle skew (one input file is enormous), or non-join skew (GROUP BY on a skewed key).</p>
+<h3 id="73-salting">7.3 Salting</h3>
+<p>When AQE isn't enough — most commonly, aggregations on a skewed key:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> col, concat, lit, floor, rand, expr</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a><span class="co"># Step 1: add a salt to the skewed key on the large side</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a>salt_factor <span class="op">=</span> <span class="dv">100</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a>salted <span class="op">=</span> df.withColumn(<span class="st">&quot;salt&quot;</span>, floor(rand() <span class="op">*</span> salt_factor)) <span class="op">\</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a>           .withColumn(<span class="st">&quot;key_salted&quot;</span>, concat(col(<span class="st">&quot;user_id&quot;</span>), lit(<span class="st">&quot;_&quot;</span>), col(<span class="st">&quot;salt&quot;</span>)))</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a><span class="co"># Step 2: explode the small side (cross join with salts)</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a>small_exploded <span class="op">=</span> small_df.crossJoin(</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a>    spark.<span class="bu">range</span>(salt_factor).toDF(<span class="st">&quot;salt&quot;</span>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a>).withColumn(<span class="st">&quot;key_salted&quot;</span>, concat(col(<span class="st">&quot;user_id&quot;</span>), lit(<span class="st">&quot;_&quot;</span>), col(<span class="st">&quot;salt&quot;</span>)))</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a><span class="co"># Step 3: join on the salted key</span></span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true"></a>joined <span class="op">=</span> salted.join(small_exploded, <span class="st">&quot;key_salted&quot;</span>)</span></code></pre></div>
+<p>Cost: small side grows by <code>salt_factor</code>. Works when small side is truly small.</p>
+<h3 id="74-two-stage-aggregation-for-group-by-skew">7.4 Two-stage aggregation (for GROUP BY skew)</h3>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a><span class="co"># Stage 1: pre-aggregate with salt</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>stage1 <span class="op">=</span> (df.withColumn(<span class="st">&quot;salt&quot;</span>, floor(rand() <span class="op">*</span> <span class="dv">100</span>))</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a>          .groupBy(<span class="st">&quot;user_id&quot;</span>, <span class="st">&quot;salt&quot;</span>)</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true"></a>          .agg(<span class="bu">sum</span>(<span class="st">&quot;amount&quot;</span>).alias(<span class="st">&quot;sum_amt&quot;</span>)))</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true"></a></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true"></a><span class="co"># Stage 2: final aggregate without salt</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true"></a>stage2 <span class="op">=</span> stage1.groupBy(<span class="st">&quot;user_id&quot;</span>).agg(<span class="bu">sum</span>(<span class="st">&quot;sum_amt&quot;</span>).alias(<span class="st">&quot;total&quot;</span>))</span></code></pre></div>
+<p>Math: stage 1 shuffles with <code>100 × N</code> distinct keys (uniformly distributed). Stage 2 shuffles a tiny pre-aggregated dataset.</p>
+<h3 id="75-isolating-the-heavy-hitters">7.5 Isolating the heavy hitters</h3>
+<p>For extreme skew (one key = 99% of data), split the query:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a>heavy <span class="op">=</span> df.<span class="bu">filter</span>(col(<span class="st">&quot;user_id&quot;</span>) <span class="op">==</span> <span class="st">&quot;netflix_test_account&quot;</span>)   <span class="co"># process separately</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a>normal <span class="op">=</span> df.<span class="bu">filter</span>(col(<span class="st">&quot;user_id&quot;</span>) <span class="op">!=</span> <span class="st">&quot;netflix_test_account&quot;</span>)  <span class="co"># normal join</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a><span class="co"># union at the end</span></span></code></pre></div>
+<hr />
+<p><a id="tungsten"></a></p>
+<h2 id="8-tungsten-off-heap-memory-unsaferow-codegen">8. Tungsten: off-heap memory, UnsafeRow, codegen</h2>
+<p>Tungsten is Spark's execution engine rewritten (circa 2015) to eliminate JVM overhead. Three pillars:</p>
+<ol>
+<li><strong>Off-heap memory</strong> via <code>sun.misc.Unsafe</code> — Spark manages raw byte arrays outside the JVM heap.</li>
+<li><strong>UnsafeRow</strong> — binary row format with direct memory offsets (no Java object per field).</li>
+<li><strong>Whole-stage codegen</strong> — generate Java bytecode at runtime that fuses multiple operators into one tight loop.</li>
+</ol>
+<h3 id="81-unsaferow-layout">8.1 UnsafeRow layout</h3>
+<p>A normal Java <code>Row</code> of 10 fields = 10 boxed objects + header overhead = ~200 bytes. <code>UnsafeRow</code> for the same row = ~80 bytes packed.</p>
+<pre><code>+------------------+-----------------+------------------+
+| Null bit set     | Fixed-width     | Variable-length  |
+| (ceil(N/64) × 8) | (8 bytes each)  | (strings, etc.)  |
++------------------+-----------------+------------------+
+</code></pre>
+<p>Field access = pointer arithmetic (O(1), no indirection). Enables SIMD-friendly loops.</p>
+<h3 id="82-whole-stage-codegen">8.2 Whole-stage codegen</h3>
+<p>For a query like <code>SELECT col1 + col2 FROM t WHERE col3 &gt; 10</code>, Catalyst generates code equivalent to:</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="kw">while</span> (iter.<span class="fu">hasNext</span>()) {</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a>  UnsafeRow row = iter.<span class="fu">next</span>();</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a>  <span class="dt">int</span> col3 = row.<span class="fu">getInt</span>(<span class="dv">2</span>);</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a>  <span class="kw">if</span> (col3 &gt; <span class="dv">10</span>) {</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a>    <span class="dt">int</span> col1 = row.<span class="fu">getInt</span>(<span class="dv">0</span>);</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a>    <span class="dt">int</span> col2 = row.<span class="fu">getInt</span>(<span class="dv">1</span>);</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a>    <span class="dt">int</span> result = col1 + col2;</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a>    outputBuffer.<span class="fu">putInt</span>(result);</span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true"></a>  }</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true"></a>}</span></code></pre></div>
+<p>Instead of an operator tree walking row-by-row with virtual calls, it's one JIT-inlineable hot loop. 2–5× throughput on CPU-bound queries.</p>
+<p>Recognize codegen stages in <code>EXPLAIN</code>: operators prefixed with <code>*</code> like <code>*(2) Filter</code>.</p>
+<h3 id="83-when-codegen-doesnt-kick-in">8.3 When codegen doesn't kick in</h3>
+<ul>
+<li>Operator not supported (some UDFs, complex window specs).</li>
+<li>Too many operators in a stage: Spark falls back at ~8000 lines of generated code.</li>
+<li>Disabled explicitly: <code>spark.sql.codegen.wholeStage=false</code>.</li>
+</ul>
+<hr />
+<p><a id="memory"></a></p>
+<h2 id="9-memory-model-execution-storage-user-reserved">9. Memory model: execution, storage, user, reserved</h2>
+<p>Spark's unified memory model (since 1.6). Each executor's heap is partitioned as:</p>
+<pre><code>Total heap:
+┌─────────────────────────────────────────────────────────────┐
+│ Reserved (300 MB hardcoded)                                 │
+├─────────────────────────────────────────────────────────────┤
+│ Spark Memory = (heap - 300MB) × spark.memory.fraction (0.6) │
+│ ┌──────────────────────────────┬────────────────────────┐   │
+│ │ Execution                    │ Storage                │   │
+│ │ (shuffle, joins, aggregates) │ (cache, broadcast)     │   │
+│ │                              │                        │   │
+│ │ ←── can borrow from Storage ──── can borrow from Exec │   │
+│ └──────────────────────────────┴────────────────────────┘   │
+│  spark.memory.storageFraction = 0.5 (initial boundary)      │
+├─────────────────────────────────────────────────────────────┤
+│ User Memory = (heap - 300MB) × (1 - 0.6) = 40% default      │
+│ (user data structures in custom UDFs)                       │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>Execution</strong> borrows from Storage freely (evicts cached blocks). <strong>Storage</strong> borrows from Execution only if unused. Execution wins in conflicts.</p>
+<h3 id="91-off-heap-memory">9.1 Off-heap memory</h3>
+<pre><code>spark.memory.offHeap.enabled = true
+spark.memory.offHeap.size = 4g
+</code></pre>
+<p>Tungsten uses this pool for managed binary data. Adds to executor's container memory request but doesn't contribute to GC pressure. Use when GC is dominant (&gt; 10% of task time).</p>
+<h3 id="92-the-oom-debugging-flowchart">9.2 The OOM debugging flowchart</h3>
+<p>When an executor OOMs, check in order:</p>
+<ol>
+<li><strong>Container OOM killed by YARN/K8s (exit code 137 or 143)</strong>: total container &gt; request. Increase <code>spark.executor.memoryOverhead</code> (default max(384 MB, 10% of heap) — often too small for Python/Arrow).</li>
+<li><strong>Java heap OOM</strong>: dump heap and inspect. Usually one of:
+<ul>
+<li>Large broadcast.</li>
+<li>Skewed partition needing to fit in hash table.</li>
+<li>Cached data too large.</li>
+</ul></li>
+<li><strong>GC overhead OOM</strong>: &gt;98% time in GC. Almost always skew or over-cached state. Enable off-heap, increase <code>spark.memory.fraction</code> to 0.7.</li>
+</ol>
+<h3 id="93-memoryoverhead-gotcha">9.3 memoryOverhead gotcha</h3>
+<p>Python Pandas UDFs, Arrow, native code (Parquet writer) all use off-heap container memory. If you see <code>Container killed by YARN for exceeding memory limits</code>, your overhead is too low.</p>
+<p>Rule of thumb: <strong>overhead = 20–30% of executor memory for PySpark jobs with Pandas UDFs</strong>.</p>
+<hr />
+<p><a id="partitioning"></a></p>
+<h2 id="10-partitioning-coalesce-repartition--when-each-is-wrong">10. Partitioning, coalesce, repartition — when each is wrong</h2>
+<ul>
+<li><code>repartition(n)</code>: full shuffle, round-robin to n partitions. Use when entering a stage and you need more parallelism or a rebalance.</li>
+<li><code>repartition(n, col)</code>: shuffle by hash of <code>col</code> to <code>n</code> partitions. Use before a window or GROUP BY if you know the keys are safe.</li>
+<li><code>coalesce(n)</code>: narrow transformation, merges existing partitions WITHOUT a shuffle. <code>n</code> must be ≤ current partition count. Use before writing out files.</li>
+<li><code>repartitionByRange(n, col)</code>: sampling + range-partitioner for ordered output. Use for sort-merge joins you need to control manually, or for writing out sorted files.</li>
+</ul>
+<h3 id="101-the-classic-mistake">10.1 The classic mistake</h3>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a>df.<span class="bu">filter</span>(<span class="st">&quot;event_date = &#39;2026-04-15&#39;&quot;</span>).coalesce(<span class="dv">1</span>).write.parquet(...)</span></code></pre></div>
+<p>You intended one output file. You got: the <strong>entire read + filter</strong> runs on one executor because <code>coalesce</code> propagates upward. This turns a 10-node job into a 1-node job.</p>
+<p>Correct:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a>df.<span class="bu">filter</span>(<span class="st">&quot;event_date = &#39;2026-04-15&#39;&quot;</span>).repartition(<span class="dv">1</span>).write.parquet(...)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a><span class="co"># OR (better): let AQE coalesce, and use `maxRecordsPerFile`</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a>df.<span class="bu">filter</span>(...).write.option(<span class="st">&quot;maxRecordsPerFile&quot;</span>, <span class="dv">1_000_000</span>).parquet(...)</span></code></pre></div>
+<h3 id="102-writing-files--controlling-output-count">10.2 Writing files — controlling output count</h3>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a>(df.repartition(<span class="dv">200</span>, <span class="st">&quot;event_date&quot;</span>)</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a>   .sortWithinPartitions(<span class="st">&quot;event_date&quot;</span>, <span class="st">&quot;user_id&quot;</span>)</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a>   .write</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true"></a>   .partitionBy(<span class="st">&quot;event_date&quot;</span>)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true"></a>   .option(<span class="st">&quot;maxRecordsPerFile&quot;</span>, <span class="dv">5_000_000</span>)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true"></a>   .parquet(path))</span></code></pre></div>
+<ul>
+<li><code>repartition(200, "event_date")</code>: co-locates all records for a given date in the same task.</li>
+<li><code>sortWithinPartitions</code>: improves Parquet stats and row-group pruning.</li>
+<li><code>partitionBy</code> at write time: one directory per date.</li>
+<li><code>maxRecordsPerFile</code>: bounds each file's size.</li>
+</ul>
+<hr />
+<p><a id="broadcast"></a></p>
+<h2 id="11-broadcast-internals-why-10-mb-default-and-how-to-push-it">11. Broadcast internals: why 10 MB default and how to push it</h2>
+<h3 id="111-the-broadcast-lifecycle">11.1 The broadcast lifecycle</h3>
+<ol>
+<li>Driver <code>collect()</code>s the small side into <code>HashedRelation</code>.</li>
+<li>Serializes it (Kryo typically).</li>
+<li>Publishes to <code>BlockManager</code> with <code>BroadcastBlockId</code>.</li>
+<li>TorrentBroadcast: executors fetch pieces (~4 MB each) from each other and the driver, BitTorrent-style. Reduces driver egress.</li>
+<li>Each executor caches the broadcast. Join task probes the hash table locally.</li>
+</ol>
+<h3 id="112-why-10-mb-default">11.2 Why 10 MB default</h3>
+<ul>
+<li>Driver memory safety: <code>collect()</code> must not OOM the driver.</li>
+<li>Network: pushing <code>|small|</code> to N executors costs <code>|small| × N</code> bytes of driver egress before torrenting kicks in.</li>
+<li>Executor memory: every executor holds a copy.</li>
+</ul>
+<h3 id="113-raising-the-threshold-safely">11.3 Raising the threshold safely</h3>
+<p>Know your cluster. If:</p>
+<ul>
+<li>Driver has ≥ 8 GB and can comfortably collect the side,</li>
+<li>Executors have ≥ 8 GB,</li>
+<li>There are ≥ 50 executors so the benefit is large,</li>
+</ul>
+<p>then:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a>spark.conf.<span class="bu">set</span>(<span class="st">&quot;spark.sql.autoBroadcastJoinThreshold&quot;</span>, <span class="st">&quot;200MB&quot;</span>)</span></code></pre></div>
+<p>Also set <code>spark.driver.maxResultSize</code> appropriately.</p>
+<p>Hint instead of global:</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> broadcast</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a>fact.join(broadcast(dim), <span class="st">&quot;key&quot;</span>)</span></code></pre></div>
+<h3 id="114-broadcast-gotchas">11.4 Broadcast gotchas</h3>
+<ul>
+<li><strong>Stale broadcast</strong>: a dataset that's borderline 10 MB might grow past the threshold at runtime (old stats). AQE handles this; pre-AQE it fails.</li>
+<li><strong>Collect-time timeout</strong>: <code>spark.sql.broadcastTimeout</code> (default 300s). Bump for slow sources.</li>
+<li><strong>Driver OOM on repeated broadcasts</strong>: long-running jobs that broadcast inside a loop can retain references.</li>
+</ul>
+<hr />
+<p><a id="pandas-udf"></a></p>
+<h2 id="12-pandas-udfs-arrow-and-the-jvmpython-boundary">12. Pandas UDFs, Arrow, and the JVM↔︎Python boundary</h2>
+<p>A regular Python UDF serializes each row JVM → Python → JVM, one at a time. Throughput: ~10K rows/sec per executor. Terrible.</p>
+<p><strong>Pandas UDFs (vectorized UDFs)</strong> ship batches of rows via <strong>Apache Arrow</strong> zero-copy buffers. Throughput: ~1M rows/sec per executor. Essential.</p>
+<h3 id="121-types-of-pandas-udfs">12.1 Types of Pandas UDFs</h3>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> pandas_udf</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.types <span class="im">import</span> DoubleType</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true"></a></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true"></a><span class="co"># 1. Series → Series (scalar)</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true"></a><span class="at">@pandas_udf</span>(DoubleType())</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true"></a><span class="kw">def</span> log1p_udf(s: pd.Series) <span class="op">-&gt;</span> pd.Series:</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true"></a>    <span class="cf">return</span> (s <span class="op">+</span> <span class="dv">1</span>).<span class="bu">map</span>(<span class="bu">float</span>).<span class="bu">map</span>(np.log)</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true"></a></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true"></a><span class="co"># 2. Iterator[Series] → Iterator[Series] (for heavy setup once per batch)</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true"></a><span class="at">@pandas_udf</span>(DoubleType())</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true"></a><span class="kw">def</span> model_score(iterator: Iterator[pd.Series]) <span class="op">-&gt;</span> Iterator[pd.Series]:</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true"></a>    model <span class="op">=</span> load_model_once()  <span class="co"># loaded per executor, not per batch</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true"></a>    <span class="cf">for</span> s <span class="kw">in</span> iterator:</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true"></a>        <span class="cf">yield</span> model.predict(s.values)</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true"></a></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true"></a><span class="co"># 3. Grouped Map (applyInPandas)</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true"></a><span class="kw">def</span> normalize(pdf: pd.DataFrame) <span class="op">-&gt;</span> pd.DataFrame:</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true"></a>    pdf[<span class="st">&quot;z&quot;</span>] <span class="op">=</span> (pdf[<span class="st">&quot;x&quot;</span>] <span class="op">-</span> pdf[<span class="st">&quot;x&quot;</span>].mean()) <span class="op">/</span> pdf[<span class="st">&quot;x&quot;</span>].std()</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true"></a>    <span class="cf">return</span> pdf</span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true"></a></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true"></a>df.groupBy(<span class="st">&quot;user_id&quot;</span>).applyInPandas(normalize, schema<span class="op">=</span><span class="st">&quot;user_id long, x double, z double&quot;</span>)</span></code></pre></div>
+<h3 id="122-the-arrow-boundary">12.2 The Arrow boundary</h3>
+<pre><code>JVM executor (scala)                 Python worker (child process)
++-----------------------+            +------------------------------+
+| UnsafeRow batch       |  socket    | Pandas DataFrame             |
+| → Arrow RecordBatch   |===pipe===&gt; | Pandas UDF applies           |
+|                       |  binary    | → Arrow RecordBatch back     |
+| ← Arrow RecordBatch   |&lt;==========  |                              |
++-----------------------+            +------------------------------+
+</code></pre>
+<p>Arrow's columnar representation maps directly to Pandas columns (zero copy for numeric types, small copy for strings).</p>
+<p>Config:</p>
+<pre><code>spark.sql.execution.arrow.pyspark.enabled = true
+spark.sql.execution.arrow.maxRecordsPerBatch = 10000  # tune for memory
+</code></pre>
+<h3 id="123-pandas-udf-gotchas">12.3 Pandas UDF gotchas</h3>
+<ul>
+<li><strong>Memory overhead</strong>: each Python worker holds a Pandas DataFrame in memory. If <code>maxRecordsPerBatch=10000</code> and rows are 1 KB, that's 10 MB per worker. Multiply by <code>spark.executor.cores</code> — it adds up. Increase <code>spark.executor.memoryOverhead</code> accordingly.</li>
+<li><strong>Python object columns</strong>: strings become Python <code>str</code> (object dtype in Pandas 1.x, StringArray in 2.x). <code>map()</code> over them reverts to Python loop → defeats the vectorization.</li>
+<li><strong>Schema mismatch</strong>: returning a DataFrame with different column order than the declared schema silently produces wrong data. Use <code>.applyInPandas</code> with explicit schema and test.</li>
+</ul>
+<hr />
+<p><a id="walkthrough"></a></p>
+<h2 id="13-writing-the-plan-diff-a-real-query-walkthrough">13. Writing the plan diff: a real query walkthrough</h2>
+<p>Consider the Netflix-shaped query: "For last 7 days, top 10 titles per country by completions".</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true"></a>completions <span class="op">=</span> (spark.table(<span class="st">&quot;silver.fact_playback_completion&quot;</span>)</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true"></a>               .<span class="bu">filter</span>(<span class="st">&quot;event_date &gt;= current_date() - INTERVAL 7 DAYS&quot;</span>))</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true"></a>dim_title <span class="op">=</span> spark.table(<span class="st">&quot;silver.dim_title&quot;</span>)</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true"></a>dim_country <span class="op">=</span> spark.table(<span class="st">&quot;silver.dim_country&quot;</span>)</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true"></a></span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true"></a>joined <span class="op">=</span> (completions</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true"></a>          .join(dim_title, <span class="st">&quot;title_id&quot;</span>)</span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true"></a>          .join(dim_country, <span class="st">&quot;country_id&quot;</span>))</span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true"></a></span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true"></a><span class="im">from</span> pyspark.sql <span class="im">import</span> Window</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> count, row_number, col</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true"></a></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true"></a>w <span class="op">=</span> Window.partitionBy(<span class="st">&quot;country_name&quot;</span>).orderBy(col(<span class="st">&quot;completions&quot;</span>).desc())</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true"></a></span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true"></a>top10 <span class="op">=</span> (joined</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true"></a>         .groupBy(<span class="st">&quot;country_name&quot;</span>, <span class="st">&quot;title_id&quot;</span>, <span class="st">&quot;title_name&quot;</span>)</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true"></a>         .agg(count(<span class="st">&quot;*&quot;</span>).alias(<span class="st">&quot;completions&quot;</span>))</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true"></a>         .withColumn(<span class="st">&quot;rn&quot;</span>, row_number().over(w))</span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true"></a>         .<span class="bu">filter</span>(<span class="st">&quot;rn &lt;= 10&quot;</span>))</span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true"></a></span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true"></a>top10.explain(mode<span class="op">=</span><span class="st">&quot;formatted&quot;</span>)</span></code></pre></div>
+<p>Expected optimized plan:</p>
+<pre><code>== Optimized Logical Plan ==
+Filter (rn &lt;= 10)
++- Window [row_number() OVER (PARTITION BY country_name ORDER BY completions DESC)]
+   +- Aggregate [country_name, title_id, title_name], [count(1) AS completions]
+      +- Project [country_name, title_id, title_name]
+         +- Join Inner, country_id = country_id
+            :- Join Inner, title_id = title_id
+            :  :- Filter (event_date &gt;= date_sub(current_date(), 7))
+            :  :  +- Relation silver.fact_playback_completion ...
+            :  +- Relation silver.dim_title ...
+            +- Relation silver.dim_country ...
+</code></pre>
+<p>Expected physical plan (with AQE):</p>
+<pre><code>== Physical Plan ==
+AdaptiveSparkPlan (isFinalPlan=true)
++- *(6) Filter (rn#5 &lt;= 10)
+   +- Window [row_number() windowspecdefinition(country_name#6, completions#7 DESC ...) AS rn#5]
+      +- *(5) Sort [country_name#6 ASC, completions#7 DESC]
+         +- ShuffleQueryStage (coalesced from 200 to 50)
+            +- Exchange hashpartitioning(country_name#6, 200)
+               +- *(4) HashAggregate(keys=[country_name#6, title_id#2, title_name#3], functions=[count(1)])
+                  +- Exchange hashpartitioning(country_name#6, title_id#2, title_name#3, 200)
+                     +- *(3) HashAggregate(keys=[country_name#6, title_id#2, title_name#3], functions=[partial_count(1)])
+                        +- *(3) Project [country_name#6, title_id#2, title_name#3]
+                           +- *(3) BroadcastHashJoin [country_id#4], [country_id#8], Inner
+                              :- *(3) Project [country_id#4, title_id#2, title_name#3]
+                              :  +- *(3) BroadcastHashJoin [title_id#1], [title_id#2], Inner
+                              :     :- *(3) Filter isnotnull(title_id#1)
+                              :     :  +- *(3) ColumnarToRow
+                              :     :     +- FileScan silver.fact_playback_completion
+                              :     :          PartitionFilters: [event_date &gt;= 2026-04-12]
+                              :     :          PushedFilters: [IsNotNull(title_id)]
+                              :     +- BroadcastExchange
+                              :        +- *(1) ColumnarToRow
+                              :           +- FileScan silver.dim_title
+                              +- BroadcastExchange
+                                 +- *(2) ColumnarToRow
+                                    +- FileScan silver.dim_country
+</code></pre>
+<p>Reading the plan top to bottom:</p>
+<ol>
+<li><strong>FileScan fact_playback_completion</strong> with <code>PartitionFilters</code> — directory pruning to last 7 days. Catalyst pushed the date filter to the partition key.</li>
+<li><strong>BroadcastExchange dim_title</strong> and <strong>BroadcastExchange dim_country</strong> — both dims are small, BHJ chosen.</li>
+<li><strong>Partial aggregate (*(3))</strong> per input partition: combines rows locally.</li>
+<li><strong>Exchange hashpartitioning</strong> on the group keys: 200 partitions (planned).</li>
+<li><strong>ShuffleQueryStage (coalesced from 200 to 50)</strong> — AQE merged post-shuffle partitions.</li>
+<li><strong>Final HashAggregate</strong>.</li>
+<li><strong>Exchange</strong> by <code>country_name</code> for the window.</li>
+<li><strong>Sort + Window</strong> for row_number.</li>
+<li><strong>Filter rn &lt;= 10</strong>.</li>
+</ol>
+<p>Failure modes to know:</p>
+<ul>
+<li><code>dim_title</code> grew over broadcast threshold → planner switches to SMJ → shuffle cost doubles. Watch it.</li>
+<li>If <code>event_date</code> filter uses a UDF like <code>date_trunc(event_date) &gt;= ...</code>, the partition filter doesn't push; you read all 7 × N files.</li>
+<li>If the aggregate keys are skewed, the final <code>HashAggregate</code> becomes the long tail.</li>
+</ul>
+<hr />
+<p><a id="configs"></a></p>
+<h2 id="14-configuration-cheat-sheet--what-each-knob-actually-does">14. Configuration cheat sheet — what each knob actually does</h2>
+<p>Only the ones worth knowing.</p>
+<h3 id="141-shuffle--aqe">14.1 Shuffle &amp; AQE</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Config</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>spark.sql.shuffle.partitions</code></td>
+<td>200</td>
+<td>Post-shuffle partitions. With AQE enabled, AQE coalesces — set this high (e.g. 1000) and let AQE merge.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.adaptive.enabled</code></td>
+<td>true (3.2+)</td>
+<td>Master AQE switch.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.adaptive.advisoryPartitionSizeInBytes</code></td>
+<td>64MB</td>
+<td>Target size for coalesced partitions. Raise to 128–256 MB on large clusters.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.adaptive.coalescePartitions.enabled</code></td>
+<td>true</td>
+<td>Enable partition coalescing.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.adaptive.skewJoin.enabled</code></td>
+<td>true</td>
+<td>Detect and split skewed join partitions.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.adaptive.skewJoin.skewedPartitionFactor</code></td>
+<td>5.0</td>
+<td>Partition is "skewed" if &gt; factor × median.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes</code></td>
+<td>256MB</td>
+<td>And absolute size &gt; this.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="142-join--broadcast">14.2 Join &amp; broadcast</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Config</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>spark.sql.autoBroadcastJoinThreshold</code></td>
+<td>10MB</td>
+<td>Side size below which BHJ is auto-selected.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.broadcastTimeout</code></td>
+<td>300s</td>
+<td><code>collect()</code> timeout for broadcast.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.join.preferSortMergeJoin</code></td>
+<td>true</td>
+<td>Prefer SMJ over SHJ when both are valid. Leave true.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="143-memory">14.3 Memory</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Config</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>spark.executor.memory</code></td>
+<td>—</td>
+<td>Heap per executor.</td>
+</tr>
+<tr class="even">
+<td><code>spark.executor.memoryOverhead</code></td>
+<td>max(384MB, 10% of heap)</td>
+<td>Off-heap container memory. Bump for PySpark/Arrow/RocksDB.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.memory.fraction</code></td>
+<td>0.6</td>
+<td>Fraction of (heap - 300 MB) for Spark.</td>
+</tr>
+<tr class="even">
+<td><code>spark.memory.storageFraction</code></td>
+<td>0.5</td>
+<td>Initial storage:execution ratio.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.memory.offHeap.enabled</code></td>
+<td>false</td>
+<td>Use off-heap for Tungsten.</td>
+</tr>
+<tr class="even">
+<td><code>spark.memory.offHeap.size</code></td>
+<td>0</td>
+<td>Size of off-heap pool.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="144-execution">14.4 Execution</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Config</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>spark.sql.files.maxPartitionBytes</code></td>
+<td>128MB</td>
+<td>Target size of each input split from file sources.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.files.openCostInBytes</code></td>
+<td>4MB</td>
+<td>Overhead cost of opening a file; favors combining small files.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.execution.arrow.pyspark.enabled</code></td>
+<td>true</td>
+<td>Arrow for Pandas UDF and <code>toPandas()</code>.</td>
+</tr>
+<tr class="even">
+<td><code>spark.sql.execution.arrow.maxRecordsPerBatch</code></td>
+<td>10000</td>
+<td>Rows per Arrow batch.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.sql.codegen.wholeStage</code></td>
+<td>true</td>
+<td>Whole-stage codegen. Turn off only to debug plans.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="145-dynamic-allocation">14.5 Dynamic allocation</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Config</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>spark.dynamicAllocation.enabled</code></td>
+<td>false</td>
+<td>Scale executors in/out with load.</td>
+</tr>
+<tr class="even">
+<td><code>spark.dynamicAllocation.minExecutors</code></td>
+<td>0</td>
+<td>Lower bound.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.dynamicAllocation.maxExecutors</code></td>
+<td>∞</td>
+<td>Upper bound.</td>
+</tr>
+<tr class="even">
+<td><code>spark.dynamicAllocation.executorIdleTimeout</code></td>
+<td>60s</td>
+<td>Release an idle executor after.</td>
+</tr>
+<tr class="odd">
+<td><code>spark.shuffle.service.enabled</code></td>
+<td>false</td>
+<td>Required for dynamic allocation (unless push-based shuffle or decommissioning).</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="closing-framework">Closing framework</h2>
+<p>Spark problems almost always sit in one of six buckets:</p>
+<ol>
+<li><strong>Plan is wrong</strong>: filter didn't push down, join is wrong strategy. → Fix query, add hints, update stats.</li>
+<li><strong>Partition count is wrong</strong>: too many tiny tasks or too few giant ones. → Let AQE coalesce; set advisory bytes.</li>
+<li><strong>Skew</strong>: one task is the long tail. → AQE skew handling, salting, split heavy hitters.</li>
+<li><strong>Shuffle is too big</strong>: try to eliminate it (broadcast), reduce it (pre-aggregate), or move it (RSS / push-based shuffle).</li>
+<li><strong>Memory</strong>: OOM, spill, GC thrash. → off-heap, overhead, reduce broadcast, check caching.</li>
+<li><strong>Driver</strong>: driver collecting too much. → <code>maxResultSize</code>, avoid <code>collect()</code>, use <code>toLocalIterator</code>.</li>
+</ol>
+<p>That framing survives every interview question and every 3am page.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="03-streaming-processing.html">← Part 03 · Streaming Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="05-sql-deep-dive.html">Part 05 · SQL Deep Dive →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 04</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/04-spark-internals.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

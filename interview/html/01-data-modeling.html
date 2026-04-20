@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Data Modeling — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 01 · Senior / L5 Data Engineering Reference</div>
+  <h1>Data Modeling</h1>
+  <p class="subhead">Bounded vs unbounded data shapes, Kimball/Inmon/Vault, SCD 0–7 with code, fact grain, OBT vs star, lakehouse modeling, NULL semantics, contract design.</p>
+  <div class="meta-strip">
+    <span>OLTP↔OLAP · Kimball · SCD · Vault · Lakehouse</span>
+    <span>~7,323 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="00-readme.html">← Index · Data Engineering Deep Dive — Index</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="02-batch-processing.html">Part 02 · Batch Processing →</a></nav>
+
+<main class="content">
+<p>The shape of your data at rest outlives every other choice. Code gets rewritten; schemas get migrated but never quite leave. This file goes deeper than "use a star schema" — it derives the decisions from first principles, shows the math that justifies them, and gives full DDL and MERGE patterns you can actually run.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-bounded-vs-unbounded-data-at-rest">Bounded vs Unbounded Data at Rest</a></li>
+<li><a href="#2-oltp-vs-olap--the-physical-reality">OLTP vs OLAP — The Physical Reality</a></li>
+<li><a href="#3-normalization-derived-from-functional-dependencies">Normalization Derived From Functional Dependencies</a></li>
+<li><a href="#4-dimensional-modeling--kimball-in-full">Dimensional Modeling — Kimball in Full</a></li>
+<li><a href="#5-fact-table-grain-the-most-important-decision">Fact Table Grain (The Most Important Decision)</a></li>
+<li><a href="#6-dimensions--conformed-junk-degenerate-mini-role-playing">Dimensions — Conformed, Junk, Degenerate, Mini, Role-Playing</a></li>
+<li><a href="#7-slowly-changing-dimensions--all-seven-types-with-code">Slowly Changing Dimensions — All Seven Types, with Code</a></li>
+<li><a href="#8-date--time-dimensions-done-right">Date &amp; Time Dimensions Done Right</a></li>
+<li><a href="#9-data-vault-20--when-and-why">Data Vault 2.0 — When and Why</a></li>
+<li><a href="#10-one-big-table--the-columnar-revolution">One Big Table &amp; the Columnar Revolution</a></li>
+<li><a href="#11-medallion-architecture-bronzesilvergold">Medallion Architecture (Bronze/Silver/Gold)</a></li>
+<li><a href="#12-null-semantics--the-silent-source-of-bugs">NULL Semantics — The Silent Source of Bugs</a></li>
+<li><a href="#13-data-contracts--schema-evolution">Data Contracts &amp; Schema Evolution</a></li>
+<li><a href="#14-modeling-checklist--anti-patterns">Modeling Checklist &amp; Anti-Patterns</a></li>
+</ol>
+<hr />
+<h2 id="1-bounded-vs-unbounded-data-at-rest">1. Bounded vs Unbounded Data at Rest</h2>
+<p>Before storage models, the underlying question: is the dataset <strong>bounded</strong> (finite, the end is known) or <strong>unbounded</strong> (arriving forever)?</p>
+<ul>
+<li><strong>Bounded at rest</strong>: a daily snapshot, a historical archive, a reference table. You can scan it, sort it, compute global aggregates, and re-derive it from source on demand.</li>
+<li><strong>Unbounded at rest</strong>: an append-only log of events where you're modeling "everything that ever happened." Storage grows forever. Queries must always constrain time.</li>
+</ul>
+<p>This distinction drives physical choices:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Aspect</th>
+<th>Bounded tables</th>
+<th>Unbounded tables</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Partitioning</td>
+<td>Optional, by category</td>
+<td><strong>Required</strong>, by time</td>
+</tr>
+<tr class="even">
+<td>Sort key</td>
+<td>By query predicate</td>
+<td>By time, always</td>
+</tr>
+<tr class="odd">
+<td>Vacuum policy</td>
+<td>Rare, small savings</td>
+<td>Aggressive — old partitions dropped or cold-tiered</td>
+</tr>
+<tr class="even">
+<td>Query pattern</td>
+<td>Full scans tolerable</td>
+<td>Must always include time bound</td>
+</tr>
+<tr class="odd">
+<td>Compaction</td>
+<td>Manual, when files accumulate</td>
+<td>Continuous or scheduled</td>
+</tr>
+</tbody>
+</table>
+<p>The engineering mistake is treating an unbounded stream-origin table as bounded — e.g., <code>SELECT COUNT(DISTINCT user_id) FROM events</code> without a <code>dt</code> filter. Over time this becomes unrunnable. Build guards into your table design (required partitions, partition-prune-or-fail settings like Snowflake's <code>REQUIRE_PARTITION_FILTER</code>, BigQuery's <code>require_partition_filter=TRUE</code>).</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="co">-- BigQuery: reject queries that don&#39;t filter on the partition column</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> playback.events_daily (</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>  event_ts      <span class="dt">TIMESTAMP</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>  user_id       STRING,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>  title_id      STRING,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>  watch_ms      INT64,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a>  dt            <span class="dt">DATE</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a>)</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a><span class="kw">PARTITION</span> <span class="kw">BY</span> dt</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true"></a>OPTIONS (</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true"></a>  require_partition_filter <span class="op">=</span> <span class="kw">TRUE</span>,</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true"></a>  partition_expiration_days <span class="op">=</span> <span class="dv">730</span>   <span class="co">-- auto-drop after 2 years</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true"></a>);</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true"></a></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true"></a><span class="co">-- Snowflake equivalent: rely on clustering + session param</span></span>
+<span id="cb1-16"><a href="#cb1-16" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">SESSION</span> <span class="kw">SET</span> QUERY_TAG <span class="op">=</span> <span class="st">&#39;enforce_partition_filter&#39;</span>;</span>
+<span id="cb1-17"><a href="#cb1-17" aria-hidden="true"></a><span class="co">-- Enforcement is done via resource monitors + query profiling, not DDL.</span></span></code></pre></div>
+<p>The unbounded nature also affects backfills. For a bounded dimension, "regenerate from source" is a few GB; for an unbounded fact, it's years of events.</p>
+<h2 id="2-oltp-vs-olap--the-physical-reality">2. OLTP vs OLAP — The Physical Reality</h2>
+<p>The choice between row-oriented and column-oriented storage isn't philosophical — it's dictated by what the hardware does with your queries.</p>
+<h3 id="row-oriented-storage-postgres-mysql-oracle">Row-oriented storage (Postgres, MySQL, Oracle)</h3>
+<p>A row is laid out contiguously on disk. Reading row 42 = one random I/O + parse the row. Fast for "give me all columns of one row by primary key." Slow for "give me the average of column X across 100M rows" because every row must be loaded even though only one column is needed.</p>
+<p>The <strong>storage page</strong> (typically 8 KB in Postgres, 16 KB in MySQL) is the unit of I/O. Postgres reads whole pages into shared_buffers. TID is <code>(page_number, slot_number)</code>. B-tree indexes point at TIDs; looking up row 42 = B-tree walk (log N pages) + heap fetch.</p>
+<h3 id="column-oriented-storage-parquet-orc-snowflake-fdn-redshift-bigquery-capacitor">Column-oriented storage (Parquet, ORC, Snowflake FDN, Redshift, BigQuery Capacitor)</h3>
+<p>Each column stored separately, with its own compression. Reading column X = read just X's bytes, skipping everything else. Compression ratios of 5–20× are routine because a single column has low cardinality locally.</p>
+<p>A Parquet file is organized as:</p>
+<ul>
+<li><strong>File footer</strong>: schema, row-group locations, column stats (min/max/null_count/distinct_count).</li>
+<li><strong>Row groups</strong> (typically 128 MB): a horizontal slice of rows.
+<ul>
+<li><strong>Column chunks</strong>: within a row group, one per column.
+<ul>
+<li><strong>Pages</strong> (typically 1 MB): within a chunk, the unit of decoding.</li>
+</ul></li>
+</ul></li>
+</ul>
+<p>The footer stats are the basis of <strong>row-group skipping</strong> — a WHERE filter can exclude row groups whose min/max don't match. This is why <code>WHERE dt = '2026-04-16' AND country = 'US'</code> is fast on a Parquet table partitioned by dt and sorted by country: both conditions prune.</p>
+<p><strong>Compression schemes within a column</strong>:</p>
+<ul>
+<li><strong>RLE (Run-Length Encoding)</strong>: <code>AAAA BBBB CCCC</code> → <code>(A,4)(B,4)(C,4)</code>. Great on sorted columns with runs.</li>
+<li><strong>Dictionary encoding</strong>: map values to ints; store ints + dictionary. Great on low-cardinality strings.</li>
+<li><strong>Bit-packing</strong>: encode small integers in &lt;8 bits each. Often combined with RLE.</li>
+<li><strong>Delta encoding</strong>: store differences from previous value. Great on timestamps, sorted sequences.</li>
+</ul>
+<p>The column-oriented nature has a direct modeling implication: <strong>adding a column is nearly free at read time</strong> (you only pay for it if you select it). Wide tables (OBT) aren't the disaster they'd be in a row store.</p>
+<h3 id="oltp-modeling-implications">OLTP modeling implications</h3>
+<ul>
+<li>Normalize: each update touches one row, so redundancy is expensive.</li>
+<li>B-tree indexes on everything queried. Covering indexes for hot queries.</li>
+<li>FK constraints enforced at write.</li>
+<li>Partitioning is a tool for manageability (vacuum, detach old partitions) more than performance.</li>
+</ul>
+<h3 id="olap-modeling-implications">OLAP modeling implications</h3>
+<ul>
+<li>Denormalize within reason. Joins are expensive in distributed systems; repeated string values cost almost nothing with dictionary encoding.</li>
+<li>Sort / cluster by the most common filter key (usually date).</li>
+<li>No FK constraints; integrity is pipeline-enforced.</li>
+<li>Partitioning is the #1 physical layout decision. Get it wrong and queries scan entire years.</li>
+</ul>
+<h3 id="htap-blur">HTAP blur</h3>
+<p>New engines (TiDB, CockroachDB, SingleStore, Snowflake Hybrid Tables) offer row + column storage of the same logical table — writes go to the row store, reads to the column store with asynchronous replication. Nice for mid-size workloads; still limited in scale or consistency compared to pure OLTP/OLAP.</p>
+<h2 id="3-normalization-derived-from-functional-dependencies">3. Normalization Derived From Functional Dependencies</h2>
+<p>Normalization is taught as a set of rules. It's actually a consequence of <strong>functional dependencies</strong> — statements of the form "column set X determines column set Y" (written <code>X → Y</code>).</p>
+<p>Given dependencies:</p>
+<ul>
+<li><code>order_id → customer_id, order_date, status</code></li>
+<li><code>customer_id → customer_name, country</code></li>
+</ul>
+<p>The relation <code>Orders(order_id, customer_id, order_date, status, customer_name, country)</code> violates 3NF because <code>customer_id</code> (non-key) determines <code>customer_name, country</code> — a transitive dependency. Decomposition:</p>
+<ul>
+<li><code>Orders(order_id, customer_id, order_date, status)</code></li>
+<li><code>Customers(customer_id, customer_name, country)</code></li>
+</ul>
+<h3 id="1nf--atomic-values">1NF — atomic values</h3>
+<p>No arrays, no comma-separated strings, no nested structures that the DB can't query. <code>tags = "red,blue,green"</code> forces <code>LIKE '%blue%'</code> queries that can't use indexes. Decompose into a child table <code>order_tags(order_id, tag)</code>.</p>
+<p>Modern engines allow arrays (Postgres <code>text[]</code>, BigQuery <code>ARRAY&lt;STRING&gt;</code>) with GIN/ARRAY-function support. That's a departure from strict 1NF but acceptable when the array operations are well-supported.</p>
+<h3 id="2nf--full-functional-dependency-on-the-key">2NF — full functional dependency on the key</h3>
+<p>Only relevant for composite keys. If PK is <code>(order_id, line_number)</code> and <code>order_date</code> depends on <code>order_id</code> alone, <code>order_date</code> doesn't belong in the line-item table. Move it.</p>
+<h3 id="3nf--no-transitive-dependencies">3NF — no transitive dependencies</h3>
+<p>Shown above. In practice, 3NF is the ceiling for OLTP — further decomposition rarely helps.</p>
+<h3 id="bcnf-35nf--every-determinant-is-a-candidate-key">BCNF (3.5NF) — every determinant is a candidate key</h3>
+<p>The textbook failure case: <code>ClassRoom(course_id, instructor, room)</code> where <code>(course_id, instructor) → room</code> and <code>instructor → room</code>. BCNF requires <code>instructor</code> to be a candidate key; it isn't, so decompose. These situations are rare in real data.</p>
+<h3 id="4nf--5nf--multi-valued--join-dependencies">4NF &amp; 5NF — multi-valued &amp; join dependencies</h3>
+<p>Multi-valued dependencies arise when two independent multi-valued facts coexist: a teacher teaches multiple courses AND speaks multiple languages, and all combinations appear. 4NF says split these. 5NF handles even more arcane join dependencies. In 20 years of modeling work I've applied these consciously twice.</p>
+<h3 id="practical-heuristic">Practical heuristic</h3>
+<p>Normalize to 3NF. Denormalize deliberately, with a comment explaining why. A typical OLTP schema has 90% 3NF + 10% intentional denormalization (caching displayed values, storing denormalized totals for performance).</p>
+<h2 id="4-dimensional-modeling--kimball-in-full">4. Dimensional Modeling — Kimball in Full</h2>
+<p>Kimball's dimensional model is a <strong>theory of analytic queries</strong>. It says: most analytics look like "a measure, broken down by attributes, filtered by other attributes." If your storage matches that shape, queries are trivial and fast.</p>
+<h3 id="the-four-step-process-and-what-each-step-actually-means">The four-step process (and what each step actually means)</h3>
+<p><strong>Step 1 — Business process.</strong> Not "the whole business" — a single process: orders, shipments, returns, playback sessions. Business processes are where events get generated; each is a candidate fact table. Get them from business users, not from source-system tables.</p>
+<p><strong>Step 2 — Grain.</strong> Declare exactly what one fact row represents. "One row per order line item per order" is a grain. "One row per playback session per user" is another. Grain must be atomic — prefer finer grain; you can always aggregate up.</p>
+<p>The test: pick any two rows; they must represent genuinely distinct events. If two rows could be the same event counted twice, your grain is wrong.</p>
+<p><strong>Step 3 — Dimensions.</strong> The descriptors: who, what, where, when, why, how. For each dimension, identify the grain and attributes. Dimensions are <em>denormalized</em> (all attributes in one table) — you want category, subcategory, brand, department all present in <code>dim_product</code> even though they form a hierarchy.</p>
+<p><strong>Step 4 — Facts.</strong> The numeric measures at the declared grain. Prefer additive measures (quantity, extended_price). Document semi-additive (balance — additive across accounts but not time) and non-additive (ratio — don't sum ever).</p>
+<h3 id="full-star-schema--playback-analytics">Full star schema — playback analytics</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="co">-- Date dimension (discussed more in §8)</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_date (</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>    date_key           <span class="dt">INT</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,             <span class="co">-- 20260419</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a>    full_date          <span class="dt">DATE</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a>    day_of_week        <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,           <span class="co">-- 1=Monday</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a>    day_name           <span class="dt">VARCHAR</span>(<span class="dv">10</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a>    day_of_month       <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true"></a>    day_of_year        <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true"></a>    week_of_year       <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,           <span class="co">-- ISO week</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true"></a>    month_num          <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true"></a>    month_name         <span class="dt">VARCHAR</span>(<span class="dv">10</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true"></a>    quarter            <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true"></a>    <span class="dt">year</span>               <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true"></a>    fiscal_year        <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true"></a>    fiscal_quarter     <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true"></a>    fiscal_period      <span class="dt">SMALLINT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true"></a>    is_weekend         <span class="dt">BOOLEAN</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true"></a>    is_holiday         <span class="dt">BOOLEAN</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true"></a>    holiday_name       <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true"></a>    is_business_day    <span class="dt">BOOLEAN</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true"></a>    days_from_today    <span class="dt">INT</span>                          <span class="co">-- maintained via view</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true"></a>);</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true"></a></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true"></a><span class="co">-- User dimension — SCD Type 2</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_user (</span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true"></a>    user_key           BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,          <span class="co">-- surrogate</span></span>
+<span id="cb2-31"><a href="#cb2-31" aria-hidden="true"></a>    user_id            <span class="dt">VARCHAR</span>(<span class="dv">36</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,        <span class="co">-- natural/durable</span></span>
+<span id="cb2-32"><a href="#cb2-32" aria-hidden="true"></a>    email              <span class="dt">VARCHAR</span>(<span class="dv">320</span>),</span>
+<span id="cb2-33"><a href="#cb2-33" aria-hidden="true"></a>    country_code       <span class="dt">CHAR</span>(<span class="dv">2</span>),</span>
+<span id="cb2-34"><a href="#cb2-34" aria-hidden="true"></a>    subscription_tier  <span class="dt">VARCHAR</span>(<span class="dv">20</span>),                 <span class="co">-- basic/standard/premium</span></span>
+<span id="cb2-35"><a href="#cb2-35" aria-hidden="true"></a>    household_size     <span class="dt">SMALLINT</span>,</span>
+<span id="cb2-36"><a href="#cb2-36" aria-hidden="true"></a>    profile_language   <span class="dt">VARCHAR</span>(<span class="dv">10</span>),</span>
+<span id="cb2-37"><a href="#cb2-37" aria-hidden="true"></a>    signup_date        <span class="dt">DATE</span>,</span>
+<span id="cb2-38"><a href="#cb2-38" aria-hidden="true"></a>    churn_date         <span class="dt">DATE</span>,</span>
+<span id="cb2-39"><a href="#cb2-39" aria-hidden="true"></a>    valid_from         TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-40"><a href="#cb2-40" aria-hidden="true"></a>    valid_to           TIMESTAMPTZ,</span>
+<span id="cb2-41"><a href="#cb2-41" aria-hidden="true"></a>    is_current         <span class="dt">BOOLEAN</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-42"><a href="#cb2-42" aria-hidden="true"></a>    hash_diff          <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>            <span class="co">-- SHA-256 of tracked attrs</span></span>
+<span id="cb2-43"><a href="#cb2-43" aria-hidden="true"></a>);</span>
+<span id="cb2-44"><a href="#cb2-44" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">UNIQUE</span> <span class="kw">INDEX</span> dim_user_natural <span class="kw">ON</span> dim_user(user_id, valid_from);</span>
+<span id="cb2-45"><a href="#cb2-45" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> dim_user_current <span class="kw">ON</span> dim_user(user_id) <span class="kw">WHERE</span> is_current;</span>
+<span id="cb2-46"><a href="#cb2-46" aria-hidden="true"></a></span>
+<span id="cb2-47"><a href="#cb2-47" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-48"><a href="#cb2-48" aria-hidden="true"></a><span class="co">-- Title dimension — mostly Type 1, some Type 2 (rating)</span></span>
+<span id="cb2-49"><a href="#cb2-49" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-50"><a href="#cb2-50" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_title (</span>
+<span id="cb2-51"><a href="#cb2-51" aria-hidden="true"></a>    title_key          BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb2-52"><a href="#cb2-52" aria-hidden="true"></a>    title_id           <span class="dt">VARCHAR</span>(<span class="dv">36</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-53"><a href="#cb2-53" aria-hidden="true"></a>    title              <span class="dt">VARCHAR</span>(<span class="dv">500</span>),</span>
+<span id="cb2-54"><a href="#cb2-54" aria-hidden="true"></a>    title_type         <span class="dt">VARCHAR</span>(<span class="dv">20</span>),                 <span class="co">-- movie/series/documentary</span></span>
+<span id="cb2-55"><a href="#cb2-55" aria-hidden="true"></a>    genre_primary      <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb2-56"><a href="#cb2-56" aria-hidden="true"></a>    genre_secondary    <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb2-57"><a href="#cb2-57" aria-hidden="true"></a>    runtime_minutes    <span class="dt">INT</span>,</span>
+<span id="cb2-58"><a href="#cb2-58" aria-hidden="true"></a>    release_year       <span class="dt">SMALLINT</span>,</span>
+<span id="cb2-59"><a href="#cb2-59" aria-hidden="true"></a>    language_primary   <span class="dt">VARCHAR</span>(<span class="dv">10</span>),</span>
+<span id="cb2-60"><a href="#cb2-60" aria-hidden="true"></a>    content_rating     <span class="dt">VARCHAR</span>(<span class="dv">20</span>),                 <span class="co">-- MA, PG-13, etc.</span></span>
+<span id="cb2-61"><a href="#cb2-61" aria-hidden="true"></a>    current_rating     <span class="dt">NUMERIC</span>(<span class="dv">3</span>,<span class="dv">2</span>),                <span class="co">-- aggregated, Type 1</span></span>
+<span id="cb2-62"><a href="#cb2-62" aria-hidden="true"></a>    season_number      <span class="dt">SMALLINT</span>,</span>
+<span id="cb2-63"><a href="#cb2-63" aria-hidden="true"></a>    episode_number     <span class="dt">SMALLINT</span>,</span>
+<span id="cb2-64"><a href="#cb2-64" aria-hidden="true"></a>    is_original        <span class="dt">BOOLEAN</span>,</span>
+<span id="cb2-65"><a href="#cb2-65" aria-hidden="true"></a>    valid_from         TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-66"><a href="#cb2-66" aria-hidden="true"></a>    valid_to           TIMESTAMPTZ,</span>
+<span id="cb2-67"><a href="#cb2-67" aria-hidden="true"></a>    is_current         <span class="dt">BOOLEAN</span> <span class="kw">NOT</span> <span class="kw">NULL</span></span>
+<span id="cb2-68"><a href="#cb2-68" aria-hidden="true"></a>);</span>
+<span id="cb2-69"><a href="#cb2-69" aria-hidden="true"></a></span>
+<span id="cb2-70"><a href="#cb2-70" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-71"><a href="#cb2-71" aria-hidden="true"></a><span class="co">-- Device dimension — Type 1 (device facts don&#39;t &quot;change&quot; per user)</span></span>
+<span id="cb2-72"><a href="#cb2-72" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-73"><a href="#cb2-73" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_device (</span>
+<span id="cb2-74"><a href="#cb2-74" aria-hidden="true"></a>    device_key         BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb2-75"><a href="#cb2-75" aria-hidden="true"></a>    device_id          <span class="dt">VARCHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-76"><a href="#cb2-76" aria-hidden="true"></a>    device_type        <span class="dt">VARCHAR</span>(<span class="dv">20</span>),                 <span class="co">-- tv/mobile/tablet/web</span></span>
+<span id="cb2-77"><a href="#cb2-77" aria-hidden="true"></a>    manufacturer       <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb2-78"><a href="#cb2-78" aria-hidden="true"></a>    model              <span class="dt">VARCHAR</span>(<span class="dv">100</span>),</span>
+<span id="cb2-79"><a href="#cb2-79" aria-hidden="true"></a>    os                 <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb2-80"><a href="#cb2-80" aria-hidden="true"></a>    os_version         <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb2-81"><a href="#cb2-81" aria-hidden="true"></a>    app_version        <span class="dt">VARCHAR</span>(<span class="dv">20</span>)</span>
+<span id="cb2-82"><a href="#cb2-82" aria-hidden="true"></a>);</span>
+<span id="cb2-83"><a href="#cb2-83" aria-hidden="true"></a></span>
+<span id="cb2-84"><a href="#cb2-84" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-85"><a href="#cb2-85" aria-hidden="true"></a><span class="co">-- Playback session fact — transaction grain</span></span>
+<span id="cb2-86"><a href="#cb2-86" aria-hidden="true"></a><span class="co">-- One row per playback session (session starts and ends)</span></span>
+<span id="cb2-87"><a href="#cb2-87" aria-hidden="true"></a><span class="co">-- -----------------------------------------------------</span></span>
+<span id="cb2-88"><a href="#cb2-88" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> fact_playback_session (</span>
+<span id="cb2-89"><a href="#cb2-89" aria-hidden="true"></a>    session_key        BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,          <span class="co">-- surrogate per session</span></span>
+<span id="cb2-90"><a href="#cb2-90" aria-hidden="true"></a>    session_id         <span class="dt">VARCHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,        <span class="co">-- natural, from client</span></span>
+<span id="cb2-91"><a href="#cb2-91" aria-hidden="true"></a>    user_key           BIGINT <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> dim_user,</span>
+<span id="cb2-92"><a href="#cb2-92" aria-hidden="true"></a>    title_key          BIGINT <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> dim_title,</span>
+<span id="cb2-93"><a href="#cb2-93" aria-hidden="true"></a>    device_key         BIGINT <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> dim_device,</span>
+<span id="cb2-94"><a href="#cb2-94" aria-hidden="true"></a>    start_date_key     <span class="dt">INT</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> dim_date,</span>
+<span id="cb2-95"><a href="#cb2-95" aria-hidden="true"></a>    end_date_key       <span class="dt">INT</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> dim_date,</span>
+<span id="cb2-96"><a href="#cb2-96" aria-hidden="true"></a>    start_ts           TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-97"><a href="#cb2-97" aria-hidden="true"></a>    end_ts             TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-98"><a href="#cb2-98" aria-hidden="true"></a>    <span class="co">-- Measures (all numeric, additive where possible)</span></span>
+<span id="cb2-99"><a href="#cb2-99" aria-hidden="true"></a>    watch_ms           BIGINT <span class="kw">NOT</span> <span class="kw">NULL</span>,             <span class="co">-- additive</span></span>
+<span id="cb2-100"><a href="#cb2-100" aria-hidden="true"></a>    buffer_ms          BIGINT <span class="kw">NOT</span> <span class="kw">NULL</span>,             <span class="co">-- additive</span></span>
+<span id="cb2-101"><a href="#cb2-101" aria-hidden="true"></a>    seeks              <span class="dt">INT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,                <span class="co">-- additive</span></span>
+<span id="cb2-102"><a href="#cb2-102" aria-hidden="true"></a>    pauses             <span class="dt">INT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,                <span class="co">-- additive</span></span>
+<span id="cb2-103"><a href="#cb2-103" aria-hidden="true"></a>    max_bitrate_kbps   <span class="dt">INT</span>,                         <span class="co">-- non-additive (use avg)</span></span>
+<span id="cb2-104"><a href="#cb2-104" aria-hidden="true"></a>    avg_bitrate_kbps   <span class="dt">INT</span>,                         <span class="co">-- non-additive (use avg)</span></span>
+<span id="cb2-105"><a href="#cb2-105" aria-hidden="true"></a>    completion_ratio   <span class="dt">NUMERIC</span>(<span class="dv">4</span>,<span class="dv">3</span>),                <span class="co">-- non-additive ratio</span></span>
+<span id="cb2-106"><a href="#cb2-106" aria-hidden="true"></a>    <span class="co">-- Degenerate dimensions</span></span>
+<span id="cb2-107"><a href="#cb2-107" aria-hidden="true"></a>    ended_reason       <span class="dt">VARCHAR</span>(<span class="dv">20</span>),                 <span class="co">-- user/credits/error</span></span>
+<span id="cb2-108"><a href="#cb2-108" aria-hidden="true"></a>    qoe_score          <span class="dt">NUMERIC</span>(<span class="dv">3</span>,<span class="dv">2</span>),</span>
+<span id="cb2-109"><a href="#cb2-109" aria-hidden="true"></a>    <span class="co">-- Partition</span></span>
+<span id="cb2-110"><a href="#cb2-110" aria-hidden="true"></a>    dt                 <span class="dt">DATE</span> <span class="kw">NOT</span> <span class="kw">NULL</span></span>
+<span id="cb2-111"><a href="#cb2-111" aria-hidden="true"></a>)</span>
+<span id="cb2-112"><a href="#cb2-112" aria-hidden="true"></a><span class="kw">PARTITION</span> <span class="kw">BY</span> <span class="kw">RANGE</span> (dt);</span></code></pre></div>
+<p>Key details people miss:</p>
+<ul>
+<li>Every FK is a surrogate <code>_key</code>, not a natural <code>_id</code>. The natural IDs are <em>attributes</em>, preserved for lookup.</li>
+<li><code>start_date_key</code> and <code>end_date_key</code> both reference <code>dim_date</code> — same table, role-playing.</li>
+<li><code>session_id</code> is stored as a <strong>degenerate dimension</strong> (an attribute on the fact with no corresponding dim table) because there's no other data to put in a <code>dim_session</code>.</li>
+<li><code>max_bitrate_kbps</code> and <code>avg_bitrate_kbps</code> are non-additive measures. You need both if you want to compute weighted averages at higher grains.</li>
+</ul>
+<h3 id="the-query-this-shape-makes-easy">The query this shape makes easy</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="co">-- Total watch hours by country and content rating, last 7 days, weekdays only</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    u.country_code,</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>    t.content_rating,</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>    <span class="fu">SUM</span>(f.watch_ms) <span class="op">/</span> <span class="fl">3600.0</span> <span class="op">/</span> <span class="dv">1000</span> <span class="kw">AS</span> watch_hours</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="kw">FROM</span> fact_playback_session f</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user  u <span class="kw">ON</span> u.user_key  <span class="op">=</span> f.user_key</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="kw">JOIN</span> dim_title t <span class="kw">ON</span> t.title_key <span class="op">=</span> f.title_key</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a><span class="kw">JOIN</span> dim_date  d <span class="kw">ON</span> d.date_key  <span class="op">=</span> f.start_date_key</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a><span class="kw">WHERE</span> d.full_date <span class="op">&gt;=</span> <span class="fu">CURRENT_DATE</span> <span class="op">-</span> <span class="dv">7</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>  <span class="kw">AND</span> d.is_weekend <span class="op">=</span> <span class="kw">FALSE</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> u.country_code, t.content_rating</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true"></a><span class="kw">ORDER</span> <span class="kw">BY</span> watch_hours <span class="kw">DESC</span>;</span></code></pre></div>
+<p>No CASE statements, no date arithmetic, no EXTRACT — just filter and group. This is why Kimball wins.</p>
+<h3 id="why-surrogate-keys">Why surrogate keys</h3>
+<p>Four reasons, in increasing order of importance:</p>
+<ol>
+<li><strong>Natural keys change.</strong> Source systems renumber, reassign IDs during migrations. Your warehouse shouldn't break.</li>
+<li><strong>SCD2 requires multiple rows per natural ID</strong> — the surrogate disambiguates.</li>
+<li><strong>Integer surrogates are small and fast in joins.</strong> A BIGINT is 8 bytes; a VARCHAR(36) UUID is 36 bytes + overhead and comparison is slower.</li>
+<li><strong>Surrogates decouple the warehouse's keyspace from source systems.</strong> You can integrate two sources whose <code>customer_id</code> namespaces collide.</li>
+</ol>
+<p>Generate surrogates deterministically with SHA-256 of the natural key (for idempotent re-runs) or from a sequence (for insertion-order keys). The deterministic approach is safer in modern pipelines.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="co">-- Deterministic surrogate from natural key</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    <span class="kw">HASH</span>(user_id, valid_from) <span class="kw">AS</span> user_key,   <span class="co">-- Snowflake HASH(x1,...) -&gt; BIGINT</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    user_id, valid_from, <span class="op">..</span>.</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a><span class="kw">FROM</span> staging_users;</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a><span class="co">-- Spark / PySpark</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a><span class="kw">from</span> pyspark.sql.<span class="kw">functions</span> import sha2, concat_ws, col</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>df <span class="op">=</span> df.withColumn(</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a>    <span class="ot">&quot;user_key&quot;</span>,</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>    sha2(concat_ws(<span class="ot">&quot;||&quot;</span>, col(<span class="ot">&quot;user_id&quot;</span>), col(<span class="ot">&quot;valid_from&quot;</span>)), <span class="dv">256</span>)</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a>)</span></code></pre></div>
+<p>Use a hashing function that's stable across restarts; Spark's built-in <code>hash()</code> isn't guaranteed stable across versions, but <code>sha2</code> and <code>md5</code> are.</p>
+<h2 id="5-fact-table-grain-the-most-important-decision">5. Fact Table Grain (The Most Important Decision)</h2>
+<p>Grain is where every modeling interview should start. The failure mode is a fact table where some rows are at one grain and others at another. The bug is invisible until a sum is 2× too large.</p>
+<h3 id="three-transactional-fact-patterns">Three transactional fact patterns</h3>
+<p><strong>Transaction fact</strong> — one row per event. Most common. Fully additive. Example: <code>fact_playback_session</code> above.</p>
+<p><strong>Periodic snapshot fact</strong> — one row per entity per period. Measures describe the state at period end. Semi-additive.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> fact_subscription_daily (</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>    snapshot_date_key  <span class="dt">INT</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>    user_key           BIGINT,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>    <span class="co">-- Semi-additive: summable across users, NOT across days</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>    mrr_cents          BIGINT,       <span class="co">-- monthly recurring revenue</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true"></a>    status             <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true"></a>    days_until_renewal <span class="dt">SMALLINT</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true"></a>    <span class="co">-- Additive within the day</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true"></a>    payments_made      <span class="dt">INT</span>,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true"></a>    refunds_issued     <span class="dt">INT</span>,</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true"></a>    <span class="kw">PRIMARY</span> <span class="kw">KEY</span> (snapshot_date_key, user_key)</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true"></a>);</span></code></pre></div>
+<p>The MRR column is the classic semi-additive trap. Users total <code>mrr</code> across two days and get 2× the real revenue. Solutions: label the column in the metadata catalog; always aggregate via <code>AVG</code> across time and <code>SUM</code> across entity; make the column name end in <code>_point_in_time</code>.</p>
+<p><strong>Accumulating snapshot fact</strong> — one row per process instance, updated as it progresses through milestones.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> fact_order_fulfillment (</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>    order_key         BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>    customer_key      BIGINT,</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    <span class="co">-- Milestones (date keys; NULL until reached)</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>    order_date_key    <span class="dt">INT</span> <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true"></a>    paid_date_key     <span class="dt">INT</span>,</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true"></a>    packed_date_key   <span class="dt">INT</span>,</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true"></a>    shipped_date_key  <span class="dt">INT</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true"></a>    delivered_date_key <span class="dt">INT</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true"></a>    returned_date_key <span class="dt">INT</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true"></a>    <span class="co">-- Durations, derived at each update</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true"></a>    hours_to_pay      <span class="dt">INT</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true"></a>    hours_to_pack     <span class="dt">INT</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true"></a>    hours_to_ship     <span class="dt">INT</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true"></a>    hours_to_deliver  <span class="dt">INT</span>,</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true"></a>    <span class="co">-- Measures</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true"></a>    order_total_cents BIGINT,</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true"></a>    items_count       <span class="dt">INT</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true"></a>);</span></code></pre></div>
+<p>Pros: a single row per order gives "lead time analysis" trivially. Cons: heavy on updates (updates are the enemy of columnar engines). Use when the process has bounded, well-defined milestones.</p>
+<h3 id="additivity">Additivity</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Additivity</th>
+<th>Sum across any dim?</th>
+<th>Example measures</th>
+<th>Warehouse pattern</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Additive</td>
+<td>Yes</td>
+<td>watch_ms, revenue, quantity, seeks</td>
+<td><code>SUM()</code> everywhere</td>
+</tr>
+<tr class="even">
+<td>Semi-additive</td>
+<td>Some dims only</td>
+<td>account_balance, inventory_on_hand, headcount</td>
+<td><code>SUM()</code> across non-time dims; <code>AVG()</code> or <code>LAST_VALUE()</code> across time</td>
+</tr>
+<tr class="odd">
+<td>Non-additive</td>
+<td>Never</td>
+<td>ratios, percentages, averages, unit_price</td>
+<td>Store numerator + denominator; compute ratio at query time</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The canonical non-additive mistake</strong>: you have <code>fact_product_daily(product_key, date_key, avg_price)</code>. BI user computes "average price this week = AVG(avg_price) across 7 days." That's an average of averages — not the weighted average they want. Fix: store <code>sum_of_prices</code> and <code>price_count</code>, compute the ratio in the SELECT.</p>
+<h3 id="factless-fact-tables">Factless fact tables</h3>
+<p>A fact table with only FKs — no measures. Models events or eligibility:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="co">-- &quot;Which users had access to which titles on which day&quot;</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> fact_title_availability_daily (</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>    date_key  <span class="dt">INT</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>    user_key  BIGINT,</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a>    title_key BIGINT,</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a>    <span class="co">-- no measures</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a>    <span class="kw">PRIMARY</span> <span class="kw">KEY</span> (date_key, user_key, title_key)</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true"></a>);</span></code></pre></div>
+<p>The "measure" is <code>COUNT(*)</code> — "how many users had access to Stranger Things in France on 2026-04-01."</p>
+<p>These get huge fast (N_users × N_titles × N_days). Sparse-encode where possible (don't emit rows for absent combinations).</p>
+<h3 id="multi-grain-fact-how-to-avoid-it">Multi-grain fact: how to avoid it</h3>
+<p>The canonical multi-grain bug: an <code>orders</code> fact table where some rows are "one per order" and some are "one per line item." Summing <code>order_total</code> sums header rows plus line rows — each order's total appears many times.</p>
+<p>Rules:</p>
+<ol>
+<li>One fact table per declared grain.</li>
+<li>If you need both grains, build two fact tables: <code>fact_order_header</code> and <code>fact_order_line</code>. They roll up via shared dimensions.</li>
+<li>Never introduce an "aggregation type" column to disambiguate rows of different grains. That's a band-aid on a severed arm.</li>
+</ol>
+<h2 id="6-dimensions--conformed-junk-degenerate-mini-role-playing">6. Dimensions — Conformed, Junk, Degenerate, Mini, Role-Playing</h2>
+<h3 id="conformed-dimensions">Conformed dimensions</h3>
+<p>A dimension is <strong>conformed</strong> when multiple fact tables share it. This is how you answer "return rate by customer segment" — <code>fact_returns.customer_key</code> and <code>fact_orders.customer_key</code> must reference the same <code>dim_customer</code>.</p>
+<p>Conformed dimensions are an organizational commitment as much as a technical one. A <code>dim_customer</code> owned by marketing with fields marketing cares about, and another owned by billing with billing fields, is a failure. You need a single <code>dim_customer</code> with all stakeholders as consumers.</p>
+<p>The <strong>enterprise bus matrix</strong> (Kimball's term) is a table of business processes × dimensions, with an X where they intersect. Use it to plan which dimensions must be conformed:</p>
+<pre><code>                      dim_user  dim_title  dim_device  dim_date  dim_geo  dim_promo
+playback_session         X         X          X          X         X        -
+billing_charge           X         -          -          X         X        X
+search_query             X         -          X          X         X        -
+signup                   X         -          X          X         X        X
+</code></pre>
+<h3 id="junk-dimensions">Junk dimensions</h3>
+<p>When you have a handful of low-cardinality flags and indicators that don't belong together but don't warrant their own dimensions: combine them into a <strong>junk dimension</strong>.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="co">-- Instead of: is_trial BOOLEAN, is_promo BOOLEAN, device_is_new BOOLEAN on every fact row...</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_session_flags (</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>    flags_key   <span class="dt">INT</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>    is_trial    <span class="dt">BOOLEAN</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true"></a>    is_promo    <span class="dt">BOOLEAN</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true"></a>    is_new_device <span class="dt">BOOLEAN</span>,</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true"></a>    signal_source <span class="dt">VARCHAR</span>(<span class="dv">20</span>)</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true"></a>);</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true"></a><span class="co">-- Only 2x2x2x (distinct sources) = ~16 rows.</span></span></code></pre></div>
+<p>Then the fact has one <code>flags_key</code> FK and you get clean reporting.</p>
+<h3 id="degenerate-dimensions">Degenerate dimensions</h3>
+<p>An attribute on the fact with no corresponding dim table — like <code>session_id</code> above. Reason: there's no other data about a session beyond what's already in the fact row. Creating <code>dim_session</code> would just be a table with one column.</p>
+<h3 id="mini-dimensions">Mini-dimensions</h3>
+<p>When a dimension has a subset of frequently-changing attributes that would inflate SCD2 storage: split them off.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">-- dim_user (stable attrs)</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>user_key, user_id, email, country_code, signup_date, <span class="op">..</span>.</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a><span class="co">-- dim_user_demographics (mini-dim; snapshots of volatile attrs)</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>demographics_key, age_bracket, income_bracket, household_size, interest_segment, snapshot_ts</span></code></pre></div>
+<p>The fact has FKs to both: <code>user_key</code> (as-current) and <code>demographics_key</code> (as-at-event-time). Saves SCD2 storage when the volatile attributes change often and the stable ones don't.</p>
+<h3 id="role-playing-dimensions">Role-playing dimensions</h3>
+<p>One physical dimension, multiple roles in the fact. <code>dim_date</code> plays <code>order_date</code>, <code>ship_date</code>, <code>delivered_date</code>. Implement as <strong>views</strong> aliasing the base dim so query joins read naturally:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">VIEW</span> dim_order_date    <span class="kw">AS</span> <span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> dim_date;</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">VIEW</span> dim_ship_date     <span class="kw">AS</span> <span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> dim_date;</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">VIEW</span> dim_delivered_date <span class="kw">AS</span> <span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> dim_date;</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a>    od.<span class="dt">year</span>, od.month_num,</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a>    sd.day_name <span class="kw">AS</span> ship_day,</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>    dd.week_of_year <span class="kw">AS</span> delivered_week,</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>    <span class="fu">SUM</span>(f.order_total_cents)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a><span class="kw">FROM</span> fact_order_fulfillment f</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true"></a><span class="kw">JOIN</span> dim_order_date      od <span class="kw">ON</span> od.date_key <span class="op">=</span> f.order_date_key</span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true"></a><span class="kw">JOIN</span> dim_ship_date       sd <span class="kw">ON</span> sd.date_key <span class="op">=</span> f.shipped_date_key</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true"></a><span class="kw">JOIN</span> dim_delivered_date  dd <span class="kw">ON</span> dd.date_key <span class="op">=</span> f.delivered_date_key</span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> od.<span class="dt">year</span>, od.month_num, sd.day_name, dd.week_of_year;</span></code></pre></div>
+<p>The physical storage is one table; the logical model has three.</p>
+<h3 id="swappable--outrigger">Swappable / outrigger</h3>
+<p>When a dimension attribute has its own attributes worth rolling up: a small normalized "outrigger" joined to the main dim. <code>dim_product.category_id → dim_category.name, parent_category</code>. Violates pure star; sometimes necessary.</p>
+<h2 id="7-slowly-changing-dimensions--all-seven-types-with-code">7. Slowly Changing Dimensions — All Seven Types, with Code</h2>
+<h3 id="type-0--retain-original">Type 0 — Retain original</h3>
+<p>Never update. Fields like <code>date_of_birth</code>, <code>signup_date</code>, <code>birth_country</code>. No code needed beyond rejecting updates.</p>
+<h3 id="type-1--overwrite">Type 1 — Overwrite</h3>
+<p>Just update. No history. Use for typo corrections, GDPR erasure of PII.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="co">-- Stage has latest values; merge overwrites</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> dim_user <span class="kw">AS</span> tgt</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a><span class="kw">USING</span> stg_user <span class="kw">AS</span> src</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>  <span class="kw">ON</span> tgt.user_id <span class="op">=</span> src.user_id</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="cf">THEN</span> <span class="kw">UPDATE</span> <span class="kw">SET</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true"></a>    email         <span class="op">=</span> src.email,</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true"></a>    country_code  <span class="op">=</span> src.country_code,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true"></a>    updated_at    <span class="op">=</span> <span class="fu">CURRENT_TIMESTAMP</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="cf">THEN</span> <span class="kw">INSERT</span> (<span class="op">..</span>.) <span class="kw">VALUES</span> (<span class="op">..</span>.);</span></code></pre></div>
+<h3 id="type-2--add-new-row-track-history">Type 2 — Add new row, track history</h3>
+<p>The standard. Full history. Every change creates a new row; old row closed with <code>valid_to</code>.</p>
+<h4 id="the-merge-pattern-dialect-independent">The MERGE pattern (dialect-independent)</h4>
+<p>Implemented as two statements because a single MERGE can't both update and insert the same logical record.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="co">-- Step 1: close out rows whose tracked attributes have changed</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="kw">UPDATE</span> dim_user</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a><span class="kw">SET</span> valid_to   <span class="op">=</span> <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>    is_current <span class="op">=</span> <span class="kw">FALSE</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a><span class="kw">WHERE</span> is_current <span class="op">=</span> <span class="kw">TRUE</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>  <span class="kw">AND</span> user_id <span class="kw">IN</span> (<span class="kw">SELECT</span> user_id <span class="kw">FROM</span> stg_user)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true"></a>  <span class="kw">AND</span> (</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true"></a>    <span class="co">-- Use a hash_diff for concise comparison</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true"></a>    hash_diff <span class="op">&lt;&gt;</span> (</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true"></a>      <span class="kw">SELECT</span> SHA2(CONCAT_WS(<span class="st">&#39;||&#39;</span>,</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true"></a>        <span class="fu">COALESCE</span>(s.email, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true"></a>        <span class="fu">COALESCE</span>(s.country_code, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true"></a>        <span class="fu">COALESCE</span>(s.subscription_tier, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true"></a>        <span class="fu">COALESCE</span>(s.household_size:<span class="ch">:VARCHAR</span>, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-15"><a href="#cb13-15" aria-hidden="true"></a>        <span class="fu">COALESCE</span>(s.profile_language, <span class="st">&#39;&#39;</span>)</span>
+<span id="cb13-16"><a href="#cb13-16" aria-hidden="true"></a>      ), <span class="dv">256</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" aria-hidden="true"></a>      <span class="kw">FROM</span> stg_user s <span class="kw">WHERE</span> s.user_id <span class="op">=</span> dim_user.user_id</span>
+<span id="cb13-18"><a href="#cb13-18" aria-hidden="true"></a>    )</span>
+<span id="cb13-19"><a href="#cb13-19" aria-hidden="true"></a>  );</span>
+<span id="cb13-20"><a href="#cb13-20" aria-hidden="true"></a></span>
+<span id="cb13-21"><a href="#cb13-21" aria-hidden="true"></a><span class="co">-- Step 2: insert a row for every natural key with no current row</span></span>
+<span id="cb13-22"><a href="#cb13-22" aria-hidden="true"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> dim_user (</span>
+<span id="cb13-23"><a href="#cb13-23" aria-hidden="true"></a>    user_key, user_id, email, country_code, subscription_tier,</span>
+<span id="cb13-24"><a href="#cb13-24" aria-hidden="true"></a>    household_size, profile_language, signup_date, churn_date,</span>
+<span id="cb13-25"><a href="#cb13-25" aria-hidden="true"></a>    valid_from, valid_to, is_current, hash_diff</span>
+<span id="cb13-26"><a href="#cb13-26" aria-hidden="true"></a>)</span>
+<span id="cb13-27"><a href="#cb13-27" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb13-28"><a href="#cb13-28" aria-hidden="true"></a>    nextval(<span class="st">&#39;dim_user_seq&#39;</span>),                   <span class="co">-- surrogate</span></span>
+<span id="cb13-29"><a href="#cb13-29" aria-hidden="true"></a>    s.user_id,</span>
+<span id="cb13-30"><a href="#cb13-30" aria-hidden="true"></a>    s.email, s.country_code, s.subscription_tier,</span>
+<span id="cb13-31"><a href="#cb13-31" aria-hidden="true"></a>    s.household_size, s.profile_language,</span>
+<span id="cb13-32"><a href="#cb13-32" aria-hidden="true"></a>    s.signup_date, s.churn_date,</span>
+<span id="cb13-33"><a href="#cb13-33" aria-hidden="true"></a>    <span class="fu">CURRENT_TIMESTAMP</span>, <span class="kw">NULL</span>, <span class="kw">TRUE</span>,</span>
+<span id="cb13-34"><a href="#cb13-34" aria-hidden="true"></a>    SHA2(CONCAT_WS(<span class="st">&#39;||&#39;</span>,</span>
+<span id="cb13-35"><a href="#cb13-35" aria-hidden="true"></a>      <span class="fu">COALESCE</span>(s.email, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-36"><a href="#cb13-36" aria-hidden="true"></a>      <span class="fu">COALESCE</span>(s.country_code, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-37"><a href="#cb13-37" aria-hidden="true"></a>      <span class="fu">COALESCE</span>(s.subscription_tier, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-38"><a href="#cb13-38" aria-hidden="true"></a>      <span class="fu">COALESCE</span>(s.household_size:<span class="ch">:VARCHAR</span>, <span class="st">&#39;&#39;</span>),</span>
+<span id="cb13-39"><a href="#cb13-39" aria-hidden="true"></a>      <span class="fu">COALESCE</span>(s.profile_language, <span class="st">&#39;&#39;</span>)</span>
+<span id="cb13-40"><a href="#cb13-40" aria-hidden="true"></a>    ), <span class="dv">256</span>)</span>
+<span id="cb13-41"><a href="#cb13-41" aria-hidden="true"></a><span class="kw">FROM</span> stg_user s</span>
+<span id="cb13-42"><a href="#cb13-42" aria-hidden="true"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> dim_user d</span>
+<span id="cb13-43"><a href="#cb13-43" aria-hidden="true"></a>  <span class="kw">ON</span> d.user_id <span class="op">=</span> s.user_id <span class="kw">AND</span> d.is_current <span class="op">=</span> <span class="kw">TRUE</span></span>
+<span id="cb13-44"><a href="#cb13-44" aria-hidden="true"></a><span class="kw">WHERE</span> d.user_id <span class="kw">IS</span> <span class="kw">NULL</span>;</span></code></pre></div>
+<p><strong>Why <code>hash_diff</code></strong>: comparing every column individually is verbose, error-prone, and slow. Hashing the concatenated tracked columns lets you compare two states with a single <code>=</code>. Use SHA-256 (not MD5; collision-free enough for dim-change detection).</p>
+<p><strong>Why two statements</strong>: MERGE's WHEN MATCHED runs once per matched row. You can't both close the old row and insert a new one in the same MERGE without duplication. Separate steps are clearer anyway.</p>
+<h4 id="pyspark--delta-lake-version">PySpark / Delta Lake version</h4>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="im">from</span> delta.tables <span class="im">import</span> DeltaTable</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> sha2, concat_ws, coalesce, lit, col, current_timestamp, monotonically_increasing_id</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>dim <span class="op">=</span> DeltaTable.forName(spark, <span class="st">&quot;warehouse.dim_user&quot;</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>stg <span class="op">=</span> spark.read.table(<span class="st">&quot;stg_user&quot;</span>)</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a><span class="co"># Add hash_diff to the stage</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true"></a>stg_h <span class="op">=</span> stg.withColumn(</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true"></a>    <span class="st">&quot;hash_diff&quot;</span>,</span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true"></a>    sha2(concat_ws(<span class="st">&quot;||&quot;</span>,</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true"></a>        coalesce(col(<span class="st">&quot;email&quot;</span>), lit(<span class="st">&quot;&quot;</span>)),</span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true"></a>        coalesce(col(<span class="st">&quot;country_code&quot;</span>), lit(<span class="st">&quot;&quot;</span>)),</span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true"></a>        coalesce(col(<span class="st">&quot;subscription_tier&quot;</span>), lit(<span class="st">&quot;&quot;</span>)),</span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true"></a>        coalesce(col(<span class="st">&quot;household_size&quot;</span>).cast(<span class="st">&quot;string&quot;</span>), lit(<span class="st">&quot;&quot;</span>)),</span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true"></a>        coalesce(col(<span class="st">&quot;profile_language&quot;</span>), lit(<span class="st">&quot;&quot;</span>))</span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true"></a>    ), <span class="dv">256</span>)</span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true"></a>)</span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true"></a></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true"></a><span class="co"># Step 1: close rows whose hash changed</span></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true"></a>(dim.alias(<span class="st">&quot;t&quot;</span>)</span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true"></a>    .merge(stg_h.alias(<span class="st">&quot;s&quot;</span>),</span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true"></a>           <span class="st">&quot;t.user_id = s.user_id AND t.is_current = TRUE AND t.hash_diff &lt;&gt; s.hash_diff&quot;</span>)</span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true"></a>    .whenMatchedUpdate(<span class="bu">set</span><span class="op">=</span>{</span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true"></a>        <span class="st">&quot;valid_to&quot;</span>:   <span class="st">&quot;current_timestamp()&quot;</span>,</span>
+<span id="cb14-25"><a href="#cb14-25" aria-hidden="true"></a>        <span class="st">&quot;is_current&quot;</span>: <span class="st">&quot;FALSE&quot;</span></span>
+<span id="cb14-26"><a href="#cb14-26" aria-hidden="true"></a>    })</span>
+<span id="cb14-27"><a href="#cb14-27" aria-hidden="true"></a>    .execute())</span>
+<span id="cb14-28"><a href="#cb14-28" aria-hidden="true"></a></span>
+<span id="cb14-29"><a href="#cb14-29" aria-hidden="true"></a><span class="co"># Step 2: insert new versions</span></span>
+<span id="cb14-30"><a href="#cb14-30" aria-hidden="true"></a>changed <span class="op">=</span> (stg_h.alias(<span class="st">&quot;s&quot;</span>)</span>
+<span id="cb14-31"><a href="#cb14-31" aria-hidden="true"></a>    .join(dim.toDF().alias(<span class="st">&quot;t&quot;</span>),</span>
+<span id="cb14-32"><a href="#cb14-32" aria-hidden="true"></a>          (col(<span class="st">&quot;s.user_id&quot;</span>) <span class="op">==</span> col(<span class="st">&quot;t.user_id&quot;</span>)) <span class="op">&amp;</span> (col(<span class="st">&quot;t.is_current&quot;</span>) <span class="op">==</span> <span class="va">True</span>),</span>
+<span id="cb14-33"><a href="#cb14-33" aria-hidden="true"></a>          <span class="st">&quot;left_anti&quot;</span>))   <span class="co"># keep s rows not present as current</span></span>
+<span id="cb14-34"><a href="#cb14-34" aria-hidden="true"></a></span>
+<span id="cb14-35"><a href="#cb14-35" aria-hidden="true"></a>changed_with_keys <span class="op">=</span> changed.withColumn(<span class="st">&quot;user_key&quot;</span>, monotonically_increasing_id() <span class="op">+</span> <span class="op">&lt;</span>max_key<span class="op">&gt;</span>)</span>
+<span id="cb14-36"><a href="#cb14-36" aria-hidden="true"></a>changed_with_keys.write.<span class="bu">format</span>(<span class="st">&quot;delta&quot;</span>).mode(<span class="st">&quot;append&quot;</span>).saveAsTable(<span class="st">&quot;warehouse.dim_user&quot;</span>)</span></code></pre></div>
+<p><code>monotonically_increasing_id()</code> per partition + offset is one pattern for surrogate generation. Deterministic hashing is safer across re-runs.</p>
+<h4 id="dbt-snapshot-the-declarative-way">dbt snapshot (the declarative way)</h4>
+<div class="sourceCode" id="cb15"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="co"># snapshots/dim_user.sql</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a><span class="kw">{</span><span class="at">% snapshot dim_user_snapshot %</span><span class="kw">}</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a><span class="kw">{</span><span class="at">{ config(</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a><span class="at">    target_schema=</span><span class="st">&#39;snapshots&#39;</span><span class="kw">,</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a><span class="at">    unique_key=</span><span class="st">&#39;user_id&#39;</span><span class="kw">,</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a><span class="at">    strategy=</span><span class="st">&#39;check&#39;</span><span class="kw">,</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true"></a><span class="at">    check_cols=[</span><span class="st">&#39;email&#39;</span><span class="kw">,</span><span class="at"> </span><span class="st">&#39;country_code&#39;</span><span class="kw">,</span><span class="at"> </span><span class="st">&#39;subscription_tier&#39;</span><span class="kw">,</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true"></a><span class="at">                </span><span class="st">&#39;household_size&#39;</span><span class="kw">,</span><span class="at"> </span><span class="st">&#39;profile_language&#39;</span><span class="at">]</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true"></a><span class="at">) </span><span class="kw">}</span><span class="at">}</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true"></a><span class="at">SELECT user_id, email, country_code, subscription_tier,</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true"></a><span class="at">       household_size, profile_language, signup_date, churn_date</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true"></a><span class="at">FROM {{ source(&#39;raw&#39;, &#39;users&#39;) }}</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true"></a><span class="kw">{</span><span class="at">% endsnapshot %</span><span class="kw">}</span></span></code></pre></div>
+<p>dbt handles the entire Type 2 lifecycle — adds <code>dbt_valid_from</code>, <code>dbt_valid_to</code>, compares columns, inserts new versions. Production-grade with one file.</p>
+<h3 id="type-3--add-new-column-previous--current">Type 3 — Add new column (previous + current)</h3>
+<p>Tracks exactly one prior value. Niche — useful only when business cares about "previous region" specifically.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> dim_user</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a>  <span class="kw">ADD</span> <span class="kw">COLUMN</span> previous_country_code <span class="dt">CHAR</span>(<span class="dv">2</span>),</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>  <span class="kw">ADD</span> <span class="kw">COLUMN</span> country_changed_at TIMESTAMPTZ;</span></code></pre></div>
+<p>On update: <code>UPDATE ... SET previous_country_code = country_code, country_code = new, country_changed_at = now()</code>.</p>
+<h3 id="type-4--history-in-a-side-table">Type 4 — History in a side table</h3>
+<p>Current row in the main dim (Type 1 semantics for ease of query); history in a separate table.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="co">-- Main dim (current-state only)</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_user_current (</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>    user_key BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>    user_id <span class="dt">VARCHAR</span>(<span class="dv">36</span>) <span class="kw">UNIQUE</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a>    email, country_code, <span class="op">..</span>.</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a>);</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true"></a></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true"></a><span class="co">-- History (append-only, every change)</span></span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_user_history (</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true"></a>    user_id <span class="dt">VARCHAR</span>(<span class="dv">36</span>),</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true"></a>    email, country_code, <span class="op">..</span>.,</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true"></a>    valid_from TIMESTAMPTZ,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true"></a>    valid_to TIMESTAMPTZ,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true"></a>    change_reason <span class="dt">VARCHAR</span>(<span class="dv">50</span>)</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true"></a>);</span></code></pre></div>
+<p>Good when the main dim is hit constantly by dashboards and you want a narrow table. Point-in-time joins use the history table.</p>
+<h3 id="type-6--1--2--3">Type 6 — 1 + 2 + 3</h3>
+<p>A Type 2 dim where every historical row <em>also</em> carries the current value of select attributes. Lets you report "sales by the customer's <em>current</em> segment" even on old facts.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_user (</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a>    user_key BIGINT <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a>    user_id  <span class="dt">VARCHAR</span>(<span class="dv">36</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a>    <span class="co">-- Historical values (Type 2 — different per version)</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a>    email, country_code, subscription_tier,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true"></a>    <span class="co">-- Current values (Type 1 — same across all versions of same user_id)</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>    current_email, current_country_code, current_subscription_tier,</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a>    <span class="co">-- History metadata</span></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true"></a>    valid_from, valid_to, is_current,</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true"></a>    hash_diff</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true"></a>);</span></code></pre></div>
+<p>The Type 1 columns are updated across all rows with the same <code>user_id</code> whenever the current state changes — an expensive broadcast update, but query-time simplicity worth it.</p>
+<p>Query patterns:</p>
+<ul>
+<li>"Watch hours by historical segment": join on <code>user_key</code>, group by <code>subscription_tier</code>.</li>
+<li>"Watch hours by current segment": join on <code>user_key</code>, group by <code>current_subscription_tier</code>.</li>
+</ul>
+<h3 id="type-7--dual-keys">Type 7 — Dual keys</h3>
+<p>The fact carries both the surrogate (<code>user_key</code> — version at event time) and the durable natural key (<code>user_id</code>). Consumers pick which to join on. Rare but powerful for complex reporting platforms.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> fact_playback_session <span class="kw">ADD</span> <span class="kw">COLUMN</span> user_id <span class="dt">VARCHAR</span>(<span class="dv">36</span>);  <span class="co">-- durable</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a><span class="co">-- Historical view</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user d <span class="kw">ON</span> d.user_key <span class="op">=</span> f.user_key</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a><span class="co">-- Current view (resolve through natural key)</span></span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user_current d <span class="kw">ON</span> d.user_id <span class="op">=</span> f.user_id</span></code></pre></div>
+<h3 id="picking-a-type-per-attribute">Picking a type per attribute</h3>
+<p>Attributes within one dimension can use different types:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Attribute</th>
+<th>Type</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>date_of_birth</td>
+<td>0</td>
+<td>Immutable</td>
+</tr>
+<tr class="even">
+<td>email (post-typo-fix)</td>
+<td>1</td>
+<td>Corrections shouldn't create history</td>
+</tr>
+<tr class="odd">
+<td>country_code</td>
+<td>2</td>
+<td>Matters historically</td>
+</tr>
+<tr class="even">
+<td>subscription_tier</td>
+<td>2</td>
+<td>Matters historically</td>
+</tr>
+<tr class="odd">
+<td>churn_date</td>
+<td>1 (with audit)</td>
+<td>Single most-recent value sufficient</td>
+</tr>
+<tr class="even">
+<td>display_name</td>
+<td>6 (current + history)</td>
+<td>Display needs current name always</td>
+</tr>
+</tbody>
+</table>
+<p>Document per-attribute decisions in your data catalog.</p>
+<h2 id="8-date--time-dimensions-done-right">8. Date &amp; Time Dimensions Done Right</h2>
+<p>A first-class date dimension makes fiscal/holiday/weekend/quarter queries trivial. Generate it once, populate 20 years of rows, never touch again.</p>
+<h3 id="generating-dim_date-postgres">Generating dim_date (Postgres)</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> dim_date (</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a>    date_key, full_date, day_of_week, day_name,</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a>    day_of_month, day_of_year, week_of_year,</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a>    month_num, month_name, quarter, <span class="dt">year</span>,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a>    fiscal_year, fiscal_quarter, fiscal_period,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a>    is_weekend, is_holiday, holiday_name, is_business_day</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a>    <span class="fu">TO_CHAR</span>(d, <span class="st">&#39;YYYYMMDD&#39;</span>):<span class="ch">:INT</span>                       <span class="kw">AS</span> date_key,</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a>    d                                                 <span class="kw">AS</span> full_date,</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(ISODOW <span class="kw">FROM</span> d)                            <span class="kw">AS</span> day_of_week,</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a>    <span class="fu">TO_CHAR</span>(d, <span class="st">&#39;FMDay&#39;</span>)                               <span class="kw">AS</span> day_name,</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(<span class="dt">DAY</span> <span class="kw">FROM</span> d)                               <span class="kw">AS</span> day_of_month,</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(DOY <span class="kw">FROM</span> d)                               <span class="kw">AS</span> day_of_year,</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(WEEK <span class="kw">FROM</span> d)                              <span class="kw">AS</span> week_of_year,</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(<span class="dt">MONTH</span> <span class="kw">FROM</span> d)                             <span class="kw">AS</span> month_num,</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true"></a>    <span class="fu">TO_CHAR</span>(d, <span class="st">&#39;FMMonth&#39;</span>)                             <span class="kw">AS</span> month_name,</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(QUARTER <span class="kw">FROM</span> d)                           <span class="kw">AS</span> quarter,</span>
+<span id="cb20-19"><a href="#cb20-19" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(<span class="dt">YEAR</span> <span class="kw">FROM</span> d)                              <span class="kw">AS</span> <span class="dt">year</span>,</span>
+<span id="cb20-20"><a href="#cb20-20" aria-hidden="true"></a>    <span class="co">-- Netflix fiscal year happens to be calendar; substitute your rules</span></span>
+<span id="cb20-21"><a href="#cb20-21" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(<span class="dt">YEAR</span> <span class="kw">FROM</span> d)                              <span class="kw">AS</span> fiscal_year,</span>
+<span id="cb20-22"><a href="#cb20-22" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(QUARTER <span class="kw">FROM</span> d)                           <span class="kw">AS</span> fiscal_quarter,</span>
+<span id="cb20-23"><a href="#cb20-23" aria-hidden="true"></a>    <span class="fu">EXTRACT</span>(<span class="dt">MONTH</span> <span class="kw">FROM</span> d)                             <span class="kw">AS</span> fiscal_period,</span>
+<span id="cb20-24"><a href="#cb20-24" aria-hidden="true"></a>    (<span class="fu">EXTRACT</span>(ISODOW <span class="kw">FROM</span> d) <span class="kw">IN</span> (<span class="dv">6</span>,<span class="dv">7</span>))                 <span class="kw">AS</span> is_weekend,</span>
+<span id="cb20-25"><a href="#cb20-25" aria-hidden="true"></a>    <span class="kw">FALSE</span>                                             <span class="kw">AS</span> is_holiday,</span>
+<span id="cb20-26"><a href="#cb20-26" aria-hidden="true"></a>    <span class="kw">NULL</span>                                              <span class="kw">AS</span> holiday_name,</span>
+<span id="cb20-27"><a href="#cb20-27" aria-hidden="true"></a>    (<span class="fu">EXTRACT</span>(ISODOW <span class="kw">FROM</span> d) <span class="kw">BETWEEN</span> <span class="dv">1</span> <span class="kw">AND</span> <span class="dv">5</span>)          <span class="kw">AS</span> is_business_day</span>
+<span id="cb20-28"><a href="#cb20-28" aria-hidden="true"></a><span class="kw">FROM</span> generate_series(<span class="dt">DATE</span> <span class="st">&#39;2010-01-01&#39;</span>, <span class="dt">DATE</span> <span class="st">&#39;2040-12-31&#39;</span>, <span class="dt">INTERVAL</span> <span class="st">&#39;1 day&#39;</span>) d;</span>
+<span id="cb20-29"><a href="#cb20-29" aria-hidden="true"></a></span>
+<span id="cb20-30"><a href="#cb20-30" aria-hidden="true"></a><span class="co">-- Holidays (join a separate table, mark is_holiday)</span></span>
+<span id="cb20-31"><a href="#cb20-31" aria-hidden="true"></a><span class="kw">UPDATE</span> dim_date d <span class="kw">SET</span> is_holiday <span class="op">=</span> <span class="kw">TRUE</span>, holiday_name <span class="op">=</span> h.name, is_business_day <span class="op">=</span> <span class="kw">FALSE</span></span>
+<span id="cb20-32"><a href="#cb20-32" aria-hidden="true"></a><span class="kw">FROM</span> holidays h <span class="kw">WHERE</span> h.observed_date <span class="op">=</span> d.full_date;</span></code></pre></div>
+<h3 id="time-of-day-dimension-separate">Time-of-day dimension (separate)</h3>
+<p>Never combine date + time into one dimension — cardinality explodes (30 years × 86400 seconds = ~1 billion rows).</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> dim_time (</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>    time_key     <span class="dt">SMALLINT</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,         <span class="co">-- 0..1439 (minute-of-day)</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a>    <span class="kw">hour</span>         <span class="dt">SMALLINT</span>,</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true"></a>    <span class="kw">minute</span>       <span class="dt">SMALLINT</span>,</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true"></a>    period       <span class="dt">VARCHAR</span>(<span class="dv">2</span>),                   <span class="co">-- AM/PM</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true"></a>    hour_12      <span class="dt">SMALLINT</span>,</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true"></a>    time_of_day_segment <span class="dt">VARCHAR</span>(<span class="dv">20</span>),           <span class="co">-- &#39;morning&#39;, &#39;evening&#39;</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true"></a>    is_peak_hours <span class="dt">BOOLEAN</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true"></a>);</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true"></a><span class="co">-- 1440 rows total.</span></span></code></pre></div>
+<p>Facts reference both: <code>start_date_key</code> + <code>start_time_key</code> from <code>start_ts</code>.</p>
+<h3 id="timezone-handling--the-ironclad-rule">Timezone handling — the ironclad rule</h3>
+<p><strong>Store everything in UTC.</strong> Convert for display at presentation.</p>
+<ul>
+<li>Source systems emit timestamps; normalize to UTC in the first transform (bronze → silver).</li>
+<li>Use <code>TIMESTAMP WITH TIME ZONE</code> columns (<code>TIMESTAMPTZ</code>) in Postgres/Redshift; <code>TIMESTAMP</code> in Snowflake/BigQuery is naive — wrap consistently.</li>
+<li>For local-time analytics ("plays during 8pm local per user"), precompute the local date/time on ingest using the user's known timezone. This avoids runtime <code>AT TIME ZONE</code> for millions of rows.</li>
+</ul>
+<div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="co">-- Compute user-local ts at ingest</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a>    event_ts <span class="kw">AT</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="st">&#39;UTC&#39;</span> <span class="kw">AT</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> u.timezone <span class="kw">AS</span> local_ts,</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a>    (event_ts <span class="kw">AT</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> <span class="st">&#39;UTC&#39;</span> <span class="kw">AT</span> <span class="dt">TIME</span> <span class="dt">ZONE</span> u.timezone):<span class="ch">:DATE</span> <span class="kw">AS</span> local_date</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true"></a><span class="kw">FROM</span> raw_events e <span class="kw">JOIN</span> dim_user u <span class="kw">ON</span> u.user_id <span class="op">=</span> e.user_id;</span></code></pre></div>
+<p>DST is the silent bug. Whenever you convert, be prepared for <code>2026-03-08 02:30 US/Eastern</code> — which doesn't exist. Use library functions (<code>pytz</code>, Java ZonedDateTime) that raise errors rather than silently shift.</p>
+<h2 id="9-data-vault-20--when-and-why">9. Data Vault 2.0 — When and Why</h2>
+<p>Data Vault is a modeling methodology for enterprises with <strong>many</strong> source systems, strong auditability requirements, and the need to evolve quickly without reshaping downstream.</p>
+<h3 id="core-structures">Core structures</h3>
+<p><strong>Hub</strong> — unique list of business keys.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> hub_customer (</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a>    customer_hk    <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,       <span class="co">-- hash of business key</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a>    customer_bk    <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,       <span class="co">-- natural / business key</span></span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>    load_dts       TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>    record_source  <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>);</span></code></pre></div>
+<p><strong>Link</strong> — relationships between hubs.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> link_order (</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a>    order_hk       <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,        <span class="co">-- hash(customer_bk, product_bk, order_bk)</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a>    customer_hk    <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> hub_customer,</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a>    product_hk     <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">REFERENCES</span> hub_product,</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a>    order_bk       <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a>    load_dts       TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a>    record_source  <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span></span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a>);</span></code></pre></div>
+<p><strong>Satellite</strong> — descriptive attributes, with full history built in.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> sat_customer_details (</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a>    customer_hk    <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a>    load_dts       TIMESTAMPTZ <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a>    load_end_dts   TIMESTAMPTZ,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true"></a>    hash_diff      <span class="dt">CHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true"></a>    <span class="co">-- Attributes</span></span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true"></a>    email          <span class="dt">VARCHAR</span>(<span class="dv">320</span>),</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true"></a>    country_code   <span class="dt">CHAR</span>(<span class="dv">2</span>),</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true"></a>    subscription_tier <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true"></a>    record_source  <span class="dt">VARCHAR</span>(<span class="dv">100</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true"></a>    <span class="kw">PRIMARY</span> <span class="kw">KEY</span> (customer_hk, load_dts)</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true"></a>);</span></code></pre></div>
+<h3 id="loading-pattern">Loading pattern</h3>
+<p>Highly parallel — each hub, link, and sat can be loaded independently as long as hubs are loaded before their sats. No dependencies between sources.</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="co">-- Load pattern (per source, per hub)</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> hub_customer (customer_hk, customer_bk, load_dts, record_source)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="kw">DISTINCT</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a>    SHA2(s.customer_id, <span class="dv">256</span>) <span class="kw">AS</span> customer_hk,</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true"></a>    s.customer_id,</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true"></a>    <span class="fu">CURRENT_TIMESTAMP</span>,</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true"></a>    <span class="st">&#39;billing_system&#39;</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true"></a><span class="kw">FROM</span> stage_billing s</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> hub_customer h <span class="kw">ON</span> h.customer_hk <span class="op">=</span> SHA2(s.customer_id, <span class="dv">256</span>)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true"></a><span class="kw">WHERE</span> h.customer_hk <span class="kw">IS</span> <span class="kw">NULL</span>;</span></code></pre></div>
+<h3 id="pros">Pros</h3>
+<ul>
+<li>Source-system-agnostic: the vault survives upstream changes with zero refactor.</li>
+<li>Auditable: every fact has load_dts + record_source; lineage is built in.</li>
+<li>Parallel loading: no cross-source dependencies.</li>
+<li>Adding new sources is an additive operation.</li>
+</ul>
+<h3 id="cons">Cons</h3>
+<ul>
+<li><strong>Unqueryable directly</strong>. You build a Kimball-style "information mart" on top for BI. Two layers = more moving parts.</li>
+<li>Many joins: hubs + sats + links to get a single business view.</li>
+<li>Overkill for small/single-source warehouses.</li>
+<li>Team needs training; the discipline is easy to violate.</li>
+</ul>
+<h3 id="when-to-use-it">When to use it</h3>
+<ul>
+<li>50+ source systems to integrate.</li>
+<li>Regulatory compliance (insurance, banking, healthcare) requires full audit trail.</li>
+<li>Large data engineering team that can maintain both vault + marts.</li>
+</ul>
+<p><strong>When NOT to use it</strong>: small warehouses (&lt;10 sources), teams without DV expertise, or when business moves too fast for a two-layer architecture.</p>
+<h2 id="10-one-big-table--the-columnar-revolution">10. One Big Table &amp; the Columnar Revolution</h2>
+<p>Columnar compression changes the math. With dictionary encoding, 100M rows of <code>"premium"</code> cost roughly 100M × 1-byte-dictionary-code + one entry <code>"premium"</code> in the dictionary. ~100MB uncompressed. With RLE (runs of <code>"premium"</code>): a few bytes per run.</p>
+<p>This means denormalizing a dimension into a fact table adds almost no storage. The join-elimination benefit is real. Hence OBT.</p>
+<h3 id="what-obt-looks-like">What OBT looks like</h3>
+<div class="sourceCode" id="cb27"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a><span class="co">-- A wide, denormalized table: 200 columns, billions of rows, no joins required</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> gold.playback_sessions_enriched (</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true"></a>    <span class="co">-- Primary identifiers</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true"></a>    session_id           <span class="dt">VARCHAR</span>(<span class="dv">64</span>),</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true"></a>    session_key          BIGINT,</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true"></a>    <span class="co">-- User attributes (denormalized from dim_user)</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true"></a>    user_id              <span class="dt">VARCHAR</span>(<span class="dv">36</span>),</span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true"></a>    user_country_code    <span class="dt">CHAR</span>(<span class="dv">2</span>),</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true"></a>    user_subscription_tier <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true"></a>    user_household_size  <span class="dt">SMALLINT</span>,</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true"></a>    user_profile_language <span class="dt">VARCHAR</span>(<span class="dv">10</span>),</span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true"></a>    user_signup_date     <span class="dt">DATE</span>,</span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true"></a>    user_segment         <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true"></a>    <span class="co">-- Title attributes</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true"></a>    title_id             <span class="dt">VARCHAR</span>(<span class="dv">36</span>),</span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true"></a>    title                <span class="dt">VARCHAR</span>(<span class="dv">500</span>),</span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true"></a>    title_type           <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true"></a>    title_genre_primary  <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true"></a>    title_runtime_min    <span class="dt">INT</span>,</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true"></a>    title_is_original    <span class="dt">BOOLEAN</span>,</span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true"></a>    <span class="co">-- Device attributes</span></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true"></a>    device_type          <span class="dt">VARCHAR</span>(<span class="dv">20</span>),</span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true"></a>    device_os            <span class="dt">VARCHAR</span>(<span class="dv">50</span>),</span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true"></a>    <span class="co">-- Session measures</span></span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true"></a>    watch_ms             BIGINT,</span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true"></a>    buffer_ms            BIGINT,</span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true"></a>    seeks                <span class="dt">INT</span>,</span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true"></a>    pauses               <span class="dt">INT</span>,</span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true"></a>    max_bitrate_kbps     <span class="dt">INT</span>,</span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true"></a>    completion_ratio     <span class="dt">NUMERIC</span>(<span class="dv">4</span>,<span class="dv">3</span>),</span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true"></a>    <span class="co">-- Derived (not in star)</span></span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true"></a>    watched_in_peak_hours <span class="dt">BOOLEAN</span>,</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true"></a>    was_binge_session    <span class="dt">BOOLEAN</span>,</span>
+<span id="cb27-34"><a href="#cb27-34" aria-hidden="true"></a>    qoe_score            <span class="dt">NUMERIC</span>(<span class="dv">3</span>,<span class="dv">2</span>),</span>
+<span id="cb27-35"><a href="#cb27-35" aria-hidden="true"></a>    <span class="co">-- Time</span></span>
+<span id="cb27-36"><a href="#cb27-36" aria-hidden="true"></a>    start_ts             TIMESTAMPTZ,</span>
+<span id="cb27-37"><a href="#cb27-37" aria-hidden="true"></a>    end_ts               TIMESTAMPTZ,</span>
+<span id="cb27-38"><a href="#cb27-38" aria-hidden="true"></a>    dt                   <span class="dt">DATE</span></span>
+<span id="cb27-39"><a href="#cb27-39" aria-hidden="true"></a>)</span>
+<span id="cb27-40"><a href="#cb27-40" aria-hidden="true"></a>PARTITIONED <span class="kw">BY</span> (dt)</span>
+<span id="cb27-41"><a href="#cb27-41" aria-hidden="true"></a><span class="kw">CLUSTER</span> <span class="kw">BY</span> (user_country_code, title_genre_primary);</span></code></pre></div>
+<p>Consumer queries have zero joins:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a>    user_country_code, title_genre_primary,</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a>    <span class="fu">SUM</span>(watch_ms) <span class="op">/</span> <span class="fl">3600e3</span> <span class="kw">AS</span> watch_hours</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a><span class="kw">FROM</span> gold.playback_sessions_enriched</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a><span class="kw">WHERE</span> dt <span class="kw">BETWEEN</span> <span class="st">&#39;2026-04-12&#39;</span> <span class="kw">AND</span> <span class="st">&#39;2026-04-18&#39;</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> user_country_code, title_genre_primary;</span></code></pre></div>
+<p>Zone maps + clustering make this scan a tiny fraction of the table.</p>
+<h3 id="obt-trade-offs">OBT trade-offs</h3>
+<p>Pros:</p>
+<ul>
+<li>One join-less table.</li>
+<li>Dashboards fly.</li>
+<li>Simple mental model for analysts.</li>
+<li>Compressed storage cost is often lower than the original star due to better dictionary encoding across a wider table.</li>
+</ul>
+<p>Cons:</p>
+<ul>
+<li><strong>SCD2 becomes painful</strong>. Do you carry every historical attribute on every fact row? Or pin-time user attributes as-of event time and skip "current" reporting? Either is a choice.</li>
+<li><strong>Backfilling dimension changes is expensive</strong>. If <code>user_segment</code> logic changes, every historical row must be rewritten.</li>
+<li><strong>Data contracts grow</strong>. 200 columns × many downstream consumers = a lot of coordination on changes.</li>
+<li><strong>Governance nightmare</strong>. Sensitive fields proliferate — you now have <code>email</code> on billions of fact rows; GDPR deletes touch all of them.</li>
+</ul>
+<h3 id="hybrid-kimball-silver--obt-gold">Hybrid: Kimball silver + OBT gold</h3>
+<p>The pragmatic pattern most serious teams end up with:</p>
+<ul>
+<li><strong>Silver</strong> = conformed star schema (dims + facts), Kimball-style.</li>
+<li><strong>Gold</strong> = one OBT per consumption pattern, materialized from silver.</li>
+</ul>
+<p>Regenerate gold cheaply when dimensions change. Silver provides the single source of truth. BI reads gold for speed.</p>
+<h2 id="11-medallion-architecture-bronzesilvergold">11. Medallion Architecture (Bronze/Silver/Gold)</h2>
+<p>The lakehouse convention. Each layer has a distinct purpose:</p>
+<h3 id="bronze--raw-append-only-preserved">Bronze — raw, append-only, preserved</h3>
+<p>Never business-logic-applied. Schema-on-read preserved (or schema promoted but all fields retained). Idempotent ingest by source event ID.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a><span class="co"># Ingest Kafka events to Bronze Iceberg</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a>(stream</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a>    .writeStream</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true"></a>    .outputMode(<span class="st">&quot;append&quot;</span>)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true"></a>    .option(<span class="st">&quot;path&quot;</span>, <span class="st">&quot;s3://lake/bronze/events/&quot;</span>)</span>
+<span id="cb29-7"><a href="#cb29-7" aria-hidden="true"></a>    .option(<span class="st">&quot;checkpointLocation&quot;</span>, <span class="st">&quot;s3://lake/checkpoints/bronze_events/&quot;</span>)</span>
+<span id="cb29-8"><a href="#cb29-8" aria-hidden="true"></a>    .partitionBy(<span class="st">&quot;ingest_date&quot;</span>)</span>
+<span id="cb29-9"><a href="#cb29-9" aria-hidden="true"></a>    .trigger(processingTime<span class="op">=</span><span class="st">&quot;5 minutes&quot;</span>)</span>
+<span id="cb29-10"><a href="#cb29-10" aria-hidden="true"></a>    .start())</span></code></pre></div>
+<p>Bronze is the "replayability" layer. If silver/gold ever get corrupted, you can always rebuild from bronze.</p>
+<h3 id="silver--cleaned-conformed-typed-deduped">Silver — cleaned, conformed, typed, deduped</h3>
+<p>Business entities emerge. Dimensions and facts in Kimball style. SCD handling lives here.</p>
+<h3 id="gold--consumption-ready-obt-per-use-case">Gold — consumption-ready, OBT per use case</h3>
+<p>One gold table per dashboard domain. Materialized from silver. Rebuilt cheaply.</p>
+<h3 id="the-implicit-contract">The implicit contract</h3>
+<ul>
+<li>Bronze is <strong>owned by the ingestion team</strong>. Contract: "we will deliver every source event exactly once, preserve schema, and never backfill by overwrite."</li>
+<li>Silver is <strong>owned by the platform team</strong>. Contract: "conformed dimensions, typed, documented, stable schema."</li>
+<li>Gold is <strong>owned by the consumer team</strong>. Contract: "you build it, you own it; break it quietly and it's on you."</li>
+</ul>
+<h3 id="medallion--streaming">Medallion + streaming</h3>
+<p>Works the same way. Bronze = append stream into Iceberg / Delta. Silver = streaming sessionization / dedup / enrichment, written as upsert into Iceberg. Gold = periodic or streaming rollup. Iceberg's row-level DELETE/MERGE (v2) makes this feasible at real latencies.</p>
+<h2 id="12-null-semantics--the-silent-source-of-bugs">12. NULL Semantics — The Silent Source of Bugs</h2>
+<p>NULL in SQL is <strong>three-valued logic</strong>. <code>NULL = NULL</code> is NULL (not TRUE). <code>x = NULL</code> always yields NULL. This is the source of countless quiet bugs.</p>
+<h3 id="null-in-joins">NULL in joins</h3>
+<p><code>a.x = b.x</code> never matches when either side is NULL. If you want NULL to equal NULL, use:</p>
+<ul>
+<li><code>a.x IS NOT DISTINCT FROM b.x</code> (Postgres, Spark)</li>
+<li><code>COALESCE(a.x, '') = COALESCE(b.x, '')</code> (universal but ugly; only works if '' isn't a valid value)</li>
+<li><code>equal_null(a.x, b.x)</code> (Snowflake)</li>
+</ul>
+<h3 id="null-in-aggregations">NULL in aggregations</h3>
+<ul>
+<li><code>COUNT(*)</code> counts all rows.</li>
+<li><code>COUNT(x)</code> counts non-NULL x.</li>
+<li><code>SUM</code>, <code>AVG</code>, <code>MIN</code>, <code>MAX</code> ignore NULLs.</li>
+<li><code>AVG(x)</code> = <code>SUM(x) / COUNT(x)</code> — divides by non-NULL count. Surprising when you expect "nulls treated as zero."</li>
+<li><code>COUNT(DISTINCT x)</code> counts distinct non-NULL values — so a column with values <code>{1, NULL, NULL}</code> has COUNT DISTINCT 1.</li>
+</ul>
+<h3 id="null-in-filters">NULL in filters</h3>
+<p><code>WHERE x &lt;&gt; 5</code> excludes rows where x is 5 AND rows where x is NULL. If you want nulls too: <code>WHERE x IS NULL OR x &lt;&gt; 5</code>. Forgetting this is a dominant source of silent data loss.</p>
+<h3 id="null-ordering">NULL ordering</h3>
+<ul>
+<li>Postgres: NULLs sort LAST by default in ASC, FIRST in DESC. Override with <code>NULLS FIRST</code> / <code>NULLS LAST</code>.</li>
+<li>MySQL: NULLs sort FIRST in ASC.</li>
+<li>Be explicit. Always.</li>
+</ul>
+<h3 id="null-in-group-by">NULL in GROUP BY</h3>
+<p>NULLs form their own group. <code>GROUP BY country</code> returns one row with <code>country = NULL</code> for all rows missing country. Surface this explicitly in reports or filter before aggregation.</p>
+<h3 id="nulls-in-window-functions">NULLs in window functions</h3>
+<p><code>LAG(x)</code> returns NULL before the first row. Use <code>LAG(x, 1, default_value)</code> or <code>COALESCE</code>. <code>LAG(x) IGNORE NULLS</code> (Snowflake/BigQuery) skips NULLs and returns the last non-NULL value — powerful for "last known state" patterns.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a><span class="co">-- Last non-null country (for users with intermittent country updates)</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, event_ts,</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true"></a>       <span class="fu">LAST_VALUE</span>(country IGNORE <span class="kw">NULLS</span>) <span class="kw">OVER</span> (</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true"></a>           <span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true"></a>           <span class="kw">ROWS</span> <span class="kw">BETWEEN</span> <span class="kw">UNBOUNDED</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT</span> <span class="kw">ROW</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true"></a>       ) <span class="kw">AS</span> country_known</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true"></a><span class="kw">FROM</span> <span class="kw">events</span>;</span></code></pre></div>
+<h3 id="rule-every-null-should-be-documented">Rule: every NULL should be documented</h3>
+<p>Either NULL means "not yet known" (e.g., <code>churn_date</code>) or "not applicable" (e.g., <code>return_reason</code> on non-returned orders). Document which. Consider sentinel values (unknown codes instead of NULL) when the latter — they force explicit handling downstream.</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a><span class="co">-- Instead of NULL for &quot;unknown country&quot;:</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a>country_code <span class="dt">CHAR</span>(<span class="dv">2</span>) <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">DEFAULT</span> <span class="st">&#39;ZZ&#39;</span>,   <span class="co">-- ZZ = unknown</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true"></a><span class="co">-- Reports naturally include &quot;ZZ&quot; as a group rather than silently dropping.</span></span></code></pre></div>
+<h2 id="13-data-contracts--schema-evolution">13. Data Contracts &amp; Schema Evolution</h2>
+<p>A data contract is a guarantee between a producer and consumers about a dataset's schema, semantics, freshness, and quality. Without it, consumers build on sand.</p>
+<h3 id="what-a-contract-specifies">What a contract specifies</h3>
+<div class="sourceCode" id="cb32"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a><span class="co"># data_contracts/playback_sessions.yaml</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true"></a><span class="fu">id</span><span class="kw">:</span><span class="at"> bronze.playback_sessions</span></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true"></a><span class="fu">version</span><span class="kw">:</span><span class="at"> </span><span class="fl">3.1.0</span></span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true"></a><span class="fu">owner</span><span class="kw">:</span><span class="at"> playback-platform@co</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true"></a><span class="fu">schema</span><span class="kw">:</span></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true"></a><span class="at">  </span><span class="fu">event_id</span><span class="kw">:</span><span class="at">        </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="kw">,</span><span class="at"> </span><span class="fu">unique</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true"></a><span class="at">  </span><span class="fu">session_id</span><span class="kw">:</span><span class="at">      </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true"></a><span class="at">  </span><span class="fu">user_id</span><span class="kw">:</span><span class="at">         </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="kw">,</span><span class="at"> </span><span class="fu">pii</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true"></a><span class="at">  </span><span class="fu">title_id</span><span class="kw">:</span><span class="at">        </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true"></a><span class="at">  </span><span class="fu">event_ts</span><span class="kw">:</span><span class="at">        </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> timestamp</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="kw">,</span><span class="at"> </span><span class="fu">timezone</span><span class="kw">:</span><span class="at"> UTC </span><span class="kw">}</span></span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true"></a><span class="at">  </span><span class="fu">event_type</span><span class="kw">:</span><span class="at">      </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> string</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span><span class="kw">,</span><span class="at"> </span><span class="fu">enum</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">start</span><span class="kw">,</span><span class="at"> heartbeat</span><span class="kw">,</span><span class="at"> end</span><span class="kw">,</span><span class="at"> error</span><span class="kw">]</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true"></a><span class="at">  </span><span class="fu">watch_ms</span><span class="kw">:</span><span class="at">        </span><span class="kw">{</span><span class="at"> </span><span class="fu">type</span><span class="kw">:</span><span class="at"> long</span><span class="kw">,</span><span class="at"> </span><span class="fu">required</span><span class="kw">:</span><span class="at"> </span><span class="ch">false</span><span class="kw">,</span><span class="at"> </span><span class="fu">constraints</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;value &gt;= 0&quot;</span><span class="at"> </span><span class="kw">}</span></span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true"></a><span class="fu">sla</span><span class="kw">:</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true"></a><span class="at">  </span><span class="fu">freshness</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;p99 &lt; 15 minutes after event_ts&quot;</span></span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true"></a><span class="at">  </span><span class="fu">completeness</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;&gt;= 99.5% of upstream client emissions&quot;</span></span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true"></a><span class="at">  </span><span class="fu">uniqueness</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;100% on event_id within 7 days&quot;</span></span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true"></a><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> no_negative_watch_ms</span></span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true"></a><span class="at">    </span><span class="fu">sql</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;SELECT COUNT(*) FROM {{ this }} WHERE watch_ms &lt; 0&quot;</span></span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true"></a><span class="at">    </span><span class="fu">threshold</span><span class="kw">:</span><span class="at"> </span><span class="dv">0</span></span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true"></a><span class="fu">breaking_changes_require</span><span class="kw">:</span></span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> major_version_bump</span></span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> 30_day_deprecation_notice</span></span>
+<span id="cb32-24"><a href="#cb32-24" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">consumer_acknowledgment_from</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="at">analytics</span><span class="kw">,</span><span class="at"> ml-platform</span><span class="kw">,</span><span class="at"> product-insights</span><span class="kw">]</span></span></code></pre></div>
+<h3 id="schema-evolution-rules">Schema evolution rules</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Change</th>
+<th>Compatibility</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Add optional column</td>
+<td>Backward</td>
+<td>Minor version</td>
+</tr>
+<tr class="even">
+<td>Add required column</td>
+<td>Breaking</td>
+<td>Major version, default-fill historical rows</td>
+</tr>
+<tr class="odd">
+<td>Drop column</td>
+<td>Breaking</td>
+<td>Deprecate (write-null for N versions, then drop)</td>
+</tr>
+<tr class="even">
+<td>Rename column</td>
+<td>Breaking</td>
+<td>Add new, deprecate old, drop after transition</td>
+</tr>
+<tr class="odd">
+<td>Widen type (INT → BIGINT)</td>
+<td>Backward</td>
+<td>Minor version</td>
+</tr>
+<tr class="even">
+<td>Narrow type</td>
+<td>Breaking</td>
+<td>Major version, data validation</td>
+</tr>
+<tr class="odd">
+<td>Change semantics without renaming</td>
+<td>Catastrophic</td>
+<td>Never. Rename + deprecate.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="enforcing-contracts">Enforcing contracts</h3>
+<p>Automatic checks in CI:</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true"></a><span class="co"># contract_check.py</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true"></a><span class="im">import</span> yaml, pyarrow.parquet <span class="im">as</span> pq</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true"></a>spec <span class="op">=</span> yaml.safe_load(<span class="bu">open</span>(<span class="st">&quot;data_contracts/playback_sessions.yaml&quot;</span>))</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true"></a>schema <span class="op">=</span> pq.ParquetFile(sample_file).schema_arrow</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true"></a>observed <span class="op">=</span> {f.name: <span class="bu">str</span>(f.<span class="bu">type</span>) <span class="cf">for</span> f <span class="kw">in</span> schema}</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true"></a></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true"></a><span class="cf">for</span> field_name, field_spec <span class="kw">in</span> spec[<span class="st">&quot;schema&quot;</span>].items():</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true"></a>    <span class="cf">if</span> field_spec[<span class="st">&quot;required&quot;</span>] <span class="kw">and</span> field_name <span class="kw">not</span> <span class="kw">in</span> observed:</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;Required field </span><span class="sc">{</span>field_name<span class="sc">}</span><span class="ss"> missing&quot;</span>)</span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true"></a>    <span class="co"># Type, enum, constraint checks...</span></span></code></pre></div>
+<p>Pair with runtime data quality tests (Great Expectations, Soda, dbt tests) that run on each pipeline execution and block promotion on failure.</p>
+<h3 id="lakehouse-native-schema-evolution">Lakehouse-native schema evolution</h3>
+<p>Iceberg and Delta both support safe evolution:</p>
+<ul>
+<li>Iceberg tracks columns by <strong>unique ID</strong>, not name. Rename is metadata-only, no rewrite.</li>
+<li>Add column: metadata-only; existing rows treated as NULL.</li>
+<li>Drop column: metadata-only (writes stop emitting it; old files untouched).</li>
+<li>Reorder: metadata-only.</li>
+<li>Type promotion (INT → LONG, FLOAT → DOUBLE): metadata-only, allowed.</li>
+<li>Type narrowing: not allowed.</li>
+</ul>
+<div class="sourceCode" id="cb34"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.playback_sessions <span class="kw">ADD</span> <span class="kw">COLUMN</span> engagement_score <span class="dt">DOUBLE</span>;</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.playback_sessions <span class="kw">RENAME</span> <span class="kw">COLUMN</span> qoe_score <span class="kw">TO</span> quality_score;</span></code></pre></div>
+<h2 id="14-modeling-checklist--anti-patterns">14. Modeling Checklist &amp; Anti-Patterns</h2>
+<p>Before shipping a model:</p>
+<ol>
+<li><strong>Grain declared and documented?</strong> If two engineers could disagree about what a row represents, the model is broken.</li>
+<li><strong>Are all keys surrogate?</strong> Natural keys are attributes, not PKs on dims.</li>
+<li><strong>Is every measure's additivity documented?</strong> Labels in the data catalog; column naming conventions (<code>_point_in_time</code>, <code>_ratio</code>).</li>
+<li><strong>Is history handled deliberately?</strong> SCD type per attribute, not per dim.</li>
+<li><strong>Are dimensions conformed across facts?</strong> Single <code>dim_customer</code>, multiple FKs.</li>
+<li><strong>Is the date dimension a real table?</strong> Not a function call.</li>
+<li><strong>Are slowly-changing fact attributes modeled as mini-dimensions?</strong> Not VARCHAR columns.</li>
+<li><strong>Are all NULLs meaningful and documented?</strong> Sentinel values where applicable.</li>
+<li><strong>Are timestamps UTC with explicit timezone storage?</strong> Local times precomputed for user-local analytics.</li>
+<li><strong>Does the table have a partition/cluster strategy that prunes typical queries?</strong> Default: partition by date, cluster by most-filtered high-cardinality column.</li>
+<li><strong>Are contracts published and enforced?</strong> Schema + SLA + tests in version control, blocked by CI.</li>
+<li><strong>Can the table be rebuilt from bronze in a reasonable window?</strong> If not, you have single-source fragility.</li>
+</ol>
+<h3 id="anti-patterns">Anti-patterns</h3>
+<ul>
+<li><strong>Mixed-grain fact tables.</strong> Invisible bug, impossible to audit.</li>
+<li><strong>Natural keys as PKs.</strong> Breaks the first time source-system renumbering happens.</li>
+<li><strong>FLOAT for money.</strong> Accumulation errors. Use BIGINT cents or DECIMAL(18,2).</li>
+<li><strong>No date dimension.</strong> Every report ends up with <code>CASE WHEN EXTRACT(MONTH ...)</code> scattered everywhere.</li>
+<li><strong>TIMESTAMP without timezone.</strong> Analytics broken after the next DST change.</li>
+<li><strong>"Latest" table that's actually mutable.</strong> A view over SCD2 with <code>WHERE is_current</code> is safe; an actual table that gets UPDATE'd is a mutation-ordering bug farm.</li>
+<li><strong>Soft-delete without a partial index.</strong> <code>WHERE deleted = FALSE</code> becomes a full scan on billions of rows.</li>
+<li><strong>EAV (entity-attribute-value)</strong> inside a warehouse. <code>(entity_id, attr_name, attr_value)</code> — looks flexible, makes every query a pivot, kills indexability.</li>
+<li><strong>One column per language</strong> (<code>name_en, name_fr, name_de, ...</code>). Unbounded schema drift. Normalize to a translations child table.</li>
+<li><strong>Copying source tables verbatim into the warehouse as "the model."</strong> Source schema serves source transactions; warehouse schema should serve analytics.</li>
+<li><strong>Logic embedded in views with no materialization.</strong> When the dashboard query gets slow, caching becomes a retrofit.</li>
+<li><strong>Dimensions that aren't dimensions.</strong> If a column has 8 distinct values, it's a mini-dim candidate, not a VARCHAR fact column.</li>
+</ul>
+<hr />
+<p>Next: <a href="02-batch-processing.html"><code>02-batch-processing.md</code></a> — the theory and mechanics of bounded-data processing, idempotency, MERGE patterns, file formats, and partition design.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="00-readme.html">← Index · Data Engineering Deep Dive — Index</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="02-batch-processing.html">Part 02 · Batch Processing →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 01</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/01-data-modeling.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

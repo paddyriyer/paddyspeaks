@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python for DE — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 06 · Senior / L5 Data Engineering Reference</div>
+  <h1>Python for DE</h1>
+  <p class="subhead">GIL bytecode-level, Pandas vs Polars vs PySpark trade math, pandas/Arrow boundary, generators, async patterns, testing strategy, packaging.</p>
+  <div class="meta-strip">
+    <span>GIL · Pandas · Polars · Arrow · Async</span>
+    <span>~3,518 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="05-sql-deep-dive.html">← Part 05 · SQL Deep Dive</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="07-lakehouse-iceberg.html">Part 07 · Lakehouse: Iceberg & Delta →</a></nav>
+
+<main class="content">
+<blockquote>
+<p><em>"Python is the glue, the prototype, and increasingly the runtime. Knowing where its abstractions leak — GIL, GC, copy-vs-view, the Arrow boundary — is how you stop writing slow data code."</em></p>
+</blockquote>
+<p>This chapter is what a senior data engineer actually needs from Python: GIL semantics down to bytecode, the real differences between Pandas / Polars / PySpark with the math, the Arrow boundary, generators and async that don't crash production, testing strategies that scale, and packaging for distributed runtimes.</p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#exec">The Python execution model that matters for DE</a></li>
+<li><a href="#gil">The GIL — what it actually locks</a></li>
+<li><a href="#memory">Memory: refcounting, GC, and the bytes you don't see</a></li>
+<li><a href="#frames">Pandas vs Polars vs PySpark — the trade math</a></li>
+<li><a href="#arrow">The Arrow boundary: zero-copy between worlds</a></li>
+<li><a href="#generators">Generators, iterators, and chunked I/O</a></li>
+<li><a href="#async">Async/await for I/O-bound DE work</a></li>
+<li><a href="#multiproc">Multiprocessing patterns that work in production</a></li>
+<li><a href="#types">Type hints, dataclasses, and runtime data validation</a></li>
+<li><a href="#testing">Testing strategy for data pipelines</a></li>
+<li><a href="#packaging">Packaging and deploying to Spark / Lambda / Airflow</a></li>
+<li><a href="#perf">Performance debugging toolkit</a></li>
+</ol>
+<hr />
+<p><a id="exec"></a></p>
+<h2 id="1-the-python-execution-model-that-matters-for-de">1. The Python execution model that matters for DE</h2>
+<p>Three layers, each with its own quirks:</p>
+<ol>
+<li><strong>The interpreter (CPython)</strong>: source → bytecode → executed by the eval loop.</li>
+<li><strong>Reference counting + cyclic GC</strong>: every object has a refcount; cycles collected by a generational GC.</li>
+<li><strong>C extension layer</strong>: NumPy, Pandas, PyArrow, etc. — most heavy lifting happens in C and releases the GIL.</li>
+</ol>
+<p>You won't write fast Python by writing more Python. You write fast Python by <strong>delegating to C/Rust extensions</strong> (NumPy, Pandas, Arrow, Polars) and arranging your code so the interpreter loop runs as little as possible.</p>
+<p>Quick measurement:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="im">import</span> dis</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a><span class="kw">def</span> add(a, b):</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>    <span class="cf">return</span> a <span class="op">+</span> b</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>dis.dis(add)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a><span class="co">#  2           0 RESUME                   0</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a><span class="co">#  3           2 LOAD_FAST                0 (a)</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true"></a><span class="co">#              4 LOAD_FAST                1 (b)</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true"></a><span class="co">#              6 BINARY_OP                0 (+)</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true"></a><span class="co">#             10 RETURN_VALUE</span></span></code></pre></div>
+<p>Each bytecode op is dispatched by the eval loop. Python 3.11+ added the <em>specializing adaptive interpreter</em> (PEP 659) — same bytecode, but specialized at runtime for observed types (e.g. <code>BINARY_OP_ADD_INT</code>). Real measurable speedup (10–60% for loops). Python 3.12/3.13 push this further.</p>
+<hr />
+<p><a id="gil"></a></p>
+<h2 id="2-the-gil--what-it-actually-locks">2. The GIL — what it actually locks</h2>
+<p>The Global Interpreter Lock is a mutex that guards CPython's interpreter state — primarily refcount manipulation. Only <strong>one thread</strong> can hold it; only the holder executes Python bytecode at any instant.</p>
+<p>What this means in practice:</p>
+<ul>
+<li><strong>CPU-bound pure-Python multithreading: no speedup.</strong> Threads serialize on the GIL.</li>
+<li><strong>I/O-bound multithreading: real speedup.</strong> Sockets / file I/O release the GIL while blocking.</li>
+<li><strong>C extensions: depends.</strong> NumPy, Pandas, scikit-learn frequently release the GIL during heavy compute.</li>
+<li><strong>AsyncIO: single-threaded</strong> — it never bumps into the GIL because it doesn't use threads for concurrency.</li>
+</ul>
+<h3 id="21-switching-interval">2.1 Switching interval</h3>
+<p>The GIL is released periodically:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="im">import</span> sys</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>sys.getswitchinterval()    <span class="co"># 0.005 (5 ms in 3.x)</span></span></code></pre></div>
+<p>The currently-running thread is told to release the GIL after this many seconds (cooperatively, at next bytecode boundary). Other threads can then contend.</p>
+<h3 id="22-what-happens-during-timesleep">2.2 What happens during <code>time.sleep()</code></h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="im">import</span> threading, time</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">def</span> worker():</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    time.sleep(<span class="dv">1</span>)  <span class="co"># releases GIL while sleeping</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>    <span class="bu">print</span>(<span class="st">&quot;done&quot;</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>threading.Thread(target<span class="op">=</span>worker).start()</span></code></pre></div>
+<p><code>time.sleep</code> is a C function that releases the GIL during the sleep. So you can have 10000 threads sleeping; the GIL doesn't matter.</p>
+<h3 id="23-what-happens-during-pandas-dfmerge">2.3 What happens during pandas <code>df.merge()</code></h3>
+<p>The merge is in C. It releases the GIL for the duration. Other Python threads can run. <strong>In practice, pandas + threads can scale on multicore for large numerical operations.</strong> Caveat: object-dtype columns (strings in Pandas 1.x) need the GIL for hash table building, and won't scale.</p>
+<h3 id="24-the-free-threaded-build-pep-703--python-313">2.4 The free-threaded build (PEP 703 — Python 3.13+)</h3>
+<p>Python 3.13 ships an experimental <code>--disable-gil</code> build. Reference counting becomes biased + atomic; per-object locks replace the GIL. Real concurrency for pure Python. Performance overhead ~10–30% single-threaded.</p>
+<p>For DE work in 2026: <strong>continue assuming the GIL exists</strong> in production. Free-threaded adoption is on the horizon but not yet default.</p>
+<h3 id="25-the-shortcut-concurrentfutures">2.5 The shortcut: <code>concurrent.futures</code></h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="im">from</span> concurrent.futures <span class="im">import</span> ThreadPoolExecutor, ProcessPoolExecutor</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a><span class="co"># I/O-bound: thread pool fine, GIL not contended</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a><span class="cf">with</span> ThreadPoolExecutor(max_workers<span class="op">=</span><span class="dv">32</span>) <span class="im">as</span> ex:</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    results <span class="op">=</span> <span class="bu">list</span>(ex.<span class="bu">map</span>(fetch_url, urls))</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a><span class="co"># CPU-bound: process pool to bypass GIL</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a><span class="cf">with</span> ProcessPoolExecutor(max_workers<span class="op">=</span><span class="dv">8</span>) <span class="im">as</span> ex:</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a>    results <span class="op">=</span> <span class="bu">list</span>(ex.<span class="bu">map</span>(crunch_numbers, datasets))</span></code></pre></div>
+<hr />
+<p><a id="memory"></a></p>
+<h2 id="3-memory-refcounting-gc-and-the-bytes-you-dont-see">3. Memory: refcounting, GC, and the bytes you don't see</h2>
+<p>Every Python object has at minimum a header (~16 bytes on CPython 3.12) + type pointer + refcount. A trivial <code>int</code> is 28 bytes. A 4-character string is 53 bytes. A 1-element list is 88 bytes.</p>
+<p>This is why a Pandas DataFrame with 10M rows × 1 string column can use 2 GB of memory in object dtype but 80 MB as Arrow-backed strings.</p>
+<h3 id="31-refcounting">3.1 Refcounting</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="im">import</span> sys</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>x <span class="op">=</span> [<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>]</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>sys.getrefcount(x)  <span class="co"># 2 (variable + getrefcount&#39;s local arg)</span></span></code></pre></div>
+<p>When refcount hits zero → object freed immediately. Predictable, but cycles aren't collected this way.</p>
+<h3 id="32-generational-gc">3.2 Generational GC</h3>
+<p>For cycles. Three generations (0, 1, 2). New objects in gen 0; survivors promoted. GC scans gen 0 frequently, gen 2 rarely.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="im">import</span> gc</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>gc.set_threshold(<span class="dv">700</span>, <span class="dv">10</span>, <span class="dv">10</span>)   <span class="co"># collect gen0 every 700 allocations, etc.</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>gc.disable()                    <span class="co"># turn off cyclic GC entirely</span></span></code></pre></div>
+<p>Disabling can speed up batch jobs that allocate massively but never form cycles (rare; verify first).</p>
+<h3 id="33-memory-profiling">3.3 Memory profiling</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="im">import</span> tracemalloc</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>tracemalloc.start()</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a><span class="co"># ... your code</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a>snapshot <span class="op">=</span> tracemalloc.take_snapshot()</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a>top <span class="op">=</span> snapshot.statistics(<span class="st">&#39;lineno&#39;</span>)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true"></a><span class="cf">for</span> stat <span class="kw">in</span> top[:<span class="dv">10</span>]:</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true"></a>    <span class="bu">print</span>(stat)</span></code></pre></div>
+<p>Or for live diagnosis:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="ex">pip</span> install py-spy</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="ex">py-spy</span> top --pid <span class="op">&lt;</span>PID<span class="op">&gt;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a><span class="ex">py-spy</span> dump --pid <span class="op">&lt;</span>PID<span class="op">&gt;</span></span></code></pre></div>
+<p><code>py-spy</code> is a Rust tool that profiles a running Python process without modifying it (<code>USDT</code>-style). Critical for Spark driver issues.</p>
+<h3 id="34-the-__slots__-lever">3.4 The <code>__slots__</code> lever</h3>
+<p>By default, instance attributes live in a per-instance <code>__dict__</code> (~~250 bytes). <code>__slots__</code> declares a fixed attribute set, replacing dict with a struct.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">class</span> Point:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>    __slots__ <span class="op">=</span> (<span class="st">&#39;x&#39;</span>, <span class="st">&#39;y&#39;</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, x, y):</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>        <span class="va">self</span>.x, <span class="va">self</span>.y <span class="op">=</span> x, y</span></code></pre></div>
+<p>Memory drop: ~50%. Useful when you're holding 10M small objects (rare in modern DE; you'd use Arrow). But know it exists.</p>
+<hr />
+<p><a id="frames"></a></p>
+<h2 id="4-pandas-vs-polars-vs-pyspark--the-trade-math">4. Pandas vs Polars vs PySpark — the trade math</h2>
+<p>The default question in modern DE: which DataFrame library?</p>
+<h3 id="41-the-honest-comparison">4.1 The honest comparison</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Dimension</th>
+<th>Pandas</th>
+<th>Polars</th>
+<th>PySpark</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Backing engine</td>
+<td>NumPy + (1.x objects, 2.x optionally Arrow)</td>
+<td>Rust + Arrow</td>
+<td>JVM + Arrow (via wrapper)</td>
+</tr>
+<tr class="even">
+<td>Execution</td>
+<td>Eager</td>
+<td>Lazy + eager</td>
+<td>Lazy, distributed</td>
+</tr>
+<tr class="odd">
+<td>Threading</td>
+<td>Mostly single-threaded</td>
+<td>Multi-core by default (Rayon)</td>
+<td>Distributed across cluster</td>
+</tr>
+<tr class="even">
+<td>Memory model</td>
+<td>In-memory only</td>
+<td>In-memory + streaming engine (1.0+)</td>
+<td>Distributed, spillable</td>
+</tr>
+<tr class="odd">
+<td>Sweet spot</td>
+<td>&lt; 10 GB on a laptop, single-threaded analytics</td>
+<td>10–500 GB on one beefy machine</td>
+<td>TB+, distributed</td>
+</tr>
+<tr class="even">
+<td>API surface</td>
+<td>The biggest, most documented</td>
+<td>Smaller but growing fast</td>
+<td>Spark SQL ecosystem</td>
+</tr>
+<tr class="odd">
+<td>String/object-heavy</td>
+<td>Slow (object dtype)</td>
+<td>Fast (Arrow strings)</td>
+<td>OK</td>
+</tr>
+<tr class="even">
+<td>Window functions</td>
+<td>OK</td>
+<td>Fast</td>
+<td>Yes, distributed</td>
+</tr>
+<tr class="odd">
+<td>Joins</td>
+<td>OK</td>
+<td>Excellent (parallel)</td>
+<td>Distributed</td>
+</tr>
+<tr class="even">
+<td>User-defined funcs</td>
+<td>Slow (per-row)</td>
+<td>Fast (Rust) or slow (Python)</td>
+<td>Pandas UDF for batches</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-speed-math-hand-wavy-benchmarks-orders-of-magnitude">4.2 Speed math (hand-wavy benchmarks; orders of magnitude)</h3>
+<p>For a 10 GB CSV → group by → write Parquet:</p>
+<ul>
+<li>Pandas: 5–10 minutes on a laptop, only if it fits in RAM (it won't; you're spilling to swap).</li>
+<li>Polars (lazy + streaming): 20–60 seconds on the same laptop. It streams.</li>
+<li>PySpark local mode: 1–3 minutes. JVM startup overhead, less efficient single-node.</li>
+<li>PySpark on a 10-node cluster: 30 seconds. Now distributed-friendly.</li>
+</ul>
+<p><strong>Rule of thumb</strong>: if it fits in RAM, Polars wins. If it doesn't, PySpark wins.</p>
+<h3 id="43-pandas-specific-traps">4.3 Pandas-specific traps</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co"># View vs copy (the source of &quot;SettingWithCopyWarning&quot;)</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>df2 <span class="op">=</span> df[df[<span class="st">&#39;x&#39;</span>] <span class="op">&gt;</span> <span class="dv">0</span>]   <span class="co"># might be a view, might be a copy — depends on memory layout</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>df2[<span class="st">&#39;y&#39;</span>] <span class="op">=</span> ...          <span class="co"># whiplash: changes might or might not propagate to df</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a><span class="co"># Fix:</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true"></a>df2 <span class="op">=</span> df[df[<span class="st">&#39;x&#39;</span>] <span class="op">&gt;</span> <span class="dv">0</span>].copy()</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true"></a>df2[<span class="st">&#39;y&#39;</span>] <span class="op">=</span> ...</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true"></a><span class="co"># Or use .loc[]</span></span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true"></a>df.loc[df[<span class="st">&#39;x&#39;</span>] <span class="op">&gt;</span> <span class="dv">0</span>, <span class="st">&#39;y&#39;</span>] <span class="op">=</span> ...</span></code></pre></div>
+<p>Pandas 2.0 introduced <code>Copy-on-Write</code> mode (<code>pd.set_option("mode.copy_on_write", True)</code>) which makes this deterministic. <strong>Turn it on for new code.</strong></p>
+<h3 id="44-polars-specific-patterns">4.4 Polars-specific patterns</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a><span class="co"># Lazy: build a plan, optimize, execute once</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>df <span class="op">=</span> (pl.scan_parquet(<span class="st">&quot;s3://bucket/path/*.parquet&quot;</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>      .<span class="bu">filter</span>(pl.col(<span class="st">&quot;event_date&quot;</span>) <span class="op">==</span> <span class="st">&quot;2026-04-15&quot;</span>)</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a>      .group_by(<span class="st">&quot;country&quot;</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a>      .agg(pl.col(<span class="st">&quot;watch_ms&quot;</span>).<span class="bu">sum</span>().alias(<span class="st">&quot;total_ms&quot;</span>))</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>      .sort(<span class="st">&quot;total_ms&quot;</span>, descending<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>      .head(<span class="dv">10</span>))</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true"></a>result <span class="op">=</span> df.collect(streaming<span class="op">=</span><span class="va">True</span>)  <span class="co"># streaming engine for out-of-core</span></span></code></pre></div>
+<p>Polars optimizes the plan (predicate push-down into the Parquet scan, projection push-down, common subexpression elimination). Runs Rust-multithreaded.</p>
+<h3 id="45-pyspark-specific-patterns">4.5 PySpark-specific patterns</h3>
+<p>See chapter 04. Key principle: <strong>never iterate row-by-row in Python over a Spark DataFrame</strong>. Use:</p>
+<ul>
+<li>Built-in functions (Catalyst native).</li>
+<li>Pandas UDFs (Arrow batches).</li>
+<li><code>.toPandas()</code> only for small results.</li>
+</ul>
+<hr />
+<p><a id="arrow"></a></p>
+<h2 id="5-the-arrow-boundary-zero-copy-between-worlds">5. The Arrow boundary: zero-copy between worlds</h2>
+<p>Apache Arrow is a columnar in-memory format with a stable C ABI. Anything that speaks Arrow can hand a buffer to anything else without copying.</p>
+<h3 id="51-why-it-matters">5.1 Why it matters</h3>
+<p>Pre-Arrow:</p>
+<pre><code>Spark JVM ──serialize Java objects → bytes → deserialize Python objects → Pandas DF
+</code></pre>
+<p>Cost: O(rows × columns), with object allocation for every cell. Slow.</p>
+<p>Post-Arrow:</p>
+<pre><code>Spark JVM ──Arrow IPC buffer (binary)──&gt; Python (pyarrow.Table) ──&gt; Pandas DF (zero copy for numeric, light copy for strings)
+</code></pre>
+<p>Cost: O(buffer bytes), pointer arithmetic.</p>
+<h3 id="52-the-libraries-that-talk-arrow-natively">5.2 The libraries that talk Arrow natively</h3>
+<ul>
+<li>PyArrow</li>
+<li>Polars</li>
+<li>Pandas 2.0+ (with <code>dtype_backend='pyarrow'</code>)</li>
+<li>DuckDB (in-memory and zero-copy with Pandas)</li>
+<li>Spark (for Pandas UDFs and <code>toPandas()</code>)</li>
+<li>Datafusion, Dask, Vaex</li>
+<li>Snowpark</li>
+<li>BigQuery storage API</li>
+<li>Iceberg, Parquet (file formats are Arrow-compatible)</li>
+</ul>
+<h3 id="53-a-real-example--polars-and-duckdb-sharing-memory">5.3 A real example — Polars and DuckDB sharing memory</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="im">import</span> polars <span class="im">as</span> pl</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="im">import</span> duckdb</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>pl_df <span class="op">=</span> pl.read_parquet(<span class="st">&quot;data.parquet&quot;</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>duck_result <span class="op">=</span> duckdb.query(<span class="st">&quot;SELECT country, SUM(watch_ms) FROM pl_df GROUP BY 1&quot;</span>).pl()</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a><span class="co"># duck_result is a Polars DF — zero copy back</span></span></code></pre></div>
+<p>DuckDB sees the Polars DF directly via Arrow. No serialization in either direction.</p>
+<h3 id="54-the-strings-caveat">5.4 The strings caveat</h3>
+<p>Arrow stores strings in two buffers: an offsets array + a single character buffer. Pandas 1.x stores strings as Python <code>str</code> objects (one per row). Converting Pandas-string ↔︎ Arrow-string requires materializing or building Python objects → not zero-copy.</p>
+<p>Pandas 2.0 with <code>dtype_backend='pyarrow'</code> keeps strings as Arrow → all the zero-copy benefits.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="im">import</span> pandas <span class="im">as</span> pd</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>df <span class="op">=</span> pd.read_parquet(<span class="st">&quot;data.parquet&quot;</span>, dtype_backend<span class="op">=</span><span class="st">&quot;pyarrow&quot;</span>)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a>df.dtypes  <span class="co"># show pyarrow types</span></span></code></pre></div>
+<hr />
+<p><a id="generators"></a></p>
+<h2 id="6-generators-iterators-and-chunked-io">6. Generators, iterators, and chunked I/O</h2>
+<p>For data that doesn't fit in memory, generators are the idiom.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">def</span> chunked_csv(path, chunksize<span class="op">=</span><span class="dv">100_000</span>):</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a>    <span class="cf">for</span> chunk <span class="kw">in</span> pd.read_csv(path, chunksize<span class="op">=</span>chunksize):</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>        <span class="cf">yield</span> chunk</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a><span class="cf">for</span> chunk <span class="kw">in</span> chunked_csv(<span class="st">&quot;big.csv&quot;</span>):</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a>    process(chunk)        <span class="co"># one chunk in memory at a time</span></span></code></pre></div>
+<h3 id="61-generator-pipelines">6.1 Generator pipelines</h3>
+<p>Compose stages with generators. Each stage is lazy.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">def</span> read_lines(path):</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>    <span class="cf">with</span> <span class="bu">open</span>(path) <span class="im">as</span> f:</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>        <span class="cf">for</span> line <span class="kw">in</span> f:</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>            <span class="cf">yield</span> line.rstrip()</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a><span class="kw">def</span> parse(lines):</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true"></a>    <span class="cf">for</span> line <span class="kw">in</span> lines:</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true"></a>        <span class="cf">yield</span> json.loads(line)</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true"></a></span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true"></a><span class="kw">def</span> filter_recent(records, since):</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true"></a>    <span class="cf">for</span> r <span class="kw">in</span> records:</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true"></a>        <span class="cf">if</span> r[<span class="st">&quot;ts&quot;</span>] <span class="op">&gt;=</span> since:</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true"></a>            <span class="cf">yield</span> r</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true"></a></span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true"></a>pipeline <span class="op">=</span> filter_recent(parse(read_lines(<span class="st">&quot;events.jsonl&quot;</span>)), since<span class="op">=</span>T0)</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true"></a><span class="cf">for</span> record <span class="kw">in</span> pipeline:</span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true"></a>    sink(record)</span></code></pre></div>
+<p>Memory use: O(1) per stage, regardless of input size.</p>
+<h3 id="62-itertools--the-standard-toolbelt">6.2 itertools — the standard toolbelt</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="im">import</span> itertools</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a><span class="co"># batch into groups of N</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a><span class="kw">def</span> batched(iterable, n):</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a>    iterator <span class="op">=</span> <span class="bu">iter</span>(iterable)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true"></a>    <span class="cf">while</span> batch :<span class="op">=</span> <span class="bu">tuple</span>(itertools.islice(iterator, n)):</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>        <span class="cf">yield</span> batch</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true"></a><span class="co"># Cartesian product</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true"></a>itertools.product([<span class="dv">1</span>,<span class="dv">2</span>], [<span class="dv">3</span>,<span class="dv">4</span>])    <span class="co"># (1,3), (1,4), (2,3), (2,4)</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true"></a></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true"></a><span class="co"># Chain iterables</span></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true"></a>itertools.chain([<span class="dv">1</span>,<span class="dv">2</span>], [<span class="dv">3</span>,<span class="dv">4</span>])      <span class="co"># 1, 2, 3, 4</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true"></a></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true"></a><span class="co"># Group by adjacent equal keys (for pre-sorted data)</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true"></a><span class="cf">for</span> key, group <span class="kw">in</span> itertools.groupby(sorted_records, key<span class="op">=</span><span class="kw">lambda</span> r: r[<span class="st">&quot;user_id&quot;</span>]):</span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true"></a>    process_user(key, <span class="bu">list</span>(group))</span></code></pre></div>
+<h3 id="63-async-generators">6.3 Async generators</h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> stream_pages(client):</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>    page_token <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>    <span class="cf">while</span> <span class="va">True</span>:</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a>        page <span class="op">=</span> <span class="cf">await</span> client.fetch(page_token<span class="op">=</span>page_token)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a>        <span class="cf">for</span> item <span class="kw">in</span> page.items:</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a>            <span class="cf">yield</span> item</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a>        <span class="cf">if</span> <span class="kw">not</span> page.next_token:</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true"></a>            <span class="cf">break</span></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true"></a>        page_token <span class="op">=</span> page.next_token</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> main():</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true"></a>    <span class="cf">async</span> <span class="cf">for</span> item <span class="kw">in</span> stream_pages(client):</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true"></a>        <span class="cf">await</span> process(item)</span></code></pre></div>
+<hr />
+<p><a id="async"></a></p>
+<h2 id="7-asyncawait-for-io-bound-de-work">7. Async/await for I/O-bound DE work</h2>
+<p>AsyncIO is single-threaded, single-event-loop concurrency. Best for I/O-heavy: HTTP scraping, S3 list/get, database queries.</p>
+<h3 id="71-the-fundamentals">7.1 The fundamentals</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="im">import</span> asyncio</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a><span class="im">import</span> aiohttp</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> fetch(session, url):</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a>    <span class="cf">async</span> <span class="cf">with</span> session.get(url) <span class="im">as</span> resp:</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a>        <span class="cf">return</span> <span class="cf">await</span> resp.text()</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> main(urls):</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a>    <span class="cf">async</span> <span class="cf">with</span> aiohttp.ClientSession() <span class="im">as</span> session:</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a>        tasks <span class="op">=</span> [fetch(session, u) <span class="cf">for</span> u <span class="kw">in</span> urls]</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a>        <span class="cf">return</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>tasks)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a></span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a>results <span class="op">=</span> asyncio.run(main(urls))</span></code></pre></div>
+<p>Throughput: 1000s of concurrent requests on a single core, vs sequential at 1 RPS.</p>
+<h3 id="72-throttling">7.2 Throttling</h3>
+<p><code>asyncio.gather</code> launches everything at once. Throttle:</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> fetch_all(urls, concurrency<span class="op">=</span><span class="dv">20</span>):</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>    sem <span class="op">=</span> asyncio.Semaphore(concurrency)</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a>    <span class="cf">async</span> <span class="kw">def</span> bounded(u):</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true"></a>        <span class="cf">async</span> <span class="cf">with</span> sem:</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true"></a>            <span class="cf">return</span> <span class="cf">await</span> fetch_one(u)</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true"></a>    <span class="cf">return</span> <span class="cf">await</span> asyncio.gather(<span class="op">*</span>[bounded(u) <span class="cf">for</span> u <span class="kw">in</span> urls])</span></code></pre></div>
+<h3 id="73-the-mistake-mixing-sync-and-async">7.3 The mistake: mixing sync and async</h3>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> bad():</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a>    time.sleep(<span class="dv">5</span>)   <span class="co"># blocks the entire event loop! No other coroutine runs.</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> good():</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true"></a>    <span class="cf">await</span> asyncio.sleep(<span class="dv">5</span>)</span></code></pre></div>
+<p>Same trap with <code>requests.get()</code> (use <code>aiohttp</code> or <code>httpx.AsyncClient</code>), <code>boto3</code> (use <code>aioboto3</code>), <code>psycopg2</code> (use <code>asyncpg</code>).</p>
+<h3 id="74-running-blocking-code-from-async">7.4 Running blocking code from async</h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a><span class="im">import</span> asyncio</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a><span class="cf">async</span> <span class="kw">def</span> main():</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>    loop <span class="op">=</span> asyncio.get_running_loop()</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>    result <span class="op">=</span> <span class="cf">await</span> loop.run_in_executor(<span class="va">None</span>, blocking_fn, arg1, arg2)</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>    <span class="co"># default executor is a ThreadPoolExecutor</span></span></code></pre></div>
+<h3 id="75-when-not-to-use-async">7.5 When NOT to use async</h3>
+<ul>
+<li>CPU-bound work: doesn't help; use processes.</li>
+<li>Code with no I/O concurrency need: just use sync. Async adds complexity.</li>
+<li>Frameworks that don't natively support it (Spark transformations).</li>
+</ul>
+<hr />
+<p><a id="multiproc"></a></p>
+<h2 id="8-multiprocessing-patterns-that-work-in-production">8. Multiprocessing patterns that work in production</h2>
+<p>When the GIL blocks you on CPU-bound work, spawn processes.</p>
+<h3 id="81-processpoolexecutor">8.1 ProcessPoolExecutor</h3>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="im">from</span> concurrent.futures <span class="im">import</span> ProcessPoolExecutor</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a><span class="kw">def</span> heavy(item):</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a>    <span class="co"># CPU-bound transformation</span></span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a>    <span class="cf">return</span> compute(item)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a><span class="cf">with</span> ProcessPoolExecutor(max_workers<span class="op">=</span><span class="dv">8</span>) <span class="im">as</span> ex:</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a>    results <span class="op">=</span> <span class="bu">list</span>(ex.<span class="bu">map</span>(heavy, items, chunksize<span class="op">=</span><span class="dv">100</span>))</span></code></pre></div>
+<p><code>chunksize</code> is critical: too small = IPC overhead per item; too large = stragglers. Rule: total_items / (cores × 4) is a good start.</p>
+<h3 id="82-shared-memory-python-38">8.2 Shared memory (Python 3.8+)</h3>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a><span class="im">from</span> multiprocessing.shared_memory <span class="im">import</span> SharedMemory</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a><span class="im">import</span> numpy <span class="im">as</span> np</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a></span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a><span class="co"># In producer:</span></span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true"></a>shm <span class="op">=</span> SharedMemory(create<span class="op">=</span><span class="va">True</span>, size<span class="op">=</span><span class="dv">4</span> <span class="op">*</span> <span class="dv">10_000_000</span>)</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true"></a>arr <span class="op">=</span> np.ndarray((<span class="dv">10_000_000</span>,), dtype<span class="op">=</span>np.float32, <span class="bu">buffer</span><span class="op">=</span>shm.buf)</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true"></a>arr[:] <span class="op">=</span> data</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true"></a><span class="bu">print</span>(shm.name)   <span class="co"># pass name to worker</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true"></a></span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true"></a><span class="co"># In worker:</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true"></a>shm <span class="op">=</span> SharedMemory(name<span class="op">=</span>name)</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true"></a>arr <span class="op">=</span> np.ndarray((<span class="dv">10_000_000</span>,), dtype<span class="op">=</span>np.float32, <span class="bu">buffer</span><span class="op">=</span>shm.buf)</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true"></a><span class="co"># Read/process without copying</span></span></code></pre></div>
+<p>Avoids serialization of large NumPy arrays between processes.</p>
+<h3 id="83-the-fork-vs-spawn-gotcha">8.3 The fork vs spawn gotcha</h3>
+<p>On Linux, the default start method is <code>fork</code> — the child process is a near-copy of the parent. Cheap but inherits everything (file handles, locks). On macOS 3.8+, the default switched to <code>spawn</code> for safety. Mismatch causes "works locally, broken in production".</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="im">import</span> multiprocessing <span class="im">as</span> mp</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a>mp.set_start_method(<span class="st">&#39;spawn&#39;</span>, force<span class="op">=</span><span class="va">True</span>)  <span class="co"># be explicit</span></span></code></pre></div>
+<hr />
+<p><a id="types"></a></p>
+<h2 id="9-type-hints-dataclasses-and-runtime-data-validation">9. Type hints, dataclasses, and runtime data validation</h2>
+<p>Modern DE code uses types liberally — for IDE support, docs, and validation.</p>
+<h3 id="91-dataclasses">9.1 Dataclasses</h3>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass, field</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true"></a><span class="im">from</span> datetime <span class="im">import</span> datetime</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true"></a></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>, slots<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true"></a><span class="kw">class</span> PlaybackEvent:</span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true"></a>    user_id: <span class="bu">int</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true"></a>    title_id: <span class="bu">int</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true"></a>    event_ts: datetime</span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true"></a>    watch_ms: <span class="bu">int</span> <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true"></a>    metadata: <span class="bu">dict</span> <span class="op">=</span> field(default_factory<span class="op">=</span><span class="bu">dict</span>)</span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true"></a></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true"></a>ev <span class="op">=</span> PlaybackEvent(user_id<span class="op">=</span><span class="dv">1</span>, title_id<span class="op">=</span><span class="dv">42</span>, event_ts<span class="op">=</span>datetime.now())</span></code></pre></div>
+<p><code>frozen=True</code> makes it hashable + immutable. <code>slots=True</code> (3.10+) replaces <code>__dict__</code> with <code>__slots__</code>, saves memory.</p>
+<h3 id="92-pydantic-for-runtime-validation">9.2 Pydantic for runtime validation</h3>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel, Field, field_validator</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a><span class="kw">class</span> PlaybackEvent(BaseModel):</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a>    user_id: <span class="bu">int</span> <span class="op">=</span> Field(gt<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a>    title_id: <span class="bu">int</span> <span class="op">=</span> Field(gt<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true"></a>    event_ts: datetime</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true"></a>    watch_ms: <span class="bu">int</span> <span class="op">=</span> Field(ge<span class="op">=</span><span class="dv">0</span>, le<span class="op">=</span><span class="dv">24</span><span class="op">*</span><span class="dv">3600</span><span class="op">*</span><span class="dv">1000</span>)</span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true"></a>    <span class="at">@field_validator</span>(<span class="st">&#39;event_ts&#39;</span>)</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true"></a>    <span class="at">@classmethod</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true"></a>    <span class="kw">def</span> not_future(cls, v):</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true"></a>        <span class="cf">if</span> v <span class="op">&gt;</span> datetime.utcnow():</span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true"></a>            <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&quot;event_ts in future&quot;</span>)</span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true"></a>        <span class="cf">return</span> v</span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true"></a></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true"></a><span class="co"># Validate untrusted input:</span></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true"></a>ev <span class="op">=</span> PlaybackEvent(<span class="op">**</span>raw_dict)  <span class="co"># raises if invalid</span></span></code></pre></div>
+<p>Pydantic v2 is Rust-powered, fast enough to use in-line for streaming validation. Use in:</p>
+<ul>
+<li>API gateways accepting events.</li>
+<li>DLQ recovery scripts.</li>
+<li>dbt-style data tests outside dbt.</li>
+</ul>
+<h3 id="93-attrs">9.3 attrs</h3>
+<p>The pre-Pydantic ergonomics gold standard. Still excellent for non-validation cases.</p>
+<h3 id="94-type-checking-pipelines">9.4 Type-checking pipelines</h3>
+<div class="sourceCode" id="cb29"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a><span class="ex">pip</span> install mypy ruff</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a><span class="ex">mypy</span> src/</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a><span class="ex">ruff</span> check src/</span></code></pre></div>
+<p>Pre-commit hooks enforce. Don't merge code that fails mypy.</p>
+<hr />
+<p><a id="testing"></a></p>
+<h2 id="10-testing-strategy-for-data-pipelines">10. Testing strategy for data pipelines</h2>
+<p>This is where DE-grade Python differs from web-app Python. You're testing transformations on data that's typically too big to fixture.</p>
+<h3 id="101-the-pyramid">10.1 The pyramid</h3>
+<pre><code>            UI / E2E (manual or rare)
+        ┌────────────────────────────────┐
+        │   Integration: end-to-end DAG  │  (a few, slow, run on PRs)
+        │   on a small fixture           │
+        ├────────────────────────────────┤
+        │   Pipeline-step unit tests     │  (many, fast)
+        │   in-memory PySpark/Polars     │
+        ├────────────────────────────────┤
+        │   Pure function unit tests     │  (most, ms)
+        │   on plain Python              │
+        └────────────────────────────────┘
+</code></pre>
+<h3 id="102-pure-function-units">10.2 Pure-function units</h3>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a><span class="co"># transform.py</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a><span class="kw">def</span> normalize_country(country_raw: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">str</span>:</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true"></a>    <span class="cf">if</span> country_raw <span class="kw">is</span> <span class="va">None</span>:</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true"></a>        <span class="cf">return</span> <span class="st">&quot;UNK&quot;</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true"></a>    <span class="cf">return</span> country_raw.strip().upper()[:<span class="dv">3</span>]</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true"></a><span class="co"># test_transform.py</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true"></a><span class="kw">def</span> test_normalize_country_basic():</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true"></a>    <span class="cf">assert</span> normalize_country(<span class="st">&quot;united kingdom&quot;</span>) <span class="op">==</span> <span class="st">&quot;UNI&quot;</span></span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true"></a><span class="kw">def</span> test_normalize_country_null():</span>
+<span id="cb31-11"><a href="#cb31-11" aria-hidden="true"></a>    <span class="cf">assert</span> normalize_country(<span class="va">None</span>) <span class="op">==</span> <span class="st">&quot;UNK&quot;</span></span></code></pre></div>
+<h3 id="103-pyspark-unit-tests-with-chispa">10.3 PySpark unit tests with chispa</h3>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a><span class="im">import</span> pytest</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true"></a><span class="im">from</span> pyspark.sql <span class="im">import</span> SparkSession</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true"></a><span class="im">from</span> chispa <span class="im">import</span> assert_df_equality</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true"></a><span class="im">from</span> my_pipeline.silver <span class="im">import</span> dedupe_events</span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true"></a><span class="at">@pytest.fixture</span>(scope<span class="op">=</span><span class="st">&quot;session&quot;</span>)</span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true"></a><span class="kw">def</span> spark():</span>
+<span id="cb32-8"><a href="#cb32-8" aria-hidden="true"></a>    <span class="cf">return</span> SparkSession.builder.master(<span class="st">&quot;local[2]&quot;</span>).appName(<span class="st">&quot;test&quot;</span>).getOrCreate()</span>
+<span id="cb32-9"><a href="#cb32-9" aria-hidden="true"></a></span>
+<span id="cb32-10"><a href="#cb32-10" aria-hidden="true"></a><span class="kw">def</span> test_dedupe_keeps_latest(spark):</span>
+<span id="cb32-11"><a href="#cb32-11" aria-hidden="true"></a>    input_data <span class="op">=</span> [</span>
+<span id="cb32-12"><a href="#cb32-12" aria-hidden="true"></a>        (<span class="st">&quot;u1&quot;</span>, <span class="st">&quot;e1&quot;</span>, <span class="st">&quot;2026-01-01T10:00:00&quot;</span>, <span class="dv">100</span>),</span>
+<span id="cb32-13"><a href="#cb32-13" aria-hidden="true"></a>        (<span class="st">&quot;u1&quot;</span>, <span class="st">&quot;e1&quot;</span>, <span class="st">&quot;2026-01-01T10:00:01&quot;</span>, <span class="dv">200</span>),  <span class="co"># later wins</span></span>
+<span id="cb32-14"><a href="#cb32-14" aria-hidden="true"></a>        (<span class="st">&quot;u2&quot;</span>, <span class="st">&quot;e2&quot;</span>, <span class="st">&quot;2026-01-01T10:00:00&quot;</span>, <span class="dv">50</span>),</span>
+<span id="cb32-15"><a href="#cb32-15" aria-hidden="true"></a>    ]</span>
+<span id="cb32-16"><a href="#cb32-16" aria-hidden="true"></a>    cols <span class="op">=</span> [<span class="st">&quot;user_id&quot;</span>, <span class="st">&quot;event_id&quot;</span>, <span class="st">&quot;event_ts&quot;</span>, <span class="st">&quot;value&quot;</span>]</span>
+<span id="cb32-17"><a href="#cb32-17" aria-hidden="true"></a>    df <span class="op">=</span> spark.createDataFrame(input_data, cols)</span>
+<span id="cb32-18"><a href="#cb32-18" aria-hidden="true"></a>    actual <span class="op">=</span> dedupe_events(df)</span>
+<span id="cb32-19"><a href="#cb32-19" aria-hidden="true"></a>    expected <span class="op">=</span> spark.createDataFrame([</span>
+<span id="cb32-20"><a href="#cb32-20" aria-hidden="true"></a>        (<span class="st">&quot;u1&quot;</span>, <span class="st">&quot;e1&quot;</span>, <span class="st">&quot;2026-01-01T10:00:01&quot;</span>, <span class="dv">200</span>),</span>
+<span id="cb32-21"><a href="#cb32-21" aria-hidden="true"></a>        (<span class="st">&quot;u2&quot;</span>, <span class="st">&quot;e2&quot;</span>, <span class="st">&quot;2026-01-01T10:00:00&quot;</span>, <span class="dv">50</span>),</span>
+<span id="cb32-22"><a href="#cb32-22" aria-hidden="true"></a>    ], cols)</span>
+<span id="cb32-23"><a href="#cb32-23" aria-hidden="true"></a>    assert_df_equality(actual, expected, ignore_row_order<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<p><code>chispa</code> (or <code>pyspark-test</code>) gives readable diffs.</p>
+<h3 id="104-dbt-tests">10.4 dbt tests</h3>
+<div class="sourceCode" id="cb33"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true"></a><span class="co"># models/silver/silver_playback_session.yml</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true"></a><span class="fu">models</span><span class="kw">:</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> silver_playback_session</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true"></a><span class="at">    </span><span class="fu">columns</span><span class="kw">:</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> session_id</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true"></a><span class="at">        </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> unique</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> not_null</span></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> user_id</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true"></a><span class="at">        </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> not_null</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> </span><span class="fu">relationships</span><span class="kw">:</span></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true"></a><span class="at">              </span><span class="fu">to</span><span class="kw">:</span><span class="at"> ref(&#39;dim_user&#39;)</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true"></a><span class="at">              </span><span class="fu">field</span><span class="kw">:</span><span class="at"> user_id</span></span></code></pre></div>
+<h3 id="105-property-based-tests-with-hypothesis">10.5 Property-based tests with Hypothesis</h3>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true"></a><span class="im">from</span> hypothesis <span class="im">import</span> given, strategies <span class="im">as</span> st</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true"></a></span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true"></a><span class="at">@given</span>(st.lists(st.text(min_size<span class="op">=</span><span class="dv">0</span>, max_size<span class="op">=</span><span class="dv">20</span>)))</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true"></a><span class="kw">def</span> test_normalize_country_idempotent(countries):</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true"></a>    once <span class="op">=</span> [normalize_country(c) <span class="cf">for</span> c <span class="kw">in</span> countries]</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true"></a>    twice <span class="op">=</span> [normalize_country(c) <span class="cf">for</span> c <span class="kw">in</span> once]</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true"></a>    <span class="cf">assert</span> once <span class="op">==</span> twice</span></code></pre></div>
+<p>Hypothesis generates inputs, including edge cases you didn't think of (Unicode, empty strings, BOM characters).</p>
+<h3 id="106-data-tests-vs-code-tests">10.6 Data tests vs code tests</h3>
+<p>Two distinct things:</p>
+<ul>
+<li><strong>Code tests</strong>: does the function logic work? (pytest)</li>
+<li><strong>Data tests</strong>: does the data in production today satisfy expectations? (Great Expectations, Soda, dbt tests)</li>
+</ul>
+<p>You need both. Code tests prevent regressions; data tests catch upstream changes.</p>
+<hr />
+<p><a id="packaging"></a></p>
+<h2 id="11-packaging-and-deploying-to-spark--lambda--airflow">11. Packaging and deploying to Spark / Lambda / Airflow</h2>
+<h3 id="111-project-structure">11.1 Project structure</h3>
+<pre><code>my-pipeline/
+├── pyproject.toml
+├── README.md
+├── src/
+│   └── my_pipeline/
+│       ├── __init__.py
+│       ├── bronze/
+│       ├── silver/
+│       ├── gold/
+│       └── utils/
+├── tests/
+└── dags/
+    └── pipeline_dag.py
+</code></pre>
+<p><code>pyproject.toml</code> (using uv / hatchling):</p>
+<pre class="toml"><code>[project]
+name = &quot;my-pipeline&quot;
+version = &quot;0.4.2&quot;
+requires-python = &quot;&gt;=3.11&quot;
+dependencies = [
+    &quot;pyspark==3.5.1&quot;,
+    &quot;pyarrow&gt;=15&quot;,
+    &quot;pandas&gt;=2.2&quot;,
+    &quot;pydantic&gt;=2.6&quot;,
+]
+
+[project.optional-dependencies]
+dev = [&quot;pytest&quot;, &quot;mypy&quot;, &quot;ruff&quot;, &quot;chispa&quot;, &quot;hypothesis&quot;]
+</code></pre>
+<h3 id="112-distributing-to-spark">11.2 Distributing to Spark</h3>
+<p>Spark needs the same Python environment on every executor. Three approaches:</p>
+<ol>
+<li><strong>Bake into the cluster image</strong>: simplest for stable deps.</li>
+<li><strong><code>--py-files</code> for small custom code</strong>: ship a <code>.zip</code> or <code>.egg</code>. Limited; doesn't handle native deps.</li>
+<li><strong><code>PYSPARK_DRIVER_PYTHON</code> + virtualenv archive</strong>: ship a packed venv.</li>
+<li><strong>Conda-pack / venv-pack + <code>--archives</code></strong>: ship a portable env tarball.</li>
+</ol>
+<div class="sourceCode" id="cb37"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true"></a><span class="ex">venv-pack</span> -o env.tar.gz</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true"></a><span class="ex">spark-submit</span> <span class="kw">\</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true"></a>  <span class="ex">--archives</span> env.tar.gz#environment <span class="kw">\</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true"></a>  <span class="ex">--conf</span> spark.pyspark.driver.python=./environment/bin/python <span class="kw">\</span></span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true"></a>  <span class="ex">--conf</span> spark.pyspark.python=./environment/bin/python <span class="kw">\</span></span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true"></a>  <span class="ex">app.py</span></span></code></pre></div>
+<h3 id="113-airflow">11.3 Airflow</h3>
+<p>Use <code>PythonOperator</code> only for orchestration logic (calling out to Spark, dbt, etc.). Don't run heavy compute in the Airflow worker.</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true"></a><span class="im">from</span> airflow <span class="im">import</span> DAG</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true"></a><span class="im">from</span> airflow.operators.python <span class="im">import</span> PythonOperator</span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true"></a><span class="im">from</span> datetime <span class="im">import</span> datetime</span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true"></a></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true"></a><span class="kw">def</span> trigger_spark(<span class="op">**</span>ctx):</span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true"></a>    <span class="co"># call EMR / Databricks / whatever</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true"></a>    ...</span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true"></a></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true"></a><span class="cf">with</span> DAG(<span class="st">&quot;playback_pipeline&quot;</span>, start_date<span class="op">=</span>datetime(<span class="dv">2026</span>,<span class="dv">1</span>,<span class="dv">1</span>), schedule<span class="op">=</span><span class="st">&quot;@daily&quot;</span>) <span class="im">as</span> dag:</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true"></a>    bronze <span class="op">=</span> PythonOperator(task_id<span class="op">=</span><span class="st">&quot;bronze&quot;</span>, python_callable<span class="op">=</span>trigger_spark)</span></code></pre></div>
+<p>For testable DAGs:</p>
+<ul>
+<li>Keep the DAG file thin (config + ops).</li>
+<li>Move logic into a library (<code>my_pipeline/</code>) that's unit-tested.</li>
+</ul>
+<h3 id="114-lambda--serverless">11.4 Lambda / serverless</h3>
+<p>For event-driven enrichment or fan-out work:</p>
+<ul>
+<li>Package as a Lambda layer (deps separate from code).</li>
+<li>Mind cold-start (Polars/Pandas import time is real).</li>
+<li>Use SnapStart on Java; Python equivalents are limited.</li>
+</ul>
+<hr />
+<p><a id="perf"></a></p>
+<h2 id="12-performance-debugging-toolkit">12. Performance debugging toolkit</h2>
+<h3 id="121-profiling-pure-python">12.1 Profiling pure Python</h3>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true"></a><span class="im">import</span> cProfile, pstats</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true"></a>profiler <span class="op">=</span> cProfile.Profile()</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true"></a>profiler.enable()</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true"></a>do_work()</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true"></a>profiler.disable()</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true"></a>pstats.Stats(profiler).sort_stats(<span class="st">&quot;cumulative&quot;</span>).print_stats(<span class="dv">30</span>)</span></code></pre></div>
+<p>For line-level:</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true"></a><span class="ex">pip</span> install line_profiler</span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true"></a><span class="ex">kernprof</span> -lv my_script.py     # decorate fns with @profile</span></code></pre></div>
+<h3 id="122-sampling-profiler-no-code-changes">12.2 Sampling profiler (no code changes)</h3>
+<div class="sourceCode" id="cb41"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true"></a><span class="ex">pip</span> install py-spy</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true"></a><span class="ex">py-spy</span> record -o profile.svg --pid <span class="op">&lt;</span>PID<span class="op">&gt;</span>     # flamegraph</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true"></a><span class="ex">py-spy</span> top --pid <span class="op">&lt;</span>PID<span class="op">&gt;</span>                       # live top</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true"></a><span class="ex">py-spy</span> dump --pid <span class="op">&lt;</span>PID<span class="op">&gt;</span>                      # what is each thread doing</span></code></pre></div>
+<p>Works on running processes — perfect for stuck Spark drivers.</p>
+<h3 id="123-memory">12.3 Memory</h3>
+<div class="sourceCode" id="cb42"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true"></a><span class="ex">pip</span> install memray</span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true"></a><span class="ex">memray</span> run app.py</span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true"></a><span class="ex">memray</span> flamegraph memray-app.bin</span></code></pre></div>
+<p>Memray hooks <code>malloc</code> and reports allocation flamegraphs.</p>
+<h3 id="124-pandaspolars-performance-checklist">12.4 Pandas/Polars performance checklist</h3>
+<ul>
+<li>Are you in object dtype where you should be Arrow? <code>.dtypes</code> to check.</li>
+<li>Are you using <code>.apply()</code> row-wise? Replace with vectorized ops or <code>.map()</code> with a dict.</li>
+<li>Are you copying when you don't need to? <code>pd.set_option("mode.copy_on_write", True)</code>.</li>
+<li>Are you reading more columns than you need? Use <code>usecols=</code> or column projection.</li>
+<li>Are you reading the whole file when you could chunk? <code>chunksize=</code> or scan with predicate push-down.</li>
+</ul>
+<h3 id="125-the-where-is-the-time-mental-model">12.5 The "where is the time" mental model</h3>
+<p>For any slow Python data job, time goes to one of:</p>
+<ol>
+<li><strong>I/O wait</strong> (network, disk read/write)</li>
+<li><strong>Serialization/deserialization</strong> (Python ↔︎ JVM, JSON parsing, pickle)</li>
+<li><strong>Pure-Python loop</strong> (the GIL on bytecode)</li>
+<li><strong>C extension compute</strong> (NumPy/Pandas/Polars internals)</li>
+<li><strong>GC</strong> (rare; check with <code>gc.get_stats()</code>)</li>
+</ol>
+<p>Profile, classify, fix. Repeat.</p>
+<hr />
+<h2 id="closing-principle">Closing principle</h2>
+<p>The best DE Python is mostly not Python — it's NumPy/Arrow/Pandas/Polars/Spark calls with Python orchestration. Your job is to make the data move from one fast engine to another with minimum overhead. Get that right and everything else gets easier.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="05-sql-deep-dive.html">← Part 05 · SQL Deep Dive</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="07-lakehouse-iceberg.html">Part 07 · Lakehouse: Iceberg & Delta →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 06</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/06-python-de.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

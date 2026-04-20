@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Batch Processing — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 02 · Senior / L5 Data Engineering Reference</div>
+  <h1>Batch Processing</h1>
+  <p class="subhead">Bounded data theory, idempotency proofs, incremental + backfill patterns, MERGE patterns, file-format internals, partition design math.</p>
+  <div class="meta-strip">
+    <span>Idempotency · MERGE · Backfills · Files</span>
+    <span>~5,870 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="01-data-modeling.html">← Part 01 · Data Modeling</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="03-streaming-processing.html">Part 03 · Streaming Processing →</a></nav>
+
+<main class="content">
+<p>Batch processing is the workhorse of the data warehouse. It's also where the subtle bugs live — the ones that take three weeks to notice and two days to find. This file goes into the theory of bounded-data processing, the mathematics of idempotency, the anatomy of MERGE, the internals of Parquet/ORC, partition design with real math, and how to build pipelines that survive backfills, reruns, and bad data.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-mental-model-bounded-vs-unbounded-data-deep">Mental Model: Bounded vs Unbounded Data (Deep)</a></li>
+<li><a href="#2-anatomy-of-a-batch-job">Anatomy of a Batch Job</a></li>
+<li><a href="#3-idempotency--proofs-and-patterns">Idempotency — Proofs and Patterns</a></li>
+<li><a href="#4-merge-under-the-hood">MERGE Under the Hood</a></li>
+<li><a href="#5-incremental-processing-patterns">Incremental Processing Patterns</a></li>
+<li><a href="#6-backfills--design-safety-and-throttling">Backfills — Design, Safety, and Throttling</a></li>
+<li><a href="#7-file-format-internals--parquet-orc-avro">File Format Internals — Parquet, ORC, Avro</a></li>
+<li><a href="#8-partition-design-math">Partition Design Math</a></li>
+<li><a href="#9-small-files-and-compaction">Small Files and Compaction</a></li>
+<li><a href="#10-cdc-change-data-capture-patterns">CDC (Change Data Capture) Patterns</a></li>
+<li><a href="#11-data-quality-in-batch-pipelines">Data Quality in Batch Pipelines</a></li>
+<li><a href="#12-orchestration-patterns-for-batch">Orchestration Patterns for Batch</a></li>
+</ol>
+<hr />
+<h2 id="1-mental-model-bounded-vs-unbounded-data-deep">1. Mental Model: Bounded vs Unbounded Data (Deep)</h2>
+<p>A batch job processes <strong>bounded</strong> data — a finite set of rows with a defined beginning and end. You can scan it, sort it globally, compute the total, and wait for everything before you emit. These are luxuries a streaming job doesn't have.</p>
+<p>But "bounded" is a simplification. Most production batch jobs operate on <strong>windows</strong> of an unbounded stream: "process yesterday's events" is a bounded view of the event firehose. The sealed-ness of that window depends entirely on how late data can arrive.</p>
+<h3 id="the-three-dimensions-of-boundedness">The three dimensions of boundedness</h3>
+<ol>
+<li><strong>Temporal boundedness</strong> — is there a cutoff time after which no more data for the window can arrive?</li>
+<li><strong>Cardinality boundedness</strong> — is the count of rows bounded? (It always is in retrospect, but the job needs to know when it's seen them all.)</li>
+<li><strong>Completeness boundedness</strong> — can you prove all upstream producers have emitted?</li>
+</ol>
+<p>Real-world jobs rarely have all three cleanly:</p>
+<ul>
+<li>A daily job on mobile app events: temporally bounded (sealing at midnight + safety window), cardinality uncertain (user activity varies), completeness probabilistic (some clients reconnect days later).</li>
+<li>An S3 daily drop: temporally bounded + cardinality bounded once the drop completes, completeness signal from a <code>_SUCCESS</code> file or a manifest.</li>
+<li>A CDC stream dump for prior day: cardinality bounded by rows in source table; temporal boundedness depends on the CDC tool's lag.</li>
+</ul>
+<h3 id="implications-for-pipeline-design">Implications for pipeline design</h3>
+<p>A truly bounded source (a sealed S3 drop) admits:</p>
+<ul>
+<li><strong>Strict correctness checks</strong>: row counts, checksums, column distributions against expected ranges.</li>
+<li><strong>Full refresh fallback</strong>: if anything looks off, reprocess from source.</li>
+</ul>
+<p>A temporally-bounded-but-late-arriving source admits:</p>
+<ul>
+<li><strong>Safety windows</strong>: process <code>event_time ≥ T - 7 days</code> even on the "today" job, so late arrivals are included.</li>
+<li><strong>Periodic reconciliation</strong>: a separate weekly job re-processes the last N days to catch late data.</li>
+<li><strong>Grace periods</strong>: "seal" day D only after 48h of additional quiet.</li>
+</ul>
+<h3 id="watermark-as-promise-applied-to-batch">Watermark-as-promise, applied to batch</h3>
+<p>Even batch has watermarks — implicit ones. "Process yesterday" with a 1-hour safety buffer means: I trust that by <code>now() - 1 hour</code>, no events with event_time in <code>[yesterday_start, yesterday_end]</code> will still be arriving. Make this explicit:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true"></a><span class="kw">def</span> run_daily(dt: date, safety_hours: <span class="bu">int</span> <span class="op">=</span> <span class="dv">2</span>):</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true"></a>    <span class="co">&quot;&quot;&quot;Process dt&#39;s events; assume all events for dt have arrived by dt+1day+safety_hours.&quot;&quot;&quot;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true"></a>    <span class="cf">assert</span> datetime.utcnow() <span class="op">&gt;=</span> datetime.combine(dt <span class="op">+</span> timedelta(days<span class="op">=</span><span class="dv">1</span>), time.<span class="bu">min</span>) <span class="op">\</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true"></a>           <span class="op">+</span> timedelta(hours<span class="op">=</span>safety_hours), <span class="op">\</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true"></a>           <span class="ss">f&quot;Not safe to process </span><span class="sc">{dt}</span><span class="ss"> yet&quot;</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true"></a>    ...</span></code></pre></div>
+<p>The <code>assert</code> prevents silent correctness loss when backfilling to "today."</p>
+<h3 id="bounded-storage-unbounded-log">Bounded storage, unbounded log</h3>
+<p>Even a bounded table has an unbounded "log" of changes — the sequence of insertions, updates, deletions over time. Modern lakehouse formats (Iceberg, Delta) expose this log: you can read the table as-of any past snapshot (<strong>time travel</strong>) or stream the log of changes (<strong>Change Data Feed</strong> in Delta, <strong>incremental reads</strong> in Iceberg).</p>
+<p>This lets batch jobs consume batch sources as if they were streams:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co"># Iceberg incremental read — only snapshots since the last run</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a>df <span class="op">=</span> (spark.read</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a>      .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a>      .option(<span class="st">&quot;start-snapshot-id&quot;</span>, last_processed_snapshot)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a>      .option(<span class="st">&quot;end-snapshot-id&quot;</span>,   current_snapshot)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a>      .load(<span class="st">&quot;warehouse.bronze.events&quot;</span>))</span></code></pre></div>
+<p>The line between batch and streaming blurs. Modern advice: unify the code path; only the trigger differs.</p>
+<h2 id="2-anatomy-of-a-batch-job">2. Anatomy of a Batch Job</h2>
+<p>A production batch job has these stages, in order. Each can fail; each must be recoverable.</p>
+<ol>
+<li><strong>Parameter binding</strong> — job receives <code>logical_date</code> (the date being processed), not <code>current_date</code>. This is the single most important contract; without it, the job is not idempotent.</li>
+<li><strong>Source existence check</strong> — upstream data exists and is complete. Fail fast if missing (don't produce an empty output that looks successful).</li>
+<li><strong>Source read</strong> — pull from bronze / staging / raw.</li>
+<li><strong>Deduplication</strong> — producers retry, sources double-emit.</li>
+<li><strong>Conforming</strong> — type casting, UTC normalization, null handling, enum validation.</li>
+<li><strong>Enrichment</strong> — joins to dimensions to hydrate descriptors.</li>
+<li><strong>Transformation</strong> — the actual business logic.</li>
+<li><strong>Validation</strong> — row counts, distribution checks, uniqueness assertions. This is the airbag.</li>
+<li><strong>Write</strong> — atomic commit to the target.</li>
+<li><strong>Publish</strong> — signal to downstream consumers (dataset events, XComs, manifest writes).</li>
+<li><strong>Audit log</strong> — row counts in/out, source snapshot IDs, emission latency, job version.</li>
+</ol>
+<h3 id="minimal-pythonspark-skeleton">Minimal Python/Spark skeleton</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="im">from</span> dataclasses <span class="im">import</span> dataclass</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="im">from</span> datetime <span class="im">import</span> date, datetime, timedelta</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="im">import</span> logging</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>log <span class="op">=</span> logging.getLogger(<span class="va">__name__</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="at">@dataclass</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="kw">class</span> RunContext:</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a>    logical_date: date</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true"></a>    job_version: <span class="bu">str</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true"></a>    run_id: <span class="bu">str</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true"></a>    spark: <span class="st">&quot;SparkSession&quot;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true"></a><span class="kw">def</span> run(ctx: RunContext) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true"></a>    log.info(<span class="st">&quot;job_start&quot;</span>, extra<span class="op">=</span>{<span class="st">&quot;extra&quot;</span>: ctx.__dict__})</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true"></a></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true"></a>    source_exists(ctx)                 <span class="co"># fail fast if upstream missing</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true"></a>    raw <span class="op">=</span> read_source(ctx)             <span class="co"># (1)</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true"></a>    deduped <span class="op">=</span> dedupe(raw)              <span class="co"># (2)</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true"></a>    conformed <span class="op">=</span> conform_types(deduped) <span class="co"># (3)</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true"></a>    enriched <span class="op">=</span> enrich_dimensions(ctx, conformed) <span class="co"># (4)</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true"></a>    output <span class="op">=</span> transform(enriched)       <span class="co"># (5)</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true"></a>    audit <span class="op">=</span> validate(output, ctx)      <span class="co"># (6) — raises on hard-fail</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true"></a>    <span class="cf">if</span> audit.soft_warnings:</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true"></a>        notify(audit.soft_warnings)</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true"></a></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true"></a>    write_atomic(output, ctx)          <span class="co"># (7)</span></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true"></a>    publish_dataset_event(ctx, audit)  <span class="co"># (8)</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true"></a>    log.info(<span class="st">&quot;job_done&quot;</span>, extra<span class="op">=</span>{<span class="st">&quot;extra&quot;</span>: {<span class="st">&quot;rows&quot;</span>: audit.row_count}})</span></code></pre></div>
+<p>Each helper should be independently unit-testable; the orchestrator is thin.</p>
+<h3 id="the-validation-gate">The validation gate</h3>
+<p>This is the most important step and the most often skipped.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true"></a><span class="at">@dataclass</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true"></a><span class="kw">class</span> Audit:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true"></a>    row_count: <span class="bu">int</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true"></a>    unique_rate: <span class="bu">float</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true"></a>    null_rates: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">float</span>]</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true"></a>    sum_checks: <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">int</span>]</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true"></a>    soft_warnings: <span class="bu">list</span>[<span class="bu">str</span>]</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true"></a><span class="kw">def</span> validate(df, ctx) <span class="op">-&gt;</span> Audit:</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true"></a>    <span class="co"># Hard assertions (raise)</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true"></a>    row_count <span class="op">=</span> df.count()</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true"></a>    <span class="cf">if</span> row_count <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true"></a>        <span class="cf">raise</span> <span class="pp">AssertionError</span>(<span class="st">&quot;Empty output — upstream issue or bug&quot;</span>)</span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true"></a>    <span class="cf">if</span> row_count <span class="op">&lt;</span> ctx.expected_min_rows:</span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true"></a>        <span class="cf">raise</span> <span class="pp">AssertionError</span>(<span class="ss">f&quot;Row count </span><span class="sc">{</span>row_count<span class="sc">}</span><span class="ss"> below min </span><span class="sc">{</span>ctx<span class="sc">.</span>expected_min_rows<span class="sc">}</span><span class="ss">&quot;</span>)</span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true"></a>    dup_rate <span class="op">=</span> <span class="dv">1</span> <span class="op">-</span> df.select(<span class="st">&quot;event_id&quot;</span>).distinct().count() <span class="op">/</span> row_count</span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true"></a>    <span class="cf">if</span> dup_rate <span class="op">&gt;</span> <span class="fl">0.001</span>:</span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true"></a>        <span class="cf">raise</span> <span class="pp">AssertionError</span>(<span class="ss">f&quot;Uniqueness violated: </span><span class="sc">{</span>dup_rate<span class="sc">:.4%}</span><span class="ss"> duplicates&quot;</span>)</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true"></a></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true"></a>    <span class="co"># Soft warnings (log, notify)</span></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true"></a>    soft <span class="op">=</span> []</span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true"></a>    null_rates <span class="op">=</span> {}</span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true"></a>    <span class="cf">for</span> col_name <span class="kw">in</span> [<span class="st">&quot;user_id&quot;</span>, <span class="st">&quot;title_id&quot;</span>, <span class="st">&quot;watch_ms&quot;</span>]:</span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true"></a>        nr <span class="op">=</span> df.<span class="bu">filter</span>(F.col(col_name).isNull()).count() <span class="op">/</span> row_count</span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true"></a>        null_rates[col_name] <span class="op">=</span> nr</span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true"></a>        <span class="cf">if</span> nr <span class="op">&gt;</span> <span class="fl">0.005</span>:  <span class="co"># 0.5% threshold</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true"></a>            soft.append(<span class="ss">f&quot;High null rate in </span><span class="sc">{</span>col_name<span class="sc">}</span><span class="ss">: </span><span class="sc">{nr:.2%}</span><span class="ss">&quot;</span>)</span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true"></a></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true"></a>    <span class="cf">return</span> Audit(row_count, <span class="dv">1</span> <span class="op">-</span> dup_rate, null_rates, {}, soft)</span></code></pre></div>
+<p>Store audit records in a permanent table — historical audit is the tool for diagnosing "what changed overnight."</p>
+<h2 id="3-idempotency--proofs-and-patterns">3. Idempotency — Proofs and Patterns</h2>
+<p><strong>Definition</strong>: running the job twice with the same parameters produces the same output as running it once.</p>
+<p>Formally: if <code>f(x)</code> is the job and <code>S_0</code> is the starting state, then <code>f(f(x))(S_0) = f(x)(S_0)</code>. The second run is a no-op relative to the first.</p>
+<h3 id="why-it-matters">Why it matters</h3>
+<ol>
+<li><strong>Reruns on failure</strong>: if your job crashes mid-way, you need to retry without producing duplicates or partial writes.</li>
+<li><strong>Backfills</strong>: reprocessing a historical date must overwrite cleanly, not accumulate.</li>
+<li><strong>Human error</strong>: "I accidentally ran the job twice" shouldn't cause an incident.</li>
+<li><strong>Distributed retries</strong>: orchestrators retry automatically; idempotency prevents them causing damage.</li>
+</ol>
+<h3 id="pattern-1--partition-overwrite">Pattern 1 — Partition overwrite</h3>
+<p>For append-only outputs partitioned by the job parameter (usually date):</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>(df.write</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>  .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>  .mode(<span class="st">&quot;overwrite&quot;</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>  .option(<span class="st">&quot;replace-where&quot;</span>, <span class="ss">f&quot;dt = &#39;</span><span class="sc">{</span>ctx<span class="sc">.</span>logical_date<span class="sc">}</span><span class="ss">&#39;&quot;</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>  .saveAsTable(<span class="st">&quot;warehouse.silver.playback_sessions&quot;</span>))</span></code></pre></div>
+<p>The <code>replace-where</code> clause scopes the overwrite to that one partition. Rerun = same partition overwritten with same data = no-op. Iceberg's atomic commit guarantees no reader sees a half-written state.</p>
+<p><strong>Safety check</strong>: verify <code>df</code> only contains rows for that partition.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="cf">assert</span> df.<span class="bu">filter</span>(F.col(<span class="st">&quot;dt&quot;</span>) <span class="op">!=</span> ctx.logical_date).count() <span class="op">==</span> <span class="dv">0</span>, <span class="op">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>       <span class="co">&quot;Output contains rows outside target partition — partitioning bug&quot;</span></span></code></pre></div>
+<h3 id="pattern-2--merge-by-key">Pattern 2 — MERGE by key</h3>
+<p>For outputs with compound keys and potential updates:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> silver.dim_user <span class="kw">AS</span> t</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a><span class="kw">USING</span> stg_user <span class="kw">AS</span> s</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true"></a>  <span class="kw">ON</span> t.user_id <span class="op">=</span> s.user_id</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> t.updated_at <span class="op">&lt;</span> s.updated_at <span class="cf">THEN</span> <span class="kw">UPDATE</span> <span class="kw">SET</span> <span class="op">..</span>.</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="cf">THEN</span> <span class="kw">INSERT</span> (<span class="op">..</span>.) <span class="kw">VALUES</span> (<span class="op">..</span>.);</span></code></pre></div>
+<p>Idempotent because a second run against the same <code>stg_user</code> finds no rows where <code>t.updated_at &lt; s.updated_at</code> (they're equal). Requires a proper version column (<code>updated_at</code>); otherwise you might silently overwrite a newer value with an older one.</p>
+<h3 id="pattern-3--hash--upsert">Pattern 3 — Hash + upsert</h3>
+<p>For CDC-like feeds:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> silver.<span class="kw">events</span> <span class="kw">AS</span> t</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="kw">USING</span> (</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true"></a>    <span class="kw">SELECT</span> <span class="op">*</span>, SHA2(CONCAT_WS(<span class="st">&#39;||&#39;</span>, event_id, event_ts, payload), <span class="dv">256</span>) <span class="kw">AS</span> row_hash</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true"></a>    <span class="kw">FROM</span> stg_events</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true"></a>) <span class="kw">AS</span> s</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true"></a>  <span class="kw">ON</span> t.event_id <span class="op">=</span> s.event_id</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> t.row_hash <span class="op">&lt;&gt;</span> s.row_hash <span class="cf">THEN</span> <span class="kw">UPDATE</span> <span class="kw">SET</span> <span class="op">..</span>.</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="cf">THEN</span> <span class="kw">INSERT</span> (<span class="op">..</span>.) <span class="kw">VALUES</span> (<span class="op">..</span>.);</span></code></pre></div>
+<p>Second run: same hashes match, no updates. Idempotent.</p>
+<h3 id="anti-pattern-insert--select-without-dedup">Anti-pattern: <code>INSERT ... SELECT</code> without dedup</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="co">-- BAD: second run doubles the data</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> silver.<span class="kw">events</span> <span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> stg_events;</span></code></pre></div>
+<p>This is the single most common idempotency violation. Fix:</p>
+<ul>
+<li>Replace with <code>MERGE</code> or partition-overwrite.</li>
+<li>Or: truncate target partition first (but now two statements must be atomic — use Iceberg/Delta semantics).</li>
+</ul>
+<h3 id="anti-pattern-now-in-transform">Anti-pattern: <code>now()</code> in transform</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="co">-- BAD: second run produces different output because now() changes</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span>, NOW() <span class="kw">AS</span> processed_at <span class="kw">FROM</span> stg_events;</span></code></pre></div>
+<p>Fix: use <code>ctx.logical_date</code> or a per-run constant. If you need a "processed_at" column, set it once at the start of the run and pass it in.</p>
+<h3 id="anti-pattern-monotonically-increasing-keys-that-differ-across-runs">Anti-pattern: monotonically increasing keys that differ across runs</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="co"># BAD: Spark&#39;s monotonically_increasing_id() isn&#39;t stable across runs</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>df.withColumn(<span class="st">&quot;key&quot;</span>, F.monotonically_increasing_id())</span></code></pre></div>
+<p>Fix: deterministic hash of natural keys.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>df.withColumn(<span class="st">&quot;key&quot;</span>, F.sha2(F.concat_ws(<span class="st">&quot;||&quot;</span>, <span class="op">*</span>natural_key_cols), <span class="dv">256</span>))</span></code></pre></div>
+<h3 id="testing-idempotency">Testing idempotency</h3>
+<p>Write a test that runs the job twice and diffs the output:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">def</span> test_idempotent_run(tmp_table, test_data):</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a>    run(RunContext(logical_date<span class="op">=</span>date(<span class="dv">2026</span>,<span class="dv">4</span>,<span class="dv">10</span>), ...))</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>    snapshot1 <span class="op">=</span> spark.table(tmp_table).collect()</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>    run(RunContext(logical_date<span class="op">=</span>date(<span class="dv">2026</span>,<span class="dv">4</span>,<span class="dv">10</span>), ...))</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>    snapshot2 <span class="op">=</span> spark.table(tmp_table).collect()</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>    <span class="cf">assert</span> snapshot1 <span class="op">==</span> snapshot2, <span class="st">&quot;Output differs between runs — not idempotent&quot;</span></span></code></pre></div>
+<p>This catches <code>now()</code> leaks, non-deterministic ordering, and accidental row duplication.</p>
+<h2 id="4-merge-under-the-hood">4. MERGE Under the Hood</h2>
+<p>MERGE (aka UPSERT) looks simple; it's anything but. Understanding its execution is essential to reasoning about performance and correctness.</p>
+<h3 id="the-logical-model">The logical model</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> target t</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a><span class="kw">USING</span> <span class="kw">source</span> s</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>  <span class="kw">ON</span> t.<span class="kw">key</span> <span class="op">=</span> s.<span class="kw">key</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> <span class="op">&lt;</span>cond<span class="op">&gt;</span> <span class="cf">THEN</span> <span class="kw">UPDATE</span> <span class="kw">SET</span> <span class="op">..</span>.</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="cf">THEN</span> <span class="kw">INSERT</span> <span class="op">..</span>.</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true"></a><span class="cf">WHEN</span> MATCHED <span class="kw">AND</span> <span class="op">&lt;</span>cond2<span class="op">&gt;</span> <span class="cf">THEN</span> <span class="kw">DELETE</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true"></a><span class="cf">WHEN</span> <span class="kw">NOT</span> MATCHED <span class="kw">BY</span> <span class="kw">SOURCE</span> <span class="cf">THEN</span> <span class="kw">DELETE</span>;   <span class="co">-- supported by some engines</span></span></code></pre></div>
+<p>Conceptually: for every <code>(t, s)</code> pair where <code>t.key = s.key</code>, apply the first matching WHEN MATCHED clause. For every <code>s</code> with no match in <code>t</code>, apply WHEN NOT MATCHED. For every <code>t</code> with no match in <code>s</code> (when <code>WHEN NOT MATCHED BY SOURCE</code>), apply that clause.</p>
+<h3 id="the-multi-match-rule">The multi-match rule</h3>
+<p>If a single target row matches multiple source rows, behavior is <strong>undefined</strong> and most engines error:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>ERROR: Cannot perform <span class="kw">MERGE</span> <span class="kw">as</span> multiple <span class="kw">source</span> <span class="kw">rows</span> matched <span class="kw">and</span> attempted <span class="kw">to</span> <span class="kw">modify</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>       <span class="kw">the</span> same target <span class="kw">row</span>.</span></code></pre></div>
+<p>Fix: deduplicate the source to a single row per join key before the MERGE.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> target t</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a><span class="kw">USING</span> (</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>    <span class="kw">SELECT</span> <span class="kw">DISTINCT</span> <span class="kw">ON</span> (user_id) <span class="op">*</span>           <span class="co">-- Postgres</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a>    <span class="kw">FROM</span> stg_user</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a>    <span class="kw">ORDER</span> <span class="kw">BY</span> user_id, updated_at <span class="kw">DESC</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a>) s</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true"></a><span class="kw">ON</span> t.user_id <span class="op">=</span> s.user_id</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true"></a><span class="op">..</span>.</span></code></pre></div>
+<p>Or using window functions (portable):</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">USING</span> (</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>    <span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> (</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>        <span class="kw">SELECT</span> <span class="op">*</span>, <span class="fu">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> updated_at <span class="kw">DESC</span>) rn</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>        <span class="kw">FROM</span> stg_user</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a>    ) <span class="kw">WHERE</span> rn <span class="op">=</span> <span class="dv">1</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a>) s</span></code></pre></div>
+<h3 id="execution-on-lakehouse-icebergdelta">Execution on lakehouse (Iceberg/Delta)</h3>
+<p>MERGE on a lakehouse is <strong>not</strong> an in-place update. Files are immutable. The steps:</p>
+<ol>
+<li><strong>Scan target</strong> to find files touched by matched rows.</li>
+<li><strong>Scan source</strong> and join against target on key.</li>
+<li>For each target file touched, <strong>read it fully, apply the merge, write a new file</strong> with updated/inserted rows.</li>
+<li>Commit: swap the manifest to reference new files instead of old.</li>
+<li>Old files remain (for time travel) until vacuum.</li>
+</ol>
+<p>Implications:</p>
+<ul>
+<li><strong>Write amplification</strong>: updating 1% of rows in a 10 GB file still rewrites the whole 10 GB file. This is why small, well-sized files matter — bigger files = more write amplification per update.</li>
+<li><strong>Merge-on-read vs copy-on-write</strong>: Iceberg v2 and Delta support "merge-on-read" mode where deletes/updates are stored as separate delete files (positional or equality deletes), merged at read time. Cheaper writes, more expensive reads until compaction.</li>
+<li><strong>Compaction is essential</strong>. Without periodic <code>OPTIMIZE</code> / <code>rewrite_data_files</code>, merge-on-read tables slow down over time.</li>
+</ul>
+<h3 id="copy-on-write-vs-merge-on-read">Copy-on-write vs merge-on-read</h3>
+<pre><code>Copy-on-write (default in Iceberg v1, Delta default):
+  Update → rewrite touched files entirely.
+  Pros: fast reads, no merge at query time.
+  Cons: slow writes, high write amplification.
+  Use: update-light workloads (SCD2, daily overwrites).
+
+Merge-on-read (Iceberg v2, Delta with deletion vectors):
+  Update → write delete file + new rows file.
+  Pros: fast writes.
+  Cons: reads must apply delete vectors; slower until compacted.
+  Use: update-heavy workloads (CDC, streaming upserts).
+</code></pre>
+<p>Configure per table based on expected update pattern.</p>
+<h3 id="partition-aware-merge">Partition-aware MERGE</h3>
+<p>If the target is partitioned and the merge key lets the planner prune partitions, only those are touched. Make sure the partition column appears in the ON clause:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="co">-- Good: planner prunes partitions where dt doesn&#39;t appear in source</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a><span class="kw">MERGE</span> <span class="kw">INTO</span> target t</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a><span class="kw">USING</span> <span class="kw">source</span> s</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a><span class="kw">ON</span> t.user_id <span class="op">=</span> s.user_id <span class="kw">AND</span> t.dt <span class="op">=</span> s.dt   <span class="co">-- includes partition col</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a><span class="op">..</span>.</span></code></pre></div>
+<p>Without the partition predicate in the ON clause, the engine scans all partitions.</p>
+<h3 id="spark--delta-merge-performance">Spark / Delta MERGE performance</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="im">from</span> delta.tables <span class="im">import</span> DeltaTable</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a><span class="co"># Enable deletion vectors (merge-on-read) for this table</span></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a>spark.sql(<span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a><span class="st">    ALTER TABLE silver.events SET TBLPROPERTIES (</span></span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a><span class="st">        &#39;delta.enableDeletionVectors&#39; = &#39;true&#39;</span></span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a><span class="st">    )</span></span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a><span class="st">&quot;&quot;&quot;</span>)</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a></span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a>t <span class="op">=</span> DeltaTable.forName(spark, <span class="st">&quot;silver.events&quot;</span>)</span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a>(t.alias(<span class="st">&quot;t&quot;</span>)</span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a>    .merge(</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a>        source<span class="op">=</span>stg.alias(<span class="st">&quot;s&quot;</span>),</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true"></a>        condition<span class="op">=</span><span class="st">&quot;t.event_id = s.event_id AND t.dt = s.dt&quot;</span></span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true"></a>    )</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true"></a>    .whenMatchedUpdateAll()</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true"></a>    .whenNotMatchedInsertAll()</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true"></a>    .execute())</span></code></pre></div>
+<p>Tips:</p>
+<ul>
+<li>Narrow the MERGE with a partition predicate if possible.</li>
+<li>Use <code>spark.databricks.delta.merge.repartitionBeforeWrite.enabled = true</code> to redistribute writes for better parallelism.</li>
+<li>Monitor <code>numOutputRows</code> vs <code>numTargetRowsUpdated</code> — if you're rewriting 100% for a 1% update, reconsider file sizing.</li>
+</ul>
+<h2 id="5-incremental-processing-patterns">5. Incremental Processing Patterns</h2>
+<p>Full refresh is simple but expensive above ~100 GB. Incremental processing is cheap but introduces correctness traps.</p>
+<h3 id="pattern-1--high-watermark-incremental">Pattern 1 — High watermark incremental</h3>
+<p>Track the max processed timestamp per source; next run pulls everything since.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a><span class="kw">def</span> get_high_watermark() <span class="op">-&gt;</span> datetime:</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>    <span class="cf">return</span> spark.sql(<span class="st">&quot;&quot;&quot;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a><span class="st">        SELECT MAX(event_ts) FROM silver.events</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true"></a><span class="st">    &quot;&quot;&quot;</span>).collect()[<span class="dv">0</span>][<span class="dv">0</span>] <span class="kw">or</span> datetime.<span class="bu">min</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true"></a></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true"></a><span class="kw">def</span> run_incremental():</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true"></a>    hwm <span class="op">=</span> get_high_watermark()</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true"></a>    new_rows <span class="op">=</span> spark.read.table(<span class="st">&quot;bronze.events&quot;</span>) <span class="op">\</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true"></a>                    .<span class="bu">filter</span>(F.col(<span class="st">&quot;event_ts&quot;</span>) <span class="op">&gt;</span> hwm)</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true"></a>    <span class="co"># process...</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true"></a>    new_rows.write.mode(<span class="st">&quot;append&quot;</span>).saveAsTable(<span class="st">&quot;silver.events&quot;</span>)</span></code></pre></div>
+<p><strong>Correctness traps</strong>:</p>
+<ul>
+<li>Late-arriving data with <code>event_ts &lt; hwm</code> never gets processed. Fix: widen the window (process <code>event_ts &gt; hwm - safety_window</code>, then dedupe).</li>
+<li>Clock skew across producers can push HWM forward too fast. Fix: use event_ts not processing_ts.</li>
+<li>A failed run that half-updated the target leaves the HWM in a wrong state. Fix: watermark is derived from the committed target, not stored separately.</li>
+</ul>
+<h3 id="pattern-2--partition-based-incremental">Pattern 2 — Partition-based incremental</h3>
+<p>The target has daily partitions; each run processes one partition's worth of source data.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="kw">def</span> run_incremental(dt: date):</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a>    source_for_day <span class="op">=</span> (spark.read.table(<span class="st">&quot;bronze.events&quot;</span>)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a>        .<span class="bu">filter</span>(F.col(<span class="st">&quot;dt&quot;</span>) <span class="op">==</span> dt))   <span class="co"># safety: always one partition</span></span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a>    processed <span class="op">=</span> transform(source_for_day)</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true"></a>    (processed.write</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true"></a>        .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true"></a>        .mode(<span class="st">&quot;overwrite&quot;</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true"></a>        .option(<span class="st">&quot;replace-where&quot;</span>, <span class="ss">f&quot;dt = &#39;</span><span class="sc">{dt}</span><span class="ss">&#39;&quot;</span>)</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true"></a>        .saveAsTable(<span class="st">&quot;silver.events&quot;</span>))</span></code></pre></div>
+<p>Cleaner than HWM — each partition is an atomic unit. Reruns are safe. Backfills loop over dates.</p>
+<h3 id="pattern-3--snapshot-diff-incremental-iceberg--delta">Pattern 3 — Snapshot-diff incremental (Iceberg / Delta)</h3>
+<p>Read only the changes to a source table since the last processed snapshot.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a><span class="co"># Iceberg</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a>df_changes <span class="op">=</span> (spark.read</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>    .option(<span class="st">&quot;start-snapshot-id&quot;</span>, last_snapshot)</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>    .option(<span class="st">&quot;end-snapshot-id&quot;</span>,   current_snapshot)</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>    .load(<span class="st">&quot;warehouse.bronze.events&quot;</span>))</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true"></a></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a><span class="co"># Delta: Change Data Feed (CDF)</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true"></a>df_changes <span class="op">=</span> (spark.read</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;delta&quot;</span>)</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true"></a>    .option(<span class="st">&quot;readChangeFeed&quot;</span>, <span class="st">&quot;true&quot;</span>)</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true"></a>    .option(<span class="st">&quot;startingVersion&quot;</span>, last_version)</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true"></a>    .option(<span class="st">&quot;endingVersion&quot;</span>,   current_version)</span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true"></a>    .load(<span class="st">&quot;/path/to/bronze/events&quot;</span>))</span>
+<span id="cb23-15"><a href="#cb23-15" aria-hidden="true"></a><span class="co"># Rows include _change_type = &#39;insert&#39; | &#39;update_preimage&#39; | &#39;update_postimage&#39; | &#39;delete&#39;</span></span></code></pre></div>
+<p>Much cheaper than scanning the whole table when most data is unchanged. Used for streaming-from-batch and silver → gold refresh.</p>
+<h3 id="pattern-4--merge-on-arrival-streaming-batch">Pattern 4 — Merge-on-arrival (streaming batch)</h3>
+<p>For sources that arrive as a stream but are processed in micro-batches (Spark Structured Streaming with <code>Trigger.AvailableNow</code>):</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a>(spark.readStream</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a>    .load(<span class="st">&quot;warehouse.bronze.events&quot;</span>)</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true"></a>    .writeStream</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true"></a>    .option(<span class="st">&quot;path&quot;</span>, <span class="st">&quot;warehouse.silver.events&quot;</span>)</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true"></a>    .option(<span class="st">&quot;checkpointLocation&quot;</span>, <span class="st">&quot;s3://.../ckpt/silver_events/&quot;</span>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true"></a>    .trigger(availableNow<span class="op">=</span><span class="va">True</span>)    <span class="co"># process whatever&#39;s available, then stop</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true"></a>    .start()</span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true"></a>    .awaitTermination())</span></code></pre></div>
+<p>Best of both: streaming semantics (state, checkpoints, exactly-once), batch cadence (scheduled run, then stop).</p>
+<h2 id="6-backfills--design-safety-and-throttling">6. Backfills — Design, Safety, and Throttling</h2>
+<p>A backfill is how pipelines prove themselves. The healthy pattern:</p>
+<ol>
+<li>Parameterized job (takes <code>logical_date</code>).</li>
+<li>Idempotent writes (partition overwrite or MERGE).</li>
+<li>Separate orchestrator (dedicated DAG or job) that doesn't block the daily schedule.</li>
+<li>Rate limiting to avoid flooding upstream or spiking cost.</li>
+<li>Monitoring: backfill progress, failure rate, error logs.</li>
+</ol>
+<h3 id="backfill-driver-script">Backfill driver script</h3>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a><span class="kw">def</span> backfill(start: date, end: date, parallelism: <span class="bu">int</span> <span class="op">=</span> <span class="dv">4</span>, throttle_s: <span class="bu">int</span> <span class="op">=</span> <span class="dv">30</span>):</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a>    dates <span class="op">=</span> [start <span class="op">+</span> timedelta(days<span class="op">=</span>i) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>((end <span class="op">-</span> start).days <span class="op">+</span> <span class="dv">1</span>)]</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a>    <span class="cf">with</span> ThreadPoolExecutor(max_workers<span class="op">=</span>parallelism) <span class="im">as</span> pool:</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a>        futures <span class="op">=</span> {}</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true"></a>        <span class="cf">for</span> i, d <span class="kw">in</span> <span class="bu">enumerate</span>(dates):</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true"></a>            futures[pool.submit(run_daily, d)] <span class="op">=</span> d</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true"></a>            time.sleep(throttle_s <span class="op">/</span> parallelism)   <span class="co"># stagger starts</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true"></a>        <span class="cf">for</span> f <span class="kw">in</span> as_completed(futures):</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true"></a>            d <span class="op">=</span> futures[f]</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true"></a>            <span class="cf">try</span>:</span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true"></a>                f.result()</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true"></a>                log.info(<span class="ss">f&quot;backfilled </span><span class="sc">{d}</span><span class="ss">&quot;</span>)</span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true"></a>            <span class="cf">except</span> <span class="pp">Exception</span> <span class="im">as</span> e:</span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true"></a>                log.error(<span class="ss">f&quot;backfill failed for </span><span class="sc">{d}</span><span class="ss">: </span><span class="sc">{e}</span><span class="ss">&quot;</span>)</span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true"></a>                <span class="co"># Decide: halt entire backfill, or continue and report?</span></span></code></pre></div>
+<p>Key knobs:</p>
+<ul>
+<li><strong>Parallelism</strong>: run N days simultaneously. Too high = overwhelms source / cluster.</li>
+<li><strong>Throttle</strong>: pause between submissions. Prevents thundering herd.</li>
+<li><strong>Error policy</strong>: fail fast vs continue. Depends on whether days are independent.</li>
+</ul>
+<h3 id="airflow-dynamic-task-mapping-for-backfills">Airflow dynamic task mapping for backfills</h3>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="im">from</span> airflow.decorators <span class="im">import</span> dag, task</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a><span class="im">from</span> datetime <span class="im">import</span> datetime, timedelta</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a><span class="at">@dag</span>(</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true"></a>    schedule<span class="op">=</span><span class="va">None</span>,            <span class="co"># triggered manually</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true"></a>    start_date<span class="op">=</span>datetime(<span class="dv">2026</span>, <span class="dv">1</span>, <span class="dv">1</span>),</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true"></a>    catchup<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true"></a>    max_active_tasks<span class="op">=</span><span class="dv">8</span>,        <span class="co"># concurrency limit</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true"></a>)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true"></a><span class="kw">def</span> backfill_playback():</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true"></a>    <span class="at">@task</span></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true"></a>    <span class="kw">def</span> list_dates(start: <span class="bu">str</span>, end: <span class="bu">str</span>) <span class="op">-&gt;</span> <span class="bu">list</span>[<span class="bu">str</span>]:</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true"></a>        s <span class="op">=</span> datetime.fromisoformat(start).date()</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true"></a>        e <span class="op">=</span> datetime.fromisoformat(end).date()</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true"></a>        <span class="cf">return</span> [(s <span class="op">+</span> timedelta(days<span class="op">=</span>i)).isoformat() <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>((e<span class="op">-</span>s).days<span class="op">+</span><span class="dv">1</span>)]</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true"></a></span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true"></a>    <span class="at">@task</span>(retries<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true"></a>    <span class="kw">def</span> run_one(dt: <span class="bu">str</span>):</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true"></a>        run_daily_for(dt)</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true"></a></span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true"></a>    run_one.expand(dt<span class="op">=</span>list_dates(<span class="st">&quot;</span><span class="sc">{{</span><span class="st"> params.start </span><span class="sc">}}</span><span class="st">&quot;</span>, <span class="st">&quot;</span><span class="sc">{{</span><span class="st"> params.end </span><span class="sc">}}</span><span class="st">&quot;</span>))</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true"></a></span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true"></a>backfill_playback()</span></code></pre></div>
+<p>Trigger with <code>airflow dags trigger backfill_playback -p '{"start":"2026-01-01","end":"2026-02-01"}'</code>.</p>
+<h3 id="backfill-correctness">Backfill correctness</h3>
+<ul>
+<li>If the current pipeline version differs from the one that produced the historical data, <strong>backfill produces different results</strong>. Document this; version-tag the output.</li>
+<li>Upstream sources may have had different schemas historically; backfill code must handle all historical shapes OR start from a normalized bronze.</li>
+<li>Dimensions are SCD2: a fact backfilled today joins to dim versions that were current on the backfill date, not today.</li>
+</ul>
+<h3 id="cost-aware-backfills">Cost-aware backfills</h3>
+<p>A naive "backfill one year of events" can cost $50k on a warehouse. Tactics:</p>
+<ul>
+<li><strong>Sampling</strong>: backfill 10% first; verify output shape; extrapolate cost; decide.</li>
+<li><strong>Coarse-grained backfill</strong>: backfill weekly rollups first; fine-grained only where needed.</li>
+<li><strong>Use a dedicated cluster/warehouse</strong>: don't let the backfill contend with production.</li>
+<li><strong>Cold-path data</strong>: older data goes to cheaper storage tiers (S3 Glacier, Snowflake external tables).</li>
+</ul>
+<h2 id="7-file-format-internals--parquet-orc-avro">7. File Format Internals — Parquet, ORC, Avro</h2>
+<h3 id="parquet-columnar-analytic">Parquet (columnar, analytic)</h3>
+<p><strong>Layout</strong>:</p>
+<pre><code>File
+├── Magic bytes &quot;PAR1&quot;
+├── Row Group 1
+│   ├── Column Chunk: col_a
+│   │   ├── Page 1 (data + RLE/dict encoding)
+│   │   ├── Page 2
+│   │   └── ...
+│   ├── Column Chunk: col_b
+│   └── ...
+├── Row Group 2
+├── ...
+├── File Metadata (schema, row group locations, column stats)
+└── Magic bytes &quot;PAR1&quot;
+</code></pre>
+<ul>
+<li><strong>Row group size</strong>: 128 MB default. Smaller = finer pruning but more overhead per file. Larger = more efficient scans but coarser filtering.</li>
+<li><strong>Page size</strong>: 1 MB default. The unit of decompression.</li>
+<li><strong>Dictionary page</strong>: encode low-cardinality columns as ints pointing to a dictionary. Spark writes dictionary pages up to 1 MB; then falls back to plain encoding.</li>
+</ul>
+<p><strong>Statistics available</strong>:</p>
+<ul>
+<li>Per row group, per column: min, max, null_count, distinct_count (optional).</li>
+<li>Bloom filters (Parquet 2.5+, optional): probabilistic set membership per column chunk.</li>
+</ul>
+<p><strong>Encodings</strong>:</p>
+<ul>
+<li>PLAIN — raw values, no compression.</li>
+<li>RLE_DICTIONARY — RLE of dictionary IDs. Default for most columns.</li>
+<li>DELTA_BINARY_PACKED — delta encoding. Good for sorted integers / timestamps.</li>
+<li>DELTA_BYTE_ARRAY — delta encoding for strings with common prefixes.</li>
+</ul>
+<p><strong>Compression</strong>:</p>
+<ul>
+<li>SNAPPY — fast, moderate compression. Default.</li>
+<li>ZSTD — slower, better compression (10-20% smaller than SNAPPY). Preferred in 2026.</li>
+<li>GZIP — very slow, best compression. Rarely used.</li>
+<li>LZ4 — fastest decompression.</li>
+</ul>
+<p><strong>Reading pattern (what the engine does)</strong>:</p>
+<ol>
+<li>Open file, seek to footer, read metadata.</li>
+<li>Apply filters against per-row-group stats; skip non-matching row groups.</li>
+<li>For each surviving row group, for each needed column, seek to column chunk.</li>
+<li>Decode pages; apply predicates again at page level (if dictionary-filter eligible).</li>
+<li>Assemble rows.</li>
+</ol>
+<p>This is why <strong>selecting only needed columns</strong> and <strong>filtering on stat-having columns</strong> is so fast in Parquet.</p>
+<h3 id="orc-columnar-hive-era">ORC (columnar, Hive-era)</h3>
+<p>Similar to Parquet but:</p>
+<ul>
+<li>Stripe = ORC's row group (64 MB default).</li>
+<li>Richer lightweight indexes (per-10k-row bloom filters, not just per-stripe).</li>
+<li>Better complex-type handling historically (structs, maps).</li>
+<li>Compresses slightly better (ZSTD/ZLIB) due to more aggressive type-aware encoding.</li>
+</ul>
+<p>Most modern lakehouses use Parquet for ecosystem reasons. ORC dominant in traditional Hadoop.</p>
+<h3 id="avro-row-oriented-streaming">Avro (row-oriented, streaming)</h3>
+<p>Row-oriented format. Bad for analytics (must read full rows); good for:</p>
+<ul>
+<li><strong>Streaming source data</strong>: Kafka topics often serialize records as Avro with a schema registry.</li>
+<li><strong>Backup / archival</strong>: faster to produce, less CPU to write.</li>
+<li><strong>Schema evolution</strong>: Avro has a rich schema resolution model (reader schema vs writer schema, nullable union types).</li>
+</ul>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a><span class="co"># Writing Avro</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a>df.write.<span class="bu">format</span>(<span class="st">&quot;avro&quot;</span>).save(<span class="st">&quot;s3://backup/events/&quot;</span>)</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a><span class="co"># Reading with explicit schema</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a><span class="im">import</span> avro.schema</span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true"></a>schema <span class="op">=</span> avro.schema.parse(<span class="bu">open</span>(<span class="st">&quot;events.avsc&quot;</span>).read())</span></code></pre></div>
+<h3 id="format-choice">Format choice</h3>
+<ul>
+<li>Analytic tables: <strong>Parquet</strong> (lakehouse default) or ORC (Hive legacy).</li>
+<li>Streaming bronze (Kafka → lake): <strong>Avro</strong> in-flight (schema registry), Parquet on landing.</li>
+<li>Archival / backup: <strong>Avro</strong> or gzipped JSON.</li>
+<li>Row-level state: neither — use a row store (Postgres, RocksDB).</li>
+</ul>
+<h2 id="8-partition-design-math">8. Partition Design Math</h2>
+<p>Partition choice is the #1 physical layout decision in a lakehouse. Bad partitioning wastes more compute than any other mistake.</p>
+<h3 id="the-cardinality-sweet-spot">The cardinality sweet spot</h3>
+<p>Rule: each partition should hold <strong>hundreds of MB to a few GB</strong> of uncompressed data, with at least <strong>a few hundred partitions total</strong> for a large table and <strong>not more than ~tens of thousands</strong>.</p>
+<p>Math:</p>
+<ul>
+<li>Row group size target: 128 MB.</li>
+<li>Files per partition: 1–10 for good parallelism without small-file overhead.</li>
+<li>→ Partition size target: 128 MB – 1.3 GB.</li>
+</ul>
+<p>For a table with 10 TB of data:</p>
+<ul>
+<li>10 TB / 500 MB per partition ≈ 20,000 partitions. Upper edge.</li>
+<li>10 TB / 5 GB per partition ≈ 2,000 partitions. Nicer.</li>
+</ul>
+<p>If the natural partition column (e.g., <code>dt</code>) gives you 10,000 days — that's 10,000 partitions, ~1 GB each.</p>
+<p>If the natural partition column gives you 10M users — that's 10M partitions of tiny data each. Disaster. Repartition by a coarser key (day + country, or user_id % 1000).</p>
+<h3 id="partition-evolution">Partition evolution</h3>
+<p>Iceberg supports <strong>partition evolution</strong>: change the partition spec without rewriting data. Old data keeps its partitioning; new writes use the new spec.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a><span class="co">-- Started with daily partitions</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">SET</span> <span class="kw">PARTITION</span> SPEC (days(event_ts), bucket(<span class="dv">16</span>, user_id));</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a><span class="co">-- Old daily partitions survive; new writes use day+user_bucket</span></span></code></pre></div>
+<p>This is huge. In traditional Hive, changing partitioning meant rewriting the entire table.</p>
+<h3 id="partition-pruning--what-actually-happens">Partition pruning — what actually happens</h3>
+<p>Query: <code>SELECT * FROM silver.events WHERE dt = '2026-04-19' AND country = 'US'</code>.</p>
+<ol>
+<li>Planner reads table metadata → sees partition spec <code>days(event_ts)</code> → partition column <code>dt</code>.</li>
+<li>Planner matches filter <code>dt = '2026-04-19'</code> → determines relevant partition(s).</li>
+<li>Planner reads manifest files for matching partitions only.</li>
+<li>Manifests list data files with per-column stats (min/max of <code>country</code>).</li>
+<li>Planner prunes files where <code>country</code> stats exclude 'US'.</li>
+<li>Spark launches tasks only against surviving files.</li>
+</ol>
+<p><strong>What breaks pruning</strong>:</p>
+<ul>
+<li>Function on partition column: <code>WHERE DATE(event_ts) = '2026-04-19'</code> — planner can't prove this matches partition <code>days(event_ts)=2026-04-19</code>. Rewrite: <code>WHERE event_ts &gt;= '2026-04-19' AND event_ts &lt; '2026-04-20'</code>.</li>
+<li>Iceberg's <strong>hidden partitioning</strong> fixes this — <code>days(event_ts)</code> is an implicit partition derivation, and filters on <code>event_ts</code> directly are pruned.</li>
+<li>Implicit type casts: <code>WHERE dt = '20260419'</code> (string) vs partition column is DATE — some engines won't prune. Match types.</li>
+<li>UDFs in predicates: opaque; never pruned.</li>
+</ul>
+<h3 id="hidden-partitioning-icebergs-killer-feature">Hidden partitioning (Iceberg's killer feature)</h3>
+<p>Hive-style: the partition column is user-managed. You must always write <code>WHERE dt = '...'</code> matching the partition value exactly.</p>
+<p>Iceberg: partition derived from source column. User writes <code>WHERE event_ts BETWEEN ...</code>; Iceberg transparently computes <code>days(event_ts)</code> and prunes.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a><span class="co">-- Iceberg</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> (</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true"></a>    event_id STRING,</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true"></a>    event_ts <span class="dt">TIMESTAMP</span>,</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true"></a>    user_id STRING,</span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true"></a>    <span class="op">..</span>.</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true"></a>)</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true"></a><span class="kw">USING</span> iceberg</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true"></a>PARTITIONED <span class="kw">BY</span> (days(event_ts), bucket(<span class="dv">16</span>, user_id));</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true"></a></span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true"></a><span class="co">-- Query naturally uses event_ts (no dt column visible)</span></span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">FROM</span> silver.<span class="kw">events</span></span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true"></a><span class="kw">WHERE</span> event_ts <span class="kw">BETWEEN</span> <span class="st">&#39;2026-04-19&#39;</span> <span class="kw">AND</span> <span class="st">&#39;2026-04-20&#39;</span></span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true"></a>  <span class="kw">AND</span> user_id <span class="op">=</span> <span class="st">&#39;abc&#39;</span>;</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true"></a><span class="co">-- Prunes: days(event_ts) matches 2026-04-19 partition</span></span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true"></a><span class="co">-- Prunes: bucket(16, &#39;abc&#39;) matches one of 16 buckets</span></span></code></pre></div>
+<h3 id="clustering-sort-within-partition">Clustering (sort within partition)</h3>
+<p>Even with good partitioning, within a partition the data order matters. Clustering (Snowflake), z-ordering (Delta), or sort-order (Iceberg) physically sorts rows so filters prune at the file / row-group level.</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a><span class="co">-- Iceberg: write new data sorted by user_id within each partition</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">WRITE</span> ORDERED <span class="kw">BY</span> user_id;</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true"></a><span class="co">-- Delta: z-order after writes (multi-column space-filling curve)</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true"></a>OPTIMIZE silver.<span class="kw">events</span> ZORDER <span class="kw">BY</span> (user_id, country);</span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true"></a></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true"></a><span class="co">-- Snowflake: clustering key (automatic maintenance)</span></span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> <span class="kw">CLUSTER</span> <span class="kw">BY</span> (user_id);</span></code></pre></div>
+<p><strong>When to cluster</strong>:</p>
+<ul>
+<li>You frequently filter on a specific high-cardinality column (e.g., <code>user_id</code>).</li>
+<li>That column is too high-cardinality to partition on directly.</li>
+<li>Query patterns are read-heavy; the sort amortizes.</li>
+</ul>
+<p><strong>Z-order</strong> packs rows with similar values across <em>multiple</em> columns. Best when queries filter on a pair of columns unpredictably — e.g., sometimes <code>user_id</code>, sometimes <code>country</code>, sometimes both. Single-column sort is better when there's one dominant filter.</p>
+<h3 id="bucket-partitioning">Bucket partitioning</h3>
+<p>Divide rows into N buckets by <code>hash(key) % N</code>. Useful when:</p>
+<ul>
+<li>Key is high-cardinality (can't partition directly).</li>
+<li>You want predictable file sizes (each bucket has roughly 1/N of data).</li>
+<li>Joins on that key can use bucketed joins (skip shuffle if both sides are bucketed identically).</li>
+</ul>
+<div class="sourceCode" id="cb32"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> silver.<span class="kw">events</span> ( <span class="op">..</span>. )</span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true"></a><span class="kw">USING</span> iceberg</span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true"></a>PARTITIONED <span class="kw">BY</span> (days(event_ts), bucket(<span class="dv">32</span>, user_id));</span></code></pre></div>
+<p>32 buckets × 365 daily partitions = 11,680 partitions for a year. Each partition covers <code>1_day × (1/32 of users)</code>. A query filtering on <code>user_id = 'abc'</code> prunes to 1 day × 1 bucket = small.</p>
+<h2 id="9-small-files-and-compaction">9. Small Files and Compaction</h2>
+<p>The small files problem: tiny files kill read performance because each file incurs fixed overhead (open, footer read, metadata parse). A table with millions of tiny files is slower than one with thousands of right-sized files, despite holding the same data.</p>
+<h3 id="causes-of-small-files">Causes of small files</h3>
+<ul>
+<li><strong>High write parallelism</strong> + <strong>low data volume</strong>. 200 Spark partitions × 200 hourly runs = 40,000 files even if each run is small.</li>
+<li><strong>Streaming micro-batches</strong> with short triggers. 1-minute triggers for a low-volume stream: ~525,000 files per year per topic.</li>
+<li><strong>Skewed partitioning</strong>. A partition with lots of data gets sub-partitioned; one with little gets one tiny file.</li>
+</ul>
+<h3 id="prevention-at-write-time">Prevention at write time</h3>
+<ul>
+<li><code>df.coalesce(N)</code> before write: reduces file count without shuffle. Use N = target_data_size / target_file_size.</li>
+<li><code>df.repartition(N, ...)</code> before write: shuffles to exactly N partitions. Costs a shuffle but guarantees even file sizes.</li>
+<li>Spark AQE: <code>spark.sql.adaptive.advisoryPartitionSizeInBytes = 128MB</code> — AQE coalesces output partitions to hit this target.</li>
+<li>Iceberg <code>write.target-file-size-bytes</code> table property.</li>
+</ul>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true"></a>df.write <span class="op">\</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true"></a>  .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>) <span class="op">\</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true"></a>  .option(<span class="st">&quot;target-file-size-bytes&quot;</span>, <span class="dv">134217728</span>) <span class="op">\</span>  <span class="co"># 128 MB</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true"></a>  .mode(<span class="st">&quot;append&quot;</span>) <span class="op">\</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true"></a>  .saveAsTable(<span class="st">&quot;silver.events&quot;</span>)</span></code></pre></div>
+<h3 id="compaction-post-write">Compaction (post-write)</h3>
+<p>Running <code>OPTIMIZE</code> or <code>rewrite_data_files</code> periodically rewrites many small files into fewer large ones.</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true"></a><span class="co">-- Iceberg: compact files smaller than 100 MB, combining to ~512 MB</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.rewrite_data_files(</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true"></a>    <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.events&#39;</span>,</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true"></a>    options <span class="op">=&gt;</span> map(</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true"></a>        <span class="st">&#39;target-file-size-bytes&#39;</span>, <span class="st">&#39;536870912&#39;</span>,</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true"></a>        <span class="st">&#39;min-file-size-bytes&#39;</span>,    <span class="st">&#39;104857600&#39;</span></span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true"></a>    )</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true"></a>);</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true"></a></span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true"></a>OPTIMIZE silver.<span class="kw">events</span>;</span></code></pre></div>
+<p>Schedule: daily for streaming-ingested tables, weekly for batch-ingested.</p>
+<h3 id="garbage-collection-expiring-snapshots">Garbage collection (expiring snapshots)</h3>
+<p>Iceberg/Delta keep old snapshots for time travel. Expire them to reclaim storage:</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true"></a><span class="co">-- Iceberg: expire snapshots older than 7 days, keep at least 5 most recent</span></span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true"></a><span class="kw">CALL</span> <span class="kw">system</span>.expire_snapshots(</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true"></a>    <span class="kw">table</span> <span class="op">=&gt;</span> <span class="st">&#39;silver.events&#39;</span>,</span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true"></a>    older_than <span class="op">=&gt;</span> <span class="dt">TIMESTAMP</span> <span class="st">&#39;2026-04-12 00:00:00&#39;</span>,</span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true"></a>    retain_last <span class="op">=&gt;</span> <span class="dv">5</span></span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true"></a>);</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true"></a></span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true"></a><span class="co">-- Delta</span></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true"></a>VACUUM silver.<span class="kw">events</span> RETAIN <span class="dv">168</span> HOURS;   <span class="co">-- 7 days</span></span></code></pre></div>
+<p>Caution: vacuuming kills time-travel for data older than the retention window. If compliance requires 7-year retention, configure accordingly.</p>
+<h2 id="10-cdc-change-data-capture-patterns">10. CDC (Change Data Capture) Patterns</h2>
+<p>Source OLTP database → analytics warehouse. The canonical patterns:</p>
+<h3 id="full-snapshot-baseline">Full snapshot (baseline)</h3>
+<p>Daily full dump of the source table. Simple, correct, expensive. Viable up to ~tens of GB.</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true"></a><span class="co"># JDBC to Iceberg (full reload)</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true"></a>(spark.read</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;jdbc&quot;</span>)</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true"></a>    .option(<span class="st">&quot;url&quot;</span>, <span class="st">&quot;jdbc:postgresql://...&quot;</span>)</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true"></a>    .option(<span class="st">&quot;dbtable&quot;</span>, <span class="st">&quot;public.orders&quot;</span>)</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true"></a>    .option(<span class="st">&quot;partitionColumn&quot;</span>, <span class="st">&quot;order_id&quot;</span>)</span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true"></a>    .option(<span class="st">&quot;numPartitions&quot;</span>, <span class="dv">20</span>)</span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true"></a>    .option(<span class="st">&quot;lowerBound&quot;</span>, <span class="st">&quot;1&quot;</span>)</span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true"></a>    .option(<span class="st">&quot;upperBound&quot;</span>, <span class="st">&quot;100000000&quot;</span>)</span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true"></a>    .load()</span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true"></a>    .write</span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true"></a>    .mode(<span class="st">&quot;overwrite&quot;</span>)</span>
+<span id="cb36-14"><a href="#cb36-14" aria-hidden="true"></a>    .saveAsTable(<span class="st">&quot;bronze.orders&quot;</span>))</span></code></pre></div>
+<p>Pros: guaranteed correctness, no state. Cons: expensive at scale, lag = 1 day.</p>
+<h3 id="incremental-snapshot-changed-rows-only">Incremental snapshot (changed-rows-only)</h3>
+<p>Source table has <code>updated_at</code>; pull rows where <code>updated_at &gt; last_pull</code>.</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true"></a>hwm <span class="op">=</span> get_high_watermark(<span class="st">&quot;bronze.orders&quot;</span>, <span class="st">&quot;updated_at&quot;</span>)</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true"></a>(spark.read</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;jdbc&quot;</span>)</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true"></a>    .option(<span class="st">&quot;dbtable&quot;</span>, <span class="ss">f&quot;(SELECT * FROM orders WHERE updated_at &gt; &#39;</span><span class="sc">{</span>hwm<span class="sc">}</span><span class="ss">&#39;) AS t&quot;</span>)</span>
+<span id="cb37-5"><a href="#cb37-5" aria-hidden="true"></a>    ...</span>
+<span id="cb37-6"><a href="#cb37-6" aria-hidden="true"></a>    .write</span>
+<span id="cb37-7"><a href="#cb37-7" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;delta&quot;</span>)</span>
+<span id="cb37-8"><a href="#cb37-8" aria-hidden="true"></a>    .mode(<span class="st">&quot;append&quot;</span>)</span>
+<span id="cb37-9"><a href="#cb37-9" aria-hidden="true"></a>    .saveAsTable(<span class="st">&quot;bronze.orders_changes&quot;</span>))</span>
+<span id="cb37-10"><a href="#cb37-10" aria-hidden="true"></a></span>
+<span id="cb37-11"><a href="#cb37-11" aria-hidden="true"></a><span class="co"># Upsert into bronze.orders using MERGE</span></span></code></pre></div>
+<p>Pros: cheaper than full reload. Cons: misses hard deletes (row gone from source with no marker); relies on accurate <code>updated_at</code>.</p>
+<h3 id="log-based-cdc-debezium-fivetran-aws-dms">Log-based CDC (Debezium, Fivetran, AWS DMS)</h3>
+<p>Read from the database's write-ahead log (Postgres logical replication, MySQL binlog, SQL Server CDC). Emit Kafka messages per row change, with operation type:</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode json"><code class="sourceCode json"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true"></a><span class="fu">{</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true"></a>  <span class="dt">&quot;before&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;order_id&quot;</span><span class="fu">:</span> <span class="dv">42</span><span class="fu">,</span> <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;paid&quot;</span><span class="fu">,</span>   <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">100</span><span class="fu">},</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true"></a>  <span class="dt">&quot;after&quot;</span><span class="fu">:</span>  <span class="fu">{</span><span class="dt">&quot;order_id&quot;</span><span class="fu">:</span> <span class="dv">42</span><span class="fu">,</span> <span class="dt">&quot;status&quot;</span><span class="fu">:</span> <span class="st">&quot;shipped&quot;</span><span class="fu">,</span> <span class="dt">&quot;total&quot;</span><span class="fu">:</span> <span class="dv">100</span><span class="fu">},</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true"></a>  <span class="dt">&quot;op&quot;</span><span class="fu">:</span> <span class="st">&quot;u&quot;</span><span class="fu">,</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true"></a>  <span class="dt">&quot;ts_ms&quot;</span><span class="fu">:</span> <span class="dv">1713567890000</span><span class="fu">,</span></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true"></a>  <span class="dt">&quot;source&quot;</span><span class="fu">:</span> <span class="fu">{</span><span class="dt">&quot;schema&quot;</span><span class="fu">:</span> <span class="st">&quot;public&quot;</span><span class="fu">,</span> <span class="dt">&quot;table&quot;</span><span class="fu">:</span> <span class="st">&quot;orders&quot;</span><span class="fu">,</span> <span class="dt">&quot;lsn&quot;</span><span class="fu">:</span> <span class="st">&quot;0/30A3B8&quot;</span><span class="fu">}</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true"></a><span class="fu">}</span></span></code></pre></div>
+<p>Ops: <code>c</code> (create/insert), <code>u</code> (update), <code>d</code> (delete), <code>r</code> (snapshot read).</p>
+<p>Pros:</p>
+<ul>
+<li>Sub-second lag.</li>
+<li>Hard deletes captured.</li>
+<li>Exact change history, not just "current state."</li>
+<li>Works without touching the source.</li>
+</ul>
+<p>Cons:</p>
+<ul>
+<li>Operationally complex: Kafka, Debezium, schema registry.</li>
+<li>Requires database-side logging (WAL) configured correctly.</li>
+<li>Schema drift at source breaks pipelines.</li>
+</ul>
+<h3 id="upserting-cdc-into-a-lakehouse">Upserting CDC into a lakehouse</h3>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true"></a>cdc_stream <span class="op">=</span> (spark.readStream</span>
+<span id="cb39-2"><a href="#cb39-2" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;kafka&quot;</span>)</span>
+<span id="cb39-3"><a href="#cb39-3" aria-hidden="true"></a>    .option(<span class="st">&quot;subscribe&quot;</span>, <span class="st">&quot;cdc.public.orders&quot;</span>)</span>
+<span id="cb39-4"><a href="#cb39-4" aria-hidden="true"></a>    ...</span>
+<span id="cb39-5"><a href="#cb39-5" aria-hidden="true"></a>    .load())</span>
+<span id="cb39-6"><a href="#cb39-6" aria-hidden="true"></a></span>
+<span id="cb39-7"><a href="#cb39-7" aria-hidden="true"></a><span class="co"># Parse Debezium envelope</span></span>
+<span id="cb39-8"><a href="#cb39-8" aria-hidden="true"></a>parsed <span class="op">=</span> cdc_stream.select(</span>
+<span id="cb39-9"><a href="#cb39-9" aria-hidden="true"></a>    F.from_json(F.col(<span class="st">&quot;value&quot;</span>).cast(<span class="st">&quot;string&quot;</span>), debezium_schema).alias(<span class="st">&quot;env&quot;</span>)</span>
+<span id="cb39-10"><a href="#cb39-10" aria-hidden="true"></a>).select(</span>
+<span id="cb39-11"><a href="#cb39-11" aria-hidden="true"></a>    <span class="st">&quot;env.op&quot;</span>, <span class="st">&quot;env.after&quot;</span>, <span class="st">&quot;env.before&quot;</span>, <span class="st">&quot;env.ts_ms&quot;</span></span>
+<span id="cb39-12"><a href="#cb39-12" aria-hidden="true"></a>)</span>
+<span id="cb39-13"><a href="#cb39-13" aria-hidden="true"></a></span>
+<span id="cb39-14"><a href="#cb39-14" aria-hidden="true"></a><span class="co"># Apply to target with forEachBatch + MERGE</span></span>
+<span id="cb39-15"><a href="#cb39-15" aria-hidden="true"></a><span class="kw">def</span> merge_batch(batch_df, batch_id):</span>
+<span id="cb39-16"><a href="#cb39-16" aria-hidden="true"></a>    <span class="im">from</span> delta.tables <span class="im">import</span> DeltaTable</span>
+<span id="cb39-17"><a href="#cb39-17" aria-hidden="true"></a>    t <span class="op">=</span> DeltaTable.forName(spark, <span class="st">&quot;silver.orders&quot;</span>)</span>
+<span id="cb39-18"><a href="#cb39-18" aria-hidden="true"></a>    (t.alias(<span class="st">&quot;t&quot;</span>)</span>
+<span id="cb39-19"><a href="#cb39-19" aria-hidden="true"></a>        .merge(</span>
+<span id="cb39-20"><a href="#cb39-20" aria-hidden="true"></a>            batch_df.alias(<span class="st">&quot;s&quot;</span>),</span>
+<span id="cb39-21"><a href="#cb39-21" aria-hidden="true"></a>            <span class="st">&quot;t.order_id = s.after.order_id OR (s.op = &#39;d&#39; AND t.order_id = s.before.order_id)&quot;</span></span>
+<span id="cb39-22"><a href="#cb39-22" aria-hidden="true"></a>        )</span>
+<span id="cb39-23"><a href="#cb39-23" aria-hidden="true"></a>        .whenMatchedDelete(condition<span class="op">=</span><span class="st">&quot;s.op = &#39;d&#39;&quot;</span>)</span>
+<span id="cb39-24"><a href="#cb39-24" aria-hidden="true"></a>        .whenMatchedUpdateAll(condition<span class="op">=</span><span class="st">&quot;s.op = &#39;u&#39; AND s.ts_ms &gt; t.cdc_ts_ms&quot;</span>)</span>
+<span id="cb39-25"><a href="#cb39-25" aria-hidden="true"></a>        .whenNotMatchedInsert(</span>
+<span id="cb39-26"><a href="#cb39-26" aria-hidden="true"></a>            condition<span class="op">=</span><span class="st">&quot;s.op IN (&#39;c&#39;,&#39;r&#39;)&quot;</span>,</span>
+<span id="cb39-27"><a href="#cb39-27" aria-hidden="true"></a>            values<span class="op">=</span>{</span>
+<span id="cb39-28"><a href="#cb39-28" aria-hidden="true"></a>                <span class="st">&quot;order_id&quot;</span>: <span class="st">&quot;s.after.order_id&quot;</span>,</span>
+<span id="cb39-29"><a href="#cb39-29" aria-hidden="true"></a>                <span class="st">&quot;status&quot;</span>:   <span class="st">&quot;s.after.status&quot;</span>,</span>
+<span id="cb39-30"><a href="#cb39-30" aria-hidden="true"></a>                ...</span>
+<span id="cb39-31"><a href="#cb39-31" aria-hidden="true"></a>                <span class="st">&quot;cdc_ts_ms&quot;</span>: <span class="st">&quot;s.ts_ms&quot;</span></span>
+<span id="cb39-32"><a href="#cb39-32" aria-hidden="true"></a>            }</span>
+<span id="cb39-33"><a href="#cb39-33" aria-hidden="true"></a>        )</span>
+<span id="cb39-34"><a href="#cb39-34" aria-hidden="true"></a>        .execute())</span>
+<span id="cb39-35"><a href="#cb39-35" aria-hidden="true"></a></span>
+<span id="cb39-36"><a href="#cb39-36" aria-hidden="true"></a>(parsed.writeStream</span>
+<span id="cb39-37"><a href="#cb39-37" aria-hidden="true"></a>    .foreachBatch(merge_batch)</span>
+<span id="cb39-38"><a href="#cb39-38" aria-hidden="true"></a>    .option(<span class="st">&quot;checkpointLocation&quot;</span>, <span class="st">&quot;s3://.../ckpt/orders_cdc/&quot;</span>)</span>
+<span id="cb39-39"><a href="#cb39-39" aria-hidden="true"></a>    .trigger(processingTime<span class="op">=</span><span class="st">&quot;30 seconds&quot;</span>)</span>
+<span id="cb39-40"><a href="#cb39-40" aria-hidden="true"></a>    .start())</span></code></pre></div>
+<p>The <code>cdc_ts_ms &gt; t.cdc_ts_ms</code> guard prevents out-of-order CDC events from overwriting a newer state with an older one.</p>
+<h3 id="cdc--scd2">CDC + SCD2</h3>
+<p>For downstream dim tables: the stream of CDC events drives SCD2 insertion of new rows. Every <code>update</code> event closes the current row and inserts a new one; every <code>delete</code> marks the current row as invalidated.</p>
+<h2 id="11-data-quality-in-batch-pipelines">11. Data Quality in Batch Pipelines</h2>
+<p>Quality checks live alongside logic — not "if we have time later."</p>
+<h3 id="taxonomy-of-checks">Taxonomy of checks</h3>
+<table>
+<thead>
+<tr class="header">
+<th>Check type</th>
+<th>Example</th>
+<th>When to run</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Schema</td>
+<td>columns exist with expected types</td>
+<td>Every run, fail fast</td>
+</tr>
+<tr class="even">
+<td>Row count</td>
+<td>count &gt; 0, count within ±20% of 7-day avg</td>
+<td>Every run, warn on drift</td>
+</tr>
+<tr class="odd">
+<td>Uniqueness</td>
+<td>PK is unique</td>
+<td>Every run, hard fail on violation</td>
+</tr>
+<tr class="even">
+<td>Referential</td>
+<td>all FKs resolve</td>
+<td>Every run, warn or fail</td>
+</tr>
+<tr class="odd">
+<td>Null rate</td>
+<td>non-key columns &lt; 1% null</td>
+<td>Every run, warn</td>
+</tr>
+<tr class="even">
+<td>Distribution</td>
+<td>numeric columns within expected p99</td>
+<td>Periodic, drift detection</td>
+</tr>
+<tr class="odd">
+<td>Freshness</td>
+<td>max(event_ts) within SLO</td>
+<td>Every run, SLA alert</td>
+</tr>
+<tr class="even">
+<td>Volume</td>
+<td>same volume as upstream, ±5%</td>
+<td>Every run, warn</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dbt-tests-declarative">dbt tests (declarative)</h3>
+<div class="sourceCode" id="cb40"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true"></a><span class="co"># models/silver/playback_sessions.yml</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true"></a><span class="fu">version</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true"></a><span class="fu">models</span><span class="kw">:</span></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> playback_sessions</span></span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true"></a><span class="at">    </span><span class="fu">description</span><span class="kw">:</span><span class="at"> </span><span class="st">&quot;Sessionized playback events&quot;</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true"></a><span class="at">    </span><span class="fu">columns</span><span class="kw">:</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> session_id</span></span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true"></a><span class="at">        </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> unique</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> not_null</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> user_id</span></span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true"></a><span class="at">        </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb40-13"><a href="#cb40-13" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> not_null</span></span>
+<span id="cb40-14"><a href="#cb40-14" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> </span><span class="fu">relationships</span><span class="kw">:</span></span>
+<span id="cb40-15"><a href="#cb40-15" aria-hidden="true"></a><span class="at">              </span><span class="fu">to</span><span class="kw">:</span><span class="at"> ref(&#39;dim_user&#39;)</span></span>
+<span id="cb40-16"><a href="#cb40-16" aria-hidden="true"></a><span class="at">              </span><span class="fu">field</span><span class="kw">:</span><span class="at"> user_id</span></span>
+<span id="cb40-17"><a href="#cb40-17" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">name</span><span class="kw">:</span><span class="at"> watch_ms</span></span>
+<span id="cb40-18"><a href="#cb40-18" aria-hidden="true"></a><span class="at">        </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb40-19"><a href="#cb40-19" aria-hidden="true"></a><span class="at">          </span><span class="kw">-</span><span class="at"> </span><span class="fu">dbt_utils.accepted_range</span><span class="kw">:</span></span>
+<span id="cb40-20"><a href="#cb40-20" aria-hidden="true"></a><span class="at">              </span><span class="fu">min_value</span><span class="kw">:</span><span class="at"> </span><span class="dv">0</span></span>
+<span id="cb40-21"><a href="#cb40-21" aria-hidden="true"></a><span class="at">              </span><span class="fu">max_value</span><span class="kw">:</span><span class="at"> </span><span class="dv">86400000</span><span class="co">   # 24h in ms</span></span>
+<span id="cb40-22"><a href="#cb40-22" aria-hidden="true"></a><span class="at">    </span><span class="fu">tests</span><span class="kw">:</span></span>
+<span id="cb40-23"><a href="#cb40-23" aria-hidden="true"></a><span class="at">      </span><span class="kw">-</span><span class="at"> </span><span class="fu">dbt_utils.recency</span><span class="kw">:</span></span>
+<span id="cb40-24"><a href="#cb40-24" aria-hidden="true"></a><span class="at">          </span><span class="fu">datepart</span><span class="kw">:</span><span class="at"> hour</span></span>
+<span id="cb40-25"><a href="#cb40-25" aria-hidden="true"></a><span class="at">          </span><span class="fu">field</span><span class="kw">:</span><span class="at"> max_end_ts</span></span>
+<span id="cb40-26"><a href="#cb40-26" aria-hidden="true"></a><span class="at">          </span><span class="fu">interval</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span></span></code></pre></div>
+<h3 id="great-expectations-imperative--metadata">Great Expectations (imperative + metadata)</h3>
+<div class="sourceCode" id="cb41"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true"></a><span class="im">import</span> great_expectations <span class="im">as</span> gx</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true"></a></span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true"></a>context <span class="op">=</span> gx.get_context()</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true"></a>ds <span class="op">=</span> context.sources.add_pandas(<span class="st">&quot;pd&quot;</span>)</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true"></a>asset <span class="op">=</span> ds.add_parquet_asset(</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true"></a>    <span class="st">&quot;playback_sessions&quot;</span>,</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true"></a>    filepath_or_buffer<span class="op">=</span><span class="st">&quot;s3://lake/silver/playback_sessions/dt=2026-04-19/*.parquet&quot;</span></span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true"></a>)</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true"></a></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true"></a>batch <span class="op">=</span> asset.build_batch_request()</span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true"></a>validator <span class="op">=</span> context.get_validator(batch_request<span class="op">=</span>batch)</span>
+<span id="cb41-12"><a href="#cb41-12" aria-hidden="true"></a></span>
+<span id="cb41-13"><a href="#cb41-13" aria-hidden="true"></a>validator.expect_column_values_to_not_be_null(<span class="st">&quot;session_id&quot;</span>)</span>
+<span id="cb41-14"><a href="#cb41-14" aria-hidden="true"></a>validator.expect_column_values_to_be_unique(<span class="st">&quot;session_id&quot;</span>)</span>
+<span id="cb41-15"><a href="#cb41-15" aria-hidden="true"></a>validator.expect_column_values_to_be_between(<span class="st">&quot;watch_ms&quot;</span>, min_value<span class="op">=</span><span class="dv">0</span>, max_value<span class="op">=</span><span class="dv">86_400_000</span>)</span>
+<span id="cb41-16"><a href="#cb41-16" aria-hidden="true"></a>validator.expect_column_mean_to_be_between(<span class="st">&quot;watch_ms&quot;</span>, min_value<span class="op">=</span><span class="dv">60_000</span>, max_value<span class="op">=</span><span class="dv">3_600_000</span>)</span>
+<span id="cb41-17"><a href="#cb41-17" aria-hidden="true"></a></span>
+<span id="cb41-18"><a href="#cb41-18" aria-hidden="true"></a>validator.save_expectation_suite(<span class="st">&quot;playback_sessions.suite&quot;</span>)</span>
+<span id="cb41-19"><a href="#cb41-19" aria-hidden="true"></a>result <span class="op">=</span> validator.validate()</span>
+<span id="cb41-20"><a href="#cb41-20" aria-hidden="true"></a><span class="cf">if</span> <span class="kw">not</span> result.success:</span>
+<span id="cb41-21"><a href="#cb41-21" aria-hidden="true"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&quot;DQ failed: </span><span class="sc">{</span>result<span class="sc">}</span><span class="ss">&quot;</span>)</span></code></pre></div>
+<h3 id="soda-core-yaml-first">Soda Core (YAML-first)</h3>
+<div class="sourceCode" id="cb42"><pre class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true"></a><span class="fu">checks for silver.playback_sessions</span><span class="kw">:</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> row_count &gt; 1000000</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> missing_count(session_id) = 0</span></span>
+<span id="cb42-4"><a href="#cb42-4" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> duplicate_count(session_id) = 0</span></span>
+<span id="cb42-5"><a href="#cb42-5" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> values in (device_type) must be in [&#39;tv&#39;,&#39;mobile&#39;,&#39;tablet&#39;,&#39;web&#39;,&#39;other&#39;]</span></span>
+<span id="cb42-6"><a href="#cb42-6" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> freshness(end_ts) &lt; 1h</span></span>
+<span id="cb42-7"><a href="#cb42-7" aria-hidden="true"></a><span class="at">  </span><span class="kw">-</span><span class="at"> anomaly score for row_count &lt; 3</span></span></code></pre></div>
+<h3 id="designing-what-to-check">Designing "what to check"</h3>
+<ul>
+<li><strong>Every PK column</strong>: not null, unique.</li>
+<li><strong>Every FK</strong>: relationships to parent (or tolerate N% unresolved with a warning).</li>
+<li><strong>Every measure</strong>: physically plausible range (no negatives on watch time, etc.).</li>
+<li><strong>Every timestamp</strong>: within expected date range (catch 1970-01-01 defaults).</li>
+<li><strong>Every enum column</strong>: values in allowed set.</li>
+<li><strong>Daily volumes</strong>: within ±20% of 7-day rolling average; alert on anomalies.</li>
+</ul>
+<p>Over-checking is cheap; under-checking is expensive.</p>
+<h2 id="12-orchestration-patterns-for-batch">12. Orchestration Patterns for Batch</h2>
+<h3 id="the-simple-scheduled-dag">The simple scheduled DAG</h3>
+<p>One task per stage, linear dependencies, cron schedule.</p>
+<pre><code>extract → dedupe → transform → validate → write → publish
+</code></pre>
+<p>Best for: small, well-understood pipelines.</p>
+<h3 id="asset-based-orchestration-dagster">Asset-based orchestration (Dagster)</h3>
+<p>Instead of tasks-with-dependencies, declare the datasets (assets) and their producers. Dagster figures out the dependency graph.</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true"></a><span class="im">from</span> dagster <span class="im">import</span> asset</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true"></a></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true"></a><span class="at">@asset</span></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true"></a><span class="kw">def</span> bronze_events(context):</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true"></a>    <span class="cf">return</span> pull_from_kafka(context)</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true"></a></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true"></a><span class="at">@asset</span></span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true"></a><span class="kw">def</span> silver_events(bronze_events):</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true"></a>    <span class="cf">return</span> transform(bronze_events)</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true"></a></span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true"></a><span class="at">@asset</span></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true"></a><span class="kw">def</span> gold_daily_plays(silver_events):</span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true"></a>    <span class="cf">return</span> aggregate(silver_events)</span></code></pre></div>
+<p>Materializing <code>gold_daily_plays</code> rebuilds upstream as needed.</p>
+<h3 id="sensor-based-triggering">Sensor-based triggering</h3>
+<p>Instead of cron, trigger when upstream data arrives.</p>
+<div class="sourceCode" id="cb45"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true"></a><span class="co"># Airflow</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true"></a><span class="im">from</span> airflow.providers.amazon.aws.sensors.s3 <span class="im">import</span> S3KeySensor</span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true"></a></span>
+<span id="cb45-4"><a href="#cb45-4" aria-hidden="true"></a>wait <span class="op">=</span> S3KeySensor(</span>
+<span id="cb45-5"><a href="#cb45-5" aria-hidden="true"></a>    task_id<span class="op">=</span><span class="st">&quot;wait_for_upstream&quot;</span>,</span>
+<span id="cb45-6"><a href="#cb45-6" aria-hidden="true"></a>    bucket_key<span class="op">=</span><span class="st">&quot;s3://upstream/events/</span><span class="sc">{{</span><span class="st"> ds </span><span class="sc">}}</span><span class="st">/_SUCCESS&quot;</span>,</span>
+<span id="cb45-7"><a href="#cb45-7" aria-hidden="true"></a>    timeout<span class="op">=</span><span class="dv">60</span> <span class="op">*</span> <span class="dv">60</span> <span class="op">*</span> <span class="dv">4</span>,</span>
+<span id="cb45-8"><a href="#cb45-8" aria-hidden="true"></a>    poke_interval<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb45-9"><a href="#cb45-9" aria-hidden="true"></a>)</span></code></pre></div>
+<p>For lakehouse tables: dataset-based scheduling (Airflow 2.4+) reacts when the upstream table is updated.</p>
+<h3 id="backfill-separation">Backfill separation</h3>
+<p><strong>Never</strong> use the same DAG for daily and backfill. Daily runs should not contend with backfills. Backfill DAG:</p>
+<ul>
+<li>Dedicated compute pool.</li>
+<li>Lower priority.</li>
+<li>Separate alerting (backfill failures rarely need 3am pages).</li>
+</ul>
+<h3 id="sla-management">SLA management</h3>
+<p>Every table should have:</p>
+<ul>
+<li><strong>Freshness SLO</strong> — "updated within 1h of upstream seal."</li>
+<li><strong>Completeness SLO</strong> — "≥99% of expected row count."</li>
+<li><strong>Correctness SLO</strong> — "DQ tests green on every run."</li>
+</ul>
+<p>Expose as metrics; alert on violations with an on-call rotation.</p>
+<div class="sourceCode" id="cb46"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true"></a><span class="co"># Airflow SLA miss callback</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true"></a><span class="kw">def</span> sla_miss_callback(dag, task_list, blocking_task_list, slas, blocking_tis):</span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true"></a>    notify_on_call(...)</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true"></a></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true"></a>default_args <span class="op">=</span> {</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true"></a>    <span class="st">&quot;sla&quot;</span>: timedelta(hours<span class="op">=</span><span class="dv">1</span>),</span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true"></a>    <span class="st">&quot;sla_miss_callback&quot;</span>: sla_miss_callback,</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true"></a>}</span></code></pre></div>
+<hr />
+<p>Next: <a href="03-streaming-processing.html"><code>03-streaming-processing.md</code></a> — unbounded data, event-time processing, watermark math, Flink and Kafka internals, exactly-once proofs.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="01-data-modeling.html">← Part 01 · Data Modeling</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="03-streaming-processing.html">Part 03 · Streaming Processing →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 02</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/02-batch-processing.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

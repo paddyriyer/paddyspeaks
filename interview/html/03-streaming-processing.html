@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Streaming Processing — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 03 · Senior / L5 Data Engineering Reference</div>
+  <h1>Streaming Processing</h1>
+  <p class="subhead">Unbounded data, event time vs processing time, watermark math, window mechanics, Flink internals, Kafka protocol, exactly-once proofs.</p>
+  <div class="meta-strip">
+    <span>Watermarks · Windows · Flink · Kafka</span>
+    <span>~6,520 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="02-batch-processing.html">← Part 02 · Batch Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="04-spark-internals.html">Part 04 · Spark Internals →</a></nav>
+
+<main class="content">
+<p>Streaming is where data engineering gets hard — not because the APIs are complex, but because the physics of distributed time makes correctness subtle. This file goes into watermark math, window mechanics, Flink's checkpoint algorithm, Kafka's internal protocols, and the proofs behind exactly-once semantics.</p>
+<h2 id="table-of-contents">Table of Contents</h2>
+<ol>
+<li><a href="#1-unbounded-data--what-actually-changes">Unbounded Data — What Actually Changes</a></li>
+<li><a href="#2-the-three-times-event-processing-ingestion">The Three Times (Event, Processing, Ingestion)</a></li>
+<li><a href="#3-watermarks--math-and-mechanics">Watermarks — Math and Mechanics</a></li>
+<li><a href="#4-windows--types-state-and-trade-offs">Windows — Types, State, and Trade-offs</a></li>
+<li><a href="#5-triggers-and-emission-policy">Triggers and Emission Policy</a></li>
+<li><a href="#6-late-data-strategies">Late Data Strategies</a></li>
+<li><a href="#7-delivery-semantics-proved">Delivery Semantics Proved</a></li>
+<li><a href="#8-flink-internals--dataflow-barriers-state">Flink Internals — Dataflow, Barriers, State</a></li>
+<li><a href="#9-kafka-internals--isr-controllers-exactly-once">Kafka Internals — ISR, Controllers, Exactly-Once</a></li>
+<li><a href="#10-streaming-joins">Streaming Joins</a></li>
+<li><a href="#11-state-management-at-scale">State Management at Scale</a></li>
+<li><a href="#12-backpressure-and-flow-control">Backpressure and Flow Control</a></li>
+<li><a href="#13-lambda-vs-kappa-revisited">Lambda vs Kappa Revisited</a></li>
+<li><a href="#14-streaming-pipeline-example-end-to-end">Streaming Pipeline Example End-to-End</a></li>
+</ol>
+<hr />
+<h2 id="1-unbounded-data--what-actually-changes">1. Unbounded Data — What Actually Changes</h2>
+<p>An unbounded source has four properties that break batch intuitions:</p>
+<ol>
+<li><strong>No sealed state.</strong> You never "have all the data." Every computation is "as of now," subject to revision.</li>
+<li><strong>Arbitrary lateness.</strong> Events can arrive minutes, hours, or days after they happened (mobile reconnects, buffering clients).</li>
+<li><strong>Out-of-order arrival.</strong> An event timestamped 10:05 may arrive after an event timestamped 10:07, because it took a different route through the system.</li>
+<li><strong>Continuous state.</strong> The processor must maintain state (windows, joins, aggregations) that grows without bound unless explicitly expired.</li>
+</ol>
+<h3 id="consequence-1-correct-becomes-correct-as-of-watermark-w">Consequence 1: "correct" becomes "correct as of watermark W"</h3>
+<p>A batch SQL <code>SELECT SUM(watch_ms) GROUP BY dt</code> has one answer. A streaming equivalent has an answer that keeps updating as late data arrives — and at any moment, the answer is "the sum of all data observed up to the current watermark, with the agreement that events older than W are considered closed."</p>
+<h3 id="consequence-2-computations-have-four-dimensions-not-one">Consequence 2: computations have four dimensions, not one</h3>
+<p>Beam's influential model:</p>
+<ul>
+<li><strong>What</strong> are you computing? (the aggregation function)</li>
+<li><strong>Where in event time?</strong> (the windowing scheme)</li>
+<li><strong>When in processing time?</strong> (the trigger — when to emit a result)</li>
+<li><strong>How</strong> do refinements relate? (accumulating, discarding, accumulating-with-retractions)</li>
+</ul>
+<p>Naming them explicitly clarifies every streaming design decision.</p>
+<h3 id="consequence-3-state-is-load-bearing">Consequence 3: state is load-bearing</h3>
+<p>A batch job's state is transient (shuffle files, intermediate RDDs). A streaming job's state is <strong>the product</strong>. Lose it, lose correctness. Managing state durably (checkpoints, savepoints, RocksDB), bounding its growth (TTL, key expiration), and recovering it on failure (from checkpoint) dominates streaming engineering.</p>
+<h3 id="consequence-4-time-is-a-first-class-citizen">Consequence 4: time is a first-class citizen</h3>
+<p>In batch, "what time is it?" is a parameter. In streaming, time is the dataflow itself. Watermarks advance; triggers fire; windows close; state expires. Every operation is time-indexed.</p>
+<h2 id="2-the-three-times-event-processing-ingestion">2. The Three Times (Event, Processing, Ingestion)</h2>
+<p>Define precisely:</p>
+<ul>
+<li><strong>Event time (ET)</strong> — when the event actually occurred in the real world. Stamped by the producer (the client, the sensor, the database transaction). This is what users care about. "Watch hours on 2026-04-18" means "hours of watching whose event_time falls on 2026-04-18."</li>
+<li><strong>Ingestion time (IT)</strong> — when the event was received by the messaging system (e.g., the time Kafka assigned on append).</li>
+<li><strong>Processing time (PT)</strong> — when the stream processor is evaluating the event.</li>
+</ul>
+<p>Relationships:</p>
+<ul>
+<li>ET ≤ IT ≤ PT always (events can't be received before they happened; processing can't finish before receipt).</li>
+<li><code>IT - ET</code> is the <strong>producer lateness</strong> — how long the event took to reach the messaging system.</li>
+<li><code>PT - IT</code> is the <strong>processing lag</strong> — how behind the consumer is.</li>
+<li><code>PT - ET</code> is the <strong>end-to-end latency</strong> experienced by consumers.</li>
+</ul>
+<h3 id="distribution-of-et--it-lag">Distribution of ET → IT lag</h3>
+<p>Real production distributions are heavily right-skewed:</p>
+<ul>
+<li>p50: milliseconds to seconds.</li>
+<li>p99: tens of seconds to minutes.</li>
+<li>p99.9: hours (mobile reconnects, app-in-background).</li>
+<li>p99.99: days (offline clients syncing weeks later).</li>
+</ul>
+<p><strong>Lesson</strong>: watermarks must be tuned to the <em>distribution</em>, not the average. Setting a 1-minute lateness tolerance drops ~1% of events in most mobile datasets.</p>
+<h3 id="when-does-processing-time-ever-make-sense">When does processing time ever make sense?</h3>
+<ul>
+<li>Ad-hoc system health ("events/sec arriving right now").</li>
+<li>Simple at-least-once transforms with no time semantics.</li>
+<li>Systems that explicitly want "wall clock" behavior (alarms, heartbeats).</li>
+</ul>
+<p>For any business metric, event time is correct. Always start with event time.</p>
+<h2 id="3-watermarks--math-and-mechanics">3. Watermarks — Math and Mechanics</h2>
+<p>A watermark is an assertion: <strong>"I assert that no more events with event_time ≤ W will arrive."</strong> The stream processor uses this to decide when windows can close.</p>
+<h3 id="perfect-vs-heuristic-watermarks">Perfect vs heuristic watermarks</h3>
+<ul>
+<li><strong>Perfect watermark</strong>: actually correct. Only achievable when you have metadata (e.g., Kafka producer timestamps with bounded clock skew and source-aware committed offsets). Rare.</li>
+<li><strong>Heuristic watermark</strong>: a guess, usually <code>max(event_time_seen_so_far) - safety_margin</code>. Wrong sometimes; that's what late-data handling is for.</li>
+</ul>
+<h3 id="bounded-out-of-orderness-watermark">Bounded out-of-orderness watermark</h3>
+<p>The common practical watermark:</p>
+<pre><code>W(t) = max(event_time seen before t) - B
+</code></pre>
+<p>where <code>B</code> is the bounded out-of-orderness (expected max lateness).</p>
+<p>Example with <code>B = 5 seconds</code>:</p>
+<ul>
+<li>Stream sees events <code>{ET: 10:00:00, ET: 10:00:02, ET: 10:00:01, ET: 10:00:04, ET: 10:00:03, ...}</code>.</li>
+<li>After <code>ET: 10:00:04</code> is observed, watermark = <code>10:00:04 - 5s = 09:59:59</code>.</li>
+<li>Event <code>ET: 10:00:03</code> arrives next: falls below watermark? <code>10:00:03 &gt; 09:59:59</code>, so not late. Accepted into windows.</li>
+<li>After <code>ET: 10:00:10</code> is observed, watermark = <code>10:00:05</code>. Events arriving with ET &lt; 10:00:05 are now late.</li>
+</ul>
+<h3 id="choosing-b-bounded-out-of-orderness">Choosing B (bounded out-of-orderness)</h3>
+<p>Empirical approach:</p>
+<ol>
+<li>Instrument production: log <code>processing_time - event_time</code> for every event.</li>
+<li>Compute percentiles: p50, p95, p99, p99.9 of lateness.</li>
+<li>Pick <code>B</code> as p99 or p99.9 — the tail you're willing to drop vs block.</li>
+</ol>
+<p>Math: if <code>B = p99</code> lateness, ~1% of events are late (dropped or routed to side output).</p>
+<p>Higher B:</p>
+<ul>
+<li>Fewer late events.</li>
+<li>Longer window emission delays (latency ↑).</li>
+<li>Larger active state (windows held open longer).</li>
+</ul>
+<p>Lower B:</p>
+<ul>
+<li>Shorter latency.</li>
+<li>More late events (correctness ↓).</li>
+<li>Smaller state.</li>
+</ul>
+<p><strong>Typical values</strong>: web/mobile analytics B = 30s–5m; sensor/IoT with good clocks B = 1–10s; batch-like (daily S3 drops) B = hours.</p>
+<h3 id="watermark-propagation-in-a-dataflow-graph">Watermark propagation in a dataflow graph</h3>
+<p>In Flink, each operator has its own watermark. Upstream operators propagate watermarks downstream. When an operator has multiple inputs, it takes the <strong>minimum</strong> watermark of its inputs:</p>
+<pre><code>source A: watermark advancing at 10:05
+source B: watermark stuck at 10:02 (slow source)
+joined operator: watermark = min(10:05, 10:02) = 10:02
+</code></pre>
+<p>This is correct: the downstream operator can't claim "no events before 10:05" because source B might still emit events with event time between 10:02 and 10:05.</p>
+<p>Practical implication: <strong>a single slow source stalls the entire pipeline</strong>. Diagnose by watching per-operator watermarks in Flink UI. Solutions:</p>
+<ul>
+<li>Ensure all sources produce events regularly (heartbeat events if idle).</li>
+<li>Use <code>WatermarkStrategy.forMonotonousTimestamps()</code> where applicable (no out-of-orderness expected).</li>
+<li>Configure <strong>idle source detection</strong> — a source is marked idle after inactivity and its watermark contribution is ignored.</li>
+</ul>
+<div class="sourceCode" id="cb3"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a>WatermarkStrategy&lt;<span class="bu">Event</span>&gt; strategy = WatermarkStrategy</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a>    .&lt;<span class="bu">Event</span>&gt;<span class="fu">forBoundedOutOfOrderness</span>(<span class="bu">Duration</span>.<span class="fu">ofSeconds</span>(<span class="dv">5</span>))</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a>    .<span class="fu">withIdleness</span>(<span class="bu">Duration</span>.<span class="fu">ofMinutes</span>(<span class="dv">1</span>))</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a>    .<span class="fu">withTimestampAssigner</span>((ev, ts) -&gt; ev.<span class="fu">eventTime</span>);</span></code></pre></div>
+<h3 id="watermarks-across-kafka-partitions">Watermarks across Kafka partitions</h3>
+<p>A single Kafka topic has multiple partitions. Each is an independent log. Event times within a partition are monotonic only if the producer writes in event-time order (usually not).</p>
+<p>Flink's Kafka source computes per-partition watermarks, then combines via min. This is correct but introduces subtle issues:</p>
+<ul>
+<li>A partition with slow producers drags the watermark.</li>
+<li>An empty partition (no events) can cause the overall watermark to freeze unless idleness is configured.</li>
+</ul>
+<p>Set watermarks per partition, with idleness detection, and ensure your partitioning key doesn't create empty partitions for prolonged times.</p>
+<h3 id="the-punctuated-variant">The "punctuated" variant</h3>
+<p>Instead of heuristics, the producer emits explicit watermark marker records: "I'm at event time T, no more events before T from me." Flink supports this via <code>WatermarkGenerator</code> with <code>onEvent</code> advancing and <code>onPeriodicEmit</code> emitting. Ideal when the source is a database CDC stream with explicit sequencing.</p>
+<h2 id="4-windows--types-state-and-trade-offs">4. Windows — Types, State, and Trade-offs</h2>
+<p>A window groups events by time (or session). Each window maintains state (the aggregating values) and emits a result when it's ready.</p>
+<h3 id="tumbling-window">Tumbling window</h3>
+<p>Fixed size, non-overlapping. Each event belongs to exactly one window.</p>
+<pre><code>|----W1----|----W2----|----W3----|
+       ^           ^           ^
+       events fall in one window
+</code></pre>
+<p>State: O(1) per key per active window. Simplest.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a><span class="co"># PySpark Structured Streaming — 1-minute tumbling window</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true"></a>(events</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true"></a>    .withWatermark(<span class="st">&quot;event_ts&quot;</span>, <span class="st">&quot;5 seconds&quot;</span>)</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true"></a>    .groupBy(F.window(<span class="st">&quot;event_ts&quot;</span>, <span class="st">&quot;1 minute&quot;</span>), <span class="st">&quot;title_id&quot;</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true"></a>    .agg(F.<span class="bu">sum</span>(<span class="st">&quot;watch_ms&quot;</span>).alias(<span class="st">&quot;watch_ms&quot;</span>)))</span></code></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="co">// Flink</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>events</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(e -&gt; e.<span class="fu">titleId</span>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a>    .<span class="fu">window</span>(TumblingEventTimeWindows.<span class="fu">of</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">1</span>)))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(<span class="kw">new</span> <span class="fu">SumAggregator</span>());</span></code></pre></div>
+<h3 id="sliding-hopping-window">Sliding (hopping) window</h3>
+<p>Fixed size, slides forward by a step smaller than the size. Each event belongs to <code>size/slide</code> windows.</p>
+<pre><code>size=10m, slide=1m: every event is in 10 overlapping windows.
+</code></pre>
+<p>State: O(size/slide) × keys. Quickly becomes expensive.</p>
+<p>Use when: you need rolling metrics ("watch hours in the trailing 10 minutes, updated every minute").</p>
+<p>Tip: sliding windows can often be emulated by a tumbling window at the fine granularity + downstream rollup, which is cheaper.</p>
+<h3 id="session-window">Session window</h3>
+<p>Dynamic size, closes when there's a gap of inactivity longer than the session timeout.</p>
+<pre><code>events:  * * * *      * *     *    (gap &gt;= timeout means new session)
+windows: |------|     |---|   |-|
+</code></pre>
+<p>State: O(events per active session) × active sessions. Can be unbounded for users with continuous activity.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a>events</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(e -&gt; e.<span class="fu">userId</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a>    .<span class="fu">window</span>(EventTimeSessionWindows.<span class="fu">withGap</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">30</span>)))</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(<span class="kw">new</span> <span class="fu">SessionBuilder</span>());</span></code></pre></div>
+<p>Challenge: a single "always-active" user (a bot, a scraper, a stuck client) holds a session open forever, preventing emission. Solutions:</p>
+<ul>
+<li>Maximum session length (cap at e.g. 4 hours).</li>
+<li>Bot filtering at ingestion.</li>
+<li>Late "ejection" if max latency exceeded.</li>
+</ul>
+<h3 id="global-window">Global window</h3>
+<p>One window for the entire stream, with custom triggers deciding when to emit. Rarely correct unless you know exactly why you want it (e.g., a running counter that never resets).</p>
+<h3 id="custom-windows-eg-calendar-aligned">Custom windows (e.g., calendar-aligned)</h3>
+<p>Windows aligned to calendar boundaries ("this day in user's local timezone", "this business week"). Implement with custom window assigners in Flink:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="kw">public</span> <span class="kw">class</span> CalendarDayWindowAssigner <span class="kw">extends</span> WindowAssigner&lt;<span class="bu">Event</span>, TimeWindow&gt; {</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a>    <span class="kw">public</span> <span class="bu">Collection</span>&lt;TimeWindow&gt; <span class="fu">assignWindows</span>(<span class="bu">Event</span> ev, <span class="dt">long</span> ts, WindowAssignerContext ctx) {</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a>        ZoneId zone = ZoneId.<span class="fu">of</span>(ev.<span class="fu">userTimezone</span>);</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>        ZonedDateTime zdt = Instant.<span class="fu">ofEpochMilli</span>(ev.<span class="fu">eventTime</span>).<span class="fu">atZone</span>(zone);</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true"></a>        ZonedDateTime dayStart = zdt.<span class="fu">toLocalDate</span>().<span class="fu">atStartOfDay</span>(zone);</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true"></a>        ZonedDateTime dayEnd   = dayStart.<span class="fu">plusDays</span>(<span class="dv">1</span>);</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true"></a>        <span class="kw">return</span> <span class="bu">Collections</span>.<span class="fu">singleton</span>(<span class="kw">new</span> <span class="fu">TimeWindow</span>(</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true"></a>            dayStart.<span class="fu">toInstant</span>().<span class="fu">toEpochMilli</span>(),</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true"></a>            dayEnd.<span class="fu">toInstant</span>().<span class="fu">toEpochMilli</span>()</span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true"></a>        ));</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true"></a>    }</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true"></a>    <span class="co">// ... getDefaultTrigger, getWindowSerializer, etc.</span></span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="window-state-size">Window state size</h3>
+<p>For <code>N_keys</code> keys and <code>W_active</code> simultaneously active windows:</p>
+<ul>
+<li>Tumbling: <code>W_active = 1</code>; state = O(N_keys).</li>
+<li>Sliding (size S, slide St): <code>W_active = S/St</code>; state = O(N_keys × S/St).</li>
+<li>Session: <code>W_active = active_sessions</code>; state = O(active_sessions × avg_events_per_session).</li>
+</ul>
+<p>For high cardinality + long windows + many sliding steps: state explodes. Mitigations:</p>
+<ul>
+<li>RocksDB backend (disk-backed state, not memory-bound).</li>
+<li>Pre-aggregate (use <code>aggregate</code> not <code>apply</code> — maintains incremental state, not buffered events).</li>
+<li>TTL on state (Flink's <code>StateTtlConfig</code>).</li>
+</ul>
+<h2 id="5-triggers-and-emission-policy">5. Triggers and Emission Policy</h2>
+<p>A trigger decides when a window's current result is emitted. Default: on watermark (once per window, when watermark passes end-of-window). But you can do much more.</p>
+<h3 id="when-to-use-custom-triggers">When to use custom triggers</h3>
+<ul>
+<li><strong>Speculative emission</strong>: emit partial results early, even before the window closes. Trade accuracy for latency.</li>
+<li><strong>Per-row triggering</strong>: emit every N events (useful for low-latency monitoring).</li>
+<li><strong>Processing-time-based</strong>: emit every 10 seconds regardless of watermark (for real-time dashboards).</li>
+<li><strong>Data-driven</strong>: emit when some condition in the data is met (e.g., "emit when window's count exceeds threshold").</li>
+</ul>
+<h3 id="example-early--on-watermark--late">Example: early + on-watermark + late</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a>events</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(e -&gt; e.<span class="fu">titleId</span>)</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true"></a>    .<span class="fu">window</span>(TumblingEventTimeWindows.<span class="fu">of</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">1</span>)))</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true"></a>    .<span class="fu">trigger</span>(</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true"></a>        EventTimeTrigger.<span class="fu">create</span>()</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true"></a>            <span class="co">// speculative: emit every 10s while window is open (processing time)</span></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true"></a>            <span class="co">// Flink&#39;s built-in trigger doesn&#39;t combine these directly;</span></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true"></a>            <span class="co">// implement a custom Trigger extending EventTimeTrigger</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true"></a>    )</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(<span class="kw">new</span> <span class="fu">ViewerCountAgg</span>());</span></code></pre></div>
+<h3 id="accumulation-mode">Accumulation mode</h3>
+<p>When you emit multiple times for the same window, what do the downstream consumers see?</p>
+<ul>
+<li><strong>Accumulating</strong>: each emission is the latest running total. Downstream must be an upsert sink that replaces the previous value. Example: <code>(title_id=X, window=[10:00,10:01), count=42)</code> replaces the earlier <code>count=37</code>.</li>
+<li><strong>Discarding</strong>: each emission is only the <em>new</em> events since last emission. Downstream must sum across emissions to get the total. Harder downstream, but smaller messages.</li>
+<li><strong>Accumulating + retracting</strong>: each emission includes a retraction of the previous value plus the new value. Allows downstream to handle both "live" updates and "final" snapshots. Most expressive, most expensive.</li>
+</ul>
+<p>Choose based on downstream semantics. If sink is Kafka with compacted topic keyed by (title_id, window_start): accumulating + upsert. If sink is event log: retracting. If sink is an idempotent append-only store: discarding.</p>
+<h2 id="6-late-data-strategies">6. Late Data Strategies</h2>
+<p>An event is "late" if it arrives after its window's watermark has passed.</p>
+<h3 id="strategy-1-drop-default-in-spark">Strategy 1: Drop (default in Spark)</h3>
+<p>Late events are silently discarded. Fast, simple, incorrect for audit-sensitive workloads.</p>
+<h3 id="strategy-2-allowed-lateness-extend-window-life">Strategy 2: Allowed lateness (extend window life)</h3>
+<p>Hold the window open past watermark by some duration; late events that arrive within this grace period update the window and trigger re-emission.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a>events</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(e -&gt; e.<span class="fu">userId</span>)</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true"></a>    .<span class="fu">window</span>(TumblingEventTimeWindows.<span class="fu">of</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">1</span>)))</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true"></a>    .<span class="fu">allowedLateness</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">10</span>))     <span class="co">// 10 extra minutes</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(<span class="kw">new</span> <span class="fu">Counter</span>());</span></code></pre></div>
+<p>State cost: windows held for <code>window_size + allowed_lateness</code>. For a 1-minute window with 10-minute lateness, state is held 11 minutes per window.</p>
+<p>Downstream must handle re-emissions — sink must be upsert-capable.</p>
+<h3 id="strategy-3-side-output-recommended">Strategy 3: Side output (recommended)</h3>
+<p>Route late events to a separate "late" stream for reconciliation downstream.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a>OutputTag&lt;<span class="bu">Event</span>&gt; lateTag = <span class="kw">new</span> OutputTag&lt;&gt;(<span class="st">&quot;late&quot;</span>){};</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>SingleOutputStreamOperator&lt;<span class="bu">Result</span>&gt; result = events</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(e -&gt; e.<span class="fu">userId</span>)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>    .<span class="fu">window</span>(TumblingEventTimeWindows.<span class="fu">of</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">1</span>)))</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>    .<span class="fu">sideOutputLateData</span>(lateTag)</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(<span class="kw">new</span> <span class="fu">Counter</span>());</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true"></a></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true"></a>DataStream&lt;<span class="bu">Event</span>&gt; lateEvents = result.<span class="fu">getSideOutput</span>(lateTag);</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true"></a>lateEvents.<span class="fu">addSink</span>(<span class="kw">new</span> <span class="fu">LateEventSink</span>());  <span class="co">// write to separate topic/table</span></span></code></pre></div>
+<p>Dual-path reconciliation:</p>
+<ul>
+<li>Streaming pipeline handles on-time events.</li>
+<li>A batch job reads the late-event table daily and re-processes affected windows.</li>
+<li>Gold tables are rebuilt from the reconciled silver.</li>
+</ul>
+<p>This is the production pattern. It's a Kappa + audit architecture.</p>
+<h3 id="strategy-4-retractions">Strategy 4: Retractions</h3>
+<p>Emit a retraction for the previous result and a new result reflecting the late event. Downstream must support retractions (a log of changes, not a snapshot).</p>
+<p>Supported natively in Flink Table API with <code>Retract</code> mode. Upsert sinks handle retractions by deletion+insertion.</p>
+<h3 id="measuring-lateness-in-production">Measuring lateness in production</h3>
+<p>Emit a metric per event: <code>lateness_ms = processing_time - event_time</code>. Plot the distribution. Use to tune watermark B.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="co"># Spark Structured Streaming: compute lateness column</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>events_with_lateness <span class="op">=</span> events.withColumn(</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>    <span class="st">&quot;lateness_ms&quot;</span>,</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>    F.unix_millis(F.current_timestamp()) <span class="op">-</span> F.unix_millis(F.col(<span class="st">&quot;event_ts&quot;</span>))</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>)</span></code></pre></div>
+<h2 id="7-delivery-semantics-proved">7. Delivery Semantics Proved</h2>
+<p>"Exactly-once" is often said without precision. Let's nail it down.</p>
+<h3 id="definitions">Definitions</h3>
+<p>Let <code>M</code> be a message in a stream. Let <code>effect(M)</code> be the externally-observable effect of processing <code>M</code> (a row written, a counter incremented, a record published).</p>
+<ul>
+<li><strong>At-most-once</strong>: for each <code>M</code>, <code>effect(M)</code> happens 0 or 1 times.</li>
+<li><strong>At-least-once</strong>: for each <code>M</code>, <code>effect(M)</code> happens 1 or more times.</li>
+<li><strong>Exactly-once</strong>: for each <code>M</code>, <code>effect(M)</code> happens exactly 1 time.</li>
+</ul>
+<h3 id="the-impossibility-footnote">The impossibility footnote</h3>
+<p>In a distributed system with possible crashes, the <em>physical delivery</em> of a message cannot be guaranteed exactly-once: any single network request may or may not have arrived despite no response. But the <em>effect</em> can be, by coordinating retries with deduplication or idempotent sinks.</p>
+<p>Hence the industry term <strong>"effectively exactly-once"</strong>: the physical operation may happen multiple times, but the side effect happens exactly once.</p>
+<h3 id="three-necessary-conditions">Three necessary conditions</h3>
+<p>For effectively-exactly-once:</p>
+<ol>
+<li><strong>Replayable source.</strong> On restart after failure, the system can re-consume from a precisely defined offset. (Kafka offsets satisfy this; naive HTTP push sources do not.)</li>
+<li><strong>Deterministic or idempotent processing.</strong> Re-processing the same input produces the same output, OR the sink absorbs duplicates idempotently.</li>
+<li><strong>Atomic commit coordinating source offsets and sink output.</strong> Either both the new offsets and the new output are committed, or neither.</li>
+</ol>
+<p>Any one of these missing, and "exactly-once" fails.</p>
+<h3 id="spark-structured-streamings-exactly-once">Spark Structured Streaming's exactly-once</h3>
+<p>Spark provides effectively-exactly-once for specific combinations:</p>
+<p><strong>Mechanism</strong>:</p>
+<ol>
+<li>Source tracks offsets per micro-batch (stored in <code>offsets/</code> in checkpoint directory).</li>
+<li>Each micro-batch's computation is deterministic given the offsets.</li>
+<li>Sink commits atomically:
+<ul>
+<li><strong>File sinks (Parquet, Iceberg, Delta)</strong>: use a two-phase commit with a <code>commits/</code> log. After the data files are written, a commit marker is appended atomically. On restart, uncommitted micro-batches are re-executed.</li>
+<li><strong>Kafka sink</strong>: uses Kafka transactions (<code>transactional.id</code>). Micro-batch produces within a transaction; transaction commits with the offset commit.</li>
+</ul></li>
+<li>On failure, restart reads <code>offsets/</code> and <code>commits/</code> to find the last committed micro-batch, re-executes the next one deterministically.</li>
+</ol>
+<p><strong>Where it breaks</strong>:</p>
+<ul>
+<li>Non-deterministic query (<code>rand()</code>, <code>current_timestamp()</code>, reading from a mutable source).</li>
+<li>Non-atomic sinks (HTTP POST, naive JDBC without dedup key).</li>
+<li>Kafka transactions disabled or misconfigured.</li>
+<li>Checkpoint directory corruption.</li>
+</ul>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a>(stream</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a>    .writeStream</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a>    .<span class="bu">format</span>(<span class="st">&quot;iceberg&quot;</span>)</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a>    .option(<span class="st">&quot;checkpointLocation&quot;</span>, <span class="st">&quot;s3://ckpt/events/&quot;</span>)</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true"></a>    .trigger(processingTime<span class="op">=</span><span class="st">&quot;30 seconds&quot;</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true"></a>    .start())</span></code></pre></div>
+<p>Spark guarantees EO when using checkpoints + Iceberg/Delta sinks + deterministic transforms.</p>
+<h3 id="flinks-exactly-once-via-2pc-and-checkpoints">Flink's exactly-once via 2PC and checkpoints</h3>
+<p>Flink uses the <strong>Chandy-Lamport algorithm</strong> (distributed snapshot) for checkpoints, combined with <strong>two-phase commit</strong> at sinks.</p>
+<p><strong>Barrier-based checkpointing</strong>:</p>
+<ol>
+<li>JobManager injects a barrier with checkpoint ID <code>C</code> into each source partition.</li>
+<li>As barriers flow through the dataflow graph, each operator aligns: when it has received the barrier from all its inputs, it snapshots its state to durable storage.</li>
+<li>State snapshot includes: operator state, keyed state, source offsets.</li>
+<li>Operator forwards the barrier to all its outputs.</li>
+<li>Sinks acknowledge completion. When all sinks ack, checkpoint <code>C</code> is globally complete.</li>
+</ol>
+<pre><code>[Source] ──barrier──▶ [Map] ──barrier──▶ [Window] ──barrier──▶ [Sink]
+    ↓                    ↓                  ↓                    ↓
+ snapshot             snapshot           snapshot             commit
+</code></pre>
+<p><strong>Aligned vs unaligned barriers</strong>:</p>
+<ul>
+<li><strong>Aligned</strong>: operator waits for barriers from all inputs before snapshotting. Clean semantics but blocks processing of inputs whose barrier arrived first.</li>
+<li><strong>Unaligned</strong> (Flink 1.11+): operator snapshots immediately when first barrier arrives, including in-flight records. Less backpressure sensitivity; larger snapshots. Enabled via <code>env.getCheckpointConfig().enableUnalignedCheckpoints()</code>.</li>
+</ul>
+<p><strong>Two-phase commit at sinks</strong>:</p>
+<ol>
+<li>On barrier: sink does a pre-commit (write to staging, reserve transaction ID).</li>
+<li>When JobManager confirms the checkpoint globally complete: sink does commit (make data visible).</li>
+<li>On restart: replay uncommitted pre-commits as needed.</li>
+</ol>
+<div class="sourceCode" id="cb17"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a>StreamExecutionEnvironment env = StreamExecutionEnvironment.<span class="fu">getExecutionEnvironment</span>();</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>env.<span class="fu">enableCheckpointing</span>(<span class="dv">60_000</span>);  <span class="co">// every 60s</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setCheckpointingMode</span>(CheckpointingMode.<span class="fu">EXACTLY_ONCE</span>);</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setMinPauseBetweenCheckpoints</span>(<span class="dv">30_000</span>);</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setCheckpointTimeout</span>(<span class="dv">600_000</span>);</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setMaxConcurrentCheckpoints</span>(<span class="dv">1</span>);</span></code></pre></div>
+<h3 id="what-eo-does-not-guarantee">What EO does NOT guarantee</h3>
+<ul>
+<li><strong>Ordering across keys</strong>: events may still be emitted to the sink in an order different from their arrival.</li>
+<li><strong>No retractions</strong>: updates to already-committed results are still visible downstream as new records.</li>
+<li><strong>Cross-system atomicity</strong>: EO within one Flink job + one Kafka cluster. Across two Kafka clusters, or Kafka + a different sink, EO requires explicit 2PC support end-to-end.</li>
+<li><strong>Effective-exactly-once for the system, not the business</strong>: if the <em>input data</em> is duplicated (upstream producer retried without dedup), EO still processes both copies.</li>
+</ul>
+<h3 id="idempotent-sink-as-an-alternative-to-2pc">Idempotent sink as an alternative to 2PC</h3>
+<p>Often simpler than 2PC is to make the sink <strong>idempotent by key</strong>:</p>
+<ul>
+<li>Write each record with a unique idempotency key.</li>
+<li>The sink's <code>INSERT IGNORE</code> / <code>ON CONFLICT DO NOTHING</code> / upsert-by-key handles duplicates.</li>
+<li>Combined with at-least-once semantics, this gives effective-exactly-once.</li>
+</ul>
+<div class="sourceCode" id="cb18"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="co">-- Postgres sink with idempotency</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a><span class="kw">INSERT</span> <span class="kw">INTO</span> sink_table (event_id, user_id, <span class="op">..</span>.)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a><span class="kw">VALUES</span> (?, ?, <span class="op">..</span>.)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a><span class="kw">ON</span> CONFLICT (event_id) DO <span class="kw">NOTHING</span>;</span></code></pre></div>
+<p>Works well; doesn't require sink-coordinator awareness. Limit: sinks that can't enforce uniqueness (append-only files) don't support this pattern.</p>
+<h2 id="8-flink-internals--dataflow-barriers-state">8. Flink Internals — Dataflow, Barriers, State</h2>
+<h3 id="architecture">Architecture</h3>
+<ul>
+<li><strong>JobManager</strong>: coordinator; runs the ExecutionGraph, schedules tasks, coordinates checkpoints.</li>
+<li><strong>TaskManagers</strong>: workers; each runs <code>N</code> slots, each slot runs a subtask of an operator.</li>
+<li><strong>ResourceManager</strong>: allocates TaskManagers (typically YARN or Kubernetes).</li>
+<li><strong>Dispatcher</strong>: receives jobs, spawns JobManagers per job.</li>
+</ul>
+<h3 id="tasks-subtasks-and-chains">Tasks, subtasks, and chains</h3>
+<p>A Flink job is a DAG of <strong>operators</strong>. Each operator has a <strong>parallelism</strong> (how many parallel instances run). Each instance is a <strong>subtask</strong>. A JobManager assigns subtasks to TaskManager slots.</p>
+<p><strong>Operator chaining</strong>: if an operator's output goes to another operator 1:1 and no shuffle is needed, Flink chains them into a single thread. Reduces serialization overhead hugely. <code>forward</code> channels are chained; <code>rebalance</code>, <code>keyBy</code>, etc. are not.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a>DataStream&lt;<span class="bu">Event</span>&gt; events = env.<span class="fu">addSource</span>(kafkaSource);         <span class="co">// source</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a>DataStream&lt;<span class="bu">Event</span>&gt; filtered = events.<span class="fu">filter</span>(ev -&gt; ev.<span class="fu">valid</span>);    <span class="co">// chained with source</span></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>KeyedStream&lt;<span class="bu">Event</span>, <span class="bu">String</span>&gt; keyed = filtered.<span class="fu">keyBy</span>(ev -&gt; ev.<span class="fu">userId</span>);  <span class="co">// NOT chained (keyBy shuffles)</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a>DataStream&lt;<span class="bu">Result</span>&gt; windowed = keyed.<span class="fu">window</span>(...).<span class="fu">aggregate</span>(...); <span class="co">// new chain</span></span></code></pre></div>
+<p>Task chain = single thread. Processes records with zero network hops and zero ser/de. Fast.</p>
+<h3 id="keyed-state-vs-operator-state">Keyed state vs operator state</h3>
+<ul>
+<li><strong>Keyed state</strong>: one value per key per operator. <code>keyBy</code> partitions the stream; each partition holds state for its keys. The main way Flink scales stateful computation.
+<ul>
+<li><code>ValueState&lt;T&gt;</code>, <code>ListState&lt;T&gt;</code>, <code>MapState&lt;K,V&gt;</code>, <code>ReducingState&lt;T&gt;</code>, <code>AggregatingState&lt;IN,OUT&gt;</code>.</li>
+</ul></li>
+<li><strong>Operator state</strong>: per-subtask state, not per-key. Used by sources (offset tracking) and custom operators. Sub-types: broadcast state, list state (union or split).</li>
+</ul>
+<div class="sourceCode" id="cb20"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="kw">public</span> <span class="kw">class</span> CountByUserFn <span class="kw">extends</span> KeyedProcessFunction&lt;<span class="bu">String</span>, <span class="bu">Event</span>, <span class="bu">Result</span>&gt; {</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a>    <span class="kw">private</span> ValueState&lt;<span class="bu">Long</span>&gt; count;</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a></span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">open</span>(<span class="bu">Configuration</span> cfg) {</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a>        ValueStateDescriptor&lt;<span class="bu">Long</span>&gt; d = <span class="kw">new</span> ValueStateDescriptor&lt;&gt;(<span class="st">&quot;count&quot;</span>, <span class="bu">Long</span>.<span class="fu">class</span>, <span class="dv">0L</span>);</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true"></a>        d.<span class="fu">enableTimeToLive</span>(StateTtlConfig.<span class="fu">newBuilder</span>(<span class="bu">Time</span>.<span class="fu">hours</span>(<span class="dv">24</span>)).<span class="fu">build</span>());</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true"></a>        count = <span class="fu">getRuntimeContext</span>().<span class="fu">getState</span>(d);</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true"></a>    }</span>
+<span id="cb20-10"><a href="#cb20-10" aria-hidden="true"></a></span>
+<span id="cb20-11"><a href="#cb20-11" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb20-12"><a href="#cb20-12" aria-hidden="true"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">processElement</span>(<span class="bu">Event</span> ev, <span class="bu">Context</span> ctx, Collector&lt;<span class="bu">Result</span>&gt; out) <span class="kw">throws</span> <span class="bu">Exception</span> {</span>
+<span id="cb20-13"><a href="#cb20-13" aria-hidden="true"></a>        <span class="bu">Long</span> c = count.<span class="fu">value</span>();</span>
+<span id="cb20-14"><a href="#cb20-14" aria-hidden="true"></a>        c += <span class="dv">1</span>;</span>
+<span id="cb20-15"><a href="#cb20-15" aria-hidden="true"></a>        count.<span class="fu">update</span>(c);</span>
+<span id="cb20-16"><a href="#cb20-16" aria-hidden="true"></a>        out.<span class="fu">collect</span>(<span class="kw">new</span> <span class="bu">Result</span>(ctx.<span class="fu">getCurrentKey</span>(), c));</span>
+<span id="cb20-17"><a href="#cb20-17" aria-hidden="true"></a>    }</span>
+<span id="cb20-18"><a href="#cb20-18" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="state-backends">State backends</h3>
+<ul>
+<li><strong>HashMapStateBackend</strong>: in-JVM-memory. Fastest. State bounded by heap. Synchronous checkpoints (pauses JVM). Use for small state (&lt; ~2GB).</li>
+<li><strong>EmbeddedRocksDBStateBackend</strong>: on-disk key-value store (RocksDB). State bounded by local disk. Asynchronous and incremental checkpoints. Use for state &gt; a few GB.</li>
+</ul>
+<p>RocksDB internals:</p>
+<ul>
+<li><strong>SSTables</strong> (Sorted String Tables) on disk, immutable.</li>
+<li><strong>Memtable</strong> in memory; flushed to SSTable periodically.</li>
+<li><strong>LSM tree</strong> structure: multiple levels of SSTables, compacted periodically.</li>
+<li>State read/write: serialize key, look up in memtable + levels (with bloom filters).</li>
+</ul>
+<h3 id="incremental-checkpoints">Incremental checkpoints</h3>
+<p>With RocksDB, Flink checkpoints only the SSTables that changed since the last checkpoint. New SSTables uploaded; unchanged ones referenced by manifest. Reduces checkpoint time from "full state" to "delta state."</p>
+<pre><code>checkpoint N-1: [sst1, sst2, sst3]
+operator writes, compaction happens
+checkpoint N:   [sst1 (ref), sst4, sst5]  &lt;-- only sst4 and sst5 uploaded
+</code></pre>
+<h3 id="savepoints-vs-checkpoints">Savepoints vs checkpoints</h3>
+<ul>
+<li><strong>Checkpoints</strong>: system-owned, periodic, optimized for fast recovery. May be incremental.</li>
+<li><strong>Savepoints</strong>: user-triggered, versioned, portable across Flink versions (with caveats). Use for explicit restarts (deploys, cluster migrations, schema changes).</li>
+</ul>
+<div class="sourceCode" id="cb22"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="ex">flink</span> savepoint <span class="op">&lt;</span>job_id<span class="op">&gt;</span> s3://savepoints/myjob/</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a><span class="ex">flink</span> run -s s3://savepoints/myjob/savepoint-xxx <span class="op">&lt;</span>new-jar<span class="op">&gt;</span>.jar</span></code></pre></div>
+<h3 id="state-migration">State migration</h3>
+<p>When you change the shape of state (add a field, change types), you need a migration. Flink supports:</p>
+<ul>
+<li><strong>Schema evolution</strong> via Avro-serialized state (auto).</li>
+<li><strong>Explicit state migration</strong>: write a one-off job that reads the savepoint with old schema, writes with new.</li>
+<li><strong>Keyed state type migration</strong>: limited; usually requires re-keying from scratch.</li>
+</ul>
+<h2 id="9-kafka-internals--isr-controllers-exactly-once">9. Kafka Internals — ISR, Controllers, Exactly-Once</h2>
+<h3 id="topic-partition-offset">Topic, partition, offset</h3>
+<ul>
+<li><strong>Topic</strong>: named append-only log, split into <strong>partitions</strong> for parallelism.</li>
+<li><strong>Partition</strong>: an ordered sequence of records; each record has a monotonically increasing <strong>offset</strong> within the partition.</li>
+<li><strong>Producers</strong> choose partition (via key hash or explicit selection).</li>
+<li><strong>Consumers</strong> read partitions sequentially; track their offset.</li>
+</ul>
+<p>Parallelism = number of partitions. One consumer per partition per consumer group is the maximum (more consumers than partitions → idle consumers).</p>
+<h3 id="replication">Replication</h3>
+<p>Each partition has <code>N</code> replicas (typically 3):</p>
+<ul>
+<li><strong>Leader</strong>: handles reads and writes.</li>
+<li><strong>Followers</strong>: pull from the leader asynchronously.</li>
+<li><strong>ISR (In-Sync Replicas)</strong>: the set of followers that are within <code>replica.lag.time.max.ms</code> of the leader.</li>
+</ul>
+<p>Writes:</p>
+<ul>
+<li><code>acks=0</code>: fire-and-forget. Producer doesn't wait for leader ack.</li>
+<li><code>acks=1</code>: wait for leader to persist. Lost on leader failure before followers catch up.</li>
+<li><code>acks=all</code>: wait for all ISRs to persist. No loss within replication factor (assuming <code>min.insync.replicas &gt;= 2</code>).</li>
+</ul>
+<h3 id="controller-and-leader-election">Controller and leader election</h3>
+<p>One broker is the <strong>controller</strong> (elected via ZooKeeper or KRaft). Controller maintains cluster metadata — which broker leads which partition.</p>
+<p>On broker failure:</p>
+<ol>
+<li>Controller detects failure (ZooKeeper session expiry or KRaft heartbeat timeout).</li>
+<li>Controller removes failed broker from ISR for partitions it led.</li>
+<li>Controller elects a new leader from surviving ISR (first in the ISR list).</li>
+<li>Controller propagates leadership change to all brokers and producers.</li>
+</ol>
+<p>Without unclean leader election, the new leader is guaranteed to have every committed record. With unclean leader election enabled (<code>unclean.leader.election.enable=true</code>), a non-ISR replica can be elected — at the cost of data loss.</p>
+<h3 id="kraft-zookeeper-free-kafka">KRaft (ZooKeeper-free Kafka)</h3>
+<p>Kafka 3.x+ supports KRaft mode: the controller runs internally via Raft. No ZooKeeper. Simpler operationally; faster metadata propagation; supports larger clusters (millions of partitions).</p>
+<p>Default in new deployments from 2024 onward.</p>
+<h3 id="kafka-exactly-once">Kafka exactly-once</h3>
+<p>Kafka offers exactly-once semantics (EOS) for specific patterns:</p>
+<p><strong>Producer idempotence</strong> (<code>enable.idempotence=true</code>):</p>
+<ul>
+<li>Producer is assigned a unique <code>producer_id</code> (PID) by the broker.</li>
+<li>Each record has a sequence number per partition.</li>
+<li>Brokers deduplicate based on (PID, partition, sequence) for the lifetime of the PID's epoch.</li>
+<li>Prevents duplicates from producer retries within a single producer session.</li>
+</ul>
+<p><strong>Transactional producers</strong> (<code>transactional.id=my-tx</code>):</p>
+<ul>
+<li>Producer starts a transaction, writes to multiple partitions/topics, commits.</li>
+<li>All writes are atomic — consumers with <code>isolation.level=read_committed</code> see either all or none.</li>
+<li>Critical for exactly-once stream processing where "read from topic A, write to topics B and C" must be all-or-nothing.</li>
+</ul>
+<div class="sourceCode" id="cb23"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a>KafkaProducer&lt;<span class="bu">String</span>, <span class="bu">String</span>&gt; producer = <span class="kw">new</span> KafkaProducer&lt;&gt;(props);</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a>producer.<span class="fu">initTransactions</span>();</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a><span class="kw">try</span> {</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>    producer.<span class="fu">beginTransaction</span>();</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>    producer.<span class="fu">send</span>(<span class="kw">new</span> ProducerRecord&lt;&gt;(<span class="st">&quot;out_topic_1&quot;</span>, ...));</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>    producer.<span class="fu">send</span>(<span class="kw">new</span> ProducerRecord&lt;&gt;(<span class="st">&quot;out_topic_2&quot;</span>, ...));</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true"></a>    producer.<span class="fu">sendOffsetsToTransaction</span>(consumedOffsets, consumerGroup);</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a>    producer.<span class="fu">commitTransaction</span>();</span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true"></a>} <span class="kw">catch</span> (<span class="bu">Exception</span> e) {</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true"></a>    producer.<span class="fu">abortTransaction</span>();</span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true"></a>    <span class="kw">throw</span> e;</span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="consumer-rebalance-protocol">Consumer rebalance protocol</h3>
+<p>When consumers in a group join or leave:</p>
+<p><strong>Eager rebalance</strong> (classic):</p>
+<ol>
+<li>Coordinator triggers rebalance.</li>
+<li>All consumers revoke their partitions (stop processing entirely).</li>
+<li>Coordinator assigns partitions via strategy.</li>
+<li>Consumers resume.</li>
+</ol>
+<p>Stop-the-world can be minutes with many consumers / many partitions. Kills latency SLOs.</p>
+<p><strong>Cooperative sticky rebalance</strong> (Kafka 2.4+):</p>
+<ol>
+<li>Coordinator identifies partitions to move.</li>
+<li>Only affected consumers revoke only the moving partitions.</li>
+<li>New assignments go to target consumers.</li>
+<li>Non-affected consumers continue uninterrupted.</li>
+</ol>
+<p>Minimal disruption. Prefer in all modern deployments: <code>partition.assignment.strategy=CooperativeStickyAssignor</code>.</p>
+<h3 id="log-compaction">Log compaction</h3>
+<p>For "changelog" topics keyed by entity ID, Kafka can compact:</p>
+<ul>
+<li>Keeps only the <strong>latest</strong> record per key.</li>
+<li>Older records with the same key are garbage-collected during compaction.</li>
+<li>Tombstones (null-valued records) delete the key permanently after a grace period.</li>
+</ul>
+<pre><code>log before compaction:
+  key=user1, val={name:A}
+  key=user2, val={name:X}
+  key=user1, val={name:A&#39;}
+  key=user1, val=null          (tombstone)
+  key=user2, val={name:Y}
+
+log after compaction:
+  key=user1, val=null          (to be deleted after grace)
+  key=user2, val={name:Y}
+</code></pre>
+<p>Compacted topics serve as durable key-value stores readable as streams. Used for:</p>
+<ul>
+<li>Materializing database CDC (final state of each row).</li>
+<li>State topic backing Kafka Streams applications.</li>
+<li>Configuration distribution.</li>
+</ul>
+<h2 id="10-streaming-joins">10. Streaming Joins</h2>
+<p>Joining two unbounded streams is the hardest operation in streaming. There are several flavors.</p>
+<h3 id="stream-stream-window-join">Stream-stream window join</h3>
+<p>Join two streams within a time window: match pairs (a, b) where <code>a.timestamp</code> and <code>b.timestamp</code> fall within a common window and the join key matches.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a>clicks.<span class="fu">join</span>(impressions)</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a>    .<span class="fu">where</span>(c -&gt; c.<span class="fu">userId</span>).<span class="fu">equalTo</span>(i -&gt; i.<span class="fu">userId</span>)</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a>    .<span class="fu">window</span>(TumblingEventTimeWindows.<span class="fu">of</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">5</span>)))</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a>    .<span class="fu">apply</span>(<span class="kw">new</span> <span class="fu">JoinFn</span>());</span></code></pre></div>
+<p>State: O(|clicks| + |impressions|) within the window. Grows linearly with window size and rate.</p>
+<h3 id="stream-stream-interval-join">Stream-stream interval join</h3>
+<p>Match event pairs within a relative time interval: for each <code>a</code>, find <code>b</code> where <code>a.ts - X ≤ b.ts ≤ a.ts + Y</code>.</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a>clicks.<span class="fu">keyBy</span>(c -&gt; c.<span class="fu">userId</span>)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a>    .<span class="fu">intervalJoin</span>(impressions.<span class="fu">keyBy</span>(i -&gt; i.<span class="fu">userId</span>))</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a>    .<span class="fu">between</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(-<span class="dv">1</span>), <span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">5</span>))</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a>    .<span class="fu">process</span>(<span class="kw">new</span> <span class="fu">IntervalJoinFn</span>());</span></code></pre></div>
+<p>Used for causal analysis (impressions preceding clicks) where window alignment would be wrong.</p>
+<h3 id="stream-table-temporal-join">Stream-table (temporal) join</h3>
+<p>Join a stream of events against a slowly-changing table (often a dim broadcast or a compacted topic). Each event looks up the version of the table that was current at event time.</p>
+<p>Implementation patterns:</p>
+<ul>
+<li><strong>Broadcast state</strong>: broadcast the table updates to all parallel instances of the join operator. Each instance keeps the table in local state. Great when the table is small (&lt; 1 GB).</li>
+<li><strong>Keyed state + async lookup</strong>: each event does an async DB lookup, keeping a cache in keyed state.</li>
+<li><strong>Versioned table joins</strong> (Flink Table API): <code>FOR SYSTEM_TIME AS OF</code> syntax.</li>
+</ul>
+<div class="sourceCode" id="cb27"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a><span class="co">-- Flink SQL: temporal join</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true"></a><span class="kw">SELECT</span> o.<span class="op">*</span>, c.country, c.subscription_tier</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true"></a><span class="kw">FROM</span> orders o</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true"></a><span class="kw">JOIN</span> user_dim <span class="cf">FOR</span> SYSTEM_TIME <span class="kw">AS</span> <span class="kw">OF</span> o.event_ts <span class="kw">AS</span> c</span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true"></a>  <span class="kw">ON</span> o.user_id <span class="op">=</span> c.user_id;</span></code></pre></div>
+<p>The engine maintains the history of <code>user_dim</code>; the join picks the version of each user that was current at <code>event_ts</code>.</p>
+<h3 id="stream-enrichment-via-async-io">Stream enrichment via async I/O</h3>
+<p>When the dimension is too large for broadcast state but must be looked up per event:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a>AsyncDataStream.<span class="fu">unorderedWait</span>(</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a>    events,</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a>    <span class="kw">new</span> <span class="fu">AsyncDatabaseLookup</span>(),</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a>    <span class="dv">30</span>, <span class="bu">TimeUnit</span>.<span class="fu">SECONDS</span>,     <span class="co">// timeout</span></span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a>    <span class="dv">1000</span>                       <span class="co">// capacity (max concurrent lookups)</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true"></a>).<span class="fu">map</span>(enriched -&gt; <span class="fu">process</span>(enriched));</span></code></pre></div>
+<p>Concurrent async lookups keep the pipeline fed while external systems respond. Critical: use <code>unorderedWait</code> if order doesn't matter (higher throughput); <code>orderedWait</code> otherwise.</p>
+<h2 id="11-state-management-at-scale">11. State Management at Scale</h2>
+<p>Production streaming pipelines accumulate TBs of state. Managing it is its own discipline.</p>
+<h3 id="state-ttl">State TTL</h3>
+<p>Per-state configurable time-to-live. Flink's <code>StateTtlConfig</code>:</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a>StateTtlConfig ttlConfig = StateTtlConfig</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a>    .<span class="fu">newBuilder</span>(<span class="bu">Time</span>.<span class="fu">hours</span>(<span class="dv">24</span>))</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a>    .<span class="fu">setUpdateType</span>(StateTtlConfig.<span class="fu">UpdateType</span>.<span class="fu">OnCreateAndWrite</span>)</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true"></a>    .<span class="fu">setStateVisibility</span>(StateTtlConfig.<span class="fu">StateVisibility</span>.<span class="fu">NeverReturnExpired</span>)</span>
+<span id="cb29-5"><a href="#cb29-5" aria-hidden="true"></a>    .<span class="fu">cleanupInRocksdbCompactFilter</span>(<span class="dv">1000</span>)</span>
+<span id="cb29-6"><a href="#cb29-6" aria-hidden="true"></a>    .<span class="fu">build</span>();</span></code></pre></div>
+<p>Cleanup strategies:</p>
+<ul>
+<li><strong>In-access</strong>: expired state is removed on read (cheap but delays cleanup).</li>
+<li><strong>Full-snapshot</strong>: cleanup during checkpoint (exhaustive but costly).</li>
+<li><strong>RocksDB compaction filter</strong>: cleanup during RocksDB's background compaction. Preferred for large state.</li>
+</ul>
+<h3 id="bounded-session-windows-via-custom-expiration">Bounded session windows via custom expiration</h3>
+<p>Session windows without explicit max length can grow without bound. Implement max session length:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a><span class="kw">public</span> <span class="kw">class</span> BoundedSessionFn <span class="kw">extends</span> KeyedProcessFunction&lt;<span class="bu">String</span>, <span class="bu">Event</span>, Session&gt; {</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true"></a>    <span class="kw">private</span> ValueState&lt;Session&gt; current;</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true"></a>    <span class="kw">private</span> ValueState&lt;<span class="bu">Long</span>&gt; expirationTimer;</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true"></a></span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">processElement</span>(<span class="bu">Event</span> ev, <span class="bu">Context</span> ctx, Collector&lt;Session&gt; out) <span class="kw">throws</span> <span class="bu">Exception</span> {</span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true"></a>        Session s = current.<span class="fu">value</span>();</span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true"></a>        <span class="kw">if</span> (s == <span class="kw">null</span> || ev.<span class="fu">ts</span> &gt; s.<span class="fu">lastEventTs</span> + SESSION_GAP_MS) {</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true"></a>            <span class="co">// new session</span></span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true"></a>            <span class="kw">if</span> (s != <span class="kw">null</span>) out.<span class="fu">collect</span>(s);</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true"></a>            s = <span class="kw">new</span> <span class="fu">Session</span>(ev);</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true"></a>        } <span class="kw">else</span> {</span>
+<span id="cb30-13"><a href="#cb30-13" aria-hidden="true"></a>            s.<span class="fu">add</span>(ev);</span>
+<span id="cb30-14"><a href="#cb30-14" aria-hidden="true"></a>            <span class="kw">if</span> (s.<span class="fu">durationMs</span>() &gt; MAX_SESSION_MS) {</span>
+<span id="cb30-15"><a href="#cb30-15" aria-hidden="true"></a>                out.<span class="fu">collect</span>(s);</span>
+<span id="cb30-16"><a href="#cb30-16" aria-hidden="true"></a>                s = <span class="kw">new</span> <span class="fu">Session</span>(ev);   <span class="co">// start a new session from this event</span></span>
+<span id="cb30-17"><a href="#cb30-17" aria-hidden="true"></a>            }</span>
+<span id="cb30-18"><a href="#cb30-18" aria-hidden="true"></a>        }</span>
+<span id="cb30-19"><a href="#cb30-19" aria-hidden="true"></a>        current.<span class="fu">update</span>(s);</span>
+<span id="cb30-20"><a href="#cb30-20" aria-hidden="true"></a>        ctx.<span class="fu">timerService</span>().<span class="fu">registerEventTimeTimer</span>(ev.<span class="fu">ts</span> + SESSION_GAP_MS);</span>
+<span id="cb30-21"><a href="#cb30-21" aria-hidden="true"></a>    }</span>
+<span id="cb30-22"><a href="#cb30-22" aria-hidden="true"></a></span>
+<span id="cb30-23"><a href="#cb30-23" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb30-24"><a href="#cb30-24" aria-hidden="true"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">onTimer</span>(<span class="dt">long</span> ts, OnTimerContext ctx, Collector&lt;Session&gt; out) <span class="kw">throws</span> <span class="bu">Exception</span> {</span>
+<span id="cb30-25"><a href="#cb30-25" aria-hidden="true"></a>        Session s = current.<span class="fu">value</span>();</span>
+<span id="cb30-26"><a href="#cb30-26" aria-hidden="true"></a>        <span class="kw">if</span> (s != <span class="kw">null</span> &amp;&amp; ts &gt;= s.<span class="fu">lastEventTs</span> + SESSION_GAP_MS) {</span>
+<span id="cb30-27"><a href="#cb30-27" aria-hidden="true"></a>            out.<span class="fu">collect</span>(s);</span>
+<span id="cb30-28"><a href="#cb30-28" aria-hidden="true"></a>            current.<span class="fu">clear</span>();</span>
+<span id="cb30-29"><a href="#cb30-29" aria-hidden="true"></a>        }</span>
+<span id="cb30-30"><a href="#cb30-30" aria-hidden="true"></a>    }</span>
+<span id="cb30-31"><a href="#cb30-31" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="state-partitioning-evolution">State partitioning evolution</h3>
+<p>Change the key you're partitioning on? Flink doesn't let you; you must:</p>
+<ol>
+<li>Savepoint current state.</li>
+<li>Write a migration job that reads savepoint, rewrites state under new keying.</li>
+<li>Start new job from migrated savepoint.</li>
+</ol>
+<p>Or: start fresh, lose history. Painful; plan keys carefully upfront.</p>
+<h3 id="state-size-budgeting">State size budgeting</h3>
+<p>Estimate:</p>
+<pre><code>state_size = num_keys × bytes_per_key_state × num_windows_active_per_key
+</code></pre>
+<p>Example:</p>
+<ul>
+<li>100M users</li>
+<li>1 KB state per user (a few counters, last-event-ts)</li>
+<li>1 window active per user (current session)</li>
+<li>→ 100 GB of state.</li>
+</ul>
+<p>RocksDB backend + local SSD + incremental checkpoints handle this fine. HashMap backend wouldn't (100 GB heap is infeasible).</p>
+<p>For 1B users × 1 KB = 1 TB state: still viable with RocksDB + fast SSDs. Above that, consider sharding across multiple Flink jobs or moving state to an external store with async lookup.</p>
+<h2 id="12-backpressure-and-flow-control">12. Backpressure and Flow Control</h2>
+<p><strong>Backpressure</strong>: when a downstream operator can't keep up, upstream must slow down. If it doesn't, unbounded buffers, OOM, or data loss follow.</p>
+<h3 id="how-flink-signals-backpressure">How Flink signals backpressure</h3>
+<p>Flink uses <strong>credit-based flow control</strong>. Each downstream operator advertises how much buffer space it has (credit); upstream only sends when credit is available.</p>
+<p>If downstream is slow, credit is consumed faster than replenished, and upstream naturally blocks. This propagates back to the source, which (if Kafka) simply stops pulling records.</p>
+<h3 id="diagnosing-backpressure">Diagnosing backpressure</h3>
+<p>In the Flink UI, each operator shows <strong>backpressure status</strong> (OK / LOW / HIGH). Trace the chain:</p>
+<ul>
+<li>Find the operator showing HIGH backpressure.</li>
+<li>Its downstream is the bottleneck.</li>
+</ul>
+<p>Metrics to check:</p>
+<ul>
+<li><code>outputQueueLength</code>: how full the output buffer is.</li>
+<li><code>inputQueueUsage</code>: same for inputs.</li>
+<li><code>numRecordsInPerSecond</code> vs <code>numRecordsOutPerSecond</code>: disparity indicates buffering.</li>
+</ul>
+<h3 id="fixing-backpressure">Fixing backpressure</h3>
+<ul>
+<li><strong>Increase downstream parallelism</strong>: run more instances of the slow operator.</li>
+<li><strong>Optimize the slow operator</strong>: profile; CPU? I/O? state access? The usual culprits are: Python UDFs (in PyFlink), synchronous external calls, state backend misuse.</li>
+<li><strong>Use async I/O</strong> for external lookups.</li>
+<li><strong>Shard state across more keys</strong>: if one key is hot, repartition with a salt (see Spark's skew fix — same principle applies).</li>
+</ul>
+<h3 id="backpressure-and-checkpoints">Backpressure and checkpoints</h3>
+<p>Aligned checkpoints require barriers to reach operators; if an operator is backpressured, barriers pile up behind records in the input buffer, delaying the snapshot. Severe backpressure → checkpoint timeouts → job restarts → fallback loop.</p>
+<p><strong>Unaligned checkpoints</strong> (Flink 1.11+) mitigate: barriers "jump" ahead of in-flight records in the buffer. The snapshot includes those records as part of the channel state. Larger snapshots, but doesn't stall under backpressure.</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">enableUnalignedCheckpoints</span>();</span></code></pre></div>
+<p>Enable in production where backpressure is possible.</p>
+<h2 id="13-lambda-vs-kappa-revisited">13. Lambda vs Kappa Revisited</h2>
+<h3 id="lambda-architecture">Lambda architecture</h3>
+<p>Two pipelines:</p>
+<ul>
+<li><strong>Batch layer</strong> — periodic, fully-accurate, high-latency.</li>
+<li><strong>Speed layer</strong> — streaming, best-effort, low-latency.</li>
+<li><strong>Serving layer</strong> — merges batch and speed views; clients see the combined result.</li>
+</ul>
+<p>Problems:</p>
+<ul>
+<li>Two codebases. Every business rule implemented twice. Drift inevitable.</li>
+<li>Two debugging surfaces. Which layer produced this wrong number?</li>
+<li>Two SLA sets. When one layer lags, is the combined answer correct?</li>
+</ul>
+<h3 id="kappa-architecture">Kappa architecture</h3>
+<p>One pipeline, streaming. Batch is "streaming with a bigger window" or "streaming over a replay."</p>
+<ul>
+<li>Source: Kafka with long retention (or a lakehouse with time travel).</li>
+<li>Processing: streaming engine in both online and replay modes.</li>
+<li>Correction: replay the stream from the past to reprocess.</li>
+</ul>
+<p>One codebase, one mental model.</p>
+<h3 id="the-pragmatic-middle-streaming--batch-audit">The pragmatic middle: streaming + batch audit</h3>
+<p>The most common production pattern:</p>
+<ul>
+<li><strong>Streaming pipeline</strong> provides low-latency "hot" answers.</li>
+<li><strong>Batch pipeline</strong> runs daily/hourly over the full bronze layer to produce "certified" results.</li>
+<li><strong>Differences between hot and certified</strong> are monitored; large gaps are incidents.</li>
+<li><strong>Gold consumption</strong> reads whichever is appropriate (or blends by SLO).</li>
+</ul>
+<p>This gives streaming's freshness AND batch's correctness guarantees, without Lambda's double-maintenance burden (the streaming version is the "real" code; the batch is a reference/audit path).</p>
+<h2 id="14-streaming-pipeline-example-end-to-end">14. Streaming Pipeline Example End-to-End</h2>
+<p>A full example: Netflix-style playback sessionization.</p>
+<h3 id="data-flow">Data flow</h3>
+<pre><code>Mobile client ─► Kafka (events) ─► Flink (sessionize) ─► Kafka (sessions)
+                                        │
+                                        ├─► Iceberg bronze (raw append)
+                                        │
+                                        └─► Redis (real-time counters)
+</code></pre>
+<h3 id="flink-sessionization-job">Flink sessionization job</h3>
+<div class="sourceCode" id="cb34"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true"></a>DataStream&lt;PlaybackEvent&gt; events = env</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true"></a>    .<span class="fu">fromSource</span>(</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true"></a>        KafkaSource.&lt;PlaybackEvent&gt;<span class="fu">builder</span>()</span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true"></a>            .<span class="fu">setBootstrapServers</span>(<span class="st">&quot;kafka:9092&quot;</span>)</span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true"></a>            .<span class="fu">setTopics</span>(<span class="st">&quot;playback.events&quot;</span>)</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true"></a>            .<span class="fu">setGroupId</span>(<span class="st">&quot;sessionizer&quot;</span>)</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true"></a>            .<span class="fu">setStartingOffsets</span>(OffsetsInitializer.<span class="fu">committedOffsets</span>(OffsetResetStrategy.<span class="fu">LATEST</span>))</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true"></a>            .<span class="fu">setValueOnlyDeserializer</span>(<span class="kw">new</span> <span class="fu">PlaybackEventDeserializer</span>())</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true"></a>            .<span class="fu">build</span>(),</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true"></a>        WatermarkStrategy.&lt;PlaybackEvent&gt;<span class="fu">forBoundedOutOfOrderness</span>(<span class="bu">Duration</span>.<span class="fu">ofSeconds</span>(<span class="dv">30</span>))</span>
+<span id="cb34-11"><a href="#cb34-11" aria-hidden="true"></a>            .<span class="fu">withIdleness</span>(<span class="bu">Duration</span>.<span class="fu">ofMinutes</span>(<span class="dv">1</span>))</span>
+<span id="cb34-12"><a href="#cb34-12" aria-hidden="true"></a>            .<span class="fu">withTimestampAssigner</span>((ev, ts) -&gt; ev.<span class="fu">eventTime</span>),</span>
+<span id="cb34-13"><a href="#cb34-13" aria-hidden="true"></a>        <span class="st">&quot;kafka-playback&quot;</span></span>
+<span id="cb34-14"><a href="#cb34-14" aria-hidden="true"></a>    );</span>
+<span id="cb34-15"><a href="#cb34-15" aria-hidden="true"></a></span>
+<span id="cb34-16"><a href="#cb34-16" aria-hidden="true"></a><span class="co">// Validate and filter</span></span>
+<span id="cb34-17"><a href="#cb34-17" aria-hidden="true"></a>DataStream&lt;PlaybackEvent&gt; validated = events</span>
+<span id="cb34-18"><a href="#cb34-18" aria-hidden="true"></a>    .<span class="fu">filter</span>(ev -&gt; ev.<span class="fu">isValid</span>())</span>
+<span id="cb34-19"><a href="#cb34-19" aria-hidden="true"></a>    .<span class="fu">name</span>(<span class="st">&quot;validate&quot;</span>);</span>
+<span id="cb34-20"><a href="#cb34-20" aria-hidden="true"></a></span>
+<span id="cb34-21"><a href="#cb34-21" aria-hidden="true"></a><span class="co">// Sessionize by sessionId with 30-minute event-time gap</span></span>
+<span id="cb34-22"><a href="#cb34-22" aria-hidden="true"></a>OutputTag&lt;PlaybackEvent&gt; lateTag = <span class="kw">new</span> OutputTag&lt;&gt;(<span class="st">&quot;late-events&quot;</span>){};</span>
+<span id="cb34-23"><a href="#cb34-23" aria-hidden="true"></a></span>
+<span id="cb34-24"><a href="#cb34-24" aria-hidden="true"></a>SingleOutputStreamOperator&lt;PlaybackSession&gt; sessions = validated</span>
+<span id="cb34-25"><a href="#cb34-25" aria-hidden="true"></a>    .<span class="fu">keyBy</span>(ev -&gt; ev.<span class="fu">sessionId</span>)</span>
+<span id="cb34-26"><a href="#cb34-26" aria-hidden="true"></a>    .<span class="fu">window</span>(EventTimeSessionWindows.<span class="fu">withGap</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">30</span>)))</span>
+<span id="cb34-27"><a href="#cb34-27" aria-hidden="true"></a>    .<span class="fu">allowedLateness</span>(<span class="bu">Time</span>.<span class="fu">minutes</span>(<span class="dv">15</span>))</span>
+<span id="cb34-28"><a href="#cb34-28" aria-hidden="true"></a>    .<span class="fu">sideOutputLateData</span>(lateTag)</span>
+<span id="cb34-29"><a href="#cb34-29" aria-hidden="true"></a>    .<span class="fu">trigger</span>(EventTimeTrigger.<span class="fu">create</span>())</span>
+<span id="cb34-30"><a href="#cb34-30" aria-hidden="true"></a>    .<span class="fu">aggregate</span>(</span>
+<span id="cb34-31"><a href="#cb34-31" aria-hidden="true"></a>        <span class="kw">new</span> <span class="fu">SessionAggregator</span>(),      <span class="co">// incremental aggregation</span></span>
+<span id="cb34-32"><a href="#cb34-32" aria-hidden="true"></a>        <span class="kw">new</span> <span class="fu">SessionEmitter</span>()          <span class="co">// attach window metadata on fire</span></span>
+<span id="cb34-33"><a href="#cb34-33" aria-hidden="true"></a>    )</span>
+<span id="cb34-34"><a href="#cb34-34" aria-hidden="true"></a>    .<span class="fu">name</span>(<span class="st">&quot;sessionize&quot;</span>);</span>
+<span id="cb34-35"><a href="#cb34-35" aria-hidden="true"></a></span>
+<span id="cb34-36"><a href="#cb34-36" aria-hidden="true"></a><span class="co">// Primary sink: Kafka (for downstream real-time consumers)</span></span>
+<span id="cb34-37"><a href="#cb34-37" aria-hidden="true"></a>sessions.<span class="fu">sinkTo</span>(</span>
+<span id="cb34-38"><a href="#cb34-38" aria-hidden="true"></a>    KafkaSink.&lt;PlaybackSession&gt;<span class="fu">builder</span>()</span>
+<span id="cb34-39"><a href="#cb34-39" aria-hidden="true"></a>        .<span class="fu">setBootstrapServers</span>(<span class="st">&quot;kafka:9092&quot;</span>)</span>
+<span id="cb34-40"><a href="#cb34-40" aria-hidden="true"></a>        .<span class="fu">setRecordSerializer</span>(<span class="kw">new</span> <span class="fu">SessionSerializer</span>())</span>
+<span id="cb34-41"><a href="#cb34-41" aria-hidden="true"></a>        .<span class="fu">setDeliveryGuarantee</span>(DeliveryGuarantee.<span class="fu">EXACTLY_ONCE</span>)</span>
+<span id="cb34-42"><a href="#cb34-42" aria-hidden="true"></a>        .<span class="fu">setTransactionalIdPrefix</span>(<span class="st">&quot;session-sink-&quot;</span>)</span>
+<span id="cb34-43"><a href="#cb34-43" aria-hidden="true"></a>        .<span class="fu">build</span>()</span>
+<span id="cb34-44"><a href="#cb34-44" aria-hidden="true"></a>).<span class="fu">name</span>(<span class="st">&quot;sink-sessions&quot;</span>);</span>
+<span id="cb34-45"><a href="#cb34-45" aria-hidden="true"></a></span>
+<span id="cb34-46"><a href="#cb34-46" aria-hidden="true"></a><span class="co">// Secondary sink: Iceberg (for batch analytics)</span></span>
+<span id="cb34-47"><a href="#cb34-47" aria-hidden="true"></a>sessions.<span class="fu">sinkTo</span>(</span>
+<span id="cb34-48"><a href="#cb34-48" aria-hidden="true"></a>    IcebergSink.<span class="fu">forRowData</span>(...)</span>
+<span id="cb34-49"><a href="#cb34-49" aria-hidden="true"></a>        .<span class="fu">table</span>(catalog.<span class="fu">loadTable</span>(<span class="fu">tableId</span>(<span class="st">&quot;silver&quot;</span>, <span class="st">&quot;fact_playback_session&quot;</span>)))</span>
+<span id="cb34-50"><a href="#cb34-50" aria-hidden="true"></a>        .<span class="fu">writeParallelism</span>(<span class="dv">8</span>)</span>
+<span id="cb34-51"><a href="#cb34-51" aria-hidden="true"></a>        .<span class="fu">distributionMode</span>(DistributionMode.<span class="fu">HASH</span>)</span>
+<span id="cb34-52"><a href="#cb34-52" aria-hidden="true"></a>        .<span class="fu">build</span>()</span>
+<span id="cb34-53"><a href="#cb34-53" aria-hidden="true"></a>).<span class="fu">name</span>(<span class="st">&quot;sink-iceberg&quot;</span>);</span>
+<span id="cb34-54"><a href="#cb34-54" aria-hidden="true"></a></span>
+<span id="cb34-55"><a href="#cb34-55" aria-hidden="true"></a><span class="co">// Late events go to separate Kafka topic for reconciliation</span></span>
+<span id="cb34-56"><a href="#cb34-56" aria-hidden="true"></a>sessions.<span class="fu">getSideOutput</span>(lateTag).<span class="fu">sinkTo</span>(</span>
+<span id="cb34-57"><a href="#cb34-57" aria-hidden="true"></a>    KafkaSink.&lt;PlaybackEvent&gt;<span class="fu">builder</span>()</span>
+<span id="cb34-58"><a href="#cb34-58" aria-hidden="true"></a>        .<span class="fu">setBootstrapServers</span>(<span class="st">&quot;kafka:9092&quot;</span>)</span>
+<span id="cb34-59"><a href="#cb34-59" aria-hidden="true"></a>        .<span class="fu">setRecordSerializer</span>(<span class="kw">new</span> <span class="fu">EventSerializer</span>(<span class="st">&quot;playback.events.late&quot;</span>))</span>
+<span id="cb34-60"><a href="#cb34-60" aria-hidden="true"></a>        .<span class="fu">build</span>()</span>
+<span id="cb34-61"><a href="#cb34-61" aria-hidden="true"></a>).<span class="fu">name</span>(<span class="st">&quot;sink-late&quot;</span>);</span>
+<span id="cb34-62"><a href="#cb34-62" aria-hidden="true"></a></span>
+<span id="cb34-63"><a href="#cb34-63" aria-hidden="true"></a><span class="co">// Checkpointing: exactly-once, incremental</span></span>
+<span id="cb34-64"><a href="#cb34-64" aria-hidden="true"></a>env.<span class="fu">enableCheckpointing</span>(<span class="dv">60_000</span>, CheckpointingMode.<span class="fu">EXACTLY_ONCE</span>);</span>
+<span id="cb34-65"><a href="#cb34-65" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setMinPauseBetweenCheckpoints</span>(<span class="dv">30_000</span>);</span>
+<span id="cb34-66"><a href="#cb34-66" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">enableUnalignedCheckpoints</span>();</span>
+<span id="cb34-67"><a href="#cb34-67" aria-hidden="true"></a>env.<span class="fu">setStateBackend</span>(<span class="kw">new</span> <span class="fu">EmbeddedRocksDBStateBackend</span>(<span class="kw">true</span>));  <span class="co">// incremental</span></span>
+<span id="cb34-68"><a href="#cb34-68" aria-hidden="true"></a>env.<span class="fu">getCheckpointConfig</span>().<span class="fu">setCheckpointStorage</span>(<span class="st">&quot;s3://checkpoints/sessionizer/&quot;</span>);</span>
+<span id="cb34-69"><a href="#cb34-69" aria-hidden="true"></a></span>
+<span id="cb34-70"><a href="#cb34-70" aria-hidden="true"></a>env.<span class="fu">execute</span>(<span class="st">&quot;playback-sessionizer&quot;</span>);</span></code></pre></div>
+<h3 id="sessionaggregator-incremental-state">SessionAggregator: incremental state</h3>
+<div class="sourceCode" id="cb35"><pre class="sourceCode java"><code class="sourceCode java"><span id="cb35-1"><a href="#cb35-1" aria-hidden="true"></a><span class="kw">public</span> <span class="kw">class</span> SessionAggregator</span>
+<span id="cb35-2"><a href="#cb35-2" aria-hidden="true"></a>    <span class="kw">implements</span> AggregateFunction&lt;PlaybackEvent, SessionAccumulator, PlaybackSession&gt; {</span>
+<span id="cb35-3"><a href="#cb35-3" aria-hidden="true"></a></span>
+<span id="cb35-4"><a href="#cb35-4" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb35-5"><a href="#cb35-5" aria-hidden="true"></a>    <span class="kw">public</span> SessionAccumulator <span class="fu">createAccumulator</span>() {</span>
+<span id="cb35-6"><a href="#cb35-6" aria-hidden="true"></a>        <span class="kw">return</span> <span class="kw">new</span> <span class="fu">SessionAccumulator</span>();</span>
+<span id="cb35-7"><a href="#cb35-7" aria-hidden="true"></a>    }</span>
+<span id="cb35-8"><a href="#cb35-8" aria-hidden="true"></a></span>
+<span id="cb35-9"><a href="#cb35-9" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb35-10"><a href="#cb35-10" aria-hidden="true"></a>    <span class="kw">public</span> SessionAccumulator <span class="fu">add</span>(PlaybackEvent ev, SessionAccumulator acc) {</span>
+<span id="cb35-11"><a href="#cb35-11" aria-hidden="true"></a>        <span class="kw">if</span> (acc.<span class="fu">startTs</span> == <span class="dv">0</span>) acc.<span class="fu">startTs</span> = ev.<span class="fu">eventTime</span>;</span>
+<span id="cb35-12"><a href="#cb35-12" aria-hidden="true"></a>        acc.<span class="fu">endTs</span> = <span class="bu">Math</span>.<span class="fu">max</span>(acc.<span class="fu">endTs</span>, ev.<span class="fu">eventTime</span>);</span>
+<span id="cb35-13"><a href="#cb35-13" aria-hidden="true"></a></span>
+<span id="cb35-14"><a href="#cb35-14" aria-hidden="true"></a>        <span class="kw">switch</span> (ev.<span class="fu">type</span>) {</span>
+<span id="cb35-15"><a href="#cb35-15" aria-hidden="true"></a>            <span class="kw">case</span> HEARTBEAT:   acc.<span class="fu">watchMs</span>   += ev.<span class="fu">watchDeltaMs</span>;   <span class="kw">break</span>;</span>
+<span id="cb35-16"><a href="#cb35-16" aria-hidden="true"></a>            <span class="kw">case</span> BUFFERING:   acc.<span class="fu">bufferMs</span>  += ev.<span class="fu">bufferDeltaMs</span>;  <span class="kw">break</span>;</span>
+<span id="cb35-17"><a href="#cb35-17" aria-hidden="true"></a>            <span class="kw">case</span> SEEK:        acc.<span class="fu">seeks</span>     += <span class="dv">1</span>;                 <span class="kw">break</span>;</span>
+<span id="cb35-18"><a href="#cb35-18" aria-hidden="true"></a>            <span class="kw">case</span> PAUSE:       acc.<span class="fu">pauses</span>    += <span class="dv">1</span>;                 <span class="kw">break</span>;</span>
+<span id="cb35-19"><a href="#cb35-19" aria-hidden="true"></a>            <span class="kw">case</span> ENDED:       acc.<span class="fu">endedReason</span> = ev.<span class="fu">endedReason</span>;   <span class="kw">break</span>;</span>
+<span id="cb35-20"><a href="#cb35-20" aria-hidden="true"></a>        }</span>
+<span id="cb35-21"><a href="#cb35-21" aria-hidden="true"></a></span>
+<span id="cb35-22"><a href="#cb35-22" aria-hidden="true"></a>        acc.<span class="fu">maxBitrate</span> = <span class="bu">Math</span>.<span class="fu">max</span>(acc.<span class="fu">maxBitrate</span>, ev.<span class="fu">bitrateKbps</span>);</span>
+<span id="cb35-23"><a href="#cb35-23" aria-hidden="true"></a>        acc.<span class="fu">sumBitrate</span> += ev.<span class="fu">bitrateKbps</span>; acc.<span class="fu">countBitrate</span> += <span class="dv">1</span>;</span>
+<span id="cb35-24"><a href="#cb35-24" aria-hidden="true"></a>        acc.<span class="fu">userId</span> = ev.<span class="fu">userId</span>;</span>
+<span id="cb35-25"><a href="#cb35-25" aria-hidden="true"></a>        acc.<span class="fu">titleId</span> = ev.<span class="fu">titleId</span>;</span>
+<span id="cb35-26"><a href="#cb35-26" aria-hidden="true"></a>        <span class="kw">return</span> acc;</span>
+<span id="cb35-27"><a href="#cb35-27" aria-hidden="true"></a>    }</span>
+<span id="cb35-28"><a href="#cb35-28" aria-hidden="true"></a></span>
+<span id="cb35-29"><a href="#cb35-29" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb35-30"><a href="#cb35-30" aria-hidden="true"></a>    <span class="kw">public</span> PlaybackSession <span class="fu">getResult</span>(SessionAccumulator acc) {</span>
+<span id="cb35-31"><a href="#cb35-31" aria-hidden="true"></a>        <span class="kw">return</span> <span class="kw">new</span> <span class="fu">PlaybackSession</span>(</span>
+<span id="cb35-32"><a href="#cb35-32" aria-hidden="true"></a>            acc.<span class="fu">userId</span>, acc.<span class="fu">titleId</span>,</span>
+<span id="cb35-33"><a href="#cb35-33" aria-hidden="true"></a>            Instant.<span class="fu">ofEpochMilli</span>(acc.<span class="fu">startTs</span>), Instant.<span class="fu">ofEpochMilli</span>(acc.<span class="fu">endTs</span>),</span>
+<span id="cb35-34"><a href="#cb35-34" aria-hidden="true"></a>            acc.<span class="fu">watchMs</span>, acc.<span class="fu">bufferMs</span>, acc.<span class="fu">seeks</span>, acc.<span class="fu">pauses</span>,</span>
+<span id="cb35-35"><a href="#cb35-35" aria-hidden="true"></a>            acc.<span class="fu">maxBitrate</span>, acc.<span class="fu">sumBitrate</span> / <span class="bu">Math</span>.<span class="fu">max</span>(acc.<span class="fu">countBitrate</span>, <span class="dv">1</span>),</span>
+<span id="cb35-36"><a href="#cb35-36" aria-hidden="true"></a>            acc.<span class="fu">endedReason</span></span>
+<span id="cb35-37"><a href="#cb35-37" aria-hidden="true"></a>        );</span>
+<span id="cb35-38"><a href="#cb35-38" aria-hidden="true"></a>    }</span>
+<span id="cb35-39"><a href="#cb35-39" aria-hidden="true"></a></span>
+<span id="cb35-40"><a href="#cb35-40" aria-hidden="true"></a>    <span class="at">@Override</span></span>
+<span id="cb35-41"><a href="#cb35-41" aria-hidden="true"></a>    <span class="kw">public</span> SessionAccumulator <span class="fu">merge</span>(SessionAccumulator a, SessionAccumulator b) {</span>
+<span id="cb35-42"><a href="#cb35-42" aria-hidden="true"></a>        <span class="co">// Merge two sessions (used by session windows that get merged)</span></span>
+<span id="cb35-43"><a href="#cb35-43" aria-hidden="true"></a>        a.<span class="fu">startTs</span> = <span class="bu">Math</span>.<span class="fu">min</span>(a.<span class="fu">startTs</span>, b.<span class="fu">startTs</span>);</span>
+<span id="cb35-44"><a href="#cb35-44" aria-hidden="true"></a>        a.<span class="fu">endTs</span>   = <span class="bu">Math</span>.<span class="fu">max</span>(a.<span class="fu">endTs</span>, b.<span class="fu">endTs</span>);</span>
+<span id="cb35-45"><a href="#cb35-45" aria-hidden="true"></a>        a.<span class="fu">watchMs</span> += b.<span class="fu">watchMs</span>; a.<span class="fu">bufferMs</span> += b.<span class="fu">bufferMs</span>;</span>
+<span id="cb35-46"><a href="#cb35-46" aria-hidden="true"></a>        a.<span class="fu">seeks</span> += b.<span class="fu">seeks</span>; a.<span class="fu">pauses</span> += b.<span class="fu">pauses</span>;</span>
+<span id="cb35-47"><a href="#cb35-47" aria-hidden="true"></a>        a.<span class="fu">maxBitrate</span> = <span class="bu">Math</span>.<span class="fu">max</span>(a.<span class="fu">maxBitrate</span>, b.<span class="fu">maxBitrate</span>);</span>
+<span id="cb35-48"><a href="#cb35-48" aria-hidden="true"></a>        a.<span class="fu">sumBitrate</span> += b.<span class="fu">sumBitrate</span>; a.<span class="fu">countBitrate</span> += b.<span class="fu">countBitrate</span>;</span>
+<span id="cb35-49"><a href="#cb35-49" aria-hidden="true"></a>        a.<span class="fu">endedReason</span> = a.<span class="fu">endedReason</span> != <span class="kw">null</span> ? a.<span class="fu">endedReason</span> : b.<span class="fu">endedReason</span>;</span>
+<span id="cb35-50"><a href="#cb35-50" aria-hidden="true"></a>        <span class="kw">return</span> a;</span>
+<span id="cb35-51"><a href="#cb35-51" aria-hidden="true"></a>    }</span>
+<span id="cb35-52"><a href="#cb35-52" aria-hidden="true"></a>}</span></code></pre></div>
+<h3 id="what-makes-this-production-grade">What makes this production-grade</h3>
+<ul>
+<li><strong>Event-time with watermarks + idleness</strong>. Handles out-of-order and idle producers.</li>
+<li><strong>Side-output for late data</strong>. Reconciliation path, not silent drops.</li>
+<li><strong>Incremental aggregation</strong> (<code>AggregateFunction</code>). State per session is O(1), not O(events).</li>
+<li><strong>Exactly-once Kafka sink</strong> with transactional producer.</li>
+<li><strong>Iceberg sink</strong> for analytics continuity.</li>
+<li><strong>Unaligned checkpoints</strong>. Resilient under backpressure.</li>
+<li><strong>RocksDB backend</strong>. State can scale to TB.</li>
+<li><strong>Reasonable parallelism</strong> (distribution mode hash). Avoids skew on session IDs.</li>
+</ul>
+<h3 id="what-to-monitor">What to monitor</h3>
+<ul>
+<li><strong>Watermark per operator</strong> (Flink UI): stuck watermark = no emission.</li>
+<li><strong>Checkpoint duration</strong>: increasing duration = state growing or backpressure.</li>
+<li><strong>Records emitted / received per second</strong>: discrepancy = backpressure.</li>
+<li><strong>Late event rate</strong>: tune bounded out-of-orderness or allowed lateness.</li>
+<li><strong>End-to-end latency</strong>: p50/p95/p99 of <code>now() - eventTime</code> at sink.</li>
+<li><strong>Consumer lag</strong> on source topics (committed offset behind latest).</li>
+<li><strong>Kafka sink transaction rate and abort rate</strong> (high aborts = something wrong).</li>
+</ul>
+<hr />
+<p>Next: <a href="04-spark-internals.html"><code>04-spark-internals.md</code></a> — Catalyst, AQE, shuffle internals, join algorithms, and skew.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="02-batch-processing.html">← Part 02 · Batch Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="04-spark-internals.html">Part 04 · Spark Internals →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 03</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/03-streaming-processing.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>

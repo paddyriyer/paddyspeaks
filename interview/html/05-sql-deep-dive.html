@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Deep Dive — Data Engineering Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+:root {
+  --netflix-red: #E50914;
+  --navy: #1a2f45;
+  --navy-deep: #0f1e2e;
+  --dark: #1e293b;
+  --med: #475569;
+  --muted: #64748b;
+  --accent: #c8915a;
+  --accent-light: #e8c9a0;
+  --cream: #faf6f1;
+  --bone: #f5efe6;
+  --warm-white: #fefcf9;
+  --sage: #6b8e6f;
+  --rust: #b44040;
+  --rule: #e2d9ce;
+  --code-bg: #0f1e2e;
+  --code-text: #e8e0d6;
+  --code-dim: #8b96a8;
+  --callout-bg: #fff8ee;
+  --callout-border: #c8915a;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #e8e0d6;
+  color: var(--dark);
+  line-height: 1.65;
+  color-scheme: light only;
+}
+
+.shell { max-width: 1120px; margin: 0 auto; }
+
+header.page-header {
+  background: var(--navy-deep);
+  color: var(--cream);
+  padding: 52px 56px 44px;
+  border-bottom: 4px solid var(--netflix-red);
+  position: relative;
+  overflow: hidden;
+}
+header.page-header::before {
+  content: "";
+  position: absolute; top: 0; right: 0;
+  width: 300px; height: 100%;
+  background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+  pointer-events: none;
+}
+.eyebrow {
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--netflix-red);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+header.page-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 46px;
+  font-weight: 600;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  color: var(--warm-white);
+  letter-spacing: -0.5px;
+}
+.subhead {
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: var(--accent-light);
+  max-width: 780px;
+  line-height: 1.5;
+}
+.meta-strip {
+  display: flex;
+  gap: 24px;
+  margin-top: 26px;
+  flex-wrap: wrap;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--accent-light);
+}
+.meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+nav.breadcrumb {
+  background: var(--navy);
+  color: var(--accent-light);
+  padding: 12px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #000;
+}
+nav.breadcrumb a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+nav.breadcrumb a:hover { color: var(--warm-white); }
+nav.breadcrumb .sep { color: var(--netflix-red); margin: 0 10px; }
+
+main.content {
+  background: var(--warm-white);
+  padding: 48px 56px 64px;
+}
+
+main.content h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 36px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 64px 0 20px;
+  padding: 18px 22px;
+  background: var(--navy);
+  color: var(--warm-white);
+  border-radius: 8px;
+  border-left: 6px solid var(--netflix-red);
+  letter-spacing: -0.3px;
+  scroll-margin-top: 16px;
+}
+main.content > h1:first-child { margin-top: 0; }
+main.content h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--navy-deep);
+  margin: 48px 0 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule);
+  scroll-margin-top: 16px;
+}
+main.content h3 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--netflix-red);
+  margin: 28px 0 10px;
+  letter-spacing: 0.2px;
+}
+main.content h4 {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 20px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+main.content p { margin: 0 0 14px; font-size: 15.5px; }
+
+main.content a {
+  color: var(--navy);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+main.content a:hover { border-bottom-color: var(--netflix-red); }
+
+main.content strong { color: var(--navy-deep); }
+main.content em { color: var(--rust); font-style: italic; }
+
+main.content ul, main.content ol { margin: 0 0 16px 28px; }
+main.content li { margin-bottom: 6px; font-size: 15.5px; }
+main.content li > ul, main.content li > ol { margin-top: 6px; }
+
+main.content hr {
+  margin: 48px 0;
+  border: none;
+  border-top: 1px solid var(--rule);
+}
+
+main.content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0 24px;
+  font-size: 14px;
+  background: var(--bone);
+  border-radius: 6px;
+  overflow: hidden;
+}
+main.content th {
+  background: var(--navy);
+  color: var(--warm-white);
+  text-align: left;
+  padding: 10px 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+main.content td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+}
+main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+main.content pre {
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 18px 22px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0 20px;
+  border-left: 3px solid var(--netflix-red);
+  line-height: 1.55;
+}
+main.content pre code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--code-text);
+  background: transparent;
+  padding: 0;
+  border: none;
+  white-space: pre;
+}
+main.content code {
+  font-family: 'DM Mono', monospace;
+  font-size: 13.5px;
+  background: var(--bone);
+  color: var(--navy-deep);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+}
+
+main.content blockquote {
+  background: var(--callout-bg);
+  border-left: 4px solid var(--callout-border);
+  padding: 14px 20px;
+  margin: 16px 0 20px;
+  font-family: 'Newsreader', serif;
+  font-style: italic;
+  color: var(--navy-deep);
+}
+
+footer.page-footer {
+  background: var(--navy-deep);
+  color: var(--accent-light);
+  padding: 32px 56px;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-top: 4px solid var(--netflix-red);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+footer.page-footer a {
+  color: var(--accent-light);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+}
+footer.page-footer a:hover { color: var(--warm-white); }
+
+@media (max-width: 800px) {
+  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left: 24px; padding-right: 24px; }
+  header.page-header h1 { font-size: 32px; }
+  main.content h1 { font-size: 26px; }
+  main.content h2 { font-size: 22px; }
+  main.content table { font-size: 13px; }
+  main.content pre { font-size: 12px; }
+}
+
+@media print {
+  body { background: white; }
+  header.page-header, footer.page-footer { break-inside: avoid; }
+  main.content pre { border: 1px solid var(--rule); }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<header class="page-header">
+  <div class="eyebrow">Part 05 · Senior / L5 Data Engineering Reference</div>
+  <h1>SQL Deep Dive</h1>
+  <p class="subhead">Logical → physical plan translation, join algorithms with complexity, indexes & zone maps, window function internals, advanced patterns (gaps, sessionize, PIT, sketches).</p>
+  <div class="meta-strip">
+    <span>Plans · Joins · Indexes · Windows · Sketches</span>
+    <span>~3,838 Words</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<nav class="breadcrumb"><a href="04-spark-internals.html">← Part 04 · Spark Internals</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="06-python-de.html">Part 06 · Python for DE →</a></nav>
+
+<main class="content">
+<blockquote>
+<p><em>"SQL is a query language, an optimization problem, a data model, and a contract — all at once. Interviewers at this level want to see you've thought about all four."</em></p>
+</blockquote>
+<p>This chapter goes past tricks and into the engine. We derive logical-to-physical translation, walk through each join algorithm with complexity, explain what indexes and zone maps actually do on disk, pull window functions apart by their framing math, and finish with the advanced patterns that show up at L5: gaps-and-islands, sessionization without windows, as-of (point-in-time) joins, and probabilistic sketches.</p>
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#mental">The mental model: SQL is declarative; engines are procedural</a></li>
+<li><a href="#logical">Logical plan processing order (the one the spec promises)</a></li>
+<li><a href="#physical">Physical plan processing order (what actually happens)</a></li>
+<li><a href="#joins">Join algorithms with complexity math</a></li>
+<li><a href="#indexes">Indexes, zone maps, Bloom filters: what prunes and when</a></li>
+<li><a href="#subqueries">Subquery types and how they translate to joins</a></li>
+<li><a href="#windows">Window functions: frames, partitions, and performance</a></li>
+<li><a href="#gaps">Gaps and islands — the four canonical variants</a></li>
+<li><a href="#sessionize">Sessionization without windows (Flink-style in SQL)</a></li>
+<li><a href="#asof">As-of joins / point-in-time joins</a></li>
+<li><a href="#sketches">Sketches: HyperLogLog, Theta, Bloom, t-digest</a></li>
+<li><a href="#antipatterns">Anti-patterns that kill query plans</a></li>
+<li><a href="#tuning">Query tuning workflow</a></li>
+</ol>
+<hr />
+<p><a id="mental"></a></p>
+<h2 id="1-the-mental-model-sql-is-declarative-engines-are-procedural">1. The mental model: SQL is declarative; engines are procedural</h2>
+<p>Write what you want. The engine figures out how. Simple to say, but the gap between the two is where all the hard problems live:</p>
+<ul>
+<li>Query planner chooses join order, strategy, index usage.</li>
+<li>Storage layout (row vs columnar, partitions, zone maps) decides what bytes are read.</li>
+<li>Execution engine (row-at-a-time vs vectorized, pipelined vs materialized) decides how fast rows flow.</li>
+</ul>
+<p>At L5 you should be able to look at any query and predict: what will the plan look like? What will cost money? What happens when data doubles?</p>
+<p>The three questions you always ask:</p>
+<ol>
+<li><strong>What's the driving table?</strong> The biggest one — everything else is joined to it.</li>
+<li><strong>Where do filters apply?</strong> At scan time (push-down), or after?</li>
+<li><strong>Where do shuffles happen?</strong> Between which operators, on which key?</li>
+</ol>
+<hr />
+<p><a id="logical"></a></p>
+<h2 id="2-logical-plan-processing-order-the-one-the-spec-promises">2. Logical plan processing order (the one the spec promises)</h2>
+<p>The SQL standard defines the <strong>logical</strong> processing order of a SELECT, which determines name visibility and semantics:</p>
+<pre><code>1. FROM (+ JOINs)
+2. WHERE
+3. GROUP BY
+4. HAVING
+5. SELECT (expressions + window functions)
+6. DISTINCT
+7. ORDER BY
+8. LIMIT / OFFSET
+</code></pre>
+<p>Two consequences you must carry:</p>
+<ul>
+<li>A column alias defined in SELECT is <strong>not</strong> visible in WHERE, because WHERE is logically processed first. (Some engines like Snowflake relax this; portable code doesn't rely on it.)</li>
+<li>Aggregates resolve at step 3, so <code>HAVING</code> is how you filter by aggregate; <code>WHERE</code> can't reference an aggregate directly.</li>
+</ul>
+<div class="sourceCode" id="cb2"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true"></a><span class="co">-- Wrong (portable):</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> cnt</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true"></a><span class="kw">FROM</span> <span class="kw">events</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true"></a><span class="kw">WHERE</span> cnt <span class="op">&gt;</span> <span class="dv">5</span>                 <span class="co">-- ERROR: cnt doesn&#39;t exist yet at WHERE</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> user_id;</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true"></a><span class="co">-- Right:</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> cnt</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true"></a><span class="kw">FROM</span> <span class="kw">events</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> user_id</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true"></a><span class="kw">HAVING</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="op">&gt;</span> <span class="dv">5</span>;</span></code></pre></div>
+<h3 id="21-the-quiet-reorderings">2.1 The quiet reorderings</h3>
+<p>The logical order is <strong>what the query means</strong>; it's not what the engine does. The optimizer is free to reorder any way it wants as long as semantics are preserved. Predicate push-down through JOIN is one such reordering: the logical <code>WHERE</code> runs "after" the FROM+JOIN, but the engine may push the predicate into the scan under the join.</p>
+<hr />
+<p><a id="physical"></a></p>
+<h2 id="3-physical-plan-processing-order-what-actually-happens">3. Physical plan processing order (what actually happens)</h2>
+<p>For this query on Postgres-like:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true"></a><span class="kw">SELECT</span> u.country, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> plays</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true"></a><span class="kw">FROM</span> fact_plays p</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true"></a><span class="kw">JOIN</span> dim_user u <span class="kw">ON</span> p.user_id <span class="op">=</span> u.user_id</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true"></a><span class="kw">WHERE</span> p.event_date <span class="op">=</span> <span class="st">&#39;2026-04-15&#39;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true"></a>  <span class="kw">AND</span> u.signup_country_id <span class="op">=</span> <span class="dv">42</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> u.country</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true"></a><span class="kw">HAVING</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="op">&gt;</span> <span class="dv">100</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true"></a><span class="kw">ORDER</span> <span class="kw">BY</span> plays <span class="kw">DESC</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true"></a><span class="kw">LIMIT</span> <span class="dv">10</span>;</span></code></pre></div>
+<p>The physical plan Postgres will likely choose:</p>
+<pre><code>1. Index Scan on dim_user where signup_country_id = 42        -- cheap, produces small set
+2. Hash Join                                                   -- build hash on dim_user subset
+   - Right input: Seq Scan on fact_plays with event_date filter (partitioned index)
+3. HashAggregate by country
+4. Filter HAVING count &gt; 100
+5. Sort plays DESC
+6. Limit 10
+</code></pre>
+<p>But note step 1: <strong>the small, selective side becomes the build side</strong>. That's the first thing most planners do. In Spark/Snowflake the analog is broadcasting the small dimension.</p>
+<h3 id="31-reading-explain-from-any-engine">3.1 Reading EXPLAIN from any engine</h3>
+<ul>
+<li><strong>Postgres</strong>: <code>EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) SELECT ...</code>. <code>Buffers: shared hit=X read=Y</code> tells you the buffer cache vs disk split.</li>
+<li><strong>Snowflake</strong>: <code>EXPLAIN USING TEXT SELECT ...</code>. Use the profile view in the UI for runtime stats (partitions pruned, bytes scanned).</li>
+<li><strong>BigQuery</strong>: query plan in the UI; dry-run shows bytes billed before execution.</li>
+<li><strong>Spark</strong>: <code>df.explain(mode="formatted")</code> (see chapter 04).</li>
+</ul>
+<p>Common elements across engines:</p>
+<ul>
+<li><strong>Scan</strong> (Seq / Index / Partitioned): reads the base table.</li>
+<li><strong>Filter</strong>: applies predicate row-by-row (if not pushed down).</li>
+<li><strong>Join</strong> (Hash / Merge / Nested Loop): combines inputs.</li>
+<li><strong>Aggregate</strong> (Hash / Stream / Sort): groups.</li>
+<li><strong>Sort</strong>: explicit order.</li>
+<li><strong>Exchange / Shuffle</strong> (distributed engines): network redistribution by key.</li>
+</ul>
+<hr />
+<p><a id="joins"></a></p>
+<h2 id="4-join-algorithms-with-complexity-math">4. Join algorithms with complexity math</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Algorithm</th>
+<th>Preconditions</th>
+<th>Build</th>
+<th>Probe</th>
+<th>Total</th>
+<th>Memory</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Nested Loop</td>
+<td>any condition</td>
+<td>—</td>
+<td>O(N·M)</td>
+<td>O(N·M)</td>
+<td>O(1)</td>
+</tr>
+<tr class="even">
+<td>Hash Join</td>
+<td>equijoin</td>
+<td>O(N) build hash</td>
+<td>O(M) probe</td>
+<td>O(N+M)</td>
+<td>O(N)</td>
+</tr>
+<tr class="odd">
+<td>Sort-Merge Join</td>
+<td>equijoin, both sorted</td>
+<td>O(N log N + M log M) sort</td>
+<td>O(N+M) merge</td>
+<td>O((N+M) log (N+M))</td>
+<td>O(1) streaming</td>
+</tr>
+<tr class="even">
+<td>Index Nested Loop</td>
+<td>index on inner</td>
+<td>—</td>
+<td>O(M · log N)</td>
+<td>O(M · log N)</td>
+<td>O(1)</td>
+</tr>
+<tr class="odd">
+<td>Zone Map Join</td>
+<td>partitioned / clustered</td>
+<td>—</td>
+<td>O(M + pruned_N)</td>
+<td>depends on pruning</td>
+<td>O(1)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="41-nested-loop-join">4.1 Nested Loop Join</h3>
+<p>For every row in outer, scan every row in inner. Only reasonable when:</p>
+<ul>
+<li>Inner is tiny (&lt; 100 rows).</li>
+<li>Condition is non-equijoin (<code>BETWEEN</code>, <code>&lt;</code>, <code>&gt;</code>).</li>
+<li>You have an index-supporting predicate that turns it into an <strong>Index Nested Loop</strong>.</li>
+</ul>
+<p>In Spark: <code>BroadcastNestedLoopJoin</code> — broadcast one side, scan the other with filter. Only for inequality/Cartesian conditions.</p>
+<h3 id="42-hash-join">4.2 Hash Join</h3>
+<p>Build side is the smaller (by row count or estimated size). Hash table built in memory; probe side streamed through.</p>
+<p>Memory requirement: <code>rows × (hash_entry_size)</code> where <code>hash_entry_size</code> ≈ <code>key + pointer + row or row-reference</code>. Typical: 50–200 bytes/row. For 10M rows, 1–2 GB memory.</p>
+<p>If the build side doesn't fit, engines fall back to:</p>
+<ul>
+<li><strong>Grace Hash Join</strong>: partition both sides by hash mod k, spill to disk, then hash-join each partition pair. Memory = O(|partition|).</li>
+<li><strong>Hybrid Hash Join</strong>: keeps first partition in memory, spills others.</li>
+</ul>
+<h3 id="43-sort-merge-join">4.3 Sort-Merge Join</h3>
+<p>When both sides are large and hash tables don't fit. Both sides sorted, then merged by walking two pointers.</p>
+<p>Strong suit: supports range joins (if you partition-by-range) and handles arbitrary size.</p>
+<p>Weakness: sort cost. Engines avoid it unless at least one side is already sorted (clustered index, clustering key in Snowflake, Z-ORDER in Delta).</p>
+<h3 id="44-choosing-a-strategy-mental-shortcut">4.4 Choosing a strategy (mental shortcut)</h3>
+<pre><code>if small.rows × row_size &lt; memory_budget:   hash join (build on small)
+elif no equijoin:                            nested loop (beware Cartesian)
+elif both very large:                        sort-merge
+elif index exists on inner.join_key:         index nested loop
+</code></pre>
+<hr />
+<p><a id="indexes"></a></p>
+<h2 id="5-indexes-zone-maps-bloom-filters-what-prunes-and-when">5. Indexes, zone maps, Bloom filters: what prunes and when</h2>
+<h3 id="51-b-tree-indexes-oltp-default">5.1 B-tree indexes (OLTP default)</h3>
+<p>A B-tree of (key, row pointer). Lookup: O(log N). Insert/delete: O(log N) with node splits/merges. Each non-leaf page fanout ≈ 200–500 on a 4–8KB page → 4 levels cover ~10^8 rows.</p>
+<p><strong>Covering index</strong>: includes all columns needed for the query → the query is satisfied from the index alone, no table lookup.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_plays_user_date <span class="kw">ON</span> fact_plays (user_id, event_date)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true"></a>INCLUDE (watch_ms);</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true"></a><span class="co">-- SELECT watch_ms FROM fact_plays WHERE user_id = 1234 AND event_date = &#39;2026-04-15&#39;</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true"></a><span class="co">-- satisfied entirely from index.</span></span></code></pre></div>
+<h3 id="52-hash-indexes-in-memory-dbs-postgres-for-exact-match">5.2 Hash indexes (in-memory dbs, Postgres for exact match)</h3>
+<p>O(1) exact lookup. Can't support range scans. Rarely first choice.</p>
+<h3 id="53-bitmap-indexes-low-cardinality">5.3 Bitmap indexes (low-cardinality)</h3>
+<p>Column with few distinct values (gender, country, status). One bitmap per value, each bitmap has one bit per row. AND/OR between bitmaps is extremely cheap.</p>
+<p>Used in: Oracle, DuckDB (generated on-the-fly), warehouse columnar engines (implicit).</p>
+<h3 id="54-gin--gist--brin-indexes">5.4 GIN / GiST / BRIN indexes</h3>
+<ul>
+<li><strong>GIN</strong>: inverted index for JSONB, array, full-text (each distinct term → postings list of row IDs).</li>
+<li><strong>GiST</strong>: generalized search tree for geospatial, range types, ranges.</li>
+<li><strong>BRIN</strong> (Block Range INdex): min/max per block range. Tiny, for large time-ordered tables. O(1) space per block. ≈ what a zone map does.</li>
+</ul>
+<h3 id="55-zone-maps--min-max-statistics-columnar-warehouses">5.5 Zone maps / min-max statistics (columnar warehouses)</h3>
+<p>Every Parquet row group has min/max per column. Every Snowflake micro-partition, every Delta file, every Iceberg manifest entry — stores them.</p>
+<p>For a query <code>WHERE event_date = '2026-04-15'</code>, the engine reads min/max per row group and skips any row group whose <code>[min, max]</code> doesn't include <code>'2026-04-15'</code>.</p>
+<p><strong>Zone maps work best on clustered/sorted data</strong>. Random writes ruin them: every block has the full range of values → no pruning.</p>
+<p>Fix: cluster on the column (Snowflake <code>CLUSTER BY</code>, Iceberg sort, Delta Z-ORDER).</p>
+<h3 id="56-bloom-filters">5.6 Bloom filters</h3>
+<p>Probabilistic set membership. Configurable false-positive rate, zero false-negatives. Huge win for point-lookup queries on large tables.</p>
+<p>Formula: for <code>n</code> elements and desired FP rate <code>p</code>:</p>
+<ul>
+<li>Bits: <code>m = -n × ln(p) / (ln(2))^2</code></li>
+<li>Hashes: <code>k = (m/n) × ln(2)</code></li>
+</ul>
+<p>Example: 10M elements, 1% FP → m ≈ 96 Mbit ≈ 12 MB. Stored per Parquet row group or per Iceberg data file.</p>
+<p>Parquet supports Bloom filters since 1.12. Spark writes them with <code>parquet.bloom.filter.enabled=true</code>. Iceberg has them as a column hint:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> silver.fact_playback_session</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true"></a>  <span class="kw">SET</span> TBLPROPERTIES (<span class="st">&#39;write.parquet.bloom-filter-enabled.column.user_id&#39;</span> <span class="op">=</span> <span class="st">&#39;true&#39;</span>);</span></code></pre></div>
+<p>When the filter says "maybe" you read the block. When it says "definitely not" you skip. On highly selective queries with non-clustered keys, 10–100× speedup.</p>
+<h3 id="57-the-pruning-checklist">5.7 The pruning checklist</h3>
+<p>Your query is slow, but the data is partitioned/clustered. What pruned and what didn't?</p>
+<ol>
+<li><strong>Partition pruning</strong> (directory level): did the planner push the partition filter? Check <code>PartitionFilters</code> in the plan.</li>
+<li><strong>Zone map pruning</strong> (file/row-group level): min/max stats match the filter? Requires clustering.</li>
+<li><strong>Bloom filter pruning</strong>: configured for the column?</li>
+<li><strong>Column pruning</strong> (columns not selected): only the needed columns are read.</li>
+</ol>
+<p>Each one is a multiplicative win.</p>
+<hr />
+<p><a id="subqueries"></a></p>
+<h2 id="6-subquery-types-and-how-they-translate-to-joins">6. Subquery types and how they translate to joins</h2>
+<h3 id="61-scalar-subquery-one-row-one-column">6.1 Scalar subquery (one row, one column)</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, (<span class="kw">SELECT</span> <span class="fu">MAX</span>(event_ts) <span class="kw">FROM</span> sessions <span class="kw">WHERE</span> user_id <span class="op">=</span> u.user_id) <span class="kw">AS</span> last_seen</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u;</span></code></pre></div>
+<p>Naive execution: for each user, run the inner query. O(N × cost_inner).</p>
+<p>Optimizer rewrite (good engines): correlated subquery → left outer join with aggregate.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true"></a><span class="kw">SELECT</span> u.user_id, s.last_seen</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> (<span class="kw">SELECT</span> user_id, <span class="fu">MAX</span>(event_ts) <span class="kw">AS</span> last_seen <span class="kw">FROM</span> sessions <span class="kw">GROUP</span> <span class="kw">BY</span> user_id) s</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true"></a>  <span class="kw">ON</span> u.user_id <span class="op">=</span> s.user_id;</span></code></pre></div>
+<h3 id="62-in--exists-existence">6.2 IN / EXISTS (existence)</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> dim_user <span class="kw">WHERE</span> user_id <span class="kw">IN</span> (<span class="kw">SELECT</span> user_id <span class="kw">FROM</span> sessions <span class="kw">WHERE</span> event_date <span class="op">&gt;=</span> <span class="st">&#39;2026-04-01&#39;</span>);</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true"></a><span class="co">-- Rewritten to:</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true"></a><span class="kw">SELECT</span> u.<span class="op">*</span></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true"></a>SEMI <span class="kw">JOIN</span> (<span class="kw">SELECT</span> <span class="kw">DISTINCT</span> user_id <span class="kw">FROM</span> sessions <span class="kw">WHERE</span> event_date <span class="op">&gt;=</span> <span class="st">&#39;2026-04-01&#39;</span>) s</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true"></a>  <span class="kw">ON</span> u.user_id <span class="op">=</span> s.user_id;</span></code></pre></div>
+<p><code>SEMI JOIN</code> returns rows from the left side that <strong>have a match</strong> in the right, without duplicating rows or returning right columns.</p>
+<h3 id="63-not-in--not-exists-anti">6.3 NOT IN / NOT EXISTS (anti)</h3>
+<p><strong>Critical NULL pitfall</strong>:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> dim_user <span class="kw">WHERE</span> user_id <span class="kw">NOT</span> <span class="kw">IN</span> (<span class="kw">SELECT</span> user_id <span class="kw">FROM</span> blocked_users);</span></code></pre></div>
+<p>If <code>blocked_users.user_id</code> has ANY NULL, the whole clause returns empty set (3-valued logic: <code>x NOT IN (... NULL ...)</code> → unknown).</p>
+<p>Always prefer <code>NOT EXISTS</code>:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true"></a><span class="kw">SELECT</span> u.<span class="op">*</span> <span class="kw">FROM</span> dim_user u</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true"></a><span class="kw">WHERE</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> (<span class="kw">SELECT</span> <span class="dv">1</span> <span class="kw">FROM</span> blocked_users b <span class="kw">WHERE</span> b.user_id <span class="op">=</span> u.user_id);</span></code></pre></div>
+<h3 id="64-lateral--cross-apply-correlated-row-returning">6.4 Lateral / CROSS APPLY (correlated row-returning)</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true"></a><span class="kw">SELECT</span> u.user_id, top3.title_id</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u,</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true"></a>LATERAL (</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true"></a>  <span class="kw">SELECT</span> title_id</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true"></a>  <span class="kw">FROM</span> fact_plays p</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true"></a>  <span class="kw">WHERE</span> p.user_id <span class="op">=</span> u.user_id</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true"></a>  <span class="kw">ORDER</span> <span class="kw">BY</span> play_count <span class="kw">DESC</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true"></a>  <span class="kw">LIMIT</span> <span class="dv">3</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true"></a>) top3;</span></code></pre></div>
+<p>Per-row subquery that returns multiple rows. Executes per outer row (sometimes optimized to a window function). Keep cardinality in check.</p>
+<hr />
+<p><a id="windows"></a></p>
+<h2 id="7-window-functions-frames-partitions-and-performance">7. Window functions: frames, partitions, and performance</h2>
+<p>Anatomy:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true"></a><span class="kw">function</span>(args) <span class="kw">OVER</span> (</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true"></a>  [<span class="kw">PARTITION</span> <span class="kw">BY</span> partition_cols]</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true"></a>  [<span class="kw">ORDER</span> <span class="kw">BY</span> order_cols]</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true"></a>  [<span class="kw">ROWS</span> | <span class="kw">RANGE</span> | <span class="kw">GROUPS</span> frame_spec]</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true"></a>)</span></code></pre></div>
+<h3 id="71-frame-types">7.1 Frame types</h3>
+<ul>
+<li><strong>ROWS</strong>: physical rows. <code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> = exactly 3 rows.</li>
+<li><strong>RANGE</strong>: logical range over ordered values. <code>RANGE BETWEEN INTERVAL '7 days' PRECEDING AND CURRENT ROW</code> — uses the ORDER BY value to scope.</li>
+<li><strong>GROUPS</strong>: peer groups (rows with equal ORDER BY values). <code>GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW</code> = this group + previous group.</li>
+</ul>
+<h3 id="72-function-families">7.2 Function families</h3>
+<ul>
+<li><strong>Ranking</strong>: ROW_NUMBER, RANK, DENSE_RANK, NTILE, PERCENT_RANK, CUME_DIST.</li>
+<li><strong>Analytic</strong>: LAG, LEAD, FIRST_VALUE, LAST_VALUE, NTH_VALUE.</li>
+<li><strong>Aggregates over windows</strong>: SUM, AVG, MIN, MAX, COUNT, and more.</li>
+</ul>
+<h3 id="73-the-default-frame-trap">7.3 The default frame trap</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true"></a><span class="co">-- Default frame with ORDER BY is:</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true"></a><span class="co">-- RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, event_ts, <span class="fu">SUM</span>(amount) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts) <span class="kw">AS</span> running_total</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true"></a><span class="kw">FROM</span> fact_charges;</span></code></pre></div>
+<p>Without ORDER BY: default frame is <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code>. Different answer.</p>
+<h3 id="74-window-performance-model">7.4 Window performance model</h3>
+<p>Per distinct <code>PARTITION BY</code> value, the engine:</p>
+<ol>
+<li>Shuffles rows by partition key.</li>
+<li>Sorts within partition by ORDER BY.</li>
+<li>Walks the partition, applying the frame.</li>
+</ol>
+<p>Cost = shuffle + sort + O(partition_size × frame_size).</p>
+<p>Optimization tips:</p>
+<ul>
+<li><strong>Always <code>PARTITION BY</code></strong> — otherwise one partition = entire dataset = one task.</li>
+<li><strong>Match the partitioning to existing clustering</strong> to avoid shuffle.</li>
+<li><strong><code>ROW_NUMBER() &lt;= k</code> filter</strong>: engines can short-circuit to top-k per partition (avoids a full sort). In Spark this is a specific rule.</li>
+</ul>
+<h3 id="75-running-totals-pattern">7.5 Running totals pattern</h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true"></a>  user_id, event_ts, amount,</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true"></a>  <span class="fu">SUM</span>(amount) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true"></a>                    <span class="kw">ROWS</span> <span class="kw">BETWEEN</span> <span class="kw">UNBOUNDED</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT</span> <span class="kw">ROW</span>) <span class="kw">AS</span> running_total,</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true"></a>  <span class="fu">AVG</span>(amount) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true"></a>                    <span class="kw">ROWS</span> <span class="kw">BETWEEN</span> <span class="dv">6</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">CURRENT</span> <span class="kw">ROW</span>) <span class="kw">AS</span> trailing_7_avg</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true"></a><span class="kw">FROM</span> fact_charges;</span></code></pre></div>
+<h3 id="76-firstlast-value-pattern">7.6 First/last value pattern</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true"></a><span class="kw">SELECT</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true"></a>  user_id, session_id, event_ts,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true"></a>  <span class="fu">FIRST_VALUE</span>(event_type) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> session_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true"></a>                                <span class="kw">ROWS</span> <span class="kw">BETWEEN</span> <span class="kw">UNBOUNDED</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">UNBOUNDED</span> <span class="kw">FOLLOWING</span>) <span class="kw">AS</span> first_event,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true"></a>  <span class="fu">LAST_VALUE</span>(event_type) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> session_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true"></a>                               <span class="kw">ROWS</span> <span class="kw">BETWEEN</span> <span class="kw">UNBOUNDED</span> <span class="kw">PRECEDING</span> <span class="kw">AND</span> <span class="kw">UNBOUNDED</span> <span class="kw">FOLLOWING</span>) <span class="kw">AS</span> last_event</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true"></a><span class="kw">FROM</span> session_events;</span></code></pre></div>
+<p>Explicit frame <code>ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING</code> is critical — the default for LAST_VALUE is "current row" and will return the current row's value, not the last.</p>
+<hr />
+<p><a id="gaps"></a></p>
+<h2 id="8-gaps-and-islands--the-four-canonical-variants">8. Gaps and islands — the four canonical variants</h2>
+<p>A classic family of problems. You have a sequence; find stretches where a property is true or identify "runs" of consecutive values.</p>
+<h3 id="81-variant-1-consecutive-identical-values">8.1 Variant 1: consecutive identical values</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="co">-- Find streaks of same status per user</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true"></a><span class="kw">WITH</span> marked <span class="kw">AS</span> (</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true"></a>  <span class="kw">SELECT</span> user_id, event_ts, status,</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true"></a>    <span class="fu">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts) <span class="kw">AS</span> rn_all,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true"></a>    <span class="fu">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id, status <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts) <span class="kw">AS</span> rn_status</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true"></a>  <span class="kw">FROM</span> fact_events</span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true"></a>)</span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, status,</span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true"></a>  <span class="fu">MIN</span>(event_ts) <span class="kw">AS</span> streak_start,</span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true"></a>  <span class="fu">MAX</span>(event_ts) <span class="kw">AS</span> streak_end,</span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true"></a>  <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> streak_len</span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true"></a><span class="kw">FROM</span> marked</span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> user_id, status, (rn_all <span class="op">-</span> rn_status);</span></code></pre></div>
+<p><strong>Why it works</strong>: within a streak of same status, <code>rn_all - rn_status</code> is constant. It changes when status changes.</p>
+<h3 id="82-variant-2-consecutive-integers-gap-detection">8.2 Variant 2: consecutive integers (gap detection)</h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true"></a><span class="co">-- Find missing invoice numbers</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true"></a><span class="kw">SELECT</span> invoice_num <span class="op">+</span> <span class="dv">1</span> <span class="kw">AS</span> gap_start,</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true"></a>       next_num <span class="op">-</span> <span class="dv">1</span>    <span class="kw">AS</span> gap_end</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true"></a><span class="kw">FROM</span> (</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true"></a>  <span class="kw">SELECT</span> invoice_num,</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true"></a>         <span class="fu">LEAD</span>(invoice_num) <span class="kw">OVER</span> (<span class="kw">ORDER</span> <span class="kw">BY</span> invoice_num) <span class="kw">AS</span> next_num</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true"></a>  <span class="kw">FROM</span> invoices</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true"></a>) t</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true"></a><span class="kw">WHERE</span> next_num <span class="op">-</span> invoice_num <span class="op">&gt;</span> <span class="dv">1</span>;</span></code></pre></div>
+<h3 id="83-variant-3-date-gaps-missing-daily-data">8.3 Variant 3: date gaps (missing daily data)</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="kw">WITH</span> calendar <span class="kw">AS</span> (</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a>  <span class="kw">SELECT</span> generate_series(<span class="dt">DATE</span> <span class="st">&#39;2026-01-01&#39;</span>, <span class="dt">DATE</span> <span class="st">&#39;2026-04-15&#39;</span>, <span class="dt">INTERVAL</span> <span class="st">&#39;1 day&#39;</span>):<span class="ch">:date</span> <span class="kw">AS</span> d</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true"></a>)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true"></a><span class="kw">SELECT</span> d <span class="kw">FROM</span> calendar</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> daily_metrics m <span class="kw">ON</span> m.metric_date <span class="op">=</span> calendar.d</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true"></a><span class="kw">WHERE</span> m.metric_date <span class="kw">IS</span> <span class="kw">NULL</span>;</span></code></pre></div>
+<h3 id="84-variant-4-consecutive-timestamp-islands-session-gaps">8.4 Variant 4: consecutive timestamp "islands" (session gaps)</h3>
+<p>See <a href="#sessionize">Sessionization</a> below — this is the streaming sessionization pattern in SQL.</p>
+<hr />
+<p><a id="sessionize"></a></p>
+<h2 id="9-sessionization-without-windows-flink-style-in-sql">9. Sessionization without windows (Flink-style in SQL)</h2>
+<p><strong>Definition</strong>: a session is a run of events from the same user with no gap larger than X minutes.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true"></a><span class="kw">WITH</span> <span class="kw">events</span> <span class="kw">AS</span> (</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true"></a>  <span class="kw">SELECT</span> user_id, event_ts</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true"></a>  <span class="kw">FROM</span> fact_events</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true"></a>  <span class="kw">WHERE</span> event_date <span class="kw">BETWEEN</span> <span class="st">&#39;2026-04-15&#39;</span> <span class="kw">AND</span> <span class="st">&#39;2026-04-15&#39;</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true"></a>),</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true"></a>with_prev <span class="kw">AS</span> (</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true"></a>  <span class="kw">SELECT</span> user_id, event_ts,</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true"></a>    <span class="fu">LAG</span>(event_ts) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts) <span class="kw">AS</span> prev_ts</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true"></a>  <span class="kw">FROM</span> <span class="kw">events</span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true"></a>),</span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true"></a>flagged <span class="kw">AS</span> (</span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true"></a>  <span class="kw">SELECT</span> user_id, event_ts,</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true"></a>    <span class="cf">CASE</span> <span class="cf">WHEN</span> prev_ts <span class="kw">IS</span> <span class="kw">NULL</span> <span class="kw">OR</span> event_ts <span class="op">-</span> prev_ts <span class="op">&gt;</span> <span class="dt">INTERVAL</span> <span class="st">&#39;30 minutes&#39;</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true"></a>         <span class="cf">THEN</span> <span class="dv">1</span> <span class="cf">ELSE</span> <span class="dv">0</span> <span class="cf">END</span> <span class="kw">AS</span> session_start</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true"></a>  <span class="kw">FROM</span> with_prev</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true"></a>),</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true"></a>numbered <span class="kw">AS</span> (</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true"></a>  <span class="kw">SELECT</span> user_id, event_ts,</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true"></a>    <span class="fu">SUM</span>(session_start) <span class="kw">OVER</span> (<span class="kw">PARTITION</span> <span class="kw">BY</span> user_id <span class="kw">ORDER</span> <span class="kw">BY</span> event_ts) <span class="kw">AS</span> session_num</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true"></a>  <span class="kw">FROM</span> flagged</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true"></a>)</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true"></a><span class="kw">SELECT</span> user_id, session_num,</span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true"></a>  <span class="fu">MIN</span>(event_ts) <span class="kw">AS</span> session_start_ts,</span>
+<span id="cb21-24"><a href="#cb21-24" aria-hidden="true"></a>  <span class="fu">MAX</span>(event_ts) <span class="kw">AS</span> session_end_ts,</span>
+<span id="cb21-25"><a href="#cb21-25" aria-hidden="true"></a>  <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> event_count,</span>
+<span id="cb21-26"><a href="#cb21-26" aria-hidden="true"></a>  <span class="fu">EXTRACT</span>(EPOCH <span class="kw">FROM</span> <span class="fu">MAX</span>(event_ts) <span class="op">-</span> <span class="fu">MIN</span>(event_ts)) <span class="kw">AS</span> duration_seconds</span>
+<span id="cb21-27"><a href="#cb21-27" aria-hidden="true"></a><span class="kw">FROM</span> numbered</span>
+<span id="cb21-28"><a href="#cb21-28" aria-hidden="true"></a><span class="kw">GROUP</span> <span class="kw">BY</span> user_id, session_num;</span></code></pre></div>
+<p><strong>Why it works</strong>:</p>
+<ol>
+<li><code>LAG</code> finds prior event's timestamp within each user's timeline.</li>
+<li>Flag a new session whenever gap &gt; 30m.</li>
+<li><code>SUM(session_start)</code> cumulatively counts session starts, giving each event its session number.</li>
+<li>GROUP BY (user_id, session_num).</li>
+</ol>
+<p>This is the exact pattern Flink's session window implements in its state machine — only here it's a batch SQL translation.</p>
+<hr />
+<p><a id="asof"></a></p>
+<h2 id="10-as-of-joins--point-in-time-joins">10. As-of joins / point-in-time joins</h2>
+<blockquote>
+<p><em>"What was user X's subscription tier at the moment they made this play?"</em></p>
+</blockquote>
+<p>The classic feature-store / temporal question. The dimension has history (SCD2). The fact has timestamps. You want the dimension row valid at each fact timestamp.</p>
+<h3 id="101-approach-1-between-join-supported-natively-in-many-engines">10.1 Approach 1: BETWEEN join (supported natively in many engines)</h3>
+<div class="sourceCode" id="cb22"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true"></a><span class="kw">SELECT</span> p.<span class="op">*</span>, d.plan_name, d.plan_price</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true"></a><span class="kw">FROM</span> fact_playback p</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true"></a><span class="kw">JOIN</span> dim_subscription_history d</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true"></a>  <span class="kw">ON</span> p.user_id <span class="op">=</span> d.user_id</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true"></a> <span class="kw">AND</span> p.event_ts <span class="op">&gt;=</span> d.valid_from</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true"></a> <span class="kw">AND</span> p.event_ts <span class="op">&lt;</span>  d.valid_to;</span></code></pre></div>
+<p>Works, but the BETWEEN join is effectively a range join — default hash/equi joins don't handle it. Spark uses BNLJ; Postgres uses merge join on <code>(user_id, valid_from)</code> if you have the right index.</p>
+<h3 id="102-approach-2-lateral-correlated-subquery">10.2 Approach 2: LATERAL correlated subquery</h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true"></a><span class="kw">SELECT</span> p.<span class="op">*</span>, d.plan_name</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true"></a><span class="kw">FROM</span> fact_playback p,</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true"></a>LATERAL (</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true"></a>  <span class="kw">SELECT</span> plan_name</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true"></a>  <span class="kw">FROM</span> dim_subscription_history d</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true"></a>  <span class="kw">WHERE</span> d.user_id <span class="op">=</span> p.user_id</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true"></a>    <span class="kw">AND</span> d.valid_from <span class="op">&lt;=</span> p.event_ts</span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true"></a>  <span class="kw">ORDER</span> <span class="kw">BY</span> d.valid_from <span class="kw">DESC</span></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true"></a>  <span class="kw">LIMIT</span> <span class="dv">1</span></span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true"></a>) d;</span></code></pre></div>
+<p>Per fact row: lookup the most recent dim row that started before the fact. Works great with a <code>(user_id, valid_from)</code> index.</p>
+<h3 id="103-approach-3-spark-native-as-of-joins-pyspark">10.3 Approach 3: Spark-native <code>AS OF</code> joins (PySpark)</h3>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true"></a><span class="co"># Using built-in asof via pandas UDF or explicit:</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true"></a><span class="im">from</span> pyspark.sql.functions <span class="im">import</span> broadcast</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true"></a><span class="co"># Sort both sides, zip with forward-fill logic</span></span></code></pre></div>
+<p>Native asof support is limited in Spark SQL; most teams express the BETWEEN join and rely on AQE + good clustering. Alternative: kdb+ / ClickHouse / DuckDB have real ASOF JOIN syntax.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true"></a><span class="co">-- DuckDB / ClickHouse ASOF JOIN</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true"></a><span class="kw">SELECT</span> p.<span class="op">*</span>, d.plan_name</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true"></a><span class="kw">FROM</span> fact_playback p</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true"></a>ASOF <span class="kw">LEFT</span> <span class="kw">JOIN</span> dim_subscription_history d</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true"></a>  <span class="kw">ON</span> p.user_id <span class="op">=</span> d.user_id <span class="kw">AND</span> p.event_ts <span class="op">&gt;=</span> d.valid_from;</span></code></pre></div>
+<h3 id="104-approach-4-expand-and-join-batch-feature-stores">10.4 Approach 4: "expand-and-join" (batch feature stores)</h3>
+<p>Produce a denormalized table with (user_id, valid_from, valid_to, plan_name). Then INNER JOIN on user_id and BETWEEN. Works. Costs storage. Used at scale by Uber's Michelangelo, others.</p>
+<hr />
+<p><a id="sketches"></a></p>
+<h2 id="11-sketches-hyperloglog-theta-bloom-t-digest">11. Sketches: HyperLogLog, Theta, Bloom, t-digest</h2>
+<p>When exact answers cost too much, sketches trade bounded error for massive cost reduction.</p>
+<h3 id="111-hyperloglog-hll--approximate-distinct-count">11.1 HyperLogLog (HLL) — approximate distinct count</h3>
+<p>Core idea: hash each element to a bit string; track the <strong>maximum number of leading zeros</strong> observed per bucket; rare patterns imply large cardinality.</p>
+<p>Error: ~1.04 / √m where m = number of buckets. Typical m = 16384 (2^14) → 0.8% error.</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true"></a><span class="co">-- Snowflake</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true"></a><span class="kw">SELECT</span> HLL(user_id) <span class="kw">FROM</span> fact_plays;                        <span class="co">-- approx distinct</span></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true"></a><span class="kw">SELECT</span> HLL_ACCUMULATE(user_id) <span class="kw">FROM</span> fact_plays;             <span class="co">-- serializable state</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true"></a><span class="kw">SELECT</span> HLL_COMBINE(state) <span class="kw">FROM</span> (<span class="kw">SELECT</span> HLL_ACCUMULATE(user_id) <span class="kw">AS</span> state <span class="kw">FROM</span> <span class="op">..</span>.);</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true"></a><span class="kw">SELECT</span> HLL_ESTIMATE(HLL_COMBINE(state)) <span class="kw">FROM</span> <span class="op">..</span>.;           <span class="co">-- final cardinality</span></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true"></a></span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true"></a><span class="co">-- BigQuery</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true"></a><span class="kw">SELECT</span> APPROX_COUNT_DISTINCT(user_id) <span class="kw">FROM</span> fact_plays;</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true"></a></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true"></a><span class="co">-- Presto/Trino</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true"></a><span class="kw">SELECT</span> approx_distinct(user_id) <span class="kw">FROM</span> fact_plays;</span></code></pre></div>
+<h3 id="112-theta-sketch--distinct-with-set-operations">11.2 Theta sketch — distinct with set operations</h3>
+<p>HLL estimates |A|. <strong>Theta</strong> estimates |A|, |A ∪ B|, |A ∩ B|, |A \ B|. Critical for "users who watched X AND Y" without recomputing from raw data.</p>
+<p>Supported in Snowflake (<code>APPROX_COUNT_DISTINCT</code> uses HLL; Theta available via Java UDF or Datasketches).</p>
+<h3 id="113-bloom-filters--set-membership">11.3 Bloom filters — set membership</h3>
+<p>Covered under indexes. Also stored as materialized columns for fast "is this key present" tests.</p>
+<h3 id="114-t-digest--approximate-quantiles">11.4 t-digest — approximate quantiles</h3>
+<p>For latency percentiles over streams. Compact (~5KB for 1% error at p99). Mergeable.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true"></a><span class="co">-- Snowflake</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true"></a><span class="kw">SELECT</span> APPROX_PERCENTILE(latency_ms, <span class="fl">0.99</span>) <span class="kw">FROM</span> fact_requests;</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true"></a><span class="co">-- Trino</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true"></a><span class="kw">SELECT</span> approx_percentile(latency_ms, <span class="fl">0.99</span>) <span class="kw">FROM</span> fact_requests;</span></code></pre></div>
+<h3 id="115-when-to-reach-for-sketches">11.5 When to reach for sketches</h3>
+<ul>
+<li>Daily/hourly metrics where re-scanning billions of rows is wasteful.</li>
+<li>Feature store cardinality features.</li>
+<li>Cross-partition unions (streaming + batch).</li>
+</ul>
+<p>Rule: cost reduction is typically 100× for 1% error.</p>
+<hr />
+<p><a id="antipatterns"></a></p>
+<h2 id="12-anti-patterns-that-kill-query-plans">12. Anti-patterns that kill query plans</h2>
+<h3 id="121-function-on-the-indexed-column">12.1 Function on the indexed column</h3>
+<div class="sourceCode" id="cb28"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true"></a><span class="co">-- Bad: index on event_ts not used</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> fact_plays <span class="kw">WHERE</span> <span class="dt">DATE</span>(event_ts) <span class="op">=</span> <span class="st">&#39;2026-04-15&#39;</span>;</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true"></a><span class="co">-- Good:</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> fact_plays</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true"></a><span class="kw">WHERE</span> event_ts <span class="op">&gt;=</span> <span class="st">&#39;2026-04-15&#39;</span> <span class="kw">AND</span> event_ts <span class="op">&lt;</span> <span class="st">&#39;2026-04-16&#39;</span>;</span></code></pre></div>
+<h3 id="122-implicit-casts">12.2 Implicit casts</h3>
+<div class="sourceCode" id="cb29"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true"></a><span class="co">-- Bad: user_id is BIGINT, &#39;1234&#39; is VARCHAR → cast every row</span></span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> fact_plays <span class="kw">WHERE</span> user_id <span class="op">=</span> <span class="st">&#39;1234&#39;</span>;</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true"></a><span class="co">-- Good:</span></span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> fact_plays <span class="kw">WHERE</span> user_id <span class="op">=</span> <span class="dv">1234</span>;</span></code></pre></div>
+<h3 id="123-select-">12.3 SELECT *</h3>
+<p>In columnar warehouses, reads every column → often 10× the I/O. Name columns.</p>
+<h3 id="124-distinct-as-a-bug-fix">12.4 DISTINCT as a bug fix</h3>
+<p>If your query needs DISTINCT, you usually have a join multiplication bug. Find the join producing duplicates and fix the join condition.</p>
+<h3 id="125-or-across-tables-in-a-join">12.5 OR across tables in a JOIN</h3>
+<div class="sourceCode" id="cb30"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true"></a><span class="co">-- Bad: optimizer usually can&#39;t split this</span></span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> a <span class="kw">JOIN</span> b <span class="kw">ON</span> a.x <span class="op">=</span> b.x <span class="kw">OR</span> a.y <span class="op">=</span> b.y;</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true"></a><span class="co">-- Good:</span></span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> a <span class="kw">JOIN</span> b <span class="kw">ON</span> a.x <span class="op">=</span> b.x</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true"></a><span class="kw">UNION</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true"></a><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> a <span class="kw">JOIN</span> b <span class="kw">ON</span> a.y <span class="op">=</span> b.y <span class="kw">AND</span> a.x <span class="op">&lt;&gt;</span> b.x;</span></code></pre></div>
+<h3 id="126-not-in-with-nullable-subquery">12.6 NOT IN with nullable subquery</h3>
+<p>Covered above. Use NOT EXISTS.</p>
+<h3 id="127-massive-ctes-that-dont-inline">12.7 Massive CTEs that don't inline</h3>
+<p>Postgres ≤ 11: CTEs were optimization fences (always materialized). Use subqueries or <code>WITH ... AS (NOT MATERIALIZED)</code> on PG 12+.</p>
+<h3 id="128-correlated-subquery-in-select">12.8 Correlated subquery in SELECT</h3>
+<div class="sourceCode" id="cb31"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true"></a><span class="co">-- Bad: N × M</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true"></a><span class="kw">SELECT</span> user_id,</span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true"></a>  (<span class="kw">SELECT</span> <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">FROM</span> sessions s <span class="kw">WHERE</span> s.user_id <span class="op">=</span> u.user_id) <span class="kw">AS</span> cnt</span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u;</span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true"></a></span>
+<span id="cb31-6"><a href="#cb31-6" aria-hidden="true"></a><span class="co">-- Good: one GROUP BY</span></span>
+<span id="cb31-7"><a href="#cb31-7" aria-hidden="true"></a><span class="kw">SELECT</span> u.user_id, <span class="fu">COALESCE</span>(s.cnt, <span class="dv">0</span>) <span class="kw">AS</span> cnt</span>
+<span id="cb31-8"><a href="#cb31-8" aria-hidden="true"></a><span class="kw">FROM</span> dim_user u</span>
+<span id="cb31-9"><a href="#cb31-9" aria-hidden="true"></a><span class="kw">LEFT</span> <span class="kw">JOIN</span> (<span class="kw">SELECT</span> user_id, <span class="fu">COUNT</span>(<span class="op">*</span>) <span class="kw">AS</span> cnt <span class="kw">FROM</span> sessions <span class="kw">GROUP</span> <span class="kw">BY</span> user_id) s</span>
+<span id="cb31-10"><a href="#cb31-10" aria-hidden="true"></a>  <span class="kw">USING</span> (user_id);</span></code></pre></div>
+<hr />
+<p><a id="tuning"></a></p>
+<h2 id="13-query-tuning-workflow">13. Query tuning workflow</h2>
+<ol>
+<li><strong>Look at the plan</strong>. <code>EXPLAIN ANALYZE</code> (Postgres) or the query profile (Snowflake/BigQuery/Spark UI).</li>
+<li><strong>Find the biggest cost node</strong>. Usually one scan or one join dominates. 80/20 rule applies.</li>
+<li><strong>Is it the scan?</strong>
+<ul>
+<li>Check partition pruning, zone maps, bloom filter usage.</li>
+<li>Can you push a filter further? Check for UDFs and implicit casts.</li>
+<li>Are the right columns read? Remove SELECT *.</li>
+</ul></li>
+<li><strong>Is it a join?</strong>
+<ul>
+<li>What strategy? Is it what you'd pick?</li>
+<li>Estimated vs actual rows — if wildly wrong, stats are stale. Run ANALYZE.</li>
+<li>Is one side broadcast-sized? Hint it.</li>
+<li>Is it skewed? Salt, two-stage aggregate, or isolate heavy hitters.</li>
+</ul></li>
+<li><strong>Is it a sort / window?</strong>
+<ul>
+<li>Can you partition differently to avoid one?</li>
+<li>Is there an unnecessary <code>ORDER BY</code> in the final stage?</li>
+</ul></li>
+<li><strong>Is it a shuffle?</strong>
+<ul>
+<li>Can you pre-partition (bucket/cluster)?</li>
+<li>Can it be eliminated by broadcasting a side?</li>
+</ul></li>
+<li><strong>Is it I/O?</strong>
+<ul>
+<li>Compression codec: Snappy for speed, ZSTD for ratio.</li>
+<li>File sizes: consolidate small files; split massive ones.</li>
+</ul></li>
+</ol>
+<h3 id="131-when-in-doubt-measure-checklist">13.1 "When in doubt, measure" checklist</h3>
+<ul>
+<li><code>SELECT COUNT(*)</code> on base tables to confirm size.</li>
+<li><code>SELECT COUNT(*), COUNT(DISTINCT key)</code> to confirm cardinality / skew.</li>
+<li><code>SELECT key, COUNT(*) FROM t GROUP BY 1 ORDER BY 2 DESC LIMIT 10</code> to find hot keys.</li>
+<li><code>SHOW TBLPROPERTIES</code> / <code>SHOW CREATE TABLE</code> — partitioning, clustering, properties.</li>
+</ul>
+<h3 id="132-a-3-minute-triage">13.2 A 3-minute triage</h3>
+<p>For "this query is slow" in an interview:</p>
+<pre><code>1. How big are the inputs?               (SELECT COUNT(*)...)
+2. Is it scan-bound or compute-bound?    (look at % time in scan vs join)
+3. Did partitions prune?                 (check plan)
+4. Is one join the culprit?              (find the big one)
+5. Is there skew?                        (check task time distribution)
+6. What&#39;s the smallest change that fixes the biggest cost?
+</code></pre>
+<p>That sequence solves 80% of production SQL problems.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="04-spark-internals.html">← Part 04 · Spark Internals</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="06-python-de.html">Part 06 · Python for DE →</a></nav>
+
+<footer class="page-footer">
+  <div>Data Engineering Deep Dive · Part 05</div>
+  <div><a href="00-readme.html">Index</a> · <a href="../md/05-sql-deep-dive.md">View as Markdown</a></div>
+</footer>
+
+</div>
+</body>
+</html>
