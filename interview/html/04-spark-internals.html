@@ -1226,6 +1226,105 @@ AdaptiveSparkPlan (isFinalPlan=true)
 </ol>
 <p>That framing survives every interview question and every 3am page.</p>
 
+
+<hr>
+
+<h2 id="17-tungsten-and-the-off-heap-memory-model">17. Tungsten and the Off-Heap Memory Model</h2>
+
+<p>Before Tungsten (Spark 1.4, matured in 1.6+), Spark ran as a "normal" JVM application: Java objects everywhere, GC pauses ruled tail latency. Tungsten reshapes Spark into something closer to a native database engine — sun.misc.Unsafe memory, whole-stage code generation, cache-conscious binary layouts. Senior candidates know why this matters.</p>
+
+<h3>The three pillars</h3>
+
+<ol>
+<li><strong>Memory management outside the heap.</strong> UnsafeRow format: binary, pointer-arithmetic, no Java object headers. Eliminates object-per-row overhead; a 10-column row in normal Java was ~200 bytes, UnsafeRow is ~60.</li>
+<li><strong>Cache-aware computation.</strong> Operators produce data in patterns that fit the CPU cache line (64 bytes). Sort-merge joins, aggregations and shuffles are written to minimize cache misses.</li>
+<li><strong>Whole-stage code generation.</strong> The Catalyst physical plan compiles multiple operators into a single tight Java method at runtime. Virtual dispatch disappears; the JIT can inline everything. 10x–100x speedups on compute-bound stages.</li>
+</ol>
+
+<h3>Why interviews probe this</h3>
+
+<p>When a candidate says "Spark is slow on a compute-bound job," the interviewer wants to hear: <em>is the whole-stage codegen fallback kicking in?</em> Some operators (complex UDFs, certain UDAFs) disable codegen for their whole stage. You can see this in <code>df.explain(true)</code> — look for <code>*</code> prefixes on operators. Missing stars = missing codegen = 10x slower for no good reason.</p>
+
+<h3>The off-heap memory debugging checklist</h3>
+
+<ul>
+<li><code>spark.memory.offHeap.enabled=true</code> and <code>spark.memory.offHeap.size</code> — required for Tungsten to run truly off-heap.</li>
+<li>OOMs that say "Container killed by YARN for exceeding memory limits" — Tungsten counts, but the OS container is still bounded. Raise <code>spark.executor.memoryOverhead</code>.</li>
+<li>Sort-based aggregation spills to disk when the hash table exceeds the executor's <em>execution memory pool</em>. Spills tank performance. Either raise memory or reduce shuffle partitions / partition key cardinality.</li>
+</ul>
+
+<h2 id="18-dynamic-allocation-and-elastic-clusters">18. Dynamic Allocation and Elastic Clusters</h2>
+
+<p>Dynamic allocation adds and removes executors during a job's lifetime based on pending-task pressure. Done right, it's the cheapest compute model Spark offers. Done wrong, it's a source of intermittent timeouts and surprise costs.</p>
+
+<h3>The mechanics</h3>
+
+<p>Spark tracks pending tasks per stage. When tasks wait in the queue longer than <code>spark.dynamicAllocation.schedulerBacklogTimeout</code>, new executors are requested. When executors sit idle for <code>spark.dynamicAllocation.executorIdleTimeout</code>, they're released. The cluster manager (YARN, Kubernetes, Databricks) actually provisions or releases the underlying nodes.</p>
+
+<h3>The shuffle-data-loss trap</h3>
+
+<p>Default behavior: when an executor is released, its shuffle output on local disk is also lost. If a later stage needs that shuffle data, it must recompute the upstream stage. For long-running jobs with expensive shuffles, this can double wall-clock time. Fix: enable the external shuffle service (on YARN) or persistent volumes (on Kubernetes). Without one of these, dynamic allocation is not safe to enable.</p>
+
+<h3>When it's the wrong choice</h3>
+
+<ul>
+<li>Jobs under ~2 minutes total. Executor startup dominates; static allocation is faster.</li>
+<li>Streaming jobs. Structured Streaming supports dynamic allocation poorly — back-pressure oscillations trigger thrashing.</li>
+<li>Cost-controlled environments with hard per-job budgets. Dynamic scaling makes cost non-deterministic.</li>
+</ul>
+
+<h2 id="19-photon-and-native-accelerators">19. Photon and Native Accelerators</h2>
+
+<p>Photon (Databricks) and similar native engines (Velox under Presto/Trino, RAPIDS for GPU) replace Spark's Java execution with C++ or CUDA kernels. For the right workloads, 2–3x faster at similar hardware cost; for the wrong ones, neutral or slightly worse.</p>
+
+<h3>What Photon accelerates well</h3>
+
+<ul>
+<li>Columnar scans with predicate pushdown. Native code is 3–5x faster than whole-stage-codegen Java.</li>
+<li>Hash aggregations and hash joins on primitive types. 2–3x.</li>
+<li>Certain window functions with simple frame clauses.</li>
+</ul>
+
+<h3>What it doesn't help</h3>
+
+<ul>
+<li>Python UDFs. Can't cross into Photon; falls back to Java path with full data serialization penalty.</li>
+<li>Complex type operations (Map, Struct nested access) that aren't yet supported natively fall back.</li>
+<li>Shuffle-bound jobs. Photon's gains are per-operator; if 80% of wall-clock is shuffle, Photon moves the needle 5%.</li>
+</ul>
+
+<h3>The interview question</h3>
+
+<p>"You enabled Photon and cost went down 40% but also one of your dashboards broke. Why?" Possible answer: Photon returns slightly different results for edge cases (e.g., certain cast overflow behaviors, NULL semantics in specific functions). You need regression tests against both engines before flipping the switch on production.</p>
+
+<h2 id="20-pyspark-vs-scala-performance">20. PySpark vs Scala — Where the Performance Actually Goes</h2>
+
+<p>The lore says "Scala is faster." The truth is more nuanced: PySpark's DataFrame API runs identical JVM code as Scala — the Python client is just a thin wrapper issuing Catalyst plans. Where Python actually loses is in three specific places.</p>
+
+<h3>Where PySpark equals Scala</h3>
+
+<ul>
+<li>Any pure DataFrame operation: joins, filters, aggregations, window functions. The entire execution happens in JVM; Python is not on the hot path.</li>
+<li>SQL strings. <code>spark.sql("SELECT …")</code> from PySpark is indistinguishable from the same call from Scala.</li>
+</ul>
+
+<h3>Where Python is slower — and by how much</h3>
+
+<ol>
+<li><strong>Python UDFs (non-vectorized).</strong> Each row is serialized to Python, function called, result deserialized. 10–30x slower than an equivalent expression in native Spark SQL. Avoid when possible; replace with built-in functions or SQL expressions.</li>
+<li><strong>Pandas UDFs (vectorized).</strong> Batches of rows ship to Python as Arrow tables; function processes them in one call. 3–10x faster than row-UDFs, within 2x of native Scala. The pragmatic default when you must use Python logic.</li>
+<li><strong>Driver-side orchestration with many collects.</strong> Python's overhead for orchestrating Spark actions is ~5–10ms per call. A loop of 1,000 small <code>collect()</code>s will waste 5–10 seconds in Python glue. Fix: build the query, execute once.</li>
+</ol>
+
+<h3>Decision guidance</h3>
+
+<ul>
+<li>DataFrame + SQL only: pick whichever language your team writes better.</li>
+<li>Needs Python libraries (ML, NLP, scipy): PySpark with Pandas UDFs.</li>
+<li>Mission-critical tight loops with custom logic on &gt;1 TB: Scala wins modestly.</li>
+<li>Team owns both: standardize on PySpark unless there's a specific reason. Hiring is easier.</li>
+</ul>
+
 </main>
 
 <nav class="breadcrumb"><a href="03-streaming-processing.html">← Part 03 · Streaming Processing</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="05-sql-deep-dive.html">Part 05 · SQL Deep Dive →</a></nav>

@@ -1023,6 +1023,84 @@ Common SCD1 cases: name spelling fixes, internal IDs that don't change semantica
 </ol>
 <p>That's how senior engineers think on their feet. Practice it out loud. Good luck.</p>
 
+
+<hr>
+
+<h2 id="observability-and-data-quality">Observability & Data Quality Scenarios</h2>
+
+<h3>Design a data-quality monitoring system</h3>
+
+<p>Prompt: our data team has 400 tables across bronze/silver/gold. Design a monitoring system that catches data quality issues before stakeholders do.</p>
+
+<p>Strong answer structure:</p>
+<ul>
+<li><strong>Four dimensions per table:</strong> freshness (last successful write), volume (rows in last load vs expected), schema (column count, type drift), values (NULL rate, uniqueness on business key, range sanity on numeric columns).</li>
+<li><strong>Thresholds are learned, not hand-set.</strong> Compute a 30-day rolling baseline per metric per table; alert on deviations beyond 3 sigma or engineered thresholds. Static thresholds create noise.</li>
+<li><strong>Alert routing follows ownership.</strong> Each table has a designated owner; alerts go to that owner's channel, not a global firehose. A global firehose gets muted within a week.</li>
+<li><strong>Severity tiers.</strong> Tier 1 (pager): gold tables backing exec dashboards, revenue reports. Tier 2 (on-call): silver tables with downstream consumers. Tier 3 (daily digest): bronze + low-traffic tables.</li>
+<li><strong>Prevention, not just detection.</strong> Data contracts at the bronze→silver boundary with enforced schemas. Column-level lineage so a schema change in bronze surfaces to impacted silver/gold owners via PR comment or Slack bot.</li>
+</ul>
+
+<p>Senior signal: name the tension. Strict monitoring creates alert fatigue and slows deploys. Lax monitoring lets issues reach stakeholders. The cheap middle path is: strict on the top 20 business-critical tables, advisory on the rest. Revisit the ratio quarterly.</p>
+
+<h3>How do you design freshness SLAs?</h3>
+
+<p>Freshness SLA ≠ pipeline SLA. Freshness is end-to-end: event emission → table queryable. Pipeline SLA is internal: job start → job success. Conflating them misses the retry tail, the watermark, and the downstream materialization lag.</p>
+
+<p>A proper freshness SLA has four parameters: <em>target</em> (95% of data available within 2 hours of event time), <em>measurement window</em> (rolling 7 days), <em>error budget</em> (5% = 8.4 hours/week can miss target), <em>breach consequence</em> (page on-call when error budget hits 50%). Without all four, an SLA is a wish.</p>
+
+<h3>A dashboard shows zero for a KPI that should be 10 K</h3>
+
+<p>Investigation sequence: (1) is the source pipeline green? (2) is the underlying table populated? (3) is the query filter correctly matching timezone, date bucket, and filter predicates? (4) has the downstream aggregation job run? Most often the cause is at (3) — an upstream deploy changed a column's casing, enum value, or timezone, and the query now matches zero rows silently. The fix at the <em>system</em> level is: schema tests for enum values and a row-count floor check on every aggregation output.</p>
+
+<hr>
+
+<h2 id="cloud-specific-scenarios">Cloud-Specific Scenarios</h2>
+
+<h3>Your Snowflake bill tripled last month. What do you check first?</h3>
+
+<ol>
+<li><strong>Query history by warehouse.</strong> Which warehouse's credit consumption grew? Sort queries by credit spent; find the top 10.</li>
+<li><strong>Warehouse utilization.</strong> Is a warehouse set too large for its workload? Oversized warehouses consume credits on idle time if <code>AUTO_SUSPEND</code> is too long.</li>
+<li><strong>Storage growth.</strong> Did a table grow 5x because of a bad MERGE that didn't vacuum? Run <code>TABLE_STORAGE_METRICS</code>.</li>
+<li><strong>Serverless features.</strong> Snowpipe, Automatic Clustering, Materialized Views — each has its own credit line that doesn't appear in warehouse consumption. Check <code>AUTOMATIC_CLUSTERING_HISTORY</code>.</li>
+<li><strong>New users or external sharing.</strong> A new BI tool integration pulling hourly extracts can double compute silently.</li>
+</ol>
+
+<p>Senior answer: after finding the driver, propose a <em>tag-based cost allocation</em> so the next month's surprise lives inside a named team's budget. "Free compute" disguises real cost.</p>
+
+<h3>Your BigQuery slots are exhausted during business hours. What's the playbook?</h3>
+
+<p>Three levers. (1) <strong>Reservations + assignments:</strong> carve slots across workloads so production-critical jobs are insulated from ad-hoc analyst queries. (2) <strong>Query tuning:</strong> convert full-table scans on wide tables to partitioned/clustered scans; the top three wide-table scans usually account for most of the slot time. (3) <strong>Scheduling:</strong> move nightly batches out of the 9am–5pm window; use flex slots with off-peak pricing. The mistake is to buy more slots before tuning the top 20 offenders — expensive and doesn't fix the underlying sprawl.</p>
+
+<h3>S3 list-objects is slow on a 10 M object prefix</h3>
+
+<p>The prefix has become a scan hotspot because listing is O(objects under prefix). Three mitigations: (a) partition by date <em>as a prefix structure</em> (<code>/2026/04/20/</code>), so listing only touches the day; (b) use Iceberg or Delta — they replace list-based discovery with metadata files and scan O(snapshot size), not O(files); (c) S3 Inventory exports a daily manifest of all objects; use it for bulk reconciliation instead of live listing.</p>
+
+<hr>
+
+<h2 id="ml-and-feature-store-scenarios">ML & Feature Store Scenarios</h2>
+
+<h3>Design a feature store with online/offline parity</h3>
+
+<p>The parity requirement: every feature value used to train a model must be identically computable at serving time. Two architecture patterns.</p>
+
+<p><strong>Pattern A — dual-write from a single computation.</strong> A feature pipeline writes to both the offline store (Iceberg / BigQuery) and the online store (Redis / DynamoDB) from the same code path. Parity by construction. Cost: the feature pipeline must run in both batch and stream modes correctly.</p>
+
+<p><strong>Pattern B — online store derived from offline.</strong> Compute features in batch into the offline store; periodically load into online. Simpler; online store lags offline by the refresh interval. Acceptable when model serving tolerates stale-by-N-minutes features.</p>
+
+<p>Anti-pattern: two separate pipelines (one batch for training, one streaming for serving) computing "the same" feature with different code. This produces silent drift and model degradation that is nearly impossible to debug.</p>
+
+<h3>Your model's offline accuracy is 92% but online performance is 84%. What happened?</h3>
+
+<p>Systematic checklist: (1) <strong>Feature drift:</strong> distribution of input features at serving differs from training. Measure with a statistical test on production vs. training features per day. (2) <strong>Training-serving skew:</strong> features computed differently in the two environments. Test with a canary — run the same row through both pipelines, compare bit-for-bit. (3) <strong>Label leakage in training:</strong> the training label was accidentally derivable from a feature that isn't available at serving time. Audit feature timestamps against label timestamps. (4) <strong>Target distribution shift:</strong> the thing you're predicting has changed since training. Retrain. (5) <strong>Infrastructure bugs:</strong> online feature lookup returning stale or default values for a subset of users.</p>
+
+<p>The order matters. Start with (5) — fastest to rule in/out, and a surprising fraction of "model issues" are actually serving infra bugs.</p>
+
+<h3>How would you retrain a production model without breaking serving?</h3>
+
+<p>Four stages. (a) <strong>Shadow training:</strong> new model trains in parallel, scores the same production traffic as the current champion, logs go to an evaluation table. (b) <strong>Offline comparison:</strong> compute business metrics from the logged shadow decisions vs. champion decisions. (c) <strong>Canary rollout:</strong> 1% of traffic to the new model; watch key metrics for 24–48 hours. (d) <strong>Ramp:</strong> 10%, 50%, 100%, with automated rollback if metrics regress. Each stage must have a rollback trigger and a named decision-maker. The biggest failure mode is a candidate who describes this at a high level but can't name the metrics or thresholds that govern each stage gate.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="07-lakehouse-iceberg.html">← Part 07 · Lakehouse: Iceberg & Delta</a><span class="sep">·</span><a href="00-readme.html">Index</a></nav>

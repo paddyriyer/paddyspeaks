@@ -443,6 +443,20 @@ footer.page-footer a:hover { color:var(--warm-white); }
 </li>
 <li><a href="#part-08"><span class="toc-num">Part 08</span> — Interview Q&A — Real Scenarios</a>
 </li>
+<li><a href="#part-09"><span class="toc-num">Part 09</span> — The Prep Program</a>
+<ol class="master-toc-sublist">
+<li><a href="#p09-1-the-four-week-roadmap">The Four-Week Roadmap</a></li>
+<li><a href="#p09-2-how-candidates-lose-offers">How Candidates Lose Offers — The Failure Catalog</a></li>
+<li><a href="#p09-3-what-changes-at-staff-and-principal">What Changes at Staff+ and Principal</a></li>
+<li><a href="#p09-4-the-sql-question-bank-senior-tier">The SQL Question Bank — Senior Tier</a></li>
+<li><a href="#p09-5-system-design-transcripts">System Design Transcripts — Bad / Average / Strong</a></li>
+<li><a href="#p09-6-behavioral-star-frames">Behavioral STAR Frames</a></li>
+<li><a href="#p09-7-decision-frameworks">Decision Frameworks</a></li>
+<li><a href="#p09-8-the-mock-interview-loop">The Mock Interview Loop</a></li>
+<li><a href="#p09-9-the-pre-interview-checklist">The Pre-Interview Checklist</a></li>
+<li><a href="#p09-10-day-of-playbook">Day-Of Playbook</a></li>
+</ol>
+</li>
 </ol>
 </nav>
 <section id="part-00" class="part-section" data-part="00">
@@ -1572,6 +1586,138 @@ signup                   X         -          X          X         X        X
 </ul>
 <hr />
 <p>Next: <a href="#part-02"><code>02-batch-processing.md</code></a> — the theory and mechanics of bounded-data processing, idempotency, MERGE patterns, file formats, and partition design.</p>
+
+
+<hr>
+
+<h2 id="p01-14-surrogate-key-strategies-in-depth">14. Surrogate Key Strategies in Depth</h2>
+
+<p>A surrogate key is an engineered stand-in for a natural key. Choosing the wrong surrogate strategy is a recurring source of production bugs, late-arriving data hell, and expensive re-keying projects two years in.</p>
+
+<h3>The three strategies</h3>
+
+<p><strong>Sequence (identity column).</strong> Monotonic integer issued by the database. Tiny, fast, great for indexing. Fatal weakness: you cannot generate it independently in two systems. If you load facts in Spark and dimensions in Snowflake, you need a round-trip to assign keys. That round-trip is slow, fragile, and forbids truly distributed pipelines.</p>
+
+<p><strong>Hash (deterministic on business key).</strong> Apply a collision-resistant hash (SHA-256, xxhash) to the natural key tuple and store the hash. Any system can produce the same key without coordination. Works beautifully for Data Vault and lakehouse pipelines. Trade-off: keys are larger (16–32 bytes) and not human-readable. Birthday-paradox collisions are theoretically possible but practically never occur at data-warehouse scale with 128+ bit hashes.</p>
+
+<p><strong>UUID (random).</strong> Nice for unordered distributed generation but terrible for range scans and clustering. Never use random UUIDs as a primary key in a columnar warehouse — they destroy compression and min/max pruning. UUIDv7 (time-sortable) is acceptable if you really want UUID semantics.</p>
+
+<h3>Decision table</h3>
+
+<table>
+<thead><tr><th>Requirement</th><th>Sequence</th><th>Hash</th><th>UUID</th></tr></thead>
+<tbody>
+<tr><td>Cross-system generation</td><td>No</td><td><strong>Yes</strong></td><td>Yes</td></tr>
+<tr><td>Clustered storage efficiency</td><td><strong>Best</strong></td><td>Good</td><td>Worst</td></tr>
+<tr><td>Human-readable</td><td>Yes</td><td>No</td><td>No</td></tr>
+<tr><td>Idempotent re-run</td><td>No (re-assigns)</td><td><strong>Yes</strong></td><td>No</td></tr>
+<tr><td>Size</td><td>4–8 bytes</td><td>16–32 bytes</td><td>16 bytes</td></tr>
+</tbody>
+</table>
+
+<h3>Hashed surrogate — worked example</h3>
+
+<pre><code>-- Snowflake / BigQuery / Spark all agree on this pattern
+SELECT
+  MD5(CONCAT_WS('|',
+    LOWER(TRIM(source_system)),
+    CAST(source_id AS STRING),
+    CAST(effective_date AS STRING)
+  )) AS customer_sk,
+  source_system,
+  source_id,
+  effective_date,
+  ...
+FROM staging_customer;</code></pre>
+
+<p>Key properties: lowercase + trim on text columns (defensive against inconsistent casing), an explicit delimiter that cannot appear in the payload, and inclusion of the temporal component for SCD Type 2. The same row re-ingested produces the same key — idempotency for free.</p>
+
+<h2 id="p01-15-bridge-tables-and-many-to-many-dimensions">15. Bridge Tables and Many-to-Many Dimensions</h2>
+
+<p>Not every dimension attaches to a fact with a clean foreign key. A policy can have multiple beneficiaries. An insurance claim can have multiple diagnosis codes. A marketing touch can belong to multiple campaigns. These require <em>bridge tables</em> — and bridge tables are where naive data modelers get caught.</p>
+
+<h3>The problem with denormalizing</h3>
+
+<p>Tempting shortcut: flatten the many-to-many into a wide fact with <code>diagnosis_code_1, diagnosis_code_2, diagnosis_code_3, …</code>. This works until the day you get a claim with 12 codes. Now you either drop data, create a 20-column wasteland, or reshape the fact — which breaks every downstream consumer. Avoid this pattern.</p>
+
+<h3>The bridge table pattern</h3>
+
+<p>Three tables: the fact (<code>fct_claim</code>), the dimension (<code>dim_diagnosis</code>), and the bridge (<code>bridge_claim_diagnosis</code>). The bridge stores one row per (claim_sk, diagnosis_sk) with an optional weight column.</p>
+
+<pre><code>CREATE TABLE bridge_claim_diagnosis (
+  claim_sk        BIGINT NOT NULL,
+  diagnosis_sk    BIGINT NOT NULL,
+  is_primary      BOOLEAN NOT NULL,
+  weight          DECIMAL(6,4),  -- optional: allocate claim value across codes
+  PRIMARY KEY (claim_sk, diagnosis_sk)
+);</code></pre>
+
+<p><strong>The weight column is not optional.</strong> Without it, you cannot aggregate claim dollars by diagnosis without double-counting. Ten codes on a claim would cause the same dollars to be attributed ten times when joined naively. Interviewers probe for this.</p>
+
+<h3>Aggregation safely across a bridge</h3>
+
+<pre><code>-- Correct: weighted allocation
+SELECT
+  d.diagnosis_category,
+  SUM(f.claim_amount * b.weight) AS allocated_amount
+FROM fct_claim f
+JOIN bridge_claim_diagnosis b ON b.claim_sk = f.claim_sk
+JOIN dim_diagnosis d           ON d.diagnosis_sk = b.diagnosis_sk
+GROUP BY d.diagnosis_category;
+
+-- Wrong: naive join double-counts
+SELECT d.diagnosis_category, SUM(f.claim_amount) FROM ...  -- DO NOT</code></pre>
+
+<h2 id="p01-16-late-arriving-facts-and-dimensions">16. Late-Arriving Facts and Dimensions</h2>
+
+<p>"Late-arriving" data is the term of art for rows whose business timestamp is in the past but whose arrival timestamp is now. Two distinct cases, each with its own playbook.</p>
+
+<h3>Late-arriving facts</h3>
+
+<p>A mobile app emits an event on Tuesday but the SDK holds it in local cache due to offline mode, and uploads it Thursday. The fact has a business date of Tuesday. You must decide: does Tuesday's daily aggregate get corrected retroactively, or is the late record attributed to Thursday?</p>
+
+<p>The senior answer is: <em>both tables exist</em>. A "by business date" partition table recomputes Tuesday's totals when the late row arrives. A "by arrival date" partition table leaves Tuesday alone and attributes the row to Thursday. Each serves different consumers — finance cares about business date, operations cares about arrival date — and conflating them is a classic bug.</p>
+
+<h3>Late-arriving dimensions</h3>
+
+<p>A fact arrives referencing a new customer_id that doesn't exist in <code>dim_customer</code> yet. Three strategies:</p>
+
+<ol>
+<li><strong>Inferred member.</strong> Insert a placeholder row into dim_customer with the known natural key and NULL attributes. The fact joins successfully. When the full dim row arrives later, update in place (SCD Type 1) or issue a new version (SCD Type 2). <em>Best default.</em></li>
+<li><strong>Quarantine.</strong> Hold the fact in a quarantine table until the dim row appears. Replay when it does. <em>Use when joining with missing context would be meaningless.</em></li>
+<li><strong>Orphan facts.</strong> Let the fact land with a NULL dim key. Never recommended — downstream SQL silently drops rows.</li>
+</ol>
+
+<h2 id="p01-17-accumulating-snapshot-fact-tables">17. Accumulating Snapshot Fact Tables</h2>
+
+<p>Most facts are transactional (one row per event) or periodic (one row per entity per period). The third, less-known kind is the <em>accumulating snapshot</em> — one row per business process instance, updated in place as the process progresses. The canonical example is an order lifecycle.</p>
+
+<h3>Structure</h3>
+
+<p>One row per order. Columns for every milestone: <code>placed_ts</code>, <code>paid_ts</code>, <code>shipped_ts</code>, <code>delivered_ts</code>, <code>returned_ts</code>. Plus computed lag columns: <code>days_to_ship</code>, <code>days_to_deliver</code>. The row is created at order placement and UPDATEd at every milestone. NULL columns mean "hasn't happened yet."</p>
+
+<pre><code>CREATE TABLE fct_order_lifecycle (
+  order_sk         BIGINT NOT NULL,
+  customer_sk      BIGINT NOT NULL,
+  placed_ts        TIMESTAMP NOT NULL,
+  paid_ts          TIMESTAMP,
+  shipped_ts       TIMESTAMP,
+  delivered_ts     TIMESTAMP,
+  returned_ts      TIMESTAMP,
+  days_to_pay      INT,
+  days_to_ship     INT,
+  days_to_deliver  INT,
+  order_amount     DECIMAL(10,2) NOT NULL,
+  current_status   VARCHAR(20) NOT NULL
+);</code></pre>
+
+<h3>Why this fact type exists</h3>
+
+<p>Without it, "how long does it take to ship a paid order" requires a self-join on a transactional fact across millions of rows. With accumulating snapshot, it's <code>AVG(days_to_ship)</code>. The cost is maintenance complexity: every milestone update has to find and update the right row, ideally via a MERGE on the natural key.</p>
+
+<h3>Lakehouse implementation</h3>
+
+<p>On Iceberg or Delta, accumulating snapshots are implemented via <code>MERGE INTO</code>. The row is inserted on the first event and updated on every subsequent event. Use a <code>current_status</code> column to track where in the lifecycle the row currently sits — this makes recovery after a failed merge straightforward.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-02" class="part-section" data-part="02">
@@ -2489,6 +2635,117 @@ Merge-on-read (Iceberg v2, Delta with deletion vectors):
 <span id="p02-cb46-8"><a href="#p02-cb46-8" aria-hidden="true"></a>}</span></code></pre></div>
 <hr />
 <p>Next: <a href="#part-03"><code>03-streaming-processing.md</code></a> — unbounded data, event-time processing, watermark math, Flink and Kafka internals, exactly-once proofs.</p>
+
+
+<hr>
+
+<h2 id="p02-13-dependency-graphs-and-critical-path">13. Dependency Graphs and Critical Path Analysis</h2>
+
+<p>A batch "pipeline" at scale is never a chain — it's a directed acyclic graph of hundreds of tasks with cross-dataset dependencies. Two questions dominate: <em>when will the whole graph finish</em>, and <em>which node, if it slips, slips the whole graph</em>? These are critical-path questions.</p>
+
+<h3>Modeling the graph</h3>
+
+<p>Each node is a task with a duration. Each edge expresses "task B cannot start until task A succeeds." Total graph completion time is the longest-path sum from any source to any sink. That longest path is the <em>critical path</em>.</p>
+
+<p>Nodes off the critical path have slack — the amount they can slip without affecting total completion time. Nodes <em>on</em> the critical path have zero slack. A single extra minute on any critical-path task adds a minute to the whole pipeline.</p>
+
+<h3>Why this matters for interviews</h3>
+
+<p>"Our daily pipeline finishes at 6am but the business wants it by 4am — how do you speed it up?" Wrong answer: "I'd optimize the slowest job." Right answer: "I'd find the critical path and optimize the longest task on it. Optimizing off-path tasks won't move completion time at all."</p>
+
+<h3>The Airflow / Dagster reality</h3>
+
+<p>Most orchestrators expose task duration logs. Extract them, build the adjacency matrix, compute longest-path via topological sort + dynamic programming. O(V+E). For a 500-task graph, runs in sub-second and tells you exactly which five tasks you must optimize.</p>
+
+<pre><code># Simplified: compute critical path duration
+def critical_path(nodes, edges, duration):
+    # topological sort
+    indeg = {n: 0 for n in nodes}
+    for a, b in edges: indeg[b] += 1
+    order, q = [], [n for n,d in indeg.items() if d == 0]
+    while q:
+        n = q.pop(0); order.append(n)
+        for a, b in edges:
+            if a == n:
+                indeg[b] -= 1
+                if indeg[b] == 0: q.append(b)
+    # DP: earliest finish time
+    finish = {n: duration[n] for n in nodes}
+    for n in order:
+        for a, b in edges:
+            if a == n:
+                finish[b] = max(finish[b], finish[n] + duration[b])
+    return max(finish.values())</code></pre>
+
+<h2 id="p02-14-batch-cost-model">14. The Batch Cost Model</h2>
+
+<p>Senior candidates should be able to estimate batch cost without invoking the cloud-provider pricing page. The model has four terms.</p>
+
+<h3>The four costs</h3>
+
+<ol>
+<li><strong>Storage.</strong> GB-months × $/GB-month. Flat. For S3 Standard, ~$0.023/GB-month. For Glacier, ~1/10 of that.</li>
+<li><strong>Compute.</strong> Core-hours × $/core-hour. EC2 spot typically $0.01–0.02 per vCPU-hour; on-demand 3x that.</li>
+<li><strong>Shuffle / intermediate I/O.</strong> Bytes written to local disk or the shuffle service. On ephemeral disk, free but capacity-limited. On remote shuffle (cloud managed), charged per GB.</li>
+<li><strong>Egress.</strong> Cross-region or internet egress. The silent killer. $0.02–0.09 per GB depending on direction. Can dwarf compute cost for lift-and-shift workloads.</li>
+</ol>
+
+<h3>Worked estimate — 10 TB daily batch</h3>
+
+<p>Input 10 TB. One Spark job with a 3-way join producing 2 TB output. Shuffle amplification typically 2–4x input — say 30 TB of shuffle. Runtime 40 min on 100 vCPUs.</p>
+
+<ul>
+<li>Compute: 100 vCPU × 0.67 hour × $0.02 = $1.33</li>
+<li>Storage (same-region S3, input rereadable): negligible incremental</li>
+<li>Shuffle: 30 TB local disk, free</li>
+<li>Egress: zero if same region, ~$900 if cross-region output</li>
+</ul>
+
+<p>The answer "this job costs roughly $1.50 same-region, $900+ cross-region" is the senior-level answer. Notice the 600x swing just on egress — that's why "lift-and-shift to another region" is so often the wrong design move.</p>
+
+<h2 id="p02-15-parallelism-math-and-the-skew-tax">15. Parallelism Math and the Skew Tax</h2>
+
+<p>Perfectly parallel work distributes across N workers with speedup ≈ N. Real work rarely achieves this. Two sources of loss: <em>sequential fraction</em> (Amdahl's law) and <em>skew</em> (one partition is fatter than the rest).</p>
+
+<h3>The skew tax, quantified</h3>
+
+<p>If you partition 1 TB of work into 100 evenly-sized pieces of 10 GB each, total wall-clock time is ≈ (10 GB work / per-worker throughput). If instead one partition is 500 GB and the other 99 average 5 GB, total wall-clock is bounded below by 500 GB / throughput — <em>50x slower</em> than the balanced case, despite the same total work. That's the skew tax.</p>
+
+<h3>Detecting skew ahead of time</h3>
+
+<ul>
+<li>Compute partition size distribution: <code>SELECT part_key, COUNT(*), SUM(bytes) FROM … GROUP BY 1 ORDER BY 2 DESC LIMIT 20</code>. If the top partition is 10x the median, you have skew.</li>
+<li>Coefficient of variation (stddev / mean) on partition sizes. Above 0.5 = significant skew.</li>
+</ul>
+
+<h3>Mitigations</h3>
+
+<ul>
+<li><strong>Salting.</strong> Suffix the skewed key with a small random integer (<code>key + '_' + RAND(10)</code>), join, then aggregate up. Fixes the shuffle but doubles join complexity.</li>
+<li><strong>Broadcast.</strong> If the other side is small, broadcast it and avoid shuffling the skewed key entirely.</li>
+<li><strong>Isolate the hotspot.</strong> Split the skewed keys into a separate job with different parallelism.</li>
+<li><strong>AQE.</strong> Spark's adaptive skew-join detects skewed partitions at runtime and splits them. Configure <code>spark.sql.adaptive.skewJoin.enabled=true</code>, know what <code>skewedPartitionThresholdInBytes</code> controls.</li>
+</ul>
+
+<h2 id="p02-16-checkpoint-and-restart-semantics">16. Checkpoint and Restart Semantics</h2>
+
+<p>Batch jobs are not point-in-time atomic. A 6-hour job that fails at hour 4 either resumes from a checkpoint (if designed for it) or restarts from zero. The senior design decision is which.</p>
+
+<h3>Three restart strategies</h3>
+
+<ol>
+<li><strong>Fully idempotent restart from start.</strong> Every job is safe to rerun end-to-end. Requires deterministic inputs and idempotent sinks (MERGE on business key). Simple; operationally resilient. Cost: wasted compute on every failure.</li>
+<li><strong>Task-level checkpointing.</strong> Orchestrator records task completion; restart resumes at the failed task. Works for DAG-structured jobs. Requires each task's output to be written atomically (typically via temp-then-rename).</li>
+<li><strong>Intra-task checkpointing.</strong> A long task persists progress state (e.g., partition cursor) and resumes from it. Necessary for multi-hour jobs. Expensive to implement right; usually worth it only for jobs that exceed ~2 hours.</li>
+</ol>
+
+<h3>The atomic-write discipline</h3>
+
+<p>Every job output must be all-or-nothing. The pattern: write to a temp location, validate, then atomic rename or commit. Never "write in place and pray." Lakehouse formats (Iceberg, Delta) get you atomic commits for free. Hive partitioned tables do not — use <code>_SUCCESS</code> markers and write to a staging path first.</p>
+
+<h3>The "restart at noon" drill</h3>
+
+<p>Interviewers love to ask: "Yesterday's job failed at 11pm. You rerun at noon today. What happens downstream?" The senior answer enumerates: <em>which tables get rewritten, which downstream caches invalidate, which dashboards see a stale→fresh transition, which SLAs trip</em>. If you can't answer this for your own pipelines, you don't own them operationally — no matter what the org chart says.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-03" class="part-section" data-part="03">
@@ -3360,6 +3617,109 @@ log after compaction:
 </ul>
 <hr />
 <p>Next: <a href="#part-04"><code>04-spark-internals.md</code></a> — Catalyst, AQE, shuffle internals, join algorithms, and skew.</p>
+
+
+<hr>
+
+<h2 id="p03-16-idempotent-producers-and-eos-in-kafka">16. Idempotent Producers and Exactly-Once in Kafka</h2>
+
+<p>"Exactly-once" in Kafka is three separate guarantees composed: idempotent producer, transactional writes across partitions, and transactional consumer-offset commits. Handwaving past any of them produces bugs. Senior candidates can dissect each layer.</p>
+
+<h3>Layer 1 — Idempotent producer</h3>
+
+<p>The producer attaches a <code>producer_id</code> + <code>sequence_number</code> to each record. The broker tracks the highest sequence seen per (producer, partition). Duplicates — retries from the producer after a network blip — are detected and dropped at the broker. This alone gives you "no duplicates within a single producer session to a single partition."</p>
+
+<p>Limits: the guarantee breaks across producer restarts (new producer_id) and across partitions (no coordination). For exactly-once <em>across partitions</em>, you need transactions.</p>
+
+<h3>Layer 2 — Producer transactions</h3>
+
+<p>Enable with <code>transactional.id</code> and bracket writes with <code>beginTransaction()</code> / <code>commitTransaction()</code>. The producer writes a <em>transaction marker</em> to each affected partition's commit-coordinator. Consumers configured with <code>read_committed</code> filter uncommitted records out of their stream. Aborted transactions leave tombstone markers.</p>
+
+<h3>Layer 3 — The two-phase commit sink</h3>
+
+<p>For true end-to-end exactly-once (consume → process → produce), the processor must commit its source offsets <em>and</em> its output records atomically. Kafka supports this via the <code>sendOffsetsToTransaction()</code> API — the source offset commit is included in the same producer transaction as the output records. Flink's TwoPhaseCommit sink implements this pattern.</p>
+
+<h3>What can still go wrong</h3>
+
+<ul>
+<li><strong>Zombie producers.</strong> A restarted producer with a new <code>transactional.id</code> epoch fences the old one. If you reuse <code>transactional.id</code> naively across pods, you will see fence exceptions in production.</li>
+<li><strong>External side effects.</strong> If your processor writes to Kafka <em>and</em> calls a REST API, only Kafka is in the transaction. The REST call can happen twice.</li>
+<li><strong>Read_uncommitted consumers.</strong> A downstream consumer not set to <code>read_committed</code> sees uncommitted records. EOS is a <em>configured</em> guarantee, not a default.</li>
+</ul>
+
+<h2 id="p03-17-complex-event-processing-and-match-recognize">17. Complex Event Processing and MATCH_RECOGNIZE</h2>
+
+<p>When the interview question is "find users who did X then Y then Z within 10 minutes," you've hit a Complex Event Processing (CEP) problem. Three implementation paths.</p>
+
+<h3>Path 1 — Flink CEP library</h3>
+
+<p>Flink ships a native CEP API: <code>Pattern.begin("a").where(...).next("b").where(...).within(Time.minutes(10))</code>. The engine compiles to an NFA (non-deterministic finite automaton) and matches against the event stream with full watermark-aware correctness.</p>
+
+<h3>Path 2 — SQL MATCH_RECOGNIZE</h3>
+
+<p>Standardized in SQL:2016, supported by Flink SQL, Oracle, and Snowflake. Expresses pattern-match queries declaratively:</p>
+
+<pre><code>SELECT *
+FROM events
+MATCH_RECOGNIZE (
+  PARTITION BY user_id
+  ORDER BY event_ts
+  MEASURES A.event_ts AS start_ts, C.event_ts AS end_ts
+  ONE ROW PER MATCH
+  PATTERN (A B* C)
+  DEFINE
+    A AS A.event_name = 'view_plan',
+    B AS B.event_name IN ('hesitate','back','scroll'),
+    C AS C.event_name = 'purchase'
+         AND C.event_ts &lt;= A.event_ts + INTERVAL '10' MINUTE
+);</code></pre>
+
+<h3>Path 3 — Hand-rolled stateful operator</h3>
+
+<p>For simple patterns (A then B), a stateful Flink operator keyed by user_id is often cleanest. Store a last-seen-A timestamp per key; on each B event, check whether last-seen-A is within the window. Trade-off: simpler code than CEP, but doesn't generalize to longer patterns.</p>
+
+<h3>Interview probe</h3>
+
+<p>"How would you detect account-takeover patterns in real time?" Strong answer: pattern-match on [login-success, IP-change, password-change, payment-added] within N minutes; use MATCH_RECOGNIZE on Flink SQL with a 30-minute watermark; emit to an alert topic; tune false positives with threshold + allow-list.</p>
+
+<h2 id="p03-18-stream-table-duality-in-depth">18. Stream-Table Duality in Depth</h2>
+
+<p>Every table is a compressed history of a stream. Every stream is the log of changes to a table. Systems that expose this duality directly (Kafka Streams, Flink, ksqlDB, Debezium + materialized views) let you reason about processing without the batch/stream dichotomy. Senior candidates internalize this until it becomes the natural lens.</p>
+
+<h3>Table → Stream (changelog)</h3>
+
+<p>Given a table of current state, emit its change log. Tools: CDC from the database's write-ahead log (Debezium on Postgres MySQL Oracle), or <code>DELETE+INSERT</code> triggers, or a MERGE-with-history pattern. The changelog is itself a topic others can subscribe to.</p>
+
+<h3>Stream → Table (materialized view)</h3>
+
+<p>Given a changelog stream, maintain a current-state table by replaying with upsert semantics. In Kafka Streams, this is <code>KTable</code>. In Flink, it's the result of <code>SELECT ... GROUP BY key</code> with retractions. The table updates in real time as events arrive.</p>
+
+<h3>The two join semantics</h3>
+
+<ul>
+<li><strong>Stream-table join.</strong> Each event on the stream is enriched with the <em>current</em> value of the table. No watermarks needed on the stream side.</li>
+<li><strong>Stream-stream join.</strong> Two streams joined within a time window; both need watermarks; late arrivals produce retractions. Substantially more expensive to reason about.</li>
+</ul>
+
+<h3>The temporal table join</h3>
+
+<p>Sometimes you want "enrich this event with the table state <em>as of the event's timestamp</em>" — not the current value. This is a temporal table join. Flink supports it natively; implementing it by hand requires a versioned table with valid-from / valid-to per row and an as-of subquery.</p>
+
+<h2 id="p03-19-stateful-functions-and-application-patterns">19. Stateful Functions and Application-Level Patterns</h2>
+
+<p>Flink's Stateful Functions and Kafka Streams' Processor API blur the line between stream processing and general-purpose event-driven applications. Three patterns to recognize.</p>
+
+<h3>Pattern A — Stateful session accumulation</h3>
+
+<p>Keyed by user. State: list of events in current session, last-seen timestamp. Trigger: session window close on 30-minute inactivity. Emit: one summary record per session. Classic streaming sessionization — preferable to SQL sessionization when you need the result within seconds, not the next batch.</p>
+
+<h3>Pattern B — The operator-as-state-machine</h3>
+
+<p>Keyed by order_id. State: current lifecycle phase (placed, paid, shipped, delivered). Input: milestone events. Transitions: (placed, payment_received) → paid. Invalid transitions emit to a dead-letter side-output. Gives you an accumulating snapshot in streaming form, with explicit invariants.</p>
+
+<h3>Pattern C — Distributed cache with TTL</h3>
+
+<p>Keyed by feature_id. State: cached value + expiry. Periodic timer refreshes entries before expiry. Serves as an online feature store that can live alongside the pipeline rather than in a separate system. Useful when the feature set is small enough to fit in state and latency matters more than scale.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-04" class="part-section" data-part="04">
@@ -4285,6 +4645,105 @@ AdaptiveSparkPlan (isFinalPlan=true)
 <li><strong>Driver</strong>: driver collecting too much. → <code>maxResultSize</code>, avoid <code>collect()</code>, use <code>toLocalIterator</code>.</li>
 </ol>
 <p>That framing survives every interview question and every 3am page.</p>
+
+
+<hr>
+
+<h2 id="p04-17-tungsten-and-the-off-heap-memory-model">17. Tungsten and the Off-Heap Memory Model</h2>
+
+<p>Before Tungsten (Spark 1.4, matured in 1.6+), Spark ran as a "normal" JVM application: Java objects everywhere, GC pauses ruled tail latency. Tungsten reshapes Spark into something closer to a native database engine — sun.misc.Unsafe memory, whole-stage code generation, cache-conscious binary layouts. Senior candidates know why this matters.</p>
+
+<h3>The three pillars</h3>
+
+<ol>
+<li><strong>Memory management outside the heap.</strong> UnsafeRow format: binary, pointer-arithmetic, no Java object headers. Eliminates object-per-row overhead; a 10-column row in normal Java was ~200 bytes, UnsafeRow is ~60.</li>
+<li><strong>Cache-aware computation.</strong> Operators produce data in patterns that fit the CPU cache line (64 bytes). Sort-merge joins, aggregations and shuffles are written to minimize cache misses.</li>
+<li><strong>Whole-stage code generation.</strong> The Catalyst physical plan compiles multiple operators into a single tight Java method at runtime. Virtual dispatch disappears; the JIT can inline everything. 10x–100x speedups on compute-bound stages.</li>
+</ol>
+
+<h3>Why interviews probe this</h3>
+
+<p>When a candidate says "Spark is slow on a compute-bound job," the interviewer wants to hear: <em>is the whole-stage codegen fallback kicking in?</em> Some operators (complex UDFs, certain UDAFs) disable codegen for their whole stage. You can see this in <code>df.explain(true)</code> — look for <code>*</code> prefixes on operators. Missing stars = missing codegen = 10x slower for no good reason.</p>
+
+<h3>The off-heap memory debugging checklist</h3>
+
+<ul>
+<li><code>spark.memory.offHeap.enabled=true</code> and <code>spark.memory.offHeap.size</code> — required for Tungsten to run truly off-heap.</li>
+<li>OOMs that say "Container killed by YARN for exceeding memory limits" — Tungsten counts, but the OS container is still bounded. Raise <code>spark.executor.memoryOverhead</code>.</li>
+<li>Sort-based aggregation spills to disk when the hash table exceeds the executor's <em>execution memory pool</em>. Spills tank performance. Either raise memory or reduce shuffle partitions / partition key cardinality.</li>
+</ul>
+
+<h2 id="p04-18-dynamic-allocation-and-elastic-clusters">18. Dynamic Allocation and Elastic Clusters</h2>
+
+<p>Dynamic allocation adds and removes executors during a job's lifetime based on pending-task pressure. Done right, it's the cheapest compute model Spark offers. Done wrong, it's a source of intermittent timeouts and surprise costs.</p>
+
+<h3>The mechanics</h3>
+
+<p>Spark tracks pending tasks per stage. When tasks wait in the queue longer than <code>spark.dynamicAllocation.schedulerBacklogTimeout</code>, new executors are requested. When executors sit idle for <code>spark.dynamicAllocation.executorIdleTimeout</code>, they're released. The cluster manager (YARN, Kubernetes, Databricks) actually provisions or releases the underlying nodes.</p>
+
+<h3>The shuffle-data-loss trap</h3>
+
+<p>Default behavior: when an executor is released, its shuffle output on local disk is also lost. If a later stage needs that shuffle data, it must recompute the upstream stage. For long-running jobs with expensive shuffles, this can double wall-clock time. Fix: enable the external shuffle service (on YARN) or persistent volumes (on Kubernetes). Without one of these, dynamic allocation is not safe to enable.</p>
+
+<h3>When it's the wrong choice</h3>
+
+<ul>
+<li>Jobs under ~2 minutes total. Executor startup dominates; static allocation is faster.</li>
+<li>Streaming jobs. Structured Streaming supports dynamic allocation poorly — back-pressure oscillations trigger thrashing.</li>
+<li>Cost-controlled environments with hard per-job budgets. Dynamic scaling makes cost non-deterministic.</li>
+</ul>
+
+<h2 id="p04-19-photon-and-native-accelerators">19. Photon and Native Accelerators</h2>
+
+<p>Photon (Databricks) and similar native engines (Velox under Presto/Trino, RAPIDS for GPU) replace Spark's Java execution with C++ or CUDA kernels. For the right workloads, 2–3x faster at similar hardware cost; for the wrong ones, neutral or slightly worse.</p>
+
+<h3>What Photon accelerates well</h3>
+
+<ul>
+<li>Columnar scans with predicate pushdown. Native code is 3–5x faster than whole-stage-codegen Java.</li>
+<li>Hash aggregations and hash joins on primitive types. 2–3x.</li>
+<li>Certain window functions with simple frame clauses.</li>
+</ul>
+
+<h3>What it doesn't help</h3>
+
+<ul>
+<li>Python UDFs. Can't cross into Photon; falls back to Java path with full data serialization penalty.</li>
+<li>Complex type operations (Map, Struct nested access) that aren't yet supported natively fall back.</li>
+<li>Shuffle-bound jobs. Photon's gains are per-operator; if 80% of wall-clock is shuffle, Photon moves the needle 5%.</li>
+</ul>
+
+<h3>The interview question</h3>
+
+<p>"You enabled Photon and cost went down 40% but also one of your dashboards broke. Why?" Possible answer: Photon returns slightly different results for edge cases (e.g., certain cast overflow behaviors, NULL semantics in specific functions). You need regression tests against both engines before flipping the switch on production.</p>
+
+<h2 id="p04-20-pyspark-vs-scala-performance">20. PySpark vs Scala — Where the Performance Actually Goes</h2>
+
+<p>The lore says "Scala is faster." The truth is more nuanced: PySpark's DataFrame API runs identical JVM code as Scala — the Python client is just a thin wrapper issuing Catalyst plans. Where Python actually loses is in three specific places.</p>
+
+<h3>Where PySpark equals Scala</h3>
+
+<ul>
+<li>Any pure DataFrame operation: joins, filters, aggregations, window functions. The entire execution happens in JVM; Python is not on the hot path.</li>
+<li>SQL strings. <code>spark.sql("SELECT …")</code> from PySpark is indistinguishable from the same call from Scala.</li>
+</ul>
+
+<h3>Where Python is slower — and by how much</h3>
+
+<ol>
+<li><strong>Python UDFs (non-vectorized).</strong> Each row is serialized to Python, function called, result deserialized. 10–30x slower than an equivalent expression in native Spark SQL. Avoid when possible; replace with built-in functions or SQL expressions.</li>
+<li><strong>Pandas UDFs (vectorized).</strong> Batches of rows ship to Python as Arrow tables; function processes them in one call. 3–10x faster than row-UDFs, within 2x of native Scala. The pragmatic default when you must use Python logic.</li>
+<li><strong>Driver-side orchestration with many collects.</strong> Python's overhead for orchestrating Spark actions is ~5–10ms per call. A loop of 1,000 small <code>collect()</code>s will waste 5–10 seconds in Python glue. Fix: build the query, execute once.</li>
+</ol>
+
+<h3>Decision guidance</h3>
+
+<ul>
+<li>DataFrame + SQL only: pick whichever language your team writes better.</li>
+<li>Needs Python libraries (ML, NLP, scipy): PySpark with Pandas UDFs.</li>
+<li>Mission-critical tight loops with custom logic on &gt;1 TB: Scala wins modestly.</li>
+<li>Team owns both: standardize on PySpark unless there's a specific reason. Hiring is easier.</li>
+</ul>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-05" class="part-section" data-part="05">
@@ -4866,6 +5325,108 @@ elif index exists on inner.join_key:         index nested loop
 6. What&#39;s the smallest change that fixes the biggest cost?
 </code></pre>
 <p>That sequence solves 80% of production SQL problems.</p>
+
+
+<hr>
+
+<h2 id="p05-15-cte-materialization-inlined-vs-cached">15. CTE Materialization — Inlined vs Cached</h2>
+
+<p>Common Table Expressions look syntactically identical across engines but behave very differently under the hood. Senior candidates know which engine inlines CTEs (treating them as view substitutions) and which materializes them (computing once, reading N times).</p>
+
+<h3>Engine-by-engine behavior</h3>
+
+<table>
+<thead><tr><th>Engine</th><th>Default behavior</th><th>Override</th></tr></thead>
+<tbody>
+<tr><td>Postgres ≤ 11</td><td>Always materialized (optimization barrier)</td><td>Upgrade to 12+</td></tr>
+<tr><td>Postgres ≥ 12</td><td>Inlined if referenced once, materialized otherwise</td><td><code>MATERIALIZED</code> / <code>NOT MATERIALIZED</code> keyword</td></tr>
+<tr><td>Snowflake</td><td>Inlined always</td><td>Use <code>TEMP TABLE</code> to force materialization</td></tr>
+<tr><td>BigQuery</td><td>Inlined always</td><td>Use <code>CREATE TEMP TABLE</code></td></tr>
+<tr><td>Spark SQL</td><td>Inlined</td><td><code>CACHE TABLE</code> on a subquery</td></tr>
+</tbody>
+</table>
+
+<h3>The performance trap</h3>
+
+<p>A CTE referenced twice in an inlined engine is computed twice. If the CTE does a 10-billion-row scan, you're doing 20 billion rows' worth of work. For anything expensive referenced more than once, materialize explicitly.</p>
+
+<pre><code>-- Bad: scans 20B rows
+WITH heavy AS (SELECT ... FROM 10B_row_fact WHERE ...)
+SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;
+
+-- Good: scans 10B rows once, joins on materialized result
+CREATE TEMP TABLE heavy AS SELECT ... FROM 10B_row_fact WHERE ...;
+SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;</code></pre>
+
+<h2 id="p05-16-approximate-aggregations">16. Approximate Aggregations — HLL, t-Digest, CMS</h2>
+
+<p>Exact <code>COUNT(DISTINCT)</code> on a billion rows requires shuffling every row. Approximate counterparts (HyperLogLog, t-digest, Count-Min Sketch) give 99% accuracy for 0.01% of the cost. Senior candidates know what each sketch does and when to reach for it.</p>
+
+<h3>HyperLogLog — cardinality</h3>
+
+<p><code>APPROX_COUNT_DISTINCT()</code>. Uses ~16 KB of state per distinct-count regardless of input size. Answer within ~2% of exact. Mergeable: HLL sketches from separate shards combine into a single sketch; you can pre-aggregate into daily sketches and then combine across a month for monthly distinct counts without rereading raw data.</p>
+
+<h3>T-digest / KLL — quantiles</h3>
+
+<p><code>APPROX_PERCENTILE()</code>. Stores a compressed histogram of value distributions. Supports arbitrary percentiles (p50, p95, p99, p999) from the same sketch. Use for latency dashboards, revenue distributions, any quantile metric on high-cardinality numeric data.</p>
+
+<h3>Count-Min Sketch — frequency</h3>
+
+<p>Given a stream of events, estimate the frequency of any specific item. Supports "heavy hitters" queries — who are the top-K most-frequent items — cheaply. Less common in SQL engines than HLL but worth naming in interviews for top-K at scale.</p>
+
+<h3>When NOT to use sketches</h3>
+
+<ul>
+<li>Compliance-sensitive reporting (finance, regulatory). "Approximate" is never the right word on an audit trail.</li>
+<li>Small datasets under a few million rows — the exact version runs in seconds; approximations add complexity for no gain.</li>
+<li>Critical correctness where a 2% error would change a decision (e.g., fraud thresholds that depend on exact distinct counts).</li>
+</ul>
+
+<h2 id="p05-17-materialized-views-and-incremental-refresh">17. Materialized Views and Incremental Refresh</h2>
+
+<p>A materialized view is a cached query result. The interesting question is <em>how it stays fresh</em>. Three refresh strategies, each with its own correctness and cost profile.</p>
+
+<h3>Full refresh</h3>
+
+<p>Recompute the view from scratch on each refresh. Simple, always correct. Cost scales with base-table size. Use when the view is small, refresh is infrequent, or the base table changes too unpredictably for incremental logic.</p>
+
+<h3>Incremental refresh</h3>
+
+<p>Apply only the delta since the last refresh. Requires the engine to reason about which base-table rows feed which view rows — a non-trivial analysis that engines support for <em>restricted</em> query shapes only (single table, or simple aggregations over joins with specific key structure).</p>
+
+<ul>
+<li><strong>Snowflake:</strong> "Dynamic Tables" support incremental refresh on many join patterns.</li>
+<li><strong>BigQuery:</strong> "Materialized views" support incremental for aggregations and filters over a single base table.</li>
+<li><strong>Postgres:</strong> Native <code>MATERIALIZED VIEW</code> only supports full refresh; incremental requires third-party tools (pg_ivm) or manual triggers.</li>
+</ul>
+
+<h3>Lakehouse MERGE-based patterns</h3>
+
+<p>In Iceberg / Delta, the pattern is: compute the delta in a staging table, <code>MERGE INTO</code> the materialized output. The engine doesn't call it a materialized view, but operationally it is one. Write your own refresh job and schedule it in the orchestrator.</p>
+
+<h2 id="p05-18-query-hints-per-engine">18. Query Hints — Per-Engine Grammar</h2>
+
+<p>Query hints override the optimizer. They are a sharp tool; use them only when you've measured that the optimizer is wrong and can't be fixed upstream. Major engines:</p>
+
+<h3>Snowflake</h3>
+
+<p>Snowflake exposes few hints — the philosophy is "trust the optimizer." What exists: <code>USE_CACHED_RESULT=FALSE</code>, query tags, and clustering hints via <code>CLUSTER BY</code> at table DDL time. The right lever in Snowflake is often <em>reshaping the query or the clustering key</em>, not a hint.</p>
+
+<h3>BigQuery</h3>
+
+<p>Also minimal: <code>@@optimizer_mode</code>, <code>JOIN HASH</code> hint, <code>GROUP BY ROLLUP</code>. For join-order control you often rewrite the query; inline views or CTEs with explicit ordering work where hints don't.</p>
+
+<h3>Spark SQL</h3>
+
+<p>Rich hint grammar: <code>/*+ BROADCAST(t1), MERGE(t1, t2), SHUFFLE_HASH(t1), SKEW('t1','skewed_key', (1,2,3)) */</code>. The BROADCAST hint is the most common: force broadcast of a dim table the optimizer refused to broadcast because its statistics were stale.</p>
+
+<h3>Postgres</h3>
+
+<p>No hints by default — the philosophy is "hints lie over time as data distributions change." The extension <code>pg_hint_plan</code> adds them for those who insist. Preferred tools in Postgres: <code>ANALYZE</code>, <code>VACUUM</code>, index creation, and <code>EXPLAIN (ANALYZE, BUFFERS)</code>.</p>
+
+<h3>The meta-lesson</h3>
+
+<p>Reaching for a hint is a smell. Before hinting, confirm: (a) statistics are up-to-date, (b) the query is written in a shape the optimizer can reason about, (c) you've run <code>EXPLAIN ANALYZE</code> and understand the plan. Interviewers are suspicious of candidates who volunteer hints as a first-resort tuning move.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-06" class="part-section" data-part="06">
@@ -5532,6 +6093,154 @@ dev = [&quot;pytest&quot;, &quot;mypy&quot;, &quot;ruff&quot;, &quot;chispa&quot
 <hr />
 <h2 id="p06-closing-principle">Closing principle</h2>
 <p>The best DE Python is mostly not Python — it's NumPy/Arrow/Pandas/Polars/Spark calls with Python orchestration. Your job is to make the data move from one fast engine to another with minimum overhead. Get that right and everything else gets easier.</p>
+
+
+<hr>
+
+<h2 id="p06-15-asyncio-for-io-bound-pipelines">15. AsyncIO for IO-Bound Pipelines</h2>
+
+<p>A data engineer writes plenty of ETL that is bottlenecked on HTTP calls, S3 listings, BigQuery API pagination, and Kafka producer acks — not CPU. For that shape of work, <code>asyncio</code> is dramatically faster than threads and infinitely cheaper than processes.</p>
+
+<h3>The mental model</h3>
+
+<p>A single thread runs an event loop. Each coroutine yields control at <code>await</code> points. While one coroutine waits on a network socket, the loop runs other coroutines. You get concurrency without threads, without GIL concerns, and with far lower per-task overhead (~1 KB per coroutine vs ~1 MB per thread).</p>
+
+<h3>Worked example — S3 key inventory</h3>
+
+<pre><code>import asyncio, aioboto3
+
+async def list_prefix(sess, bucket, prefix):
+    async with sess.client('s3') as s3:
+        keys = []
+        paginator = s3.get_paginator('list_objects_v2')
+        async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            keys.extend(o['Key'] for o in page.get('Contents', []))
+        return keys
+
+async def inventory(buckets, prefixes):
+    sess = aioboto3.Session()
+    tasks = [list_prefix(sess, b, p) for b in buckets for p in prefixes]
+    return await asyncio.gather(*tasks)
+
+# Sequential: O(N*M) calls x ~80ms each = minutes
+# asyncio: ~80ms total for reasonable N*M (bounded by S3 throttle)
+results = asyncio.run(inventory(['b1','b2'], ['p1','p2','p3']))</code></pre>
+
+<h3>Pitfalls</h3>
+
+<ul>
+<li><strong>Don't call synchronous libraries from async code.</strong> A blocking <code>requests.get()</code> stalls the entire event loop. Use the async equivalent (<code>aiohttp</code>, <code>httpx</code>).</li>
+<li><strong>Bound concurrency with <code>asyncio.Semaphore</code>.</strong> Launching 10,000 coroutines at once will get you rate-limited by the target API and crash your memory.</li>
+<li><strong>Async is not faster for CPU-bound work.</strong> A coroutine doing SHA-256 holds the loop hostage until it finishes. CPU-bound needs <code>multiprocessing</code> or a native library.</li>
+</ul>
+
+<h2 id="p06-16-duckdb-polars-and-arrow-zero-copy">16. DuckDB, Polars, and Arrow — The Zero-Copy Trinity</h2>
+
+<p>The last three years have reshaped single-node analytics. Three tools dominate, and they share a common substrate: Apache Arrow columnar format. Senior candidates understand how they compose.</p>
+
+<h3>Arrow — the interchange format</h3>
+
+<p>Columnar, in-memory, language-agnostic. The key property: Python, Rust, Java, C++ can all read the same memory region without serialization. A 10 GB DataFrame handed from Pandas to DuckDB to Spark via Arrow costs zero CPU for the handoff.</p>
+
+<h3>DuckDB — SQL on a laptop</h3>
+
+<p>Embedded analytical SQL engine. Runs inside your Python process. Reads Parquet, Arrow, Pandas DataFrames, and remote S3 directly. For datasets that fit in memory or can be streamed, DuckDB is often 10x faster than Spark with zero cluster setup. Ideal for data-quality checks, CI tests, ad-hoc analysis.</p>
+
+<h3>Polars — Pandas for the modern era</h3>
+
+<p>DataFrame library written in Rust, Arrow-native. Multi-threaded by default, lazy evaluation on expression chains, query optimizer. Typically 5–20x faster than Pandas on equivalent operations, with similar-enough API for reasonable migration. When a Pandas job starts being slow on a single machine, Polars is almost always the right next step before reaching for Spark.</p>
+
+<h3>The composition pattern</h3>
+
+<pre><code>import duckdb, polars as pl
+
+# Read S3 parquet directly with DuckDB, hand to Polars as Arrow
+df = duckdb.sql("""
+  SELECT region, SUM(amount) AS rev
+  FROM read_parquet('s3://bucket/orders/*.parquet')
+  WHERE order_ts &gt;= CURRENT_DATE - INTERVAL 30 DAY
+  GROUP BY region
+""").pl()  # zero-copy to Polars
+
+# Enrich in Polars
+df = df.join(regions_df, on='region').sort('rev', descending=True)</code></pre>
+
+<h2 id="p06-17-pydantic-and-dataclass-contracts">17. Pydantic and Dataclass Contracts</h2>
+
+<p>Data pipelines fail at boundaries. Python gives you three levels of structure for enforcing contracts at those boundaries — pick the right one for the scale.</p>
+
+<h3>Level 1 — <code>dataclass</code></h3>
+
+<p>Zero-dependency, type-hint-aware, no runtime validation. Use for internal data structures where static typing (mypy) is enough and runtime validation would be overhead.</p>
+
+<pre><code>from dataclasses import dataclass
+@dataclass
+class Order:
+    order_id: int
+    amount: float
+    currency: str</code></pre>
+
+<h3>Level 2 — <code>pydantic.BaseModel</code></h3>
+
+<p>Runtime validation, coercion, JSON schema generation, great error messages. Use at API boundaries, ingestion layers, config files. The one-line cost is well worth it when the data source is outside your control.</p>
+
+<pre><code>from pydantic import BaseModel, Field, field_validator
+
+class Order(BaseModel):
+    order_id: int
+    amount: float = Field(gt=0)
+    currency: str = Field(pattern=r'^[A-Z]{3}$')
+
+    @field_validator('currency')
+    @classmethod
+    def known_currency(cls, v):
+        if v not in {'USD','EUR','GBP','JPY'}: raise ValueError(f'unknown currency {v}')
+        return v
+
+# Raises ValidationError with a precise path if the JSON violates the contract
+order = Order.model_validate(json_payload)</code></pre>
+
+<h3>Level 3 — External schema registry</h3>
+
+<p>For cross-service contracts, Python validation is not enough — the producer and consumer may be written in different languages. Use Avro or Protobuf with a schema registry (Confluent Schema Registry, Buf). Pydantic is the consumer-side validator; the <em>source of truth</em> lives outside Python.</p>
+
+<h2 id="p06-18-packaging-pip-poetry-uv">18. Packaging — pip, Poetry, uv</h2>
+
+<p>Python packaging is legendarily messy. Three modern tools cover most of the ground for data teams. Senior candidates have opinions on which to use and why.</p>
+
+<h3>pip + requirements.txt</h3>
+
+<p>The baseline. Works everywhere. Dependency resolution is weak; no lockfile; easy to drift. Fine for scripts; wrong for production pipelines shared across a team.</p>
+
+<h3>Poetry</h3>
+
+<p>Real dependency resolver, lockfile, virtualenv management, publishing workflow. The dominant choice in open-source Python for the last five years. Slow on large dependency graphs (2+ minutes to resolve a medium project isn't unusual). Well-understood, well-documented.</p>
+
+<h3>uv</h3>
+
+<p>Written in Rust. 10–100x faster than Poetry at install and resolve. Drop-in compatible with most pip / Poetry workflows. Still maturing on edge cases but rapidly becoming the default for new projects. Worth naming in interviews as the direction the ecosystem is moving.</p>
+
+<h3>The team-level recommendation</h3>
+
+<ul>
+<li>Greenfield Python project: uv.</li>
+<li>Existing Poetry project: stay on Poetry until a specific pain justifies migration.</li>
+<li>One-off notebooks / scripts: pip is still fine.</li>
+<li>Multi-Python-version dev (e.g., testing against 3.10 and 3.12): uv handles this cleanly via its own Python-version manager.</li>
+</ul>
+
+<h3>The Docker layering discipline</h3>
+
+<p>Regardless of tool, your Dockerfile should install dependencies in a separate layer from your code. Change your code, rebuild is 5 seconds. Change one dependency, rebuild is the full install. Messing up this ordering is a 100x slowdown on every CI run.</p>
+
+<pre><code>FROM python:3.12-slim
+WORKDIR /app
+# Layer 1: dependencies (changes rarely)
+COPY pyproject.toml uv.lock ./
+RUN pip install uv &amp;&amp; uv sync --frozen
+# Layer 2: source code (changes often)
+COPY src/ ./src/
+CMD ["python", "-m", "src.main"]</code></pre>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-07" class="part-section" data-part="07">
@@ -6141,6 +6850,111 @@ s3://bucket/warehouse/silver/fact_playback/
 <hr />
 <h2 id="p07-closing-principle">Closing principle</h2>
 <p>Iceberg/Delta turned object storage into a real database. The cost: you have to operate it like one — compaction, expiration, schema discipline, conflict handling. Get the maintenance jobs right and the lakehouse just works. Skip them and you'll be on a 3am page within 90 days.</p>
+
+
+<hr>
+
+<h2 id="p07-16-iceberg-vs-delta-vs-hudi-feature-matrix">16. Iceberg vs Delta vs Hudi — The Feature Matrix</h2>
+
+<p>In every lakehouse interview at least one question probes your table-format opinions. The informed answer goes beyond "Iceberg has better engine support" — here's the matrix of real differences.</p>
+
+<table>
+<thead>
+<tr><th>Capability</th><th>Iceberg</th><th>Delta Lake</th><th>Hudi</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>Snapshot isolation</strong></td><td>Manifest-list based</td><td>JSON transaction log</td><td>Commit timeline + file groups</td></tr>
+<tr><td><strong>MERGE semantics</strong></td><td>Copy-on-write (v1) or merge-on-read (v2)</td><td>Copy-on-write default, deletion vectors for MoR</td><td>MoR default (merge-on-read with log files)</td></tr>
+<tr><td><strong>Hidden partitioning</strong></td><td><strong>Yes</strong> — partition spec evolution</td><td>No (Liquid clustering is the answer)</td><td>Partial (partition fields declared)</td></tr>
+<tr><td><strong>Schema evolution</strong></td><td>Add, drop, rename, reorder, type-widen — all safe</td><td>Add, type-widen only (drop/rename require explicit config)</td><td>Add, rename (field IDs)</td></tr>
+<tr><td><strong>Time travel</strong></td><td>Snapshot ID, timestamp</td><td>Version, timestamp</td><td>Commit timestamp</td></tr>
+<tr><td><strong>Row-level deletes</strong></td><td>Position or equality delete files</td><td>Deletion vectors (since 3.0)</td><td>Native</td></tr>
+<tr><td><strong>Engine support</strong></td><td>Spark, Trino, Flink, DuckDB, many</td><td>Spark (native), Trino (read), others growing</td><td>Spark (native), Trino (read)</td></tr>
+<tr><td><strong>Cross-engine writes</strong></td><td>Excellent via REST catalog</td><td>Historically Spark-first; improving</td><td>Spark-first</td></tr>
+<tr><td><strong>Streaming ingest optimization</strong></td><td>Good (compact-on-write)</td><td>Good</td><td>Best (MoR designed for upsert streams)</td></tr>
+</tbody>
+</table>
+
+<h3>How to pick — the decision heuristic</h3>
+
+<ul>
+<li><strong>Multiple engines writing the same table?</strong> → Iceberg. Cross-engine write semantics are its strongest suit.</li>
+<li><strong>Single-engine Databricks shop?</strong> → Delta. Best native integration, newer features land there first.</li>
+<li><strong>High-volume upsert workload (CDC ingest, slowly-changing)?</strong> → Hudi. MoR was designed for this.</li>
+<li><strong>Analytics-heavy with occasional updates?</strong> → Iceberg or Delta; both fit well.</li>
+</ul>
+
+<h2 id="p07-17-catalog-architectures-in-depth">17. Catalog Architectures — Hive, Glue, REST, Unity, Polaris</h2>
+
+<p>The <em>catalog</em> layer decides which engine can write the same table and how metadata is shared across boundaries. It's also the single biggest lock-in risk in a lakehouse.</p>
+
+<h3>Hive Metastore (HMS)</h3>
+
+<p>The original. Stores table metadata in a relational DB (MySQL/Postgres). Thrift API. Good: every query engine in the world speaks it. Bad: single-master, schema-less for table formats, no native ACLs, no multi-tenancy.</p>
+
+<h3>AWS Glue</h3>
+
+<p>Managed HMS-equivalent. Same API, fewer operational headaches. Lock-in to AWS for metadata. Supports Iceberg and Delta as catalog entries. Fine for AWS-centric shops; painful if you plan a multi-cloud future.</p>
+
+<h3>Iceberg REST Catalog</h3>
+
+<p>Open spec. HTTP API that any engine can call. Backend-agnostic (can be backed by HMS, Glue, Nessie, Polaris). The direction the industry is moving for vendor-neutral catalogs.</p>
+
+<h3>Unity Catalog (Databricks)</h3>
+
+<p>Centralized governance across Delta tables, files, ML models, and views. Strong on ACLs, lineage, attribute-based access control. Works best inside Databricks; open-source Unity is catching up on ecosystem support.</p>
+
+<h3>Polaris (Snowflake)</h3>
+
+<p>Open-source Iceberg REST catalog from Snowflake. Aimed at the same "centralized governance, open engine access" thesis as Unity. Still early but strategically significant.</p>
+
+<h3>The migration trap</h3>
+
+<p>Switching catalogs is <em>not</em> a metadata-only operation even though it sounds like one. Every engine's configuration must point at the new catalog, every table must be re-registered with matching paths, and any engine-specific extensions (Delta vacuum retention, Iceberg snapshot expiration) must be preserved. A catalog migration is a project, not a weekend. Plan for it the same way you'd plan a table-format migration.</p>
+
+<h2 id="p07-18-write-amplification-and-compaction-strategy">18. Write Amplification and Compaction Strategy</h2>
+
+<p>Copy-on-write tables pay a cost each time a partition is updated: the entire partition gets rewritten. That cost is called <em>write amplification</em> — the ratio of bytes rewritten to bytes actually changed.</p>
+
+<h3>Quantifying write amplification</h3>
+
+<p>Suppose a 1 TB daily partition is written once then a MERGE statement touches 0.1% of rows the next day. Copy-on-write rewrites the whole 1 TB partition to land 1 GB of changes. Write amplification = 1000x. At 30 such MERGEs per day, you're writing 30 TB to land 30 GB of logical changes.</p>
+
+<h3>Merge-on-read as the fix</h3>
+
+<p>Delta's deletion vectors and Iceberg's v2 delete-files let you write a small side-file containing "these rows are deleted / updated to X." Readers apply the overlay at query time. Write cost collapses. Read cost rises — by how much depends on how many overlays have accumulated. That's where compaction comes in.</p>
+
+<h3>Compaction strategies</h3>
+
+<ul>
+<li><strong>Bin-pack.</strong> Merge many small files into fewer larger ones. Cheapest form of compaction; doesn't touch overlays.</li>
+<li><strong>Sort.</strong> Rewrite with a clustering key (<code>ZORDER</code> in Delta, sort-order in Iceberg). Improves read performance by improving min/max pruning and compression. More expensive to run.</li>
+<li><strong>Delete-vector application.</strong> Materialize deletions into main data files. Reclaims the read-time overlay cost. Run periodically (weekly / monthly) based on overlay ratio.</li>
+</ul>
+
+<h3>Operational rule of thumb</h3>
+
+<p>If your read queries on a table are getting slower over time without the data growing, it's probably compaction debt. Monitor the ratio of delete-file bytes to data-file bytes; when it crosses ~5–10%, schedule compaction.</p>
+
+<h2 id="p07-19-multi-table-transactions-and-the-two-phase-commit">19. Multi-Table Transactions and the Two-Phase Commit</h2>
+
+<p>Lakehouse formats provide atomic commits <em>per table</em>. They don't provide atomic commits <em>across tables</em> by default. If your pipeline updates a fact and a dimension that must move together, you need to solve this yourself.</p>
+
+<h3>The problem, stated precisely</h3>
+
+<p>Pipeline writes <code>fct_order</code> and <code>dim_customer</code>. If <code>fct_order</code> commits but <code>dim_customer</code> fails, consumer queries see new orders referencing missing customer keys. Data corruption.</p>
+
+<h3>Three mitigation strategies</h3>
+
+<ol>
+<li><strong>Staging table pattern.</strong> Write to <code>staging_*</code> tables. Once both staging writes succeed, do a "rename" commit — point the final-table catalog entries at the staging paths atomically. Works; requires careful metadata choreography; error-recovery is tricky.</li>
+<li><strong>Two-phase commit via external coordinator.</strong> Use a transaction coordinator (Zookeeper, a custom service, or an orchestrator checkpoint). Prepare writes to both tables; only both commits succeed or both roll back. Heavy; rarely worth the complexity.</li>
+<li><strong>Ordering + idempotent consumers.</strong> Pick an ordering where the "most dangerous" side is committed last. If dim is committed before fact, consumers can handle missing dim keys gracefully (inferred members). Accept at-least-once committing; downstream consumers tolerate it. This is the most common production pattern.</li>
+</ol>
+
+<h3>Iceberg's multi-table transaction feature</h3>
+
+<p>Iceberg (as of v1.4+) supports a <code>Transactions</code> API that commits against multiple tables atomically <em>if the catalog supports it</em>. REST Catalog does; Glue doesn't. When supported, it eliminates the strategies above for its scope. Still worth understanding the fallbacks because catalog support is uneven.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 <section id="part-08" class="part-section" data-part="08">
@@ -6863,6 +7677,1393 @@ Common SCD1 cases: name spelling fixes, internal IDs that don't change semantica
 <li><strong>End with a sentence about what you'd do next</strong> — what you'd validate, monitor, document.</li>
 </ol>
 <p>That's how senior engineers think on their feet. Practice it out loud. Good luck.</p>
+
+
+<hr>
+
+<h2 id="p08-observability-and-data-quality">Observability & Data Quality Scenarios</h2>
+
+<h3>Design a data-quality monitoring system</h3>
+
+<p>Prompt: our data team has 400 tables across bronze/silver/gold. Design a monitoring system that catches data quality issues before stakeholders do.</p>
+
+<p>Strong answer structure:</p>
+<ul>
+<li><strong>Four dimensions per table:</strong> freshness (last successful write), volume (rows in last load vs expected), schema (column count, type drift), values (NULL rate, uniqueness on business key, range sanity on numeric columns).</li>
+<li><strong>Thresholds are learned, not hand-set.</strong> Compute a 30-day rolling baseline per metric per table; alert on deviations beyond 3 sigma or engineered thresholds. Static thresholds create noise.</li>
+<li><strong>Alert routing follows ownership.</strong> Each table has a designated owner; alerts go to that owner's channel, not a global firehose. A global firehose gets muted within a week.</li>
+<li><strong>Severity tiers.</strong> Tier 1 (pager): gold tables backing exec dashboards, revenue reports. Tier 2 (on-call): silver tables with downstream consumers. Tier 3 (daily digest): bronze + low-traffic tables.</li>
+<li><strong>Prevention, not just detection.</strong> Data contracts at the bronze→silver boundary with enforced schemas. Column-level lineage so a schema change in bronze surfaces to impacted silver/gold owners via PR comment or Slack bot.</li>
+</ul>
+
+<p>Senior signal: name the tension. Strict monitoring creates alert fatigue and slows deploys. Lax monitoring lets issues reach stakeholders. The cheap middle path is: strict on the top 20 business-critical tables, advisory on the rest. Revisit the ratio quarterly.</p>
+
+<h3>How do you design freshness SLAs?</h3>
+
+<p>Freshness SLA ≠ pipeline SLA. Freshness is end-to-end: event emission → table queryable. Pipeline SLA is internal: job start → job success. Conflating them misses the retry tail, the watermark, and the downstream materialization lag.</p>
+
+<p>A proper freshness SLA has four parameters: <em>target</em> (95% of data available within 2 hours of event time), <em>measurement window</em> (rolling 7 days), <em>error budget</em> (5% = 8.4 hours/week can miss target), <em>breach consequence</em> (page on-call when error budget hits 50%). Without all four, an SLA is a wish.</p>
+
+<h3>A dashboard shows zero for a KPI that should be 10 K</h3>
+
+<p>Investigation sequence: (1) is the source pipeline green? (2) is the underlying table populated? (3) is the query filter correctly matching timezone, date bucket, and filter predicates? (4) has the downstream aggregation job run? Most often the cause is at (3) — an upstream deploy changed a column's casing, enum value, or timezone, and the query now matches zero rows silently. The fix at the <em>system</em> level is: schema tests for enum values and a row-count floor check on every aggregation output.</p>
+
+<hr>
+
+<h2 id="p08-cloud-specific-scenarios">Cloud-Specific Scenarios</h2>
+
+<h3>Your Snowflake bill tripled last month. What do you check first?</h3>
+
+<ol>
+<li><strong>Query history by warehouse.</strong> Which warehouse's credit consumption grew? Sort queries by credit spent; find the top 10.</li>
+<li><strong>Warehouse utilization.</strong> Is a warehouse set too large for its workload? Oversized warehouses consume credits on idle time if <code>AUTO_SUSPEND</code> is too long.</li>
+<li><strong>Storage growth.</strong> Did a table grow 5x because of a bad MERGE that didn't vacuum? Run <code>TABLE_STORAGE_METRICS</code>.</li>
+<li><strong>Serverless features.</strong> Snowpipe, Automatic Clustering, Materialized Views — each has its own credit line that doesn't appear in warehouse consumption. Check <code>AUTOMATIC_CLUSTERING_HISTORY</code>.</li>
+<li><strong>New users or external sharing.</strong> A new BI tool integration pulling hourly extracts can double compute silently.</li>
+</ol>
+
+<p>Senior answer: after finding the driver, propose a <em>tag-based cost allocation</em> so the next month's surprise lives inside a named team's budget. "Free compute" disguises real cost.</p>
+
+<h3>Your BigQuery slots are exhausted during business hours. What's the playbook?</h3>
+
+<p>Three levers. (1) <strong>Reservations + assignments:</strong> carve slots across workloads so production-critical jobs are insulated from ad-hoc analyst queries. (2) <strong>Query tuning:</strong> convert full-table scans on wide tables to partitioned/clustered scans; the top three wide-table scans usually account for most of the slot time. (3) <strong>Scheduling:</strong> move nightly batches out of the 9am–5pm window; use flex slots with off-peak pricing. The mistake is to buy more slots before tuning the top 20 offenders — expensive and doesn't fix the underlying sprawl.</p>
+
+<h3>S3 list-objects is slow on a 10 M object prefix</h3>
+
+<p>The prefix has become a scan hotspot because listing is O(objects under prefix). Three mitigations: (a) partition by date <em>as a prefix structure</em> (<code>/2026/04/20/</code>), so listing only touches the day; (b) use Iceberg or Delta — they replace list-based discovery with metadata files and scan O(snapshot size), not O(files); (c) S3 Inventory exports a daily manifest of all objects; use it for bulk reconciliation instead of live listing.</p>
+
+<hr>
+
+<h2 id="p08-ml-and-feature-store-scenarios">ML & Feature Store Scenarios</h2>
+
+<h3>Design a feature store with online/offline parity</h3>
+
+<p>The parity requirement: every feature value used to train a model must be identically computable at serving time. Two architecture patterns.</p>
+
+<p><strong>Pattern A — dual-write from a single computation.</strong> A feature pipeline writes to both the offline store (Iceberg / BigQuery) and the online store (Redis / DynamoDB) from the same code path. Parity by construction. Cost: the feature pipeline must run in both batch and stream modes correctly.</p>
+
+<p><strong>Pattern B — online store derived from offline.</strong> Compute features in batch into the offline store; periodically load into online. Simpler; online store lags offline by the refresh interval. Acceptable when model serving tolerates stale-by-N-minutes features.</p>
+
+<p>Anti-pattern: two separate pipelines (one batch for training, one streaming for serving) computing "the same" feature with different code. This produces silent drift and model degradation that is nearly impossible to debug.</p>
+
+<h3>Your model's offline accuracy is 92% but online performance is 84%. What happened?</h3>
+
+<p>Systematic checklist: (1) <strong>Feature drift:</strong> distribution of input features at serving differs from training. Measure with a statistical test on production vs. training features per day. (2) <strong>Training-serving skew:</strong> features computed differently in the two environments. Test with a canary — run the same row through both pipelines, compare bit-for-bit. (3) <strong>Label leakage in training:</strong> the training label was accidentally derivable from a feature that isn't available at serving time. Audit feature timestamps against label timestamps. (4) <strong>Target distribution shift:</strong> the thing you're predicting has changed since training. Retrain. (5) <strong>Infrastructure bugs:</strong> online feature lookup returning stale or default values for a subset of users.</p>
+
+<p>The order matters. Start with (5) — fastest to rule in/out, and a surprising fraction of "model issues" are actually serving infra bugs.</p>
+
+<h3>How would you retrain a production model without breaking serving?</h3>
+
+<p>Four stages. (a) <strong>Shadow training:</strong> new model trains in parallel, scores the same production traffic as the current champion, logs go to an evaluation table. (b) <strong>Offline comparison:</strong> compute business metrics from the logged shadow decisions vs. champion decisions. (c) <strong>Canary rollout:</strong> 1% of traffic to the new model; watch key metrics for 24–48 hours. (d) <strong>Ramp:</strong> 10%, 50%, 100%, with automated rollback if metrics regress. Each stage must have a rollback trigger and a named decision-maker. The biggest failure mode is a candidate who describes this at a high level but can't name the metrics or thresholds that govern each stage gate.</p>
+<p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
+</section>
+<section id="part-09" class="part-section" data-part="09">
+<header class="part-header"><div class="part-eyebrow">Part 09</div><h1 class="part-title">The Prep Program</h1></header>
+<p>The previous parts taught you the territory. This one teaches you how to <em>move through it under fire</em>. Interviews are not knowledge tests — they are a performance discipline, and this is the practice plan for that performance.</p>
+
+
+
+<hr>
+
+<h2 id="p09-1-the-four-week-roadmap">1. The Four-Week Roadmap</h2>
+
+<p>Four weeks is the minimum a working engineer needs to credibly prepare for a senior loop at a top-tier company. Less than that and either the loop itself is easy or you are relying on accumulated muscle memory. The roadmap below assumes ~10 focused hours per week (two weekday evenings + one weekend block). Adjust duration, not phasing.</p>
+
+<blockquote>
+<p>The single most common preparation mistake is studying <em>more topics</em> instead of <em>fewer topics deeper, with reps</em>. You cannot talk your way through system design if you've never said the words out loud.</p>
+</blockquote>
+
+<h3>Week 1 — Foundations: SQL and Modeling</h3>
+<p>Goal at end of week: you can write window-function-heavy SQL under time pressure without pausing to look up syntax, and you can sketch a star schema for any business domain in under 10 minutes on a whiteboard.</p>
+
+<h4>Day 1 — SQL joins and set operations</h4>
+<ul>
+<li>Re-derive when <code>LEFT JOIN</code> and <code>NOT EXISTS</code> give different answers (NULL semantics, duplicate rows). Write both for the same problem.</li>
+<li>Practice: five problems at medium difficulty from a public SQL practice set. Time yourself to 12 minutes each.</li>
+<li>End-of-day drill: explain out loud why <code>COUNT(*) vs COUNT(col)</code> can differ and under what exact conditions.</li>
+</ul>
+
+<h4>Day 2 — Window functions</h4>
+<ul>
+<li>Rebuild the mental model: frame clauses, partitioning, ordering, <code>RANGE</code> vs <code>ROWS</code>. Know the default frame for each window function by heart.</li>
+<li>Practice: month-over-month revenue with sparse months, top-N per group with ties, running totals with resets, gaps and islands for sessionization.</li>
+<li>End-of-day drill: write <em>percentile_cont</em> by hand using <code>NTILE</code> and interpolation.</li>
+</ul>
+
+<h4>Day 3 — Advanced SQL patterns</h4>
+<ul>
+<li>Cohort retention (signup-week × activity-week matrix). Sessionization with timeout. Last-touch attribution. Point-in-time joins (as-of).</li>
+<li>Practice the canonical cohort retention query end-to-end, starting from raw events.</li>
+<li>End-of-day drill: explain the difference between <em>point-in-time correctness</em> and <em>snapshot correctness</em> in 90 seconds.</li>
+</ul>
+
+<h4>Day 4 — Dimensional modeling</h4>
+<ul>
+<li>Draw a star schema for three domains from memory: subscription streaming service, two-sided marketplace, advertising network. For each, state the grain of each fact.</li>
+<li>Write DDL and SCD Type-2 MERGE for one customer dimension. Include effective-from / effective-to / current-flag columns.</li>
+<li>End-of-day drill: state in one sentence what conformed dimensions are and why they matter.</li>
+</ul>
+
+<h4>Day 5 — Contracts and NULL semantics</h4>
+<ul>
+<li>Re-read Part 01 §12–13. Write a schema contract in the format your target company uses (YAML or JSON Schema).</li>
+<li>Draft a "contract violation" runbook: what the producer does, what the consumer does, where it breaks the pipeline.</li>
+<li>End-of-day drill: pick one table you know well and enumerate every column that <em>could</em> be NULL and what NULL actually means for each (unknown, not-applicable, pending, sentinel).</li>
+</ul>
+
+<h4>Weekend block — SQL mock round</h4>
+<ul>
+<li>Two hours. Six problems in a notebook. No internet, no autocomplete. Time each to 15 minutes max. Record a screencast of yourself speaking through problem 4 or 5.</li>
+<li>Review the tape: where did you pause? Where did you talk in circles? Where did you jump to a query before stating assumptions? Those are the gaps.</li>
+</ul>
+
+<h3>Week 2 — Processing Engines and Distributed Compute</h3>
+<p>Goal at end of week: you can explain how a Spark job is physically executed from <code>df.join().groupBy().agg().write()</code> down to tasks and files, and you can talk about streaming guarantees without handwaving "exactly once."</p>
+
+<h4>Day 6 — Spark from the top down</h4>
+<ul>
+<li>Catalyst rule passes. Logical → optimized → physical → RDD. AQE and what it rewrites at runtime.</li>
+<li>Drill: take a 5-line PySpark script and narrate every stage boundary, every shuffle, every file the executor will write.</li>
+</ul>
+
+<h4>Day 7 — Shuffle, joins, and skew</h4>
+<ul>
+<li>Broadcast vs sort-merge vs shuffle-hash. The exact threshold math. When AQE converts SMJ to BHJ mid-job.</li>
+<li>Skew detection and the salt trick. What "skew join" in AQE actually does under the hood.</li>
+<li>Drill: you have a 10 TB fact joined to a 50 GB dim and jobs time out. Walk through your debugging sequence — what do you look at first and why?</li>
+</ul>
+
+<h4>Day 8 — Batch patterns and idempotency</h4>
+<ul>
+<li>MERGE semantics on lakehouse tables. The "idempotent over the same interval" proof. Backfill strategies.</li>
+<li>Drill: describe, in order, what happens when you re-run yesterday's job at noon today. Which rows are touched, which partitions are rewritten, how downstream caches invalidate.</li>
+</ul>
+
+<h4>Day 9 — Streaming fundamentals</h4>
+<ul>
+<li>Event-time vs processing-time. Watermarks. Windows. Late data. Trigger semantics.</li>
+<li>Exactly-once in Kafka + Flink: the two-phase commit sink and what can still go wrong.</li>
+<li>Drill: explain the difference between "no duplicates in output" and "exactly-once processing" in one minute.</li>
+</ul>
+
+<h4>Day 10 — Streaming patterns</h4>
+<ul>
+<li>Stream-stream joins with watermarks. Stream-table joins. Temporal joins. Enrichment patterns.</li>
+<li>Backpressure, state backends, checkpointing, recovery time objectives.</li>
+<li>Drill: the job restarts and reads 30 minutes of state — what guarantees does the consumer downstream still have?</li>
+</ul>
+
+<h4>Weekend block — Engine mock round</h4>
+<ul>
+<li>Pick one prompt from Part 08 that involves Spark or streaming. Stand at a whiteboard or a blank page. Talk for 45 minutes out loud. Record it.</li>
+<li>Re-watch. Count filler words. Count how many times you said "it depends" without stating the axis.</li>
+</ul>
+
+<h3>Week 3 — System Design, Lakehouse, and Tradeoffs</h3>
+<p>Goal at end of week: you can scope, decompose, and defend a 45-minute data system design for any prompt, including volumes, latency, failure modes, and cost.</p>
+
+<h4>Day 11 — The system-design frame</h4>
+<ul>
+<li>The five-step opener: restate, scope, volumes and SLAs, decompose, defend one pick.</li>
+<li>Draft a "volumes cheat sheet" for every scale you might claim — 1M/10M/100M/1B events per day, what each means for Kafka partitions, Spark cluster size, storage cost per month.</li>
+</ul>
+
+<h4>Day 12 — Lakehouse table formats in depth</h4>
+<ul>
+<li>Iceberg vs Delta vs Hudi: snapshot layout, metadata tree, MERGE internals, compaction behavior, schema evolution rules.</li>
+<li>Catalog architectures: Hive, Glue, REST, Unity, Polaris. Which ones allow cross-engine writes and which don't.</li>
+<li>Drill: why does Iceberg's hidden partitioning avoid the "partition column drift" problem?</li>
+</ul>
+
+<h4>Day 13 — System design prompt 1</h4>
+<ul>
+<li>"Design a pipeline that ingests 10 M events/day from a mobile app and serves both a near-real-time operational dashboard and a nightly revenue report."</li>
+<li>Solve on paper in 45 minutes. Use the transcript in §5 below as the grading rubric.</li>
+</ul>
+
+<h4>Day 14 — System design prompt 2</h4>
+<ul>
+<li>"Migrate a 50 TB partitioned Hive table to Iceberg with zero downtime for consumers."</li>
+<li>Solve on paper in 45 minutes. Focus on the migration sequence, consumer cutover, and rollback.</li>
+</ul>
+
+<h4>Day 15 — Observability and data quality</h4>
+<ul>
+<li>Data-SLA vs system-SLA. Freshness, completeness, validity, uniqueness. Where to emit metrics. When to fail the pipeline vs quarantine vs warn.</li>
+<li>Drill: design the alerting strategy for a pipeline where the input can legitimately drop to zero on some days (e.g., marketing campaigns). How do you avoid noise?</li>
+</ul>
+
+<h4>Weekend block — System-design mock round</h4>
+<ul>
+<li>Pair with a peer if possible. They ask the prompt, you whiteboard for 45 minutes, they probe. No book, no laptop.</li>
+<li>If solo: pick a prompt, run a 45-minute self-tape, re-watch, grade yourself on the rubric in §8.</li>
+</ul>
+
+<h3>Week 4 — Mocks, Behavioral, and Polish</h3>
+<p>Goal at end of week: three full mock loops completed, eight STAR frames rehearsed, and a one-page "signal deck" of the projects you'll reference.</p>
+
+<h4>Day 16 — Behavioral foundations</h4>
+<ul>
+<li>The eight STAR frames in §6. Write one story per frame, not more. Aim for 3–4 minutes spoken each.</li>
+<li>Record yourself telling two of them. Watch for mealy-mouthed passive voice. Rewrite.</li>
+</ul>
+
+<h4>Day 17 — Mock loop #1 (full)</h4>
+<ul>
+<li>45 min coding/SQL → 45 min Spark/streaming deep dive → 45 min system design → 30 min behavioral. Back to back. Lunch break OK.</li>
+<li>Post-mortem the gaps that same evening. Don't wait a day — decay is fast.</li>
+</ul>
+
+<h4>Day 18 — Weakness patch</h4>
+<ul>
+<li>Whatever failed in Mock #1, spend today on. Don't study anything new.</li>
+</ul>
+
+<h4>Day 19 — Mock loop #2 (full)</h4>
+<ul>
+<li>Same structure. Ideally different interviewer if you have one.</li>
+</ul>
+
+<h4>Day 20 — Resume drill-down prep</h4>
+<ul>
+<li>For every project on your resume, prepare: scale (numbers), your contribution (verbs), the tradeoff you made, the failure mode you avoided, the thing you'd do differently now.</li>
+<li>Four bullets max per project. Practice delivering each in under 90 seconds.</li>
+</ul>
+
+<h4>Weekend block — Mock loop #3 + final polish</h4>
+<ul>
+<li>Third and last full mock. Fix the one or two tics that have survived this long.</li>
+<li>Day before the real loop: no new study. Light review. Sleep.</li>
+</ul>
+
+<h3>Anti-Goals — What Not to Do</h3>
+<ul>
+<li><strong>Do not</strong> grind leetcode for a DE senior loop. You will be asked at most one lightly algorithmic problem in SQL or Python; topic breadth matters more than graph-traversal fluency.</li>
+<li><strong>Do not</strong> read five blog posts per topic. Pick the one canonical source (a section of this guide, a chapter of a book, a primary doc page) and read it three times.</li>
+<li><strong>Do not</strong> try to memorize command flags. Memorize the <em>decisions</em> the flags control.</li>
+<li><strong>Do not</strong> skip the out-loud practice. Reading a solution and speaking a solution are different skills; the interview only tests the second.</li>
+</ul>
+
+<hr>
+
+<h2 id="p09-2-how-candidates-lose-offers">2. How Candidates Lose Offers — The Failure Catalog</h2>
+
+<p>This section is uncomfortable on purpose. These are the specific failure modes that show up in post-debrief scorecards, not the abstract "communication issues" that everybody writes about. Most of them are behavioural, not technical — which is precisely why they're survivable if named.</p>
+
+<h3>A. Pre-flight and resume failures</h3>
+
+<h4>A1 — The "resume says senior, answers say mid"</h4>
+<p>You claim on your resume that you "owned the streaming platform" but when the interviewer asks what Kafka version you ran, what your broker count was, what the retention policy was, and what happened the last time you ran out of disk — you freeze. Scorecard verdict: <em>"Scope inflation, no depth behind the title."</em></p>
+<p><strong>Fix:</strong> for every line on the resume, pre-build a three-layer drill-down. Top line, two supporting paragraphs of numbers and verbs, one anecdote of a production incident you debugged.</p>
+
+<h4>A2 — The unexplained gap between title and output</h4>
+<p>Your last role was "Staff Data Engineer" but your project list reads like three-month feature work. Interviewers silently score you down for weak scope signal. You never recover.</p>
+<p><strong>Fix:</strong> lead with scope numbers — number of downstream consumers, SLAs owned, size of the footprint, org reach. If the numbers are modest, <em>claim the title you can defend</em>, not the title on the offer letter.</p>
+
+<h3>B. Coding and SQL round failures</h3>
+
+<h4>B1 — Query-before-clarify</h4>
+<p>The prompt is "Find users whose average order value grew MoM." You start typing immediately. You don't ask whether "user" means account or visitor, whether "month" is calendar or rolling, whether deleted users count, how to handle months with zero orders. The interviewer silently writes down "jumped to implementation" and moves the bar up.</p>
+<p><strong>Fix:</strong> 90 seconds of clarification is never too much. Ask at least three questions before your cursor touches the query. Restate the problem back in your own words first.</p>
+
+<h4>B2 — The window-function shortcut</h4>
+<p>You know that <code>ROW_NUMBER() OVER (PARTITION BY ...)</code> is the trick for "top per group." You reach for it without thinking through whether ties matter, whether NULLs should be included, whether you want dense-rank instead. Your answer is close but subtly wrong on edge cases. Scorecard: <em>"Knows the tools, hasn't internalized the semantics."</em></p>
+<p><strong>Fix:</strong> for any window function, say out loud: "the frame is X, ties resolve Y, NULLs sort Z." Every time. Even when obvious.</p>
+
+<h4>B3 — Silent scratch-paper math</h4>
+<p>You stop talking. You do mental math for 45 seconds. The interviewer has no signal on how you think. By the time you speak again they've already decided.</p>
+<p><strong>Fix:</strong> narrate. "I'm going to try ROW_NUMBER here — wait, ties matter for revenue buckets so RANK would over-count. Let me check…"  Even wrong narration beats silent correctness in the first 20 minutes of the round.</p>
+
+<h4>B4 — The one-liner trap</h4>
+<p>You compress a three-CTE problem into a single deeply nested query because "it's more elegant." The interviewer cannot read it in real time and neither can you. You can't debug it when they ask a follow-up. Verdict: <em>"Writes for themselves, not for review."</em></p>
+<p><strong>Fix:</strong> default to named CTEs with short, descriptive names. Elegance is for Twitter, not interview rounds.</p>
+
+<h3>C. Engine / systems deep-dive failures</h3>
+
+<h4>C1 — "AQE handles it"</h4>
+<p>Asked how Spark handles skew, you say "AQE handles it automatically." Asked to go deeper — how does AQE <em>detect</em> skew, what config controls the threshold, what's the trade-off vs broadcast — you have nothing. Verdict: <em>"Knows the keyword, not the mechanism."</em></p>
+<p><strong>Fix:</strong> for every feature you name, know the three layers beneath it. Configuration, algorithm, trade-off. If you can't describe all three, don't volunteer the feature.</p>
+
+<h4>C2 — Exactly-once handwaving</h4>
+<p>"We used Kafka exactly-once so there are no duplicates." The interviewer probes: what about the sink? What about application-level retries? What happens during a rebalance mid-commit? You handwave. Verdict: <em>"Treats EOS as a buzzword."</em></p>
+<p><strong>Fix:</strong> memorize the two-phase commit sink diagram and the exact failure modes it does and does not cover. Also memorize the phrase "exactly-once <em>effectively</em>" and when it differs from "exactly-once processing."</p>
+
+<h4>C3 — Partitioning by hope</h4>
+<p>Your system design partitions a fact table by "user_id" because partitioning is good. You don't state the cardinality, don't state the access pattern, don't state the partition file count at six-month retention. The interviewer asks "how many files is that" and you guess wildly.</p>
+<p><strong>Fix:</strong> before you name a partition key, compute the file count out loud. Cardinality × retention / compaction target = files. If the answer is 10 million, change the key.</p>
+
+<h3>D. System design failures</h3>
+
+<h4>D1 — Scope sprawl</h4>
+<p>The prompt is "design a pipeline for 10 M events/day." You spend 15 minutes on Kafka producer ack semantics and never get to storage, serving, or cost. Time runs out. Verdict: <em>"Deep in one corner, blank elsewhere."</em></p>
+<p><strong>Fix:</strong> budget your 45 minutes. Roughly: 5 min scope, 5 min volumes/SLAs, 15 min happy path, 10 min failure modes, 5 min cost, 5 min trade-offs. Put it on your scratch paper before you start.</p>
+
+<h4>D2 — Solutioning before scoping</h4>
+<p>Interviewer: "Design a pipeline for 10 M events/day." You: "I'd use Kafka, then Spark Streaming, then Iceberg, then Looker." One minute in. You never asked <em>what</em> the events are, what the SLA is, who the consumer is, what the business question is.</p>
+<p><strong>Fix:</strong> five scoping questions before any box appears on the board. "What's the event schema? What are the downstream consumers? What's the freshness SLA? What's the volume distribution — steady or bursty? What's the retention and access pattern?"</p>
+
+<h4>D3 — The "golden path" trap</h4>
+<p>Your design works perfectly on the happy path. You never mention: what happens when Kafka is down, what happens when the transform fails on one record, what happens when the sink table is being vacuumed, what happens when a consumer is 6 hours behind. Verdict: <em>"Designs for the demo."</em></p>
+<p><strong>Fix:</strong> reserve the second half of the round for failure modes. Treat "what happens when X breaks" as first-class content, not a footnote.</p>
+
+<h4>D4 — No cost awareness</h4>
+<p>Your design streams everything with millisecond latency when the business question is a daily dashboard. You triple-replicate data across warehouses "for safety." You never state the monthly cloud bill. Verdict: <em>"Optimizes for the whiteboard, not the business."</em></p>
+<p><strong>Fix:</strong> always close the design with a one-line cost estimate — storage per TB, compute per hour, egress if relevant. Even order-of-magnitude is fine. Silence is not.</p>
+
+<h3>E. Behavioral failures</h3>
+
+<h4>E1 — Hero mode</h4>
+<p>Every story is "I single-handedly…". The interviewer, who works on teams, silently down-scores collaboration. By round four, the hiring committee has "limited team signal" in bold.</p>
+<p><strong>Fix:</strong> 60/40. In every story, spend 60% on your specific actions and 40% on how you enabled others. Name them.</p>
+
+<h4>E2 — STAR drift</h4>
+<p>You start with Situation → Task, but by minute three you've slid into "and then generally we do X at our company." You lost the interviewer 90 seconds ago. They're waiting for the "R" — what happened, what did you learn.</p>
+<p><strong>Fix:</strong> write every story on a 4×1 index card. Situation (2 sentences). Task (1 sentence). Action (4 sentences). Result (2 sentences with numbers). Under 4 minutes spoken, always.</p>
+
+<h4>E3 — "I would have…"</h4>
+<p>Asked for a time you failed, you describe what you <em>would</em> have done differently. You never described the actual failure. Verdict: <em>"Can't own an outcome."</em></p>
+<p><strong>Fix:</strong> the failure story starts with what actually broke, in one blunt sentence. "We shipped a backfill that doubled the revenue numbers on the executive dashboard for six hours." Then the rest.</p>
+
+<h4>E4 — Over-prepared monotone</h4>
+<p>You've rehearsed the story so many times it sounds canned. The interviewer senses it. Authenticity tanks. Verdict: <em>"Felt like a script."</em></p>
+<p><strong>Fix:</strong> rehearse the <em>structure</em>, not the words. Pick three different phrasings of the opening line. Use whichever fits the conversational flow that day.</p>
+
+<h3>F. Closing-round and hiring-committee failures</h3>
+
+<h4>F1 — The "why this company" gap</h4>
+<p>You've answered everything technically well. The bar raiser asks "why us specifically?" and you recite a line from the website. Verdict: <em>"Strong IC, weak mission fit."</em> That's enough for a committee to pass.</p>
+<p><strong>Fix:</strong> have three specific reasons ready, at least one of which references something from an engineering blog, an open-source commit, or a recent talk by someone there. Show you actually looked.</p>
+
+<h4>F2 — Underselling in the wrap</h4>
+<p>Asked "is there anything we should know that we haven't asked?" you say "no, I think we covered it." You just gave up your last 90 seconds of scoring time.</p>
+<p><strong>Fix:</strong> always have one prepared "closing signal" — a specific project they didn't ask about, or a failure recovery story that shows judgment. Rehearsed, short, positive.</p>
+
+<h4>F3 — Weak reverse questions</h4>
+<p>"Do you have questions for me?" You ask about work-from-home policy and team size. Those are HR questions. Engineering interviewers want to see what you'd actually want to know on day one.</p>
+<p><strong>Fix:</strong> three tiers of questions ready: (a) one about their specific team's current technical challenge, (b) one about how decisions get made when the team disagrees, (c) one about what the interviewer personally wishes was better.</p>
+
+<h3>G. The "almost-hires" pattern — why committees pass on strong candidates</h3>
+
+<p>The most painful losses are not the obvious fails. They're the loops where every round is "lean hire" but the committee still passes. Three patterns drive this:</p>
+
+<ol>
+<li><strong>Narrow specialist signal.</strong> Every round showed the same skill. Committee can't tell if you'd be useful on a different problem next quarter. <strong>Fix:</strong> use the four rounds to show four different skills. If round 1 was SQL depth, round 2 should be operations judgment, round 3 should be scope negotiation, round 4 should be mentoring. You choose the stories.</li>
+<li><strong>No "hell yes" round.</strong> Four "lean hires" is a statistical hire probability below 50% at most committees. You need one round where someone writes "strong hire, would fight for." <strong>Fix:</strong> pick the round you expect to do best in and prepare a <em>signature</em> answer — a story or a design move that is unusual enough to be memorable in debrief.</li>
+<li><strong>Level ambiguity.</strong> Scorecards split between L4 and L5. The committee defaults down. <strong>Fix:</strong> in every round, demonstrate at least one behaviour from the level above — ambiguity tolerance in coding, org-level reasoning in design, mentoring framing in behavioural.</li>
+</ol>
+
+<hr>
+
+<h2 id="p09-3-what-changes-at-staff-and-principal">3. What Changes at Staff+ and Principal</h2>
+
+<p>The interview loop for senior (L5), staff (L6), and principal (L7) uses the same rounds — but the scorecard rubric shifts. Miscalibrating the level you're targeting is one of the most common reasons for "down-leveling" at offer time. What follows is the signal map.</p>
+
+<h3>The Level Matrix</h3>
+
+<table>
+<thead>
+<tr><th>Axis</th><th>L4 — Mid</th><th>L5 — Senior</th><th>L6 — Staff</th><th>L7 — Principal</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scope</strong></td>
+<td>A task inside a feature</td>
+<td>A feature end-to-end</td>
+<td>A multi-team system</td>
+<td>An org-wide technical direction</td>
+</tr>
+<tr>
+<td><strong>Ambiguity</strong></td>
+<td>Told what to do</td>
+<td>Told what outcome to deliver</td>
+<td>Defines the outcome</td>
+<td>Defines which problems are worth solving</td>
+</tr>
+<tr>
+<td><strong>Tech judgment</strong></td>
+<td>Uses existing patterns</td>
+<td>Picks the right pattern</td>
+<td>Decides when to invent a pattern</td>
+<td>Sets the patterns others will use for years</td>
+</tr>
+<tr>
+<td><strong>Influence</strong></td>
+<td>Influences own code reviews</td>
+<td>Influences a team</td>
+<td>Influences peer teams</td>
+<td>Influences the org and sometimes the industry</td>
+</tr>
+<tr>
+<td><strong>Cost awareness</strong></td>
+<td>Aware of query cost</td>
+<td>Owns pipeline cost</td>
+<td>Owns team budget</td>
+<td>Shapes the cost curve of the platform</td>
+</tr>
+<tr>
+<td><strong>Failure recovery</strong></td>
+<td>Fixes their bug</td>
+<td>Owns the incident</td>
+<td>Changes the system so this class of incident can't recur</td>
+<td>Changes the org's practices around failure</td>
+</tr>
+<tr>
+<td><strong>Mentoring</strong></td>
+<td>Receives mentoring</td>
+<td>Mentors juniors</td>
+<td>Mentors seniors and raises the team's ceiling</td>
+<td>Mentors staff engineers and managers</td>
+</tr>
+<tr>
+<td><strong>Writing</strong></td>
+<td>PR descriptions</td>
+<td>Design docs for a feature</td>
+<td>Strategy docs that reshape decisions</td>
+<td>Technical vision papers that set roadmaps</td>
+</tr>
+</tbody>
+</table>
+
+<h3>Staff (L6) Signals</h3>
+
+<p>At the staff level, interviews are no longer asking "can you build it" — they're asking "would you be the person others run a hard decision by?" Three signals carry most of the weight.</p>
+
+<h4>S1 — Scope negotiation</h4>
+<p>When given a prompt, staff candidates <em>compress or expand the scope</em> deliberately. Example: the prompt is "design a recommendation pipeline." A senior answers the prompt. A staff engineer says: "The interesting question here isn't the pipeline — it's how we version the feature store, because that's where the ML team and the infra team disagree. Let me scope the answer around that disagreement and mention the pipeline details as they come up."</p>
+<p>That move — naming the real problem inside the prompt — is staff-level. It requires judgment about what is worth engineering time in the real world, not just technical skill.</p>
+
+<h4>S2 — Cross-team trade-off reasoning</h4>
+<p>Senior engineers answer "what's the right design." Staff engineers answer "what's the right design given what the adjacent team is doing, what the org's cost posture is, and what we're willing to deprecate in twelve months." Every technical answer has an org-level sentence.</p>
+
+<h4>S3 — Mentorship embedded in the story</h4>
+<p>In behaviourals, staff candidates naturally mention other engineers by role — "the senior on the team," "the junior who joined last quarter," "the staff eng on the adjacent team who had the opposite opinion." Their stories are never about themselves alone. A candidate whose every story uses "I" without ever naming who they worked with reads as individual-contributor strong, team-lead weak.</p>
+
+<h3>Principal (L7) Signals</h3>
+
+<p>At principal, the interview bar shifts again. The scorecard looks for evidence that you set technical direction across an organization, and that your framing changes how others think — not just what they build.</p>
+
+<h4>P1 — Problem selection</h4>
+<p>Given a system-design prompt, principal candidates often reframe the question. "The prompt asks how to serve 10 M events per day at 200 ms p99 latency. In my experience, at that scale the real question is whether we even need 200 ms — because every order of magnitude cheaper we can make the infrastructure unlocks a different set of products. Let me walk through three designs at three latency points and show the cost curve."</p>
+<p>Principal engineers select which problems to solve, not just how to solve them.</p>
+
+<h4>P2 — Org-level influence without authority</h4>
+<p>Principal behaviourals feature stories where the candidate changed the behaviour of people who did not report to them and were not asked to. A principal engineer rarely describes winning an argument — they describe reframing the argument so the outcome was inevitable.</p>
+
+<h4>P3 — Narrative ownership</h4>
+<p>Principal candidates can answer "what's your three-year technical bet?" with specificity. They have a thesis — about where the stack is going, which abstractions are about to break, what the team should be investing in now to be ready. That thesis is testable and defensible.</p>
+
+<h3>Common Down-Leveling Traps</h3>
+
+<ul>
+<li><strong>L5 claiming L6.</strong> You work on a big team, so you claim staff. But every story is scoped to a feature, not a system. Fix: either claim L5 cleanly and ace it, or find two stories where you owned a cross-team decision, and rehearse them cold.</li>
+<li><strong>L6 claiming L7.</strong> You've delivered multi-team systems, but you can't articulate a three-year bet. Fix: prepare a written one-page "technical narrative" before the loop. Even if it never comes up, writing it will sharpen every answer.</li>
+<li><strong>L7 under-demonstrating.</strong> You're so deep in the problem that you forget to name the org-level framing. Fix: every answer opens with the framing sentence. "The interesting tension here is between X team's need for Y and Z team's need for W." Then dive in.</li>
+</ul>
+
+<hr>
+
+<h2 id="p09-4-the-sql-question-bank-senior-tier">4. The SQL Question Bank — Senior Tier</h2>
+
+<p>These are the SQL problems that actually separate seniors from mid-level engineers in interview rounds. Each comes with a prompt, the schema, the expected output shape, a walkthrough of the thinking, and a reference solution. The difficulty target is the "hard tier" on public SQL practice platforms — multi-CTE, window-function-heavy, business-grounded, and with at least one non-obvious edge case.</p>
+
+<p>Every solution is written in ANSI-style SQL that runs on Snowflake, BigQuery, Redshift, and Postgres with minor dialect tweaks. Spark SQL equivalents are noted where they diverge.</p>
+
+<blockquote>
+<p>The fastest way to fail these problems in an interview is to type before you've restated the requirements out loud. Every solution below opens with "Let me restate what I'm solving."</p>
+</blockquote>
+<h3>Q1 — Cohort Retention Matrix</h3>
+
+<h4>Prompt</h4>
+<p>For a subscription product, build the signup-month × activity-month retention matrix. Each cell should contain the percentage of users who signed up in the row month and were active in the column month. Include month 0 (100% by definition). Go up to month 12. The output should be sorted by signup month descending.</p>
+
+<h4>Schema</h4>
+<pre><code>users(user_id BIGINT, signup_ts TIMESTAMP)
+events(user_id BIGINT, event_ts TIMESTAMP, event_name STRING)
+-- "active" = at least one event in that calendar month</code></pre>
+
+<h4>Why this problem is hard</h4>
+<p>Three traps: (1) the month-diff must be computed carefully across year boundaries; (2) a naive join will double-count users who had multiple events in a month; (3) cohorts with zero retained users at month N must still appear — you can't filter them out with an inner join.</p>
+
+<h4>Walkthrough</h4>
+<ol>
+<li>Build the cohort dimension: one row per user, with their signup month truncated to the first of the month.</li>
+<li>Build the activity dimension: distinct (user_id, activity_month) pairs from events.</li>
+<li>Join cohort → activity on user_id, compute <code>month_number = month_diff(activity_month, signup_month)</code>.</li>
+<li>Aggregate: for each (signup_month, month_number), count distinct users. Divide by the cohort size to get the retention percentage.</li>
+<li>Pivot into the matrix shape — either with conditional aggregation or with your engine's PIVOT clause.</li>
+</ol>
+
+<h4>Reference solution</h4>
+<pre><code>WITH cohort AS (
+  SELECT
+    user_id,
+    DATE_TRUNC('month', signup_ts) AS signup_month
+  FROM users
+),
+cohort_size AS (
+  SELECT signup_month, COUNT(*) AS cohort_n
+  FROM cohort
+  GROUP BY signup_month
+),
+activity AS (
+  SELECT DISTINCT
+    user_id,
+    DATE_TRUNC('month', event_ts) AS activity_month
+  FROM events
+),
+retention AS (
+  SELECT
+    c.signup_month,
+    DATEDIFF('month', c.signup_month, a.activity_month) AS month_n,
+    COUNT(DISTINCT a.user_id) AS retained
+  FROM cohort c
+  JOIN activity a USING (user_id)
+  WHERE a.activity_month &gt;= c.signup_month
+    AND DATEDIFF('month', c.signup_month, a.activity_month) &lt;= 12
+  GROUP BY 1, 2
+)
+SELECT
+  r.signup_month,
+  s.cohort_n,
+  MAX(CASE WHEN month_n = 0  THEN retained END) AS m0,
+  MAX(CASE WHEN month_n = 1  THEN retained END) AS m1,
+  MAX(CASE WHEN month_n = 2  THEN retained END) AS m2,
+  MAX(CASE WHEN month_n = 3  THEN retained END) AS m3,
+  MAX(CASE WHEN month_n = 6  THEN retained END) AS m6,
+  MAX(CASE WHEN month_n = 12 THEN retained END) AS m12,
+  ROUND(100.0 * MAX(CASE WHEN month_n = 1  THEN retained END) / s.cohort_n, 1) AS pct_m1,
+  ROUND(100.0 * MAX(CASE WHEN month_n = 3  THEN retained END) / s.cohort_n, 1) AS pct_m3,
+  ROUND(100.0 * MAX(CASE WHEN month_n = 12 THEN retained END) / s.cohort_n, 1) AS pct_m12
+FROM retention r
+JOIN cohort_size s USING (signup_month)
+GROUP BY r.signup_month, s.cohort_n
+ORDER BY r.signup_month DESC;</code></pre>
+
+<h4>Follow-up probes the interviewer will ask</h4>
+<ul>
+<li>"What if we want <em>rolling 30-day retention</em> instead of calendar-month retention?" → replace <code>DATE_TRUNC('month', …)</code> with a bucket derived from <code>FLOOR(DATEDIFF('day', signup_ts, event_ts) / 30)</code>.</li>
+<li>"What if some users have backdated signup timestamps because they were imported?" → add a validity filter on signup_ts and a separate "import" cohort.</li>
+<li>"How would you compute the confidence interval on each retention percentage?" → Wilson interval, or bootstrap, depending on cohort size.</li>
+</ul>
+<h3>Q2 — Sessionization with Idle Timeout</h3>
+
+<h4>Prompt</h4>
+<p>You have raw event logs with user_id and event timestamps. Define a "session" as a contiguous sequence of events from the same user where no gap between consecutive events exceeds 30 minutes. For each session, output: user_id, session_id, session_start, session_end, duration_seconds, event_count. The session_id should be stable across re-runs for the same input.</p>
+
+<h4>Schema</h4>
+<pre><code>events(user_id BIGINT, event_ts TIMESTAMP, event_name STRING)</code></pre>
+
+<h4>Why this problem is hard</h4>
+<p>This is a "gaps and islands" problem in disguise. Two traps: (1) you need to compute the gap against the <em>previous</em> event per user, not globally; (2) the session_id must be deterministic — a naive <code>ROW_NUMBER()</code> changes across runs if ties exist. A typical junior solution uses a self-join which scans O(n²); the senior solution uses a single pass with <code>LAG</code>.</p>
+
+<h4>Walkthrough</h4>
+<ol>
+<li>Partition by user, order by timestamp, compute <code>LAG(event_ts)</code> to get the previous event's timestamp.</li>
+<li>Flag a new session when the gap &gt; 30 minutes or when there is no previous event (first row per user).</li>
+<li>Take a running <code>SUM</code> of the flag over the partition to assign monotonically increasing session numbers per user.</li>
+<li>Aggregate by (user_id, session_number) for the final output. Build a stable session_id by hashing user_id + session_start.</li>
+</ol>
+
+<h4>Reference solution</h4>
+<pre><code>WITH e AS (
+  SELECT
+    user_id,
+    event_ts,
+    event_name,
+    LAG(event_ts) OVER (PARTITION BY user_id ORDER BY event_ts) AS prev_ts
+  FROM events
+),
+flagged AS (
+  SELECT
+    e.*,
+    CASE
+      WHEN prev_ts IS NULL THEN 1
+      WHEN DATEDIFF('second', prev_ts, event_ts) &gt; 1800 THEN 1
+      ELSE 0
+    END AS new_session_flag
+  FROM e
+),
+numbered AS (
+  SELECT
+    f.*,
+    SUM(new_session_flag) OVER (
+      PARTITION BY user_id ORDER BY event_ts
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS session_number
+  FROM flagged f
+)
+SELECT
+  user_id,
+  MD5(CAST(user_id AS STRING) || '_' || CAST(MIN(event_ts) AS STRING)) AS session_id,
+  MIN(event_ts)                                     AS session_start,
+  MAX(event_ts)                                     AS session_end,
+  DATEDIFF('second', MIN(event_ts), MAX(event_ts))  AS duration_seconds,
+  COUNT(*)                                          AS event_count
+FROM numbered
+GROUP BY user_id, session_number
+ORDER BY user_id, session_start;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"How would you make this incremental?" → state the watermark: "I'd only reprocess sessions that extend into the new batch window, which means replaying the tail of each user's most recent session from a checkpoint."</li>
+<li>"What if two events share a timestamp?" → the <code>ORDER BY</code> must include a tiebreaker — typically <code>event_id</code> — or sessions become non-deterministic across runs.</li>
+<li>"Can this be done in Spark with Structured Streaming?" → yes, using <code>session_window</code> directly; walk through the watermark and state timeout semantics.</li>
+</ul>
+<h3>Q3 — Last-Touch Attribution With Lookback Window</h3>
+
+<h4>Prompt</h4>
+<p>For every purchase, find the last marketing touch (channel + campaign) that occurred within the 7 days preceding the purchase, for the same user. If no touch exists in that window, attribute the purchase to "organic." Output: purchase_id, user_id, purchase_ts, purchase_amount, attribution_channel, attribution_campaign, days_between_touch_and_purchase.</p>
+
+<h4>Schema</h4>
+<pre><code>purchases(purchase_id BIGINT, user_id BIGINT, purchase_ts TIMESTAMP, amount DECIMAL)
+touches(user_id BIGINT, touch_ts TIMESTAMP, channel STRING, campaign STRING)</code></pre>
+
+<h4>Why this problem is hard</h4>
+<p>Two traps: (1) this is a range join — every purchase potentially joins to many touches, and a careless query will multiply rows before the rank, producing wrong totals; (2) ties at the same timestamp must be broken deterministically. The correct approach ranks candidates inside a bounded sub-query rather than joining the full cross-product.</p>
+
+<h4>Walkthrough</h4>
+<ol>
+<li>Join purchases to touches on user_id and the 7-day window. Compute the lag in seconds.</li>
+<li>Rank touches per purchase_id by touch_ts DESC (last-touch wins), with channel alphabetical as a deterministic tiebreaker.</li>
+<li>Keep only rank = 1. Left-join back to the full purchases table so unattributed rows show "organic."</li>
+</ol>
+
+<h4>Reference solution</h4>
+<pre><code>WITH candidates AS (
+  SELECT
+    p.purchase_id,
+    p.user_id,
+    p.purchase_ts,
+    p.amount,
+    t.touch_ts,
+    t.channel,
+    t.campaign,
+    ROW_NUMBER() OVER (
+      PARTITION BY p.purchase_id
+      ORDER BY t.touch_ts DESC, t.channel ASC
+    ) AS rn
+  FROM purchases p
+  LEFT JOIN touches t
+    ON t.user_id = p.user_id
+   AND t.touch_ts &lt;= p.purchase_ts
+   AND t.touch_ts &gt;= p.purchase_ts - INTERVAL '7 days'
+)
+SELECT
+  purchase_id,
+  user_id,
+  purchase_ts,
+  amount AS purchase_amount,
+  COALESCE(channel, 'organic')         AS attribution_channel,
+  COALESCE(campaign, 'none')           AS attribution_campaign,
+  CASE WHEN touch_ts IS NULL THEN NULL
+       ELSE DATEDIFF('day', touch_ts, purchase_ts)
+  END AS days_between_touch_and_purchase
+FROM candidates
+WHERE rn = 1
+ORDER BY purchase_ts;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"How would the query change for first-touch attribution?" → swap <code>ORDER BY t.touch_ts DESC</code> to ASC, and consider expanding the window to the user's lifetime.</li>
+<li>"How would you handle cross-device users?" → introduce an identity table and replace user_id with a resolved identity_id upstream.</li>
+<li>"What does the query cost at 1 B purchases and 10 B touches?" → range joins are expensive; discuss pre-filtering touches by date, using broadcast hash joins if touches fits, and partitioning by user_id on both sides.</li>
+</ul>
+<h3>Q4 — Month-over-Month Growth With Sparse Months</h3>
+
+<h4>Prompt</h4>
+<p>Compute month-over-month revenue growth for every product, for every calendar month in the past 24 months. If a product had no sales in a given month, treat its revenue as zero (not NULL). Output: product_id, month, revenue, prev_month_revenue, mom_growth_pct.</p>
+
+<h4>Why this problem is hard</h4>
+<p>The sparse-months trap. A naive <code>LAG()</code> over the sales table will compare April to the previous row, which might be from February if March had no sales. The answer is wrong and doesn't flag itself. The fix is to <em>generate a dense calendar</em> (product × month) and left-join actual revenue onto it.</p>
+
+<h4>Reference solution</h4>
+<pre><code>WITH months AS (
+  SELECT DATE_TRUNC('month', d) AS month
+  FROM GENERATE_SERIES(
+    DATE_TRUNC('month', CURRENT_DATE - INTERVAL '24 months'),
+    DATE_TRUNC('month', CURRENT_DATE),
+    INTERVAL '1 month'
+  ) AS d
+),
+products AS (SELECT DISTINCT product_id FROM sales),
+grid AS (
+  SELECT p.product_id, m.month
+  FROM products p CROSS JOIN months m
+),
+monthly AS (
+  SELECT
+    product_id,
+    DATE_TRUNC('month', sale_ts) AS month,
+    SUM(amount) AS revenue
+  FROM sales
+  GROUP BY 1, 2
+),
+filled AS (
+  SELECT
+    g.product_id,
+    g.month,
+    COALESCE(m.revenue, 0) AS revenue
+  FROM grid g
+  LEFT JOIN monthly m USING (product_id, month)
+)
+SELECT
+  product_id,
+  month,
+  revenue,
+  LAG(revenue) OVER (PARTITION BY product_id ORDER BY month) AS prev_month_revenue,
+  CASE
+    WHEN LAG(revenue) OVER (PARTITION BY product_id ORDER BY month) IS NULL THEN NULL
+    WHEN LAG(revenue) OVER (PARTITION BY product_id ORDER BY month) = 0 AND revenue &gt; 0 THEN 9999.0
+    WHEN LAG(revenue) OVER (PARTITION BY product_id ORDER BY month) = 0 THEN 0
+    ELSE ROUND(
+      100.0 * (revenue - LAG(revenue) OVER (PARTITION BY product_id ORDER BY month))
+      / LAG(revenue) OVER (PARTITION BY product_id ORDER BY month), 2
+    )
+  END AS mom_growth_pct
+FROM filled
+ORDER BY product_id, month;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"How do you handle products that were launched mid-window?" → emit NULL rather than 0 for months before the product's first sale; use a <code>first_sale_month</code> CTE.</li>
+<li>"The query is slow at 50 M rows. What do you change?" → pre-aggregate sales to daily first; partition-prune on sale_ts; materialize the monthly roll-up as a daily batch job.</li>
+</ul>
+<h3>Q5 — Top-N Per Group With Ties and Pagination</h3>
+
+<h4>Prompt</h4>
+<p>For each region, return the top 3 products by revenue in the current quarter. If two products tie on revenue, break the tie by product name alphabetically. The query must be correct even when a region has fewer than 3 products.</p>
+
+<h4>Why it's hard</h4>
+<p>The window function choice matters: <code>ROW_NUMBER</code> arbitrarily picks a winner on ties, <code>RANK</code> leaves gaps, <code>DENSE_RANK</code> doesn't. For "top 3 with ties resolved deterministically" you almost always want <code>ROW_NUMBER</code> with a deterministic tiebreaker <em>inside</em> the ORDER BY. That's what this question is really testing.</p>
+
+<h4>Reference solution</h4>
+<pre><code>WITH q AS (
+  SELECT
+    region,
+    product_id,
+    product_name,
+    SUM(amount) AS revenue
+  FROM sales
+  WHERE sale_ts &gt;= DATE_TRUNC('quarter', CURRENT_DATE)
+    AND sale_ts &lt;  DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months')
+  GROUP BY region, product_id, product_name
+),
+ranked AS (
+  SELECT
+    q.*,
+    ROW_NUMBER() OVER (
+      PARTITION BY region
+      ORDER BY revenue DESC, product_name ASC
+    ) AS rn
+  FROM q
+)
+SELECT region, product_id, product_name, revenue, rn AS rank_in_region
+FROM ranked
+WHERE rn &lt;= 3
+ORDER BY region, rn;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"What if the business wants <em>all ties included</em> in the top 3?" → switch to <code>DENSE_RANK()</code> and filter on <code>dense_rank &lt;= 3</code>.</li>
+<li>"How would you page this to return rank 4–6 next?" → parametrize the filter; note the performance hit if the engine doesn't push the filter below the window.</li>
+</ul>
+
+<h3>Q6 — As-Of / Point-in-Time Join</h3>
+
+<h4>Prompt</h4>
+<p>For each order, find the customer's <em>subscription tier as of the order timestamp</em>. A customer's tier can change over time and we have a history table with valid-from / valid-to per tier. Output: order_id, order_ts, customer_id, tier_at_order_time.</p>
+
+<h4>Why it's hard</h4>
+<p>This is a point-in-time join — the most common mistake is to join on "tier where valid_from &lt;= order_ts and valid_to &gt;= order_ts." That works only if the history is gap-free and exactly one row is valid at any moment. Real-world histories have gaps, overlaps from bad backfills, and open-ended current rows (valid_to = NULL). The senior answer handles all three.</p>
+
+<h4>Reference solution (gap-tolerant, picks most-recent valid)</h4>
+<pre><code>WITH tier_history AS (
+  SELECT
+    customer_id,
+    tier,
+    valid_from,
+    COALESCE(valid_to, TIMESTAMP '9999-12-31 00:00:00') AS valid_to
+  FROM customer_tier_history
+),
+candidates AS (
+  SELECT
+    o.order_id,
+    o.order_ts,
+    o.customer_id,
+    h.tier,
+    h.valid_from,
+    ROW_NUMBER() OVER (
+      PARTITION BY o.order_id
+      ORDER BY h.valid_from DESC
+    ) AS rn
+  FROM orders o
+  LEFT JOIN tier_history h
+    ON h.customer_id = o.customer_id
+   AND h.valid_from &lt;= o.order_ts
+   AND h.valid_to   &gt;  o.order_ts
+)
+SELECT
+  order_id,
+  order_ts,
+  customer_id,
+  COALESCE(tier, 'free') AS tier_at_order_time
+FROM candidates
+WHERE rn = 1
+ORDER BY order_ts;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"What do you do if the history has overlaps?" → rank by <code>valid_from DESC</code>, then by <code>loaded_at DESC</code>, and take the most recently-loaded record. Flag the overlap to a data-quality dashboard.</li>
+<li>"Spark has a native as-of join — when do you use it?" → when the fact side is much larger than the history side and you'd otherwise shuffle both; Spark's <code>asOfJoin</code> can keep the history broadcast.</li>
+</ul>
+<h3>Q7 — Funnel Analysis With Ordered Steps</h3>
+
+<h4>Prompt</h4>
+<p>A signup funnel has four ordered steps: <code>visit</code> → <code>view_plan</code> → <code>start_checkout</code> → <code>complete_signup</code>. For users in the past 30 days, compute (a) how many users reached each step, and (b) the step-to-step conversion rate. A user only "reaches" a step if they also reached every earlier step, and the events must appear in order within a single 24-hour window.</p>
+
+<h4>Why it's hard</h4>
+<p>Ordered funnels with a time constraint cannot be solved with simple <code>COUNT(DISTINCT CASE WHEN …)</code> over the events table — that would count users who did step 3 before step 1 or across weeks. The senior answer uses window functions to enforce ordering within a window, or <code>array_agg</code> with pattern-matching on the sequence.</p>
+
+<h4>Reference solution</h4>
+<pre><code>WITH ordered AS (
+  SELECT
+    user_id,
+    event_name,
+    event_ts,
+    MIN(CASE WHEN event_name = 'visit'          THEN event_ts END) OVER w AS t_visit,
+    MIN(CASE WHEN event_name = 'view_plan'      THEN event_ts END) OVER w AS t_view,
+    MIN(CASE WHEN event_name = 'start_checkout' THEN event_ts END) OVER w AS t_start,
+    MIN(CASE WHEN event_name = 'complete_signup' THEN event_ts END) OVER w AS t_done
+  FROM events
+  WHERE event_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
+  WINDOW w AS (PARTITION BY user_id)
+),
+per_user AS (
+  SELECT
+    user_id,
+    t_visit,
+    CASE WHEN t_view  &gt; t_visit AND t_view  &lt;= t_visit + INTERVAL '24 hours' THEN t_view END AS t_view_ok,
+    CASE WHEN t_start &gt; t_view  AND t_start &lt;= t_visit + INTERVAL '24 hours' THEN t_start END AS t_start_ok,
+    CASE WHEN t_done  &gt; t_start AND t_done  &lt;= t_visit + INTERVAL '24 hours' THEN t_done  END AS t_done_ok
+  FROM ordered
+  WHERE t_visit IS NOT NULL
+  GROUP BY user_id, t_visit, t_view, t_start, t_done
+)
+SELECT
+  COUNT(DISTINCT CASE WHEN t_visit    IS NOT NULL THEN user_id END) AS n_visit,
+  COUNT(DISTINCT CASE WHEN t_view_ok  IS NOT NULL THEN user_id END) AS n_view,
+  COUNT(DISTINCT CASE WHEN t_start_ok IS NOT NULL THEN user_id END) AS n_start,
+  COUNT(DISTINCT CASE WHEN t_done_ok  IS NOT NULL THEN user_id END) AS n_done,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN t_view_ok  IS NOT NULL THEN user_id END)
+             / NULLIF(COUNT(DISTINCT CASE WHEN t_visit    IS NOT NULL THEN user_id END), 0), 2) AS visit_to_view_pct,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN t_start_ok IS NOT NULL THEN user_id END)
+             / NULLIF(COUNT(DISTINCT CASE WHEN t_view_ok  IS NOT NULL THEN user_id END), 0), 2) AS view_to_start_pct,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN t_done_ok  IS NOT NULL THEN user_id END)
+             / NULLIF(COUNT(DISTINCT CASE WHEN t_start_ok IS NOT NULL THEN user_id END), 0), 2) AS start_to_done_pct
+FROM per_user;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"What if a user can enter the funnel more than once?" → redefine "reaching a step" per funnel-instance, not per user. Add a <code>funnel_id</code> via sessionization (reuse Q2's trick).</li>
+<li>"Engines vary on ordering guarantees in nested windows. Which engine are you targeting?" → call out Snowflake / BigQuery vs. Spark differences.</li>
+</ul>
+<h3>Q8 — Anomaly Detection by Z-Score Per Group</h3>
+
+<h4>Prompt</h4>
+<p>For each merchant, flag daily transaction counts in the past 90 days that are more than 3 standard deviations from the merchant's own 90-day mean. Output: merchant_id, txn_date, txn_count, rolling_mean, rolling_stddev, z_score, is_anomaly.</p>
+
+<h4>Why it's hard</h4>
+<p>Three traps: (1) you need a <em>rolling</em> mean and stddev over the last 90 days per merchant, which is a moving window — not just a group aggregate; (2) merchants with fewer than, say, 14 days of history should be excluded or flagged separately because z-scores on small N are meaningless; (3) if you include the current row in the mean you bias the anomaly test.</p>
+
+<h4>Reference solution</h4>
+<pre><code>WITH daily AS (
+  SELECT merchant_id, DATE(txn_ts) AS txn_date, COUNT(*) AS txn_count
+  FROM transactions
+  WHERE txn_ts &gt;= CURRENT_DATE - INTERVAL '90 days'
+  GROUP BY 1, 2
+),
+stats AS (
+  SELECT
+    merchant_id,
+    txn_date,
+    txn_count,
+    AVG(txn_count) OVER w AS rolling_mean,
+    STDDEV(txn_count) OVER w AS rolling_stddev,
+    COUNT(*) OVER w AS n_days
+  FROM daily
+  WINDOW w AS (
+    PARTITION BY merchant_id
+    ORDER BY txn_date
+    ROWS BETWEEN 89 PRECEDING AND 1 PRECEDING
+  )
+)
+SELECT
+  merchant_id,
+  txn_date,
+  txn_count,
+  ROUND(rolling_mean, 2)   AS rolling_mean,
+  ROUND(rolling_stddev, 2) AS rolling_stddev,
+  CASE
+    WHEN n_days &lt; 14 THEN NULL
+    WHEN rolling_stddev = 0 THEN NULL
+    ELSE ROUND((txn_count - rolling_mean) / rolling_stddev, 2)
+  END AS z_score,
+  CASE
+    WHEN n_days &lt; 14 OR rolling_stddev IS NULL OR rolling_stddev = 0 THEN FALSE
+    WHEN ABS((txn_count - rolling_mean) / rolling_stddev) &gt; 3 THEN TRUE
+    ELSE FALSE
+  END AS is_anomaly
+FROM stats
+ORDER BY merchant_id, txn_date;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"Z-score assumes normality — transaction counts are often Poisson. What would you use instead?" → MAD (median absolute deviation), or a Poisson-based confidence interval, or a seasonally-decomposed residual.</li>
+<li>"How would you productionize this?" → as a materialized view refreshed hourly; alerts go into a low-cardinality table, not straight to PagerDuty; include a 15-minute debounce.</li>
+</ul>
+
+<h3>Q9 — Median Per Group Without a MEDIAN Function</h3>
+
+<h4>Prompt</h4>
+<p>Compute the median order value per country for the past year. The target engine does not have a <code>MEDIAN</code> function (assume older Postgres). Use window functions and produce deterministic output for both odd and even counts per group.</p>
+
+<h4>Reference solution</h4>
+<pre><code>WITH ordered AS (
+  SELECT
+    country,
+    amount,
+    ROW_NUMBER() OVER (PARTITION BY country ORDER BY amount ASC, order_id ASC) AS rn_asc,
+    COUNT(*)    OVER (PARTITION BY country) AS n
+  FROM orders
+  WHERE order_ts &gt;= CURRENT_DATE - INTERVAL '365 days'
+),
+medians AS (
+  SELECT country, amount
+  FROM ordered
+  WHERE
+    (n % 2 = 1 AND rn_asc = (n + 1) / 2)
+    OR
+    (n % 2 = 0 AND rn_asc IN (n / 2, n / 2 + 1))
+)
+SELECT country, AVG(amount) AS median_amount
+FROM medians
+GROUP BY country
+ORDER BY country;</code></pre>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"How would you compute the 95th percentile the same way?" → the general form is <code>rn_asc = CEIL(n * 0.95)</code> for the lower index, with interpolation if you need continuous percentiles.</li>
+<li>"What about approximate percentiles at scale?" → introduce <code>APPROX_PERCENTILE</code> / t-digest and discuss the accuracy / cost trade-off.</li>
+</ul>
+
+<h3>Q10 — Mutual / Reciprocal Relationships</h3>
+
+<h4>Prompt</h4>
+<p>Given a directed <code>follows</code> table (<code>follower_id</code>, <code>followee_id</code>), find all mutual pairs — where A follows B and B follows A — with each pair listed only once, ordered by the smaller user_id first.</p>
+
+<h4>Reference solution</h4>
+<pre><code>SELECT
+  LEAST(follower_id, followee_id)    AS user_a,
+  GREATEST(follower_id, followee_id) AS user_b
+FROM follows f1
+WHERE EXISTS (
+  SELECT 1 FROM follows f2
+  WHERE f2.follower_id = f1.followee_id
+    AND f2.followee_id = f1.follower_id
+)
+AND f1.follower_id &lt; f1.followee_id;</code></pre>
+
+<h4>Why the <code>&lt;</code> filter matters</h4>
+<p>Without <code>f1.follower_id &lt; f1.followee_id</code>, each mutual pair appears twice (once as A→B, once as B→A). The combination of <code>EXISTS</code> and the asymmetric filter keeps each pair exactly once.</p>
+
+<h4>Follow-up probes</h4>
+<ul>
+<li>"How do you extend this to find friend-of-a-friend recommendations?" → self-join the mutual-pairs CTE on either user, exclude existing follows, rank by count of common connections.</li>
+<li>"This query is slow at 500 M rows. What do you change?" → cluster <code>follows</code> by <code>follower_id</code>, consider a pre-computed <code>mutuals</code> table refreshed nightly.</li>
+</ul>
+<hr>
+
+<h2 id="p09-5-system-design-transcripts">5. System Design Transcripts — Bad, Average, Strong</h2>
+
+<p>Reading a system-design answer is not the same as hearing one. What follows are four prompts rendered as transcripts at three skill levels each, with a scorecard on why each lands where it does. Read them out loud. The rhythm is part of what you're practicing.</p>
+
+<h3>Scenario A — Design an Event Pipeline for 10 M Events/Day</h3>
+
+<h4>Prompt (verbatim)</h4>
+<blockquote>
+<p>Our mobile app sends ~10 M events per day. Product wants both a near-real-time operational dashboard (freshness under 5 minutes) and a nightly business report. Design the pipeline.</p>
+</blockquote>
+
+<h4>Bad answer (what not to do)</h4>
+<p><em>"I'd use Kafka, then Spark Structured Streaming, then write to Snowflake. The dashboard reads from Snowflake. The nightly report also reads from Snowflake."</em></p>
+<p><strong>Why it fails:</strong> No clarifying questions. No volumes (10 M/day is only the headline — what's the peak multiple of the mean? what's the payload size?). No SLA decomposition (operational dashboards and nightly reports have different correctness tolerances, not just freshness). No failure modes. No cost. The interviewer will push and push, hoping to find ground.</p>
+
+<h4>Average answer</h4>
+<p><em>"10 M events per day is ~115 events per second average, probably 1,000 per second peak. Events are small, maybe 2 KB each, so ~20 GB per day. I'd use Kafka for ingest with three brokers, retention of 7 days for replay. A Spark Structured Streaming job writes to a bronze Iceberg table every 2 minutes with micro-batch trigger. A second job transforms bronze to silver hourly. The dashboard queries silver via a serverless warehouse. The nightly report runs on gold tables materialized at 2am.</em></p>
+<p><em>For failure handling, I'd use idempotent writes keyed on event_id. If Spark dies mid-batch, the checkpoint lets it resume. If Kafka is backed up, the dashboard shows stale data but doesn't break."</em></p>
+<p><strong>Why it's only average:</strong> correct, complete enough to pass a senior bar, but doesn't surface tension. No mention of schema evolution, late data, or the cost gap between streaming bronze and batching silver. No mention of who owns which SLA when something breaks.</p>
+
+<h4>Strong answer (Staff+)</h4>
+<p><em>"Three clarifying questions before I design. One: the 5-minute freshness — is that end-to-end from app-emit to dashboard, or from ingestion to dashboard? The difference is a mobile SDK retry tail that can add 30 minutes. Two: is the dashboard aggregated or row-level? Aggregations can tolerate more latency because they're less sensitive to individual drop-outs. Three: who is the 3am owner of this pipeline, and what breakage wakes them up versus opens a ticket?</em></p>
+<p><em>Assuming end-to-end 5 min, aggregated dashboard, and on-call is a SRE team that wants noise-free alerts — here's the design.</em></p>
+<p><em>Mobile SDK batches events and posts to a collector behind a CDN. The collector validates schema and writes to Kafka partitioned by user_id for ordering. Retention is 7 days so we can replay a full week. Spark Structured Streaming consumes with a 1-minute trigger, writes to a bronze Iceberg table with hidden partitioning on event_date. That gives us cheap compaction and schema evolution without consumer breakage.</em></p>
+<p><em>A second streaming job projects bronze into silver with typed columns and business-key resolution. The dashboard queries silver, filtered to the past 24 hours, via a warehouse that auto-scales on idle. For the nightly report, a batch job at 2am reads silver, joins with reference data, and writes a gold table consumed by the BI tool.</em></p>
+<p><em>Three failure modes worth naming. First: late data. SDK retries can arrive 12 hours after the event. I'd set a watermark of 2 hours on silver and emit late arrivals to a "late" side-table that the nightly batch re-incorporates. The dashboard never sees late data — it's already moved on. Second: schema drift. I'd require the bronze writer to fail-open with a quarantine record whenever an unknown field appears, and alert the producer team, not the consumer team. Third: cost runaway. If the mobile SDK ships a bug that 10x's event volume, Kafka's retention will still hold 7 days, Spark will throttle at its configured max, and the dashboard will stale rather than crash. That's the correct failure mode because a stale dashboard is a pageable event and a crashed cluster is a catastrophe.</em></p>
+<p><em>One trade-off to flag: we're duplicating storage (bronze + silver + gold). The alternative is materialized views on raw, which saves storage but gives us less control over cost and less visibility into pipeline failures. At 20 GB/day raw, that's only ~7 TB/year; keeping all three tiers costs ~$2,000/year in storage. Cheap. I'd keep the three-tier design. If we were at 10x the scale, the trade-off would reverse."</em></p>
+<p><strong>Why it's strong:</strong> opens with scoping, states assumptions before designing, names who pages at 3am (org awareness), discusses failure modes as first-class content, quantifies cost, closes with a trade-off the interviewer didn't ask about. That last move is the staff-level signature — <em>volunteering the tension you chose to live with</em>.</p>
+
+<h3>Scenario B — "The Dashboard Numbers Don't Match" (Live Debug)</h3>
+
+<h4>Prompt (verbatim)</h4>
+<blockquote>
+<p>It's Tuesday morning. Two dashboards show different values for the same KPI — yesterday's revenue. The finance team reports $4.2M; the executive dashboard reports $3.9M. Both were "right" last week. Walk me through how you investigate.</p>
+</blockquote>
+
+<h4>Bad answer</h4>
+<p><em>"I'd check the queries behind each dashboard and compare them."</em></p>
+<p><strong>Why it fails:</strong> this is what the junior tells the senior who then has to do the actual work. The interviewer is testing <em>investigation methodology</em>, not tooling. A one-sentence answer signals "I've never owned an incident like this."</p>
+
+<h4>Average answer</h4>
+<p><em>"First I'd reproduce both numbers myself against the warehouse — confirm finance's $4.2M and exec's $3.9M are the right numbers from each dashboard's source query. Then I'd inspect the SQL of both queries. Usually the difference is timezone — one uses UTC and one uses local time — or a join filter that includes/excludes refunds.</em></p>
+<p><em>If SQL is identical, I'd check the source tables — are they reading the same table? If one reads <code>gold.revenue</code> and the other reads <code>silver.orders</code>, those pipelines might have different lag. I'd look at pipeline run logs for yesterday.</em></p>
+<p><em>Once I find the root cause, I'd document it, fix it, and post a message in the data slack channel with the explanation."</em></p>
+<p><strong>Why it's only average:</strong> correct debugging sequence, but no prioritization, no mention of stopping the bleeding while investigating, no consideration of downstream consumers, no ownership of communications beyond "post in slack." This is senior IC thinking, not staff thinking.</p>
+
+<h4>Strong answer</h4>
+<p><em>"Before I touch anything technical — three moves in parallel. One: I IM both dashboard owners to say 'we see a discrepancy, investigating, will post to #data-incidents within 30 min, please don't publish commentary on these numbers externally until we post.' That buys me a window and avoids the CFO telling the CEO a wrong number at 10am. Two: I note the current values from both dashboards with screenshots — the numbers can drift during investigation. Three: I check if there's an active incident, since discrepancies often correlate with upstream failures.</em></p>
+<p><em>Now the investigation. I treat this as a funnel: at which layer does the $300K disagreement first appear? I run both queries myself against the warehouse and confirm. Then I go up the pipeline — do the upstream silver tables agree? Do the bronze raw tables agree? Somewhere in that chain the numbers diverge, and that's the layer where the bug lives.</em></p>
+<p><em>The four most likely root causes in order: timezone boundary (revenue before/after midnight attributes to different days), filter drift (one query includes cancellations, the other excludes), late-arriving data (finance pulled later and saw more rows), and join duplication (a new dim row caused some facts to be double-counted after a recent deploy).</em></p>
+<p><em>Let's say I find the cause: a dim_store refresh last night added a duplicate mapping for two store_ids, which inflated finance's number. Now the fix. Short-term: I roll back the dim_store snapshot. Medium-term: I fix the dim loader to surface uniqueness violations as a pipeline failure, not a warning. Long-term — and this is what most engineers skip — I want to understand why this wasn't caught by the data-quality monitor. Was the monitor not configured on this table? Was the threshold too wide? That's the conversation that prevents recurrence.</em></p>
+<p><em>For communications, I'd post to #data-incidents with a four-part summary: impact, root cause, fix, prevention. I'd notify finance and the exec team directly about the corrected number, with the delta explained — because the trust repair is as important as the fix.</em></p>
+<p><em>One meta-point I'd flag: we shouldn't have two dashboards consuming the same KPI from two different sources. That's the real bug. I'd follow up with a proposal to consolidate onto a single certified source, owned by the data team, with a deprecation path for whichever dashboard loses."</em></p>
+<p><strong>Why it's strong:</strong> parallel moves (comms + triage + investigation), explicit stakeholder management, structured root-cause hypothesis, short/medium/long-term fix framing, and the closing move — <em>naming the organizational root cause</em> — is unmistakably staff-level.</p>
+<h3>Scenario C — Migrate 50 TB Hive Table to Iceberg With Zero Consumer Downtime</h3>
+
+<h4>Prompt (verbatim)</h4>
+<blockquote>
+<p>You have a 50 TB Hive-external table on S3, partitioned by day, with 40+ downstream consumers. Product wants to migrate it to Iceberg so we get time travel, safe schema evolution, and compaction. Design the migration. Zero consumer downtime is a hard requirement.</p>
+</blockquote>
+
+<h4>Bad answer</h4>
+<p><em>"I'd use Iceberg's migrate-table procedure, run it overnight, and notify consumers in the morning."</em></p>
+<p><strong>Why it fails:</strong> doesn't engage the zero-downtime constraint, doesn't state which tools support both the old and new formats during cutover, doesn't plan rollback, doesn't acknowledge 40+ consumers means 40+ migration coordination problems.</p>
+
+<h4>Average answer</h4>
+<p><em>"Iceberg has two migration paths — <code>migrate</code> which replaces the Hive table in place, and <code>snapshot</code> which creates a parallel Iceberg table pointing at the same files. I'd use <code>snapshot</code> first so the Hive table stays live.</em></p>
+<p><em>Then I'd point one pilot consumer at the Iceberg table and validate it for a week. If good, I'd ask each consumer team to update their reader, one per week, until everyone is on the new table. Last step: decommission the Hive table.</em></p>
+<p><em>For rollback, since the snapshot doesn't modify the underlying files, I can always delete the Iceberg metadata and fall back to Hive."</em></p>
+<p><strong>Why it's only average:</strong> correct at a high level, but treats "40 consumers update their reader" as a simple line item. In reality that's the bulk of the migration work and the bulk of the risk. Also doesn't address what happens to <em>writes</em> during the cutover window, when both tables must agree.</p>
+
+<h4>Strong answer</h4>
+<p><em>"Scoping first. 'Zero consumer downtime' needs unpacking — do we mean zero dashboard gaps, or zero read failures? Those are different SLAs. And 'migrate' — are we snapshotting to keep the same files, or ingesting fresh? If we need time travel from before today, we need snapshot. If not, we can do a parallel rebuild and save ourselves a class of bugs.</em></p>
+<p><em>Assuming snapshot-based migration with zero read failures as the hard SLA, here's the plan in five phases.</em></p>
+<p><em>Phase 1 — parallel registry. Run Iceberg's <code>snapshot</code> procedure to create a parallel Iceberg table pointing at the same underlying files. The Hive table is unchanged. No consumer sees anything. This phase is safe to test, revert, and retry.</em></p>
+<p><em>Phase 2 — dual-write. Every job that writes to the Hive table now also writes to the Iceberg table. I'd rather not do this for 50 TB historically, so dual-write applies to new partitions only. Historical partitions are snapshotted once and read-only. I add a data-quality check that sums both tables nightly and pages on divergence over 0.01%.</em></p>
+<p><em>Phase 3 — pilot consumers. I identify three low-risk consumers: a BI dashboard with a weekly refresh, a data-science notebook used by one team, and a back-office report. I migrate them first. I give each one two weeks to raise issues. I publish a migration guide with the exact reader config change required — engine, version, one-liner diff.</em></p>
+<p><em>Phase 4 — tiered rollout. I rank the remaining 37 consumers by three axes: business criticality, reader engine, and how many consumers share that engine. I migrate them in cohorts, one cohort per sprint, with a "flag day" where all readers for a given engine cut over on the same Monday. I require every cohort to explicitly sign off — no passive migration.</em></p>
+<p><em>Phase 5 — deprecation. Only after 100% of the 40 consumers are on Iceberg do I shut off the Hive metastore entry for the old table. I keep the underlying S3 files for 90 days for forensic rollback, then delete.</em></p>
+<p><em>Rollback plan, which I want to name explicitly because it's the part that determines whether I'll actually ship this: at every phase, the previous state is still reachable. If Phase 2 dual-write introduces a bug, I disable the Iceberg write and the Hive table is still correct. If Phase 3 pilot fails, consumers swap their reader back. If Phase 4 surfaces a platform-wide bug, we pause and fix before the next cohort. I would not start without these rollback contracts written down.</em></p>
+<p><em>Three risks worth naming. First: engine support. Not every consumer's reader speaks Iceberg at the version we'd target — the Presto team might be on an older release that doesn't support Iceberg's v2 spec. I need a reader-engine inventory before Phase 1. Second: catalog. If the company uses Glue as the Hive metastore but we want Iceberg on a REST catalog, we're also migrating the catalog. That's a separate project and I'd treat it as such. Third: compaction. Iceberg's advantage is smaller files via compaction, but until we run compaction the new table looks identical to the old. Consumers will not feel the benefit for weeks, which is a narrative risk — leadership might ask "why are we doing this" mid-migration. I'd schedule the first compaction for right after Phase 3 so there's something to show."</em></p>
+<p><strong>Why it's strong:</strong> phases are named and sequenced with explicit entry/exit criteria; rollback is treated as first-class, not a footnote; risks are named with mitigations; and the narrative risk in the last paragraph is a staff-level move — the candidate is thinking about the <em>political economy</em> of the migration, not just the technical one.</p>
+<h3>Scenario D — Real-Time Fraud Detection for Card Transactions</h3>
+
+<h4>Prompt (verbatim)</h4>
+<blockquote>
+<p>Design a real-time fraud detection system for card transactions at a payments processor. Volume: 5,000 TPS steady, 20,000 TPS peak during holidays. Decision budget: sub-300 ms p99 from transaction arrival to approve/decline. The model team will own the model; you own everything else.</p>
+</blockquote>
+
+<h4>Bad answer</h4>
+<p><em>"I'd stream transactions through Kafka, call a model service, return the result. If the model is slow I'd add a cache."</em></p>
+<p><strong>Why it fails:</strong> no scoping, no SLAs decomposed, no feature-store plan, no fallback, no model team interface, no regulation mention, no audit log. Payments is a compliance-heavy domain and a good answer must signal awareness of that.</p>
+
+<h4>Average answer</h4>
+<p><em>"Transactions arrive via an API gateway, land in Kafka, and are consumed by a Flink job that enriches them with features — card history, merchant history, geo-velocity — and calls the fraud model. The model returns a score; if it's above a threshold, the transaction is declined. The result is posted back to the gateway within the latency budget.</em></p>
+<p><em>For features, I'd use a feature store with online and offline tiers. The online tier is Redis or DynamoDB for sub-10ms lookups. The offline tier is a lakehouse table for training.</em></p>
+<p><em>For the model, I'd support A/B by shadow-scoring with a second model and logging both outputs.</em></p>
+<p><em>For audit, every decision is logged with the input features, the score, and the threshold applied."</em></p>
+<p><strong>Why it's only average:</strong> the shape is right, but the answer is generic — it would describe any ML serving system. Missing: the 300 ms budget decomposed into how many ms for each hop; the failure behavior when the model is unavailable; the regulatory constraint that declines cannot be retried on a different model version; and the interface contract with the model team that prevents them from breaking the latency budget unilaterally.</p>
+
+<h4>Strong answer</h4>
+<p><em>"A few scoping questions. One: is 300 ms p99 end-to-end from gateway-in to gateway-out, or is it just the decision engine? The answer changes the budget for feature lookup. Two: what's the fallback when the model is unavailable? 'Approve everything' is fraud-friendly; 'decline everything' is customer-friendly. Someone — probably not us — has a business answer. Three: is this the only decision system, or is there a rules engine ahead of or behind us? Interaction with rules is often where the latency budget gets eaten.</em></p>
+<p><em>Assuming 300 ms end-to-end, deny-on-failure at the rules engine, and we're the single ML decision point — here's the design.</em></p>
+<p><em>Budget decomposition: 20 ms network gateway→us, 20 ms us→gateway, 50 ms feature lookup, 100 ms model inference, 50 ms auxiliary logging and control plane, 60 ms buffer. That's the shape of the SLA. Anyone who eats into it — a model change that adds 50 ms, a feature that requires a fresh join — has to justify it against that budget.</em></p>
+<p><em>Transactions land at a regional API gateway that validates, authenticates, and writes to a Kafka topic partitioned by card_hash. A stateless Flink job consumes with per-key ordering guarantees. The job reads online features from Redis (cached card- and merchant-level aggregates refreshed every 5 minutes) and from DynamoDB (longer-tail features). The model is deployed as a gRPC service with per-request timeouts of 150 ms; if it times out, we emit a fallback decision from the rules engine and flag the transaction for review.</em></p>
+<p><em>The feature store has two sides — online (Redis + DynamoDB) for real-time lookups, offline (Iceberg) for training. The online-offline parity guarantee is critical: every feature must be written through the same code path to both stores so training and serving can't drift. I'd enforce this with a feature-registration contract — model team cannot deploy a feature in prod that isn't registered in the offline store and backfilled.</em></p>
+<p><em>For model deployment, shadow-mode first: new models score alongside the current champion for a week without affecting decisions. If the shadow passes drift and calibration checks, a canary cohort (say, 1% of traffic) gets the new decisions. Only after a clean 7 days do we ramp to 100%. Every step is automatically rolled back on a pager page for latency regression or fraud-recall regression.</em></p>
+<p><em>Three regulatory and operational points. First: every decline must be explainable. I'd log the top three feature contributors per decision, sourced from the model's SHAP output, retained for 7 years. That's a compliance minimum in this industry. Second: decisions cannot be retried on a different model version. If we decline, a retry hitting a newer model version that approves would constitute a split decision — a disaster for audit. I'd pin the model version per decision_id and never serve a retry with a different version. Third: the model team owns model quality, I own the system. I'd publish a two-line contract: <em>they</em> guarantee p99 inference under 100 ms at any given version, <em>I</em> guarantee feature freshness within SLA and fallback-on-timeout. Anything outside those contracts goes to a monthly joint review.</em></p>
+<p><em>Cost: at 5,000 TPS steady with 20,000 peak, you're looking at roughly $50-100K/month just for the online feature store at that request rate, plus model GPU costs. I'd budget accordingly and flag early that if we push sub-100 ms we're in a different cost regime.</em></p>
+<p><em>Finally, one risk I'd name loudly: holiday peak is 4x steady. If we autoscale on traffic and the model inference is stateful (GPU warm-up takes 2 min), we'll see cold-start latency violations during the ramp. The cleanest mitigation is capacity-plan to peak, accept the cost, and run scheduled scale-up the week before known peaks. Autoscaling alone is the wrong tool here."</em></p>
+<p><strong>Why it's strong:</strong> latency budget decomposed, online-offline parity named, shadow → canary → ramp rollout, compliance signals (explainability, model-version pinning, retention period), explicit contract with the model team, cost estimate, and the final "holidays + autoscaling = cold starts" callout is the kind of specific failure-mode-naming that distinguishes a senior answer from a staff one.</p>
+<hr>
+
+<h2 id="p09-6-behavioral-star-frames">6. Behavioral STAR Frames</h2>
+
+<p>Every senior loop includes at least one dedicated behavioral round, and behavioral signal gets probed inside every technical round too. The STAR framework (Situation-Task-Action-Result) is the industry default — but most candidates apply it badly. This section is the correction.</p>
+
+<h3>STAR Is Not A Script. It's A Skeleton.</h3>
+
+<p>The frame has four parts, each with a strict time budget:</p>
+
+<ul>
+<li><strong>Situation (2 sentences, ~20 seconds):</strong> where and when, role of others, why it mattered. No backstory dumps.</li>
+<li><strong>Task (1 sentence, ~10 seconds):</strong> what you specifically were responsible for.</li>
+<li><strong>Action (4–6 sentences, ~90 seconds):</strong> what <em>you</em> did, with verbs and decisions. Not what the team did — what you did.</li>
+<li><strong>Result (2 sentences with numbers, ~30 seconds):</strong> the outcome with a metric, and what you learned or changed because of it.</li>
+</ul>
+
+<p>Total spoken time: under 4 minutes. If you can't tell the story in 4 minutes, either it's two stories or you're hiding something in the actions.</p>
+
+<h3>The Eight Canonical Frames</h3>
+
+<p>You need one prepared story for each of these frames. Pre-prepared. Written on an index card. Rehearsed out loud with a timer.</p>
+
+<ol>
+<li><strong>Disagreement resolved.</strong> A time you disagreed with a senior person and worked through it. Tests influence without authority, emotional regulation.</li>
+<li><strong>Failure owned.</strong> A significant technical failure that was your responsibility. Tests ownership and growth mindset.</li>
+<li><strong>Trade-off under pressure.</strong> A time you had to ship something imperfect because of a deadline or cost constraint. Tests judgment and pragmatism.</li>
+<li><strong>Influence across teams.</strong> A time you got people outside your team to do something they weren't planning to do. Tests scope and communication.</li>
+<li><strong>Mentored someone.</strong> A time you materially raised the skill of another engineer. Tests teaching ability — critical at staff+.</li>
+<li><strong>Said no to a stakeholder.</strong> A time you declined a reasonable-sounding ask because the engineering cost wasn't worth the value. Tests principled pushback.</li>
+<li><strong>Led through ambiguity.</strong> A time the problem was undefined and you had to define it. Tests senior-level scoping.</li>
+<li><strong>Drove alignment.</strong> A time multiple teams were working at cross-purposes and you moved them to a shared plan. Tests staff-level scope.</li>
+</ol>
+
+<h3>Worked Example — "Disagreement Resolved"</h3>
+
+<p><strong>Bad version:</strong> <em>"The lead architect wanted to use Kafka, I wanted to use Pulsar. We argued about it and eventually settled on Kafka."</em></p>
+<p><em>What's wrong:</em> no stakes, no actions, no outcome. Reads like losing the argument and still submitting it as an answer.</p>
+
+<p><strong>Average version:</strong> <em>"Our lead architect wanted to standardize on Kafka. I'd used Pulsar at my previous company and thought the geo-replication story was better for our multi-region rollout. I wrote a short doc comparing the two and we discussed it in a design review. We ended up going with Kafka because of team familiarity. I learned that tool familiarity beats feature-set at most decisions."</em></p>
+<p><em>What's right:</em> structured, correctly humble ending, actual lesson. What's missing: no <em>specific</em> actions, no tension beyond the abstract. Forgettable.</p>
+
+<p><strong>Strong version:</strong> <em>"[Situation] At a payments company in 2024, we were about to stand up a new event platform for multi-region fraud detection. Our principal engineer made an early decision on Kafka because the team had just finished a six-month upgrade and felt battle-tested. [Task] I was the tech lead for one of three consumer teams and had four weeks of experience running Pulsar at my previous job. I thought geo-replication would matter more than we were weighting it.</em></p>
+<p><em>[Action] I didn't push back in the meeting — I wanted to do the work first. I spent two evenings writing a six-page doc comparing the two on five axes: throughput ceiling, ops burden, geo-replication correctness under partition, cost at our projected scale, and team ramp-up. I deliberately included our fraud team's exact SLAs and projected a twelve-month cost envelope. I shared it with the principal engineer first, in a private 1:1, with the explicit opener: 'I'm probably wrong but I want you to check my math before I share this.' He caught one real error in my cost model and reshaped the throughput section. Then we shared the revised doc with the broader group.</em></p>
+<p><em>[Result] We went with Kafka for the core platform but adopted Pulsar for the cross-region mirror because it met a specific geo-replication need that Kafka didn't cover cleanly. I would have lost a pure-principle argument. The written doc, and asking him to review it first, turned the disagreement from 'who wins' into 'what's right.' Three months later the principal engineer asked me to co-author the next major platform doc. [Lesson] A thing I do now as a default: when I disagree with a senior decision, I write the case as if I'll be proven wrong, and I give the person I disagree with the first review."</em></p>
+
+<p><em>Why this version works:</em> specific numbers (six pages, two evenings, five axes, twelve-month envelope), a specific sentence the candidate said out loud ("I'm probably wrong but…"), a nuanced outcome (not a clean win, a compromise that served both concerns), and a closing "what I do now" that signals durable behavioral change.</p>
+
+<h3>Worked Example — "Failure Owned"</h3>
+
+<p><strong>Weak opening:</strong> <em>"I made a mistake once where…"</em></p>
+<p><strong>Strong opening:</strong> <em>"In 2023 I pushed a backfill at 3pm on a Thursday that doubled the revenue numbers on the executive dashboard for six hours. The CFO saw it before we caught it."</em></p>
+<p>The strong opening names the impact in the first sentence. No warm-up, no hedging. The rest of the story then earns the right to be heard.</p>
+
+<p>Three rules for failure stories:</p>
+<ol>
+<li><strong>Own it in the first sentence.</strong> "I pushed," not "we had an incident where."</li>
+<li><strong>Name the specific decision that failed,</strong> not a vague "we didn't have enough tests." What decision — yours — would you make differently?</li>
+<li><strong>The fix is systemic, not just personal.</strong> "I added a test" is junior. "I proposed, and we shipped, a pre-deploy data-diff gate that catches this class of error at the CI layer" is senior.</li>
+</ol>
+
+<h3>Anti-Patterns — The STAR Failures</h3>
+
+<ul>
+<li><strong>The we-drift.</strong> You start with "I" and by minute two you're saying "we" for everything. The interviewer loses track of your specific contribution. Fix: every paragraph of the Action section must contain the word "I" with a verb.</li>
+<li><strong>The hero arc.</strong> Every story ends with you being thanked, promoted, or proven right. It rings false. Real senior stories include at least one "what I'd do differently" in the Result.</li>
+<li><strong>The silent co-star.</strong> You never name the other humans in the story. Interviewers reading between lines assume you can't work with people. Fix: name roles (not real names) — "the staff engineer on the adjacent team," "the product manager new to our group."</li>
+<li><strong>The cliffhanger result.</strong> Your Result is "and then I changed jobs" or "and then the project got reprioritized." Pick a different story. The Result section must actually resolve.</li>
+<li><strong>The date-less incident.</strong> "At a previous company, some time back…" is unanchored and hard to assess. Always anchor in a year and a team size.</li>
+</ul>
+
+<h3>The Cross-Round Story Portfolio</h3>
+
+<p>Across a 4-round loop, you'll have maybe 3–4 chances to tell a prepared story, plus 2–3 smaller "tell me about a time" asks woven into technical rounds. You want to <em>show different sides</em> — not tell the same story in three different frames.</p>
+
+<p>Map your eight prepared stories to at least four distinct skills: technical depth, cross-team influence, mentoring, and operational judgment. If you look at your portfolio and three of the eight are "I debugged a hard incident," rotate. Variety is what hiring committees reward.</p>
+
+<hr>
+
+<h2 id="p09-7-decision-frameworks">7. Decision Frameworks — The Cheat Sheet</h2>
+
+<p>Many interview rounds test whether you can make a reasoned <em>decision</em> between two legitimate options, not whether you know the options exist. These are the most common forks and the axis each hinges on. Memorize the frames, not the conclusions — every real decision depends on context, and the reasoning is what gets scored.</p>
+
+<h3>Batch vs Streaming</h3>
+<p>The decision axis is <strong>value of freshness</strong> vs <strong>cost of continuous compute</strong>. If the downstream consumer acts on the data within minutes, streaming. If a human reads it daily or a model retrains weekly, batch. The trap: candidates default to streaming because it sounds modern. Real answer: streaming is roughly 3–10x the ops overhead of batch and should be justified by a concrete business lever, not a feeling.</p>
+
+<p>A clarifying question that works in any round: "Who acts on this data, and how soon after arrival?" If the answer is "a dashboard refreshed at 9am" — batch. If it's "a fraud decision in 200 ms" — streaming. If it's "a data scientist who runs queries ad hoc" — batch with a small streaming tier for the last hour.</p>
+
+<h3>Normalize vs Denormalize</h3>
+<p>The decision axis is <strong>update frequency</strong> vs <strong>read pattern fan-out</strong>. Normalize when the source of truth changes often and the consumers are narrow. Denormalize when the source is stable and the consumers are many and varied. In a lakehouse, denormalized wide tables are almost always the right answer for analytics layers, because columnar storage makes the read cost of unused columns near-zero, and eliminating joins dominates the access-pattern tradeoffs.</p>
+
+<p>Ask: "Is this table read a thousand times for every write?" If yes, denormalize aggressively. "Is the write source a system of record that will audit every change?" If yes, normalize the source and denormalize only the consumer layer.</p>
+
+<h3>Build vs Buy</h3>
+<p>Three questions in order. One: is this a core competency of our business? If yes, build — the control and optionality matter more than the cost. Two: does an off-the-shelf option meet 80% of our needs at 20% of the cost? If yes, buy, and put the 20% engineering savings toward the core. Three: what's the exit cost if we buy? If vendor lock-in on this layer would require a year-long migration, discount the "buy" option heavily.</p>
+
+<p>Avoid the false economy of "we'll build a simple version." Every simple version becomes a complex version in three years with no maintainer. If you wouldn't staff a team of three to own it, don't build it.</p>
+
+<h3>Schema-on-Read vs Schema-on-Write</h3>
+<p>Schema-on-read is attractive in bronze/raw layers where the cost of rejecting a malformed record is higher than the cost of a downstream error. Schema-on-write is right in silver/gold where consumers depend on predictable typing. The senior pattern is schema-on-read at ingest with <em>typed contracts at the bronze→silver transform</em> — reject bad records to a quarantine table, alert the producer, keep the main pipeline flowing.</p>
+
+<h3>Warehouse vs Lakehouse vs Operational Store</h3>
+<p>Warehouses (Snowflake, BigQuery) optimize for analytics read patterns with tight governance, fast answer times, and high cost-per-GB at scale. Lakehouses (Iceberg/Delta on S3) win when data volume crosses ~100 TB or when the same data serves both analytics and ML training. Operational stores (Postgres, DynamoDB) are for sub-10ms online lookups, not analytics. The three should coexist; the anti-pattern is forcing one to do another's job because "we already have it."</p>
+
+<h3>Spark vs SQL Engine</h3>
+<p>Spark is the right tool when you're writing non-trivial logic (Python UDFs, iterative algorithms, complex joins over 100 GB+ data). A warehouse SQL engine is the right tool for analytics queries, dimensional joins, and anything a BI tool will render. The overlap zone — moderate-size ETL — goes to whichever platform your team already operates well. Ops maturity beats theoretical fit.</p>
+
+<hr>
+
+<h2 id="p09-8-the-mock-interview-loop">8. The Mock Interview Loop</h2>
+
+<p>Mock interviews are the single highest-leverage activity in prep. Most candidates do too few and do them wrong. This section fixes both.</p>
+
+<h3>Weekly Cadence</h3>
+<p>Target three full mocks in weeks 3–4 of the roadmap. Each mock should simulate a real round: 45 minutes, interviewer plays the role faithfully, no pausing to look things up. The post-mock review is as important as the mock itself — budget another 45 minutes to review the recording the same day.</p>
+
+<h3>Self-Tape Method (Solo Practice)</h3>
+<p>When you don't have a partner, record yourself solving a prompt out loud. Set a timer. No pausing. At the end, watch it back with a rubric. Count filler words ("um," "so," "basically"), measure time-to-first-assumption, note every moment you paused mid-sentence. The tape is uncomfortable to watch — that's the point.</p>
+
+<p>Three specific drills:</p>
+<ul>
+<li><strong>The 45-minute system design tape.</strong> Pick a prompt from §5. Solve on a whiteboard or blank page. Record. Review for: time budgeting, scoping questions, failure-mode coverage, and the closing trade-off.</li>
+<li><strong>The 20-minute SQL tape.</strong> Pick a question from §4. Solve on paper with narration. Review for: clarifying questions asked, narration cadence, and silent math.</li>
+<li><strong>The 4-minute behavioral tape.</strong> Pick a frame from §6. Tell the story. Review for: time budget, "I" vs "we" count, date/team-size anchoring.</li>
+</ul>
+
+<h3>Pair-Up Protocol</h3>
+<p>If you're mocking with another candidate, swap roles. You interview first (learning what good questions look like), then you're interviewed. The act of playing interviewer sharpens your own answers more than any study session.</p>
+
+<p>Set rules before you start: interviewer won't help unless the candidate is truly stuck for 3+ minutes, candidate must narrate, no looking up anything. Afterwards, 10 minutes of specific feedback using the rubric below. Vague feedback like "you did great" is worthless.</p>
+
+<h3>Feedback Rubric — Five Dimensions, 1-4 Scale</h3>
+
+<table>
+<thead>
+<tr><th>Dimension</th><th>1 (weak)</th><th>2 (mid)</th><th>3 (senior)</th><th>4 (staff+)</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Scoping</strong></td>
+<td>Jumped to solution</td>
+<td>One clarifying question</td>
+<td>Restated + 2–3 questions</td>
+<td>Named the real problem under the prompt</td>
+</tr>
+<tr>
+<td><strong>Narration</strong></td>
+<td>Silent stretches &gt;30s</td>
+<td>Narrated half the time</td>
+<td>Narrated continuously</td>
+<td>Narrated <em>and</em> invited collaboration</td>
+</tr>
+<tr>
+<td><strong>Technical depth</strong></td>
+<td>Buzzword-level</td>
+<td>Knew the mechanism</td>
+<td>Knew the mechanism and the trade-off</td>
+<td>Invented a framing to compare mechanisms</td>
+</tr>
+<tr>
+<td><strong>Failure thinking</strong></td>
+<td>Happy path only</td>
+<td>Named one failure mode</td>
+<td>Systematic failure analysis</td>
+<td>Named the class of failures + mitigation</td>
+</tr>
+<tr>
+<td><strong>Close</strong></td>
+<td>Trailed off / time ran out</td>
+<td>Summarized the answer</td>
+<td>Summarized + one trade-off</td>
+<td>Surfaced a tension the interviewer didn't ask about</td>
+</tr>
+</tbody>
+</table>
+
+<p>Score yourself honestly. A 3 across all five dimensions is a clean senior pass. A 4 anywhere is Staff+ signal. A 1 anywhere is a gap that must be closed before the real loop — not after.</p>
+
+<hr>
+
+<h2 id="p09-9-the-pre-interview-checklist">9. The Pre-Interview Checklist</h2>
+
+<p>This is the list to run through the week before the loop.</p>
+
+<h3>Resume</h3>
+<ul>
+<li>For every bullet: scale numbers, your verbs, the trade-off, the failure mode, the "would do differently."</li>
+<li>One sentence — just one — that captures your career arc. Interviewers ask this as an opener in 80% of rounds.</li>
+<li>Remove anything you can't defend under drill-down. If a bullet mentions Kafka, you must be ready for 20 minutes on Kafka.</li>
+</ul>
+
+<h3>Project Deep-Dives</h3>
+<ul>
+<li>Pick your three strongest projects. Prepare a 2-minute pitch and a 10-minute deep-dive for each.</li>
+<li>The deep-dive must include: architecture diagram (drawn from memory, on paper), the decision you'd revisit, the failure you recovered from, the metric you moved.</li>
+<li>Rehearse out loud. Time yourself.</li>
+</ul>
+
+<h3>Company-Specific</h3>
+<ul>
+<li>Read at least one engineering blog post from the target team. Pick one specific technical claim to reference in the loop.</li>
+<li>Know the team's stack. If they use a specific cloud, brush up on its nuances the night before.</li>
+<li>Have three reverse questions prepared (see §F3 above).</li>
+</ul>
+
+<h3>Logistics</h3>
+<ul>
+<li>Test your video, mic, screen-share 48 hours out. Do not test them 10 minutes before the round.</li>
+<li>Second monitor — one for the prompt, one for your scratch notes. Do not screen-share the scratch monitor.</li>
+<li>Water, snack, silent phone. The loop is 4+ hours and most candidates crash at hour 3 from caffeine and dehydration.</li>
+</ul>
+
+<h3>The Day Before</h3>
+<ul>
+<li>No new study. Re-read your own notes.</li>
+<li>Sleep 8 hours. Interview performance drops measurably below 7 hours.</li>
+<li>Plan your morning routine to the minute: wake, shower, coffee, walk, setup, first round. Remove decisions from the morning.</li>
+</ul>
+
+<hr>
+
+<h2 id="p09-10-day-of-playbook">10. Day-Of Playbook</h2>
+
+<h3>Morning</h3>
+<ul>
+<li>Exercise for 20 minutes, even lightly. It measurably improves cognitive performance for the next 4–6 hours.</li>
+<li>Breakfast with protein. Skip the heavy carbs — the crash will hit mid-round.</li>
+<li>Review your one-page "stories portfolio" — the eight STAR frames, one sentence each. Not the full stories; just the index.</li>
+</ul>
+
+<h3>15 Minutes Before Each Round</h3>
+<ul>
+<li>Stand up, move, breathe. Do not re-read notes. You already know what you know.</li>
+<li>Look at your three reverse questions. Pick which one fits this round.</li>
+<li>Water. Bathroom. Phone on silent.</li>
+</ul>
+
+<h3>During The Round</h3>
+<ul>
+<li>Open with a warm "thanks for making time, excited to dig in." Not "let's get started" — this is a conversation, not a meeting.</li>
+<li>In the first 2 minutes, say one thing that isn't an answer to a question. It humanizes you. "I noticed you mentioned [X] in your bio — I've been curious about that."</li>
+<li>Narrate your thinking. Silence is a scoring vacuum.</li>
+<li>If you don't know something: "I haven't worked with that specifically, but based on [related thing] I'd guess it works like…" Buy time to think by demonstrating how you'd think.</li>
+<li>Watch the interviewer's body language / tone. If they're restless, compress. If they're leaning in, go deeper.</li>
+<li>Always leave 3 minutes at the end for questions.</li>
+</ul>
+
+<h3>Between Rounds</h3>
+<ul>
+<li>Stand up, stretch, breathe. Do not ruminate on the previous round. The next interviewer has not talked to the last interviewer yet — it's a clean slate.</li>
+<li>Write one sentence of notes on the previous round for the post-loop debrief, then close the notebook.</li>
+<li>Walk for 3 minutes if time allows. Oxygen and blood flow matter.</li>
+</ul>
+
+<h3>Post-Loop</h3>
+<ul>
+<li>Write a 30-minute debrief: one page per round, covering what you were asked, what you answered, what you wish you'd answered.</li>
+<li>Send a brief thank-you within 24 hours to each interviewer, referencing one specific thing they said. Generic thank-yous are neutral; specific ones are memorable.</li>
+<li>Don't re-litigate the loop mentally. You're done. Wait.</li>
+</ul>
+
+<hr>
+
+<h2 id="p09-closing">Closing Note</h2>
+
+<p>Interviews reward a specific kind of preparation — the kind that produces fluent speech under pressure, not encyclopedic knowledge in silence. Everything in this part is aimed at the first, not the second.</p>
+
+<p>If you do the four-week roadmap, run three mocks, prepare eight STAR frames, and memorize the first 30 seconds of your answer to each scenario in §5 — you will walk into the real loop with more readiness than most candidates ever have. That's the bar to aim for.</p>
+
+<p>Good luck.</p>
 <p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>
 </section>
 </main>
