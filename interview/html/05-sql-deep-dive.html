@@ -984,6 +984,47 @@ SELECT ... FROM heavy h1 JOIN heavy h2 ON ...;</code></pre>
 
 <p>Reaching for a hint is a smell. Before hinting, confirm: (a) statistics are up-to-date, (b) the query is written in a shape the optimizer can reason about, (c) you've run <code>EXPLAIN ANALYZE</code> and understand the plan. Interviewers are suspicious of candidates who volunteer hints as a first-resort tuning move.</p>
 
+
+<hr>
+
+<h2 id="19-window-function-choice-examples">19. Window Function Choice — Examples by Intent</h2>
+
+<p>Pick the wrong window function and the query is subtly wrong in ways the optimizer won't flag. The table below maps the business intent to the correct function, with the most common wrong pick for each.</p>
+
+<table>
+<thead><tr class="header"><th>You want to…</th><th>Use</th><th>Common wrong pick</th><th>Why it matters</th></tr></thead>
+<tbody>
+<tr><td>Rank with strict ordering, break ties arbitrarily</td><td><code>ROW_NUMBER()</code></td><td><code>RANK()</code></td><td>ROW_NUMBER gives exactly N rows for top-N; RANK may return more than N on ties</td></tr>
+<tr><td>Rank with ties, preserving count</td><td><code>DENSE_RANK()</code></td><td><code>RANK()</code></td><td>RANK leaves gaps (1,1,3); DENSE_RANK doesn't (1,1,2) — pick by whether gaps matter</td></tr>
+<tr><td>Top-N with "include all tied at Nth"</td><td><code>DENSE_RANK()</code></td><td><code>ROW_NUMBER()</code></td><td>ROW_NUMBER arbitrarily picks one of the ties</td></tr>
+<tr><td>Previous row's value per group</td><td><code>LAG(col)</code></td><td>self-join</td><td>LAG is one pass; self-join is N² in the worst case</td></tr>
+<tr><td>Next row's value per group</td><td><code>LEAD(col)</code></td><td>self-join</td><td>Same reason</td></tr>
+<tr><td>Running total</td><td><code>SUM(col) OVER (ORDER BY …)</code></td><td>correlated subquery</td><td>Correlated subquery is O(N²); windowed sum is O(N)</td></tr>
+<tr><td>Moving 7-day sum</td><td><code>SUM(col) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)</code></td><td><code>RANGE</code> frame</td><td>ROWS counts rows; RANGE counts values — with date gaps, RANGE gives different results</td></tr>
+<tr><td>Moving 7-calendar-day sum (including empty days)</td><td>Generate a dense date grid first, then windowed sum</td><td>naive ROWS frame</td><td>Sparse data breaks ROW-based windows silently</td></tr>
+<tr><td>First/last row per group, ordered</td><td><code>FIRST_VALUE() / LAST_VALUE()</code> with explicit frame</td><td>no frame</td><td>Default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> — <code>LAST_VALUE</code> returns the current row, not the group's last row</td></tr>
+<tr><td>Percentile within group</td><td><code>PERCENT_RANK()</code> or <code>NTILE(100)</code></td><td><code>ROW_NUMBER() / COUNT(*)</code></td><td>Manual division gives wrong semantics for ties</td></tr>
+<tr><td>Session number per user (gaps-and-islands)</td><td><code>SUM(new_session_flag) OVER (PARTITION BY user ORDER BY ts)</code></td><td>recursive CTE</td><td>Recursive is correct but 10–100x slower</td></tr>
+<tr><td>"Nth most recent" per group</td><td><code>ROW_NUMBER() OVER (PARTITION BY grp ORDER BY ts DESC)</code> + filter <code>= N</code></td><td><code>ORDER BY ts DESC LIMIT N</code></td><td>LIMIT applies to the entire result; won't give N-per-group</td></tr>
+<tr><td>Cumulative distinct count</td><td>HyperLogLog sketch + windowed merge</td><td><code>COUNT(DISTINCT col) OVER (…)</code></td><td>Most engines don't support window COUNT(DISTINCT); performance is terrible where they do</td></tr>
+<tr><td>Lagged value N rows back</td><td><code>LAG(col, N)</code></td><td><code>LAG(LAG(LAG(col)))</code></td><td>LAG takes an offset argument; no need to nest</td></tr>
+<tr><td>Percent of total per group</td><td><code>col / SUM(col) OVER (PARTITION BY grp)</code></td><td>subquery grouping</td><td>Windowed is one pass; subquery-grouping is two scans</td></tr>
+</tbody>
+</table>
+
+<h3>The frame-clause trap</h3>
+
+<p>The three functions that surprise people most are <code>LAST_VALUE</code>, <code>SUM OVER ORDER BY</code>, and <code>FIRST_VALUE</code>. Their default frame is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>, which is almost never what the user intended for <code>LAST_VALUE</code>. Always write the frame clause explicitly when using these:</p>
+
+<pre><code>-- Wrong: returns the CURRENT row's value, not the group's last
+LAST_VALUE(col) OVER (PARTITION BY g ORDER BY ts)
+
+-- Right: explicitly extends the frame to the group end
+LAST_VALUE(col) OVER (
+  PARTITION BY g ORDER BY ts
+  ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+)</code></pre>
+
 </main>
 
 <nav class="breadcrumb"><a href="04-spark-internals.html">← Part 04 · Spark Internals</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="06-python-de.html">Part 06 · Python for DE →</a></nav>

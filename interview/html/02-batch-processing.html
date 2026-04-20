@@ -1343,6 +1343,95 @@ def critical_path(nodes, edges, duration):
 
 <p>Interviewers love to ask: "Yesterday's job failed at 11pm. You rerun at noon today. What happens downstream?" The senior answer enumerates: <em>which tables get rewritten, which downstream caches invalidate, which dashboards see a stale→fresh transition, which SLAs trip</em>. If you can't answer this for your own pipelines, you don't own them operationally — no matter what the org chart says.</p>
 
+
+<hr>
+
+<h2 id="17-partition-key-decision-examples">17. Partition Key Decisions by Domain</h2>
+
+<p>Choosing a partition key is the single highest-leverage physical-design decision in a lakehouse or warehouse table. A good choice makes common queries prune 99% of the data; a bad one produces billion-row scans for every dashboard. Below is a pattern-match table of typical domains, the natural partition key, the access patterns that justify it, and the most common wrong choice candidates reach for first.</p>
+
+<table>
+<thead>
+<tr class="header">
+<th>Domain / table</th>
+<th>Recommended partition key</th>
+<th>Secondary (clustering/sort)</th>
+<th>Why</th>
+<th>Common wrong pick</th>
+</tr>
+</thead>
+<tbody>
+<tr><td><strong>Events</strong> (app, web, mobile)</td><td><code>event_date</code></td><td><code>user_id</code>, <code>event_name</code></td><td>Nearly all queries bound by a date range</td><td><code>user_id</code> — cardinality explosion, files per user explode</td></tr>
+<tr><td><strong>Orders / transactions</strong></td><td><code>order_date</code></td><td><code>customer_id</code>, <code>region</code></td><td>Daily batches, MoM reports, finance closes — all date-bounded</td><td><code>order_id</code> — gives one row per partition</td></tr>
+<tr><td><strong>Clickstream / impressions</strong></td><td><code>event_date</code> + <code>hour</code> (hourly)</td><td><code>session_id</code>, <code>campaign_id</code></td><td>High volume; hourly grain keeps partitions under ~1 TB</td><td><code>campaign_id</code> — skew on hero campaigns</td></tr>
+<tr><td><strong>Payments / ledger</strong></td><td><code>posting_date</code></td><td><code>merchant_id</code>, <code>account_id</code></td><td>Financial close runs on posting date</td><td><code>merchant_id</code> — power-law skew</td></tr>
+<tr><td><strong>Subscription billing</strong></td><td><code>invoice_month</code></td><td><code>account_id</code></td><td>Billing cycles are monthly</td><td><code>account_id</code> — tenant skew; too few files for small tenants</td></tr>
+<tr><td><strong>CDC / change log</strong></td><td><code>change_date</code></td><td><code>source_table</code>, <code>pk_hash</code></td><td>Replay and backfill are date-bounded</td><td><code>source_table</code> — one huge partition per high-volume table</td></tr>
+<tr><td><strong>IoT telemetry</strong></td><td><code>ingest_date</code> + <code>hour</code></td><td><code>device_id</code> bucket (16–64 buckets)</td><td>Continuous high-volume stream; hourly prevents partition bloat</td><td><code>device_id</code> raw — cardinality blowup</td></tr>
+<tr><td><strong>Logs (systems)</strong></td><td><code>log_date</code> + <code>hour</code></td><td><code>service</code>, <code>severity</code></td><td>Investigations bounded by time; joining across services is rare</td><td><code>host_id</code> — millions of tiny partitions</td></tr>
+<tr><td><strong>Media catalog</strong></td><td>— (no partition; small)</td><td><code>title_id</code> cluster</td><td>A catalog of 10–100 K items is too small to benefit from partitioning</td><td>partitioning by <code>genre</code> — rarely prunes</td></tr>
+<tr><td><strong>Playback / watch events</strong></td><td><code>event_date</code></td><td><code>title_id</code>, <code>region</code></td><td>Engagement reporting is date-bounded; title-level rollups are frequent enough to cluster on</td><td><code>title_id</code> — one-hit wonders create skew</td></tr>
+<tr><td><strong>Ad impressions</strong></td><td><code>event_date</code> + <code>hour</code></td><td><code>advertiser_id</code>, <code>placement_id</code></td><td>Volume is extreme; hourly is the right grain</td><td><code>advertiser_id</code> — top advertiser dominates</td></tr>
+<tr><td><strong>Inventory snapshots</strong></td><td><code>snapshot_date</code></td><td><code>warehouse_id</code>, <code>sku</code></td><td>Snapshots are by date; comparisons are date-vs-date</td><td><code>sku</code> — SKU count is in the millions</td></tr>
+<tr><td><strong>Clinical claims</strong></td><td><code>service_date</code></td><td><code>payer_id</code>, <code>provider_id</code></td><td>Service date anchors claims processing and audit</td><td><code>patient_id</code> — cardinality and privacy issues</td></tr>
+<tr><td><strong>Ride / trip data</strong></td><td><code>trip_end_date</code></td><td><code>city_id</code>, <code>driver_id</code></td><td>Operational reporting is daily per city</td><td><code>driver_id</code> — long tail of one-trip drivers</td></tr>
+<tr><td><strong>Support tickets</strong></td><td><code>opened_date</code></td><td><code>product_area</code>, <code>priority</code></td><td>SLA and backlog queries are date-bounded</td><td><code>customer_id</code> — sparse per customer</td></tr>
+<tr><td><strong>CRM activity</strong></td><td><code>activity_date</code></td><td><code>owner_id</code>, <code>account_id</code></td><td>Rep productivity reports run by week/month</td><td><code>account_id</code> — uneven size</td></tr>
+<tr><td><strong>Search queries</strong></td><td><code>query_date</code></td><td><code>query_hash</code> bucket</td><td>Investigations and model training are both date-bounded</td><td><code>query_text</code> — one partition per unique query</td></tr>
+<tr><td><strong>Model training features</strong></td><td><code>feature_date</code></td><td><code>entity_id</code> bucket</td><td>Training sets are date-bounded; entity_id is bucketed to avoid skew</td><td><code>entity_id</code> raw — skew + small partitions</td></tr>
+</tbody>
+</table>
+
+<h3>Sizing heuristic</h3>
+
+<p>Aim for partitions in the ~100 MB – ~10 GB range after compaction. Below that, metadata overhead dominates. Above it, a single consumer reading one partition loses parallelism. For a daily-partitioned 1 TB/day fact, that's ideal. For a 100 GB/day fact, daily is still fine. For a 10 TB/day fact, move to hourly.</p>
+
+<h3>The bucketed-id trick</h3>
+
+<p>When you have a high-cardinality key (user_id, device_id) that users filter on but can't partition on directly, <em>hash it into a fixed number of buckets</em> and use that as a secondary partition. The query can push the bucket predicate down (<code>WHERE user_bucket = hash(user_id) % 32</code>), pruning ~97% of partitions while keeping each partition reasonable size. This is how Iceberg's hidden partitioning works under the hood for bucket transforms.</p>
+
+<pre><code>-- Iceberg: hidden bucketing — no user code changes
+CREATE TABLE events (
+  event_date DATE,
+  user_id BIGINT,
+  event_name STRING,
+  ...
+)
+USING ICEBERG
+PARTITIONED BY (event_date, bucket(32, user_id));
+
+-- Queries that filter on user_id automatically prune 31/32 buckets
+SELECT * FROM events
+WHERE event_date = '2026-04-20' AND user_id = 12345;</code></pre>
+
+<h2 id="18-null-semantics-by-domain">18. NULL Semantics — Examples by Domain</h2>
+
+<p>NULL is never a single thing. It carries different meanings across columns and domains, and conflating them is a root cause of subtle downstream bugs. The rule: <em>every nullable column in a contract must document which meaning applies</em>. Examples below.</p>
+
+<table>
+<thead>
+<tr class="header"><th>NULL meaning</th><th>Column examples</th><th>Recommended handling</th></tr></thead>
+<tbody>
+<tr><td><strong>Unknown</strong> (value exists but not captured)</td><td><code>customer_dob</code>, <code>visit_purpose</code>, <code>referrer_url</code></td><td>Leave NULL; document that absence ≠ absence-of-fact</td></tr>
+<tr><td><strong>Not applicable</strong> (value cannot exist for this row)</td><td><code>spouse_name</code> for single customers, <code>return_reason</code> for non-returns, <code>churn_date</code> for active users</td><td>Leave NULL; contract explicitly enumerates which combinations preclude the column</td></tr>
+<tr><td><strong>Pending</strong> (value will arrive later)</td><td><code>shipped_ts</code>, <code>paid_ts</code>, <code>resolved_ts</code> in an accumulating snapshot</td><td>NULL is the signal; downstream code tests <code>IS NULL</code> explicitly</td></tr>
+<tr><td><strong>Sentinel for "no match"</strong></td><td><code>fraud_model_score</code> on transactions the model declined to score, <code>segment_id</code> for un-enrollable users</td><td>Prefer a sentinel value over NULL: <code>-1</code> for scores, <code>'UNASSIGNED'</code> for enums</td></tr>
+<tr><td><strong>Soft-deleted</strong></td><td><code>deleted_at</code> populated = row is logically deleted; NULL = active</td><td>NULL means "not deleted"; every consumer must filter on <code>deleted_at IS NULL</code></td></tr>
+<tr><td><strong>End-date of open interval</strong></td><td><code>valid_to</code>, <code>employment_end_date</code>, <code>lease_end_date</code></td><td>NULL means "still valid"; OR set to <code>9999-12-31</code> for range-join friendliness</td></tr>
+<tr><td><strong>Privacy-suppressed</strong></td><td><code>customer_ip</code>, <code>email</code> post-GDPR</td><td>Prefer an explicit status column (<code>pii_status='erased'</code>) alongside NULL</td></tr>
+<tr><td><strong>Default-not-set</strong></td><td><code>preferred_language</code>, <code>notification_opt_in</code></td><td>Fill with a system default (<code>'en-US'</code>, <code>FALSE</code>); NULL here is usually a bug</td></tr>
+<tr><td><strong>Zero vs NULL</strong> (the classic)</td><td><code>refund_amount</code>, <code>discount_amount</code>, <code>gift_card_value</code></td><td>Zero when we know no refund occurred; NULL only if we don't know. The two are different rows in finance.</td></tr>
+</tbody>
+</table>
+
+<h3>The aggregation trap</h3>
+
+<p><code>SUM(column_with_nulls)</code> ignores NULLs, but <code>SUM(column_with_nulls) / COUNT(*)</code> does not — <code>COUNT(*)</code> includes NULL rows. If you want the average over non-null rows, use <code>AVG(col)</code> or <code>SUM(col) / COUNT(col)</code>. Mixing <code>SUM</code> and <code>COUNT(*)</code> is the single most common "the numbers are off" bug in dashboards that mix nullable measures.</p>
+
+<h3>The NULL-vs-zero revenue bug</h3>
+
+<p>Finance often wants "revenue = 0 for days with no sales." If your fact table uses NULL to mean "no sales," your MoM chart will produce NULL MoM for zero-revenue-days, not "down 100%." Generate a dense calendar grid (see Q4 in Part 09's SQL bank), <code>COALESCE</code> NULLs to 0, and you're safe.</p>
+
 </main>
 
 <nav class="breadcrumb"><a href="01-data-modeling.html">← Part 01 · Data Modeling</a><span class="sep">·</span><a href="00-readme.html">Index</a><span class="sep">·</span><a href="03-streaming-processing.html">Part 03 · Streaming Processing →</a></nav>
