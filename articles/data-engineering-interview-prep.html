@@ -9250,144 +9250,262 @@ AND f1.follower_id &lt; f1.followee_id;</code></pre>
 </ul>
 
 <hr>
+<h2 id="p09-11-tricky-behavioral-questions">11. Tricky Behavioral Scenarios — Real Data-Engineering Situations</h2>
 
-<h2 id="p09-11-tricky-behavioral-questions">11. Tricky Behavioral Questions — Model Answers</h2>
-
-<p>Managers ask a specific class of behavioral questions that don't fit the neat STAR frames above. They are deliberately probing for the seams: how you handle a peer who won't back down, how you revive an idea after it's been shot down, how you absorb tough feedback without losing your footing. This section gives the specific moves, with worked examples and phrases you can actually say in the room.</p>
+<p>The questions in this section are drawn from actual DE interview loops at senior and staff level. Each one begins with a concrete technical scenario — adding a feature, optimizing a pipeline, picking a tool — and the behavioral challenge is the <em>human layer</em> on top of that technical decision. The answers are written as first-person transcripts, with the moves annotated so you can see where the senior-level judgment lives.</p>
 
 <blockquote>
-<p>The underlying skill these questions test isn't "do you avoid conflict" — it's <em>can you stay in the conversation when it gets uncomfortable without either capitulating or escalating</em>. Most candidates fail by doing one or the other.</p>
+<p>Abstract STAR frames are easy to fake. What interviewers actually probe for is whether your story contains the <em>texture</em> of engineering life — real table names, real team members, real trade-offs you lived with. Technical specificity is what makes a behavioral story credible.</p>
 </blockquote>
 
-<h3>11.1 — "Tell me about a time you had a conflict with a peer"</h3>
+<h3>11.1 — "Adding a new feature requires a schema change. The data platform team pushes back hard. How do you handle it?"</h3>
 
-<h4>What the interviewer is really probing</h4>
-<p>Three things at once: (a) can you surface disagreement directly or do you route around it; (b) do you separate the person from the position; (c) do you walk away with a working relationship intact. The candidates who fail this question do so by describing a conflict where they were entirely right, the other person was entirely wrong, and the outcome was that the other person "came around." That sounds like a win — it signals weak empathy and low collaboration to experienced interviewers.</p>
+<h4>The real scenario</h4>
+<p>Product wants to launch subscription pausing — a customer can pause for 30/60/90 days without losing their plan. Engineering needs a new column <code>paused_until_date</code> on <code>dim_subscription</code> and a new event type <code>subscription_paused</code> flowing through the fact pipeline. The data platform team — who owns <code>dim_subscription</code> and every downstream ETL — rejects the change. Their concerns: (1) they already maintain 14 consumers that read this dimension and every schema change ripples through all of them; (2) the proposed column breaks the current MRR calculation logic; (3) they're mid-migration to Iceberg and don't want schema churn during the migration.</p>
 
-<h4>The move — the four-beat answer</h4>
+<p>All three of their concerns are legitimate. The product launch date is six weeks away.</p>
+
+<h4>The answer — with annotated moves</h4>
+
+<p><em>"[Naming the tension clearly]</em> The conflict wasn't 'they don't want to add a column.' It was that I was asking them to absorb a schema change during a migration they'd scoped for quiet. They had real stakes and I had a product deadline, and both were valid.</p>
+
+<p><em>[The first investment — do their work before asking for yours]</em> Before I proposed anything, I went and read the migration plan. I counted the 14 consumers, and for each one I classified whether the new column would affect their read path. Turns out only 3 of the 14 actually touched MRR math; the other 11 would see the new column and safely ignore it. That framing — 'this is a 3-consumer problem, not a 14-consumer problem' — was the unlock.</p>
+
+<p><em>[The counter-proposal, specific and small]</em> I went back with three options written down. Option A: add the column in the current Hive table, accept the re-test on 3 consumers, let the Iceberg migration absorb it later. Option B: build the feature against a new fact table <code>fct_subscription_state_change</code> and leave <code>dim_subscription</code> untouched; joins on read instead of denormalized column. Option C: slip the product launch two weeks and add the column post-migration. I recommended B because it decoupled my timeline from their migration entirely.</p>
+
+<p><em>[The MRR fix, explicit]</em> The MRR concern was the real technical issue. The current MRR query assumed every active subscription billed every month. A paused subscription is active-but-not-billing. I wrote the MRR fix myself — the query became <code>SUM(price) WHERE status='active' AND (paused_until IS NULL OR paused_until &lt; CURRENT_DATE)</code>. I posted that as a PR against their repo, not as a request for them to change their code.</p>
+
+<p><em>[The outcome]</em> We went with Option B. The data platform team kept their migration on track; I got a cleaner model out of it (event-sourced state changes is strictly better than a nullable column on a dim). Their tech lead was in my corner on the next two cross-team proposals. [What I'd do differently]</em> I'd have read the migration plan before the first conversation, not after the first disagreement. I walked in asking for something without knowing what I was actually asking for."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>The candidate did the other team's homework before expecting them to do ours. That's the scarce behavior.</li>
+<li>The three-option write-up is a staff-level move — respects the other team's authority while giving them a path to say yes.</li>
+<li>Writing the MRR query as a PR in their repo, not a request, transfers the work cost to the asker. This is the single most underused technique for cross-team proposals.</li>
+<li>The closing "what I'd do differently" is specific and operational, not performative.</li>
+</ul>
+
+<h3>11.2 — "You and a senior engineer disagree on how to optimize a slow pipeline. He's cocky and won't back down. Walk me through it."</h3>
+
+<h4>The real scenario</h4>
+<p>A nightly aggregation job on a 2.3 TB fact table is taking 4 hours and slipping the 6am SLA. The senior engineer on your team — let's call him the staff eng from the other pod — has strong opinions. His proposal: cache the dimension tables in Redis so the job doesn't re-scan them every night. Your read: the dimension tables aren't the bottleneck. The Spark UI shows 85% of wall-clock is a single shuffle on a skewed join key (<code>merchant_id</code>) where the top 0.1% of merchants account for 60% of rows. You believe the answer is salted joins or broadcast with a skew hint, not Redis.</p>
+
+<p>The staff eng has been at the company eight years. He's built most of the platform. He's confident in his diagnosis and dismissive of yours in standup. He has genuine reasons — he's seen this pattern before on a different job where Redis did help. He hasn't looked at the Spark UI for this job yet.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[The technical move first — evidence before argument]</em> I didn't argue with him in standup. I pulled the Spark UI for the last five nightly runs and took screenshots of the stage timings. Three stages, 12 minutes combined — the dimension reads. One stage, 3 hours 14 minutes — the skewed shuffle. That was the actual data.</p>
+
+<p><em>[Separating the person from the position]</em> He's been right about many things over many years. Dismissing him in the room wasn't the play. I asked him for a 20-minute 1:1 — 'I want your eyes on something I'm seeing in the Spark UI; I might be wrong.' That opening — 'I might be wrong, look at this with me' — changed the dynamic. He was curious, not defensive.</p>
+
+<p><em>[The shared diagnosis]</em> We looked at the UI together. He caught something I'd missed: the shuffle wasn't just skewed, it was spilling to disk because the executors were undersized for that stage. So the fix wasn't purely skew mitigation — it was salt-the-skew <em>and</em> bump executor memory for that stage. Better answer than either of us had alone.</p>
+
+<p><em>[The cocky-peer specific move]</em> Here's the thing: if I'd walked in saying 'you're wrong, here's why' — he'd have spent the meeting defending the Redis idea, and we wouldn't have reached the real answer. When I walked in with 'I might be wrong, look at this with me,' his defensiveness disappeared. He knew he hadn't looked at the UI; he knew I had. Inviting him to co-diagnose instead of correcting him let him update without losing face.</p>
+
+<p><em>[The outcome]</em> Fix shipped that week. Job went from 4 hours to 38 minutes. He dropped a note in the team channel calling it a 'great catch,' which repaired the standup friction publicly. [What I'd do differently]</em> I would not have pushed back in standup at all, even gently. Public disagreement with a senior peer in a multi-person meeting burns capital for no benefit. The 1:1 path was always the right first move and I lost 24 hours getting to it."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>The candidate resisted the ego trap of wanting to be proven right in public.</li>
+<li>The phrase "I might be wrong, look at this with me" is a senior-level move — it gives the other person an onramp to change their mind without admitting defeat.</li>
+<li>The co-diagnosis produced a better answer than either starting position. That's the hallmark of healthy disagreement.</li>
+<li>The "what I'd do differently" acknowledges a real miscalibration, not a humblebrag.</li>
+</ul>
+
+<h3>11.3 — "You proposed adopting dbt. One engineer is hell-bent on rejecting it, and his reasons are real. How do you move it forward?"</h3>
+
+<h4>The real scenario</h4>
+<p>Your team owns ~180 SQL-based data models written as bash scripts that call <code>snowflake</code> CLI. You propose moving everything to dbt. The most senior data engineer on the team — let's call him the tech lead — is firmly against. His reasons: (1) we'd be importing Jinja templating into SQL that is otherwise clean and auditable; (2) dbt's test framework duplicates what we already have in our airflow dag; (3) he's seen dbt monorepos become unmaintainable at &gt;500 models; (4) he worries about vendor dependency.</p>
+
+<p>These are not bad-faith objections. Points 1, 3, and 4 are genuinely debatable. Point 2 is mostly wrong but understandable.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[Steelman first — this is the actual unlock]</em> Before I made my case, I wrote down his four objections in his words and sent them back to him: 'I want to check I'm hearing you. Your concerns are Jinja-in-SQL auditability, redundant tests, monorepo scaling at 500+, and vendor lock. Did I miss anything?' He added a fifth — local dev environment complexity — which was fair and I hadn't thought about. Just the act of restating accurately took the temperature down.</p>
+
+<p><em>[Separating the decidable from the philosophical]</em> Two of his concerns were falsifiable — tests redundancy and local dev — so I addressed those with actual data. I wrote up a side-by-side: our current airflow test framework covers 3 of the 6 categories dbt generic tests cover; the overlap is narrower than he thought. On local dev, I set up the dbt project myself, ran it end-to-end on my laptop, and shipped a one-page setup guide. Three objections remained philosophical: Jinja auditability, 500+ model scaling, vendor lock. Those I did not try to win.</p>
+
+<p><em>[The ask-for-criteria move]</em> Instead of arguing, I asked him: 'What would you need to see in 90 days to be willing to expand this beyond a pilot?' He named two things: (a) a way to render the compiled SQL cleanly for PR review so the Jinja doesn't obscure intent, and (b) a dbt-to-airflow fallback path if we ever wanted to walk away. I put both in the pilot plan as explicit exit criteria.</p>
+
+<p><em>[The small pilot]</em> We didn't adopt dbt across the board. We migrated 12 of the simplest models as a pilot. He co-designed the pilot success criteria with me. I asked him to be the pilot's reviewer, not its cheerleader — his job was to find the seams. He found three real ones, which we fixed. At the 90-day review he said, 'I'd expand it.' Not because I convinced him but because he'd co-built a version that addressed his objections.</p>
+
+<p><em>[Outcome and the meta-lesson]</em> We hit ~120 models on dbt before pausing to reassess monorepo ergonomics — which was exactly what he'd warned about. He was right about that concern. His objection improved the rollout plan; it didn't kill the idea. [What I'd do differently]</em> I would have invited him to co-author the original proposal instead of presenting a finished proposal to the team and defending it. When the opponent is senior and has real reasons, co-authoring is faster than convincing."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>Steelmanning the objection is a rare senior skill — most candidates flinch toward defending their idea.</li>
+<li>Separating falsifiable concerns from philosophical ones is a core DE interview signal — it shows the candidate can tell "an opinion" from "a testable claim."</li>
+<li>Asking the skeptic to design the kill criteria flips the dynamic — now they have skin in the pilot's success.</li>
+<li>Admitting the skeptic was right about monorepo ergonomics later is unusual and credible.</li>
+</ul>
+
+<h3>11.4 — "Mid-project you realize the pipeline architecture won't meet SLA. What do you do?"</h3>
+
+<h4>The real scenario</h4>
+<p>Week 4 of a 7-week project to build a near-real-time customer-360 table feeding the call-center app. The agreed SLA is 5-minute freshness. You designed a Kafka → Spark Structured Streaming → Iceberg pipeline with a 2-minute trigger. Two weeks of integration testing later, you realize the read side — a serving layer on top of Iceberg — is the actual bottleneck. Queries are hitting metadata overhead that isn't improving with tuning; p99 read latency is 3.5 seconds and the app needs under 200 ms. The write path works fine; the read path won't. No amount of additional tuning changes the order of magnitude.</p>
+
+<p>You have three weeks left. You are already two weeks into a plan that no longer works.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[Quantifying before escalating]</em> First thing I did was separate 'tuning can fix this' from 'architecture cannot.' I spent two days profiling with different cluster sizes, table layouts, and compaction settings. Latency moved from 3.5s p99 to 2.8s. Order of magnitude unchanged. That gave me the data: this wasn't tunable, it was an architectural mismatch. Iceberg's read path is fine for analytics; it's not designed for a 200 ms serving path.</p>
+
+<p><em>[Escalating with options, not panic]</em> I went to my manager the same day with a one-pager. Three sentences at the top: 'The serving-layer latency is an order of magnitude off target. Tuning will not close the gap. I need a decision by Friday to preserve options.' Then three options, each with cost, timeline, and trade-off:</p>
+
+<ul>
+<li><strong>Option A — keep Iceberg, pre-materialize into Redis.</strong> Write the 360 table to Iceberg as planned, run a background job that maintains a Redis key-value mirror. Serving reads Redis; Iceberg holds the durable store. Adds 1 week; meets SLA; adds Redis as an operational surface.</li>
+<li><strong>Option B — swap the store entirely for DynamoDB.</strong> Kafka → Flink → DynamoDB, cut Iceberg out. Meets SLA natively. Adds 2 weeks because the write path is effectively new; loses the analytics-ready properties of the Iceberg table.</li>
+<li><strong>Option C — relax the SLA from 200 ms to 2 seconds.</strong> Product-facing change; ships on time with architecture as-is. Requires product buy-in.</li>
+</ul>
+
+<p><em>[Making a recommendation and owning it]</em> I recommended Option A. The background materializer is one of the cleanest patterns in DE, Redis is well-understood on our team, and we keep the analytics-ready Iceberg table for downstream uses. Option B would have worked but thrown away work. Option C might have been viable if product was flexible, but I wasn't willing to surprise them with it.</p>
+
+<p><em>[The conversation with product]</em> My manager took the pager to the product lead. We surfaced the options honestly — 'the plan needs to change, here's why, here's the fix.' Product asked intelligent questions about Option C (relaxing SLA) because it would have saved engineering work. I had the data ready: a 2-second response in the call-center app would measurably hurt the rep's handle time. We went with A.</p>
+
+<p><em>[The outcome]</em> Shipped one week late. The Redis materializer pattern is now on two other pipelines on the team. [What I'd do differently]</em> I should have benchmarked read latency in week 1, not week 4. The write path is what everyone tests first and I followed the pattern; I should have built the riskiest unknown first. 'Attack the unknowns first' is a project-management maxim I now live by."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>The candidate distinguished "needs more tuning" from "needs different architecture" with actual data before escalating.</li>
+<li>Three named options with honest trade-offs is the single best escalation pattern — the decision-maker can decide, not guess.</li>
+<li>The "why I didn't pick Option B or C" shows judgment, not just the recommendation.</li>
+<li>The lesson — "attack the unknowns first" — is operational and transferable, which is what staff+ candidates do with mistakes.</li>
+</ul>
+
+<h3>11.5 — "You wanted data-quality checks to block deploys. Another engineer wanted them to warn only. Walk me through resolving it."</h3>
+
+<h4>The real scenario</h4>
+<p>Your team ships a daily feature table that a downstream ML training job depends on. You propose adding blocking DQ checks: if row count drops more than 30% from the 7-day median, the pipeline fails hard and pages on-call. A peer — the engineer who owns the training pipeline on the other side of the handoff — argues for warnings only, not blocks. His reasoning: "I'd rather get a slightly stale or slightly weird table than no table; blocking means my training doesn't run and I miss my weekly model refresh."</p>
+
+<p>Both of you have real stakes. Both of you are right in a narrow way.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[Naming that both stakes are real]</em> The real conflict wasn't 'block vs warn' — it was that we were treating 'a bad table arrives' and 'no table arrives' as the same failure mode. They aren't. He was optimizing for model freshness; I was optimizing for training on clean data. A single 'block or warn' policy can't serve both.</p>
+
+<p><em>[The decomposition]</em> I proposed splitting the DQ checks into tiers. Tier 1 — hard blocks — for things that make the training run garbage: schema drift, duplicate primary keys, NULL rates exceeding 5x baseline. Tier 2 — soft warnings — for things that are suspicious but tolerable: row count drift between 10–30%, category distribution shifts, outlier counts. Tier 3 — silent metrics — for everything else, logged to Datadog but not alerting.</p>
+
+<p><em>[The specific list]</em> I wrote the tier assignments column-by-column for the 47-column table. I sent him the list before any meeting. He had comments on eight of them — half of which I'd gotten wrong. Specifically, he was right that 'campaign_id NULL rate spike' should be a warning not a block because campaigns legitimately go dark on holidays. That kind of domain knowledge was exactly why pre-sending the list worked.</p>
+
+<p><em>[The recovery path]</em> For Tier 1 hard failures, I added a manual override — an on-call eng can explicitly approve the run with a one-line justification that gets logged. That addressed his 'I'd rather have something than nothing' concern: if the check misfires on a Friday night, he's not blocked for the weekend, just required to sign off that he accepts the risk.</p>
+
+<p><em>[Outcome]</em> We shipped tiered DQ six weeks later. In the first six months the Tier 1 blocks fired 11 times. Nine were real issues that would have corrupted models. Two were false positives — both of which led us to refine the check thresholds. The manual override was used 3 times, always with justification in the log. His model refresh was never blocked by a false positive for longer than the override round-trip.</p>
+
+<p><em>[The meta-lesson]</em> The right answer wasn't 'block' or 'warn.' It was 'different categories of failure warrant different responses, and here's the taxonomy.' If I'd insisted on blanket blocking, I'd have been right in principle and wrong in practice. [What I'd do differently]</em> I'd have asked him to co-design the tiers from the start. Half of the assignments I got wrong were because I didn't know the downstream training behavior. The domain knowledge for DQ assignments lives on both sides of the handoff."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>The candidate reframed a binary argument into a taxonomy. That's the staff-level move — "you're both asking the wrong question."</li>
+<li>Pre-sending the per-column list invited specific, decidable disagreement instead of philosophical posturing.</li>
+<li>The manual override is a senior design instinct — systems need escape hatches for their safety mechanisms.</li>
+<li>Quantifying outcomes (11 fires, 9 true, 2 false, 3 overrides) shows the candidate tracks their own decisions in production.</li>
+</ul>
+
+<h3>11.6 — "Your manager wants to ship without the data contract you think is essential. How do you handle it?"</h3>
+
+<h4>The real scenario</h4>
+<p>You're standing up a new event stream from the mobile team into your pipeline — roughly 4 M events/day, 27 fields, landing in Kafka and then Iceberg. You've drafted a formal data contract: schema, semantic definitions, ownership, breaking-change process, SLA. Your manager pushes back: "We don't need a contract for this. It's one team on each side, we talk every week, the schema is in the code. Let's ship." Her reasoning isn't bad — for the current state of two teams, a contract is overhead. But you've seen this movie before: six months in, other teams will subscribe, the mobile team will ship a "small" schema change, and somebody's dashboard will break silently.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[Understanding her reasoning first]</em> I took it seriously that she was being pragmatic, not dismissive. Contracts have real costs: they slow down early iteration when nobody's downstream, and 'formal' often becomes bureaucratic rather than useful. She wasn't wrong about that tension.</p>
+
+<p><em>[The reframe]</em> I didn't argue for a contract in the abstract. I asked one question: 'What's the single thing we'd regret most six months from now if we didn't have it?' Her answer — and mine — was the same: undocumented semantic meanings of the 'event_type' field. If three teams subscribe and each interprets event_type differently, we'll be debugging for a quarter. The contract's <em>entire value</em> was in one column's semantic documentation.</p>
+
+<p><em>[The scoped counter-proposal]</em> I proposed a minimal 'contract lite' — one page, four sections: (a) schema with types, (b) event_type semantic enum (the thing we'd regret not having), (c) breaking-change process (30-day notice to subscribers), (d) ownership and oncall. That was it. No JSON Schema, no registry, no tooling. A one-page markdown file in the producer's repo. 30 minutes to write, reviewed quarterly.</p>
+
+<p><em>[The disagreement and what she said yes to]</em> She still pushed back on the 30-day breaking-change notice — said it was overkill with only one consumer. Fair point. We compromised: 7-day notice as the default, 30 days only after the third consumer joined. I disagreed mildly but not meaningfully; the 7-day default was fine for the current state and the scaling rule was the right shape.</p>
+
+<p><em>[The execute-as-if-it-were-my-idea move]</em> Once we agreed on the shape, I didn't re-argue. I wrote the one-pager, got it reviewed, and ran the first quarterly review myself to prove the maintenance burden was low. Six months later we had four subscribers, the schema had evolved three times cleanly, and the event_type semantic doc had been updated twice. My manager told me later she'd been wrong about how much overhead it was. I didn't bring that up at the time and I still don't.</p>
+
+<p><em>[What I'd do differently]</em> I was going to push for the full contract with registry and tooling. Scoping it down to 'the one thing we'd regret not having' was a better argument. I learned to do that reframe earlier in future proposals — start by asking 'what's the minimum here?' not 'what's the right shape?'"</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>Understanding the manager's objection as pragmatic rather than wrong is the mature frame.</li>
+<li>The "single thing we'd regret most" question is a generally powerful frame for reducing scope without giving up value.</li>
+<li>Executing fully after a disagreement went against you — without re-litigating — is the senior behavior.</li>
+<li>Refusing to say "I told you so" even when proven right is trust-banking. Interviewers note this one hard.</li>
+</ul>
+
+<h3>11.7 — "A feature you built caused a production incident. Walk me through it."</h3>
+
+<h4>The real scenario</h4>
+<p>You shipped a new incremental loader for <code>fct_order_line</code>. It processed only the last 24 hours of orders each run, merging into the target table. Friday afternoon deploy. Saturday morning the CFO's weekend revenue dashboard showed revenue down 40% week-over-week. It wasn't. The bug: your incremental filter used <code>order_updated_at &gt;= now() - interval '24 hours'</code>, but the source system updates the <code>updated_at</code> field on status changes (cancellations, refunds). The loader was picking up cancellations and treating them as the whole truth for those orders, overwriting the full-truth rows from the previous day's full-scan load. The effect: order totals got replaced by their cancellation deltas, which are negative or zero.</p>
+
+<h4>The answer</h4>
+
+<p><em>"[Owning it in the first sentence]</em> I shipped a loader that overwrote correct revenue rows with cancellation-only updates because I used the wrong incremental column. The CFO saw a 40% revenue drop on a Saturday morning before anyone was awake to catch it. That's the top line.</p>
+
+<p><em>[The pager-to-fix timeline]</em> Saturday 8:47am our on-call got paged by the dashboard owner, who got a Slack from the CFO. On-call pinged me, I was at my laptop by 9:10. Diagnosis by 9:35 — the merge query was trivially wrong once I read it with fresh eyes. Rollback by 9:50 via the previous day's snapshot. Full table refresh by 11:20. Incident resolved before noon.</p>
+
+<p><em>[The specific decision that failed]</em> My mistake wasn't 'we needed more tests.' The specific decision was: I trusted the column name <code>order_updated_at</code> without asking what event types trigger an update. I assumed 'updated' meant 'updated once, at creation.' It didn't. If I'd asked the ops team what writes to that column, I'd have known. I didn't ask.</p>
+
+<p><em>[The prevention, systemic not personal]</em> Two fixes shipped the next week. First, the loader now uses a dedicated <code>ingested_at</code> timestamp I added to the source contract — producer-controlled, no risk of being rewritten by downstream updates. Second, I added a pre-commit data-diff that compares the target table's revenue sum before and after the merge, with a 5% guardrail. If it would drop revenue by more than 5%, the merge aborts and pages on-call. Those two changes shipped as a PR, with tests, in the next sprint. The diff guardrail has since caught two unrelated issues on other tables.</p>
+
+<p><em>[What I'd do differently]</em> Beyond the specific fix: I now treat 'the column name is clear' as a yellow flag, not a green one. Every column I pull into a critical transform, I ask the producer about write semantics before I ship. It's a 10-minute conversation that would have saved a Saturday morning."</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>Owning it in one blunt sentence — no warm-up, no hedging.</li>
+<li>Timeline specificity (8:47, 9:10, 9:35, 9:50, 11:20) signals actual ownership of a real incident.</li>
+<li>The specific decision that failed is named: "I trusted the column name." That's the kind of self-criticism that reads as honest rather than performative.</li>
+<li>The systemic fix (contract column + diff guardrail) extends beyond "the fix for this bug" to "the class of bugs."</li>
+<li>The meta-lesson ("column name is a yellow flag") is a durable behavioral change, not a situational patch.</li>
+</ul>
+
+<h3>11.8 — "A junior engineer is blocked and frustrated. How do you mentor them out of it?"</h3>
+
+<h4>The real scenario</h4>
+<p>A junior data engineer on your team is building their first streaming pipeline — a Flink job consuming Kafka into Iceberg. They've been stuck for four days on a watermark issue: records are being dropped as "late" even though they look on-time. They're working late, increasingly defensive in standup, and two days ago said "I don't think streaming is for me." You know exactly what the bug is within 30 seconds of reading their code. Do you just tell them?</p>
+
+<h4>The answer</h4>
+
+<p><em>"[The question to ask yourself first]</em> 'Do I just tell them' is the wrong frame. The right frame is: 'what's the most valuable thing they can learn in the next hour?' If I tell them the answer, they save four days on this bug and learn one fact. If I walk them to the answer, they save four days on this bug <em>and</em> learn a debugging pattern they'll use for every streaming bug for the next decade. The second payoff is worth the extra 45 minutes.</p>
+
+<p><em>[The move — Socratic debug]</em> I booked 90 minutes with them, not a drive-by. I asked them to walk me through their mental model of watermarks before we looked at any code. Within two minutes it was clear they thought watermarks were a global clock, not a per-source boundary. That was the actual misconception under the bug. The code issue was just the symptom.</p>
+
+<p><em>[Teaching the model, not the fix]</em> We spent 20 minutes on a whiteboard sketching how watermarks propagate through operators, including the specific case where a slow partition on one side of a union stalls the whole watermark. Then I asked them to re-read their code with that model. They found the bug themselves — they'd set <code>allowedLateness</code> to zero while reading from a multi-partition topic where one partition lagged by 8 seconds. The fix was one line.</p>
+
+<p><em>[The frustration piece]</em> The 'streaming is not for me' comment was the one I addressed directly, but carefully. Not 'don't say that' — that lands as dismissive. Instead: 'You've done four days of work that you're about to learn didn't need to take four days. That's frustrating. What made the difference just now — do you think?' They said 'having someone to walk through it with.' That was the teach moment — asking for help earlier isn't weakness, it's pipeline engineering at senior scale because the cost of a day of stuck-ness is higher than the cost of a 30-minute pair session.</p>
+
+<p><em>[The durable change]</em> I set up a weekly 30-minute standing 1:1 with them specifically for 'what are you stuck on this week.' Not status, not progress — just stuck-ness. Three months later they were running streaming incident reviews for the whole team. Not because of any heroics on my part — because they now knew when to ask for help and when to work through something alone.</p>
+
+<p><em>[What I'd do differently]</em> I'd have caught their frustration earlier. Four days of stuckness is four days too many. The signal was in standup two days before — they stopped volunteering details. I should have pulled them aside then, not waited until they were already saying 'this isn't for me.'"</em></p>
+
+<h4>What the interviewer hears</h4>
+
+<ul>
+<li>The candidate understands that teaching the <em>model</em> pays off more than teaching the <em>fix</em> — classic senior-to-staff transition thinking.</li>
+<li>Addressing the "streaming isn't for me" comment directly but gently shows emotional intelligence under pressure.</li>
+<li>The standing 1:1 specifically for stuck-ness, not status, is a durable mentoring pattern worth bringing up for itself.</li>
+<li>Noticing the earlier signal (standup silence) is the kind of pattern-recognition that separates staff+ engineers from senior ones.</li>
+</ul>
+
+<h3>11.9 — The Meta-Pattern Across These Scenarios</h3>
+
+<p>Five behaviors show up in every senior-level answer above. Memorize them as the questions to ask yourself when preparing your own DE stories:</p>
+
 <ol>
-<li><strong>Name the tension in neutral terms.</strong> "We disagreed on whether to refactor the upstream service before building the new feature."</li>
-<li><strong>State your actual conviction — and acknowledge theirs.</strong> "I was confident the new feature would accumulate tech debt if we skipped the refactor. My peer was equally confident that the refactor would burn three sprints for marginal gain."</li>
-<li><strong>Describe the move you made that took the heat out.</strong> "I proposed we spike the feature without the refactor for one sprint, instrument the specific debt I was worried about, and let the data tell us whether to refactor before continuing."</li>
-<li><strong>Close with the relationship, not just the outcome.</strong> "We ended up shipping on a hybrid plan. Three months later he was the first person I asked when a related decision came up."</li>
+<li><strong>Did you do the other person's homework before expecting them to do yours?</strong> Reading the migration plan, pulling the Spark UI, sketching the per-column DQ tiers. Work-before-ask is the scarcest behavior in senior rounds.</li>
+<li><strong>Did you separate the decidable from the philosophical?</strong> Tests-redundancy is falsifiable; vendor-lock is judgment. Addressing each with the right tool (data vs. explicit acceptance) is what senior engineers do that mid engineers don't.</li>
+<li><strong>Did you invite the skeptic or opponent to co-own the next step?</strong> Asking them to design the pilot kill criteria, write the counter-case, or audit your DQ tier assignments. Co-ownership converts opposition into investment.</li>
+<li><strong>Did your answer include at least one specific thing you got wrong?</strong> Not as performance — as operational learning. "I was going to push for the full contract; the reframe was better." "I should have pulled them aside two days earlier."</li>
+<li><strong>Did your fix extend beyond the specific problem to the class?</strong> The data-diff guardrail that now catches bugs on other tables. The standing 1:1 for stuck-ness. The "attack unknowns first" principle. Systemic fixes are the Staff+ signal that transactional fixes cannot replace.</li>
 </ol>
 
-<h4>Sample phrases that land</h4>
-<ul>
-<li><em>"I notice we're solving two different problems — can we agree on which problem we're actually disagreeing about?"</em> This single sentence defuses more engineering conflicts than any other.</li>
-<li><em>"You might be right, and if you are, here's what I'd want to see in the data to know."</em> Concedes possibility without conceding the decision.</li>
-<li><em>"Let me restate your position back — tell me if I have it right before I respond."</em> Most conflicts are people talking past each other; this breaks the pattern.</li>
-</ul>
+<p>Every DE behavioral story you prepare should be audited against these five. If any three are missing, the story reads as mid-level regardless of how technically impressive the situation was.</p>
 
-<h3>11.2 — "What if the peer is cocky and won't back down?"</h3>
-
-<h4>What the interviewer is really probing</h4>
-<p>Whether you escalate at the right threshold. "I went to my manager" too early signals avoidance; "I just kept pushing" signals bad judgment. The answer lives in the middle: you invest meaningfully in the 1:1 path, you collect evidence, and you escalate with a <em>process</em> proposal, not a <em>person</em> complaint.</p>
-
-<h4>The move — four stages, named</h4>
-
-<ol>
-<li><strong>Stage 1 — ask for the underlying principle.</strong> Cocky disagreement is often surface-level. Ask: "If the data showed X, would your position change?" If the answer is "no, regardless of data" — you now know it's not a technical disagreement, it's identity. Route accordingly.</li>
-<li><strong>Stage 2 — take the work offline.</strong> "Let's not solve this in the standup. I'll put the comparison in a doc by Friday, you add your counter, we regroup Monday." The written form neutralizes verbal dominance games.</li>
-<li><strong>Stage 3 — bring a third technical voice.</strong> Not your manager. A respected senior outside both of your reporting lines. Frame it as "we both respect X, let's get their read." This is very different from escalation — you're enlarging the decision-making set, not appealing to authority.</li>
-<li><strong>Stage 4 — genuine escalation.</strong> If stages 1–3 fail and the decision must be made, surface to both managers together with a written doc that fairly represents both positions. The last move is <em>always</em> process-oriented: "we need a decision, here's the doc with both sides, we need you to adjudicate."</li>
-</ol>
-
-<h4>The sentences that work on a cocky peer</h4>
-<ul>
-<li><em>"I hear your conclusion. I don't yet hear the reasoning that got you there — can you walk me through it?"</em> Invites specificity without conceding anything.</li>
-<li><em>"We've been going in circles on this for 20 minutes. Let's write it up instead."</em> Breaks the verbal dynamic entirely.</li>
-<li><em>"I may be wrong. Tell me what I'd need to believe to agree with you."</em> Surprisingly disarming; invites them to articulate the model, which often exposes where the disagreement actually lives.</li>
-</ul>
-
-<h4>What not to say</h4>
-<ul>
-<li><em>"I'll defer to you on this one."</em> — you just told the interviewer you fold under pressure.</li>
-<li><em>"He was just being a jerk."</em> — even if true, you've revealed you can't frame people charitably.</li>
-<li><em>"I went to my manager."</em> — unless you've first described the 1:1 investment. Manager-first is a red flag.</li>
-</ul>
-
-<h3>11.3 — "You presented a new idea. One peer is hell-bent on rejecting it, and he has reasons. How do you handle it?"</h3>
-
-<h4>What's actually being tested</h4>
-<p>Whether you can distinguish <em>good-faith opposition</em> from <em>obstruction</em>, and whether you can use good-faith opposition to make the idea better instead of defending it. The best idea-pushers treat a rigorous objector as a gift. That mindset is a strong hire signal.</p>
-
-<h4>The move — steelman then separate</h4>
-
-<ol>
-<li><strong>Steelman their objection out loud.</strong> "Let me restate what I hear you saying, and tell me if it's right. You believe the approach is the wrong move because of [specific reason 1], [specific reason 2], [specific reason 3]. Did I miss anything?" Do not skip this. Most objectors are never accurately restated back — just doing it creates real goodwill.</li>
-<li><strong>Ask what evidence would change their mind.</strong> "If [specific outcome], would that address [specific objection]?" Two outcomes: (a) they give you a concrete test, which is a gift — now you can address it; (b) they can't name any evidence that would change their mind, which means the objection isn't actually technical. Now you know what you're working with.</li>
-<li><strong>Separate the decidable from the undecidable.</strong> Some parts of the objection can be settled with a prototype, benchmark, or pilot. Others are pure judgment calls where reasonable people differ. Address the decidable ones with actual work; name the judgment calls as judgment calls and propose how the org should decide them (usually: someone with the authority to adjudicate decides, and you commit either way).</li>
-<li><strong>Invite them to co-own the next step.</strong> "If we ran the pilot for four weeks with [metric] as the kill criterion, would you be willing to co-design the pilot?" The skeptic who co-designs the pilot becomes your most credible advocate or your most credible killer — either way you're unstuck.</li>
-</ol>
-
-<h4>Phrases that change the room</h4>
-<ul>
-<li><em>"You're asking a good question — I don't have the answer yet. Give me two days to come back with data."</em> Protects your credibility better than faking an answer.</li>
-<li><em>"If we're going to kill this, let's be clear on the criteria — what would have to be true for us to revisit?"</em> Turns a rejection into a conditional rejection, which is recoverable.</li>
-<li><em>"I'd rather we killed this for the right reason than ship it and regret it."</em> Signals that you're attached to the outcome, not the idea.</li>
-</ul>
-
-<h4>The failure mode</h4>
-
-<p>The worst thing to do is double down and try to "win" by sheer persistence. Even if you win the meeting, you've spent political capital that took years to accumulate. The senior move is to separate being right from being heard — and to recognize that an idea killed today can be revived in three months with better data.</p>
-
-<h3>11.4 — "Tell me about a time you received feedback that was hard to hear"</h3>
-
-<h4>What the interviewer is probing</h4>
-<p>Whether you can hold feedback without either (a) performing humility theater or (b) getting defensive. The bad answer: "I got feedback that my communication was too blunt and I realized I should be nicer." The interviewer has heard that 400 times and it lands as canned.</p>
-
-<h4>The senior answer shape</h4>
-<p>Name the feedback specifically. Name your initial reaction honestly — including the part where it stung. Name what you did with it over the next 90 days, with a specific behavior change. Close with what you'd do differently now if you got the same feedback earlier.</p>
-
-<p><em>"A director told me in my six-month review that I wrote beautiful design docs that no one finished reading — they were too long and too exhaustive for anyone but me. My first reaction, honestly, was defensive: I thought the docs were my strength. I sat with it for a week before I could see that what felt like thoroughness to me felt like friction to readers. I rewrote my last three docs to cap at one page for the executive summary, with a linked appendix for the depth. Response rate on my doc reviews roughly tripled. The feedback I wish I'd gotten six months earlier was the specific diagnosis — 'too long' is easy to hear once, hard to internalize; 'nobody finishes them' forced me to re-examine the format."</em></p>
-
-<h3>11.5 — "Tell me about a decision you made that turned out to be wrong"</h3>
-
-<h4>The honest answer</h4>
-<p>Bad answers for this question are versions of "I took a risk that didn't pay off but I'd do it again." That's not a mistake — that's a risk. The interviewer wants an actual wrong call you made.</p>
-
-<p>Good answer shape: name the decision, name your reasoning at the time, name the signal you <em>had</em> that you ignored or under-weighted, name the outcome, name what you do differently now when that signal reappears.</p>
-
-<p><em>"In 2023 I picked PostgreSQL as the primary store for a new system where the read pattern was going to be 98% aggregated analytics. My reasoning was that PostgreSQL was battle-tested and we had the operational expertise. The signal I under-weighted: our own internal latency requirements said p99 under 200 ms for queries touching 30 days of data, and I did not actually benchmark whether PostgreSQL could hit that with the data we'd be accumulating. Six months in, a BI dashboard that needed to scan 500 M rows was taking 12 seconds. We migrated to a columnar warehouse, which was the right answer from day one. What I do now: if the access pattern is 90%+ analytics at any projected scale, I start from the analytics store and justify the OLTP side, not the other way around."</em></p>
-
-<h3>11.6 — "Describe a situation where you had to push back on a manager"</h3>
-
-<h4>What's actually being tested</h4>
-<p>Whether you can disagree with authority without either rolling over or becoming a problem. Most candidates err in one direction or the other — both are disqualifying for staff+.</p>
-
-<h4>The shape of the good answer</h4>
-<p>Your manager asked for something that you had reason to believe was the wrong call. You invested in understanding their reasoning before pushing back. You made your counter-case in writing with specifics, not in a meeting with heat. You accepted the final decision whether it went your way or not, and if it didn't go your way you executed <em>as if it were your idea</em>.</p>
-
-<p>That last sentence — "I executed as if it were my idea" — is what separates senior from staff. Pushing back is an IC skill. Executing the manager's call with your full effort after you pushed back is a leadership skill. Demonstrate both.</p>
-
-<h3>11.7 — "What do you do when you realize mid-project that the plan won't work?"</h3>
-
-<h4>Why this question gets asked</h4>
-<p>Most real projects do not go to plan. Interviewers want to see whether you escalate early and clearly, or whether you try to hero-ship and only surface the problem once it's catastrophic.</p>
-
-<h4>The four-move answer</h4>
-
-<ol>
-<li><strong>Quantify the miss.</strong> Don't say "we're behind." Say "we're three weeks behind on an eight-week plan, and the current trajectory puts us at 12 weeks if nothing changes."</li>
-<li><strong>Reassess the goal, not just the plan.</strong> Sometimes the goal itself has drifted and the old plan was chasing the wrong thing. Restate what we're actually trying to achieve.</li>
-<li><strong>Present three options with honest trade-offs.</strong> "Option A: keep the scope, slip the date. Option B: cut scope X and Y, hit the original date. Option C: add two engineers, hit the original date with full scope. I recommend B because…" Options are respectful; single-recommendation-only feels like you've already decided.</li>
-<li><strong>Escalate to whoever owns the trade-off.</strong> Schedule the decision, don't wait for it to surface. Attach a deadline: "we need a decision by Thursday to preserve optionality on Option C."</li>
-</ol>
-
-<h3>11.8 — The meta-pattern these questions share</h3>
-
-<p>Across all of the above, the interviewer is testing a single underlying capability: <strong>can you hold tension in a working relationship without either collapsing into it or blowing it up?</strong> The candidates who score highest on behavioral rounds never have the cleanest stories — they have stories where both people had real points, where the outcome was messy, where the candidate's growth is named specifically, and where the relationship survived and often improved.</p>
-
-<p>Three practices that make this easier to do live in the interview:</p>
-
-<ul>
-<li><strong>Name the other person charitably before you describe the disagreement.</strong> "A senior engineer I respected…" is much stronger framing than "this guy who insisted…". The framing signals to the interviewer what kind of colleague you are.</li>
-<li><strong>Include at least one sentence where you were wrong, misjudged, or had to revise.</strong> Stories with a 100% success rate for the narrator are suspect.</li>
-<li><strong>End with what you'd do differently now or how the experience changed a default you operate with.</strong> Without that, the story is an anecdote; with it, it's evidence of growth.</li>
-</ul>
 
 <hr>
+
 
 <h2 id="p09-closing">Closing Note</h2>
 
