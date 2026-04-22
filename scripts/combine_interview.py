@@ -829,7 +829,7 @@ HEAD = '''<!DOCTYPE html>
   cursor: default;
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.hf-bar:hover { transform: scale(1.01); }
+/* hover scale removed to avoid composite-layer work */
 .hf-text { display: flex; gap: 12px; padding: 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .hf-name { font-weight: 500; opacity: 0.95; }
 .hf-count { font-family: var(--font-mono); font-size: 12px; opacity: 0.85; }
@@ -868,7 +868,7 @@ HEAD = '''<!DOCTYPE html>
   padding: 0;
   line-height: 1;
 }
-.qn-btn:hover { background: var(--color-gold-dark); transform: translateY(-2px); }
+.qn-btn:hover { background: var(--color-gold-dark); transform: translateY(-2px); will-change: transform; }
 .qn-btn:active { transform: scale(0.95); }
 .qn-label {
   position: absolute;
