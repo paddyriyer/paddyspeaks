@@ -9,47 +9,55 @@ apply() before viz_transform so specific signatures win.
 # ─── Part 0: The Ads Value Chain — 3-lane swimlane ───────────
 ADS_VALUE_CHAIN = '''<figure class="viz viz-swimlane" aria-label="The ads value chain">
 <div class="viz-label">The Ads Value Chain</div>
-<div class="sw-grid">
-  <div class="sw-head sw-head-adv">Advertiser</div>
-  <div class="sw-head sw-head-plat">Platform</div>
-  <div class="sw-head sw-head-user">User / Conversion</div>
-
-  <div class="sw-num">1</div>
-  <div class="sw-box sw-box-adv">Campaign creation</div>
-  <div class="sw-box sw-box-plat">Campaign entity store</div>
-  <div class="sw-spacer"></div>
-
-  <div class="sw-num">2</div>
-  <div class="sw-box sw-box-adv">Audience targeting</div>
-  <div class="sw-box sw-box-plat">Audience engine / graph</div>
-  <div class="sw-spacer"></div>
-
-  <div class="sw-num">3</div>
-  <div class="sw-spacer"></div>
-  <div class="sw-box sw-box-plat">Auction → impression</div>
-  <div class="sw-box sw-box-user">Impression served</div>
-
-  <div class="sw-num">4</div>
-  <div class="sw-spacer"></div>
-  <div class="sw-box sw-box-plat">Impression log</div>
-  <div class="sw-spacer"></div>
-
-  <div class="sw-num">5</div>
-  <div class="sw-spacer"></div>
-  <div class="sw-box sw-box-plat">Delivery → click log</div>
-  <div class="sw-box sw-box-user">Engagement (click, like, view)</div>
-
-  <div class="sw-num">6</div>
-  <div class="sw-spacer"></div>
-  <div class="sw-box sw-box-plat">Conversion log</div>
-  <div class="sw-box sw-box-user">User converts (pixel, SDK, server)</div>
-
-  <div class="sw-num">7</div>
-  <div class="sw-box sw-box-adv">Advertiser dashboards · billing · ML feedback</div>
-  <div class="sw-box sw-box-plat">Reporting &amp; optimization</div>
-  <div class="sw-spacer"></div>
+<div class="sw-headers">
+  <div class="sw-num-col" aria-hidden="true"></div>
+  <div class="sw-lane-head sw-lane-adv">Advertiser</div>
+  <div class="sw-lane-head sw-lane-plat">Platform</div>
+  <div class="sw-lane-head sw-lane-user">User / Conversion</div>
 </div>
-<div class="sw-legend">Seven stages flow through three actors. Each numbered row shows who holds the data at that step.</div>
+<div class="sw-row">
+  <div class="sw-num">1</div>
+  <div class="sw-cell sw-adv"><div class="sw-box">Campaign creation</div></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Campaign entity store</div></div>
+  <div class="sw-cell sw-user"><span class="sw-dash">—</span></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">2</div>
+  <div class="sw-cell sw-adv"><div class="sw-box">Audience targeting</div></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Audience engine / graph</div></div>
+  <div class="sw-cell sw-user"><span class="sw-dash">—</span></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">3</div>
+  <div class="sw-cell sw-adv"><span class="sw-dash">—</span></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Auction → impression</div></div>
+  <div class="sw-cell sw-user"><div class="sw-box">Impression served</div></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">4</div>
+  <div class="sw-cell sw-adv"><span class="sw-dash">—</span></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Impression log</div></div>
+  <div class="sw-cell sw-user"><span class="sw-dash">—</span></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">5</div>
+  <div class="sw-cell sw-adv"><span class="sw-dash">—</span></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Delivery → click log</div></div>
+  <div class="sw-cell sw-user"><div class="sw-box">Engagement (click, like, view)</div></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">6</div>
+  <div class="sw-cell sw-adv"><span class="sw-dash">—</span></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Conversion log</div></div>
+  <div class="sw-cell sw-user"><div class="sw-box">User converts (pixel, SDK, server)</div></div>
+</div>
+<div class="sw-row">
+  <div class="sw-num">7</div>
+  <div class="sw-cell sw-adv"><div class="sw-box">Advertiser dashboards · billing · ML feedback</div></div>
+  <div class="sw-cell sw-plat"><div class="sw-box">Reporting &amp; optimization</div></div>
+  <div class="sw-cell sw-user"><span class="sw-dash">—</span></div>
+</div>
+<div class="sw-legend">Seven stages flow through three actors. Each row shows who holds the data at that step.</div>
 </figure>'''
 
 
@@ -205,6 +213,100 @@ REPLACEMENTS = [
     ('[EVENT STREAMING SPINE]', MEDALLION_ARCH),
     ('METRIC REGISTRY', METRIC_REGISTRY),
     ('CORRECTNESS', TRADEOFF_TRIANGLE),
+    ('client SDK / browser / server CAPI', '''<figure class="viz viz-pipeline-arch" aria-label="Ads telemetry pipeline architecture">
+<div class="viz-label">Ads Telemetry Pipeline</div>
+<div class="pa-top">
+  <div class="pa-box pa-box-src">
+    <div class="pa-box-title">Client SDK · browser · server CAPI</div>
+  </div>
+  <div class="pa-arrow">↓</div>
+  <div class="pa-box pa-box-spine">
+    <div class="pa-box-title">Event streaming spine</div>
+    <div class="pa-box-meta">Kafka-style · 1-day retention · ~600 K events/sec peak</div>
+  </div>
+</div>
+<div class="pa-fan-arrows" aria-hidden="true">↙ &nbsp; ↓ &nbsp; ↓ &nbsp; ↘</div>
+<div class="pa-four">
+  <div class="pa-col">
+    <div class="pa-box pa-box-bronze"><div class="pa-box-title">Bronze (raw)</div><div class="pa-box-meta">Iceberg · hourly</div></div>
+    <div class="pa-arrow pa-arrow-sm">↓</div>
+    <div class="pa-box pa-box-silver"><div class="pa-box-title">Silver</div><div class="pa-box-meta">Clean · dedup · joined to dim</div></div>
+    <div class="pa-arrow pa-arrow-sm">↓ daily</div>
+    <div class="pa-box pa-box-gold"><div class="pa-box-title">Gold · semantic layer</div><div class="pa-box-meta">Metric definitions</div></div>
+  </div>
+  <div class="pa-col">
+    <div class="pa-box pa-box-stream"><div class="pa-box-title">Stream processor</div><div class="pa-box-meta">Flink · micro-batch</div></div>
+    <div class="pa-stub"></div>
+    <div class="pa-stub"></div>
+    <div class="pa-stub"></div>
+    <div class="pa-stub"></div>
+  </div>
+  <div class="pa-col">
+    <div class="pa-box pa-box-olap"><div class="pa-box-title">Real-time OLAP</div><div class="pa-box-meta">Druid / Pinot · sec-level</div></div>
+    <div class="pa-arrow pa-arrow-sm">↓</div>
+    <div class="pa-terminal">Advertiser UI</div>
+  </div>
+  <div class="pa-col">
+    <div class="pa-box pa-box-kv"><div class="pa-box-title">Pacing counter KV</div><div class="pa-box-meta">Redis · sub-sec</div></div>
+    <div class="pa-arrow pa-arrow-sm">↓</div>
+    <div class="pa-terminal">Auction gate</div>
+  </div>
+</div>
+<div class="pa-fanout-head">Gold feeds ↓</div>
+<div class="pa-terminal-grid">
+  <div class="pa-terminal pa-term-blue">metrics registry</div>
+  <div class="pa-terminal pa-term-blue">dashboards</div>
+  <div class="pa-terminal pa-term-green">feature store</div>
+  <div class="pa-terminal pa-term-rust">exec scorecard</div>
+</div>
+</figure>'''),
+    ('streaming: 1-min windows', '''<figure class="viz viz-tree-v2" aria-label="Bronze aggregation pipeline tree">
+<div class="viz-label">The Aggregation Pipeline</div>
+<div class="tv2-root">
+  <div class="tv2-node tv2-node-root"><div class="tv2-name">Bronze · raw events</div></div>
+  <div class="tv2-branches">
+    <div class="tv2-branch">
+      <div class="tv2-edge">↘ streaming</div>
+      <div class="tv2-node tv2-node-stream"><div class="tv2-name">1-minute windows</div><div class="tv2-meta">→ Real-time OLAP · serves pacing, near-real-time UI</div></div>
+    </div>
+    <div class="tv2-branch">
+      <div class="tv2-edge">↘ batch</div>
+      <div class="tv2-node tv2-node-batch"><div class="tv2-name">hourly → silver → daily rollup → gold</div></div>
+      <div class="tv2-subedge">└ gold marts</div>
+      <div class="tv2-leaves">
+        <div class="tv2-leaf">metric_campaign_daily</div>
+        <div class="tv2-leaf">metric_creative_daily</div>
+        <div class="tv2-leaf">metric_audience_daily</div>
+        <div class="tv2-leaf tv2-leaf-exec">metric_platform_daily · exec</div>
+      </div>
+    </div>
+  </div>
+</div>
+</figure>'''),
+    ('streaming win events', '''<figure class="viz viz-pacing" aria-label="Pacing dual-write architecture">
+<div class="viz-label">Streaming Pacing ⇆ Batch Ground Truth</div>
+<div class="pc-stack">
+  <div class="pc-src">
+    <span class="pc-src-label">Streaming win events</span>
+    <span class="pc-src-arrow">↓</span>
+  </div>
+  <div class="pc-box pc-box-realtime">
+    <div class="pc-box-title">Real-time spend counter · KV</div>
+    <div class="pc-box-meta">campaign_id → spent_today</div>
+    <div class="pc-box-read"><span class="pc-arrow-in">←</span> read by auction pacing gate <span class="pc-latency">(sub-100 ms lookup)</span></div>
+  </div>
+  <div class="pc-between">
+    <span class="pc-between-arrow">⇅</span>
+    <span class="pc-between-label">hourly correction</span>
+  </div>
+  <div class="pc-box pc-box-batch">
+    <div class="pc-box-title">Ground-truth batch pipeline</div>
+    <div class="pc-box-meta">impressions ⋈ conversions ⋈ IVT</div>
+    <div class="pc-box-meta pc-mono">campaign_id, hour → $spent</div>
+    <div class="pc-box-read"><span class="pc-arrow-in">←</span> source of truth for billing</div>
+  </div>
+</div>
+</figure>'''),
 ]
 
 
