@@ -964,6 +964,43 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
   },{rootMargin:'-40% 0px -55% 0px', threshold:0});
   sections.forEach(function(s){io.observe(s);});
 })();
+
+// content-visibility:auto on sections causes hash-navigation to land on the
+// wrong section: browser scrolls to the target's current layout position,
+// but as offscreen sections expand, the target moves. Fix: intercept clicks
+// + hashchange, re-scroll after layout settles.
+(function(){
+  function scrollToHash(hash){
+    if(!hash || hash === '#') return;
+    var id = hash.charAt(0) === '#' ? hash.slice(1) : hash;
+    var el = document.getElementById(id);
+    if(!el) return;
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        setTimeout(function(){
+          el.scrollIntoView({behavior:'smooth', block:'start'});
+          setTimeout(function(){
+            var rect = el.getBoundingClientRect();
+            if(Math.abs(rect.top) > 30){
+              window.scrollTo({top: window.scrollY + rect.top, behavior:'auto'});
+            }
+          }, 500);
+        }, 0);
+      });
+    });
+  }
+  document.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if(!a) return;
+    var href = a.getAttribute('href');
+    if(href.length < 2) return;
+    e.preventDefault();
+    history.pushState(null, '', href);
+    scrollToHash(href);
+  });
+  window.addEventListener('hashchange', function(){ scrollToHash(location.hash); });
+  if(location.hash) scrollToHash(location.hash);
+})();
 </script>
 <script defer src="/lib/ps.js"></script>
 </main>

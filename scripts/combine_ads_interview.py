@@ -1851,6 +1851,51 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
   },{rootMargin:'-40% 0px -55% 0px', threshold:0});
   sections.forEach(function(s){io.observe(s);});
 })();
+
+// content-visibility:auto on sections causes hash-navigation to land on the
+// wrong section: the browser scrolls to the target's CURRENT layout position,
+// but as previously-offscreen sections expand mid-scroll, the target moves.
+// Fix: intercept anchor clicks + hashchange and re-scroll after two frames
+// so the real layout has settled.
+(function(){
+  function scrollToHash(hash){
+    if(!hash || hash === '#') return;
+    var id = hash.charAt(0) === '#' ? hash.slice(1) : hash;
+    var el = document.getElementById(id);
+    if(!el) return;
+    // Two rAF ticks + a small timeout — enough for content-visibility to
+    // promote sections into the real layout before we compute the offset.
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        setTimeout(function(){
+          el.scrollIntoView({behavior:'smooth', block:'start'});
+          // Re-correct after the smooth scroll finishes in case more
+          // sections expanded during the scroll.
+          setTimeout(function(){
+            var rect = el.getBoundingClientRect();
+            if(Math.abs(rect.top) > 30){
+              window.scrollTo({top: window.scrollY + rect.top, behavior:'auto'});
+            }
+          }, 500);
+        }, 0);
+      });
+    });
+  }
+  // Intercept clicks on any in-page anchor
+  document.addEventListener('click', function(e){
+    var a = e.target.closest && e.target.closest('a[href^="#"]');
+    if(!a) return;
+    var href = a.getAttribute('href');
+    if(href.length < 2) return;
+    e.preventDefault();
+    history.pushState(null, '', href);
+    scrollToHash(href);
+  });
+  // Back/forward nav
+  window.addEventListener('hashchange', function(){ scrollToHash(location.hash); });
+  // Initial load with a hash
+  if(location.hash) scrollToHash(location.hash);
+})();
 </script>
 <script defer src="/lib/ps.js"></script>
 </main>
