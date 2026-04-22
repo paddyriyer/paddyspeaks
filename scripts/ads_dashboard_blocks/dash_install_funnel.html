@@ -1,0 +1,59 @@
+<figure class="dash dash-install" aria-label="App install event funnel">
+  <div class="dash-head">
+    <div>
+      <div class="dash-eyebrow">Dashboard · App Install Funnel</div>
+      <h4 class="dash-title">Install to purchase to D7 retention</h4>
+    </div>
+    <div class="dash-legend">
+      <span><span class="d-dot" style="background:#2563a8"></span>cohort size</span>
+      <span><span class="d-dot" style="background:#c44b2b"></span>drop</span>
+    </div>
+  </div>
+
+  <div class="install-rows" id="installRows"></div>
+
+  <div class="dash-footnote">D7 retention is measured against installs, not the previous step. That's the comparable number for LTV modeling.</div>
+</figure>
+
+<script>
+(function(){
+  if (window.__dashInstallInit) return;
+  window.__dashInstallInit = true;
+  var stages = [
+    { name: 'Installs',          count: 10000, anchor: true },
+    { name: 'First-open',        count: 8500  },
+    { name: 'Tutorial complete', count: 5100  },
+    { name: 'Registration',      count: 3400  },
+    { name: 'Purchase',          count: 1200  },
+    { name: 'D7 retention',      count: 2800, note: '28% of installs (measured against install cohort, not previous step)' }
+  ];
+  var host = document.getElementById('installRows');
+  if (!host) return;
+  var maxN = stages[0].count;
+  var prev = null;
+  var rows = stages.map(function(s, i){
+    var wPct = 100 * s.count / maxN;
+    var rel = prev !== null ? ((s.count - prev) / prev) : 0;
+    var relLabel = '';
+    if (i > 0 && !s.note) {
+      var dropPct = Math.round(100 * (prev - s.count) / prev);
+      relLabel = '-' + dropPct + '% vs prev';
+    }
+    prev = s.count;
+    var overallPct = Math.round(100 * s.count / maxN);
+    return (
+      '<div class="irow">'+
+        '<div class="irow-head">'+
+          '<span class="irow-name">'+s.name+'</span>'+
+          '<span class="irow-count">'+s.count.toLocaleString()+'</span>'+
+          '<span class="irow-pct">'+overallPct+'% of install cohort</span>'+
+          (relLabel ? '<span class="irow-drop">'+relLabel+'</span>' : '')+
+        '</div>'+
+        '<div class="irow-track"><div class="irow-bar" style="width:'+wPct+'%"></div></div>'+
+        (s.note ? '<div class="irow-note">'+s.note+'</div>' : '')+
+      '</div>'
+    );
+  }).join('');
+  host.innerHTML = rows;
+})();
+</script>
