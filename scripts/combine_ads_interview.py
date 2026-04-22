@@ -1817,6 +1817,11 @@ __SECTIONS__
 
 </div>
 
+<div class="quick-nav" aria-hidden="true">
+  <button class="qn-btn qn-up" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Jump to top"><span class="qn-label">Top</span>↑</button>
+  <button class="qn-btn qn-down" onclick="window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'})" aria-label="Jump to bottom"><span class="qn-label">Bottom</span>↓</button>
+</div>
+
 <footer class="site-footer">
 <div class="footer-ornament">❧</div>
 <div class="footer-links"><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a><a href="../about.html">About</a><a href="mailto:paddy@paddyspeaks.com">Contact</a></div>
