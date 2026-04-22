@@ -186,7 +186,7 @@ HEAD = '''<!DOCTYPE html>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap"></noscript>
-<link rel="preload" as="style" href="../style.css"><link rel="stylesheet" href="../style.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="../style.css"></noscript>
+<link rel="stylesheet" href="../style.css">
 
 <style>
 /* Longform overrides — wider content area for code-heavy article */
