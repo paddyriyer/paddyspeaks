@@ -33,7 +33,7 @@ PARTS = [
     ("04", "Part4_Platform_Specific_Glossary.html",     "Platform Surfaces & A–Z Glossary",   "platform-glossary"),
     ("05", "Part5_Visualization_Measurement.html",      "Visualization & Measurement",        "viz-measurement"),
     ("06", "Part6_Room_Pressure_Decisions.html",        "The Room · Real Decisions",          "the-room"),
-    ("07", "Part7_Coding_Round.html",                    "The Coding Round · SQL &amp; Python",  "coding-round"),
+    ("07", "Part7_Coding_Round.html",                    "The Coding Round · SQL & Python",      "coding-round"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}
@@ -1858,30 +1858,35 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
 // Fix: intercept anchor clicks + hashchange and re-scroll after two frames
 // so the real layout has settled.
 (function(){
+  // content-visibility:auto on sections gives each offscreen one an 1800px
+  // placeholder. When the user clicks a chip for a far-away section, the
+  // browser scrolls to the current (placeholder-compressed) position; as
+  // the sections in between render during the scroll, they expand, pushing
+  // the real target further down. Smooth scroll doesn't follow that drift.
+  // Fix: instant scroll + repeated re-corrections over ~800 ms so every
+  // layout-shift during/after the jump gets absorbed.
+  function correctScroll(el){
+    var rect = el.getBoundingClientRect();
+    // Offset 8px padding from viewport top; positive value means target is
+    // below desired position, negative means above.
+    var delta = rect.top - 8;
+    if(Math.abs(delta) > 2){
+      window.scrollTo({top: window.scrollY + delta, left: 0, behavior: 'auto'});
+    }
+  }
   function scrollToHash(hash){
     if(!hash || hash === '#') return;
     var id = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var el = document.getElementById(id);
     if(!el) return;
-    // Two rAF ticks + a small timeout — enough for content-visibility to
-    // promote sections into the real layout before we compute the offset.
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        setTimeout(function(){
-          el.scrollIntoView({behavior:'smooth', block:'start'});
-          // Re-correct after the smooth scroll finishes in case more
-          // sections expanded during the scroll.
-          setTimeout(function(){
-            var rect = el.getBoundingClientRect();
-            if(Math.abs(rect.top) > 30){
-              window.scrollTo({top: window.scrollY + rect.top, behavior:'auto'});
-            }
-          }, 500);
-        }, 0);
-      });
+    // Fire corrections at 0, 60, 180, 400, 800 ms. Each one repositions
+    // based on the latest layout; by 800 ms content-visibility has always
+    // settled in practice.
+    correctScroll(el);
+    [60, 180, 400, 800].forEach(function(ms){
+      setTimeout(function(){ correctScroll(el); }, ms);
     });
   }
-  // Intercept clicks on any in-page anchor
   document.addEventListener('click', function(e){
     var a = e.target.closest && e.target.closest('a[href^="#"]');
     if(!a) return;
@@ -1891,9 +1896,7 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
     history.pushState(null, '', href);
     scrollToHash(href);
   });
-  // Back/forward nav
   window.addEventListener('hashchange', function(){ scrollToHash(location.hash); });
-  // Initial load with a hash
   if(location.hash) scrollToHash(location.hash);
 })();
 </script>

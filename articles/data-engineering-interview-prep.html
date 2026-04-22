@@ -9318,23 +9318,23 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
 // but as offscreen sections expand, the target moves. Fix: intercept clicks
 // + hashchange, re-scroll after layout settles.
 (function(){
+  // Instant scroll + repeated corrections beats smooth scroll when
+  // content-visibility:auto causes mid-scroll layout shifts.
+  function correctScroll(el){
+    var rect = el.getBoundingClientRect();
+    var delta = rect.top - 8;
+    if(Math.abs(delta) > 2){
+      window.scrollTo({top: window.scrollY + delta, left: 0, behavior: 'auto'});
+    }
+  }
   function scrollToHash(hash){
     if(!hash || hash === '#') return;
     var id = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var el = document.getElementById(id);
     if(!el) return;
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        setTimeout(function(){
-          el.scrollIntoView({behavior:'smooth', block:'start'});
-          setTimeout(function(){
-            var rect = el.getBoundingClientRect();
-            if(Math.abs(rect.top) > 30){
-              window.scrollTo({top: window.scrollY + rect.top, behavior:'auto'});
-            }
-          }, 500);
-        }, 0);
-      });
+    correctScroll(el);
+    [60, 180, 400, 800].forEach(function(ms){
+      setTimeout(function(){ correctScroll(el); }, ms);
     });
   }
   document.addEventListener('click', function(e){
