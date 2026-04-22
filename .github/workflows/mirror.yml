@@ -4,6 +4,10 @@ on:
     branches: ['**']
   delete:
 
+concurrency:
+  group: mirror-backup
+  cancel-in-progress: true
+
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -18,5 +22,15 @@ jobs:
           BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
         run: |
           git remote add backup "https://x-access-token:${BACKUP_TOKEN}@github.com/paddyriyer/paddyspeaks-backup.git"
-          git push backup --all --force
-          git push backup --tags --force
+          # Retry on the "cannot lock ref" race (another concurrent push won).
+          # Up to 3 attempts with a short backoff between.
+          for attempt in 1 2 3; do
+            if git push backup --all --force && git push backup --tags --force; then
+              echo "mirror succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "mirror attempt $attempt failed; sleeping 5s and retrying..."
+            sleep 5
+          done
+          echo "mirror failed after 3 attempts"
+          exit 1
