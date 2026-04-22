@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deep Dive SQL</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+  :root {
+    --netflix-red: #E50914;
+    --navy: #1a2f45;
+    --navy-deep: #0f1e2e;
+    --dark: #1e293b;
+    --med: #475569;
+    --muted: #64748b;
+    --accent: #c8915a;
+    --accent-light: #e8c9a0;
+    --cream: #faf6f1;
+    --bone: #f5efe6;
+    --warm-white: #fefcf9;
+    --rust: #b44040;
+    --rule: #e2d9ce;
+    --code-bg: #0f1e2e;
+    --code-text: #e8e0d6;
+    --callout-bg: #fff8ee;
+    --callout-border: #c8915a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #e8e0d6;
+    color: var(--dark);
+    line-height: 1.65;
+    color-scheme: light only;
+  }
+  .shell { max-width: 1120px; margin: 0 auto; }
+  header.page-header {
+    background: var(--navy-deep);
+    color: var(--cream);
+    padding: 52px 56px 44px;
+    border-bottom: 4px solid var(--netflix-red);
+    position: relative;
+    overflow: hidden;
+  }
+  header.page-header::before {
+    content: "";
+    position: absolute; top: 0; right: 0;
+    width: 300px; height: 100%;
+    background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+    pointer-events: none;
+  }
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--netflix-red); margin-bottom: 12px; font-weight: 500;
+  }
+  header.page-header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 46px; font-weight: 600; line-height: 1.1;
+    margin-bottom: 12px; color: var(--warm-white); letter-spacing: -0.5px;
+  }
+  .subhead {
+    font-family: 'Newsreader', serif; font-style: italic;
+    font-size: 17px; color: var(--accent-light);
+    max-width: 780px; line-height: 1.5;
+  }
+  .meta-strip {
+    display: flex; gap: 24px; margin-top: 26px; flex-wrap: wrap;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent-light);
+  }
+  .meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+  main.content {
+    background: var(--warm-white);
+    padding: 48px 56px 64px;
+  }
+  main.content h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px; font-weight: 600;
+    color: var(--warm-white);
+    margin: 64px 0 20px; padding: 18px 22px;
+    background: var(--navy);
+    border-radius: 8px; border-left: 6px solid var(--netflix-red);
+    letter-spacing: -0.3px; scroll-margin-top: 16px;
+  }
+  main.content > h1:first-child { margin-top: 0; }
+  main.content h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px; font-weight: 600; color: var(--navy-deep);
+    margin: 48px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule); scroll-margin-top: 16px;
+  }
+  main.content h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px; font-weight: 600; color: var(--netflix-red);
+    margin: 28px 0 10px; letter-spacing: 0.2px;
+  }
+  main.content h4 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 600; color: var(--navy);
+    margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 1px;
+  }
+  main.content p { margin: 0 0 14px; font-size: 15.5px; }
+  main.content a {
+    color: var(--navy); text-decoration: none;
+    border-bottom: 1px dashed var(--accent);
+  }
+  main.content a:hover { border-bottom-color: var(--netflix-red); }
+  main.content strong { color: var(--navy-deep); }
+  main.content em { color: var(--rust); font-style: italic; }
+  main.content ul, main.content ol { margin: 0 0 16px 28px; }
+  main.content li { margin-bottom: 6px; font-size: 15.5px; }
+  main.content li > ul, main.content li > ol { margin-top: 6px; }
+  main.content hr { margin: 48px 0; border: none; border-top: 1px solid var(--rule); }
+
+  main.content table {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0 24px; font-size: 14px;
+    background: var(--bone); border-radius: 6px; overflow: hidden;
+  }
+  main.content th {
+    background: var(--navy); color: var(--warm-white);
+    text-align: left; padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11.5px; letter-spacing: 1px;
+    text-transform: uppercase; font-weight: 500;
+  }
+  main.content td {
+    padding: 10px 14px; border-top: 1px solid var(--rule); vertical-align: top;
+  }
+  main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+  main.content pre {
+    background: var(--code-bg); color: var(--code-text);
+    padding: 18px 22px; border-radius: 8px; overflow-x: auto;
+    margin: 10px 0 20px; border-left: 3px solid var(--netflix-red); line-height: 1.55;
+  }
+  main.content pre code {
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    color: var(--code-text); background: transparent;
+    padding: 0; border: none; white-space: pre;
+  }
+  main.content code {
+    font-family: 'DM Mono', monospace; font-size: 13.5px;
+    background: var(--bone); color: var(--navy-deep);
+    padding: 1px 6px; border-radius: 3px; border: 1px solid var(--rule);
+  }
+  main.content blockquote {
+    background: var(--callout-bg); border-left: 4px solid var(--callout-border);
+    padding: 14px 20px; margin: 16px 0 20px;
+    font-family: 'Newsreader', serif; font-style: italic; color: var(--navy-deep);
+  }
+
+  footer.page-footer {
+    background: var(--navy-deep); color: var(--accent-light);
+    padding: 32px 56px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase;
+    border-top: 4px solid var(--netflix-red);
+  }
+  footer.page-footer a { color: var(--accent-light); }
+
+  @media (max-width: 800px) {
+    header.page-header, main.content, footer.page-footer { padding-left: 24px; padding-right: 24px; }
+    header.page-header h1 { font-size: 32px; }
+    main.content h1 { font-size: 26px; }
+    main.content h2 { font-size: 22px; }
+    main.content table { font-size: 13px; }
+    main.content pre { font-size: 12px; }
+  }
+  @media print {
+    body { background: white; }
+    header.page-header, footer.page-footer { break-inside: avoid; }
+    main.content pre { border: 1px solid var(--rule); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="page-header">
+  <div class="eyebrow">Part 3</div>
+  <h1>Deep Dive SQL</h1>
+  <p class="subhead">Production-ready SQL with senior commentary. DAU growth accounting pipeline, attribution, ROAS, frequency capping, audience overlap, incrementality.</p>
+  <div class="meta-strip">
+    <span>10 SQL Sections</span>
+    <span>~2,900 Words</span>
+    <span>Run-ready</span>
+  </div>
+</header>
+<main class="content">
+<h1 id="part-3-deep-dive-sql">Part 3: Deep Dive SQL</h1>
+<blockquote>
+<p><em>"Production SQL is the only sentence where every word is a decision. Senior candidates can defend every word."</em></p>
+</blockquote>
+<hr />
+<h2 id="how-to-read-this-part">How to read this part</h2>
+<p>Every query below is something you should be able to write cold on a whiteboard in an interview. After each one there's a commentary section: <em>why this and not that</em>. Skim the query, then read the commentary, then close the page and try to reproduce the query from scratch. That's the drill.</p>
+<p>All SQL is written in a neutral dialect (Postgres / Snowflake / Trino / BigQuery — you'll need to tweak syntax, but the shape is the same).</p>
+<hr />
+<h2 id="section-1-the-dau-growth-accounting-pipeline-5-steps">Section 1: The DAU Growth Accounting Pipeline (5 steps)</h2>
+<p>This is the single most-asked SQL scenario at senior consumer ads interviews. Learn it cold.</p>
+<h3 id="step-1-incremental-user-activity-history">Step 1: Incremental user activity history</h3>
+<pre class="sql"><code>-- Source of truth: one row per (user, day) that user was active
+CREATE TABLE user_activity_daily (
+  dt       DATE,
+  user_id  BIGINT,
+  PRIMARY KEY (dt, user_id)
+) PARTITIONED BY (dt);
+
+-- Incremental insert: just process today
+INSERT OVERWRITE TABLE user_activity_daily PARTITION (dt = CURRENT_DATE)
+SELECT DISTINCT user_id, CAST(event_ts AS DATE) AS dt
+FROM bronze.events
+WHERE dt = CURRENT_DATE
+  AND event_name IN (&#39;impression&#39;, &#39;click&#39;, &#39;app_open&#39;, &#39;page_view&#39;)
+  AND user_id IS NOT NULL;
+</code></pre>
+<p><strong>Why this and not that.</strong> <code>DISTINCT</code> on <code>(user_id, dt)</code> avoids the fanout of multiple events per user. Filter to specific "qualifying" events — don't count side-effect events like "ad_blocked" as activity. The <code>INSERT OVERWRITE</code> is idempotent — re-running today produces identical output, which matters for backfills. Partition by <code>dt</code> so queries over a date range scan only the partitions they need.</p>
+<h3 id="step-2-daily-user-state-classification">Step 2: Daily user state classification</h3>
+<pre class="sql"><code>CREATE TABLE daily_user_state (
+  dt                     DATE,
+  user_id                BIGINT,
+  state                  STRING,        -- &#39;NEW&#39;, &#39;RETAINED&#39;, &#39;RESURRECTED&#39;, &#39;DORMANT&#39;
+  is_active_today        BOOLEAN,
+  prev_active_dt         DATE,
+  days_since_last_active INT,
+  lifetime_active_days   INT,
+  PRIMARY KEY (dt, user_id)
+) PARTITIONED BY (dt);
+
+INSERT OVERWRITE TABLE daily_user_state PARTITION (dt = CURRENT_DATE)
+WITH active AS (
+  SELECT user_id FROM user_activity_daily WHERE dt = CURRENT_DATE
+),
+prev_state AS (
+  SELECT user_id,
+         MAX(prev_active_dt) AS last_active_dt,
+         MAX(lifetime_active_days) AS life_days_before_today
+  FROM daily_user_state
+  WHERE dt = CURRENT_DATE - INTERVAL &#39;1&#39; DAY
+  GROUP BY user_id
+),
+active_joined AS (
+  SELECT a.user_id,
+         p.last_active_dt,
+         p.life_days_before_today
+  FROM active a
+  LEFT JOIN prev_state p USING (user_id)
+)
+SELECT
+  CURRENT_DATE AS dt,
+  user_id,
+  CASE
+    WHEN last_active_dt IS NULL                             THEN &#39;NEW&#39;
+    WHEN last_active_dt = CURRENT_DATE - INTERVAL &#39;1&#39; DAY   THEN &#39;RETAINED&#39;
+    ELSE                                                         &#39;RESURRECTED&#39;
+  END AS state,
+  TRUE AS is_active_today,
+  last_active_dt AS prev_active_dt,
+  DATEDIFF(CURRENT_DATE, last_active_dt) AS days_since_last_active,
+  COALESCE(life_days_before_today, 0) + 1 AS lifetime_active_days
+FROM active_joined;
+</code></pre>
+<p><strong>Why this and not that.</strong> Using <code>LAG()</code> works for a full rebuild but is expensive at billion-user scale. Incremental classification uses yesterday's state as input — you only process today's active users. The trade-off is you need a correct seed row for each user's first day (NEW state). The <code>COALESCE(life_days_before_today, 0) + 1</code> handles both first-seen users and returning ones.</p>
+<h3 id="step-3-daily-state-summary-the-dau-decomposition">Step 3: Daily state summary (the DAU decomposition)</h3>
+<pre class="sql"><code>SELECT
+  dt,
+  COUNT(*) FILTER (WHERE state = &#39;NEW&#39;)         AS new_users,
+  COUNT(*) FILTER (WHERE state = &#39;RETAINED&#39;)    AS retained_users,
+  COUNT(*) FILTER (WHERE state = &#39;RESURRECTED&#39;) AS resurrected_users,
+  COUNT(*)                                      AS dau
+FROM daily_user_state
+WHERE dt BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE
+GROUP BY dt
+ORDER BY dt;
+</code></pre>
+<p><strong>Commentary.</strong> <code>FILTER</code> clauses keep the query flat. Alternative: <code>CASE WHEN state = 'NEW' THEN 1 END</code> — identical semantically, slightly more verbose. The trailing 30 days of this table is what you put on the DAU health dashboard.</p>
+<h3 id="step-4-cohort-retention-the-triangular-matrix">Step 4: Cohort retention (the triangular matrix)</h3>
+<pre class="sql"><code>WITH first_seen AS (
+  SELECT user_id, MIN(dt) AS cohort_dt
+  FROM user_activity_daily
+  WHERE dt &gt;= CURRENT_DATE - 180
+  GROUP BY user_id
+),
+activity_with_cohort AS (
+  SELECT a.user_id,
+         f.cohort_dt,
+         a.dt,
+         DATEDIFF(a.dt, f.cohort_dt) AS days_since_cohort
+  FROM user_activity_daily a
+  JOIN first_seen f USING (user_id)
+  WHERE a.dt BETWEEN f.cohort_dt AND f.cohort_dt + INTERVAL &#39;90&#39; DAY
+)
+SELECT
+  cohort_dt,
+  days_since_cohort,
+  COUNT(DISTINCT user_id) AS users_active,
+  COUNT(DISTINCT user_id) * 1.0
+    / FIRST_VALUE(COUNT(DISTINCT user_id)) OVER (
+        PARTITION BY cohort_dt
+        ORDER BY days_since_cohort
+        ROWS UNBOUNDED PRECEDING
+      ) AS retention_rate
+FROM activity_with_cohort
+GROUP BY cohort_dt, days_since_cohort;
+</code></pre>
+<p><strong>Why this and not that.</strong> Cohort + days-since-cohort is a triangular table — each cohort has up to 90 rows, one per day since signup. Using <code>FIRST_VALUE()</code> over the window to get "day 0 size" is cleaner than a self-join. Stop at 90 days of retention — past that the signal-to-noise drops and storage explodes.</p>
+<h3 id="step-5-wau--mau-from-the-same-base">Step 5: WAU / MAU from the same base</h3>
+<pre class="sql"><code>SELECT
+  dt,
+  COUNT(DISTINCT user_id) FILTER (
+    WHERE activity_dt BETWEEN dt - INTERVAL &#39;6&#39;  DAY AND dt
+  ) AS wau,
+  COUNT(DISTINCT user_id) FILTER (
+    WHERE activity_dt BETWEEN dt - INTERVAL &#39;29&#39; DAY AND dt
+  ) AS mau
+FROM (
+  SELECT dt, user_id, dt AS activity_dt
+  FROM user_activity_daily
+  WHERE dt BETWEEN CURRENT_DATE - 60 AND CURRENT_DATE
+) t
+GROUP BY dt;
+</code></pre>
+<p><strong>Commentary.</strong> This is the naïve approach and it's <code>O(N²)</code> in user count because each day scans the preceding window. At 1B users + 60 days this won't run. The production approach: maintain <code>user_l28(dt, user_id, active_days_last_28)</code> incrementally and do <code>SUM(CASE WHEN active_days_last_28 &gt; 0 THEN 1 END)</code> per day. Mention this trade-off when asked.</p>
+<hr />
+<h2 id="section-2-dau-drop-debugging">Section 2: DAU Drop Debugging</h2>
+<blockquote>
+<p>"DAU dropped 3% yesterday. Walk me through the SQL to find out why."</p>
+</blockquote>
+<pre class="sql"><code>-- Step 1: confirm the drop and localize by day
+SELECT dt, new_users, retained_users, resurrected_users, dau,
+       dau - LAG(dau) OVER (ORDER BY dt) AS dau_delta
+FROM daily_state_summary
+WHERE dt BETWEEN CURRENT_DATE - 14 AND CURRENT_DATE
+ORDER BY dt;
+
+-- Step 2: decompose by surface (is it one surface or all?)
+SELECT
+  dt,
+  surface_id,
+  COUNT(DISTINCT user_id) AS surface_dau,
+  COUNT(DISTINCT user_id) -
+    LAG(COUNT(DISTINCT user_id), 1) OVER (PARTITION BY surface_id ORDER BY dt) AS delta
+FROM bronze.events
+WHERE dt BETWEEN CURRENT_DATE - 3 AND CURRENT_DATE
+  AND event_name = &#39;app_open&#39;
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+-- Step 3: decompose by OS
+SELECT dt, device_os,
+       COUNT(DISTINCT user_id) AS os_dau
+FROM bronze.events
+WHERE dt BETWEEN CURRENT_DATE - 3 AND CURRENT_DATE
+GROUP BY 1, 2
+ORDER BY 1, 2;
+
+-- Step 4: geography
+SELECT dt, geo_country,
+       COUNT(DISTINCT user_id) AS geo_dau,
+       LAG(COUNT(DISTINCT user_id), 1) OVER (
+         PARTITION BY geo_country ORDER BY dt
+       ) AS prev_dau
+FROM bronze.events
+WHERE dt BETWEEN CURRENT_DATE - 2 AND CURRENT_DATE
+GROUP BY 1, 2
+HAVING COUNT(DISTINCT user_id) &gt; 10000
+ORDER BY 1, (COUNT(DISTINCT user_id) - LAG(COUNT(DISTINCT user_id), 1) OVER (
+  PARTITION BY geo_country ORDER BY dt
+));
+
+-- Step 5: correlate with recent deploys
+SELECT deploy_ts, service, commit_sha, deployer
+FROM deploy_log
+WHERE deploy_ts BETWEEN (CURRENT_DATE - 2)::TIMESTAMP AND CURRENT_TIMESTAMP
+  AND service IN (&#39;ads_ranker&#39;, &#39;feed_renderer&#39;, &#39;app_shell&#39;)
+ORDER BY deploy_ts;
+</code></pre>
+<p><strong>Commentary.</strong> The <em>sequence</em> matters. Each query narrows the slice. Naming the progression out loud ("first confirm, then decompose by the three coarsest dimensions, then correlate with deploys") is how a senior signals process rather than flailing.</p>
+<hr />
+<h2 id="section-3-frequency-capping-analytics">Section 3: Frequency Capping Analytics</h2>
+<blockquote>
+<p>"Write a query that, for each campaign, computes the distribution of frequency (impressions per reached user) for the past 7 days, and flag campaigns where &gt;20% of their reach is at frequency &gt; 10."</p>
+</blockquote>
+<pre class="sql"><code>WITH user_freq AS (
+  SELECT
+    campaign_id,
+    user_id,
+    COUNT(*) AS impressions_7d
+  FROM fact_impression
+  WHERE dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
+    AND is_valid = TRUE
+  GROUP BY campaign_id, user_id
+),
+freq_buckets AS (
+  SELECT
+    campaign_id,
+    CASE
+      WHEN impressions_7d = 1        THEN &#39;01&#39;
+      WHEN impressions_7d BETWEEN 2 AND 3   THEN &#39;02_03&#39;
+      WHEN impressions_7d BETWEEN 4 AND 6   THEN &#39;04_06&#39;
+      WHEN impressions_7d BETWEEN 7 AND 10  THEN &#39;07_10&#39;
+      ELSE &#39;11_plus&#39;
+    END AS freq_bucket,
+    COUNT(*) AS users_in_bucket,
+    SUM(impressions_7d) AS impressions_in_bucket
+  FROM user_freq
+  GROUP BY 1, 2
+),
+campaign_totals AS (
+  SELECT
+    campaign_id,
+    SUM(users_in_bucket) AS reach,
+    SUM(CASE WHEN freq_bucket = &#39;11_plus&#39; THEN users_in_bucket END) AS high_freq_reach
+  FROM freq_buckets
+  GROUP BY campaign_id
+)
+SELECT
+  c.campaign_id,
+  c.reach,
+  c.high_freq_reach,
+  c.high_freq_reach * 1.0 / NULLIF(c.reach, 0) AS high_freq_share,
+  CASE WHEN c.high_freq_reach * 1.0 / NULLIF(c.reach, 0) &gt; 0.20 THEN &#39;OVER_CAPPING&#39; END AS flag
+FROM campaign_totals c
+WHERE c.reach &gt; 10000
+ORDER BY high_freq_share DESC;
+</code></pre>
+<p><strong>Commentary.</strong> Buckets are inclusive on both ends — <code>BETWEEN</code> is inclusive in SQL. The <code>NULLIF</code> guards against division-by-zero when a campaign's reach is weirdly zero. The volume gate (<code>reach &gt; 10000</code>) excludes noise from tiny campaigns. Ordering by <code>high_freq_share DESC</code> surfaces the worst offenders first.</p>
+<hr />
+<h2 id="section-4-advertiser-roas-pipeline">Section 4: Advertiser ROAS Pipeline</h2>
+<blockquote>
+<p>"Build me a daily ROAS pipeline. Conversions can arrive up to 7 days after the impression. Your numbers must match what advertisers see in the Campaign Manager UI."</p>
+</blockquote>
+<pre class="sql"><code>-- Step 1: attributed conversions (last-click, 7-day)
+CREATE OR REPLACE TABLE fact_attributed_conversion AS
+WITH c AS (
+  SELECT event_id AS conversion_id, user_id, event_ts, properties[&#39;value&#39;]::DECIMAL(18,4) AS conv_value
+  FROM bronze.events
+  WHERE event_name = &#39;conversion&#39;
+    AND event_ts &gt;= CURRENT_TIMESTAMP - INTERVAL &#39;8&#39; DAY
+),
+k AS (
+  SELECT event_id AS click_id, user_id, event_ts, campaign_id, ad_id
+  FROM bronze.events
+  WHERE event_name = &#39;click&#39;
+    AND event_ts &gt;= CURRENT_TIMESTAMP - INTERVAL &#39;15&#39; DAY
+),
+paired AS (
+  SELECT
+    c.conversion_id,
+    c.event_ts AS conversion_ts,
+    c.conv_value,
+    k.click_id, k.campaign_id, k.ad_id,
+    ROW_NUMBER() OVER (
+      PARTITION BY c.conversion_id
+      ORDER BY k.event_ts DESC
+    ) AS rn
+  FROM c
+  LEFT JOIN k
+    ON c.user_id = k.user_id
+   AND k.event_ts BETWEEN c.event_ts - INTERVAL &#39;7&#39; DAY AND c.event_ts
+)
+SELECT conversion_id, conversion_ts, conv_value, click_id, campaign_id, ad_id
+FROM paired
+WHERE rn = 1;
+
+-- Step 2: daily ROAS, with D+7 truth lock
+SELECT
+  DATE(conversion_ts) AS attribution_dt,
+  campaign_id,
+  COUNT(*) AS conversions,
+  SUM(conv_value) AS revenue_usd,
+  COALESCE(SUM(conv_value), 0) /
+    NULLIF(spend.spend_usd, 0) AS roas
+FROM fact_attributed_conversion
+LEFT JOIN (
+  SELECT dt, campaign_id, SUM(spend_cents) / 100.0 AS spend_usd
+  FROM fact_impression
+  WHERE dt &gt;= CURRENT_DATE - 14
+  GROUP BY 1, 2
+) spend
+  ON spend.dt = DATE(conversion_ts)
+ AND spend.campaign_id = fact_attributed_conversion.campaign_id
+WHERE DATE(conversion_ts) &gt;= CURRENT_DATE - 14
+GROUP BY attribution_dt, campaign_id, spend.spend_usd
+ORDER BY attribution_dt DESC, revenue_usd DESC;
+</code></pre>
+<p><strong>Commentary.</strong> The 7-day click-to-conversion window is industry standard. The query needs to look 15 days back on clicks to cover conversions received up to 7 days after the latest click. <code>ROW_NUMBER()</code> picks the last click; <code>rn = 1</code> with <code>LEFT JOIN</code> preserves unattributed conversions (report them separately). The ROAS join is on the conversion <em>date</em>, not the click date — this matches what advertisers see.</p>
+<hr />
+<h2 id="section-5-audience-overlap-analysis">Section 5: Audience Overlap Analysis</h2>
+<blockquote>
+<p>"Two audiences can overlap. For each pair of audiences owned by the same advertiser, compute Jaccard similarity. Efficient at 100M+ users per audience."</p>
+</blockquote>
+<pre class="sql"><code>-- Naïve: exact counts
+WITH pairs AS (
+  SELECT
+    a.advertiser_id,
+    a.audience_id AS aud_a,
+    b.audience_id AS aud_b
+  FROM audience_membership a
+  JOIN audience_membership b
+    ON a.advertiser_id = b.advertiser_id
+   AND a.audience_id &lt; b.audience_id
+  WHERE a.user_id = b.user_id
+),
+intersects AS (
+  SELECT advertiser_id, aud_a, aud_b, COUNT(*) AS intersection_size
+  FROM pairs
+  GROUP BY 1, 2, 3
+),
+sizes AS (
+  SELECT audience_id, COUNT(DISTINCT user_id) AS aud_size
+  FROM audience_membership
+  GROUP BY audience_id
+)
+SELECT
+  i.advertiser_id, i.aud_a, i.aud_b,
+  i.intersection_size,
+  sa.aud_size + sb.aud_size - i.intersection_size AS union_size,
+  i.intersection_size * 1.0 /
+    (sa.aud_size + sb.aud_size - i.intersection_size) AS jaccard
+FROM intersects i
+JOIN sizes sa ON i.aud_a = sa.audience_id
+JOIN sizes sb ON i.aud_b = sb.audience_id
+WHERE sa.aud_size + sb.aud_size - i.intersection_size &gt; 0
+ORDER BY advertiser_id, jaccard DESC;
+</code></pre>
+<p><strong>Commentary on scale.</strong> The naïve version is <code>O(N²)</code> in users per advertiser. It works for small advertisers; for big ones you switch to HyperLogLog / MinHash sketches:</p>
+<pre class="sql"><code>-- Sketch-based: each audience is a HLL sketch, intersect via inclusion-exclusion
+SELECT
+  aud_a, aud_b,
+  HLL_CARDINALITY(HLL_UNION(s.sketch, t.sketch)) AS union_size_est,
+  HLL_CARDINALITY(s.sketch) + HLL_CARDINALITY(t.sketch)
+    - HLL_CARDINALITY(HLL_UNION(s.sketch, t.sketch)) AS intersection_size_est
+FROM audience_hll_sketches s
+JOIN audience_hll_sketches t ON s.advertiser_id = t.advertiser_id
+ AND s.audience_id &lt; t.audience_id;
+</code></pre>
+<p>Error is ~1% at default precision. Good enough for audience planning.</p>
+<hr />
+<h2 id="section-6-incrementality-holdout-based-lift">Section 6: Incrementality (Holdout-Based Lift)</h2>
+<blockquote>
+<p>"You ran a holdout: 1% of the target audience was excluded from seeing your ads. Compute the incremental lift in conversions."</p>
+</blockquote>
+<pre class="sql"><code>WITH exposed AS (
+  SELECT user_id, SUM(conv_value) AS revenue
+  FROM fact_attributed_conversion
+  WHERE user_id IN (SELECT user_id FROM holdout_assignment WHERE arm = &#39;treatment&#39;)
+    AND DATE(conversion_ts) BETWEEN :experiment_start AND :experiment_end
+  GROUP BY user_id
+),
+control AS (
+  SELECT user_id, SUM(conv_value) AS revenue
+  FROM bronze.events e                      -- organic conversions too; no ad click needed
+  WHERE event_name = &#39;conversion&#39;
+    AND user_id IN (SELECT user_id FROM holdout_assignment WHERE arm = &#39;holdout&#39;)
+    AND DATE(event_ts) BETWEEN :experiment_start AND :experiment_end
+  GROUP BY user_id
+),
+treatment_revenue AS (
+  SELECT COUNT(*) AS n, SUM(revenue) AS total_rev, AVG(revenue) AS avg_rev
+  FROM exposed
+),
+control_revenue AS (
+  SELECT COUNT(*) AS n, SUM(revenue) AS total_rev, AVG(revenue) AS avg_rev
+  FROM control
+)
+SELECT
+  t.n AS treatment_users,
+  c.n AS control_users,
+  t.avg_rev AS treatment_avg_revenue,
+  c.avg_rev AS control_avg_revenue,
+  (t.avg_rev - c.avg_rev) / NULLIF(c.avg_rev, 0) AS incremental_lift,
+  t.n * (t.avg_rev - c.avg_rev) AS incremental_revenue
+FROM treatment_revenue t CROSS JOIN control_revenue c;
+</code></pre>
+<p><strong>Commentary.</strong> The holdout is the cleanest incrementality measure, but expensive — you're paying with foregone revenue. Key pitfall: the control group's conversions include <em>organic</em> conversions (no ad path). You're measuring ad-driven incremental revenue, not "conversions that saw an ad." Also: contamination — if a holdout user sees your ad on another surface (Publisher Network, an email retarget), they're contaminated and must be excluded.</p>
+<hr />
+<h2 id="section-7-ad-delivery-health-monitoring">Section 7: Ad Delivery Health Monitoring</h2>
+<blockquote>
+<p>"For each campaign, alert if today's delivery is &lt;70% of yesterday's for 2+ consecutive hours."</p>
+</blockquote>
+<pre class="sql"><code>WITH hourly AS (
+  SELECT
+    DATE_TRUNC(&#39;hour&#39;, impression_ts) AS hr,
+    campaign_id,
+    COUNT(*) AS impressions
+  FROM fact_impression
+  WHERE impression_ts &gt;= CURRENT_TIMESTAMP - INTERVAL &#39;48&#39; HOUR
+  GROUP BY 1, 2
+),
+paired AS (
+  SELECT
+    today.hr,
+    today.campaign_id,
+    today.impressions AS today_imps,
+    yesterday.impressions AS yday_imps,
+    today.impressions * 1.0 / NULLIF(yesterday.impressions, 0) AS ratio
+  FROM hourly today
+  LEFT JOIN hourly yesterday
+    ON yesterday.campaign_id = today.campaign_id
+   AND yesterday.hr = today.hr - INTERVAL &#39;24&#39; HOUR
+  WHERE today.hr &gt;= CURRENT_TIMESTAMP - INTERVAL &#39;4&#39; HOUR
+),
+flagged AS (
+  SELECT
+    hr, campaign_id, ratio,
+    SUM(CASE WHEN ratio &lt; 0.70 THEN 1 ELSE 0 END)
+      OVER (PARTITION BY campaign_id ORDER BY hr ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS consec_low
+  FROM paired
+)
+SELECT campaign_id, hr, ratio
+FROM flagged
+WHERE consec_low &gt;= 2
+ORDER BY hr DESC, campaign_id;
+</code></pre>
+<p><strong>Commentary.</strong> The "consecutive hours" condition uses a rolling window sum — cleaner than self-joins. Always include a volume gate (<code>yday_imps &gt; 100</code>) to avoid noise; omitted here for brevity.</p>
+<hr />
+<h2 id="section-8-campaign-cannibalization-detection">Section 8: Campaign Cannibalization Detection</h2>
+<blockquote>
+<p>"When advertiser A launches a new campaign, does it steal impressions from their existing campaigns? Detect."</p>
+</blockquote>
+<pre class="sql"><code>WITH pre AS (
+  SELECT campaign_id, AVG(daily_imps) AS pre_avg_imps
+  FROM (
+    SELECT campaign_id, dt, SUM(impressions) AS daily_imps
+    FROM metric_campaign_daily
+    WHERE dt BETWEEN :new_campaign_start - 14 AND :new_campaign_start - 1
+    GROUP BY campaign_id, dt
+  ) d
+  GROUP BY campaign_id
+),
+post AS (
+  SELECT campaign_id, AVG(daily_imps) AS post_avg_imps
+  FROM (
+    SELECT campaign_id, dt, SUM(impressions) AS daily_imps
+    FROM metric_campaign_daily
+    WHERE dt BETWEEN :new_campaign_start AND :new_campaign_start + 13
+    GROUP BY campaign_id, dt
+  ) d
+  GROUP BY campaign_id
+),
+new_campaign AS (
+  SELECT advertiser_id FROM dim.campaign WHERE campaign_id = :new_campaign_id
+)
+SELECT
+  pre.campaign_id,
+  pre.pre_avg_imps,
+  post.post_avg_imps,
+  (post.post_avg_imps - pre.pre_avg_imps) / NULLIF(pre.pre_avg_imps, 0) AS pct_change
+FROM pre
+JOIN post USING (campaign_id)
+JOIN dim.campaign dc USING (campaign_id)
+JOIN new_campaign nc USING (advertiser_id)
+WHERE dc.campaign_id != :new_campaign_id
+  AND pre.pre_avg_imps &gt; 1000
+ORDER BY pct_change ASC;
+</code></pre>
+<p><strong>Commentary.</strong> Before/after averages on the same advertiser's other campaigns. A cannibalization signature: existing campaigns drop 20–50% in the 2 weeks after the new one launches. Caveat: this is correlational, not causal — seasonality or audience overlap changes could also explain it. Mention that out loud.</p>
+<hr />
+<h2 id="section-9-ad-load-vs-user-experience">Section 9: Ad Load vs User Experience</h2>
+<blockquote>
+<p>"An experiment increases ad load from 1-in-6 feed items to 1-in-4. Write a SQL that measures impact on session length and return rate."</p>
+</blockquote>
+<pre class="sql"><code>WITH sessions AS (
+  SELECT
+    e.session_id,
+    e.user_id,
+    MIN(e.event_ts) AS session_start,
+    MAX(e.event_ts) AS session_end,
+    COUNT(DISTINCT e.item_id) AS items_viewed,
+    COUNT(*) FILTER (WHERE e.event_name = &#39;impression&#39; AND e.is_ad) AS ads_shown,
+    MAX(exp.variant_id) AS variant_id
+  FROM bronze.events e
+  LEFT JOIN fact_experiment_exposure exp
+    ON e.user_id = exp.user_id
+   AND exp.experiment_id = :ad_load_experiment_id
+  WHERE e.dt BETWEEN :exp_start AND :exp_end
+  GROUP BY e.session_id, e.user_id
+),
+per_variant AS (
+  SELECT
+    variant_id,
+    COUNT(DISTINCT user_id) AS users,
+    AVG(EXTRACT(EPOCH FROM (session_end - session_start))) AS avg_session_sec,
+    AVG(items_viewed) AS avg_items,
+    AVG(ads_shown) AS avg_ads
+  FROM sessions
+  WHERE variant_id IS NOT NULL
+  GROUP BY variant_id
+),
+return_rate AS (
+  SELECT
+    variant_id,
+    COUNT(DISTINCT user_id) FILTER (
+      WHERE user_id IN (
+        SELECT user_id FROM bronze.events
+        WHERE event_name = &#39;app_open&#39;
+          AND dt BETWEEN :exp_start + 7 AND :exp_end
+      )
+    ) * 1.0 / COUNT(DISTINCT user_id) AS d7_return_rate
+  FROM sessions
+  GROUP BY variant_id
+)
+SELECT v.variant_id, v.users, v.avg_session_sec, v.avg_items, v.avg_ads, r.d7_return_rate
+FROM per_variant v JOIN return_rate r USING (variant_id);
+</code></pre>
+<p><strong>Commentary.</strong> The ad-load experiment is the single highest-stakes experiment in any consumer ads business. The DE pipeline for it needs to be airtight. Two pitfalls to call out: (1) session length as a metric is gamed by longer but less engaged scrolling — always pair with items_viewed; (2) D7 return rate measures the lagged effect of a bad experience, which an immediate in-session metric won't catch.</p>
+<hr />
+<h2 id="section-10-senior-commentary--five-patterns-that-show-up-everywhere">Section 10: Senior Commentary — Five Patterns That Show Up Everywhere</h2>
+<ol>
+<li><p><strong>Trailing-window joins</strong> (<code>WHERE t.event_ts BETWEEN c.event_ts - INTERVAL '7' DAY AND c.event_ts</code>). Attribution, fatigue, cohorts. The left-side must be broader than the right-side's window.</p></li>
+<li><p><strong>Row-number for deduplication and "latest-of"</strong> (<code>ROW_NUMBER() OVER (PARTITION BY k ORDER BY ts DESC)</code>). Mandatory for attribution and SCD-2 lookups.</p></li>
+<li><p><strong>Volume gates.</strong> Every ratio / rate / percent query needs a floor on the denominator (<code>WHERE imps &gt; 1000</code>). Without it, noise dominates.</p></li>
+<li><p><strong>Incremental rebuilds.</strong> <code>INSERT OVERWRITE PARTITION (dt = ...)</code> is the correct idempotent pattern. Avoid <code>DELETE WHERE dt = ...</code> + <code>INSERT</code> — it's not atomic.</p></li>
+<li><p><strong>FILTER clauses</strong> over <code>CASE WHEN ... THEN 1 END</code>. Modern SQL supports it. Cleaner, better optimized.</p></li>
+</ol>
+<hr />
+<p><a href="00_Master_Index.html">← Master Index</a> · <a href="Part2_Ads_Growth_Behavioral.html">← Part 2</a> · <a href="Part4_Platform_Specific_Glossary.html">Part 4 →</a></p>
+</main>
+<footer class="page-footer">
+  <a href="00_Master_Index.html">← Master Index</a>  ·  Senior / Staff DE Interview Prep  ·  April 2026
+</footer>
+</div>
+</body>
+</html>
