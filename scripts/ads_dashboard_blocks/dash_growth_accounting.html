@@ -1,0 +1,148 @@
+<hr>
+<h2 id="ap05-dash-growth-accounting">Dashboard · Growth Accounting</h2>
+<figure class="dash dash-growth" aria-label="L28 growth accounting for active advertisers">
+  <div class="dash-head">
+    <div>
+      <div class="dash-eyebrow">Dashboard · Growth Accounting (L28)</div>
+      <h4 class="dash-title">Where does MAU actually come from — and where does it leak?</h4>
+    </div>
+    <div class="dash-tabs" role="tablist">
+      <button class="dash-tab is-active" data-lens="advertisers">Advertisers</button>
+      <button class="dash-tab" data-lens="users">End users</button>
+      <button class="dash-tab" data-lens="revenue">Revenue</button>
+    </div>
+  </div>
+
+  <div class="growth-grid">
+    <div class="growth-chart">
+      <svg viewBox="0 0 640 320" preserveAspectRatio="none" role="img" aria-label="Stacked bar growth accounting">
+        <g id="growthBars"></g>
+        <line x1="0" y1="170" x2="640" y2="170" stroke="#c8d6e5" stroke-width="1"/>
+        <text x="4" y="164" font-family="JetBrains Mono" font-size="10" fill="#556677">0</text>
+      </svg>
+      <div class="growth-axis" id="growthAxis"></div>
+    </div>
+
+    <div class="growth-legend">
+      <div class="gl-row is-new"><span class="gl-chip"></span><span class="gl-name">New</span><span class="gl-desc">Never active before this period</span></div>
+      <div class="gl-row is-res"><span class="gl-chip"></span><span class="gl-name">Resurrected</span><span class="gl-desc">Dormant ≥ 28d; active again this period</span></div>
+      <div class="gl-row is-ret"><span class="gl-chip"></span><span class="gl-name">Retained</span><span class="gl-desc">Active last period and this period</span></div>
+      <div class="gl-row is-chu"><span class="gl-chip"></span><span class="gl-name">Churned</span><span class="gl-desc">Active last period, not this period</span></div>
+    </div>
+
+    <div class="growth-insights" id="growthInsights"></div>
+  </div>
+
+  <div class="dash-footnote">Formula: <code>Active<sub>t</sub> = Retained + New + Resurrected</code> &nbsp;·&nbsp; <code>Active<sub>t-1</sub> = Retained + Churned</code>. Net = New + Resurrected − Churned.</div>
+</figure>
+
+<script>
+(function(){
+  if (window.__dashGrowthInit) return;
+  window.__dashGrowthInit = true;
+  var months = ['Nov','Dec','Jan','Feb','Mar','Apr'];
+  var data = {
+    advertisers: {
+      scale: 'advertisers',
+      rows: [
+        {label:'Nov', retained: 1840, new_: 420, res: 110, churn: 160},
+        {label:'Dec', retained: 1960, new_: 390, res: 140, churn: 210},
+        {label:'Jan', retained: 1980, new_: 510, res: 170, churn: 250},
+        {label:'Feb', retained: 2110, new_: 470, res: 200, churn: 300},
+        {label:'Mar', retained: 2150, new_: 540, res: 220, churn: 280},
+        {label:'Apr', retained: 2310, new_: 600, res: 260, churn: 320}
+      ],
+      unit: 'advertisers'
+    },
+    users: {
+      scale: 'users (M)',
+      rows: [
+        {label:'Nov', retained: 38.2, new_: 6.4, res: 1.9, churn: 3.1},
+        {label:'Dec', retained: 39.0, new_: 7.1, res: 2.2, churn: 3.5},
+        {label:'Jan', retained: 40.3, new_: 8.4, res: 2.6, churn: 4.0},
+        {label:'Feb', retained: 41.5, new_: 7.9, res: 2.8, churn: 4.4},
+        {label:'Mar', retained: 42.2, new_: 8.3, res: 3.1, churn: 4.6},
+        {label:'Apr', retained: 43.1, new_: 9.2, res: 3.3, churn: 4.8}
+      ],
+      unit: 'M users'
+    },
+    revenue: {
+      scale: 'revenue ($M)',
+      rows: [
+        {label:'Nov', retained: 182, new_: 34, res: 8, churn: 22},
+        {label:'Dec', retained: 188, new_: 38, res: 10, churn: 28},
+        {label:'Jan', retained: 194, new_: 46, res: 12, churn: 33},
+        {label:'Feb', retained: 202, new_: 44, res: 15, churn: 38},
+        {label:'Mar', retained: 208, new_: 51, res: 18, churn: 36},
+        {label:'Apr', retained: 218, new_: 57, res: 20, churn: 42}
+      ],
+      unit: '$M revenue'
+    }
+  };
+
+  var bars = document.getElementById('growthBars');
+  var axisEl = document.getElementById('growthAxis');
+  var insightsEl = document.getElementById('growthInsights');
+
+  function render(lens){
+    var cfg = data[lens];
+    var rows = cfg.rows;
+    var maxTop = Math.max.apply(null, rows.map(function(r){ return r.retained + r.new_ + r.res; }));
+    var maxBot = Math.max.apply(null, rows.map(function(r){ return r.churn; }));
+    var scale = Math.max(maxTop, maxBot);
+    var ZERO = 170, HALF_UP = 160, HALF_DN = 140;
+    var W = 640, BW = 60, gap = (W - BW*rows.length) / (rows.length + 1);
+    var parts = [];
+    rows.forEach(function(r, i){
+      var x = gap + i*(BW + gap);
+      var hRet = HALF_UP * (r.retained / scale);
+      var hNew = HALF_UP * (r.new_ / scale);
+      var hRes = HALF_UP * (r.res / scale);
+      var hChu = HALF_DN * (r.churn / scale);
+      var y = ZERO;
+      parts.push('<rect data-i="'+i+'" x="'+x+'" y="'+(y - hRet)+'" width="'+BW+'" height="'+hRet+'" fill="#2563a8"><title>Retained: '+r.retained.toLocaleString()+'</title></rect>');
+      parts.push('<rect data-i="'+i+'" x="'+x+'" y="'+(y - hRet - hRes)+'" width="'+BW+'" height="'+hRes+'" fill="#a8c8e8"><title>Resurrected: '+r.res.toLocaleString()+'</title></rect>');
+      parts.push('<rect data-i="'+i+'" x="'+x+'" y="'+(y - hRet - hRes - hNew)+'" width="'+BW+'" height="'+hNew+'" fill="#2a7a4a"><title>New: '+r.new_.toLocaleString()+'</title></rect>');
+      parts.push('<rect data-i="'+i+'" x="'+x+'" y="'+y+'" width="'+BW+'" height="'+hChu+'" fill="#c44b2b"><title>Churned: '+r.churn.toLocaleString()+'</title></rect>');
+      var net = r.new_ + r.res - r.churn;
+      var netY = y - hRet - hRes - hNew - 8;
+      parts.push('<text x="'+(x + BW/2)+'" y="'+netY+'" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="'+(net>=0?'#2a7a4a':'#c44b2b')+'">'+(net>=0?'+':'')+Math.round(net)+'</text>');
+    });
+    bars.innerHTML = parts.join('');
+    axisEl.innerHTML = rows.map(function(r){ return '<span>'+r.label+'</span>'; }).join('');
+
+    var last = rows[rows.length-1];
+    var prev = rows[rows.length-2];
+    var netNow = last.new_ + last.res - last.churn;
+    var netPrev = prev.new_ + prev.res - prev.churn;
+    var churnDelta = ((last.churn - prev.churn) / prev.churn * 100).toFixed(1);
+    var resShare = (last.res / (last.new_ + last.res + last.retained) * 100).toFixed(1);
+    insightsEl.innerHTML =
+      '<div class="gi">'+
+        '<div class="gi-head">Net add ('+last.label+')</div>'+
+        '<div class="gi-val">'+(netNow>=0?'+':'')+Math.round(netNow).toLocaleString()+' '+cfg.unit+'</div>'+
+        '<div class="gi-sub">prev: '+(netPrev>=0?'+':'')+Math.round(netPrev).toLocaleString()+'</div>'+
+      '</div>'+
+      '<div class="gi">'+
+        '<div class="gi-head">Churn trend</div>'+
+        '<div class="gi-val '+(churnDelta>0?'is-bad':'is-good')+'">'+(churnDelta>0?'+':'')+churnDelta+'%</div>'+
+        '<div class="gi-sub">MoM change in churned '+cfg.scale+'</div>'+
+      '</div>'+
+      '<div class="gi">'+
+        '<div class="gi-head">Resurrection share</div>'+
+        '<div class="gi-val">'+resShare+'%</div>'+
+        '<div class="gi-sub">of active '+cfg.unit+' came back this period after dormancy</div>'+
+      '</div>';
+  }
+
+  render('advertisers');
+  var tabs = document.querySelectorAll('.dash-growth .dash-tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){ x.classList.remove('is-active'); });
+      t.classList.add('is-active');
+      render(t.dataset.lens);
+    });
+  });
+})();
+</script>

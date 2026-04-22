@@ -14,7 +14,11 @@ from __future__ import annotations
 
 import html
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import viz_transform
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "interview" / "html"
@@ -114,6 +118,7 @@ def build_sections() -> str:
         body = extract_main(src)
         body = strip_local_toc(body)
         body = rewrite_anchors(body, num)
+        body = viz_transform.apply(body)
 
         section_id = f"part-{num}"
         eyebrow = "Overview" if num == "00" else f"Part {num}"
@@ -277,6 +282,259 @@ HEAD = '''<!DOCTYPE html>
   .part-section .part-title { font-size: 28px; }
   .part-section table { font-size: 13px; }
 }
+
+/* ═══ VISUALIZATIONS ═══ */
+.viz {
+  margin: 32px 0;
+  padding: 24px 28px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(26,35,50,.04);
+}
+.viz-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-gold-dark);
+  margin-bottom: 18px;
+}
+
+/* Funnel bar chart */
+.funnel-rows { display: flex; flex-direction: column; gap: 10px; }
+.funnel-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 140px;
+  align-items: center;
+  gap: 14px;
+}
+.f-label { font-family: var(--font-body); font-size: 15px; color: var(--color-ink); font-weight: 500; }
+.f-value { font-family: var(--font-mono); font-size: 14px; color: var(--color-ink); font-weight: 600; text-align: right; }
+.f-track {
+  height: 36px;
+  background: var(--color-cream);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+}
+.f-bar {
+  height: 100%;
+  width: calc(var(--w) * 1%);
+  background: linear-gradient(90deg, #2563a8 0%, #1a4f8a 65%, #c44b2b 140%);
+  border-radius: 6px;
+  transition: width 1.2s cubic-bezier(.2,.9,.3,1);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+.funnel-drop {
+  display: grid;
+  grid-template-columns: 160px 1fr 140px;
+  gap: 14px;
+  margin: -4px 0;
+}
+.drop-pct {
+  grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-rust);
+  background: rgba(196,75,43,.08);
+  border: 1px solid rgba(196,75,43,.22);
+  padding: 3px 10px;
+  border-radius: 999px;
+  justify-self: start;
+}
+
+/* Stage ladder */
+.ladder-rows { display: flex; flex-direction: column; gap: 10px; }
+.ladder-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 120px 160px;
+  gap: 12px;
+  align-items: center;
+}
+.l-label { font-family: var(--font-body); font-size: 15px; font-weight: 500; color: var(--color-ink); }
+.l-value { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--color-ink); text-align: right; }
+.l-note { font-family: var(--font-mono); font-size: 12px; color: var(--color-light-muted); }
+.l-track {
+  height: 28px;
+  background: var(--color-cream);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.l-bar {
+  height: 100%;
+  width: calc(var(--w) * 1%);
+  background: linear-gradient(90deg, #2a7a4a 0%, #1a4f3a 100%);
+  border-radius: 4px;
+}
+
+/* Horizontal arrow flow */
+.viz-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 28px 0;
+  padding: 20px 24px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+}
+.flow-step {
+  padding: 8px 16px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.flow-arrow {
+  color: var(--color-gold-dark);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+/* Vertical arrow funnel */
+.viz-vflow { padding: 24px 28px; }
+.vflow-rows { display: flex; flex-direction: column; }
+.vflow-stage {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: var(--color-cream);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-ink);
+  font-weight: 500;
+  align-self: flex-start;
+  max-width: 100%;
+}
+.vflow-stage.is-last {
+  background: linear-gradient(90deg, #2563a8, #1a4f8a);
+  color: var(--color-cream);
+  border-color: transparent;
+}
+.vflow-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--color-gold-dark);
+  flex-shrink: 0;
+}
+.vflow-stage.is-last .vflow-dot { background: var(--color-gold-light); }
+.vflow-edge {
+  width: 2px;
+  height: 28px;
+  background: var(--color-border);
+  margin-left: 25px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.vflow-rate {
+  position: absolute;
+  left: 28px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-rust);
+  background: rgba(196,75,43,.08);
+  border: 1px solid rgba(196,75,43,.22);
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Box card (dashboard-style) */
+.viz-card {
+  padding: 0;
+  overflow: hidden;
+}
+.viz-card .card-head {
+  background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%);
+  color: var(--color-cream);
+  padding: 18px 24px;
+}
+.viz-card .card-head-line {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  line-height: 1.6;
+  color: var(--color-cream);
+}
+.viz-card .card-head-line:first-child {
+  font-family: var(--font-display);
+  font-size: 18px;
+  letter-spacing: 0;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #fff;
+}
+.viz-card .card-section {
+  padding: 16px 24px;
+  border-top: 1px solid var(--color-border-light);
+}
+.viz-card .card-section:first-of-type { border-top: none; }
+.viz-card .card-sec-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-gold-dark);
+  margin-bottom: 8px;
+}
+.viz-card .card-sec-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.viz-card .card-sec-list li {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-ink);
+  padding: 2px 0;
+}
+
+/* Histogram */
+.viz-histogram { padding: 24px 28px; }
+.hist-row {
+  display: grid;
+  grid-template-columns: 160px 1fr 80px 160px;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 0;
+}
+.hist-label { font-family: var(--font-body); font-size: 14px; color: var(--color-ink); }
+.hist-value { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--color-ink); text-align: right; }
+.hist-note { font-family: var(--font-mono); font-size: 11px; color: var(--color-light-muted); }
+.hist-track { height: 20px; background: var(--color-cream); border-radius: 3px; overflow: hidden; }
+.hist-bar {
+  height: 100%;
+  width: calc(var(--w) * 1%);
+  background: linear-gradient(90deg, #2563a8 0%, #a8c8e8 100%);
+  border-radius: 3px;
+}
+
+@media (max-width: 700px) {
+  .funnel-row, .funnel-drop { grid-template-columns: 110px 1fr 90px; gap: 10px; }
+  .ladder-row { grid-template-columns: 120px 1fr 80px; }
+  .ladder-row .l-note { display: none; }
+  .hist-row { grid-template-columns: 110px 1fr 60px; }
+  .hist-row .hist-note { display: none; }
+  .viz, .viz-flow { padding: 16px 18px; }
+}
+
 </style>
 </head>
 <body id="top">

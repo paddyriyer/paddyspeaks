@@ -1,0 +1,146 @@
+<figure class="dash dash-funnel" aria-label="Conversion funnel interactive">
+  <div class="dash-head">
+    <div>
+      <div class="dash-eyebrow">Dashboard · Conversion Funnel</div>
+      <h4 class="dash-title">From impression to return purchase — live drop-off</h4>
+    </div>
+    <div class="dash-tabs" role="tablist">
+      <button class="dash-tab is-active" data-window="7d">7-day</button>
+      <button class="dash-tab" data-window="1d">1-day</button>
+      <button class="dash-tab" data-window="28d">28-day</button>
+    </div>
+  </div>
+
+  <div class="dash-funnel-body">
+    <div class="dash-funnel-chart" id="dashFunnelChart">
+      <!-- SVG tapered funnel -->
+      <svg viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Tapered funnel chart">
+        <defs>
+          <linearGradient id="funnelGrad1" x1="0" x2="1"><stop offset="0" stop-color="#2563a8"/><stop offset="1" stop-color="#1a4f8a"/></linearGradient>
+          <linearGradient id="funnelGrad2" x1="0" x2="1"><stop offset="0" stop-color="#1a4f8a"/><stop offset="1" stop-color="#0f3d70"/></linearGradient>
+          <linearGradient id="funnelGrad3" x1="0" x2="1"><stop offset="0" stop-color="#0f3d70"/><stop offset="1" stop-color="#0a2c52"/></linearGradient>
+          <linearGradient id="funnelGrad4" x1="0" x2="1"><stop offset="0" stop-color="#c44b2b"/><stop offset="1" stop-color="#9e3a1e"/></linearGradient>
+          <linearGradient id="funnelGrad5" x1="0" x2="1"><stop offset="0" stop-color="#2a7a4a"/><stop offset="1" stop-color="#1a4f30"/></linearGradient>
+          <linearGradient id="funnelGrad6" x1="0" x2="1"><stop offset="0" stop-color="#1a4f30"/><stop offset="1" stop-color="#0a2c18"/></linearGradient>
+        </defs>
+        <g data-funnel-stages></g>
+      </svg>
+    </div>
+
+    <ol class="dash-funnel-table" id="dashFunnelTable"></ol>
+  </div>
+
+  <div class="dash-footnote">
+    <span class="fn-dot" style="background:#2a7a4a"></span> above benchmark
+    <span class="fn-dot" style="background:#c44b2b"></span> below benchmark
+    <span class="fn-dot" style="background:#2563a8"></span> on par
+    <span class="fn-label">Hover a stage to see its drop-off and benchmark gap.</span>
+  </div>
+</figure>
+
+<script>
+(function(){
+  if (window.__dashFunnelInit) return;
+  window.__dashFunnelInit = true;
+
+  var data = {
+    '7d': [
+      { name: 'Impressions',     count: 10000000, pct: 100,  benchmark: null, note: 'Reach sourced from planned bid requests' },
+      { name: 'Clicks',          count: 150000,  pct: 1.5,   benchmark: 1.7,  note: 'CTR vs vertical median' },
+      { name: 'Landing page view', count: 135000, pct: 90.0, benchmark: 85,   note: 'Landing health · page load, redirects' },
+      { name: 'Add to cart',     count: 22500,    pct: 16.7, benchmark: 22,   note: 'Product match · price · trust' },
+      { name: 'Checkout',        count: 13500,    pct: 60.0, benchmark: 65,   note: 'Cart abandon · shipping cost shock' },
+      { name: 'Purchase',        count: 5400,     pct: 40.0, benchmark: 48,   note: 'Payment friction · PSP errors' },
+      { name: 'Return purchase (30d)', count: 1080, pct: 20, benchmark: 28,   note: 'LTV signal · product fit' }
+    ],
+    '1d': [
+      { name: 'Impressions', count: 10000000, pct: 100, benchmark: null, note: 'Same reach, shorter window'  },
+      { name: 'Clicks',      count: 150000,  pct: 1.5,  benchmark: 1.7, note: 'Click attribution only'      },
+      { name: 'Landing page view', count: 128000, pct: 85.3, benchmark: 85, note: 'Same-day view-throughs drop' },
+      { name: 'Add to cart', count: 18000,  pct: 14.1, benchmark: 22, note: 'Less time to consider'        },
+      { name: 'Checkout',    count: 9800,   pct: 54.4, benchmark: 65, note: '1d cart decay'                },
+      { name: 'Purchase',    count: 3600,   pct: 36.7, benchmark: 48, note: 'Same-day close only'          },
+      { name: 'Return purchase (30d)', count: 540, pct: 15, benchmark: 28, note: 'Smaller base' }
+    ],
+    '28d': [
+      { name: 'Impressions', count: 10000000, pct: 100, benchmark: null, note: 'Extended window' },
+      { name: 'Clicks',      count: 150000,  pct: 1.5,  benchmark: 1.7, note: '' },
+      { name: 'Landing page view', count: 140000, pct: 93.3, benchmark: 85, note: 'Delayed clicks converting' },
+      { name: 'Add to cart', count: 28000,  pct: 20.0, benchmark: 22, note: 'More dwell → higher intent' },
+      { name: 'Checkout',    count: 17500,  pct: 62.5, benchmark: 65, note: '' },
+      { name: 'Purchase',    count: 8400,   pct: 48.0, benchmark: 48, note: 'On par; attribution gift' },
+      { name: 'Return purchase (30d)', count: 2100, pct: 25, benchmark: 28, note: '' }
+    ]
+  };
+
+  var root = document.getElementById('dashFunnelChart');
+  if (!root) return;
+  var svgG = root.querySelector('[data-funnel-stages]');
+  var tableEl = document.getElementById('dashFunnelTable');
+
+  function render(windowKey) {
+    var rows = data[windowKey];
+    var top = rows[0].count;
+    var W = 600, H = 420, pad = 8, rowH = (H - pad*2) / rows.length;
+    var parts = [];
+    rows.forEach(function(r, i){
+      var wTop = 600 * (i === 0 ? 1 : rows[i-1].count / top);
+      var wBot = 600 * (r.count / top);
+      var y0 = pad + i * rowH;
+      var y1 = y0 + rowH - 2;
+      var xTopL = (W - wTop) / 2, xTopR = xTopL + wTop;
+      var xBotL = (W - wBot) / 2, xBotR = xBotL + wBot;
+      var grad = 'url(#funnelGrad' + (i+1) + ')';
+      parts.push(
+        '<polygon data-stage="'+i+'" points="'+
+          xTopL+','+y0+' '+xTopR+','+y0+' '+xBotR+','+y1+' '+xBotL+','+y1+
+        '" fill="'+grad+'" stroke="#fff" stroke-width="1">'+
+          '<title>'+r.name+' — '+r.count.toLocaleString()+' ('+r.pct+'%)</title>'+
+        '</polygon>'
+      );
+      parts.push(
+        '<text x="'+(W/2)+'" y="'+(y0 + rowH/2 + 4)+'" text-anchor="middle" '+
+          'font-family="Source Serif 4,Georgia,serif" font-size="13" fill="#fff" '+
+          'style="pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.35)">'+
+          r.name+' · '+r.count.toLocaleString()+
+        '</text>'
+      );
+    });
+    svgG.innerHTML = parts.join('');
+
+    var html = '';
+    rows.forEach(function(r, i){
+      var delta = '';
+      var deltaClass = 'neutral';
+      if (r.benchmark != null) {
+        var d = (r.pct - r.benchmark);
+        if (Math.abs(d) < 0.75) { delta = 'on par'; deltaClass = 'neutral'; }
+        else if (d > 0) { delta = '+' + d.toFixed(1) + ' pts'; deltaClass = 'up'; }
+        else { delta = d.toFixed(1) + ' pts'; deltaClass = 'down'; }
+      }
+      html += '<li class="dfrow">'+
+        '<span class="dfrow-idx">'+(i+1).toString().padStart(2,'0')+'</span>'+
+        '<span class="dfrow-name">'+r.name+'</span>'+
+        '<span class="dfrow-count">'+r.count.toLocaleString()+'</span>'+
+        '<span class="dfrow-pct">'+r.pct+'%</span>'+
+        (r.benchmark != null
+          ? '<span class="dfrow-delta '+deltaClass+'">'+delta+'</span>'
+          : '<span class="dfrow-delta neutral">—</span>')+
+        '<span class="dfrow-note">'+r.note+'</span>'+
+      '</li>';
+    });
+    tableEl.innerHTML = html;
+  }
+
+  render('7d');
+
+  var tabs = document.querySelectorAll('.dash-funnel .dash-tab');
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      tabs.forEach(function(x){ x.classList.remove('is-active'); });
+      t.classList.add('is-active');
+      render(t.dataset.window);
+    });
+  });
+})();
+</script>
