@@ -6806,45 +6806,461 @@ Advertiser approved the measurement plan in writing.</li>
 
 <h3>Landmine 1 — Last-click paid for itself until it didn't</h3>
 
-<p>The landmine: leadership sees that paid-search is credited with 68% of last-click conversions and concludes that display is not working. They cut display 40%. Paid-search ROAS drops 30% six weeks later. Revenue craters for one quarter before the team reverses. That quarter is on the ads engineering team's scorecard because the attribution report they shipped told leadership display was unprofitable.</p>
+<p>The landmine: leadership sees that paid-search is credited with 68% of last-click conversions and concludes that display is not working. They cut display 40%. Paid-search ROAS drops 30% six weeks later. Revenue craters for one quarter before the team reverses.</p>
 
-<p>What the interviewer is testing: whether you understand that attribution numbers are not neutral data. They are policy decisions wearing a number's clothes. The senior move is to ship last-click <em>alongside</em> an MTA view, and to label each view with the decision it is fit for — never a single number for a multi-channel decision.</p>
+<p><strong>The query that shipped the wrong decision:</strong></p>
+
+<pre><code class="sql">-- Naive last-click attribution. Correct, and dangerous.
+SELECT
+  channel,
+  COUNT(DISTINCT conversion_id)       AS conversions,
+  SUM(revenue_usd)                    AS attributed_revenue
+FROM fact_conversion c
+JOIN fact_touch t
+  ON t.user_id = c.user_id
+ AND t.touch_ts &lt;= c.conversion_ts
+ AND t.touch_ts &gt;= c.conversion_ts - INTERVAL '7 days'
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY c.conversion_id
+  ORDER BY t.touch_ts DESC
+) = 1
+GROUP BY channel;</code></pre>
+
+<p>Run this, paste the output into a slide, "display is 4% of conversions." Display gets cut. Six weeks later paid-search collapses because display was priming its funnel.</p>
+
+<p><strong>The senior move — ship two lenses, labeled by decision:</strong></p>
+
+<pre><code class="sql">-- Parallel MTA lens on the same event log, linear weighting.
+-- Same query can swap 'linear' for 'time_decay' or 'position_based'.
+WITH touch_counts AS (
+  SELECT c.conversion_id, c.revenue_usd, COUNT(*) AS n_touches
+  FROM fact_conversion c
+  JOIN fact_touch t
+    ON t.user_id = c.user_id
+   AND t.touch_ts &lt;= c.conversion_ts
+   AND t.touch_ts &gt;= c.conversion_ts - INTERVAL '30 days'
+  GROUP BY c.conversion_id, c.revenue_usd
+)
+SELECT
+  t.channel,
+  SUM(c.revenue_usd / tc.n_touches) AS mta_linear_revenue
+FROM fact_conversion c
+JOIN fact_touch t
+  ON t.user_id = c.user_id
+ AND t.touch_ts &lt;= c.conversion_ts
+ AND t.touch_ts &gt;= c.conversion_ts - INTERVAL '30 days'
+JOIN touch_counts tc USING (conversion_id)
+GROUP BY t.channel;</code></pre>
+
+<p>Now the dashboard shows two columns — "last-click revenue" and "MTA linear revenue" — labeled by the decision each is fit for. Budget-reallocation conversations use MTA. Operational-dashboard comparisons use last-click. Never a single number for a multi-channel decision.</p>
+
+<p><strong>What the interviewer is testing:</strong> whether you understand that attribution numbers are not neutral data. They are policy decisions wearing a number's clothes.</p>
+
 
 <h3>Landmine 2 — Conversions that arrive tomorrow, attributed to yesterday</h3>
 
-<p>The landmine: your pipeline closes yesterday's books at 6 a.m. today. A conversion that arrives at 10 a.m. today, clicked yesterday, cannot be attributed to yesterday's report without rewriting yesterday's numbers. Rewriting yesterday's numbers means every dashboard that consumed yesterday silently drifts. Finance loses confidence within two quarters.</p>
+<p>The landmine: your pipeline closes yesterday's books at 6 a.m. today. A conversion arrives at 10 a.m. today, clicked yesterday. Rewriting yesterday's numbers silently drifts every dashboard that consumed them. Finance loses confidence within two quarters.</p>
 
-<p>What the interviewer is testing: whether you know the pattern — append-only, with <em>event_time</em> (when it happened in the world) and <em>attribution_time</em> (when it was credited in our books) stored separately. Dashboards choose which clock to read. History never mutates. Candidates who propose rerunning yesterday reveal they have never been in a finance-close conversation.</p>
+<p><strong>The bad pattern — retroactive UPDATE:</strong></p>
+
+<pre><code class="sql">-- DO NOT. Mutates closed books; breaks every downstream that cached yesterday.
+UPDATE fact_campaign_daily
+SET conversions   = conversions   + 1,
+    revenue_usd   = revenue_usd   + :new_revenue
+WHERE dt = :click_date
+  AND campaign_id = :campaign_id;</code></pre>
+
+<p><strong>The senior pattern — append-only with two clocks:</strong></p>
+
+<pre><code class="sql">-- Every conversion carries BOTH timestamps. History never mutates.
+CREATE TABLE fact_conversion_attributed (
+  conversion_id    BINARY(16),
+  campaign_id      BIGINT,
+  event_time       TIMESTAMP,   -- when it happened in the world (click date)
+  attribution_time TIMESTAMP,   -- when we credited it in our books
+  revenue_usd      DECIMAL(18,4),
+  PRIMARY KEY (conversion_id)
+)
+PARTITIONED BY (DATE(attribution_time));
+
+-- Insert-only. Late-arriving conversions land in today's partition
+-- with event_time = yesterday, attribution_time = today.
+INSERT INTO fact_conversion_attributed
+SELECT
+  conversion_id,
+  campaign_id,
+  event_ts                         AS event_time,
+  CURRENT_TIMESTAMP                AS attribution_time,
+  revenue_usd
+FROM stg_conversion_arrivals
+WHERE arrival_batch_id = :batch_id;</code></pre>
+
+<p><strong>Two reporting views, one immutable source:</strong></p>
+
+<pre><code class="sql">-- "Revenue as reported on each day" — what finance sees at close.
+-- Filter on attribution_time = reporting_date. Historical rows NEVER change.
+SELECT DATE(attribution_time) AS reporting_dt,
+       campaign_id,
+       SUM(revenue_usd) AS revenue_as_reported
+FROM fact_conversion_attributed
+WHERE attribution_time &gt;= :from AND attribution_time &lt; :to
+GROUP BY 1, 2;
+
+-- "Revenue as we now understand it" — what BI wants for cohort math.
+-- Filter on event_time = cohort date. Rolls up late-arriving conversions.
+SELECT DATE(event_time) AS cohort_dt,
+       campaign_id,
+       SUM(revenue_usd) AS revenue_as_now_known
+FROM fact_conversion_attributed
+WHERE event_time &gt;= :from AND event_time &lt; :to
+GROUP BY 1, 2;</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you know that finance defaults to reporting-time and BI defaults to event-time, and that the data layer serves both by never mutating history. Candidates who propose rerunning yesterday reveal they have never been in a finance-close conversation.</p>
+
 
 <h3>Landmine 3 — The duplicate that grew revenue by 3% for two weeks</h3>
 
-<p>The landmine: a SDK update inadvertently retries on transient server errors without marking retries as duplicates. Your revenue numbers quietly grow 3% for two weeks before anyone notices. Legal calls. The advertiser asks for a refund of the overcount. Your team spends a month on the reconciliation, another on writing a post-mortem that names which SDK version introduced the bug and when the dedupe logic failed to catch it.</p>
+<p>The landmine: a SDK update inadvertently retries on transient server errors without marking retries as duplicates. Revenue grows 3% for two weeks. Legal calls. The advertiser asks for a refund.</p>
 
-<p>What the interviewer is testing: whether you know that duplicates are not a theoretical problem. They are an <em>audit</em> problem. The answer is a <em>suspected-duplicate sidecar</em> and a <em>reconciliation budget</em> negotiated with the advertiser team, so the 0.1% false-positive rate is an acceptable disclosed number rather than a surprise.</p>
+<p><strong>The bad pattern — trust event_id:</strong></p>
+
+<pre><code class="sql">-- DO NOT. event_id is unstable across SDK versions and server CAPI.
+-- The dedupe misses retries where event_id differs by a field.
+SELECT COUNT(DISTINCT event_id) AS events
+FROM bronze.impression
+WHERE dt = :yesterday;</code></pre>
+
+<p><strong>The senior pattern — triple-key dedupe plus sidecar:</strong></p>
+
+<pre><code class="sql">-- Dedupe on a composite key that survives SDK retries.
+-- (user_id, event_name, event_ts_rounded_sec) catches retries even when
+-- event_id drifts. 0.1% false-positive rate is the negotiated budget.
+CREATE OR REPLACE TABLE silver.fact_impression AS
+WITH keyed AS (
+  SELECT
+    *,
+    CONCAT_WS('|',
+      CAST(user_id AS STRING),
+      event_name,
+      CAST(DATE_TRUNC('second', event_ts) AS STRING)
+    ) AS dedupe_key
+  FROM bronze.impression
+  WHERE dt = :yesterday
+)
+SELECT *
+FROM keyed
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY dedupe_key
+  ORDER BY ingest_ts ASC  -- keep first-seen row; others go to sidecar
+) = 1;
+
+-- Everything we dropped goes here, auditable by the analytics team.
+CREATE OR REPLACE TABLE ops.suspected_duplicates AS
+SELECT *
+FROM keyed
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY dedupe_key ORDER BY ingest_ts ASC
+) &gt; 1;</code></pre>
+
+<p><strong>The audit query that catches the SDK bug next time:</strong></p>
+
+<pre><code class="sql">-- Monitor: dedupe-drop rate per SDK version. If any version spikes
+-- above 0.5%, page the producer team — it's usually a retry bug.
+SELECT
+  sdk_version,
+  COUNT(*)                          AS dropped,
+  COUNT(*) * 1.0 /
+    (SELECT COUNT(*) FROM bronze.impression
+     WHERE dt = :yesterday AND sdk_version = s.sdk_version) AS drop_rate
+FROM ops.suspected_duplicates s
+WHERE dt = :yesterday
+GROUP BY sdk_version
+HAVING drop_rate &gt; 0.005;</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you know that duplicates are an <em>audit</em> problem, not a theoretical one. The senior move is a <em>suspected-duplicate sidecar</em> and a <em>reconciliation budget</em> negotiated with the advertiser team — so the 0.1% false-positive rate is a disclosed acceptable number rather than a surprise.</p>
+
 
 <h3>Landmine 4 — Identity stitching that dropped 12% of conversions overnight</h3>
 
-<p>The landmine: the identity team updates its graph with stricter confidence thresholds to address a privacy audit. Your pipeline now fails to stitch 12% of cross-device conversions that were previously counted. Advertiser dashboards show a 12% revenue drop that is not a revenue drop — it is a measurement drop. The distinction is lost on the advertiser, who calls the account manager, who calls your director, who calls you.</p>
+<p>The landmine: the identity team updates its graph with stricter confidence thresholds to address a privacy audit. Your pipeline fails to stitch 12% of cross-device conversions. Advertiser dashboards show a 12% revenue drop that is not a revenue drop — it is a measurement drop.</p>
 
-<p>What the interviewer is testing: whether you know that identity is an <em>upstream</em> dependency your pipeline does not own, and whether you have <em>contract tests</em> with the identity team — when they change the graph, you know before production reads it. Without a contract, every identity update is a potential incident.</p>
+<p><strong>The query that drops the 12% silently:</strong></p>
+
+<pre><code class="sql">-- Inner-joining to the identity graph silently drops any user whose
+-- cross-device edges no longer meet the new confidence threshold.
+SELECT
+  idg.identity_id,
+  COUNT(DISTINCT c.conversion_id) AS conversions
+FROM fact_conversion c
+JOIN dim.identity_graph idg
+  ON idg.user_id = c.user_id
+ AND idg.confidence &gt;= 0.8   -- threshold moved from 0.6 -&gt; 0.8 overnight
+GROUP BY idg.identity_id;</code></pre>
+
+<p><strong>The senior pattern — contract test before consuming the graph:</strong></p>
+
+<pre><code class="sql">-- Run BEFORE every production pipeline that joins to the identity graph.
+-- If coverage drops &gt;2% vs the 7-day baseline, fail the pipeline and page.
+WITH today AS (
+  SELECT COUNT(DISTINCT user_id) AS covered_users
+  FROM dim.identity_graph
+  WHERE graph_version = :today_version
+    AND confidence &gt;= 0.8
+),
+baseline AS (
+  SELECT AVG(covered_users) AS avg_covered
+  FROM ops.identity_coverage_history
+  WHERE dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
+),
+check_result AS (
+  SELECT
+    t.covered_users,
+    b.avg_covered,
+    (t.covered_users - b.avg_covered) / b.avg_covered AS drift
+  FROM today t CROSS JOIN baseline b
+)
+SELECT
+  CASE
+    WHEN drift &lt; -0.02 THEN 'FAIL: identity coverage down ' || ROUND(drift*100,2) || '%'
+    ELSE 'PASS'
+  END AS gate_status,
+  *
+FROM check_result;</code></pre>
+
+<p><strong>Left-join + NULL-aware, so measurement drops are visible, not silent:</strong></p>
+
+<pre><code class="sql">-- Conversions that could not be stitched still appear in output with
+-- identity_id = NULL. Dashboard can show "12% of conversions unstitched"
+-- as a first-class metric, not hide them behind an inner-join.
+SELECT
+  COALESCE(idg.identity_id, 'UNSTITCHED') AS identity_bucket,
+  COUNT(DISTINCT c.conversion_id)         AS conversions
+FROM fact_conversion c
+LEFT JOIN dim.identity_graph idg
+  ON idg.user_id = c.user_id
+ AND idg.confidence &gt;= 0.8
+GROUP BY 1;</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you treat identity as an <em>upstream</em> dependency your pipeline does not own, and whether you have <em>contract tests</em> that catch graph changes before production reads them. Without a contract, every identity update is a potential incident.</p>
+
 
 <h3>Landmine 5 — The pacing counter that ran 90 seconds behind during Black Friday</h3>
 
-<p>The landmine: Kafka lag on peak. The real-time pacing counter that the bidder reads is 90 seconds stale. The bidder thinks the advertiser has $400 left when they actually have $50 left. 9,000 more auctions get won. The advertiser over-spends by $400. Multiply by every advertiser affected, for the duration of the lag spike. Finance's post-incident memo lands in your inbox with a number attached.</p>
+<p>The landmine: Kafka lag on peak. The real-time pacing counter is 90 seconds stale. The bidder thinks the advertiser has $400 left when they actually have $50 left. 9,000 more auctions get won. The advertiser over-spends by $400. Multiply by every advertiser affected.</p>
 
-<p>What the interviewer is testing: whether you treat lag as a <em>dollar-cost number</em>. The senior move is a <em>fallback pacing policy</em> — at 30+ seconds of consumer lag, the bidder switches to conservative bidding (cap at 80% of target) automatically. Degradation is written into the design doc before the incident. Candidates who say "we'd scale Kafka" during an active incident reveal they have not lived through one.</p>
+<p><strong>The bad pattern — unconditional bidder read:</strong></p>
+
+<pre><code class="python"># DO NOT. Reads pacing counter without checking freshness.
+# During lag, happily continues bidding on stale spend estimate.
+def should_bid(campaign_id, bid_amount):
+    spent_today = redis.get(f"pacing:{campaign_id}:spent_today") or 0
+    daily_budget = campaign.daily_budget
+    return (spent_today + bid_amount) &lt; daily_budget</code></pre>
+
+<p><strong>The senior pattern — freshness-aware bidder with automatic degradation:</strong></p>
+
+<pre><code class="python"># Bidder reads both the counter AND its last-update timestamp.
+# When lag exceeds the budget, it doesn't stop bidding — it derates.
+
+def should_bid(campaign_id, bid_amount):
+    spent_today, updated_at = redis.mget(
+        f"pacing:{campaign_id}:spent_today",
+        f"pacing:{campaign_id}:updated_at",
+    )
+    spent_today  = float(spent_today or 0)
+    lag_seconds  = time.time() - float(updated_at or 0)
+    daily_budget = campaign.daily_budget
+
+    # Fresh path: normal bidding against live counter
+    if lag_seconds &lt; 30:
+        return (spent_today + bid_amount) &lt; daily_budget
+
+    # Degraded path: cap effective budget at 80% to absorb uncertainty
+    # This is policy, written in the design doc, not an incident fix.
+    if lag_seconds &lt; 300:
+        return (spent_today + bid_amount) &lt; (daily_budget * 0.80)
+
+    # Catastrophic path: unknown spend. Refuse rather than risk 10x overspend.
+    metrics.increment("pacing.stale.bid_refused", tags=[f"campaign:{campaign_id}"])
+    return False</code></pre>
+
+<p><strong>The hourly reconciliation that catches KV drift:</strong></p>
+
+<pre><code class="sql">-- Source of truth: impressions joined to spend, aggregated from lake.
+-- Runs hourly; writes corrections to Redis if drift exceeds 5%.
+WITH truth AS (
+  SELECT
+    campaign_id,
+    SUM(spend_cents) / 100.0 AS truth_spent_today
+  FROM silver.fact_impression
+  WHERE dt = CURRENT_DATE
+    AND is_valid = TRUE
+  GROUP BY campaign_id
+),
+kv_reported AS (
+  SELECT campaign_id, kv_spent_today
+  FROM ops.pacing_kv_snapshot  -- Redis snapshot exported hourly
+  WHERE snapshot_ts = (SELECT MAX(snapshot_ts) FROM ops.pacing_kv_snapshot)
+)
+SELECT
+  t.campaign_id,
+  t.truth_spent_today,
+  k.kv_spent_today,
+  ABS(t.truth_spent_today - k.kv_spent_today) /
+    NULLIF(t.truth_spent_today, 0) AS drift_pct
+FROM truth t LEFT JOIN kv_reported k USING (campaign_id)
+WHERE ABS(t.truth_spent_today - k.kv_spent_today) /
+      NULLIF(t.truth_spent_today, 0) &gt; 0.05;
+-- For each row, the reconciler writes the corrected value back to Redis.</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you treat lag as a <em>dollar-cost number</em> with a written degradation policy, not as an incident to scale through. Candidates who say "we'd scale Kafka" during an active incident reveal they have not lived through one.</p>
+
 
 <h3>Landmine 6 — Kappa architecture that couldn't sign off on billing</h3>
 
-<p>The landmine: your team migrates to streaming-only (Kappa) because it looks modern. Quarter close comes. Finance refuses to sign off on a revenue number sourced from a Flink checkpoint because it cannot be reproduced if the checkpoint is lost. You spend a weekend rebuilding a batch path. The next quarter's tech-planning meeting is heated.</p>
+<p>The landmine: your team migrates to streaming-only (Kappa) because it looks modern. Quarter close comes. Finance refuses to sign off on a revenue number sourced from a Flink checkpoint because it cannot be reproduced if the checkpoint is lost.</p>
 
-<p>What the interviewer is testing: whether you know that Lambda is not dead; it is alive wherever a number has to survive an audit. Kappa for operational metrics, Lambda for billing. Finance will never accept a streaming-only source of truth, and senior engineers know that before they propose the architecture, not after.</p>
+<p><strong>The bad pattern — Kappa for billing:</strong></p>
+
+<pre><code class="python"># Flink job that writes directly to the billing table from streaming state.
+# Works. Cannot be reproduced if the checkpoint is corrupt, lost, or
+# schema-drifted. Finance will not accept it.
+
+def build_billing_stream(env):
+    impressions = env.from_source(kafka_source, "impressions")
+    return (impressions
+        .key_by(lambda r: r.advertiser_id)
+        .window(TumblingEventTimeWindows.of(Time.days(1)))
+        .reduce(sum_spend)
+        .sink_to(billing_table_sink))  # direct to billing — no replay path</code></pre>
+
+<p><strong>The senior pattern — Lambda: streaming for ops, batch for truth:</strong></p>
+
+<pre><code class="sql">-- Batch path: runs nightly, recomputes yesterday's billing from cold
+-- storage. Deterministic. Idempotent. Auditable by finance. The number
+-- finance signs is this one.
+INSERT OVERWRITE TABLE billing.fact_daily_spend
+PARTITION (dt = :yesterday)
+SELECT
+  advertiser_id,
+  campaign_id,
+  SUM(spend_cents) / 100.0  AS spend_usd,
+  COUNT(*)                   AS impressions,
+  CURRENT_TIMESTAMP          AS computed_at,
+  :batch_run_id              AS batch_run_id  -- reproducibility key
+FROM silver.fact_impression
+WHERE dt = :yesterday
+  AND is_valid = TRUE
+GROUP BY advertiser_id, campaign_id;</code></pre>
+
+<pre><code class="sql">-- Reproducibility gate: re-running this job on the same input MUST
+-- produce identical output. Automated check before publishing to finance.
+WITH replay AS (
+  SELECT advertiser_id, campaign_id, SUM(spend_cents)/100.0 AS spend_usd
+  FROM silver.fact_impression
+  WHERE dt = :yesterday AND is_valid = TRUE
+  GROUP BY 1, 2
+)
+SELECT
+  COUNT(*) FILTER (WHERE ABS(b.spend_usd - r.spend_usd) &gt; 0.01)
+    AS rows_that_drifted
+FROM billing.fact_daily_spend b
+JOIN replay r USING (advertiser_id, campaign_id)
+WHERE b.dt = :yesterday;
+-- Must return 0. If not, the batch run is not reproducible; do not publish.</code></pre>
+
+<p><strong>Streaming continues to exist — but for operational dashboards only:</strong></p>
+
+<pre><code class="python"># Streaming aggregates are FYI — real-time pacing, analyst dashboards.
+# They are explicitly labeled as NOT-BILLING and point consumers to the
+# batch table for anything that needs to reconcile.
+#
+# (Flink job writes to ops.realtime_spend, not billing.fact_daily_spend.)
+stream_output_table = "ops.realtime_spend"       # best effort, ~5 sec lag
+billing_output_table = "billing.fact_daily_spend"  # authoritative, T+1</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you know that Lambda is not dead — it is alive wherever a number has to survive an audit. Kappa for operational metrics, Lambda for billing. Finance will never accept a streaming-only source of truth, and senior engineers know this before they propose the architecture.</p>
+
 
 <h3>Landmine 7 — The iOS 14 revenue cliff nobody modeled</h3>
 
-<p>The landmine: iOS 14 ships with ATT prompts. Opt-in rates are 15–30% industry-wide. Your iOS attribution numbers fall 60%+ overnight. Advertisers see "their iOS campaigns stopped working" and pause budget. The revenue impact is real and takes two quarters to explain with a reworked measurement stack that honors SKAN postback limits.</p>
+<p>The landmine: iOS 14 ships with ATT prompts. Opt-in rates are 15–30% industry-wide. Your iOS attribution numbers fall 60%+ overnight. Advertisers pause budget. Two quarters to explain.</p>
 
-<p>What the interviewer is testing: whether you see regulatory changes as <em>measurable engineering risks</em> that should be modeled in advance, not as events that happen to you. Staff+ candidates maintain a privacy-impact register — a list of pending regulatory changes and the specific measurement systems each will affect. They do not get surprised.</p>
+<p><strong>The bad pattern — single pipeline assuming deterministic IDs:</strong></p>
+
+<pre><code class="sql">-- Pre-ATT: pipeline joined iOS events to IDFA. Overnight, 70% of iOS
+-- events have IDFA = NULL because of opt-out. Inner join drops them.
+-- Revenue appears to crater.
+SELECT
+  campaign_id,
+  COUNT(DISTINCT c.conversion_id)  AS attributed
+FROM fact_conversion c
+JOIN fact_impression i
+  ON i.idfa = c.idfa            -- 70% of c.idfa is NULL after ATT
+ AND i.ts  &lt;= c.conversion_ts
+GROUP BY campaign_id;</code></pre>
+
+<p><strong>The senior pattern — dual measurement path with explicit labels:</strong></p>
+
+<pre><code class="sql">-- iOS and non-iOS use different attribution methodologies.
+-- Do not reconcile them. Report as a sum of two explicitly-labeled paths.
+CREATE TABLE gold.attribution_dual (
+  dt                   DATE,
+  campaign_id          BIGINT,
+  path                 STRING,     -- 'non_ios_deterministic' or 'ios_skan'
+  attributed_convs     BIGINT,
+  attributed_revenue   DECIMAL(18,4),
+  confidence_floor_pct DECIMAL(5,2)  -- SKAN has a privacy-thresholding floor
+)
+PARTITIONED BY (dt);
+
+-- Non-iOS path: deterministic IDs work as before.
+INSERT INTO gold.attribution_dual
+SELECT :dt, campaign_id, 'non_ios_deterministic',
+       COUNT(DISTINCT c.conversion_id),
+       SUM(c.revenue_usd),
+       100.0
+FROM fact_conversion c JOIN fact_impression i USING (user_id)
+WHERE c.platform != 'ios' AND c.dt = :dt
+GROUP BY campaign_id;
+
+-- iOS path: SKAN postbacks only. No user_id, no deterministic join.
+-- Join on conversion_value (6-bit, advertiser-defined) + campaign_id.
+INSERT INTO gold.attribution_dual
+SELECT :dt, campaign_id, 'ios_skan',
+       COUNT(*),
+       SUM(revenue_usd_estimated),    -- from conversion_value lookup
+       AVG(CASE WHEN source_identifier IS NULL THEN 100.0 ELSE 0 END)
+         AS thresholded_share_pct
+FROM fact_skan_postback
+WHERE dt = :dt
+GROUP BY campaign_id;</code></pre>
+
+<p><strong>The privacy-impact register — kept BEFORE regulations ship:</strong></p>
+
+<pre><code class="sql">-- Track pending regulatory/platform changes and which measurement
+-- systems they will affect. Staff+ maintains this proactively.
+CREATE TABLE ops.privacy_impact_register (
+  risk_id         STRING,
+  risk_name       STRING,
+  effective_date  DATE,
+  probability_pct INT,           -- likelihood estimate
+  affected_systems ARRAY&lt;STRING&gt;,
+  mitigation_plan STRING,
+  owner           STRING
+);
+
+-- Example rows we'd have maintained before iOS 14:
+-- ('ios_att',  'Apple App Tracking Transparency', '2021-04-26', 95,
+--   ['ios_attribution_pipeline', 'mmp_postback_consumer'],
+--   'Build SKAN path + dual-reporting by 2021-03',  'paddy')
+-- ('gdpr_cookieless', 'Third-party cookie deprecation', '2024-01-01', 70,
+--   ['web_attribution_pipeline', 'identity_graph_web'],
+--   'Design probabilistic stitching + server-side CAPI by 2023-Q4', 'paddy')</code></pre>
+
+<p><strong>What the interviewer is testing:</strong> whether you see regulatory changes as <em>measurable engineering risks</em> modeled in advance, not as events that happen to you. Staff+ candidates maintain a privacy-impact register. They do not get surprised.</p>
+
+
 
 <hr>
 
@@ -6941,6 +7357,11 @@ Advertiser approved the measurement plan in writing.</li>
 </section>
 </div>
 
+</div>
+
+<div class="quick-nav" aria-hidden="true">
+  <button class="qn-btn qn-up" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Jump to top"><span class="qn-label">Top</span>↑</button>
+  <button class="qn-btn qn-down" onclick="window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'})" aria-label="Jump to bottom"><span class="qn-label">Bottom</span>↓</button>
 </div>
 
 <footer class="site-footer">
