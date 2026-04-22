@@ -92,7 +92,7 @@
   </div>
 </div>
 
-<nav class="section-nav" aria-label="Jump to section"><div class="section-nav-inner"><a class="section-chip" href="#ads-part-IX" data-target="ads-part-IX"><span class="chip-num">Overview</span><span class="chip-title">Overview</span></a><a class="section-chip" href="#ads-part-00" data-target="ads-part-00"><span class="chip-num">Part 00</span><span class="chip-title">Introduction to Ads Engineering</span></a><a class="section-chip" href="#ads-part-01" data-target="ads-part-01"><span class="chip-num">Part 01</span><span class="chip-title">Mock Interview + 10 Scenarios</span></a><a class="section-chip" href="#ads-part-02" data-target="ads-part-02"><span class="chip-num">Part 02</span><span class="chip-title">Advanced Ads, Growth &amp; Behavioral</span></a><a class="section-chip" href="#ads-part-03" data-target="ads-part-03"><span class="chip-num">Part 03</span><span class="chip-title">Deep Dive SQL</span></a><a class="section-chip" href="#ads-part-04" data-target="ads-part-04"><span class="chip-num">Part 04</span><span class="chip-title">Platform Surfaces &amp; A–Z Glossary</span></a><a class="section-chip" href="#ads-part-05" data-target="ads-part-05"><span class="chip-num">Part 05</span><span class="chip-title">Visualization &amp; Measurement</span></a><a class="section-chip" href="#ads-part-06" data-target="ads-part-06"><span class="chip-num">Part 06</span><span class="chip-title">The Room · Real Decisions</span></a><a class="section-chip" href="#ads-part-07" data-target="ads-part-07"><span class="chip-num">Part 07</span><span class="chip-title">The Coding Round · SQL &amp;amp; Python</span></a></div></nav>
+<nav class="section-nav" aria-label="Jump to section"><div class="section-nav-inner"><a class="section-chip" href="#ads-part-IX" data-target="ads-part-IX"><span class="chip-num">Overview</span><span class="chip-title">Overview</span></a><a class="section-chip" href="#ads-part-00" data-target="ads-part-00"><span class="chip-num">Part 00</span><span class="chip-title">Introduction to Ads Engineering</span></a><a class="section-chip" href="#ads-part-01" data-target="ads-part-01"><span class="chip-num">Part 01</span><span class="chip-title">Mock Interview + 10 Scenarios</span></a><a class="section-chip" href="#ads-part-02" data-target="ads-part-02"><span class="chip-num">Part 02</span><span class="chip-title">Advanced Ads, Growth &amp; Behavioral</span></a><a class="section-chip" href="#ads-part-03" data-target="ads-part-03"><span class="chip-num">Part 03</span><span class="chip-title">Deep Dive SQL</span></a><a class="section-chip" href="#ads-part-04" data-target="ads-part-04"><span class="chip-num">Part 04</span><span class="chip-title">Platform Surfaces &amp; A–Z Glossary</span></a><a class="section-chip" href="#ads-part-05" data-target="ads-part-05"><span class="chip-num">Part 05</span><span class="chip-title">Visualization &amp; Measurement</span></a><a class="section-chip" href="#ads-part-06" data-target="ads-part-06"><span class="chip-num">Part 06</span><span class="chip-title">The Room · Real Decisions</span></a><a class="section-chip" href="#ads-part-07" data-target="ads-part-07"><span class="chip-num">Part 07</span><span class="chip-title">The Coding Round · SQL &amp; Python</span></a></div></nav>
 
 <div class="article-content">
 <section id="ads-part-IX" class="part-section" data-part="IX">
@@ -5990,7 +5990,7 @@ CREATE TABLE ops.privacy_impact_register (
 <p class="back-to-top"><a href="#top">↑ Back to top</a></p>
 </section>
 <section id="ads-part-07" class="part-section" data-part="07">
-<header class="part-header"><div class="part-eyebrow">Part 07</div><h1 class="part-title">The Coding Round · SQL &amp;amp; Python</h1></header>
+<header class="part-header"><div class="part-eyebrow">Part 07</div><h1 class="part-title">The Coding Round · SQL &amp; Python</h1></header>
 <p>The coding round for an ads DE loop is not leetcode. It is a test of whether you understand the <em>shape</em> of ads data — attribution windows, de-duplication, pacing, frequency, incrementality — and whether you can express that understanding in correct, readable, performant code. Every problem below is one I have either given or been given in a real interview. Each one contains a specific trap that distinguishes someone who has shipped the system from someone who has read about it.</p>
 
 <blockquote><p>Before reading the reference solution, take a timer. Give yourself 15 minutes per SQL problem, 25 per Python. Do not look at the solution until the timer ends or you have a working answer. The value of this part is in the failed attempts, not the clean ones.</p></blockquote>
@@ -6663,30 +6663,35 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
 // Fix: intercept anchor clicks + hashchange and re-scroll after two frames
 // so the real layout has settled.
 (function(){
+  // content-visibility:auto on sections gives each offscreen one an 1800px
+  // placeholder. When the user clicks a chip for a far-away section, the
+  // browser scrolls to the current (placeholder-compressed) position; as
+  // the sections in between render during the scroll, they expand, pushing
+  // the real target further down. Smooth scroll doesn't follow that drift.
+  // Fix: instant scroll + repeated re-corrections over ~800 ms so every
+  // layout-shift during/after the jump gets absorbed.
+  function correctScroll(el){
+    var rect = el.getBoundingClientRect();
+    // Offset 8px padding from viewport top; positive value means target is
+    // below desired position, negative means above.
+    var delta = rect.top - 8;
+    if(Math.abs(delta) > 2){
+      window.scrollTo({top: window.scrollY + delta, left: 0, behavior: 'auto'});
+    }
+  }
   function scrollToHash(hash){
     if(!hash || hash === '#') return;
     var id = hash.charAt(0) === '#' ? hash.slice(1) : hash;
     var el = document.getElementById(id);
     if(!el) return;
-    // Two rAF ticks + a small timeout — enough for content-visibility to
-    // promote sections into the real layout before we compute the offset.
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        setTimeout(function(){
-          el.scrollIntoView({behavior:'smooth', block:'start'});
-          // Re-correct after the smooth scroll finishes in case more
-          // sections expanded during the scroll.
-          setTimeout(function(){
-            var rect = el.getBoundingClientRect();
-            if(Math.abs(rect.top) > 30){
-              window.scrollTo({top: window.scrollY + rect.top, behavior:'auto'});
-            }
-          }, 500);
-        }, 0);
-      });
+    // Fire corrections at 0, 60, 180, 400, 800 ms. Each one repositions
+    // based on the latest layout; by 800 ms content-visibility has always
+    // settled in practice.
+    correctScroll(el);
+    [60, 180, 400, 800].forEach(function(ms){
+      setTimeout(function(){ correctScroll(el); }, ms);
     });
   }
-  // Intercept clicks on any in-page anchor
   document.addEventListener('click', function(e){
     var a = e.target.closest && e.target.closest('a[href^="#"]');
     if(!a) return;
@@ -6696,9 +6701,7 @@ window.addEventListener('scroll',function(){var b=document.getElementById('readi
     history.pushState(null, '', href);
     scrollToHash(href);
   });
-  // Back/forward nav
   window.addEventListener('hashchange', function(){ scrollToHash(location.hash); });
-  // Initial load with a hash
   if(location.hash) scrollToHash(location.hash);
 })();
 </script>
