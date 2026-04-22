@@ -73,38 +73,27 @@ def strip_local_toc(body: str) -> str:
 
 
 def build_master_toc() -> str:
+    """Build a modern sticky chip-nav of parts only (no sub-lists, no 'Contents' label)."""
     items = []
     for num, filename, title, slug in PARTS:
-        src = (SRC_DIR / filename).read_text(encoding="utf-8")
-        body = extract_main(src)
-        toc_match = re.search(
-            r'<h2 id="[^"]*table-of-contents[^"]*">.*?</h2>\s*<ol>(.*?)</ol>',
-            body, re.DOTALL | re.IGNORECASE,
-        )
-        sub_links = []
-        if toc_match:
-            for link in re.finditer(
-                r'<li><a href="#([^"]+)">(.*?)</a></li>',
-                toc_match.group(1), re.DOTALL,
-            ):
-                sub_links.append((f"ap{num}-{link.group(1)}", link.group(2).strip()))
-        items.append((num, slug, title, sub_links))
+        items.append((num, slug, title))
 
-    out = ['<nav class="master-toc" aria-label="Table of contents">',
-           '<h2 id="contents">Contents</h2>',
-           '<ol class="master-toc-list">']
-    for num, slug, title, sub_links in items:
+    chips = []
+    for num, slug, title in items:
         label = "Overview" if num == "IX" else f"Part {num}"
-        out.append(f'<li><a href="#ads-part-{num}"><span class="toc-num">{label}</span> — {title}</a>')
-        if sub_links:
-            out.append('<ol class="master-toc-sublist">')
-            for anchor, text in sub_links:
-                out.append(f'<li><a href="#{anchor}">{text}</a></li>')
-            out.append('</ol>')
-        out.append('</li>')
-    out.append('</ol>')
-    out.append('</nav>')
-    return "\n".join(out)
+        chips.append(
+            f'<a class="section-chip" href="#ads-part-{num}" data-target="ads-part-{num}">'
+            f'<span class="chip-num">{label}</span>'
+            f'<span class="chip-title">{html.escape(title)}</span>'
+            f'</a>'
+        )
+    return (
+        '<nav class="section-nav" aria-label="Jump to section">'
+        '<div class="section-nav-inner">'
+        + "".join(chips) +
+        '</div>'
+        '</nav>'
+    )
 
 
 def build_sections() -> str:
@@ -125,20 +114,19 @@ def build_sections() -> str:
             f'</header>'
         )
         chunks.append(body.strip())
-        chunks.append('<p class="back-to-top"><a href="#contents">↑ Back to contents</a></p>')
+        chunks.append('<p class="back-to-top"><a href="#top">↑ Back to top</a></p>')
         chunks.append('</section>')
     return "\n".join(chunks)
 
 
 HEAD = '''<!DOCTYPE html>
-<html lang="en" class="no-js">
+<html lang="en">
 <head>
-<script>document.documentElement.className=document.documentElement.className.replace('no-js','js');</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light only">
 <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
-<meta name="theme-color" content="#0f1e2e">
+<meta name="theme-color" content="#1a2332">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="format-detection" content="telephone=no">
 <title>Ads Data Engineering Interview Prep — Senior / L5 Deep Dive | PaddySpeaks</title>
@@ -185,154 +173,258 @@ HEAD = '''<!DOCTYPE html>
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;1,400&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;1,400&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;1,400&display=swap"></noscript>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500;1,600&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,300;1,8..60,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
 
 <style>
-:root {
-  --netflix-red: #E50914;
-  --navy: #1a2f45;
-  --navy-deep: #0f1e2e;
-  --dark: #1e293b;
-  --med: #475569;
-  --muted: #64748b;
-  --accent: #c8915a;
-  --accent-light: #e8c9a0;
-  --cream: #faf6f1;
-  --bone: #f5efe6;
-  --warm-white: #fefcf9;
-  --sage: #6b8e6f;
-  --rust: #b44040;
-  --rule: #e2d9ce;
-  --code-bg: #0f1e2e;
-  --code-text: #e8e0d6;
-  --code-dim: #8b96a8;
-  --callout-bg: #fff8ee;
-  --callout-border: #c8915a;
+/* Longform overrides — wider content area for code-heavy article */
+.article-page.longform .article-content { max-width: 1040px; padding: 0 40px 80px; }
+.article-page.longform .article-hero    { max-width: 1040px; }
+
+/* Sticky modern chip-nav replacing Contents / Table of Contents */
+.section-nav {
+  position: sticky; top: 0; z-index: 50;
+  margin: 0 auto 40px;
+  max-width: 1040px;
+  padding: 14px 24px;
+  background: rgba(238,243,249,0.92);
+  backdrop-filter: saturate(1.2) blur(10px);
+  -webkit-backdrop-filter: saturate(1.2) blur(10px);
+  border-bottom: 1px solid var(--color-border-light);
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-html { scroll-behavior:smooth; }
-body { font-family:'DM Sans',sans-serif; background:#e8e0d6; color:var(--dark); line-height:1.65; color-scheme:light only; }
-.shell { max-width:1120px; margin:0 auto; }
-
-header.page-header { background:var(--navy-deep); color:var(--cream); padding:60px 56px 48px; border-bottom:4px solid var(--netflix-red); position:relative; overflow:hidden; }
-header.page-header::before { content:""; position:absolute; top:0; right:0; width:360px; height:100%; background:linear-gradient(135deg,transparent 40%,rgba(229,9,20,0.10) 100%); pointer-events:none; }
-.eyebrow { font-family:'DM Mono',monospace; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--netflix-red); margin-bottom:14px; font-weight:500; }
-header.page-header h1 { font-family:'Cormorant Garamond',serif; font-size:clamp(32px,4.6vw,52px); font-weight:600; line-height:1.08; margin-bottom:14px; color:var(--warm-white); letter-spacing:-0.5px; max-width:880px; }
-.subhead { font-family:'Newsreader',serif; font-style:italic; font-size:18px; color:var(--accent-light); max-width:820px; line-height:1.5; }
-.meta-strip { display:flex; gap:22px; margin-top:28px; flex-wrap:wrap; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--accent-light); }
-.meta-strip span::before { content:"→ "; color:var(--netflix-red); }
-
-nav.breadcrumb { background:var(--navy); color:var(--accent-light); padding:12px 56px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid #000; }
-nav.breadcrumb a { color:var(--accent-light); text-decoration:none; border-bottom:1px dashed var(--accent); }
-nav.breadcrumb a:hover { color:var(--warm-white); }
-nav.breadcrumb .sep { color:var(--netflix-red); margin:0 10px; }
-
-main.content { background:var(--warm-white); padding:48px 56px 64px; }
-main.content h1 { font-family:'Cormorant Garamond',serif; font-size:34px; font-weight:600; color:var(--warm-white); margin:0 0 22px; padding:18px 22px; background:var(--navy); border-radius:8px; border-left:6px solid var(--netflix-red); letter-spacing:-0.3px; scroll-margin-top:16px; }
-main.content h2 { font-family:'Cormorant Garamond',serif; font-size:28px; font-weight:600; color:var(--navy-deep); margin:48px 0 14px; padding-bottom:6px; border-bottom:1px solid var(--rule); scroll-margin-top:16px; }
-main.content h3 { font-family:'DM Sans',sans-serif; font-size:18px; font-weight:600; color:var(--netflix-red); margin:28px 0 10px; letter-spacing:0.2px; }
-main.content h4 { font-family:'DM Sans',sans-serif; font-size:15px; font-weight:600; color:var(--navy); margin:20px 0 8px; text-transform:uppercase; letter-spacing:1px; }
-main.content p { margin:0 0 14px; font-size:15.5px; }
-main.content a { color:var(--navy); text-decoration:none; border-bottom:1px dashed var(--accent); }
-main.content a:hover { border-bottom-color:var(--netflix-red); }
-main.content strong { color:var(--navy-deep); }
-main.content em { color:var(--rust); font-style:italic; }
-main.content ul, main.content ol { margin:0 0 16px 28px; }
-main.content li { margin-bottom:6px; font-size:15.5px; }
-main.content li > ul, main.content li > ol { margin-top:6px; }
-main.content hr { margin:48px 0; border:none; border-top:1px solid var(--rule); }
-main.content table { width:100%; border-collapse:collapse; margin:16px 0 24px; font-size:14px; background:var(--bone); border-radius:6px; overflow:hidden; }
-main.content th { background:var(--navy); color:var(--warm-white); text-align:left; padding:10px 14px; font-family:'DM Mono',monospace; font-size:11.5px; letter-spacing:1px; text-transform:uppercase; font-weight:500; }
-main.content td { padding:10px 14px; border-top:1px solid var(--rule); vertical-align:top; }
-main.content tbody tr:nth-child(even) td { background:rgba(0,0,0,0.02); }
-main.content pre { background:var(--code-bg); color:var(--code-text); padding:18px 22px; border-radius:8px; overflow-x:auto; margin:10px 0 20px; border-left:3px solid var(--netflix-red); line-height:1.55; }
-main.content pre code { font-family:'DM Mono',monospace; font-size:13px; color:var(--code-text); background:transparent; padding:0; border:none; white-space:pre; }
-main.content code { font-family:'DM Mono',monospace; font-size:13.5px; background:var(--bone); color:var(--navy-deep); padding:1px 6px; border-radius:3px; border:1px solid var(--rule); }
-main.content blockquote { background:var(--callout-bg); border-left:4px solid var(--callout-border); padding:14px 20px; margin:16px 0 20px; font-family:'Newsreader',serif; font-style:italic; color:var(--navy-deep); }
-
-nav.master-toc { background:var(--bone); border:1px solid var(--rule); border-radius:10px; padding:28px 32px; margin:0 0 40px; }
-nav.master-toc h2 { margin:0 0 18px !important; padding:0 !important; border:none !important; font-size:24px; color:var(--navy-deep); }
-.master-toc-list { list-style:none !important; margin:0 !important; padding:0 !important; counter-reset:part; }
-.master-toc-list > li { margin-bottom:14px !important; padding-bottom:14px; border-bottom:1px dashed var(--rule); }
-.master-toc-list > li:last-child { border-bottom:none; padding-bottom:0; margin-bottom:0 !important; }
-.master-toc-list > li > a { display:block; font-family:'Cormorant Garamond',serif; font-size:19px; font-weight:600; color:var(--navy-deep) !important; border:none !important; padding-bottom:4px; }
-.master-toc-list > li > a:hover { color:var(--netflix-red) !important; }
-.toc-num { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:2px; color:var(--netflix-red); text-transform:uppercase; margin-right:8px; }
-.master-toc-sublist { list-style:none !important; margin:6px 0 0 16px !important; padding:0 !important; column-count:2; column-gap:28px; }
-@media (max-width:700px) { .master-toc-sublist { column-count:1; } }
-.master-toc-sublist li { margin:0 0 4px !important; font-size:13.5px; break-inside:avoid; }
-.master-toc-sublist a { color:var(--med) !important; border:none !important; border-bottom:1px dashed transparent !important; }
-.master-toc-sublist a:hover { color:var(--navy-deep) !important; border-bottom-color:var(--accent) !important; }
-
-.part-section { scroll-margin-top:16px; }
-.part-section + .part-section { margin-top:56px; }
-.part-header { margin:0 0 22px; }
-.part-eyebrow { font-family:'DM Mono',monospace; font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--netflix-red); margin-bottom:8px; }
-.part-title { font-family:'Cormorant Garamond',serif !important; font-size:34px !important; margin:0 !important; padding:18px 22px !important; background:var(--navy) !important; color:var(--warm-white) !important; border-radius:8px !important; border-left:6px solid var(--netflix-red) !important; letter-spacing:-0.3px; }
-.back-to-top { margin:32px 0 0 !important; text-align:right; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:1.5px; text-transform:uppercase; }
-.back-to-top a { color:var(--muted) !important; border-bottom:1px dashed var(--rule) !important; }
-.back-to-top a:hover { color:var(--netflix-red) !important; border-bottom-color:var(--netflix-red) !important; }
-
-footer.page-footer { background:var(--navy-deep); color:var(--accent-light); padding:32px 56px; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:2px; text-transform:uppercase; border-top:4px solid var(--netflix-red); display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; }
-footer.page-footer a { color:var(--accent-light); text-decoration:none; border-bottom:1px dashed var(--accent); }
-footer.page-footer a:hover { color:var(--warm-white); }
-
-@media (max-width:800px) {
-  header.page-header, main.content, footer.page-footer, nav.breadcrumb { padding-left:24px; padding-right:24px; }
-  main.content h1, .part-title { font-size:26px !important; }
-  main.content h2 { font-size:22px; }
-  main.content table { font-size:13px; }
-  main.content pre { font-size:12px; }
-  nav.master-toc { padding:20px 22px; }
+.section-nav-inner {
+  display: flex; gap: 10px; flex-wrap: nowrap; overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
 }
-@media print {
-  body { background:white; }
-  header.page-header, footer.page-footer { break-inside:avoid; }
-  main.content pre { border:1px solid var(--rule); }
+.section-nav-inner::-webkit-scrollbar { height: 4px; }
+.section-nav-inner::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+.section-chip {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: baseline; gap: 8px;
+  padding: 9px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-ink);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1;
+  transition: all .2s ease;
+  white-space: nowrap;
+}
+.section-chip:hover {
+  border-color: var(--color-gold);
+  color: var(--color-gold-dark);
+  transform: translateY(-1px);
+}
+.section-chip .chip-num {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-gold-dark);
+}
+.section-chip.active {
+  background: var(--color-ink);
+  color: var(--color-cream);
+  border-color: var(--color-ink);
+}
+.section-chip.active .chip-num { color: var(--color-gold-light); }
+
+/* Part sections — clean, site-native dividers */
+.part-section { scroll-margin-top: 120px; margin-top: 80px; padding-top: 8px; }
+.part-section:first-of-type { margin-top: 24px; }
+.part-section + .part-section { border-top: 1px solid var(--color-border-light); padding-top: 56px; }
+.part-section .part-header { text-align: center; margin: 0 0 32px; }
+.part-section .part-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--color-gold-dark);
+  margin-bottom: 10px;
+  display: block;
+}
+.part-section .part-title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 3.5vw, 42px);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+/* Inline content inside parts — match site article-content defaults */
+.part-section h1 { display: none; } /* older template H1 — hidden in favor of part-title */
+.part-section h2 {
+  font-family: var(--font-display);
+  font-size: 26px; font-weight: 600;
+  margin: 40px 0 16px;
+  color: var(--color-ink);
+  line-height: 1.3;
+}
+.part-section h3 {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 600;
+  margin: 30px 0 12px;
+  color: var(--color-ink);
+}
+.part-section h4 {
+  font-family: var(--font-mono);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-gold-dark);
+  margin: 22px 0 8px;
+}
+.part-section p { font-size: 17px; line-height: 1.8; margin: 0 0 18px; }
+.part-section ul, .part-section ol { padding-left: 26px; margin: 0 0 20px; }
+.part-section li { font-size: 17px; line-height: 1.75; margin-bottom: 8px; }
+.part-section blockquote {
+  border-left: 2px solid var(--color-gold);
+  padding: 6px 0 6px 24px;
+  margin: 28px 0;
+  font-style: italic;
+  color: var(--color-muted);
+  font-size: 18px; line-height: 1.7;
+}
+.part-section pre {
+  background: #0f1e2e;
+  color: #e8e0d6;
+  padding: 20px 24px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 18px 0 24px;
+  font-family: var(--font-mono);
+  font-size: 13.5px; line-height: 1.65;
+  border: none;
+}
+.part-section pre code {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  background: transparent; color: inherit; padding: 0; border: none;
+  white-space: pre;
+}
+.part-section code {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  padding: 2px 7px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 3px;
+}
+.part-section table {
+  width: 100%; border-collapse: collapse;
+  margin: 20px 0 28px; font-size: 14.5px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 4px; overflow: hidden;
+}
+.part-section thead th {
+  background: var(--color-ink); color: var(--color-cream);
+  text-align: left; padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.1em;
+  text-transform: uppercase; font-weight: 500;
+}
+.part-section tbody td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--color-border-light);
+  vertical-align: top;
+}
+.part-section tbody tr:nth-child(even) td { background: var(--color-cream); }
+.part-section hr { margin: 36px 0; border: none; border-top: 1px solid var(--color-border-light); }
+.part-section a { color: var(--color-gold-dark); text-decoration: none; border-bottom: 1px solid var(--color-gold-light); transition: border-color .2s; }
+.part-section a:hover { border-bottom-color: var(--color-gold-dark); }
+.back-to-top {
+  text-align: right; margin: 30px 0 0;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+}
+.back-to-top a { color: var(--color-light-muted); border-bottom: 1px dashed var(--color-border); }
+.back-to-top a:hover { color: var(--color-gold-dark); border-bottom-color: var(--color-gold-dark); }
+
+/* Drop the old inline h2 "Contents" / "Table of Contents" if it leaks from source */
+.part-section h2[id$="contents"], .part-section h2[id$="table-of-contents"] { display: none; }
+
+@media (max-width: 700px) {
+  .section-nav { padding: 10px 16px; margin-bottom: 28px; }
+  .section-chip { padding: 7px 12px; font-size: 13px; }
+  .section-chip .chip-num { font-size: 9px; letter-spacing: 0.14em; }
+  .part-section .part-title { font-size: 28px; }
+  .part-section table { font-size: 13px; }
 }
 </style>
 </head>
-<body>
-<div class="shell">
+<body id="top">
+<main>
 
-<header class="page-header">
-  <div class="eyebrow">Senior / L5 Ads Data Engineering · Interview Prep</div>
-  <h1>Ads Data Engineering Interview Prep — A Senior-Level Deep Dive</h1>
-  <p class="subhead">The handbook for the rounds that actually decide an ads DE loop: auctions, attribution, identity &amp; consent, ads-specific SQL, platform-level stacks, measurement &amp; visualization, plus ten full mock interview scenarios and the growth + behavioral framework.</p>
-  <div class="meta-strip">
-    <span>Senior / L5 Reference</span>
-    <span>6 Parts · 10 Mock Scenarios</span>
-    <span>April 2026</span>
-  </div>
+<div class="page-frame"></div>
+<div class="reading-progress" id="readingProgress"></div>
+<div class="top-bar"><span>Est. 2026</span><span>Philosophy · Technology · Wisdom</span><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a></div>
+<header class="masthead"><h2><a href="../index.html">Paddy<span>Speaks</span></a></h2><p class="masthead-tagline">Where ancient wisdom meets the architecture of tomorrow</p>
+<div class="masthead-rule"></div>
 </header>
-
-<nav class="breadcrumb">
-  <a href="../index.html">← PaddySpeaks</a>
-  <span class="sep">·</span>
-  <a href="#contents">Contents</a>
-  <span class="sep">·</span>
-  <a href="#ads-part-01">Mock Scenarios →</a>
+<nav class="nav-bar">
+  <a href="../index.html">Journal</a>
+  <a href="../index.html#philosophy">Philosophy</a>
+  <a href="../index.html#technology">Technology</a>
+  <a href="../index.html#ai">AI &amp; Future</a>
+  <a href="../index.html#archive">Archive</a>
+  <a href="../index.html#sacred-texts">Sacred Texts</a>
+  <a href="../about.html">About</a>
 </nav>
 
-<main class="content">
+<div class="article-page longform">
+<a class="back-to-home" href="../index.html">← All Articles</a>
+
+<div class="article-hero">
+  <span class="tag">technology · interview prep</span>
+  <h1>Ads Data Engineering Interview Prep</h1>
+  <p class="subtitle">A senior / L5 handbook for the rounds that actually decide an ads DE loop — auctions, attribution, identity &amp; consent, ads-specific SQL, platform-level stacks, measurement &amp; visualization, plus ten full mock interview scenarios.</p>
+  <div class="article-meta">
+    <span>By Paddy</span><span class="dot"></span>
+    <span>April 22, 2026</span><span class="dot"></span>
+    <span>75 min read</span>
+  </div>
+</div>
+
 __TOC__
+
+<div class="article-content">
 __SECTIONS__
-</main>
-
-<nav class="breadcrumb">
-  <a href="../index.html">← PaddySpeaks</a>
-  <span class="sep">·</span>
-  <a href="#contents">↑ Contents</a>
-</nav>
-
-<footer class="page-footer">
-  <div>Ads Data Engineering Interview Prep · © Paddy Iyer</div>
-  <div><a href="../index.html">PaddySpeaks</a> · <a href="../about.html">About</a></div>
-</footer>
+</div>
 
 </div>
+
+<footer class="site-footer">
+<div class="footer-ornament">❧</div>
+<div class="footer-links"><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a><a href="../about.html">About</a><a href="mailto:paddy@paddyspeaks.com">Contact</a></div>
+<p class="footer-copy">© 2026 PaddySpeaks. All rights reserved.</p></footer>
+
+<script>
+// Reading progress bar
+window.addEventListener('scroll',function(){var b=document.getElementById('readingProgress');if(b)b.style.width=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100+'%';});
+
+// Scroll-spy: highlight the active chip
+(function(){
+  var chips=[].slice.call(document.querySelectorAll('.section-chip'));
+  var sections=chips.map(function(c){return document.getElementById(c.getAttribute('data-target'));}).filter(Boolean);
+  if(!sections.length) return;
+  var io=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        chips.forEach(function(c){c.classList.remove('active');});
+        var ch=document.querySelector('.section-chip[data-target="'+e.target.id+'"]');
+        if(ch){ch.classList.add('active'); ch.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
+      }
+    });
+  },{rootMargin:'-40% 0px -55% 0px', threshold:0});
+  sections.forEach(function(s){io.observe(s);});
+})();
+</script>
+<script defer src="/lib/ps.js"></script>
+</main>
 </body>
 </html>
 '''
