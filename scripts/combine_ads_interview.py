@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import viz_transform
+import css_minify
 import ads_dashboards
 import custom_diagrams
 
@@ -244,7 +245,7 @@ HEAD = '''<!DOCTYPE html>
 .section-chip.active .chip-num { color: var(--color-gold-light); }
 
 /* Part sections — clean, site-native dividers */
-.part-section { scroll-margin-top: 120px; margin-top: 80px; padding-top: 8px; }
+.part-section { scroll-margin-top: 120px; margin-top: 80px; padding-top: 8px; content-visibility: auto; contain-intrinsic-size: 0 1800px; }
 .part-section:first-of-type { margin-top: 24px; }
 .part-section + .part-section { border-top: 1px solid var(--color-border-light); padding-top: 56px; }
 .part-section .part-header { text-align: center; margin: 0 0 32px; }
@@ -1860,6 +1861,7 @@ def main() -> None:
     sections = build_sections()
     out = HEAD.replace("__TOC__", toc).replace("__SECTIONS__", sections)
     out = ads_dashboards.inject(out)
+    out = css_minify.minify_inline_style_blocks(out)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(out, encoding="utf-8")
     print(f"wrote {OUT} ({len(out):,} bytes)")

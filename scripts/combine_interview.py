@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import viz_transform
+import css_minify
 
 ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "interview" / "html"
@@ -234,7 +235,7 @@ HEAD = '''<!DOCTYPE html>
 .section-chip.active { background: var(--color-ink); color: var(--color-cream); border-color: var(--color-ink); }
 .section-chip.active .chip-num { color: var(--color-gold-light); }
 
-.part-section { scroll-margin-top: 120px; margin-top: 80px; padding-top: 8px; }
+.part-section { scroll-margin-top: 120px; margin-top: 80px; padding-top: 8px; content-visibility: auto; contain-intrinsic-size: 0 1800px; }
 .part-section:first-of-type { margin-top: 24px; }
 .part-section + .part-section { border-top: 1px solid var(--color-border-light); padding-top: 56px; }
 .part-section .part-header { text-align: center; margin: 0 0 32px; }
@@ -972,6 +973,7 @@ def main() -> None:
     toc = build_master_toc()
     sections = build_sections()
     out = HEAD.replace("__TOC__", toc).replace("__SECTIONS__", sections)
+    out = css_minify.minify_inline_style_blocks(out)
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(out, encoding="utf-8")
     print(f"wrote {OUT} ({len(out):,} bytes)")
