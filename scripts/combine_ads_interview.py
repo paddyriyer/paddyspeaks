@@ -1707,7 +1707,7 @@ HEAD = '''<!DOCTYPE html>
   cursor: default;
   box-shadow: 0 1px 2px rgba(0,0,0,.08);
 }
-.hf-bar:hover { transform: scale(1.01); }
+/* hover scale removed to avoid composite-layer work */
 .hf-text { display: flex; gap: 12px; padding: 0 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13.5px; }
 .hf-name { font-weight: 500; opacity: 0.95; }
 .hf-count { font-family: var(--font-mono); font-size: 12px; opacity: 0.85; }
@@ -1746,7 +1746,7 @@ HEAD = '''<!DOCTYPE html>
   padding: 0;
   line-height: 1;
 }
-.qn-btn:hover { background: var(--color-gold-dark); transform: translateY(-2px); }
+.qn-btn:hover { background: var(--color-gold-dark); transform: translateY(-2px); will-change: transform; }
 .qn-btn:active { transform: scale(0.95); }
 .qn-label {
   position: absolute;
@@ -1820,7 +1820,7 @@ __SECTIONS__
 
 </div>
 
-<div class="quick-nav" aria-hidden="true">
+<div class="quick-nav" role="navigation" aria-label="Page navigation">
   <button class="qn-btn qn-up" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Jump to top"><span class="qn-label">Top</span>↑</button>
   <button class="qn-btn qn-down" onclick="window.scrollTo({top:document.documentElement.scrollHeight,behavior:'smooth'})" aria-label="Jump to bottom"><span class="qn-label">Bottom</span>↓</button>
 </div>
