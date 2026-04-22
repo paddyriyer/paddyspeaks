@@ -4500,6 +4500,199 @@ CREATE INDEX idx_lineage_src ON lineage_edges (src_table, src_column);
 </table>
 <p>Print it. Fill it in by hand. You'll remember the stories better that way.</p>
 <hr />
+<hr />
+<h2 id="ap02-how-ads-get-there">How an Ad Actually Gets on Your Screen — Ranking, Signals, and Negative Feedback</h2>
+
+<p>Every ads DE interview loop eventually asks some version of "how does the system decide which ad to show." Candidates who give a surface answer ("we rank them by bid") reveal they have not shipped this stack. What follows is the full pipeline, the signals that feed it, and the specific feedback loops that act on user reactions like saves, bookmarks, ad dismissals, and reports. This is the algorithm readers most commonly ask about after seeing an ad next to a video they just saved.</p>
+
+<h3>The candidate funnel — from billions to one</h3>
+
+<p>A single impression is the survivor of a four-stage filter. A candidate who cannot walk through this funnel at interview speed is scoring junior.</p>
+
+<ol>
+<li><strong>Eligible inventory</strong> (billions). Every ad in the system whose campaign is live, targeting matches at a coarse level, budget is not exhausted, frequency cap is not breached. This filter is a key/value lookup keyed on (user_segment, surface, geo) — sub-millisecond.</li>
+<li><strong>Candidate set</strong> (a few thousand). A retrieval model (approximate nearest neighbor over user embedding × ad embedding, plus rule-based matches) narrows to roughly 1,000–5,000 candidates per bid request. This is where saved/bookmarked videos and watch history first matter — they shape the user embedding.</li>
+<li><strong>Ranking set</strong> (dozens to hundreds). A fast scorer — logistic regression on hand-crafted features, or a shallow neural model — scores each candidate on estimated CTR, estimated CVR, and expected value. Latency budget here is tight, maybe 30–50 ms for the entire ranking stage.</li>
+<li><strong>Auction and clearing</strong> (one). Second-price or generalized second-price auction on the top N ranked candidates, adjusted for quality score, negative-feedback penalty, and pacing. The winner is served.</li>
+</ol>
+
+<p>In interviews, the question "why was <em>this</em> ad shown?" has four answers, one per stage. Strong candidates name which stage was decisive for a given scenario.</p>
+
+<h3>Signals that feed the score</h3>
+
+<p>The ranking model consumes features at four levels. Knowing the levels is the difference between "we use ML" and "I have actually trained these models."</p>
+
+<table>
+<thead><tr><th>Level</th><th>Example features</th><th>Where it's computed</th></tr></thead>
+<tbody>
+<tr>
+<td><strong>User</strong></td>
+<td>watch history (past 30d), saves/bookmarks (past 90d), search queries, dwell time distribution, past conversion verticals, declared interests, past negative-feedback rate</td>
+<td>Offline user embedding refreshed daily; online delta from last-hour events merged at ranking time</td>
+</tr>
+<tr>
+<td><strong>Creator / advertiser</strong></td>
+<td>advertiser's historical CTR by audience segment, past creative quality scores, policy violation rate, account tier</td>
+<td>Daily rollup; short-window online features for reputation changes</td>
+</tr>
+<tr>
+<td><strong>Ad</strong></td>
+<td>creative age, past CTR by surface, estimated pCVR, creative fatigue score, predicted negative-feedback rate</td>
+<td>Updated on every impression/conversion; streaming feature store</td>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td>time of day, day of week, session position (first ad vs tenth), prior ad in session, device type, connection quality, content surrounding the ad (e.g., the video the user just saved)</td>
+<td>Request-time — computed inside the 50 ms budget</td>
+</tr>
+</tbody>
+</table>
+
+<h3>The ranking formula at the auction gate</h3>
+
+<p>The scored ad is not just "highest bid wins." The formula every senior candidate should be able to write on a whiteboard:</p>
+
+<pre><code class="python"># Expected revenue the platform earns from showing this ad.
+# Every senior candidate should sketch this unprompted.
+expected_value = (
+    bid                          # what the advertiser will pay per action
+    * p_click                    # model-predicted click probability
+    * p_conversion_given_click   # model-predicted conversion given a click
+    * quality_score              # creative quality, relevance to user
+    * (1 - negative_feedback_adjustment)  # dampens if user-cohort dislikes it
+    * pacing_multiplier          # 1.0 fresh, 0.8 when budget near-depleted
+)
+# The ad with the highest expected_value wins; it pays the second-price bid.</code></pre>
+
+<p>The two parts candidates almost always miss: <em>quality_score</em> and <em>negative_feedback_adjustment</em>. These exist because without them, the auction would be a pure bid race, which produces low-quality experiences, user churn, and long-term revenue loss. The formula is tuned to penalize the short-term high-bidder if they degrade the surface for everyone.</p>
+
+<h3>Negative feedback — what happens when the user reacts</h3>
+
+<p>Every mature ads platform exposes a "this ad is not for me" action. The surfaces vary — "Hide this ad," "Not interested," "Report this ad," long-press menus, the three-dot overflow — but the engineering shape is the same: a negative-feedback event stream consumed by both the real-time ranking path and the offline training pipeline.</p>
+
+<pre><code class="sql">-- Schema for negative-signal events. One row per explicit user action.
+CREATE TABLE fact_ad_negative_feedback (
+  event_ts           TIMESTAMP,
+  user_id            BIGINT,
+  ad_id              BIGINT,
+  advertiser_id      BIGINT,
+  creative_id        BIGINT,
+  signal_type        STRING,     -- 'hide', 'not_interested', 'report',
+                                 -- 'irrelevant', 'already_purchased',
+                                 -- 'inappropriate', 'too_frequent'
+  signal_strength    DECIMAL,    -- 1.0 for hide; 3.0 for report; 5.0 for
+                                 -- 'inappropriate' (policy escalation)
+  context_surface    STRING,     -- main_feed, story, in_stream_video
+  content_context_id BIGINT      -- the video/post the ad appeared next to
+)
+PARTITIONED BY (DATE(event_ts));</code></pre>
+
+<p>The signal_strength column is where the engineering judgment lives. A <em>hide</em> is a mild penalty. A <em>report</em> is a strong penalty that also routes the creative to a policy-review queue. An <em>already purchased</em> is a light nudge that specifically suppresses retargeting for 90 days. These numbers are not arbitrary; they are tuned by running holdout experiments that measure the downstream CTR impact of each signal type.</p>
+
+<h3>How the signal reaches the ranker — two paths</h3>
+
+<pre><code class="sql">-- Real-time path: user-level negative feedback posterior, refreshed every
+-- 5 minutes. This is what the ranker reads to suppress this advertiser's
+-- ads to this user for the next N hours.
+CREATE TABLE rt_feature_user_negative (
+  user_id           BIGINT,
+  advertiser_id     BIGINT,
+  recent_neg_count  INT,        -- signals in the past 24 hours
+  recent_neg_weight DECIMAL,    -- sum of signal_strength in past 24h
+  suppress_until    TIMESTAMP,  -- don't show this advertiser until this time
+  last_updated      TIMESTAMP,
+  PRIMARY KEY (user_id, advertiser_id)
+);
+
+-- Rollup job — runs every 5 minutes via streaming.
+INSERT INTO rt_feature_user_negative
+SELECT
+  user_id,
+  advertiser_id,
+  COUNT(*)                                 AS recent_neg_count,
+  SUM(signal_strength)                     AS recent_neg_weight,
+  CASE
+    WHEN SUM(signal_strength) &gt;= 5.0       -- report or repeated hide
+      THEN CURRENT_TIMESTAMP + INTERVAL '90 days'
+    WHEN SUM(signal_strength) &gt;= 3.0       -- moderate dislike
+      THEN CURRENT_TIMESTAMP + INTERVAL '30 days'
+    WHEN SUM(signal_strength) &gt;= 1.0       -- single hide
+      THEN CURRENT_TIMESTAMP + INTERVAL '7 days'
+  END                                      AS suppress_until,
+  CURRENT_TIMESTAMP                        AS last_updated
+FROM fact_ad_negative_feedback
+WHERE event_ts &gt;= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+GROUP BY user_id, advertiser_id;</code></pre>
+
+<pre><code class="sql">-- Training path: negative feedback is also a label for the ML model.
+-- Model learns "when this (user, ad, context) tuple predicts a hide,
+-- lower the predicted CTR." Feature engineering is the DE's job.
+CREATE TABLE training_features_daily AS
+SELECT
+  u.user_id,
+  a.ad_id,
+  f.surface,
+  -- Positive signals
+  u.save_count_30d,
+  u.bookmark_count_90d,
+  u.watch_completion_rate_30d,
+  -- Negative feedback features
+  u.hide_count_30d,
+  u.report_count_90d,
+  u.dismissal_rate_30d,                  -- % of ads dismissed via X-button
+  -- Interaction features
+  u.negative_feedback_rate_for_vertical_30d,
+  a.hide_rate_for_user_segment_30d,
+  -- Label
+  f.did_click,
+  f.did_convert,
+  f.did_neg_feedback                     -- the target we want to predict
+FROM fact_impression f
+JOIN feature_user_daily u USING (user_id, dt)
+JOIN feature_ad_daily a   USING (ad_id, dt)
+WHERE f.dt BETWEEN :start AND :end;</code></pre>
+
+<h3>The positive side — saves and bookmarks as strong signals</h3>
+
+<p>The user's saves and bookmarks are among the strongest positive signals in the entire system. The reasoning: a like takes a moment and is often reflexive; a save is deliberate and implies intent. These features are weighted accordingly.</p>
+
+<pre><code class="sql">-- User embedding refresh (daily). The feature set most teams get wrong
+-- by under-weighting deliberate actions relative to reflexive ones.
+CREATE TABLE feature_user_daily AS
+SELECT
+  user_id,
+  -- Reflexive signals (weight: 1x)
+  COUNT(DISTINCT CASE WHEN action = 'like'       THEN item_id END) AS likes_30d,
+  COUNT(DISTINCT CASE WHEN action = 'view'       THEN item_id END) AS views_30d,
+  -- Deliberate signals (weight: 3-5x in downstream model)
+  COUNT(DISTINCT CASE WHEN action = 'save'       THEN item_id END) AS saves_30d,
+  COUNT(DISTINCT CASE WHEN action = 'bookmark'   THEN item_id END) AS bookmarks_30d,
+  COUNT(DISTINCT CASE WHEN action = 'share'      THEN item_id END) AS shares_30d,
+  -- Topic signals: derived from content embeddings of saved items
+  topic_vector_saved_items_30d AS topic_affinity_vector,
+  -- Explicit negative signals (weight: 10x — rare but definitive)
+  COUNT(DISTINCT CASE WHEN action = 'hide'       THEN ad_id END) * 10.0 AS hide_weight_30d,
+  COUNT(DISTINCT CASE WHEN action = 'report'     THEN ad_id END) * 25.0 AS report_weight_30d
+FROM fact_user_action
+WHERE dt BETWEEN CURRENT_DATE - 30 AND CURRENT_DATE
+GROUP BY user_id;</code></pre>
+
+<p>The result: if you saved three videos about woodworking tools yesterday, your user embedding moves measurably toward the "woodworking" cluster. The retrieval model pulls more woodworking-adjacent ads into the candidate set today. The ranking model weights woodworking-adjacent creatives higher in your feed. No magic — just a feature pipeline with the right weights on the right actions.</p>
+
+<h3>The landmines specific to this pipeline</h3>
+
+<ul>
+<li><strong>Feedback loop death spiral.</strong> A creative that is penalized for negative feedback is shown less. Shown less means fewer impressions to learn from. Fewer impressions means the model's estimate of its true negative-feedback rate becomes stale and noisy. The cure: Bayesian smoothing toward a creative-class prior, plus mandatory exploration budget (see contextual bandit earlier).</li>
+<li><strong>Popular-item bias.</strong> The embedding of a user who saved three cat videos is dominated by "cat video" and suppresses everything else. Fresh interests get no room. The cure: time-decayed embeddings that weight the most recent 7 days more heavily than the past 30.</li>
+<li><strong>Reports as cold-start killers.</strong> A new creative that gets three reports in its first 100 impressions is suppressed system-wide, even though those three reports may have come from a statistically unrepresentative audience. The cure: a confidence interval on the negative-feedback rate; suppression only triggers when the lower bound of the CI exceeds a threshold, which requires more impressions.</li>
+<li><strong>Negative feedback as a griefing vector.</strong> A small coordinated cohort can report an advertiser's creative to suppress it. The cure: down-weight repeat reporters, cluster report sources, require multiple independent-cluster reports before a policy flag fires.</li>
+<li><strong>Save/bookmark leak.</strong> If the user's saves are visible to advertisers via a direct audience, the advertiser can build a retargeting list that skips the platform's inferred intent. The platform loses the aggregation-based revenue model. Saves are signals; they are not exposed to advertisers.</li>
+</ul>
+
+<p>The interview test around this entire topic: <em>"Describe what happens from the moment a user taps 'save' on a video to the moment their next ad-impression's candidate set reflects that save."</em> A senior answer walks through the event capture, the 5-minute streaming rollup into the online feature store, the retrieval-model re-query at the next bid request, and the expected latency at each hop. Candidates who say "the model learns" without naming the plumbing are mid-level. The plumbing is the ads DE job.</p>
+
+<hr />
+
 <h2 id="ap02-closing-note">Closing note</h2>
 <p>The scenarios in this part are the ones that, in my experience, most clearly sort senior candidates from mid-level. Part 3 returns to pure SQL — the DAU pipeline, frequency capping, ROAS, holdout-based incrementality, delivery health. Read it next.</p>
 <hr />
