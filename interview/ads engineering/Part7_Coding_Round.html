@@ -395,3 +395,444 @@ ORDER BY lift_pct DESC;</code></pre>
 <li>"Lift is +2% but CI half-width is 3%." → The result is not statistically significant. You cannot claim lift. Senior candidates name this explicitly rather than reporting the +2% as a win.</li>
 </ul>
 
+<h3>SQL 5 — Triple-key dedupe with a suspected-dupe sidecar</h3>
+
+<h4>Prompt</h4>
+<p>The ingest pipeline sometimes receives the same event twice because of SDK retries. <code>event_id</code> is not a reliable dedupe key (different SDK versions generate it differently). Build a silver table that keeps the first copy per logical event, and a sidecar table that preserves suspected duplicates for audit.</p>
+
+<h4>Schema</h4>
+<pre><code class="sql">bronze.impression(event_id BIGINT, user_id BIGINT, event_name STRING, event_ts TIMESTAMP, ingest_ts TIMESTAMP, sdk_version STRING, dt DATE)</code></pre>
+
+<h4>The trap</h4>
+<p>Using <code>event_id</code> alone misses retries with regenerated IDs. Using <code>(user_id, event_ts)</code> without rounding misses retries milliseconds apart that are functionally the same event.</p>
+
+<h4>Reference solution</h4>
+<pre><code class="sql">CREATE OR REPLACE TABLE silver.fact_impression AS
+WITH keyed AS (
+  SELECT
+    *,
+    CONCAT_WS('|',
+      CAST(user_id AS STRING),
+      event_name,
+      CAST(DATE_TRUNC('second', event_ts) AS STRING)
+    ) AS dedupe_key
+  FROM bronze.impression
+  WHERE dt = :yesterday
+)
+SELECT * FROM keyed
+QUALIFY ROW_NUMBER() OVER (PARTITION BY dedupe_key ORDER BY ingest_ts ASC) = 1;
+
+CREATE OR REPLACE TABLE ops.suspected_duplicates AS
+SELECT * FROM (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY
+      CONCAT_WS('|', CAST(user_id AS STRING), event_name,
+                CAST(DATE_TRUNC('second', event_ts) AS STRING))
+      ORDER BY ingest_ts ASC) AS rn
+  FROM bronze.impression WHERE dt = :yesterday
+) WHERE rn &gt; 1;</code></pre>
+
+<h4>Follow-up</h4>
+<ul>
+<li>"How do you alert when one SDK version suddenly drops 10× more than others?" → a per-sdk_version drop-rate monitor from the sidecar table.</li>
+</ul>
+
+<h3>SQL 6 — Cohort ROAS matrix (acquisition week × revenue week)</h3>
+
+<h4>Prompt</h4>
+<p>For users acquired each week in the past 12 weeks, report their cumulative revenue at week 0, week 1, week 2, week 4, week 8 after acquisition. Each row is a cohort week; columns are week-offset revenue per user.</p>
+
+<h4>Schema</h4>
+<pre><code class="sql">acquisitions(user_id BIGINT, acquired_ts TIMESTAMP, cost_usd DECIMAL)
+revenue(user_id BIGINT, revenue_ts TIMESTAMP, revenue_usd DECIMAL)</code></pre>
+
+<h4>The trap</h4>
+<p>Computing "week 1 revenue" as a separate WHERE-filtered query and joining four times — expensive and error-prone. The clean pattern uses conditional SUMs over a single join.</p>
+
+<h4>Reference solution</h4>
+<pre><code class="sql">WITH cohort AS (
+  SELECT
+    user_id,
+    DATE_TRUNC('week', acquired_ts) AS cohort_week,
+    cost_usd
+  FROM acquisitions
+  WHERE acquired_ts &gt;= CURRENT_DATE - INTERVAL '12 weeks'
+),
+joined AS (
+  SELECT
+    c.cohort_week,
+    c.user_id,
+    c.cost_usd,
+    r.revenue_usd,
+    DATEDIFF('week', c.cohort_week, DATE_TRUNC('week', r.revenue_ts)) AS week_offset
+  FROM cohort c
+  LEFT JOIN revenue r USING (user_id)
+)
+SELECT
+  cohort_week,
+  COUNT(DISTINCT user_id)                                                       AS n_users,
+  SUM(DISTINCT cost_usd)                                                        AS cohort_spend,
+  SUM(CASE WHEN week_offset &lt;= 0 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w0,
+  SUM(CASE WHEN week_offset &lt;= 1 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w1,
+  SUM(CASE WHEN week_offset &lt;= 2 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w2,
+  SUM(CASE WHEN week_offset &lt;= 4 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w4,
+  SUM(CASE WHEN week_offset &lt;= 8 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w8,
+  SUM(CASE WHEN week_offset &lt;= 8 THEN revenue_usd ELSE 0 END) / NULLIF(SUM(DISTINCT cost_usd), 0) AS roas_w8
+FROM joined
+GROUP BY cohort_week
+ORDER BY cohort_week DESC;</code></pre>
+
+<h3>SQL 7 — Pacing: detect over-delivery before the end of day</h3>
+
+<h4>Prompt</h4>
+<p>A campaign's daily budget is spread evenly across 24 hours. For each campaign, identify any point in today's calendar so far where cumulative spend is more than 110% of the linear-pacing target. Output the first breach timestamp per campaign and how far over it ran.</p>
+
+<h4>Schema</h4>
+<pre><code class="sql">impressions(campaign_id BIGINT, imp_ts TIMESTAMP, spend_cents BIGINT)
+campaigns(campaign_id BIGINT, daily_budget_usd DECIMAL)</code></pre>
+
+<h4>Reference solution</h4>
+<pre><code class="sql">WITH minute_spend AS (
+  SELECT
+    campaign_id,
+    DATE_TRUNC('minute', imp_ts)              AS t,
+    SUM(spend_cents) / 100.0                  AS spend_usd
+  FROM impressions
+  WHERE DATE(imp_ts) = CURRENT_DATE
+  GROUP BY campaign_id, DATE_TRUNC('minute', imp_ts)
+),
+running AS (
+  SELECT
+    campaign_id,
+    t,
+    SUM(spend_usd) OVER (PARTITION BY campaign_id ORDER BY t) AS cum_spend,
+    (EXTRACT(EPOCH FROM (t - DATE_TRUNC('day', t))) / 86400.0) AS day_fraction
+  FROM minute_spend
+),
+breaches AS (
+  SELECT
+    r.campaign_id,
+    r.t,
+    r.cum_spend,
+    r.day_fraction * c.daily_budget_usd       AS linear_target,
+    r.cum_spend / NULLIF(r.day_fraction * c.daily_budget_usd, 0) AS pace_ratio
+  FROM running r
+  JOIN campaigns c USING (campaign_id)
+  WHERE r.cum_spend &gt; 1.10 * r.day_fraction * c.daily_budget_usd
+)
+SELECT
+  campaign_id,
+  MIN(t)                                 AS first_breach_ts,
+  MAX(pace_ratio)                        AS peak_pace_ratio,
+  MAX(cum_spend - linear_target)         AS peak_overshoot_usd
+FROM breaches
+GROUP BY campaign_id
+ORDER BY peak_pace_ratio DESC;</code></pre>
+
+<h3>SQL 8 — Creative fatigue: CTR decay by days since launch</h3>
+
+<h4>Prompt</h4>
+<p>For each creative, compute its CTR on each day since launch. Flag any creative whose CTR on day N is below 60% of its own CTR on day 1, where day 1 is the creative's <em>own</em> first day of delivery.</p>
+
+<h4>Schema</h4>
+<pre><code class="sql">impressions(creative_id BIGINT, imp_ts TIMESTAMP, did_click BOOLEAN)</code></pre>
+
+<h4>The trap</h4>
+<p>Using a calendar day-of-month instead of <em>days since the creative itself launched</em>. Creatives launched on different dates can't be compared on absolute dates.</p>
+
+<h4>Reference solution</h4>
+<pre><code class="sql">WITH daily AS (
+  SELECT
+    creative_id,
+    DATE(imp_ts)                              AS dt,
+    COUNT(*)                                  AS imps,
+    SUM(CASE WHEN did_click THEN 1 ELSE 0 END) AS clicks,
+    SUM(CASE WHEN did_click THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS ctr
+  FROM impressions
+  GROUP BY creative_id, DATE(imp_ts)
+),
+indexed AS (
+  SELECT
+    d.*,
+    MIN(dt) OVER (PARTITION BY creative_id) AS launch_dt,
+    DATEDIFF('day', MIN(dt) OVER (PARTITION BY creative_id), dt) + 1 AS day_n
+  FROM daily d
+),
+day1_ctr AS (
+  SELECT creative_id, ctr AS ctr_day1
+  FROM indexed WHERE day_n = 1
+)
+SELECT
+  i.creative_id,
+  i.dt,
+  i.day_n,
+  i.ctr,
+  d1.ctr_day1,
+  i.ctr / NULLIF(d1.ctr_day1, 0) AS relative_ctr,
+  CASE WHEN i.ctr &lt; 0.60 * d1.ctr_day1 THEN TRUE ELSE FALSE END AS fatigued
+FROM indexed i
+JOIN day1_ctr d1 USING (creative_id)
+WHERE i.day_n &gt; 7                   -- only flag after the first week
+  AND i.imps &gt;= 1000                -- only flag once there's volume
+ORDER BY i.creative_id, i.dt;</code></pre>
+
+<hr>
+
+<h2 id="python-problems">2. Python — Six Coding Problems</h2>
+
+<h3>Python 1 — Sessionize an event stream with a timeout</h3>
+
+<h4>Prompt</h4>
+<p>Given a list of events <code>[(user_id, ts, event_name)]</code> sorted by user_id then ts, partition each user's events into sessions where any gap &gt; 30 minutes starts a new session. Return a list of <code>(user_id, session_id, start_ts, end_ts, event_count)</code>. Solve in O(N).</p>
+
+<pre><code class="python">from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import List, Tuple
+
+@dataclass
+class Session:
+    user_id: int
+    session_id: str
+    start_ts: datetime
+    end_ts: datetime
+    event_count: int
+
+GAP = timedelta(minutes=30)
+
+def sessionize(events: List[Tuple[int, datetime, str]]) -> List[Session]:
+    out: List[Session] = []
+    if not events:
+        return out
+    cur_user = None
+    cur_start = cur_end = None
+    cur_count = 0
+
+    def flush():
+        if cur_user is not None and cur_count &gt; 0:
+            sid = f"{cur_user}_{int(cur_start.timestamp())}"
+            out.append(Session(cur_user, sid, cur_start, cur_end, cur_count))
+
+    for user_id, ts, _ in events:
+        if user_id != cur_user or (cur_end is not None and ts - cur_end &gt; GAP):
+            flush()
+            cur_user, cur_start, cur_end, cur_count = user_id, ts, ts, 1
+        else:
+            cur_end = ts
+            cur_count += 1
+    flush()
+    return out</code></pre>
+
+<h4>The trap</h4>
+<p>Forgetting that user boundaries also start a new session — a candidate who only checks the gap will merge two users' events.</p>
+
+<h3>Python 2 — Token-bucket rate limiter for pixel firing</h3>
+
+<h4>Prompt</h4>
+<p>Implement a rate limiter that allows at most <code>N</code> pixel events per user per second, with a burst capacity of <code>B</code>. It should be thread-safe and O(1) per call.</p>
+
+<pre><code class="python">import time
+import threading
+from collections import defaultdict
+
+class TokenBucket:
+    def __init__(self, rate_per_sec: float, burst: int):
+        self.rate = rate_per_sec
+        self.burst = burst
+        self._state = defaultdict(lambda: (burst, time.monotonic()))
+        self._lock = threading.Lock()
+
+    def allow(self, user_id: int) -> bool:
+        with self._lock:
+            tokens, last = self._state[user_id]
+            now = time.monotonic()
+            # Refill based on elapsed time
+            tokens = min(self.burst, tokens + (now - last) * self.rate)
+            if tokens &gt;= 1.0:
+                self._state[user_id] = (tokens - 1.0, now)
+                return True
+            self._state[user_id] = (tokens, now)
+            return False</code></pre>
+
+<h4>The trap</h4>
+<p>Using wall-clock (<code>time.time()</code>) instead of monotonic — NTP adjustments can move the clock backwards and make the limiter too generous or too strict. Forgetting the lock — race conditions between read and write.</p>
+
+<h3>Python 3 — Bloom filter for event dedupe at ingest</h3>
+
+<h4>Prompt</h4>
+<p>Implement a Bloom filter to dedupe event_ids at ingest time. Capacity 10M items, false-positive rate ≤ 1%. Provide <code>add(id)</code> and <code>maybe_contains(id)</code> methods.</p>
+
+<pre><code class="python">import math
+import hashlib
+import array
+
+class BloomFilter:
+    def __init__(self, capacity: int, fp_rate: float = 0.01):
+        # m = -n ln p / (ln 2)^2  ; k = (m/n) ln 2
+        self.m = int(-capacity * math.log(fp_rate) / (math.log(2) ** 2))
+        self.k = max(1, int((self.m / capacity) * math.log(2)))
+        # Bit array: one bit per slot, packed 8 per byte
+        self.bits = array.array('B', [0] * ((self.m + 7) // 8))
+
+    def _positions(self, key: bytes):
+        h1 = int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), 'big')
+        h2 = int.from_bytes(hashlib.sha256(key).digest()[:8], 'big')
+        for i in range(self.k):
+            yield (h1 + i * h2) % self.m
+
+    def add(self, key) -> None:
+        b = str(key).encode()
+        for p in self._positions(b):
+            self.bits[p &gt;&gt; 3] |= (1 &lt;&lt; (p &amp; 7))
+
+    def maybe_contains(self, key) -> bool:
+        b = str(key).encode()
+        return all(self.bits[p &gt;&gt; 3] &amp; (1 &lt;&lt; (p &amp; 7)) for p in self._positions(b))</code></pre>
+
+<h4>The trap</h4>
+<p>Using Python <code>set()</code> — works in memory but blows through RAM at 10M items (~700 MB). The bloom filter is roughly 12 MB for the same specs. Interviewers ask because they want to see you pick the right structure for scale.</p>
+
+<h3>Python 4 — Attribution resolver (streaming)</h3>
+
+<h4>Prompt</h4>
+<p>Maintain a per-user rolling buffer of the last 7 days of touches in memory (assume you'll scale this out later). When a conversion event arrives, return the most recent qualifying touch using the same last-click-with-view-fallback logic from SQL 1.</p>
+
+<pre><code class="python">from collections import defaultdict, deque
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Optional
+
+@dataclass
+class Touch:
+    touch_id: int
+    campaign_id: int
+    ts: datetime
+    touch_type: str  # 'click' or 'view'
+
+CLICK_WINDOW = timedelta(days=7)
+VIEW_WINDOW  = timedelta(days=1)
+
+class AttributionResolver:
+    def __init__(self):
+        self.touches: dict[int, deque[Touch]] = defaultdict(deque)
+
+    def record_touch(self, user_id: int, t: Touch) -> None:
+        dq = self.touches[user_id]
+        dq.append(t)
+        # Evict anything older than the longest window
+        cutoff = t.ts - CLICK_WINDOW
+        while dq and dq[0].ts &lt; cutoff:
+            dq.popleft()
+
+    def attribute(self, user_id: int, conversion_ts: datetime) -> Optional[Touch]:
+        dq = self.touches.get(user_id) or ()
+        best: Optional[Touch] = None
+        for t in dq:
+            if t.ts &gt; conversion_ts:
+                continue
+            in_window = (
+                (t.touch_type == 'click' and conversion_ts - t.ts &lt;= CLICK_WINDOW)
+                or (t.touch_type == 'view' and conversion_ts - t.ts &lt;= VIEW_WINDOW)
+            )
+            if not in_window:
+                continue
+            # Prefer click over view, then most-recent
+            if best is None:
+                best = t
+            else:
+                if best.touch_type == 'view' and t.touch_type == 'click':
+                    best = t
+                elif best.touch_type == t.touch_type and t.ts &gt; best.ts:
+                    best = t
+        return best</code></pre>
+
+<h3>Python 5 — SKAN conversion-value encoder</h3>
+
+<h4>Prompt</h4>
+<p>Apple's SKAdNetwork gives the advertiser 6 bits of "conversion value" (0–63) to encode an event signal back to the ad network. Build an encoder that maps a sequence of user events (registered, tutorial_done, purchase with revenue tier) to a single integer 0–63.</p>
+
+<pre><code class="python">from dataclasses import dataclass
+
+@dataclass
+class UserState:
+    registered: bool = False
+    tutorial_done: bool = False
+    revenue_usd: float = 0.0
+
+# 6 bits: 1 bit registered | 1 bit tutorial | 4 bits revenue tier
+# 16 revenue tiers: 0, $1, $2, $5, $10, $20, $50, $100, ...
+REVENUE_TIERS = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 25000, 100000]
+
+def encode_conversion_value(state: UserState) -> int:
+    reg_bit = 1 if state.registered else 0
+    tut_bit = 1 if state.tutorial_done else 0
+    tier = 0
+    for i, threshold in enumerate(REVENUE_TIERS):
+        if state.revenue_usd &gt;= threshold:
+            tier = i
+    # Pack: [reg:1][tut:1][tier:4]
+    return (reg_bit &lt;&lt; 5) | (tut_bit &lt;&lt; 4) | tier
+
+def decode_conversion_value(v: int) -> dict:
+    return {
+        'registered': bool((v &gt;&gt; 5) &amp; 1),
+        'tutorial_done': bool((v &gt;&gt; 4) &amp; 1),
+        'revenue_tier_index': v &amp; 0b1111,
+        'revenue_floor_usd': REVENUE_TIERS[v &amp; 0b1111],
+    }</code></pre>
+
+<h4>The trap</h4>
+<p>Trying to encode exact revenue in 6 bits — it does not fit. The tiered mapping is the whole point. Senior candidates name the tier-design tradeoff: finer tiers at low revenue (more common) vs coarser tiers at high revenue (rare).</p>
+
+<h3>Python 6 — Incrementality lift with confidence interval</h3>
+
+<h4>Prompt</h4>
+<p>Given exposed and holdout conversion counts and user counts, compute the lift percentage and a 95% CI for the difference in proportions. Return <code>(lift_pct, ci_half_width_pp, is_significant)</code>.</p>
+
+<pre><code class="python">import math
+
+def lift_with_ci(
+    exposed_convs: int, exposed_users: int,
+    holdout_convs: int, holdout_users: int,
+    z: float = 1.96,  # 95% normal approx
+) -&gt; tuple[float, float, bool]:
+    p1 = exposed_convs / exposed_users
+    p2 = holdout_convs / holdout_users
+    abs_diff = p1 - p2
+    # Standard error of difference in two proportions
+    se = math.sqrt(p1 * (1 - p1) / exposed_users + p2 * (1 - p2) / holdout_users)
+    ci_half = z * se
+    lift_pct = (p1 - p2) / p2 * 100 if p2 &gt; 0 else float('inf')
+    # Significant if the CI doesn't cross zero
+    significant = (abs_diff - ci_half) &gt; 0
+    return lift_pct, ci_half * 100, significant</code></pre>
+
+<h4>The trap</h4>
+<p>Reporting the lift without the CI — a +2% lift with ±3% CI is not a lift. Senior candidates return the significance flag alongside the number so the caller cannot misread it.</p>
+
+<hr>
+
+<h2 id="meta-advice">3. How to Approach the Ads Coding Round</h2>
+
+<p>Four habits that separate strong candidates in ads coding rounds specifically.</p>
+
+<ol>
+<li><strong>Ask for the attribution window before you write a line.</strong> Last-click? 7-day? 28-day? Click-only or click-plus-view? Half the SQL problems above change shape depending on this answer. If the interviewer didn't volunteer it, ask.</li>
+
+<li><strong>Name the dedupe strategy out loud.</strong> Even if the prompt doesn't mention duplicates, your code should handle them. Say: "I'll assume event_id may repeat across SDK retries; I'll dedupe on (user_id, event_name, second-rounded ts)." If the interviewer says "no, event_id is unique" — great, you asked, and you write a simpler query. If they say "good point" — you just showed senior judgment.</li>
+
+<li><strong>Write schema-aware code.</strong> Ads tables are billions of rows. Any code that does <code>SELECT *</code> into Python, or loops a Python function over rows, will be scored junior. Push work into the SQL engine or into vectorized operations. When in doubt, ask: "Can this run as a single SQL query? If not, what's the smallest Python layer on top?"</li>
+
+<li><strong>Return the uncertainty, not just the point estimate.</strong> Every ads number has statistical noise. The senior answer to "what's the lift" is never a single number — it's a number plus a confidence range, plus whether the range crosses zero. Build that shape into your functions as default output, not an optional afterthought.</li>
+</ol>
+
+</main>
+
+<nav class="breadcrumb"><a href="Part6_Room_Pressure_Decisions.html">← Part 6</a> · <a href="00_Master_Index.html">Index</a></nav>
+
+<footer class="page-footer">
+  <div>Ads Data Engineering Interview Prep · Part 7 — The Coding Round</div>
+  <div><a href="00_Master_Index.html">Index</a></div>
+</footer>
+
+</div>
+</body>
+</html>

@@ -33,6 +33,7 @@ PARTS = [
     ("04", "Part4_Platform_Specific_Glossary.html",     "Platform Surfaces & A–Z Glossary",   "platform-glossary"),
     ("05", "Part5_Visualization_Measurement.html",      "Visualization & Measurement",        "viz-measurement"),
     ("06", "Part6_Room_Pressure_Decisions.html",        "The Room · Real Decisions",          "the-room"),
+    ("07", "Part7_Coding_Round.html",                    "The Coding Round · SQL &amp; Python",  "coding-round"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}
