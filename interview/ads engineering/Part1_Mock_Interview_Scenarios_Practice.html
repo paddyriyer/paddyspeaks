@@ -257,11 +257,128 @@
   <aside class="sidebar sidebar-turn">
     <div class="sidebar-label">Your Turn · SQL · 15 minutes on your timer</div>
     <h3 class="sidebar-title">Write the reconciliation before reading the answer</h3>
-    <p>The tables you have access to:</p>
-    <ul>
-      <li><code>silver.fact_impression</code> — one row per served impression. Columns: <code>spend_cents</code>, <code>advertiser_id</code>, <code>campaign_id</code>, <code>impression_ts</code>, <code>is_valid</code> (FALSE = flagged as IVT by the pre-bid filter), <code>currency</code>, <code>fx_rate_to_usd</code>.</li>
-      <li><code>finance.ad_revenue_ledger</code> — one row per <code>(advertiser_id, month)</code>. Columns: <code>invoiced_usd</code>, <code>refunds_usd</code>, <code>ivt_credits_usd</code>, <code>partner_attribution_adjustment_usd</code>, <code>fx_revaluation_usd</code>.</li>
-    </ul>
+    <p>The tables you have access to — full column-level catalog below so the query is unambiguous.</p>
+
+    <div class="catalog">
+      <div class="catalog-tbl">
+        <div class="catalog-head">
+          <div class="catalog-name"><code>silver.fact_impression</code></div>
+          <div class="catalog-grain">one row per served impression · partitioned by <code>date_trunc('hour', impression_ts)</code> · ~2B rows/day</div>
+        </div>
+        <table class="catalog-cols">
+          <thead><tr><th>column</th><th>type</th><th>what it is · why it is here</th><th>example</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>spend_cents</code></td>
+              <td>BIGINT</td>
+              <td>Auction-clearing price in cents, in the advertiser's contract <em>currency</em>. Stored in cents to avoid floating-point drift on sums across billions of rows. In a second-price auction this is (second-bid + 0.01), not the winning bid.</td>
+              <td><code>247</code></td>
+            </tr>
+            <tr>
+              <td><code>advertiser_id</code></td>
+              <td>BIGINT</td>
+              <td>StreamCo advertiser account id. FK to <code>dim.advertiser</code>. Same id space as <code>finance.ad_revenue_ledger</code> — the two tables join cleanly on this column.</td>
+              <td><code>98421</code></td>
+            </tr>
+            <tr>
+              <td><code>campaign_id</code></td>
+              <td>BIGINT</td>
+              <td>Campaign id inside the advertiser. FK to <code>dim.campaign</code>. Multiple campaigns per advertiser per month; do not aggregate up without <code>advertiser_id</code> or you double-count across shared budgets.</td>
+              <td><code>5512980</code></td>
+            </tr>
+            <tr>
+              <td><code>impression_ts</code></td>
+              <td>TIMESTAMP (UTC)</td>
+              <td>Wall-clock time the impression was served. Stored in UTC. Finance's "September" is <em>PST</em>, not UTC — the reconciliation query has to respect that or you pull three extra hours of Oct 1 into the September bucket. Sub-second precision is not reliable; do not use for strict ordering.</td>
+              <td><code>2025-09-15 14:32:07</code></td>
+            </tr>
+            <tr>
+              <td><code>is_valid</code></td>
+              <td>BOOLEAN</td>
+              <td><code>FALSE</code> iff the <em>pre-bid</em> filter flagged the impression as Invalid Traffic (bot, datacenter, repeat-user-cap breach). Catches ~94% of IVT. The remaining ~6% is caught post-impression by a third-party fraud vendor and appears later as <code>ivt_credits_usd</code> on the Finance ledger — that delta is a first-class part of the September gap.</td>
+              <td><code>TRUE</code></td>
+            </tr>
+            <tr>
+              <td><code>currency</code></td>
+              <td>VARCHAR(3)</td>
+              <td>ISO-4217 code of <code>spend_cents</code>. Advertiser-contract currency, <em>not</em> the viewer's currency. 31 distinct currencies active at StreamCo; always check for <code>NULL</code> in ad-hoc queries — legacy rows from before 2024 can still surface.</td>
+              <td><code>USD</code>, <code>EUR</code>, <code>JPY</code>, <code>INR</code></td>
+            </tr>
+            <tr>
+              <td><code>fx_rate_to_usd</code></td>
+              <td>NUMERIC(12,6)</td>
+              <td>FX rate at <code>impression_ts</code> to convert <code>spend_cents</code> into USD. <em>Snapshotted at event time</em>, not looked up at query time — so last week's dashboard reproduces exactly even if today's FX has drifted. Identity for <code>USD</code> rows is 1.000000 (never 1.0 — the precision matters for sum rounding).</td>
+              <td><code>1.087400</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="catalog-foot">
+          <strong>How spend_revenue is computed:</strong>
+          <code>SUM(spend_cents × fx_rate_to_usd) / 100.0</code> filtered by <code>impression_ts</code> in the target PST month.
+          <em>Gotchas:</em> (1) divide by 100, not 100.0, and the result is an integer in some engines — always cast; (2) filtering on <code>is_valid = FALSE</code> is how you compute <em>pipeline-flagged IVT</em>, not how you <em>exclude</em> IVT from spend — spend includes the flagged rows and the downstream attribution step is where exclusion happens.
+        </div>
+      </div>
+
+      <div class="catalog-tbl">
+        <div class="catalog-head">
+          <div class="catalog-name"><code>finance.ad_revenue_ledger</code></div>
+          <div class="catalog-grain">one row per <code>(advertiser_id, month)</code> · PST-aligned month · owned by Finance, not Data · <code>month</code> column stores first-of-month as DATE</div>
+        </div>
+        <table class="catalog-cols">
+          <thead><tr><th>column</th><th>type</th><th>what it is · why it is here</th><th>example</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>month</code></td>
+              <td>DATE</td>
+              <td>First day of the Finance close month, PST-aligned. Always first-of-month at midnight. Never trust a query that filters this column with a range — <code>=</code> is the correct operator.</td>
+              <td><code>2025-09-01</code></td>
+            </tr>
+            <tr>
+              <td><code>advertiser_id</code></td>
+              <td>BIGINT</td>
+              <td>FK to <code>dim.advertiser</code>. Same id space as <code>silver.fact_impression</code>.</td>
+              <td><code>98421</code></td>
+            </tr>
+            <tr>
+              <td><code>invoiced_usd</code></td>
+              <td>NUMERIC(18,4)</td>
+              <td>Amount <em>invoiced</em> to the advertiser this month, in USD at invoice-date FX. Lags impressions by the billing cycle — typically 30 days. This is "billed revenue" in Act 2's four-definitions list.</td>
+              <td><code>142,800.0000</code></td>
+            </tr>
+            <tr>
+              <td><code>refunds_usd</code></td>
+              <td>NUMERIC(18,4)</td>
+              <td>Credits issued back to advertisers for overcounted delivery, dispute, or pacing overshoot. Stored as a positive value; <em>subtracted</em> when computing settled.</td>
+              <td><code>3,200.0000</code></td>
+            </tr>
+            <tr>
+              <td><code>ivt_credits_usd</code></td>
+              <td>NUMERIC(18,4)</td>
+              <td>Finance-side IVT credits from the third-party fraud vendor that catches what the pre-bid filter missed. Stored as a positive value; <em>subtracted</em> when computing settled. Compare against pipeline-flagged IVT (sum of <code>spend_cents × fx_rate</code> where <code>is_valid = FALSE</code>) to explain the September IVT delta (~$160K at current volumes).</td>
+              <td><code>18,400.0000</code></td>
+            </tr>
+            <tr>
+              <td><code>partner_attribution_adjustment_usd</code></td>
+              <td>NUMERIC(18,4)</td>
+              <td>Programmatic-partner postback adjustment. Partner SSPs report final attribution on a 14-day lag, so September's settled revenue can only be finalised mid-October. Stored as a positive value; <em>added</em> when computing settled. This is the single largest contributor to the September gap (~$740K).</td>
+              <td><code>74,000.0000</code></td>
+            </tr>
+            <tr>
+              <td><code>fx_revaluation_usd</code></td>
+              <td>NUMERIC(18,4)</td>
+              <td>End-of-month FX revaluation for advertiser contracts held in non-USD. Can be positive or negative. Small in high-USD months (few bps), material in months with emerging-currency volatility (can move 2-5% of the contract). <em>Added</em> (with sign) when computing settled.</td>
+              <td><code>+140.0000</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="catalog-foot">
+          <strong>How settled_revenue is computed (Finance's close formula):</strong><br>
+          <code>invoiced_usd − refunds_usd − ivt_credits_usd + partner_attribution_adjustment_usd + fx_revaluation_usd</code>
+          <br><em>Gotchas:</em> (1) sign conventions differ by company — at StreamCo refunds and ivt_credits are stored positive and subtracted; do not copy this formula to a different ledger without checking; (2) <code>fx_revaluation_usd</code> is signed — do not wrap it in <code>ABS()</code>, that loses a real ±2% swing in emerging-markets months.
+        </div>
+      </div>
+    </div>
+
     <p>Write <em>one</em> query that reconciles September. The output should be one row with all four revenue concepts, the per-category gap, and an <code>unexplained_gap_usd</code>. The last column is the one Raj is actually testing — if it is non-zero, you have a bug in the pipeline, and you need to be able to say so. If it's within rounding, the numbers are all explained by known adjustments, and you close the ticket.</p>
 
     <div class="inline-sql-cap">Reference solution · try the prompt above first, then check against this</div>
