@@ -191,514 +191,159 @@
   </div>
 </header>
 <main class="content">
-<h1 id="part-4-platform-surfaces--az-glossary">Part 4: Platform Surfaces + A–Z Glossary</h1>
-<blockquote>
-<p><em>"Every surface is a little universe with its own physics. You can't design pipelines for them as if they're the same thing."</em></p>
-</blockquote>
-<hr />
-<h2 id="section-1-short-form-video-ads--engagement-pipeline">Section 1: Short-Form Video Ads — Engagement Pipeline</h2>
-<p>Short-form vertical video is now the dominant growth surface on every major consumer platform. The ad format is full-screen, auto-play, sound-on-by-default, with in-feed placement between organic videos.</p>
-<h3 id="what-makes-it-different">What makes it different</h3>
-<ul>
-<li><strong>Time-based engagement</strong> matters more than CTR. Did they watch 3 seconds? 15? Complete it?</li>
-<li><strong>Sound-on</strong> is the norm. Audio becomes a dimension: muted rate, sound-on rate.</li>
-<li><strong>Swipe mechanics</strong> make the unit of engagement "scrolled past" vs "paused on." Explicit negative signal.</li>
-<li><strong>Creators</strong> are part of the ecosystem — sponsored content from creators is its own ad format.</li>
-</ul>
-<h3 id="schema">Schema</h3>
-<pre class="sql"><code>CREATE TABLE fact_shortform_video_engagement (
-  dt                   DATE,
-  impression_id        BINARY(16),
-  user_id              BIGINT,
-  ad_id                BIGINT,
-  creative_id          BIGINT,
-  -- Watch time
-  view_started         BOOLEAN,        -- autoplay initiated
-  view_duration_ms     INT,            -- actual time spent in view
-  completions          INT,            -- 1 if watched to end
-  loops                INT,            -- replays
-  -- Audio
-  sound_on             BOOLEAN,
-  sound_on_duration_ms INT,
-  -- Interaction
-  likes                INT,
-  comments             INT,
-  shares               INT,
-  saves                INT,
-  profile_visits       INT,
-  -- Negative
-  swiped_away_ms       INT,            -- if swiped, how long before
-  marked_not_interested BOOLEAN,
-  hidden_ad            BOOLEAN
-)
-PARTITIONED BY (dt);
-</code></pre>
-<h3 id="key-metrics">Key metrics</h3>
-<ul>
-<li><strong>Thumbstop rate</strong> = 3-second views / impressions. "Did we stop the scroll?"</li>
-<li><strong>Hold rate</strong> = 15-second views / 3-second views. "Did the story hold them?"</li>
-<li><strong>Completion rate</strong> = completions / impressions.</li>
-<li><strong>Sound-on rate</strong> = sound_on views / total views. Branding signal.</li>
-<li><strong>Negative signal rate</strong> = (not_interested + hidden) / impressions.</li>
-</ul>
-<h3 id="pipeline-pattern">Pipeline pattern</h3>
-<p>Short-form video events are 10–20× higher volume than static ad events because the user scrolls fast. Stream the engagement events, batch the aggregate:</p>
-<pre class="text"><code>client ─► streaming spine ─► stream processor (1-min windows)
-                                     │
-                                     ├─ real-time creator-facing metrics
-                                     └─ bronze (raw) → silver (cleaned) → gold (daily)
-</code></pre>
-<p>The rendering client emits engagement events at 250ms intervals while the video is on-screen. Dedupe aggressively: one <code>impression_id</code> can produce 60+ engagement events.</p>
-<hr />
-<h2 id="section-2-stories-ads--tap-through-funnels">Section 2: Stories Ads — Tap-Through Funnels</h2>
-<h3 id="the-format">The format</h3>
-<p>Stories ads are full-screen vertical cards that auto-advance every 5–15 seconds. The ad is one or two cards inserted between organic stories. User actions are limited: tap to advance, hold to pause, swipe up for CTA, swipe left to exit the whole story sequence.</p>
-<h3 id="funnel">Funnel</h3>
-<pre class="text"><code>entry ─► ad shown ─► ad completed ─► swipe_up (CTA)
-                    ─► skipped (tap next)
-                    ─► exited (swipe away)
-</code></pre>
-<h3 id="schema-1">Schema</h3>
-<pre class="sql"><code>CREATE TABLE fact_stories_engagement (
-  dt                     DATE,
-  impression_id          BINARY(16),
-  user_id                BIGINT,
-  ad_id                  BIGINT,
-  card_index             INT,           -- 1 or 2 for multi-card ads
-  -- Outcomes
-  duration_shown_ms      INT,
-  completed              BOOLEAN,
-  tapped_next            BOOLEAN,       -- user skipped mid-card
-  swiped_up              BOOLEAN,       -- tapped CTA
-  swiped_away            BOOLEAN,       -- exited the whole sequence
-  paused_duration_ms     INT
-)
-PARTITIONED BY (dt);
-</code></pre>
-<h3 id="metrics-that-matter">Metrics that matter</h3>
-<ul>
-<li><strong>Completion rate</strong> = completed / impressions.</li>
-<li><strong>Exit rate</strong> = swiped_away / impressions. High exit rate means "my ad made them leave" — one of the worst UX signals in ads.</li>
-<li><strong>Tap-through rate</strong> = swiped_up / impressions.</li>
-</ul>
-<h3 id="pitfalls">Pitfalls</h3>
-<ul>
-<li>Stories are consumed in rapid bursts. User watches 50 stories in 3 minutes; your ad has maybe 2 seconds of attention.</li>
-<li>The <em>position</em> in the sequence matters enormously. Ads after story #15 perform much worse than after story #3. Log position as a first-class dimension.</li>
-</ul>
-<hr />
-<h2 id="section-3-carousel-ads--card-level-analytics">Section 3: Carousel Ads — Card-Level Analytics</h2>
-<h3 id="the-format-1">The format</h3>
-<p>Carousel ads are 2–10 swipeable cards, each with its own image/video + headline + CTA. Used heavily in e-commerce and education.</p>
-<h3 id="whats-unique">What's unique</h3>
-<p>Engagement is per-card. Advertiser wants to know: "which card got the click, which was skipped, which converted."</p>
-<h3 id="schema-2">Schema</h3>
-<pre class="sql"><code>CREATE TABLE fact_carousel_engagement (
-  dt              DATE,
-  impression_id   BINARY(16),
-  user_id         BIGINT,
-  ad_id           BIGINT,
-  card_id         BIGINT,       -- PK: unique per card
-  card_position   INT,          -- 1..10
-  viewed          BOOLEAN,      -- scrolled into view
-  view_duration_ms INT,
-  clicked         BOOLEAN,
-  converted       BOOLEAN       -- attributed later
-)
-PARTITIONED BY (dt);
-</code></pre>
-<h3 id="common-query-which-card-drove-conversion">Common query: which card drove conversion?</h3>
-<pre class="sql"><code>WITH attributed AS (
-  SELECT
-    f.conversion_id,
-    f.campaign_id,
-    c.card_id,
-    c.card_position
-  FROM fact_attributed_conversion f
-  JOIN fact_carousel_engagement c
-    ON f.click_id = c.click_id          -- join through click context
-)
+
+<section id="act-5-break" class="act act-5">
+  <div class="act-eyebrow">Act 5 · Everything Breaks</div>
+  <h1 class="act-title">Black Friday. 2:17 AM. ROAS up 18%.</h1>
+
+  <p class="act-subtitle">The platform shipped in late October. The CFO's Friday dashboard has run clean for ten weeks. You are asleep. PagerDuty does not care.</p>
+
+  <!-- ─── The page ─────────────────────────────── -->
+  <div class="page-alert">
+    <div class="page-label">PagerDuty · P1 · 02:17:04 PST</div>
+    <div class="page-from">[ads-revenue-guardrails] ROAS · top-5 advertisers · +18.3% WoW · threshold +4% · auto-escalate to on-call</div>
+    <div class="page-meta">Acked by you at 02:17:41 · Laptop open at 02:18:22</div>
+  </div>
+
+  <p>The guardrail is your own. You wrote it in week six, after Raj's 2:17 AM question in the interview turned out to be a real hour at this job. The alert fires on WoW ROAS delta &gt;4% across the top-five advertisers. Eighteen percent is not a drift. Eighteen percent is a bug, a miracle, or a fraud. Finance sees this number at 09:00. You have roughly thirty minutes before the director wakes up and sixty before that meeting starts.</p>
+
+  <!-- ─── The 30-min timeline visual ─────────────────────────── -->
+  <div class="timer">
+    <div class="timer-label">The window · 30 minutes to root cause · 43 minutes to a paragraph Finance can read</div>
+    <div class="timer-track">
+      <div class="timer-tick" style="left:0%"><span class="timer-clock">02:17</span><span class="timer-note">Page fires</span></div>
+      <div class="timer-tick" style="left:16%"><span class="timer-clock">02:22</span><span class="timer-note">Guardrail drill-down</span></div>
+      <div class="timer-tick" style="left:33%"><span class="timer-clock">02:27</span><span class="timer-note">Narrow to one advertiser</span></div>
+      <div class="timer-tick" style="left:50%"><span class="timer-clock">02:32</span><span class="timer-note">Attribution-time query</span></div>
+      <div class="timer-tick" style="left:66%"><span class="timer-clock">02:37</span><span class="timer-note">Identity graph version diff</span></div>
+      <div class="timer-tick" style="left:83%"><span class="timer-clock">02:42</span><span class="timer-note">Root cause</span></div>
+      <div class="timer-tick timer-tick-end" style="left:100%"><span class="timer-clock">03:00</span><span class="timer-note">Paragraph out</span></div>
+      <div class="timer-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <p>The thing about debugging your own platform is that you know exactly where to look. The architecture is not a mystery. The bug will be in exactly one of four places, and the platform was designed to tell you which one.</p>
+
+  <!-- ─── Hypothesis grid ─────────────────────────────── -->
+  <div class="hypos">
+    <div class="hypo-label">Four hypotheses · rule them out in order of blast radius</div>
+
+    <div class="hypo">
+      <div class="hypo-num">H1</div>
+      <div class="hypo-name">Upstream data drop</div>
+      <div class="hypo-body">An ingest partition died and we're measuring a smaller-but-richer subset. ROAS looks up because the cheap-clicks partition is missing.</div>
+      <div class="hypo-check">Check: <code>bronze.fact_impression</code> row count by hour. Compare to 7-day median. Expected hourly volume at 02:00 PST is ~72M. Actual: 71.4M. <strong>Ruled out.</strong></div>
+    </div>
+
+    <div class="hypo">
+      <div class="hypo-num">H2</div>
+      <div class="hypo-name">Attribution backfill re-ran</div>
+      <div class="hypo-body">Somebody kicked the attribution job. Late postbacks from last month flooded in with fresh <code>attribution_time</code> stamps. Revenue doubles on the same conversions.</div>
+      <div class="hypo-check">Check: <code>gold.revenue_attributed</code> — count <code>attribution_time BETWEEN '2025-11-29' AND '2025-11-30'</code> where <code>event_time &lt; '2025-11-01'</code>. Expected: &lt;1%. Actual: 0.4%. <strong>Ruled out.</strong></div>
+    </div>
+
+    <div class="hypo">
+      <div class="hypo-num">H3</div>
+      <div class="hypo-name">Identity graph version change</div>
+      <div class="hypo-body">Identity team shipped a graph upgrade that resolves more cross-device journeys. More attributed conversions per spend dollar = higher ROAS.</div>
+      <div class="hypo-check">Check: <code>identity_graph_version</code> distinct values in the last 24h. Expected: 1. Actual: 2 — <code>v2025.10</code> flipped to <code>v2025.11</code> at 20:04 PST. <em>Hot.</em></div>
+    </div>
+
+    <div class="hypo">
+      <div class="hypo-num">H4</div>
+      <div class="hypo-name">Actual advertiser behaviour</div>
+      <div class="hypo-body">Black Friday. Top-five advertisers bid aggressively. Conversion rates actually lifted.</div>
+      <div class="hypo-check">Check: baseline ROAS for those advertisers across last three Black Fridays. Expected lift: +3% to +6%. Observed today: +18.3%. <strong>Partially real, insufficient to explain.</strong></div>
+    </div>
+  </div>
+
+  <p>H3 is hot. You write the query your architecture made cheap:</p>
+
+  <pre><code class="sql">-- ROAS decomposed by identity graph version, last 24h
 SELECT
-  campaign_id,
-  card_position,
-  COUNT(*) AS conversions,
-  RANK() OVER (PARTITION BY campaign_id ORDER BY COUNT(*) DESC) AS rank_in_campaign
-FROM attributed
-GROUP BY 1, 2
-ORDER BY campaign_id, rank_in_campaign;
-</code></pre>
-<h3 id="pitfall-card-fatigue">Pitfall: card fatigue</h3>
-<p>The first card is always the most-viewed. Measuring "card engagement rate" without normalizing for position will always make the first card look best. Compute <strong>conditional engagement</strong> — given that a user viewed the card, did they engage? — so positions are comparable.</p>
-<hr />
-<h2 id="section-4-ai-driven-automated-performance-campaigns">Section 4: AI-Driven Automated Performance Campaigns</h2>
-<h3 id="the-format-2">The format</h3>
-<p>The advertiser provides a budget, an objective (conversions, app installs, etc.), a set of creatives, and minimal targeting — often just a country. The platform decides everything else: audience, placement, bid, creative rotation.</p>
-<p>This is now the dominant paradigm in direct-response ads. Different platforms call it different things (auto-optimized campaigns, performance-plus, broad-targeted delivery, etc.). The DE challenges are structural.</p>
-<h3 id="whats-different-for-data-engineering">What's different for data engineering</h3>
-<ul>
-<li><strong>Attribution is fuzzy.</strong> Without advertiser-selected audiences, you can't report "your audience of runners converted at 3%." There is no chosen audience. You have to report <em>discovered</em> segments instead.</li>
-<li><strong>Diagnostic reporting is different.</strong> The advertiser can't A/B test between "audience A vs audience B" — the platform does that internally. You report diagnostics, not levers.</li>
-<li><strong>Platform reporting = platform accountability.</strong> If the platform chose everything, the platform has to show why.</li>
-</ul>
-<h3 id="diagnostic-schema">Diagnostic schema</h3>
-<pre class="sql"><code>CREATE TABLE fact_ai_campaign_diagnostics (
-  dt             DATE,
-  campaign_id    BIGINT,
-  -- What the platform chose
-  surface_mix    MAP&lt;STRING, DOUBLE&gt;,   -- e.g., {&quot;main_feed&quot;: 0.4, &quot;short_form_video&quot;: 0.5, ...}
-  audience_mix   MAP&lt;STRING, DOUBLE&gt;,   -- demographics, interest buckets (without user-level info)
-  creative_mix   MAP&lt;BIGINT, DOUBLE&gt;,   -- creative_id → share of spend
-  placement_mix  MAP&lt;STRING, DOUBLE&gt;,
-  -- Performance by choice
-  cpa_by_surface MAP&lt;STRING, DOUBLE&gt;,
-  cpa_by_creative MAP&lt;BIGINT, DOUBLE&gt;,
-  -- Exploration vs exploitation
-  exploration_spend_pct DOUBLE
-) PARTITIONED BY (dt);
-</code></pre>
-<h3 id="reporting-philosophy">Reporting philosophy</h3>
-<p>Senior DE insight: "Reports for AI-driven campaigns are advertiser-readable summaries of what the platform explored and why it converged on what it did." Building this well is <em>harder</em> than reporting classic campaigns. You need trust signals — "we spent 12% of your budget exploring, found that Surface X converts 2× better, and shifted 60% of your budget there in week 2."</p>
-<hr />
-<h2 id="section-5-dynamic-product-ads-catalog-driven">Section 5: Dynamic Product Ads (Catalog-Driven)</h2>
-<h3 id="the-format-3">The format</h3>
-<p>The advertiser uploads a product catalog (CSV, XML feed, API). The platform matches users to products via browse/cart signals and renders a templated creative at auction time. One ad, millions of variants.</p>
-<h3 id="data-model">Data model</h3>
-<pre class="sql"><code>-- Catalog
-CREATE TABLE advertiser_catalog (
-  advertiser_id   BIGINT,
-  product_id      STRING,            -- advertiser&#39;s ID
-  product_sku     STRING,
-  title           STRING,
-  description     STRING,
-  price_usd       DECIMAL(10,2),
-  image_url       STRING,
-  category        STRING,
-  availability    STRING,             -- &#39;in_stock&#39;, &#39;out_of_stock&#39;
-  updated_ts      TIMESTAMP,
-  PRIMARY KEY (advertiser_id, product_id)
-);
+  identity_graph_version,
+  COUNT(DISTINCT conversion_id)                 AS n_conversions,
+  SUM(credited_usd)                             AS attributed_usd,
+  SUM(credited_usd) / NULLIF(s.spend_usd, 0)    AS roas
+FROM   gold.revenue_attributed r
+JOIN   gold.revenue_spend      s USING (advertiser_id)
+WHERE  r.advertiser_id IN (/* top 5 */)
+  AND  r.attribution_time &gt;= NOW() - INTERVAL '24 hours'
+  AND  s.spend_date = CURRENT_DATE
+GROUP BY identity_graph_version, s.spend_usd
+ORDER BY identity_graph_version;</code></pre>
 
--- User-product signals
-CREATE TABLE user_product_signals (
-  user_id         BIGINT,
-  advertiser_id   BIGINT,
-  product_id      STRING,
-  signal_type     STRING,              -- &#39;view&#39;, &#39;add_to_cart&#39;, &#39;purchase&#39;
-  signal_ts       TIMESTAMP,
-  decay_score     DOUBLE               -- 1.0 freshest → 0.0 stale
-) PARTITIONED BY (DATE(signal_ts));
+  <div class="diff-card">
+    <div class="diff-label">The two rows · 02:39 AM</div>
+    <table class="diff-table">
+      <thead><tr><th>identity_graph_version</th><th>n_conversions</th><th>attributed_usd</th><th>ROAS</th></tr></thead>
+      <tbody>
+        <tr><td><code>v2025.10</code></td><td>142,318</td><td>$1.82M</td><td>3.04</td></tr>
+        <tr class="diff-hot"><td><code>v2025.11</code></td><td>168,904</td><td>$2.19M</td><td>3.59</td></tr>
+      </tbody>
+    </table>
+    <div class="diff-foot">Same spend. 26,586 more conversions credited. +$370K attributed on identical ad dollars. The identity team's graph upgrade is crediting cross-device journeys the old graph could not resolve. ROAS is up <em>because the measurement changed, not because the ads got better</em>.</div>
+  </div>
 
--- Impressions tagged with the specific product shown
-CREATE TABLE fact_dpa_impression (
-  dt              DATE,
-  impression_id   BINARY(16),
-  user_id         BIGINT,
-  advertiser_id   BIGINT,
-  campaign_id     BIGINT,
-  product_id      STRING,               -- which product variant was rendered
-  template_id     BIGINT,
-  rendered_price  DECIMAL(10,2),
-  is_retargeting  BOOLEAN                -- user had prior signal for this product
-) PARTITIONED BY (dt);
-</code></pre>
-<h3 id="key-challenges">Key challenges</h3>
-<ul>
-<li><strong>Catalog freshness.</strong> An out-of-stock product shown to a user wastes the impression. Ingest catalog updates hourly minimum. Fail the pipeline if a catalog is &gt;24 hours stale.</li>
-<li><strong>Signal decay.</strong> A "view" from 30 days ago shouldn't drive an impression today. Decay signals with a 7-day half-life.</li>
-<li><strong>Privacy.</strong> Catalog-level targeting uses browsing history — subject to all local privacy regimes. Per-user signal must be deletable on request.</li>
-</ul>
-<h3 id="reporting-roas-by-product">Reporting: ROAS by product</h3>
-<pre class="sql"><code>SELECT
-  advertiser_id,
-  product_id,
-  SUM(impressions) AS imps,
-  SUM(spend_usd) AS spend,
-  SUM(attributed_revenue) AS revenue,
-  SUM(attributed_revenue) / NULLIF(SUM(spend_usd), 0) AS roas
-FROM fact_dpa_impression
-JOIN fact_attributed_conversion USING (impression_id)
-WHERE dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
-GROUP BY 1, 2
-HAVING SUM(spend_usd) &gt; 100
-ORDER BY roas DESC;
-</code></pre>
-<p>Advertisers love per-product ROAS reports. Make this query fast.</p>
-<hr />
-<h2 id="section-6-cross-surface-unified-pipeline">Section 6: Cross-Surface Unified Pipeline</h2>
-<h3 id="the-pattern">The pattern</h3>
-<p>A user can see the same ad on Main Feed, Visual Feed, Short-form Video, Stories, and Publisher Network — potentially on the same day. Your reporting needs to show:</p>
-<ul>
-<li><strong>Per-surface performance</strong> (diagnostic).</li>
-<li><strong>Cross-surface reach</strong> (total unique users across all surfaces).</li>
-<li><strong>Frequency capping across surfaces</strong> (don't show the same ad 20× by stacking surfaces).</li>
-</ul>
-<h3 id="schema-3">Schema</h3>
-<pre class="sql"><code>CREATE TABLE fact_ad_exposure (
-  dt              DATE,
-  impression_id   BINARY(16),
-  user_id         BIGINT,
-  ad_id           BIGINT,
-  campaign_id     BIGINT,
-  surface_id      INT,
-  surface_name    STRING,          -- &#39;main_feed&#39;, &#39;visual_feed&#39;, &#39;short_form_video&#39;, ...
-  placement_id    INT,
-  impression_ts   TIMESTAMP
-) PARTITIONED BY (dt);
-</code></pre>
-<h3 id="cross-surface-reach">Cross-surface reach</h3>
-<pre class="sql"><code>SELECT
-  campaign_id,
-  COUNT(DISTINCT user_id) AS cross_surface_reach,
-  COUNT(DISTINCT CASE WHEN surface_name = &#39;main_feed&#39; THEN user_id END) AS main_feed_reach,
-  COUNT(DISTINCT CASE WHEN surface_name = &#39;visual_feed&#39; THEN user_id END) AS visual_feed_reach,
-  COUNT(DISTINCT CASE WHEN surface_name = &#39;short_form_video&#39; THEN user_id END) AS sfv_reach,
-  -- Surface-exclusive reach (users seen only on this surface)
-  COUNT(DISTINCT CASE WHEN n_surfaces = 1 AND surface_name = &#39;main_feed&#39; THEN user_id END) AS main_feed_exclusive
-FROM (
-  SELECT *,
-    COUNT(DISTINCT surface_name) OVER (PARTITION BY campaign_id, user_id) AS n_surfaces
-  FROM fact_ad_exposure
-  WHERE dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
-) t
-GROUP BY campaign_id;
-</code></pre>
-<h3 id="cross-surface-frequency-cap">Cross-surface frequency cap</h3>
-<p>A frequency cap of "10 per week" must be enforced globally, not per surface. In the streaming path: the pacing KV stores <code>(user_id, campaign_id) → count_this_week</code> and the auction gate reads from this key on every candidate selection. Decay the counter at week-boundary.</p>
-<hr />
-<h2 id="section-7-az-glossary">Section 7: A–Z Glossary</h2>
-<p>Compressed version. Every term a senior ads DE should know cold.</p>
-<h3 id="a">A</h3>
-<ul>
-<li><strong>A/B test</strong> — controlled experiment with random assignment. Single-treatment variant.</li>
-<li><strong>Ad exchange</strong> — a marketplace where ad buyers and sellers meet via real-time bidding.</li>
-<li><strong>Ad load</strong> — fraction of feed items (or minutes of video watched) that are ads. Most dials in product, highest-stakes experiment.</li>
-<li><strong>Ad request</strong> — when a client asks the platform for an ad to fill a slot.</li>
-<li><strong>Ad server</strong> — the system that selects and delivers the winning ad after the auction.</li>
-<li><strong>Ads platform</strong> — the full system serving ads. Used generically throughout this guide.</li>
-<li><strong>Advertiser</strong> — the entity running the campaign; pays for impressions/clicks/conversions.</li>
-<li><strong>Aggregated Metrics Platform (AMP)</strong> — unified pipeline that materializes every platform metric from a single event source.</li>
-<li><strong>App install campaign</strong> — objective where advertiser wants installs, bid on CPI or CPE.</li>
-<li><strong>Attribution</strong> — assigning credit for a conversion to an ad event (click or view).</li>
-<li><strong>Attribution window</strong> — the time range within which a conversion is credited to a prior ad interaction.</li>
-<li><strong>Audience</strong> — a group of users defined for targeting (static list, rule-based, or lookalike).</li>
-<li><strong>Audience overlap</strong> — the fraction of users in common between two audiences.</li>
-<li><strong>Auction</strong> — the mechanism that chooses which ad wins an ad slot.</li>
-<li><strong>Auto-optimized campaign</strong> — the advertiser lets the platform choose audience, placement, creative rotation, bidding. See Section 4 of this part.</li>
-</ul>
-<h3 id="b">B</h3>
-<ul>
-<li><strong>Backfill</strong> — reprocessing historical data to correct or populate a table.</li>
-<li><strong>Bid</strong> — the amount an advertiser is willing to pay for an outcome.</li>
-<li><strong>Bid request</strong> — the upstream signal "a slot is available, who wants it."</li>
-<li><strong>Bid shading</strong> — bid-management technique that reduces a bid to the second-price expected value in first-price auctions.</li>
-<li><strong>Bidding strategy</strong> — how the advertiser controls their bids (manual, target CPA, lowest cost, value-optimization).</li>
-<li><strong>Bloom filter</strong> — probabilistic data structure used to represent audience membership efficiently.</li>
-<li><strong>Bronze / Silver / Gold</strong> — medallion architecture tiers for data warehouses.</li>
-<li><strong>Brand campaign</strong> — objective is reach or awareness; bid on CPM.</li>
-<li><strong>Budget pacing</strong> — controlling the rate of spend through the day.</li>
-</ul>
-<h3 id="c">C</h3>
-<ul>
-<li><strong>CAPI (Server Conversion API)</strong> — advertiser sends conversion events directly server-to-server; bypasses browser.</li>
-<li><strong>Campaign</strong> — a group of ads sharing an objective and budget.</li>
-<li><strong>Carousel</strong> — multi-card swipeable ad format.</li>
-<li><strong>Catalog</strong> — advertiser's product feed used for dynamic product ads.</li>
-<li><strong>CCPA / CPRA</strong> — California Consumer Privacy Act; opt-out + deletion rights.</li>
-<li><strong>Clean room</strong> — neutral environment where advertiser + platform join hashed IDs under privacy constraints.</li>
-<li><strong>Clearing price</strong> — what the auction winner actually pays (often second-price).</li>
-<li><strong>Click-through rate (CTR)</strong> — clicks / impressions.</li>
-<li><strong>Conversion</strong> — the advertiser's desired outcome (purchase, signup, install).</li>
-<li><strong>Conversion window</strong> — same as attribution window.</li>
-<li><strong>Cost-per-thousand (CPM)</strong> — cost per thousand impressions.</li>
-<li><strong>Cost-per-click (CPC)</strong> — cost per click.</li>
-<li><strong>Cost-per-action (CPA)</strong> — cost per defined action (conversion, install, etc.).</li>
-<li><strong>Creative</strong> — the actual rendered asset (image, video, copy, card).</li>
-<li><strong>Creative fatigue</strong> — declining engagement with repeated exposure.</li>
-<li><strong>Cross-surface</strong> — touching multiple product surfaces (Main Feed, Visual Feed, etc.).</li>
-<li><strong>CUPED</strong> — Controlled pre-Experiment Using Pre-data; variance-reduction technique.</li>
-</ul>
-<h3 id="d">D</h3>
-<ul>
-<li><strong>DAU</strong> — Daily Active Users.</li>
-<li><strong>Deferred deep link</strong> — link that remembers its destination through the install flow.</li>
-<li><strong>Delivery</strong> — the act of serving an ad into a slot.</li>
-<li><strong>Delivery monitoring</strong> — real-time alerting on under- or over-delivery.</li>
-<li><strong>Demand-Side Platform (DSP)</strong> — buy-side adtech that bids on behalf of advertisers.</li>
-<li><strong>Differential privacy (DP)</strong> — formal privacy guarantee; add calibrated noise to aggregates.</li>
-<li><strong>Dim</strong> — dimension table. Typically SCD-2.</li>
-<li><strong>DMA / DSA</strong> — EU's Digital Markets Act and Digital Services Act.</li>
-<li><strong>Dynamic Product Ads (DPA)</strong> — catalog-driven template ads; one ad, many product variants.</li>
-</ul>
-<h3 id="e">E</h3>
-<ul>
-<li><strong>Engagement</strong> — any user interaction (like, comment, share, save).</li>
-<li><strong>Event</strong> — a logged user action or system action.</li>
-<li><strong>Experiment</strong> — A/B or multi-variant test.</li>
-<li><strong>Experiment exposure</strong> — first moment a user saw the treatment.</li>
-<li><strong>Exactly-once</strong> — processing semantics where each event is processed exactly once end-to-end.</li>
-</ul>
-<h3 id="f">F</h3>
-<ul>
-<li><strong>Fact</strong> — fact table; event-grain table of measurable actions.</li>
-<li><strong>False Discovery Rate (FDR)</strong> — multiple-comparison correction method.</li>
-<li><strong>Fill rate</strong> — fraction of ad requests that got a winning ad.</li>
-<li><strong>First-price auction</strong> — winner pays their bid.</li>
-<li><strong>Flink</strong> — example of a stateful stream processor.</li>
-<li><strong>Floor price (reserve price)</strong> — minimum acceptable bid for the auction.</li>
-<li><strong>Frequency</strong> — impressions per unique user.</li>
-<li><strong>Frequency cap</strong> — maximum impressions per user per window.</li>
-</ul>
-<h3 id="g">G</h3>
-<ul>
-<li><strong>GDPR</strong> — EU's General Data Protection Regulation.</li>
-<li><strong>Generalized Second-Price (GSP)</strong> — auction format common in sponsored search.</li>
-<li><strong>Gold</strong> — serving-layer / semantic layer of the medallion architecture.</li>
-<li><strong>Growth accounting</strong> — NEW/RETAINED/RESURRECTED/DORMANT framework for DAU/MAU decomposition.</li>
-</ul>
-<h3 id="h">H</h3>
-<ul>
-<li><strong>Holdout</strong> — a fraction of users excluded from ads to measure incremental lift.</li>
-<li><strong>HyperLogLog (HLL)</strong> — probabilistic cardinality sketch.</li>
-</ul>
-<h3 id="i">I</h3>
-<ul>
-<li><strong>Iceberg</strong> — open table format supporting ACID on object storage.</li>
-<li><strong>Identity graph</strong> — graph of observed identifiers per user across devices/sessions.</li>
-<li><strong>IDFA / GAID</strong> — iOS / Android advertising identifiers.</li>
-<li><strong>IDFV</strong> — identifier for vendor (iOS, per-app).</li>
-<li><strong>Impression</strong> — an ad was rendered and viewable.</li>
-<li><strong>Incrementality</strong> — causal lift attributable to the ad; measured via holdout.</li>
-<li><strong>Invalid traffic (IVT)</strong> — bot/fraud impressions filtered from billable.</li>
-<li><strong>iOS ATT</strong> — App Tracking Transparency; requires user consent for IDFA access.</li>
-</ul>
-<h3 id="j">J</h3>
-<ul>
-<li><strong>Jaccard similarity</strong> — size of intersection / size of union. Used for audience overlap.</li>
-</ul>
-<h3 id="k">K</h3>
-<ul>
-<li><strong>Kafka</strong> — example of a distributed event streaming spine.</li>
-<li><strong>Kappa architecture</strong> — streaming-only alternative to Lambda.</li>
-<li><strong>KPI</strong> — Key Performance Indicator.</li>
-</ul>
-<h3 id="l">L</h3>
-<ul>
-<li><strong>L28</strong> — "Last 28 days" active. Most predictive retention feature on consumer apps.</li>
-<li><strong>Lambda architecture</strong> — hybrid streaming + batch pipeline with reconciliation.</li>
-<li><strong>Late-arriving data</strong> — events that arrive past the window they should be aggregated in.</li>
-<li><strong>Lead form</strong> — ad format that collects lead information inline.</li>
-<li><strong>LGPD</strong> — Brazil's General Data Protection Law.</li>
-<li><strong>Lineage</strong> — DAG of which data objects feed which.</li>
-<li><strong>Lookalike audience</strong> — computed audience similar to a seed set.</li>
-</ul>
-<h3 id="m">M</h3>
-<ul>
-<li><strong>Main Feed</strong> — primary consumption surface (infinite scrolling organic + ads).</li>
-<li><strong>MAU</strong> — Monthly Active Users.</li>
-<li><strong>Materialized view</strong> — cached query result that refreshes on a cadence.</li>
-<li><strong>Messaging platform</strong> — standalone messaging surface.</li>
-<li><strong>Metric registry</strong> — versioned, centrally-defined catalog of metric definitions.</li>
-<li><strong>MMP (Mobile Measurement Partner)</strong> — third-party app-install attribution provider.</li>
-<li><strong>Multi-touch attribution (MTA)</strong> — credit-splitting across multiple ad touches pre-conversion.</li>
-</ul>
-<h3 id="n">N</h3>
-<ul>
-<li><strong>North-star metric</strong> — top-level success metric.</li>
-<li><strong>NPS</strong> — Net Promoter Score.</li>
-</ul>
-<h3 id="o">O</h3>
-<ul>
-<li><strong>Objective</strong> — what the campaign optimizes for (reach, traffic, conversions, installs, etc.).</li>
-<li><strong>Optimization goal</strong> — the specific event the bidder is trying to maximize.</li>
-<li><strong>Over-delivery</strong> — platform served more than the budget allowed.</li>
-</ul>
-<h3 id="p">P</h3>
-<ul>
-<li><strong>Pacing</strong> — rate of spend through the day.</li>
-<li><strong>Pacing gate</strong> — real-time check that prevents further delivery once a threshold is crossed.</li>
-<li><strong>Partition</strong> — unit of data in a table (usually by date).</li>
-<li><strong>Pinot / Druid / ClickHouse</strong> — examples of real-time OLAP stores.</li>
-<li><strong>Pixel</strong> — web tracking tag installed by the advertiser to log conversions.</li>
-<li><strong>Placement</strong> — the specific position within a surface (in-feed, in-stream, top-of-stories).</li>
-<li><strong>PIPL</strong> — China's Personal Information Protection Law.</li>
-<li><strong>Postback</strong> — server-to-server callback, used in SKAdNetwork and MMPs.</li>
-<li><strong>Privacy regime</strong> — GDPR, CCPA, LGPD, PIPL, ATT, etc.</li>
-<li><strong>Publisher Network</strong> — third-party publisher inventory monetized by the ads platform.</li>
-</ul>
-<h3 id="q">Q</h3>
-<ul>
-<li><strong>QPS</strong> — Queries Per Second.</li>
-</ul>
-<h3 id="r">R</h3>
-<ul>
-<li><strong>Reach</strong> — unique users exposed.</li>
-<li><strong>Reach and frequency</strong> — standard brand-campaign pair of metrics.</li>
-<li><strong>Real-time bidding (RTB)</strong> — auction conducted in ~100ms per ad request.</li>
-<li><strong>Reconciliation</strong> — correcting streaming estimates with batch-truth.</li>
-<li><strong>Retention</strong> — fraction of users from a cohort still active at day N.</li>
-<li><strong>Retargeting</strong> — showing ads to users who previously interacted with the brand.</li>
-<li><strong>ROAS</strong> — Return on Ad Spend = revenue / spend.</li>
-</ul>
-<h3 id="s">S</h3>
-<ul>
-<li><strong>SCD-2</strong> — Slowly Changing Dimension type 2 (history of value changes).</li>
-<li><strong>Second-price auction</strong> — winner pays the second-highest bid.</li>
-<li><strong>Server conversion API</strong> — see CAPI.</li>
-<li><strong>Session</strong> — bounded period of user activity, usually defined by inactivity gap.</li>
-<li><strong>Shadow mode</strong> — new pipeline runs in parallel; output compared, not served.</li>
-<li><strong>Short-form Video</strong> — vertical, full-screen, auto-play video surface.</li>
-<li><strong>SKAdNetwork (SKAN)</strong> — Apple's privacy-preserving install attribution.</li>
-<li><strong>Slot</strong> — a specific ad position in a specific surface.</li>
-<li><strong>Spend-forecast</strong> — predicting what a campaign will spend over its lifetime.</li>
-<li><strong>Stateful stream processor</strong> — stream processor that maintains per-key state (e.g., Flink).</li>
-<li><strong>Static audience</strong> — explicit user list uploaded by advertiser.</li>
-<li><strong>Stories</strong> — time-bounded vertical story card format, auto-advancing.</li>
-<li><strong>Streaming spine</strong> — event bus (Kafka analog).</li>
-<li><strong>Surface</strong> — a product surface (Main Feed, Visual Feed, Short-form Video, Stories, etc.).</li>
-</ul>
-<h3 id="t">T</h3>
-<ul>
-<li><strong>Targeting</strong> — audience rules for who can see the ad.</li>
-<li><strong>Third-party cookie</strong> — browser cookie set by a domain other than the current site; deprecated.</li>
-<li><strong>Thumbstop rate</strong> — 3-second views / impressions. Short-form video metric.</li>
-<li><strong>TOS</strong> — Terms of Service.</li>
-<li><strong>Trino / Presto</strong> — distributed SQL engines.</li>
-<li><strong>Truncation</strong> — dropping events or rows to fit storage budgets.</li>
-</ul>
-<h3 id="u">U</h3>
-<ul>
-<li><strong>UMP (Unified Metrics Platform)</strong> — same as AMP.</li>
-<li><strong>Under-delivery</strong> — platform served less than the budget allowed.</li>
-<li><strong>Unit of randomization</strong> — the entity on which experiment assignment is done (user, device, session, ad request).</li>
-</ul>
-<h3 id="v">V</h3>
-<ul>
-<li><strong>Variance reduction</strong> — techniques (CUPED, stratified assignment) that reduce required sample size.</li>
-<li><strong>VCG (Vickrey-Clarke-Groves)</strong> — truthful auction format.</li>
-<li><strong>Viewability</strong> — fraction of impressions that met the viewability standard (e.g., MRC: 50% of pixels on screen for 1+ second).</li>
-<li><strong>Visual Feed</strong> — image-and-video-first consumption surface.</li>
-</ul>
-<h3 id="w">W</h3>
-<ul>
-<li><strong>WAU</strong> — Weekly Active Users.</li>
-<li><strong>Warehouse</strong> — data warehouse (BigQuery, Snowflake, Redshift, etc.).</li>
-<li><strong>Watermark</strong> — in stream processing, the timestamp below which no more events are expected.</li>
-</ul>
-<h3 id="x">X</h3>
-<ul>
-<li><strong>XML feed</strong> — structured catalog feed (used in DPA).</li>
-</ul>
-<h3 id="y">Y</h3>
-<ul>
-<li><strong>Yield optimization</strong> — the supply-side act of maximizing revenue per ad slot.</li>
-</ul>
-<h3 id="z">Z</h3>
-<ul>
-<li><strong>Zero-party data</strong> — data the user deliberately shares (preferences, quiz answers).</li>
-<li><strong>Z-score</strong> — standardized metric deviation from baseline.</li>
-</ul>
-<hr />
-<p><a href="00_Master_Index.html">← Master Index</a> · <a href="Part3_Deep_Dive_SQL.html">← Part 3</a> · <a href="Part5_Visualization_Measurement.html">Part 5 →</a></p>
+  <!-- ─── The mistake you almost make ─────────────────────────── -->
+  <div class="mistake">
+    <div class="mistake-label">The 2:43 AM temptation</div>
+    <div class="mistake-head">Ship the fix. Go back to bed.</div>
+    <div class="mistake-body">You have root cause. The obvious move: revert the identity-graph pin, re-run attribution on <code>v2025.10</code>, watch ROAS settle back to +3%, close the page, sleep. Thirty-eight minutes from page to all-clear. Heroic. Also wrong.</div>
+    <div class="mistake-why">The identity-graph upgrade is <em>correct</em>. It crediting more conversions means we were under-attributing for months. Reverting tonight means: (1) advertisers who got tonight's improved numbers see them vanish by 9 AM, (2) Finance has a +$370K to +$0 to +$? oscillation across three days of close, (3) the identity team gets blamed for shipping a fix. You didn't debug a bug. You surfaced a correction. That is a different conversation.</div>
+  </div>
+
+  <p>You do not revert. You do not go back to bed. You write the paragraph.</p>
+
+  <div class="act-reply">
+    <strong>You → Finance + Director + Identity Lead (02:58 AM):</strong> "Tonight's ROAS lift for top-five advertisers is +18.3% WoW. Decomposition: ~+4% is real Black Friday lift, ~+14% is a measurement change. The identity team shipped graph <code>v2025.11</code> at 20:04 PST, which resolves cross-device journeys the previous graph missed — +26,586 conversions credited, +$370K attributed, same spend. The platform is doing the right thing. <strong>Recommendation:</strong> do not revert. For Finance's 9 AM view, I'm publishing <code>gold.revenue_attributed_v10only</code> as a parallel table so the November close runs on the old graph; December onwards runs on <code>v11</code>, which I'll flag in the board prep as a known measurement improvement worth ~5% reattributed revenue. I'll draft an advertiser-facing note by end of day Friday. The alert was correct to fire — an 18% WoW lift should always wake someone up."</div>
+
+  <!-- ─── Storm of reactions ─────────────────────────── -->
+  <div class="storm">
+    <div class="storm-label">The replies · 03:04 AM to 03:17 AM</div>
+    <div class="storm-msg storm-cfo"><div class="storm-who">Director</div><div class="storm-body">Copy. Parallel table works. Walk Amelia through this at 8:30, not 9:00.</div></div>
+    <div class="storm-msg storm-cmo"><div class="storm-who">Identity Lead</div><div class="storm-body">Thank you for not reverting. I thought we were going to lose a quarter on this.</div></div>
+    <div class="storm-msg storm-partner"><div class="storm-who">CFO Amelia</div><div class="storm-body">This is the second time your team has given me a number I can actually take to the board. Go back to bed.</div></div>
+  </div>
+
+  <p>03:21 AM. You close the laptop. You lie down. You stare at the ceiling for forty minutes. You are still awake at 4:02 when the 4:00 AM batch runs green. You already know the thing the last hour actually tested, and it is not the thing Raj asked.</p>
+
+  <div class="act-reply">
+    <strong>Raj (much later, in the interview room):</strong> "Why didn't you revert?"
+  </div>
+
+  <aside class="sidebar sidebar-room">
+    <div class="sidebar-label">The Room · Scar File 5</div>
+    <h3 class="sidebar-title">The "why didn't you revert" question</h3>
+    <p>This is the question that separates staff engineers from senior engineers. Both can find the root cause. Both can ship a revert in under an hour. Only one of them can tell the difference between <em>a bug to fix</em> and <em>a correction to explain</em>.</p>
+    <ol>
+      <li><strong>A bug produces wrong numbers.</strong> The fix is a revert.</li>
+      <li><strong>A correction produces truer numbers that happen to look different.</strong> The fix is a paragraph and a parallel table.</li>
+      <li><strong>Reverting a correction is a regression disguised as heroism.</strong> It feels great at 2:45 AM and costs you a quarter in March.</li>
+    </ol>
+    <p>Raj has watched three candidates revert in this scenario. All three thought the round went well. All three were marked down because the revert is the wrong instinct — it trades a real measurement improvement for an easier night.</p>
+    <p class="sidebar-punch">The on-call question is rarely "can you fix it." It is almost always "can you tell what <em>it</em> is."</p>
+  </aside>
+
+  <aside class="sidebar sidebar-landmine">
+    <div class="sidebar-label">The Landmine · 5 of many</div>
+    <h3 class="sidebar-title">The up-alert nobody opens</h3>
+    <p>Every data team writes alerts for numbers going down. Revenue drops 10%: on-call phone rings. Impressions drop 20%: war room by 9 AM. Most teams never write the symmetric alert — numbers going <em>up</em> past a threshold. The reasoning is lazy: "if it's going up, why would we want to wake up for that?"</p>
+    <p>The reasoning is wrong. An up-alert catches three classes of problem that a down-alert never will: (1) measurement changes like tonight's, (2) double-counting bugs that inflate revenue silently, (3) fraud and IVT that the pipeline missed. The platform you ship without the up-alert is the platform that spends two quarters crediting $370K of phantom revenue before someone notices at close.</p>
+    <p>The specific threshold doesn't matter much — +4% WoW is a reasonable starting point for high-volume streams. What matters is that <em>any</em> threshold exists. You are not trying to catch every movement; you are trying to surface the ones that deserve a paragraph.</p>
+    <p class="sidebar-punch">Rule: every alert on "it went down" needs a twin on "it went up." Both are dignity preserved.</p>
+  </aside>
+
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Where this is going · Act 6</div>
+    <h3 class="sidebar-title">The 8:30 AM walkthrough with the CFO.</h3>
+    <p>The paragraph goes out at 02:58. The director pulls forward the meeting to 08:30. You are sitting across from Amelia at 08:29 with two dashboards open on her screen — the one the platform designs <em>for</em> her, and the one you built overnight to explain why tonight's number is not a bug.</p>
+    <p>Act 6 is the recovery: how you walk the CFO through her own number, on her own dashboard, in her own language. The interactive dashboards live here — they are not a section, they are the surface you actually use in the meeting.</p>
+  </aside>
+</section>
+
+<hr>
+
 </main>
 <footer class="page-footer">
   <a href="00_Master_Index.html">← Master Index</a>  ·  Senior / Staff DE Interview Prep  ·  April 2026

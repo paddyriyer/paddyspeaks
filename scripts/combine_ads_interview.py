@@ -792,6 +792,54 @@ HEAD = '''<!DOCTYPE html>
 .part-section .tally-foot { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14px; font-style: italic; color: var(--color-muted); line-height: 1.6; }
 @media (max-width: 700px) { .part-section .tally-grid { grid-template-columns: repeat(2, 1fr); } }
 
+/* Act 5 — PagerDuty alert card */
+.part-section .page-alert { background: linear-gradient(135deg, #3a1a1a 0%, #5a1f1f 100%); color: #fff; border-radius: 10px; padding: 18px 22px; margin: 22px 0; border-left: 5px solid #e25555; font-family: var(--font-mono); box-shadow: 0 6px 20px rgba(92,30,30,.2); }
+.part-section .page-label { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: #f5a9a9; margin-bottom: 10px; }
+.part-section .page-from { font-size: 14.5px; line-height: 1.55; color: #fff; font-family: var(--font-mono); word-break: break-word; }
+.part-section .page-meta { margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(245,169,169,.3); font-size: 11px; color: #f5a9a9; letter-spacing: 0.08em; }
+
+/* Act 5 — 30-min timer */
+.part-section .timer { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 24px 52px; margin: 26px 0; }
+.part-section .timer-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 24px; }
+.part-section .timer-track { position: relative; height: 6px; background: var(--color-cream); border-radius: 3px; margin: 0 4%; }
+.part-section .timer-fill { position: absolute; top: 0; left: 0; bottom: 0; background: linear-gradient(90deg, #2563a8, #c44b2b); border-radius: 3px; width: 83%; }
+.part-section .timer-tick { position: absolute; top: -4px; transform: translateX(-50%); width: 14px; height: 14px; background: #fff; border: 2px solid var(--color-ink); border-radius: 50%; z-index: 2; }
+.part-section .timer-tick-end { background: var(--color-sage); border-color: var(--color-sage); }
+.part-section .timer-clock { position: absolute; top: -24px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--color-ink); white-space: nowrap; }
+.part-section .timer-note { position: absolute; top: 22px; left: 50%; transform: translateX(-50%) rotate(25deg); transform-origin: left top; font-family: var(--font-mono); font-size: 10.5px; color: var(--color-muted); white-space: nowrap; }
+@media (max-width: 800px) {
+  .part-section .timer { padding: 18px 16px 72px; }
+  .part-section .timer-note { transform: translateX(-50%) rotate(35deg); font-size: 9.5px; }
+  .part-section .timer-clock { font-size: 10px; }
+}
+
+/* Act 5 — four hypothesis cards */
+.part-section .hypos { margin: 24px 0; display: flex; flex-direction: column; gap: 10px; }
+.part-section .hypo-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 6px; }
+.part-section .hypo { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-muted); border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: 52px 1fr; grid-template-rows: auto auto auto; gap: 4px 14px; }
+.part-section .hypo-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--color-muted); display: flex; align-items: center; justify-content: center; background: var(--color-cream); border-radius: 6px; }
+.part-section .hypo-name { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-ink); }
+.part-section .hypo-body { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
+.part-section .hypo-check { font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; color: var(--color-muted); font-style: italic; border-top: 1px dashed var(--color-border); padding-top: 8px; margin-top: 4px; }
+.part-section .hypo:nth-child(5) { border-left-color: #c44b2b; } /* H3 — the hot one (4th hypo including label) */
+
+/* Act 5 — diff table */
+.part-section .diff-card { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 22px; margin: 22px 0; }
+.part-section .diff-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 12px; }
+.part-section .diff-table { width: 100%; border-collapse: collapse; font-family: var(--font-body); font-size: 14px; }
+.part-section .diff-table th { background: var(--color-ink); color: #fff; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 10px 12px; text-align: left; font-weight: 500; }
+.part-section .diff-table td { padding: 10px 12px; border-top: 1px solid var(--color-border); }
+.part-section .diff-table tr.diff-hot { background: rgba(196,75,43,.08); }
+.part-section .diff-table tr.diff-hot td { font-weight: 600; color: var(--color-rust); }
+.part-section .diff-foot { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14px; font-style: italic; color: var(--color-muted); line-height: 1.6; }
+
+/* Act 5 — the mistake you almost make */
+.part-section .mistake { background: linear-gradient(135deg, #fff8ee 0%, #fef0d4 100%); border: 1px solid #e8c9a0; border-left: 5px solid #c8915a; border-radius: 10px; padding: 18px 22px; margin: 24px 0; }
+.part-section .mistake-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: #a87434; margin-bottom: 8px; }
+.part-section .mistake-head { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-ink); margin-bottom: 10px; }
+.part-section .mistake-body { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--color-ink); margin-bottom: 10px; }
+.part-section .mistake-why { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); padding-top: 10px; border-top: 1px dashed #c8915a; }
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
