@@ -622,6 +622,58 @@ HEAD = '''<!DOCTYPE html>
 
 
 /* ═══ THE ARC — narrative components (Acts, Storm, Choice, Sidebars) ═══ */
+/* Prompt card (the interviewer's prompt) */
+.part-section .prompt-card { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 20px 24px; margin: 20px 0 24px; box-shadow: 0 6px 20px rgba(26,35,50,.15); }
+.part-section .prompt-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 10px; }
+.part-section .prompt-body { margin: 0; padding: 0; border: none; font-family: var(--font-display); font-size: 19px; font-weight: 500; line-height: 1.5; color: #fff; }
+.part-section .prompt-body p { color: #fff; margin: 0; }
+.part-section .prompt-cue { margin: 10px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--color-gold-light); opacity: .9; font-style: italic; }
+
+/* Gap visual — the incident at a glance */
+.part-section .gap-card { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 24px; margin: 22px 0; box-shadow: 0 2px 10px rgba(26,35,50,.05); }
+.part-section .gap-label { text-align: center; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; }
+.part-section .gap-compare { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; }
+.part-section .gap-side { text-align: center; padding: 14px 12px; border-radius: 8px; }
+.part-section .gap-side.gap-dash { background: rgba(196,75,43,.08); border: 1px solid rgba(196,75,43,.25); }
+.part-section .gap-side.gap-fin  { background: rgba(42,122,74,.08); border: 1px solid rgba(42,122,74,.25); }
+.part-section .gap-source { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-light-muted); margin-bottom: 6px; }
+.part-section .gap-num { font-family: var(--font-display); font-size: 36px; font-weight: 700; color: var(--color-ink); line-height: 1; }
+.part-section .gap-defn { font-family: var(--font-body); font-size: 13px; color: var(--color-muted); margin-top: 4px; font-style: italic; }
+.part-section .gap-vs { font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: var(--color-rust); text-align: center; }
+.part-section .gap-vs-delta { display: block; font-size: 22px; color: var(--color-rust); font-family: var(--font-display); font-weight: 700; margin-top: 4px; }
+.part-section .gap-tag { margin-top: 12px; text-align: center; font-family: var(--font-body); font-style: italic; color: var(--color-muted); font-size: 14px; }
+
+/* Waterfall (per-category gap decomposition) */
+.part-section .waterfall { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 22px 24px; margin: 22px 0; }
+.part-section .wf-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; }
+.part-section .wf-rows { display: flex; flex-direction: column; gap: 8px; }
+.part-section .wf-row { display: grid; grid-template-columns: 190px 1fr 110px; gap: 14px; align-items: center; font-family: var(--font-body); font-size: 14px; }
+.part-section .wf-name { color: var(--color-ink); }
+.part-section .wf-bar { height: 28px; background: var(--color-cream); border-radius: 4px; position: relative; overflow: hidden; }
+.part-section .wf-fill { position: absolute; top: 0; bottom: 0; border-radius: 4px; transition: width .9s cubic-bezier(.2,.8,.2,1); }
+.part-section .wf-row.wf-base .wf-fill { background: linear-gradient(90deg, #2563a8, #1a4f8a); }
+.part-section .wf-row.wf-add  .wf-fill { background: linear-gradient(90deg, #c8915a, #a87434); }
+.part-section .wf-row.wf-total .wf-fill { background: linear-gradient(90deg, #2a7a4a, #1a4f30); }
+.part-section .wf-value { font-family: var(--font-mono); font-size: 14px; font-weight: 600; text-align: right; color: var(--color-ink); }
+.part-section .wf-row.wf-add .wf-value { color: #a87434; }
+.part-section .wf-row.wf-total .wf-value { color: #1a4f30; font-weight: 700; }
+.part-section .wf-note { grid-column: 1 / -1; font-family: var(--font-mono); font-size: 11.5px; color: var(--color-light-muted); margin-top: -4px; padding-left: 8px; }
+.part-section .wf-foot { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 13.5px; font-style: italic; color: var(--color-muted); }
+
+/* Inline SQL block (not hidden) */
+.part-section .inline-sql { background: #0f1e2e; color: #e8e0d6; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 18px 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.65; border-left: 3px solid var(--color-gold); }
+.part-section .inline-sql code { background: transparent; color: inherit; padding: 0; border: none; white-space: pre; font-family: var(--font-mono); }
+.part-section .inline-sql-cap { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-gold-dark); margin: 14px 0 4px; }
+
+@media (max-width: 700px) {
+  .part-section .gap-compare { grid-template-columns: 1fr; gap: 10px; }
+  .part-section .gap-vs { padding: 6px 0; }
+  .part-section .gap-num { font-size: 28px; }
+  .part-section .wf-row { grid-template-columns: 130px 1fr 70px; gap: 8px; font-size: 12.5px; }
+  .part-section .wf-name { font-size: 13px; }
+  .part-section .inline-sql { font-size: 11.5px; padding: 12px 14px; }
+}
+
 .part-section .act-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
 .part-section .act-title { font-family: var(--font-display); font-size: clamp(28px, 4.8vw, 48px); font-weight: 700; color: var(--color-ink); line-height: 1.08; margin: 0 0 18px; }
 .part-section .act-subtitle { font-family: var(--font-body); font-size: 19px; line-height: 1.7; color: var(--color-muted); font-style: italic; margin-bottom: 24px; }
