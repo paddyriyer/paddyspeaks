@@ -840,6 +840,42 @@ HEAD = '''<!DOCTYPE html>
 .part-section .mistake-body { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--color-ink); margin-bottom: 10px; }
 .part-section .mistake-why { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); padding-top: 10px; border-top: 1px dashed #c8915a; }
 
+/* Act 7 — side-by-side framings */
+.part-section .frames { margin: 24px 0; }
+.part-section .frames-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; }
+.part-section .frame { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 20px; }
+.part-section .frame + .frame { margin-top: 14px; }
+.part-section .frame-head { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-ink); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border); }
+.part-section .frame ul { margin: 0 0 10px 20px; padding: 0; }
+.part-section .frame li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; margin-bottom: 4px; }
+.part-section .frame-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--color-light-muted); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--color-border); font-style: italic; }
+.part-section .frame-wrong { border-left: 4px solid var(--color-rust); }
+.part-section .frame-wrong .frame-head { color: var(--color-rust); }
+.part-section .frame-right { border-left: 4px solid var(--color-sage); }
+.part-section .frame-right .frame-head { color: var(--color-sage); }
+.part-section .frame-right .frame-tag { color: var(--color-sage); font-weight: 600; }
+@media (min-width: 800px) {
+  .part-section .frames { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .part-section .frames-label { grid-column: 1 / -1; }
+  .part-section .frame + .frame { margin-top: 0; }
+}
+
+/* Act 7 — seven principles */
+.part-section .principles { margin: 26px 0; display: flex; flex-direction: column; gap: 10px; }
+.part-section .principles-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 4px; text-align: center; }
+.part-section .principle { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: 52px 1fr; grid-template-rows: auto auto; gap: 4px 14px; }
+.part-section .principle-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--color-gold-dark); display: flex; align-items: center; justify-content: center; background: var(--color-cream); border-radius: 6px; }
+.part-section .principle-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); }
+.part-section .principle-body { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); }
+
+/* Act 7 — quiet truth pull quote */
+.part-section .quiet-truth { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 28px 32px; margin: 32px 0; box-shadow: 0 8px 24px rgba(26,35,50,.2); }
+.part-section .quiet-mark { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 18px; }
+.part-section .quiet-body { margin: 0; padding: 0; border: none; font-family: var(--font-display); font-size: 19px; font-weight: 400; line-height: 1.55; color: #fff; font-style: normal; background: none; }
+.part-section .quiet-body p { color: #fff; margin: 0 0 14px; }
+.part-section .quiet-body p:last-child { margin-bottom: 0; }
+.part-section .quiet-sig { font-family: var(--font-body); font-size: 14px; font-style: italic; color: var(--color-gold-light); margin-top: 10px; }
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
