@@ -734,6 +734,36 @@ HEAD = '''<!DOCTYPE html>
 .part-section .def-when { font-family: var(--font-mono); font-size: 12px; color: var(--color-light-muted); }
 @media (max-width: 700px) { .part-section .defs { grid-template-columns: 1fr; } }
 
+/* Act 3 — 5-layer architecture stack */
+.part-section .stack { display: flex; flex-direction: column; gap: 12px; margin: 26px 0; }
+.part-section .stack-row { display: grid; grid-template-columns: 68px 1fr; gap: 16px; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(26,35,50,.05); border-left: 5px solid; }
+.part-section .stack-ingest   { border-left-color: #2563a8; }
+.part-section .stack-conform  { border-left-color: #4a8fbf; }
+.part-section .stack-metrics  { border-left-color: #c8915a; }
+.part-section .stack-semantic { border-left-color: #c44b2b; }
+.part-section .stack-consume  { border-left-color: #2a7a4a; }
+.part-section .stack-num { font-family: var(--font-display); font-size: 36px; font-weight: 700; color: var(--color-ink); line-height: 1; display: flex; align-items: center; justify-content: center; background: var(--color-cream); border-radius: 8px; opacity: .55; }
+.part-section .stack-body { display: flex; flex-direction: column; gap: 6px; }
+.part-section .stack-name { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--color-ink); margin-bottom: 2px; }
+.part-section .stack-what, .part-section .stack-because, .part-section .stack-rejected { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; margin: 0; }
+.part-section .stack-because { color: #1a4f30; }
+.part-section .stack-rejected { color: var(--color-muted); font-style: italic; }
+@media (max-width: 700px) {
+  .part-section .stack-row { grid-template-columns: 44px 1fr; gap: 10px; padding: 13px; }
+  .part-section .stack-num { font-size: 26px; }
+  .part-section .stack-name { font-size: 17px; }
+  .part-section .stack-what, .part-section .stack-because, .part-section .stack-rejected { font-size: 13.5px; }
+}
+
+/* Act 3 — three contracts */
+.part-section .contracts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin: 22px 0; }
+.part-section .contract { background: #fff; border: 1px solid var(--color-border); border-top: 4px solid var(--color-gold); border-radius: 8px; padding: 15px 17px; display: flex; flex-direction: column; gap: 8px; }
+.part-section .contract-num { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); }
+.part-section .contract-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); }
+.part-section .contract-body { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); }
+.part-section .contract-fix { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 13.5px; font-style: italic; color: #1a4f30; }
+@media (max-width: 900px) { .part-section .contracts { grid-template-columns: 1fr; } }
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
