@@ -840,6 +840,71 @@ HEAD = '''<!DOCTYPE html>
 .part-section .mistake-body { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--color-ink); margin-bottom: 10px; }
 .part-section .mistake-why { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); padding-top: 10px; border-top: 1px dashed #c8915a; }
 
+/* Act 7 — side-by-side framings */
+.part-section .frames { margin: 24px 0; }
+.part-section .frames-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; }
+.part-section .frame { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 20px; }
+.part-section .frame + .frame { margin-top: 14px; }
+.part-section .frame-head { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-ink); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed var(--color-border); }
+.part-section .frame ul { margin: 0 0 10px 20px; padding: 0; }
+.part-section .frame li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; margin-bottom: 4px; }
+.part-section .frame-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--color-light-muted); margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--color-border); font-style: italic; }
+.part-section .frame-wrong { border-left: 4px solid var(--color-rust); }
+.part-section .frame-wrong .frame-head { color: var(--color-rust); }
+.part-section .frame-right { border-left: 4px solid var(--color-sage); }
+.part-section .frame-right .frame-head { color: var(--color-sage); }
+.part-section .frame-right .frame-tag { color: var(--color-sage); font-weight: 600; }
+@media (min-width: 800px) {
+  .part-section .frames { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .part-section .frames-label { grid-column: 1 / -1; }
+  .part-section .frame + .frame { margin-top: 0; }
+}
+
+/* Act 7 — seven principles */
+.part-section .principles { margin: 26px 0; display: flex; flex-direction: column; gap: 10px; }
+.part-section .principles-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 4px; text-align: center; }
+.part-section .principle { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: 52px 1fr; grid-template-rows: auto auto; gap: 4px 14px; }
+.part-section .principle-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--color-gold-dark); display: flex; align-items: center; justify-content: center; background: var(--color-cream); border-radius: 6px; }
+.part-section .principle-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); }
+.part-section .principle-body { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); }
+
+/* Act 7 — quiet truth pull quote */
+.part-section .quiet-truth { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 28px 32px; margin: 32px 0; box-shadow: 0 8px 24px rgba(26,35,50,.2); }
+.part-section .quiet-mark { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 18px; }
+.part-section .quiet-body { margin: 0; padding: 0; border: none; font-family: var(--font-display); font-size: 19px; font-weight: 400; line-height: 1.55; color: #fff; font-style: normal; background: none; }
+.part-section .quiet-body p { color: #fff; margin: 0 0 14px; }
+.part-section .quiet-body p:last-child { margin-bottom: 0; }
+.part-section .quiet-sig { font-family: var(--font-body); font-size: 14px; font-style: italic; color: var(--color-gold-light); margin-top: 10px; }
+
+/* Appendix — drill cards */
+.part-section .drills { display: flex; flex-direction: column; gap: 14px; margin: 22px 0; }
+.part-section .drill { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 10px; padding: 18px 22px; box-shadow: 0 2px 8px rgba(26,35,50,.04); }
+.part-section .drill-head { display: grid; grid-template-columns: 60px 1fr auto; gap: 14px; align-items: baseline; border-bottom: 1px dashed var(--color-border); padding-bottom: 10px; margin-bottom: 12px; }
+.part-section .drill-num { font-family: var(--font-display); font-size: 26px; font-weight: 700; color: var(--color-gold-dark); }
+.part-section .drill-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--color-ink); line-height: 1.2; }
+.part-section .drill-meta { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-light-muted); white-space: nowrap; }
+.part-section .drill-stem p { font-size: 15px; line-height: 1.65; margin: 0 0 8px; }
+.part-section .drill-edge { background: var(--color-cream); border-left: 3px solid var(--color-rust); padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 14px !important; font-style: italic; color: var(--color-ink); }
+.part-section .drill-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
+.part-section .drill-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
+.part-section .drill-answer > summary::-webkit-details-marker { display: none; }
+.part-section .drill-answer > summary::before { content: '▸ '; }
+.part-section .drill-answer[open] > summary::before { content: '▾ '; }
+.part-section .drill-body { padding-top: 8px; }
+.part-section .drill-body pre { background: #0f1e2e; color: #e8e0d6; padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin: 8px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+.part-section .drill-body pre code { background: transparent; color: inherit; padding: 0; border: none; }
+@media (max-width: 700px) {
+  .part-section .drill-head { grid-template-columns: 44px 1fr; grid-template-rows: auto auto; }
+  .part-section .drill-meta { grid-column: 2 / -1; grid-row: 2 / 3; }
+}
+
+/* Appendix — ship list checklist */
+.part-section .ship-list { display: flex; flex-direction: column; gap: 8px; margin: 22px 0; background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 22px; }
+.part-section .ship { display: flex; align-items: flex-start; gap: 12px; font-family: var(--font-body); font-size: 15px; line-height: 1.55; cursor: pointer; }
+.part-section .ship input[type="checkbox"] { margin-top: 4px; flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--color-sage); }
+.part-section .ship input:checked + span { color: var(--color-light-muted); text-decoration: line-through; }
+.part-section .appendix-close { margin-top: 28px; font-family: var(--font-body); font-size: 16px; line-height: 1.7; color: var(--color-ink); font-style: italic; }
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }

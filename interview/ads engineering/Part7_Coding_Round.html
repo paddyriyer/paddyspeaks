@@ -189,640 +189,334 @@
 
 <main class="content">
 
-<p>The coding round for an ads DE loop is not leetcode. It is a test of whether you understand the <em>shape</em> of ads data — attribution windows, de-duplication, pacing, frequency, incrementality — and whether you can express that understanding in correct, readable, performant code. Every problem below is one I have either given or been given in a real interview. Each one contains a specific trap that distinguishes someone who has shipped the system from someone who has read about it.</p>
+<section id="appendix-your-turn" class="act act-appendix">
+  <div class="act-eyebrow">Appendix · Your Turn</div>
+  <h1 class="act-title">The coding bank.</h1>
 
-<blockquote><p>Before reading the reference solution, take a timer. Give yourself 15 minutes per SQL problem, 25 per Python. Do not look at the solution until the timer ends or you have a working answer. The value of this part is in the failed attempts, not the clean ones.</p></blockquote>
+  <p class="act-subtitle">Seven drills. Twelve minutes of SQL each. Twenty minutes of Python each. If you can solve them without reading the answer first, the narrative half of this article will hold under real pressure. If you cannot, work the drills until you can — the rest of the article is scaffolding around this set.</p>
 
-<h2 id="table-of-contents">Contents</h2>
-<ol>
-<li><a href="#sql-problems">SQL — 8 tricky problems</a></li>
-<li><a href="#python-problems">Python — 6 coding problems</a></li>
-<li><a href="#meta-advice">How to approach the ads coding round</a></li>
-</ol>
+  <div class="prompt-card">
+    <div class="prompt-label">How to use this appendix</div>
+    <blockquote class="prompt-body"><p>Close the answer <code>&lt;details&gt;</code>. Set a timer. Solve on paper or in a blank editor. Do not check the reference until the timer runs out, even if you are stuck. Then compare — not to see if you got the same answer, but to see what edge cases your solution missed.</p></blockquote>
+  </div>
 
-<hr>
+  <h2 id="drill-bank">The bank · seven drills</h2>
 
-<h2 id="sql-problems">1. SQL — Eight Tricky Problems</h2>
+  <div class="drills">
 
-<h3>SQL 1 — Last-click attribution with mixed click and view windows</h3>
-
-<h4>Prompt</h4>
-<p>For each conversion, attribute it to the last touch that satisfies <em>either</em> (a) a click within 7 days before the conversion, <em>or</em> (b) a view within 1 day before the conversion. Click wins over view on ties. Output: conversion_id, attributed_touch_id, attribution_type, campaign_id.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">conversions(conversion_id BIGINT, user_id BIGINT, conversion_ts TIMESTAMP, revenue_usd DECIMAL)
-touches(touch_id BIGINT, user_id BIGINT, campaign_id BIGINT, touch_ts TIMESTAMP, touch_type STRING)  -- 'click' or 'view'</code></pre>
-
-<h4>The trap</h4>
-<p>Candidates join once with a combined window and take the last row. This is wrong when a user has a recent view and an older click — last-touch-by-time gives the view, but click should win. You need a <em>preference order</em> inside the window filter.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH candidates AS (
+    <!-- Drill 1 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">01</div>
+        <div class="drill-title">The September reconciliation</div>
+        <div class="drill-meta">SQL · 12 min · Hard</div>
+      </div>
+      <div class="drill-stem">
+        <p>Given <code>silver.fact_impression</code> (<code>spend_cents</code>, <code>is_valid</code>, <code>fx_rate_to_usd</code>, <code>impression_ts</code>) and <code>finance.ad_revenue_ledger</code> (<code>month</code>, <code>invoiced_usd</code>, <code>refunds_usd</code>, <code>ivt_credits_usd</code>, <code>partner_attribution_adjustment_usd</code>). Produce one row reconciling pipeline spend to Finance settled revenue for September 2025 with an <code>unexplained_gap_usd</code> column.</p>
+        <p class="drill-edge"><strong>Edge cases to catch:</strong> timezone of <code>impression_ts</code> (is Sep the PST month or UTC month?), <code>is_valid = FALSE</code> treatment, signs of refunds and credits (subtract) vs adjustments (add).</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="sql">WITH pipeline AS (
   SELECT
-    c.conversion_id,
-    c.revenue_usd,
-    t.touch_id,
-    t.campaign_id,
-    t.touch_type,
-    t.touch_ts,
-    ROW_NUMBER() OVER (
-      PARTITION BY c.conversion_id
-      ORDER BY
-        CASE WHEN t.touch_type = 'click' THEN 0 ELSE 1 END,  -- click beats view
-        t.touch_ts DESC                                        -- then most recent
-    ) AS rn
-  FROM conversions c
-  JOIN touches t
-    ON t.user_id = c.user_id
-   AND (
-        (t.touch_type = 'click' AND t.touch_ts &gt;= c.conversion_ts - INTERVAL '7 days'
-                                 AND t.touch_ts &lt;= c.conversion_ts)
-     OR (t.touch_type = 'view'  AND t.touch_ts &gt;= c.conversion_ts - INTERVAL '1 day'
-                                 AND t.touch_ts &lt;= c.conversion_ts)
-       )
-)
-SELECT
-  conversion_id,
-  touch_id AS attributed_touch_id,
-  touch_type AS attribution_type,
-  campaign_id
-FROM candidates
-WHERE rn = 1;</code></pre>
-
-<h4>Follow-ups the interviewer probes</h4>
-<ul>
-<li>"What if a conversion has no qualifying touch?" → add a LEFT JOIN and COALESCE to 'organic'.</li>
-<li>"What if click and view from different campaigns?" → the ORDER BY already breaks the tie by type + time; campaign is intentionally not part of the tiebreaker.</li>
-</ul>
-
-<h3>SQL 2 — Frequency capping: who saw this creative more than N times in a rolling 24h</h3>
-
-<h4>Prompt</h4>
-<p>For each (user_id, creative_id) pair, identify any rolling 24-hour window in the past 30 days during which they received &gt;10 impressions. Output users and creatives with the count of windows that breached the cap.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">impressions(impression_id BIGINT, user_id BIGINT, creative_id BIGINT, imp_ts TIMESTAMP)</code></pre>
-
-<h4>The trap</h4>
-<p>"Rolling 24h" is not the same as "per calendar day." A candidate who groups by <code>DATE(imp_ts)</code> misses windows that span midnight. The correct pattern uses <code>COUNT(*) OVER</code> with a range frame, not a row frame.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH windowed AS (
-  SELECT
-    user_id,
-    creative_id,
-    imp_ts,
-    COUNT(*) OVER (
-      PARTITION BY user_id, creative_id
-      ORDER BY EXTRACT(EPOCH FROM imp_ts)
-      RANGE BETWEEN 86400 PRECEDING AND CURRENT ROW  -- 24h rolling
-    ) AS imps_in_24h
-  FROM impressions
-  WHERE imp_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
-)
-SELECT
-  user_id,
-  creative_id,
-  SUM(CASE WHEN imps_in_24h &gt; 10 THEN 1 ELSE 0 END) AS windows_over_cap,
-  MAX(imps_in_24h)                                  AS peak_count
-FROM windowed
-GROUP BY user_id, creative_id
-HAVING SUM(CASE WHEN imps_in_24h &gt; 10 THEN 1 ELSE 0 END) &gt; 0
-ORDER BY peak_count DESC;</code></pre>
-
-<h4>Follow-ups</h4>
-<ul>
-<li>"Some engines don't support RANGE with time intervals." → materialize epoch seconds in a CTE and range over the integer, or self-join with <code>BETWEEN imp_ts - 24h AND imp_ts</code> (slower but universal).</li>
-<li>"What about viewable impressions only?" → filter on <code>is_viewable = TRUE</code> upstream.</li>
-</ul>
-
-<h3>SQL 3 — Multi-touch attribution with time-decay weights</h3>
-
-<h4>Prompt</h4>
-<p>Attribute each conversion's revenue across the user's touches in the past 30 days using time-decay: a touch N days before conversion gets weight <code>2^(-N/7)</code> (half-life of 7 days). Normalize weights per conversion so they sum to 1. Output per-campaign attributed revenue.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">conversions(conversion_id BIGINT, user_id BIGINT, conversion_ts TIMESTAMP, revenue_usd DECIMAL)
-touches(touch_id BIGINT, user_id BIGINT, campaign_id BIGINT, touch_ts TIMESTAMP)</code></pre>
-
-<h4>The trap</h4>
-<p>Normalizing per touch instead of per conversion — produces wrong totals. And computing <code>EXP(LN(2) * ...)</code> differently per engine. The clean approach uses a windowed SUM for the denominator.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH weighted AS (
-  SELECT
-    c.conversion_id,
-    c.revenue_usd,
-    t.campaign_id,
-    POWER(2.0, -1.0 * DATEDIFF('day', t.touch_ts, c.conversion_ts) / 7.0) AS raw_weight
-  FROM conversions c
-  JOIN touches t
-    ON t.user_id = c.user_id
-   AND t.touch_ts BETWEEN c.conversion_ts - INTERVAL '30 days' AND c.conversion_ts
+    SUM(spend_cents * fx_rate_to_usd) / 100.0 AS spend_revenue_usd,
+    SUM(CASE WHEN is_valid = FALSE
+             THEN spend_cents * fx_rate_to_usd ELSE 0 END) / 100.0
+                                              AS pipeline_ivt_flagged_usd
+  FROM silver.fact_impression
+  WHERE impression_ts &gt;= TIMESTAMP '2025-09-01 00:00:00 America/Los_Angeles'
+    AND impression_ts &lt;  TIMESTAMP '2025-10-01 00:00:00 America/Los_Angeles'
 ),
-normalized AS (
+ledger AS (
   SELECT
-    conversion_id,
-    revenue_usd,
-    campaign_id,
-    raw_weight,
-    raw_weight / SUM(raw_weight) OVER (PARTITION BY conversion_id) AS norm_weight
-  FROM weighted
+    SUM(invoiced_usd) - SUM(refunds_usd) - SUM(ivt_credits_usd)
+    + SUM(partner_attribution_adjustment_usd) AS settled_revenue_usd,
+    SUM(refunds_usd)                          AS finance_refunds_usd,
+    SUM(ivt_credits_usd)                      AS finance_ivt_credits_usd,
+    SUM(partner_attribution_adjustment_usd)   AS finance_partner_adj_usd
+  FROM finance.ad_revenue_ledger
+  WHERE month = DATE '2025-09-01'
 )
-SELECT
-  campaign_id,
-  SUM(revenue_usd * norm_weight) AS attributed_revenue
-FROM normalized
-GROUP BY campaign_id
-ORDER BY attributed_revenue DESC;</code></pre>
+SELECT p.*, l.*,
+       (l.settled_revenue_usd - p.spend_revenue_usd)
+       - (p.pipeline_ivt_flagged_usd - l.finance_ivt_credits_usd)
+       + l.finance_refunds_usd
+       - l.finance_partner_adj_usd             AS unexplained_gap_usd
+FROM pipeline p CROSS JOIN ledger l;</code></pre>
+          <p><strong>What junior solutions miss:</strong> timezone boundary — the Finance ledger's "September" is PST, not UTC. Missing this puts 3 hours of Oct 1 UTC impressions in the pipeline side and leaves the gap unexplained by 0.5%.</p>
+        </div>
+      </details>
+    </div>
 
-<h4>Follow-up</h4>
-<ul>
-<li>"How does this compare to linear MTA?" → linear uses <code>1/n_touches</code> for each; time-decay favors recency. Run both in parallel in production; compare.</li>
-</ul>
-
-<h3>SQL 4 — Incrementality via holdout group</h3>
-
-<h4>Prompt</h4>
-<p>Compute campaign incrementality: for each campaign, the conversion rate in the exposed group vs the holdout group. The assignment table randomly held out 5% of the audience from ads during the campaign. Report per-campaign lift and confidence interval width.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">assignments(user_id BIGINT, campaign_id BIGINT, group_name STRING)  -- 'exposed' or 'holdout'
-conversions(user_id BIGINT, campaign_id BIGINT, conversion_ts TIMESTAMP)</code></pre>
-
-<h4>The trap</h4>
-<p>Missing the holdout group entirely and computing a gross "conversion rate" — which shows whether ads were shown to purchasers, not whether ads <em>caused</em> purchases. Also: forgetting the standard-error formula for a rate difference.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH rates AS (
-  SELECT
-    a.campaign_id,
-    a.group_name,
-    COUNT(DISTINCT a.user_id)                                  AS n_users,
-    COUNT(DISTINCT c.user_id)                                  AS n_convs,
-    COUNT(DISTINCT c.user_id) * 1.0 / COUNT(DISTINCT a.user_id) AS conv_rate
-  FROM assignments a
-  LEFT JOIN conversions c
-    ON c.user_id = a.user_id AND c.campaign_id = a.campaign_id
-  GROUP BY a.campaign_id, a.group_name
-),
-pivoted AS (
-  SELECT
-    campaign_id,
-    MAX(CASE WHEN group_name = 'exposed' THEN conv_rate END) AS exposed_rate,
-    MAX(CASE WHEN group_name = 'exposed' THEN n_users   END) AS exposed_n,
-    MAX(CASE WHEN group_name = 'holdout' THEN conv_rate END) AS holdout_rate,
-    MAX(CASE WHEN group_name = 'holdout' THEN n_users   END) AS holdout_n
-  FROM rates
-  GROUP BY campaign_id
+    <!-- Drill 2 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">02</div>
+        <div class="drill-title">Bi-temporal "what did we tell them, and when"</div>
+        <div class="drill-meta">SQL · 10 min · Medium</div>
+      </div>
+      <div class="drill-stem">
+        <p>Table <code>gold.revenue_attributed</code> is append-only with <code>event_time</code>, <code>attribution_time</code>, <code>credited_usd</code>, <code>is_superseded</code>. Reproduce exactly the September total Finance saw at 10:37 AM on 2025-09-30, regardless of any rows inserted afterwards.</p>
+        <p class="drill-edge"><strong>Edge:</strong> <code>is_superseded</code> as of that moment, not now. You cannot trust today's <code>is_superseded</code> flag.</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="sql">-- Sum rows that (a) existed by 10:37 and (b) were not superseded by any row
+-- also created by 10:37.
+WITH snapshot AS (
+  SELECT *
+  FROM   gold.revenue_attributed
+  WHERE  attribution_time &lt;= TIMESTAMP '2025-09-30 10:37:00'
 )
-SELECT
-  campaign_id,
-  exposed_rate,
-  holdout_rate,
-  (exposed_rate - holdout_rate) / NULLIF(holdout_rate, 0) AS lift_pct,
-  exposed_rate - holdout_rate                              AS absolute_lift,
-  -- 95% CI half-width for a difference in proportions
-  1.96 * SQRT(
-      exposed_rate * (1 - exposed_rate) / exposed_n
-    + holdout_rate * (1 - holdout_rate) / holdout_n
-  ) AS ci_half_width
-FROM pivoted
-ORDER BY lift_pct DESC;</code></pre>
+SELECT SUM(r.credited_usd) AS finance_view_1037
+FROM   snapshot r
+WHERE  NOT EXISTS (
+  SELECT 1 FROM snapshot s2
+  WHERE  s2.conversion_id   = r.conversion_id
+    AND  s2.attribution_time &gt; r.attribution_time
+);</code></pre>
+          <p><strong>Why this is the senior answer:</strong> naïvely filtering <code>WHERE is_superseded = FALSE</code> uses today's supersession flags. A row that was current at 10:37 but was superseded three days later would be (wrongly) excluded from the snapshot.</p>
+        </div>
+      </details>
+    </div>
 
-<h4>Follow-up</h4>
-<ul>
-<li>"Lift is +2% but CI half-width is 3%." → The result is not statistically significant. You cannot claim lift. Senior candidates name this explicitly rather than reporting the +2% as a win.</li>
-</ul>
+    <!-- Drill 3 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">03</div>
+        <div class="drill-title">Last-click attribution with 7-day window</div>
+        <div class="drill-meta">SQL · 15 min · Hard</div>
+      </div>
+      <div class="drill-stem">
+        <p>Given <code>fact_click</code> (<code>user_id</code>, <code>campaign_id</code>, <code>click_ts</code>) and <code>fact_conversion</code> (<code>user_id</code>, <code>conversion_ts</code>, <code>conversion_usd</code>), credit each conversion to the latest click within 7 days preceding it. Un-attributable conversions (no click in window) return NULL for campaign.</p>
+        <p class="drill-edge"><strong>Edge:</strong> ties on <code>click_ts</code> (same second), and conversions with zero matching clicks still need to appear in output (LEFT JOIN, not INNER).</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="sql">SELECT
+  c.user_id,
+  c.conversion_ts,
+  c.conversion_usd,
+  last_click.campaign_id AS attributed_campaign
+FROM fact_conversion c
+LEFT JOIN LATERAL (
+  SELECT campaign_id
+  FROM   fact_click k
+  WHERE  k.user_id   = c.user_id
+    AND  k.click_ts &lt;= c.conversion_ts
+    AND  k.click_ts &gt;  c.conversion_ts - INTERVAL '7 days'
+  ORDER BY k.click_ts DESC, k.campaign_id DESC  -- deterministic tiebreak
+  LIMIT  1
+) last_click ON TRUE;</code></pre>
+          <p><strong>Why the tiebreak column matters:</strong> two clicks at the same second from different campaigns would non-deterministically attribute without the secondary ORDER BY. Candidates who skip this ship a test suite that passes locally and fails flakily in CI.</p>
+        </div>
+      </details>
+    </div>
 
-<h3>SQL 5 — Triple-key dedupe with a suspected-dupe sidecar</h3>
+    <!-- Drill 4 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">04</div>
+        <div class="drill-title">Frequency capping — streaming, 24h rolling</div>
+        <div class="drill-meta">Python · 20 min · Medium</div>
+      </div>
+      <div class="drill-stem">
+        <p>Implement <code>should_serve(user_id, now_ts) -&gt; bool</code> backed by Redis. Cap: at most 5 impressions per user in any rolling 24h window. Redis ops available: <code>ZADD</code>, <code>ZCOUNT</code>, <code>ZREMRANGEBYSCORE</code>, <code>EXPIRE</code>.</p>
+        <p class="drill-edge"><strong>Edge:</strong> race between two ad servers for the same user at the same instant — without a transaction, both decide "yes, serve." And: memory bloat if old entries are never trimmed.</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="python">import time
+import redis
 
-<h4>Prompt</h4>
-<p>The ingest pipeline sometimes receives the same event twice because of SDK retries. <code>event_id</code> is not a reliable dedupe key (different SDK versions generate it differently). Build a silver table that keeps the first copy per logical event, and a sidecar table that preserves suspected duplicates for audit.</p>
+r = redis.Redis()
+WINDOW_SEC = 24 * 3600
+CAP = 5
 
-<h4>Schema</h4>
-<pre><code class="sql">bronze.impression(event_id BIGINT, user_id BIGINT, event_name STRING, event_ts TIMESTAMP, ingest_ts TIMESTAMP, sdk_version STRING, dt DATE)</code></pre>
+def should_serve(user_id: str, now_ts: int | None = None) -&gt; bool:
+    now = now_ts if now_ts is not None else int(time.time())
+    key = f"freq:{user_id}"
+    cutoff = now - WINDOW_SEC
 
-<h4>The trap</h4>
-<p>Using <code>event_id</code> alone misses retries with regenerated IDs. Using <code>(user_id, event_ts)</code> without rounding misses retries milliseconds apart that are functionally the same event.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">CREATE OR REPLACE TABLE silver.fact_impression AS
-WITH keyed AS (
-  SELECT
-    *,
-    CONCAT_WS('|',
-      CAST(user_id AS STRING),
-      event_name,
-      CAST(DATE_TRUNC('second', event_ts) AS STRING)
-    ) AS dedupe_key
-  FROM bronze.impression
-  WHERE dt = :yesterday
-)
-SELECT * FROM keyed
-QUALIFY ROW_NUMBER() OVER (PARTITION BY dedupe_key ORDER BY ingest_ts ASC) = 1;
-
-CREATE OR REPLACE TABLE ops.suspected_duplicates AS
-SELECT * FROM (
-  SELECT *, ROW_NUMBER() OVER (PARTITION BY
-      CONCAT_WS('|', CAST(user_id AS STRING), event_name,
-                CAST(DATE_TRUNC('second', event_ts) AS STRING))
-      ORDER BY ingest_ts ASC) AS rn
-  FROM bronze.impression WHERE dt = :yesterday
-) WHERE rn &gt; 1;</code></pre>
-
-<h4>Follow-up</h4>
-<ul>
-<li>"How do you alert when one SDK version suddenly drops 10× more than others?" → a per-sdk_version drop-rate monitor from the sidecar table.</li>
-</ul>
-
-<h3>SQL 6 — Cohort ROAS matrix (acquisition week × revenue week)</h3>
-
-<h4>Prompt</h4>
-<p>For users acquired each week in the past 12 weeks, report their cumulative revenue at week 0, week 1, week 2, week 4, week 8 after acquisition. Each row is a cohort week; columns are week-offset revenue per user.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">acquisitions(user_id BIGINT, acquired_ts TIMESTAMP, cost_usd DECIMAL)
-revenue(user_id BIGINT, revenue_ts TIMESTAMP, revenue_usd DECIMAL)</code></pre>
-
-<h4>The trap</h4>
-<p>Computing "week 1 revenue" as a separate WHERE-filtered query and joining four times — expensive and error-prone. The clean pattern uses conditional SUMs over a single join.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH cohort AS (
-  SELECT
-    user_id,
-    DATE_TRUNC('week', acquired_ts) AS cohort_week,
-    cost_usd
-  FROM acquisitions
-  WHERE acquired_ts &gt;= CURRENT_DATE - INTERVAL '12 weeks'
-),
-joined AS (
-  SELECT
-    c.cohort_week,
-    c.user_id,
-    c.cost_usd,
-    r.revenue_usd,
-    DATEDIFF('week', c.cohort_week, DATE_TRUNC('week', r.revenue_ts)) AS week_offset
-  FROM cohort c
-  LEFT JOIN revenue r USING (user_id)
-)
-SELECT
-  cohort_week,
-  COUNT(DISTINCT user_id)                                                       AS n_users,
-  SUM(DISTINCT cost_usd)                                                        AS cohort_spend,
-  SUM(CASE WHEN week_offset &lt;= 0 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w0,
-  SUM(CASE WHEN week_offset &lt;= 1 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w1,
-  SUM(CASE WHEN week_offset &lt;= 2 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w2,
-  SUM(CASE WHEN week_offset &lt;= 4 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w4,
-  SUM(CASE WHEN week_offset &lt;= 8 THEN revenue_usd ELSE 0 END) / COUNT(DISTINCT user_id) AS rev_per_user_w8,
-  SUM(CASE WHEN week_offset &lt;= 8 THEN revenue_usd ELSE 0 END) / NULLIF(SUM(DISTINCT cost_usd), 0) AS roas_w8
-FROM joined
-GROUP BY cohort_week
-ORDER BY cohort_week DESC;</code></pre>
-
-<h3>SQL 7 — Pacing: detect over-delivery before the end of day</h3>
-
-<h4>Prompt</h4>
-<p>A campaign's daily budget is spread evenly across 24 hours. For each campaign, identify any point in today's calendar so far where cumulative spend is more than 110% of the linear-pacing target. Output the first breach timestamp per campaign and how far over it ran.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">impressions(campaign_id BIGINT, imp_ts TIMESTAMP, spend_cents BIGINT)
-campaigns(campaign_id BIGINT, daily_budget_usd DECIMAL)</code></pre>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH minute_spend AS (
-  SELECT
-    campaign_id,
-    DATE_TRUNC('minute', imp_ts)              AS t,
-    SUM(spend_cents) / 100.0                  AS spend_usd
-  FROM impressions
-  WHERE DATE(imp_ts) = CURRENT_DATE
-  GROUP BY campaign_id, DATE_TRUNC('minute', imp_ts)
-),
-running AS (
-  SELECT
-    campaign_id,
-    t,
-    SUM(spend_usd) OVER (PARTITION BY campaign_id ORDER BY t) AS cum_spend,
-    (EXTRACT(EPOCH FROM (t - DATE_TRUNC('day', t))) / 86400.0) AS day_fraction
-  FROM minute_spend
-),
-breaches AS (
-  SELECT
-    r.campaign_id,
-    r.t,
-    r.cum_spend,
-    r.day_fraction * c.daily_budget_usd       AS linear_target,
-    r.cum_spend / NULLIF(r.day_fraction * c.daily_budget_usd, 0) AS pace_ratio
-  FROM running r
-  JOIN campaigns c USING (campaign_id)
-  WHERE r.cum_spend &gt; 1.10 * r.day_fraction * c.daily_budget_usd
-)
-SELECT
-  campaign_id,
-  MIN(t)                                 AS first_breach_ts,
-  MAX(pace_ratio)                        AS peak_pace_ratio,
-  MAX(cum_spend - linear_target)         AS peak_overshoot_usd
-FROM breaches
-GROUP BY campaign_id
-ORDER BY peak_pace_ratio DESC;</code></pre>
-
-<h3>SQL 8 — Creative fatigue: CTR decay by days since launch</h3>
-
-<h4>Prompt</h4>
-<p>For each creative, compute its CTR on each day since launch. Flag any creative whose CTR on day N is below 60% of its own CTR on day 1, where day 1 is the creative's <em>own</em> first day of delivery.</p>
-
-<h4>Schema</h4>
-<pre><code class="sql">impressions(creative_id BIGINT, imp_ts TIMESTAMP, did_click BOOLEAN)</code></pre>
-
-<h4>The trap</h4>
-<p>Using a calendar day-of-month instead of <em>days since the creative itself launched</em>. Creatives launched on different dates can't be compared on absolute dates.</p>
-
-<h4>Reference solution</h4>
-<pre><code class="sql">WITH daily AS (
-  SELECT
-    creative_id,
-    DATE(imp_ts)                              AS dt,
-    COUNT(*)                                  AS imps,
-    SUM(CASE WHEN did_click THEN 1 ELSE 0 END) AS clicks,
-    SUM(CASE WHEN did_click THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS ctr
-  FROM impressions
-  GROUP BY creative_id, DATE(imp_ts)
-),
-indexed AS (
-  SELECT
-    d.*,
-    MIN(dt) OVER (PARTITION BY creative_id) AS launch_dt,
-    DATEDIFF('day', MIN(dt) OVER (PARTITION BY creative_id), dt) + 1 AS day_n
-  FROM daily d
-),
-day1_ctr AS (
-  SELECT creative_id, ctr AS ctr_day1
-  FROM indexed WHERE day_n = 1
-)
-SELECT
-  i.creative_id,
-  i.dt,
-  i.day_n,
-  i.ctr,
-  d1.ctr_day1,
-  i.ctr / NULLIF(d1.ctr_day1, 0) AS relative_ctr,
-  CASE WHEN i.ctr &lt; 0.60 * d1.ctr_day1 THEN TRUE ELSE FALSE END AS fatigued
-FROM indexed i
-JOIN day1_ctr d1 USING (creative_id)
-WHERE i.day_n &gt; 7                   -- only flag after the first week
-  AND i.imps &gt;= 1000                -- only flag once there's volume
-ORDER BY i.creative_id, i.dt;</code></pre>
-
-<hr>
-
-<h2 id="python-problems">2. Python — Six Coding Problems</h2>
-
-<h3>Python 1 — Sessionize an event stream with a timeout</h3>
-
-<h4>Prompt</h4>
-<p>Given a list of events <code>[(user_id, ts, event_name)]</code> sorted by user_id then ts, partition each user's events into sessions where any gap &gt; 30 minutes starts a new session. Return a list of <code>(user_id, session_id, start_ts, end_ts, event_count)</code>. Solve in O(N).</p>
-
-<pre><code class="python">from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import List, Tuple
-
-@dataclass
-class Session:
-    user_id: int
-    session_id: str
-    start_ts: datetime
-    end_ts: datetime
-    event_count: int
-
-GAP = timedelta(minutes=30)
-
-def sessionize(events: List[Tuple[int, datetime, str]]) -> List[Session]:
-    out: List[Session] = []
-    if not events:
-        return out
-    cur_user = None
-    cur_start = cur_end = None
-    cur_count = 0
-
-    def flush():
-        if cur_user is not None and cur_count &gt; 0:
-            sid = f"{cur_user}_{int(cur_start.timestamp())}"
-            out.append(Session(cur_user, sid, cur_start, cur_end, cur_count))
-
-    for user_id, ts, _ in events:
-        if user_id != cur_user or (cur_end is not None and ts - cur_end &gt; GAP):
-            flush()
-            cur_user, cur_start, cur_end, cur_count = user_id, ts, ts, 1
-        else:
-            cur_end = ts
-            cur_count += 1
-    flush()
-    return out</code></pre>
-
-<h4>The trap</h4>
-<p>Forgetting that user boundaries also start a new session — a candidate who only checks the gap will merge two users' events.</p>
-
-<h3>Python 2 — Token-bucket rate limiter for pixel firing</h3>
-
-<h4>Prompt</h4>
-<p>Implement a rate limiter that allows at most <code>N</code> pixel events per user per second, with a burst capacity of <code>B</code>. It should be thread-safe and O(1) per call.</p>
-
-<pre><code class="python">import time
-import threading
-from collections import defaultdict
-
-class TokenBucket:
-    def __init__(self, rate_per_sec: float, burst: int):
-        self.rate = rate_per_sec
-        self.burst = burst
-        self._state = defaultdict(lambda: (burst, time.monotonic()))
-        self._lock = threading.Lock()
-
-    def allow(self, user_id: int) -> bool:
-        with self._lock:
-            tokens, last = self._state[user_id]
-            now = time.monotonic()
-            # Refill based on elapsed time
-            tokens = min(self.burst, tokens + (now - last) * self.rate)
-            if tokens &gt;= 1.0:
-                self._state[user_id] = (tokens - 1.0, now)
+    # Atomic check-then-add in a pipeline with WATCH to avoid the race.
+    with r.pipeline() as pipe:
+        while True:
+            try:
+                pipe.watch(key)
+                pipe.zremrangebyscore(key, 0, cutoff)
+                count = pipe.zcount(key, cutoff, "+inf")
+                if count &gt;= CAP:
+                    pipe.unwatch()
+                    return False
+                pipe.multi()
+                pipe.zadd(key, {f"{now}:{user_id}:{count}": now})
+                pipe.expire(key, WINDOW_SEC + 60)  # trim memory
+                pipe.execute()
                 return True
-            self._state[user_id] = (tokens, now)
-            return False</code></pre>
+            except redis.WatchError:
+                continue  # raced with another server; retry</code></pre>
+          <p><strong>What junior solutions miss:</strong> (1) the WATCH/MULTI transaction — without it, concurrent ad servers both read <code>count = 4</code> and both insert, landing at 6. (2) the <code>EXPIRE</code> — without it, inactive users accumulate forever and the Redis cluster OOMs at 3 AM.</p>
+        </div>
+      </details>
+    </div>
 
-<h4>The trap</h4>
-<p>Using wall-clock (<code>time.time()</code>) instead of monotonic — NTP adjustments can move the clock backwards and make the limiter too generous or too strict. Forgetting the lock — race conditions between read and write.</p>
+    <!-- Drill 5 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">05</div>
+        <div class="drill-title">Audience overlap — two segments, Jaccard</div>
+        <div class="drill-meta">Python · 15 min · Medium</div>
+      </div>
+      <div class="drill-stem">
+        <p>Given two iterables of <code>user_id</code> (possibly 10M+ each, cannot fit both in memory). Compute Jaccard similarity |A ∩ B| / |A ∪ B|. Approximation acceptable if it beats exact at scale.</p>
+        <p class="drill-edge"><strong>Edge:</strong> duplicates within each iterable (same user appearing twice) should not double-count. Memory is the constraint, not time.</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="python"># Exact — for datasets that fit in memory
+def jaccard_exact(a, b):
+    sa, sb = set(a), set(b)
+    inter = len(sa &amp; sb)
+    union = len(sa | sb)
+    return inter / union if union else 0.0
 
-<h3>Python 3 — Bloom filter for event dedupe at ingest</h3>
+# Approximate — MinHash LSH for the 10M+ case
+from datasketch import MinHash
 
-<h4>Prompt</h4>
-<p>Implement a Bloom filter to dedupe event_ids at ingest time. Capacity 10M items, false-positive rate ≤ 1%. Provide <code>add(id)</code> and <code>maybe_contains(id)</code> methods.</p>
+def jaccard_minhash(iterable_a, iterable_b, num_perm=256):
+    m_a, m_b = MinHash(num_perm=num_perm), MinHash(num_perm=num_perm)
+    for u in iterable_a: m_a.update(str(u).encode())
+    for u in iterable_b: m_b.update(str(u).encode())
+    return m_a.jaccard(m_b)  # approx ±1% at num_perm=256</code></pre>
+          <p><strong>Why the approximate version is the senior answer:</strong> at 10M per segment, <code>set()</code> costs ~800MB per side. Two segments ≈ 1.6GB resident before you've started computing. MinHash is O(n) streaming with 256 × 8-byte fingerprints per segment — 2KB, regardless of cardinality. Cite the precision/recall trade explicitly in the answer.</p>
+        </div>
+      </details>
+    </div>
 
-<pre><code class="python">import math
-import hashlib
-import array
+    <!-- Drill 6 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">06</div>
+        <div class="drill-title">Dedup impressions — idempotent streaming</div>
+        <div class="drill-meta">Python · 20 min · Hard</div>
+      </div>
+      <div class="drill-stem">
+        <p>Impression events arrive on a Kafka topic with <code>impression_id</code>, <code>event_ts</code>. Consumer restarts replay the last 10 minutes. Write a consumer that produces <em>exactly-once</em> writes to the warehouse, without external transactions.</p>
+        <p class="drill-edge"><strong>Edge:</strong> <code>impression_id</code> collisions across days (IDs only unique-per-day), clock skew between producers, and the consumer crashing mid-batch.</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="python">from datetime import datetime
 
-class BloomFilter:
-    def __init__(self, capacity: int, fp_rate: float = 0.01):
-        # m = -n ln p / (ln 2)^2  ; k = (m/n) ln 2
-        self.m = int(-capacity * math.log(fp_rate) / (math.log(2) ** 2))
-        self.k = max(1, int((self.m / capacity) * math.log(2)))
-        # Bit array: one bit per slot, packed 8 per byte
-        self.bits = array.array('B', [0] * ((self.m + 7) // 8))
+SEEN_TTL_SEC = 86400  # impression_id uniqueness window
 
-    def _positions(self, key: bytes):
-        h1 = int.from_bytes(hashlib.blake2b(key, digest_size=8).digest(), 'big')
-        h2 = int.from_bytes(hashlib.sha256(key).digest()[:8], 'big')
-        for i in range(self.k):
-            yield (h1 + i * h2) % self.m
+class Dedupe:
+    def __init__(self, redis_client):
+        self.r = redis_client
 
-    def add(self, key) -> None:
-        b = str(key).encode()
-        for p in self._positions(b):
-            self.bits[p &gt;&gt; 3] |= (1 &lt;&lt; (p &amp; 7))
+    def key(self, event_ts: int, impression_id: str) -&gt; str:
+        # Day-bucket prevents cross-day collision.
+        day = datetime.utcfromtimestamp(event_ts).strftime("%Y%m%d")
+        return f"seen:{day}:{impression_id}"
 
-    def maybe_contains(self, key) -> bool:
-        b = str(key).encode()
-        return all(self.bits[p &gt;&gt; 3] &amp; (1 &lt;&lt; (p &amp; 7)) for p in self._positions(b))</code></pre>
+    def process(self, event) -&gt; bool:
+        k = self.key(event["event_ts"], event["impression_id"])
+        # SETNX returns 1 iff we're the first writer. TTL ensures eventual
+        # memory release; slightly longer than the replay window protects
+        # against consumer restart within the same bucket.
+        if self.r.set(k, b"1", nx=True, ex=SEEN_TTL_SEC):
+            write_to_warehouse(event)
+            return True
+        return False  # duplicate; skip
 
-<h4>The trap</h4>
-<p>Using Python <code>set()</code> — works in memory but blows through RAM at 10M items (~700 MB). The bloom filter is roughly 12 MB for the same specs. Interviewers ask because they want to see you pick the right structure for scale.</p>
+def write_to_warehouse(event):
+    # Idempotent upsert in the warehouse too — belt and braces.
+    warehouse.upsert(
+        table="silver.fact_impression",
+        key=("impression_id", "event_ts"),
+        row=event,
+    )</code></pre>
+          <p><strong>What junior solutions miss:</strong> (1) day-bucketing the dedup key (IDs collide across days at some providers), (2) warehouse-side UPSERT as a second line of defence — the Redis check is fast but not durable across region failover, and exactly-once in ads-DE is always defence-in-depth.</p>
+        </div>
+      </details>
+    </div>
 
-<h3>Python 4 — Attribution resolver (streaming)</h3>
+    <!-- Drill 7 -->
+    <div class="drill">
+      <div class="drill-head">
+        <div class="drill-num">07</div>
+        <div class="drill-title">Growth accounting — retained / resurrected / new / churned</div>
+        <div class="drill-meta">SQL · 12 min · Medium</div>
+      </div>
+      <div class="drill-stem">
+        <p>Given <code>fact_daily_active</code> (<code>user_id</code>, <code>active_date</code>), produce a daily growth-accounting table with columns <code>date</code>, <code>new</code>, <code>retained</code>, <code>resurrected</code>, <code>churned</code>. Definitions: <em>new</em> = first ever active date; <em>retained</em> = active yesterday and today; <em>resurrected</em> = active today, not yesterday, but active in the last 28 days; <em>churned</em> = active yesterday, not today.</p>
+        <p class="drill-edge"><strong>Edge:</strong> dates with zero activity shouldn't silently drop. Use a calendar spine.</p>
+      </div>
+      <details class="drill-answer">
+        <summary>Show the reference solution</summary>
+        <div class="drill-body">
+          <pre><code class="sql">WITH first_seen AS (
+  SELECT user_id, MIN(active_date) AS first_date FROM fact_daily_active GROUP BY user_id
+),
+today AS (
+  SELECT a.active_date, a.user_id,
+         EXISTS (SELECT 1 FROM fact_daily_active y
+                 WHERE y.user_id = a.user_id
+                   AND y.active_date = a.active_date - INTERVAL '1 day') AS active_yday,
+         EXISTS (SELECT 1 FROM fact_daily_active r
+                 WHERE r.user_id = a.user_id
+                   AND r.active_date BETWEEN a.active_date - INTERVAL '28 days'
+                                         AND a.active_date - INTERVAL '2 days') AS active_last_28
+  FROM fact_daily_active a
+)
+SELECT d.date,
+  COUNT(*) FILTER (WHERE fs.first_date = d.date)                        AS new_users,
+  COUNT(*) FILTER (WHERE fs.first_date &lt; d.date AND t.active_yday)      AS retained,
+  COUNT(*) FILTER (WHERE fs.first_date &lt; d.date AND NOT t.active_yday
+                    AND t.active_last_28)                               AS resurrected,
+  (SELECT COUNT(*) FROM fact_daily_active y
+   WHERE y.active_date = d.date - INTERVAL '1 day'
+     AND NOT EXISTS (SELECT 1 FROM fact_daily_active z
+                     WHERE z.user_id = y.user_id AND z.active_date = d.date))
+                                                                        AS churned
+FROM (SELECT generate_series(DATE '2025-01-01', DATE '2025-12-31', INTERVAL '1 day')::date AS date) d
+LEFT JOIN today t      ON t.active_date = d.date
+LEFT JOIN first_seen fs ON fs.user_id = t.user_id
+GROUP BY d.date
+ORDER BY d.date;</code></pre>
+          <p><strong>Sanity check:</strong> <code>retained + resurrected + new = DAU(today)</code>, and <code>DAU(yday) - churned = retained</code>. If those identities don't hold, the SQL is wrong.</p>
+        </div>
+      </details>
+    </div>
 
-<h4>Prompt</h4>
-<p>Maintain a per-user rolling buffer of the last 7 days of touches in memory (assume you'll scale this out later). When a conversion event arrives, return the most recent qualifying touch using the same last-click-with-view-fallback logic from SQL 1.</p>
+  </div>
 
-<pre><code class="python">from collections import defaultdict, deque
-from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Optional
+  <h2 id="ship-list">Before you walk in · the ship list</h2>
 
-@dataclass
-class Touch:
-    touch_id: int
-    campaign_id: int
-    ts: datetime
-    touch_type: str  # 'click' or 'view'
+  <p>If you can do these from a blank buffer, under timer, without reaching for the docs, the round will play out the way the seven acts did.</p>
 
-CLICK_WINDOW = timedelta(days=7)
-VIEW_WINDOW  = timedelta(days=1)
+  <div class="ship-list">
+    <label class="ship"><input type="checkbox"> <span>Four revenue definitions named cold: billed, spend, attributed, settled.</span></label>
+    <label class="ship"><input type="checkbox"> <span>Reconciliation SQL from Act 2 — written end to end in under fifteen minutes.</span></label>
+    <label class="ship"><input type="checkbox"> <span>Bi-temporal query for "what did they see at time T" — append-only, no <code>UPDATE</code>.</span></label>
+    <label class="ship"><input type="checkbox"> <span>Frequency cap with Redis WATCH/MULTI to defeat the ad-server race.</span></label>
+    <label class="ship"><input type="checkbox"> <span>Deduped streaming consumer — day-bucket key + warehouse-side upsert.</span></label>
+    <label class="ship"><input type="checkbox"> <span>Growth-accounting SQL with identities that check: retained + resurrected + new = DAU.</span></label>
+    <label class="ship"><input type="checkbox"> <span>One paragraph, written on paper, explaining a number gap to a CFO. In plain English. Without the word "pipeline."</span></label>
+  </div>
 
-class AttributionResolver:
-    def __init__(self):
-        self.touches: dict[int, deque[Touch]] = defaultdict(deque)
+  <p class="appendix-close">Seven drills, seven acts, one lesson. The lesson is the one Raj was testing in Act 7: <em>the job is mostly the things you don't build.</em> The drills are the things you need to be fluent in so you can spend the round thinking about the things that don't make it into code. Walk in warm.</p>
 
-    def record_touch(self, user_id: int, t: Touch) -> None:
-        dq = self.touches[user_id]
-        dq.append(t)
-        # Evict anything older than the longest window
-        cutoff = t.ts - CLICK_WINDOW
-        while dq and dq[0].ts &lt; cutoff:
-            dq.popleft()
-
-    def attribute(self, user_id: int, conversion_ts: datetime) -> Optional[Touch]:
-        dq = self.touches.get(user_id) or ()
-        best: Optional[Touch] = None
-        for t in dq:
-            if t.ts &gt; conversion_ts:
-                continue
-            in_window = (
-                (t.touch_type == 'click' and conversion_ts - t.ts &lt;= CLICK_WINDOW)
-                or (t.touch_type == 'view' and conversion_ts - t.ts &lt;= VIEW_WINDOW)
-            )
-            if not in_window:
-                continue
-            # Prefer click over view, then most-recent
-            if best is None:
-                best = t
-            else:
-                if best.touch_type == 'view' and t.touch_type == 'click':
-                    best = t
-                elif best.touch_type == t.touch_type and t.ts &gt; best.ts:
-                    best = t
-        return best</code></pre>
-
-<h3>Python 5 — SKAN conversion-value encoder</h3>
-
-<h4>Prompt</h4>
-<p>Apple's SKAdNetwork gives the advertiser 6 bits of "conversion value" (0–63) to encode an event signal back to the ad network. Build an encoder that maps a sequence of user events (registered, tutorial_done, purchase with revenue tier) to a single integer 0–63.</p>
-
-<pre><code class="python">from dataclasses import dataclass
-
-@dataclass
-class UserState:
-    registered: bool = False
-    tutorial_done: bool = False
-    revenue_usd: float = 0.0
-
-# 6 bits: 1 bit registered | 1 bit tutorial | 4 bits revenue tier
-# 16 revenue tiers: 0, $1, $2, $5, $10, $20, $50, $100, ...
-REVENUE_TIERS = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 25000, 100000]
-
-def encode_conversion_value(state: UserState) -> int:
-    reg_bit = 1 if state.registered else 0
-    tut_bit = 1 if state.tutorial_done else 0
-    tier = 0
-    for i, threshold in enumerate(REVENUE_TIERS):
-        if state.revenue_usd &gt;= threshold:
-            tier = i
-    # Pack: [reg:1][tut:1][tier:4]
-    return (reg_bit &lt;&lt; 5) | (tut_bit &lt;&lt; 4) | tier
-
-def decode_conversion_value(v: int) -> dict:
-    return {
-        'registered': bool((v &gt;&gt; 5) &amp; 1),
-        'tutorial_done': bool((v &gt;&gt; 4) &amp; 1),
-        'revenue_tier_index': v &amp; 0b1111,
-        'revenue_floor_usd': REVENUE_TIERS[v &amp; 0b1111],
-    }</code></pre>
-
-<h4>The trap</h4>
-<p>Trying to encode exact revenue in 6 bits — it does not fit. The tiered mapping is the whole point. Senior candidates name the tier-design tradeoff: finer tiers at low revenue (more common) vs coarser tiers at high revenue (rare).</p>
-
-<h3>Python 6 — Incrementality lift with confidence interval</h3>
-
-<h4>Prompt</h4>
-<p>Given exposed and holdout conversion counts and user counts, compute the lift percentage and a 95% CI for the difference in proportions. Return <code>(lift_pct, ci_half_width_pp, is_significant)</code>.</p>
-
-<pre><code class="python">import math
-
-def lift_with_ci(
-    exposed_convs: int, exposed_users: int,
-    holdout_convs: int, holdout_users: int,
-    z: float = 1.96,  # 95% normal approx
-) -&gt; tuple[float, float, bool]:
-    p1 = exposed_convs / exposed_users
-    p2 = holdout_convs / holdout_users
-    abs_diff = p1 - p2
-    # Standard error of difference in two proportions
-    se = math.sqrt(p1 * (1 - p1) / exposed_users + p2 * (1 - p2) / holdout_users)
-    ci_half = z * se
-    lift_pct = (p1 - p2) / p2 * 100 if p2 &gt; 0 else float('inf')
-    # Significant if the CI doesn't cross zero
-    significant = (abs_diff - ci_half) &gt; 0
-    return lift_pct, ci_half * 100, significant</code></pre>
-
-<h4>The trap</h4>
-<p>Reporting the lift without the CI — a +2% lift with ±3% CI is not a lift. Senior candidates return the significance flag alongside the number so the caller cannot misread it.</p>
-
-<hr>
-
-<h2 id="meta-advice">3. How to Approach the Ads Coding Round</h2>
-
-<p>Four habits that separate strong candidates in ads coding rounds specifically.</p>
-
-<ol>
-<li><strong>Ask for the attribution window before you write a line.</strong> Last-click? 7-day? 28-day? Click-only or click-plus-view? Half the SQL problems above change shape depending on this answer. If the interviewer didn't volunteer it, ask.</li>
-
-<li><strong>Name the dedupe strategy out loud.</strong> Even if the prompt doesn't mention duplicates, your code should handle them. Say: "I'll assume event_id may repeat across SDK retries; I'll dedupe on (user_id, event_name, second-rounded ts)." If the interviewer says "no, event_id is unique" — great, you asked, and you write a simpler query. If they say "good point" — you just showed senior judgment.</li>
-
-<li><strong>Write schema-aware code.</strong> Ads tables are billions of rows. Any code that does <code>SELECT *</code> into Python, or loops a Python function over rows, will be scored junior. Push work into the SQL engine or into vectorized operations. When in doubt, ask: "Can this run as a single SQL query? If not, what's the smallest Python layer on top?"</li>
-
-<li><strong>Return the uncertainty, not just the point estimate.</strong> Every ads number has statistical noise. The senior answer to "what's the lift" is never a single number — it's a number plus a confidence range, plus whether the range crosses zero. Build that shape into your functions as default output, not an optional afterthought.</li>
-</ol>
+  <div class="act-reply" style="margin-top:28px">
+    <strong>Final note, to the reader:</strong> you are not inside the article. The article is a transcript of one possible round. Your round will differ in surface detail and resemble it in exactly one way — the interviewer will be testing the refusals, not the outputs. The seven principles in Act 7 are the refusals. Memorise those, practice the drills, and the seven-act shape will find itself in the room.
+  </div>
+</section>
 
 </main>
 
