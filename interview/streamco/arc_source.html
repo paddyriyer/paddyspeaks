@@ -151,6 +151,166 @@
   <p>The clock reads 09:57. You take the first sip of coffee. You have been in role for ninety-six hours. Let's reconcile.</p>
 </section>
 
+<!-- ACT 2 — WHAT IS REVENUE? -->
+<section id="act-2-clarify" class="act act-2">
+  <div class="act-eyebrow">Act 2 · What Is Revenue?</div>
+  <h2 class="act-title">Four numbers, four audiences</h2>
+  <p class="act-subtitle">09:58 AM. The dashboard says $8.2M. Finance says $9.1M. Both are correct. They are measuring different things. You need to name which thing is being measured before you can name the gap.</p>
+
+  <p>Before you write a single line of SQL, you pull out the paper notebook on your desk and draw four boxes. A senior ads DE at StreamCo should be able to name these four in their sleep — the interview asks for them directly in the first round.</p>
+
+  <div class="defs">
+    <div class="def def-billed">
+      <div class="def-name">Billed revenue</div>
+      <div class="def-who">Who owns it: Finance</div>
+      <div class="def-what">What advertisers have been <em>invoiced</em> for. Produced by the billing system (the Salesforce ledger, in StreamCo's case). Lags reality by the billing cycle — typically a month — and excludes anything the invoice hasn't been sent for yet.</div>
+      <div class="def-when">When it updates: month-end close plus a 3-day settlement window.</div>
+    </div>
+
+    <div class="def def-spend">
+      <div class="def-name">Spend revenue</div>
+      <div class="def-who">Who owns it: Ads pipeline</div>
+      <div class="def-what">Sum of auction-clearing prices × served impressions, converted at the advertiser's contracted rate. Produced near-real-time by the impression pipeline. Knows about impressions the billing system does not yet know about; does not know about refunds or chargebacks.</div>
+      <div class="def-when">When it updates: streaming, ~5-minute lag.</div>
+    </div>
+
+    <div class="def def-attr">
+      <div class="def-name">Attributed revenue</div>
+      <div class="def-who">Who owns it: Ads measurement</div>
+      <div class="def-what">Revenue credited to <em>specific campaigns</em> under an attribution model — last-click 7-day, last-touch, MTA linear, whatever the advertiser's contract specifies. Depends on the attribution window, the touch model, and the identity graph. Almost always differs from spend revenue because it excludes unattributable spend and includes post-attribution adjustments.</div>
+      <div class="def-when">When it updates: nightly batch for the 28-day window; streaming for the 24-hour window.</div>
+    </div>
+
+    <div class="def def-settled">
+      <div class="def-name">Settled revenue</div>
+      <div class="def-who">Who owns it: Finance</div>
+      <div class="def-what">The number Finance closes the month on. Post-refund, post-chargeback, post-IVT-recovery credits, post-partner-attribution-lag, post-currency-revaluation. Sourced from the ledger <em>after</em> all adjustments have posted. This is what the 10-Q filing is built from.</div>
+      <div class="def-when">When it updates: monthly, with quarter-end revisions.</div>
+    </div>
+  </div>
+
+  <p>Four numbers, one word, four audiences. The CFO's $9.1M is <strong>settled revenue</strong>. The dashboard's $8.2M is <strong>spend revenue</strong> labelled <em>Revenue — September</em> by somebody eighteen months ago who didn't know which word they were stealing. Everyone after them has been tripping over it.</p>
+
+  <p>The gap is $0.9M. You now have to explain where it went.</p>
+
+  <!-- ─── Sidebar · Your Turn (SQL) ─────────────────────────────── -->
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Your Turn · SQL</div>
+    <h3 class="sidebar-title">The reconciliation query</h3>
+    <p>Before reading the walkthrough below, give yourself fifteen minutes. The table <code>silver.fact_impression</code> has one row per served impression with <code>spend_cents</code>, <code>advertiser_id</code>, <code>campaign_id</code>, <code>impression_ts</code>, <code>is_valid</code> (false = flagged as invalid traffic), <code>currency</code>, <code>fx_rate_to_usd</code>. The Finance ledger in <code>finance.ad_revenue_ledger</code> has one row per (advertiser_id, month) with <code>invoiced_usd</code>, <code>refunds_usd</code>, <code>ivt_credits_usd</code>, <code>partner_attribution_adjustment_usd</code>.</p>
+    <p>Write a single query that reconciles these for September and produces one row with columns:</p>
+    <ul>
+      <li><code>spend_revenue_usd</code> — from the pipeline</li>
+      <li><code>pipeline_ivt_flagged_usd</code> — impressions where <code>is_valid = FALSE</code></li>
+      <li><code>finance_ivt_credits_usd</code> — from the ledger</li>
+      <li><code>finance_refunds_usd</code></li>
+      <li><code>finance_partner_adjustment_usd</code></li>
+      <li><code>settled_revenue_usd</code> — what Finance closes on</li>
+      <li><code>unexplained_gap_usd</code> — the part nobody can account for</li>
+    </ul>
+    <details class="your-turn-answer">
+      <summary>Show the reference solution</summary>
+      <div class="your-turn-body">
+        <pre><code class="sql">WITH pipeline AS (
+  SELECT
+    SUM(spend_cents * fx_rate_to_usd) / 100.0                                    AS spend_revenue_usd,
+    SUM(CASE WHEN is_valid = FALSE THEN spend_cents * fx_rate_to_usd ELSE 0 END) / 100.0
+                                                                                  AS pipeline_ivt_flagged_usd
+  FROM silver.fact_impression
+  WHERE impression_ts &gt;= '2025-09-01'
+    AND impression_ts &lt;  '2025-10-01'
+),
+ledger AS (
+  SELECT
+    SUM(invoiced_usd)                                AS invoiced_usd,
+    SUM(refunds_usd)                                 AS finance_refunds_usd,
+    SUM(ivt_credits_usd)                             AS finance_ivt_credits_usd,
+    SUM(partner_attribution_adjustment_usd)          AS finance_partner_adjustment_usd,
+    SUM(invoiced_usd)
+      - SUM(refunds_usd) - SUM(ivt_credits_usd)
+      + SUM(partner_attribution_adjustment_usd)      AS settled_revenue_usd
+  FROM finance.ad_revenue_ledger
+  WHERE month = '2025-09-01'
+)
+SELECT
+  p.spend_revenue_usd,
+  p.pipeline_ivt_flagged_usd,
+  l.finance_ivt_credits_usd,
+  l.finance_refunds_usd,
+  l.finance_partner_adjustment_usd,
+  l.settled_revenue_usd,
+  -- The unexplained gap: what the four adjustments can't account for.
+  (l.settled_revenue_usd - p.spend_revenue_usd)
+    - (p.pipeline_ivt_flagged_usd - l.finance_ivt_credits_usd)
+    + l.finance_refunds_usd
+    - l.finance_partner_adjustment_usd               AS unexplained_gap_usd
+FROM pipeline p CROSS JOIN ledger l;</code></pre>
+        <p><strong>What the query should tell you, today:</strong></p>
+        <ul>
+          <li>spend_revenue_usd = $8.21M — matches the dashboard</li>
+          <li>finance_partner_adjustment_usd = $0.74M — programmatic partner attribution that lands in the ledger on a 14-day lag</li>
+          <li>finance_ivt_credits_usd = $0.21M (vs pipeline_ivt_flagged_usd = $0.05M) — Finance caught $160K of IVT our pipeline did not</li>
+          <li>settled_revenue_usd = $9.12M</li>
+          <li>unexplained_gap_usd = $0.01M — within rounding</li>
+        </ul>
+        <p>The $0.9M gap decomposes cleanly: <strong>$740K partner attribution lag + $160K IVT delta</strong>. Neither is a bug in the pipeline. Both are expected because Finance's source of truth arrives later and covers some categories the pipeline doesn't.</p>
+      </div>
+    </details>
+  </aside>
+
+  <p>The query completes at 10:21. You screenshot the result. You write the paragraph.</p>
+
+  <div class="act-reply">
+    <strong>You → Director (10:34):</strong> "Both numbers are correct for their purpose. Dashboard's $8.21M is <em>spend revenue</em> — auction-clearing prices × served impressions. Finance's $9.12M is <em>settled revenue</em> — spend plus the $740K programmatic-partner attribution that posts to the ledger on a 14-day lag, plus a $160K IVT-credit delta. For the board prep: use $9.12M and label it <em>ad-supported revenue · settled basis · September 2025</em>. I'll follow up this afternoon with a proposal to put this definition on every dashboard so we don't have this conversation again next month."
+  </div>
+
+  <p>The director reads it at 10:36. She forwards it to Amelia at 10:37. The board prep starts at 10:30 but the CFO was waiting for your paragraph before opening the deck. She replies to the director — cc-ing you — at 10:41:</p>
+
+  <div class="storm">
+    <div class="storm-msg storm-cfo">
+      <div class="storm-who">CFO Amelia</div>
+      <div class="storm-body">Thank you. This is the first time anyone has explained this to me. I would like the dashboard labels fixed permanently. Please coordinate with the data team lead and report back by end of week with the proposal.</div>
+    </div>
+  </div>
+
+  <p>You close your laptop for two minutes. You drink the rest of the coffee. It is 10:43. You have been in the role for one hundred and six hours. You did not write a pipeline. You wrote a paragraph.</p>
+
+  <p>The paragraph bought you the quarter.</p>
+
+  <!-- ─── Sidebar · The Room ────────────────────────────────────── -->
+  <aside class="sidebar sidebar-room">
+    <div class="sidebar-label">The Room · Scar File 2</div>
+    <h3 class="sidebar-title">The interviewer who asks this exact question</h3>
+    <p>Every senior ads DE loop at StreamCo-sized companies has this scenario, phrased about a dozen different ways. The short version: <em>"the dashboard shows X, finance shows Y, which is right?"</em></p>
+    <p>The correct answer is never a number. It is always:</p>
+    <ol>
+      <li>Name the four definitions (billed / spend / attributed / settled).</li>
+      <li>Ask which audience the consumer is serving.</li>
+      <li>Point out that the labels on the dashboards are the bug, not the numbers.</li>
+      <li>Propose that the labels be pinned to the consumer's workflow going forward.</li>
+    </ol>
+    <p>Candidates who answer with SQL in the first thirty seconds have revealed they don't know what question they were asked. The interviewer moves on; the round is scored down before any technical depth gets tested.</p>
+    <p class="sidebar-punch">You pass this question by refusing to answer it the way it was asked.</p>
+  </aside>
+
+  <!-- ─── Sidebar · The Landmine ───────────────────────────────── -->
+  <aside class="sidebar sidebar-landmine">
+    <div class="sidebar-label">The Landmine · 2 of many</div>
+    <h3 class="sidebar-title">The dashboard label is the schema</h3>
+    <p>The bug that caused today's incident was shipped eighteen months ago when someone built the first ads dashboard and labelled the column <em>Revenue — September</em>. There was no malice. There was a rush. There was no definition sheet. The dashboard went live. A hundred people started using it. The label calcified into the organization's mental model of what "revenue" means on the ads team, and the engineering team inherited a political debt it did not know it was carrying.</p>
+    <p>The senior fix is not to rename this one dashboard. The senior fix is to require every dashboard at StreamCo to carry a <em>definition footer</em>: which table, which attribution window, which revenue concept (billed / spend / attributed / settled), which currency basis. New dashboards without a footer fail code review. Existing dashboards get back-filled in Q4 as a team OKR.</p>
+    <p>This is the kind of fix senior engineers propose because they have lived through the consequence. Junior engineers propose query tuning.</p>
+    <p class="sidebar-punch">Rule: if a number has a label, the label is part of the schema. Treat it that way.</p>
+  </aside>
+
+  <p>At 11:00 you join the daily standup. You say nothing about the incident. The director mentions that there was "some reconciliation work this morning" and moves on. Nobody asks follow-up questions. The work of day four is done by 11:04. You close your notebook.</p>
+
+  <p>You walk to get more coffee. The engineer at the espresso machine, whose name you don't yet know, says <em>"I heard you figured out the September thing?"</em> You say <em>"yeah."</em> She says <em>"nice, that one's been bugging me for a year."</em> You nod. You do not say anything else. You are eight coffees into the job. Eleven thousand left.</p>
+</section>
+
+<hr>
+
+
 </main>
 </body>
 </html>

@@ -127,6 +127,31 @@ HEAD = '''<!DOCTYPE html>
 .act { content-visibility: auto; contain-intrinsic-size: 0 1400px; }
 .act-prologue, .act-1 { content-visibility: visible; }
 
+/* Definitions grid (Act 2) */
+.defs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 24px 0; }
+.def { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid; border-radius: 8px; padding: 16px 18px; }
+.def-billed { border-left-color: #2563a8; }
+.def-spend { border-left-color: #c8915a; }
+.def-attr { border-left-color: #c44b2b; }
+.def-settled { border-left-color: #2a7a4a; }
+.def-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px; }
+.def-who { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--color-gold-dark); margin-bottom: 8px; }
+.def-what { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); margin-bottom: 8px; }
+.def-when { font-family: var(--font-mono); font-size: 12px; color: var(--color-light-muted); }
+@media (max-width: 700px) { .defs { grid-template-columns: 1fr; } }
+
+/* Your Turn — inline SQL answer reveal */
+.your-turn-answer { margin-top: 14px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
+.your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
+.your-turn-answer > summary::-webkit-details-marker { display: none; }
+.your-turn-answer > summary::before { content: '▸ '; }
+.your-turn-answer[open] > summary::before { content: '▾ '; }
+.your-turn-body { padding-top: 10px; }
+.your-turn-body pre { background: #0f1e2e; color: #e8e0d6; padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+.your-turn-body pre code { background: transparent; color: inherit; padding: 0; border: none; font-family: var(--font-mono); }
+.your-turn-body ul { margin: 10px 0 10px 20px; }
+.your-turn-body li { margin-bottom: 6px; font-size: 14px; }
+
 /* Quick-nav */
 .quick-nav { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; flex-direction: column; gap: 8px; }
 .qn-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(26,35,50,.92); color: #fff; border: none; font-size: 18px; cursor: pointer; box-shadow: 0 4px 14px rgba(26,35,50,.25); display: flex; align-items: center; justify-content: center; transition: background .2s, transform .2s; padding: 0; line-height: 1; }
