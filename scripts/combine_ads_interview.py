@@ -952,6 +952,36 @@ HEAD = '''<!DOCTYPE html>
 .part-section .brief-rules ul { margin: 0 0 0 22px; padding: 0; }
 .part-section .brief-rules li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; margin-bottom: 6px; color: var(--color-ink); }
 
+/* Data catalog — column-level schema reference */
+.part-section .catalog { display: flex; flex-direction: column; gap: 18px; margin: 20px 0 24px; }
+.part-section .catalog-tbl { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(26,35,50,.05); }
+.part-section .catalog-head { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; padding: 14px 18px; }
+.part-section .catalog-name { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: #fff; }
+.part-section .catalog-name code { background: transparent; color: var(--color-gold-light); border: none; padding: 0; font-size: 15px; }
+.part-section .catalog-grain { font-family: var(--font-mono); font-size: 11px; color: var(--color-gold-light); margin-top: 4px; line-height: 1.5; }
+.part-section .catalog-grain code { background: rgba(255,255,255,.08); color: var(--color-gold-light); border: none; padding: 1px 5px; font-size: 10.5px; }
+.part-section .catalog-cols { width: 100%; border-collapse: collapse; margin: 0; font-size: 13px; background: #fff; }
+.part-section .catalog-cols thead th { background: var(--color-cream); color: var(--color-gold-dark); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; padding: 10px 12px; text-align: left; font-weight: 600; border-bottom: 1px solid var(--color-border); }
+.part-section .catalog-cols tbody td { padding: 11px 12px; border-top: 1px solid var(--color-border-light); vertical-align: top; font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; }
+.part-section .catalog-cols tbody td:nth-child(1) { width: 22%; white-space: nowrap; }
+.part-section .catalog-cols tbody td:nth-child(1) code { background: rgba(200,145,90,.12); color: var(--color-gold-dark); border-color: rgba(200,145,90,.3); font-weight: 600; }
+.part-section .catalog-cols tbody td:nth-child(2) { width: 14%; font-family: var(--font-mono); font-size: 11.5px; color: var(--color-muted); white-space: nowrap; }
+.part-section .catalog-cols tbody td:nth-child(3) { width: 48%; }
+.part-section .catalog-cols tbody td:nth-child(4) { width: 16%; font-family: var(--font-mono); font-size: 11.5px; color: var(--color-ink); }
+.part-section .catalog-cols tbody tr:nth-child(even) td { background: rgba(200,145,90,.03); }
+.part-section .catalog-foot { padding: 14px 18px; background: var(--color-cream); border-top: 1px solid var(--color-border); font-family: var(--font-body); font-size: 13.5px; line-height: 1.65; color: var(--color-ink); }
+.part-section .catalog-foot code { font-size: 12.5px; }
+.part-section .catalog-foot em { color: var(--color-rust); font-style: normal; font-weight: 600; }
+@media (max-width: 800px) {
+  .part-section .catalog-cols { font-size: 12.5px; }
+  .part-section .catalog-cols thead th { padding: 8px 10px; }
+  .part-section .catalog-cols tbody td { padding: 9px 10px; font-size: 12.5px; }
+  .part-section .catalog-cols tbody td:nth-child(1),
+  .part-section .catalog-cols tbody td:nth-child(2),
+  .part-section .catalog-cols tbody td:nth-child(3),
+  .part-section .catalog-cols tbody td:nth-child(4) { width: auto; }
+}
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
