@@ -191,372 +191,116 @@
   </div>
 </header>
 <main class="content">
-<h1 id="part-5-visualization--measurement-of-campaign-objectives">Part 5: Visualization &amp; Measurement of Campaign Objectives</h1>
-<blockquote>
-<p><em>"A campaign only succeeded if you can prove it. And you can only prove it if the measurement was designed before the campaign launched."</em></p>
-</blockquote>
-<hr />
-<h2 id="section-1-the-campaign-scorecard-template">Section 1: The Campaign Scorecard Template</h2>
-<p>Every campaign, regardless of objective, should roll up to a one-page scorecard. The shape is identical. Only the numerator rows change.</p>
-<pre class="text"><code>┌──────────────────────────────────────────────────────────────────┐
-│ CAMPAIGN: &lt;campaign_name&gt;  ·  &lt;advertiser_name&gt;                  │
-│ Objective: &lt;conversions/awareness/traffic/installs/leads&gt;        │
-│ Period: &lt;start&gt; → &lt;end&gt;  ·  Budget: $X  ·  Actual: $Y (Z%)       │
-├──────────────────────────────────────────────────────────────────┤
-│ DELIVERY                                                          │
-│   Impressions:  A.AM  ·  Reach: B.BM  ·  Frequency: C.C          │
-│   Surface mix:  Main Feed X%  ·  Visual Feed Y%  ·  SFV Z%       │
-│   Placement mix: feed X%  ·  stories Y%  ·  in-stream Z%         │
-├──────────────────────────────────────────────────────────────────┤
-│ OBJECTIVE-SPECIFIC (see per-objective blocks below)               │
-│   &lt;objective-specific KPIs&gt;                                       │
-├──────────────────────────────────────────────────────────────────┤
-│ BENCHMARK                                                         │
-│   vs. account trailing-28d median:     +X.X% / -Y.Y%             │
-│   vs. advertiser vertical median:      +X.X% / -Y.Y%             │
-├──────────────────────────────────────────────────────────────────┤
-│ HEALTH                                                            │
-│   IVT share: X.X%  ·  Over-delivery: X.X%  ·  Coverage: X.X%     │
-└──────────────────────────────────────────────────────────────────┘
-</code></pre>
-<p>Every scorecard has four blocks: delivery, objective-specific KPIs, benchmarks, health. Every block is non-negotiable. Dropping benchmarks turns a scorecard into a number dump.</p>
-<hr />
-<h2 id="section-2-reach--frequency-awareness-objective">Section 2: Reach &amp; Frequency (Awareness Objective)</h2>
-<h3 id="what-matters">What matters</h3>
-<ul>
-<li><strong>Reach</strong> — unique users exposed at least once.</li>
-<li><strong>Frequency</strong> — impressions per reached user.</li>
-<li><strong>Frequency distribution</strong> — not just the average. 90% of users at freq 2 and 10% at freq 20 is very different from everyone at freq 4.</li>
-</ul>
-<h3 id="the-key-visualization-frequency-distribution-histogram">The key visualization: frequency distribution histogram</h3>
-<pre class="text"><code>Impressions per user (7-day window)
-│
-│ █
-│ █ █
-│ █ █ █
-│ █ █ █ █
-│ █ █ █ █ █
-│ █ █ █ █ █ █
-│ █ █ █ █ █ █ █
-│ █ █ █ █ █ █ █ █ █
-│─────────────────────
-  1  2  3  4  5  6  7  8+ 11+
-</code></pre>
-<p>Overlay: vertical line at the frequency cap (e.g., 8). Count of users above the cap is your "over-cap" rate — should be near zero.</p>
-<h3 id="sql">SQL</h3>
-<pre class="sql"><code>WITH user_freq AS (
-  SELECT
-    user_id,
-    COUNT(*) AS impressions_7d
-  FROM fact_impression
-  WHERE campaign_id = :c
-    AND dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
-    AND is_valid = TRUE
-  GROUP BY user_id
-),
-buckets AS (
-  SELECT
-    CASE
-      WHEN impressions_7d = 1  THEN &#39;01&#39;
-      WHEN impressions_7d &lt;= 3 THEN &#39;02_03&#39;
-      WHEN impressions_7d &lt;= 6 THEN &#39;04_06&#39;
-      WHEN impressions_7d &lt;= 10 THEN &#39;07_10&#39;
-      ELSE &#39;11_plus&#39;
-    END AS freq_bucket,
-    COUNT(*) AS users,
-    SUM(impressions_7d) AS impressions
-  FROM user_freq
-  GROUP BY 1
-)
-SELECT
-  freq_bucket,
-  users,
-  impressions,
-  users * 1.0 / SUM(users) OVER () AS users_share,
-  impressions * 1.0 / SUM(impressions) OVER () AS impressions_share
-FROM buckets
-ORDER BY freq_bucket;
-</code></pre>
-<h3 id="health-check">Health check</h3>
-<ul>
-<li><strong>Reach curve that flattens early.</strong> If reach stops growing after day 3, you're oversaturating a small audience. Expand targeting.</li>
-<li><strong>Right tail that's too fat.</strong> &gt;10% of users at freq 10+ means your frequency cap isn't working. Investigate pacing.</li>
-</ul>
-<hr />
-<h2 id="section-3-conversion-funnel-conversions-objective">Section 3: Conversion Funnel (Conversions Objective)</h2>
-<h3 id="the-funnel">The funnel</h3>
-<pre class="text"><code>Impressions
-    │ (CTR)
-    ▼
-Clicks
-    │ (landing page view rate)
-    ▼
-Landing Page Views
-    │ (add-to-cart rate)
-    ▼
-Add to Cart
-    │ (checkout initiation rate)
-    ▼
-Checkout
-    │ (purchase rate)
-    ▼
-Purchase
-    │
-    ▼
-Return Purchase (30d)
-</code></pre>
-<p>Each stage's drop-off is diagnostic.</p>
-<h3 id="visualization-funnel-bar-chart">Visualization: funnel bar chart</h3>
-<pre class="text"><code>Impressions     [████████████████████████████] 10,000,000
-Clicks          [█████]                            150,000  (CTR 1.5%)
-Page Views      [████]                             135,000  (90%)
-Add to Cart     [█]                                  22,500  (16.7%)
-Checkout        [▌]                                  13,500  (60%)
-Purchase        [▎]                                   5,400  (40%)
-</code></pre>
-<p>Annotate with industry benchmarks. If your click→purchase rate is 3.6% vs vertical median 4.5%, you know where to focus.</p>
-<h3 id="roas-by-attribution-window">ROAS by attribution window</h3>
-<p>A critical chart. The same campaign shows very different ROAS at 1d-click vs 7d-click vs 28d-click. Advertisers need to see all three.</p>
-<pre class="text"><code>Attribution Window    Attributed Revenue    ROAS
-  1-day click          $12,000              2.4x
-  7-day click          $23,000              4.6x
- 28-day click          $27,000              5.4x
-  1-day view           $18,000              3.6x
-  7-day click + 1v     $29,500              5.9x
-</code></pre>
-<h3 id="sql-1">SQL</h3>
-<pre class="sql"><code>WITH windows AS (
-  SELECT &#39;click_1d&#39; AS window_label, 1 AS click_d, 0 AS view_d UNION ALL
-  SELECT &#39;click_7d&#39;, 7, 0 UNION ALL
-  SELECT &#39;click_28d&#39;, 28, 0 UNION ALL
-  SELECT &#39;click_7d_view_1d&#39;, 7, 1
-),
-attributed AS (
-  SELECT
-    w.window_label,
-    SUM(c.conv_value) AS revenue
-  FROM windows w
-  CROSS JOIN fact_attributed_conversion c
-  WHERE c.campaign_id = :c
-    AND (
-      (c.source = &#39;click&#39; AND DATEDIFF(c.conversion_ts, c.click_ts) &lt;= w.click_d)
-      OR
-      (c.source = &#39;view&#39;  AND w.view_d &gt; 0
-        AND DATEDIFF(c.conversion_ts, c.view_ts) &lt;= w.view_d)
-    )
-  GROUP BY w.window_label
-),
-spend AS (
-  SELECT SUM(spend_cents) / 100.0 AS spend_usd
-  FROM fact_impression
-  WHERE campaign_id = :c
-)
-SELECT
-  a.window_label,
-  a.revenue,
-  s.spend_usd,
-  a.revenue / NULLIF(s.spend_usd, 0) AS roas
-FROM attributed a CROSS JOIN spend s
-ORDER BY a.window_label;
-</code></pre>
-<hr />
-<h2 id="section-4-app-install-funnel-app-installs-objective">Section 4: App Install Funnel (App Installs Objective)</h2>
-<h3 id="the-funnel-1">The funnel</h3>
-<pre class="text"><code>Impressions ─► Clicks ─► Install-Page Open ─► Install ─► First-Open ─► Event1 ─► Event2 ─► Retention D7
-</code></pre>
-<p>App installs are their own beast. Attribution is through a Mobile Measurement Partner (MMP) in most cases, or SKAdNetwork on iOS.</p>
-<h3 id="install-to-event-funnel">Install-to-event funnel</h3>
-<pre class="text"><code>Installs               10,000
-First-open              8,500 (85%)
-Tutorial complete       5,100 (60% of first-open)
-Registration            3,400 (40%)
-Purchase                1,200 (14%)
-D7 retention            2,800 (28% of installs)
-</code></pre>
-<h3 id="the-event-schema">The "event" schema</h3>
-<p>Advertiser-defined milestone events flow back via the MMP or server API:</p>
-<pre class="sql"><code>CREATE TABLE fact_app_event (
-  dt            DATE,
-  install_id    BINARY(16),         -- from install attribution
-  app_id        BIGINT,
-  event_name    STRING,              -- &#39;first_open&#39;, &#39;tutorial_complete&#39;, &#39;purchase&#39;, ...
-  event_ts      TIMESTAMP,
-  value_usd     DECIMAL(18,4)        -- for purchases
-)
-PARTITIONED BY (dt);
-</code></pre>
-<h3 id="retention-curve">Retention curve</h3>
-<pre class="sql"><code>WITH installs AS (
-  SELECT install_id, install_ts
-  FROM fact_install
-  WHERE campaign_id = :c
-    AND install_ts BETWEEN :start AND :end
-),
-opens AS (
-  SELECT install_id, DATE(event_ts) AS open_dt
-  FROM fact_app_event
-  WHERE event_name = &#39;app_open&#39;
-)
-SELECT
-  DATEDIFF(o.open_dt, DATE(i.install_ts)) AS days_since_install,
-  COUNT(DISTINCT o.install_id) * 1.0 /
-    (SELECT COUNT(DISTINCT install_id) FROM installs) AS retention_rate
-FROM installs i
-JOIN opens o USING (install_id)
-WHERE o.open_dt BETWEEN DATE(i.install_ts) AND DATE(i.install_ts) + INTERVAL &#39;30&#39; DAY
-GROUP BY days_since_install
-ORDER BY days_since_install;
-</code></pre>
-<p>Standard curve is D1 ~50%, D7 ~25%, D30 ~15% for a solid app. Less than that, the install was probably a low-quality install from poor audience targeting.</p>
-<h3 id="skan-caveat">SKAN caveat</h3>
-<p>SKAdNetwork postbacks are:</p>
-<ul>
-<li>Delayed (24h minimum, up to 60h).</li>
-<li>Conversion-value-constrained (6-bit on classic SKAN, 64-bit with SKAN 4).</li>
-<li>Subject to anonymization thresholds (no postback below cohort-size floor).</li>
-<li>Non-deterministic at granular grain.</li>
-</ul>
-<p>Your SKAN pipeline has to handle all four. Don't mix SKAN-derived metrics with MMP-derived metrics in the same chart without clear labeling.</p>
-<hr />
-<h2 id="section-5-lead-quality-scoring-lead-gen-objective">Section 5: Lead Quality Scoring (Lead Gen Objective)</h2>
-<h3 id="the-format">The format</h3>
-<p>Advertiser runs a lead form ad. User fills it out without leaving the platform. Advertiser receives the lead record for follow-up.</p>
-<h3 id="the-pipeline">The pipeline</h3>
-<pre class="text"><code>lead_form_impression ─► lead_form_open ─► lead_form_submit ─► (advertiser CRM) ─► qualified_lead ─► closed_deal
-</code></pre>
-<p>The last two stages happen in the advertiser's CRM, not on the ad platform. So:</p>
-<ul>
-<li><strong>Volume metrics</strong> (submissions, CPL) — measurable on-platform.</li>
-<li><strong>Quality metrics</strong> (qualified rate, close rate, deal value) — require advertiser to feed back.</li>
-</ul>
-<h3 id="feedback-api">Feedback API</h3>
-<p>The advertiser's CRM reports back qualified-lead status (and eventually close/value) via server-to-server API. Schema:</p>
-<pre class="sql"><code>CREATE TABLE lead_outcome_feedback (
-  lead_id         BINARY(16),
-  campaign_id     BIGINT,
-  advertiser_id   BIGINT,
-  submitted_ts    TIMESTAMP,
-  qualified       BOOLEAN,
-  qualified_ts    TIMESTAMP,
-  closed_won      BOOLEAN,
-  closed_ts       TIMESTAMP,
-  deal_value_usd  DECIMAL(18,4)
-);
-</code></pre>
-<h3 id="lead-quality-ratio">Lead-quality ratio</h3>
-<pre class="sql"><code>SELECT
-  campaign_id,
-  COUNT(*) AS leads_submitted,
-  SUM(CASE WHEN qualified THEN 1 ELSE 0 END) AS qualified,
-  SUM(CASE WHEN qualified THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS qualified_rate,
-  SUM(CASE WHEN closed_won THEN deal_value_usd ELSE 0 END) AS revenue,
-  SUM(CASE WHEN closed_won THEN deal_value_usd ELSE 0 END) /
-    NULLIF(SUM(spend_usd), 0) AS ROAS_leadgen
-FROM lead_outcome_feedback f
-JOIN (SELECT campaign_id, SUM(spend_cents)/100.0 AS spend_usd
-      FROM fact_impression WHERE dt BETWEEN :start AND :end
-      GROUP BY campaign_id) s USING (campaign_id)
-WHERE f.submitted_ts BETWEEN :start AND :end
-GROUP BY campaign_id
-ORDER BY ROAS_leadgen DESC;
-</code></pre>
-<h3 id="key-chart-lead-funnel--cycle-time">Key chart: lead funnel + cycle time</h3>
-<pre class="text"><code>Leads submitted:        1,200
-Qualified (within 7d):    720 (60%)
-Closed won (within 30d):  180 (15%)
-Avg cycle time:           18 days
-Revenue:              $450,000
-Spend:                 $60,000
-ROAS:                    7.5x
-</code></pre>
-<p>The "cycle time" dimension matters — you can't declare the campaign a failure after 2 weeks if the average lead closes on day 18.</p>
-<hr />
-<h2 id="section-6-cross-objective-benchmark-table">Section 6: Cross-Objective Benchmark Table</h2>
-<p>Most senior dashboards include a benchmark row showing where this campaign sits relative to a reference set.</p>
-<pre class="sql"><code>WITH this_campaign AS (
-  SELECT SUM(impressions) imps, SUM(clicks) clicks, SUM(spend_usd) spend, SUM(revenue) rev
-  FROM metric_campaign_daily
-  WHERE campaign_id = :c AND dt BETWEEN :start AND :end
-),
-advertiser_baseline AS (
-  SELECT
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY clicks * 1.0 / imps) AS median_ctr,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rev / spend) AS median_roas
-  FROM (
-    SELECT campaign_id,
-           SUM(impressions) AS imps,
-           SUM(clicks) AS clicks,
-           SUM(spend_usd) AS spend,
-           SUM(revenue) AS rev
-    FROM metric_campaign_daily
-    WHERE advertiser_id = (SELECT advertiser_id FROM dim.campaign WHERE campaign_id = :c)
-      AND dt BETWEEN CURRENT_DATE - 28 AND CURRENT_DATE - 1
-    GROUP BY campaign_id
-  ) t
-  WHERE imps &gt; 10000
-),
-vertical_baseline AS (
-  SELECT
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY clicks * 1.0 / imps) AS median_ctr,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rev / spend) AS median_roas
-  FROM (...vertical-level aggregation...) t
-)
-SELECT
-  tc.clicks * 1.0 / tc.imps AS campaign_ctr,
-  ab.median_ctr AS acct_median_ctr,
-  (tc.clicks * 1.0 / tc.imps) / NULLIF(ab.median_ctr, 0) - 1.0 AS vs_account_pct,
-  vb.median_ctr AS vert_median_ctr,
-  (tc.clicks * 1.0 / tc.imps) / NULLIF(vb.median_ctr, 0) - 1.0 AS vs_vertical_pct
-FROM this_campaign tc CROSS JOIN advertiser_baseline ab CROSS JOIN vertical_baseline vb;
-</code></pre>
-<p>Benchmarks should always include at least two references — the advertiser's own trailing performance, and a vertical-wide median. One reference is too easy to game.</p>
-<hr />
-<h2 id="section-7-visualization-anti-patterns">Section 7: Visualization Anti-Patterns</h2>
-<ul>
-<li><strong>Dual-axis charts.</strong> Always confusing. Split into two panels.</li>
-<li><strong>Mixed-metric stacked bars.</strong> "Clicks + impressions" stacked makes no sense.</li>
-<li><strong>Percentages without denominators.</strong> "CVR dropped 30%" — from 3% to 2.1% or from 0.1% to 0.07%? Always show the base.</li>
-<li><strong>Moving-average without the raw.</strong> Hides short-term changes.</li>
-<li><strong>Color-coded-only diff.</strong> 8% of users are color-blind. Always label with a sign or arrow too.</li>
-<li><strong>Truncated Y-axis.</strong> Zoomed axes lie. Start at zero unless there's a reason to not.</li>
-</ul>
-<hr />
-<h2 id="section-8-the-one-pager-the-exec-actually-reads">Section 8: The One-Pager the Exec Actually Reads</h2>
-<p>At the most senior level, the scorecard shrinks to one screen with five numbers:</p>
-<pre class="text"><code>CAMPAIGN HEALTH — &lt;campaign_name&gt;
 
-  Spend:         $54,230 (91% of budget)
-  Primary KPI:   ROAS 4.2x  (target 4.0x)  ✓
-  Guardrail:     IVT 0.8%   (cap 2.0%)     ✓
-  Trajectory:    +12% vs. last week
-  Next action:   Increase budget 20%, refresh creative
+<section id="act-6-recovery" class="act act-6">
+  <div class="act-eyebrow">Act 6 · Recovery</div>
+  <h1 class="act-title">08:29 AM. The CFO's office. Two dashboards, one conversation.</h1>
 
-  🟢 Running well — no intervention needed.
-</code></pre>
-<p>That's it. If the exec wants more, they'll click through. If they don't, you've already told them everything they need. Senior DE mastery is knowing when to stop adding numbers.</p>
-<hr />
-<h2 id="section-9-measurement-checklist-before-a-campaign-launches">Section 9: Measurement Checklist (before a campaign launches)</h2>
-<ul class="task-list">
-<li><input type="checkbox" disabled="" />
-Objective is declared and mapped to exactly one primary KPI.</li>
-<li><input type="checkbox" disabled="" />
-At least two guardrail metrics are declared.</li>
-<li><input type="checkbox" disabled="" />
-Attribution window(s) are pre-committed; no post-hoc changes.</li>
-<li><input type="checkbox" disabled="" />
-Benchmark references (account, vertical) are identified.</li>
-<li><input type="checkbox" disabled="" />
-Dashboard is wired to the metric registry, not a hand-rolled SQL.</li>
-<li><input type="checkbox" disabled="" />
-Incrementality measurement plan exists (holdout, or lift study, or forgo).</li>
-<li><input type="checkbox" disabled="" />
-D+7 lock policy is written down — numbers become immutable on day 7.</li>
-<li><input type="checkbox" disabled="" />
-Advertiser approved the measurement plan in writing.</li>
-</ul>
-<p>A campaign without measurement is a spend event. With measurement, it's a learning event. The DE's job is to make sure it's the second one.</p>
-<hr />
-<p><a href="00_Master_Index.html">← Master Index</a> · <a href="Part4_Platform_Specific_Glossary.html">← Part 4</a></p>
+  <p class="act-subtitle">Five hours after the page, you walk into Amelia's office with a laptop and two browser tabs open. One is the dashboard the platform ships to her every morning. The other is a parallel view you built at 03:40 AM to explain tonight. The meeting is seventeen minutes. You do not open your laptop for the first three.</p>
+
+  <div class="prompt-card">
+    <div class="prompt-label">The scene · 08:29 AM PST</div>
+    <blockquote class="prompt-body"><p>Amelia, the director, and one board-prep analyst. Two screens. Black coffee on the table. No deck. She says: <em>"Walk me through this like I'm the advertiser, not the CFO. I already trust the number — I need to explain it to someone who doesn't."</em></p></blockquote>
+  </div>
+
+  <p>The meeting is not about the platform. It is about whether the platform can narrate itself. If the dashboard cannot answer "why is tonight's number what it is" without you in the room, the platform is not done, no matter how many tests pass. So you open the laptop. You start with the picture she sees every morning.</p>
+
+  <h2 id="the-header">The CFO's morning view · conversion funnel</h2>
+
+  <p>This is what Amelia sees at 07:45 AM, every day, on her phone. One chart, top of the dashboard. Five steps. It answers: <em>how did the whole ad tier perform yesterday, shape-wise.</em> It does not answer a question about dollars — that's the second section below. This chart answers <em>whether the shape of the day was normal</em>.</p>
+
+  <h3 id="the-funnel">The funnel · from impression to repurchase</h3>
+
+  <p>The first thing you point at on the screen is the drop-off between two specific steps. Not the overall number. The <em>shape</em>. Shape reveals measurement changes before totals do.</p>
+
+  <!-- the injected dashboard will land here -->
+
+  <p>The tab control at the top is the feature that matters this morning. Switching attribution window from 7-day to 1-day to 28-day shifts the tail of the funnel. Last night's identity-graph change affects 28-day attribution most — by design, more cross-device journeys close within 28 days than within 1. Shape tells the story without dollars.</p>
+
+  <h3 id="roas-by-attribution-window">ROAS by attribution window · the reason you're here</h3>
+
+  <p>This is the chart you built overnight. It is not in Amelia's normal view. You pulled it forward because the only way to explain tonight's +18% is to show ROAS across attribution windows side by side, with the identity-graph version as a visible cohort.</p>
+
+  <!-- ROAS-windows dashboard injects here -->
+
+  <p>You say one sentence while it loads: <em>"The 28-day window is where the graph change shows up. 7-day barely moves. 1-day is flat. The platform is measuring more accurately — not more optimistically."</em> Amelia looks at the 28-day bar for thirty seconds. She asks one question. It is the question every CFO asks eventually, and the platform has to have a clean answer.</p>
+
+  <div class="act-reply">
+    <strong>Amelia:</strong> "If this graph upgrade had shipped before Q3 close, would the September number we reported to the board have been $9.12M or higher?"
+  </div>
+
+  <p>You were ready for this one at 03:40 AM. You built the parallel table for exactly this question.</p>
+
+  <div class="act-reply">
+    <strong>You:</strong> "Higher — by approximately $190K. September under <code>v2025.11</code> closes at $9.31M instead of $9.12M. That $190K is real revenue; we under-attributed it at close. I'd recommend we <em>don't</em> restate the Q3 number — the $9.12M was correct under the measurement we had — but we flag the $190K in the board footnote as an identified improvement, and the advertisers affected get a measurement-update note from the partnerships team. I've drafted both. They're in your inbox."</div>
+
+  <p>She reads the email for ninety seconds. She does not say anything while she reads. When she looks up, the first thing she says is not about the numbers.</p>
+
+  <div class="act-reply">
+    <strong>Amelia:</strong> "How did you know the <em>shape</em> of what I'd ask?"
+  </div>
+
+  <p>You answer honestly.</p>
+
+  <div class="act-reply">
+    <strong>You:</strong> "Because the question you asked in September — 'which is right, $8.2M or $9.1M' — was the same shape. In September we could not answer it without a week of reconciliation. This morning we answered it in forty-three minutes because the platform is designed around that specific question. The parallel table, the graph version pin, the up-alert that woke me up at 2:17 — all of that exists because of the 10:37 email on September 30th."</div>
+
+  <p>She nods once. The meeting ends at 08:42. The board prep gets the $9.31M footnote. The advertisers get the note on Tuesday. Nobody mentions the word "incident."</p>
+
+  <h2 id="install-to-event-funnel">The advertiser view · install-to-event funnel</h2>
+
+  <p>After the CFO meeting you walk down to the advertiser-success team. They have their own dashboard — the one the platform ships to every self-serve advertiser. This is a different surface for a different audience, and the question it answers is different too. <em>Is my campaign working, in my vocabulary.</em></p>
+
+  <!-- install funnel dashboard injects here -->
+
+  <p>The difference between this view and the CFO view is the thing that took you three months to learn at StreamCo: <strong>audiences do not translate</strong>. Amelia does not want to see "D30 retention by cohort." An advertiser does not want to see "settled revenue, USD basis." The same ad platform produces both surfaces from the same silver tables, bound through the semantic layer, and neither audience is ever confused about which number is which — because the audience tag on the metric is part of the query plan.</p>
+
+  <h2 id="key-chart-lead-funnel--cycle-time">The sales-cycle view · lead funnel + cycle time</h2>
+
+  <p>The third surface is for advertisers running lead-generation campaigns. The shape of a lead campaign is not a funnel; it is a funnel <em>with a time axis</em>, because the bottleneck is days-to-close, not percent-converting. A lead campaign with a 40% MQL-to-close that takes 90 days is worse than a 25% MQL-to-close that takes 14 days, and no one-number ROAS captures this.</p>
+
+  <!-- lead funnel dashboard injects here -->
+
+  <p>This dashboard is the one advertisers screenshot and send to their CFOs. The platform's job is to make sure they don't have to re-label anything before they paste it into the deck — the axis labels, the window, the attribution model are all on the chart itself.</p>
+
+  <p>There is one more dashboard below — the campaign-level drilldown. It is a tool, not a narrative surface. You include it because every advertiser eventually asks "but what about <em>my</em> campaign," and the platform needs a no-ceremony way to answer that.</p>
+
+  <!-- campaign dashboard injects after h3 "The Header" -->
+  <h3 id="the-header">Campaign drilldown · the header card</h3>
+
+  <p>Single campaign, scorecard at the top, trend below, benchmark row for context. Self-serve advertisers bounce between this and the funnel chart above; that pattern drove the layout decisions.</p>
+
+  <aside class="sidebar sidebar-room">
+    <div class="sidebar-label">The Room · Scar File 6</div>
+    <h3 class="sidebar-title">The dashboard is not the deliverable. The conversation is.</h3>
+    <p>Senior DE candidates build dashboards that are technically correct, visually clean, and completely useless in the meeting where they matter. The reason is always the same: the dashboard is designed around the data, not around the conversation the executive will try to have with it.</p>
+    <ol>
+      <li><strong>What is the audience going to ask?</strong> Not what can we show — what question will the viewer try to answer on this surface.</li>
+      <li><strong>What is the second question?</strong> The follow-up. The "and also" question. Put that one at most one click away.</li>
+      <li><strong>What is the question the viewer will ask about the <em>platform itself</em>?</strong> "Why is this different from yesterday's number." The platform has to answer this without a human in the room.</li>
+      <li><strong>Can you operate this dashboard silently?</strong> If the meeting requires the author to explain it, the platform is not done.</li>
+    </ol>
+    <p class="sidebar-punch">A dashboard is the surface of a conversation. Design the conversation. The chart follows.</p>
+  </aside>
+
+  <aside class="sidebar sidebar-landmine">
+    <div class="sidebar-label">The Landmine · 6 of many</div>
+    <h3 class="sidebar-title">The "power user" dashboard</h3>
+    <p>Every data team eventually builds a dashboard with twenty filters, four tabs, a pivot control, and a "custom time range" button. It is described internally as <em>the one dashboard to rule them all</em>. It is used by exactly the three people who built it, and by no one else. Ever.</p>
+    <p>The failure mode is not that it's complex — it's that complexity is pushed onto the viewer. Every filter is a decision the viewer has to make before they can read a number. Every tab is a cognitive cost. Executives will not pay that cost. They will ask you in the meeting instead, which is fine until you leave the company.</p>
+    <p>The senior move is to build <em>four different dashboards for four different audiences</em>, each with three charts and zero filters. The platform has already done the decision-making. The viewer is handed the answer.</p>
+    <p class="sidebar-punch">Rule: if the dashboard has a filter, the viewer has to make a choice. Make the choice for them.</p>
+  </aside>
+
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Where this is going · Act 7</div>
+    <h3 class="sidebar-title">The last four minutes of the round.</h3>
+    <p>Clock reads 43:22 in the interview room. Raj has one more question. It is the quiet one — the one that reframes everything you spent the last forty-three minutes on. You think you've been interviewing for a pipeline job. You have not. Act 7 is where the round actually gets scored.</p>
+  </aside>
+</section>
+
+<hr>
+
 </main>
 <footer class="page-footer">
   <a href="00_Master_Index.html">← Master Index</a>  ·  Senior / Staff DE Interview Prep  ·  April 2026
