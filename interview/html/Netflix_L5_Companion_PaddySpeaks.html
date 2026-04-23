@@ -1,0 +1,1780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netflix Data Engineer Interview — The L5 Companion | PaddySpeaks</title>
+<meta name="description" content="A Netflix-specific companion to the Senior/L5 Data Engineering deep-dive — the actual loop structure, the real stack (Keystone, Mantis, Atlas, Zuul, Iceberg), salary math, and how Freedom & Responsibility shapes the interview.">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+  :root {
+    --netflix-red: #E50914;
+    --netflix-red-dark: #B00710;
+    --navy: #1a2f45;
+    --navy-deep: #0f1e2e;
+    --dark: #1e293b;
+    --med: #475569;
+    --accent: #c8915a;
+    --accent-light: #e8c9a0;
+    --cream: #faf6f1;
+    --bone: #f5efe6;
+    --warm-white: #fefcf9;
+    --sage: #6b8e6f;
+    --rust: #b44040;
+    --rule: #e2d9ce;
+    --code-bg: #0f1e2e;
+    --code-text: #e8e0d6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; color-scheme: light only; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #e8e0d6;
+    color: var(--dark);
+    line-height: 1.65;
+  }
+
+  .shell { max-width: 1120px; margin: 0 auto; }
+
+  /* =========== HEADER =========== */
+  header.masthead {
+    background: var(--navy-deep);
+    color: var(--cream);
+    padding: 64px 56px 52px;
+    border-bottom: 4px solid var(--netflix-red);
+    position: relative;
+    overflow: hidden;
+  }
+
+  header.masthead::before {
+    content: "";
+    position: absolute;
+    top: -50px; right: -50px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(229,9,20,0.12) 0%, transparent 65%);
+    pointer-events: none;
+  }
+
+  .brand-line {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--netflix-red);
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+
+  h1.article-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 54px;
+    font-weight: 600;
+    line-height: 1.08;
+    margin-bottom: 14px;
+    color: var(--warm-white);
+    letter-spacing: -0.8px;
+    max-width: 900px;
+  }
+
+  .deck {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 19px;
+    color: var(--accent-light);
+    max-width: 780px;
+    line-height: 1.5;
+  }
+
+  .byline-strip {
+    display: flex;
+    gap: 20px;
+    margin-top: 30px;
+    padding-top: 22px;
+    border-top: 1px solid rgba(232,201,160,0.25);
+    flex-wrap: wrap;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent-light);
+  }
+  .byline-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+  /* =========== COMPANION BADGE =========== */
+  .companion-badge {
+    background: rgba(229,9,20,0.08);
+    border: 1px solid rgba(229,9,20,0.3);
+    border-left: 4px solid var(--netflix-red);
+    padding: 20px 26px;
+    margin: 0 56px;
+    margin-top: -24px;
+    margin-bottom: 40px;
+    border-radius: 0 8px 8px 0;
+    background-color: var(--warm-white);
+    position: relative;
+    z-index: 2;
+    box-shadow: 0 2px 20px rgba(15,30,46,0.12);
+  }
+
+  .companion-badge .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--netflix-red);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .companion-badge p {
+    font-family: 'Newsreader', serif;
+    font-size: 16px;
+    color: var(--dark);
+    line-height: 1.55;
+    font-style: italic;
+  }
+
+  .companion-badge a {
+    color: var(--netflix-red);
+    border-bottom: 1.5px solid var(--netflix-red);
+    text-decoration: none;
+    font-style: normal;
+    font-weight: 600;
+  }
+
+  /* =========== TOC =========== */
+  nav.toc {
+    background: var(--warm-white);
+    padding: 36px 56px;
+    border-bottom: 1px solid var(--rule);
+  }
+  nav.toc h2 {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--med);
+    margin-bottom: 20px;
+    font-weight: 500;
+  }
+  nav.toc ol {
+    list-style: none;
+    counter-reset: toc;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px 28px;
+  }
+  nav.toc li {
+    counter-increment: toc;
+    font-size: 14.5px;
+    padding-left: 32px;
+    position: relative;
+    line-height: 1.45;
+  }
+  nav.toc li::before {
+    content: counter(toc, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--netflix-red);
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  nav.toc a {
+    color: var(--navy);
+    text-decoration: none;
+    border-bottom: 1px dashed transparent;
+  }
+  nav.toc a:hover { border-bottom-color: var(--netflix-red); }
+
+  /* =========== MAIN =========== */
+  main {
+    background: var(--warm-white);
+    padding: 56px 56px 72px;
+  }
+
+  section.part {
+    margin-bottom: 72px;
+    scroll-margin-top: 24px;
+  }
+  section.part:last-child { margin-bottom: 0; }
+
+  .part-header {
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--navy);
+  }
+  .part-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--netflix-red);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .part-header h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 42px;
+    font-weight: 600;
+    color: var(--navy);
+    letter-spacing: -0.6px;
+    line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  .part-header .standfirst {
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--med);
+    max-width: 820px;
+    line-height: 1.55;
+  }
+
+  h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--navy);
+    letter-spacing: -0.3px;
+    margin: 32px 0 12px;
+  }
+
+  h4 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    text-transform: uppercase;
+    letter-spacing: 1.4px;
+    margin: 24px 0 10px;
+  }
+
+  p {
+    margin-bottom: 14px;
+    font-size: 16px;
+    color: var(--dark);
+    line-height: 1.7;
+  }
+
+  p.lede {
+    font-family: 'Newsreader', serif;
+    font-size: 18px;
+    font-style: italic;
+    color: var(--med);
+    line-height: 1.55;
+    margin-bottom: 18px;
+  }
+
+  ul, ol { margin: 10px 0 16px 22px; }
+  li { margin-bottom: 8px; font-size: 15.5px; line-height: 1.6; }
+
+  strong { color: var(--navy); font-weight: 600; }
+  em { font-style: italic; }
+
+  a.xref {
+    color: var(--netflix-red);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--netflix-red);
+    font-weight: 500;
+  }
+  a.xref:hover { background: rgba(229,9,20,0.06); }
+
+  /* =========== TABLES =========== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 14px;
+  }
+  th {
+    background: var(--navy);
+    color: var(--cream);
+    text-align: left;
+    padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    line-height: 1.55;
+  }
+  tr:nth-child(even) td { background: var(--bone); }
+
+  /* =========== CODE =========== */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 18px 22px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'DM Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 14px 0;
+    border-left: 3px solid var(--netflix-red);
+  }
+  pre .kw { color: #f5a623; }
+  pre .str { color: #a6e3a1; }
+  pre .com { color: #8b96a8; font-style: italic; }
+  pre .fn { color: #89b4fa; }
+  pre .num { color: #f9e2af; }
+
+  code {
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    background: rgba(26,47,69,0.07);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--navy);
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: 12.5px; }
+
+  /* =========== CALLOUTS =========== */
+  .callout {
+    background: var(--cream);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 16px 22px;
+    margin: 20px 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 15px;
+  }
+  .callout strong.label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 2.2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .callout.red { border-left-color: var(--netflix-red); background: rgba(229,9,20,0.04); }
+  .callout.red strong.label { color: var(--netflix-red); }
+
+  .callout.green { border-left-color: var(--sage); background: rgba(107,142,111,0.06); }
+  .callout.green strong.label { color: var(--sage); }
+
+  .callout.rust { border-left-color: var(--rust); background: rgba(180,64,64,0.05); }
+  .callout.rust strong.label { color: var(--rust); }
+
+  /* =========== DIAGRAM FIGURE =========== */
+  figure.diagram-figure {
+    margin: 28px 0;
+    background: var(--bone);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 22px 24px 18px;
+  }
+  figure.diagram-figure svg {
+    width: 100%;
+    height: auto;
+    max-height: 560px;
+    display: block;
+  }
+  figure.diagram-figure figcaption {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--rule);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--med);
+  }
+  figure.diagram-figure figcaption .caption-title {
+    color: var(--netflix-red);
+    font-weight: 600;
+    margin-right: 10px;
+  }
+
+  /* =========== STATS STRIP =========== */
+  .stats-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .stat {
+    background: var(--navy);
+    color: var(--warm-white);
+    padding: 18px 20px;
+    border-radius: 6px;
+    border-left: 3px solid var(--netflix-red);
+  }
+  .stat .n {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--warm-white);
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .stat .l {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent-light);
+  }
+
+  /* =========== ROUND CARDS =========== */
+  .rounds-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 18px;
+    margin: 24px 0;
+  }
+  .round-card {
+    background: var(--bone);
+    border-left: 3px solid var(--netflix-red);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 22px;
+  }
+  .round-card .round-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--netflix-red);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .round-card h5 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--navy);
+    margin-bottom: 4px;
+    letter-spacing: -0.2px;
+  }
+  .round-card .duration {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--med);
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+  .round-card p {
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+
+  /* =========== SALARY TABLE =========== */
+  .salary-band {
+    background: linear-gradient(to right, var(--navy) 0%, var(--navy-deep) 100%);
+    color: var(--warm-white);
+    padding: 22px 26px;
+    border-radius: 8px;
+    margin: 22px 0;
+  }
+  .salary-band h4 {
+    color: var(--netflix-red);
+    margin: 0 0 14px;
+  }
+  .salary-band table th {
+    background: transparent;
+    color: var(--accent-light);
+    border-bottom: 1px solid rgba(232,201,160,0.25);
+  }
+  .salary-band table td {
+    background: transparent !important;
+    color: var(--warm-white);
+    border-bottom: 1px solid rgba(232,201,160,0.15);
+  }
+  .salary-band table tr:nth-child(even) td { background: transparent; }
+  .salary-band table strong { color: var(--netflix-red); }
+
+  /* =========== CULTURE GRID =========== */
+  .culture-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 24px 0;
+  }
+  .culture-card {
+    background: var(--bone);
+    padding: 16px 20px;
+    border-radius: 6px;
+    border-top: 3px solid var(--netflix-red);
+  }
+  .culture-card h5 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--netflix-red);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin-bottom: 6px;
+  }
+  .culture-card p {
+    font-size: 14px;
+    margin: 0;
+    line-height: 1.55;
+  }
+
+  /* =========== FOOTER =========== */
+  footer {
+    background: var(--navy-deep);
+    color: var(--accent-light);
+    padding: 36px 56px;
+    text-align: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  footer .brand { color: var(--netflix-red); font-weight: 600; font-size: 12px; }
+  footer .signature {
+    margin-top: 16px;
+    font-family: 'Newsreader', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--accent-light);
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  @media (max-width: 820px) {
+    header.masthead, main, nav.toc, footer, .companion-badge { padding-left: 24px; padding-right: 24px; }
+    .companion-badge { margin-left: 16px; margin-right: 16px; }
+    h1.article-title { font-size: 36px; }
+    nav.toc ol, .rounds-grid, .culture-grid, .stats-strip { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    body { background: white; }
+    section.part { break-inside: avoid-page; }
+    pre, figure.diagram-figure, .callout { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+<!-- =========== MASTHEAD =========== -->
+<header class="masthead">
+  <div class="brand-line">PaddySpeaks · Interview Companion</div>
+  <h1 class="article-title">Netflix Data Engineer — The L5 Companion</h1>
+  <div class="deck">The Senior/L5 Deep Dive gave you the territory. This gives you the map for <em>one specific loop</em> — Netflix. Their actual stack, their actual rounds, their actual salary math, and the way <em>Freedom &amp; Responsibility</em> quietly rewrites every answer you give.</div>
+  <div class="byline-strip">
+    <span>Companion Article</span>
+    <span>Netflix-Specific</span>
+    <span>Keystone · Mantis · Iceberg · Atlas</span>
+    <span>April 2026</span>
+  </div>
+</header>
+
+<!-- =========== COMPANION CROSS-LINK =========== -->
+<div class="companion-badge">
+  <div class="eyebrow">How to read this with the deep dive</div>
+  <p>This companion assumes you've read — or have at hand — the <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html">Senior / L5 Data Engineering Deep Dive</a>. That article is the <em>language</em> — modeling, batch, streaming, Spark, SQL, Python, Lakehouse. This one is the <em>accent</em> — how Netflix specifically grades each of those. Cross-links throughout point to the exact sections of the deep dive worth re-reading before each round.</p>
+</div>
+
+<!-- =========== TOC =========== -->
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#p0">Overview — Why Netflix is different</a></li>
+    <li><a href="#p1">The Company in 12 Facts</a></li>
+    <li><a href="#p2">The Tech Stack — Six Layers</a></li>
+    <li><a href="#p3">Core Processing Layer (RT + Batch)</a></li>
+    <li><a href="#p4">Storage &amp; Databases Layer</a></li>
+    <li><a href="#p5">Netflix-Built Platforms</a></li>
+    <li><a href="#p6">Observability Stack</a></li>
+    <li><a href="#p7">Analytics &amp; Consumption Layer</a></li>
+    <li><a href="#p8">End-to-End Data Architecture</a></li>
+    <li><a href="#p9">The Interview Loop — Round by Round</a></li>
+    <li><a href="#p10">Technical Questions Actually Asked</a></li>
+    <li><a href="#p11">Freedom &amp; Responsibility — In the Room</a></li>
+    <li><a href="#p12">Salary, Comp, and Negotiation</a></li>
+    <li><a href="#p13">The Netflix-Specific Prep Sprint</a></li>
+    <li><a href="#p14">Final Frame</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- =========== PART 0 — OVERVIEW =========== -->
+<section class="part" id="p0">
+  <div class="part-header">
+    <div class="part-num">Part 00 · Orientation</div>
+    <h2>Why Netflix Is Different</h2>
+    <div class="standfirst">Most L5 DE loops test a common set of skills. Netflix tests them through a lens no other company enforces — <em>Freedom &amp; Responsibility</em>, the Keeper Test, radical candor, and a tech stack where half the infrastructure was open-sourced <em>from</em> Netflix, not adopted <em>by</em> it.</div>
+  </div>
+
+  <p class="lede">Every big-tech interview loop looks the same from altitude. Resume screen, coding phone screen, onsite with system design, behavioral, technical deep-dive. Netflix looks like that too. Do not be fooled.</p>
+
+  <p>The difference is in what each round is actually scoring. At most companies a weak answer gets you a quiet "no hire" on the rubric. At Netflix a <em>good-enough</em> answer gets you the same verdict — because the Keeper Test lives inside the rubric: <em>would I fight to keep this person on my team?</em> Not "can they do the work." <em>Fight to keep.</em> Everything below is what it takes to move a Netflix interviewer from "competent" to "fight to keep."</p>
+
+  <p>This article is the short answer to a long question: <strong>what is specifically different about preparing for Netflix</strong>, when you already know how to prepare for a senior L5 Data Engineering loop in general? The generic preparation is in <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html" class="xref">the deep dive</a>. This is the Netflix layer.</p>
+
+  <div class="callout red">
+    <strong class="label">The L5 Companion Premise</strong>
+    If you've done the deep-dive reading, you can walk into any Senior Data Engineering loop at most companies and be competitive. Netflix is the loop where the same performance gets you <em>further from</em> an offer, not closer — because every interviewer has been trained to raise the bar until it hurts. This article is the bar.
+  </div>
+
+</section>
+
+
+<!-- =========== PART 1 — COMPANY IN 12 FACTS =========== -->
+<section class="part" id="p1">
+  <div class="part-header">
+    <div class="part-num">Part 01 · Context</div>
+    <h2>Netflix in Twelve Facts</h2>
+    <div class="standfirst">You cannot interview at Netflix well without carrying the shape of the business in your head. These twelve facts are the baseline — if an interviewer references any of them, you should recognize the reference, not learn it mid-sentence.</div>
+  </div>
+
+  <!-- FIGURE 1 — Netflix timeline -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 780 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Netflix company timeline: 1997 founded as DVD rental, 1997 streaming launch, 2010 global expansion to 260M members in 190+ countries.">
+      <defs>
+        <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- Root -->
+      <rect x="320" y="20" width="140" height="54" rx="6" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="390" y="46" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="15" font-weight="700" fill="#fefcf9">Netflix</text>
+      <text x="390" y="64" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#e8c9a0">Founded 1997</text>
+
+      <!-- Three branches -->
+      <line x1="390" y1="74" x2="110" y2="130" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrRed)"/>
+      <line x1="390" y1="74" x2="390" y2="130" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrRed)"/>
+      <line x1="390" y1="74" x2="660" y2="130" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrRed)"/>
+
+      <!-- DVD -->
+      <rect x="30" y="140" width="170" height="60" rx="6" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="115" y="166" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#1a2f45">DVD Rental</text>
+      <text x="115" y="187" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="12" fill="#475569">Founded 1997</text>
+
+      <!-- Streaming -->
+      <rect x="305" y="140" width="170" height="60" rx="6" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="390" y="166" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#1a2f45">Streaming</text>
+      <text x="390" y="187" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="12" fill="#475569">Launched 2007</text>
+
+      <!-- Global -->
+      <rect x="580" y="140" width="170" height="60" rx="6" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="665" y="166" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#1a2f45">Global Expansion</text>
+      <text x="665" y="187" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="12" fill="#475569">2010 onwards</text>
+
+      <!-- Today metrics -->
+      <line x1="665" y1="200" x2="470" y2="270" stroke="#c8915a" stroke-width="1.5" marker-end="url(#arrRed)"/>
+      <line x1="665" y1="200" x2="665" y2="270" stroke="#c8915a" stroke-width="1.5" marker-end="url(#arrRed)"/>
+
+      <ellipse cx="465" cy="298" rx="90" ry="30" fill="#E50914" opacity="0.9"/>
+      <text x="465" y="294" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="22" font-weight="700" fill="#fefcf9">260M+</text>
+      <text x="465" y="312" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#fefcf9">MEMBERS</text>
+
+      <ellipse cx="665" cy="298" rx="80" ry="30" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="665" y="294" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="22" font-weight="700" fill="#fefcf9">190+</text>
+      <text x="665" y="312" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#e8c9a0">COUNTRIES</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 01</span>Netflix in one arc: DVD rental (1997) → Streaming (2007) → Global (2010) → today's 260M members across 190+ countries.</figcaption>
+  </figure>
+
+  <div class="stats-strip">
+    <div class="stat"><div class="n">260M+</div><div class="l">Members</div></div>
+    <div class="stat"><div class="n">190+</div><div class="l">Countries</div></div>
+    <div class="stat"><div class="n">~$17B</div><div class="l">Annual Content Spend</div></div>
+    <div class="stat"><div class="n">T+/mo</div><div class="l">Trillions of Events</div></div>
+  </div>
+
+  <h3>The twelve facts worth knowing by heart</h3>
+  <ol>
+    <li><strong>260M+ paid members</strong>, across 190+ countries. Scale is always the baseline number in system-design rounds.</li>
+    <li><strong>~$17B/year content spend</strong> — roughly 15% of revenue goes into originals. Content decisions are data decisions; data engineering directly shapes which shows get made.</li>
+    <li><strong>Trillions of events per month.</strong> Play, pause, seek, impression, ad-view, recommendation click. The buffering-free stream is the product; the event pipeline is the plumbing behind it.</li>
+    <li><strong>Ads tier launched 2022</strong>, scaling fast. Ads data engineering is the hottest hiring area as of 2026 — and the area where your Meta Safe Ads experience lands one-to-one.</li>
+    <li><strong>Freedom &amp; Responsibility is a real operating principle</strong>, not a poster. Engineers are trusted with high-impact decisions without approval chains, and evaluated on outcomes.</li>
+    <li><strong>The Keeper Test.</strong> Managers ask quarterly: "If this person told me they were leaving for a similar role elsewhere, would I fight to keep them?" If no, severance. Apply the logic to your own interview: you're not interviewing to be adequate.</li>
+    <li><strong>Top-of-market cash compensation</strong>, paid almost entirely in salary — not RSUs with vesting cliffs. (See Part 12.)</li>
+    <li><strong>Unlimited PTO</strong>, 12-month parental leave, remote-friendly for most teams. Perks are standard at this tier; don't negotiate them.</li>
+    <li><strong>Open-source origin of much of their stack.</strong> Iceberg, Atlas, Zuul, Mantis, Metaflow, Maestro — Netflix built and open-sourced these. Using them elsewhere is a credential; using them <em>at</em> Netflix is the baseline.</li>
+    <li><strong>Personalization is a trillion-event problem.</strong> Every play, pause, and scroll feeds into the ranking model. The feature store, training pipeline, and serving layer are all Netflix-built.</li>
+    <li><strong>AWS-first with global CDN.</strong> Open Connect (their CDN) is the edge; compute and warehouse sit in AWS. You will not be asked to design from scratch on GCP.</li>
+    <li><strong>"Highly aligned, loosely coupled."</strong> Strategy comes from the top; execution is left to teams. In the interview: show you can operate with minimal direction.</li>
+  </ol>
+
+  <div class="callout green">
+    <strong class="label">The shape of the business</strong>
+    Every design round at Netflix is, eventually, a question about one of these twelve facts. The interviewer will not say "remember the 260M figure" — but if you design a system that assumes 10M users, you've already scored below the bar. Commit the numbers to memory.
+  </div>
+</section>
+
+
+<!-- =========== PART 2 — TECH STACK OVERVIEW =========== -->
+<section class="part" id="p2">
+  <div class="part-header">
+    <div class="part-num">Part 02 · Ecosystem</div>
+    <h2>The Tech Stack — Six Layers</h2>
+    <div class="standfirst">Netflix's data ecosystem is not a vendor pitch — it's six layers that have evolved since 2010. Knowing the layers is the difference between <em>"I've used Spark"</em> and <em>"I understand where Spark sits in the Netflix data topology."</em> The interviewer will know which one they heard.</div>
+  </div>
+
+  <!-- FIGURE 2 — Tech Stack Overview -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 840 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Netflix data ecosystem with six layers radiating from a central hub">
+      <!-- Central hub -->
+      <circle cx="420" cy="260" r="70" fill="#1a2f45" stroke="#E50914" stroke-width="3"/>
+      <text x="420" y="255" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="20" font-weight="600" fill="#fefcf9">Netflix</text>
+      <text x="420" y="278" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1.5" fill="#e8c9a0">DATA ECOSYSTEM</text>
+
+      <!-- Spoke 1: Core Processing -->
+      <line x1="420" y1="190" x2="320" y2="90" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="140" y="45" width="220" height="80" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="250" y="72" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">CORE PROCESSING</text>
+      <text x="250" y="94" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Spark · Flink · Kafka</text>
+      <text x="250" y="110" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Trino · Iceberg · Airflow</text>
+
+      <!-- Spoke 2: Storage -->
+      <line x1="420" y1="190" x2="520" y2="90" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="480" y="45" width="220" height="80" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="590" y="72" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">STORAGE &amp; DBs</text>
+      <text x="590" y="94" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">S3 · Cassandra · ES</text>
+      <text x="590" y="110" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Redis · ClickHouse · MySQL</text>
+
+      <!-- Spoke 3: Netflix Built -->
+      <line x1="490" y1="260" x2="610" y2="260" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="620" y="205" width="210" height="110" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="725" y="232" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">NETFLIX-BUILT</text>
+      <text x="725" y="252" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Keystone · Mantis</text>
+      <text x="725" y="268" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Metacat · Genie</text>
+      <text x="725" y="284" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Atlas · Zuul · Maestro</text>
+      <text x="725" y="300" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Metaflow</text>
+
+      <!-- Spoke 4: Observability -->
+      <line x1="420" y1="330" x2="520" y2="430" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="480" y="410" width="220" height="80" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="590" y="437" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">OBSERVABILITY</text>
+      <text x="590" y="459" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Grafana · Prometheus</text>
+      <text x="590" y="475" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Atlas · DataHub</text>
+
+      <!-- Spoke 5: Analytics -->
+      <line x1="420" y1="330" x2="320" y2="430" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="140" y="410" width="220" height="80" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="250" y="437" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">ANALYTICS</text>
+      <text x="250" y="459" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Tableau · Looker</text>
+      <text x="250" y="475" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Jupyter · Superset</text>
+
+      <!-- Spoke 6: Cloud -->
+      <line x1="350" y1="260" x2="230" y2="260" stroke="#E50914" stroke-width="1.5"/>
+      <rect x="20" y="205" width="210" height="110" rx="8" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="125" y="232" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">CLOUD &amp; INFRA</text>
+      <text x="125" y="252" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">AWS · Docker</text>
+      <text x="125" y="268" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Kubernetes · Jenkins</text>
+      <text x="125" y="284" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Spinnaker · Open Connect</text>
+      <text x="125" y="300" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#1a2f45">Python · Java · Scala</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 02</span>Netflix data ecosystem — six layers orbiting a shared lakehouse core. Each layer has its own interview lens, covered in Parts 03–07.</figcaption>
+  </figure>
+
+  <p>Each of the six layers is a potential interview topic on its own. The rounds don't quiz you layer-by-layer — they pick one scenario and watch whether you can name which layers are engaged and why. Parts 03–07 break each layer down into the <em>specific components</em>, what they're used for, and which deep-dive section to revise before talking about them.</p>
+</section>
+
+
+<!-- =========== PART 3 — CORE PROCESSING =========== -->
+<section class="part" id="p3">
+  <div class="part-header">
+    <div class="part-num">Part 03 · Layer 1 of 6</div>
+    <h2>Core Processing — Real-Time &amp; Batch</h2>
+    <div class="standfirst">The engines. Spark for batch heavy-lifting, Flink and Kafka for streams, Trino and Iceberg for interactive SQL on the lakehouse, Airflow for orchestration. Every DE interview will touch at least three.</div>
+  </div>
+
+  <!-- FIGURE 3 — Core Processing -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 800 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Core processing layer: RT and Batch branches converging on Trino and Iceberg">
+      <defs>
+        <marker id="arrHead3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+        <marker id="arrHead3Red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- Root -->
+      <rect x="320" y="20" width="180" height="54" rx="6" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="410" y="46" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">CORE PROCESSING</text>
+      <text x="410" y="62" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#e8c9a0">ENGINES LAYER</text>
+
+      <!-- Two branches -->
+      <line x1="410" y1="74" x2="180" y2="125" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead3)"/>
+      <line x1="410" y1="74" x2="620" y2="125" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead3)"/>
+
+      <!-- RT (Real-Time) -->
+      <rect x="100" y="130" width="160" height="50" rx="6" fill="#E50914" opacity="0.9"/>
+      <text x="180" y="153" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">REAL-TIME</text>
+      <text x="180" y="170" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#fefcf9">Streaming Layer</text>
+
+      <!-- Batch -->
+      <rect x="540" y="130" width="160" height="50" rx="6" fill="#1a2f45"/>
+      <text x="620" y="153" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">BATCH</text>
+      <text x="620" y="170" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#e8c9a0">Bounded Processing</text>
+
+      <!-- Airflow -->
+      <rect x="710" y="130" width="80" height="50" rx="6" fill="#faf6f1" stroke="#c8915a" stroke-width="1.5"/>
+      <text x="750" y="155" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#c8915a">AIRFLOW</text>
+      <text x="750" y="170" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">orchestrator</text>
+
+      <line x1="710" y1="155" x2="700" y2="155" stroke="#c8915a" stroke-width="1.5" marker-end="url(#arrHead3)"/>
+
+      <!-- RT children: Flink, Kafka -->
+      <line x1="180" y1="180" x2="120" y2="225" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead3Red)"/>
+      <line x1="180" y1="180" x2="240" y2="225" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead3Red)"/>
+
+      <rect x="55" y="230" width="130" height="44" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="120" y="252" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">Flink</text>
+      <text x="120" y="266" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">stateful streams</text>
+
+      <rect x="195" y="230" width="130" height="44" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="260" y="252" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">Kafka</text>
+      <text x="260" y="266" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">event bus</text>
+
+      <!-- Batch children: Spark, DP -->
+      <line x1="620" y1="180" x2="620" y2="225" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead3)"/>
+      <rect x="555" y="230" width="130" height="44" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="620" y="252" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">Spark</text>
+      <text x="620" y="266" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">GPU-accelerated</text>
+
+      <ellipse cx="740" cy="252" rx="40" ry="22" fill="#faf6f1" stroke="#c8915a" stroke-width="1.5"/>
+      <text x="740" y="257" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#c8915a">DP</text>
+      <line x1="685" y1="252" x2="700" y2="252" stroke="#c8915a" stroke-width="1.5" marker-end="url(#arrHead3)"/>
+
+      <!-- Converge on Trino + Iceberg -->
+      <line x1="260" y1="274" x2="400" y2="330" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="4,4"/>
+      <line x1="620" y1="274" x2="450" y2="330" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="4,4"/>
+
+      <rect x="330" y="335" width="170" height="44" rx="4" fill="#1a2f45"/>
+      <text x="415" y="357" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Trino</text>
+      <text x="415" y="371" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" letter-spacing="1" fill="#e8c9a0">INTERACTIVE SQL</text>
+
+      <line x1="330" y1="357" x2="220" y2="357" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead3Red)"/>
+      <rect x="70" y="335" width="140" height="44" rx="4" fill="#E50914"/>
+      <text x="140" y="357" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Iceberg</text>
+      <text x="140" y="371" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" letter-spacing="1" fill="#fefcf9">TABLE FORMAT</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 03</span>Core processing — real-time (Flink, Kafka) and batch (Spark, orchestrated by Airflow) both converge on Trino's SQL layer over Iceberg tables.</figcaption>
+  </figure>
+
+  <h3>The components, what they do, and what to revise</h3>
+  <table>
+    <tr><th>Component</th><th>What it's for at Netflix</th><th>Deep-dive cross-link</th></tr>
+    <tr>
+      <td><strong>Apache Spark</strong> (GPU-accelerated)</td>
+      <td>Large-scale batch. Every nightly rollup, every model-training ETL, every backfill.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-04" class="xref">Part 04 — Spark Internals</a></td>
+    </tr>
+    <tr>
+      <td><strong>Kafka</strong></td>
+      <td>The event bus. Every play / pause / seek / impression flows through it. 4+ trillion messages/day at peak.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p03-9-kafka-internals--isr-controllers-exactly-once" class="xref">Part 03 §9 — Kafka Internals</a></td>
+    </tr>
+    <tr>
+      <td><strong>Flink</strong></td>
+      <td>Stateful stream processing at Netflix scale. Sessionization, watermarking, exactly-once sinks.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p03-8-flink-internals--dataflow-barriers-state" class="xref">Part 03 §8 — Flink Internals</a></td>
+    </tr>
+    <tr>
+      <td><strong>Apache Iceberg</strong></td>
+      <td>Netflix <em>created</em> it. The open table format for petabyte-scale tables with ACID, time travel, schema evolution.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-07" class="xref">Part 07 — Lakehouse</a></td>
+    </tr>
+    <tr>
+      <td><strong>Trino</strong> (formerly PrestoSQL)</td>
+      <td>Interactive SQL over the lakehouse. Analysts query 50+ TB tables in seconds.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-05" class="xref">Part 05 — SQL Deep Dive</a></td>
+    </tr>
+    <tr>
+      <td><strong>Airflow</strong></td>
+      <td>Orchestration. DAGs for nightly rollups, cross-pipeline dependencies. Being gradually replaced internally by <strong>Maestro</strong>.</td>
+      <td><a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p02-12-orchestration-patterns-for-batch" class="xref">Part 02 §12 — Orchestration</a></td>
+    </tr>
+  </table>
+
+  <div class="callout red">
+    <strong class="label">The Iceberg tell</strong>
+    Iceberg is the single most powerful name-drop in a Netflix interview. It was designed there (Ryan Blue et al.) to fix the "Hive table at petabyte scale" problem. If you can draw the manifest-list → manifest → data file hierarchy, talk about copy-on-write vs merge-on-read, and explain hidden partitioning, you've signaled deep familiarity with the stack. Most candidates handwave. Don't.
+  </div>
+</section>
+
+
+<!-- =========== PART 4 — STORAGE =========== -->
+<section class="part" id="p4">
+  <div class="part-header">
+    <div class="part-num">Part 04 · Layer 2 of 6</div>
+    <h2>Storage &amp; Databases</h2>
+    <div class="standfirst">Netflix runs a polyglot persistence layer — the right database for each workload, not the same database for everything. The trick for the interview is not to list databases. It's to reason out loud about <em>which</em> and <em>why</em>.</div>
+  </div>
+
+  <!-- FIGURE 4 — Storage flow -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 820 460" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Storage layer data flow from source DBs through S3 and Kafka into downstream systems">
+      <defs>
+        <marker id="arrHead4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+        <marker id="arrHead4Red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- Source DB -->
+      <rect x="50" y="30" width="130" height="50" rx="6" fill="#1a2f45"/>
+      <text x="115" y="52" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Source DB</text>
+      <text x="115" y="68" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">MySQL · Cassandra</text>
+
+      <text x="115" y="105" text-anchor="middle" font-family="Newsreader, serif" font-style="italic" font-size="12" fill="#475569">data ingestion</text>
+
+      <!-- Split to S3 and Kafka -->
+      <line x1="115" y1="80" x2="115" y2="130" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead4)"/>
+      <line x1="180" y1="55" x2="280" y2="55" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead4Red)"/>
+
+      <!-- S3 Bronze (left track) -->
+      <rect x="50" y="135" width="130" height="50" rx="6" fill="#E50914"/>
+      <text x="115" y="157" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">S3</text>
+      <text x="115" y="173" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">Bronze / Raw</text>
+
+      <text x="40" y="220" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#c8915a">EMR / GLUE</text>
+
+      <line x1="115" y1="185" x2="115" y2="240" stroke="#c8915a" stroke-width="1.5" marker-end="url(#arrHead4)"/>
+
+      <!-- S3 Silver/Delta -->
+      <rect x="50" y="245" width="130" height="50" rx="6" fill="#E50914" opacity="0.7"/>
+      <text x="115" y="267" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">S3 · Delta</text>
+      <text x="115" y="283" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">Silver layer</text>
+
+      <line x1="115" y1="295" x2="115" y2="345" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead4)"/>
+      <rect x="55" y="350" width="120" height="40" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="115" y="374" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="600" fill="#1a2f45">BI / Looker</text>
+
+      <!-- Kafka (right track) -->
+      <rect x="290" y="30" width="130" height="50" rx="6" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="355" y="52" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">KAFKA</text>
+      <text x="355" y="68" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">event backbone</text>
+
+      <line x1="355" y1="80" x2="355" y2="125" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead4Red)"/>
+
+      <!-- Spark Streaming -->
+      <rect x="270" y="130" width="170" height="50" rx="6" fill="#E50914" opacity="0.9"/>
+      <text x="355" y="152" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Spark Streaming</text>
+      <text x="355" y="168" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">micro-batch</text>
+
+      <!-- Fan out from Spark Streaming -->
+      <line x1="320" y1="180" x2="260" y2="245" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3"/>
+      <line x1="355" y1="180" x2="510" y2="285" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrHead4)"/>
+      <line x1="400" y1="180" x2="660" y2="285" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrHead4)"/>
+
+      <!-- ClickHouse -->
+      <ellipse cx="510" cy="310" rx="90" ry="30" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="510" y="308" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">ClickHouse</text>
+      <text x="510" y="325" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">columnar OLAP</text>
+
+      <!-- ElasticSearch -->
+      <ellipse cx="660" cy="310" rx="90" ry="30" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="660" y="308" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">ElasticSearch</text>
+      <text x="660" y="325" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">search / lookup</text>
+
+      <!-- Redis -->
+      <line x1="510" y1="340" x2="510" y2="385" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead4Red)"/>
+      <ellipse cx="510" cy="410" rx="80" ry="25" fill="#E50914" opacity="0.85"/>
+      <text x="510" y="408" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#fefcf9">Redis</text>
+      <text x="510" y="422" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">cache · KV</text>
+
+      <!-- Legend on right -->
+      <rect x="680" y="30" width="130" height="130" rx="6" fill="#faf6f1" stroke="#c8915a" stroke-width="1.5" stroke-dasharray="3,3"/>
+      <text x="745" y="50" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1.5" fill="#c8915a">CONCERNS</text>
+      <text x="690" y="75" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">① Updates → PYO</text>
+      <text x="690" y="98" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">② Staleness</text>
+      <text x="690" y="121" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">③ Consistency</text>
+      <text x="690" y="148" font-family="Newsreader, serif" font-style="italic" font-size="10" fill="#475569">polyglot trade-offs</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 04</span>The polyglot storage layer: source DBs split into a batch path (S3 Bronze → Delta → BI) and a streaming path (Kafka → Spark Streaming → ClickHouse + ElasticSearch + Redis). Each sink serves a different access pattern.</figcaption>
+  </figure>
+
+  <h3>Each store, what it answers</h3>
+  <table>
+    <tr><th>Store</th><th>Workload pattern</th><th>Typical question at Netflix</th></tr>
+    <tr><td><strong>Amazon S3</strong></td><td>Data lake. Bronze/Silver/Gold layers, all immutable Parquet/Iceberg.</td><td>Where does every event land first?</td></tr>
+    <tr><td><strong>Cassandra</strong></td><td>Distributed, write-heavy, eventually consistent. User state, viewing history.</td><td>Which user watched what, globally, in milliseconds.</td></tr>
+    <tr><td><strong>ElasticSearch</strong></td><td>Full-text + faceted search. Title metadata, logs.</td><td>Find me all docs mentioning "Squid Game" in the last 24 hours.</td></tr>
+    <tr><td><strong>Redis</strong></td><td>In-memory KV cache. Session tokens, feature flags, pre-computed rankings.</td><td>Sub-millisecond lookup for the recommendation serving layer.</td></tr>
+    <tr><td><strong>MySQL</strong></td><td>Relational OLTP — billing, subscriptions, account metadata.</td><td>Source-of-truth for "who is a member right now."</td></tr>
+    <tr><td><strong>ClickHouse</strong></td><td>Columnar OLAP for real-time analytics. Ad-hoc queries over last 7 days of events.</td><td>Ops dashboards &amp; QoE monitoring.</td></tr>
+  </table>
+
+  <div class="callout green">
+    <strong class="label">The polyglot rationale</strong>
+    If you're asked "why not just one database?" the L5 answer is short: <em>each of these databases solves a problem the others can't without paying 10x elsewhere.</em> Cassandra's write throughput is unmatched; ElasticSearch's inverted index is unmatched; Redis's latency is unmatched; MySQL's ACID is unmatched; ClickHouse's scan speed is unmatched. The polyglot cost is operational complexity — worth it for the specialization at 260M-user scale.
+  </div>
+</section>
+
+
+<!-- =========== PART 5 — NETFLIX BUILT =========== -->
+<section class="part" id="p5">
+  <div class="part-header">
+    <div class="part-num">Part 05 · Layer 3 of 6</div>
+    <h2>Netflix-Built Platforms</h2>
+    <div class="standfirst">This is the layer that separates a Netflix candidate from a generic senior DE. These are tools Netflix built <em>because the commercial version didn't exist or didn't scale.</em> Drop a name correctly in interview and you're signaling you've done homework. Drop one wrong and it's worse than saying nothing.</div>
+  </div>
+
+  <!-- FIGURE 5 — Netflix Built Platforms (RT side) -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 820 480" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Netflix-built platform topology: Keystone, Mantis, Zuul, Atlas">
+      <defs>
+        <marker id="arrHead5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+      </defs>
+
+      <!-- RT root -->
+      <rect x="350" y="20" width="120" height="44" rx="6" fill="#E50914"/>
+      <text x="410" y="42" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">RT</text>
+      <text x="410" y="56" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" letter-spacing="1" fill="#fefcf9">REAL-TIME</text>
+
+      <line x1="410" y1="64" x2="410" y2="100" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+
+      <!-- Keystone -->
+      <rect x="240" y="105" width="340" height="50" rx="25" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="410" y="128" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Keystone</text>
+      <text x="410" y="144" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#e8c9a0">UNIFIED DATA PROCESSING</text>
+
+      <!-- Two branches from Keystone -->
+      <line x1="330" y1="155" x2="180" y2="210" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <line x1="490" y1="155" x2="620" y2="210" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+
+      <text x="270" y="185" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#c8915a" letter-spacing="1">RT path</text>
+
+      <!-- Mantis -->
+      <ellipse cx="180" cy="235" rx="85" ry="28" fill="#E50914"/>
+      <text x="180" y="234" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Mantis</text>
+      <text x="180" y="250" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">reactive streams</text>
+
+      <!-- Mantis children -->
+      <line x1="140" y1="260" x2="80" y2="300" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <line x1="200" y1="260" x2="200" y2="300" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <line x1="230" y1="255" x2="340" y2="295" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrHead5)"/>
+
+      <ellipse cx="80" cy="320" rx="60" ry="22" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="80" y="318" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Atlas</text>
+      <text x="80" y="333" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">TSDB</text>
+
+      <ellipse cx="200" cy="320" rx="60" ry="22" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="200" y="318" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Cassandra</text>
+
+      <rect x="315" y="300" width="60" height="36" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="345" y="322" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">S3</text>
+
+      <!-- Atlas -> Operational dashboard -->
+      <line x1="80" y1="342" x2="80" y2="385" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <ellipse cx="80" cy="410" rx="90" ry="25" fill="#E50914"/>
+      <text x="80" y="408" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="700" fill="#fefcf9">Operational</text>
+      <text x="80" y="424" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="700" fill="#fefcf9">Dashboard</text>
+
+      <!-- Zuul branch -->
+      <rect x="570" y="215" width="110" height="44" rx="4" fill="#1a2f45"/>
+      <text x="625" y="238" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Zuul</text>
+      <text x="625" y="252" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">edge gateway</text>
+
+      <!-- Zuul -> MC -->
+      <line x1="625" y1="259" x2="625" y2="300" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <ellipse cx="625" cy="322" rx="50" ry="22" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="625" y="318" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">MC</text>
+      <text x="625" y="333" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">Metacat</text>
+
+      <line x1="625" y1="344" x2="625" y2="385" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <ellipse cx="625" cy="410" rx="60" ry="22" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="625" y="408" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Mantics</text>
+      <text x="625" y="423" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">metrics platform</text>
+
+      <line x1="625" y1="432" x2="625" y2="455" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead5)"/>
+      <ellipse cx="625" cy="465" rx="42" ry="12" fill="#E50914"/>
+      <text x="625" y="468" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="10" font-weight="700" fill="#fefcf9">Grafana</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 05</span>The Netflix-built real-time platform: events flow through Keystone to Mantis (reactive streams), emitting into Atlas (time series), Cassandra, and S3. Parallel path via Zuul routes to Metacat and on to Grafana dashboards.</figcaption>
+  </figure>
+
+  <h3>Each platform, one sentence of truth</h3>
+  <table>
+    <tr><th>Platform</th><th>What it is (the honest one-liner)</th></tr>
+    <tr>
+      <td><strong>Keystone</strong></td>
+      <td>Netflix's event pipeline and router. Think Kafka + a routing layer + schema registry + observability, all managed as one platform. Every event on every client flows through Keystone before it goes anywhere else.</td>
+    </tr>
+    <tr>
+      <td><strong>Mantis</strong></td>
+      <td>Stream processing as a service. Reactive, backpressure-aware, built for ops and real-time analytics. Think "managed Flink with better anomaly-detection primitives."</td>
+    </tr>
+    <tr>
+      <td><strong>Metacat</strong></td>
+      <td>Federated metadata service — the data catalog that unifies Hive, Iceberg, S3, RDS, etc. Think DataHub before DataHub was a product. Now open-sourced.</td>
+    </tr>
+    <tr>
+      <td><strong>Genie</strong></td>
+      <td>Distributed job execution service. You submit a Spark/Hive/Presto job via REST; Genie manages the cluster, config, lifecycle. Think "serverless compute for big data."</td>
+    </tr>
+    <tr>
+      <td><strong>Atlas</strong></td>
+      <td>Netflix's time-series database. Not the same Atlas as the Apache metadata one. Handles billions of metrics/minute for operational observability.</td>
+    </tr>
+    <tr>
+      <td><strong>Zuul</strong></td>
+      <td>Edge service / API gateway. Every request from a client app hits Zuul first. Dynamic routing, resilience, security. Open-sourced.</td>
+    </tr>
+    <tr>
+      <td><strong>Maestro</strong></td>
+      <td>Netflix's workflow orchestrator (open-sourced 2024). Handles the scale that Airflow starts struggling with. Gradually replacing Airflow internally.</td>
+    </tr>
+    <tr>
+      <td><strong>Metaflow</strong></td>
+      <td>ML workflow framework — makes it easy for data scientists to build, run, and deploy ML pipelines. Netflix's answer to the "notebooks don't scale" problem.</td>
+    </tr>
+  </table>
+
+  <div class="callout red">
+    <strong class="label">Interview mechanic</strong>
+    Don't chain-drop these names. Pick two for your answer. "I'd architect this as a Keystone-style event fan-out into stateful streams similar to Mantis, with Metacat providing the schema registry." That's a native. <em>"We'd use Keystone and Mantis and Metacat and Genie and Atlas and Maestro and Metaflow"</em> is a LinkedIn feed, not a design answer.
+  </div>
+</section>
+
+
+<!-- =========== PART 6 — OBSERVABILITY =========== -->
+<section class="part" id="p6">
+  <div class="part-header">
+    <div class="part-num">Part 06 · Layer 4 of 6</div>
+    <h2>The Observability Stack</h2>
+    <div class="standfirst">Netflix invented &quot;chaos engineering&quot;. Of course they take observability seriously. At L5, you're expected to know not just <em>what tools</em> but <em>what signals</em> — and how those signals shape an on-call incident response.</div>
+  </div>
+
+  <!-- FIGURE 6 — Observability pipeline -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 820 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Observability stack: Docker, Spinnaker, Kubernetes, S3, Cassandra, MS API into Prometheus, Grafana, Engineering team">
+      <defs>
+        <marker id="arrHead6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+        <marker id="arrHead6Red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- Top: Engineering team -->
+      <rect x="285" y="20" width="260" height="50" rx="6" fill="#E50914"/>
+      <text x="415" y="42" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Engineering Team</text>
+      <text x="415" y="60" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#fefcf9">ON-CALL · INCIDENTS · REVIEWS</text>
+
+      <line x1="415" y1="90" x2="415" y2="110" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead6Red)"/>
+
+      <!-- Grafana / Visualization -->
+      <rect x="270" y="115" width="290" height="50" rx="25" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="415" y="137" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Grafana &amp; Data Visualization</text>
+      <text x="415" y="154" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">dashboards · alerts · explorations</text>
+
+      <line x1="415" y1="165" x2="415" y2="195" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead6)"/>
+
+      <!-- Prometheus -->
+      <rect x="250" y="200" width="330" height="50" rx="25" fill="#1a2f45"/>
+      <text x="415" y="222" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Prometheus DB</text>
+      <text x="415" y="239" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">metrics store · query layer · alert rules</text>
+
+      <!-- Three sources feeding Prometheus -->
+      <line x1="310" y1="250" x2="170" y2="310" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead6)"/>
+      <line x1="415" y1="250" x2="415" y2="310" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead6)"/>
+      <line x1="515" y1="250" x2="650" y2="310" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead6)"/>
+
+      <rect x="110" y="315" width="120" height="44" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="170" y="338" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">S3</text>
+      <text x="170" y="353" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">long-term storage</text>
+
+      <ellipse cx="415" cy="337" rx="75" ry="24" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="415" y="335" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">Cassandra</text>
+      <text x="415" y="350" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">fast writes</text>
+
+      <rect x="590" y="315" width="120" height="44" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="650" y="338" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">MS APIs</text>
+      <text x="650" y="353" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">microservice emits</text>
+
+      <!-- K8s chain -->
+      <line x1="170" y1="359" x2="170" y2="400" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead6Red)"/>
+      <rect x="110" y="405" width="120" height="44" rx="4" fill="#E50914"/>
+      <text x="170" y="428" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Kubernetes</text>
+      <text x="170" y="443" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">orchestration</text>
+
+      <line x1="170" y1="449" x2="170" y2="475" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead6)"/>
+      <rect x="115" y="480" width="110" height="34" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="170" y="500" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Spinnaker</text>
+
+      <line x1="225" y1="497" x2="270" y2="497" stroke="#1a2f45" stroke-width="1.2" marker-end="url(#arrHead6)"/>
+      <rect x="275" y="480" width="140" height="34" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="345" y="500" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="600" fill="#1a2f45">Container Registry</text>
+
+      <line x1="415" y1="497" x2="460" y2="497" stroke="#1a2f45" stroke-width="1.2" marker-end="url(#arrHead6)"/>
+      <rect x="465" y="480" width="80" height="34" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="505" y="500" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Docker</text>
+
+      <line x1="545" y1="497" x2="590" y2="497" stroke="#1a2f45" stroke-width="1.2" marker-end="url(#arrHead6)"/>
+      <rect x="595" y="480" width="60" height="34" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="625" y="500" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Git</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 06</span>Observability loop: services emit metrics (via S3, Cassandra, MS APIs) into Prometheus, surfaced in Grafana, consumed by engineering. CI/CD backbone (Git → Docker → Spinnaker → Kubernetes) operates in parallel.</figcaption>
+  </figure>
+
+  <h3>The four questions an L5 gets asked about observability</h3>
+  <ol>
+    <li><strong>How do you know your pipeline is healthy?</strong> <em>Not "Prometheus is green." The answer is: (1) data freshness SLA, (2) completeness checks, (3) business-metric sanity (no more than X% day-over-day change), (4) upstream contract validation.</em></li>
+    <li><strong>What happens at 3am when a dashboard breaks?</strong> <em>Specific: an alert fires, you check Grafana, you trace via distributed logs, you roll back or forward-fix, you write the postmortem. Named tools matter less than the sequence.</em></li>
+    <li><strong>How do you detect silent data corruption?</strong> <em>Reconciliation jobs — downstream aggregate vs upstream sum, within expected tolerance. Daily or hourly. Assume raw consumer lag metrics don't tell you that your transform output is subtly wrong.</em></li>
+    <li><strong>What's your approach to on-call rotation?</strong> <em>Named runbooks for top-20 alerts. Alert hygiene (no pages for self-resolving issues). Blameless postmortems. Keeper-test-compatible pattern: you own what you ship.</em></li>
+  </ol>
+</section>
+
+
+<!-- =========== PART 7 — ANALYTICS =========== -->
+<section class="part" id="p7">
+  <div class="part-header">
+    <div class="part-num">Part 07 · Layer 5 of 6</div>
+    <h2>Analytics &amp; Consumption</h2>
+    <div class="standfirst">The layer business users see. At Netflix, the same warehouse feeds C-level dashboards, operational ops dashboards, self-service analyst tooling, and ML-serving notebooks — through different routes. Knowing the routes is knowing the org.</div>
+  </div>
+
+  <!-- FIGURE 7 — Analytics consumption -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 820 540" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Analytics consumption: S3 and warehouse fan out to Tableau/Looker, MicroStrategy, Jupyter, for business users and C-level">
+      <defs>
+        <marker id="arrHead7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+        <marker id="arrHead7Red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- Personas header -->
+      <text x="140" y="30" font-family="DM Mono, monospace" font-size="11" letter-spacing="2" fill="#c8915a">DA / BI / PO</text>
+      <text x="360" y="30" font-family="DM Mono, monospace" font-size="11" letter-spacing="2" fill="#c8915a">C-LEVEL</text>
+      <text x="520" y="30" font-family="DM Mono, monospace" font-size="11" letter-spacing="2" fill="#c8915a">OPERATIONS</text>
+      <text x="690" y="30" font-family="DM Mono, monospace" font-size="11" letter-spacing="2" fill="#c8915a">DS / ML</text>
+
+      <!-- Self-service -->
+      <ellipse cx="140" cy="80" rx="75" ry="28" fill="#E50914"/>
+      <text x="140" y="78" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Self Service</text>
+      <text x="140" y="94" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">custom queries</text>
+
+      <!-- Business user -->
+      <rect x="290" y="55" width="160" height="54" rx="6" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="370" y="82" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Business User</text>
+      <text x="370" y="100" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#e8c9a0">exec dashboards</text>
+
+      <!-- PS -->
+      <rect x="530" y="58" width="80" height="50" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="570" y="86" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">PS</text>
+      <text x="570" y="100" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">product stats</text>
+
+      <!-- Jupyter -->
+      <rect x="690" y="58" width="90" height="50" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="735" y="86" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">Jupyter</text>
+      <text x="735" y="100" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">notebooks</text>
+
+      <!-- Arrows converging down -->
+      <line x1="140" y1="108" x2="230" y2="200" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead7Red)"/>
+      <line x1="370" y1="109" x2="320" y2="200" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+      <line x1="570" y1="108" x2="500" y2="225" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+      <line x1="735" y1="108" x2="735" y2="325" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+
+      <!-- Tableau / Looker -->
+      <rect x="150" y="205" width="200" height="50" rx="6" fill="#1a2f45"/>
+      <text x="250" y="228" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Tableau / Looker</text>
+      <text x="250" y="246" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#e8c9a0">sanctioned BI</text>
+
+      <!-- MicroStrategy -->
+      <ellipse cx="475" cy="260" rx="100" ry="30" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.5"/>
+      <text x="475" y="258" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#1a2f45">MicroStrategy</text>
+      <text x="475" y="274" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" fill="#475569">enterprise BI</text>
+
+      <!-- Connect to warehouse -->
+      <line x1="250" y1="255" x2="350" y2="340" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+      <line x1="475" y1="290" x2="420" y2="340" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+
+      <!-- Data warehouse -->
+      <ellipse cx="385" cy="360" rx="120" ry="30" fill="#E50914"/>
+      <text x="385" y="358" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="18" font-weight="700" fill="#fefcf9">Data Warehouse</text>
+      <text x="385" y="374" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1" fill="#fefcf9">ICEBERG ON S3</text>
+
+      <!-- S3 feeds warehouse -->
+      <line x1="385" y1="390" x2="385" y2="440" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead7)"/>
+      <rect x="345" y="445" width="80" height="44" rx="4" fill="#1a2f45"/>
+      <text x="385" y="470" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">S3</text>
+
+      <!-- Jupyter connects to S3 directly -->
+      <line x1="735" y1="323" x2="735" y2="470" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3"/>
+      <line x1="735" y1="470" x2="430" y2="470" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrHead7)"/>
+      <rect x="685" y="325" width="90" height="40" rx="4" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="730" y="350" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">S3</text>
+      <text x="730" y="362" text-anchor="middle" font-family="DM Mono, monospace" font-size="8" fill="#475569">raw access</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 07</span>Analytics fanout: the Iceberg warehouse feeds Tableau/Looker (for DA/BI/PO), MicroStrategy (for C-level), and is tapped directly from Jupyter (for DS/ML), with Business Users routing through both self-service and sanctioned BI.</figcaption>
+  </figure>
+
+  <h3>Consumption tools — which persona, which purpose</h3>
+  <table>
+    <tr><th>Tool</th><th>Who uses it</th><th>Why</th></tr>
+    <tr><td><strong>Tableau</strong></td><td>Analysts, product managers</td><td>Flexible, drag-and-drop, strong viz. Most widely adopted.</td></tr>
+    <tr><td><strong>Looker</strong></td><td>Analysts building scalable models</td><td>LookML codifies business logic. Good governance.</td></tr>
+    <tr><td><strong>MicroStrategy</strong></td><td>Finance, C-level reporting</td><td>Enterprise-grade, handles complex semantic models.</td></tr>
+    <tr><td><strong>Apache Superset</strong></td><td>Internal teams, quick dashboards</td><td>Free, open-source, less mature.</td></tr>
+    <tr><td><strong>Jupyter</strong></td><td>Data scientists, ML engineers</td><td>Exploration, feature engineering, model prototyping.</td></tr>
+  </table>
+
+  <div class="callout green">
+    <strong class="label">The answer to "what about self-serve?"</strong>
+    If asked about self-serve analytics, the L5 answer mentions two things: (1) the semantic layer — Looker's LookML or dbt Metrics — where business terms become consistent across BI tools, and (2) the <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p01-13-data-contracts--schema-evolution" class="xref">data contract</a> that makes sure the numbers don't mysteriously change overnight.
+  </div>
+</section>
+
+
+<!-- =========== PART 8 — END TO END =========== -->
+<section class="part" id="p8">
+  <div class="part-header">
+    <div class="part-num">Part 08 · Synthesis</div>
+    <h2>End-to-End Data Architecture</h2>
+    <div class="standfirst">Every Netflix system-design round eventually becomes this picture: events come in, streams fan out to real-time consumers, batch lands in Iceberg, the warehouse feeds ML and analytics, metadata flows through Metacat. Drawing it confidently in 10 minutes is the bar.</div>
+  </div>
+
+  <!-- FIGURE 8 — End-to-end architecture -->
+  <figure class="diagram-figure">
+    <svg viewBox="0 0 840 560" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="End-to-end Netflix data architecture: RT through Mantis, Cassandra, S3 Raw, Genie, Spark, S3 Delta, Metacat">
+      <defs>
+        <marker id="arrHead8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1a2f45"/>
+        </marker>
+        <marker id="arrHead8R" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,5 L0,10 z" fill="#E50914"/>
+        </marker>
+      </defs>
+
+      <!-- RT top-left -->
+      <ellipse cx="80" cy="50" rx="50" ry="24" fill="#E50914"/>
+      <text x="80" y="48" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">RT</text>
+      <text x="80" y="63" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">Events</text>
+
+      <!-- KIS -->
+      <ellipse cx="400" cy="40" rx="40" ry="20" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="400" y="44" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="11" font-weight="700" fill="#1a2f45">Keystone</text>
+
+      <!-- Mantis -->
+      <ellipse cx="220" cy="90" rx="60" ry="22" fill="#E50914" opacity="0.85"/>
+      <text x="220" y="88" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#fefcf9">Mantis</text>
+      <text x="220" y="104" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#fefcf9">streams</text>
+
+      <!-- Cassandra -->
+      <ellipse cx="140" cy="160" rx="70" ry="24" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="140" y="158" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Cassandra</text>
+      <text x="140" y="174" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">state</text>
+
+      <!-- S3 Raw -->
+      <rect x="355" y="140" width="170" height="44" rx="4" fill="#1a2f45" stroke="#E50914" stroke-width="2"/>
+      <text x="440" y="162" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">S3 → Raw Data</text>
+      <text x="440" y="177" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">BRONZE LAYER</text>
+
+      <!-- Microservice -->
+      <ellipse cx="680" cy="162" rx="80" ry="22" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="680" y="160" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Microservices</text>
+      <text x="680" y="175" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">metadata emit</text>
+
+      <!-- Flow arrows -->
+      <line x1="130" y1="70" x2="175" y2="85" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead8R)"/>
+      <line x1="400" y1="60" x2="440" y2="140" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrHead8)"/>
+      <line x1="270" y1="100" x2="360" y2="155" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+      <line x1="230" y1="105" x2="180" y2="145" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+      <line x1="600" y1="165" x2="530" y2="165" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+
+      <!-- PA / PS boxes -->
+      <rect x="30" y="230" width="60" height="40" rx="4" fill="#faf6f1" stroke="#c8915a" stroke-width="1.2"/>
+      <text x="60" y="254" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">PA</text>
+      <rect x="100" y="230" width="60" height="40" rx="4" fill="#faf6f1" stroke="#c8915a" stroke-width="1.2"/>
+      <text x="130" y="254" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">PS</text>
+
+      <line x1="95" y1="230" x2="95" y2="200" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3"/>
+      <line x1="95" y1="200" x2="140" y2="185" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3"/>
+
+      <!-- MSSQL -->
+      <rect x="40" y="310" width="120" height="50" rx="4" fill="#1a2f45"/>
+      <text x="100" y="335" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">MSSQL</text>
+      <text x="100" y="350" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">legacy OLTP</text>
+
+      <line x1="60" y1="270" x2="90" y2="310" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+      <line x1="130" y1="270" x2="110" y2="310" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+
+      <!-- Orchestrator (Genie) -->
+      <text x="300" y="218" font-family="DM Mono, monospace" font-size="11" letter-spacing="1" fill="#c8915a">orchestrator</text>
+      <ellipse cx="440" cy="238" rx="65" ry="22" fill="#faf6f1" stroke="#E50914" stroke-width="2"/>
+      <text x="440" y="236" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#E50914">Genie</text>
+      <text x="440" y="251" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">job runtime</text>
+
+      <line x1="440" y1="184" x2="440" y2="216" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead8R)"/>
+
+      <!-- Spark -->
+      <line x1="440" y1="260" x2="440" y2="298" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+      <rect x="375" y="303" width="130" height="44" rx="6" fill="#1a2f45"/>
+      <text x="440" y="325" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="14" font-weight="700" fill="#fefcf9">Spark</text>
+      <text x="440" y="340" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#e8c9a0">transform engine</text>
+
+      <!-- S3 Delta -->
+      <line x1="440" y1="347" x2="440" y2="385" stroke="#1a2f45" stroke-width="1.5" marker-end="url(#arrHead8)"/>
+      <rect x="370" y="390" width="150" height="44" rx="4" fill="#E50914"/>
+      <text x="445" y="412" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">S3 · Delta Table</text>
+      <text x="445" y="427" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" letter-spacing="1" fill="#fefcf9">SILVER / GOLD</text>
+
+      <!-- Metadata Service + Metacat -->
+      <ellipse cx="180" cy="490" rx="80" ry="25" fill="#faf6f1" stroke="#1a2f45" stroke-width="1.2"/>
+      <text x="180" y="487" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="12" font-weight="700" fill="#1a2f45">Metadata Service</text>
+      <text x="180" y="503" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" fill="#475569">lineage · catalog</text>
+
+      <line x1="260" y1="490" x2="340" y2="490" stroke="#E50914" stroke-width="1.5" marker-end="url(#arrHead8R)"/>
+      <ellipse cx="420" cy="490" rx="80" ry="25" fill="#E50914"/>
+      <text x="420" y="487" text-anchor="middle" font-family="DM Sans, sans-serif" font-size="13" font-weight="700" fill="#fefcf9">Metacat</text>
+      <text x="420" y="503" text-anchor="middle" font-family="DM Mono, monospace" font-size="9" letter-spacing="1" fill="#fefcf9">FEDERATED CATALOG</text>
+
+      <line x1="445" y1="434" x2="420" y2="465" stroke="#1a2f45" stroke-width="1.2" stroke-dasharray="3,3"/>
+
+      <!-- Legend right -->
+      <rect x="670" y="230" width="145" height="130" rx="6" fill="#faf6f1" stroke="#c8915a" stroke-width="1.5" stroke-dasharray="3,3"/>
+      <text x="743" y="250" text-anchor="middle" font-family="DM Mono, monospace" font-size="10" letter-spacing="1.5" fill="#c8915a">KEY</text>
+      <text x="680" y="273" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">RT = real-time</text>
+      <text x="680" y="293" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">KIS = Keystone</text>
+      <text x="680" y="313" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">PA = Product Analyst</text>
+      <text x="680" y="333" font-family="DM Sans, sans-serif" font-size="11" fill="#1a2f45">PS = Product Scientist</text>
+    </svg>
+    <figcaption><span class="caption-title">Figure 08</span>The canonical end-to-end picture: Keystone &amp; RT events feed Mantis for streaming, Cassandra for state, S3 Raw as the immutable bronze layer. Genie orchestrates Spark transforms into S3 Delta tables. Metacat federates the catalog. Personas (PA, PS) consume from the output layer. Draw this from memory.</figcaption>
+  </figure>
+
+  <p>If you practice drawing <em>only one</em> diagram from scratch before your Netflix interview, draw this one. You can adapt it to almost any system design prompt by labeling edges with volumes and SLAs, and the flow matches how Netflix engineers actually think about the data platform.</p>
+
+  <div class="callout red">
+    <strong class="label">The 10-minute draw-from-memory test</strong>
+    Close your notes. Start a timer. Draw Figure 08 without reference. If you can't do it in 10 minutes, you don't yet know the stack well enough for a Netflix design round. Repeat until you can.
+  </div>
+</section>
+
+
+<!-- =========== PART 9 — INTERVIEW LOOP =========== -->
+<section class="part" id="p9">
+  <div class="part-header">
+    <div class="part-num">Part 09 · The Loop</div>
+    <h2>The Interview — Round by Round</h2>
+    <div class="standfirst">Three to four weeks, five to seven conversations, one offer (or not). Knowing what each round is actually evaluating shapes how you prepare for the next one.</div>
+  </div>
+
+  <div class="rounds-grid">
+    <div class="round-card">
+      <div class="round-num">Round 01</div>
+      <h5>Recruiter Screen</h5>
+      <div class="duration">30 minutes · behavioural</div>
+      <p>Resume walkthrough, "why Netflix," comp expectations, timeline. They're checking whether you're a credible senior candidate and whether your number aligns with theirs.</p>
+      <p><strong>What to practice:</strong> a 60-second elevator pitch, one "why Netflix specifically" reason that references their engineering blog, and a salary number you've defended to yourself.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 02</div>
+      <h5>Technical Phone Screen</h5>
+      <div class="duration">75 minutes · coding + SQL</div>
+      <p>Usually HackerRank or a shared IDE. Medium-to-hard SQL with window functions. Python problem that likely involves parsing streaming events or sessionization. Brief distributed-systems chat.</p>
+      <p><strong>What to practice:</strong> <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-05" class="xref">SQL deep-dive §7–9</a>, at least 3 practice sessions writing under time pressure.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 03a</div>
+      <h5>Coding — Algorithms</h5>
+      <div class="duration">60 minutes · Python / Java / Scala</div>
+      <p>Medium-to-hard problem. Tree traversal or graph for recommendation structures; string parsing for metadata; heap for top-K trending. Language is your choice.</p>
+      <p><strong>What to practice:</strong> <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-06" class="xref">Python for DE §7–11</a> — the "working code under narration" pattern.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 03b</div>
+      <h5>Coding — Data Engineering</h5>
+      <div class="duration">60 minutes · scenario-driven</div>
+      <p>A domain-specific problem. "Detect anomalous viewing sessions." "Compute CTR per campaign with consent filtering." Streaming-flavoured.</p>
+      <p><strong>What to practice:</strong> sessionization, consent-filtered aggregates, watermark reasoning.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 04</div>
+      <h5>System Design</h5>
+      <div class="duration">60 minutes · whiteboard</div>
+      <p>"Design a recommendations pipeline for 260M users." "Design the Ads impression pipeline with consent revocation." "Design QoE monitoring for the global streaming platform." Netflix scale is implicit.</p>
+      <p><strong>What to practice:</strong> draw Figure 08 from memory; <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q7" class="xref">deep-dive §08 Q7–Q12</a>.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 05</div>
+      <h5>Behavioral (Hiring Manager)</h5>
+      <div class="duration">60 minutes · STAR format</div>
+      <p>The Freedom &amp; Responsibility assessment. "Tell me about a time you disagreed with consensus." "A time you owned a failure." "A time you delivered with ambiguous requirements." Netflix values very specific behaviors.</p>
+      <p><strong>What to practice:</strong> 10+ STAR stories mapped to the 5 culture principles.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 06</div>
+      <h5>Technical Deep Dive</h5>
+      <div class="duration">45–60 minutes · past-project inquisition</div>
+      <p>Walk through your most complex project. They drill into architecture choices, tradeoffs, failure modes. This is where "scope inflation" on your resume gets detected.</p>
+      <p><strong>What to practice:</strong> your most impressive project — know the scale numbers, own mistake you'd revise, the metric that proves it worked.</p>
+    </div>
+
+    <div class="round-card">
+      <div class="round-num">Round 07</div>
+      <h5>Bar Raiser / Cross-Team</h5>
+      <div class="duration">45–60 minutes · culture check</div>
+      <p>Someone from a different team or level. Usually a subtle culture-fit probe. They might have you whiteboard a small design or have a harder behavioral conversation.</p>
+      <p><strong>What to practice:</strong> strong specific reasons for joining Netflix, not generic comp or brand reasons.</p>
+    </div>
+  </div>
+
+  <div class="callout green">
+    <strong class="label">The overall loop signal</strong>
+    An L5 loop is 4–5 hours of virtual onsite + 1–2 phone screens. Every round talks to every other round — the hiring committee sees all scorecards. If you're strong in 5 rounds and weak in one, you're still getting a "lean pass." Strong across all rounds, plus the Keeper Test verdict, is the offer. The pattern below all the rounds is: <em>specific, numerical, owned, narrated</em>.
+  </div>
+</section>
+
+
+<!-- =========== PART 10 — QUESTIONS ASKED =========== -->
+<section class="part" id="p10">
+  <div class="part-header">
+    <div class="part-num">Part 10 · Real Questions</div>
+    <h2>The Questions Actually Asked</h2>
+    <div class="standfirst">Pulled from Prem Vishnoi's guide plus Blind / Levels debriefs plus the deep-dive's own Part 08. Each with a pointer to which deep-dive section covers the <em>pattern</em> that underlies the question.</div>
+  </div>
+
+  <h3>SQL questions</h3>
+  <ul>
+    <li><strong>Second-highest salary in engineering dept.</strong> Classic <code>DENSE_RANK() OVER (ORDER BY salary DESC)</code> problem — but the L5 catch is handling ties correctly. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-windows" class="xref">Part 05 §7 Window Functions</a></li>
+    <li><strong>Top 10 VIP members by monthly watch hours.</strong> Subscription × viewing activity, window on percent_rank, aggregation per user per month. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-asof" class="xref">Part 05 §10 As-Of Joins</a></li>
+    <li><strong>Find users who watched X but not Y.</strong> The NOT EXISTS vs NOT IN trap (see below). → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p01-12-null-semantics--the-silent-source-of-bugs" class="xref">Part 01 §12 NULL semantics</a></li>
+    <li><strong>7-day rolling unique users, with proper deduplication.</strong> Not additive across days — HLL sketch is the L5 answer. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-sketches" class="xref">Part 05 §11 Sketches</a></li>
+    <li><strong>Sessionization of viewing events with a 30-minute gap.</strong> Gaps-and-islands using <code>LAG()</code> + cumulative sum flag. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-gaps" class="xref">Part 05 §8 Gaps and Islands</a></li>
+  </ul>
+
+  <h3>Python / Programming questions</h3>
+  <ul>
+    <li><strong>Missing number in range 0..n.</strong> Warm-up. Mathematical sum trick: <code>n*(n+1)/2 - sum(nums)</code>. The L5 twist: what breaks if <code>n</code> is very large? (Python handles arbitrary precision; C++ overflows at <code>n ≈ 10^9</code>.)</li>
+    <li><strong>Netflix streaming data processor — detect anomalies.</strong> Online algorithm; running mean + stddev, or quantile sketch. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-sketches" class="xref">Part 05 §11 Sketches</a></li>
+    <li><strong>Top-K trending titles from event stream.</strong> Sliding window + heap + Count-Min Sketch at scale. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-06" class="xref">Part 06 — Python for DE</a></li>
+    <li><strong>Deduplicate events with event_id within 24 hours.</strong> Bloom + Redis two-tier at billions/day. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p05-sketches" class="xref">Part 05 §11 Sketches</a></li>
+    <li><strong>Rate limiter for API calls.</strong> Token bucket vs leaky bucket; distributed rate limiting via Redis Lua script.</li>
+  </ul>
+
+  <h3>System design questions</h3>
+  <ul>
+    <li><strong>Design Netflix-scale recommendation system.</strong> Event pipeline → feature store → model scoring → serving API. Include online/offline feature parity. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q7b" class="xref">Part 08 Q7b Feature Store</a></li>
+    <li><strong>Design clickstream pipeline at 1M events/sec.</strong> Kafka (Keystone) → Flink/Mantis sessionization → Iceberg (Bronze/Silver). → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q7" class="xref">Part 08 Q7 Clickstream</a></li>
+    <li><strong>Design ad impression &amp; consent pipeline.</strong> Your Meta AAP / Safe Ads experience is the pole position here. Consent-at-event-time, differential privacy, k-anonymity. Specific to ads tier.</li>
+    <li><strong>Design a point-in-time correct training dataset.</strong> Feature store with snapshotted values, not current. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q8" class="xref">Part 08 Q8 PIT Training</a></li>
+    <li><strong>Design the architecture for a daily metric that must be 100% accurate.</strong> Lambda architecture revisited — streaming for freshness, batch for correctness. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p03-13-lambda-vs-kappa-revisited" class="xref">Part 03 §13 Lambda vs Kappa</a></li>
+  </ul>
+
+  <h3>Deep-internals questions</h3>
+  <ul>
+    <li><strong>Explain how Spark decides BHJ vs SMJ at runtime.</strong> AQE plus auto-broadcast threshold. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q13" class="xref">Part 08 Q13</a></li>
+    <li><strong>Why doesn't this filter push down.</strong> UDF, CAST, function on partition column. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q15" class="xref">Part 08 Q15</a></li>
+    <li><strong>Walk me through a Flink checkpoint.</strong> Chandy-Lamport snapshot, barrier alignment, state backend. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q16" class="xref">Part 08 Q16</a></li>
+    <li><strong>How does a watermark form across a 12-partition Kafka topic?</strong> Min-across-partitions rule, withIdleness problem. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q18" class="xref">Part 08 Q18</a></li>
+    <li><strong>Walk me through an Iceberg commit end-to-end.</strong> Manifest list → manifest → data files → atomic catalog update. → <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#p08-q17" class="xref">Part 08 Q17</a></li>
+  </ul>
+</section>
+
+
+<!-- =========== PART 11 — CULTURE =========== -->
+<section class="part" id="p11">
+  <div class="part-header">
+    <div class="part-num">Part 11 · Behavioral</div>
+    <h2>Freedom &amp; Responsibility — In the Room</h2>
+    <div class="standfirst">Netflix's culture deck is famous. What's less famous is how precisely it's applied in interviews. Five principles, each with a specific behavioral signature the interviewer is looking for.</div>
+  </div>
+
+  <div class="culture-grid">
+    <div class="culture-card">
+      <h5>① High Performance</h5>
+      <p>Ordinary work gets a polite severance. In interview: show impact that wasn't possible before you. Numbers, specific deliverables, named stakeholders.</p>
+    </div>
+    <div class="culture-card">
+      <h5>② Freedom &amp; Responsibility</h5>
+      <p>Few rules, high trust. In interview: show you've operated without a playbook. "My manager was in transition so I defined the roadmap with leads." That's the signal.</p>
+    </div>
+    <div class="culture-card">
+      <h5>③ Context, Not Control</h5>
+      <p>Leaders share why, engineers decide how. In interview: show you sought context aggressively. Asked "why," pushed back, negotiated scope.</p>
+    </div>
+    <div class="culture-card">
+      <h5>④ Highly Aligned, Loosely Coupled</h5>
+      <p>Cross-team coherence without meetings. In interview: show a time you aligned with another team without a shared manager — via docs, written proposals, explicit contracts.</p>
+    </div>
+    <div class="culture-card">
+      <h5>⑤ Disagree, Then Commit</h5>
+      <p>Debate hard, then execute together. In interview: a disagreement story where you <em>lost</em> the argument and committed fully anyway. That's the L5 signal.</p>
+    </div>
+    <div class="culture-card">
+      <h5>⑥ The Keeper Test</h5>
+      <p>The meta-test under every round. Would the interviewer fight to keep you? Answer shows in specifics — owned projects, numbers, hard tradeoffs, mistakes, recovery.</p>
+    </div>
+  </div>
+
+  <h3>Behavioral questions that actually get asked</h3>
+  <table>
+    <tr><th>Question pattern</th><th>What they're really scoring</th></tr>
+    <tr><td>"Tell me about a time a pipeline you owned caused a bad metric."</td><td>Ownership. Do you say "we" or "I"? Do you know the root cause? Did you prevent it again?</td></tr>
+    <tr><td>"Describe a time you disagreed with your team's technical decision."</td><td>Disagree/commit. Can you articulate the other side steelmanned? Did you commit after losing?</td></tr>
+    <tr><td>"How did you debug a production failure?"</td><td>Sequence of diagnosis. Tools named. Hypotheses ruled out. Time-to-resolution.</td></tr>
+    <tr><td>"When did you work with ambiguous requirements?"</td><td>Context-seeking. Did you ask five questions before starting? Did you write a spec? Did you iterate?</td></tr>
+    <tr><td>"Tell me about a time you made data accessible to non-technical stakeholders."</td><td>Communication. Specific artifacts — dashboard, document, session. Measurable adoption.</td></tr>
+    <tr><td>"What would you do differently about X?"</td><td>Self-awareness. Name a specific mistake. Show you'd recognize it again. Don't defend.</td></tr>
+  </table>
+
+  <div class="callout red">
+    <strong class="label">The failure mode of "I"</strong>
+    Every story is "I led this, I decided that, I shipped it." The interviewer, who works on a team, silently down-scores collaboration. <em>60/40 rule:</em> 60% of every story is your specific actions, 40% is how you enabled others. Name the other people by role. "My tech lead pushed back on the design; we spent a week resolving it; the result was better than either of our initial positions."
+  </div>
+</section>
+
+
+<!-- =========== PART 12 — SALARY =========== -->
+<section class="part" id="p12">
+  <div class="part-header">
+    <div class="part-num">Part 12 · Comp</div>
+    <h2>Salary &amp; Negotiation</h2>
+    <div class="standfirst">Netflix's comp philosophy is different from its peers in a way that matters for your negotiation. Understand the structure before you name a number.</div>
+  </div>
+
+  <div class="salary-band">
+    <h4>Netflix Data Engineer Comp Bands (2025/2026)</h4>
+    <table>
+      <tr><th>Level</th><th>Base Salary</th><th>Total Comp (approx.)</th></tr>
+      <tr><td><strong>L4 · Mid</strong></td><td>$200K – $250K</td><td>$280K – $380K</td></tr>
+      <tr><td><strong>L5 · Senior</strong></td><td>$280K – $350K</td><td>$400K – $565K</td></tr>
+      <tr><td><strong>L6 · Staff</strong></td><td>$350K – $450K</td><td>$520K – $720K</td></tr>
+      <tr><td><strong>L7 · Principal</strong></td><td>$450K – $600K</td><td>$650K – $900K+</td></tr>
+    </table>
+  </div>
+
+  <h3>The five things that make Netflix comp different</h3>
+  <ol>
+    <li><strong>Cash-heavy structure.</strong> Most of your comp is base salary — typically 70–80%. RSUs are optional: you can elect to convert some base into stock during annual refresh, but the default is cash. No vesting cliffs like Meta/Google/Amazon.</li>
+    <li><strong>No traditional bonus.</strong> Some roles have a small target (5–15%); many have zero. The base is already the "expected earnings."</li>
+    <li><strong>Sign-on bonus.</strong> $25K – $100K depending on level and counter-offer. This is where they fight hardest in negotiation.</li>
+    <li><strong>"Top of personal market" philosophy.</strong> They target the top of what you'd earn anywhere for your exact skill set. Bring competing offers — it's expected, not off-putting.</li>
+    <li><strong>No annual raises in the traditional sense.</strong> Your comp is re-benchmarked annually based on market — can go up, can stay flat, rarely goes down.</li>
+  </ol>
+
+  <h3>Negotiation moves that actually work</h3>
+  <ol>
+    <li><strong>Do your homework.</strong> Levels.fyi shows L5 DE at ~$565K median. Blind shows similar. Numbers matter more than vague statements.</li>
+    <li><strong>Push base, not stock.</strong> Base has more flexibility. Stock elections are bounded by Netflix's comp algorithm.</li>
+    <li><strong>Show impact-specific compensation rationale.</strong> "Based on my prior work on Safe Ads / privacy-first pipelines, which maps directly to Netflix Ads priorities, I'd expect the high end of the L5 band."</li>
+    <li><strong>Don't nitpick benefits.</strong> Unlimited PTO, health, remote policy are standard at the tier. Spending negotiation capital on them signals you can't read the market.</li>
+    <li><strong>Bring competing offers.</strong> They expect them; they'll match or beat aggressively. No offers, no leverage.</li>
+  </ol>
+
+  <div class="callout green">
+    <strong class="label">The signal of a number you won't defend</strong>
+    If asked "what are you looking for" and you say "$350K" when the market is $450K, you have told the recruiter you don't know your own worth. They'll offer $380K. You can't recover that negotiation. Anchor high, defensibly.
+  </div>
+</section>
+
+
+<!-- =========== PART 13 — SPRINT =========== -->
+<section class="part" id="p13">
+  <div class="part-header">
+    <div class="part-num">Part 13 · Prep</div>
+    <h2>The Netflix-Specific Prep Sprint</h2>
+    <div class="standfirst">Assuming you've already done the <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-09" class="xref">deep-dive's four-week roadmap</a>, here's the Netflix-specific overlay. Compresses to one week if you have the generic prep done; two to three weeks if you're starting cold.</div>
+  </div>
+
+  <h3>Week -3 to -2 · Netflix stack fluency</h3>
+  <ul>
+    <li><strong>Read the Netflix Tech Blog</strong> in order: Keystone, Iceberg, Mantis, Metaflow, Atlas, Maestro. Pick two to bring up in interviews by name + specific detail.</li>
+    <li><strong>Draw Figure 08 from scratch three times.</strong> Timed, no references.</li>
+    <li><strong>Revise</strong> <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-07" class="xref">Part 07 Lakehouse</a> — Iceberg on-disk layout is table stakes here.</li>
+    <li><strong>Revise</strong> <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html#part-03" class="xref">Part 03 Streaming</a> — watermarks and exactly-once come up every loop.</li>
+  </ul>
+
+  <h3>Week -1 · Netflix culture and behavioral</h3>
+  <ul>
+    <li><strong>Read the Netflix Culture Memo.</strong> The official one on jobs.netflix.com. Not the deck — the memo.</li>
+    <li><strong>Draft 10 STAR stories</strong>, one per culture principle × 2. Rehearse 4-minute delivery for each.</li>
+    <li><strong>Prepare your "why Netflix"</strong> — specific to their engineering blog, Ads launch, or open-sourced project you admire. <em>Not</em> "I love their culture."</li>
+    <li><strong>Write your 60-second elevator pitch</strong> — one project you own end-to-end with numbers.</li>
+  </ul>
+
+  <h3>The day before</h3>
+  <ul>
+    <li>Review Figure 08. Redraw it once. Time yourself.</li>
+    <li>Review salary bands and your target number. Write it down. Commit.</li>
+    <li>Read the culture memo one more time.</li>
+    <li>Prepare 3 questions for each interviewer (team-specific tech, team's current challenge, interviewer's own journey at Netflix).</li>
+    <li>Sleep 8 hours.</li>
+  </ul>
+
+  <h3>During the loop — the 5 phrases that signal L5</h3>
+  <ol>
+    <li>"Let me state my assumptions before I start designing."</li>
+    <li>"This is a classic sessionization problem — I'll use <em>gaps-and-islands</em> here because…"</li>
+    <li>"The failure mode of this approach is <em>[specific]</em> — let me address it proactively."</li>
+    <li>"I've built something similar at <em>[specific company]</em>. We solved it by…"</li>
+    <li>"The tradeoff is <em>[A]</em> vs <em>[B]</em>. For this context, I'd pick <em>[A]</em> because…"</li>
+  </ol>
+
+  <div class="callout green">
+    <strong class="label">The 3 phrases that signal L4</strong>
+    "I'll just write a query and see." → "I think this might work." → "I don't remember the exact syntax." Each of these is fine once. Three times in a round and the committee writes <em>"not quite senior"</em>.
+  </div>
+</section>
+
+
+<!-- =========== PART 14 — FINAL =========== -->
+<section class="part" id="p14">
+  <div class="part-header">
+    <div class="part-num">Part 14 · Close</div>
+    <h2>Final Frame</h2>
+    <div class="standfirst">The specific thing about Netflix's interview loop — and why this companion article exists separately from the deep dive.</div>
+  </div>
+
+  <p class="lede">Every other senior DE loop evaluates whether you can do the work. Netflix's loop evaluates whether the team would <em>fight to keep you</em>. The difference is in the nuance of every answer.</p>
+
+  <p>At a competitor, "I led the Spark migration" gets a check mark. At Netflix, the interviewer will ask: <em>Why did you lead it rather than delegate?</em> <em>What did you do that nobody else on the team could have done?</em> <em>What would you do differently?</em> <em>What did it cost the team?</em> The check mark is never the end.</p>
+
+  <p>Your advantage: you've built privacy-first ads pipelines at Meta. Netflix Ads is newly built; they're hiring for exactly the pattern-recognition you've been developing for three years. Your AAP work — consent-at-event-time, C1–C5 classification, differential privacy aggregates — is not a transferable skill. It's <em>directly</em> the skill. Lean into it. Every ads-related round should begin with "I built a version of this at Meta."</p>
+
+  <p>The loop is not a knowledge test. It's a performance. You've done the reading. You've drawn the diagrams. You've rehearsed the stories. What remains is showing up and being the person the interviewer would fight to keep.</p>
+
+  <div class="callout red">
+    <strong class="label">The one thing to remember</strong>
+    Netflix hires senior engineers to be trusted with hard problems without oversight. If your answers read like "I'd ask my manager" or "we'd need to align with stakeholders," you've already lost. Own the scope. Own the tradeoff. Own the failure mode. Own the recovery. That's <em>Freedom &amp; Responsibility</em> in one sentence.
+  </div>
+
+  <p>Good luck. The offer's on the other side of the Keeper Test.</p>
+
+</section>
+
+</main>
+
+<footer>
+  <div><span class="brand">PaddySpeaks · The L5 Companion</span></div>
+  <div class="signature">Companion to the <a href="https://paddyspeaks.com/articles/data-engineering-interview-prep.html" style="color: #E50914;">Senior/L5 Data Engineering Deep Dive</a>. Redrawn whiteboard diagrams from Prem Vishnoi's <em>Netflix Data Engineer Interview Guide</em> (DataEmpire.AI). Written for the loop as it runs in April 2026.</div>
+</footer>
+
+</div>
+
+</body>
+</html>
