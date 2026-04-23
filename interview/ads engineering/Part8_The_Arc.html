@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Arc — Black Friday, From Story to Post-Mortem</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap');
+
+  :root {
+    --netflix-red: #E50914;
+    --navy: #1a2f45;
+    --navy-deep: #0f1e2e;
+    --dark: #1e293b;
+    --med: #475569;
+    --muted: #64748b;
+    --accent: #c8915a;
+    --accent-light: #e8c9a0;
+    --cream: #faf6f1;
+    --bone: #f5efe6;
+    --warm-white: #fefcf9;
+    --rust: #b44040;
+    --rule: #e2d9ce;
+    --code-bg: #0f1e2e;
+    --code-text: #e8e0d6;
+    --callout-bg: #fff8ee;
+    --callout-border: #c8915a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #e8e0d6;
+    color: var(--dark);
+    line-height: 1.65;
+    color-scheme: light only;
+  }
+  .shell { max-width: 1120px; margin: 0 auto; }
+  header.page-header {
+    background: var(--navy-deep);
+    color: var(--cream);
+    padding: 52px 56px 44px;
+    border-bottom: 4px solid var(--netflix-red);
+    position: relative;
+    overflow: hidden;
+  }
+  header.page-header::before {
+    content: "";
+    position: absolute; top: 0; right: 0;
+    width: 300px; height: 100%;
+    background: linear-gradient(135deg, transparent 40%, rgba(229,9,20,0.08) 100%);
+    pointer-events: none;
+  }
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--netflix-red); margin-bottom: 12px; font-weight: 500;
+  }
+  header.page-header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 46px; font-weight: 600; line-height: 1.1;
+    margin-bottom: 12px; color: var(--warm-white); letter-spacing: -0.5px;
+  }
+  .subhead {
+    font-family: 'Newsreader', serif; font-style: italic;
+    font-size: 17px; color: var(--accent-light);
+    max-width: 780px; line-height: 1.5;
+  }
+  .meta-strip {
+    display: flex; gap: 24px; margin-top: 26px; flex-wrap: wrap;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 1.5px; text-transform: uppercase; color: var(--accent-light);
+  }
+  .meta-strip span::before { content: "→ "; color: var(--netflix-red); }
+
+  main.content {
+    background: var(--warm-white);
+    padding: 48px 56px 64px;
+  }
+  main.content h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 36px; font-weight: 600;
+    color: var(--warm-white);
+    margin: 64px 0 20px; padding: 18px 22px;
+    background: var(--navy);
+    border-radius: 8px; border-left: 6px solid var(--netflix-red);
+    letter-spacing: -0.3px; scroll-margin-top: 16px;
+  }
+  main.content > h1:first-child { margin-top: 0; }
+  main.content h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 28px; font-weight: 600; color: var(--navy-deep);
+    margin: 48px 0 14px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--rule); scroll-margin-top: 16px;
+  }
+  main.content h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px; font-weight: 600; color: var(--netflix-red);
+    margin: 28px 0 10px; letter-spacing: 0.2px;
+  }
+  main.content h4 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 600; color: var(--navy);
+    margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 1px;
+  }
+  main.content p { margin: 0 0 14px; font-size: 15.5px; }
+  main.content a {
+    color: var(--navy); text-decoration: none;
+    border-bottom: 1px dashed var(--accent);
+  }
+  main.content a:hover { border-bottom-color: var(--netflix-red); }
+  main.content strong { color: var(--navy-deep); }
+  main.content em { color: var(--rust); font-style: italic; }
+  main.content ul, main.content ol { margin: 0 0 16px 28px; }
+  main.content li { margin-bottom: 6px; font-size: 15.5px; }
+  main.content li > ul, main.content li > ol { margin-top: 6px; }
+  main.content hr { margin: 48px 0; border: none; border-top: 1px solid var(--rule); }
+
+  main.content table {
+    width: 100%; border-collapse: collapse;
+    margin: 16px 0 24px; font-size: 14px;
+    background: var(--bone); border-radius: 6px; overflow: hidden;
+  }
+  main.content th {
+    background: var(--navy); color: var(--warm-white);
+    text-align: left; padding: 10px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11.5px; letter-spacing: 1px;
+    text-transform: uppercase; font-weight: 500;
+  }
+  main.content td {
+    padding: 10px 14px; border-top: 1px solid var(--rule); vertical-align: top;
+  }
+  main.content tbody tr:nth-child(even) td { background: rgba(0,0,0,0.02); }
+
+  main.content pre {
+    background: var(--code-bg); color: var(--code-text);
+    padding: 18px 22px; border-radius: 8px; overflow-x: auto;
+    margin: 10px 0 20px; border-left: 3px solid var(--netflix-red); line-height: 1.55;
+  }
+  main.content pre code {
+    font-family: 'DM Mono', monospace; font-size: 13px;
+    color: var(--code-text); background: transparent;
+    padding: 0; border: none; white-space: pre;
+  }
+  main.content code {
+    font-family: 'DM Mono', monospace; font-size: 13.5px;
+    background: var(--bone); color: var(--navy-deep);
+    padding: 1px 6px; border-radius: 3px; border: 1px solid var(--rule);
+  }
+  main.content blockquote {
+    background: var(--callout-bg); border-left: 4px solid var(--callout-border);
+    padding: 14px 20px; margin: 16px 0 20px;
+    font-family: 'Newsreader', serif; font-style: italic; color: var(--navy-deep);
+  }
+
+  footer.page-footer {
+    background: var(--navy-deep); color: var(--accent-light);
+    padding: 32px 56px;
+    font-family: 'DM Mono', monospace; font-size: 11px;
+    letter-spacing: 2px; text-transform: uppercase;
+    border-top: 4px solid var(--netflix-red);
+  }
+  footer.page-footer a { color: var(--accent-light); }
+
+  @media (max-width: 800px) {
+    header.page-header, main.content, footer.page-footer { padding-left: 24px; padding-right: 24px; }
+    header.page-header h1 { font-size: 32px; }
+    main.content h1 { font-size: 26px; }
+    main.content h2 { font-size: 22px; }
+    main.content table { font-size: 13px; }
+    main.content pre { font-size: 12px; }
+  }
+  @media print {
+    body { background: white; }
+    header.page-header, footer.page-footer { break-inside: avoid; }
+    main.content pre { border: 1px solid var(--rule); }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="page-header">
+  <div class="eyebrow">Part 8 · The Arc · One Running Story</div>
+  <h1>You Just Got Hired. Now Survive.</h1>
+  <p class="subhead">Day one. Marketing says revenue is under-reported by 12%. Finance expected $9.1M, the dashboard says $8.2M. Campaigns are pausing. Slack is on fire. No theory. Just the room you just walked into.</p>
+</header>
+<nav class="breadcrumb"><a href="Part7_Coding_Round.html">← Part 7</a> · <a href="00_Master_Index.html">Index</a></nav>
+
+<main class="content">
+
+<nav class="arc-stepper" aria-label="Acts">
+  <a class="arc-step" href="#act-incident"><span class="arc-num">Act 1</span><span class="arc-label">The Incident</span></a>
+  <a class="arc-step" href="#act-clarify"><span class="arc-num">Act 2</span><span class="arc-label">What Is Revenue?</span></a>
+  <a class="arc-step" href="#act-arch"><span class="arc-num">Act 3</span><span class="arc-label">The Architecture</span></a>
+  <a class="arc-step" href="#act-defense"><span class="arc-num">Act 4</span><span class="arc-label">The Defense</span></a>
+  <a class="arc-step" href="#act-break"><span class="arc-num">Act 5</span><span class="arc-label">Everything Breaks</span></a>
+  <a class="arc-step" href="#act-recover"><span class="arc-num">Act 6</span><span class="arc-label">Recovery</span></a>
+  <a class="arc-step" href="#act-lesson"><span class="arc-num">Act 7</span><span class="arc-label">The Lesson</span></a>
+</nav>
+
+<hr>
+
+<h2 id="act-incident">Act 1 — The Incident</h2>
+
+<div class="arc-chaos">
+  <div class="arc-chaos-time">Tuesday · 09:47 AM</div>
+  <div class="arc-chaos-lines">
+    <div class="arc-slack arc-slack-cfo"><span class="arc-who">CFO</span> The Q3 exec deck has revenue as $9.1M. Our dashboard shows $8.2M. Which is right?</div>
+    <div class="arc-slack arc-slack-cmo"><span class="arc-who">CMO</span> Who shipped last night? Three campaigns just auto-paused because of the ROAS drop.</div>
+    <div class="arc-slack arc-slack-seller"><span class="arc-who">Seller Ops</span> Top 5 sellers all flagging their promoted-listing revenue is off. Getting phone calls.</div>
+    <div class="arc-slack arc-slack-dir"><span class="arc-who">Director · DM to you</span> Need a number by 11. Any number. But the right one.</div>
+  </div>
+  <div class="arc-chaos-you"><strong>You</strong> — ads DE tech lead, four days into the job. You have not even merged your first PR. Your laptop is still being provisioned for one of the data warehouses.</div>
+</div>
+
+<p>You have three choices right now. Each one costs something.</p>
+
+<details class="arc-reveal">
+  <summary>Option A — "Both numbers are right, they measure different things."</summary>
+  <div class="arc-reveal-body">
+    <p>This is the senior answer. But it is the answer you earn on day 180, not day 4. Without receipts, the CFO hears it as hedging.</p>
+    <p><strong>Cost now:</strong> low if true, catastrophic if wrong. Do not pick this until you have the receipts.</p>
+  </div>
+</details>
+
+<details class="arc-reveal">
+  <summary>Option B — "Let me have until 11. I'll find the number."</summary>
+  <div class="arc-reveal-body">
+    <p>Buys ~70 minutes. Ships nothing if you do not actually deliver. The only viable move if you start investigating <em>now</em>, not after the 10am standup.</p>
+    <p><strong>Cost now:</strong> you spend the morning in the query tool. Everything else on your plate slips a day. Acceptable.</p>
+  </div>
+</details>
+
+<details class="arc-reveal">
+  <summary>Option C — "Dashboard is the source of truth. $8.2M."</summary>
+  <div class="arc-reveal-body">
+    <p>Fast, decisive, confidently wrong. The dashboard is not the source of truth — it is a view. If the CFO ships $8.2M and Finance independently arrives at $9.1M in the monthly close, the credibility of the data team is gone for two quarters.</p>
+    <p><strong>Cost now:</strong> catastrophic if you don't verify.</p>
+  </div>
+</details>
+
+<p>You pick B. You message the director: <em>"Give me until 11. I need to see both queries and reconcile."</em> She sends back a thumbs-up. The clock is 09:52.</p>
+
+<hr>
+
+<h2 id="act-clarify">Act 2 — What Is Revenue?</h2>
+
+<p>Before you write one line of SQL, you have to answer a question nobody in Slack has asked out loud. <em>What, precisely, is the number?</em></p>
+
+<div class="arc-probe">
+  <div class="arc-probe-head">Four things "revenue" could mean. They do not have the same value.</div>
+  <ul class="arc-probe-list">
+    <li><strong>Billed revenue</strong> — what advertisers have been charged for (invoiced). Lags reality; excludes unpaid.</li>
+    <li><strong>Spend revenue</strong> — auction-clearing prices for served impressions, converted to platform revenue. Near-real-time; doesn't account for refunds.</li>
+    <li><strong>Attributed revenue</strong> — revenue credited to specific campaigns via attribution. Depends on window, touch model, and identity stitch.</li>
+    <li><strong>Settled revenue</strong> — the number Finance closes the month on. Post-refund, post-chargeback, post-IVT-recovery credits.</li>
+  </ul>
+</div>
+
+<details class="arc-reveal">
+  <summary>Which one is the CFO's $9.1M?</summary>
+  <div class="arc-reveal-body">
+    <p>Settled revenue. Finance runs a monthly close from the ledger in Salesforce/NetSuite, which includes refund adjustments the pipeline hasn't propagated yet. It also uses the vendor's own attribution statement for the affiliate channel, which runs on a 14-day lag.</p>
+    <p>Not the same number the dashboard computes. Not even close.</p>
+  </div>
+</details>
+
+<details class="arc-reveal">
+  <summary>Which one is the dashboard's $8.2M?</summary>
+  <div class="arc-reveal-body">
+    <p>Attributed revenue, last-click-7-day, excluding the affiliate channel (because the pipeline doesn't ingest affiliate postbacks — that sits in a separate system nobody wired into the warehouse). Excludes ~$0.6M in cross-device conversions that the identity graph couldn't stitch.</p>
+    <p>Both numbers are correct for their purpose. Neither is "the revenue."</p>
+  </div>
+</details>
+
+<details class="arc-reveal">
+  <summary>The candidate mistake most people make here.</summary>
+  <div class="arc-reveal-body">
+    <p>Trying to "reconcile" the two. There is no reconciliation. They measure different populations with different methodologies. The correct move is to <em>surface the definition</em> of each number on every dashboard and let consumers pick the view fit for their decision.</p>
+    <p>The junior candidate writes a query. The senior candidate writes a one-sentence definition and labels every dashboard with it. That is the moment the CFO stops asking you the question every month.</p>
+  </div>
+</details>
+
+<p class="arc-breath">You write the clarification note at 10:38. You send it to the CFO and the director. You ask the director to convene the CFO, CMO, and Finance controller for a 15-minute meeting tomorrow to agree on which number lives on which dashboard. The director forwards it. The CFO replies in four minutes: <em>"Thank you. This is the first time anyone has explained this to me."</em></p>
+
+<p>You have just bought yourself the quarter. You did not write a single line of SQL.</p>
+
+<hr>
+
+<h2 id="act-arch">Act 3 — The Architecture</h2>
+
+<p>Now that the room cares, you earn the right to draw boxes. In the tomorrow-morning meeting you present the pipeline as it exists, and the three gaps that produced yesterday's incident. Then you propose the minimum change that closes those gaps without breaking anything that works.</p>
+
+<div class="arc-arch">
+  <div class="arc-arch-row">
+    <div class="arc-arch-box arc-arch-in">
+      <div class="arc-arch-title">Source</div>
+      <div class="arc-arch-meta">SDK · web pixel · server CAPI · partner postbacks</div>
+    </div>
+    <div class="arc-arch-arrow">→</div>
+    <div class="arc-arch-box arc-arch-spine">
+      <div class="arc-arch-title">Kafka spine</div>
+      <div class="arc-arch-meta">one topic per event type · 7-day retention</div>
+    </div>
+  </div>
+  <div class="arc-arch-fan">
+    <div class="arc-arch-branch arc-arch-br-stream">
+      <div class="arc-arch-branch-label">real-time</div>
+      <div class="arc-arch-box arc-arch-flink"><div class="arc-arch-title">Flink</div><div class="arc-arch-meta">1-min tumbling · pacing counter → Redis</div></div>
+    </div>
+    <div class="arc-arch-branch arc-arch-br-batch">
+      <div class="arc-arch-branch-label">batch</div>
+      <div class="arc-arch-box arc-arch-bronze"><div class="arc-arch-title">Bronze → Silver → Gold</div><div class="arc-arch-meta">Iceberg · hourly compact · SCD2 dims</div></div>
+    </div>
+    <div class="arc-arch-branch arc-arch-br-serve">
+      <div class="arc-arch-branch-label">serving</div>
+      <div class="arc-arch-box arc-arch-bi"><div class="arc-arch-title">Trino · BI · Seller API</div><div class="arc-arch-meta">read silver for row-level, gold for aggregates</div></div>
+    </div>
+  </div>
+</div>
+
+<h3>The three gaps you're closing</h3>
+
+<details class="arc-gap">
+  <summary><span class="arc-gap-num">Gap 1</span><span class="arc-gap-title">Affiliate postbacks are not in the warehouse</span></summary>
+  <div class="arc-gap-body">
+    <p><strong>What exists:</strong> the affiliate vendor sends daily S2S postbacks to a legacy receiver that writes to an Airtable — yes, Airtable — that nobody queries.</p>
+    <p><strong>What you build:</strong> a two-file Kafka Connect bridge: Airtable → Kafka topic <code>affiliate_postback</code>. Flink job materializes into silver.fact_affiliate_conversion. Schema is dictated by the vendor's postback spec.</p>
+    <p><strong>Why this goes first:</strong> the missing $0.9M is almost entirely this channel. Closing the gap recovers 90% of the discrepancy.</p>
+  </div>
+</details>
+
+<details class="arc-gap">
+  <summary><span class="arc-gap-num">Gap 2</span><span class="arc-gap-title">Attribution is upsert-into-daily-roll-up</span></summary>
+  <div class="arc-gap-body">
+    <p><strong>What exists:</strong> the nightly job computes "yesterday's revenue by campaign" and UPSERTS into a daily table. Late-arriving conversions rewrite yesterday's row. Every time they do, dashboards that cached yesterday drift against dashboards that re-queried it.</p>
+    <p><strong>What you build:</strong> append-only conversions table with both <em>event_time</em> (world-time) and <em>attribution_time</em> (book-time). Two views on top — one keyed on event_time for cohort analysis, one on attribution_time for daily reporting. Finance reads the second; BI reads the first.</p>
+    <p><strong>Why second:</strong> this is the fix that eliminates the "the numbers changed" class of incidents for the next five years. It's a schema change with a migration window — one week — so it cannot ship in the first week.</p>
+  </div>
+</details>
+
+<details class="arc-gap">
+  <summary><span class="arc-gap-num">Gap 3</span><span class="arc-gap-title">Identity graph coverage is not monitored</span></summary>
+  <div class="arc-gap-body">
+    <p><strong>What exists:</strong> the identity team pushes a new graph weekly. Your pipeline joins to it with an INNER JOIN. When confidence thresholds change, your cross-device conversions silently drop.</p>
+    <p><strong>What you build:</strong> a contract test that compares today's covered-user count to a 7-day baseline. &gt;2% drift fails the pipeline and pages the identity team's on-call. LEFT JOIN with an 'UNSTITCHED' bucket so the drop is a visible metric instead of a silent mystery.</p>
+    <p><strong>Why last:</strong> it is additive, doesn't require a migration, and gives you a scheduled surprise protection mechanism for the quarter.</p>
+  </div>
+</details>
+
+<p class="arc-caption">Three changes. None of them green-field. Each closes a specific wound visible in this week's incident. That is the shape of a senior architecture proposal — <em>named incidents, named fixes, named rejection of the work you are not doing</em>.</p>
+
+<hr>
+
+<h2 id="act-defense">Act 4 — The Defense</h2>
+
+<p>You present the three-gap plan in the Thursday architecture review. Five people show up. Each one has a sharp question. You've rehearsed.</p>
+
+<div class="arc-defense">
+  <details class="arc-q">
+    <summary>Raj (staff eng): "Why not streaming for billing? Kappa everything."</summary>
+    <div class="arc-q-body">
+      <p>"Finance will not sign off on a revenue number that depends on a Flink checkpoint. If the checkpoint is corrupted and we rebuild state, yesterday's number might shift — even if reality didn't. That is the single fact that kills Kappa for billing. Streaming owns pacing; batch owns the ledger. I will fight for this one."</p>
+    </div>
+  </details>
+
+  <details class="arc-q">
+    <summary>Darren (CMO): "Why is pacing thirty seconds behind? I want real-time."</summary>
+    <div class="arc-q-body">
+      <p>"Thirty seconds is the tolerance the bidder accepts as normal. Sub-ten-second pacing costs roughly three times the infrastructure — dedicated Flink cluster plus sub-partition sharding. We'd be spending $40K/month to be thirty seconds more current on a decision that is already being made at five-minute granularity by your campaign managers. If an experiment shows the sub-ten-second number moves revenue materially, I'll build it. Today it doesn't."</p>
+    </div>
+  </details>
+
+  <details class="arc-q">
+    <summary>Amelia (CFO): "Why do I need both event_time and attribution_time? It feels like a made-up complexity."</summary>
+    <div class="arc-q-body">
+      <p>"Because your quarterly close needs 'revenue as reported on the day' — attribution_time — so the audit trail is reproducible. BI's cohort analysis needs 'revenue as now understood' — event_time — so late-arriving purchases flow back to the click week that earned them. Both are correct, for different decisions. Without both, every time a late conversion arrives, someone's dashboard silently drifts. One column cost, two audiences served."</p>
+    </div>
+  </details>
+
+  <details class="arc-q">
+    <summary>Ayesha (legal): "You're joining to the identity graph. Are all those edges consented?"</summary>
+    <div class="arc-q-body">
+      <p>"The identity graph team owns the consent filter upstream. I consume the already-filtered graph. What I don't do is re-derive identity from raw events on my side — that would route around their governance. If the consent filter shifts, my contract test catches it as a coverage change. I will add a note to the contract that coverage drops attributable to consent shifts are expected and not treated as incidents."</p>
+    </div>
+  </details>
+
+  <details class="arc-q">
+    <summary>Priya (seller): "Sellers are asking why their promoted-listing revenue jumps between hours."</summary>
+    <div class="arc-q-body">
+      <p>"Two reasons, both fixed by this plan. Hourly gold refresh means a seller who checked at 10:03 saw the 10:00 snapshot; at 10:59 they saw the same one. If they refreshed at 11:00, the number jumped by a whole hour of activity. I'm adding a 'last updated' timestamp to every number on the seller dashboard and a one-line explanation. Second: the attribution change above means late conversions no longer rewrite yesterday — sellers' numbers stop drifting at the day boundary."</p>
+    </div>
+  </details>
+</div>
+
+<p class="arc-caption">Notice the pattern. Every answer names the <em>specific pain</em> the alternative causes. "Kappa for billing" isn't rejected on principle — it's rejected because Finance will not sign. "Sub-ten-second pacing" isn't rejected — it's deferred until we can show it moves revenue. Senior defense is always specific. Never categorical.</p>
+
+<hr>
+
+<h2 id="act-break">Act 5 — Everything Breaks</h2>
+
+<p>Three weeks later. The three-gap plan shipped. Affiliate channel flowing. Attribution table append-only. Identity contract test live. You are quietly optimistic. Black Friday is Friday.</p>
+
+<p>Thursday 23:47 PT. You are eating dinner. The pager goes off.</p>
+
+<div class="arc-escalate">
+  <div class="arc-escalate-tick"><strong>T+0 min</strong> — Page: <code>pacing_counter_stale</code>. Flink consumer lag 48s. Over tolerance (30s).</div>
+  <div class="arc-escalate-tick"><strong>T+3 min</strong> — You log in. Kafka consumer lag on <code>impression_events</code> is climbing linearly. One partition is hot.</div>
+  <div class="arc-escalate-tick"><strong>T+7 min</strong> — You identify the hot partition. It's 87% of traffic. A top seller's promo creative went viral. Partition key is advertiser_id. The hot advertiser has saturated one broker.</div>
+  <div class="arc-escalate-tick"><strong>T+12 min</strong> — Second page: <code>conversion_dedupe_anomaly</code>. The suspected-duplicates sidecar is filling 4× faster than baseline. Something about tonight's traffic is triggering dedupe false positives — or real dupes are surging.</div>
+  <div class="arc-escalate-tick"><strong>T+18 min</strong> — Third alert: seller-dashboard Trino queries timing out. The identity graph team has <em>just</em> pushed a new version of the graph with stricter confidence thresholds. Your contract test fails. Coverage down 9%.</div>
+  <div class="arc-escalate-tick"><strong>T+22 min</strong> — Slack DM from the CMO: "The pacing counter on Campaign X shows we've over-delivered by $18K in the past hour. Is the number real?"</div>
+  <div class="arc-escalate-tick"><strong>T+25 min</strong> — Director joins the incident channel. Black Friday opens in 7 hours.</div>
+</div>
+
+<p>You have three incidents at once — Kafka hotspot, dedupe anomaly, identity coverage drop. Each one is degrading a different consumer. You cannot work all three in parallel. You have to triage.</p>
+
+<details class="arc-reveal">
+  <summary>How do you triage three live incidents on the eve of Black Friday?</summary>
+  <div class="arc-reveal-body">
+    <p>Rank by <em>money-at-risk over time</em>, not by which alert is loudest. Three questions, in order:</p>
+    <ol>
+      <li><strong>Is any of these causing advertiser overspend?</strong> Yes — the stale pacing counter is letting Campaign X overspend. Overspend at Black Friday traffic is money that is already gone. <em>This one first.</em></li>
+      <li><strong>Is any of these causing irreversible data loss?</strong> No. The dedupe sidecar is accumulating audit rows; the identity drop is producing "UNSTITCHED" labels on real conversions. Both are recoverable later.</li>
+      <li><strong>Is any of these breaking a dashboard that someone will see in the next 12 hours?</strong> Yes — seller-dashboard queries. Fix second because sellers will open the site at 8am Friday.</li>
+    </ol>
+    <p>The dedupe sidecar anomaly goes third. It is not causing incorrect output right now; it is a signal that <em>something is unusual</em>. Investigate after the page is quiet. Write down the timestamp so you can pick up the thread tomorrow.</p>
+  </div>
+</details>
+
+<h3>Incident 1 — the Kafka hotspot, fixed live</h3>
+
+<details class="arc-reveal">
+  <summary>The junior move, the senior move.</summary>
+  <div class="arc-reveal-body">
+    <p><em>Junior:</em> rebalance Kafka partitions. Takes 40 minutes in this cluster size, and the rebalance itself adds latency to the consumer group during the transition. Meanwhile the over-delivery continues.</p>
+    <p><em>Senior:</em> flip the bidder's fallback policy <em>now</em>. Your pacing design already has a degradation path — when consumer lag exceeds 30s, the bidder derates its bids to 80%. But the flag requires a manual override to engage automatically during an incident. You engage it. Over-delivery rate drops from $18K/hr to $3K/hr within two minutes. <em>Then</em> you work on the Kafka rebalance with the pressure off.</p>
+    <p>The fallback mechanism you built in Act 3 is the reason you are not hemorrhaging money at this moment. Everything senior engineers do under pressure was designed while no one was panicking.</p>
+  </div>
+</details>
+
+<h3>Incident 2 — the identity coverage drop</h3>
+
+<details class="arc-reveal">
+  <summary>Why contract tests earn their keep tonight.</summary>
+  <div class="arc-reveal-body">
+    <p>Your contract test failed the pipeline at 23:58 — before the bad graph reached production silver. Seller-dashboard queries are timing out because they are reading the old silver (correct) and joining to a new gold (empty — because gold refresh was blocked). You have two options:</p>
+    <ul>
+      <li><em>Roll back</em> the identity graph push. Requires paging the identity team's on-call, who may take 20 minutes.</li>
+      <li><em>Fail-open</em> the graph join for tonight — use the 7-day-average coverage as the floor, let the pipeline run, accept the 9% under-stitched cost as a quarantine category visible in the dashboard.</li>
+    </ul>
+    <p>You fail-open. The 9% of conversions that can't be stitched land in the UNSTITCHED bucket that Act 3 added. Seller dashboards refresh with a caveat banner. You still page the identity team — but you did not wake them up to save the pipeline. You woke them up to debug their push on Friday morning.</p>
+    <p><strong>The reason this works:</strong> your pipeline is designed to fail gracefully. The LEFT JOIN + UNSTITCHED bucket pattern from Act 3 is the reason you didn't need a hotfix at midnight.</p>
+  </div>
+</details>
+
+<h3>Incident 3 — the dedupe anomaly, investigated cold</h3>
+
+<details class="arc-reveal">
+  <summary>What the sidecar is telling you.</summary>
+  <div class="arc-reveal-body">
+    <p>Friday morning, 07:30. Pager silent. You pour coffee and pull the sidecar.</p>
+    <pre><code class="sql">SELECT sdk_version, COUNT(*) AS dropped,
+       ROUND(COUNT(*) * 1.0 /
+         (SELECT COUNT(*) FROM bronze.impression
+          WHERE dt = CURRENT_DATE - 1 AND sdk_version = s.sdk_version), 4) AS drop_rate
+FROM ops.suspected_duplicates s
+WHERE dt = CURRENT_DATE - 1
+GROUP BY sdk_version
+ORDER BY drop_rate DESC;</code></pre>
+    <p>Top result: <code>sdk_ios=4.21.0</code>, drop rate 3.8% (baseline 0.1%). Confirmed with the SDK team: 4.21.0 shipped a retry-on-transient-error bug 36 hours ago. The dedupe logic caught it. Revenue counts are correct. Suspected-duplicates sidecar saved $2-3M of potential over-reporting.</p>
+    <p>You file a P2 with the SDK team to ship 4.21.1 by Monday. You also add a metric-on-metric: if any SDK version's drop rate exceeds 1% for two consecutive days, page the SDK team automatically. That adjustment ships Tuesday.</p>
+    <p><strong>This is the loop Act 3 was designed to create.</strong> The pipeline produces its own exception stream that the engineer can monitor; the stream caught the SDK bug before anyone outside the team noticed.</p>
+  </div>
+</details>
+
+<hr>
+
+<h2 id="act-recover">Act 6 — Recovery</h2>
+
+<p>Black Friday closes. Revenue for the day: $47M against a target of $44M. You were on-call for the whole thing. You did not need to touch the pipeline once between 01:00 and 06:00 because the graceful-degradation paths in Act 3 did their job.</p>
+
+<h3>What you reconcile over the weekend</h3>
+
+<details class="arc-recover">
+  <summary>The ~$2.4M of conversions that landed in UNSTITCHED during the identity drop</summary>
+  <div class="arc-recover-body">
+    <p>The identity team pushes a corrected graph Monday morning. You re-run Friday's stitch against the corrected graph for the impacted window, producing a <em>supplemental</em> table: <code>silver.fact_conversion_identity_reprocessed</code>. Seller dashboards pull from a UNION of the original plus the reprocessed — users see corrected numbers with a "revised" badge.</p>
+    <p>Crucially: the original table is unmodified. History stays history. The supplemental is an additive, visible, auditable correction — exactly the pattern Act 3 wrote into the design doc.</p>
+  </div>
+</details>
+
+<details class="arc-recover">
+  <summary>The campaign over-delivery from the Kafka lag</summary>
+  <div class="arc-recover-body">
+    <p>Finance will refund the affected advertisers. Your reconciliation job computes the per-advertiser over-delivery from the per-minute pacing log and the actual impressions delivered. It writes to <code>ops.pacing_incident_refunds</code> keyed by advertiser_id and incident_id. Account management sends automated emails. Revenue adjusts on the following invoice.</p>
+    <p>Total refund: $31K across seven advertisers. You offered the refund proactively, which preserved every one of those accounts.</p>
+  </div>
+</details>
+
+<details class="arc-recover">
+  <summary>The Airtable-to-Kafka bridge that was a tactical hack</summary>
+  <div class="arc-recover-body">
+    <p>Three weeks of Black Friday, the bridge held. But it is a two-file script running on a single VM with no retries. Your Q1 roadmap: replace it with a real Kafka Connect source against the affiliate vendor's S2S API. Retry, exponential backoff, dead-letter topic. The hack bought you Black Friday; the replacement buys you the next five years.</p>
+  </div>
+</details>
+
+<h3>The four artefacts you publish</h3>
+
+<ol>
+  <li><strong>The incident post-mortem.</strong> Blameless, structured: timeline, what broke, what held, what we fix. Published to the engineering wiki by Tuesday.</li>
+  <li><strong>The data contracts.</strong> Identity graph contract. Affiliate postback contract. SDK event contract. Each is one page. Published to the data catalog.</li>
+  <li><strong>The runbook.</strong> One runbook per alert. What the alert means, what to check first, what to run, when to escalate. Pager links to the runbook.</li>
+  <li><strong>The dashboard definitions.</strong> Every dashboard now carries a data-definition footer: which table, which attribution window, which "revenue" definition (billed, spend, attributed, settled). Every future "the numbers don't match" conversation opens with pointing at the footer.</li>
+</ol>
+
+<hr>
+
+<h2 id="act-lesson">Act 7 — The Lesson</h2>
+
+<p>Six months later, a new PM joins the team. She asks you, over coffee, how you knew what to build on day one.</p>
+
+<p>You tell her the truth.</p>
+
+<p>You didn't. You walked into a burning room on day four and bought yourself seventy minutes by writing a paragraph. The paragraph was correct because you had been in this kind of room twice before at other companies and you recognised the shape of the fire. The architecture came later, built around the specific fires the job was having. Defense came later still, rehearsed against the specific people who would push back. And the incident response was designed the weekend before Black Friday, on paper, with sticky notes, for exactly the scenario that ended up happening. Nothing was improvised under pressure — everything was rehearsed under quiet.</p>
+
+<p>The interview is not testing whether you can build a pipeline.</p>
+
+<p>The interview is testing whether you know what to do when the pipeline lies.</p>
+
+<p>And what you do is: you ask what "revenue" means. You name the cost of every choice you are not making. You put the failure modes in the design doc before the failure happens. You design the graceful degradation in January so you don't have to invent it in November. You keep the sidecar table. You write the runbook. You never, ever, mutate yesterday's numbers.</p>
+
+<p>And when someone asks you, years later, why senior data engineering matters — you tell them: because the numbers that run the company are produced by the pipelines, and the pipelines lie, and someone has to be awake when they do.</p>
+
+<p class="arc-sign-off">That was the job. That is always the job.</p>
+
+</main>
+
+<nav class="breadcrumb"><a href="Part7_Coding_Round.html">← Part 7</a> · <a href="00_Master_Index.html">Index</a></nav>
+
+<footer class="page-footer">
+  <div>Ads Data Engineering Interview Prep · Part 8 — The Arc</div>
+  <div><a href="00_Master_Index.html">Index</a></div>
+</footer>
+
+</div>
+</body>
+</html>
