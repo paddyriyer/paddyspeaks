@@ -25,16 +25,15 @@ SRC_DIR = ROOT / "interview" / "ads engineering"
 OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 
 PARTS = [
-    ("IX", "00_Master_Index.html",                      "Overview",                           "overview"),
-    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Introduction to Ads Engineering",   "introduction"),
-    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Mock Interview + 10 Scenarios",    "mock-scenarios"),
-    ("02", "Part2_Ads_Growth_Behavioral.html",          "Advanced Ads, Growth & Behavioral",  "growth-behavioral"),
-    ("03", "Part3_Deep_Dive_SQL.html",                  "Deep Dive SQL",                      "sql-deep-dive"),
-    ("04", "Part4_Platform_Specific_Glossary.html",     "Platform Surfaces & A–Z Glossary",   "platform-glossary"),
-    ("05", "Part5_Visualization_Measurement.html",      "Visualization & Measurement",        "viz-measurement"),
-    ("06", "Part6_Room_Pressure_Decisions.html",        "The Room · Real Decisions",          "the-room"),
-    ("07", "Part7_Coding_Round.html",                    "The Coding Round · SQL & Python",      "coding-round"),
-    ("08", "Part8_The_Arc.html",                         "The Arc · Black Friday Case Study",    "the-arc"),
+    ("IX", "00_Master_Index.html",                      "Overview",                            "overview"),
+    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · The Incident",               "incident"),
+    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · What Is Revenue?",         "revenue"),
+    ("02", "Part2_Ads_Growth_Behavioral.html",          "Act 3 · The Architecture",            "architecture"),
+    ("03", "Part3_Deep_Dive_SQL.html",                  "Act 4 · The Defense",                 "defense"),
+    ("04", "Part4_Platform_Specific_Glossary.html",     "Act 5 · Everything Breaks",           "break"),
+    ("05", "Part5_Visualization_Measurement.html",      "Act 6 · Recovery",                    "recovery"),
+    ("06", "Part6_Room_Pressure_Decisions.html",        "Act 7 · The Lesson",                  "lesson"),
+    ("07", "Part7_Coding_Round.html",                    "Appendix · Your Turn",               "appendix"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}
@@ -621,6 +620,77 @@ HEAD = '''<!DOCTYPE html>
   .viz, .viz-flow { padding: 16px 18px; }
 }
 
+
+/* ═══ THE ARC — narrative components (Acts, Storm, Choice, Sidebars) ═══ */
+.part-section .act-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
+.part-section .act-title { font-family: var(--font-display); font-size: clamp(28px, 4.8vw, 48px); font-weight: 700; color: var(--color-ink); line-height: 1.08; margin: 0 0 18px; }
+.part-section .act-subtitle { font-family: var(--font-body); font-size: 19px; line-height: 1.7; color: var(--color-muted); font-style: italic; margin-bottom: 24px; }
+.part-section .act-breath { margin-top: 28px; font-style: italic; color: var(--color-muted); }
+.part-section .act-note { background: var(--color-cream); border-left: 3px solid var(--color-gold); padding: 18px 22px; margin: 22px 0; border-radius: 0 8px 8px 0; }
+.part-section .act-note p { font-size: 16px; line-height: 1.75; margin-bottom: 12px; }
+.part-section .act-note p:last-child { margin-bottom: 0; }
+.part-section .act-reply { background: rgba(42,122,74,.08); border-left: 3px solid var(--color-sage); padding: 14px 18px; margin: 16px 0 22px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+
+/* Storm (Slack simulation) */
+.part-section .storm { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 22px; margin: 22px 0 26px; box-shadow: 0 2px 10px rgba(26,35,50,.05); }
+.part-section .storm-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-light-muted); margin-bottom: 14px; }
+.part-section .storm-msg { margin: 10px 0; padding: 10px 14px; border-radius: 6px; border-left: 3px solid; background: var(--color-cream); }
+.part-section .storm-msg .storm-who { font-family: var(--font-mono); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; color: var(--color-ink); }
+.part-section .storm-msg .storm-body { font-family: var(--font-body); font-size: 15px; line-height: 1.55; color: var(--color-ink); }
+.part-section .storm-msg.storm-cfo { border-left-color: #c44b2b; }
+.part-section .storm-msg.storm-cmo { border-left-color: #c8915a; }
+.part-section .storm-msg.storm-partner { border-left-color: #2a7a4a; }
+.part-section .storm-msg.storm-dir { border-left-color: #2563a8; background: rgba(37,99,168,.06); }
+.part-section .storm-you { margin: 12px 0 2px; padding: 10px 14px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 15px; color: var(--color-muted); }
+.part-section .storm-you .storm-who { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--color-ink); margin-bottom: 4px; }
+
+/* Choice cards (click-to-reveal) */
+.part-section .choice { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; margin: 10px 0; overflow: hidden; transition: border-color .2s; }
+.part-section .choice[open] { border-color: var(--color-gold); }
+.part-section .choice > summary { list-style: none; padding: 13px 16px; cursor: pointer; display: flex; align-items: center; gap: 14px; font-family: var(--font-body); font-size: 16px; color: var(--color-ink); }
+.part-section .choice > summary::-webkit-details-marker { display: none; }
+.part-section .choice > summary::after { content: '+'; margin-left: auto; font-family: var(--font-mono); color: var(--color-gold-dark); font-size: 20px; }
+.part-section .choice[open] > summary::after { content: '−'; }
+.part-section .choice-letter { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--color-ink); color: var(--color-cream); font-family: var(--font-mono); font-weight: 700; font-size: 13px; border-radius: 50%; flex-shrink: 0; }
+.part-section .choice-line { flex: 1; line-height: 1.4; }
+.part-section .choice-body { padding: 0 16px 14px 58px; color: var(--color-muted); font-size: 15px; line-height: 1.7; border-top: 1px solid var(--color-border-light); padding-top: 12px; }
+.part-section .choice-body p { margin-bottom: 10px; }
+
+/* Sidebars */
+.part-section .sidebar { margin: 26px 0; padding: 18px 22px; border-radius: 10px; border-left: 4px solid; }
+.part-section .sidebar-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; margin-bottom: 8px; }
+.part-section .sidebar-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--color-ink); margin: 0 0 12px; line-height: 1.3; }
+.part-section .sidebar p, .part-section .sidebar li { font-family: var(--font-body); font-size: 15px; line-height: 1.7; color: var(--color-ink); }
+.part-section .sidebar-punch { margin-top: 12px; font-style: italic; color: var(--color-muted); font-size: 15px; }
+.part-section .sidebar-room { background: rgba(37,99,168,.05); border-left-color: #2563a8; }
+.part-section .sidebar-room .sidebar-label { color: #1a4f8a; }
+.part-section .sidebar-landmine { background: rgba(196,75,43,.05); border-left-color: #c44b2b; }
+.part-section .sidebar-landmine .sidebar-label { color: #9e3a1e; }
+.part-section .sidebar-turn { background: rgba(200,145,90,.06); border-left-color: #c8915a; }
+.part-section .sidebar-turn .sidebar-label { color: #a87434; }
+
+/* Four-revenue definition cards (Act 2) */
+.part-section .defs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
+.part-section .def { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid; border-radius: 8px; padding: 15px 17px; }
+.part-section .def-billed { border-left-color: #2563a8; }
+.part-section .def-spend { border-left-color: #c8915a; }
+.part-section .def-attr { border-left-color: #c44b2b; }
+.part-section .def-settled { border-left-color: #2a7a4a; }
+.part-section .def-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px; }
+.part-section .def-who { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--color-gold-dark); margin-bottom: 8px; }
+.part-section .def-what { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); margin-bottom: 8px; }
+.part-section .def-when { font-family: var(--font-mono); font-size: 12px; color: var(--color-light-muted); }
+@media (max-width: 700px) { .part-section .defs { grid-template-columns: 1fr; } }
+
+/* Your Turn — inline answer reveal */
+.part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
+.part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
+.part-section .your-turn-answer > summary::-webkit-details-marker { display: none; }
+.part-section .your-turn-answer > summary::before { content: '▸ '; }
+.part-section .your-turn-answer[open] > summary::before { content: '▾ '; }
+.part-section .your-turn-body { padding-top: 8px; }
+.part-section .your-turn-body pre { background: #0f1e2e; color: #e8e0d6; padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin: 10px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+.part-section .your-turn-body pre code { background: transparent; color: inherit; padding: 0; border: none; }
 
 /* ═══ INTERACTIVE DASHBOARDS ═══ */
 .dash {
