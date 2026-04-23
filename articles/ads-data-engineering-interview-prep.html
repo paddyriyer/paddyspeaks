@@ -1077,94 +1077,24 @@ ORDER BY identity_graph_version;</code></pre>
 </section>
 <section id="ads-part-05" class="part-section" data-part="05">
 <header class="part-header"><div class="part-eyebrow">Part 05</div><h1 class="part-title">Act 6 · Recovery</h1></header>
-<h1 id="ap05-part-5-visualization--measurement-of-campaign-objectives">Part 5: Visualization &amp; Measurement of Campaign Objectives</h1>
-<blockquote>
-<p><em>"A campaign only succeeded if you can prove it. And you can only prove it if the measurement was designed before the campaign launched."</em></p>
-</blockquote>
-<hr />
-<h2 id="ap05-section-1-the-campaign-scorecard-template">Section 1: The Campaign Scorecard Template</h2>
-<p>Every campaign, regardless of objective, should roll up to a one-page scorecard. The shape is identical. Only the numerator rows change.</p>
-<div class="viz viz-triangle"><div class="viz-label">Tradeoff Triangle</div>
-<div class="tri-wrap">
-  <svg class="tri-svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <polygon points="200,30 60,300 340,300" fill="none" stroke="#c8d6e5" stroke-width="2"/>
-    <circle cx="200" cy="30"  r="7" fill="#2563a8"/>
-    <circle cx="60"  cy="300" r="7" fill="#2a7a4a"/>
-    <circle cx="340" cy="300" r="7" fill="#c44b2b"/>
-  </svg>
-  <div class="tri-vertex tri-top"><div class="tri-axis">CAMPAIGN</div>
-    <ul class="tri-notes"><li>Z%</li><li>see per-objective blocks below</li></ul></div>
-  <div class="tri-vertex tri-left"><div class="tri-axis">DELIVERY</div>
-    <ul class="tri-notes"><li>Z%</li><li>see per-objective blocks below</li></ul></div>
-  <div class="tri-vertex tri-right"><div class="tri-axis">SFV</div>
-    <ul class="tri-notes"><li>Z%</li><li>see per-objective blocks below</li></ul></div>
-</div></div>
-<p>Every scorecard has four blocks: delivery, objective-specific KPIs, benchmarks, health. Every block is non-negotiable. Dropping benchmarks turns a scorecard into a number dump.</p>
-<hr />
-<h2 id="ap05-section-2-reach--frequency-awareness-objective">Section 2: Reach &amp; Frequency (Awareness Objective)</h2>
-<h3 id="ap05-what-matters">What matters</h3>
-<ul>
-<li><strong>Reach</strong> — unique users exposed at least once.</li>
-<li><strong>Frequency</strong> — impressions per reached user.</li>
-<li><strong>Frequency distribution</strong> — not just the average. 90% of users at freq 2 and 10% at freq 20 is very different from everyone at freq 4.</li>
-</ul>
-<h3 id="ap05-the-key-visualization-frequency-distribution-histogram">The key visualization: frequency distribution histogram</h3>
-<div class="viz viz-column-hist">
-<div class="viz-label">Impressions per user (7-day window)</div>
-<div class="ch-plot">
-<div class="ch-col"><div class="ch-bar" style="--h:100.00%"><span class="ch-count">8</span></div><div class="ch-label">1</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:87.50%"><span class="ch-count">7</span></div><div class="ch-label">2</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:62.50%"><span class="ch-count">5</span></div><div class="ch-label">3</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:50.00%"><span class="ch-count">4</span></div><div class="ch-label">4</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:25.00%"><span class="ch-count">2</span></div><div class="ch-label">5</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:12.50%"><span class="ch-count">1</span></div><div class="ch-label">6</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:0.00%"><span class="ch-count">0</span></div><div class="ch-label">7</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:0.00%"><span class="ch-count">0</span></div><div class="ch-label">8+</div></div>
-<div class="ch-col"><div class="ch-bar" style="--h:0.00%"><span class="ch-count">0</span></div><div class="ch-label">11+</div></div>
-</div></div>
-<p>Overlay: vertical line at the frequency cap (e.g., 8). Count of users above the cap is your "over-cap" rate — should be near zero.</p>
-<h3 id="ap05-sql">SQL</h3>
-<pre class="sql"><code>WITH user_freq AS (
-  SELECT
-    user_id,
-    COUNT(*) AS impressions_7d
-  FROM fact_impression
-  WHERE campaign_id = :c
-    AND dt BETWEEN CURRENT_DATE - 7 AND CURRENT_DATE - 1
-    AND is_valid = TRUE
-  GROUP BY user_id
-),
-buckets AS (
-  SELECT
-    CASE
-      WHEN impressions_7d = 1  THEN &#39;01&#39;
-      WHEN impressions_7d &lt;= 3 THEN &#39;02_03&#39;
-      WHEN impressions_7d &lt;= 6 THEN &#39;04_06&#39;
-      WHEN impressions_7d &lt;= 10 THEN &#39;07_10&#39;
-      ELSE &#39;11_plus&#39;
-    END AS freq_bucket,
-    COUNT(*) AS users,
-    SUM(impressions_7d) AS impressions
-  FROM user_freq
-  GROUP BY 1
-)
-SELECT
-  freq_bucket,
-  users,
-  impressions,
-  users * 1.0 / SUM(users) OVER () AS users_share,
-  impressions * 1.0 / SUM(impressions) OVER () AS impressions_share
-FROM buckets
-ORDER BY freq_bucket;
-</code></pre>
-<h3 id="ap05-health-check">Health check</h3>
-<ul>
-<li><strong>Reach curve that flattens early.</strong> If reach stops growing after day 3, you're oversaturating a small audience. Expand targeting.</li>
-<li><strong>Right tail that's too fat.</strong> &gt;10% of users at freq 10+ means your frequency cap isn't working. Investigate pacing.</li>
-</ul>
-<hr />
-<h2 id="ap05-section-3-conversion-funnel-conversions-objective">Section 3: Conversion Funnel (Conversions Objective)</h2>
-<h3 id="ap05-the-funnel">The funnel</h3>
+<section id="ap05-act-6-recovery" class="act act-6">
+  <div class="act-eyebrow">Act 6 · Recovery</div>
+  <h1 class="act-title">08:29 AM. The CFO's office. Two dashboards, one conversation.</h1>
+
+  <p class="act-subtitle">Five hours after the page, you walk into Amelia's office with a laptop and two browser tabs open. One is the dashboard the platform ships to her every morning. The other is a parallel view you built at 03:40 AM to explain tonight. The meeting is seventeen minutes. You do not open your laptop for the first three.</p>
+
+  <div class="prompt-card">
+    <div class="prompt-label">The scene · 08:29 AM PST</div>
+    <blockquote class="prompt-body"><p>Amelia, the director, and one board-prep analyst. Two screens. Black coffee on the table. No deck. She says: <em>"Walk me through this like I'm the advertiser, not the CFO. I already trust the number — I need to explain it to someone who doesn't."</em></p></blockquote>
+  </div>
+
+  <p>The meeting is not about the platform. It is about whether the platform can narrate itself. If the dashboard cannot answer "why is tonight's number what it is" without you in the room, the platform is not done, no matter how many tests pass. So you open the laptop. You start with the picture she sees every morning.</p>
+
+  <h2 id="ap05-the-header">The CFO's morning view · conversion funnel</h2>
+
+  <p>This is what Amelia sees at 07:45 AM, every day, on her phone. One chart, top of the dashboard. Five steps. It answers: <em>how did the whole ad tier perform yesterday, shape-wise.</em> It does not answer a question about dollars — that's the second section below. This chart answers <em>whether the shape of the day was normal</em>.</p>
+
+  <h3 id="ap05-the-funnel">The funnel · from impression to repurchase</h3>
 <figure class="dash dash-funnel" aria-label="Conversion funnel interactive">
   <div class="dash-head">
     <div>
@@ -1287,160 +1217,14 @@ else setTimeout(__init, 0);
 </script>
 
 
-<div class="viz viz-vflow"><div class="viz-label">Conversion Path</div><div class="vflow-rows">
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Impressions</span></div>
-<div class="vflow-edge"><span class="vflow-rate">CTR</span></div>
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Clicks</span></div>
-<div class="vflow-edge"><span class="vflow-rate">landing page view rate</span></div>
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Landing Page Views</span></div>
-<div class="vflow-edge"><span class="vflow-rate">add-to-cart rate</span></div>
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Add to Cart</span></div>
-<div class="vflow-edge"><span class="vflow-rate">checkout initiation rate</span></div>
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Checkout</span></div>
-<div class="vflow-edge"><span class="vflow-rate">purchase rate</span></div>
-<div class="vflow-stage"><span class="vflow-dot"></span><span class="vflow-label">Purchase</span></div>
-<div class="vflow-edge"></div>
-<div class="vflow-stage is-last"><span class="vflow-dot"></span><span class="vflow-label">Return Purchase (30d)</span></div>
-</div></div>
-<p>Each stage's drop-off is diagnostic.</p>
-<h3 id="ap05-visualization-funnel-bar-chart">Visualization: funnel bar chart</h3>
-<figure class="dash dash-funnel" aria-label="Conversion funnel interactive">
-  <div class="dash-head">
-    <div>
-      <div class="dash-eyebrow">Dashboard · Conversion Funnel</div>
-      <h4 class="dash-title">From impression to return purchase — live drop-off</h4>
-    </div>
-    <div class="dash-tabs" role="tablist">
-      <button class="dash-tab is-active" role="tab" aria-selected="true" data-window="7d">7-day</button>
-      <button class="dash-tab" role="tab" aria-selected="false" data-window="1d">1-day</button>
-      <button class="dash-tab" role="tab" aria-selected="false" data-window="28d">28-day</button>
-    </div>
-  </div>
 
-  <div class="dash-funnel-body">
-    <div class="hf-funnel" id="dashFunnelChart"></div>
-    <ol class="dash-funnel-table" id="dashFunnelTable"></ol>
-  </div>
+  <p>The first thing you point at on the screen is the drop-off between two specific steps. Not the overall number. The <em>shape</em>. Shape reveals measurement changes before totals do.</p>
 
-  <div class="dash-footnote">
-    <span class="fn-dot" style="background:#2a7a4a"></span> above benchmark
-    <span class="fn-dot" style="background:#c44b2b"></span> below benchmark
-    <span class="fn-dot" style="background:#2563a8"></span> on par
-    <span class="fn-label">Tap a tab to switch attribution window.</span>
-  </div>
-</figure>
+  <!-- the injected dashboard will land here -->
 
-<script type="module">
-(function(){
-var __init=function(){
-  if (window.__dashFunnelInit) return;
-  window.__dashFunnelInit = true;
+  <p>The tab control at the top is the feature that matters this morning. Switching attribution window from 7-day to 1-day to 28-day shifts the tail of the funnel. Last night's identity-graph change affects 28-day attribution most — by design, more cross-device journeys close within 28 days than within 1. Shape tells the story without dollars.</p>
 
-  var data = {
-    '7d': [
-      { name: 'Impressions',            count: 10000000, pct: 100,  benchmark: null, note: 'Reach from planned bid requests' },
-      { name: 'Clicks',                 count: 150000,   pct: 1.5,  benchmark: 1.7,  note: 'CTR vs vertical median' },
-      { name: 'Landing page view',      count: 135000,   pct: 90.0, benchmark: 85,   note: 'Page load · redirect chain' },
-      { name: 'Add to cart',            count: 22500,    pct: 16.7, benchmark: 22,   note: 'Product match · price · trust' },
-      { name: 'Checkout',               count: 13500,    pct: 60.0, benchmark: 65,   note: 'Cart abandon · shipping shock' },
-      { name: 'Purchase',               count: 5400,     pct: 40.0, benchmark: 48,   note: 'Payment friction · PSP errors' },
-      { name: 'Return purchase (30d)',  count: 1080,     pct: 20,   benchmark: 28,   note: 'LTV · product fit' }
-    ],
-    '1d': [
-      { name: 'Impressions',            count: 10000000, pct: 100,  benchmark: null, note: 'Same reach, shorter window' },
-      { name: 'Clicks',                 count: 150000,   pct: 1.5,  benchmark: 1.7,  note: 'Click attribution only' },
-      { name: 'Landing page view',      count: 128000,   pct: 85.3, benchmark: 85,   note: 'Same-day view-throughs drop' },
-      { name: 'Add to cart',            count: 18000,    pct: 14.1, benchmark: 22,   note: 'Less time to consider' },
-      { name: 'Checkout',               count: 9800,     pct: 54.4, benchmark: 65,   note: '1d cart decay' },
-      { name: 'Purchase',               count: 3600,     pct: 36.7, benchmark: 48,   note: 'Same-day close only' },
-      { name: 'Return purchase (30d)',  count: 540,      pct: 15,   benchmark: 28,   note: 'Smaller base' }
-    ],
-    '28d': [
-      { name: 'Impressions',            count: 10000000, pct: 100,  benchmark: null, note: 'Extended window' },
-      { name: 'Clicks',                 count: 150000,   pct: 1.5,  benchmark: 1.7,  note: '' },
-      { name: 'Landing page view',      count: 140000,   pct: 93.3, benchmark: 85,   note: 'Delayed clicks converting' },
-      { name: 'Add to cart',            count: 28000,    pct: 20.0, benchmark: 22,   note: 'More dwell → higher intent' },
-      { name: 'Checkout',               count: 17500,    pct: 62.5, benchmark: 65,   note: '' },
-      { name: 'Purchase',               count: 8400,     pct: 48.0, benchmark: 48,   note: 'On par · attribution gift' },
-      { name: 'Return purchase (30d)',  count: 2100,     pct: 25,   benchmark: 28,   note: '' }
-    ]
-  };
-
-  var chart = document.getElementById('dashFunnelChart');
-  var tableEl = document.getElementById('dashFunnelTable');
-  if (!chart || !tableEl) return;
-
-  function render(key){
-    var rows = data[key];
-    var top = rows[0].count;
-
-    // Pure-HTML tapered funnel — each row is a centered bar sized by ratio
-    var chartHtml = '';
-    rows.forEach(function(r, i){
-      var w = (100 * r.count / top).toFixed(2);
-      var cls = 'hf-g' + ((i % 6) + 1);
-      chartHtml += '<div class="hf-row">' +
-        '<div class="hf-bar ' + cls + '" style="width:' + w + '%" title="' + r.name + ' · ' + r.count.toLocaleString() + ' · ' + r.pct + '%">' +
-          '<span class="hf-text"><span class="hf-name">' + r.name + '</span> <span class="hf-count">' + r.count.toLocaleString() + '</span></span>' +
-        '</div>' +
-      '</div>';
-    });
-    chart.innerHTML = chartHtml;
-
-    // Side table with benchmark deltas
-    var tableHtml = '';
-    rows.forEach(function(r, i){
-      var delta = '—', deltaClass = 'neutral';
-      if (r.benchmark != null){
-        var d = r.pct - r.benchmark;
-        if (Math.abs(d) < 0.75){ delta = 'on par'; deltaClass = 'neutral'; }
-        else if (d > 0){ delta = '+' + d.toFixed(1) + ' pts'; deltaClass = 'up'; }
-        else { delta = d.toFixed(1) + ' pts'; deltaClass = 'down'; }
-      }
-      tableHtml += '<li class="dfrow">' +
-        '<span class="dfrow-idx">' + (i+1).toString().padStart(2,'0') + '</span>' +
-        '<span class="dfrow-name">' + r.name + '</span>' +
-        '<span class="dfrow-count">' + r.count.toLocaleString() + '</span>' +
-        '<span class="dfrow-pct">' + r.pct + '%</span>' +
-        '<span class="dfrow-delta ' + deltaClass + '">' + delta + '</span>' +
-        (r.note ? '<span class="dfrow-note">' + r.note + '</span>' : '') +
-      '</li>';
-    });
-    tableEl.innerHTML = tableHtml;
-  }
-
-  render('7d');
-
-  var tabs = document.querySelectorAll('.dash-funnel .dash-tab');
-  tabs.forEach(function(t){
-    t.addEventListener('click', function(){
-      tabs.forEach(function(x){ x.classList.remove('is-active'); x.setAttribute('aria-selected','false'); });
-      t.classList.add('is-active'); t.setAttribute('aria-selected','true');
-      render(t.dataset.window);
-    });
-  });
-};
-if("requestIdleCallback" in window) requestIdleCallback(__init, {timeout: 2000});
-else setTimeout(__init, 0);
-})();
-</script>
-
-
-<div class="viz viz-funnel"><div class="viz-label">Funnel</div><div class="funnel-rows">
-<div class="funnel-row" style="--w:100.000"><span class="f-label">Impressions</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">10,000,000</span></div>
-<div class="funnel-row" style="--w:1.500"><span class="f-label">Clicks</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">150,000</span></div>
-<div class="funnel-drop"><span class="drop-pct">CTR 1.5%</span></div>
-<div class="funnel-row" style="--w:1.350"><span class="f-label">Page Views</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">135,000</span></div>
-<div class="funnel-drop"><span class="drop-pct">90%</span></div>
-<div class="funnel-row" style="--w:0.225"><span class="f-label">Add to Cart</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">22,500</span></div>
-<div class="funnel-drop"><span class="drop-pct">16.7%</span></div>
-<div class="funnel-row" style="--w:0.135"><span class="f-label">Checkout</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">13,500</span></div>
-<div class="funnel-drop"><span class="drop-pct">60%</span></div>
-<div class="funnel-row" style="--w:0.054"><span class="f-label">Purchase</span><div class="f-track"><div class="f-bar"></div></div><span class="f-value">5,400</span></div>
-<div class="funnel-drop"><span class="drop-pct">40%</span></div>
-</div></div>
-<p>Annotate with industry benchmarks. If your click→purchase rate is 3.6% vs vertical median 4.5%, you know where to focus.</p>
-<h3 id="ap05-roas-by-attribution-window">ROAS by attribution window</h3>
+  <h3 id="ap05-roas-by-attribution-window">ROAS by attribution window · the reason you're here</h3>
 <figure class="dash dash-roas" aria-label="ROAS by attribution window">
   <div class="dash-head">
     <div>
@@ -1463,373 +1247,161 @@ else setTimeout(__init, 0);
 </figure>
 
 
-<p>A critical chart. The same campaign shows very different ROAS at 1d-click vs 7d-click vs 28d-click. Advertisers need to see all three.</p>
-<pre class="text"><code>Attribution Window    Attributed Revenue    ROAS
-  1-day click          $12,000              2.4x
-  7-day click          $23,000              4.6x
- 28-day click          $27,000              5.4x
-  1-day view           $18,000              3.6x
-  7-day click + 1v     $29,500              5.9x
-</code></pre>
-<h3 id="ap05-sql-1">SQL</h3>
-<pre class="sql"><code>WITH windows AS (
-  SELECT &#39;click_1d&#39; AS window_label, 1 AS click_d, 0 AS view_d UNION ALL
-  SELECT &#39;click_7d&#39;, 7, 0 UNION ALL
-  SELECT &#39;click_28d&#39;, 28, 0 UNION ALL
-  SELECT &#39;click_7d_view_1d&#39;, 7, 1
-),
-attributed AS (
-  SELECT
-    w.window_label,
-    SUM(c.conv_value) AS revenue
-  FROM windows w
-  CROSS JOIN fact_attributed_conversion c
-  WHERE c.campaign_id = :c
-    AND (
-      (c.source = &#39;click&#39; AND DATEDIFF(c.conversion_ts, c.click_ts) &lt;= w.click_d)
-      OR
-      (c.source = &#39;view&#39;  AND w.view_d &gt; 0
-        AND DATEDIFF(c.conversion_ts, c.view_ts) &lt;= w.view_d)
-    )
-  GROUP BY w.window_label
-),
-spend AS (
-  SELECT SUM(spend_cents) / 100.0 AS spend_usd
-  FROM fact_impression
-  WHERE campaign_id = :c
-)
-SELECT
-  a.window_label,
-  a.revenue,
-  s.spend_usd,
-  a.revenue / NULLIF(s.spend_usd, 0) AS roas
-FROM attributed a CROSS JOIN spend s
-ORDER BY a.window_label;
-</code></pre>
-<hr />
-<h2 id="ap05-section-4-app-install-funnel-app-installs-objective">Section 4: App Install Funnel (App Installs Objective)</h2>
-<h3 id="ap05-the-funnel-1">The funnel</h3>
-<div class="viz viz-flow"><span class="flow-step">Impressions</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Clicks</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Install-Page Open</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Install</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">First-Open</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Event1</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Event2</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">Retention D7</span></div>
-<p>App installs are their own beast. Attribution is through a Mobile Measurement Partner (MMP) in most cases, or SKAdNetwork on iOS.</p>
-<h3 id="ap05-install-to-event-funnel">Install-to-event funnel</h3>
-<figure class="dash dash-install" aria-label="App install event funnel">
-  <div class="dash-head">
+
+  <p>This is the chart you built overnight. It is not in Amelia's normal view. You pulled it forward because the only way to explain tonight's +18% is to show ROAS across attribution windows side by side, with the identity-graph version as a visible cohort.</p>
+
+  <!-- ROAS-windows dashboard injects here -->
+
+  <p>You say one sentence while it loads: <em>"The 28-day window is where the graph change shows up. 7-day barely moves. 1-day is flat. The platform is measuring more accurately — not more optimistically."</em> Amelia looks at the 28-day bar for thirty seconds. She asks one question. It is the question every CFO asks eventually, and the platform has to have a clean answer.</p>
+
+  <div class="act-reply">
+    <strong>Amelia:</strong> "If this graph upgrade had shipped before Q3 close, would the September number we reported to the board have been $9.12M or higher?"
+  </div>
+
+  <p>You were ready for this one at 03:40 AM. You built the parallel table for exactly this question.</p>
+
+  <div class="act-reply">
+    <strong>You:</strong> "Higher — by approximately $190K. September under <code>v2025.11</code> closes at $9.31M instead of $9.12M. That $190K is real revenue; we under-attributed it at close. I'd recommend we <em>don't</em> restate the Q3 number — the $9.12M was correct under the measurement we had — but we flag the $190K in the board footnote as an identified improvement, and the advertisers affected get a measurement-update note from the partnerships team. I've drafted both. They're in your inbox."</div>
+
+  <p>She reads the email for ninety seconds. She does not say anything while she reads. When she looks up, the first thing she says is not about the numbers.</p>
+
+  <div class="act-reply">
+    <strong>Amelia:</strong> "How did you know the <em>shape</em> of what I'd ask?"
+  </div>
+
+  <p>You answer honestly.</p>
+
+  <div class="act-reply">
+    <strong>You:</strong> "Because the question you asked in September — 'which is right, $8.2M or $9.1M' — was the same shape. In September we could not answer it without a week of reconciliation. This morning we answered it in forty-three minutes because the platform is designed around that specific question. The parallel table, the graph version pin, the up-alert that woke me up at 2:17 — all of that exists because of the 10:37 email on September 30th."</div>
+
+  <p>She nods once. The meeting ends at 08:42. The board prep gets the $9.31M footnote. The advertisers get the note on Tuesday. Nobody mentions the word "incident."</p>
+
+  <h2 id="ap05-install-to-event-funnel">The advertiser view · install-to-event funnel</h2>
+
+  <p>After the CFO meeting you walk down to the advertiser-success team. They have their own dashboard — the one the platform ships to every self-serve advertiser. This is a different surface for a different audience, and the question it answers is different too. <em>Is my campaign working, in my vocabulary.</em></p>
+
+  <!-- install funnel dashboard injects here -->
+
+  <p>The difference between this view and the CFO view is the thing that took you three months to learn at StreamCo: <strong>audiences do not translate</strong>. Amelia does not want to see "D30 retention by cohort." An advertiser does not want to see "settled revenue, USD basis." The same ad platform produces both surfaces from the same silver tables, bound through the semantic layer, and neither audience is ever confused about which number is which — because the audience tag on the metric is part of the query plan.</p>
+
+  <h2 id="ap05-key-chart-lead-funnel--cycle-time">The sales-cycle view · lead funnel + cycle time</h2>
+
+  <p>The third surface is for advertisers running lead-generation campaigns. The shape of a lead campaign is not a funnel; it is a funnel <em>with a time axis</em>, because the bottleneck is days-to-close, not percent-converting. A lead campaign with a 40% MQL-to-close that takes 90 days is worse than a 25% MQL-to-close that takes 14 days, and no one-number ROAS captures this.</p>
+
+  <!-- lead funnel dashboard injects here -->
+
+  <p>This dashboard is the one advertisers screenshot and send to their CFOs. The platform's job is to make sure they don't have to re-label anything before they paste it into the deck — the axis labels, the window, the attribution model are all on the chart itself.</p>
+
+  <p>There is one more dashboard below — the campaign-level drilldown. It is a tool, not a narrative surface. You include it because every advertiser eventually asks "but what about <em>my</em> campaign," and the platform needs a no-ceremony way to answer that.</p>
+
+  <!-- campaign dashboard injects after h3 "The Header" -->
+  <h3 id="ap05-the-header">Campaign drilldown · the header card</h3>
+<figure class="dash dash-campaign" aria-label="Campaign performance dashboard">
+  <div class="dash-campaign-head">
     <div>
-      <div class="dash-eyebrow">Dashboard · App Install Funnel</div>
-      <h4 class="dash-title">Install to purchase to D7 retention</h4>
+      <div class="dash-eyebrow">Campaign · Q2 Retargeting — Urban 25-44</div>
+      <h4 class="dash-title">Period: Apr 1 – Apr 22, 2026</h4>
     </div>
-    <div class="dash-legend">
-      <span><span class="d-dot" style="background:#2563a8"></span>cohort size</span>
-      <span><span class="d-dot" style="background:#c44b2b"></span>drop</span>
+    <div class="perf-score">
+      <svg viewBox="0 0 120 120" role="img" aria-label="Performance score 78 of 100">
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#e2ebf4" stroke-width="10"/>
+        <circle cx="60" cy="60" r="50" fill="none" stroke="#2563a8" stroke-width="10"
+                stroke-dasharray="244 314" stroke-linecap="round" transform="rotate(-90 60 60)"/>
+        <text x="60" y="66" text-anchor="middle" font-family="Playfair Display" font-size="28" font-weight="700" fill="#1a2332">78</text>
+      </svg>
+      <div class="perf-label">Performance score</div>
     </div>
   </div>
 
-  <div class="install-rows" id="installRows"></div>
-
-  <div class="dash-footnote">D7 retention is measured against installs, not the previous step. That's the comparable number for LTV modeling.</div>
-</figure>
-
-<script type="module">
-(function(){
-var __init=function(){
-  if (window.__dashInstallInit) return;
-  window.__dashInstallInit = true;
-  var stages = [
-    { name: 'Installs',          count: 10000, anchor: true },
-    { name: 'First-open',        count: 8500  },
-    { name: 'Tutorial complete', count: 5100  },
-    { name: 'Registration',      count: 3400  },
-    { name: 'Purchase',          count: 1200  },
-    { name: 'D7 retention',      count: 2800, note: '28% of installs (measured against install cohort, not previous step)' }
-  ];
-  var host = document.getElementById('installRows');
-  if (!host) return;
-  var maxN = stages[0].count;
-  var prev = null;
-  var rows = stages.map(function(s, i){
-    var wPct = 100 * s.count / maxN;
-    var rel = prev !== null ? ((s.count - prev) / prev) : 0;
-    var relLabel = '';
-    if (i > 0 && !s.note) {
-      var dropPct = Math.round(100 * (prev - s.count) / prev);
-      relLabel = '-' + dropPct + '% vs prev';
-    }
-    prev = s.count;
-    var overallPct = Math.round(100 * s.count / maxN);
-    return (
-      '<div class="irow">'+
-        '<div class="irow-head">'+
-          '<span class="irow-name">'+s.name+'</span>'+
-          '<span class="irow-count">'+s.count.toLocaleString()+'</span>'+
-          '<span class="irow-pct">'+overallPct+'% of install cohort</span>'+
-          (relLabel ? '<span class="irow-drop">'+relLabel+'</span>' : '')+
-        '</div>'+
-        '<div class="irow-track"><div class="irow-bar" style="width:'+wPct+'%"></div></div>'+
-        (s.note ? '<div class="irow-note">'+s.note+'</div>' : '')+
-      '</div>'
-    );
-  }).join('');
-  host.innerHTML = rows;
-};
-if("requestIdleCallback" in window) requestIdleCallback(__init, {timeout: 2000});
-else setTimeout(__init, 0);
-})();
-</script>
-
-
-<pre class="text"><code>Installs               10,000
-First-open              8,500 (85%)
-Tutorial complete       5,100 (60% of first-open)
-Registration            3,400 (40%)
-Purchase                1,200 (14%)
-D7 retention            2,800 (28% of installs)
-</code></pre>
-<h3 id="ap05-the-event-schema">The "event" schema</h3>
-<p>Advertiser-defined milestone events flow back via the MMP or server API:</p>
-<pre class="sql"><code>CREATE TABLE fact_app_event (
-  dt            DATE,
-  install_id    BINARY(16),         -- from install attribution
-  app_id        BIGINT,
-  event_name    STRING,              -- &#39;first_open&#39;, &#39;tutorial_complete&#39;, &#39;purchase&#39;, ...
-  event_ts      TIMESTAMP,
-  value_usd     DECIMAL(18,4)        -- for purchases
-)
-PARTITIONED BY (dt);
-</code></pre>
-<h3 id="ap05-retention-curve">Retention curve</h3>
-<pre class="sql"><code>WITH installs AS (
-  SELECT install_id, install_ts
-  FROM fact_install
-  WHERE campaign_id = :c
-    AND install_ts BETWEEN :start AND :end
-),
-opens AS (
-  SELECT install_id, DATE(event_ts) AS open_dt
-  FROM fact_app_event
-  WHERE event_name = &#39;app_open&#39;
-)
-SELECT
-  DATEDIFF(o.open_dt, DATE(i.install_ts)) AS days_since_install,
-  COUNT(DISTINCT o.install_id) * 1.0 /
-    (SELECT COUNT(DISTINCT install_id) FROM installs) AS retention_rate
-FROM installs i
-JOIN opens o USING (install_id)
-WHERE o.open_dt BETWEEN DATE(i.install_ts) AND DATE(i.install_ts) + INTERVAL &#39;30&#39; DAY
-GROUP BY days_since_install
-ORDER BY days_since_install;
-</code></pre>
-<p>Standard curve is D1 ~50%, D7 ~25%, D30 ~15% for a solid app. Less than that, the install was probably a low-quality install from poor audience targeting.</p>
-<h3 id="ap05-skan-caveat">SKAN caveat</h3>
-<p>SKAdNetwork postbacks are:</p>
-<ul>
-<li>Delayed (24h minimum, up to 60h).</li>
-<li>Conversion-value-constrained (6-bit on classic SKAN, 64-bit with SKAN 4).</li>
-<li>Subject to anonymization thresholds (no postback below cohort-size floor).</li>
-<li>Non-deterministic at granular grain.</li>
-</ul>
-<p>Your SKAN pipeline has to handle all four. Don't mix SKAN-derived metrics with MMP-derived metrics in the same chart without clear labeling.</p>
-<hr />
-<h2 id="ap05-section-5-lead-quality-scoring-lead-gen-objective">Section 5: Lead Quality Scoring (Lead Gen Objective)</h2>
-<h3 id="ap05-the-format">The format</h3>
-<p>Advertiser runs a lead form ad. User fills it out without leaving the platform. Advertiser receives the lead record for follow-up.</p>
-<h3 id="ap05-the-pipeline">The pipeline</h3>
-<div class="viz viz-flow"><span class="flow-step">lead_form_impression</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">lead_form_open</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">lead_form_submit</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">(advertiser CRM)</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">qualified_lead</span><span class="flow-arrow" aria-hidden="true">→</span><span class="flow-step">closed_deal</span></div>
-<p>The last two stages happen in the advertiser's CRM, not on the ad platform. So:</p>
-<ul>
-<li><strong>Volume metrics</strong> (submissions, CPL) — measurable on-platform.</li>
-<li><strong>Quality metrics</strong> (qualified rate, close rate, deal value) — require advertiser to feed back.</li>
-</ul>
-<h3 id="ap05-feedback-api">Feedback API</h3>
-<p>The advertiser's CRM reports back qualified-lead status (and eventually close/value) via server-to-server API. Schema:</p>
-<pre class="sql"><code>CREATE TABLE lead_outcome_feedback (
-  lead_id         BINARY(16),
-  campaign_id     BIGINT,
-  advertiser_id   BIGINT,
-  submitted_ts    TIMESTAMP,
-  qualified       BOOLEAN,
-  qualified_ts    TIMESTAMP,
-  closed_won      BOOLEAN,
-  closed_ts       TIMESTAMP,
-  deal_value_usd  DECIMAL(18,4)
-);
-</code></pre>
-<h3 id="ap05-lead-quality-ratio">Lead-quality ratio</h3>
-<pre class="sql"><code>SELECT
-  campaign_id,
-  COUNT(*) AS leads_submitted,
-  SUM(CASE WHEN qualified THEN 1 ELSE 0 END) AS qualified,
-  SUM(CASE WHEN qualified THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS qualified_rate,
-  SUM(CASE WHEN closed_won THEN deal_value_usd ELSE 0 END) AS revenue,
-  SUM(CASE WHEN closed_won THEN deal_value_usd ELSE 0 END) /
-    NULLIF(SUM(spend_usd), 0) AS ROAS_leadgen
-FROM lead_outcome_feedback f
-JOIN (SELECT campaign_id, SUM(spend_cents)/100.0 AS spend_usd
-      FROM fact_impression WHERE dt BETWEEN :start AND :end
-      GROUP BY campaign_id) s USING (campaign_id)
-WHERE f.submitted_ts BETWEEN :start AND :end
-GROUP BY campaign_id
-ORDER BY ROAS_leadgen DESC;
-</code></pre>
-<h3 id="ap05-key-chart-lead-funnel--cycle-time">Key chart: lead funnel + cycle time</h3>
-<figure class="dash dash-lead" aria-label="Lead funnel and cycle time">
-  <div class="dash-head">
-    <div>
-      <div class="dash-eyebrow">Dashboard · Lead Gen</div>
-      <h4 class="dash-title">Leads → qualified → closed · with cycle time and ROAS</h4>
+  <div class="dash-kpi-grid">
+    <div class="kpic">
+      <div class="kpic-label">Spend</div>
+      <div class="kpic-value">$142,300</div>
+      <div class="kpic-trend up"><span class="tri">▲</span>12% WoW</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#2563a8" stroke-width="2" points="0,22 12,19 24,21 36,16 48,13 60,15 72,10 84,8 100,6"/></svg>
     </div>
-    <div class="dash-kpis">
-      <div class="kpi">
-        <div class="kpi-label">Spend</div>
-        <div class="kpi-value">$60,000</div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-label">Revenue</div>
-        <div class="kpi-value">$450,000</div>
-      </div>
-      <div class="kpi kpi-highlight">
-        <div class="kpi-label">ROAS</div>
-        <div class="kpi-value">7.5×</div>
-      </div>
+    <div class="kpic">
+      <div class="kpic-label">Impressions</div>
+      <div class="kpic-value">8.4M</div>
+      <div class="kpic-trend up"><span class="tri">▲</span>8% WoW</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#2563a8" stroke-width="2" points="0,20 12,18 24,16 36,14 48,12 60,11 72,9 84,8 100,7"/></svg>
+    </div>
+    <div class="kpic">
+      <div class="kpic-label">Clicks</div>
+      <div class="kpic-value">124K</div>
+      <div class="kpic-trend down"><span class="tri">▼</span>3% WoW</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#c44b2b" stroke-width="2" points="0,8 12,10 24,9 36,12 48,14 60,13 72,15 84,16 100,18"/></svg>
+    </div>
+    <div class="kpic">
+      <div class="kpic-label">CTR</div>
+      <div class="kpic-value">1.47%</div>
+      <div class="kpic-trend down"><span class="tri">▼</span>0.12pp WoW</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#c44b2b" stroke-width="2" points="0,6 12,7 24,9 36,11 48,10 60,13 72,15 84,16 100,18"/></svg>
+    </div>
+    <div class="kpic">
+      <div class="kpic-label">CPA</div>
+      <div class="kpic-value">$42</div>
+      <div class="kpic-trend up"><span class="tri">▲</span>4% WoW (bad)</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#c44b2b" stroke-width="2" points="0,20 12,18 24,17 36,14 48,12 60,11 72,9 84,8 100,6"/></svg>
+    </div>
+    <div class="kpic kpic-highlight">
+      <div class="kpic-label">ROAS</div>
+      <div class="kpic-value">3.8×</div>
+      <div class="kpic-trend up"><span class="tri">▲</span>0.3× WoW</div>
+      <svg class="kpic-spark" viewBox="0 0 100 30" preserveAspectRatio="none"><polyline fill="none" stroke="#2a7a4a" stroke-width="2" points="0,22 12,20 24,18 36,16 48,14 60,12 72,10 84,8 100,5"/></svg>
     </div>
   </div>
 
-  <div class="lead-grid">
-    <div class="lead-funnel">
-      <div class="lstage is-large" style="--w:100">
-        <div class="lstage-name">Leads submitted</div>
-        <div class="lstage-value">1,200</div>
-        <div class="lstage-rate">Cost per lead · $50</div>
-      </div>
-      <div class="lstage-gap"><span>60% pass quality gate · 7d</span></div>
-      <div class="lstage is-mid" style="--w:60">
-        <div class="lstage-name">Qualified</div>
-        <div class="lstage-value">720</div>
-        <div class="lstage-rate">SQL-to-CRM lag · 7d</div>
-      </div>
-      <div class="lstage-gap"><span>25% close · 30d</span></div>
-      <div class="lstage is-small" style="--w:15">
-        <div class="lstage-name">Closed won</div>
-        <div class="lstage-value">180</div>
-        <div class="lstage-rate">Avg deal · $2,500</div>
-      </div>
+  <div class="dash-signal-grid">
+    <div class="signal good">
+      <div class="signal-head"><span class="signal-dot"></span>On track</div>
+      <div class="signal-body"><strong>ROAS up 8.5%</strong> vs trailing-28d. Account auto-bid is pacing well on the evening slot.</div>
     </div>
-
-    <div class="lead-cycle">
-      <div class="cycle-title">Cycle-time distribution</div>
-      <div class="cycle-plot">
-        <div class="cycle-bar" style="--h:20" title="Day 1-7: 20%"></div>
-        <div class="cycle-bar" style="--h:35" title="Day 8-14: 35%"></div>
-        <div class="cycle-bar is-peak" style="--h:60" title="Day 15-21: 60%"></div>
-        <div class="cycle-bar" style="--h:45" title="Day 22-28: 45%"></div>
-        <div class="cycle-bar" style="--h:20" title="Day 29+: 20%"></div>
-      </div>
-      <div class="cycle-axis">
-        <span>1-7d</span><span>8-14d</span><span class="is-peak">15-21d</span><span>22-28d</span><span>29d+</span>
-      </div>
-      <div class="cycle-call">
-        <strong>Avg cycle · 18 days.</strong> Do not declare failure at week 2 — majority of closes land between day 15 and 28.
-      </div>
+    <div class="signal warn">
+      <div class="signal-head"><span class="signal-dot"></span>Warning</div>
+      <div class="signal-body"><strong>Frequency cap breaches.</strong> 14% of the reached audience is seeing &gt;10 impressions in 7d. Spend is compounding on saturated cohorts.</div>
+    </div>
+    <div class="signal bad">
+      <div class="signal-head"><span class="signal-dot"></span>Action needed</div>
+      <div class="signal-body"><strong>Creative fatigue.</strong> Hero creative CTR has decayed 22% in 14 days. Schedule rotation Tuesday.</div>
     </div>
   </div>
 </figure>
 
 
-<pre class="text"><code>Leads submitted:        1,200
-Qualified (within 7d):    720 (60%)
-Closed won (within 30d):  180 (15%)
-Avg cycle time:           18 days
-Revenue:              $450,000
-Spend:                 $60,000
-ROAS:                    7.5x
-</code></pre>
-<p>The "cycle time" dimension matters — you can't declare the campaign a failure after 2 weeks if the average lead closes on day 18.</p>
-<hr />
-<h2 id="ap05-section-6-cross-objective-benchmark-table">Section 6: Cross-Objective Benchmark Table</h2>
-<p>Most senior dashboards include a benchmark row showing where this campaign sits relative to a reference set.</p>
-<pre class="sql"><code>WITH this_campaign AS (
-  SELECT SUM(impressions) imps, SUM(clicks) clicks, SUM(spend_usd) spend, SUM(revenue) rev
-  FROM metric_campaign_daily
-  WHERE campaign_id = :c AND dt BETWEEN :start AND :end
-),
-advertiser_baseline AS (
-  SELECT
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY clicks * 1.0 / imps) AS median_ctr,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rev / spend) AS median_roas
-  FROM (
-    SELECT campaign_id,
-           SUM(impressions) AS imps,
-           SUM(clicks) AS clicks,
-           SUM(spend_usd) AS spend,
-           SUM(revenue) AS rev
-    FROM metric_campaign_daily
-    WHERE advertiser_id = (SELECT advertiser_id FROM dim.campaign WHERE campaign_id = :c)
-      AND dt BETWEEN CURRENT_DATE - 28 AND CURRENT_DATE - 1
-    GROUP BY campaign_id
-  ) t
-  WHERE imps &gt; 10000
-),
-vertical_baseline AS (
-  SELECT
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY clicks * 1.0 / imps) AS median_ctr,
-    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY rev / spend) AS median_roas
-  FROM (...vertical-level aggregation...) t
-)
-SELECT
-  tc.clicks * 1.0 / tc.imps AS campaign_ctr,
-  ab.median_ctr AS acct_median_ctr,
-  (tc.clicks * 1.0 / tc.imps) / NULLIF(ab.median_ctr, 0) - 1.0 AS vs_account_pct,
-  vb.median_ctr AS vert_median_ctr,
-  (tc.clicks * 1.0 / tc.imps) / NULLIF(vb.median_ctr, 0) - 1.0 AS vs_vertical_pct
-FROM this_campaign tc CROSS JOIN advertiser_baseline ab CROSS JOIN vertical_baseline vb;
-</code></pre>
-<p>Benchmarks should always include at least two references — the advertiser's own trailing performance, and a vertical-wide median. One reference is too easy to game.</p>
-<hr />
-<h2 id="ap05-section-7-visualization-anti-patterns">Section 7: Visualization Anti-Patterns</h2>
-<ul>
-<li><strong>Dual-axis charts.</strong> Always confusing. Split into two panels.</li>
-<li><strong>Mixed-metric stacked bars.</strong> "Clicks + impressions" stacked makes no sense.</li>
-<li><strong>Percentages without denominators.</strong> "CVR dropped 30%" — from 3% to 2.1% or from 0.1% to 0.07%? Always show the base.</li>
-<li><strong>Moving-average without the raw.</strong> Hides short-term changes.</li>
-<li><strong>Color-coded-only diff.</strong> 8% of users are color-blind. Always label with a sign or arrow too.</li>
-<li><strong>Truncated Y-axis.</strong> Zoomed axes lie. Start at zero unless there's a reason to not.</li>
-</ul>
-<hr />
-<h2 id="ap05-section-8-the-one-pager-the-exec-actually-reads">Section 8: The One-Pager the Exec Actually Reads</h2>
-<p>At the most senior level, the scorecard shrinks to one screen with five numbers:</p>
-<pre class="text"><code>CAMPAIGN HEALTH — &lt;campaign_name&gt;
 
-  Spend:         $54,230 (91% of budget)
-  Primary KPI:   ROAS 4.2x  (target 4.0x)  ✓
-  Guardrail:     IVT 0.8%   (cap 2.0%)     ✓
-  Trajectory:    +12% vs. last week
-  Next action:   Increase budget 20%, refresh creative
+  <p>Single campaign, scorecard at the top, trend below, benchmark row for context. Self-serve advertisers bounce between this and the funnel chart above; that pattern drove the layout decisions.</p>
 
-  🟢 Running well — no intervention needed.
-</code></pre>
-<p>That's it. If the exec wants more, they'll click through. If they don't, you've already told them everything they need. Senior DE mastery is knowing when to stop adding numbers.</p>
-<hr />
-<h2 id="ap05-section-9-measurement-checklist-before-a-campaign-launches">Section 9: Measurement Checklist (before a campaign launches)</h2>
-<ul class="task-list">
-<li><input type="checkbox" disabled="" />
-Objective is declared and mapped to exactly one primary KPI.</li>
-<li><input type="checkbox" disabled="" />
-At least two guardrail metrics are declared.</li>
-<li><input type="checkbox" disabled="" />
-Attribution window(s) are pre-committed; no post-hoc changes.</li>
-<li><input type="checkbox" disabled="" />
-Benchmark references (account, vertical) are identified.</li>
-<li><input type="checkbox" disabled="" />
-Dashboard is wired to the metric registry, not a hand-rolled SQL.</li>
-<li><input type="checkbox" disabled="" />
-Incrementality measurement plan exists (holdout, or lift study, or forgo).</li>
-<li><input type="checkbox" disabled="" />
-D+7 lock policy is written down — numbers become immutable on day 7.</li>
-<li><input type="checkbox" disabled="" />
-Advertiser approved the measurement plan in writing.</li>
-</ul>
-<p>A campaign without measurement is a spend event. With measurement, it's a learning event. The DE's job is to make sure it's the second one.</p>
-<hr />
-<p><a href="#ads-part-IX">← Master Index</a> · <a href="#ads-part-04">← Part 4</a></p>
+  <aside class="sidebar sidebar-room">
+    <div class="sidebar-label">The Room · Scar File 6</div>
+    <h3 class="sidebar-title">The dashboard is not the deliverable. The conversation is.</h3>
+    <p>Senior DE candidates build dashboards that are technically correct, visually clean, and completely useless in the meeting where they matter. The reason is always the same: the dashboard is designed around the data, not around the conversation the executive will try to have with it.</p>
+    <ol>
+      <li><strong>What is the audience going to ask?</strong> Not what can we show — what question will the viewer try to answer on this surface.</li>
+      <li><strong>What is the second question?</strong> The follow-up. The "and also" question. Put that one at most one click away.</li>
+      <li><strong>What is the question the viewer will ask about the <em>platform itself</em>?</strong> "Why is this different from yesterday's number." The platform has to answer this without a human in the room.</li>
+      <li><strong>Can you operate this dashboard silently?</strong> If the meeting requires the author to explain it, the platform is not done.</li>
+    </ol>
+    <p class="sidebar-punch">A dashboard is the surface of a conversation. Design the conversation. The chart follows.</p>
+  </aside>
+
+  <aside class="sidebar sidebar-landmine">
+    <div class="sidebar-label">The Landmine · 6 of many</div>
+    <h3 class="sidebar-title">The "power user" dashboard</h3>
+    <p>Every data team eventually builds a dashboard with twenty filters, four tabs, a pivot control, and a "custom time range" button. It is described internally as <em>the one dashboard to rule them all</em>. It is used by exactly the three people who built it, and by no one else. Ever.</p>
+    <p>The failure mode is not that it's complex — it's that complexity is pushed onto the viewer. Every filter is a decision the viewer has to make before they can read a number. Every tab is a cognitive cost. Executives will not pay that cost. They will ask you in the meeting instead, which is fine until you leave the company.</p>
+    <p>The senior move is to build <em>four different dashboards for four different audiences</em>, each with three charts and zero filters. The platform has already done the decision-making. The viewer is handed the answer.</p>
+    <p class="sidebar-punch">Rule: if the dashboard has a filter, the viewer has to make a choice. Make the choice for them.</p>
+  </aside>
+
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Where this is going · Act 7</div>
+    <h3 class="sidebar-title">The last four minutes of the round.</h3>
+    <p>Clock reads 43:22 in the interview room. Raj has one more question. It is the quiet one — the one that reframes everything you spent the last forty-three minutes on. You think you've been interviewing for a pipeline job. You have not. Act 7 is where the round actually gets scored.</p>
+  </aside>
+</section>
+
+<hr>
 
 <hr>
 <h2 id="ap05-dash-growth-accounting">Dashboard · Growth Accounting</h2>
