@@ -25,6 +25,7 @@ SRC_DIR = ROOT / "interview" / "ads engineering"
 OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 
 PARTS = [
+    ("X0", "Primer_Ads_101.html",                       "Primer · Ads 101",                     "primer"),
     ("IX", "00_Master_Index.html",                      "The Brief · 09:47",                    "overview"),
     ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · 00:00 · The Incident",        "incident"),
     ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · 04:42 · Revenue",            "revenue"),
@@ -951,6 +952,88 @@ HEAD = '''<!DOCTYPE html>
 .part-section .brief-rules-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
 .part-section .brief-rules ul { margin: 0 0 0 22px; padding: 0; }
 .part-section .brief-rules li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; margin-bottom: 6px; color: var(--color-ink); }
+
+/* Primer — 5-beat money flow */
+.part-section .primer-flow { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 26px 0; box-shadow: 0 4px 16px rgba(26,35,50,.06); }
+.part-section .primer-flow-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 18px; text-align: center; }
+.part-section .flow-beat { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 14px 0; border-top: 1px dashed var(--color-border); }
+.part-section .flow-beat:first-of-type { border-top: none; padding-top: 4px; }
+.part-section .flow-num { font-family: var(--font-display); font-size: 34px; font-weight: 700; color: var(--color-gold-dark); line-height: 1; background: var(--color-cream); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.part-section .flow-name { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px; }
+.part-section .flow-what { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--color-ink); }
+.part-section .primer-flow-foot { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-muted); font-style: italic; }
+
+/* Primer — five giants grid */
+.part-section .giants { margin: 32px 0; }
+.part-section .giants-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 16px; text-align: center; }
+.part-section .giant { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; margin-bottom: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(26,35,50,.05); border-left: 5px solid var(--color-gold); }
+.part-section .giant-meta    { border-left-color: #4267B2; }
+.part-section .giant-google  { border-left-color: #4285F4; }
+.part-section .giant-amazon  { border-left-color: #FF9900; }
+.part-section .giant-netflix { border-left-color: #E50914; }
+.part-section .giant-apple   { border-left-color: #555555; }
+.part-section .giant-head { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 20px; background: var(--color-cream); border-bottom: 1px solid var(--color-border); flex-wrap: wrap; gap: 8px; }
+.part-section .giant-name { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--color-ink); }
+.part-section .giant-rev { font-family: var(--font-mono); font-size: 12px; color: var(--color-gold-dark); letter-spacing: 0.08em; }
+.part-section .giant-grid { padding: 12px 20px; }
+.part-section .giant-row { display: grid; grid-template-columns: 180px 1fr; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--color-border-light); }
+.part-section .giant-row:first-child { border-top: none; }
+.part-section .giant-k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-dark); padding-top: 2px; }
+.part-section .giant-v { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); }
+.part-section .giants-foot { margin-top: 16px; padding: 14px 18px; background: var(--color-cream); border-left: 3px solid var(--color-gold); border-radius: 0 8px 8px 0; font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); font-style: italic; }
+@media (max-width: 700px) {
+  .part-section .giant-row { grid-template-columns: 1fr; gap: 2px; }
+  .part-section .giant-name { font-size: 20px; }
+}
+
+/* Primer — rot/corruption cards */
+.part-section .rot { margin: 32px 0; }
+.part-section .rot-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; }
+.part-section .rot-intro { font-family: var(--font-body); font-size: 15.5px; line-height: 1.7; color: var(--color-ink); background: var(--color-cream); border-left: 3px solid var(--color-rust); padding: 12px 18px; border-radius: 0 8px 8px 0; margin-bottom: 18px; }
+.part-section .rot-card { background: #fff; border: 1px solid var(--color-border); border-left: 5px solid var(--color-rust); border-radius: 10px; padding: 16px 20px; margin-bottom: 12px; display: grid; grid-template-columns: 58px 1fr; grid-template-rows: auto auto auto; column-gap: 16px; row-gap: 4px; }
+.part-section .rot-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--color-rust); background: rgba(196,75,43,.08); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.part-section .rot-name { font-family: var(--font-display); font-size: 19px; font-weight: 700; color: var(--color-ink); }
+.part-section .rot-what { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); }
+.part-section .rot-where { font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; color: var(--color-muted); font-style: italic; border-top: 1px dashed var(--color-border); padding-top: 6px; margin-top: 4px; }
+.part-section .rot-where code { font-style: normal; }
+.part-section .rot-foot { margin-top: 18px; padding: 14px 18px; background: linear-gradient(135deg, #3a1a1a 0%, #5a1f1f 100%); color: #fff; border-radius: 10px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; }
+.part-section .rot-foot em { color: #f5a9a9; font-style: italic; }
+
+/* Primer — $100 money bar */
+.part-section .money-shape { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 22px; margin: 26px 0; }
+.part-section .money-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; }
+.part-section .money-bar { display: flex; height: 76px; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); }
+.part-section .money-seg { display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: #fff; text-align: center; padding: 4px 2px; line-height: 1.3; }
+.part-section .money-seg strong { font-family: var(--font-display); font-size: 17px; font-weight: 700; margin-top: 2px; }
+.part-section .money-platform  { background: #1a4f8a; }
+.part-section .money-ssp        { background: #2563a8; }
+.part-section .money-dsp        { background: #4a8fbf; }
+.part-section .money-data       { background: #c8915a; }
+.part-section .money-ivt        { background: #c44b2b; }
+.part-section .money-publisher  { background: #2a7a4a; }
+.part-section .money-foot { margin-top: 14px; font-family: var(--font-body); font-size: 14px; line-height: 1.65; color: var(--color-muted); font-style: italic; }
+.part-section .money-foot em { color: var(--color-rust); font-style: italic; }
+@media (max-width: 700px) {
+  .part-section .money-bar { flex-direction: column; height: auto; }
+  .part-section .money-seg { min-height: 44px; width: 100% !important; flex-direction: row; gap: 10px; }
+  .part-section .money-seg strong { margin: 0; }
+}
+
+/* Primer — glossary grid */
+.part-section .glossary { background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 22px; margin: 26px 0; }
+.part-section .glossary-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; }
+.part-section .glossary-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.part-section .glossary-item { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; display: grid; grid-template-columns: 78px 1fr; gap: 10px; align-items: baseline; }
+.part-section .gl-k { font-family: var(--font-mono); font-size: 12.5px; font-weight: 600; color: var(--color-gold-dark); letter-spacing: 0.04em; }
+.part-section .gl-v { font-family: var(--font-body); font-size: 13px; line-height: 1.5; color: var(--color-ink); }
+@media (max-width: 700px) { .part-section .glossary-grid { grid-template-columns: 1fr; } }
+
+/* Primer — hand-off to The Brief */
+.part-section .primer-handoff { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 26px 28px; margin: 32px 0 12px; box-shadow: 0 8px 24px rgba(26,35,50,.22); }
+.part-section .handoff-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 10px; }
+.part-section .handoff-title { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: #fff; margin: 0 0 14px; }
+.part-section .handoff-line { font-family: var(--font-body); font-size: 16px; line-height: 1.65; color: #e8e0d6; margin: 0 0 10px; }
+.part-section .handoff-cue { margin-top: 14px; padding-top: 14px; border-top: 1px dashed rgba(232,224,214,.3); font-family: var(--font-mono); font-size: 13px; color: var(--color-gold-light); }
 
 /* Data catalog — column-level schema reference */
 .part-section .catalog { display: flex; flex-direction: column; gap: 18px; margin: 20px 0 24px; }
