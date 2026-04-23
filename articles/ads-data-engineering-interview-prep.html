@@ -462,838 +462,175 @@
 </section>
 <section id="ads-part-01" class="part-section" data-part="01">
 <header class="part-header"><div class="part-eyebrow">Part 01</div><h1 class="part-title">Act 2 · What Is Revenue?</h1></header>
-<h1 id="ap01-part-1-mock-interview--10-scenarios--practice">Part 1: Mock Interview + 10 Scenarios + Practice</h1>
-<blockquote>
-<p><em>"Senior interviews aren't about having the answer. They're about having the judgment to pick among three plausible answers and defend the choice."</em></p>
-</blockquote>
-<hr />
-<h2 id="ap01-how-to-use-this-part">How to use this part</h2>
-<p>A full senior-level loop at a large consumer ads platform is typically 5 rounds: system design, SQL, Python / coding, streaming-vs-batch, and behavioral. This part walks the first four as if you were in the room, then runs 10 additional scenarios you should be prepared to answer cold.</p>
-<p>Read each round once end-to-end. Then close the page and try to reproduce the architecture, the SQL, or the code from scratch. You'll find the gaps quickly.</p>
-<hr />
-<h2 id="ap01-the-loop-5-rounds-what-each-is-testing">The Loop (5 rounds, what each is testing)</h2>
-<table>
-<thead>
-<tr class="header">
-<th>Round</th>
-<th>Format</th>
-<th>What's actually being measured</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>1 — System Design</td>
-<td>Whiteboard / doc, 60 min</td>
-<td>Scale thinking, trade-off fluency, pipeline taste</td>
-</tr>
-<tr class="even">
-<td>2 — SQL Deep Dive</td>
-<td>Shared editor, 45 min</td>
-<td>Window functions, join shapes, anti-patterns</td>
-</tr>
-<tr class="odd">
-<td>3 — Python / Coding</td>
-<td>Shared editor, 60 min</td>
-<td>Design sense, extensibility, tests</td>
-</tr>
-<tr class="even">
-<td>4 — Streaming vs Batch</td>
-<td>Whiteboard, 45 min</td>
-<td>Reconciliation, semantics, cost modeling</td>
-</tr>
-<tr class="odd">
-<td>5 — Behavioral</td>
-<td>Video, 45 min</td>
-<td>Leadership, conflict handling, STAR+I storytelling</td>
-</tr>
-</tbody>
-</table>
-<p>Behavioral is covered in Part 2 (scenarios 19–22). This part handles rounds 1–4 plus the technical scenario bank.</p>
-<hr />
-<h2 id="ap01-round-1-system-design--unified-metrics-platform">Round 1: System Design — Unified Metrics Platform</h2>
-<h3 id="ap01-the-prompt">The prompt</h3>
-<blockquote>
-<p>"Design a Unified Metrics Platform (UMP) that serves every ad metric — impressions, clicks, spend, conversions, ROAS — to every downstream consumer: advertiser dashboards, internal analysts, the pacing system, the ML feature store, the exec scorecard. Treat it as greenfield. Scale: 50B impressions/day, 500K advertisers, 2M analysts and engineers running queries."</p>
-</blockquote>
-<h3 id="ap01-clarifying-questions-you-should-ask-first-3-minutes">Clarifying questions you should ask (first 3 minutes)</h3>
-<ul>
-<li><strong>Freshness requirements.</strong> Advertiser dashboards: minutes. Pacing: seconds. Analysts: hourly to daily. Exec scorecards: daily.</li>
-<li><strong>Truth model.</strong> Is there one canonical number per metric, or do different consumers get different numbers? (Answer: one canonical, but with explicit latency tiers.)</li>
-<li><strong>Attribution stance.</strong> Does the platform decide attribution, or does each consumer pick? (Answer: platform decides; consumers pick the window.)</li>
-<li><strong>Privacy tier.</strong> Do advertisers see user-level events? (No — only aggregates above a minimum cohort size.)</li>
-<li><strong>Cost budget.</strong> Warehouse spend cap, hot-store footprint.</li>
-</ul>
-<p>If you skip these, you're designing blind. A strong opening is 30 seconds of clarifying before you touch the whiteboard.</p>
-<h3 id="ap01-back-of-envelope-sizing">Back-of-envelope sizing</h3>
-<ul>
-<li><strong>Impressions:</strong> 50B/day ≈ 580K/sec peak; 2× for clicks + conversions + auction events on top.</li>
-<li><strong>Wide row size</strong> at bronze: ~1.5 KB raw. 50B × 1.5 KB = <strong>75 TB/day</strong> just for impressions.</li>
-<li><strong>Storage over 2 years retention:</strong> 75 TB × 730 × 3 (fanout to silver + gold) ≈ <strong>165 PB</strong>.</li>
-<li><strong>QPS on the serving tier</strong> (advertiser dashboards): ~500K advertisers × ~2 queries / min active window ≈ <strong>20K QPS peak</strong>; 99th percentile should be &lt;200 ms.</li>
-<li><strong>Streaming lag target:</strong> &lt;60 sec end-to-end on the pacing path; &lt;5 min on the advertiser path.</li>
-</ul>
-<p>Write these numbers on the board before drawing anything. The interviewer wants to see the math.</p>
-<h3 id="ap01-architecture">Architecture</h3>
-<figure class="viz viz-pipeline-arch" aria-label="Ads telemetry pipeline architecture">
-<div class="viz-label">Ads Telemetry Pipeline</div>
-<div class="pa-top">
-  <div class="pa-box pa-box-src">
-    <div class="pa-box-title">Client SDK · browser · server CAPI</div>
-  </div>
-  <div class="pa-arrow">↓</div>
-  <div class="pa-box pa-box-spine">
-    <div class="pa-box-title">Event streaming spine</div>
-    <div class="pa-box-meta">Kafka-style · 1-day retention · ~600 K events/sec peak</div>
-  </div>
-</div>
-<div class="pa-fan-arrows" aria-hidden="true">↙ &nbsp; ↓ &nbsp; ↓ &nbsp; ↘</div>
-<div class="pa-four">
-  <div class="pa-col">
-    <div class="pa-box pa-box-bronze"><div class="pa-box-title">Bronze (raw)</div><div class="pa-box-meta">Iceberg · hourly</div></div>
-    <div class="pa-arrow pa-arrow-sm">↓</div>
-    <div class="pa-box pa-box-silver"><div class="pa-box-title">Silver</div><div class="pa-box-meta">Clean · dedup · joined to dim</div></div>
-    <div class="pa-arrow pa-arrow-sm">↓ daily</div>
-    <div class="pa-box pa-box-gold"><div class="pa-box-title">Gold · semantic layer</div><div class="pa-box-meta">Metric definitions</div></div>
-  </div>
-  <div class="pa-col">
-    <div class="pa-box pa-box-stream"><div class="pa-box-title">Stream processor</div><div class="pa-box-meta">Flink · micro-batch</div></div>
-    <div class="pa-stub"></div>
-    <div class="pa-stub"></div>
-    <div class="pa-stub"></div>
-    <div class="pa-stub"></div>
-  </div>
-  <div class="pa-col">
-    <div class="pa-box pa-box-olap"><div class="pa-box-title">Real-time OLAP</div><div class="pa-box-meta">Druid / Pinot · sec-level</div></div>
-    <div class="pa-arrow pa-arrow-sm">↓</div>
-    <div class="pa-terminal">Advertiser UI</div>
-  </div>
-  <div class="pa-col">
-    <div class="pa-box pa-box-kv"><div class="pa-box-title">Pacing counter KV</div><div class="pa-box-meta">Redis · sub-sec</div></div>
-    <div class="pa-arrow pa-arrow-sm">↓</div>
-    <div class="pa-terminal">Auction gate</div>
-  </div>
-</div>
-<div class="pa-fanout-head">Gold feeds ↓</div>
-<div class="pa-terminal-grid">
-  <div class="pa-terminal pa-term-blue">metrics registry</div>
-  <div class="pa-terminal pa-term-blue">dashboards</div>
-  <div class="pa-terminal pa-term-green">feature store</div>
-  <div class="pa-terminal pa-term-rust">exec scorecard</div>
-</div>
-</figure>
-<h3 id="ap01-schema-facts--dims">Schema (facts + dims)</h3>
-<pre class="sql"><code>-- Bronze: one row per event, immutable
-CREATE TABLE bronze.events (
-  event_ts        TIMESTAMP,
-  event_id        BINARY(16),
-  event_name      STRING,          -- impression, click, conversion, bid_win
-  user_id         BIGINT,
-  device_id       STRING,
-  session_id      STRING,
-  ad_id           BIGINT,
-  campaign_id     BIGINT,
-  advertiser_id   BIGINT,
-  surface_id      INT,
-  placement_id    INT,
-  geo_country     STRING,
-  device_os       STRING,
-  properties      MAP&lt;STRING,STRING&gt;  -- catch-all
-)
-PARTITIONED BY (dt STRING, event_name STRING);
+<section id="ap01-act-2-revenue" class="act act-2">
+  <div class="act-eyebrow">Act 2 · Round 1 · 10:03 AM · continuing</div>
+  <h1 class="act-title">Four Numbers, One Word.</h1>
+  <p class="act-subtitle">Raj is watching. The timer reads 4:42. You have about forty minutes of interview left. He asks for the reconciliation. You have to produce it out loud, in SQL, while narrating the shape of StreamCo's four revenues — because at this scale they do not collapse into one.</p>
 
--- Silver: fact_impression at its natural grain
-CREATE TABLE silver.fact_impression (
-  dt              DATE,
-  impression_ts   TIMESTAMP,
-  impression_id   BINARY(16),
-  user_id         BIGINT,
-  ad_id           BIGINT,
-  campaign_id     BIGINT,
-  advertiser_id   BIGINT,
-  surface_id      INT,
-  placement_id    INT,
-  geo_country     STRING,
-  device_os       STRING,
-  clearing_cpm    DECIMAL(12,6),
-  spend_cents     BIGINT,
-  is_valid        BOOLEAN,          -- after invalid-traffic filter
-  experiment_ids  ARRAY&lt;BIGINT&gt;
-)
-PARTITIONED BY (dt);
+  <p>You begin. Speaking to Raj, keyboard in your lap, you say:</p>
 
--- Gold: aggregated at common consumer grains
-CREATE TABLE gold.metric_campaign_daily (
-  dt                  DATE,
-  campaign_id         BIGINT,
-  advertiser_id       BIGINT,
-  impressions         BIGINT,
-  reach               BIGINT,
-  clicks              BIGINT,
-  ctr                 DOUBLE,
-  spend_usd           DECIMAL(18,4),
-  conversions_click_7d BIGINT,
-  conversions_view_1d  BIGINT,
-  conversion_value_usd DECIMAL(18,4),
-  roas                DOUBLE
-)
-PARTITIONED BY (dt);
+  <div class="act-reply">
+    <strong>You:</strong> "At StreamCo scale there are four numbers that get called 'revenue' on ad dashboards. They sit in four systems, produced by four different pipelines, and they don't agree because they shouldn't. I'll name all four before I touch the query. Otherwise the query answers the wrong question."
+  </div>
 
--- Dim: campaigns as Type-2 SCD
-CREATE TABLE dim.campaign (
-  campaign_id     BIGINT,
-  advertiser_id   BIGINT,
-  name            STRING,
-  objective       STRING,
-  bid_strategy    STRING,
-  daily_budget    DECIMAL(18,4),
-  valid_from      TIMESTAMP,
-  valid_to        TIMESTAMP,        -- NULL for current version
-  is_current      BOOLEAN
-)
-PARTITIONED BY (is_current);
-</code></pre>
-<h3 id="ap01-the-aggregation-pipeline">The aggregation pipeline</h3>
-<figure class="viz viz-tree-v2" aria-label="Bronze aggregation pipeline tree">
-<div class="viz-label">The Aggregation Pipeline</div>
-<div class="tv2-root">
-  <div class="tv2-node tv2-node-root"><div class="tv2-name">Bronze · raw events</div></div>
-  <div class="tv2-branches">
-    <div class="tv2-branch">
-      <div class="tv2-edge">↘ streaming</div>
-      <div class="tv2-node tv2-node-stream"><div class="tv2-name">1-minute windows</div><div class="tv2-meta">→ Real-time OLAP · serves pacing, near-real-time UI</div></div>
+  <p>Raj nods. You draw four boxes on the sketch pad you have shared to your screen.</p>
+
+  <div class="defs">
+    <div class="def def-billed">
+      <div class="def-name">Billed revenue</div>
+      <div class="def-who">Owner: Finance</div>
+      <div class="def-what">What advertisers have been <em>invoiced</em> for. Produced by the billing system — at StreamCo, the Salesforce ledger. Lags reality by the billing cycle — typically a month. Excludes anything invoicing hasn't swept yet.</div>
+      <div class="def-when">Updates: month-end + 3-day settlement.</div>
     </div>
-    <div class="tv2-branch">
-      <div class="tv2-edge">↘ batch</div>
-      <div class="tv2-node tv2-node-batch"><div class="tv2-name">hourly → silver → daily rollup → gold</div></div>
-      <div class="tv2-subedge">└ gold marts</div>
-      <div class="tv2-leaves">
-        <div class="tv2-leaf">metric_campaign_daily</div>
-        <div class="tv2-leaf">metric_creative_daily</div>
-        <div class="tv2-leaf">metric_audience_daily</div>
-        <div class="tv2-leaf tv2-leaf-exec">metric_platform_daily · exec</div>
+    <div class="def def-spend">
+      <div class="def-name">Spend revenue</div>
+      <div class="def-who">Owner: Ads pipeline</div>
+      <div class="def-what">Sum of auction-clearing prices × served impressions, in the advertiser's contracted currency, converted to USD at the delivery-time FX. Produced near-real-time by the impression pipeline. Knows about impressions the billing system doesn't yet know about. Doesn't know about refunds or chargebacks.</div>
+      <div class="def-when">Updates: streaming, ~5-minute lag.</div>
+    </div>
+    <div class="def def-attr">
+      <div class="def-name">Attributed revenue</div>
+      <div class="def-who">Owner: Ads measurement</div>
+      <div class="def-what">Revenue credited to <em>specific campaigns</em> under an attribution model — last-click 7-day, last-touch, MTA linear, whatever the advertiser's contract calls for. Depends on the window, the touch model, and the identity graph. Almost always differs from spend revenue because it excludes unattributable spend and absorbs post-attribution adjustments.</div>
+      <div class="def-when">Updates: nightly batch for 28-day; streaming for 24-hour.</div>
+    </div>
+    <div class="def def-settled">
+      <div class="def-name">Settled revenue</div>
+      <div class="def-who">Owner: Finance</div>
+      <div class="def-what">The number Finance closes the month on. Post-refund, post-chargeback, post-IVT-recovery credits, post-partner-attribution-lag, post-currency-revaluation. Sourced from the ledger <em>after</em> all adjustments have posted. This is what the 10-Q filing is built from.</div>
+      <div class="def-when">Updates: monthly, with quarter-end revisions.</div>
+    </div>
+  </div>
+
+  <p>You turn back to Raj and continue:</p>
+
+  <div class="act-reply">
+    <strong>You:</strong> "The CFO's $9.1M is almost certainly <em>settled revenue</em>. The dashboard's $8.2M — without seeing the query, my bet is <em>spend revenue</em>, because that's what the ads pipeline produces natively. Which means the gap is roughly $900K of stuff that happens <em>after</em> spend — partner attribution that posts on a 14-day lag, IVT credits Finance catches that we flag later, refunds, and currency revaluation. I can't know which until I run the reconciliation. Let me show you the query."</div>
+
+  <p>Raj pulls up the shared editor on his side. You start typing.</p>
+
+  <!-- ─── Sidebar · Your Turn (SQL) ─────────────────────────────── -->
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Your Turn · SQL · 15 minutes on your timer</div>
+    <h3 class="sidebar-title">Write the reconciliation before reading the answer</h3>
+    <p>The tables you have access to:</p>
+    <ul>
+      <li><code>silver.fact_impression</code> — one row per served impression. Columns: <code>spend_cents</code>, <code>advertiser_id</code>, <code>campaign_id</code>, <code>impression_ts</code>, <code>is_valid</code> (FALSE = flagged as IVT by the pre-bid filter), <code>currency</code>, <code>fx_rate_to_usd</code>.</li>
+      <li><code>finance.ad_revenue_ledger</code> — one row per <code>(advertiser_id, month)</code>. Columns: <code>invoiced_usd</code>, <code>refunds_usd</code>, <code>ivt_credits_usd</code>, <code>partner_attribution_adjustment_usd</code>, <code>fx_revaluation_usd</code>.</li>
+    </ul>
+    <p>Write <em>one</em> query that reconciles September. The output should be one row with all four revenue concepts, the per-category gap, and an <code>unexplained_gap_usd</code>. The last column is the one Raj is actually testing — if it is non-zero, you have a bug in the pipeline, and you need to be able to say so. If it's within rounding, the numbers are all explained by known adjustments, and you close the ticket.</p>
+
+    <details class="your-turn-answer">
+      <summary>Show the reference solution</summary>
+      <div class="your-turn-body">
+        <pre><code class="sql">WITH pipeline AS (
+  SELECT
+    SUM(spend_cents * fx_rate_to_usd) / 100.0
+      AS spend_revenue_usd,
+    SUM(CASE WHEN is_valid = FALSE
+             THEN spend_cents * fx_rate_to_usd ELSE 0 END) / 100.0
+      AS pipeline_ivt_flagged_usd
+  FROM silver.fact_impression
+  WHERE impression_ts &gt;= '2025-09-01'
+    AND impression_ts &lt;  '2025-10-01'
+),
+ledger AS (
+  SELECT
+    SUM(invoiced_usd)                        AS billed_revenue_usd,
+    SUM(refunds_usd)                         AS finance_refunds_usd,
+    SUM(ivt_credits_usd)                     AS finance_ivt_credits_usd,
+    SUM(partner_attribution_adjustment_usd)  AS partner_adj_usd,
+    SUM(fx_revaluation_usd)                  AS fx_reval_usd,
+    SUM(invoiced_usd) - SUM(refunds_usd)
+      - SUM(ivt_credits_usd)
+      + SUM(partner_attribution_adjustment_usd)
+      + SUM(fx_revaluation_usd)              AS settled_revenue_usd
+  FROM finance.ad_revenue_ledger
+  WHERE month = '2025-09-01'
+)
+SELECT
+  p.spend_revenue_usd,
+  l.billed_revenue_usd,
+  l.settled_revenue_usd,
+  -- per-category components of the gap
+  p.pipeline_ivt_flagged_usd,
+  l.finance_ivt_credits_usd,
+  l.finance_refunds_usd,
+  l.partner_adj_usd,
+  l.fx_reval_usd,
+  -- the unexplained residual
+  l.settled_revenue_usd - p.spend_revenue_usd
+    + (p.pipeline_ivt_flagged_usd - l.finance_ivt_credits_usd)
+    + l.finance_refunds_usd
+    - l.partner_adj_usd
+    - l.fx_reval_usd                          AS unexplained_gap_usd
+FROM pipeline p CROSS JOIN ledger l;</code></pre>
+        <p><strong>What the query returns today:</strong></p>
+        <ul>
+          <li>spend_revenue_usd = $8.21M — matches the dashboard exactly</li>
+          <li>settled_revenue_usd = $9.12M — matches Finance</li>
+          <li>partner_adj_usd = $0.74M — the partner-attribution lag, explained</li>
+          <li>finance_ivt_credits_usd − pipeline_ivt_flagged_usd = $0.16M — Finance's IVT catch exceeds our pre-bid filter, explained</li>
+          <li>fx_reval_usd = $0.02M — end-of-month revaluation, explained</li>
+          <li>unexplained_gap_usd = −$0.01M — within rounding. No pipeline bug.</li>
+        </ul>
+        <p>The $900K gap decomposes cleanly. Neither side is wrong. Finance's number is more complete by construction. Yours is more timely by construction.</p>
       </div>
-    </div>
+    </details>
+  </aside>
+
+  <p>The query finishes at 10:21. You screenshot the result. Raj watches you do it without comment. You then write the paragraph the director has been waiting for.</p>
+
+  <div class="act-reply">
+    <strong>You → Director (10:34):</strong> "Both numbers are correct for their purpose. Dashboard's $8.21M is <em>spend revenue</em> — auction-clearing × served impressions. Finance's $9.12M is <em>settled revenue</em> — spend plus $740K partner-attribution that posts to the ledger on a 14-day lag, plus a $160K IVT-credit delta, plus $20K FX revaluation. For the board prep: use $9.12M and label it <em>ad-supported revenue · settled basis · September 2025</em>. I'll follow up this afternoon with a proposal to put the definition on every dashboard so we don't have this conversation again next month."
   </div>
-</div>
-</figure>
-<p>Cadences:</p>
-<ul>
-<li><strong>Streaming:</strong> 1-minute tumbling windows, watermark = 2 min.</li>
-<li><strong>Hourly batch:</strong> kicks at hour+5, processes impressions from the prior hour. Dedup on impression_id. Joins dim.campaign as of event time.</li>
-<li><strong>Daily rollup:</strong> kicks at 02:00 local time of the advertiser's reporting zone. Produces gold tables. This is the number the advertiser sees.</li>
-<li><strong>Reconciliation:</strong> a 7-day trailing rerun adjusts for late conversions (a conversion today might attribute to a click 6 days ago).</li>
-</ul>
-<h3 id="ap01-serving-layer">Serving layer</h3>
-<ul>
-<li><strong>Advertiser dashboards:</strong> read from gold tables through a caching proxy with 2-minute TTL. P99 target &lt;200 ms.</li>
-<li><strong>Pacing gate:</strong> reads directly from the Redis counter (updated by the streaming path).</li>
-<li><strong>Analyst queries:</strong> Trino/Presto against silver + gold. Optional materialized views for top 50 query shapes.</li>
-<li><strong>Exec scorecard:</strong> reads gold, locked at end-of-day; changes to prior days require a signed-off backfill.</li>
-</ul>
-<h3 id="ap01-failure-modes-you-should-name">Failure modes you should name</h3>
-<ul>
-<li><strong>Late-arriving conversions.</strong> A click today might convert 7 days later. Batch must re-open windows for 7 days. Streaming shows a preview that will shift.</li>
-<li><strong>Late data quality (DQ) discoveries.</strong> You find a bug in a filter 3 days after the fact. You must recompute; the advertiser already saw the wrong number.</li>
-<li><strong>Idempotency.</strong> Retries can't double-count. Use <code>event_id</code> as the natural primary key; dedupe in silver.</li>
-<li><strong>Clock skew.</strong> Client timestamps lie. Use server-receive timestamp for billing-critical metrics; keep client timestamp for UX analysis.</li>
-<li><strong>Hot-key skew.</strong> A single huge advertiser can blow up a shuffle. Salt the campaign_id on the shuffle key.</li>
-</ul>
-<h3 id="ap01-trade-offs-to-call-out">Trade-offs to call out</h3>
-<table>
-<thead>
-<tr class="header">
-<th>Dimension</th>
-<th>Cheap / fast</th>
-<th>Expensive / correct</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td>Freshness</td>
-<td>24-hour batch only</td>
-<td>Streaming + hourly batch + daily locks</td>
-</tr>
-<tr class="even">
-<td>Truth model</td>
-<td>Each team has own pipeline</td>
-<td>Unified platform owns definitions</td>
-</tr>
-<tr class="odd">
-<td>Schema evolution</td>
-<td>Add columns freely</td>
-<td>SCD-2 dims + contract tests</td>
-</tr>
-<tr class="even">
-<td>Late data</td>
-<td>Drop events &gt;1h late</td>
-<td>Re-open windows 7 days</td>
-</tr>
-<tr class="odd">
-<td>Cost</td>
-<td>Raw access, no materializations</td>
-<td>Pre-aggregate top shapes</td>
-</tr>
-</tbody>
-</table>
-<h3 id="ap01-weak-vs-strong-answer">Weak vs strong answer</h3>
-<p>A weak answer draws a single Airflow DAG, mumbles about "the warehouse," and can't say what's streamed vs batched. A mid answer gets the medallion structure right but handwaves the reconciliation story. A strong answer names late-arriving conversions as a first-class concern, quantifies freshness by consumer, and has a clear stance on where truth lives ("batch wins arguments; streaming gives you a preview"). Bonus points: mention the metric registry as the place definitions are versioned, and describe how a change flows from registry to all consumers.</p>
-<hr />
-<h2 id="ap01-round-2-sql-deep-dive--attribution--benchmarking">Round 2: SQL Deep Dive — Attribution + Benchmarking</h2>
-<h3 id="ap01-prompt-1-multi-touch-click-attribution">Prompt 1: Multi-touch click attribution</h3>
-<blockquote>
-<p>"Given raw <code>click</code> and <code>conversion</code> events, attribute each conversion to the most recent click from the same user within a 7-day window. One row per conversion. Include the campaign and creative of the attributed click."</p>
-</blockquote>
-<pre class="sql"><code>WITH c AS (
-  SELECT user_id, conversion_id, conversion_ts, conversion_value_usd
-  FROM events
-  WHERE event_name = &#39;conversion&#39;
-    AND conversion_ts &gt;= CURRENT_DATE - INTERVAL &#39;30&#39; DAY
-),
-k AS (
-  SELECT user_id, click_id, click_ts, campaign_id, ad_id, creative_id
-  FROM events
-  WHERE event_name = &#39;click&#39;
-    AND click_ts &gt;= CURRENT_DATE - INTERVAL &#39;37&#39; DAY   -- wider window for joining
-),
-joined AS (
-  SELECT
-    c.conversion_id,
-    c.user_id,
-    c.conversion_ts,
-    c.conversion_value_usd,
-    k.click_id,
-    k.click_ts,
-    k.campaign_id,
-    k.ad_id,
-    k.creative_id,
-    ROW_NUMBER() OVER (
-      PARTITION BY c.conversion_id
-      ORDER BY k.click_ts DESC
-    ) AS rn
-  FROM c
-  LEFT JOIN k
-    ON c.user_id = k.user_id
-   AND k.click_ts &lt;= c.conversion_ts
-   AND k.click_ts &gt;= c.conversion_ts - INTERVAL &#39;7&#39; DAY
-)
-SELECT
-  conversion_id,
-  user_id,
-  conversion_ts,
-  conversion_value_usd,
-  click_id,
-  click_ts,
-  campaign_id,
-  ad_id,
-  creative_id,
-  DATEDIFF(conversion_ts, click_ts) AS days_from_click
-FROM joined
-WHERE rn = 1
-   OR rn IS NULL;   -- keep conversions with no matching click (organic)
-</code></pre>
-<p><strong>Why this and not that.</strong> The <code>ROW_NUMBER()</code> approach is stable with ties (two clicks in the same millisecond) because you can add a secondary order key if needed. Alternatives: <code>QUALIFY</code> (cleaner in Snowflake), correlated subqueries (O(n²) on large tables), self-joins with <code>NOT EXISTS</code> (hard to read). The <code>LEFT JOIN</code> preserves unattributed conversions, which you almost always want for a "share of organic" metric.</p>
-<h3 id="ap01-prompt-2-benchmark-creatives-against-their-accounts-rolling-mean">Prompt 2: Benchmark creatives against their account's rolling mean</h3>
-<blockquote>
-<p>"For each creative × day, compute CTR. Rank it against the trailing 28-day mean of CTRs across all creatives of the same advertiser. Output the top and bottom 5% by z-score per advertiser per day."</p>
-</blockquote>
-<pre class="sql"><code>WITH daily AS (
-  SELECT
-    dt,
-    creative_id,
-    advertiser_id,
-    SUM(impressions) AS imps,
-    SUM(clicks) AS clicks,
-    CAST(SUM(clicks) AS DOUBLE) / NULLIF(SUM(impressions), 0) AS ctr
-  FROM fact_creative_perf_daily
-  WHERE dt BETWEEN CURRENT_DATE - 60 AND CURRENT_DATE - 1
-  GROUP BY 1, 2, 3
-),
-with_baseline AS (
-  SELECT
-    dt, creative_id, advertiser_id, imps, clicks, ctr,
-    AVG(ctr) OVER (
-      PARTITION BY advertiser_id
-      ORDER BY dt
-      ROWS BETWEEN 28 PRECEDING AND 1 PRECEDING
-    ) AS baseline_mean,
-    STDDEV_POP(ctr) OVER (
-      PARTITION BY advertiser_id
-      ORDER BY dt
-      ROWS BETWEEN 28 PRECEDING AND 1 PRECEDING
-    ) AS baseline_sd
-  FROM daily
-),
-ranked AS (
-  SELECT
-    *,
-    (ctr - baseline_mean) / NULLIF(baseline_sd, 0) AS z_score,
-    PERCENT_RANK() OVER (
-      PARTITION BY advertiser_id, dt
-      ORDER BY (ctr - baseline_mean) / NULLIF(baseline_sd, 0)
-    ) AS pct_rank
-  FROM with_baseline
-  WHERE imps &gt;= 1000                       -- minimum volume gate
-    AND baseline_sd IS NOT NULL
-)
-SELECT *
-FROM ranked
-WHERE pct_rank &lt;= 0.05 OR pct_rank &gt;= 0.95
-ORDER BY advertiser_id, dt, z_score;
-</code></pre>
-<p><strong>Why this and not that.</strong> Window functions over a 28-day trailing range expressed in rows need the input to be dense (every day present per creative). If your table has gaps, switch to <code>RANGE BETWEEN INTERVAL '28' DAY PRECEDING</code>. The volume gate (<code>imps &gt;= 1000</code>) is critical — without it, a creative with 10 impressions and 1 click has a meaningless CTR that dominates the z-score. Anti-patterns to avoid: computing mean via subquery per row (quadratic), using <code>RANK()</code> without the volume gate, forgetting <code>NULLIF</code> on the stddev (zero-variance advertisers blow up).</p>
-<h3 id="ap01-anti-patterns">Anti-patterns</h3>
-<ul>
-<li><code>SELECT *</code> on fact tables. Always project columns.</li>
-<li><code>DISTINCT</code> as a crutch for broken joins. If you need <code>DISTINCT</code>, your join is wrong.</li>
-<li>String-concatenated keys (<code>user_id || '-' || ad_id</code>). Compose joins on typed columns; build indexes on the natural keys.</li>
-<li><code>DATEDIFF(day, ...)</code> when you meant <code>DATEDIFF('hour', ...)</code>. Spot-check units.</li>
-</ul>
-<hr />
-<h2 id="ap01-round-3-python-exercise--config-driven-sql-generator--validator">Round 3: Python Exercise — Config-Driven SQL Generator + Validator</h2>
-<h3 id="ap01-the-prompt-1">The prompt</h3>
-<blockquote>
-<p>"Build a library that takes a YAML metric definition and generates the SQL to compute it. Also include a pluggable data-quality framework that runs checks on the output table."</p>
-</blockquote>
-<h3 id="ap01-module-layout">Module layout</h3>
-<div class="viz viz-triangle"><div class="viz-label">Tradeoff Triangle</div>
-<div class="tri-wrap">
-  <svg class="tri-svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <polygon points="200,30 60,300 340,300" fill="none" stroke="#c8d6e5" stroke-width="2"/>
-    <circle cx="200" cy="30"  r="7" fill="#2563a8"/>
-    <circle cx="60"  cy="300" r="7" fill="#2a7a4a"/>
-    <circle cx="340" cy="300" r="7" fill="#c44b2b"/>
-  </svg>
-  <div class="tri-vertex tri-top"><div class="tri-axis">YAML</div>
-    <ul class="tri-notes"><li>row_count</li><li>null_rate</li><li>freshness</li></ul></div>
-  <div class="tri-vertex tri-left"><div class="tri-axis">SQL</div>
-    <ul class="tri-notes"><li>row_count</li><li>null_rate</li><li>freshness</li></ul></div>
-  <div class="tri-vertex tri-right"><div class="tri-axis">ABC</div>
-    <ul class="tri-notes"><li>row_count</li><li>null_rate</li><li>freshness</li></ul></div>
-</div></div>
-<h3 id="ap01-the-metric-yaml">The metric YAML</h3>
-<pre class="yaml"><code># metrics/defs/campaign_daily.yml
-name: metric_campaign_daily
-description: Per-campaign daily aggregates
-grain: [dt, campaign_id, advertiser_id]
-source: silver.fact_impression
-time_column: dt
-measures:
-  - name: impressions
-    expr: COUNT(*)
-  - name: reach
-    expr: COUNT(DISTINCT user_id)
-  - name: spend_usd
-    expr: SUM(spend_cents) / 100.0
-filters:
-  - expr: is_valid = TRUE
-dq_checks:
-  - check: row_count_min
-    params: { min: 100000 }
-  - check: null_rate_max
-    params: { column: campaign_id, max: 0.0 }
-  - check: freshness_max_lag_hours
-    params: { column: dt, max: 30 }
-</code></pre>
-<h3 id="ap01-the-generator">The generator</h3>
-<pre class="python"><code>&quot;&quot;&quot;generator.py — turn a MetricDef into SQL.&quot;&quot;&quot;
-from __future__ import annotations
-from dataclasses import dataclass
-from typing import Sequence
-import yaml
 
+  <p>You close the editor. You look up at Raj. The timer reads 21:14.</p>
 
-@dataclass(frozen=True)
-class Measure:
-    name: str
-    expr: str
+  <!-- ─── Sidebar · The Room ──────────────────────────────────── -->
+  <aside class="sidebar sidebar-room">
+    <div class="sidebar-label">The Room · What Raj just wrote on the scorecard</div>
+    <h3 class="sidebar-title">Three bullets. Unseen. Weighted.</h3>
+    <ol>
+      <li><strong>Did you produce the unexplained residual as the last column?</strong> Raj does not care about the dashboard-vs-finance comparison — that is warm-up. He cares whether you know the structure of a reconciliation query ends with a single number that tells the on-call engineer <em>whether to escalate</em>. You did. +1.</li>
+      <li><strong>Did you explain the per-category gap before the total?</strong> Finance's number is not "bigger because Finance is right." It is bigger because it contains four named, quantifiable adjustments. You named them in the paragraph to the director. Senior engineers decompose; junior engineers compare. +1.</li>
+      <li><strong>Did you propose the systemic fix inside the paragraph to the director?</strong> "I'll follow up this afternoon with a proposal to put the definition on every dashboard" — you turned an incident into an OKR in two sentences. That line is what gets you hired. +1.</li>
+    </ol>
+    <p class="sidebar-punch">Three weighted marks in the first twenty-one minutes. The rest of the round is now yours to lose.</p>
+  </aside>
 
+  <!-- ─── Sidebar · The Landmine ──────────────────────────────── -->
+  <aside class="sidebar sidebar-landmine">
+    <div class="sidebar-label">The Landmine · Currency math at monthly close</div>
+    <h3 class="sidebar-title">The $20K FX revaluation you almost missed</h3>
+    <p>Your pipeline books revenue at the <em>impression-time</em> FX rate — that is what you charge the advertiser. Finance books the <em>same</em> revenue at the <em>settlement-time</em> FX rate, because that is what actually hits the bank. For most advertisers at most times, the gap is rounding. At quarter-end, when emerging-market currencies move, the gap can be six figures.</p>
+    <p>If you do not know this and you report <code>unexplained_gap_usd = $20K</code>, Raj assumes the pipeline has a bug. If you do know this and the column you named is <code>fx_reval_usd</code>, Raj knows you have shipped this system before.</p>
+    <p>Every adjustment line on the ledger exists because a real edge case happened at a real company. A senior engineer's job is to know which lines exist and why — <em>before</em> the reconciliation starts.</p>
+    <p class="sidebar-punch">Rule: when you reconcile, you name every known adjustment category <em>first</em>. The residual is what's left after all the known ones are accounted for. Never call the gross difference the "gap."</p>
+  </aside>
 
-@dataclass(frozen=True)
-class MetricDef:
-    name: str
-    source: str
-    grain: Sequence[str]
-    measures: Sequence[Measure]
-    filters: Sequence[str] = ()
-    time_column: str = &quot;dt&quot;
+  <p>Raj reads the paragraph twice. He says:</p>
 
+  <div class="act-reply">
+    <strong>Raj:</strong> "Good. Send the director that paragraph. Actually, send it — walk me through what you'd type in the Slack DM." You paste the paragraph into a stub window. Raj reads it again. He nods once. Then: "OK. The director has her answer. Amelia has her number. The partners still need a call this afternoon; assume that's the account manager's problem, not yours today. So the incident, for our purposes, is closed. We are back in the brief."
+  </div>
 
-def load_metric(path: str) -&gt; MetricDef:
-    &quot;&quot;&quot;Parse a metric YAML into a MetricDef.&quot;&quot;&quot;
-    with open(path) as f:
-        raw = yaml.safe_load(f)
-    measures = [Measure(m[&quot;name&quot;], m[&quot;expr&quot;]) for m in raw[&quot;measures&quot;]]
-    filters = tuple(f[&quot;expr&quot;] for f in raw.get(&quot;filters&quot;, []))
-    return MetricDef(
-        name=raw[&quot;name&quot;],
-        source=raw[&quot;source&quot;],
-        grain=tuple(raw[&quot;grain&quot;]),
-        measures=tuple(measures),
-        filters=filters,
-        time_column=raw.get(&quot;time_column&quot;, &quot;dt&quot;),
-    )
+  <p>He changes his screen back to the whiteboard you had drawn 17 minutes ago. The half-finished architecture is still there — Kafka at the left, a few scattered boxes, the words <em>attribution</em> underlined twice. He looks at it. He looks back at you.</p>
 
+  <div class="act-reply">
+    <strong>Raj:</strong> "You have thirty-four minutes. Build me the platform that prevents this morning from happening again. I want to hear the same rigor you just used on the reconciliation applied to the design. Start wherever you want, but I'll tell you now — your first move is not going to be Kafka. It's going to be one sentence. Take a breath and then tell me what that sentence is."
+  </div>
 
-def compile_sql(m: MetricDef, dt_from: str, dt_to: str) -&gt; str:
-    &quot;&quot;&quot;Compile a MetricDef into a partitioned-insert SQL block.&quot;&quot;&quot;
-    select_cols = list(m.grain) + [f&quot;{msr.expr} AS {msr.name}&quot; for msr in m.measures]
-    where = [f&quot;{m.time_column} BETWEEN DATE &#39;{dt_from}&#39; AND DATE &#39;{dt_to}&#39;&quot;]
-    where.extend(m.filters)
-    group_by = &quot;, &quot;.join(str(i + 1) for i in range(len(m.grain)))
-    return (
-        f&quot;INSERT OVERWRITE TABLE gold.{m.name}\n&quot;
-        f&quot;SELECT\n  &quot; + &quot;,\n  &quot;.join(select_cols) + &quot;\n&quot;
-        f&quot;FROM {m.source}\n&quot;
-        f&quot;WHERE &quot; + &quot;\n  AND &quot;.join(where) + &quot;\n&quot;
-        f&quot;GROUP BY {group_by};&quot;
-    )
-</code></pre>
-<h3 id="ap01-the-dq-framework">The DQ framework</h3>
-<pre class="python"><code>&quot;&quot;&quot;dq/base.py — check base class + runner.&quot;&quot;&quot;
-from __future__ import annotations
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Mapping
+  <p class="act-breath">The whiteboard is yours. The incident is your brief. The clock keeps running.</p>
 
-
-@dataclass
-class CheckResult:
-    name: str
-    passed: bool
-    observed: Any
-    threshold: Any
-    message: str = &quot;&quot;
-
-
-class Check(ABC):
-    &quot;&quot;&quot;A data-quality check. Subclasses implement run().&quot;&quot;&quot;
-
-    def __init__(self, params: Mapping[str, Any]):
-        self.params = params
-
-    @abstractmethod
-    def run(self, conn, table: str) -&gt; CheckResult:
-        raise NotImplementedError
-
-
-class RowCountMin(Check):
-    &quot;&quot;&quot;Fail if the table has fewer than `min` rows for today&#39;s partition.&quot;&quot;&quot;
-
-    def run(self, conn, table):
-        n = conn.scalar(f&quot;SELECT COUNT(*) FROM {table} WHERE dt = CURRENT_DATE&quot;)
-        ok = n &gt;= self.params[&quot;min&quot;]
-        return CheckResult(
-            name=&quot;row_count_min&quot;,
-            passed=ok,
-            observed=n,
-            threshold=self.params[&quot;min&quot;],
-            message=&quot;&quot; if ok else f&quot;row count {n} &lt; {self.params[&#39;min&#39;]}&quot;,
-        )
-
-
-class NullRateMax(Check):
-    &quot;&quot;&quot;Fail if fraction of NULLs in `column` exceeds `max`.&quot;&quot;&quot;
-
-    def run(self, conn, table):
-        col = self.params[&quot;column&quot;]
-        q = (
-            f&quot;SELECT SUM(CASE WHEN {col} IS NULL THEN 1 ELSE 0 END) * 1.0 / &quot;
-            f&quot;NULLIF(COUNT(*), 0) FROM {table} WHERE dt = CURRENT_DATE&quot;
-        )
-        rate = conn.scalar(q) or 0.0
-        ok = rate &lt;= self.params[&quot;max&quot;]
-        return CheckResult(&quot;null_rate_max&quot;, ok, rate, self.params[&quot;max&quot;])
-
-
-class FreshnessMaxLagHours(Check):
-    &quot;&quot;&quot;Fail if newest row is older than `max` hours.&quot;&quot;&quot;
-
-    def run(self, conn, table):
-        col = self.params[&quot;column&quot;]
-        q = f&quot;SELECT EXTRACT(EPOCH FROM (NOW() - MAX({col}))) / 3600 FROM {table}&quot;
-        lag = conn.scalar(q)
-        ok = lag &lt;= self.params[&quot;max&quot;]
-        return CheckResult(&quot;freshness_max_lag_hours&quot;, ok, lag, self.params[&quot;max&quot;])
-
-
-CHECK_REGISTRY = {
-    &quot;row_count_min&quot;: RowCountMin,
-    &quot;null_rate_max&quot;: NullRateMax,
-    &quot;freshness_max_lag_hours&quot;: FreshnessMaxLagHours,
-}
-
-
-def run_checks(conn, table, dq_cfg) -&gt; list[CheckResult]:
-    results = []
-    for cfg in dq_cfg:
-        cls = CHECK_REGISTRY[cfg[&quot;check&quot;]]
-        results.append(cls(cfg.get(&quot;params&quot;, {})).run(conn, table))
-    return results
-</code></pre>
-<h3 id="ap01-tests">Tests</h3>
-<pre class="python"><code># tests/test_generator.py
-from metrics.generator import MetricDef, Measure, compile_sql
-
-
-def test_compile_sql_basic():
-    m = MetricDef(
-        name=&quot;m_test&quot;,
-        source=&quot;silver.fact_x&quot;,
-        grain=(&quot;dt&quot;, &quot;campaign_id&quot;),
-        measures=(Measure(&quot;imps&quot;, &quot;COUNT(*)&quot;),),
-        filters=(&quot;is_valid = TRUE&quot;,),
-    )
-    sql = compile_sql(m, &quot;2026-04-01&quot;, &quot;2026-04-01&quot;)
-    assert &quot;INSERT OVERWRITE TABLE gold.m_test&quot; in sql
-    assert &quot;COUNT(*) AS imps&quot; in sql
-    assert &quot;is_valid = TRUE&quot; in sql
-    assert &quot;GROUP BY 1, 2&quot; in sql
-</code></pre>
-<h3 id="ap01-what-the-interviewer-is-looking-for">What the interviewer is looking for</h3>
-<p>Not "does it work." They want: explicit types, a registry pattern for extensibility, separation of concerns (parse, compile, run), tests that document behavior, and a DQ framework that cleanly accepts new check types. The ability to talk through "how would I add a new check?" in 30 seconds is the differentiator.</p>
-<hr />
-<h2 id="ap01-round-4-streaming-vs-batch--spend-monitoring-with-reconciliation">Round 4: Streaming vs Batch — Spend Monitoring with Reconciliation</h2>
-<h3 id="ap01-the-prompt-2">The prompt</h3>
-<blockquote>
-<p>"An advertiser sets a $10,000 daily budget. The platform must stop delivery at 95% of cap in under 60 seconds. At end of day, recompute actual spend from billing-truth data and reconcile. Design the full pipeline; discuss failure modes."</p>
-</blockquote>
-<h3 id="ap01-the-two-loop-design-again-because-its-core">The two-loop design (again, because it's core)</h3>
-<div class="viz viz-schema"><div class="viz-label">Diagram</div><ul class="schema-root">
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">Fast loop (seconds)                          Slow loop (hours)</span>
-</li>
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">impression events   stream processor       billing pipeline (batch)</span>
-<ul class="schema-sub">
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">spend_counter_kv     fact_spend_billed_hourly</span>
-</li>
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">pacing_gate</span>
-<ul class="schema-sub">
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">reconciliation job</span>
-</li>
-<li class="schema-node"><span class="schema-glyph"></span><span class="schema-text">(hourly)   corrects KV</span>
-</li>
-</ul></li>
-</ul></li>
-</ul></div>
-<p>Fast loop is at-least-once with idempotent writes. Slow loop is exactly-once with immutable outputs.</p>
-<h3 id="ap01-streaming-pseudocode">Streaming pseudocode</h3>
-<pre class="python"><code># Flink-style stream topology (conceptual)
-events = (
-    kafka_source(topic=&quot;impressions&quot;, group=&quot;pacing&quot;)
-    .assign_watermark(max_out_of_order=timedelta(seconds=30))
-    .filter(lambda e: e.event_name == &quot;impression&quot;)
-)
-
-# Dedup on impression_id (bounded state: 24-hour TTL)
-deduped = events.key_by(&quot;impression_id&quot;).process(DedupByKey(ttl=timedelta(hours=24)))
-
-# Windowed spend aggregation (1-min tumbling, 15-min slide for allowed-lateness)
-windowed = (
-    deduped
-    .key_by(&quot;campaign_id&quot;)
-    .window(Tumbling(duration=timedelta(minutes=1)))
-    .allowed_lateness(timedelta(minutes=15))
-    .aggregate(SumSpendCents())
-)
-
-# Publish to the pacing KV
-windowed.sink_to(RedisSink(key_fn=lambda c, w: f&quot;spend:{c.campaign_id}:{w.date}&quot;))
-</code></pre>
-<h3 id="ap01-watermarking">Watermarking</h3>
-<ul>
-<li><strong>Event time</strong> is the client-reported or server-received timestamp.</li>
-<li><strong>Watermark</strong> is the minimum event-time the processor has observed, minus <code>max_out_of_order</code>. A window fires when watermark passes window end.</li>
-<li><strong>Late events</strong> (past watermark) are routed to a side-output, written to a reconciliation topic, and absorbed on the next hourly batch.</li>
-</ul>
-<h3 id="ap01-batch-reconciliation-sql">Batch reconciliation SQL</h3>
-<pre class="sql"><code>-- Hourly job: compare ground-truth billed spend to streaming counter
-WITH billed AS (
-  SELECT
-    campaign_id,
-    DATE(impression_ts) AS dt,
-    DATE_TRUNC(&#39;hour&#39;, impression_ts) AS hr,
-    SUM(spend_cents) AS billed_cents
-  FROM silver.fact_impression_billable
-  WHERE dt = CURRENT_DATE
-    AND impression_ts &gt;= CURRENT_TIMESTAMP - INTERVAL &#39;2&#39; HOUR
-  GROUP BY 1, 2, 3
-),
-counter_snapshot AS (
-  SELECT campaign_id, dt, hr, counter_cents
-  FROM pacing_counter_snapshot
-  WHERE dt = CURRENT_DATE
-    AND hr = DATE_TRUNC(&#39;hour&#39;, CURRENT_TIMESTAMP - INTERVAL &#39;1&#39; HOUR)
-)
-SELECT
-  b.campaign_id, b.dt, b.hr,
-  b.billed_cents,
-  COALESCE(c.counter_cents, 0) AS counter_cents,
-  b.billed_cents - COALESCE(c.counter_cents, 0) AS delta_cents
-FROM billed b
-LEFT JOIN counter_snapshot c
-  USING (campaign_id, dt, hr)
-WHERE ABS(b.billed_cents - COALESCE(c.counter_cents, 0)) &gt; 0.01 * b.billed_cents;
--- Any delta &gt; 1% is absorbed into the counter by the next pass
-</code></pre>
-<h3 id="ap01-can-you-get-rid-of-the-batch-layer-kappa">Can you get rid of the batch layer (Kappa)?</h3>
-<p>An interviewer sometimes pushes: "why do you need the batch layer at all? Can't streaming be the source of truth?" The right response:</p>
-<ul>
-<li><strong>Yes, theoretically.</strong> Kappa architecture has been defensible for 10 years.</li>
-<li><strong>In ads practice, no.</strong> Billing requires provable determinism: same inputs, same outputs, every time. Streaming with late data, out-of-order events, and consumer failover cannot make that guarantee cheaply at 50B/day.</li>
-<li><strong>So batch is the auditable system of record; streaming is a fast approximation with reconciliation.</strong> This is how every large ads platform works in 2026.</li>
-</ul>
-<p>Mention the cost too: a pure-Kappa pipeline re-processes the entire history every time a bug is fixed. Batch corrections are cheaper at scale.</p>
-<h3 id="ap01-semantics">Semantics</h3>
-<ul>
-<li><strong>Exactly-once</strong> end-to-end is achievable in a single system (Flink + Kafka with transactional sinks) but fragile across system boundaries.</li>
-<li><strong>At-least-once + idempotent sinks</strong> is the norm. Dedupe on <code>impression_id</code> at the sink; every downstream consumer can be replayed without double-counting.</li>
-</ul>
-<hr />
-<h2 id="ap01-the-10-scenarios">The 10 Scenarios</h2>
-<p>Each is written for ~5 minutes of whiteboard time. The pattern is the same: restate the prompt, name the grain, draw the pipeline, call out the 3 biggest pitfalls, end with a follow-up question the interviewer will respect.</p>
-<h3 id="ap01-scenario-1-campaign-reporting-pipeline-batch">Scenario 1: Campaign Reporting Pipeline (batch)</h3>
-<p>Grain: (dt, campaign_id, audience_id, placement_id). Sources: fact_impression, fact_click, fact_conversion_attributed, dim_campaign. Cadence: hourly + daily locked. Output: <code>gold.metric_campaign_daily</code>, served to advertiser dashboards.</p>
-<p>Pitfalls: (a) late conversions re-opening windows for 7 days — every day's number is mutable until D+7; (b) time-zone mismatch between the advertiser's reporting zone and UTC — store in UTC, convert on read; (c) dim_campaign SCD-2 not snapshotted at event time — you'll see "current" campaign names on historical data, which confuses advertisers who renamed their campaign.</p>
-<p>Follow-up: "When does a number become immutable?" Answer: D+7 lock, or sooner if you're confident all late data has arrived.</p>
-<h3 id="ap01-scenario-2-real-time-delivery-monitoring-streaming">Scenario 2: Real-Time Delivery Monitoring (streaming)</h3>
-<p>Need: under-delivery alert within 5 minutes. Architecture: streaming job consumes impressions, maintains <code>delivered_so_far</code> per campaign, compares to <code>pacing_curve[hour]</code>, emits alert if <code>delivered &lt; 0.7 × expected</code> sustained for 10 minutes.</p>
-<p>Pitfalls: (a) the pacing curve itself is an assumption; if auction density surprises you, alert fires wrongly — gate on absolute thresholds too; (b) start-of-day noise: first 30 minutes are always noisy, delay alerts; (c) opaque alert: always attach "why under-delivering" (budget exhausted, bid too low, audience too narrow) — an alert without a diagnosis is useless.</p>
-<p>Follow-up: "What do you do if the alert fires and the campaign is fine?" Answer: tune thresholds, add suppression, build a playbook for reviewers.</p>
-<h3 id="ap01-scenario-3-attribution-at-scale-id-graph--windowing">Scenario 3: Attribution at Scale (ID graph + windowing)</h3>
-<p>Covered in depth in Part 2 Scenario 12, but the short form: resolve each event to an id_graph component; collect clicks + impressions per component; for each conversion, apply the attribution rule (last click 7d, last view 1d); emit one row per attributed conversion.</p>
-<p>Pitfalls: (a) component explosions from bad probabilistic edges — cap component size; (b) attribution rules must be versioned, because advertisers will debate your choices; (c) the "unattributed" bucket is first-class — make it visible so growth isn't understated.</p>
-<p>Follow-up: "How do you A/B test attribution rules?" Answer: shadow attribution in parallel; log both; let analysts compare.</p>
-<h3 id="ap01-scenario-4-audience-segmentation">Scenario 4: Audience Segmentation</h3>
-<p>Problem: advertisers define audiences ("users interested in running, age 25–40, US"). Two flavors:</p>
-<ul>
-<li><strong>Static audiences</strong> — user list uploaded by the advertiser. Stored as a Bloom filter per audience, refreshed daily.</li>
-<li><strong>Dynamic audiences</strong> — rule-based over user attributes. Recomputed hourly or on-attribute-change.</li>
-</ul>
-<p>Pitfalls: (a) audience overlap — a user can be in 50+ audiences, each matching at auction time adds latency; (b) freshness mismatch — a dynamic audience refreshed hourly can lag user state by 58 minutes; (c) privacy — audiences below a minimum size (e.g., 1000 users) must be blocked for targeting to prevent inference attacks.</p>
-<p>Schema:</p>
-<pre class="sql"><code>CREATE TABLE audience_membership (
-  audience_id  BIGINT,
-  user_id      BIGINT,
-  added_ts     TIMESTAMP,
-  source       STRING       -- &#39;upload&#39;, &#39;rule&#39;, &#39;lookalike&#39;, &#39;interaction&#39;
-) PARTITIONED BY (audience_id);
-</code></pre>
-<p>Follow-up: "How do you measure audience overlap efficiently?" Answer: HyperLogLog sketches per audience, intersect via MinHash estimates.</p>
-<h3 id="ap01-scenario-5-creative-ab-testing">Scenario 5: Creative A/B Testing</h3>
-<p>Covered in Part 2 Scenario 14 for the analytics side. Key DE pitfalls:</p>
-<ul>
-<li><strong>Unit of randomization.</strong> User, not impression. Impression-level assignment contaminates.</li>
-<li><strong>Pre-exposure bias.</strong> Don't count metrics before the user was first exposed.</li>
-<li><strong>Novelty effect.</strong> Drop the first 3 days of every creative experiment.</li>
-<li><strong>Multiple comparisons.</strong> An experiment with 8 creatives needs corrected p-values.</li>
-</ul>
-<p>Follow-up: "If two creatives are statistically tied after two weeks, how do you decide?" Answer: check secondary metrics (frequency, fatigue, halo effects) or declare a tie and rotate.</p>
-<h3 id="ap01-scenario-6-dq-frameworks-at-scale">Scenario 6: DQ Frameworks at Scale</h3>
-<p>Real DQ has three axes:</p>
-<ul>
-<li><strong>Integrity.</strong> Schema matches contract, no NULLs where forbidden, FKs resolve.</li>
-<li><strong>Freshness.</strong> Last-row timestamp within SLA.</li>
-<li><strong>Drift.</strong> Row count, average metric values, distribution stability versus trailing baseline.</li>
-</ul>
-<p>Architecture:</p>
-<div class="viz viz-flow-branch"><div class="viz-label">Pipeline Flow</div>
-<div class="fb-chain">
-<span class="fb-step">pipeline emits</span>
-<span class="fb-arrow">→</span>
-<span class="fb-step">check runner</span>
-<span class="fb-arrow">→</span>
-<span class="fb-step">dq_result_daily</span>
-</div>
-<div class="fb-branch-from">from <strong>dq_result_daily</strong></div>
-<div class="fb-branches">
-<div class="fb-branch is-fail"><span class="fb-branch-dot"></span>pass ─► downstream unblocked</div>
-<div class="fb-branch is-fail"><span class="fb-branch-dot"></span>fail ─► page owner, block downstream</div>
-</div>
-</div>
-<p>Pitfalls: (a) alert fatigue — every check has a priority and SLA; (b) dq_result table must be first-class — downstream consumers read it to gate their own jobs; (c) checks must be versioned — adding a new check shouldn't retroactively fail yesterday.</p>
-<p>Follow-up: "How do you roll out a new, stricter check?" Answer: shadow mode (logs but doesn't block) for 2 weeks, then gate.</p>
-<h3 id="ap01-scenario-7-backfills">Scenario 7: Backfills</h3>
-<p>Requirements: bounded, idempotent, cheap. A backfill that re-runs 90 days of daily rollups must produce byte-identical output to the original (modulo bug fixes). Key patterns:</p>
-<ul>
-<li><strong>Partition-aware writes.</strong> <code>INSERT OVERWRITE PARTITION (dt = ...)</code>, never <code>DELETE</code> then <code>INSERT</code>.</li>
-<li><strong>Deterministic random.</strong> Any random sampling uses a seed derived from <code>(dt, partition_key)</code>.</li>
-<li><strong>Idempotent sources.</strong> Bronze partitions must be immutable; if you re-run yesterday, you read the same bronze partition.</li>
-<li><strong>Cost gate.</strong> A 90-day backfill at 50B events/day can cost $50K; require manager approval for any backfill &gt; 30 days.</li>
-</ul>
-<p>Follow-up: "How do you detect when a backfill produced different numbers than expected?" Answer: a fingerprint check — compare row count and key metric totals, pre/post, and alert on deltas &gt; 0.1%.</p>
-<h3 id="ap01-scenario-8-scd-for-campaign-entities">Scenario 8: SCD for Campaign Entities</h3>
-<p>Campaigns change over time. A bid strategy flip at noon matters for attribution.</p>
-<pre class="sql"><code>CREATE TABLE dim.campaign_history (
-  campaign_id   BIGINT,
-  valid_from    TIMESTAMP,
-  valid_to      TIMESTAMP,
-  name          STRING,
-  objective     STRING,
-  bid_strategy  STRING,
-  daily_budget  DECIMAL(18,4),
-  change_reason STRING
-);
-
--- Query &quot;as-of&quot; a given impression time
-SELECT f.impression_id, c.bid_strategy, f.clearing_cpm
-FROM fact_impression f
-JOIN dim.campaign_history c
-  ON f.campaign_id = c.campaign_id
- AND f.impression_ts &gt;= c.valid_from
- AND f.impression_ts &lt;  c.valid_to;
-</code></pre>
-<p>Pitfalls: (a) <code>valid_to</code> must default to far-future, not NULL, to use range joins; (b) changes must be written atomically — a dual-write pattern where old row's <code>valid_to</code> closes and new row opens in the same transaction; (c) time-travel queries must always pass the event time.</p>
-<p>Follow-up: "How do you deal with changes that applied retroactively?" Answer: new row with a <code>retroactive_from</code> flag; downstream chooses whether to honor retroactively.</p>
-<h3 id="ap01-scenario-9-incident-response--spend-spike-at-3am">Scenario 9: Incident Response — Spend Spike at 3am</h3>
-<blockquote>
-<p>"Page: platform-wide spend is running 40% above forecast. You're on-call. Walk me through the first 30 minutes."</p>
-</blockquote>
-<p>Runbook:</p>
-<ol>
-<li><strong>Confirm the signal.</strong> Is it a single advertiser, a single surface, or broad? Look at <code>metric_platform_minute</code> sliced by surface, geo, campaign cohort.</li>
-<li><strong>Localize.</strong> Often it's one mega-advertiser with a bid bug — their campaign suddenly bidding $100 CPM. Or a pacing-system bug that disabled all gates.</li>
-<li><strong>Triage — is customer action needed?</strong> If single advertiser and their fault: inform account team, no platform action. If platform-wide: consider emergency pacing override.</li>
-<li><strong>Inform stakeholders.</strong> 15-minute update cadence until stable.</li>
-<li><strong>Post-incident:</strong> forensic pipeline run, exact delta spend, refund decisions.</li>
-</ol>
-<p>Pitfall: the temptation to "fix first, investigate later." Don't. You might kill a legitimate advertiser spending burst (Super Bowl, product launch). Always confirm anomaly vs legitimate.</p>
-<h3 id="ap01-scenario-10-senior-technical-leadership--platform-migration">Scenario 10: Senior Technical Leadership — Platform Migration</h3>
-<blockquote>
-<p>"Your team needs to migrate from an aging warehouse to a new one. 500+ pipelines, 2000+ dashboards, 30+ downstream teams. Walk me through the plan."</p>
-</blockquote>
-<p>Shape:</p>
-<ul>
-<li><strong>Phase 0 (1 month):</strong> inventory. Build the lineage DAG. Identify the 50 tables that feed 80% of consumers.</li>
-<li><strong>Phase 1 (3 months):</strong> dual-write. New warehouse runs in parallel for the top 50 tables. Validate byte-by-byte for 2 weeks per table.</li>
-<li><strong>Phase 2 (6 months):</strong> consumer migration. Each consumer migrates on their schedule. Provide tooling (SQL-dialect translator, schema diff checker).</li>
-<li><strong>Phase 3 (2 months):</strong> deprecation. Old warehouse is read-only. Set an end-of-life date 6 months out.</li>
-<li><strong>Phase 4:</strong> decommission.</li>
-</ul>
-<p>Risks to call out: SQL-dialect differences (forget one CASE expression and a dashboard breaks silently), cost spike during dual-write, political cost if one team's blocker delays the whole migration.</p>
-<p>Governance: weekly stakeholder review; public dashboard of migration progress; a "red/yellow/green" status per consumer. Transparency is how you stay credible.</p>
-<hr />
-<h2 id="ap01-appendix-loop-preparation-checklist">Appendix: Loop Preparation Checklist</h2>
-<ul class="task-list">
-<li><input type="checkbox" disabled="" />
-I can draw the UMP architecture from memory.</li>
-<li><input type="checkbox" disabled="" />
-I've written the attribution SQL cold, twice.</li>
-<li><input type="checkbox" disabled="" />
-I've coded the config-driven generator + DQ framework.</li>
-<li><input type="checkbox" disabled="" />
-I have 6 STAR+I behavioral stories prepped (see Part 2).</li>
-<li><input type="checkbox" disabled="" />
-I can name the top 5 pitfalls of each of the 10 scenarios.</li>
-<li><input type="checkbox" disabled="" />
-I know the current numbers cold: impressions/day, storage/day, QPS.</li>
-<li><input type="checkbox" disabled="" />
-I've read Part 4's glossary and don't blink at any term.</li>
-<li><input type="checkbox" disabled="" />
-I've done at least one full mock loop with a friend.</li>
-<li><input type="checkbox" disabled="" />
-Sleep. Eat protein. Show up.</li>
-</ul>
-<hr />
-<p><a href="#ads-part-IX">← Master Index</a> · <a href="#ads-part-00">Part 0</a> · <a href="#ads-part-02">Part 2 →</a></p>
+  <aside class="sidebar sidebar-turn">
+    <div class="sidebar-label">Where this is going · Act 3</div>
+    <h3 class="sidebar-title">The platform you're about to build.</h3>
+    <p>Raj handed you a brief that most candidates read as a system-design exercise and start drawing boxes. You are about to do something different. You are going to open Act 3 with a single sentence — one line that changes the terms of every architectural decision that follows. The sentence names the enemy. You now know the enemy: silent label-drift between audiences who think they are reading the same number. Every layer you propose from here has to be accountable to <em>that</em>.</p>
+    <p>Raj will challenge every choice. The challenges are the subject of Act 4. What you ship is judged in Act 5, when it breaks live on Black Friday while he watches. What you rebuild is Act 6. What it teaches you is Act 7.</p>
+    <p>One platform. One clock. One Round 1. Keep going.</p>
+  </aside>
+</section>
 <p class="back-to-top"><a href="#top">↑ Back to top</a></p>
 </section>
 <section id="ads-part-02" class="part-section" data-part="02">
