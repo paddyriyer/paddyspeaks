@@ -764,6 +764,34 @@ HEAD = '''<!DOCTYPE html>
 .part-section .contract-fix { margin-top: auto; padding-top: 10px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 13.5px; font-style: italic; color: #1a4f30; }
 @media (max-width: 900px) { .part-section .contracts { grid-template-columns: 1fr; } }
 
+/* Act 4 — six-volley pushback grid */
+.part-section .volley { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 22px; margin: 22px 0; box-shadow: 0 2px 8px rgba(26,35,50,.05); position: relative; display: grid; grid-template-columns: 68px 1fr; gap: 14px 18px; }
+.part-section .volley-clock { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-rust); background: rgba(196,75,43,.08); border-radius: 6px; padding: 6px 8px; text-align: center; align-self: start; }
+.part-section .volley-head { grid-column: 2 / -1; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); }
+.part-section .volley-raj { grid-column: 2 / -1; background: rgba(26,35,50,.04); border-left: 3px solid var(--color-ink); padding: 10px 14px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.part-section .volley-think { grid-column: 2 / -1; border: 1px dashed var(--color-border); border-radius: 6px; padding: 10px 14px; font-family: var(--font-body); font-size: 14px; line-height: 1.55; color: var(--color-muted); font-style: italic; }
+.part-section .volley-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 4px; font-style: normal; }
+.part-section .volley-you { grid-column: 2 / -1; background: rgba(42,122,74,.08); border-left: 3px solid var(--color-sage); padding: 10px 14px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.part-section .volley-score { grid-column: 2 / -1; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.05em; color: var(--color-sage); padding: 4px 0 0; border-top: 1px dashed var(--color-border); }
+.part-section .volley-score-win::before { content: "✓ "; color: var(--color-sage); }
+.part-section .volley-trap { border-color: rgba(196,75,43,.45); box-shadow: 0 2px 14px rgba(196,75,43,.08); }
+.part-section .volley-trap .volley-head::after { content: " · watch your step"; color: var(--color-rust); font-style: italic; }
+@media (max-width: 700px) {
+  .part-section .volley { grid-template-columns: 52px 1fr; padding: 14px; gap: 10px 12px; }
+  .part-section .volley-clock { font-size: 11px; padding: 4px 6px; }
+  .part-section .volley-raj, .part-section .volley-you { font-size: 14px; }
+}
+
+/* Act 4 — tally scoreboard */
+.part-section .tally { background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 22px; margin: 26px 0; }
+.part-section .tally-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; }
+.part-section .tally-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.part-section .tally-item { text-align: center; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 8px; }
+.part-section .tally-num { font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--color-ink); line-height: 1; }
+.part-section .tally-name { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-light-muted); margin-top: 4px; }
+.part-section .tally-foot { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14px; font-style: italic; color: var(--color-muted); line-height: 1.6; }
+@media (max-width: 700px) { .part-section .tally-grid { grid-template-columns: repeat(2, 1fr); } }
+
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
 .part-section .your-turn-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 4px 0; list-style: none; }
