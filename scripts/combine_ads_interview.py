@@ -25,15 +25,15 @@ SRC_DIR = ROOT / "interview" / "ads engineering"
 OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 
 PARTS = [
-    ("IX", "00_Master_Index.html",                      "Overview",                            "overview"),
-    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · The Incident",               "incident"),
-    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · What Is Revenue?",         "revenue"),
-    ("02", "Part2_Ads_Growth_Behavioral.html",          "Act 3 · The Architecture",            "architecture"),
-    ("03", "Part3_Deep_Dive_SQL.html",                  "Act 4 · The Defense",                 "defense"),
-    ("04", "Part4_Platform_Specific_Glossary.html",     "Act 5 · Everything Breaks",           "break"),
-    ("05", "Part5_Visualization_Measurement.html",      "Act 6 · Recovery",                    "recovery"),
-    ("06", "Part6_Room_Pressure_Decisions.html",        "Act 7 · The Lesson",                  "lesson"),
-    ("07", "Part7_Coding_Round.html",                    "Appendix · Your Turn",               "appendix"),
+    ("IX", "00_Master_Index.html",                      "The Brief · 09:47",                    "overview"),
+    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · 00:00 · The Incident",        "incident"),
+    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · 04:42 · Revenue",            "revenue"),
+    ("02", "Part2_Ads_Growth_Behavioral.html",          "Act 3 · 21:14 · Architecture",         "architecture"),
+    ("03", "Part3_Deep_Dive_SQL.html",                  "Act 4 · 24:03 · Defense",              "defense"),
+    ("04", "Part4_Platform_Specific_Glossary.html",     "Act 5 · 02:17 AM · Breaks",            "break"),
+    ("05", "Part5_Visualization_Measurement.html",      "Act 6 · 08:29 · Recovery",             "recovery"),
+    ("06", "Part6_Room_Pressure_Decisions.html",        "Act 7 · 43:22 · The Lesson",           "lesson"),
+    ("07", "Part7_Coding_Round.html",                    "Appendix · Drills",                   "appendix"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}
@@ -677,6 +677,8 @@ HEAD = '''<!DOCTYPE html>
 .part-section .act-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
 .part-section .act-title { font-family: var(--font-display); font-size: clamp(28px, 4.8vw, 48px); font-weight: 700; color: var(--color-ink); line-height: 1.08; margin: 0 0 18px; }
 .part-section .act-subtitle { font-family: var(--font-body); font-size: 19px; line-height: 1.7; color: var(--color-muted); font-style: italic; margin-bottom: 24px; }
+.part-section .scene-bridge { background: rgba(200,145,90,.08); border-left: 3px solid var(--color-gold); padding: 12px 16px; margin: 8px 0 18px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); font-style: italic; }
+.part-section .scene-bridge em { font-style: normal; color: var(--color-rust); }
 .part-section .act-breath { margin-top: 28px; font-style: italic; color: var(--color-muted); }
 .part-section .act-note { background: var(--color-cream); border-left: 3px solid var(--color-gold); padding: 18px 22px; margin: 22px 0; border-radius: 0 8px 8px 0; }
 .part-section .act-note p { font-size: 16px; line-height: 1.75; margin-bottom: 12px; }
@@ -904,6 +906,51 @@ HEAD = '''<!DOCTYPE html>
 .part-section .ship input[type="checkbox"] { margin-top: 4px; flex-shrink: 0; width: 16px; height: 16px; accent-color: var(--color-sage); }
 .part-section .ship input:checked + span { color: var(--color-light-muted); text-decoration: line-through; }
 .part-section .appendix-close { margin-top: 28px; font-family: var(--font-body); font-size: 16px; line-height: 1.7; color: var(--color-ink); font-style: italic; }
+
+/* The Brief — immersive interview framing (top of article) */
+.part-section .brief-hero { text-align: center; padding: 28px 0 14px; }
+.part-section .brief-hero-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--color-rust); margin-bottom: 12px; }
+.part-section .brief-hero-title { font-family: var(--font-display); font-size: clamp(36px, 6.4vw, 68px); font-weight: 700; color: var(--color-ink); line-height: 1.02; margin: 0 0 14px; letter-spacing: -0.5px; }
+.part-section .brief-hero-line { font-family: var(--font-body); font-size: clamp(17px, 2.2vw, 21px); line-height: 1.55; color: var(--color-muted); font-style: italic; max-width: 680px; margin: 0 auto; }
+
+.part-section .loop-card { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 28px 0; box-shadow: 0 4px 16px rgba(26,35,50,.08); }
+.part-section .loop-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 16px; text-align: center; }
+.part-section .loop-rounds { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+.part-section .loop-round { border: 1px solid var(--color-border); border-radius: 8px; padding: 12px 10px; text-align: center; background: var(--color-cream); opacity: 0.55; transition: all .2s; }
+.part-section .loop-round.is-active { opacity: 1; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-color: #1a2332; box-shadow: 0 4px 14px rgba(26,35,50,.22); transform: translateY(-2px); }
+.part-section .loop-round.is-active .loop-num { color: var(--color-gold-light); }
+.part-section .loop-round.is-active .loop-name { color: #fff; }
+.part-section .loop-round.is-active .loop-meta { color: var(--color-gold-light); }
+.part-section .loop-num { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-muted); line-height: 1; }
+.part-section .loop-name { font-family: var(--font-body); font-size: 12.5px; font-weight: 600; color: var(--color-ink); margin: 4px 0 2px; line-height: 1.25; }
+.part-section .loop-meta { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.05em; color: var(--color-light-muted); }
+.part-section .loop-foot { font-family: var(--font-body); font-size: 15px; line-height: 1.65; color: var(--color-ink); padding-top: 14px; border-top: 1px dashed var(--color-border); }
+@media (max-width: 800px) {
+  .part-section .loop-rounds { grid-template-columns: repeat(2, 1fr); }
+  .part-section .loop-round.is-active { grid-column: 1 / -1; }
+}
+
+.part-section .brief-who { background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 10px; padding: 20px 22px; margin: 22px 0; }
+.part-section .brief-who-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; }
+.part-section .brief-who-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.part-section .brief-who-item { background: #fff; border: 1px solid var(--color-border); border-left: 3px solid var(--color-gold); border-radius: 6px; padding: 12px 14px; }
+.part-section .brief-who-k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 4px; }
+.part-section .brief-who-v { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
+@media (max-width: 700px) { .part-section .brief-who-grid { grid-template-columns: 1fr; } }
+
+.part-section .watched { background: linear-gradient(135deg, #3a1a1a 0%, #5a1f1f 100%); color: #fff; border-radius: 12px; padding: 22px 26px; margin: 28px 0; border-left: 5px solid #e25555; box-shadow: 0 6px 20px rgba(92,30,30,.18); }
+.part-section .watched-line { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #fff; line-height: 1.25; margin-bottom: 12px; }
+.part-section .watched-body { font-family: var(--font-body); font-size: 15.5px; line-height: 1.65; color: #f5e4e4; }
+
+.part-section .brief-stakes { margin: 22px 0; padding: 18px 22px; background: #fff; border: 1px solid var(--color-border); border-radius: 10px; }
+.part-section .brief-stakes-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
+.part-section .brief-stakes-list { padding-left: 26px; margin: 0; }
+.part-section .brief-stakes-list li { font-family: var(--font-body); font-size: 15px; line-height: 1.6; margin-bottom: 6px; color: var(--color-ink); }
+
+.part-section .brief-rules { margin: 22px 0; padding: 18px 22px; background: var(--color-cream); border-left: 4px solid var(--color-gold); border-radius: 0 8px 8px 0; }
+.part-section .brief-rules-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
+.part-section .brief-rules ul { margin: 0 0 0 22px; padding: 0; }
+.part-section .brief-rules li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; margin-bottom: 6px; color: var(--color-ink); }
 
 /* Your Turn — inline answer reveal */
 .part-section .your-turn-answer { margin-top: 12px; border-top: 1px dashed var(--color-border); padding-top: 10px; }
