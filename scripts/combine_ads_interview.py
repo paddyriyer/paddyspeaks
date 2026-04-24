@@ -1149,6 +1149,22 @@ HEAD = '''<!DOCTYPE html>
 .part-section .room-ask { margin: 16px 20px; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 10px; padding: 14px 18px; }
 .part-section .room-ask-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 8px; }
 .part-section .room-ask blockquote { margin: 0; padding: 0; border: none; font-family: var(--font-display); font-size: 17px; font-weight: 500; line-height: 1.5; color: #fff; background: none; font-style: normal; }
+
+/* Five Rooms — per-room warm-up ramp (Q1–Q4 before Q5) */
+.part-section .room-ramp { margin: 14px 20px; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 14px 16px; }
+.part-section .room-ramp-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .rramp-q { background: var(--color-cream); border: 1px solid var(--color-border); border-left: 3px solid var(--color-gold); border-radius: 0 6px 6px 0; padding: 9px 12px; margin-bottom: 6px; }
+.part-section .rramp-q:last-child { margin-bottom: 0; }
+.part-section .rramp-soft   { border-left-color: #4a9f6a; }
+.part-section .rramp-vocab  { border-left-color: #c8915a; }
+.part-section .rramp-mech   { border-left-color: #c44b2b; }
+.part-section .rramp-scen   { border-left-color: #5a1f1f; }
+.part-section .rramp-tier { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-light-muted); margin-bottom: 4px; }
+.part-section .rramp-soft  .rramp-tier { color: #1a4f30; }
+.part-section .rramp-vocab .rramp-tier { color: #a87434; }
+.part-section .rramp-mech  .rramp-tier { color: var(--color-rust); }
+.part-section .rramp-scen  .rramp-tier { color: #5a1f1f; }
+.part-section .rramp-text { font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; color: var(--color-ink); }
 .part-section .room-specifics { padding: 8px 20px 18px; }
 .part-section .room-sp-row { display: grid; grid-template-columns: 190px 1fr; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--color-border-light); }
 .part-section .room-sp-row:first-child { border-top: none; }
