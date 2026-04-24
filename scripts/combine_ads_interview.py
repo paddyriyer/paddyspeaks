@@ -1188,6 +1188,123 @@ HEAD = '''<!DOCTYPE html>
 .part-section .stage-gotcha em { color: var(--color-rust); font-style: italic; font-weight: 600; }
 .part-section .stage-arrow { text-align: center; font-family: var(--font-mono); font-size: 24px; color: var(--color-gold); margin: 4px 0; font-weight: 600; line-height: 1; }
 
+/* Stage viz — data visualizations inside each stage card */
+.part-section .stage-viz { background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+.part-section .viz-title { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
+.part-section .viz-title-sec { margin-top: 16px; padding-top: 10px; border-top: 1px dashed var(--color-border); }
+.part-section .viz-sub { font-family: var(--font-body); font-size: 13px; line-height: 1.55; color: var(--color-muted); font-style: italic; margin-top: 8px; }
+.part-section .viz-sub strong { color: var(--color-rust); font-weight: 600; }
+.part-section .viz-sub em { color: var(--color-ink); font-weight: 600; font-style: normal; }
+.part-section .viz-foot { margin-top: 10px; font-family: var(--font-body); font-size: 13px; color: var(--color-ink); line-height: 1.55; }
+
+/* Stage metric grid — big-number cards */
+.part-section .stage-metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.part-section .smetric { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 8px; text-align: center; }
+.part-section .sm-val { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-ink); line-height: 1; }
+.part-section .sm-key { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em; color: var(--color-muted); margin-top: 4px; line-height: 1.3; }
+@media (max-width: 700px) {
+  .part-section .stage-metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .part-section .sm-val { font-size: 18px; }
+}
+
+/* Stage 1 — stacked bar for objective distribution */
+.part-section .stacked-bar { display: flex; height: 42px; border-radius: 6px; overflow: hidden; border: 1px solid var(--color-border); margin: 10px 0 4px; }
+.part-section .sb-seg { display: flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: 11.5px; color: #fff; padding: 0 4px; }
+.part-section .sb-conv  { background: #2a7a4a; }
+.part-section .sb-cons  { background: #c8915a; }
+.part-section .sb-aware { background: #2563a8; }
+
+/* Stage 2 — latency track */
+.part-section .latency-track { display: flex; height: 48px; border-radius: 6px; overflow: hidden; border: 1px solid var(--color-border); background: #fff; }
+.part-section .lat-seg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 6px; border-right: 1px solid rgba(255,255,255,.5); color: #fff; font-family: var(--font-mono); line-height: 1.2; }
+.part-section .lat-1 { background: #2563a8; }
+.part-section .lat-2 { background: #4a8fbf; }
+.part-section .lat-3 { background: #c8915a; }
+.part-section .lat-4 { background: #a87434; }
+.part-section .lat-label { font-size: 11px; }
+.part-section .lat-ms { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+/* Stage 3 — auction leaderboard */
+.part-section .auction-board { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--color-border); border-radius: 6px; overflow: hidden; font-family: var(--font-mono); font-size: 12px; }
+.part-section .auction-board thead th { background: var(--color-ink); color: #fff; padding: 8px 10px; text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
+.part-section .auction-board tbody td { padding: 8px 10px; border-top: 1px solid var(--color-border); }
+.part-section .auction-board tr.auc-win    { background: rgba(42,122,74,.14); }
+.part-section .auction-board tr.auc-win td { color: #1a4f30; font-weight: 600; }
+.part-section .auction-board tr.auc-second { background: rgba(196,75,43,.06); }
+
+/* Stage 4 — funnel */
+.part-section .funnel { background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.part-section .fn-row { display: grid; grid-template-columns: 1fr 80px 50px; gap: 10px; align-items: center; }
+.part-section .fn-bar { background: linear-gradient(90deg, #2563a8, #4a8fbf); border-radius: 4px; padding: 8px 10px; color: #fff; font-family: var(--font-body); font-size: 12.5px; height: 30px; display: flex; align-items: center; }
+.part-section .fn-ivt .fn-bar      { background: linear-gradient(90deg, #c44b2b, #e06e4b); }
+.part-section .fn-view .fn-bar     { background: linear-gradient(90deg, #c8915a, #e0ad7a); }
+.part-section .fn-billable .fn-bar { background: linear-gradient(90deg, #2a7a4a, #4a9f6a); }
+.part-section .fn-n   { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--color-ink); text-align: right; }
+.part-section .fn-pct { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); text-align: right; }
+
+/* Stage 5 — CTR bars + consent track */
+.part-section .ctr-bars { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; }
+.part-section .ctr-row { display: grid; grid-template-columns: 200px 1fr; gap: 10px; align-items: center; font-family: var(--font-body); font-size: 12.5px; }
+.part-section .ctr-bar { background: var(--color-cream); border-radius: 4px; height: 22px; overflow: hidden; }
+.part-section .ctr-bar-muted { opacity: 0.5; }
+.part-section .ctr-fill { background: linear-gradient(90deg, #1a4f8a, #2563a8); color: #fff; height: 100%; display: flex; align-items: center; padding: 0 8px; font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
+.part-section .ctr-fill-na { background: #999; font-style: italic; }
+.part-section .consent-track { display: flex; height: 52px; border-radius: 6px; overflow: hidden; border: 1px solid var(--color-border); margin-top: 10px; }
+.part-section .cons-seg { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 6px; color: #fff; font-family: var(--font-mono); line-height: 1.2; border-right: 1px solid rgba(255,255,255,.5); }
+.part-section .cons-seg:last-child { border-right: none; }
+.part-section .cons-eu  { background: #c44b2b; }
+.part-section .cons-row { background: #c8915a; }
+.part-section .cons-us  { background: #2563a8; }
+.part-section .cons-ios { background: #555555; }
+.part-section .cons-seg span { font-size: 11px; }
+.part-section .cons-seg .cons-n { font-size: 12px; font-weight: 700; margin-top: 2px; }
+@media (max-width: 700px) { .part-section .ctr-row { grid-template-columns: 1fr; gap: 2px; } }
+
+/* Stage 6 — decay chart + attribution models */
+.part-section .decay-chart { display: flex; align-items: flex-end; gap: 8px; height: 160px; background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; }
+.part-section .decay-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; height: 100%; }
+.part-section .decay-fill { width: 100%; background: linear-gradient(180deg, #c8915a 0%, #a87434 100%); border-radius: 4px 4px 0 0; transition: height .6s ease; min-height: 4px; }
+.part-section .decay-bar-full .decay-fill { background: linear-gradient(180deg, #2a7a4a 0%, #1a4f30 100%); }
+.part-section .decay-label { font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); margin-top: 4px; }
+.part-section .decay-val { font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--color-ink); position: absolute; bottom: 20px; }
+.part-section .decay-bar .decay-val { bottom: auto; top: -18px; }
+.part-section .attribution-models { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; }
+.part-section .am-row { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: center; font-family: var(--font-body); font-size: 12.5px; }
+.part-section .am-name { color: var(--color-ink); font-weight: 600; }
+.part-section .am-touches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+.part-section .am-t { background: var(--color-cream); border: 1px solid var(--color-border); border-radius: 4px; padding: 6px 4px; text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); }
+.part-section .am-t-0 { opacity: 0.3; }
+.part-section .am-t-10 { background: rgba(200,145,90,0.2); color: var(--color-ink); }
+.part-section .am-t-12 { background: rgba(200,145,90,0.25); color: var(--color-ink); }
+.part-section .am-t-15 { background: rgba(200,145,90,0.3); color: var(--color-ink); }
+.part-section .am-t-18 { background: rgba(200,145,90,0.35); color: var(--color-ink); }
+.part-section .am-t-22 { background: rgba(200,145,90,0.45); color: var(--color-ink); font-weight: 600; }
+.part-section .am-t-25 { background: rgba(200,145,90,0.5); color: var(--color-ink); font-weight: 600; }
+.part-section .am-t-48 { background: rgba(42,122,74,0.4); color: #1a4f30; font-weight: 700; }
+.part-section .am-t-50 { background: rgba(42,122,74,0.45); color: #1a4f30; font-weight: 700; }
+.part-section .am-t-full { background: #2a7a4a; color: #fff; font-weight: 700; }
+
+/* Stage 7 — loop timeline */
+.part-section .loop-timeline { display: flex; flex-direction: column; gap: 6px; background: #fff; border: 1px solid var(--color-border); border-radius: 6px; padding: 10px 12px; }
+.part-section .lt-row { display: grid; grid-template-columns: 220px 1fr 80px; gap: 10px; align-items: center; font-family: var(--font-body); font-size: 12.5px; }
+.part-section .lt-who { color: var(--color-ink); }
+.part-section .lt-bar { background: var(--color-cream); border-radius: 4px; height: 14px; overflow: hidden; position: relative; }
+.part-section .lt-fill { height: 100%; border-radius: 4px; }
+.part-section .lt-fast .lt-fill    { background: linear-gradient(90deg, #2a7a4a, #4a9f6a); }
+.part-section .lt-med .lt-fill     { background: linear-gradient(90deg, #c8915a, #e0ad7a); }
+.part-section .lt-slow .lt-fill    { background: linear-gradient(90deg, #c44b2b, #e06e4b); }
+.part-section .lt-slowest .lt-fill { background: linear-gradient(90deg, #5a1f1f, #c44b2b); }
+.part-section .lt-lat { font-family: var(--font-mono); font-size: 11.5px; font-weight: 600; color: var(--color-ink); text-align: right; }
+@media (max-width: 700px) {
+  .part-section .lt-row { grid-template-columns: 1fr 60px; }
+  .part-section .lt-bar { display: none; }
+  .part-section .fn-row { grid-template-columns: 1fr 60px 40px; gap: 6px; }
+  .part-section .fn-bar { font-size: 11px; padding: 6px 8px; }
+  .part-section .auction-board { font-size: 10.5px; }
+  .part-section .auction-board tbody td { padding: 6px 6px; }
+  .part-section .am-row { grid-template-columns: 90px 1fr; }
+}
+
 .part-section .stage-loop { display: grid; grid-template-columns: 72px 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 20px 24px; margin: 14px 0 0; box-shadow: 0 6px 20px rgba(26,35,50,.18); }
 .part-section .stage-loop-arrow { font-family: var(--font-display); font-size: 56px; font-weight: 700; color: var(--color-gold-light); text-align: center; line-height: 1; }
 .part-section .stage-loop-head { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
