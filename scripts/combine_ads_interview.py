@@ -26,6 +26,7 @@ OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 
 PARTS = [
     ("X0", "Primer_Ads_101.html",                       "Primer · Ads 101",                     "primer"),
+    ("X1", "Five_Rooms.html",                           "Five Rooms · By Company",              "rooms"),
     ("IX", "00_Master_Index.html",                      "The Brief · 09:47",                    "overview"),
     ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · 00:00 · The Incident",        "incident"),
     ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · 04:42 · Revenue",            "revenue"),
@@ -952,6 +953,62 @@ HEAD = '''<!DOCTYPE html>
 .part-section .brief-rules-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; }
 .part-section .brief-rules ul { margin: 0 0 0 22px; padding: 0; }
 .part-section .brief-rules li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; margin-bottom: 6px; color: var(--color-ink); }
+
+/* Five Rooms — per-company interview comparison */
+.part-section .rooms-grid { display: flex; flex-direction: column; gap: 20px; margin: 26px 0; }
+.part-section .room { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(26,35,50,.06); position: relative; border-top: 5px solid var(--color-gold); }
+.part-section .room-meta    { border-top-color: #4267B2; }
+.part-section .room-google  { border-top-color: #4285F4; }
+.part-section .room-amazon  { border-top-color: #FF9900; }
+.part-section .room-netflix { border-top-color: #E50914; }
+.part-section .room-apple   { border-top-color: #555555; }
+.part-section .room-home { box-shadow: 0 8px 24px rgba(229,9,20,.18); outline: 2px solid rgba(229,9,20,.3); }
+.part-section .room-badge { position: absolute; top: 14px; right: 18px; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-gold-dark); background: var(--color-cream); padding: 4px 10px; border-radius: 12px; }
+.part-section .room-home .room-badge { background: rgba(229,9,20,.1); color: #b10710; }
+.part-section .room-head { padding: 20px 24px 14px; background: var(--color-cream); border-bottom: 1px solid var(--color-border); }
+.part-section .room-co { font-family: var(--font-display); font-size: 28px; font-weight: 700; color: var(--color-ink); margin-bottom: 4px; letter-spacing: -0.3px; }
+.part-section .room-who { font-family: var(--font-body); font-size: 14px; color: var(--color-ink); margin-bottom: 6px; }
+.part-section .room-who strong { color: var(--color-rust); }
+.part-section .room-ctx { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); letter-spacing: 0.04em; }
+.part-section .room-storm { background: rgba(26,35,50,.03); border-left: 3px solid var(--color-ink); padding: 12px 16px; margin: 14px 20px; border-radius: 0 6px 6px 0; }
+.part-section .room-storm-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-rust); margin-bottom: 6px; }
+.part-section .room-storm-msg { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
+.part-section .room-ask { margin: 16px 20px; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 10px; padding: 14px 18px; }
+.part-section .room-ask-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 8px; }
+.part-section .room-ask blockquote { margin: 0; padding: 0; border: none; font-family: var(--font-display); font-size: 17px; font-weight: 500; line-height: 1.5; color: #fff; background: none; font-style: normal; }
+.part-section .room-specifics { padding: 8px 20px 18px; }
+.part-section .room-sp-row { display: grid; grid-template-columns: 190px 1fr; gap: 14px; padding: 8px 0; border-top: 1px dashed var(--color-border-light); }
+.part-section .room-sp-row:first-child { border-top: none; }
+.part-section .room-sp-k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-gold-dark); padding-top: 2px; }
+.part-section .room-sp-v { font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); }
+.part-section .room-sp-v code { font-size: 12.5px; }
+@media (max-width: 700px) {
+  .part-section .room-sp-row { grid-template-columns: 1fr; gap: 2px; }
+  .part-section .room-co { font-size: 22px; }
+  .part-section .room-ask blockquote { font-size: 15px; }
+  .part-section .room-badge { position: static; display: inline-block; margin-bottom: 10px; }
+  .part-section .room-head { padding-top: 14px; }
+}
+
+/* Five Rooms — cross-company pattern card */
+.part-section .pattern { background: var(--color-cream); border: 1px solid var(--color-border); border-left: 5px solid var(--color-gold); border-radius: 10px; padding: 22px 24px; margin: 28px 0; }
+.part-section .pattern-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 16px; text-align: center; }
+.part-section .pattern-grid { display: flex; flex-direction: column; gap: 12px; }
+.part-section .pattern-row { background: #fff; border: 1px solid var(--color-border); border-radius: 8px; padding: 14px 18px; display: grid; grid-template-columns: 200px 1fr; gap: 16px; }
+.part-section .pattern-k { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--color-rust); line-height: 1.3; }
+.part-section .pattern-v { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); }
+@media (max-width: 700px) { .part-section .pattern-row { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Five Rooms — hand-off card */
+.part-section .rooms-handoff { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 26px 28px; margin: 32px 0 12px; }
+.part-section .rooms-handoff-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 14px; }
+.part-section .rooms-handoff-body p { font-family: var(--font-body); font-size: 15.5px; line-height: 1.7; color: #e8e0d6; margin: 0 0 14px; }
+.part-section .rooms-handoff-list { list-style: none; padding: 0; margin: 10px 0 18px; }
+.part-section .rooms-handoff-list li { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: #e8e0d6; padding: 10px 0 10px 26px; border-top: 1px dashed rgba(232,224,214,.2); position: relative; }
+.part-section .rooms-handoff-list li:first-child { border-top: none; }
+.part-section .rooms-handoff-list li::before { content: "→"; position: absolute; left: 0; top: 10px; color: var(--color-gold-light); font-family: var(--font-mono); }
+.part-section .rooms-handoff-list li strong { color: #fff; }
+.part-section .rooms-handoff-foot { margin-top: 10px !important; padding-top: 14px; border-top: 1px dashed rgba(232,224,214,.3); color: var(--color-gold-light) !important; font-family: var(--font-mono) !important; font-size: 13.5px !important; }
 
 /* Primer — 5-beat money flow */
 .part-section .primer-flow { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 26px 0; box-shadow: 0 4px 16px rgba(26,35,50,.06); }
