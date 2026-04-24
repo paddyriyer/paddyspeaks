@@ -27,6 +27,7 @@ OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 PARTS = [
     ("X0", "Primer_Ads_101.html",                       "Primer · Ads 101",                     "primer"),
     ("X1", "Five_Rooms.html",                           "Five Rooms · By Company",              "rooms"),
+    ("X2", "Question_Bank.html",                        "Question Bank · soft → hard",          "bank"),
     ("IX", "00_Master_Index.html",                      "The Brief · 00:00 · problem drops",    "overview"),
     ("00", "Part0_Introduction_to_Ads_Engineering.html", "Round 0 + 1 · 0–5 min · Drop + Clarify", "incident"),
     ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Round 1 · 5–15 min · Clarify or Fail",  "revenue"),
@@ -706,6 +707,62 @@ HEAD = '''<!DOCTYPE html>
 .part-section .parallel-foot em { color: var(--color-muted); font-style: italic; }
 @media (max-width: 800px) {
   .part-section .parallel-grid { grid-template-columns: 1fr; }
+}
+
+/* Question Bank — 13 tiers from soft to hard */
+.part-section .tier { background: #fff; border: 1px solid var(--color-border); border-left: 5px solid var(--color-gold); border-radius: 10px; padding: 18px 22px; margin: 16px 0; box-shadow: 0 2px 10px rgba(26,35,50,.05); }
+.part-section .tier-soft         { border-left-color: #4a9f6a; }
+.part-section .tier-vocab        { border-left-color: #6ba8c4; }
+.part-section .tier-attribution  { border-left-color: #c8915a; }
+.part-section .tier-ctv          { border-left-color: #E50914; }
+.part-section .tier-identity     { border-left-color: #c8915a; }
+.part-section .tier-mechanism    { border-left-color: #a87434; }
+.part-section .tier-scenario     { border-left-color: #c44b2b; }
+.part-section .tier-debug        { border-left-color: #c44b2b; background: rgba(196,75,43,.04); }
+.part-section .tier-pipeline     { border-left-color: #5a3a8a; }
+.part-section .tier-exec         { border-left-color: #1a4f8a; background: rgba(26,79,138,.04); }
+.part-section .tier-amazon       { border-left-color: #FF9900; }
+.part-section .tier-meta         { border-left-color: #4267B2; }
+.part-section .tier-edge         { border-left-color: #5a1f1f; }
+.part-section .tier-head { display: grid; grid-template-columns: 56px 1fr; grid-template-rows: auto auto; gap: 4px 14px; padding-bottom: 10px; border-bottom: 1px dashed var(--color-border); margin-bottom: 12px; align-items: baseline; }
+.part-section .tier-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 36px; font-weight: 700; color: var(--color-ink); line-height: 1; background: var(--color-cream); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.part-section .tier-soft        .tier-num { color: #1a4f30; }
+.part-section .tier-vocab       .tier-num { color: #1a4f8a; }
+.part-section .tier-attribution .tier-num { color: #a87434; }
+.part-section .tier-ctv         .tier-num { color: #b10710; }
+.part-section .tier-identity    .tier-num { color: #a87434; }
+.part-section .tier-mechanism   .tier-num { color: #a87434; }
+.part-section .tier-scenario    .tier-num { color: var(--color-rust); }
+.part-section .tier-debug       .tier-num { color: var(--color-rust); }
+.part-section .tier-pipeline    .tier-num { color: #5a3a8a; }
+.part-section .tier-exec        .tier-num { color: #1a4f8a; }
+.part-section .tier-amazon      .tier-num { color: #a66000; }
+.part-section .tier-meta        .tier-num { color: #4267B2; }
+.part-section .tier-edge        .tier-num { color: #5a1f1f; }
+.part-section .tier-title { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--color-ink); line-height: 1.2; }
+.part-section .tier-meta:not(.tier) { display: contents; }
+.part-section .tier .tier-meta { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; color: var(--color-light-muted); }
+.part-section .tier-qs { list-style: none; padding: 0; margin: 0 0 12px; }
+.part-section .tier-qs li { font-family: var(--font-display); font-size: 16px; line-height: 1.55; color: var(--color-ink); padding: 10px 0 10px 30px; border-top: 1px dashed var(--color-border-light); position: relative; font-weight: 500; }
+.part-section .tier-qs li:first-child { border-top: none; padding-top: 4px; }
+.part-section .tier-qs li::before { content: "—"; position: absolute; left: 8px; top: 10px; color: var(--color-gold-dark); font-family: var(--font-mono); font-weight: 600; }
+.part-section .tier-qs li:first-child::before { top: 4px; }
+.part-section .tier-tip { font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; color: var(--color-ink); padding: 10px 14px; background: var(--color-cream); border-radius: 6px; }
+.part-section .tier-tip em { color: var(--color-rust); font-style: italic; font-weight: 600; }
+.part-section .tier-tip code { font-size: 12px; }
+
+.part-section .bank-close { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 24px 26px; margin: 28px 0 12px; }
+.part-section .bank-close-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 14px; }
+.part-section .bank-close-body p { font-family: var(--font-body); font-size: 15.5px; line-height: 1.7; color: #e8e0d6; margin: 0 0 12px; }
+.part-section .bank-close-body strong { color: #fff; }
+.part-section .bank-close-body em { color: var(--color-gold-light); font-style: italic; }
+.part-section .bank-close-final { font-family: var(--font-mono) !important; font-size: 13.5px !important; color: var(--color-gold-light) !important; padding-top: 12px; border-top: 1px dashed rgba(232,224,214,.3); margin-top: 4px !important; }
+
+@media (max-width: 700px) {
+  .part-section .tier-head { grid-template-columns: 44px 1fr; }
+  .part-section .tier-num { font-size: 26px; }
+  .part-section .tier-title { font-size: 17px; }
+  .part-section .tier-qs li { font-size: 14.5px; }
 }
 
 /* Warm-up ramp — soft blows before the hard one */
