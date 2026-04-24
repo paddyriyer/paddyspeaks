@@ -27,15 +27,15 @@ OUT = ROOT / "articles" / "ads-data-engineering-interview-prep.html"
 PARTS = [
     ("X0", "Primer_Ads_101.html",                       "Primer · Ads 101",                     "primer"),
     ("X1", "Five_Rooms.html",                           "Five Rooms · By Company",              "rooms"),
-    ("IX", "00_Master_Index.html",                      "The Brief · 09:47",                    "overview"),
-    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Act 1 · 00:00 · The Incident",        "incident"),
-    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Act 2 · 04:42 · Revenue",            "revenue"),
-    ("02", "Part2_Ads_Growth_Behavioral.html",          "Act 3 · 21:14 · Architecture",         "architecture"),
-    ("03", "Part3_Deep_Dive_SQL.html",                  "Act 4 · 24:03 · Defense",              "defense"),
-    ("04", "Part4_Platform_Specific_Glossary.html",     "Act 5 · 02:17 AM · Breaks",            "break"),
-    ("05", "Part5_Visualization_Measurement.html",      "Act 6 · 08:29 · Recovery",             "recovery"),
-    ("06", "Part6_Room_Pressure_Decisions.html",        "Act 7 · 43:22 · The Lesson",           "lesson"),
-    ("07", "Part7_Coding_Round.html",                    "Appendix · Drills",                   "appendix"),
+    ("IX", "00_Master_Index.html",                      "The Brief · 00:00 · problem drops",    "overview"),
+    ("00", "Part0_Introduction_to_Ads_Engineering.html", "Round 0 + 1 · 0–5 min · Drop + Clarify", "incident"),
+    ("01", "Part1_Mock_Interview_Scenarios_Practice.html","Round 1 · 5–15 min · Clarify or Fail",  "revenue"),
+    ("02", "Part2_Ads_Growth_Behavioral.html",          "Round 2 · 15–30 min · Design",         "architecture"),
+    ("03", "Part3_Deep_Dive_SQL.html",                  "Round 3 · 30–40 min · Defend",         "defense"),
+    ("04", "Part4_Platform_Specific_Glossary.html",     "Round 5 · 50–55 min · System Breaks",  "break"),
+    ("05", "Part5_Visualization_Measurement.html",      "Round 6 · 55–60 min · Recovery",       "recovery"),
+    ("06", "Part6_Room_Pressure_Decisions.html",        "Round 7 · final minute · Signal",      "lesson"),
+    ("07", "Part7_Coding_Round.html",                   "Round 4 · Appendix · Deep Dive · SQL", "appendix"),
 ]
 
 FILE_TO_PART = {filename: num for (num, filename, _t, _s) in PARTS}
@@ -707,6 +707,54 @@ HEAD = '''<!DOCTYPE html>
 @media (max-width: 800px) {
   .part-section .parallel-grid { grid-template-columns: 1fr; }
 }
+
+/* Round 0 · The Drop — stark opening card */
+.part-section .drop { background: linear-gradient(135deg, #0d1620 0%, #1a2332 100%); color: #fff; border-radius: 14px; padding: 28px 30px; margin: 24px 0; box-shadow: 0 10px 32px rgba(0,0,0,.25); border: 1px solid rgba(229,9,20,.4); }
+.part-section .drop-timer { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.22em; text-transform: uppercase; color: #f5a9a9; margin-bottom: 18px; text-align: center; }
+.part-section .drop-quote { font-family: var(--font-display); font-size: clamp(22px, 3.4vw, 32px); font-weight: 700; color: #fff; line-height: 1.25; text-align: center; margin: 0 0 10px; padding: 18px 12px; border-top: 1px solid rgba(255,255,255,.18); border-bottom: 1px solid rgba(255,255,255,.18); }
+.part-section .drop-silence { text-align: center; font-family: var(--font-body); font-size: 14px; font-style: italic; color: #c8915a; margin: 0 0 18px; letter-spacing: 0.04em; }
+.part-section .drop-body p { font-family: var(--font-body); font-size: 15.5px; line-height: 1.7; color: #e8e0d6; margin: 0 0 12px; }
+.part-section .drop-body strong { color: #ffb5b5; }
+.part-section .drop-score { margin-top: 18px; padding-top: 16px; border-top: 1px dashed rgba(255,255,255,.2); }
+.part-section .dscore-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #c8915a; margin-bottom: 12px; text-align: center; }
+.part-section .dscore-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.part-section .dscore-item { background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 14px 16px; }
+.part-section .dscore-fail { border-left: 3px solid #e25555; }
+.part-section .dscore-pass { border-left: 3px solid #4a9f6a; }
+.part-section .dsi-name { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.part-section .dscore-fail .dsi-name { color: #ffb5b5; }
+.part-section .dscore-pass .dsi-name { color: #b5e8c5; }
+.part-section .dsi-body { font-family: var(--font-body); font-size: 14px; line-height: 1.55; color: #e8e0d6; }
+.part-section .dsi-body em { color: #c8915a; font-style: italic; }
+.part-section .drop-foot { margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(255,255,255,.18); font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: #e8e0d6; text-align: center; }
+.part-section .drop-foot strong { color: var(--color-gold-light); }
+@media (max-width: 700px) { .part-section .dscore-grid { grid-template-columns: 1fr; } }
+
+/* Candidate Mistake — most-fail-here red callout */
+.part-section .mistake-cue { background: rgba(196,75,43,.06); border: 1px solid rgba(196,75,43,.32); border-left: 4px solid var(--color-rust); border-radius: 0 8px 8px 0; padding: 14px 18px; margin: 14px 0 18px; }
+.part-section .mcue-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--color-rust); margin-bottom: 6px; font-weight: 600; }
+.part-section .mcue-body { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-ink); }
+.part-section .mcue-body strong { color: var(--color-rust); font-weight: 600; }
+.part-section .mcue-body em { color: var(--color-ink); font-style: italic; font-weight: 600; }
+
+/* Decision Fork — branching consequences */
+.part-section .fork { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 20px 22px; margin: 22px 0; box-shadow: 0 4px 14px rgba(26,35,50,.06); }
+.part-section .fork-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 8px; text-align: center; }
+.part-section .fork-prompt { font-family: var(--font-body); font-size: 15px; line-height: 1.6; color: var(--color-ink); font-style: italic; margin-bottom: 14px; text-align: center; }
+.part-section .fork-branches { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.part-section .fork-branch { border: 1px solid var(--color-border); border-radius: 8px; padding: 14px 16px; background: var(--color-cream); }
+.part-section .fork-stream { border-left: 4px solid var(--color-rust); }
+.part-section .fork-batch  { border-left: 4px solid var(--color-sage); }
+.part-section .fb-head { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-ink); margin-bottom: 10px; line-height: 1.25; }
+.part-section .fork-stream .fb-head { color: var(--color-rust); }
+.part-section .fork-batch  .fb-head { color: #1a4f30; }
+.part-section .fb-break, .part-section .fb-when { font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); margin: 0 0 8px; }
+.part-section .fb-break strong { color: var(--color-rust); }
+.part-section .fb-when strong  { color: #1a4f30; }
+.part-section .fb-when em { color: var(--color-muted); font-style: italic; }
+.part-section .fork-foot { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); }
+.part-section .fork-foot strong { color: var(--color-rust); }
+@media (max-width: 700px) { .part-section .fork-branches { grid-template-columns: 1fr; } }
 
 /* Skip-cost red band — makes skipping an act feel costly */
 .part-section .skip-cost { background: linear-gradient(135deg, rgba(196,75,43,.12) 0%, rgba(196,75,43,.06) 100%); border: 1px solid rgba(196,75,43,.35); border-left: 4px solid var(--color-rust); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 4px 0 14px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
