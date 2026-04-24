@@ -709,6 +709,40 @@ HEAD = '''<!DOCTYPE html>
   .part-section .parallel-grid { grid-template-columns: 1fr; }
 }
 
+/* Tech-round sprint drills (Appendix Part B) */
+.part-section .sprint-section { margin: 28px 0; }
+.part-section .sprint-section-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; text-align: center; padding: 10px; background: var(--color-cream); border-top: 2px solid var(--color-gold); border-bottom: 2px solid var(--color-gold); border-radius: 0; }
+.part-section .sprint { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 8px; padding: 14px 18px; margin: 12px 0; box-shadow: 0 2px 8px rgba(26,35,50,.04); }
+.part-section .sprint-l3 { border-left-color: #4a9f6a; }
+.part-section .sprint-l4 { border-left-color: #c8915a; }
+.part-section .sprint-l5 { border-left-color: var(--color-rust); }
+.part-section .sprint-head { display: grid; grid-template-columns: 56px 1fr; grid-template-rows: auto auto; gap: 4px 14px; align-items: baseline; padding-bottom: 10px; border-bottom: 1px dashed var(--color-border-light); margin-bottom: 10px; }
+.part-section .sprint-tier { grid-row: 1 / -1; font-family: var(--font-display); font-size: 22px; font-weight: 700; background: var(--color-cream); border-radius: 6px; padding: 6px 10px; text-align: center; }
+.part-section .sprint-l3 .sprint-tier { color: #1a4f30; }
+.part-section .sprint-l4 .sprint-tier { color: #a87434; }
+.part-section .sprint-l5 .sprint-tier { color: var(--color-rust); }
+.part-section .sprint-name { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--color-ink); line-height: 1.25; }
+.part-section .sprint-pattern { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--color-muted); }
+.part-section .sprint-pattern code { font-size: 10.5px; }
+.part-section .sprint-prompt { font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); padding: 10px 14px; background: var(--color-cream); border-left: 3px solid var(--color-ink); border-radius: 0 6px 6px 0; }
+.part-section .sprint-prompt strong { color: var(--color-rust); }
+.part-section .sprint-answer { margin-top: 10px; }
+.part-section .sprint-answer > summary { cursor: pointer; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-gold-dark); padding: 6px 0; list-style: none; }
+.part-section .sprint-answer > summary::-webkit-details-marker { display: none; }
+.part-section .sprint-answer > summary::before { content: '▸ '; }
+.part-section .sprint-answer[open] > summary::before { content: '▾ '; }
+.part-section .sprint-body { padding-top: 8px; }
+.part-section .sprint-body pre { background: #0f1e2e; color: #e8e0d6; padding: 14px 16px; border-radius: 6px; overflow-x: auto; margin: 8px 0; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; }
+.part-section .sprint-body pre code { background: transparent; color: inherit; padding: 0; border: none; }
+.part-section .sprint-body p { font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; color: var(--color-ink); margin: 8px 0 0; }
+.part-section .sprint-body p strong { color: var(--color-rust); font-weight: 600; }
+
+.part-section .sprint-foot { background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 10px; padding: 20px 24px; margin: 24px 0; }
+.part-section .sprint-foot-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-light); margin-bottom: 12px; }
+.part-section .sprint-foot p { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: #e8e0d6; margin: 0; }
+.part-section .sprint-foot p strong { color: #fff; }
+.part-section .sprint-foot p em { color: var(--color-gold-light); font-style: italic; font-weight: 600; }
+
 /* Question Bank — 13 tiers from soft to hard */
 .part-section .tier { background: #fff; border: 1px solid var(--color-border); border-left: 5px solid var(--color-gold); border-radius: 10px; padding: 18px 22px; margin: 16px 0; box-shadow: 0 2px 10px rgba(26,35,50,.05); }
 .part-section .tier-soft         { border-left-color: #4a9f6a; }
