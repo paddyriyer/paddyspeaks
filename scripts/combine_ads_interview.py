@@ -1130,6 +1130,29 @@ HEAD = '''<!DOCTYPE html>
   .part-section .twists-grid { grid-template-columns: 1fr; }
 }
 
+/* Five Rooms — tech-stack × companies matrix */
+.part-section .stacks { margin: 32px 0; }
+.part-section .stacks-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .stacks-intro { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-muted); font-style: italic; margin-bottom: 16px; text-align: center; }
+.part-section .stacks-wrap { overflow-x: auto; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(26,35,50,.06); }
+.part-section .stacks-tbl { width: 100%; border-collapse: collapse; min-width: 1000px; margin: 0; font-size: 12.5px; }
+.part-section .stacks-tbl thead th { background: var(--color-ink); color: #fff; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; padding: 12px 12px; text-align: left; font-weight: 600; }
+.part-section .stacks-tbl thead th:nth-child(3) { background: #4267B2; }
+.part-section .stacks-tbl thead th:nth-child(4) { background: #4285F4; }
+.part-section .stacks-tbl thead th:nth-child(5) { background: #FF9900; }
+.part-section .stacks-tbl thead th:nth-child(6) { background: #E50914; }
+.part-section .stacks-tbl thead th:nth-child(7) { background: #555555; }
+.part-section .stacks-tbl tbody td { padding: 11px 12px; border-top: 1px solid var(--color-border); vertical-align: top; font-family: var(--font-body); font-size: 12.5px; line-height: 1.55; color: var(--color-ink); }
+.part-section .stacks-tbl tbody tr:nth-child(even) td { background: rgba(200,145,90,.03); }
+.part-section .stacks-tbl .stk-name { min-width: 130px; }
+.part-section .stacks-tbl .stk-name strong { font-family: var(--font-display); font-size: 15px; font-weight: 700; color: var(--color-ink); display: block; }
+.part-section .stacks-tbl .stk-sub { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); letter-spacing: 0.04em; margin-top: 2px; }
+.part-section .stacks-tbl .stk-layer { min-width: 220px; font-family: var(--font-body); font-size: 13px; color: var(--color-ink); border-right: 2px solid var(--color-gold); background: var(--color-cream) !important; }
+.part-section .stacks-tbl tbody td strong { color: var(--color-rust); }
+.part-section .stacks-foot { margin-top: 14px; padding: 14px 18px; background: var(--color-cream); border-left: 3px solid var(--color-gold); border-radius: 0 8px 8px 0; font-family: var(--font-body); font-size: 14px; line-height: 1.65; color: var(--color-ink); }
+.part-section .stacks-foot strong { color: var(--color-rust); font-weight: 600; }
+.part-section .stacks-foot em { color: var(--color-ink); font-weight: 600; font-style: normal; }
+
 /* Primer — 5-beat money flow */
 .part-section .primer-flow { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 26px 0; box-shadow: 0 4px 16px rgba(26,35,50,.06); }
 .part-section .primer-flow-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 18px; text-align: center; }

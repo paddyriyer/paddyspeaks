@@ -540,6 +540,156 @@
     <div class="twists-foot">Across fifteen twists, the bend is always one of three: <strong>(1)</strong> "two pipelines disagree, reconcile," <strong>(2)</strong> "a number moved, tell me if it's real," <strong>(3)</strong> "explain this privacy/opacity constraint in a sentence." If you can pattern-match the bend in under ten seconds, the specific column names become substitutable and the round becomes the same round everywhere.</div>
   </div>
 
+  <div class="stacks">
+    <div class="stacks-label">The tech platforms · what each does · who uses it where</div>
+    <div class="stacks-intro">The ads stack is built from ~12 pieces of infrastructure. Every ad company uses some subset — often the <em>same</em> subset — but wires them differently based on scale, latency, and privacy constraints. This is the cheat-sheet.</div>
+
+    <div class="stacks-wrap">
+      <table class="stacks-tbl">
+        <thead>
+          <tr>
+            <th>Platform</th>
+            <th>Layer · what it does</th>
+            <th>Meta</th>
+            <th>Google</th>
+            <th>Amazon</th>
+            <th>Netflix</th>
+            <th>Apple</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="stk-name"><strong>Kafka</strong><span class="stk-sub">LinkedIn OSS</span></td>
+            <td class="stk-layer">Ingest · durable, replayable event log. Topics per event type. Schema registry in front.</td>
+            <td>Internal fork; trillions of events/day in the ads path. Produces bid logs, impressions, conversions.</td>
+            <td>Rarely — Google runs proprietary pub-sub (Colossus-backed). Kafka appears at acquired units (Looker, Fitbit).</td>
+            <td>MSK (managed Kafka) for Sponsored Ads auction logs. Kinesis dominates elsewhere in AWS.</td>
+            <td><strong>Primary ingest</strong> for ads events. This article's architecture lands on Kafka in Act 3 Layer 5.</td>
+            <td>Internal pub-sub (Apple's own). Kafka not public-facing at scale.</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Kinesis</strong><span class="stk-sub">AWS managed</span></td>
+            <td class="stk-layer">Managed streaming · zero-ops ingest. Better than Kafka on small teams; worse on replay &gt;7 days.</td>
+            <td>—</td>
+            <td>—</td>
+            <td><strong>Default</strong> everywhere except where replay &gt;7d is required. Firehose → S3 for cheap retention.</td>
+            <td>Considered; rejected because 28-day attribution replay needs Kafka's topic retention.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Flink</strong><span class="stk-sub">Alibaba-originated</span></td>
+            <td class="stk-layer">Stream processing · stateful. Windowed aggregations, pattern detection, streaming joins with exactly-once.</td>
+            <td>Stream processing for attribution + fraud detection. Heavy Flink shop.</td>
+            <td>Dataflow (proprietary, Apache Beam OSS) is Google's Flink-equivalent. Same category, different implementation.</td>
+            <td>Flink Kinesis Data Analytics for near-real-time pacing and IVT pre-bid flagging.</td>
+            <td>Flink on Kubernetes for streaming identity-graph resolution + ROAS guardrails.</td>
+            <td>Internal stream processor; Flink not public. Postback batching happens in batch, not stream.</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Spark</strong><span class="stk-sub">Databricks stewardship</span></td>
+            <td class="stk-layer">Batch + structured streaming · large-scale ETL, ML feature pipelines, reprocessing.</td>
+            <td>PyTorch on Spark for ranking-model feature generation.</td>
+            <td>Used throughout ads ETL + ranker training. Dremel/BigQuery supplant for ad-hoc.</td>
+            <td>EMR Spark for nightly reconciliation + backfills. Retail-scale.</td>
+            <td>Iceberg-on-Spark for the silver/gold batch layer. Attribution backfills after graph upgrades.</td>
+            <td>Internal; SKAN postback aggregation is Spark-equivalent.</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Iceberg</strong><span class="stk-sub">Netflix OSS</span></td>
+            <td class="stk-layer">Table format · ACID on a data lake. Schema evolution, time-travel, hidden partitioning, snapshot isolation.</td>
+            <td>Growing — being evaluated as the warehouse-lake format across ads.</td>
+            <td>BigQuery is the warehouse; Iceberg appears at BQ-external-table adoption sites.</td>
+            <td>Iceberg-on-Glue for Sponsored Ads fact tables. Schema evolution without downtime is the killer feature.</td>
+            <td><strong>Origin shop.</strong> Iceberg was born here. Every gold table in this article's architecture is Iceberg.</td>
+            <td>Internal columnar format; not Iceberg.</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Delta Lake</strong><span class="stk-sub">Databricks OSS</span></td>
+            <td class="stk-layer">Table format · ACID like Iceberg, tighter Databricks coupling, slightly different partition model.</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Some adoption on Databricks-hosted workloads. Not Retail-primary.</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Hudi</strong><span class="stk-sub">Uber OSS</span></td>
+            <td class="stk-layer">Table format · optimized for upserts and late-arriving data. Strong at CDC ingestion.</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Considered for Finance ledger CDC; lost to Iceberg for consistency with rest of stack.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>BigQuery</strong><span class="stk-sub">Google proprietary</span></td>
+            <td class="stk-layer">Serverless warehouse · petabyte SQL, minute-to-minute billing, external table federation.</td>
+            <td>—</td>
+            <td><strong>Primary analytics engine</strong> across Ads. Dremel is the guts.</td>
+            <td>—</td>
+            <td>—</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Snowflake</strong><span class="stk-sub">SaaS warehouse</span></td>
+            <td class="stk-layer">Warehouse · multi-cloud, separation of storage and compute, zero-copy clones.</td>
+            <td>—</td>
+            <td>—</td>
+            <td>Retail Finance reporting; not the ads primary. Ads leans on Redshift + Iceberg.</td>
+            <td>BI + exec dashboards. Ads core pipelines are Iceberg + Spark; Snowflake is the consumer tier.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Presto / Trino</strong><span class="stk-sub">Meta OSS</span></td>
+            <td class="stk-layer">Query engine · federated SQL across warehouses and lakes. Interactive analytics.</td>
+            <td><strong>Origin shop.</strong> Presto was built at Meta. Primary interactive SQL.</td>
+            <td>Trino/Athena analogues live alongside BigQuery.</td>
+            <td>Athena (managed Trino) on S3. Interactive ad-hoc on raw logs.</td>
+            <td>Trino on Kubernetes for ad-hoc SQL on Iceberg tables.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>dbt</strong><span class="stk-sub">SaaS transform</span></td>
+            <td class="stk-layer">Transform layer · SQL-native DAG, tests, lineage, metric YAMLs, CI for transformations.</td>
+            <td>Internal analogue (not public dbt). Meta has its own SQL-DAG tooling.</td>
+            <td>Internal tooling. dbt appears in partner-team adoption.</td>
+            <td>Retail Finance on dbt; ads analytics also. Core ads pipelines are custom.</td>
+            <td><strong>Primary semantic layer</strong> in this article's architecture (Act 3 Layer 2). Metric YAMLs + CI tests.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Airflow</strong><span class="stk-sub">Airbnb OSS</span></td>
+            <td class="stk-layer">Orchestration · scheduled DAGs for batch jobs, backfills, dependency management.</td>
+            <td>Internal scheduler (Dataswarm). Airflow in peripheral teams.</td>
+            <td>Composer (managed Airflow) on GCP; also internal schedulers.</td>
+            <td>MWAA for batch ETL orchestration. Step Functions for event-driven pipelines.</td>
+            <td><strong>Maestro</strong> — Netflix-built orchestrator, public in 2024. Replaces Airflow at scale.</td>
+            <td>Internal scheduler.</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Druid / Pinot</strong><span class="stk-sub">Metamarkets / LinkedIn OSS</span></td>
+            <td class="stk-layer">OLAP · low-latency slice-and-dice on high-cardinality time-series. Dashboards over billions of rows.</td>
+            <td>Presto + internal columnar. Pinot appears in adjacent teams.</td>
+            <td>Proprietary.</td>
+            <td>Druid for real-time advertiser dashboards. Pinot under evaluation.</td>
+            <td>Druid for real-time ROAS dashboards and advertiser self-serve. Heavy Druid shop.</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td class="stk-name"><strong>Xandr · DV360</strong><span class="stk-sub">Ad-stack vendors</span></td>
+            <td class="stk-layer">Programmatic SSP/DSP stack · ad serving, auction-running, postbacks for partner attribution.</td>
+            <td>Owns full stack in-house (Meta Ads Manager).</td>
+            <td>Owns full stack (Google Ad Manager + DV360).</td>
+            <td>Owns full stack (Amazon DSP).</td>
+            <td><strong>Xandr partnership</strong> is the backbone of CTV monetization. Postbacks are the 14-day lag in Act 2.</td>
+            <td>Apple Search Ads is proprietary; SKAdNetwork is the SSP-equivalent framework.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="stacks-foot">Reading guide: three patterns jump out. <strong>(1)</strong> Everybody uses stream + batch side-by-side; there is no "one engine to rule them all." <strong>(2)</strong> OSS tools win at operations-heavy, slow-evolving layers (Kafka, Iceberg, Spark). Proprietary wins at query-path where latency margins matter (BigQuery, Dremel, Xandr). <strong>(3)</strong> The company that <em>built</em> a tool is almost always its heaviest user (Presto at Meta, Iceberg at Netflix, Dataflow at Google). If you are interviewing somewhere, skim the row for that tool — it tells you what the interviewer will default to when they ask "how would you implement this."</div>
+  </div>
+
   <div class="rooms-handoff">
     <div class="rooms-handoff-label">How to use the rest of the article</div>
     <div class="rooms-handoff-body">
