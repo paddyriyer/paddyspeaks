@@ -1010,6 +1010,54 @@ HEAD = '''<!DOCTYPE html>
 .part-section .rooms-handoff-list li strong { color: #fff; }
 .part-section .rooms-handoff-foot { margin-top: 10px !important; padding-top: 14px; border-top: 1px dashed rgba(232,224,214,.3); color: var(--color-gold-light) !important; font-family: var(--font-mono) !important; font-size: 13.5px !important; }
 
+/* Five Rooms — comparison table */
+.part-section .compare { margin: 32px 0; }
+.part-section .compare-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .compare-intro { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-muted); font-style: italic; margin-bottom: 16px; text-align: center; }
+.part-section .compare-wrap { overflow-x: auto; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; box-shadow: 0 4px 14px rgba(26,35,50,.06); }
+.part-section .compare-tbl { width: 100%; border-collapse: collapse; min-width: 920px; margin: 0; font-size: 13px; }
+.part-section .compare-tbl thead th { background: var(--color-ink); color: #fff; font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; padding: 12px 14px; text-align: left; font-weight: 600; position: sticky; top: 0; }
+.part-section .compare-tbl thead th:first-child { border-top-left-radius: 10px; }
+.part-section .compare-tbl thead th:last-child { border-top-right-radius: 10px; }
+.part-section .compare-tbl tbody td { padding: 14px 14px; border-top: 1px solid var(--color-border); vertical-align: top; font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; color: var(--color-ink); }
+.part-section .compare-tbl tbody tr { border-left: 4px solid var(--color-gold); }
+.part-section .compare-tbl tr.cmp-meta    { border-left-color: #4267B2; }
+.part-section .compare-tbl tr.cmp-google  { border-left-color: #4285F4; }
+.part-section .compare-tbl tr.cmp-amazon  { border-left-color: #FF9900; }
+.part-section .compare-tbl tr.cmp-netflix { border-left-color: #E50914; background: rgba(229,9,20,.03); }
+.part-section .compare-tbl tr.cmp-apple   { border-left-color: #555555; }
+.part-section .compare-tbl .cmp-co { min-width: 130px; }
+.part-section .compare-tbl .cmp-co strong { display: block; font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--color-ink); line-height: 1.2; }
+.part-section .compare-tbl .cmp-tag { display: block; font-family: var(--font-mono); font-size: 10.5px; color: var(--color-muted); letter-spacing: 0.06em; margin-top: 4px; }
+.part-section .cmp-chip { display: inline-block; background: var(--color-cream); border: 1px solid var(--color-border); color: var(--color-ink); font-family: var(--font-mono); font-size: 11px; padding: 3px 8px; border-radius: 11px; margin: 2px 3px 2px 0; line-height: 1.3; }
+.part-section .compare-tbl tbody td code { font-size: 12px; }
+.part-section .compare-foot { margin-top: 14px; padding: 12px 18px; background: var(--color-cream); border-left: 3px solid var(--color-gold); border-radius: 0 8px 8px 0; font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); font-style: italic; }
+
+/* Five Rooms — twist library */
+.part-section .twists { margin: 32px 0; }
+.part-section .twists-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .twists-intro { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-muted); font-style: italic; margin-bottom: 18px; text-align: center; }
+.part-section .twists-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.part-section .twist { background: #fff; border: 1px solid var(--color-border); border-top: 4px solid var(--color-gold); border-radius: 10px; padding: 16px 18px; box-shadow: 0 2px 8px rgba(26,35,50,.04); }
+.part-section .twist-meta    { border-top-color: #4267B2; }
+.part-section .twist-google  { border-top-color: #4285F4; }
+.part-section .twist-amazon  { border-top-color: #FF9900; }
+.part-section .twist-netflix { border-top-color: #E50914; }
+.part-section .twist-apple   { border-top-color: #555555; }
+.part-section .twist-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px dashed var(--color-border); }
+.part-section .twist-co { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--color-ink); }
+.part-section .twist-who { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); letter-spacing: 0.04em; }
+.part-section .twist-item { display: grid; grid-template-columns: 36px 1fr; gap: 12px; padding: 8px 0; border-top: 1px dashed var(--color-border-light); }
+.part-section .twist-item:first-of-type { border-top: none; padding-top: 2px; }
+.part-section .twist-n { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--color-gold-dark); background: var(--color-cream); border-radius: 4px; padding: 3px 6px; text-align: center; height: 24px; letter-spacing: 0.05em; }
+.part-section .twist-body { font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; color: var(--color-ink); }
+.part-section .twist-body em { color: var(--color-rust); font-style: italic; }
+.part-section .twists-foot { margin-top: 18px; padding: 14px 18px; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 10px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.7; }
+.part-section .twists-foot strong { color: var(--color-gold-light); font-weight: 600; }
+@media (max-width: 800px) {
+  .part-section .twists-grid { grid-template-columns: 1fr; }
+}
+
 /* Primer — 5-beat money flow */
 .part-section .primer-flow { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 26px 0; box-shadow: 0 4px 16px rgba(26,35,50,.06); }
 .part-section .primer-flow-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 18px; text-align: center; }
