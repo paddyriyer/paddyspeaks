@@ -681,6 +681,78 @@ HEAD = '''<!DOCTYPE html>
 .part-section .act-subtitle { font-family: var(--font-body); font-size: 19px; line-height: 1.7; color: var(--color-muted); font-style: italic; margin-bottom: 24px; }
 .part-section .scene-bridge { background: rgba(200,145,90,.08); border-left: 3px solid var(--color-gold); padding: 12px 16px; margin: 8px 0 18px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); font-style: italic; }
 .part-section .scene-bridge em { font-style: normal; color: var(--color-rust); }
+
+/* Skip-cost red band — makes skipping an act feel costly */
+.part-section .skip-cost { background: linear-gradient(135deg, rgba(196,75,43,.12) 0%, rgba(196,75,43,.06) 100%); border: 1px solid rgba(196,75,43,.35); border-left: 4px solid var(--color-rust); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 4px 0 14px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
+.part-section .skip-cost strong { color: var(--color-rust); font-weight: 600; }
+
+/* Running Incident spine — in The Brief */
+.part-section .incident-spine { background: linear-gradient(135deg, #3a1a1a 0%, #5a1f1f 100%); color: #fff; border-radius: 12px; padding: 22px 26px; margin: 28px 0 20px; border-left: 5px solid #e25555; box-shadow: 0 6px 22px rgba(92,30,30,.22); }
+.part-section .incident-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px dashed rgba(245,169,169,.35); padding-bottom: 10px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+.part-section .incident-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: #f5a9a9; }
+.part-section .incident-clock { font-family: var(--font-mono); font-size: 12px; color: #f5a9a9; letter-spacing: 0.08em; }
+.part-section .incident-core { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.part-section .incident-num { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: #fff; }
+.part-section .incident-num strong { color: #ffb5b5; }
+.part-section .incident-detail { font-family: var(--font-body); font-size: 14px; color: #f5e4e4; }
+.part-section .incident-detail strong { color: #fff; }
+.part-section .incident-track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 10px 0; padding: 10px 0; border-top: 1px dashed rgba(245,169,169,.35); border-bottom: 1px dashed rgba(245,169,169,.35); }
+.part-section .incident-step { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: rgba(0,0,0,.15); border-radius: 6px; text-align: center; }
+.part-section .incident-step-live { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35); }
+.part-section .istep-clock { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; color: #f5a9a9; margin-bottom: 2px; }
+.part-section .incident-step-live .istep-clock { color: #fff; font-weight: 600; }
+.part-section .istep-what { font-family: var(--font-mono); font-size: 10.5px; color: #f5e4e4; line-height: 1.3; }
+.part-section .incident-spine-foot { font-family: var(--font-body); font-size: 14px; line-height: 1.55; color: #f5e4e4; margin-top: 10px; }
+.part-section .incident-spine-foot strong { color: #ffb5b5; }
+@media (max-width: 700px) {
+  .part-section .incident-track { grid-template-columns: repeat(2, 1fr); }
+  .part-section .incident-step-live { grid-column: 1 / -1; }
+}
+
+/* Freeze Moment — the brutal 30-minute decision card */
+.part-section .freeze { background: #fff; border: 2px solid var(--color-rust); border-radius: 12px; margin: 24px 0; overflow: hidden; box-shadow: 0 6px 22px rgba(196,75,43,.15); }
+.part-section .freeze-bar { background: var(--color-rust); color: #fff; padding: 10px 18px; font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; text-align: center; }
+.part-section .freeze-body { padding: 22px 24px; }
+.part-section .freeze-head { font-family: var(--font-display); font-size: 24px; font-weight: 700; color: var(--color-ink); line-height: 1.2; margin: 0 0 14px; }
+.part-section .freeze-line { font-family: var(--font-body); font-size: 16px; line-height: 1.65; color: var(--color-ink); margin: 0 0 14px; }
+.part-section .freeze-choices { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; }
+.part-section .freeze-choice { background: var(--color-cream); border: 1px solid var(--color-border); border-left: 3px solid var(--color-rust); border-radius: 0 6px 6px 0; padding: 10px 14px; display: grid; grid-template-columns: 90px 1fr; gap: 10px; align-items: baseline; font-family: var(--font-body); font-size: 14px; line-height: 1.55; }
+.part-section .fchoice-k { font-family: var(--font-mono); font-size: 11px; font-weight: 600; color: var(--color-rust); letter-spacing: 0.06em; }
+.part-section .fchoice-v { color: var(--color-ink); }
+.part-section .fchoice-cost { grid-column: 2 / -1; margin-top: 4px; font-family: var(--font-mono); font-size: 11.5px; color: var(--color-muted); font-style: italic; }
+.part-section .commit-line strong, .part-section .freeze-line strong { color: var(--color-rust); font-weight: 600; }
+.part-section .freeze-commit { margin: 12px 0 0 !important; padding: 10px 14px; background: var(--color-rust); color: #fff !important; border-radius: 6px; font-family: var(--font-body); font-size: 14.5px !important; font-weight: 500; text-align: center; }
+.part-section .freeze-commit strong { color: #fff !important; text-decoration: underline; }
+
+/* Commit-Now — Act 1 "before A/B/C" gate */
+.part-section .commit-now { background: #fff; border: 2px dashed var(--color-rust); border-radius: 12px; margin: 18px 0 24px; overflow: hidden; }
+.part-section .commit-bar { background: var(--color-rust); color: #fff; padding: 10px 16px; font-family: var(--font-mono); font-size: 12px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; }
+.part-section .commit-body { padding: 20px 24px; }
+.part-section .commit-line { font-family: var(--font-body); font-size: 16px; line-height: 1.6; color: var(--color-ink); margin: 0 0 10px; }
+.part-section .commit-sub { font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-muted); font-style: italic; margin: 0 0 14px; }
+.part-section .commit-timer { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--color-cream); border-radius: 6px; margin-bottom: 12px; }
+.part-section .ctimer-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--color-rust); opacity: 0.35; }
+.part-section .ctimer-dot.ctimer-1 { opacity: 1; }
+.part-section .ctimer-dot.ctimer-2 { opacity: 0.85; }
+.part-section .ctimer-dot.ctimer-3 { opacity: 0.65; }
+.part-section .ctimer-dot.ctimer-4 { opacity: 0.45; }
+.part-section .ctimer-dot.ctimer-5 { opacity: 0.25; }
+.part-section .ctimer-label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-rust); margin-left: auto; }
+.part-section .commit-foot { font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); margin: 0; padding-top: 12px; border-top: 1px dashed var(--color-border); }
+
+/* Truth break + loop close — the final beats */
+.part-section .truth-break { text-align: center; margin: 48px auto 28px; padding: 38px 28px; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); max-width: 780px; }
+.part-section .truth-line { font-family: var(--font-display); font-size: 22px; color: var(--color-ink); line-height: 1.35; font-weight: 500; margin: 4px 0; }
+.part-section .truth-line-big { font-size: 30px; font-weight: 700; color: var(--color-rust); }
+@media (max-width: 700px) {
+  .part-section .truth-line { font-size: 18px; }
+  .part-section .truth-line-big { font-size: 22px; }
+}
+.part-section .loop-close { margin: 28px 0 16px; text-align: center; padding: 22px; border: 1px dashed var(--color-gold); border-radius: 10px; background: var(--color-cream); }
+.part-section .loop-close-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 14px; }
+.part-section .loop-close-body p { font-family: var(--font-display); font-size: 20px; line-height: 1.5; color: var(--color-ink); margin: 0 0 10px; }
+.part-section .loop-close-body em { color: var(--color-rust); font-style: normal; font-weight: 600; }
+.part-section .loop-close-final { font-size: 24px !important; color: var(--color-rust) !important; font-weight: 700; margin-top: 14px !important; padding-top: 14px; border-top: 1px dashed var(--color-border); }
 .part-section .act-breath { margin-top: 28px; font-style: italic; color: var(--color-muted); }
 .part-section .act-note { background: var(--color-cream); border-left: 3px solid var(--color-gold); padding: 18px 22px; margin: 22px 0; border-radius: 0 8px 8px 0; }
 .part-section .act-note p { font-size: 16px; line-height: 1.75; margin-bottom: 12px; }
