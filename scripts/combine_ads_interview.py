@@ -682,6 +682,32 @@ HEAD = '''<!DOCTYPE html>
 .part-section .scene-bridge { background: rgba(200,145,90,.08); border-left: 3px solid var(--color-gold); padding: 12px 16px; margin: 8px 0 18px; border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; color: var(--color-ink); font-style: italic; }
 .part-section .scene-bridge em { font-style: normal; color: var(--color-rust); }
 
+/* Parallel rooms — what the other four interviewers would ask at this act */
+.part-section .parallel { background: #fff; border: 1px solid var(--color-border); border-top: 5px solid var(--color-gold); border-radius: 12px; padding: 22px 24px; margin: 32px 0; box-shadow: 0 4px 14px rgba(26,35,50,.05); }
+.part-section .parallel-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--color-gold-dark); text-align: center; margin-bottom: 10px; }
+.part-section .parallel-intro { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: var(--color-muted); font-style: italic; text-align: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px dashed var(--color-border); }
+.part-section .parallel-intro em { color: var(--color-ink); font-weight: 600; font-style: normal; }
+.part-section .parallel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.part-section .prow { background: var(--color-cream); border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 0 8px 8px 0; padding: 14px 16px; }
+.part-section .prow-meta   { border-left-color: #4267B2; }
+.part-section .prow-google { border-left-color: #4285F4; }
+.part-section .prow-amazon { border-left-color: #FF9900; }
+.part-section .prow-apple  { border-left-color: #555555; }
+.part-section .prow .pco { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; font-weight: 600; }
+.part-section .prow-meta   .pco { color: #4267B2; }
+.part-section .prow-google .pco { color: #4285F4; }
+.part-section .prow-amazon .pco { color: #a66000; }
+.part-section .prow-apple  .pco { color: #444; }
+.part-section .prow blockquote { margin: 0; padding: 0; border: none; background: none; font-family: var(--font-display); font-size: 15px; line-height: 1.55; color: var(--color-ink); font-style: normal; font-weight: 500; }
+.part-section .prow blockquote strong { color: var(--color-rust); }
+.part-section .prow blockquote em { color: var(--color-muted); font-style: italic; font-weight: 400; }
+.part-section .parallel-foot { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--color-border); font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); }
+.part-section .parallel-foot strong { color: var(--color-rust); }
+.part-section .parallel-foot em { color: var(--color-muted); font-style: italic; }
+@media (max-width: 800px) {
+  .part-section .parallel-grid { grid-template-columns: 1fr; }
+}
+
 /* Skip-cost red band — makes skipping an act feel costly */
 .part-section .skip-cost { background: linear-gradient(135deg, rgba(196,75,43,.12) 0%, rgba(196,75,43,.06) 100%); border: 1px solid rgba(196,75,43,.35); border-left: 4px solid var(--color-rust); border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 4px 0 14px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.55; color: var(--color-ink); }
 .part-section .skip-cost strong { color: var(--color-rust); font-weight: 600; }
