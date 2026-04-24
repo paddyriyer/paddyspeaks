@@ -1153,6 +1153,56 @@ HEAD = '''<!DOCTYPE html>
 .part-section .stacks-foot strong { color: var(--color-rust); font-weight: 600; }
 .part-section .stacks-foot em { color: var(--color-ink); font-weight: 600; font-style: normal; }
 
+/* Primer — 7-stage business lifecycle */
+.part-section .lifecycle { margin: 36px 0; }
+.part-section .lifecycle-label { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .lifecycle-intro { font-family: var(--font-body); font-size: 15px; line-height: 1.7; color: var(--color-ink); margin-bottom: 20px; padding: 12px 18px; background: var(--color-cream); border-left: 3px solid var(--color-gold); border-radius: 0 8px 8px 0; }
+.part-section .lifecycle-intro em { color: var(--color-rust); font-style: italic; }
+.part-section .stage-card { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 20px 22px 18px; margin: 0; box-shadow: 0 4px 14px rgba(26,35,50,.06); border-top: 5px solid var(--color-gold); }
+.part-section .stage-1 { border-top-color: #2563a8; }
+.part-section .stage-2 { border-top-color: #4a8fbf; }
+.part-section .stage-3 { border-top-color: #c8915a; }
+.part-section .stage-4 { border-top-color: #c44b2b; }
+.part-section .stage-5 { border-top-color: #a87434; }
+.part-section .stage-6 { border-top-color: #2a7a4a; }
+.part-section .stage-7 { border-top-color: #1a4f30; }
+.part-section .stage-top { display: grid; grid-template-columns: 64px 1fr; grid-template-rows: auto auto; gap: 4px 16px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px dashed var(--color-border); }
+.part-section .stage-num { grid-row: 1 / -1; font-family: var(--font-display); font-size: 40px; font-weight: 700; color: var(--color-ink); line-height: 1; background: var(--color-cream); border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+.part-section .stage-1 .stage-num { color: #2563a8; }
+.part-section .stage-2 .stage-num { color: #4a8fbf; }
+.part-section .stage-3 .stage-num { color: #c8915a; }
+.part-section .stage-4 .stage-num { color: #c44b2b; }
+.part-section .stage-5 .stage-num { color: #a87434; }
+.part-section .stage-6 .stage-num { color: #2a7a4a; }
+.part-section .stage-7 .stage-num { color: #1a4f30; }
+.part-section .stage-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--color-ink); line-height: 1.2; }
+.part-section .stage-who { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.08em; color: var(--color-muted); }
+.part-section .stage-what { font-family: var(--font-body); font-size: 15px; line-height: 1.7; color: var(--color-ink); margin-bottom: 14px; }
+.part-section .stage-what em { color: var(--color-rust); font-style: italic; }
+.part-section .stage-data, .part-section .stage-tools { margin: 10px 0; }
+.part-section .stage-data-label, .part-section .stage-tools-label { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 6px; }
+.part-section .stage-data-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.part-section .dchip { background: rgba(26,35,50,.06); border: 1px solid var(--color-border); font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; border-radius: 12px; color: var(--color-ink); letter-spacing: 0.02em; }
+.part-section .stage-tools-v { font-family: var(--font-body); font-size: 13.5px; line-height: 1.55; color: var(--color-muted); font-style: italic; }
+.part-section .stage-gotcha { margin-top: 12px; padding: 10px 14px; background: rgba(196,75,43,.08); border-left: 3px solid var(--color-rust); border-radius: 0 6px 6px 0; font-family: var(--font-body); font-size: 13.5px; line-height: 1.6; color: var(--color-ink); }
+.part-section .stage-gotcha em { color: var(--color-rust); font-style: italic; font-weight: 600; }
+.part-section .stage-arrow { text-align: center; font-family: var(--font-mono); font-size: 24px; color: var(--color-gold); margin: 4px 0; font-weight: 600; line-height: 1; }
+
+.part-section .stage-loop { display: grid; grid-template-columns: 72px 1fr; gap: 18px; align-items: center; background: linear-gradient(135deg, #1a2332 0%, #2a3a4e 100%); color: #fff; border-radius: 12px; padding: 20px 24px; margin: 14px 0 0; box-shadow: 0 6px 20px rgba(26,35,50,.18); }
+.part-section .stage-loop-arrow { font-family: var(--font-display); font-size: 56px; font-weight: 700; color: var(--color-gold-light); text-align: center; line-height: 1; }
+.part-section .stage-loop-head { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.part-section .stage-loop-text { font-family: var(--font-body); font-size: 14.5px; line-height: 1.65; color: #e8e0d6; }
+.part-section .stage-loop-text strong { color: var(--color-gold-light); }
+.part-section .lifecycle-foot { margin-top: 16px; padding: 12px 18px; border: 1px dashed var(--color-gold); border-radius: 8px; background: var(--color-cream); font-family: var(--font-body); font-size: 14px; line-height: 1.65; color: var(--color-ink); font-style: italic; }
+.part-section .lifecycle-foot em { color: var(--color-rust); font-style: italic; font-weight: 600; }
+@media (max-width: 700px) {
+  .part-section .stage-top { grid-template-columns: 48px 1fr; }
+  .part-section .stage-num { font-size: 28px; }
+  .part-section .stage-title { font-size: 18px; }
+  .part-section .stage-loop { grid-template-columns: 52px 1fr; gap: 12px; padding: 16px; }
+  .part-section .stage-loop-arrow { font-size: 40px; }
+}
+
 /* Primer — 5-beat money flow */
 .part-section .primer-flow { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 26px 0; box-shadow: 0 4px 16px rgba(26,35,50,.06); }
 .part-section .primer-flow-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 18px; text-align: center; }

@@ -243,6 +243,159 @@
     <div class="primer-flow-foot">Ads data engineering is the plumbing that makes all five beats observable, reconcilable, and auditable — while the volumes are two billion per day and the advertisers are asking where their dollars went.</div>
   </div>
 
+  <div class="lifecycle">
+    <div class="lifecycle-label">The full business lifecycle · seven stages · how an ad actually runs end-to-end</div>
+    <div class="lifecycle-intro">The 60-second primer above is the <em>shape</em>. This is the full lap. Every ad that has ever been served passes through these seven stages — whether it's a $5M Super Bowl buy on Netflix or a $0.17 Sponsored Product click on Amazon. Know what happens at each stage, what data it produces, and how it breaks. Skim the cards. Read the gotchas.</div>
+
+    <div class="stage-card stage-1">
+      <div class="stage-top">
+        <div class="stage-num">1</div>
+        <div class="stage-title">Campaign Creation</div>
+        <div class="stage-who">Advertiser side · brand manager, agency, or self-serve seller</div>
+      </div>
+      <div class="stage-what">The advertiser sets up the campaign. Picks an <strong>objective</strong> (awareness / consideration / conversion / sales), sets a <strong>budget</strong> ($50K for the month), uploads <strong>creative</strong> (video, images, copy), defines <strong>targeting criteria</strong> (runners age 25–40 who searched "marathon"), picks a <strong>bid strategy</strong> (CPC ≤ $1.20, or "let the platform optimise"). The choice of objective silently drives every later stage — it picks the ranker, the attribution window, even which metrics the advertiser is allowed to see.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">campaign_id</span><span class="dchip">ad_set_id</span><span class="dchip">creative_id</span><span class="dchip">targeting_spec</span><span class="dchip">budget_cents</span><span class="dchip">bid_strategy</span><span class="dchip">objective</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">Meta Ads Manager · Google Ads · Amazon Ads Console · Xandr Invest · internal self-serve portals</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · objective-rewrite trap: an advertiser who changes objective mid-flight invalidates the ranker's training signal. Some platforms block the change; others silently reset learning. Know which.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-2">
+      <div class="stage-top">
+        <div class="stage-num">2</div>
+        <div class="stage-title">Targeting · Matching Ads to Users</div>
+        <div class="stage-who">Platform side · ad-serving layer · ~10ms budget</div>
+      </div>
+      <div class="stage-what">A viewer loads a page or app. The platform has <strong>~10 milliseconds</strong> to find every active campaign whose targeting matches this viewer. Identity is resolved (logged-in account, cookies, device ID, household stitch for CTV), audience-segment membership is looked up (lookalike / interest / custom / retargeting), frequency caps are applied (has this user seen this ad 5× today?). The result: a <em>candidate pool</em> of maybe 100 ads that could be shown in this slot. Everything else about this impression is downstream of this filter.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">candidate_ad_ids[]</span><span class="dchip">viewer_identity</span><span class="dchip">audience_matches</span><span class="dchip">freq_cap_state</span><span class="dchip">request_ts</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">Redis / in-memory feature stores · identity graph lookups · bloom filters for segment membership · device graph stitching</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · identity at the 10ms boundary: if the identity lookup times out, the platform must choose between serving a generic ad (worse monetisation) or dropping the slot (lost revenue). Every platform has its own fallback policy; it is almost never documented.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-3">
+      <div class="stage-top">
+        <div class="stage-num">3</div>
+        <div class="stage-title">The Auction · Selecting the Winner</div>
+        <div class="stage-who">Platform side · auction engine + ranker · ~40ms budget</div>
+      </div>
+      <div class="stage-what">Each candidate ad is scored. The standard formula is <code>ad_rank = bid × predicted_action_rate × quality_factor</code>. The ranker is usually a deep-learning model that predicts pCTR and pConvert from hundreds of features (user history, creative embeddings, context). A <strong>second-price auction</strong> (GSP / VCG variants) clears: highest <code>ad_rank</code> wins, pays just enough to beat the second-highest <code>ad_rank</code>. Loser logs are written too — they are precious for ranker retraining. Privacy budgets weight the final score on iOS / Privacy Sandbox paths.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">winning_ad_id</span><span class="dchip">clearing_price_cents</span><span class="dchip">predicted_action_rate</span><span class="dchip">quality_score</span><span class="dchip">loser_logs[]</span><span class="dchip">auction_decision_id</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">C++ ranker services · Flink/Dataflow streaming for pCTR calibration · GPU inference clusters · Kafka for auction logs</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · auction logs are the most privacy-sensitive data in the stack. Every loser contains a user's interest signal. Retention, encryption, and export rules are strict. One leak = regulatory fine + consent-decree.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-4">
+      <div class="stage-top">
+        <div class="stage-num">4</div>
+        <div class="stage-title">Ad Delivery · Showing the Ad</div>
+        <div class="stage-who">Ad server + client (browser / app / TV device)</div>
+      </div>
+      <div class="stage-what">The winning ad is served. The creative loads. A <strong>tracking pixel</strong> fires the moment it's rendered, reporting "impression served" back to the platform. For video, a VAST/VPAID wrapper tracks quartiles (25% / 50% / 75% / complete). <strong>Viewability</strong> is measured against the MRC standard — ≥50% of pixels on screen for ≥1 second. A pre-bid IVT filter flags obvious invalid traffic here (datacenter IPs, repeat abusers), stamping <code>is_valid = FALSE</code> on the impression. Everything downstream uses this stamp.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">impression_id</span><span class="dchip">rendered_ts</span><span class="dchip">viewable_flag</span><span class="dchip">video_quartile_events</span><span class="dchip">is_valid</span><span class="dchip">spend_cents</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">CDN-delivered creatives · pixel + SDK tracking · MRC-certified viewability vendors (DoubleVerify, IAS) · VAST/VPAID for video · HUMAN for pre-bid IVT</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · client-side pixel vs server-side log disagreement. The pixel fires when the viewer's browser loads it; the server logs when it dispatched. These numbers differ by 2–8% — ad-blockers, network failures, slow pages. Pick one as the source of truth and tell every consumer which.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-5">
+      <div class="stage-top">
+        <div class="stage-num">5</div>
+        <div class="stage-title">User Engagement · Capturing Interactions</div>
+        <div class="stage-who">Ad server + client · real-time event stream</div>
+      </div>
+      <div class="stage-what">Now the viewer does something — or nothing. If they <strong>click</strong>, a click row is written with the clicked <code>ad_id</code>, <code>user_id</code>, and timestamp. For video: <strong>pause</strong>, <strong>resume</strong>, <strong>skip</strong>, <strong>complete</strong> all stream back. For CTV there is usually <em>no click</em> — just exposure and completion. For every event, the platform re-resolves identity against the graph, applies consent rules (GDPR, CCPA, iOS ATT), and may drop or aggregate the event to satisfy privacy requirements.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">click_id</span><span class="dchip">click_ts</span><span class="dchip">video_events</span><span class="dchip">resolved_identity</span><span class="dchip">consent_state</span><span class="dchip">region</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">Kafka / Kinesis event streams · identity graph (device + household + account) · consent-management platforms (OneTrust, TrustArc) · SKAN framework for iOS</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · this is where privacy eats the data. 5–15% of EU rows come out consent-stripped and cannot be attribution-joined. 30–50% of iOS conversions land as aggregated SKAN postbacks with no user ID. Attribution rate <em>looks</em> like it's dropping; it is just being legally pre-filtered.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-6">
+      <div class="stage-top">
+        <div class="stage-num">6</div>
+        <div class="stage-title">Conversion Measurement · Did the Ad Work?</div>
+        <div class="stage-who">Advertiser's site + platform's attribution engine · hours to weeks later</div>
+      </div>
+      <div class="stage-what">The viewer eventually does the thing the advertiser paid for — <strong>buys the shoes</strong>, installs the app, fills the lead form. The advertiser's site fires a pixel (or server-side event via Conversions API / SKAN postback / MMP callback). The platform's <strong>attribution engine</strong> looks back: is there an impression or click for this user within the attribution window? Under which model — last-click 7-day, data-driven, MTA linear, SKAN probabilistic? Credit is assigned. A conversion row is written. Partner SSPs report their slice on <strong>14-day lag</strong>.</div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">conversion_id</span><span class="dchip">event_time</span><span class="dchip">attribution_time</span><span class="dchip">attribution_model</span><span class="dchip">attribution_window</span><span class="dchip">credited_usd</span><span class="dchip">identity_graph_version</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">Pixel + CAPI · SKAdNetwork postbacks · MMPs (AppsFlyer, Adjust, Branch) · internal attribution engines · Iceberg tables for bi-temporal storage</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · attribution is retroactive. A conversion today may credit an impression 27 days ago. The number of conversions for "yesterday" <em>keeps growing</em> for 28 days. Without bi-temporal storage (<code>event_time</code> + <code>attribution_time</code>) you cannot reproduce last week's dashboard and the CFO's question "what did we tell the board on the 30th" becomes unanswerable.</div>
+    </div>
+
+    <div class="stage-arrow">↓</div>
+
+    <div class="stage-card stage-7">
+      <div class="stage-top">
+        <div class="stage-num">7</div>
+        <div class="stage-title">Reporting &amp; Optimization Loop · Closing the Circle</div>
+        <div class="stage-who">Advertiser + platform + Finance · every minute, every month</div>
+      </div>
+      <div class="stage-what">The conversion row flows downstream. The <strong>advertiser dashboard</strong> updates in near-real-time (ROAS, CPA, impressions, spend). The <strong>platform's ranker</strong> is retrained every 15–60 minutes on the fresh conversions — today's conversions become tomorrow's predicted-action-rate features. <strong>Finance</strong> reconciles the ad ledger at month-end, posting refunds, IVT credits, FX revaluations, and partner-postback adjustments. The advertiser adjusts bids, pauses weak creatives, launches new ones. <em>Every output of Stage 7 is an input of Stage 1 next round.</em></div>
+      <div class="stage-data">
+        <div class="stage-data-label">Data produced</div>
+        <div class="stage-data-chips"><span class="dchip">dashboard_materializations</span><span class="dchip">ranker_feature_updates</span><span class="dchip">ledger_rows</span><span class="dchip">advertiser_bid_changes</span><span class="dchip">campaign_pause_events</span></div>
+      </div>
+      <div class="stage-tools">
+        <div class="stage-tools-label">Tools</div>
+        <div class="stage-tools-v">dbt semantic layer · Druid / Pinot for real-time slice · Snowflake / BigQuery for Finance · Airflow / Maestro for monthly close · online learning pipelines for the ranker</div>
+      </div>
+      <div class="stage-gotcha">Gotcha · the loop is where <em>every</em> kind of drift compounds. Yesterday's conversion becomes tomorrow's audience signal. A bug anywhere in Stages 4–6 feeds back into Stage 1 and makes the next round slightly worse. This is why the Act 2 landmine — mislabelling a dashboard column "Revenue" — ships the bug forward into every future campaign, for every future quarter, until someone reads this article.</div>
+    </div>
+
+    <div class="stage-loop">
+      <div class="stage-loop-arrow">↺</div>
+      <div class="stage-loop-body">
+        <div class="stage-loop-head">Stage 7 → Stage 1 · the loop never stops</div>
+        <div class="stage-loop-text">Today's conversion is tomorrow's audience. Today's ranker update is tomorrow's auction. Today's Finance reconciliation is tomorrow's invoice. The seven stages are not a line — they are a <strong>flywheel</strong>, and the flywheel spins 24/7, 260M times per day at StreamCo scale. Data engineering is the grease that keeps it from seizing.</div>
+      </div>
+    </div>
+
+    <div class="lifecycle-foot">Now you know the business. Every interview question, every corruption vector, every metric-vs-dimension debate — all of it is a story about <em>one of these seven stages misbehaving</em>. The Five Giants below differ in which stages they dominate. The eleven corruption vectors below are one-per-stage pathologies. Keep the seven stages in mind as you read the rest.</div>
+  </div>
+
   <div class="giants">
     <div class="giants-label">The five giants · 90% of the world's ad dollars flow through these</div>
 
