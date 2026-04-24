@@ -498,7 +498,497 @@ ORDER BY d.date;</code></pre>
 
   </div>
 
-  <h2 id="ship-list">Before you walk in · the ship list</h2>
+  <h2 id="sprint-bank">Tech round drill sprint · 8 SQL + 8 Python · L3 → L5</h2>
+
+  <p>The seven detail-drills above are the deep work. Below are <strong>sixteen short sprints</strong> — the patterns the SQL/Python rounds actually test, framed against ads scenarios. Each one names the L-tier, the underlying pattern, and a reference solution with one line on what junior solutions miss. Read them as a warm-up rotation — answer mentally, then check.</p>
+
+  <div class="sprint-section">
+    <div class="sprint-section-label">Part A · SQL sprints · 8 drills · L3 → L5</div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Top-3 spending campaigns per advertiser</div>
+        <div class="sprint-pattern">Pattern · window functions · <code>ROW_NUMBER() OVER (PARTITION BY ...)</code></div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given <code>fact_campaign_daily(advertiser_id, campaign_id, spend_usd, day)</code>, return the top 3 spending campaigns per advertiser for the last 7 days. Tie-break: lower <code>campaign_id</code> wins."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">SELECT advertiser_id, campaign_id, total_spend
+FROM (
+  SELECT advertiser_id, campaign_id,
+         SUM(spend_usd) AS total_spend,
+         ROW_NUMBER() OVER (
+           PARTITION BY advertiser_id
+           ORDER BY SUM(spend_usd) DESC, campaign_id ASC
+         ) AS rk
+  FROM fact_campaign_daily
+  WHERE day &gt;= CURRENT_DATE - INTERVAL '7 days'
+  GROUP BY advertiser_id, campaign_id
+) t
+WHERE rk &lt;= 3;</code></pre>
+          <p><strong>Junior misses:</strong> the secondary <code>ORDER BY campaign_id</code>. Without it, ties are non-deterministic and the result flickers between runs. Senior writes the deterministic tiebreak before the interviewer asks.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Advertisers with no impressions yesterday</div>
+        <div class="sprint-pattern">Pattern · anti-join · <code>LEFT JOIN ... WHERE r.id IS NULL</code></div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "List active advertisers (<code>dim.advertiser</code>) who served zero impressions yesterday. Active means <code>dim.advertiser.is_active = TRUE</code>."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">SELECT a.advertiser_id, a.name
+FROM   dim.advertiser a
+LEFT JOIN silver.fact_impression i
+       ON i.advertiser_id = a.advertiser_id
+      AND i.impression_ts &gt;= CURRENT_DATE - INTERVAL '1 day'
+      AND i.impression_ts &lt;  CURRENT_DATE
+WHERE  a.is_active = TRUE
+  AND  i.advertiser_id IS NULL;</code></pre>
+          <p><strong>Junior misses:</strong> putting the date filter in the <code>WHERE</code> instead of the <code>ON</code>. That converts the LEFT JOIN to an inner join and drops every advertiser without an impression — exactly the rows you wanted. The filter belongs <em>on the join</em>, not after it.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Dedupe duplicate impression events</div>
+        <div class="sprint-pattern">Pattern · keep-latest dedup · <code>ROW_NUMBER() ... ORDER BY ingested_ts DESC</code></div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "<code>bronze.raw_impression</code> may contain the same <code>impression_id</code> twice (consumer replay). Keep only the latest <code>ingested_ts</code> per <code>impression_id</code>."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">WITH ranked AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY impression_id
+           ORDER BY ingested_ts DESC
+         ) AS rn
+  FROM bronze.raw_impression
+)
+SELECT * EXCEPT (rn) FROM ranked WHERE rn = 1;</code></pre>
+          <p><strong>Junior misses:</strong> using <code>DISTINCT ON</code> in Postgres-only flavour, or <code>GROUP BY impression_id</code> + <code>MAX(ingested_ts)</code> which loses the rest of the columns. <code>ROW_NUMBER</code> keeps the whole row and works on every dialect.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Week-over-week revenue change per advertiser</div>
+        <div class="sprint-pattern">Pattern · <code>LAG()</code> over partitioned weekly aggregates</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Compute weekly attributed-revenue per advertiser for the last 12 weeks, plus a <code>wow_pct</code> column showing change from the prior week."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">WITH weekly AS (
+  SELECT advertiser_id,
+         DATE_TRUNC('week', event_time) AS wk,
+         SUM(credited_usd)              AS rev
+  FROM   gold.revenue_attributed
+  WHERE  event_time &gt;= CURRENT_DATE - INTERVAL '84 days'
+  GROUP BY 1, 2
+)
+SELECT advertiser_id, wk, rev,
+       LAG(rev) OVER (PARTITION BY advertiser_id ORDER BY wk) AS prev_rev,
+       (rev - LAG(rev) OVER (PARTITION BY advertiser_id ORDER BY wk))
+       / NULLIF(LAG(rev) OVER (PARTITION BY advertiser_id ORDER BY wk), 0) AS wow_pct
+FROM   weekly
+ORDER BY advertiser_id, wk;</code></pre>
+          <p><strong>Junior misses:</strong> the <code>NULLIF(prev_rev, 0)</code> guard. A new advertiser whose first week is week N has <code>prev_rev = 0</code>; without the guard the query divides by zero and silently fails or returns Inf. Senior writes the guard reflexively.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Pivot revenue · rows to columns by surface</div>
+        <div class="sprint-pattern">Pattern · CASE pivot · conditional aggregation</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given <code>fact_revenue(advertiser_id, surface, day, revenue_usd)</code> where <code>surface</code> ∈ (feed, reels, stories, ctv), return one row per <code>(advertiser_id, day)</code> with one column per surface."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">SELECT advertiser_id, day,
+       SUM(CASE WHEN surface = 'feed'    THEN revenue_usd ELSE 0 END) AS feed_usd,
+       SUM(CASE WHEN surface = 'reels'   THEN revenue_usd ELSE 0 END) AS reels_usd,
+       SUM(CASE WHEN surface = 'stories' THEN revenue_usd ELSE 0 END) AS stories_usd,
+       SUM(CASE WHEN surface = 'ctv'     THEN revenue_usd ELSE 0 END) AS ctv_usd
+FROM   fact_revenue
+GROUP BY advertiser_id, day;</code></pre>
+          <p><strong>Junior misses:</strong> using <code>FILTER (WHERE surface = ...)</code> Postgres-specific syntax which is cleaner but won't run on Spark/BigQuery/Snowflake. <code>CASE</code> is portable. Always ask which engine before reaching for <code>FILTER</code> or <code>PIVOT</code>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Sessionize a viewer's ad exposures · 30-min gap</div>
+        <div class="sprint-pattern">Pattern · gap-and-island · <code>LAG</code> + cumulative <code>SUM</code> over window</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Group a viewer's <code>fact_impression</code> rows into sessions where a session ends after 30 minutes of inactivity. Output: <code>user_id, session_id, start_ts, end_ts, impression_count</code>."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">WITH gaps AS (
+  SELECT user_id, impression_ts,
+         CASE WHEN impression_ts - LAG(impression_ts)
+                OVER (PARTITION BY user_id ORDER BY impression_ts)
+              &gt; INTERVAL '30 minutes' THEN 1 ELSE 0 END AS is_new_session
+  FROM   silver.fact_impression
+),
+sessions AS (
+  SELECT user_id, impression_ts,
+         SUM(is_new_session) OVER (
+           PARTITION BY user_id ORDER BY impression_ts
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+         ) AS session_id
+  FROM   gaps
+)
+SELECT user_id, session_id,
+       MIN(impression_ts) AS start_ts,
+       MAX(impression_ts) AS end_ts,
+       COUNT(*)           AS impression_count
+FROM   sessions
+GROUP BY user_id, session_id;</code></pre>
+          <p><strong>Junior misses:</strong> the unbounded-preceding window frame. Without it the cumulative <code>SUM</code> resets per row and you get session_ids that don't accumulate. The frame is the whole point.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l5">
+      <div class="sprint-head">
+        <div class="sprint-tier">L5</div>
+        <div class="sprint-name">Bi-temporal as-of revenue · what did Finance see at 10:37</div>
+        <div class="sprint-pattern">Pattern · append-only + correlated <code>NOT EXISTS</code> for snapshot isolation</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "<code>gold.revenue_attributed</code> is append-only with <code>event_time</code> + <code>attribution_time</code>. Reproduce exactly the September total Finance saw at <em>10:37 AM on 2025-09-30</em>, regardless of any rows inserted afterwards."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">WITH snap AS (
+  SELECT *
+  FROM   gold.revenue_attributed
+  WHERE  attribution_time &lt;= TIMESTAMP '2025-09-30 10:37:00'
+    AND  event_time &gt;= '2025-09-01' AND event_time &lt; '2025-10-01'
+)
+SELECT SUM(credited_usd) AS finance_view_1037
+FROM   snap r
+WHERE  NOT EXISTS (
+  SELECT 1 FROM snap s2
+  WHERE  s2.conversion_id   = r.conversion_id
+    AND  s2.attribution_time &gt; r.attribution_time
+);</code></pre>
+          <p><strong>Junior misses:</strong> filtering on today's <code>is_superseded</code> flag instead of computing supersession <em>at the snapshot moment</em>. A row that was current at 10:37 but was superseded three days later would be wrongly excluded. Bi-temporal questions test whether you understand "as-of-X" vs "current."</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l5">
+      <div class="sprint-head">
+        <div class="sprint-tier">L5</div>
+        <div class="sprint-name">SCD Type 2 · advertiser-rate change history</div>
+        <div class="sprint-pattern">Pattern · slowly-changing dimensions · effective_from / effective_to</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "<code>dim.advertiser_rate</code> stores agency-rate history with <code>(advertiser_id, rate_pct, effective_from, effective_to)</code>. Join it to <code>fact_impression</code> so each impression picks up the rate that was active at <code>impression_ts</code>."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="sql">SELECT i.*,
+       r.rate_pct
+FROM   silver.fact_impression i
+JOIN   dim.advertiser_rate r
+       ON r.advertiser_id = i.advertiser_id
+      AND i.impression_ts &gt;= r.effective_from
+      AND (i.impression_ts &lt;  r.effective_to OR r.effective_to IS NULL);</code></pre>
+          <p><strong>Junior misses:</strong> the <code>OR effective_to IS NULL</code> branch for the currently-active row. SCD2 conventionally stores open intervals as <code>effective_to = NULL</code>; without the OR, every impression for an advertiser whose rate is current gets dropped from the join.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="sprint-section">
+    <div class="sprint-section-label">Part B · Python sprints · 8 drills · L3 → L5</div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Aggregate spend by hour · pure Python</div>
+        <div class="sprint-pattern">Pattern · <code>collections.defaultdict</code> · streaming aggregation without pandas</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given an iterator of <code>(impression_ts, spend_cents)</code> tuples (could be 100M rows), return total spend per hour. Cannot use pandas. Memory must stay bounded by the number of distinct hours, not row count."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">from collections import defaultdict
+from datetime import datetime
+
+def spend_by_hour(rows):
+    out = defaultdict(int)
+    for ts, cents in rows:
+        # Truncate to hour (cheaper than .replace if ts is already ISO string)
+        hour = ts.replace(minute=0, second=0, microsecond=0) if isinstance(ts, datetime) else ts[:13]
+        out[hour] += cents
+    return dict(out)</code></pre>
+          <p><strong>Junior misses:</strong> using a regular <code>dict</code> with <code>if key not in out: out[key] = 0</code>. Works, slower, and easier to typo. <code>defaultdict(int)</code> is the idiom every senior reaches for here. Bonus: it's also thread-safer if the loop ever moves to producer/consumer.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Retry decorator for a flaky SSP API</div>
+        <div class="sprint-pattern">Pattern · decorator · exponential backoff · jitter</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Wrap an SSP postback fetcher with a retry decorator: 5 attempts, exponential backoff (1, 2, 4, 8, 16 seconds), with jitter. Surface the last exception if all attempts fail."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">import time, random, functools
+
+def retry(attempts=5, base=1.0, max_delay=30.0):
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            last_exc = None
+            for i in range(attempts):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    last_exc = e
+                    if i == attempts - 1:
+                        break
+                    sleep = min(base * (2 ** i), max_delay)
+                    sleep += random.uniform(0, sleep * 0.1)  # 10% jitter
+                    time.sleep(sleep)
+            raise last_exc
+        return wrapper
+    return decorator
+
+@retry(attempts=5)
+def fetch_ssp_postback(url): ...</code></pre>
+          <p><strong>Junior misses:</strong> jitter. Without it, a thousand workers retrying the same SSP at the same rhythm DDOS the SSP and you get banned. Even 10% jitter de-syncs the herd. Senior writes it before being asked.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Counter · top-10 advertisers by impression volume</div>
+        <div class="sprint-pattern">Pattern · <code>collections.Counter</code> · streaming top-K</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given an iterator of <code>impression_id, advertiser_id</code> rows, return the top 10 advertisers by impression count. Single pass, bounded memory."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">from collections import Counter
+
+def top_10_advertisers(rows):
+    c = Counter(advertiser_id for _, advertiser_id in rows)
+    return c.most_common(10)</code></pre>
+          <p><strong>Junior misses:</strong> reaching for <code>sorted(...)[:10]</code> on a 50M-element dict — that's O(n log n) when <code>most_common(k)</code> is O(n log k) using a heap internally. At ad scale the heap path is 5–8× faster.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l3">
+      <div class="sprint-head">
+        <div class="sprint-tier">L3</div>
+        <div class="sprint-name">Generator · chunked S3 file processing</div>
+        <div class="sprint-pattern">Pattern · <code>yield</code> · constant-memory streaming</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Process a 50GB compressed JSONL of impressions from S3 in chunks of 10,000 rows, yielding each chunk to the caller. Memory must stay flat regardless of file size."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">import gzip, json
+from itertools import islice
+
+def chunked_jsonl(stream, chunk_size=10_000):
+    """Stream JSONL records in chunks. Constant memory."""
+    while True:
+        chunk = list(islice(stream, chunk_size))
+        if not chunk:
+            return
+        yield [json.loads(line) for line in chunk]
+
+# Usage:
+with gzip.open('s3://path/impressions.jsonl.gz', 'rt') as f:
+    for batch in chunked_jsonl(f):
+        process(batch)</code></pre>
+          <p><strong>Junior misses:</strong> calling <code>f.readlines()</code> first — that materialises the whole file in memory and dies on a 50GB input. <code>islice</code> on the file object reads lazily. Senior reaches for the lazy iterator on instinct.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Sliding-window max · ROAS spike detection</div>
+        <div class="sprint-pattern">Pattern · <code>collections.deque</code> · monotonic queue · O(n)</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given a stream of (timestamp, ROAS) tuples, return the running max ROAS over the last 5 minutes. Must be O(n), not O(n·k)."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">from collections import deque
+
+def rolling_max_roas(stream, window_seconds=300):
+    """Monotonic deque: indices ordered by ts, values monotonically decreasing."""
+    dq = deque()  # holds (ts, roas)
+    for ts, roas in stream:
+        # Drop items outside the window (left of dq)
+        while dq and dq[0][0] &lt; ts - window_seconds:
+            dq.popleft()
+        # Drop items smaller than current roas (right of dq) — they can never be max again
+        while dq and dq[-1][1] &lt;= roas:
+            dq.pop()
+        dq.append((ts, roas))
+        yield ts, dq[0][1]  # dq[0] is always the current window's max</code></pre>
+          <p><strong>Junior misses:</strong> implementing this with <code>max(values_in_window)</code> per row — that's O(n·k) and at 2B impressions/day per advertiser is the difference between 30 seconds and 30 hours. The monotonic deque makes it O(n) amortised.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Token-bucket rate limiter for advertiser API</div>
+        <div class="sprint-pattern">Pattern · token bucket · burst-tolerant rate limiting</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Limit advertiser API calls to 100 requests per second, but allow short bursts up to 200. Implement <code>can_proceed(advertiser_id) → bool</code>."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">import time
+from dataclasses import dataclass
+
+@dataclass
+class Bucket:
+    tokens: float
+    last_refill: float
+
+class RateLimiter:
+    def __init__(self, rate=100, burst=200):
+        self.rate = rate            # tokens per second
+        self.burst = burst          # max tokens
+        self.buckets: dict[str, Bucket] = {}
+
+    def can_proceed(self, advertiser_id: str) -&gt; bool:
+        now = time.monotonic()
+        b = self.buckets.get(advertiser_id) or Bucket(self.burst, now)
+        # Refill
+        elapsed = now - b.last_refill
+        b.tokens = min(self.burst, b.tokens + elapsed * self.rate)
+        b.last_refill = now
+        if b.tokens &gt;= 1:
+            b.tokens -= 1
+            self.buckets[advertiser_id] = b
+            return True
+        self.buckets[advertiser_id] = b
+        return False</code></pre>
+          <p><strong>Junior misses:</strong> using <code>time.time()</code> instead of <code>time.monotonic()</code>. <code>time.time()</code> can go backwards on NTP adjustments — a candidate who hasn't lost a Saturday to that bug uses it; a senior reaches for <code>monotonic()</code>.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l4">
+      <div class="sprint-head">
+        <div class="sprint-tier">L4</div>
+        <div class="sprint-name">Topological sort · ETL DAG ordering</div>
+        <div class="sprint-pattern">Pattern · Kahn's algorithm · in-degree queue</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Given a dict <code>{job: [upstream_jobs]}</code> describing an ads-ETL DAG, return a valid execution order. Raise <code>CycleError</code> if there's a cycle."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">from collections import defaultdict, deque
+
+class CycleError(ValueError): pass
+
+def topo_sort(deps: dict[str, list[str]]) -&gt; list[str]:
+    in_deg = defaultdict(int)
+    children = defaultdict(list)
+    nodes = set(deps)
+    for job, parents in deps.items():
+        for p in parents:
+            children[p].append(job)
+            in_deg[job] += 1
+            nodes.add(p)
+
+    q = deque(n for n in nodes if in_deg[n] == 0)
+    order = []
+    while q:
+        n = q.popleft()
+        order.append(n)
+        for child in children[n]:
+            in_deg[child] -= 1
+            if in_deg[child] == 0:
+                q.append(child)
+
+    if len(order) != len(nodes):
+        raise CycleError(f"cycle involving {nodes - set(order)}")
+    return order</code></pre>
+          <p><strong>Junior misses:</strong> tracking <em>nodes</em> separately from <em>deps.keys()</em>. A leaf job that's only ever a parent (never a key) is missing from <code>deps</code> — without adding parents to <code>nodes</code> the in-degree count is wrong and the cycle check produces false positives. Subtle and common.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="sprint sprint-l5">
+      <div class="sprint-head">
+        <div class="sprint-tier">L5</div>
+        <div class="sprint-name">Async fan-out · parallel postback fetch from N SSPs</div>
+        <div class="sprint-pattern">Pattern · <code>asyncio.gather</code> · bounded concurrency · partial-failure tolerance</div>
+      </div>
+      <div class="sprint-prompt"><strong>Prompt:</strong> "Fetch attribution postbacks from 8 SSP partners in parallel. Bound concurrency to 4 simultaneous calls (the smallest SSP rate-limits at 4). Return all successful results plus a list of failures — don't let one bad SSP poison the whole batch."</div>
+      <details class="sprint-answer">
+        <summary>Senior solution + what junior misses</summary>
+        <div class="sprint-body">
+          <pre><code class="python">import asyncio
+import aiohttp
+
+async def fetch_one(session, ssp, sem):
+    async with sem:  # bounded concurrency
+        try:
+            async with session.get(ssp.url, timeout=10) as resp:
+                resp.raise_for_status()
+                return ('ok', ssp.name, await resp.json())
+        except Exception as e:
+            return ('err', ssp.name, repr(e))
+
+async def fetch_all_postbacks(ssps):
+    sem = asyncio.Semaphore(4)
+    async with aiohttp.ClientSession() as session:
+        results = await asyncio.gather(
+            *(fetch_one(session, s, sem) for s in ssps),
+            return_exceptions=False,  # we already wrapped in fetch_one
+        )
+    successes = [r for r in results if r[0] == 'ok']
+    failures  = [r for r in results if r[0] == 'err']
+    return successes, failures</code></pre>
+          <p><strong>Junior misses:</strong> the <code>Semaphore</code>. Without it, all 8 fire in parallel and the smallest SSP returns 429s. Senior solution has bounded concurrency + per-task exception capture so one bad SSP does not poison the batch.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div class="sprint-foot">
+    <div class="sprint-foot-label">Senior pattern across all 16 drills</div>
+    <p>Three things separate junior from senior in tech rounds: <strong>(1)</strong> deterministic edge-case handling on <em>day one</em> of writing the query (the secondary <code>ORDER BY</code>, the <code>NULLIF</code>, the <code>OR effective_to IS NULL</code>); <strong>(2)</strong> reaching for the <em>idiom</em> rather than recreating the algorithm (<code>Counter</code>, <code>defaultdict</code>, <code>asyncio.gather</code>, monotonic deque); <strong>(3)</strong> naming the production failure mode that the obvious solution would hit (DDOS without jitter, OOM without lazy iter, false cycle from missing nodes, NTP drift from <code>time.time</code>). The drills above all hide one of those three signals. <em>Practise until you write the senior version on first pass.</em></p>
+  </div>
 
   <p>If you can do these from a blank buffer, under timer, without reaching for the docs, the round will play out the way the seven acts did.</p>
 
