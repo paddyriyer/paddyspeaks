@@ -254,6 +254,24 @@
         <div class="stage-who">Advertiser side · brand manager, agency, or self-serve seller</div>
       </div>
       <div class="stage-what">The advertiser sets up the campaign. Picks an <strong>objective</strong> (awareness / consideration / conversion / sales), sets a <strong>budget</strong> ($50K for the month), uploads <strong>creative</strong> (video, images, copy), defines <strong>targeting criteria</strong> (runners age 25–40 who searched "marathon"), picks a <strong>bid strategy</strong> (CPC ≤ $1.20, or "let the platform optimise"). The choice of objective silently drives every later stage — it picks the ranker, the attribution window, even which metrics the advertiser is allowed to see.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">By the numbers · 2024</div>
+        <div class="stage-metric-grid">
+          <div class="smetric"><div class="sm-val">$1.1T</div><div class="sm-key">Global ad spend</div></div>
+          <div class="smetric"><div class="sm-val">71%</div><div class="sm-key">Is digital</div></div>
+          <div class="smetric"><div class="sm-val">$10M+</div><div class="sm-key">Top-advertiser annual budget</div></div>
+          <div class="smetric"><div class="sm-val">$200</div><div class="sm-key">Median self-serve daily budget</div></div>
+        </div>
+        <div class="viz-sub">Objective distribution of new campaigns launched · StreamCo-tier CTV platform</div>
+        <div class="stacked-bar" aria-label="objective distribution">
+          <div class="sb-seg sb-conv"  style="width:52%"><span>Conversion · 52%</span></div>
+          <div class="sb-seg sb-cons"  style="width:28%"><span>Consideration · 28%</span></div>
+          <div class="sb-seg sb-aware" style="width:20%"><span>Awareness · 20%</span></div>
+        </div>
+        <div class="viz-foot">Half of spend is judged on a clean conversion event; the other half is judged on reach, attention, and brand lift — which the data team has to measure without a click.</div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">campaign_id</span><span class="dchip">ad_set_id</span><span class="dchip">creative_id</span><span class="dchip">targeting_spec</span><span class="dchip">budget_cents</span><span class="dchip">bid_strategy</span><span class="dchip">objective</span></div>
@@ -274,6 +292,24 @@
         <div class="stage-who">Platform side · ad-serving layer · ~10ms budget</div>
       </div>
       <div class="stage-what">A viewer loads a page or app. The platform has <strong>~10 milliseconds</strong> to find every active campaign whose targeting matches this viewer. Identity is resolved (logged-in account, cookies, device ID, household stitch for CTV), audience-segment membership is looked up (lookalike / interest / custom / retargeting), frequency caps are applied (has this user seen this ad 5× today?). The result: a <em>candidate pool</em> of maybe 100 ads that could be shown in this slot. Everything else about this impression is downstream of this filter.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">The 10-millisecond budget · where the time goes</div>
+        <div class="latency-track">
+          <div class="lat-seg lat-1"  style="width:20%"><span class="lat-label">Identity lookup</span><span class="lat-ms">2ms</span></div>
+          <div class="lat-seg lat-2"  style="width:40%"><span class="lat-label">Segment match · bloom filter</span><span class="lat-ms">4ms</span></div>
+          <div class="lat-seg lat-3"  style="width:20%"><span class="lat-label">Freq-cap check</span><span class="lat-ms">2ms</span></div>
+          <div class="lat-seg lat-4"  style="width:20%"><span class="lat-label">Dispatch + log</span><span class="lat-ms">2ms</span></div>
+        </div>
+        <div class="viz-sub">At 2B impressions/day × ~100 candidates per request, the platform runs <strong>200 billion targeting lookups</strong> per day. A 1ms regression here moves the P99 monetisation.</div>
+        <div class="stage-metric-grid">
+          <div class="smetric"><div class="sm-val">~100</div><div class="sm-key">Candidate ads per slot</div></div>
+          <div class="smetric"><div class="sm-val">2B</div><div class="sm-key">Ad requests per day</div></div>
+          <div class="smetric"><div class="sm-val">200B</div><div class="sm-key">Targeting lookups / day</div></div>
+          <div class="smetric"><div class="sm-val">0.1%</div><div class="sm-key">Requests that time out → no ad served</div></div>
+        </div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">candidate_ad_ids[]</span><span class="dchip">viewer_identity</span><span class="dchip">audience_matches</span><span class="dchip">freq_cap_state</span><span class="dchip">request_ts</span></div>
@@ -294,6 +330,30 @@
         <div class="stage-who">Platform side · auction engine + ranker · ~40ms budget</div>
       </div>
       <div class="stage-what">Each candidate ad is scored. The standard formula is <code>ad_rank = bid × predicted_action_rate × quality_factor</code>. The ranker is usually a deep-learning model that predicts pCTR and pConvert from hundreds of features (user history, creative embeddings, context). A <strong>second-price auction</strong> (GSP / VCG variants) clears: highest <code>ad_rank</code> wins, pays just enough to beat the second-highest <code>ad_rank</code>. Loser logs are written too — they are precious for ranker retraining. Privacy budgets weight the final score on iOS / Privacy Sandbox paths.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">The auction · a real clearing · one viewer, one slot</div>
+        <table class="auction-board">
+          <thead>
+            <tr><th>rank</th><th>advertiser</th><th>bid</th><th>× pAction</th><th>× quality</th><th>= ad_rank</th><th>paid</th></tr>
+          </thead>
+          <tbody>
+            <tr class="auc-win"><td>1</td><td>Nike · running shoe</td><td>$2.40</td><td>0.034</td><td>0.92</td><td><strong>0.0751</strong></td><td><strong>$1.92</strong></td></tr>
+            <tr class="auc-second"><td>2</td><td>Asics · marathon gel</td><td>$2.10</td><td>0.029</td><td>0.94</td><td>0.0572</td><td>—</td></tr>
+            <tr><td>3</td><td>Strava · Premium</td><td>$1.80</td><td>0.028</td><td>0.81</td><td>0.0408</td><td>—</td></tr>
+            <tr><td>4</td><td>Garmin · watch</td><td>$3.20</td><td>0.011</td><td>0.72</td><td>0.0253</td><td>—</td></tr>
+            <tr><td>5</td><td>Local gym · signup</td><td>$0.90</td><td>0.021</td><td>0.88</td><td>0.0166</td><td>—</td></tr>
+          </tbody>
+        </table>
+        <div class="viz-sub">Nike wins. Pays <strong>$1.92</strong>, not $2.40 — just enough to beat Asics's <code>ad_rank</code> of 0.0572 at Nike's quality-adjusted rate. That's the second-price savings (<strong>$0.48</strong>) that makes advertisers trust the auction.</div>
+        <div class="stage-metric-grid">
+          <div class="smetric"><div class="sm-val">~40ms</div><div class="sm-key">Auction clear time</div></div>
+          <div class="smetric"><div class="sm-val">99%</div><div class="sm-key">Slots filled at full reserve</div></div>
+          <div class="smetric"><div class="sm-val">28–40%</div><div class="sm-key">Platform take rate</div></div>
+          <div class="smetric"><div class="sm-val">20:1</div><div class="sm-key">Loser-log : winner-log volume</div></div>
+        </div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">winning_ad_id</span><span class="dchip">clearing_price_cents</span><span class="dchip">predicted_action_rate</span><span class="dchip">quality_score</span><span class="dchip">loser_logs[]</span><span class="dchip">auction_decision_id</span></div>
@@ -314,6 +374,26 @@
         <div class="stage-who">Ad server + client (browser / app / TV device)</div>
       </div>
       <div class="stage-what">The winning ad is served. The creative loads. A <strong>tracking pixel</strong> fires the moment it's rendered, reporting "impression served" back to the platform. For video, a VAST/VPAID wrapper tracks quartiles (25% / 50% / 75% / complete). <strong>Viewability</strong> is measured against the MRC standard — ≥50% of pixels on screen for ≥1 second. A pre-bid IVT filter flags obvious invalid traffic here (datacenter IPs, repeat abusers), stamping <code>is_valid = FALSE</code> on the impression. Everything downstream uses this stamp.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">Delivery funnel · 2B ad requests → what actually gets billed</div>
+        <div class="funnel">
+          <div class="fn-row"><div class="fn-bar" style="width:100%"><span>Ad requests arrived</span></div><div class="fn-n">2.00B</div><div class="fn-pct">100%</div></div>
+          <div class="fn-row"><div class="fn-bar" style="width:98.5%"><span>Won an auction</span></div><div class="fn-n">1.97B</div><div class="fn-pct">98.5%</div></div>
+          <div class="fn-row"><div class="fn-bar" style="width:92.4%"><span>Served to client (post-network)</span></div><div class="fn-n">1.85B</div><div class="fn-pct">92.4%</div></div>
+          <div class="fn-row fn-ivt"><div class="fn-bar" style="width:86.8%"><span>Survived pre-bid IVT filter</span></div><div class="fn-n">1.74B</div><div class="fn-pct">86.8%</div></div>
+          <div class="fn-row fn-view"><div class="fn-bar" style="width:62.6%"><span>MRC-viewable (50% · 1s)</span></div><div class="fn-n">1.25B</div><div class="fn-pct">62.6%</div></div>
+          <div class="fn-row fn-billable"><div class="fn-bar" style="width:58.1%"><span>Billable · clean spend</span></div><div class="fn-n">1.16B</div><div class="fn-pct">58.1%</div></div>
+        </div>
+        <div class="viz-sub"><strong>42% of ad requests never become revenue.</strong> Pre-bid IVT removes ~6%; viewability cuts another ~30%. The "bill-only-on-viewable" standard is why advertisers care so much about MRC certification.</div>
+        <div class="stage-metric-grid">
+          <div class="smetric"><div class="sm-val">2–8%</div><div class="sm-key">Client-vs-server count drift</div></div>
+          <div class="smetric"><div class="sm-val">~6%</div><div class="sm-key">Pre-bid IVT flag rate</div></div>
+          <div class="smetric"><div class="sm-val">72%</div><div class="sm-key">Industry viewability benchmark</div></div>
+          <div class="smetric"><div class="sm-val">MRC</div><div class="sm-key">50% · 1s · the standard</div></div>
+        </div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">impression_id</span><span class="dchip">rendered_ts</span><span class="dchip">viewable_flag</span><span class="dchip">video_quartile_events</span><span class="dchip">is_valid</span><span class="dchip">spend_cents</span></div>
@@ -334,6 +414,28 @@
         <div class="stage-who">Ad server + client · real-time event stream</div>
       </div>
       <div class="stage-what">Now the viewer does something — or nothing. If they <strong>click</strong>, a click row is written with the clicked <code>ad_id</code>, <code>user_id</code>, and timestamp. For video: <strong>pause</strong>, <strong>resume</strong>, <strong>skip</strong>, <strong>complete</strong> all stream back. For CTV there is usually <em>no click</em> — just exposure and completion. For every event, the platform re-resolves identity against the graph, applies consent rules (GDPR, CCPA, iOS ATT), and may drop or aggregate the event to satisfy privacy requirements.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">Click-through rate by surface · industry benchmarks 2024</div>
+        <div class="ctr-bars">
+          <div class="ctr-row"><div class="ctr-name">Search (Google)</div><div class="ctr-bar"><div class="ctr-fill" style="width:100%">6.30%</div></div></div>
+          <div class="ctr-row"><div class="ctr-name">Sponsored Products (Amazon)</div><div class="ctr-bar"><div class="ctr-fill" style="width:71%">4.46%</div></div></div>
+          <div class="ctr-row"><div class="ctr-name">Social (Meta Reels)</div><div class="ctr-bar"><div class="ctr-fill" style="width:21%">1.31%</div></div></div>
+          <div class="ctr-row"><div class="ctr-name">Social (Meta Feed)</div><div class="ctr-bar"><div class="ctr-fill" style="width:14%">0.90%</div></div></div>
+          <div class="ctr-row"><div class="ctr-name">Programmatic Display</div><div class="ctr-bar"><div class="ctr-fill" style="width:7%">0.46%</div></div></div>
+          <div class="ctr-row"><div class="ctr-name">CTV (Netflix, Hulu)</div><div class="ctr-bar ctr-bar-muted"><div class="ctr-fill ctr-fill-na" style="width:1%">— no click</div></div></div>
+        </div>
+        <div class="viz-sub">Search wins because intent is explicit. CTV does not have the metric at all — you measure exposure, completion, and off-platform conversion. This is why CTV pipelines look different.</div>
+        <div class="viz-title viz-title-sec">Consent-strip rate · % of events that cannot be attribution-joined</div>
+        <div class="consent-track">
+          <div class="cons-seg cons-eu"  style="width:35%"><span>EU · GDPR</span><span class="cons-n">12–15%</span></div>
+          <div class="cons-seg cons-row" style="width:25%"><span>Rest of World</span><span class="cons-n">5–8%</span></div>
+          <div class="cons-seg cons-us"  style="width:20%"><span>US · CCPA</span><span class="cons-n">2–3%</span></div>
+          <div class="cons-seg cons-ios" style="width:20%"><span>iOS · ATT</span><span class="cons-n">30–50% aggregated</span></div>
+        </div>
+        <div class="viz-sub">Segment width = <em>share of global impressions in that privacy regime</em>. Every percentage here is a row the attribution engine cannot touch at the user level.</div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">click_id</span><span class="dchip">click_ts</span><span class="dchip">video_events</span><span class="dchip">resolved_identity</span><span class="dchip">consent_state</span><span class="dchip">region</span></div>
@@ -354,6 +456,30 @@
         <div class="stage-who">Advertiser's site + platform's attribution engine · hours to weeks later</div>
       </div>
       <div class="stage-what">The viewer eventually does the thing the advertiser paid for — <strong>buys the shoes</strong>, installs the app, fills the lead form. The advertiser's site fires a pixel (or server-side event via Conversions API / SKAN postback / MMP callback). The platform's <strong>attribution engine</strong> looks back: is there an impression or click for this user within the attribution window? Under which model — last-click 7-day, data-driven, MTA linear, SKAN probabilistic? Credit is assigned. A conversion row is written. Partner SSPs report their slice on <strong>14-day lag</strong>.</div>
+
+      <div class="stage-viz">
+        <div class="viz-title">Attribution accumulation · % of conversions credited, by days-since-impression</div>
+        <div class="decay-chart">
+          <div class="decay-bar"><div class="decay-fill" style="height:22%"></div><div class="decay-label">Day 1</div><div class="decay-val">22%</div></div>
+          <div class="decay-bar"><div class="decay-fill" style="height:38%"></div><div class="decay-label">Day 3</div><div class="decay-val">38%</div></div>
+          <div class="decay-bar"><div class="decay-fill" style="height:58%"></div><div class="decay-label">Day 7</div><div class="decay-val">58%</div></div>
+          <div class="decay-bar"><div class="decay-fill" style="height:75%"></div><div class="decay-label">Day 14</div><div class="decay-val">75%</div></div>
+          <div class="decay-bar"><div class="decay-fill" style="height:89%"></div><div class="decay-label">Day 21</div><div class="decay-val">89%</div></div>
+          <div class="decay-bar decay-bar-full"><div class="decay-fill" style="height:95%"></div><div class="decay-label">Day 28</div><div class="decay-val">95%</div></div>
+          <div class="decay-bar"><div class="decay-fill" style="height:99%"></div><div class="decay-label">Day 60</div><div class="decay-val">99%</div></div>
+        </div>
+        <div class="viz-sub">"Yesterday's revenue" is <strong>only 22% finalised</strong> at close-of-day. A dashboard that looks the same two weeks later will show 75% — that isn't growth, it's late credit arriving. This is the engine of the Act 2 $0.9M gap.</div>
+        <div class="viz-title viz-title-sec">Attribution models · typical credit allocation for a 4-touch journey</div>
+        <div class="attribution-models">
+          <div class="am-row"><div class="am-name">Last-click</div><div class="am-touches"><span class="am-t am-t-0">0</span><span class="am-t am-t-0">0</span><span class="am-t am-t-0">0</span><span class="am-t am-t-full">100</span></div></div>
+          <div class="am-row"><div class="am-name">First-click</div><div class="am-touches"><span class="am-t am-t-full">100</span><span class="am-t am-t-0">0</span><span class="am-t am-t-0">0</span><span class="am-t am-t-0">0</span></div></div>
+          <div class="am-row"><div class="am-name">Linear (MTA)</div><div class="am-touches"><span class="am-t am-t-25">25</span><span class="am-t am-t-25">25</span><span class="am-t am-t-25">25</span><span class="am-t am-t-25">25</span></div></div>
+          <div class="am-row"><div class="am-name">Time-decay</div><div class="am-touches"><span class="am-t am-t-10">10</span><span class="am-t am-t-15">15</span><span class="am-t am-t-25">25</span><span class="am-t am-t-50">50</span></div></div>
+          <div class="am-row"><div class="am-name">Data-driven</div><div class="am-touches"><span class="am-t am-t-18">18</span><span class="am-t am-t-22">22</span><span class="am-t am-t-12">12</span><span class="am-t am-t-48">48</span></div></div>
+        </div>
+        <div class="viz-sub">Same four touches, five <em>very different</em> credit splits. Switching attribution model can move an advertiser's reported ROAS by 30%+ overnight without a single real-world change.</div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">conversion_id</span><span class="dchip">event_time</span><span class="dchip">attribution_time</span><span class="dchip">attribution_model</span><span class="dchip">attribution_window</span><span class="dchip">credited_usd</span><span class="dchip">identity_graph_version</span></div>
@@ -374,6 +500,27 @@
         <div class="stage-who">Advertiser + platform + Finance · every minute, every month</div>
       </div>
       <div class="stage-what">The conversion row flows downstream. The <strong>advertiser dashboard</strong> updates in near-real-time (ROAS, CPA, impressions, spend). The <strong>platform's ranker</strong> is retrained every 15–60 minutes on the fresh conversions — today's conversions become tomorrow's predicted-action-rate features. <strong>Finance</strong> reconciles the ad ledger at month-end, posting refunds, IVT credits, FX revaluations, and partner-postback adjustments. The advertiser adjusts bids, pauses weak creatives, launches new ones. <em>Every output of Stage 7 is an input of Stage 1 next round.</em></div>
+
+      <div class="stage-viz">
+        <div class="viz-title">Feedback-loop latency · how fast each consumer sees the truth</div>
+        <div class="loop-timeline">
+          <div class="lt-row lt-fast"><div class="lt-who">Advertiser dashboard</div><div class="lt-bar"><div class="lt-fill" style="width:2%"></div></div><div class="lt-lat">1–5 min</div></div>
+          <div class="lt-row lt-fast"><div class="lt-who">Operational alerts (ROAS guardrails)</div><div class="lt-bar"><div class="lt-fill" style="width:3%"></div></div><div class="lt-lat">5–10 min</div></div>
+          <div class="lt-row lt-med"><div class="lt-who">Ranker online retrain</div><div class="lt-bar"><div class="lt-fill" style="width:10%"></div></div><div class="lt-lat">15–60 min</div></div>
+          <div class="lt-row lt-med"><div class="lt-who">Advertiser bid auto-adjust</div><div class="lt-bar"><div class="lt-fill" style="width:16%"></div></div><div class="lt-lat">1–6 hours</div></div>
+          <div class="lt-row lt-slow"><div class="lt-who">Partner SSP postback (Xandr etc.)</div><div class="lt-bar"><div class="lt-fill" style="width:48%"></div></div><div class="lt-lat">14 days</div></div>
+          <div class="lt-row lt-slow"><div class="lt-who">Finance month-end close</div><div class="lt-bar"><div class="lt-fill" style="width:75%"></div></div><div class="lt-lat">30 days</div></div>
+          <div class="lt-row lt-slowest"><div class="lt-who">IVT vendor forensics credit</div><div class="lt-bar"><div class="lt-fill" style="width:100%"></div></div><div class="lt-lat">45–60 days</div></div>
+        </div>
+        <div class="viz-sub">Seven consumers of the same data. <strong>Latency ranges over five orders of magnitude</strong> — from minutes to months. The platform's job is to make all seven agree, at their own cadences, on the same underlying truth.</div>
+        <div class="stage-metric-grid">
+          <div class="smetric"><div class="sm-val">15 min</div><div class="sm-key">Ranker retrain frequency</div></div>
+          <div class="smetric"><div class="sm-val">14 d</div><div class="sm-key">Partner postback lag</div></div>
+          <div class="smetric"><div class="sm-val">30 d</div><div class="sm-key">Finance close</div></div>
+          <div class="smetric"><div class="sm-val">1,200×</div><div class="sm-key">Ratio: slowest ÷ fastest loop</div></div>
+        </div>
+      </div>
+
       <div class="stage-data">
         <div class="stage-data-label">Data produced</div>
         <div class="stage-data-chips"><span class="dchip">dashboard_materializations</span><span class="dchip">ranker_feature_updates</span><span class="dchip">ledger_rows</span><span class="dchip">advertiser_bid_changes</span><span class="dchip">campaign_pause_events</span></div>
