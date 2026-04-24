@@ -708,6 +708,33 @@ HEAD = '''<!DOCTYPE html>
   .part-section .parallel-grid { grid-template-columns: 1fr; }
 }
 
+/* Warm-up ramp — soft blows before the hard one */
+.part-section .warmup { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; padding: 22px 24px; margin: 22px 0; box-shadow: 0 4px 14px rgba(26,35,50,.05); }
+.part-section .warmup-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--color-gold-dark); margin-bottom: 10px; text-align: center; }
+.part-section .warmup-intro { font-family: var(--font-body); font-size: 15px; line-height: 1.7; color: var(--color-ink); margin-bottom: 16px; padding: 12px 16px; background: var(--color-cream); border-left: 3px solid var(--color-gold); border-radius: 0 6px 6px 0; }
+.part-section .warmup-intro em { color: var(--color-rust); font-style: italic; font-weight: 600; }
+.part-section .warmups { display: flex; flex-direction: column; gap: 10px; }
+.part-section .warmup-q { background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-gold); border-radius: 0 8px 8px 0; padding: 13px 16px; }
+.part-section .wq-soft     { border-left-color: #9bc4a3; }
+.part-section .wq-vocab    { border-left-color: #c8915a; }
+.part-section .wq-basic    { border-left-color: #c44b2b; }
+.part-section .wq-scenario { border-left-color: #5a1f1f; }
+.part-section .wq-meta { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.part-section .wq-num { font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; padding: 3px 8px; background: var(--color-cream); border-radius: 4px; color: var(--color-ink); }
+.part-section .wq-tier { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--color-light-muted); }
+.part-section .wq-soft     .wq-tier { color: #1a4f30; }
+.part-section .wq-vocab    .wq-tier { color: #a87434; }
+.part-section .wq-basic    .wq-tier { color: var(--color-rust); }
+.part-section .wq-scenario .wq-tier { color: #5a1f1f; }
+.part-section .wq-ask { font-family: var(--font-display); font-size: 16px; line-height: 1.5; color: var(--color-ink); margin-bottom: 8px; }
+.part-section .wq-ask strong { color: var(--color-rust); font-weight: 600; }
+.part-section .wq-grade { font-family: var(--font-body); font-size: 14px; line-height: 1.6; color: var(--color-ink); padding-top: 6px; border-top: 1px dashed var(--color-border-light); }
+.part-section .wq-grade strong { color: var(--color-gold-dark); }
+.part-section .wq-grade em { color: var(--color-rust); font-style: italic; }
+.part-section .wq-grade code { font-size: 12.5px; }
+.part-section .warmup-foot { margin-top: 16px; padding: 12px 16px; background: linear-gradient(135deg, #2a3a4e 0%, #1a2332 100%); color: #fff; border-radius: 8px; font-family: var(--font-body); font-size: 14.5px; line-height: 1.6; text-align: center; }
+.part-section .warmup-foot strong { color: var(--color-gold-light); }
+
 /* Round 0 · The Drop — stark opening card */
 .part-section .drop { background: linear-gradient(135deg, #0d1620 0%, #1a2332 100%); color: #fff; border-radius: 14px; padding: 28px 30px; margin: 24px 0; box-shadow: 0 10px 32px rgba(0,0,0,.25); border: 1px solid rgba(229,9,20,.4); }
 .part-section .drop-timer { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.22em; text-transform: uppercase; color: #f5a9a9; margin-bottom: 18px; text-align: center; }
