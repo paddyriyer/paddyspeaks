@@ -1,0 +1,2026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light only">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="theme-color" content="#1a2332">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="format-detection" content="telephone=no">
+<title>Introduction to Data Engineering — 100 SQL &amp; Python Interview Questions | PaddySpeaks</title>
+<meta name="description" content="An introduction to Data Engineering and a graduated 100-question interview practice bank: 50 SQL + 50 Python problems built on a realistic e-commerce dataset (users, purchases, sessions, events, logins, employees, clickstream, product_dim).">
+<meta name="keywords" content="data engineering interview, SQL interview questions, python interview questions, pandas interview, pyspark interview, sessionization, gaps and islands, SCD type 2, window functions, anti join, recursive CTE, funnel analysis">
+<meta name="author" content="Paddy Iyer">
+<link rel="canonical" href="https://paddyspeaks.com/articles/introduction-to-data-engineering-sql-python-100-questions.html">
+
+<meta property="og:title" content="Introduction to Data Engineering — 100 SQL &amp; Python Interview Questions">
+<meta property="og:description" content="From SELECT * to recursive CTEs, from pd.read_csv to PySpark broadcast joins — 100 practice questions on a realistic dataset, ordered simple → complex.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://paddyspeaks.com/articles/introduction-to-data-engineering-sql-python-100-questions.html">
+<meta property="og:site_name" content="PaddySpeaks">
+<meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="en_US">
+<meta property="article:author" content="Paddy Iyer">
+<meta property="article:published_time" content="2026-04-26">
+<meta property="article:section" content="Technology">
+<meta property="article:tag" content="Data Engineering">
+<meta property="article:tag" content="Interview Prep">
+<meta property="article:tag" content="SQL">
+<meta property="article:tag" content="Python">
+<meta property="article:tag" content="Pandas">
+<meta property="article:tag" content="PySpark">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Introduction to Data Engineering — 100 SQL &amp; Python Interview Questions">
+<meta name="twitter:description" content="50 SQL + 50 Python questions on a realistic e-commerce dataset, ordered from simple lookups to recursive CTEs and Spark skew mitigation.">
+<meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Article","headline":"Introduction to Data Engineering — 100 SQL & Python Interview Questions","description":"An introduction to data engineering plus 100 graduated interview questions (50 SQL, 50 Python) built on a realistic e-commerce dataset.","author":{"@type":"Person","name":"Paddy Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com"},"datePublished":"2026-04-26","dateModified":"2026-04-26","mainEntityOfPage":"https://paddyspeaks.com/articles/introduction-to-data-engineering-sql-python-100-questions.html","articleSection":"Technology","keywords":"data engineering, SQL, Python, pandas, PySpark, interview prep, window functions, recursive CTE, sessionization, SCD2","isAccessibleForFree":true}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"PaddySpeaks","item":"https://paddyspeaks.com/"},{"@type":"ListItem","position":2,"name":"Articles","item":"https://paddyspeaks.com/articles/"},{"@type":"ListItem","position":3,"name":"Introduction to Data Engineering — 100 Questions"}]}
+</script>
+
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../style.css">
+
+<style>
+  /* Article-scoped styles for Q&A cards */
+  .article-content .qa-card {
+    margin: 28px 0;
+    padding: 22px 26px;
+    background: var(--color-paper);
+    border: 1px solid var(--color-border-light);
+    border-left: 3px solid #1a4f8a;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .article-content .qa-card.tier-1 { border-left-color: #2a7a4a; }
+  .article-content .qa-card.tier-2 { border-left-color: #1a4f8a; }
+  .article-content .qa-card.tier-3 { border-left-color: #c8915a; }
+  .article-content .qa-card.tier-4 { border-left-color: #c44b2b; }
+  .article-content .qa-card.tier-5 { border-left-color: #5a3a8a; }
+  .article-content .qa-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .article-content .qa-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--color-muted);
+    text-transform: uppercase;
+  }
+  .article-content .qa-tier {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    color: #fff;
+    background: #888;
+  }
+  .article-content .qa-card.tier-1 .qa-tier { background: #2a7a4a; }
+  .article-content .qa-card.tier-2 .qa-tier { background: #1a4f8a; }
+  .article-content .qa-card.tier-3 .qa-tier { background: #c8915a; }
+  .article-content .qa-card.tier-4 .qa-tier { background: #c44b2b; }
+  .article-content .qa-card.tier-5 .qa-tier { background: #5a3a8a; }
+  .article-content .qa-card h3 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 4px 0 8px;
+    line-height: 1.3;
+  }
+  .article-content .qa-card .qa-scenario {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--color-muted);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+  .article-content .qa-card pre {
+    margin: 12px 0 8px;
+    font-size: 13px;
+    padding: 18px 22px;
+  }
+  .article-content .qa-card .qa-note {
+    font-size: 14px;
+    color: var(--color-muted);
+    margin-top: 8px;
+    line-height: 1.55;
+  }
+  .article-content .schema-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 14px;
+  }
+  .article-content .schema-table th,
+  .article-content .schema-table td {
+    border: 1px solid var(--color-border-light);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  .article-content .schema-table th {
+    background: var(--color-cream);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .article-content .schema-table code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 13px;
+  }
+  .article-content .tier-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin: 24px 0 8px;
+  }
+  .article-content .tier-legend > div {
+    padding: 12px 14px;
+    background: var(--color-paper);
+    border: 1px solid var(--color-border-light);
+    border-top: 3px solid #888;
+  }
+  .article-content .tier-legend .t1 { border-top-color: #2a7a4a; }
+  .article-content .tier-legend .t2 { border-top-color: #1a4f8a; }
+  .article-content .tier-legend .t3 { border-top-color: #c8915a; }
+  .article-content .tier-legend .t4 { border-top-color: #c44b2b; }
+  .article-content .tier-legend .t5 { border-top-color: #5a3a8a; }
+  .article-content .tier-legend strong {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .article-content .tier-legend p { font-size: 13px; margin: 0; line-height: 1.45; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="page-frame"></div>
+<div class="reading-progress" id="readingProgress"></div>
+<div class="top-bar"><span>Est. 2026</span><span>Philosophy · Technology · Wisdom</span><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a></div>
+<header class="masthead"><h2><a href="../index.html">Paddy<span>Speaks</span></a></h2><p class="masthead-tagline">Where ancient wisdom meets the architecture of tomorrow</p>
+<div class="masthead-rule"></div>
+</header>
+<nav class="nav-bar">
+  <a href="../index.html">Journal</a>
+  <a href="../index.html#philosophy">Philosophy</a>
+  <a href="../index.html#technology">Technology</a>
+  <a href="../index.html#ai">AI &amp; Future</a>
+  <a href="../index.html#archive">Archive</a>
+  <a href="../index.html#sacred-texts">Sacred Texts</a>
+  <a href="../about.html">About</a>
+</nav>
+
+<div class="article-page longform">
+<a class="back-to-home" href="../index.html">← All Articles</a>
+
+<div class="article-hero">
+  <span class="tag">technology · interview prep</span>
+  <h1>Introduction to Data Engineering &mdash; 100 SQL &amp; Python Interview Questions</h1>
+  <p class="subtitle">A working introduction to the discipline, plus a graduated 100-question practice bank built on a realistic e-commerce dataset. 50 SQL + 50 Python problems, ordered from <em>SELECT *</em> to recursive CTEs, from <code>pd.read_csv</code> to PySpark broadcast joins.</p>
+  <div class="article-meta">
+    <span>By Paddy</span><span class="dot"></span>
+    <span>April 26, 2026</span><span class="dot"></span>
+    <span>90 min read</span>
+  </div>
+</div>
+
+<nav class="section-nav" aria-label="Jump to section"><div class="section-nav-inner">
+  <a class="section-chip" href="#intro"><span class="chip-num">Part 0</span><span class="chip-title">What Data Engineering Is</span></a>
+  <a class="section-chip" href="#how-to-prep"><span class="chip-num">Part 1</span><span class="chip-title">How to Prepare</span></a>
+  <a class="section-chip" href="#dataset"><span class="chip-num">Part 2</span><span class="chip-title">The Practice Dataset</span></a>
+  <a class="section-chip" href="#sql-bank"><span class="chip-num">Part 3</span><span class="chip-title">50 SQL Questions</span></a>
+  <a class="section-chip" href="#python-bank"><span class="chip-num">Part 4</span><span class="chip-title">50 Python Questions</span></a>
+  <a class="section-chip" href="#closing"><span class="chip-num">Part 5</span><span class="chip-title">Closing &amp; Further Reading</span></a>
+</div></nav>
+
+<div class="article-content">
+
+<section id="intro">
+<h2>Part 0 · What Data Engineering Actually Is</h2>
+
+<p class="drop-cap">Most people meet a data engineer through their absence. The dashboard is stale. The number doesn't match the other number. The ML model trained on yesterday's distribution and now nobody trusts the score. Somewhere upstream, a pipeline shrugged.</p>
+
+<p>Data engineering is the discipline of moving data from where it is born — clicks, payments, sensors, logs, third-party APIs — to where decisions get made, and doing it with enough rigor that the people downstream (analysts, scientists, ML systems, executives, regulators) can build on top without flinching. It sits between software engineering and analytics, and inherits the obligations of both: the correctness of code, the trust of numbers.</p>
+
+<div class="callout example">
+  <span class="callout-label">A Working Definition</span>
+  <p>A data engineer designs, builds, and operates the systems that turn raw events into reliable, queryable, governed datasets — at the latency, cost, and quality the business has agreed to.</p>
+</div>
+
+<h3>The five things you actually do</h3>
+<ol class="manifesto-list arrow">
+  <li><strong>Ingest.</strong> Pull data from operational systems (Postgres, Kafka, S3 drops, SaaS APIs) without losing rows, without double-counting, and without melting the source.</li>
+  <li><strong>Model.</strong> Decide what a "user," an "order," a "session," a "subscription" means — and shape the data so a hundred analysts get the same answer.</li>
+  <li><strong>Transform.</strong> Write SQL/Python/Spark that turns raw events into clean facts and dimensions, idempotently, on a schedule, and re-runnable.</li>
+  <li><strong>Serve.</strong> Make those datasets available — warehouse tables, lakehouse files, low-latency caches, feature stores, BI semantic layers.</li>
+  <li><strong>Operate.</strong> Monitor freshness, completeness, schema drift, cost, lineage; respond when something breaks; explain why a number changed.</li>
+</ol>
+
+<h3>The skill stack interviewers actually probe</h3>
+<p>Different companies emphasize different layers, but the canonical L3–L5 stack is well-known:</p>
+
+<ul>
+  <li><strong>SQL fluency</strong> — joins, window functions, CTEs, recursive CTEs, sessionization, gaps-and-islands, dedup patterns, query plans, partition pruning.</li>
+  <li><strong>Python</strong> — pandas for medium data, PySpark for big data, plus enough vanilla Python (collections, generators, OOP basics) to write a small ETL utility from scratch.</li>
+  <li><strong>Data modeling</strong> — star schemas, fact-vs-dim, slowly changing dimensions (SCD Type 1/2/3), grain decisions, late-arriving facts.</li>
+  <li><strong>Distributed compute</strong> — Spark / Trino / BigQuery internals, shuffle, skew, broadcast joins, partitioning, bucketing.</li>
+  <li><strong>Streaming</strong> — Kafka semantics, exactly-once vs at-least-once, watermarks, windowing, late data.</li>
+  <li><strong>Lakehouse</strong> — Iceberg / Delta / Hudi, table formats, time travel, compaction, schema evolution.</li>
+  <li><strong>Orchestration &amp; reliability</strong> — Airflow / Dagster / Prefect, retries, backfills, idempotency, SLAs, DQ checks.</li>
+  <li><strong>Cloud &amp; cost</strong> — S3 / GCS / ADLS, IAM, partitioning for cost, query cost analysis.</li>
+</ul>
+
+<p>This article focuses sharply on the two skills that <strong>every loop tests</strong>: SQL and Python. If you can't ace the SQL screen and the coding round, the design round never happens.</p>
+
+</section>
+
+<section id="how-to-prep">
+<h2>Part 1 · How to Prepare for SQL &amp; Python Rounds</h2>
+
+<p>Most candidates over-study the wrong things — memorizing every window function, every pandas method — and under-study the things interviewers actually weight: clarifying the question, picking the right primitive, narrating tradeoffs, and writing code that runs.</p>
+
+<div class="callout case-study">
+  <span class="callout-label">The Four Things Interviewers Score</span>
+  <p><strong>1. Clarity</strong> — Did you restate the problem? Did you ask about edge cases (nulls, ties, late data, time zones)?</p>
+  <p><strong>2. Correctness</strong> — Does the query / function actually return the right answer on the obvious test cases?</p>
+  <p><strong>3. Reasoning</strong> — Can you talk through <em>why</em> you picked this join / window / pattern? Can you compare it to one alternative?</p>
+  <p><strong>4. Production sense</strong> — Would this scale? Is it idempotent? What happens at 100x the volume? What happens if the source schema changes?</p>
+</div>
+
+<h3>A 2-week practice plan</h3>
+<ol class="manifesto-list">
+  <li><strong>Days 1–3 — Foundations.</strong> Tier 1 SQL (Q1–Q10) and Tier 1 Python (Q1–Q10). Get fluent with the dataset. No timer.</li>
+  <li><strong>Days 4–6 — Joins &amp; aggregation.</strong> Tier 2 of both. Time-box at 10 minutes per question. Talk out loud (yes, alone).</li>
+  <li><strong>Days 7–9 — Windows &amp; CTEs.</strong> Tier 3. Force yourself to write the answer once <em>without</em> looking, then critique your own.</li>
+  <li><strong>Days 10–12 — Production patterns.</strong> Tier 4. Dedup, sessionize, funnel, retention, date spines.</li>
+  <li><strong>Days 13–14 — Senior signals.</strong> Tier 5. SCD2, recursive CTEs, skew, Spark, idempotency. Know the <em>tradeoffs</em>, not just the syntax.</li>
+</ol>
+
+<h3>How to use this question bank</h3>
+<p>Each question has three pieces: a <em>scenario</em> (what a real PM or analyst would actually ask), a <em>solution</em> (the SQL or Python that answers it), and a brief <em>why-it-matters</em> note (the production angle, edge case, or interviewer follow-up). Read the scenario, write your own answer, <em>then</em> compare. The compare-after-attempt step is where the learning lives.</p>
+
+</section>
+
+<section id="dataset">
+<h2>Part 2 · The Practice Dataset</h2>
+
+<p>Every question below uses the same realistic e-commerce dataset — 15 tables totaling roughly 7,000 rows — small enough to run on your laptop, structured enough to surface real interview patterns. The CSVs and a Postgres / MySQL setup script live in <code>interview/sample dataset/</code>.</p>
+
+<table class="schema-table">
+  <thead><tr><th>Table</th><th>Rows</th><th>Columns</th><th>What it's for</th></tr></thead>
+  <tbody>
+    <tr><td><code>users</code></td><td>200</td><td><code>user_id, name, email, signup_date, country</code></td><td>Anti-joins, cohorts, country roll-ups</td></tr>
+    <tr><td><code>purchases</code></td><td>300</td><td><code>purchase_id, user_id, amount, purchase_date, product_category</code></td><td>Revenue, category roll-ups, anti-joins</td></tr>
+    <tr><td><code>user_profiles</code></td><td>334</td><td><code>user_id, name, city, updated_at</code></td><td>Dedup (intentional duplicates: 334 rows for 200 users)</td></tr>
+    <tr><td><code>weekly_metrics</code></td><td>52</td><td><code>week_start, wau</code></td><td>WoW growth with LAG</td></tr>
+    <tr><td><code>sessions</code></td><td>800</td><td><code>session_id, user_id, platform, session_date, duration_sec</code></td><td>CASE pivots, platform splits</td></tr>
+    <tr><td><code>products</code></td><td>50</td><td><code>product_id, product_name, category, revenue</code></td><td>Top-N per group</td></tr>
+    <tr><td><code>clickstream</code></td><td>1,971</td><td><code>user_id, event_time, page</code></td><td>Sessionization (30-min idle)</td></tr>
+    <tr><td><code>events</code></td><td>1,014</td><td><code>event_id, user_id, event_type, event_date</code></td><td>Funnel: signup → activation → purchase</td></tr>
+    <tr><td><code>logins</code></td><td>1,925</td><td><code>user_id, login_date</code></td><td>Consecutive streaks (gaps &amp; islands)</td></tr>
+    <tr><td><code>daily_metrics</code></td><td>120</td><td><code>ds, daily_revenue, daily_dau</code></td><td>Running totals, moving averages</td></tr>
+    <tr><td><code>daily_metrics_gapped</code></td><td>105</td><td><code>ds, daily_revenue, daily_dau</code></td><td>Date spine — 15 missing dates to fill</td></tr>
+    <tr><td><code>employees</code></td><td>28</td><td><code>employee_id, full_name, manager_id, department, salary</code></td><td>Self-joins, recursive org traversal</td></tr>
+    <tr><td><code>orders</code></td><td>500</td><td><code>order_id, user_id, order_date, amount</code></td><td>Cumulative distribution, correlated subquery</td></tr>
+    <tr><td><code>product_dim</code></td><td>68</td><td><code>product_id, product_name, price, effective_date, expiry_date, is_current</code></td><td>SCD Type 2 — historical price tracking</td></tr>
+    <tr><td><code>skewed_table</code></td><td>1,000</td><td><code>id, join_key, value</code></td><td>Skew detection (~70% rows on <code>hot_key</code>)</td></tr>
+  </tbody>
+</table>
+
+<h3>The five tiers</h3>
+<div class="tier-legend">
+  <div class="t1"><strong>Tier 1 · Foundation</strong><p>Single table, SELECT/WHERE/ORDER/LIMIT, basic aggregates.</p></div>
+  <div class="t2"><strong>Tier 2 · Joins</strong><p>Multi-table joins, GROUP BY, anti-joins, semi-joins.</p></div>
+  <div class="t3"><strong>Tier 3 · Windows</strong><p>Window functions, CASE, subqueries, dedup.</p></div>
+  <div class="t4"><strong>Tier 4 · Patterns</strong><p>CTEs, sessionization, funnels, cohorts, date spines.</p></div>
+  <div class="t5"><strong>Tier 5 · Senior</strong><p>Recursive CTEs, SCD2, skew, Spark, idempotency.</p></div>
+</div>
+
+</section>
+
+
+<section id="sql-bank">
+<h2>Part 3 · 50 SQL Questions, Simple to Complex</h2>
+
+<p>Open a Postgres / DuckDB / SQLite shell, load the CSVs, and try each question on your own before reading the solution. Solutions use ANSI SQL with a Postgres flavor; Spark / BigQuery / Snowflake variants are noted where they differ meaningfully.</p>
+
+<h3 style="margin-top:32px;">Tier 1 · Foundation (Q1–Q10)</h3>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q1</span><span class="qa-tier">Tier 1</span></div>
+  <h3>How many users do we have per country?</h3>
+  <p class="qa-scenario">A growth PM wants to see where our 200 users are concentrated before deciding which market to localize for next.</p>
+<pre><code>SELECT country, COUNT(*) AS user_count
+FROM users
+GROUP BY country
+ORDER BY user_count DESC;</code></pre>
+  <p class="qa-note"><strong>Why it matters:</strong> The bread-and-butter <code>GROUP BY</code>. Interviewers watch whether you alias the count, sort the result, and resist <code>SELECT *</code>.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q2</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Show the top 5 highest-paid employees with their department.</h3>
+  <p class="qa-scenario">HR is auditing comp bands and wants the top earners across the company.</p>
+<pre><code>SELECT employee_id, full_name, department, salary
+FROM employees
+ORDER BY salary DESC
+LIMIT 5;</code></pre>
+  <p class="qa-note"><strong>Follow-up:</strong> "What if two people tie at #5?" → discuss <code>FETCH FIRST 5 ROWS WITH TIES</code> (Postgres 13+) or <code>RANK() OVER (ORDER BY salary DESC)</code>.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q3</span><span class="qa-tier">Tier 1</span></div>
+  <h3>What is the total revenue across all purchases?</h3>
+  <p class="qa-scenario">Finance needs the simplest possible top-line number for a board slide.</p>
+<pre><code>SELECT ROUND(SUM(amount), 2) AS total_revenue
+FROM purchases;</code></pre>
+  <p class="qa-note"><strong>Edge case:</strong> If <code>amount</code> can be NULL, <code>SUM</code> already ignores nulls — but state that explicitly. Interviewers love when you pre-empt the null question.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q4</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Which products generated more than $1,000 in revenue?</h3>
+  <p class="qa-scenario">Merchandising wants the "winners shelf" — anything clearing four figures of contribution.</p>
+<pre><code>SELECT product_id, product_name, category, revenue
+FROM products
+WHERE revenue &gt; 1000
+ORDER BY revenue DESC;</code></pre>
+  <p class="qa-note"><strong>Why it matters:</strong> <code>WHERE</code> + sort. Trivial — but watch candidates who use <code>HAVING</code> here without a <code>GROUP BY</code>.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q5</span><span class="qa-tier">Tier 1</span></div>
+  <h3>What is the average session duration by platform?</h3>
+  <p class="qa-scenario">Product wants to know if iOS users actually spend longer in the app than Android users.</p>
+<pre><code>SELECT platform,
+       COUNT(*)                          AS sessions,
+       ROUND(AVG(duration_sec)::NUMERIC, 1) AS avg_duration_sec
+FROM sessions
+GROUP BY platform
+ORDER BY avg_duration_sec DESC;</code></pre>
+  <p class="qa-note"><strong>Follow-up:</strong> "Why include the count?" → averages without sample size are dangerously seductive.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q6</span><span class="qa-tier">Tier 1</span></div>
+  <h3>How many sessions occur on weekends only?</h3>
+  <p class="qa-scenario">An ops lead suspects weekend traffic is driving the support backlog and wants to size it.</p>
+<pre><code>SELECT COUNT(*) AS weekend_sessions
+FROM sessions
+WHERE EXTRACT(DOW FROM session_date) IN (0, 6);  -- Sun=0, Sat=6 in Postgres</code></pre>
+  <p class="qa-note"><strong>Portability:</strong> MySQL uses <code>DAYOFWEEK()</code> (1=Sun…7=Sat); Spark uses <code>dayofweek()</code> with the same convention as MySQL. Always state your DB.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q7</span><span class="qa-tier">Tier 1</span></div>
+  <h3>List all distinct event types in the events table.</h3>
+  <p class="qa-scenario">A new analyst is exploring the dataset and wants to know what funnel stages exist before writing anything else.</p>
+<pre><code>SELECT DISTINCT event_type
+FROM events
+ORDER BY event_type;</code></pre>
+  <p class="qa-note"><strong>Production angle:</strong> In a real warehouse, prefer querying a documented enum/lookup table instead of <code>DISTINCT</code> on a high-cardinality fact table.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q8</span><span class="qa-tier">Tier 1</span></div>
+  <h3>How many users signed up in Q4 2024?</h3>
+  <p class="qa-scenario">Marketing is reconciling Q4 acquisition numbers against the quarterly board pack.</p>
+<pre><code>SELECT COUNT(*) AS q4_2024_signups
+FROM users
+WHERE signup_date &gt;= DATE '2024-10-01'
+  AND signup_date &lt;  DATE '2025-01-01';</code></pre>
+  <p class="qa-note"><strong>Why half-open ranges:</strong> <code>&gt;= start AND &lt; end</code> is timezone-safe, leap-day-safe, and avoids the classic <code>BETWEEN '2024-12-31'</code> off-by-one when timestamps creep in.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q9</span><span class="qa-tier">Tier 1</span></div>
+  <h3>What is the largest single order amount, and on what date?</h3>
+  <p class="qa-scenario">A fraud analyst wants the top-of-distribution for an outlier review.</p>
+<pre><code>SELECT order_id, user_id, order_date, amount
+FROM orders
+ORDER BY amount DESC
+LIMIT 1;</code></pre>
+  <p class="qa-note"><strong>Alternative:</strong> A subquery with <code>WHERE amount = (SELECT MAX(amount) FROM orders)</code> — and discuss why <code>ORDER BY ... LIMIT</code> is usually clearer and almost always indexed-friendlier.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">SQL · Q10</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Show the number of sessions per day for the most recent 7 days in the data.</h3>
+  <p class="qa-scenario">An on-call engineer wants a quick freshness sanity check after a deploy.</p>
+<pre><code>SELECT session_date, COUNT(*) AS sessions
+FROM sessions
+WHERE session_date &gt;= (SELECT MAX(session_date) - INTERVAL '6 days' FROM sessions)
+GROUP BY session_date
+ORDER BY session_date;</code></pre>
+  <p class="qa-note"><strong>Why <code>MAX()</code> instead of <code>CURRENT_DATE</code>:</strong> the data may be stale; you want "last 7 days <em>that exist</em>," not "last 7 calendar days."</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 2 · Joins &amp; Multi-Table (Q11–Q20)</h3>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q11</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Find users who have never made a purchase.</h3>
+  <p class="qa-scenario">Lifecycle marketing wants to target dormant users with a "first purchase" coupon.</p>
+<pre><code>SELECT u.user_id, u.name, u.country, u.signup_date
+FROM users u
+LEFT JOIN purchases p ON p.user_id = u.user_id
+WHERE p.purchase_id IS NULL;</code></pre>
+  <p class="qa-note"><strong>Why anti-join via LEFT JOIN + IS NULL:</strong> often plans better than <code>NOT IN</code> (which silently breaks on NULLs) or <code>NOT EXISTS</code> (correct but sometimes slower depending on optimizer).</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q12</span><span class="qa-tier">Tier 2</span></div>
+  <h3>What is the average purchase amount per user country?</h3>
+  <p class="qa-scenario">Pricing wants to test whether IN, UK, and US baskets differ enough to justify country-specific promotions.</p>
+<pre><code>SELECT u.country,
+       COUNT(p.purchase_id)        AS purchases,
+       ROUND(AVG(p.amount), 2)     AS avg_basket
+FROM users u
+JOIN purchases p ON p.user_id = u.user_id
+GROUP BY u.country
+ORDER BY avg_basket DESC;</code></pre>
+  <p class="qa-note"><strong>Trap:</strong> A <code>LEFT JOIN</code> here would inflate countries with many no-purchase users — they'd show <code>AVG = NULL</code>, not 0, which is correct but easy to mis-read.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q13</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Which users appear in <code>users</code> but are missing from <code>user_profiles</code>?</h3>
+  <p class="qa-scenario">A data quality check before a profile-personalization launch — you can't personalize for users with no profile row.</p>
+<pre><code>SELECT u.user_id, u.name
+FROM users u
+WHERE NOT EXISTS (
+    SELECT 1 FROM user_profiles up WHERE up.user_id = u.user_id
+);</code></pre>
+  <p class="qa-note"><strong>Why <code>NOT EXISTS</code> here:</strong> safe with NULLs, semantically clearest, and the optimizer typically transforms it into an anti-join.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q14</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Total spend per user — name and amount, top 10 spenders.</h3>
+  <p class="qa-scenario">CX is building a "VIP" segment for white-glove support.</p>
+<pre><code>SELECT u.user_id, u.name,
+       ROUND(SUM(o.amount), 2) AS total_spend,
+       COUNT(o.order_id)       AS order_count
+FROM users u
+JOIN orders o ON o.user_id = u.user_id
+GROUP BY u.user_id, u.name
+ORDER BY total_spend DESC
+LIMIT 10;</code></pre>
+  <p class="qa-note"><strong>Note:</strong> <code>orders.user_id</code> is not a strict FK in the dataset — discuss what happens if an order references a missing user (use <code>LEFT JOIN</code> to find them; see Q46).</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q15</span><span class="qa-tier">Tier 2</span></div>
+  <h3>List each employee with their manager's name.</h3>
+  <p class="qa-scenario">HR wants a flat org list for onboarding packets — employee, title, who they report to.</p>
+<pre><code>SELECT e.employee_id, e.full_name AS employee, e.department,
+       m.full_name AS manager
+FROM employees e
+LEFT JOIN employees m ON m.employee_id = e.manager_id
+ORDER BY e.department, e.full_name;</code></pre>
+  <p class="qa-note"><strong>Why <code>LEFT JOIN</code>:</strong> the CEO has no manager (<code>manager_id IS NULL</code>) and would otherwise vanish.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q16</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Salary delta vs. each employee's manager.</h3>
+  <p class="qa-scenario">A comp review: which managers earn less than one of their direct reports? (A real signal worth flagging.)</p>
+<pre><code>SELECT e.full_name AS employee, e.salary AS emp_salary,
+       m.full_name AS manager,  m.salary AS mgr_salary,
+       (m.salary - e.salary)    AS manager_premium
+FROM employees e
+JOIN employees m ON m.employee_id = e.manager_id
+WHERE m.salary &lt; e.salary;</code></pre>
+  <p class="qa-note"><strong>Follow-up:</strong> "What about skip-level comparisons?" — that's the recursive CTE in Q42–Q43.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q17</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Top 3 product categories by total purchase revenue.</h3>
+  <p class="qa-scenario">Merchandising wants to know where to double down for the holiday push.</p>
+<pre><code>SELECT product_category,
+       ROUND(SUM(amount), 2) AS revenue,
+       COUNT(*)              AS purchases
+FROM purchases
+GROUP BY product_category
+ORDER BY revenue DESC
+LIMIT 3;</code></pre>
+  <p class="qa-note"><strong>Subtle:</strong> "by revenue" can mean SUM(amount) or COUNT(*) × avg price. Always confirm <em>which</em> revenue definition before writing.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q18</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Find users who appear in both <code>events</code> and <code>logins</code> (active across both surfaces).</h3>
+  <p class="qa-scenario">Engagement is defining "truly active" as "did a tracked event AND logged in" within the data window.</p>
+<pre><code>SELECT DISTINCT e.user_id
+FROM events e
+WHERE EXISTS (SELECT 1 FROM logins l WHERE l.user_id = e.user_id);
+
+-- Or, equivalently:
+SELECT user_id FROM events
+INTERSECT
+SELECT user_id FROM logins;</code></pre>
+  <p class="qa-note"><strong>Tradeoff:</strong> <code>INTERSECT</code> is concise and dedups for free; <code>EXISTS</code> wins when one side is much larger or you want to stream early.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q19</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Country-level signup→purchase conversion rate.</h3>
+  <p class="qa-scenario">Growth wants a per-country funnel: of all users who signed up, what fraction ever purchased?</p>
+<pre><code>SELECT u.country,
+       COUNT(DISTINCT u.user_id)                         AS signups,
+       COUNT(DISTINCT p.user_id)                         AS purchasers,
+       ROUND(100.0 * COUNT(DISTINCT p.user_id)
+                   / NULLIF(COUNT(DISTINCT u.user_id), 0), 2) AS conv_pct
+FROM users u
+LEFT JOIN purchases p ON p.user_id = u.user_id
+GROUP BY u.country
+ORDER BY conv_pct DESC;</code></pre>
+  <p class="qa-note"><strong>Why <code>NULLIF(..., 0)</code>:</strong> defends against divide-by-zero if a country has no signups (won't happen here, but it's a habit).</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">SQL · Q20</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Join <code>products</code> with the <em>current</em> price from <code>product_dim</code> (SCD2).</h3>
+  <p class="qa-scenario">A pricing dashboard needs the live price for each catalog product, ignoring expired historical rows.</p>
+<pre><code>SELECT p.product_id, p.product_name, p.category,
+       pd.price AS current_price, pd.effective_date
+FROM products p
+LEFT JOIN product_dim pd
+       ON pd.product_id = p.product_id
+      AND pd.is_current = 'Y';</code></pre>
+  <p class="qa-note"><strong>Setup for Q41:</strong> using <code>is_current = 'Y'</code> is fast but only correct for "now" queries. For "as-of-some-historical-date" you must use <code>effective_date</code> / <code>expiry_date</code> windows.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 3 · Window Functions, CASE, Subqueries (Q21–Q30)</h3>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q21</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Rank users by total order spend (with ties).</h3>
+  <p class="qa-scenario">A loyalty program needs ranks, not raw amounts — and people with identical spend should share a rank.</p>
+<pre><code>SELECT user_id,
+       ROUND(SUM(amount), 2)                          AS total_spend,
+       RANK()       OVER (ORDER BY SUM(amount) DESC)  AS spend_rank,
+       DENSE_RANK() OVER (ORDER BY SUM(amount) DESC)  AS spend_dense_rank
+FROM orders
+GROUP BY user_id
+ORDER BY spend_rank
+LIMIT 20;</code></pre>
+  <p class="qa-note"><strong>RANK vs DENSE_RANK vs ROW_NUMBER:</strong> ranks skip after ties (1,2,2,4); dense_rank doesn't (1,2,2,3); row_number breaks ties arbitrarily. Pick deliberately.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q22</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Deduplicate <code>user_profiles</code> — keep the latest row per user.</h3>
+  <p class="qa-scenario">The CRM team wants one row per user: the most recent <code>updated_at</code> wins. (The table has 334 rows for 200 users.)</p>
+<pre><code>WITH ranked AS (
+    SELECT up.*,
+           ROW_NUMBER() OVER (
+               PARTITION BY user_id
+               ORDER BY updated_at DESC, city DESC  -- tiebreak deterministic
+           ) AS rn
+    FROM user_profiles up
+)
+SELECT user_id, name, city, updated_at
+FROM ranked
+WHERE rn = 1;</code></pre>
+  <p class="qa-note"><strong>Always tiebreak.</strong> Without the secondary <code>ORDER BY</code>, two rows with identical <code>updated_at</code> produce a non-deterministic winner — the kind of bug that only shows up after a backfill.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q23</span><span class="qa-tier">Tier 3</span></div>
+  <h3>WoW growth in WAU using LAG.</h3>
+  <p class="qa-scenario">The weekly business review wants WAU and "% change vs last week" in one query.</p>
+<pre><code>SELECT week_start,
+       wau,
+       LAG(wau) OVER (ORDER BY week_start)                  AS prev_wau,
+       ROUND( 100.0 * (wau - LAG(wau) OVER (ORDER BY week_start))
+                    / NULLIF(LAG(wau) OVER (ORDER BY week_start), 0), 2) AS wow_pct
+FROM weekly_metrics
+ORDER BY week_start;</code></pre>
+  <p class="qa-note"><strong>Readability tip:</strong> in a real codebase, wrap the <code>LAG()</code> in a CTE so you don't repeat it three times.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q24</span><span class="qa-tier">Tier 3</span></div>
+  <h3>CASE pivot — sessions per platform per day.</h3>
+  <p class="qa-scenario">A weekly report wants one row per day with three columns: iOS, Android, Web.</p>
+<pre><code>SELECT session_date,
+       SUM(CASE WHEN platform = 'ios'     THEN 1 ELSE 0 END) AS ios,
+       SUM(CASE WHEN platform = 'android' THEN 1 ELSE 0 END) AS android,
+       SUM(CASE WHEN platform = 'web'     THEN 1 ELSE 0 END) AS web,
+       COUNT(*)                                              AS total
+FROM sessions
+GROUP BY session_date
+ORDER BY session_date;</code></pre>
+  <p class="qa-note"><strong>vs. native PIVOT:</strong> Snowflake / SQL Server have <code>PIVOT</code>; Postgres uses the CASE pattern (or <code>crosstab</code> in <code>tablefunc</code>). The CASE form is the most portable.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q25</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Top 3 highest-revenue products in each category.</h3>
+  <p class="qa-scenario">Merchandising wants a "shelf" of the three best products per category for a homepage rotation.</p>
+<pre><code>WITH ranked AS (
+    SELECT product_id, product_name, category, revenue,
+           DENSE_RANK() OVER (PARTITION BY category
+                              ORDER BY revenue DESC) AS rk
+    FROM products
+)
+SELECT category, product_id, product_name, revenue, rk
+FROM ranked
+WHERE rk &lt;= 3
+ORDER BY category, rk;</code></pre>
+  <p class="qa-note"><strong>Why DENSE_RANK:</strong> if two products tie for #2, you keep both <em>and</em> still get a #3.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q26</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Median order amount.</h3>
+  <p class="qa-scenario">A finance lead is suspicious of <code>AVG(amount)</code> being skewed by a few whale orders and asks for the median.</p>
+<pre><code>-- Postgres / Snowflake / Spark: PERCENTILE_CONT
+SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount) AS median_amount
+FROM orders;
+
+-- Portable fallback (works in MySQL too):
+SELECT AVG(amount) AS median_amount
+FROM (
+    SELECT amount,
+           ROW_NUMBER() OVER (ORDER BY amount) AS rn,
+           COUNT(*)     OVER ()                AS n
+    FROM orders
+) t
+WHERE rn IN (FLOOR((n+1)/2.0), CEIL((n+1)/2.0));</code></pre>
+  <p class="qa-note"><strong>Why two answers:</strong> show both. The first is idiomatic; the second proves you understand <em>what median means</em>.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q27</span><span class="qa-tier">Tier 3</span></div>
+  <h3>For each user, find their largest order and its date.</h3>
+  <p class="qa-scenario">A re-engagement campaign wants to reference each customer's biggest-ever order in the email subject line.</p>
+<pre><code>WITH ranked AS (
+    SELECT order_id, user_id, order_date, amount,
+           ROW_NUMBER() OVER (PARTITION BY user_id
+                              ORDER BY amount DESC, order_date DESC) AS rn
+    FROM orders
+)
+SELECT user_id, order_id, order_date, amount
+FROM ranked
+WHERE rn = 1;</code></pre>
+  <p class="qa-note"><strong>Window beats correlated subquery:</strong> a single pass over <code>orders</code> instead of N subqueries. On large tables this is a 10–100× difference.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q28</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Cumulative distribution of order amounts.</h3>
+  <p class="qa-scenario">A pricing experiment wants to know "what fraction of orders are at or below $X" for a tier definition.</p>
+<pre><code>SELECT order_id, amount,
+       ROUND(CUME_DIST() OVER (ORDER BY amount)::NUMERIC, 4) AS cume_pct,
+       NTILE(10)         OVER (ORDER BY amount)              AS decile
+FROM orders
+ORDER BY amount;</code></pre>
+  <p class="qa-note"><strong>CUME_DIST vs PERCENT_RANK:</strong> CUME_DIST counts ties as "at or below" (≤); PERCENT_RANK uses (rank-1)/(N-1). Use CUME_DIST for "what % of orders are ≤ this".</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q29</span><span class="qa-tier">Tier 3</span></div>
+  <h3>For each order, show the difference vs. that user's average order.</h3>
+  <p class="qa-scenario">Anomaly detection: which orders are unusually large <em>for that specific user</em>?</p>
+<pre><code>SELECT order_id, user_id, order_date, amount,
+       ROUND(AVG(amount) OVER (PARTITION BY user_id), 2) AS user_avg,
+       ROUND(amount - AVG(amount) OVER (PARTITION BY user_id), 2) AS delta
+FROM orders
+ORDER BY user_id, order_date;</code></pre>
+  <p class="qa-note"><strong>Window without ORDER BY</strong> means the average covers the whole partition (the user) — exactly what we want here.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">SQL · Q30</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Find users who signed up but never reached <code>purchase</code> in the events funnel.</h3>
+  <p class="qa-scenario">Lifecycle wants the dropped-off cohort: users who got past signup but never completed a purchase event.</p>
+<pre><code>SELECT DISTINCT e.user_id
+FROM events e
+WHERE e.event_type = 'signup'
+  AND NOT EXISTS (
+      SELECT 1 FROM events e2
+      WHERE e2.user_id = e.user_id
+        AND e2.event_type = 'purchase'
+  );</code></pre>
+  <p class="qa-note"><strong>Cohort-correctness:</strong> if "signup" can fire multiple times per user (it shouldn't, but data is data), this still works because <code>DISTINCT</code> + <code>NOT EXISTS</code> are set-based.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 4 · CTEs, Sessionization, Cohorts (Q31–Q40)</h3>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q31</span><span class="qa-tier">Tier 4</span></div>
+  <h3>7-day moving average of daily revenue.</h3>
+  <p class="qa-scenario">Finance wants a smoother trend than the spiky daily series for a board chart.</p>
+<pre><code>SELECT ds, daily_revenue,
+       ROUND(AVG(daily_revenue) OVER (
+           ORDER BY ds
+           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+       ), 2) AS rev_7d_avg
+FROM daily_metrics
+ORDER BY ds;</code></pre>
+  <p class="qa-note"><strong>ROWS vs RANGE:</strong> ROWS counts rows; RANGE matches values. For dense daily data they're equivalent — but if dates are gapped, RANGE with an interval is the safer "true 7-day window."</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q32</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Running monthly revenue total, reset each month.</h3>
+  <p class="qa-scenario">A finance dashboard wants "month-to-date revenue" on every row.</p>
+<pre><code>SELECT ds, daily_revenue,
+       SUM(daily_revenue) OVER (
+           PARTITION BY DATE_TRUNC('month', ds)
+           ORDER BY ds
+           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+       ) AS mtd_revenue
+FROM daily_metrics
+ORDER BY ds;</code></pre>
+  <p class="qa-note"><strong>The "reset" is the partition.</strong> Group on the period you want to reset over; window-order within it.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q33</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Weekly retention by signup cohort (W0, W1, W2, W3).</h3>
+  <p class="qa-scenario">Growth wants a triangle: rows = signup week, columns = weeks since signup, values = % of cohort logging in.</p>
+<pre><code>WITH cohort AS (
+    SELECT user_id,
+           DATE_TRUNC('week', signup_date) AS cohort_week
+    FROM users
+),
+joined AS (
+    SELECT c.cohort_week,
+           c.user_id,
+           FLOOR(
+             EXTRACT(EPOCH FROM (l.login_date - c.cohort_week)) / (7*86400)
+           )::INT AS weeks_since
+    FROM cohort c
+    LEFT JOIN logins l ON l.user_id = c.user_id
+)
+SELECT cohort_week,
+       COUNT(DISTINCT user_id) FILTER (WHERE weeks_since = 0) AS w0,
+       COUNT(DISTINCT user_id) FILTER (WHERE weeks_since = 1) AS w1,
+       COUNT(DISTINCT user_id) FILTER (WHERE weeks_since = 2) AS w2,
+       COUNT(DISTINCT user_id) FILTER (WHERE weeks_since = 3) AS w3
+FROM joined
+WHERE weeks_since BETWEEN 0 AND 3
+GROUP BY cohort_week
+ORDER BY cohort_week;</code></pre>
+  <p class="qa-note"><strong>Convert to %:</strong> divide each <code>wN</code> by the cohort size (a separate CTE). Most interviewers will follow up by asking for that.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q34</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Funnel conversion: signup → activation → purchase.</h3>
+  <p class="qa-scenario">Product wants the absolute counts and step-to-step conversion rates from the events table.</p>
+<pre><code>WITH first_event AS (
+    SELECT user_id, event_type,
+           MIN(event_date) AS first_at
+    FROM events
+    WHERE event_type IN ('signup','activation','purchase')
+    GROUP BY user_id, event_type
+),
+pivoted AS (
+    SELECT user_id,
+           MAX(CASE WHEN event_type='signup'     THEN first_at END) AS signup_at,
+           MAX(CASE WHEN event_type='activation' THEN first_at END) AS activation_at,
+           MAX(CASE WHEN event_type='purchase'   THEN first_at END) AS purchase_at
+    FROM first_event GROUP BY user_id
+)
+SELECT
+    COUNT(*) FILTER (WHERE signup_at     IS NOT NULL) AS step1_signup,
+    COUNT(*) FILTER (WHERE activation_at IS NOT NULL
+                     AND activation_at &gt;= signup_at)  AS step2_activation,
+    COUNT(*) FILTER (WHERE purchase_at   IS NOT NULL
+                     AND purchase_at &gt;= COALESCE(activation_at, signup_at))
+                                                       AS step3_purchase
+FROM pivoted;</code></pre>
+  <p class="qa-note"><strong>Order matters.</strong> A "purchase" before "signup" is dirty data — the <code>&gt;=</code> guards keep the funnel monotonic.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q35</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Date spine: fill missing days in <code>daily_metrics_gapped</code> with zero.</h3>
+  <p class="qa-scenario">A BI dashboard breaks because 15 days are missing — every chart needs every day, even zeros.</p>
+<pre><code>WITH spine AS (
+    SELECT generate_series(
+        (SELECT MIN(ds) FROM daily_metrics_gapped),
+        (SELECT MAX(ds) FROM daily_metrics_gapped),
+        INTERVAL '1 day'
+    )::DATE AS ds
+)
+SELECT s.ds,
+       COALESCE(d.daily_revenue, 0) AS daily_revenue,
+       COALESCE(d.daily_dau,     0) AS daily_dau,
+       (d.ds IS NULL)               AS was_missing
+FROM spine s
+LEFT JOIN daily_metrics_gapped d ON d.ds = s.ds
+ORDER BY s.ds;</code></pre>
+  <p class="qa-note"><strong>Spark/BigQuery:</strong> use <code>sequence(start, stop, step)</code>. Snowflake: <code>GENERATOR</code>. Same pattern, different syntax.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q36</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Sessionize the clickstream — 30 minutes of inactivity = new session.</h3>
+  <p class="qa-scenario">Product wants per-user "sessions" from raw page events. Industry standard: 30-min idle gap.</p>
+<pre><code>WITH gapped AS (
+    SELECT user_id, event_time, page,
+           LAG(event_time) OVER (PARTITION BY user_id ORDER BY event_time) AS prev_time
+    FROM clickstream
+),
+flagged AS (
+    SELECT user_id, event_time, page,
+           CASE
+             WHEN prev_time IS NULL
+               OR event_time - prev_time &gt; INTERVAL '30 minutes'
+             THEN 1 ELSE 0
+           END AS is_new_session
+    FROM gapped
+),
+sessionized AS (
+    SELECT user_id, event_time, page,
+           SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY event_time) AS session_id
+    FROM flagged
+)
+SELECT user_id, session_id,
+       MIN(event_time) AS session_start,
+       MAX(event_time) AS session_end,
+       COUNT(*)        AS pageviews
+FROM sessionized
+GROUP BY user_id, session_id
+ORDER BY user_id, session_start;</code></pre>
+  <p class="qa-note"><strong>The cumulative-sum trick</strong> is the canonical sessionization pattern. Memorize it.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q37</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Longest consecutive login streak per user (gaps &amp; islands).</h3>
+  <p class="qa-scenario">Engagement wants to crown each user's "best streak" for a leaderboard.</p>
+<pre><code>WITH grp AS (
+    SELECT user_id, login_date,
+           login_date - (ROW_NUMBER() OVER (
+               PARTITION BY user_id ORDER BY login_date
+           ))::INT AS group_key
+    FROM (SELECT DISTINCT user_id, login_date FROM logins) d
+),
+streaks AS (
+    SELECT user_id, group_key,
+           COUNT(*)        AS streak_len,
+           MIN(login_date) AS streak_start,
+           MAX(login_date) AS streak_end
+    FROM grp
+    GROUP BY user_id, group_key
+)
+SELECT user_id, MAX(streak_len) AS longest_streak
+FROM streaks
+GROUP BY user_id
+ORDER BY longest_streak DESC
+LIMIT 20;</code></pre>
+  <p class="qa-note"><strong>The trick:</strong> <code>date − row_number</code> is constant within consecutive runs. Group by it, you get the islands. Dedup logins first or streaks lie.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q38</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Detect data skew — which join keys hold most of the rows?</h3>
+  <p class="qa-scenario">A Spark job is mysteriously slow on the <code>skewed_table</code>; you suspect one key is doing all the work.</p>
+<pre><code>SELECT join_key,
+       COUNT(*)                                     AS rows,
+       ROUND(100.0 * COUNT(*)
+             / SUM(COUNT(*)) OVER (), 2)            AS pct_of_total
+FROM skewed_table
+GROUP BY join_key
+ORDER BY rows DESC
+LIMIT 10;</code></pre>
+  <p class="qa-note"><strong>What you'll find:</strong> <code>hot_key</code> holds ~70% of rows. Mitigations: salt the hot key, broadcast the small side, or pre-aggregate before the join.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q39</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Average DAU per ISO week from <code>daily_metrics</code>.</h3>
+  <p class="qa-scenario">A weekly business review wants weekly-average DAU instead of summed DAU (which would double-count).</p>
+<pre><code>SELECT DATE_TRUNC('week', ds)::DATE     AS week_start,
+       ROUND(AVG(daily_dau), 0)         AS avg_dau,
+       SUM(daily_revenue)               AS week_revenue
+FROM daily_metrics
+GROUP BY DATE_TRUNC('week', ds)
+ORDER BY week_start;</code></pre>
+  <p class="qa-note"><strong>Critical distinction:</strong> WAU (unique users in the week) ≠ AVG(DAU). Both are valid; both are different. State which you computed.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">SQL · Q40</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Day-of-week revenue heat: rank weekdays by average revenue.</h3>
+  <p class="qa-scenario">Marketing wants to know if Saturday actually outperforms Tuesday before locking the ad-spend schedule.</p>
+<pre><code>SELECT TO_CHAR(ds, 'Dy')                 AS dow_label,
+       EXTRACT(ISODOW FROM ds)::INT      AS dow_num,
+       ROUND(AVG(daily_revenue), 2)      AS avg_revenue,
+       COUNT(*)                          AS days_observed
+FROM daily_metrics
+GROUP BY dow_label, dow_num
+ORDER BY avg_revenue DESC;</code></pre>
+  <p class="qa-note"><strong>Tip:</strong> include <code>days_observed</code> — if a quarter has 14 Mondays and 13 Sundays, the average is on uneven sample sizes.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 5 · Senior Patterns (Q41–Q50)</h3>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q41</span><span class="qa-tier">Tier 5</span></div>
+  <h3>SCD2 as-of join: price each purchase at the price that was effective on its date.</h3>
+  <p class="qa-scenario">Finance wants historical revenue "at the right price," not at today's price — i.e., use <code>product_dim</code> with effective/expiry dates instead of <code>is_current</code>.</p>
+<pre><code>SELECT p.purchase_id, p.user_id, p.purchase_date,
+       p.product_category, p.amount,
+       pd.product_id, pd.price AS price_on_purchase_date
+FROM purchases p
+LEFT JOIN product_dim pd
+       ON pd.product_name = p.product_category   -- (assume mapping for the exercise)
+      AND p.purchase_date &gt;= pd.effective_date
+      AND (pd.expiry_date IS NULL OR p.purchase_date &lt; pd.expiry_date)
+ORDER BY p.purchase_date;</code></pre>
+  <p class="qa-note"><strong>The SCD2 invariant:</strong> exactly one row matches per <code>(product, point-in-time)</code>. If you ever see duplicates, your effective/expiry windows overlap — that's a data-quality bug, not a query bug.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q42</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Recursive CTE: full org chart with reporting depth.</h3>
+  <p class="qa-scenario">HR wants every employee with their distance from the CEO and their full reporting chain as a string.</p>
+<pre><code>WITH RECURSIVE org AS (
+    SELECT employee_id, full_name, manager_id, department,
+           0                          AS depth,
+           full_name::TEXT            AS chain
+    FROM employees
+    WHERE manager_id IS NULL          -- the root(s)
+
+    UNION ALL
+
+    SELECT e.employee_id, e.full_name, e.manager_id, e.department,
+           o.depth + 1,
+           o.chain || ' &gt; ' || e.full_name
+    FROM employees e
+    JOIN org o ON e.manager_id = o.employee_id
+)
+SELECT employee_id, full_name, department, depth, chain
+FROM org
+ORDER BY depth, full_name;</code></pre>
+  <p class="qa-note"><strong>Termination:</strong> a recursive CTE stops when the recursive step yields no new rows. Cycles in <code>manager_id</code> would loop forever — guard with a <code>depth &lt; N</code> cap in production.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q43</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Recursive CTE: total org headcount under each manager.</h3>
+  <p class="qa-scenario">A reorg planning exercise needs "people in your org" (yourself + everyone reporting up to you, transitively).</p>
+<pre><code>WITH RECURSIVE descendants AS (
+    SELECT employee_id AS root_id, employee_id
+    FROM employees
+
+    UNION ALL
+
+    SELECT d.root_id, e.employee_id
+    FROM descendants d
+    JOIN employees   e ON e.manager_id = d.employee_id
+)
+SELECT m.employee_id, m.full_name AS manager,
+       COUNT(*) - 1 AS reports_below   -- subtract self
+FROM descendants d
+JOIN employees   m ON m.employee_id = d.root_id
+GROUP BY m.employee_id, m.full_name
+ORDER BY reports_below DESC;</code></pre>
+  <p class="qa-note"><strong>Pattern:</strong> seed with <em>self</em>, recurse <em>downward</em>, count − 1 to exclude the root from their own org count.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q44</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Cohort retention as a percentage matrix.</h3>
+  <p class="qa-scenario">The same triangle as Q33, but each cell is a percentage of the cohort size — the chart growth teams actually look at.</p>
+<pre><code>WITH cohort AS (
+    SELECT user_id, DATE_TRUNC('week', signup_date) AS cohort_week
+    FROM users
+),
+cohort_sizes AS (
+    SELECT cohort_week, COUNT(*) AS cohort_n FROM cohort GROUP BY cohort_week
+),
+activity AS (
+    SELECT c.cohort_week, c.user_id,
+           FLOOR(EXTRACT(EPOCH FROM (l.login_date - c.cohort_week)) / (7*86400))::INT AS w
+    FROM cohort c
+    JOIN logins l ON l.user_id = c.user_id
+    WHERE l.login_date &gt;= c.cohort_week
+)
+SELECT a.cohort_week, cs.cohort_n,
+       ROUND(100.0 * COUNT(DISTINCT CASE WHEN w=0 THEN a.user_id END)/cs.cohort_n, 1) AS w0,
+       ROUND(100.0 * COUNT(DISTINCT CASE WHEN w=1 THEN a.user_id END)/cs.cohort_n, 1) AS w1,
+       ROUND(100.0 * COUNT(DISTINCT CASE WHEN w=2 THEN a.user_id END)/cs.cohort_n, 1) AS w2,
+       ROUND(100.0 * COUNT(DISTINCT CASE WHEN w=3 THEN a.user_id END)/cs.cohort_n, 1) AS w3
+FROM activity a
+JOIN cohort_sizes cs USING (cohort_week)
+GROUP BY a.cohort_week, cs.cohort_n
+ORDER BY a.cohort_week;</code></pre>
+  <p class="qa-note"><strong>Watch the denominator.</strong> Some teams normalize by W0 (always 100%) instead of cohort_n — both are valid; pick one and label it.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q45</span><span class="qa-tier">Tier 5</span></div>
+  <h3>New vs returning users by day from <code>logins</code>.</h3>
+  <p class="qa-scenario">A daily report wants two lines: "new users today" (first-ever login) and "returning users today" (logged in before).</p>
+<pre><code>WITH first_seen AS (
+    SELECT user_id, MIN(login_date) AS first_login
+    FROM logins
+    GROUP BY user_id
+)
+SELECT l.login_date,
+       COUNT(DISTINCT CASE WHEN l.login_date  = f.first_login THEN l.user_id END) AS new_users,
+       COUNT(DISTINCT CASE WHEN l.login_date &gt; f.first_login THEN l.user_id END) AS returning_users
+FROM logins     l
+JOIN first_seen f USING (user_id)
+GROUP BY l.login_date
+ORDER BY l.login_date;</code></pre>
+  <p class="qa-note"><strong>Definition discipline:</strong> "new" = first-ever-anywhere; "returning" = active today and active before. Some teams want "first-ever-this-month" — clarify before coding.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q46</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Find orphaned orders — orders whose <code>user_id</code> doesn't exist in <code>users</code>.</h3>
+  <p class="qa-scenario">A nightly DQ check: surface referential breaks before they become NULL joins downstream.</p>
+<pre><code>SELECT o.order_id, o.user_id, o.order_date, o.amount
+FROM orders o
+LEFT JOIN users u ON u.user_id = o.user_id
+WHERE u.user_id IS NULL;</code></pre>
+  <p class="qa-note"><strong>Production wrap:</strong> turn this into a <code>dq_orphan_orders</code> view; alert when row count &gt; 0; ticket the upstream owner. The query is the easy part.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q47</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Reconcile <code>daily_metrics.daily_revenue</code> against the sum of <code>purchases.amount</code> per day.</h3>
+  <p class="qa-scenario">A finance audit: the curated metric and the raw fact should match within a tolerance, every day.</p>
+<pre><code>WITH src AS (
+    SELECT purchase_date AS ds,
+           SUM(amount)    AS src_revenue
+    FROM purchases
+    GROUP BY purchase_date
+),
+diff AS (
+    SELECT d.ds,
+           d.daily_revenue                     AS metric_revenue,
+           COALESCE(s.src_revenue, 0)          AS source_revenue,
+           d.daily_revenue - COALESCE(s.src_revenue, 0) AS delta
+    FROM daily_metrics d
+    LEFT JOIN src s ON s.ds = d.ds
+)
+SELECT *
+FROM diff
+WHERE ABS(delta) &gt; 0.01
+ORDER BY ABS(delta) DESC;</code></pre>
+  <p class="qa-note"><strong>Why a tolerance:</strong> floating point + currency rounding mean exact equality is the wrong check. Pick a meaningful epsilon (e.g., one cent).</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q48</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Per-user outlier orders: more than 3σ above that user's mean.</h3>
+  <p class="qa-scenario">Fraud / risk wants a flag on orders that are anomalously large <em>for the specific user's history</em>.</p>
+<pre><code>WITH stats AS (
+    SELECT order_id, user_id, order_date, amount,
+           AVG(amount)    OVER (PARTITION BY user_id) AS u_avg,
+           STDDEV(amount) OVER (PARTITION BY user_id) AS u_std,
+           COUNT(*)       OVER (PARTITION BY user_id) AS u_n
+    FROM orders
+)
+SELECT *
+FROM stats
+WHERE u_n &gt;= 5                       -- enough history to trust
+  AND amount &gt; u_avg + 3 * u_std
+ORDER BY amount - u_avg DESC;</code></pre>
+  <p class="qa-note"><strong>Statistical caveat:</strong> 3σ assumes roughly normal — order amounts are usually log-normal. For production, log-transform first or use IQR / MAD.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q49</span><span class="qa-tier">Tier 5</span></div>
+  <h3>"Power users" — top 10% by orders <em>and</em> top 10% by sessions.</h3>
+  <p class="qa-scenario">CX wants the intersection of high-spend and high-engagement users for a VIP launch.</p>
+<pre><code>WITH order_rank AS (
+    SELECT user_id,
+           NTILE(10) OVER (ORDER BY SUM(amount) DESC) AS o_decile
+    FROM orders GROUP BY user_id
+),
+sess_rank AS (
+    SELECT user_id,
+           NTILE(10) OVER (ORDER BY COUNT(*) DESC)    AS s_decile
+    FROM sessions GROUP BY user_id
+)
+SELECT o.user_id
+FROM order_rank o
+JOIN sess_rank  s USING (user_id)
+WHERE o.o_decile = 1 AND s.s_decile = 1;</code></pre>
+  <p class="qa-note"><strong>NTILE caveat:</strong> NTILE distributes ties arbitrarily, so two users with identical spend may land in different deciles. For high-stakes segmentation, prefer <code>PERCENT_RANK &lt;= 0.10</code>.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">SQL · Q50</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Daily ARPU + a sanity check against the raw orders.</h3>
+  <p class="qa-scenario">A daily ARPU (avg revenue per active user) is being shipped to the exec dashboard. You want both the curated number <em>and</em> a self-computed reconciliation.</p>
+<pre><code>WITH curated AS (
+    SELECT ds, daily_revenue, daily_dau,
+           ROUND(daily_revenue / NULLIF(daily_dau, 0), 4) AS arpu_curated
+    FROM daily_metrics
+),
+raw_arpu AS (
+    SELECT order_date AS ds,
+           SUM(amount)              AS raw_revenue,
+           COUNT(DISTINCT user_id)  AS raw_active_users,
+           ROUND(SUM(amount)
+                 / NULLIF(COUNT(DISTINCT user_id), 0), 4) AS arpu_raw
+    FROM orders
+    GROUP BY order_date
+)
+SELECT c.ds,
+       c.arpu_curated, r.arpu_raw,
+       ROUND(c.arpu_curated - r.arpu_raw, 4) AS arpu_delta
+FROM curated c
+LEFT JOIN raw_arpu r USING (ds)
+ORDER BY c.ds;</code></pre>
+  <p class="qa-note"><strong>Why ship the delta:</strong> a metric is only as trusted as the reconciliation report behind it. Senior interviewers love this answer because it shows you think about <em>trust</em>, not just <em>calculation</em>.</p>
+</div>
+
+</section>
+
+
+<section id="python-bank">
+<h2>Part 4 · 50 Python Questions, Simple to Complex</h2>
+
+<p>Most Python rounds for data engineers are pandas-first, with a few "vanilla Python" curveballs (collections, generators, an LRU cache) and — for senior loops — a couple of PySpark or distributed-thinking problems. The 50 below follow the same five-tier escalation as the SQL bank, on the same dataset.</p>
+
+<p>Assume every snippet starts with:</p>
+<pre><code>import pandas as pd
+import numpy as np
+DATA = "interview/sample dataset/"   # path to the CSVs</code></pre>
+
+<h3 style="margin-top:32px;">Tier 1 · Pandas Foundation (Q1–Q10)</h3>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q1</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Load <code>users.csv</code> with proper date parsing and report shape + dtypes.</h3>
+  <p class="qa-scenario">Day-1 of an analysis: load the table, confirm row count, confirm date columns are actually dates and not strings.</p>
+<pre><code>users = pd.read_csv(f"{DATA}users.csv", parse_dates=["signup_date"])
+print(users.shape)        # (200, 5)
+print(users.dtypes)
+print(users.head())</code></pre>
+  <p class="qa-note"><strong>Why <code>parse_dates</code>:</strong> without it, every <code>signup_date.dt.month</code> downstream silently fails. Always parse dates at read time.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q2</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Filter to users from India (<code>country == 'IN'</code>).</h3>
+  <p class="qa-scenario">A regional analyst wants only the IN cohort for a localization study.</p>
+<pre><code>in_users = users[users["country"] == "IN"].copy()
+print(len(in_users), "users in IN")</code></pre>
+  <p class="qa-note"><strong>Why <code>.copy()</code>:</strong> if you mutate <code>in_users</code> later (add a column, fillna), pandas may emit <code>SettingWithCopyWarning</code>. The copy is cheap and explicit.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q3</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Sum purchase amount by category, sorted descending.</h3>
+  <p class="qa-scenario">Same as the SQL Q17 — but in pandas.</p>
+<pre><code>purchases = pd.read_csv(f"{DATA}purchases.csv", parse_dates=["purchase_date"])
+by_cat = (purchases.groupby("product_category", as_index=False)
+                   .agg(revenue=("amount", "sum"),
+                        n=("amount", "size"))
+                   .sort_values("revenue", ascending=False))
+print(by_cat)</code></pre>
+  <p class="qa-note"><strong>Named aggregation</strong> (<code>agg(name=(col, fn))</code>) is the modern, readable form. Skip the legacy <code>.agg({'amount':['sum','count']})</code> with multi-index columns.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q4</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Top 10 orders by amount.</h3>
+  <p class="qa-scenario">Quick "biggest orders" peek — sometimes for fraud, sometimes just for sanity.</p>
+<pre><code>orders = pd.read_csv(f"{DATA}orders.csv", parse_dates=["order_date"])
+top10 = orders.nlargest(10, "amount")
+print(top10)</code></pre>
+  <p class="qa-note"><strong><code>nlargest</code> vs <code>sort_values().head()</code>:</strong> on large data, <code>nlargest</code> is a partial sort — O(n log k) instead of O(n log n).</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q5</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Count nulls per column in <code>user_profiles</code>.</h3>
+  <p class="qa-scenario">First-pass DQ check on a freshly delivered file.</p>
+<pre><code>up = pd.read_csv(f"{DATA}user_profiles.csv", parse_dates=["updated_at"])
+print(up.isna().sum())
+print("rows:", len(up), "  unique users:", up["user_id"].nunique())</code></pre>
+  <p class="qa-note"><strong>Tell the interviewer what you noticed:</strong> 334 rows for 200 users → duplicates ahead. (Q13 deals with that.)</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q6</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Add a <code>signup_month</code> column (<code>YYYY-MM</code>) to <code>users</code>.</h3>
+  <p class="qa-scenario">A monthly cohort report wants a string month label for grouping and chart axes.</p>
+<pre><code>users["signup_month"] = users["signup_date"].dt.to_period("M").astype(str)
+print(users[["user_id", "signup_date", "signup_month"]].head())</code></pre>
+  <p class="qa-note"><strong>Why <code>.to_period("M")</code> over <code>.strftime("%Y-%m")</code>:</strong> Period preserves order semantics; strftime gives a string that <em>happens to sort correctly</em> for ISO months but isn't a real date.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q7</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Save filtered IN-only users to Parquet (snappy compression).</h3>
+  <p class="qa-scenario">Hand off a slice to a downstream notebook without re-parsing CSV every time.</p>
+<pre><code>in_users.to_parquet("/tmp/users_in.parquet",
+                    engine="pyarrow",
+                    compression="snappy",
+                    index=False)</code></pre>
+  <p class="qa-note"><strong>Why Parquet:</strong> columnar, typed, ~5–10× smaller than CSV, and consumers don't have to guess dtypes. Snappy is a good default — fast decompression, decent ratio.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q8</span><span class="qa-tier">Tier 1</span></div>
+  <h3>List unique platforms in <code>sessions</code>.</h3>
+  <p class="qa-scenario">A new analyst exploring the dataset wants to know what platforms exist.</p>
+<pre><code>sessions = pd.read_csv(f"{DATA}sessions.csv", parse_dates=["session_date"])
+print(sessions["platform"].value_counts(dropna=False))</code></pre>
+  <p class="qa-note"><strong>Why <code>value_counts</code> over <code>unique()</code>:</strong> you also get the per-value count for free — almost always what you actually want.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q9</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Total revenue across the products table.</h3>
+  <p class="qa-scenario">A merchandising sanity check before any ranking.</p>
+<pre><code>products = pd.read_csv(f"{DATA}products.csv")
+print("Total revenue:", products["revenue"].sum())</code></pre>
+  <p class="qa-note"><strong>Pitfall:</strong> if <code>revenue</code> were stored as string ("1,234"), <code>sum()</code> would concatenate strings. Always confirm dtype on numeric columns.</p>
+</div>
+
+<div class="qa-card tier-1">
+  <div class="qa-head"><span class="qa-num">PY · Q10</span><span class="qa-tier">Tier 1</span></div>
+  <h3>Distinct users in <code>logins</code>.</h3>
+  <p class="qa-scenario">"How many unique users have ever logged in" — the simplest engagement metric.</p>
+<pre><code>logins = pd.read_csv(f"{DATA}logins.csv", parse_dates=["login_date"])
+print("unique users:", logins["user_id"].nunique())</code></pre>
+  <p class="qa-note"><strong>Memory tip:</strong> on huge data, <code>nunique()</code> can be expensive; HyperLogLog (e.g., <code>datasketch</code>) trades a tiny error for big memory wins.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 2 · Joins &amp; Cleaning (Q11–Q20)</h3>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q11</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Left-join users with purchases; users with no purchases get NaN.</h3>
+  <p class="qa-scenario">Build a "user + their purchases" table for downstream segmentation; preserve all users even if they never bought.</p>
+<pre><code>merged = users.merge(purchases, on="user_id", how="left",
+                     validate="one_to_many")
+print(merged.shape)
+print(merged.loc[merged["purchase_id"].isna(), "user_id"].nunique(),
+      "users with no purchases")</code></pre>
+  <p class="qa-note"><strong><code>validate=</code> earns its keep:</strong> it asserts the relationship (1:1, 1:m, m:1, m:m). If your join is unexpectedly many-to-many, this catches it before you produce a number that's 17× too large.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q12</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Find duplicated <code>user_id</code> rows in <code>user_profiles</code>.</h3>
+  <p class="qa-scenario">Before deduping, you want to <em>see</em> the duplicates — their cities, their update dates — to confirm the dedup rule.</p>
+<pre><code>dups = up[up.duplicated(subset=["user_id"], keep=False)]
+print("duplicate rows:", len(dups))
+print(dups.sort_values(["user_id", "updated_at"]).head(10))</code></pre>
+  <p class="qa-note"><strong><code>keep=False</code></strong> shows <em>all</em> rows that participate in a duplicate group, not just the "extras." That's what you want for inspection.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q13</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Dedup <code>user_profiles</code> — keep the latest <code>updated_at</code> per user.</h3>
+  <p class="qa-scenario">Same as SQL Q22 — produce one row per user with the freshest profile.</p>
+<pre><code>up_clean = (up.sort_values(["user_id", "updated_at"],
+                           ascending=[True, False])
+              .drop_duplicates(subset=["user_id"], keep="first"))
+assert up_clean["user_id"].is_unique
+print(up_clean.shape)</code></pre>
+  <p class="qa-note"><strong>The <code>assert</code> is the answer.</strong> Always prove uniqueness after a dedup; never trust by inspection.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q14</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Spend per country (users + purchases).</h3>
+  <p class="qa-scenario">Same intent as SQL Q12 — pandas form.</p>
+<pre><code>spend = (users.merge(purchases, on="user_id", how="inner")
+              .groupby("country", as_index=False)
+              .agg(purchases=("purchase_id", "count"),
+                   revenue  =("amount", "sum"),
+                   avg_basket=("amount", "mean"))
+              .sort_values("revenue", ascending=False))
+print(spend)</code></pre>
+  <p class="qa-note"><strong>Inner vs left join:</strong> inner gives "spend of countries that purchased"; left would give "spend per country" with NaN for non-purchasing countries. Both are valid; state your choice.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q15</span><span class="qa-tier">Tier 2</span></div>
+  <h3>DQ: assert no negative amounts in <code>purchases</code>.</h3>
+  <p class="qa-scenario">A nightly DQ check before publishing the curated revenue table.</p>
+<pre><code>bad = purchases[purchases["amount"] &lt; 0]
+if len(bad):
+    raise ValueError(f"{len(bad)} negative purchase amounts: "
+                     f"{bad[['purchase_id','amount']].head().to_dict('records')}")
+print("OK — no negative amounts")</code></pre>
+  <p class="qa-note"><strong>Failing loudly</strong> is the point. A silent <code>print('warning')</code> in a pipeline becomes a corrupted dashboard tomorrow.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q16</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Find dates missing from <code>daily_metrics_gapped</code>.</h3>
+  <p class="qa-scenario">SQL Q35's date-spine in pandas — surface which days are missing before any chart consumer notices.</p>
+<pre><code>dmg = pd.read_csv(f"{DATA}daily_metrics_gapped.csv", parse_dates=["ds"])
+spine = pd.date_range(dmg["ds"].min(), dmg["ds"].max(), freq="D")
+missing = spine.difference(dmg["ds"])
+print(f"{len(missing)} missing days:", list(missing[:5]))</code></pre>
+  <p class="qa-note"><strong><code>Index.difference</code></strong> beats <code>set(spine) - set(dmg.ds)</code> on big indexes — pandas keeps order and preserves dtype.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q17</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Forward-fill missing daily_dau values after spine join.</h3>
+  <p class="qa-scenario">A dashboard prefers "last known value carried forward" over zero for short gaps.</p>
+<pre><code>filled = (pd.DataFrame({"ds": spine})
+            .merge(dmg, on="ds", how="left")
+            .sort_values("ds"))
+filled["daily_dau"] = filled["daily_dau"].ffill()
+print(filled.head(20))</code></pre>
+  <p class="qa-note"><strong>State the choice:</strong> ffill, zero, or interpolate are all valid imputations with very different downstream meaning. Never pick silently.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q18</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Z-score outliers in <code>orders.amount</code>.</h3>
+  <p class="qa-scenario">A first-pass anomaly screen before deeper investigation.</p>
+<pre><code>mu, sd = orders["amount"].mean(), orders["amount"].std()
+orders["z"] = (orders["amount"] - mu) / sd
+outliers = orders[orders["z"].abs() &gt; 3].sort_values("z", ascending=False)
+print(f"{len(outliers)} outliers (|z|&gt;3)")
+print(outliers.head())</code></pre>
+  <p class="qa-note"><strong>3σ assumes normality.</strong> Order amounts are usually log-normal — log-transform first, or use IQR / robust z-score (median + MAD).</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q19</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Cast <code>clickstream.event_time</code> to datetime and sort by user, time.</h3>
+  <p class="qa-scenario">Pre-sessionization shape: per-user events ordered chronologically.</p>
+<pre><code>cs = pd.read_csv(f"{DATA}clickstream.csv")
+cs["event_time"] = pd.to_datetime(cs["event_time"])
+cs = cs.sort_values(["user_id", "event_time"]).reset_index(drop=True)
+print(cs.head())</code></pre>
+  <p class="qa-note"><strong>Why <code>reset_index</code>:</strong> after a sort, the original index is misleading. Reset it before you start using <code>iloc</code> or assigning new columns.</p>
+</div>
+
+<div class="qa-card tier-2">
+  <div class="qa-head"><span class="qa-num">PY · Q20</span><span class="qa-tier">Tier 2</span></div>
+  <h3>Pivot sessions: rows=date, columns=platform, values=count.</h3>
+  <p class="qa-scenario">SQL Q24 in pandas — wide format for a chart.</p>
+<pre><code>pivot = (sessions.groupby(["session_date", "platform"]).size()
+                 .unstack(fill_value=0)
+                 .reset_index())
+print(pivot.head())</code></pre>
+  <p class="qa-note"><strong><code>fill_value=0</code></strong> is a small but critical detail — without it, days where one platform had no sessions become NaN, which often breaks downstream sums.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 3 · Aggregations &amp; Time Series (Q21–Q30)</h3>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q21</span><span class="qa-tier">Tier 3</span></div>
+  <h3>7-day moving average of <code>daily_revenue</code>.</h3>
+  <p class="qa-scenario">Smooth out the daily noise for a chart — same intent as SQL Q31.</p>
+<pre><code>dm = pd.read_csv(f"{DATA}daily_metrics.csv", parse_dates=["ds"]).sort_values("ds")
+dm["rev_7d"] = dm["daily_revenue"].rolling(window=7, min_periods=1).mean()
+print(dm.tail(10))</code></pre>
+  <p class="qa-note"><strong><code>min_periods=1</code></strong> avoids NaN at the start. For "official" 7-day averages you may want <code>min_periods=7</code> instead — a deliberate choice.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q22</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Resample <code>daily_metrics</code> to weekly: sum revenue, mean DAU.</h3>
+  <p class="qa-scenario">Weekly business review wants a one-row-per-week summary.</p>
+<pre><code>weekly = (dm.set_index("ds")
+            .resample("W-MON")
+            .agg(week_revenue=("daily_revenue", "sum"),
+                 avg_dau     =("daily_dau",     "mean"))
+            .reset_index())
+print(weekly.head())</code></pre>
+  <p class="qa-note"><strong>Anchor matters:</strong> <code>"W-MON"</code> ends the week on Monday. Your team's "week" definition (Sun-Sat? Mon-Sun? ISO?) is a real source of metric mismatches across teams.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q23</span><span class="qa-tier">Tier 3</span></div>
+  <h3>MTD running revenue with month reset.</h3>
+  <p class="qa-scenario">SQL Q32 in pandas.</p>
+<pre><code>dm = dm.sort_values("ds")
+dm["mtd_revenue"] = (dm.groupby(dm["ds"].dt.to_period("M"))["daily_revenue"]
+                       .cumsum())
+print(dm.head(40).tail(15))</code></pre>
+  <p class="qa-note"><strong>The <code>.dt.to_period("M")</code> grouper</strong> is the pandas equivalent of <code>DATE_TRUNC('month', ds)</code> — clean and idiomatic.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q24</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Compute DAU and 7-day rolling WAU from <code>logins</code>.</h3>
+  <p class="qa-scenario">Two engagement metrics from one source.</p>
+<pre><code>daily = (logins.groupby("login_date")["user_id"].nunique()
+               .rename("dau").reset_index())
+# WAU: unique users in trailing 7 days
+daily = daily.set_index("login_date").asfreq("D", fill_value=0)
+# rolling distinct count is non-trivial — approximate via set logic:
+def trailing_unique(idx, df_full, days=7):
+    start = idx - pd.Timedelta(days=days-1)
+    return df_full.loc[(df_full["login_date"] &gt;= start)
+                       &amp; (df_full["login_date"] &lt;= idx),
+                       "user_id"].nunique()
+
+daily["wau"] = [trailing_unique(d, logins) for d in daily.index]
+print(daily.tail())</code></pre>
+  <p class="qa-note"><strong>Rolling distinct is hard.</strong> Pandas has no built-in; the loop above is O(N×W). For big data, use a deque + counter or HyperLogLog sketch.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q25</span><span class="qa-tier">Tier 3</span></div>
+  <h3>WoW % change of WAU from <code>weekly_metrics</code>.</h3>
+  <p class="qa-scenario">SQL Q23 in pandas.</p>
+<pre><code>wm = pd.read_csv(f"{DATA}weekly_metrics.csv", parse_dates=["week_start"])
+wm = wm.sort_values("week_start")
+wm["wow_pct"] = wm["wau"].pct_change() * 100
+print(wm.head(10))</code></pre>
+  <p class="qa-note"><strong><code>pct_change</code></strong> handles the NaN on the first row gracefully. Don't reinvent the LAG with <code>shift</code> unless you need a non-1 lag.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q26</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Days between each user's first and last purchase.</h3>
+  <p class="qa-scenario">A "lifespan" metric — how long users stay engaged before going dormant.</p>
+<pre><code>span = (purchases.groupby("user_id")["purchase_date"]
+                  .agg(first="min", last="max")
+                  .reset_index())
+span["days_active"] = (span["last"] - span["first"]).dt.days
+print(span.sort_values("days_active", ascending=False).head())</code></pre>
+  <p class="qa-note"><strong>Edge:</strong> users with one purchase get 0 days. Decide whether that's "0 days active" or "censored" before reporting.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q27</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Top 3 products per category by revenue.</h3>
+  <p class="qa-scenario">SQL Q25 in pandas.</p>
+<pre><code>top3 = (products.sort_values(["category", "revenue"], ascending=[True, False])
+                .groupby("category", as_index=False)
+                .head(3))
+print(top3)</code></pre>
+  <p class="qa-note"><strong>"groupby + head"</strong> is the most readable top-N-per-group pattern in pandas. Avoid the <code>apply(lambda d: d.nlargest(3, ...))</code> form — slower and harder to read.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q28</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Sessionize the clickstream — 30-minute idle gap.</h3>
+  <p class="qa-scenario">SQL Q36 in pandas — same cumulative-sum trick.</p>
+<pre><code>cs = cs.sort_values(["user_id", "event_time"]).copy()
+prev = cs.groupby("user_id")["event_time"].shift()
+new_session = (cs["event_time"] - prev) &gt; pd.Timedelta(minutes=30)
+new_session = new_session.fillna(True)            # first event = new session
+cs["session_id"] = new_session.groupby(cs["user_id"]).cumsum()
+
+agg = (cs.groupby(["user_id", "session_id"])
+         .agg(start=("event_time", "min"),
+              end  =("event_time", "max"),
+              pages=("page", "count"))
+         .reset_index())
+print(agg.head())</code></pre>
+  <p class="qa-note"><strong>Identical mental model to SQL.</strong> Worth practicing the SQL and pandas versions side by side until you can switch fluently.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q29</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Build the signup → activation → purchase funnel from <code>events</code>.</h3>
+  <p class="qa-scenario">SQL Q34 in pandas — counts per step plus conversion rates.</p>
+<pre><code>ev = pd.read_csv(f"{DATA}events.csv", parse_dates=["event_date"])
+firsts = (ev.groupby(["user_id", "event_type"])["event_date"]
+            .min().unstack())
+
+step1 = firsts["signup"].notna().sum()
+step2 = ((firsts["activation"].notna())
+         &amp; (firsts["activation"] &gt;= firsts["signup"])).sum()
+step3 = ((firsts["purchase"].notna())
+         &amp; (firsts["purchase"] &gt;= firsts[["signup","activation"]].max(axis=1))
+        ).sum()
+
+print({"signup": step1, "activation": step2, "purchase": step3,
+       "act_rate": step2/step1, "buy_rate": step3/step2})</code></pre>
+  <p class="qa-note"><strong>Always order-guard.</strong> Funnels that ignore event order count "purchase before signup" as a successful conversion. They look great. They are wrong.</p>
+</div>
+
+<div class="qa-card tier-3">
+  <div class="qa-head"><span class="qa-num">PY · Q30</span><span class="qa-tier">Tier 3</span></div>
+  <h3>Cohort retention table from <code>users</code> + <code>logins</code>.</h3>
+  <p class="qa-scenario">SQL Q33 in pandas — weekly cohort vs. weeks since signup.</p>
+<pre><code>u = users[["user_id", "signup_date"]].copy()
+u["cohort_week"] = u["signup_date"].dt.to_period("W").dt.start_time
+
+j = logins.merge(u, on="user_id")
+j["weeks_since"] = ((j["login_date"] - j["cohort_week"]).dt.days // 7)
+j = j[(j["weeks_since"] &gt;= 0) &amp; (j["weeks_since"] &lt;= 8)]
+
+retention = (j.pivot_table(index="cohort_week", columns="weeks_since",
+                           values="user_id", aggfunc=pd.Series.nunique,
+                           fill_value=0))
+sizes = u.groupby("cohort_week")["user_id"].nunique()
+retention_pct = retention.div(sizes, axis=0).mul(100).round(1)
+print(retention_pct.head())</code></pre>
+  <p class="qa-note"><strong>The shape that ships:</strong> rows = cohorts, cols = age, cells = % retained. Heatmap straight from this table.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 4 · Advanced Transforms (Q31–Q40)</h3>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q31</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Per-user longest consecutive login streak.</h3>
+  <p class="qa-scenario">SQL Q37 in pandas — gaps &amp; islands.</p>
+<pre><code>l = (logins.drop_duplicates(["user_id", "login_date"])
+            .sort_values(["user_id", "login_date"]).copy())
+l["rn"] = l.groupby("user_id").cumcount()
+l["grp"] = l["login_date"] - pd.to_timedelta(l["rn"], unit="D")
+
+streaks = (l.groupby(["user_id", "grp"])["login_date"]
+            .agg(["min", "max", "count"])
+            .reset_index()
+            .rename(columns={"count": "streak_len"}))
+
+longest = (streaks.groupby("user_id", as_index=False)["streak_len"]
+                  .max()
+                  .sort_values("streak_len", ascending=False))
+print(longest.head(10))</code></pre>
+  <p class="qa-note"><strong>Same trick as SQL:</strong> <code>date − row_number</code> is constant within a consecutive run; group by it.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q32</span><span class="qa-tier">Tier 4</span></div>
+  <h3>SCD2 as-of join: price each purchase using the price effective on its date.</h3>
+  <p class="qa-scenario">SQL Q41 in pandas — <code>merge_asof</code> is the right tool.</p>
+<pre><code>pd_dim = pd.read_csv(f"{DATA}product_dim.csv",
+                     parse_dates=["effective_date", "expiry_date"])
+pd_dim = pd_dim.sort_values(["product_id", "effective_date"])
+
+p = purchases.copy().sort_values("purchase_date")
+# example: map a synthetic product_id from category for demo
+p["product_id"] = (p["product_category"].astype("category").cat.codes + 1)
+
+priced = pd.merge_asof(p, pd_dim,
+                       by="product_id",
+                       left_on="purchase_date",
+                       right_on="effective_date",
+                       direction="backward")
+print(priced[["purchase_id","purchase_date","product_id","amount","price"]].head())</code></pre>
+  <p class="qa-note"><strong><code>merge_asof</code></strong> is the SCD2 superpower in pandas: it picks the most recent matching row whose <code>effective_date ≤ purchase_date</code>. You still want a sanity check that no <code>expiry_date</code> precedes the purchase.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q33</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Detect skewed keys in <code>skewed_table</code>; salt the hot key.</h3>
+  <p class="qa-scenario">SQL Q38 → mitigation. Salt the hot key into N buckets so a downstream join can parallelize.</p>
+<pre><code>skew = pd.read_csv(f"{DATA}skewed_table.csv")
+freq = skew["join_key"].value_counts(normalize=True).head()
+print(freq)  # hot_key likely ~0.70
+
+import random
+N_SALTS = 8
+hot = freq[freq &gt; 0.05].index.tolist()
+def salt(k):
+    return f"{k}__{random.randint(0, N_SALTS-1)}" if k in hot else k
+
+skew["join_key_salted"] = skew["join_key"].map(salt)
+print(skew["join_key_salted"].value_counts().head(10))</code></pre>
+  <p class="qa-note"><strong>The other side of the join</strong> must replicate the small-side rows for each salt bucket. Salting only one side breaks the join.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q34</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Build the org tree from <code>employees</code> as a nested dict.</h3>
+  <p class="qa-scenario">An HR portal needs a JSON-friendly nested structure: each manager → list of reports → their reports → ….</p>
+<pre><code>emp = pd.read_csv(f"{DATA}employees.csv")
+
+children = {}
+for _, r in emp.iterrows():
+    children.setdefault(r["manager_id"], []).append(r["employee_id"])
+
+def build(node_id):
+    row = emp.loc[emp["employee_id"] == node_id].iloc[0]
+    return {
+        "id":   int(node_id),
+        "name": row["full_name"],
+        "dept": row["department"],
+        "reports": [build(c) for c in children.get(node_id, [])],
+    }
+
+roots = emp.loc[emp["manager_id"].isna(), "employee_id"].tolist()
+tree = [build(r) for r in roots]
+print(tree[0]["name"], "→", len(tree[0]["reports"]), "direct reports")</code></pre>
+  <p class="qa-note"><strong>Recursion safety:</strong> bound the depth (or use iterative DFS) — a cycle in <code>manager_id</code> would blow the stack.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q35</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Median order amount per user.</h3>
+  <p class="qa-scenario">A "typical basket" metric per user — robust to whales.</p>
+<pre><code>med = (orders.groupby("user_id", as_index=False)["amount"]
+              .quantile(0.5)
+              .rename(columns={"amount": "median_amount"}))
+print(med.sort_values("median_amount", ascending=False).head())</code></pre>
+  <p class="qa-note"><strong>Grouped quantile</strong> is built-in. For arbitrary percentiles use <code>.agg(p90=("amount", lambda s: s.quantile(0.9)))</code>.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q36</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Memory-efficient CSV read in chunks.</h3>
+  <p class="qa-scenario">A 50 GB clickstream won't fit in RAM. Stream-aggregate it instead.</p>
+<pre><code>page_counts = pd.Series(dtype=int)
+for chunk in pd.read_csv(f"{DATA}clickstream.csv", chunksize=200_000,
+                         usecols=["page"]):
+    page_counts = page_counts.add(chunk["page"].value_counts(),
+                                  fill_value=0)
+print(page_counts.sort_values(ascending=False).head())</code></pre>
+  <p class="qa-note"><strong>Two memory wins:</strong> <code>chunksize</code> bounds RAM; <code>usecols</code> skips columns we don't need at parse time.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q37</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Validate a schema contract for <code>orders</code>.</h3>
+  <p class="qa-scenario">A nightly ingest should fail loudly if the upstream schema or data ranges drift.</p>
+<pre><code>def validate_orders(df: pd.DataFrame) -&gt; None:
+    expected = {"order_id": "int64", "user_id": "int64",
+                "order_date": "datetime64[ns]", "amount": "float64"}
+    missing = set(expected) - set(df.columns)
+    assert not missing, f"missing columns: {missing}"
+    for col, dt in expected.items():
+        assert str(df[col].dtype) == dt, f"{col}: {df[col].dtype} != {dt}"
+    assert df["order_id"].is_unique,        "duplicate order_id"
+    assert (df["amount"] &gt; 0).all(),        "non-positive amounts"
+    assert df["order_date"].notna().all(),  "null order_date"
+
+validate_orders(orders)
+print("orders schema OK")</code></pre>
+  <p class="qa-note"><strong>In a real job</strong> you'd use Great Expectations / pandera / Pydantic; the bare-asserts version is what you write on a whiteboard.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q38</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Idempotent upsert: append only new orders to a Parquet table.</h3>
+  <p class="qa-scenario">A streaming-ish ETL where re-running the same batch must not double-count.</p>
+<pre><code>OUT = "/tmp/orders_curated.parquet"
+import os
+
+new_batch = orders.head(100)            # pretend this is "today's batch"
+if os.path.exists(OUT):
+    existing = pd.read_parquet(OUT)
+    combined = pd.concat([existing, new_batch])
+    combined = combined.drop_duplicates(subset=["order_id"], keep="last")
+else:
+    combined = new_batch
+combined.to_parquet(OUT, index=False)
+print("rows in curated:", len(combined))</code></pre>
+  <p class="qa-note"><strong>Idempotency = primary key + last-write-wins.</strong> In a real warehouse this is <code>MERGE INTO</code>; in a lakehouse it's Delta / Iceberg <code>MERGE</code>.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q39</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Build a Type-2 SCD from a stream of price updates.</h3>
+  <p class="qa-scenario">Given a series of <code>(product_id, price, change_date)</code> updates, build the effective/expiry/is_current table that powers Q32.</p>
+<pre><code>updates = pd.DataFrame([
+    {"product_id": 1, "price": 60.01, "change_date": "2024-01-01"},
+    {"product_id": 1, "price": 66.01, "change_date": "2024-04-16"},
+    {"product_id": 2, "price": 171.42, "change_date": "2024-01-01"},
+    {"product_id": 2, "price": 188.56, "change_date": "2024-04-22"},
+    {"product_id": 2, "price": 199.99, "change_date": "2024-07-28"},
+])
+updates["change_date"] = pd.to_datetime(updates["change_date"])
+updates = updates.sort_values(["product_id", "change_date"])
+
+updates["effective_date"] = updates["change_date"]
+updates["expiry_date"]    = (updates.groupby("product_id")["change_date"]
+                                    .shift(-1))
+updates["is_current"]     = np.where(updates["expiry_date"].isna(), "Y", "N")
+print(updates)</code></pre>
+  <p class="qa-note"><strong>The invariant:</strong> for any product, exactly one row has <code>is_current='Y'</code>, and intervals don't overlap. Test both with asserts.</p>
+</div>
+
+<div class="qa-card tier-4">
+  <div class="qa-head"><span class="qa-num">PY · Q40</span><span class="qa-tier">Tier 4</span></div>
+  <h3>Compare existing <code>product_dim</code> against your computed SCD.</h3>
+  <p class="qa-scenario">A reconciliation: does the curated dimension match what we'd build from raw updates?</p>
+<pre><code>existing = pd.read_csv(f"{DATA}product_dim.csv",
+                       parse_dates=["effective_date", "expiry_date"])
+# overlap detection per product:
+def overlaps(g):
+    g = g.sort_values("effective_date")
+    end = g["expiry_date"].fillna(pd.Timestamp("2999-01-01"))
+    nxt = g["effective_date"].shift(-1)
+    bad = (nxt &lt; end).fillna(False)
+    return bad.sum()
+
+overlap_count = (existing.groupby("product_id").apply(overlaps).sum())
+current_count = existing.groupby("product_id")["is_current"].apply(
+    lambda s: (s == "Y").sum())
+print("overlapping intervals:", overlap_count)
+print("products with !=1 current row:",
+      (current_count != 1).sum())</code></pre>
+  <p class="qa-note"><strong>SCD2 health checks</strong> are first-class data products. Run them on every load and alert when they regress.</p>
+</div>
+
+<h3 style="margin-top:32px;">Tier 5 · Production, PySpark &amp; Algorithms (Q41–Q50)</h3>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q41</span><span class="qa-tier">Tier 5</span></div>
+  <h3>PySpark anti-join: users with no purchases.</h3>
+  <p class="qa-scenario">SQL Q11 in PySpark — same shape, different runtime.</p>
+<pre><code>from pyspark.sql import SparkSession
+spark = SparkSession.builder.getOrCreate()
+
+users_df     = spark.read.option("header", True).csv(f"{DATA}users.csv")
+purchases_df = spark.read.option("header", True).csv(f"{DATA}purchases.csv")
+
+never_bought = users_df.join(purchases_df, "user_id", "left_anti")
+never_bought.show(5)
+print("count:", never_bought.count())</code></pre>
+  <p class="qa-note"><strong><code>left_anti</code></strong> is the canonical anti-join in Spark — clearer than the LEFT-JOIN-WHERE-NULL pattern and the optimizer treats it directly.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q42</span><span class="qa-tier">Tier 5</span></div>
+  <h3>PySpark window: top-N products per category.</h3>
+  <p class="qa-scenario">SQL Q25 in PySpark.</p>
+<pre><code>from pyspark.sql import functions as F, Window
+
+products_df = spark.read.option("header", True).csv(f"{DATA}products.csv") \
+                  .withColumn("revenue", F.col("revenue").cast("int"))
+
+w = Window.partitionBy("category").orderBy(F.desc("revenue"))
+top = (products_df.withColumn("rk", F.dense_rank().over(w))
+                  .filter(F.col("rk") &lt;= 3))
+top.show()</code></pre>
+  <p class="qa-note"><strong>Window cost:</strong> partition by a high-cardinality column and Spark may shuffle hard. For very wide top-N, consider a two-stage approx-then-exact.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q43</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Broadcast join in PySpark — small dimension on the right side.</h3>
+  <p class="qa-scenario">A facts × tiny-dim join shouldn't shuffle the giant facts. Broadcast the small side.</p>
+<pre><code>from pyspark.sql.functions import broadcast
+
+orders_df = spark.read.option("header", True).csv(f"{DATA}orders.csv")
+joined = orders_df.join(broadcast(users_df), "user_id", "left")
+joined.explain()       # confirm BroadcastHashJoin in the plan</code></pre>
+  <p class="qa-note"><strong>Threshold:</strong> Spark auto-broadcasts under <code>spark.sql.autoBroadcastJoinThreshold</code> (default 10 MB). For larger-but-still-small dims, the explicit hint forces the optimizer.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q44</span><span class="qa-tier">Tier 5</span></div>
+  <h3>PySpark funnel — countDistinct per step.</h3>
+  <p class="qa-scenario">SQL Q34 in PySpark, leaving room for a billion-row events table.</p>
+<pre><code>events_df = spark.read.option("header", True).csv(f"{DATA}events.csv")
+
+firsts = (events_df.groupBy("user_id", "event_type")
+                   .agg(F.min("event_date").alias("first_at"))
+                   .groupBy("user_id")
+                   .pivot("event_type", ["signup","activation","purchase"])
+                   .agg(F.first("first_at")))
+
+funnel = firsts.agg(
+    F.countDistinct(F.when(F.col("signup").isNotNull(), F.col("user_id"))).alias("signups"),
+    F.countDistinct(F.when((F.col("activation").isNotNull())
+                           &amp; (F.col("activation") &gt;= F.col("signup")),
+                           F.col("user_id"))).alias("activations"),
+    F.countDistinct(F.when((F.col("purchase").isNotNull())
+                           &amp; (F.col("purchase") &gt;= F.col("activation")),
+                           F.col("user_id"))).alias("purchasers"),
+)
+funnel.show()</code></pre>
+  <p class="qa-note"><strong>For exact counts at huge scale,</strong> consider <code>approx_count_distinct</code> with a tunable rsd — usually 5% error is fine for a funnel chart.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q45</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Custom hash partitioning to spread skew.</h3>
+  <p class="qa-scenario">A repartition before a wide aggregation, with a salted key when one value dominates.</p>
+<pre><code>skew_df = spark.read.option("header", True).csv(f"{DATA}skewed_table.csv")
+
+# salt only the hot key (computed once)
+hot = "hot_key"
+N = 16
+salted = (skew_df
+          .withColumn("salt", F.when(F.col("join_key") == hot,
+                                     (F.rand() * N).cast("int"))
+                                .otherwise(F.lit(0)))
+          .withColumn("salted_key", F.concat_ws("__", "join_key", "salt"))
+          .repartition(64, "salted_key"))
+salted.groupBy("salted_key").count().show(5)</code></pre>
+  <p class="qa-note"><strong>Tradeoff:</strong> salting helps shuffle, but downstream needs to "un-salt" by stripping the suffix before final aggregation. Don't forget the unsalt step.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q46</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Build a tiny DAG executor in pure Python (topological sort).</h3>
+  <p class="qa-scenario">A 5-line task DAG used to demonstrate orchestration intuition without leaning on Airflow.</p>
+<pre><code>from collections import defaultdict, deque
+
+def topo_run(graph: dict, run_fn):
+    indeg = defaultdict(int)
+    rev   = defaultdict(list)
+    for node, deps in graph.items():
+        indeg[node]      # ensure key exists
+        for d in deps:
+            indeg[node] += 1
+            rev[d].append(node)
+    q = deque([n for n, k in indeg.items() if k == 0])
+    order = []
+    while q:
+        n = q.popleft()
+        run_fn(n)
+        order.append(n)
+        for nxt in rev[n]:
+            indeg[nxt] -= 1
+            if indeg[nxt] == 0:
+                q.append(nxt)
+    if len(order) != len(graph):
+        raise ValueError("cycle in DAG")
+    return order
+
+dag = {"extract":[], "stage":["extract"], "transform":["stage"],
+       "publish":["transform"], "audit":["transform"]}
+print(topo_run(dag, print))</code></pre>
+  <p class="qa-note"><strong>Why this question shows up:</strong> orchestration is half the job. Knowing toposort + cycle detection by heart proves you've built (not just used) a scheduler.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q47</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Implement an LRU cache (no <code>functools</code>).</h3>
+  <p class="qa-scenario">A classic mid-level Python question — proves you know <code>OrderedDict</code> and big-O.</p>
+<pre><code>from collections import OrderedDict
+
+class LRUCache:
+    def __init__(self, capacity: int):
+        self.cap = capacity
+        self.d   = OrderedDict()
+
+    def get(self, key):
+        if key not in self.d:
+            return None
+        self.d.move_to_end(key)
+        return self.d[key]
+
+    def put(self, key, value):
+        if key in self.d:
+            self.d.move_to_end(key)
+        self.d[key] = value
+        if len(self.d) &gt; self.cap:
+            self.d.popitem(last=False)
+
+c = LRUCache(2)
+c.put("a", 1); c.put("b", 2); c.get("a"); c.put("c", 3)
+print(list(c.d.items()))   # 'b' evicted</code></pre>
+  <p class="qa-note"><strong>O(1) get/put.</strong> If you write the doubly-linked-list version from scratch you'll impress, but the OrderedDict version is the real-world answer.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q48</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Streaming median with two heaps.</h3>
+  <p class="qa-scenario">Compute the running median of <code>orders.amount</code> streamed one-at-a-time, in O(log n) per insert.</p>
+<pre><code>import heapq
+
+class StreamingMedian:
+    def __init__(self):
+        self.lo = []   # max-heap (invert sign)
+        self.hi = []   # min-heap
+
+    def add(self, x: float):
+        heapq.heappush(self.lo, -x)
+        heapq.heappush(self.hi, -heapq.heappop(self.lo))
+        if len(self.hi) &gt; len(self.lo):
+            heapq.heappush(self.lo, -heapq.heappop(self.hi))
+
+    def median(self) -&gt; float:
+        if len(self.lo) &gt; len(self.hi):
+            return -self.lo[0]
+        return (-self.lo[0] + self.hi[0]) / 2
+
+m = StreamingMedian()
+for v in orders["amount"].tolist():
+    m.add(v)
+print("running median:", round(m.median(), 2))</code></pre>
+  <p class="qa-note"><strong>Two-heap pattern</strong> shows up in interviews and in real streaming aggregations. Worth memorizing the invariant: <code>len(lo) ∈ {len(hi), len(hi)+1}</code>.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q49</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Backfill orchestrator: regenerate <code>daily_metrics</code> for a missing date range.</h3>
+  <p class="qa-scenario">A bug in the upstream job lost 5 days of metrics. Reprocess only those days, idempotently.</p>
+<pre><code>from pathlib import Path
+
+def compute_day(ds):
+    o = orders[orders["order_date"] == ds]
+    return {"ds": ds,
+            "daily_revenue": float(o["amount"].sum()),
+            "daily_dau":     int(o["user_id"].nunique())}
+
+def backfill(start, end, out_dir="/tmp/dm_partitions"):
+    Path(out_dir).mkdir(exist_ok=True)
+    for ds in pd.date_range(start, end, freq="D"):
+        rec = compute_day(ds)
+        path = Path(out_dir) / f"ds={ds.strftime('%Y-%m-%d')}/data.parquet"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame([rec]).to_parquet(path, index=False)   # overwrite
+        print("wrote", path)
+
+backfill("2025-01-15", "2025-01-19")</code></pre>
+  <p class="qa-note"><strong>Partition-per-day + overwrite</strong> is the lakehouse pattern. Re-running for the same day produces the same files — that's idempotency.</p>
+</div>
+
+<div class="qa-card tier-5">
+  <div class="qa-head"><span class="qa-num">PY · Q50</span><span class="qa-tier">Tier 5</span></div>
+  <h3>Idempotent ETL: write a daily partition with overwrite-by-date semantics.</h3>
+  <p class="qa-scenario">The "publish a daily fact table" pattern that every senior DE has written 50 times — show you can write it correctly the first time.</p>
+<pre><code>from pathlib import Path
+import shutil
+
+def publish_daily_fact(df: pd.DataFrame, ds: str, root: str):
+    """
+    Atomic-ish overwrite for a single date partition.
+    df must contain only rows for `ds`.
+    """
+    assert (df["ds"].astype(str) == ds).all(), "frame contains other dates"
+    target = Path(root) / f"ds={ds}"
+    tmp    = Path(root) / f".staging_{ds}"
+    if tmp.exists(): shutil.rmtree(tmp)
+    tmp.mkdir(parents=True)
+    df.to_parquet(tmp / "data.parquet", index=False)
+    if target.exists(): shutil.rmtree(target)
+    tmp.rename(target)        # near-atomic on POSIX FS
+
+dm_today = dm[dm["ds"].astype(str) == "2025-01-20"].copy()
+dm_today["ds"] = dm_today["ds"].astype(str)
+publish_daily_fact(dm_today, "2025-01-20", "/tmp/dm_curated")
+print("published")</code></pre>
+  <p class="qa-note"><strong>Production reality:</strong> on object stores this becomes Delta / Iceberg <code>replaceWhere</code> or BigQuery's <code>WRITE_TRUNCATE</code> with a partition decorator. The <em>shape</em> of the answer — write to staging, swap, never partial — is what matters.</p>
+</div>
+
+</section>
+
+<section id="closing">
+<h2>Part 5 · Closing &amp; Further Reading</h2>
+
+<p>Two things separate candidates who pass these rounds from candidates who don't, and neither is "knowing more SQL."</p>
+
+<div class="callout role-krishna">
+  <span class="callout-label">The Two Things That Actually Matter</span>
+  <p><strong>1. You restate the problem before you write code.</strong> "So you want X grouped by Y for the last Z days, treating nulls as W — is that right?" That single sentence is the difference between a hire and a no-hire on most loops.</p>
+  <p><strong>2. You name the tradeoff before the interviewer asks.</strong> "I'm using a window here instead of a correlated subquery because it's a single pass over the table; the cost is that we need the data sortable in memory." Volunteered tradeoffs signal seniority.</p>
+</div>
+
+<h3>What to do with this bank</h3>
+<ol class="manifesto-list arrow">
+  <li><strong>Run the dataset locally.</strong> Postgres or DuckDB; load all 15 CSVs. Querying real rows beats reading SQL on a screen.</li>
+  <li><strong>Hide the answer first.</strong> Write your version, then compare. The compare step is where insight forms.</li>
+  <li><strong>Translate.</strong> For each question, write both the SQL and the pandas form. Switching fluently is the senior signal.</li>
+  <li><strong>Time-box.</strong> Tier 1–2 in 5 minutes; Tier 3 in 10; Tier 4 in 15; Tier 5 in 20. If you stall, peek, learn, redo from scratch tomorrow.</li>
+  <li><strong>Mock with a friend.</strong> Speaking out loud — narrating clarifying questions, naming tradeoffs — is the only way to build that muscle.</li>
+</ol>
+
+<h3>Companion articles on PaddySpeaks</h3>
+<ul>
+  <li><a href="data-engineering-interview-prep.html">Data Engineering Interview Prep — Senior / L5 Deep Dive</a> — modeling, batch, streaming, Spark internals, lakehouse, 40+ scenarios.</li>
+  <li><a href="ads-data-engineering-interview-prep.html">Ads Data Engineering Interview Prep</a> — auctions, attribution, identity &amp; consent, ads SQL.</li>
+  <li><a href="bhagavad-gita-of-data-engineering.html">The Bhagavad Gita of Data Engineering</a> — the philosophical companion piece on craft, dharma, and the discipline.</li>
+</ul>
+
+<div class="ornament-divider">✦ ✦ ✦</div>
+
+<p style="text-align:center; font-style:italic; color: var(--color-muted); margin: 24px 0 8px;">100 questions. One dataset. The rest is reps.</p>
+
+</section>
+
+</div>
+<!-- /article-content -->
+
+</div>
+<!-- /article-page -->
+
+<script defer src="/lib/ps.js"></script>
+</main>
+</body>
+</html>
