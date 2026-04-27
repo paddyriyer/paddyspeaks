@@ -129,39 +129,58 @@ async function handleStats(request, env, url, ch) {
   const days = { '1d': 1, '7d': 7, '30d': 30, '90d': 90, 'all': 3650 }[period] || 7;
   const since = new Date(Date.now() - days * 86400000).toISOString();
 
+  // Drill-down filters
+  const filterCountry = url.searchParams.get('country') || '';
+  const filterPage = url.searchParams.get('page') || '';
+  const filterCity = url.searchParams.get('city') || '';
+  const filterBrowser = url.searchParams.get('browser') || '';
+  const filterOs = url.searchParams.get('os') || '';
+  const filterDevice = url.searchParams.get('device') || '';
+  const filterReferrer = url.searchParams.get('referrer') || '';
+
+  let filterSQL = '';
+  const filterBinds = [since];
+  if (filterCountry) { filterSQL += ' AND country = ?'; filterBinds.push(filterCountry); }
+  if (filterPage) { filterSQL += ' AND page = ?'; filterBinds.push(filterPage); }
+  if (filterCity) { filterSQL += ' AND city = ?'; filterBinds.push(filterCity); }
+  if (filterBrowser) { filterSQL += ' AND browser = ?'; filterBinds.push(filterBrowser); }
+  if (filterOs) { filterSQL += ' AND os = ?'; filterBinds.push(filterOs); }
+  if (filterDevice) { filterSQL += ' AND device_type = ?'; filterBinds.push(filterDevice); }
+  if (filterReferrer) { filterSQL += ' AND referrer = ?'; filterBinds.push(filterReferrer); }
+
+  const w = 'WHERE created_at >= ?' + filterSQL;
+  const b = filterBinds;
+
   const batch = await env.DB.batch([
-    // 0: overview (with avg duration, avg scroll, new vs returning)
-    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors, COUNT(DISTINCT visitor_id) as unique_people, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_duration, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll, SUM(CASE WHEN is_new = 1 THEN 1 ELSE 0 END) as new_visitors, SUM(CASE WHEN is_new = 0 THEN 1 ELSE 0 END) as returning_visitors FROM page_views WHERE created_at >= ?`).bind(since),
-    // 1: daily
-    env.DB.prepare(`SELECT DATE(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY DATE(created_at) ORDER BY date`).bind(since),
-    // 2: top pages (with avg time and scroll)
-    env.DB.prepare(`SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll FROM page_views WHERE created_at >= ? GROUP BY page ORDER BY views DESC LIMIT 25`).bind(since),
-    // 3: countries
-    env.DB.prepare(`SELECT country, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? GROUP BY country ORDER BY views DESC LIMIT 30`).bind(since),
-    // 4: cities
-    env.DB.prepare(`SELECT city, country, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY city, country ORDER BY views DESC LIMIT 25`).bind(since),
-    // 5: browsers
-    env.DB.prepare(`SELECT browser, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY browser ORDER BY views DESC`).bind(since),
-    // 6: OS
-    env.DB.prepare(`SELECT os, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY os ORDER BY views DESC`).bind(since),
-    // 7: devices
-    env.DB.prepare(`SELECT device_type, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY device_type ORDER BY views DESC`).bind(since),
-    // 8: referrers
-    env.DB.prepare(`SELECT referrer, COUNT(*) as views FROM page_views WHERE created_at >= ? AND referrer != '' GROUP BY referrer ORDER BY views DESC LIMIT 20`).bind(since),
-    // 9: screens
-    env.DB.prepare(`SELECT screen, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY screen ORDER BY views DESC LIMIT 15`).bind(since),
-    // 10: languages
-    env.DB.prepare(`SELECT language, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY language ORDER BY views DESC LIMIT 15`).bind(since),
-    // 11: UTM campaigns
-    env.DB.prepare(`SELECT utm_source, utm_medium, utm_campaign, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views WHERE created_at >= ? AND utm_source != '' GROUP BY utm_source, utm_medium, utm_campaign ORDER BY views DESC LIMIT 20`).bind(since),
-    // 12: hourly heatmap
-    env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views WHERE created_at >= ? GROUP BY hour ORDER BY hour`).bind(since),
+    env.DB.prepare(`SELECT COUNT(*) as total_views, COUNT(DISTINCT session_id) as unique_visitors, COUNT(DISTINCT visitor_id) as unique_people, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_duration, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll, SUM(CASE WHEN is_new = 1 THEN 1 ELSE 0 END) as new_visitors, SUM(CASE WHEN is_new = 0 THEN 1 ELSE 0 END) as returning_visitors FROM page_views ${w}`).bind(...b),
+    env.DB.prepare(`SELECT DATE(created_at) as date, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY DATE(created_at) ORDER BY date`).bind(...b),
+    env.DB.prepare(`SELECT page, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors, ROUND(AVG(CASE WHEN duration > 0 THEN duration END)) as avg_time, ROUND(AVG(CASE WHEN scroll_depth > 0 THEN scroll_depth END)) as avg_scroll FROM page_views ${w} GROUP BY page ORDER BY views DESC LIMIT 25`).bind(...b),
+    env.DB.prepare(`SELECT country, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} GROUP BY country ORDER BY views DESC LIMIT 30`).bind(...b),
+    env.DB.prepare(`SELECT city, country, COUNT(*) as views FROM page_views ${w} GROUP BY city, country ORDER BY views DESC LIMIT 25`).bind(...b),
+    env.DB.prepare(`SELECT browser, COUNT(*) as views FROM page_views ${w} GROUP BY browser ORDER BY views DESC`).bind(...b),
+    env.DB.prepare(`SELECT os, COUNT(*) as views FROM page_views ${w} GROUP BY os ORDER BY views DESC`).bind(...b),
+    env.DB.prepare(`SELECT device_type, COUNT(*) as views FROM page_views ${w} GROUP BY device_type ORDER BY views DESC`).bind(...b),
+    env.DB.prepare(`SELECT referrer, COUNT(*) as views FROM page_views ${w} AND referrer != '' GROUP BY referrer ORDER BY views DESC LIMIT 20`).bind(...b),
+    env.DB.prepare(`SELECT screen, COUNT(*) as views FROM page_views ${w} GROUP BY screen ORDER BY views DESC LIMIT 15`).bind(...b),
+    env.DB.prepare(`SELECT language, COUNT(*) as views FROM page_views ${w} GROUP BY language ORDER BY views DESC LIMIT 15`).bind(...b),
+    env.DB.prepare(`SELECT utm_source, utm_medium, utm_campaign, COUNT(*) as views, COUNT(DISTINCT session_id) as visitors FROM page_views ${w} AND utm_source != '' GROUP BY utm_source, utm_medium, utm_campaign ORDER BY views DESC LIMIT 20`).bind(...b),
+    env.DB.prepare(`SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as views FROM page_views ${w} GROUP BY hour ORDER BY hour`).bind(...b),
     // 13: timezones
     env.DB.prepare(`SELECT timezone, COUNT(*) as views FROM page_views WHERE created_at >= ? AND timezone != '' GROUP BY timezone ORDER BY views DESC LIMIT 15`).bind(since),
   ]);
 
+  const filters = {};
+  if (filterCountry) filters.country = filterCountry;
+  if (filterPage) filters.page = filterPage;
+  if (filterCity) filters.city = filterCity;
+  if (filterBrowser) filters.browser = filterBrowser;
+  if (filterOs) filters.os = filterOs;
+  if (filterDevice) filters.device = filterDevice;
+  if (filterReferrer) filters.referrer = filterReferrer;
+
   const data = {
     period,
+    filters,
     overview: batch[0].results[0] || { total_views: 0, unique_visitors: 0 },
     daily: batch[1].results,
     topPages: batch[2].results,
