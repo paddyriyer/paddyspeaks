@@ -873,17 +873,17 @@ ORDER BY user_count DESC;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>   country  user_count
-0       US          57
-1       IN          38
-2       BR          27
-3       FR          21
-4       UK          20
+0       US          53
+1       IN          33
+2       BR          22
+3       UK          20
+4       FR          20
 ..     ...         ...
-10     UK            1
-11      \N           1
-12      br           1
+11      br           2
+12  &lt;NULL&gt;           1
 13                   1
-14      US           1</code></pre>
+14      US           1
+15     UK            1</code></pre>
     </div>
     <p class="qa-note"><strong>Why it matters:</strong> The bread-and-butter <code>GROUP BY</code>. Interviewers watch whether you alias the count, sort the result, and resist <code>SELECT *</code>.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(3)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Missing&rsquo; hides in five different shapes</div><p class="qa-edge-desc">Real-world country columns leak more than just <code>NULL</code>: <code>'\N'</code> (the default CSV null sentinel from <code>COPY ... FORMAT csv</code>), the literal string <code>'&lt;NULL&gt;'</code>, empty strings, whitespace-only rows (<code>'   '</code>), and 'NA' / 'N/A'. A naive <code>COALESCE(country, '&lt;NULL&gt;')</code> only catches the first one. The fix has to canonicalize <em>all</em> of them — and report which dirty variants existed so the DQ team can ticket the upstream.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- Production-grade: collapse every flavor of &quot;missing&quot; into one bucket,
@@ -910,15 +910,15 @@ ORDER BY n DESC;
 
 -- Expected output collapses dirty variants into clean buckets,
 -- with raw_variants flagging which buckets had multiple input forms.</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  country_clean   n  raw_variants           variants_seen
-0            US  58             2             &#x27; US&#x27;, &#x27;US&#x27;
-1            IN  39             2              &#x27;IN&#x27;, &#x27;in&#x27;
-2            BR  28             2              &#x27;BR&#x27;, &#x27;br&#x27;
-3            FR  21             1                    &#x27;FR&#x27;
-4            UK  21             2             &#x27;UK &#x27;, &#x27;UK&#x27;
+0            US  54             2             &#x27; US&#x27;, &#x27;US&#x27;
+1            IN  35             2              &#x27;IN&#x27;, &#x27;in&#x27;
+2            BR  24             2              &#x27;BR&#x27;, &#x27;br&#x27;
+3            UK  21             2             &#x27;UK &#x27;, &#x27;UK&#x27;
+4            FR  20             1                    &#x27;FR&#x27;
 5            JP  18             1                    &#x27;JP&#x27;
-6            DE   8             1                    &#x27;DE&#x27;
-7        &lt;NULL&gt;   6             2  &#x27;&lt;NULL&gt;&#x27;, &#x27;NULL&#x27;, &#x27;\N&#x27;
-8       &lt;EMPTY&gt;   1             1                   &#x27;   &#x27;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case-only differences (&lsquo;BR&rsquo; vs &lsquo;br&rsquo;)</div><p class="qa-edge-desc"><code>GROUP BY country</code> is case-sensitive on Postgres / DuckDB / Snowflake (with default collation). 'BR' and 'br' are two buckets &mdash; almost always a DQ bug, never the intent. Normalize with <code>UPPER(TRIM(country))</code> at the GROUP BY boundary, but keep the raw value visible for the audit trail.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- See variants per canonical bucket
+6        &lt;NULL&gt;  17             2  &#x27;&lt;NULL&gt;&#x27;, &#x27;NULL&#x27;, &#x27;\N&#x27;
+7            DE   7             1                    &#x27;DE&#x27;
+8       &lt;EMPTY&gt;   4             2             &#x27;   &#x27;, &#x27;  &#x27;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case-only differences (&lsquo;BR&rsquo; vs &lsquo;br&rsquo;)</div><p class="qa-edge-desc"><code>GROUP BY country</code> is case-sensitive on Postgres / DuckDB / Snowflake (with default collation). 'BR' and 'br' are two buckets &mdash; almost always a DQ bug, never the intent. Normalize with <code>UPPER(TRIM(country))</code> at the GROUP BY boundary, but keep the raw value visible for the audit trail.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- See variants per canonical bucket
 SELECT UPPER(TRIM(country))                          AS country_clean,
        COUNT(*)                                       AS n,
        ARRAY_AGG(DISTINCT country ORDER BY country)   AS raw_forms_observed
@@ -927,10 +927,11 @@ WHERE country IS NOT NULL
 GROUP BY UPPER(TRIM(country))
 HAVING COUNT(DISTINCT country) &gt; 1                    -- only buckets with dirty forms
 ORDER BY n DESC;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  country_clean   n raw_forms_observed
-0            US  58          [ US, US]
-1            IN  39           [IN, in]
-2            BR  28           [BR, br]
-3            UK  21          [UK, UK ]</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Empty table returns no rows (not zero)</div><p class="qa-edge-desc">If users is empty, the query returns no rows &mdash; not a row with count=0. Wrap in a sentinel CTE if downstream needs a deterministic shape (e.g., a daily metrics job that <code>UNION</code>s yesterday with today). Self-contained version below.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- Empty-safe roll-up: always returns at least one row
+0            US  54          [ US, US]
+1            IN  35           [IN, in]
+2            BR  24           [BR, br]
+3            UK  21          [UK, UK ]
+4                 4          [  ,    ]</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Empty table returns no rows (not zero)</div><p class="qa-edge-desc">If users is empty, the query returns no rows &mdash; not a row with count=0. Wrap in a sentinel CTE if downstream needs a deterministic shape (e.g., a daily metrics job that <code>UNION</code>s yesterday with today). Self-contained version below.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- Empty-safe roll-up: always returns at least one row
 WITH base AS (
   SELECT country, COUNT(*) AS n
   FROM users WHERE 1=0    -- simulates an empty source for demo
@@ -1144,20 +1145,20 @@ ORDER BY avg_duration_sec DESC;</code></pre>
        STDDEV(duration_sec) AS sd_dur,
        AVG(duration_sec) / SQRT(COUNT(*)) AS sem
 FROM sessions GROUP BY platform;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  platform  sessions      avg_dur       sd_dur          sem
-0  Android         2  2085.500000   713.470742  1474.671192
-1  android       265  1678.973485  1011.429126   103.138521
-2      WEB         5  2907.600000   775.846828  1300.318250
-3      web       198  1823.908629  1007.822862   129.619542
-4      iOS         1  2691.000000          NaN  2691.000000
+0  android       265  1678.973485  1011.429126   103.138521
+1  Android         2  2085.500000   713.470742  1474.671192
+2      web       198  1823.908629  1007.822862   129.619542
+3      iOS         1  2691.000000          NaN  2691.000000
+4      WEB         5  2907.600000   775.846828  1300.318250
 5      ios       329  1744.445122  1062.677389    96.174373</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Outlier-skewed mean</div><p class="qa-edge-desc">A few 12-hour zombie sessions pull AVG up. Report median or a trimmed mean alongside.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT platform,
        AVG(duration_sec) AS avg_dur,
        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_sec) AS p50_dur
 FROM sessions GROUP BY platform;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  platform      avg_dur  p50_dur
 0  android  1678.973485   1557.5
 1  Android  2085.500000   2085.5
-2      WEB  2907.600000   3257.0
-3      web  1823.908629   1928.0
-4      iOS  2691.000000   2691.0
+2      web  1823.908629   1928.0
+3      iOS  2691.000000   2691.0
+4      WEB  2907.600000   3257.0
 5      ios  1744.445122   1719.5</code></pre></li></ul></details>
   </div>
 </details>
@@ -1439,7 +1440,7 @@ WHERE p.purchase_id IS NULL;</code></pre><div class="qa-edge-code-label edge-out
 2         4    user_4    user4@example.com  2024-10-08      JP
 3         8    user_8    user8@example.com  2024-10-15      US
 4        10   user_10   user10@example.com  2024-10-19      IN
-5        12   user_12   user12@example.com  2024-10-23      US
+5        12   user_12   user12@example.com  2024-10-23      \N
 ..      ...       ...                  ...         ...     ...
 69      190  user_190  user190@example.com  2025-10-15      FR
 70      193  user_193  user193@example.com  2025-10-21      US
@@ -1483,17 +1484,17 @@ ORDER BY avg_basket DESC;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>   country  purchases  avg_basket
-0       US         95     1157.13
-1       in          1      265.88
-2      NaN          2      141.82
-3       BR         34      109.27
+0       US         86     1271.63
+1       in          4      147.87
+2      NaN          8      135.66
+3       \N         21      113.80
 4       FR         31      108.38
 ..     ...        ...         ...
-9       UK         29       65.22
 10      br          2       40.26
-11     UK           2       27.49
-12  &lt;NULL&gt;          1        6.21
-13      US          1        3.62</code></pre>
+11                  4       34.99
+12     UK           2       27.49
+13  &lt;NULL&gt;          1        6.21
+14      US          1        3.62</code></pre>
     </div>
     <p class="qa-note"><strong>Trap:</strong> A <code>LEFT JOIN</code> here would inflate countries with many no-purchase users — they would show <code>AVG = NULL</code>, not 0, which is correct but easy to mis-read.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Inner vs left changes the denominator</div><p class="qa-edge-desc">INNER JOIN gives the avg only for purchasing countries. LEFT JOIN with AVG gives NULL for non-purchasers — easy to mis-read as 0.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- LEFT JOIN, COALESCE for clarity
@@ -1503,19 +1504,19 @@ SELECT u.country,
 FROM users u
 LEFT JOIN purchases p ON p.user_id = u.user_id
 GROUP BY u.country;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   country  avg_basket  purchases
-0       JP       79.99         23
-1       FR      108.38         31
-2      NaN      141.82          2
-3      UK        27.49          2
-4   &lt;NULL&gt;        6.21          1
-5       US     1157.13         95
+0       BR       99.58         28
+1       JP       79.99         23
+2       FR      108.38         31
+3      NaN      135.66          8
+4                34.99          4
+5       \N      113.80         21
 ..     ...         ...        ...
-9       US        3.62          1
-10                0.00          0
-11      BR      109.27         34
-12      in      265.88          1
-13      UK       65.22         29
-14      DE       93.21         17</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Per-country sample size</div><p class="qa-edge-desc">Always emit purchase count alongside average. A 1-purchase country with avg $999 looks identical to a 1,000-purchase country with avg $999.</p></li></ul></details>
+10      in      147.87          4
+11  &lt;NULL&gt;        6.21          1
+12      UK       65.22         29
+13     UK        27.49          2
+14      US     1271.63         86
+15      IN       89.30         46</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Per-country sample size</div><p class="qa-edge-desc">Always emit purchase count alongside average. A 1-purchase country with avg $999 looks identical to a 1,000-purchase country with avg $999.</p></li></ul></details>
   </div>
 </details>
 
@@ -1813,17 +1814,17 @@ SELECT user_id FROM logins;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>    user_id
-0        42
-1        70
-2        15
-3        22
-4        31
+0        50
+1        74
+2        11
+3        16
+4        26
 ..      ...
-95       20
-96       36
-97       68
-98       69
-99       98</code></pre>
+95       43
+96       45
+97       51
+98       56
+99       72</code></pre>
     </div>
     <p class="qa-note"><strong>Tradeoff:</strong> <code>INTERSECT</code> is concise and dedups for free; <code>EXISTS</code> wins when one side is much larger or you want to stream early.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">INTERSECT removes duplicates</div><p class="qa-edge-desc">INTERSECT in standard SQL is set semantics — duplicates collapse. INTERSECT ALL preserves duplicates. Check your DB; not every engine implements ALL.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time-window mismatch</div><p class="qa-edge-desc">&lsquo;Active in events AND logins&rsquo; needs a window — last 7 days? Lifetime? The intersection definition is meaningless without one. Add a date filter.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT user_id FROM events  WHERE event_date &gt;= CURRENT_DATE - INTERVAL &#x27;7&#x27; DAY
@@ -1869,17 +1870,17 @@ ORDER BY conv_pct DESC;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>   country  signups  purchasers  conv_pct
-0      UK         1           1    100.00
+0       US        1           1    100.00
 1   &lt;NULL&gt;        1           1    100.00
-2       in        1           1    100.00
-3       br        1           1    100.00
-4       US        1           1    100.00
+2      UK         1           1    100.00
+3       in        2           2    100.00
+4       \N        9           8     88.89
 ..     ...      ...         ...       ...
-10      FR       21          13     61.90
-11      BR       27          16     59.26
-12      UK       20           9     45.00
-13     NaN        4           1     25.00
-14                1           0      0.00</code></pre>
+11     NaN        7           4     57.14
+12      BR       22          12     54.55
+13      br        2           1     50.00
+14      UK       20           9     45.00
+15                1           0      0.00</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>NULLIF(..., 0)</code>:</strong> defends against divide-by-zero if a country has no signups (will not happen here, but it is a habit).</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cohort definition</div><p class="qa-edge-desc">&lsquo;Conversion&rsquo; is undefined without a window: ever, first 7 days, first 30 days, first session? State which.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- 30-day-window conversion (more honest than &amp;lsquo;ever&amp;rsquo;)
@@ -1890,19 +1891,19 @@ SELECT u.country,
 FROM users u
 LEFT JOIN purchases p ON p.user_id = u.user_id
 GROUP BY u.country;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   country  conv_30d_pct
-0       JP     61.111111
-1   &lt;NULL&gt;    100.000000
-2      UK     100.000000
-3      NaN     25.000000
-4       in    100.000000
-5       \N    100.000000
+0              66.666667
+1       JP     61.111111
+2      NaN     57.142857
+3       FR     60.000000
+4   &lt;NULL&gt;    100.000000
+5       BR     50.000000
 ..     ...           ...
-9       BR     55.555556
-10      FR     57.142857
-11      US     63.157895
-12      IN     60.526316
-13      UK     40.000000
-14      DE     75.000000</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tiny-cohort countries</div><p class="qa-edge-desc">DE with 8 users gives a 100% conversion that is statistically meaningless. Add a min_cohort filter for the chart, but report raw counts for completeness.</p></li></ul></details>
+10      US     62.264151
+11      IN     54.545455
+12     UK     100.000000
+13      in    100.000000
+14      DE     71.428571
+15      UK     40.000000</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tiny-cohort countries</div><p class="qa-edge-desc">DE with 8 users gives a 100% conversion that is statistically meaningless. Add a min_cohort filter for the chart, but report raw counts for completeness.</p></li></ul></details>
   </div>
 </details>
 
@@ -2210,19 +2211,19 @@ LIMIT 10;</code></pre>
    SUM(CASE WHEN platform NOT IN (&#x27;ios&#x27;,&#x27;android&#x27;,&#x27;web&#x27;) THEN 1 ELSE 0 END) AS other,
    COUNT(*) AS total
 FROM sessions GROUP BY session_date;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   session_date  ios  android  web  other  total
-0    2025-01-20  2.0      5.0  4.0    1.0     12
-1    2025-01-25  7.0      1.0  4.0    0.0     12
-2    2025-01-30  4.0      6.0  2.0    0.0     12
-3    2025-02-07  5.0      3.0  3.0    1.0     12
-4    2025-02-10  7.0      2.0  3.0    0.0     12
-5    2025-01-22  4.0      3.0  5.0    0.0     12
+0    2025-01-09  1.0      7.0  4.0    0.0     12
+1    2025-02-14  3.0      6.0  3.0    0.0     12
+2    2025-02-26  5.0      3.0  4.0    0.0     12
+3    2025-03-02  8.0      3.0  1.0    0.0     12
+4    2025-03-08  3.0      1.0  4.0    0.0      8
+5    2025-01-23  4.0      2.0  6.0    0.0     12
 ..          ...  ...      ...  ...    ...    ...
-62   2025-01-29  4.0      5.0  3.0    0.0     12
-63   2025-02-01  6.0      3.0  2.0    1.0     12
-64   2025-02-04  5.0      4.0  3.0    0.0     12
-65   2099-06-01  0.0      0.0  1.0    0.0      1
-66   2025-01-24  9.0      1.0  2.0    0.0     12
-67   2025-02-08  4.0      3.0  5.0    0.0     12</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity in platform values</div><p class="qa-edge-desc">'iOS' vs 'ios' fails the equality test. Lowercase upstream or in the CASE comparator.</p></li></ul></details>
+62   2025-01-31  7.0      2.0  3.0    0.0     12
+63   2025-01-04  3.0      3.0  6.0    0.0     12
+64   2025-01-29  4.0      5.0  3.0    0.0     12
+65   2025-02-01  6.0      3.0  2.0    1.0     12
+66   2025-02-04  5.0      4.0  3.0    0.0     12
+67   2099-06-01  0.0      0.0  1.0    0.0      1</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity in platform values</div><p class="qa-edge-desc">'iOS' vs 'ios' fails the equality test. Lowercase upstream or in the CASE comparator.</p></li></ul></details>
   </div>
 </details>
 
@@ -2284,19 +2285,19 @@ FROM (
   FROM products
 ) t
 WHERE position &lt;= 3;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>       category  position product_name
-0        Sports         1      prod_40
-1        Sports         2      prod_36
-2        Sports         3      prod_38
+0      Clothing         1      prod_28
+1      Clothing         2      prod_30
+2      Clothing         3      prod_29
 3          Food         1      prod_50
 4          Food         2      prod_42
 5          Food         3      prod_43
 ..          ...       ...          ...
-9         Books         1      prod_19
-10        Books         2      prod_11
-11        Books         3      prod_15
-12  Electronics         1       prod_4
-13  Electronics         2       prod_1
-14  Electronics         3       prod_5</code></pre></li></ul></details>
+9   Electronics         1       prod_4
+10  Electronics         2       prod_1
+11  Electronics         3       prod_5
+12        Books         1      prod_19
+13        Books         2      prod_11
+14        Books         3      prod_15</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2498,19 +2499,19 @@ LIMIT 10;</code></pre>
   FROM orders
 )
 SELECT * FROM stats WHERE u_n &gt;= 5 AND amount &gt; u_avg * 2;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>    order_id  user_id  amount       u_avg  u_n
-0        323       69  219.62   97.197143    7
-1        128       62  128.41   44.758000    5
-2        445       96  365.97  107.082000    5
-3        381      111  305.84  100.684000    5
-4        198      112  830.40  161.951667    6
-5        424      187  404.41  112.521667    6
+0        382       47  281.25  130.128000    5
+1        419      156  236.33   98.251667    6
+2        494      156  202.47   98.251667    6
+3        128       62  128.41   44.758000    5
+4        445       96  365.97  107.082000    5
+5        238      155  133.38   65.010000    6
 ..       ...      ...     ...         ...  ...
-13       298       17  280.68  106.044000    5
-14       208       99  347.94  107.280000    5
+13       208       99  347.94  107.280000    5
+14       381      111  305.84  100.684000    5
 15        14      151  318.91  116.080000    5
 16       384      161   97.23   44.912000    5
 17       446      176  958.35  180.631250    8
-18       238      155  133.38   65.010000    6</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Order amount distribution is log-normal</div><p class="qa-edge-desc">Linear delta over-flags whales' big-but-normal orders. Use log(amount) - log(u_avg) for ratio thinking.</p></li></ul></details>
+18       224        3  164.63   70.948571    7</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Order amount distribution is log-normal</div><p class="qa-edge-desc">Linear delta over-flags whales' big-but-normal orders. Use log(amount) - log(u_avg) for ratio thinking.</p></li></ul></details>
   </div>
 </details>
 
@@ -2565,11 +2566,11 @@ LIMIT 10;</code></pre>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple signup events per user (DQ)</div><p class="qa-edge-desc">A user firing two 'signup' events is dirty data. NOT EXISTS still works (set-based) but you should DQ-flag it separately.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT user_id, COUNT(*) AS signup_events
 FROM events WHERE event_type = &#x27;signup&#x27;
 GROUP BY user_id HAVING COUNT(*) &gt; 1;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   user_id  signup_events
-0        5              2
-1        2              2
-2        1              2
-3        4              2
-4        3              2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Never purchased&rsquo; window</div><p class="qa-edge-desc">Lifetime &lsquo;never&rsquo; is a different cohort from &lsquo;not within 30 days of signup&rsquo;. State the window.</p></li></ul></details>
+0        2              2
+1        1              2
+2        5              2
+3        3              2
+4        4              2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Never purchased&rsquo; window</div><p class="qa-edge-desc">Lifetime &lsquo;never&rsquo; is a different cohort from &lsquo;not within 30 days of signup&rsquo;. State the window.</p></li></ul></details>
   </div>
 </details>
 
@@ -3019,18 +3020,18 @@ LIMIT 10;</code></pre>
 6       13              11
 7       28              11
 8       12              11
-9       11              10</code></pre>
+9       63              10</code></pre>
     </div>
     <p class="qa-note"><strong>The trick:</strong> <code>date − row_number</code> is constant within consecutive runs. Group by it, you get the islands. Dedup logins first or streaks lie.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Duplicate (user_id, login_date) pairs</div><p class="qa-edge-desc">If the source has two login rows for the same user on the same day, the row_number trick over-counts the streak length. DEDUP first.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- DEDUP before the gaps-and-islands trick
 WITH dedup AS (SELECT DISTINCT user_id, login_date FROM logins)
 SELECT user_id, login_date FROM dedup;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>      user_id login_date
-0           1 2025-03-20
-1           2 2025-03-03
-2           3 2025-03-19
-3           6 2025-03-22
-4           7 2025-03-04
-5           7 2025-03-24
+0           2 2025-03-20
+1           3 2025-03-12
+2           4 2025-03-13
+3           4 2025-03-26
+4           5 2025-03-20
+5           7 2025-03-21
 ...       ...        ...
 1919       98 2025-03-17
 1920       98 2025-03-26
@@ -3134,11 +3135,11 @@ LIMIT 10;</code></pre>
 SELECT DATE_TRUNC(&#x27;week&#x27;, login_date) AS week_start,
        COUNT(DISTINCT user_id)        AS wau
 FROM logins GROUP BY 1;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  week_start  wau
-0 2025-03-10  100
-1        NaT    3
+0        NaT    3
+1 2025-03-10  100
 2 2025-03-03  100
-3 2025-02-24   83
-4 2025-03-24  100
+3 2025-03-24  100
+4 2025-02-24   83
 5 2025-03-17  100</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Partial weeks at the boundaries</div><p class="qa-edge-desc">The first and last week may not have 7 full days. Drop or label them, don't average them silently.</p></li></ul></details>
   </div>
 </details>
@@ -3379,12 +3380,12 @@ LIMIT 10;</code></pre>
 1          201   Eve Park             11
 2          202   Frank Li              8
 3          203  Grace Kim              5
-4          306     IC_306              3
-5          301     IC_301              3
-6          302     IC_302              3
-7          303     IC_303              0
-8          319     IC_319              0
-9          324     IC_324              0</code></pre>
+4          301     IC_301              3
+5          302     IC_302              3
+6          306     IC_306              3
+7          310     IC_310              0
+8          322     IC_322              0
+9          307     IC_307              0</code></pre>
     </div>
     <p class="qa-note"><strong>Pattern:</strong> seed with <em>self</em>, recurse <em>downward</em>, count − 1 to exclude the root from their own org count.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Off-by-one (counting self)</div><p class="qa-edge-desc">The seed step puts (root_id, root_id) into descendants — the root counts itself. Subtract 1 in the final aggregate or filter self out in the seed.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Database default recursion limit</div><p class="qa-edge-desc">Postgres default cycle protection is off; SQL Server has MAXRECURSION 100 default. For deep orgs (>100 levels — rare but real), increase the cap explicitly.</p></li></ul></details>
@@ -3898,7 +3899,7 @@ print(in_users.head(3))</code></pre>
     </div>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
-<pre class="out-pre"><code>38 users in IN
+<pre class="out-pre"><code>33 users in IN
     user_id     name               email signup_date country
 0         1   user_1   user1@example.com  2024-10-02      IN
 9        10  user_10  user10@example.com  2024-10-19      IN
@@ -4112,7 +4113,7 @@ print(&quot;wrote:&quot;, out, &quot;  bytes:&quot;, os.path.getsize(out))</code
     </div>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
-<pre class="out-pre"><code>wrote: /tmp/users_in.parquet   bytes: 4314</code></pre>
+<pre class="out-pre"><code>wrote: /tmp/users_in.parquet   bytes: 4213</code></pre>
     </div>
     <p class="qa-note"><strong>Why Parquet:</strong> columnar, typed, ~5–10&times; smaller than CSV, and consumers do not have to guess dtypes. Snappy = fast decompression, decent ratio.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Parquet dtype mismatch</div><p class="qa-edge-desc">If different chunks have different dtypes (e.g., user_id sometimes int sometimes float), pyarrow may upcast or fail. Coerce dtypes before writing.</p><div class="qa-edge-code-label">Fix &middot; Python</div><pre class="edge-pre"><code>in_users[&quot;user_id&quot;] = in_users[&quot;user_id&quot;].astype(&quot;int64&quot;)
@@ -4400,19 +4401,21 @@ print(spend.round(2))</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>   country  purchases    revenue  avg_basket
-9       US         95  108769.98     1157.13
-5       IN         59    5399.51       93.10
-2       BR         34    3715.34      109.27
-4       FR         31    3251.37      108.38
-7       UK         29    1891.26       65.22
-6       JP         23    1839.74       79.99
-3       DE         17    1584.53       93.21
-12      in          1     265.88      265.88
-10      \N          2     176.30       88.15
-11      br          2      80.52       40.26
-8      UK           2      54.98       27.49
-1   &lt;NULL&gt;          1       6.21        6.21
-0       US          1       3.62        3.62</code></pre>
+10      US         86  108088.71     1271.63
+6       IN         46    4018.69       89.30
+5       FR         31    3251.37      108.38
+3       BR         28    2788.20       99.58
+11      \N         21    2389.74      113.80
+8       UK         29    1891.26       65.22
+7       JP         23    1839.74       79.99
+4       DE         13    1093.09       84.08
+13      in          4     591.46      147.86
+0                   4     139.98       34.99
+12      br          2      80.52       40.26
+9      UK           2      54.98       27.49
+2   &lt;NULL&gt;          1       6.21        6.21
+...
+[truncated; 1 more lines]</code></pre>
     </div>
     <p class="qa-note"><strong>Inner vs left join:</strong> inner gives spend of countries that purchased; left gives spend per country with NaN for non-purchasing countries. Both valid; state your choice.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Inner vs left changes denominators</div><p class="qa-edge-desc">Inner drops countries with no purchases. Left keeps them with NaN. Pick by the question (&lsquo;avg basket among purchasers&rsquo; vs &lsquo;avg basket per country, NaN if none&rsquo;).</p></li><li class="qa-edge-item"><div class="qa-edge-label">groupby with NaN in key</div><p class="qa-edge-desc">Default drops NaN groups. dropna=False surfaces them — but merging on NaN keys is generally a DQ bug to fix upstream.</p></li></ul></details>

@@ -282,6 +282,9 @@
     <div class="loading-spinner" id="loadingState">Loading analytics...</div>
 
     <!-- Stats will be injected here -->
+    <!-- Filter bar -->
+    <div id="filterBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 16px;margin-bottom:12px;background:#fff;border:1px solid var(--color-border);border-radius:8px"></div>
+
     <div id="dashBody" style="display:none">
 
         <!-- ── Summary Cards ── -->
@@ -424,6 +427,7 @@
 
     var authToken = null;
     var currentPeriod = '7d';
+    var currentFilters = {};
     var charts = {};
 
     // ── Chart.js Defaults ────────────────────
@@ -495,7 +499,9 @@
         document.getElementById('dashBody').style.display = 'block';
         showSkeletons();
 
-        apiFetch('/api/stats?period=' + currentPeriod).then(function(data) {
+        var filterParams = Object.keys(currentFilters).map(function(k) { return k + '=' + encodeURIComponent(currentFilters[k]); }).join('&');
+        var url = '/api/stats?period=' + currentPeriod + (filterParams ? '&' + filterParams : '');
+        apiFetch(url).then(function(data) {
             renderDashboard(data);
         }).catch(function(err) {
             console.error('Dashboard load error:', err);
@@ -542,9 +548,46 @@
     });
 
     // ── Render Dashboard ─────────────────────
+    // ── Drill-down filter functions ────────
+    function drillDown(key, value) {
+        currentFilters[key] = value;
+        loadDashboard();
+    }
+    window.drillDown = drillDown;
+
+    function clearFilter(key) {
+        delete currentFilters[key];
+        loadDashboard();
+    }
+    window.clearFilter = clearFilter;
+
+    function clearAllFilters() {
+        currentFilters = {};
+        loadDashboard();
+    }
+    window.clearAllFilters = clearAllFilters;
+
+    function renderFilterBar() {
+        var bar = document.getElementById('filterBar');
+        var keys = Object.keys(currentFilters);
+        if (!keys.length) { bar.style.display = 'none'; return; }
+        bar.style.display = 'flex';
+        var html = '<span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--color-muted)">Filtered by:</span>';
+        keys.forEach(function(k) {
+            html += '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--color-gold);color:#fff;padding:3px 10px;border-radius:12px;font-family:var(--font-mono);font-size:0.75rem">';
+            html += k + ': ' + currentFilters[k];
+            html += '<span onclick="clearFilter(\'' + k + '\')" style="cursor:pointer;font-size:14px;margin-left:2px">&times;</span></span>';
+        });
+        html += '<span onclick="clearAllFilters()" style="cursor:pointer;font-family:var(--font-mono);font-size:0.75rem;color:var(--color-rust);text-decoration:underline">Clear all</span>';
+        bar.innerHTML = html;
+    }
+
     function renderDashboard(data) {
         document.getElementById('loadingState').style.display = 'none';
         document.getElementById('dashBody').style.display = 'block';
+
+        // Filter bar
+        renderFilterBar();
 
         // Summary cards — fade in with stagger
         var ov = data.overview || {};
@@ -674,7 +717,8 @@
         pages.forEach(function(p) {
             var w = Math.round((p.views / maxViews) * 100);
             var label = p.page.replace(/^\/articles\//, '').replace(/\.html$/, '').replace(/^\//, '') || '/';
-            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem" title="' + escHtml(p.page) + '">' + escHtml(label) + '</span></td>';
+            html += '<tr style="cursor:pointer" onclick="drillDown(\'page\',\'' + escHtml(p.page).replace(/'/g, "\\'") + '\')">';
+            html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label" style="font-family:var(--font-mono);font-size:0.85rem" title="' + escHtml(p.page) + '">' + escHtml(label) + '</span></td>';
             html += '<td class="num">' + fmt(p.views) + '</td>';
             html += '<td class="num">' + (p.avg_time ? fmtTime(p.avg_time) : '-') + '</td>';
             html += '<td class="num">' + (p.avg_scroll ? p.avg_scroll + '%' : '-') + '</td></tr>';
@@ -689,7 +733,8 @@
         var html = '<thead><tr><th>Country</th><th style="text-align:right">Views</th><th style="text-align:right">Visitors</th></tr></thead><tbody>';
         countries.forEach(function(c) {
             var w = Math.round((c.views / maxViews) * 100);
-            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + countryFlag(c.country) + ' ' + escHtml(c.country) + '</span></td>';
+            html += '<tr style="cursor:pointer" onclick="drillDown(\'country\',\'' + escHtml(c.country) + '\')">';
+            html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + countryFlag(c.country) + ' ' + escHtml(c.country) + '</span></td>';
             html += '<td class="num">' + fmt(c.views) + '</td>';
             html += '<td class="num">' + fmt(c.visitors) + '</td></tr>';
         });
@@ -703,7 +748,8 @@
         var html = '<thead><tr><th>City</th><th>Country</th><th style="text-align:right">Views</th></tr></thead><tbody>';
         cities.forEach(function(c) {
             var w = Math.round((c.views / maxViews) * 100);
-            html += '<tr><td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + escHtml(c.city) + '</span></td>';
+            html += '<tr style="cursor:pointer" onclick="drillDown(\'city\',\'' + escHtml(c.city) + '\')">';
+            html += '<td class="bar-cell"><span class="bar-bg" style="width:' + w + '%"></span><span class="bar-label">' + escHtml(c.city) + '</span></td>';
             html += '<td>' + countryFlag(c.country) + ' ' + escHtml(c.country) + '</td>';
             html += '<td class="num">' + fmt(c.views) + '</td></tr>';
         });
@@ -720,7 +766,8 @@
         refs.forEach(function(r) {
             var domain = r.referrer;
             try { domain = new URL(r.referrer).hostname; } catch(e) {}
-            html += '<tr><td class="ref-domain" title="' + escHtml(r.referrer) + '">' + escHtml(domain) + '</td>';
+            html += '<tr style="cursor:pointer" onclick="drillDown(\'referrer\',\'' + escHtml(r.referrer).replace(/'/g, "\\'") + '\')">';
+            html += '<td class="ref-domain" title="' + escHtml(r.referrer) + '">' + escHtml(domain) + '</td>';
             html += '<td class="num">' + fmt(r.views) + '</td></tr>';
         });
         html += '</tbody>';
