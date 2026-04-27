@@ -264,6 +264,65 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   background: #fdf6ee; border-radius: 0 3px 3px 0;
 }
 
+/* ---- Edge cases collapsible ---- */
+.article-content .qa-edges {
+  margin: 16px 0 0;
+  padding: 0;
+  background: #fff8ed;
+  border: 1px solid #efd9b8;
+  border-radius: 4px;
+}
+.article-content .qa-edges > summary {
+  list-style: none; cursor: pointer;
+  padding: 12px 16px;
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+  color: #8a5a1a; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.article-content .qa-edges > summary::-webkit-details-marker { display: none; }
+.article-content .qa-edges > summary::before {
+  content: "⚠"; font-size: 14px; color: #c44b2b;
+  transition: transform .15s ease;
+}
+.article-content .qa-edges[open] > summary { border-bottom: 1px solid #efd9b8; }
+.article-content .qa-edges:hover > summary,
+.article-content .qa-edges > summary:focus-visible {
+  background: #fdf2dd; outline: none;
+}
+.article-content .qa-edge-count { color: #c44b2b; }
+.article-content .qa-edge-list {
+  list-style: none; padding: 14px 16px; margin: 0;
+}
+.article-content .qa-edge-item {
+  margin: 0 0 18px;
+  padding: 0;
+}
+.article-content .qa-edge-item:last-child { margin-bottom: 0; }
+.article-content .qa-edge-label {
+  font-family: var(--font-display);
+  font-size: 16px; font-weight: 700;
+  color: #6e3a0a;
+  margin: 0 0 4px;
+}
+.article-content .qa-edge-desc {
+  font-size: 14.5px; color: #3a4a5e;
+  line-height: 1.55; margin: 0 0 8px;
+}
+.article-content .qa-edge-code-label {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+  color: #8a5a1a; font-weight: 600; margin: 4px 0;
+}
+.article-content .qa-edges pre.edge-pre {
+  margin: 0; padding: 14px 16px;
+  background: #1a1410; color: #f5f5f5;
+  border-radius: 3px; border-left: 3px solid #c8915a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "JetBrains Mono", monospace;
+  font-size: 13px; line-height: 1.55; overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ---- Schema/dataset table ---- */
 .article-content .schema-table {
   width: 100%; border-collapse: collapse; margin: 18px 0;
@@ -524,6 +583,16 @@ ORDER BY user_count DESC;</code></pre>
 6      DE           8</code></pre>
     </div>
     <p class="qa-note"><strong>Why it matters:</strong> The bread-and-butter <code>GROUP BY</code>. Interviewers watch whether you alias the count, sort the result, and resist <code>SELECT *</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">NULL country values get their own bucket</div><p class="qa-edge-desc">GROUP BY treats NULL as its own group. If countries can be NULL, they appear as a row with country=NULL and a count — usually a DQ signal you want to surface, not hide.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Surface NULL countries explicitly
+SELECT COALESCE(country, &#x27;&lt;NULL&gt;&#x27;) AS country, COUNT(*) AS n
+FROM users
+GROUP BY country
+ORDER BY n DESC;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Empty table returns no rows (not zero)</div><p class="qa-edge-desc">If users is empty, you get an empty result set, not a row with count=0. Wrap in a CTE if you need a deterministic shape for a downstream join.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH base AS (
+  SELECT country, COUNT(*) AS n FROM users GROUP BY country
+)
+SELECT * FROM base
+UNION ALL
+SELECT &#x27;&lt;empty&gt;&#x27;, 0 WHERE NOT EXISTS (SELECT 1 FROM base);</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -564,6 +633,17 @@ LIMIT 5;</code></pre>
 4          315     IC_315  Engineering  161966</code></pre>
     </div>
     <p class="qa-note"><strong>Follow-up:</strong> &ldquo;What if two people tie at #5?&rdquo; &rarr; discuss <code>FETCH FIRST 5 ROWS WITH TIES</code> or <code>RANK() OVER (ORDER BY salary DESC)</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Ties at the cutoff</div><p class="qa-edge-desc">Plain LIMIT 5 silently drops one of two tied salaries. Use FETCH FIRST 5 ROWS WITH TIES (Postgres 13+, Snowflake) or RANK() to make ties explicit.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Postgres 13+: keep all ties at the cutoff
+SELECT * FROM employees ORDER BY salary DESC
+FETCH FIRST 5 ROWS WITH TIES;
+
+-- Portable: filter by RANK
+WITH ranked AS (
+  SELECT *, RANK() OVER (ORDER BY salary DESC) AS rk FROM employees
+)
+SELECT * FROM ranked WHERE rk &lt;= 5;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">NULL salary breaks ORDER BY semantics</div><p class="qa-edge-desc">Postgres orders NULLs LAST in DESC by default; MySQL orders them FIRST. State your DB or be explicit with NULLS LAST.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT * FROM employees
+ORDER BY salary DESC NULLS LAST   -- portable across Postgres, Snowflake, BigQuery
+LIMIT 5;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -598,6 +678,11 @@ FROM purchases;</code></pre>
 0       28852.56</code></pre>
     </div>
     <p class="qa-note"><strong>Edge case:</strong> If <code>amount</code> can be NULL, <code>SUM</code> already ignores nulls — but state that explicitly. Interviewers like when you pre-empt the null question.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">All-NULL amount column</div><p class="qa-edge-desc">SUM ignores NULLs. If every row's amount is NULL, SUM returns NULL — not 0. Wrap with COALESCE or COUNT separately.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT COALESCE(SUM(amount), 0) AS total_revenue,
+       COUNT(amount)               AS non_null_rows
+FROM purchases;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Currency precision (binary float vs DECIMAL)</div><p class="qa-edge-desc">Storing amount as DOUBLE/FLOAT will lose cents at scale. The schema uses DECIMAL(10,2); confirm before reporting to finance.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- SAFE: explicit DECIMAL cast prevents float drift
+SELECT ROUND(SUM(amount)::DECIMAL(18,2), 2) AS revenue
+FROM purchases;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -644,6 +729,11 @@ ORDER BY revenue DESC;</code></pre>
 15           4       prod_4  Electronics     1054</code></pre>
     </div>
     <p class="qa-note"><strong>Why it matters:</strong> <code>WHERE</code> + sort. Trivial — but watch candidates who use <code>HAVING</code> here without a <code>GROUP BY</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">WHERE vs HAVING</div><p class="qa-edge-desc">If revenue is a pre-aggregate, WHERE works. If you compute it in this query (SUM), you must use HAVING. Mixing them is a frequent interview trap.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Computed revenue: HAVING, not WHERE
+SELECT product_category, SUM(amount) AS revenue
+FROM purchases
+GROUP BY product_category
+HAVING SUM(amount) &gt; 1000;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Inclusive vs exclusive boundary</div><p class="qa-edge-desc">Always confirm '> 1000' vs '>= 1000'. Off-by-one at category boundaries silently changes the report.</p></li></ul></details>
   </div>
 </details>
 
@@ -684,6 +774,14 @@ ORDER BY avg_duration_sec DESC;</code></pre>
 2  android       267            1691.7</code></pre>
     </div>
     <p class="qa-note"><strong>Follow-up:</strong> &ldquo;Why include the count?&rdquo; &rarr; averages without sample size are dangerously seductive.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Average without sample size lies</div><p class="qa-edge-desc">Always emit COUNT alongside AVG. A platform with 5 sessions and a 10-second average looks identical to one with 50,000 sessions and the same average — but only one is statistically meaningful.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT platform, COUNT(*) AS sessions,
+       AVG(duration_sec) AS avg_dur,
+       STDDEV(duration_sec) AS sd_dur,
+       AVG(duration_sec) / SQRT(COUNT(*)) AS sem
+FROM sessions GROUP BY platform;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Outlier-skewed mean</div><p class="qa-edge-desc">A few 12-hour zombie sessions pull AVG up. Report median or a trimmed mean alongside.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT platform,
+       AVG(duration_sec) AS avg_dur,
+       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_sec) AS p50_dur
+FROM sessions GROUP BY platform;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -719,6 +817,10 @@ WHERE EXTRACT(DOW FROM session_date) IN (0, 6);</code></pre>
 0               224</code></pre>
     </div>
     <p class="qa-note"><strong>Portability:</strong> MySQL uses <code>DAYOFWEEK()</code> (1=Sun…7=Sat); Spark <code>dayofweek()</code> uses the same convention as MySQL. Always state your DB.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">DOW numbering is DB-specific</div><p class="qa-edge-desc">Postgres EXTRACT(DOW): Sun=0..Sat=6. ISODOW: Mon=1..Sun=7. MySQL DAYOFWEEK: Sun=1..Sat=7. Wrong constant = wrong answer.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Portable: name-based
+SELECT COUNT(*) FROM sessions
+WHERE strftime(session_date, &#x27;%w&#x27;) IN (&#x27;0&#x27;,&#x27;6&#x27;);  -- DuckDB / SQLite
+-- Or: EXTRACT(ISODOW FROM session_date) IN (6, 7)  -- Postgres</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone drift</div><p class="qa-edge-desc">If session_date is derived from a UTC timestamp, a 'weekend' for a Sydney user differs from one for an LA user. Convert to user-local TZ before bucketing.</p></li></ul></details>
   </div>
 </details>
 
@@ -756,6 +858,8 @@ ORDER BY event_type;</code></pre>
 2      signup</code></pre>
     </div>
     <p class="qa-note"><strong>Production angle:</strong> In a real warehouse, prefer querying a documented enum/lookup table instead of <code>DISTINCT</code> on a high-cardinality fact table.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">DISTINCT on huge fact tables is expensive</div><p class="qa-edge-desc">On a 10B-row events table, SELECT DISTINCT does a full scan. Hit the documented enum/lookup table or a daily-cardinality summary.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Cheap on a billion rows: the catalog table
+SELECT type FROM event_types ORDER BY type;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity</div><p class="qa-edge-desc">DISTINCT is case-sensitive. 'SignUp' and 'signup' are two values; lowercase before grouping if upstream is dirty.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT DISTINCT LOWER(event_type) FROM events ORDER BY 1;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -792,6 +896,12 @@ WHERE signup_date &gt;= DATE &#x27;2024-10-01&#x27;
 0               46</code></pre>
     </div>
     <p class="qa-note"><strong>Why half-open ranges:</strong> <code>&gt;= start AND &lt; end</code> is timezone-safe, leap-day-safe, and avoids the classic <code>BETWEEN '2024-12-31'</code> off-by-one when timestamps creep in.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">BETWEEN is INCLUSIVE on both ends</div><p class="qa-edge-desc">BETWEEN '2024-10-01' AND '2024-12-31' silently misses any midnight-on-Dec-31 timestamps. Half-open ranges (>= start AND < end) are timezone- and DST-safe.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- WRONG when signup_date can be a TIMESTAMP
+WHERE signup_date BETWEEN &#x27;2024-10-01&#x27; AND &#x27;2024-12-31&#x27;
+
+-- RIGHT: half-open
+WHERE signup_date &gt;= DATE &#x27;2024-10-01&#x27;
+  AND signup_date &lt;  DATE &#x27;2025-01-01&#x27;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone of the report</div><p class="qa-edge-desc">&lsquo;Q4 2024&rsquo; in PT vs UTC differs by 8 hours. State the report TZ and CONVERT/AT TIME ZONE if signup_date is UTC.</p></li></ul></details>
   </div>
 </details>
 
@@ -828,6 +938,12 @@ LIMIT 1;</code></pre>
 0       446      176 2025-02-25  958.35</code></pre>
     </div>
     <p class="qa-note"><strong>Alternative:</strong> A subquery with <code>WHERE amount = (SELECT MAX(amount) FROM orders)</code> — and discuss why <code>ORDER BY ... LIMIT</code> is usually clearer and almost always indexed-friendlier.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple tied maxima</div><p class="qa-edge-desc">If two orders share the max amount, LIMIT 1 returns one non-deterministically. Use ROW_NUMBER with a deterministic tiebreak.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT order_id, user_id, order_date, amount
+FROM (
+  SELECT *, ROW_NUMBER() OVER (ORDER BY amount DESC, order_id) AS rn
+  FROM orders
+) t
+WHERE rn = 1;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Negative amounts (refunds)</div><p class="qa-edge-desc">If the table also stores refunds with negative amounts, MAX still returns the largest positive. But MIN may surprise: the &lsquo;biggest refund&rsquo; is the most negative.</p></li></ul></details>
   </div>
 </details>
 
@@ -871,6 +987,14 @@ ORDER BY session_date;</code></pre>
 6   2025-03-08         8</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>MAX()</code> instead of <code>CURRENT_DATE</code>:</strong> the data may be stale; you want &lsquo;last 7 days <em>that exist</em>&rsquo;, not &lsquo;last 7 calendar days&rsquo;.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Sparse data near the head</div><p class="qa-edge-desc">MAX(session_date) - 6 days might span days with zero sessions. Date-spine left-join if you want exactly 7 daily rows.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH spine AS (
+  SELECT (SELECT MAX(session_date) FROM sessions) - INTERVAL n DAY AS d
+  FROM range(0, 7) t(n)
+)
+SELECT s.d, COUNT(x.session_id) AS sessions
+FROM spine s
+LEFT JOIN sessions x ON x.session_date = s.d
+GROUP BY s.d ORDER BY s.d;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone vs &lsquo;today&rsquo;</div><p class="qa-edge-desc">CURRENT_DATE returns the server's date — usually UTC, sometimes the cluster region. Use AT TIME ZONE to report in the dashboard's TZ.</p></li></ul></details>
   </div>
 </details>
 
@@ -918,6 +1042,13 @@ WHERE p.purchase_id IS NULL;</code></pre>
 73      199  user_199      US  2025-11-02</code></pre>
     </div>
     <p class="qa-note"><strong>Why anti-join via LEFT JOIN + IS NULL:</strong> often plans better than <code>NOT IN</code> (which silently breaks on NULLs) or <code>NOT EXISTS</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">NOT IN poisons on NULL</div><p class="qa-edge-desc">If the subquery returns any NULL, NOT IN evaluates to UNKNOWN for every row — the result set becomes empty. Anti-join via LEFT JOIN + IS NULL or NOT EXISTS is NULL-safe.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DANGEROUS
+SELECT * FROM users WHERE user_id NOT IN (SELECT user_id FROM purchases);
+
+-- SAFE
+SELECT u.* FROM users u
+LEFT JOIN purchases p ON p.user_id = u.user_id
+WHERE p.purchase_id IS NULL;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Soft-deleted users</div><p class="qa-edge-desc">If users has a deleted_at column, you might be sending a coupon to a churned account. Filter the audience BEFORE the anti-join.</p></li></ul></details>
   </div>
 </details>
 
@@ -963,6 +1094,13 @@ ORDER BY avg_basket DESC;</code></pre>
 6      UK         30       69.65</code></pre>
     </div>
     <p class="qa-note"><strong>Trap:</strong> A <code>LEFT JOIN</code> here would inflate countries with many no-purchase users — they would show <code>AVG = NULL</code>, not 0, which is correct but easy to mis-read.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Inner vs left changes the denominator</div><p class="qa-edge-desc">INNER JOIN gives the avg only for purchasing countries. LEFT JOIN with AVG gives NULL for non-purchasers — easy to mis-read as 0.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- LEFT JOIN, COALESCE for clarity
+SELECT u.country,
+       COALESCE(ROUND(AVG(p.amount), 2), 0) AS avg_basket,
+       COUNT(p.purchase_id)                  AS purchases
+FROM users u
+LEFT JOIN purchases p ON p.user_id = u.user_id
+GROUP BY u.country;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Per-country sample size</div><p class="qa-edge-desc">Always emit purchase count alongside average. A 1-purchase country with avg $999 looks identical to a 1,000-purchase country with avg $999.</p></li></ul></details>
   </div>
 </details>
 
@@ -1001,6 +1139,11 @@ Columns: [user_id, name]
 Index: []</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>NOT EXISTS</code>:</strong> safe with NULLs, semantically clearest, and the optimizer typically transforms it into an anti-join.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple profile rows per user</div><p class="qa-edge-desc">user_profiles intentionally has 334 rows for 200 users (Q22's dedup target). NOT EXISTS still works — it short-circuits — but if you switched to LEFT JOIN, you must SELECT DISTINCT.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- LEFT JOIN form needs DISTINCT
+SELECT DISTINCT u.user_id, u.name
+FROM users u
+LEFT JOIN user_profiles up ON up.user_id = u.user_id
+WHERE up.user_id IS NULL;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">NULL user_id in user_profiles</div><p class="qa-edge-desc">If user_profiles has rows with NULL user_id (corrupt loads), they do not match anything and don't pollute the anti-join — but they are a DQ bug worth alerting on separately.</p></li></ul></details>
   </div>
 </details>
 
@@ -1050,6 +1193,11 @@ LIMIT 10;</code></pre>
 9       38   user_38       715.93            4</code></pre>
     </div>
     <p class="qa-note"><strong>Note:</strong> <code>orders.user_id</code> is not a strict FK in the dataset — discuss what happens if an order references a missing user (use <code>LEFT JOIN</code> to find them; see Q46).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Orphan order rows inflate the spend</div><p class="qa-edge-desc">If orders.user_id can reference a missing users row, INNER JOIN drops them; LEFT JOIN keeps them but the user name is NULL. State which behavior the dashboard wants.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT u.name,
+       SUM(o.amount) FILTER (WHERE u.user_id IS NOT NULL) AS spend_known,
+       SUM(o.amount) FILTER (WHERE u.user_id IS NULL)     AS spend_orphan
+FROM orders o
+LEFT JOIN users u ON u.user_id = o.user_id;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Refunded orders</div><p class="qa-edge-desc">If amount can be negative (refunds), SUM is the net. Some teams report gross + refund separately; clarify before coding.</p></li></ul></details>
   </div>
 </details>
 
@@ -1097,6 +1245,10 @@ ORDER BY e.department, e.full_name;</code></pre>
 27          324     IC_324  Engineering     IC_306</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>LEFT JOIN</code>:</strong> the CEO has no manager (<code>manager_id IS NULL</code>) and would otherwise vanish.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Self-join hides the CEO</div><p class="qa-edge-desc">INNER JOIN drops the CEO (manager_id IS NULL). LEFT JOIN keeps them but their manager column is NULL — which the export must handle, not crash.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT e.full_name AS employee,
+       COALESCE(m.full_name, &#x27;&lt;no manager&gt;&#x27;) AS manager
+FROM employees e
+LEFT JOIN employees m ON m.employee_id = e.manager_id;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Stale manager_id (manager left)</div><p class="qa-edge-desc">If a manager has been terminated and the row removed, the report shows NULL manager. Real HRIS systems keep terminated employees with a deleted_at flag for exactly this reason.</p></li></ul></details>
   </div>
 </details>
 
@@ -1136,6 +1288,13 @@ WHERE m.salary &lt; e.salary;</code></pre>
 1   IC_317      131077  IC_301      116962           -14115</code></pre>
     </div>
     <p class="qa-note"><strong>Follow-up:</strong> &ldquo;What about skip-level comparisons?&rdquo; — that is the recursive CTE in Q42–Q43.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Promo lag, not bug</div><p class="qa-edge-desc">A new senior IC may legitimately out-earn their L4 manager. Don't auto-flag; surface the pair for HRBP review with comp band context.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT e.full_name AS report,  e.salary, e.department,
+       m.full_name AS manager, m.salary,
+       (e.salary - m.salary) AS report_premium
+FROM employees e
+JOIN employees m ON m.employee_id = e.manager_id
+WHERE e.salary &gt; m.salary
+ORDER BY report_premium DESC;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Currency / part-time normalization</div><p class="qa-edge-desc">Salaries should be normalized to FTE / annualized USD before comparison. A 0.6-FTE manager out-earning a 1.0-FTE report is expected, not a flag.</p></li></ul></details>
   </div>
 </details>
 
@@ -1177,6 +1336,12 @@ LIMIT 3;</code></pre>
 2            Books  5673.31         56</code></pre>
     </div>
     <p class="qa-note"><strong>Subtle:</strong> &lsquo;by revenue&rsquo; can mean SUM(amount) or COUNT(*) &times; avg price. Always confirm <em>which</em> revenue definition before writing.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Definition of revenue</div><p class="qa-edge-desc">&lsquo;Top by revenue&rsquo; can mean SUM(amount) (gross), or SUM(amount * (1 - return_rate)) (net), or COUNT * AVG (units &times; ASP). Confirm before writing.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Tied #3 silently dropped</div><p class="qa-edge-desc">LIMIT 3 drops one of two tied categories at #3. Use DENSE_RANK if the carousel can show ties.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH ranked AS (
+  SELECT product_category, SUM(amount) AS revenue,
+         DENSE_RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+  FROM purchases GROUP BY product_category
+)
+SELECT * FROM ranked WHERE rk &lt;= 3;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -1215,13 +1380,16 @@ SELECT user_id FROM logins;</code></pre>
 3        55
 4        67
 ..      ...
-95       20
-96       36
-97       68
-98       69
-99       98</code></pre>
+95       73
+96       76
+97       82
+98       89
+99       94</code></pre>
     </div>
     <p class="qa-note"><strong>Tradeoff:</strong> <code>INTERSECT</code> is concise and dedups for free; <code>EXISTS</code> wins when one side is much larger or you want to stream early.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">INTERSECT removes duplicates</div><p class="qa-edge-desc">INTERSECT in standard SQL is set semantics — duplicates collapse. INTERSECT ALL preserves duplicates. Check your DB; not every engine implements ALL.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time-window mismatch</div><p class="qa-edge-desc">&lsquo;Active in events AND logins&rsquo; needs a window — last 7 days? Lifetime? The intersection definition is meaningless without one. Add a date filter.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT user_id FROM events  WHERE event_date &gt;= CURRENT_DATE - INTERVAL &#x27;7&#x27; DAY
+INTERSECT
+SELECT user_id FROM logins  WHERE login_date &gt;= CURRENT_DATE - INTERVAL &#x27;7&#x27; DAY;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -1269,6 +1437,14 @@ ORDER BY conv_pct DESC;</code></pre>
 6      UK       20          10     50.00</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>NULLIF(..., 0)</code>:</strong> defends against divide-by-zero if a country has no signups (will not happen here, but it is a habit).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cohort definition</div><p class="qa-edge-desc">&lsquo;Conversion&rsquo; is undefined without a window: ever, first 7 days, first 30 days, first session? State which.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- 30-day-window conversion (more honest than &amp;lsquo;ever&amp;rsquo;)
+SELECT u.country,
+       100.0 * COUNT(DISTINCT p.user_id) FILTER (
+           WHERE p.purchase_date &lt;= u.signup_date + INTERVAL &#x27;30&#x27; DAY
+       ) / NULLIF(COUNT(DISTINCT u.user_id), 0) AS conv_30d_pct
+FROM users u
+LEFT JOIN purchases p ON p.user_id = u.user_id
+GROUP BY u.country;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tiny-cohort countries</div><p class="qa-edge-desc">DE with 8 users gives a 100% conversion that is statistically meaningless. Add a min_cohort filter for the chart, but report raw counts for completeness.</p></li></ul></details>
   </div>
 </details>
 
@@ -1318,6 +1494,12 @@ LIMIT 10;</code></pre>
 9          10      prod_10  Electronics            NaN            NaT</code></pre>
     </div>
     <p class="qa-note"><strong>Setup for Q41:</strong> using <code>is_current = 'Y'</code> is fast but only correct for &lsquo;now&rsquo; queries. For &lsquo;as-of-some-historical-date&rsquo; you must use <code>effective_date</code> / <code>expiry_date</code> windows.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple is_current='Y' per product</div><p class="qa-edge-desc">If your SCD2 builder has a bug, two rows can have is_current='Y' for the same product. Add an assert.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DQ: must be 1 current row per product
+SELECT product_id, COUNT(*) AS current_rows
+FROM product_dim
+WHERE is_current = &#x27;Y&#x27;
+GROUP BY product_id
+HAVING COUNT(*) &gt; 1;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">is_current='Y' is a denormalization</div><p class="qa-edge-desc">It is a maintained flag — easily out of sync with effective/expiry. For correctness-critical queries, derive 'current' from expiry_date IS NULL OR expiry_date > CURRENT_DATE.</p></li></ul></details>
   </div>
 </details>
 
@@ -1368,6 +1550,11 @@ LIMIT 10;</code></pre>
 9       38       715.93          10                10</code></pre>
     </div>
     <p class="qa-note"><strong>RANK vs DENSE_RANK vs ROW_NUMBER:</strong> ranks skip after ties (1,2,2,4); dense_rank does not (1,2,2,3); row_number breaks ties arbitrarily. Pick deliberately.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">RANK skips, DENSE_RANK doesn't, ROW_NUMBER picks one</div><p class="qa-edge-desc">If three users tie at #1: RANK gives 1,1,1,4; DENSE_RANK gives 1,1,1,2; ROW_NUMBER gives 1,2,3 non-deterministically. Pick by downstream consumer.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT user_id, total_spend,
+       RANK()       OVER (ORDER BY total_spend DESC) AS r,
+       DENSE_RANK() OVER (ORDER BY total_spend DESC) AS dr,
+       ROW_NUMBER() OVER (ORDER BY total_spend DESC, user_id) AS rn
+FROM (SELECT user_id, SUM(amount) AS total_spend FROM orders GROUP BY 1) t;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">NULL spend (no orders)</div><p class="qa-edge-desc">If you LEFT JOIN to keep all users, SUM is NULL. ORDER BY DESC places NULLs last in Postgres but FIRST in MySQL. Be explicit.</p></li></ul></details>
   </div>
 </details>
 
@@ -1422,6 +1609,10 @@ LIMIT 10;</code></pre>
 9       10  user_10       SF 2025-01-09</code></pre>
     </div>
     <p class="qa-note"><strong>Always tiebreak.</strong> Without the secondary <code>ORDER BY</code>, two rows with identical <code>updated_at</code> produce a non-deterministic winner — the kind of bug that only shows up after a backfill.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Tied updated_at = non-deterministic winner</div><p class="qa-edge-desc">Without a secondary tiebreak, two profile rows with identical updated_at produce a coin-flip dedup. Add a deterministic secondary key (e.g., city DESC, primary key DESC).</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>ROW_NUMBER() OVER (
+  PARTITION BY user_id
+  ORDER BY updated_at DESC, city DESC, ROWID DESC   -- always deterministic
+) AS rn</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">All-NULL updated_at</div><p class="qa-edge-desc">If a partition has only NULL update timestamps, ROW_NUMBER still assigns rn=1 to one row arbitrarily. Decide: drop the partition, or pick by another field.</p></li></ul></details>
   </div>
 </details>
 
@@ -1471,6 +1662,11 @@ LIMIT 10;</code></pre>
 9 2024-03-04  10499     11077    -5.22</code></pre>
     </div>
     <p class="qa-note"><strong>Readability tip:</strong> in a real codebase, wrap the <code>LAG()</code> in a CTE so you do not repeat it three times.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">First row's wow_pct is NULL</div><p class="qa-edge-desc">LAG returns NULL on the first row, and LAG/0 is undefined — NULLIF the divisor or COALESCE the result, depending on whether downstream wants NULL or 0.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT week_start, wau,
+       100.0 * (wau - LAG(wau) OVER w)
+             / NULLIF(LAG(wau) OVER w, 0) AS wow_pct
+FROM weekly_metrics
+WINDOW w AS (ORDER BY week_start);</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Missing weeks (gapped data)</div><p class="qa-edge-desc">LAG is positional, not date-aware: if week 2024-01-08 is missing, LAG jumps from 01-01 to 01-15 silently. Date-spine first.</p></li></ul></details>
   </div>
 </details>
 
@@ -1521,6 +1717,13 @@ LIMIT 10;</code></pre>
 9   2025-01-10  8.0      3.0  1.0     12</code></pre>
     </div>
     <p class="qa-note"><strong>vs. native PIVOT:</strong> Snowflake / SQL Server have <code>PIVOT</code>; Postgres uses CASE (or <code>crosstab</code>). The CASE form is the most portable.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Unknown platform values</div><p class="qa-edge-desc">If a new platform ('windows') ships, the CASE pivot silently drops those rows from the named columns. Add a 'other' bucket and an alert when total != iOS+Android+Web+other.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT session_date,
+   SUM(CASE WHEN platform=&#x27;ios&#x27;     THEN 1 ELSE 0 END) AS ios,
+   SUM(CASE WHEN platform=&#x27;android&#x27; THEN 1 ELSE 0 END) AS android,
+   SUM(CASE WHEN platform=&#x27;web&#x27;     THEN 1 ELSE 0 END) AS web,
+   SUM(CASE WHEN platform NOT IN (&#x27;ios&#x27;,&#x27;android&#x27;,&#x27;web&#x27;) THEN 1 ELSE 0 END) AS other,
+   COUNT(*) AS total
+FROM sessions GROUP BY session_date;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity in platform values</div><p class="qa-edge-desc">'iOS' vs 'ios' fails the equality test. Lowercase upstream or in the CASE comparator.</p></li></ul></details>
   </div>
 </details>
 
@@ -1573,6 +1776,15 @@ ORDER BY category, rk;</code></pre>
 14    Sports          38      prod_38     2003   3</code></pre>
     </div>
     <p class="qa-note"><strong>Why DENSE_RANK:</strong> if two products tie for #2, you keep both <em>and</em> still get a #3.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Ties at #2 mean #3 may not exist</div><p class="qa-edge-desc">DENSE_RANK gives 1,2,2,3 — three rows survive. RANK gives 1,2,2,4 — two rows survive (no #3). Pick semantically.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Categories with fewer than 3 products</div><p class="qa-edge-desc">A category with 2 products returns 2 rows, not 3. The carousel must handle short-shelf gracefully.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Pad short shelves with NULL placeholders
+SELECT category, position, product_name
+FROM (
+  SELECT category, ROW_NUMBER() OVER (PARTITION BY category
+                                      ORDER BY revenue DESC) AS position,
+         product_name
+  FROM products
+) t
+WHERE position &lt;= 3;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -1607,6 +1819,8 @@ FROM orders;</code></pre>
 0         51.785</code></pre>
     </div>
     <p class="qa-note"><strong>Portable fallback:</strong> if your DB lacks PERCENTILE_CONT, use a ROW_NUMBER + COUNT trick to pick the middle row(s).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Median definition: continuous vs discrete</div><p class="qa-edge-desc">PERCENTILE_CONT(0.5) interpolates between the two middle rows; PERCENTILE_DISC(0.5) returns one of them. For currency, CONT is usually wrong (it produces fractions of a cent).</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DISC for whole-cent values
+SELECT PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY amount) FROM orders;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">MySQL has no PERCENTILE_CONT</div><p class="qa-edge-desc">MySQL 8 lacks WITHIN GROUP. Use the ROW_NUMBER + COUNT trick from the answer block.</p></li></ul></details>
   </div>
 </details>
 
@@ -1659,6 +1873,10 @@ LIMIT 10;</code></pre>
 9       12       216 2025-01-27   35.07</code></pre>
     </div>
     <p class="qa-note"><strong>Window beats correlated subquery:</strong> a single pass over <code>orders</code> instead of N subqueries. On large tables this is a 10–100&times; difference.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Tied largest amount per user</div><p class="qa-edge-desc">If a user has two orders with the same max amount, ROW_NUMBER picks one arbitrarily. Tiebreak by order_date and order_id deterministically.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>ROW_NUMBER() OVER (
+  PARTITION BY user_id
+  ORDER BY amount DESC, order_date DESC, order_id  -- fully deterministic
+) AS rn</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">User with no orders</div><p class="qa-edge-desc">Inner-style filtering drops them. If the email needs every user, left-join from users and COALESCE the subject line.</p></li></ul></details>
   </div>
 </details>
 
@@ -1706,6 +1924,10 @@ LIMIT 10;</code></pre>
 9       111    6.55     0.020       1</code></pre>
     </div>
     <p class="qa-note"><strong>CUME_DIST vs PERCENT_RANK:</strong> CUME_DIST counts ties as &lsquo;at or below&rsquo; (&le;); PERCENT_RANK uses (rank-1)/(N-1). Use CUME_DIST for &lsquo;what % of orders are &le; this&rsquo;.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">CUME_DIST counts &le;, PERCENT_RANK counts &lt;</div><p class="qa-edge-desc">Subtle but real: CUME_DIST(x) = fraction of rows &le; x; PERCENT_RANK(x) = (rank(x)-1)/(N-1). At the median they differ.</p></li><li class="qa-edge-item"><div class="qa-edge-label">NTILE distributes ties arbitrarily</div><p class="qa-edge-desc">Two users with identical spend can land in different deciles. For high-stakes segmentation, use PERCENT_RANK &le; 0.10 instead.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT user_id, total_spend,
+       PERCENT_RANK() OVER (ORDER BY total_spend DESC) AS pr
+FROM (SELECT user_id, SUM(amount) AS total_spend FROM orders GROUP BY 1) t
+WHERE PERCENT_RANK() OVER (ORDER BY total_spend DESC) &lt;= 0.10;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -1753,6 +1975,13 @@ LIMIT 10;</code></pre>
 9       224        3 2025-01-28  164.63     70.95   93.68</code></pre>
     </div>
     <p class="qa-note"><strong>Window without ORDER BY</strong> means the average covers the whole partition (the user) — exactly what we want here.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Single-order users have delta=0</div><p class="qa-edge-desc">AVG over a partition of 1 equals that one value, so delta is 0. Filter to users with &gt;= some min order count for anomaly logic.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH stats AS (
+  SELECT order_id, user_id, amount,
+         AVG(amount) OVER (PARTITION BY user_id) AS u_avg,
+         COUNT(*)    OVER (PARTITION BY user_id) AS u_n
+  FROM orders
+)
+SELECT * FROM stats WHERE u_n &gt;= 5 AND amount &gt; u_avg * 2;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Order amount distribution is log-normal</div><p class="qa-edge-desc">Linear delta over-flags whales' big-but-normal orders. Use log(amount) - log(u_avg) for ratio thinking.</p></li></ul></details>
   </div>
 </details>
 
@@ -1804,6 +2033,9 @@ LIMIT 10;</code></pre>
 9       18</code></pre>
     </div>
     <p class="qa-note"><strong>Cohort-correctness:</strong> if signup can fire multiple times per user (it should not, but data is data), this still works because <code>DISTINCT</code> + <code>NOT EXISTS</code> are set-based.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple signup events per user (DQ)</div><p class="qa-edge-desc">A user firing two 'signup' events is dirty data. NOT EXISTS still works (set-based) but you should DQ-flag it separately.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT user_id, COUNT(*) AS signup_events
+FROM events WHERE event_type = &#x27;signup&#x27;
+GROUP BY user_id HAVING COUNT(*) &gt; 1;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Never purchased&rsquo; window</div><p class="qa-edge-desc">Lifetime &lsquo;never&rsquo; is a different cohort from &lsquo;not within 30 days of signup&rsquo;. State the window.</p></li></ul></details>
   </div>
 </details>
 
@@ -1854,6 +2086,12 @@ LIMIT 10;</code></pre>
 9 2025-01-10       50385.72    50448.27</code></pre>
     </div>
     <p class="qa-note"><strong>ROWS vs RANGE:</strong> ROWS counts rows; RANGE matches values. For dense daily data they are equivalent — but if dates are gapped, RANGE with an interval is the safer &lsquo;true 7-day window&rsquo;.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">ROWS vs RANGE on gapped data</div><p class="qa-edge-desc">ROWS BETWEEN 6 PRECEDING counts rows, regardless of date gaps. If a day is missing, your &lsquo;7-day&rsquo; window actually spans 8 calendar days. RANGE BETWEEN INTERVAL '6' DAY is date-aware.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT ds, daily_revenue,
+       AVG(daily_revenue) OVER (
+           ORDER BY ds
+           RANGE BETWEEN INTERVAL &#x27;6&#x27; DAY PRECEDING AND CURRENT ROW
+       ) AS rev_7d_avg
+FROM daily_metrics;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">First 6 days produce small windows</div><p class="qa-edge-desc">The first 6 days have fewer than 7 rows in the window — the average is over those few rows, which is misleading at the trend head. Either return NULL until 7 rows are available, or label with the actual sample size.</p></li></ul></details>
   </div>
 </details>
 
@@ -1904,6 +2142,9 @@ LIMIT 10;</code></pre>
 9 2025-01-10       50385.72    537686.23</code></pre>
     </div>
     <p class="qa-note"><strong>The reset is the partition.</strong> Group on the period you want to reset over; window-order within it.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Late-arriving rows for prior months</div><p class="qa-edge-desc">If a backfill writes a row dated 2024-12-15 today, the MTD for December changes retroactively. Snapshot the curated table or your dashboard becomes a moving target.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone of month boundary</div><p class="qa-edge-desc">DATE_TRUNC('month', ds) is in the server's TZ. For a US-based team, an order at 2024-12-31T23:30 PT is December but the UTC row is January.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT DATE_TRUNC(&#x27;month&#x27;, ds AT TIME ZONE &#x27;America/Los_Angeles&#x27;) AS m_pt,
+       SUM(daily_revenue)
+FROM daily_metrics GROUP BY 1;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -1963,6 +2204,7 @@ LIMIT 10;</code></pre>
 7  2025-03-24   3   0   0   0</code></pre>
     </div>
     <p class="qa-note"><strong>Convert to %:</strong> divide each <code>wN</code> by the cohort size (a separate CTE). Most interviewers will follow up by asking for that.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cohort week alignment</div><p class="qa-edge-desc">DATE_TRUNC('week', ...) snaps to Monday in ISO mode but Sunday in MySQL. A user signing up 2024-01-07 (Sun) lands in different cohorts depending on engine. State the convention.</p></li><li class="qa-edge-item"><div class="qa-edge-label">User active before signup_date</div><p class="qa-edge-desc">If a user logs in before their signup_date (impossible? but stitching IDs creates this), weeks_since goes negative. Filter WHERE weeks_since &gt;= 0 explicitly.</p></li></ul></details>
   </div>
 </details>
 
@@ -2015,6 +2257,8 @@ FROM pivoted;</code></pre>
 0           500               283             134</code></pre>
     </div>
     <p class="qa-note"><strong>Order matters.</strong> A &lsquo;purchase&rsquo; before &lsquo;signup&rsquo; is dirty data — the <code>&gt;=</code> guards keep the funnel monotonic.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Activation BEFORE signup</div><p class="qa-edge-desc">Without a monotonicity guard, a user with activation_at &lt; signup_at counts as activated. Add the &gt;= guard or your funnel rate exceeds 100% in some weeks.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>COUNT(*) FILTER (WHERE activation_at IS NOT NULL
+                   AND activation_at &gt;= signup_at) AS step2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Step skipping</div><p class="qa-edge-desc">What if a user purchases without an activation event? Two valid definitions: strict (must hit each step) vs lax (any later step counts). Confirm with PM before coding.</p></li></ul></details>
   </div>
 </details>
 
@@ -2072,6 +2316,12 @@ LIMIT 10;</code></pre>
 9 2025-01-10       50385.72      12868        False</code></pre>
     </div>
     <p class="qa-note"><strong>Spark/BigQuery:</strong> use <code>sequence(start, stop, step)</code>. Snowflake: <code>GENERATOR</code>. Same pattern, different syntax.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Spine misses days outside [min, max]</div><p class="qa-edge-desc">generate_series from MIN to MAX of the existing data. If the report wants Jan 1 → today, anchor the spine to those literal dates instead.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH spine AS (
+  SELECT CAST(d AS DATE) AS ds
+  FROM range(DATE &#x27;2025-01-01&#x27;, CURRENT_DATE + INTERVAL 1 DAY, INTERVAL 1 DAY) t(d)
+)
+SELECT s.ds, COALESCE(g.daily_revenue, 0) AS rev
+FROM spine s LEFT JOIN daily_metrics_gapped g USING (ds);</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Filling with 0 vs ffill</div><p class="qa-edge-desc">0 is appropriate for revenue/sessions (no activity); ffill is appropriate for stocks/balances (state persists). Pick by metric semantics.</p></li></ul></details>
   </div>
 </details>
 
@@ -2138,6 +2388,11 @@ LIMIT 10;</code></pre>
 9        3         4.0 2025-03-01 11:18:00 2025-03-01 11:52:00          9</code></pre>
     </div>
     <p class="qa-note"><strong>The cumulative-sum trick</strong> is the canonical sessionization pattern. Memorize it.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Threshold choice</div><p class="qa-edge-desc">30 minutes is canonical for web; mobile push notifications can reasonably use 5 minutes; video heartbeats can use 90 seconds. Threshold belongs to the product, not the SQL.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Out-of-order events</div><p class="qa-edge-desc">Late-arriving events with timestamps before their predecessor produce negative gaps. ORDER BY event_time correctly, but a session_start AFTER session_end is a DQ flag.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DQ check: surface inverted sessions
+SELECT user_id, session_id, MIN(event_time) AS s_start, MAX(event_time) AS s_end
+FROM sessionized
+GROUP BY 1, 2
+HAVING MIN(event_time) &gt; MAX(event_time);</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2191,14 +2446,17 @@ LIMIT 10;</code></pre>
 1       47              17
 2       95              13
 3       76              13
-4      100              12
-5       14              12
-6       28              11
-7       13              11
+4       14              12
+5      100              12
+6       13              11
+7       28              11
 8       12              11
-9       11              10</code></pre>
+9       67              10</code></pre>
     </div>
     <p class="qa-note"><strong>The trick:</strong> <code>date − row_number</code> is constant within consecutive runs. Group by it, you get the islands. Dedup logins first or streaks lie.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Duplicate (user_id, login_date) pairs</div><p class="qa-edge-desc">If the source has two login rows for the same user on the same day, the row_number trick over-counts the streak length. DEDUP first.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DEDUP before the gaps-and-islands trick
+WITH dedup AS (SELECT DISTINCT user_id, login_date FROM logins)
+SELECT user_id, login_date FROM dedup;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone vs &lsquo;day&rsquo;</div><p class="qa-edge-desc">Two logins at 23:30 and 00:30 UTC look like two consecutive days in UTC but the same day for a Pacific user. Bucket login_date in user-local TZ if available.</p></li></ul></details>
   </div>
 </details>
 
@@ -2242,6 +2500,7 @@ LIMIT 5;</code></pre>
 4   key_22     1           0.1</code></pre>
     </div>
     <p class="qa-note"><strong>What you will find:</strong> <code>hot_key</code> holds ~70% of rows. Mitigations: salt the hot key, broadcast the small side, or pre-aggregate before the join.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Skew via dimension, not just value</div><p class="qa-edge-desc">A heavy hot key may be one value (hot_key) but skew can also happen on (key, time) — peak-hour traffic on one merchant. Group by (join_key, hour) for time-aware skew.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Skew thresholds depend on cluster size</div><p class="qa-edge-desc">&lsquo;Top 1% holds 50%&rsquo; is one heuristic; &lsquo;any single key &gt; partition target size&rsquo; is the operational one. Compute against your shuffle target.</p></li></ul></details>
   </div>
 </details>
 
@@ -2290,6 +2549,10 @@ LIMIT 10;</code></pre>
 9 2025-03-03   9683.0     284459.57</code></pre>
     </div>
     <p class="qa-note"><strong>Critical distinction:</strong> WAU (unique users in the week) ≠ AVG(DAU). Both are valid; both are different. State which you computed.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">WAU != AVG(DAU)</div><p class="qa-edge-desc">AVG(DAU) on a 7-day window counts a user multiple times if they appear on multiple days; WAU is unique users in the week. Both are valid; both are different. Label your axis.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Real WAU
+SELECT DATE_TRUNC(&#x27;week&#x27;, login_date) AS week_start,
+       COUNT(DISTINCT user_id)        AS wau
+FROM logins GROUP BY 1;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Partial weeks at the boundaries</div><p class="qa-edge-desc">The first and last week may not have 7 full days. Drop or label them, don't average them silently.</p></li></ul></details>
   </div>
 </details>
 
@@ -2335,6 +2598,7 @@ ORDER BY avg_revenue DESC;</code></pre>
 6       Sat        6     44846.22             17</code></pre>
     </div>
     <p class="qa-note"><strong>Tip:</strong> include <code>days_observed</code> — if a quarter has 14 Mondays and 13 Sundays, the average is on uneven sample sizes.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Uneven sample sizes by DOW</div><p class="qa-edge-desc">A 90-day window has 13 Mondays and 12 Sundays — averaging without disclosing days_observed makes the rank misleading.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Holiday & promo contamination</div><p class="qa-edge-desc">Black Friday is a Friday; Christmas falls mid-week. Day-of-week ranking averages everything together. Slice by promo period for honest weekday comparison.</p></li></ul></details>
   </div>
 </details>
 
@@ -2382,6 +2646,16 @@ LIMIT 5;</code></pre>
 4            5       59    2024-11-01      Electronics    5.33           1                   66.01</code></pre>
     </div>
     <p class="qa-note"><strong>The SCD2 invariant:</strong> exactly one row matches per <code>(product, point-in-time)</code>. If you ever see duplicates, your effective/expiry windows overlap — that is a data-quality bug, not a query bug.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(3)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Overlapping effective windows</div><p class="qa-edge-desc">If two product_dim rows have overlapping [effective, expiry) for the same product, the as-of join returns multiple rows per purchase — the SCD2 invariant is broken. DQ-assert on every load.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- DQ: detect overlapping windows
+WITH g AS (
+  SELECT product_id, effective_date, expiry_date,
+         LEAD(effective_date) OVER (
+             PARTITION BY product_id ORDER BY effective_date
+         ) AS next_eff
+  FROM product_dim
+)
+SELECT * FROM g
+WHERE expiry_date IS NOT NULL AND next_eff &lt; expiry_date;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Inclusive vs exclusive expiry</div><p class="qa-edge-desc">[effective_date, expiry_date) (half-open) is industry standard and avoids double-coverage at the boundary. expiry_date IS NULL = still current. Always document the convention.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Pre-history gap</div><p class="qa-edge-desc">A purchase dated before any product_dim row leaves the as-of join NULL. Either bootstrap a synthetic 'genesis' row (effective_date = -infinity) or DQ-flag.</p></li></ul></details>
   </div>
 </details>
 
@@ -2442,6 +2716,17 @@ LIMIT 10;</code></pre>
 9          306     IC_306  Engineering      2  Dana Chen &gt; Frank Li &gt; IC_306</code></pre>
     </div>
     <p class="qa-note"><strong>Termination:</strong> a recursive CTE stops when the recursive step yields no new rows. Cycles in <code>manager_id</code> would loop forever — guard with a <code>depth &lt; N</code> cap in production.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cycles in manager_id</div><p class="qa-edge-desc">If A reports to B and B reports to A (data error), the recursive CTE loops forever. Add a depth cap and a visited-set guard.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>WITH RECURSIVE org AS (
+    SELECT employee_id, manager_id, full_name, 0 AS depth, &#x27;/&#x27; || full_name AS path
+    FROM employees WHERE manager_id IS NULL
+  UNION ALL
+    SELECT e.employee_id, e.manager_id, e.full_name, o.depth + 1,
+           o.path || &#x27;/&#x27; || e.full_name
+    FROM employees e JOIN org o ON e.manager_id = o.employee_id
+    WHERE o.depth &lt; 20                 -- cycle guard
+      AND POSITION(&#x27;/&#x27; || e.full_name || &#x27;/&#x27; IN o.path) = 0  -- visited check
+)
+SELECT * FROM org;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Multiple roots</div><p class="qa-edge-desc">If two employees have manager_id IS NULL (CEO + acting CEO), the recursive CTE starts from both and you get two trees. State the intent.</p></li></ul></details>
   </div>
 </details>
 
@@ -2493,13 +2778,14 @@ LIMIT 10;</code></pre>
 2          202   Frank Li              8
 3          203  Grace Kim              5
 4          302     IC_302              3
-5          301     IC_301              3
-6          306     IC_306              3
+5          306     IC_306              3
+6          301     IC_301              3
 7          312     IC_312              0
-8          310     IC_310              0
+8          324     IC_324              0
 9          319     IC_319              0</code></pre>
     </div>
     <p class="qa-note"><strong>Pattern:</strong> seed with <em>self</em>, recurse <em>downward</em>, count − 1 to exclude the root from their own org count.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Off-by-one (counting self)</div><p class="qa-edge-desc">The seed step puts (root_id, root_id) into descendants — the root counts itself. Subtract 1 in the final aggregate or filter self out in the seed.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Database default recursion limit</div><p class="qa-edge-desc">Postgres default cycle protection is off; SQL Server has MAXRECURSION 100 default. For deep orgs (>100 levels — rare but real), increase the cap explicitly.</p></li></ul></details>
   </div>
 </details>
 
@@ -2565,6 +2851,8 @@ LIMIT 10;</code></pre>
 9  2024-12-02         3  0.0  0.0  0.0  0.0</code></pre>
     </div>
     <p class="qa-note"><strong>Watch the denominator.</strong> Some teams normalize by W0 (always 100%) instead of cohort_n — both are valid; pick one and label it.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cohorts with 0 users</div><p class="qa-edge-desc">An empty cohort_week still appears in the join; the percentage is 0/0. Filter cohort_n &gt; 0 or NULLIF the divisor.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Survivorship bias</div><p class="qa-edge-desc">Cohorts near the data edge have not had time to be observed at W3. Either mark them as incomplete (W3 = NULL) or compute only the cohorts with full observation.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- Only fully-observed cohorts
+WHERE cohort_week + INTERVAL &#x27;3&#x27; WEEK &lt;= (SELECT MAX(login_date) FROM logins)</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2619,6 +2907,7 @@ LIMIT 10;</code></pre>
 9 2025-03-10          0               68</code></pre>
     </div>
     <p class="qa-note"><strong>Definition discipline:</strong> &lsquo;new&rsquo; = first-ever-anywhere; &lsquo;returning&rsquo; = active today and active before. Some teams want first-ever-this-month — clarify before coding.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;New&rsquo; redefined per period</div><p class="qa-edge-desc">&lsquo;New today&rsquo; could mean &lsquo;first ever&rsquo; or &lsquo;first this month&rsquo; or &lsquo;first since subscription&rsquo;. Three valid metrics. Pick one and label.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Identity stitching</div><p class="qa-edge-desc">If users log in from multiple devices and you stitch IDs, MIN(login_date) per stitched user differs from MIN per device ID. The stitching pipeline ordering matters.</p></li></ul></details>
   </div>
 </details>
 
@@ -2657,6 +2946,13 @@ Columns: [order_id, user_id, order_date, amount]
 Index: []</code></pre>
     </div>
     <p class="qa-note"><strong>Production wrap:</strong> turn this into a <code>dq_orphan_orders</code> view; alert when row count &gt; 0; ticket the upstream owner. The query is the easy part.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Soft-deleted users count as orphans</div><p class="qa-edge-desc">If users has a deleted_at column and you filter deleted_at IS NULL, every order from a churned account becomes an orphan. Distinguish deleted vs never-existed.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT o.order_id, o.user_id,
+       CASE WHEN u.user_id IS NULL          THEN &#x27;never_existed&#x27;
+            WHEN u.deleted_at IS NOT NULL   THEN &#x27;soft_deleted&#x27;
+       END AS orphan_kind
+FROM orders o
+LEFT JOIN users u ON u.user_id = o.user_id
+WHERE u.user_id IS NULL OR u.deleted_at IS NOT NULL;</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Test/staff orders</div><p class="qa-edge-desc">Many orgs have test users with user_id in a special range. Filter them OUT of orphan checks AND in business metrics.</p></li></ul></details>
   </div>
 </details>
 
@@ -2717,6 +3013,7 @@ LIMIT 10;</code></pre>
 9 2025-03-17        71011.11            0.00  71011.11</code></pre>
     </div>
     <p class="qa-note"><strong>Why a tolerance:</strong> floating point + currency rounding mean exact equality is the wrong check. Pick a meaningful epsilon (e.g., one cent).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Floating-point currency drift</div><p class="qa-edge-desc">Storing amount as DOUBLE makes SUM non-associative; reconciling with =, even rounded, drifts. Use DECIMAL or convert to integer cents before summing.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Refund vs gross definition</div><p class="qa-edge-desc">If purchases excludes refunds but daily_revenue is net, your reconciliation will always show a gap equal to refund volume. Same definition on both sides or document the gap.</p></li></ul></details>
   </div>
 </details>
 
@@ -2764,6 +3061,14 @@ Columns: [order_id, user_id, order_date, amount, u_avg, u_std, u_n]
 Index: []</code></pre>
     </div>
     <p class="qa-note"><strong>Statistical caveat:</strong> 3&sigma; assumes roughly normal — order amounts are usually log-normal. For production, log-transform first or use IQR / MAD.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">n=1 partition: STDDEV returns NULL</div><p class="qa-edge-desc">Postgres STDDEV with one row returns NULL (sample variance); amount &gt; u_avg + 3 * NULL is NULL, so no rows flagged. Filter u_n &gt;= 5 (or use STDDEV_POP).</p></li><li class="qa-edge-item"><div class="qa-edge-label">Log-normal vs normal</div><p class="qa-edge-desc">Order amounts are heavy-tailed. 3&sigma; on raw amount mis-flags. Better: log-transform first, or use IQR-based fences (Q1 - 1.5×IQR).</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>-- IQR-based outlier
+SELECT order_id, amount
+FROM orders
+WHERE amount &gt; (SELECT PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount) FROM orders)
+              + 1.5 * (
+              SELECT PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount)
+                   - PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount)
+              FROM orders);</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2808,11 +3113,11 @@ LIMIT 10;</code></pre>
     </div>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
-<pre class="out-pre"><code>Empty DataFrame
-Columns: [user_id, o_decile, s_decile]
-Index: []</code></pre>
+<pre class="out-pre"><code>   user_id  o_decile  s_decile
+0       69         1         1</code></pre>
     </div>
     <p class="qa-note"><strong>NTILE caveat:</strong> NTILE distributes ties arbitrarily, so two users with identical spend may land in different deciles. For high-stakes segmentation, prefer <code>PERCENT_RANK &le; 0.10</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">NTILE ties</div><p class="qa-edge-desc">NTILE distributes ties arbitrarily, so two users with the same spend can land in different deciles. PERCENT_RANK is tie-respecting.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Joining on user_id only</div><p class="qa-edge-desc">If a user has orders but no sessions (or vice versa), they drop out of the inner join. State whether the segment requires both signals or one.</p></li></ul></details>
   </div>
 </details>
 
@@ -2873,6 +3178,9 @@ LIMIT 10;</code></pre>
 9 2025-01-10        3.9156   86.3887    -82.4731</code></pre>
     </div>
     <p class="qa-note"><strong>Why ship the delta:</strong> a metric is only as trusted as the reconciliation report behind it. Senior interviewers love this answer because it shows you think about <em>trust</em>, not just <em>calculation</em>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Active-user definition mismatch</div><p class="qa-edge-desc">daily_dau may count any login event; orders.user_id COUNT(DISTINCT) counts purchasing users only. Different denominators &rArr; different ARPUs. Reconcile <em>definitions</em> first.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Tolerance for the delta</div><p class="qa-edge-desc">Float drift makes exact 0 unrealistic. Define a tolerance (e.g., abs(delta)/curated &lt; 0.001) and alert above it.</p><div class="qa-edge-code-label">SQL</div><pre class="edge-pre"><code>SELECT *, ABS(arpu_delta) / NULLIF(arpu_curated, 0) AS pct_drift
+FROM reconciled
+WHERE ABS(arpu_delta) / NULLIF(arpu_curated, 0) &gt; 0.001;</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2925,6 +3233,14 @@ dtype: object
 2        3  user_3  user3@example.com  2024-10-05      JP</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>parse_dates</code>:</strong> without it, every <code>signup_date.dt.month</code> downstream silently fails. Always parse dates at read time.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Date columns silently load as object</div><p class="qa-edge-desc">Without parse_dates, 'signup_date' is dtype=object (string). Every <code>.dt</code> call downstream raises AttributeError. Always parse at read time.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># WRONG: signup_date is now a string
+users = pd.read_csv(&quot;users.csv&quot;)
+users[&quot;signup_date&quot;].dt.month   # AttributeError
+
+# RIGHT
+users = pd.read_csv(&quot;users.csv&quot;, parse_dates=[&quot;signup_date&quot;])</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Mixed-format dates</div><p class="qa-edge-desc">If the CSV has both '2024-10-02' and '10/2/2024', auto-parse may fall back to dtype=object silently. Pass explicit format.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>users = pd.read_csv(&quot;users.csv&quot;,
+                    parse_dates=[&quot;signup_date&quot;],
+                    date_format=&quot;%Y-%m-%d&quot;)</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2963,6 +3279,12 @@ print(in_users.head(3))</code></pre>
 19       20  user_20  user20@example.com  2024-11-09      IN</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>.copy()</code>:</strong> if you mutate <code>in_users</code> later, pandas may emit <code>SettingWithCopyWarning</code>. The copy is cheap and explicit.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Forgotten .copy() &rArr; SettingWithCopyWarning</div><p class="qa-edge-desc">Filtering returns a view sometimes and a copy other times. Without explicit .copy(), the next assignment may mutate the original — or warn and refuse.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># DANGEROUS
+in_users = users[users[&quot;country&quot;] == &quot;IN&quot;]
+in_users[&quot;new_col&quot;] = 1   # SettingWithCopyWarning
+
+# SAFE
+in_users = users.loc[users[&quot;country&quot;] == &quot;IN&quot;].copy()</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Unicode case sensitivity</div><p class="qa-edge-desc">users[users.country == 'in'] returns 0 rows because matching is case-sensitive. Lowercase consistently or use str.casefold.</p></li></ul></details>
   </div>
 </details>
 
@@ -3004,6 +3326,9 @@ print(by_cat)</code></pre>
 4           Sports  5160.05  48</code></pre>
     </div>
     <p class="qa-note"><strong>Named aggregation</strong> (<code>agg(name=(col, fn))</code>) is the modern, readable form. Skip the legacy <code>.agg({'amount':['sum','count']})</code> with multi-index columns.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">as_index=True returns a Series, not a DataFrame</div><p class="qa-edge-desc">Default <code>groupby</code> sets the group as the index. For downstream merges and pivots you usually want as_index=False.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>by_cat = (purchases.groupby(&quot;product_category&quot;, as_index=False)
+                   .agg(revenue=(&quot;amount&quot;, &quot;sum&quot;),
+                        n=(&quot;amount&quot;, &quot;size&quot;)))</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">NaN groups</div><p class="qa-edge-desc">groupby drops NaN groups by default. If product_category can be NULL, pass dropna=False to surface them.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>purchases.groupby(&quot;product_category&quot;, dropna=False, as_index=False).size()</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3047,6 +3372,7 @@ print(top10)</code></pre>
 70         71      154 2025-01-09  456.94</code></pre>
     </div>
     <p class="qa-note"><strong><code>nlargest</code> vs <code>sort_values().head()</code>:</strong> on large data, <code>nlargest</code> is a partial sort — O(n log k) instead of O(n log n).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">nlargest with NaN</div><p class="qa-edge-desc">nlargest excludes NaN by default. If you want NaN at the top (unusual but possible for outlier review), pass keep='all' and filter manually.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Ties — keep policy</div><p class="qa-edge-desc"><code>nlargest(10, 'amount', keep='first'|'last'|'all')</code>. 'all' returns &gt;10 rows when ties straddle the cutoff. Pick deliberately.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>orders.nlargest(10, &quot;amount&quot;, keep=&quot;all&quot;)</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3085,6 +3411,9 @@ dtype: int64
 rows: 334   unique users: 200</code></pre>
     </div>
     <p class="qa-note"><strong>Tell the interviewer what you noticed:</strong> 334 rows for 200 users &rarr; duplicates ahead. (Q13 deals with that.)</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">isna() vs isnull() vs ==NaN</div><p class="qa-edge-desc"><code>== NaN</code> always returns False; use isna() / isnull() (synonyms in pandas). For object columns, also check for empty strings.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Treat empty strings AS missing
+mask_missing = up.isna() | (up.astype(object) == &quot;&quot;)
+print(mask_missing.sum())</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Dtype-specific NaN</div><p class="qa-edge-desc">datetime NaT, float NaN, and pd.NA in nullable Int64 are different types — but isna() catches all three.</p></li></ul></details>
   </div>
 </details>
 
@@ -3123,6 +3452,7 @@ print(users[[&quot;user_id&quot;, &quot;signup_date&quot;, &quot;signup_month&qu
 4        5  2024-10-09      2024-10</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>.to_period('M')</code> over <code>.strftime('%Y-%m')</code>:</strong> Period preserves order semantics; strftime gives a string that <em>happens to sort correctly</em> for ISO months but is not a real date.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">to_period('M').astype(str) loses ordering</div><p class="qa-edge-desc">Period('2024-12') &lt; Period('2025-01') correctly. &lsquo;2024-12&rsquo; &lt; &lsquo;2025-01&rsquo; correctly. But &lsquo;2024-12&rsquo; &lt; &lsquo;25&rsquo; (wrong format) sorts lexically. Stick with Period for sorting; cast to string only for display.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone of the date</div><p class="qa-edge-desc">If signup_date is tz-aware UTC, to_period('M') is in UTC. Convert to local TZ first if the cohort is reported locally.</p></li></ul></details>
   </div>
 </details>
 
@@ -3159,6 +3489,9 @@ print(&quot;wrote:&quot;, out, &quot;  bytes:&quot;, os.path.getsize(out))</code
 <pre class="out-pre"><code>wrote: /tmp/users_in.parquet   bytes: 4335</code></pre>
     </div>
     <p class="qa-note"><strong>Why Parquet:</strong> columnar, typed, ~5–10&times; smaller than CSV, and consumers do not have to guess dtypes. Snappy = fast decompression, decent ratio.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Parquet dtype mismatch</div><p class="qa-edge-desc">If different chunks have different dtypes (e.g., user_id sometimes int sometimes float), pyarrow may upcast or fail. Coerce dtypes before writing.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>in_users[&quot;user_id&quot;] = in_users[&quot;user_id&quot;].astype(&quot;int64&quot;)
+in_users.to_parquet(&quot;/tmp/users_in.parquet&quot;, engine=&quot;pyarrow&quot;,
+                    compression=&quot;snappy&quot;, index=False)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Snappy vs zstd</div><p class="qa-edge-desc">Snappy = fast read, decent ratio. Zstd = ~30% smaller but slower decode. For analytics on cold-storage, zstd is usually right; for hot tables, snappy.</p></li></ul></details>
   </div>
 </details>
 
@@ -3195,6 +3528,7 @@ web        203
 Name: count, dtype: int64</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>value_counts</code> over <code>unique()</code>:</strong> you also get the per-value count for free — almost always what you actually want.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">value_counts hides NaN</div><p class="qa-edge-desc">By default value_counts excludes NaN. dropna=False surfaces it as a row — what you want for DQ.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>sessions[&quot;platform&quot;].value_counts(dropna=False)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Inconsistent casing</div><p class="qa-edge-desc">&lsquo;iOS&rsquo; vs &lsquo;ios&rsquo; counted separately. Lowercase upstream or before the count.</p></li></ul></details>
   </div>
 </details>
 
@@ -3227,6 +3561,9 @@ Name: count, dtype: int64</code></pre>
 <pre class="out-pre"><code>Total revenue: 74404</code></pre>
     </div>
     <p class="qa-note"><strong>Pitfall:</strong> if <code>revenue</code> were stored as string ('1,234'), <code>sum()</code> would concatenate strings. Always confirm dtype on numeric columns.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Numeric stored as string</div><p class="qa-edge-desc">If revenue loaded as object (e.g., '1,234'), .sum() concatenates strings. Always check dtypes before summing currency.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Defensive: strip commas, cast
+products[&quot;revenue&quot;] = (products[&quot;revenue&quot;].astype(str)
+                        .str.replace(&quot;,&quot;, &quot;&quot;).astype(&quot;float64&quot;))</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Currency rounding</div><p class="qa-edge-desc">Float sums of currency drift. For ledger-grade totals, store and sum as integer cents, then divide by 100 at display time.</p></li></ul></details>
   </div>
 </details>
 
@@ -3261,6 +3598,10 @@ print(&quot;total login rows:&quot;, len(logins))</code></pre>
 total login rows: 1925</code></pre>
     </div>
     <p class="qa-note"><strong>Memory tip:</strong> on huge data, <code>nunique()</code> can be expensive; HyperLogLog (e.g., <code>datasketch</code>) trades a tiny error for big memory wins.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">nunique blows up on huge data</div><p class="qa-edge-desc">On a billion-row table, .nunique() loads all distinct values into memory. HyperLogLog (datasketch) trades a tiny error for huge memory wins.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>from datasketch import HyperLogLog
+hll = HyperLogLog()
+for u in logins[&quot;user_id&quot;]: hll.update(str(u).encode())
+print(&quot;approx unique:&quot;, hll.count())</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">user_id type coercion</div><p class="qa-edge-desc">If user_id loaded as float because of NaN rows, &lsquo;1.0&rsquo; and &lsquo;1&rsquo; are the same value but the float repr can confuse downstream string joins.</p></li></ul></details>
   </div>
 </details>
 
@@ -3299,6 +3640,10 @@ print(&quot;users with no purchases:&quot;,
 users with no purchases: 74</code></pre>
     </div>
     <p class="qa-note"><strong><code>validate=</code> earns its keep:</strong> it asserts the relationship (1:1, 1:m, m:1, m:m). If your join is unexpectedly many-to-many, this catches it.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Unintended m:m join</div><p class="qa-edge-desc">Without validate=, a duplicated key on either side multiplies rows silently. Always validate the relationship.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Will raise if relationship is unexpectedly m:m
+merged = users.merge(purchases, on=&quot;user_id&quot;, how=&quot;left&quot;,
+                     validate=&quot;one_to_many&quot;)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Suffixes for column collisions</div><p class="qa-edge-desc">If both frames have a 'name' column, pandas appends _x / _y silently — confusing. Set explicit suffixes.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>merged = users.merge(profiles, on=&quot;user_id&quot;,
+                     suffixes=(&quot;_user&quot;, &quot;_profile&quot;))</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3342,6 +3687,7 @@ print(dups.sort_values([&quot;user_id&quot;, &quot;updated_at&quot;]).head(8))</
 11        8  user_8  Seattle 2025-02-15</code></pre>
     </div>
     <p class="qa-note"><strong><code>keep=False</code></strong> shows <em>all</em> rows that participate in a duplicate group, not just the extras. That is what you want for inspection.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">duplicated default keeps first</div><p class="qa-edge-desc"><code>duplicated()</code> defaults to keep='first', which marks ONLY the duplicates as True. keep=False marks all members of a duplicate group as True — what you want for inspection.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Subset matters</div><p class="qa-edge-desc"><code>duplicated()</code> on the full row vs subset=['user_id'] gives very different counts. Be explicit.</p></li></ul></details>
   </div>
 </details>
 
@@ -3385,6 +3731,10 @@ print(up_clean.head())</code></pre>
 6        5  user_5     NYC 2025-01-18</code></pre>
     </div>
     <p class="qa-note"><strong>The <code>assert</code> is the answer.</strong> Always prove uniqueness after a dedup; never trust by inspection.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">drop_duplicates preserves first sorted row</div><p class="qa-edge-desc">If you didn't sort by updated_at DESC, drop_duplicates keeps the wrong row silently. Always sort before drop_duplicates.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>up_clean = (up.sort_values([&quot;user_id&quot;, &quot;updated_at&quot;],
+                           ascending=[True, False])
+              .drop_duplicates(subset=[&quot;user_id&quot;], keep=&quot;first&quot;))
+assert up_clean[&quot;user_id&quot;].is_unique</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tied updated_at</div><p class="qa-edge-desc">If two rows share updated_at, drop_duplicates picks one arbitrarily. Add a deterministic secondary sort key.</p></li></ul></details>
   </div>
 </details>
 
@@ -3430,6 +3780,7 @@ print(spend.round(2))</code></pre>
 1      DE         17   1584.53       93.21</code></pre>
     </div>
     <p class="qa-note"><strong>Inner vs left join:</strong> inner gives spend of countries that purchased; left gives spend per country with NaN for non-purchasing countries. Both valid; state your choice.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Inner vs left changes denominators</div><p class="qa-edge-desc">Inner drops countries with no purchases. Left keeps them with NaN. Pick by the question (&lsquo;avg basket among purchasers&rsquo; vs &lsquo;avg basket per country, NaN if none&rsquo;).</p></li><li class="qa-edge-item"><div class="qa-edge-label">groupby with NaN in key</div><p class="qa-edge-desc">Default drops NaN groups. dropna=False surfaces them — but merging on NaN keys is generally a DQ bug to fix upstream.</p></li></ul></details>
   </div>
 </details>
 
@@ -3465,6 +3816,9 @@ print(&quot;OK — no negative amounts; n=&quot;, len(purchases))</code></pre>
 <pre class="out-pre"><code>OK — no negative amounts; n= 300</code></pre>
     </div>
     <p class="qa-note"><strong>Failing loudly</strong> is the point. A silent <code>print('warning')</code> in a pipeline becomes a corrupted dashboard tomorrow.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Soft &lsquo;warning&rsquo; vs hard fail</div><p class="qa-edge-desc">A print() in a pipeline becomes invisible. raise ValueError or log at ERROR level so the orchestrator marks the task failed.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>bad = purchases[purchases[&quot;amount&quot;] &lt; 0]
+if len(bad):
+    raise ValueError(f&quot;DQ failed: {len(bad)} negative amounts&quot;)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Zero-row table is not pass</div><p class="qa-edge-desc">An empty purchases table satisfies &lsquo;no negative amounts&rsquo; trivially — but is itself a DQ failure. Add an assert len(purchases) &gt; 0 (or a freshness check).</p></li></ul></details>
   </div>
 </details>
 
@@ -3501,6 +3855,7 @@ print(list(missing[:5]))</code></pre>
 [Timestamp(&#x27;2025-01-05 00:00:00&#x27;), Timestamp(&#x27;2025-01-25 00:00:00&#x27;), Timestamp(&#x27;2025-02-08 00:00:00&#x27;), Timestamp(&#x27;2025-02-12 00:00:00&#x27;), Timestamp(&#x27;2025-02-13 00:00:00&#x27;)]</code></pre>
     </div>
     <p class="qa-note"><strong><code>Index.difference</code></strong> beats <code>set(spine) - set(dmg.ds)</code> on big indexes — pandas keeps order and preserves dtype.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Index.difference vs set difference</div><p class="qa-edge-desc"><code>pd.date_range</code> returns a DatetimeIndex. <code>.difference()</code> preserves dtype and order; <code>set(spine) - set(dmg.ds)</code> returns a Python set (unordered, slower).</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time of day in &lsquo;ds&rsquo;</div><p class="qa-edge-desc">If ds is a Timestamp with non-zero time, the spine (midnight-anchored) doesn't match. Floor with <code>.dt.normalize()</code> first.</p></li></ul></details>
   </div>
 </details>
 
@@ -3548,6 +3903,7 @@ print(filled.head(10))</code></pre>
 9 2025-01-10       50385.72    12868.0</code></pre>
     </div>
     <p class="qa-note"><strong>State the choice:</strong> ffill, zero, or interpolate are all valid imputations with very different downstream meaning. Never pick silently.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">ffill before any value</div><p class="qa-edge-desc">If the very first row is NaN, ffill leaves it NaN. Either left-pad with a default or accept the head-NaN semantics.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>filled[&quot;daily_dau&quot;] = filled[&quot;daily_dau&quot;].ffill().fillna(0)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">ffill across user/group boundaries</div><p class="qa-edge-desc">Plain <code>.ffill()</code> on a stacked frame leaks values across users. Use <code>.groupby('user_id').ffill()</code> if the data is multi-entity.</p></li></ul></details>
   </div>
 </details>
 
@@ -3591,6 +3947,11 @@ print(outliers.head().round(2))</code></pre>
 309       310       36 2025-02-08  820.84  5.88</code></pre>
     </div>
     <p class="qa-note"><strong>3&sigma; assumes normality.</strong> Order amounts are usually log-normal — log-transform first, or use IQR / robust z-score (median + MAD).</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Sample contamination</div><p class="qa-edge-desc">Computing mean &amp; std INCLUDING the outliers makes the thresholds too lax. Use a robust stat (median + MAD) or iteratively trim before re-computing.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>from scipy import stats
+mad = stats.median_abs_deviation(orders[&quot;amount&quot;], scale=&quot;normal&quot;)
+median = orders[&quot;amount&quot;].median()
+robust_z = (orders[&quot;amount&quot;] - median) / mad
+outliers = orders[robust_z.abs() &gt; 3.5]</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">n=1 partition</div><p class="qa-edge-desc">If you compute z within tiny groups, std is NaN/0. Filter groups with at least N rows before flagging.</p></li></ul></details>
   </div>
 </details>
 
@@ -3634,6 +3995,9 @@ print(cs2.head(8))</code></pre>
 7        1 2025-03-01 09:59:00      home</code></pre>
     </div>
     <p class="qa-note"><strong>Why <code>reset_index</code>:</strong> after a sort, the original index is misleading. Reset it before you start using <code>iloc</code> or assigning new columns.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">to_datetime fails silently with errors='ignore'</div><p class="qa-edge-desc"><code>pd.to_datetime(s, errors='ignore')</code> returns the original strings on parse failure — silent dtype regression. Use errors='raise' or 'coerce' (NaT) and DQ-flag.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>cs[&quot;event_time&quot;] = pd.to_datetime(cs[&quot;event_time&quot;], errors=&quot;coerce&quot;)
+bad = cs[&quot;event_time&quot;].isna().sum()
+if bad: raise ValueError(f&quot;{bad} unparseable event_time rows&quot;)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Unsorted before window ops</div><p class="qa-edge-desc">Sessionization, gaps-and-islands, all need sorted order. reset_index after sort or downstream iloc lies.</p></li></ul></details>
   </div>
 </details>
 
@@ -3679,6 +4043,7 @@ print(pivot.head(10))</code></pre>
 9          2025-01-10        3    8    1</code></pre>
     </div>
     <p class="qa-note"><strong><code>fill_value=0</code></strong> is a small but critical detail — without it, days where one platform had no sessions become NaN, which often breaks downstream sums.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Pivot without fill_value</div><p class="qa-edge-desc">Days with no sessions on one platform become NaN. Downstream <code>.sum()</code> may then propagate NaN unexpectedly.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Categorical platforms</div><p class="qa-edge-desc">If platform is dtype='category' with unobserved categories, the pivot includes empty columns. observed=True (groupby) or .cat.remove_unused_categories() to clean.</p></li></ul></details>
   </div>
 </details>
 
@@ -3724,6 +4089,7 @@ print(dm2.head(10).round(2))</code></pre>
 9 2025-01-10       50385.72      12868  50448.27</code></pre>
     </div>
     <p class="qa-note"><strong><code>min_periods=1</code></strong> avoids NaN at the start. For &lsquo;official&rsquo; 7-day averages you may want <code>min_periods=7</code> instead — a deliberate choice.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">min_periods choice</div><p class="qa-edge-desc"><code>min_periods=1</code> avoids NaN at the head but produces 1-day &lsquo;averages&rsquo; for the first 6 rows — misleading. <code>min_periods=7</code> returns NaN until 7 rows accrue, which is the honest 7-day average.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>dm[&quot;rev_7d&quot;] = dm[&quot;daily_revenue&quot;].rolling(window=7, min_periods=7).mean()</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Centered vs trailing</div><p class="qa-edge-desc"><code>rolling(7)</code> is trailing by default. For a smoothed trend chart, <code>rolling(7, center=True)</code> centers — but you cannot use it operationally (uses future data).</p></li></ul></details>
   </div>
 </details>
 
@@ -3769,6 +4135,10 @@ print(weekly.head(8).round(2))</code></pre>
 7 2025-02-24     345706.24  10180.57</code></pre>
     </div>
     <p class="qa-note"><strong>Anchor matters:</strong> <code>'W-MON'</code> ends the week on Monday. Your team's week definition (Sun-Sat? Mon-Sun? ISO?) is a real source of metric mismatches across teams.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Resample anchor</div><p class="qa-edge-desc"><code>'W'</code> defaults to Sunday. <code>'W-MON'</code> ends on Monday. Mismatch with the warehouse week definition is a common source of metric drift.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Partial week at the boundaries</div><p class="qa-edge-desc">First and last week may have &lt;7 days. Resample sums NaN as 0 by default; the first/last week is undercounted. Drop or label.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>weekly = dm.set_index(&quot;ds&quot;).resample(&quot;W-MON&quot;).agg(
+    week_revenue=(&quot;daily_revenue&quot;, &quot;sum&quot;),
+    days_in_week=(&quot;daily_revenue&quot;, &quot;size&quot;))
+weekly = weekly[weekly[&quot;days_in_week&quot;] == 7]   # drop partial weeks</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3814,6 +4184,7 @@ print(dm2.head(35).tail(10).round(2))</code></pre>
 34 2025-02-04       41198.22       9208    170857.77</code></pre>
     </div>
     <p class="qa-note"><strong>The <code>.dt.to_period('M')</code> grouper</strong> is the pandas equivalent of <code>DATE_TRUNC('month', ds)</code> — clean and idiomatic.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">to_period('M') vs Grouper</div><p class="qa-edge-desc"><code>.dt.to_period('M')</code> is what you want for month labels. <code>pd.Grouper(freq='M')</code> works but resamples — different semantics if the index isn't sorted.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Late-arriving rows</div><p class="qa-edge-desc">MTD that recomputes on every run isn't snapshotted. If a row for Dec 15 lands today, December's MTD numbers <em>change</em>. Snapshot or label as &lsquo;rolling MTD&rsquo;.</p></li></ul></details>
   </div>
 </details>
 
@@ -3865,6 +4236,20 @@ print(daily.tail(8))</code></pre>
 29 2025-03-30   60     100</code></pre>
     </div>
     <p class="qa-note"><strong>Rolling distinct is hard.</strong> Pandas has no built-in; the loop above is O(N&times;W). For big data, use a deque + counter or HyperLogLog sketch.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Distinct in a rolling window is not a built-in</div><p class="qa-edge-desc">Pandas .rolling() doesn't support nunique. The naive list-comp is O(N&times;W) — fine for 365 days, awful for 4 years.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Faster: deque + Counter
+from collections import deque, Counter
+window, days = deque(), 7
+counter = Counter()
+result = {}
+for d, group in logins.groupby(&quot;login_date&quot;):
+    for u in group[&quot;user_id&quot;]: counter[u] += 1
+    window.append((d, set(group[&quot;user_id&quot;])))
+    while window and (d - window[0][0]).days &gt;= days:
+        old_d, old_users = window.popleft()
+        for u in old_users:
+            counter[u] -= 1
+            if counter[u] == 0: del counter[u]
+    result[d] = len(counter)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Stitching identities</div><p class="qa-edge-desc">If the same human logs in from two devices, raw user_id double-counts in DAU. The identity-graph step belongs upstream.</p></li></ul></details>
   </div>
 </details>
 
@@ -3909,6 +4294,8 @@ print(wm2.head(10))</code></pre>
 9 2024-03-04  10499    -5.22</code></pre>
     </div>
     <p class="qa-note"><strong><code>pct_change</code></strong> handles the NaN on the first row gracefully. Don't reinvent the LAG with <code>shift</code> unless you need a non-1 lag.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">First-row pct_change is NaN</div><p class="qa-edge-desc"><code>.pct_change()</code> can't compute change for the first observation — NaN is correct. Drop or label, don't fillna(0) (which falsely says &lsquo;no growth&rsquo;).</p></li><li class="qa-edge-item"><div class="qa-edge-label">Zero baseline</div><p class="qa-edge-desc">If wau was 0 last week, pct_change is inf. Guard with NULLIF logic or report as 'new growth' separately.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>import numpy as np
+wm[&quot;wow_pct&quot;] = wm[&quot;wau&quot;].pct_change().replace([np.inf, -np.inf], np.nan) * 100</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3953,6 +4340,7 @@ print(span.sort_values(&quot;days_active&quot;, ascending=False).head(8))</code>
 99       158 2024-11-08 2024-12-30           52</code></pre>
     </div>
     <p class="qa-note"><strong>Edge:</strong> users with one purchase get 0 days. Decide whether that is &lsquo;0 days active&rsquo; or &lsquo;censored&rsquo; before reporting.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Single-purchase users</div><p class="qa-edge-desc">first == last for one-purchase users &rArr; days_active = 0. &lsquo;0 days lifespan&rsquo; vs &lsquo;censored&rsquo; is a definition fight worth having.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone of purchase_date</div><p class="qa-edge-desc">If timestamps are UTC and the user is in HST, &lsquo;day&rsquo; boundaries shift. .dt.tz_convert before .dt.date.</p></li></ul></details>
   </div>
 </details>
 
@@ -4003,6 +4391,9 @@ print(top3.head(15))</code></pre>
 [truncated; 2 more lines]</code></pre>
     </div>
     <p class="qa-note"><strong>'groupby + head'</strong> is the most readable top-N-per-group pattern in pandas. Avoid the <code>apply(lambda d: d.nlargest(3, ...))</code> form — slower and harder to read.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Ties at #3</div><p class="qa-edge-desc"><code>groupby + head(3)</code> picks the first 3 by sort order, silently dropping ties. For shelf rotation that should keep all ties, use rank with method='dense' filtered by &lt;= 3.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>products[&quot;rk&quot;] = (products.groupby(&quot;category&quot;)[&quot;revenue&quot;]
+                              .rank(method=&quot;dense&quot;, ascending=False))
+top3 = products[products[&quot;rk&quot;] &lt;= 3]</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Stable sort across runs</div><p class="qa-edge-desc">Without a tiebreak in sort_values, two products with identical revenue swap order across runs. Add product_id as secondary.</p></li></ul></details>
   </div>
 </details>
 
@@ -4054,6 +4445,8 @@ print(agg.head(8))</code></pre>
 7        3           1 2025-03-01 08:47:00 2025-03-01 08:57:00      2</code></pre>
     </div>
     <p class="qa-note"><strong>Identical mental model to SQL.</strong> Worth practicing the SQL and pandas versions side by side until you can switch fluently.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Per-user shift leak across users</div><p class="qa-edge-desc">If you forget the groupby in shift, the previous user's last event becomes the next user's prev_time. Always groupby user.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># CORRECT: per-user lag
+prev = cs.groupby(&quot;user_id&quot;)[&quot;event_time&quot;].shift()</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Threshold per surface</div><p class="qa-edge-desc">30 minutes is canonical for web; mobile push 5 min; video 90s. The threshold is product knowledge, not a fixed constant.</p></li></ul></details>
   </div>
 </details>
 
@@ -4099,6 +4492,7 @@ print({&quot;signup&quot;: int(step1),
 <pre class="out-pre"><code>{&#x27;signup&#x27;: 500, &#x27;activation&#x27;: 283, &#x27;purchase&#x27;: 128, &#x27;act_rate&#x27;: np.float64(0.566), &#x27;buy_rate&#x27;: np.float64(0.452)}</code></pre>
     </div>
     <p class="qa-note"><strong>Always order-guard.</strong> Funnels that ignore event order count &lsquo;purchase before signup&rsquo; as a successful conversion. They look great. They are wrong.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">User firing &lsquo;signup&rsquo; multiple times</div><p class="qa-edge-desc">Some pipelines emit signup on every onboarding step. groupby user_id + event_type with .min() collapses to first occurrence — what you want.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Skipped intermediate steps</div><p class="qa-edge-desc">If a user purchases without an &lsquo;activation&rsquo; event, strict ordering excludes them. Decide: strict (must hit each step) or any-later-step counts.</p></li></ul></details>
   </div>
 </details>
 
@@ -4152,6 +4546,8 @@ cohort_week
 2024-11-18  NaN NaN NaN NaN NaN</code></pre>
     </div>
     <p class="qa-note"><strong>The shape that ships:</strong> rows = cohorts, cols = age, cells = % retained. Heatmap straight from this table.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cohorts near data edge are right-censored</div><p class="qa-edge-desc">A signup from last week has at most W0 observed; W2 is literally impossible to compute. Mark as NaN or filter.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>max_week = (logins[&quot;login_date&quot;].max() - u[&quot;cohort_week&quot;]) // pd.Timedelta(weeks=1)
+# Only include cohorts with N+ weeks of full observation</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">ISO vs anchored week</div><p class="qa-edge-desc"><code>.dt.to_period('W')</code> uses Mon–Sun ISO week; the warehouse may use Sun–Sat. Mismatch &rArr; cohorts shifted by one day.</p></li></ul></details>
   </div>
 </details>
 
@@ -4206,6 +4602,7 @@ print(longest.head(8))</code></pre>
 27       28          11</code></pre>
     </div>
     <p class="qa-note"><strong>Same trick as SQL:</strong> <code>date − row_number</code> is constant within a consecutive run; group by it.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Duplicate (user, date) pairs poison the streak math</div><p class="qa-edge-desc">Two login rows for the same user/day inflate row_number, shifting the group_key. drop_duplicates on (user_id, login_date) first.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone vs &lsquo;day&rsquo; bucket</div><p class="qa-edge-desc">23:30 PT and 00:30 PT are the same day for a Pacific user but different days in UTC. Bucket login_date in user-local TZ.</p></li></ul></details>
   </div>
 </details>
 
@@ -4259,6 +4656,12 @@ print(priced[[&quot;purchase_id&quot;,&quot;purchase_date&quot;,&quot;product_id
 7            9    2024-11-02           1  108.51   66.01</code></pre>
     </div>
     <p class="qa-note"><strong><code>merge_asof</code></strong> is the SCD2 superpower in pandas: it picks the most recent matching row whose <code>effective_date &le; purchase_date</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">merge_asof requires sorted keys</div><p class="qa-edge-desc">Both sides must be sorted on the on= column. Sort first or merge_asof raises ValueError: right keys must be sorted.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>pdim = pd_dim.sort_values(&quot;effective_date&quot;)
+p    = purchases.sort_values(&quot;purchase_date&quot;)
+priced = pd.merge_asof(p, pdim, by=&quot;product_id&quot;,
+                       left_on=&quot;purchase_date&quot;,
+                       right_on=&quot;effective_date&quot;,
+                       direction=&quot;backward&quot;)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tolerance + direction</div><p class="qa-edge-desc"><code>direction='nearest'</code> can match a future row — wrong for as-of. Use 'backward' (last <= left) and add <code>tolerance=pd.Timedelta(days=N)</code> to bound staleness.</p></li></ul></details>
   </div>
 </details>
 
@@ -4321,6 +4724,10 @@ hot_key__1     95
 [truncated; 4 more lines]</code></pre>
     </div>
     <p class="qa-note"><strong>The other side of the join</strong> must replicate the small-side rows for each salt bucket. Salting only one side breaks the join.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Salting only one side breaks the join</div><p class="qa-edge-desc">If you salt the fact table but not the dim, no salted key matches anything. The dim must be CROSS JOINed with the salt values.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>salts = pd.DataFrame({&quot;salt&quot;: range(N_SALTS)})
+dim_salted = dim.merge(salts, how=&quot;cross&quot;)
+dim_salted[&quot;join_key_salted&quot;] = (dim_salted[&quot;join_key&quot;]
+                                 .str.cat(dim_salted[&quot;salt&quot;].astype(str), sep=&quot;__&quot;))</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Unsalt before final aggregation</div><p class="qa-edge-desc">After the salted join, the final group-by must un-salt (strip the suffix) to get the real key. Forgetting this step is the most common skew-mitigation bug.</p></li></ul></details>
   </div>
 </details>
 
@@ -4385,6 +4792,12 @@ print(json.dumps(tree[0], default=str, indent=2)[:400], &quot;...&quot;)</code><
 [truncated; 7 more lines]</code></pre>
     </div>
     <p class="qa-note"><strong>Recursion safety:</strong> bound the depth (or use iterative DFS) — a cycle in <code>manager_id</code> would blow the stack.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cycle in manager_id blows the stack</div><p class="qa-edge-desc">Recursive build() with a cycle recurses until RecursionError. Use iterative DFS or a visited set.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>def build(node_id, visited=None):
+    visited = visited or set()
+    if node_id in visited:
+        raise ValueError(f&quot;cycle at {node_id}&quot;)
+    visited = visited | {node_id}
+    return {...}</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Multiple roots</div><p class="qa-edge-desc">If two employees have manager_id IS NULL, the tree has two roots. Decide whether the JSON is a list of trees or a synthetic single root with both as children.</p></li></ul></details>
   </div>
 </details>
 
@@ -4428,6 +4841,8 @@ print(med.sort_values(&quot;median_amount&quot;, ascending=False).head(8).round(
 143      160         210.40</code></pre>
     </div>
     <p class="qa-note"><strong>Grouped quantile</strong> is built-in. For arbitrary percentiles use <code>.agg(p90=('amount', lambda s: s.quantile(0.9)))</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Quantile interpolation</div><p class="qa-edge-desc">Default <code>quantile(0.5, interpolation='linear')</code> interpolates between two middle rows — fractional cents result. Use 'lower' / 'higher' / 'midpoint' for currency.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>med = (orders.groupby(&quot;user_id&quot;)[&quot;amount&quot;]
+              .quantile(0.5, interpolation=&quot;lower&quot;))</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Single-order users</div><p class="qa-edge-desc">n=1 partitions return that one value as the median. Filter to users with min order count if &lsquo;typical&rsquo; basket is the goal.</p></li></ul></details>
   </div>
 </details>
 
@@ -4471,6 +4886,10 @@ cart        377
 dtype: int64</code></pre>
     </div>
     <p class="qa-note"><strong>Two memory wins:</strong> <code>chunksize</code> bounds RAM; <code>usecols</code> skips columns we do not need at parse time.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Loss of dtypes between chunks</div><p class="qa-edge-desc">If chunk 1 has user_id as int and chunk 2 has it as float (NaNs introduced), concat raises a dtype warning. Pre-declare dtypes via <code>dtype=</code> in read_csv.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>for chunk in pd.read_csv(src, chunksize=200_000,
+                         usecols=[&quot;page&quot;, &quot;user_id&quot;],
+                         dtype={&quot;user_id&quot;: &quot;Int64&quot;, &quot;page&quot;: &quot;string&quot;}):
+    ...</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Shuffled ordering between chunks</div><p class="qa-edge-desc">If your aggregation needs ordering (sessionization, gaps), chunking by row count is wrong — chunks aren't time-aligned. Chunk by date instead.</p></li></ul></details>
   </div>
 </details>
 
@@ -4512,6 +4931,8 @@ print(&quot;orders schema OK:&quot;, validate_orders(orders))</code></pre>
 <pre class="out-pre"><code>orders schema OK: True</code></pre>
     </div>
     <p class="qa-note"><strong>In a real job</strong> you would use Great Expectations / pandera / Pydantic; the bare-asserts version is what you write on a whiteboard.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">assert is stripped under -O</div><p class="qa-edge-desc">Python's <code>assert</code> compiles out under -O optimization. Use <code>raise ValueError(...)</code> in production DQ checks.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>if not df[&quot;order_id&quot;].is_unique:
+    raise ValueError(&quot;duplicate order_id&quot;)</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Schema vs values</div><p class="qa-edge-desc">The function checks dtypes and uniqueness. Real DQ also checks value ranges, freshness (max date), volume (row count not 0). Use Great Expectations / pandera for the full set.</p></li></ul></details>
   </div>
 </details>
 
@@ -4555,6 +4976,9 @@ print(&quot;rows in curated:&quot;, len(combined))</code></pre>
 <pre class="out-pre"><code>rows in curated: 100</code></pre>
     </div>
     <p class="qa-note"><strong>Idempotency = primary key + last-write-wins.</strong> In a real warehouse this is <code>MERGE INTO</code>; in a lakehouse it is Delta / Iceberg <code>MERGE</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Atomic vs partial writes</div><p class="qa-edge-desc">to_parquet writing then crashing leaves a half-written file. Stage to a temp path and rename atomically, or use Delta/Iceberg.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>tmp = out + &quot;.tmp&quot;
+combined.to_parquet(tmp, index=False)
+import os; os.replace(tmp, out)   # atomic on POSIX FS</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Concurrent writers</div><p class="qa-edge-desc">Two ETL runs writing to the same Parquet at once corrupt each other. Use a per-batch path + a manifest file, or a lakehouse format with optimistic concurrency.</p></li></ul></details>
   </div>
 </details>
 
@@ -4600,6 +5024,7 @@ print(updates)</code></pre>
 4           2  199.99  2024-07-28     2024-07-28         NaT          Y</code></pre>
     </div>
     <p class="qa-note"><strong>The invariant:</strong> for any product, exactly one row has <code>is_current='Y'</code>, and intervals do not overlap. Test both with asserts.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Out-of-order updates</div><p class="qa-edge-desc">If updates arrive with change_date going backwards, the SCD2 build inserts a row that overlaps prior windows. Sort and validate before assigning effective/expiry.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Same-day price flip-flops</div><p class="qa-edge-desc">Two updates with the same change_date for the same product produce a zero-width window — invariant violation. Dedup or flag.</p></li></ul></details>
   </div>
 </details>
 
@@ -4646,6 +5071,8 @@ print(&quot;products with !=1 current row:&quot;,
 products with !=1 current row: 9</code></pre>
     </div>
     <p class="qa-note"><strong>SCD2 health checks</strong> are first-class data products. Run them on every load and alert when they regress.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">expiry_date NULL convention</div><p class="qa-edge-desc">NULL = current is conventional but the analytic query <code>expiry_date &gt; CURRENT_DATE</code> excludes NULL rows (NULL &gt; anything is NULL). Use <code>COALESCE(expiry_date, '9999-12-31')</code> or test IS NULL explicitly.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Boundary inclusivity</div><p class="qa-edge-desc">If [effective, expiry] is closed-closed, a fact dated exactly on the boundary matches BOTH rows. Standard is half-open [effective, expiry). Document and assert.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Half-open semantics in the as-of join condition
+mask = (fact[&quot;dt&quot;] &gt;= dim[&quot;effective&quot;]) &amp; (fact[&quot;dt&quot;] &lt; dim[&quot;expiry&quot;].fillna(pd.Timestamp.max))</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -4694,6 +5121,10 @@ print(&quot;count:&quot;, never_bought.count())</code></pre>
 17       10  user_10      IN  2024-10-19</code></pre>
     </div>
     <p class="qa-note"><strong><code>left_anti</code></strong> is the canonical anti-join in Spark — clearer than the LEFT-JOIN-WHERE-NULL pattern, and the optimizer treats it directly.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">left_anti drops everything if right side has NULLs in key</div><p class="qa-edge-desc">Spark's left_anti uses NULL-aware comparison: if the right key has NULL rows, they don't match, and the anti-join keeps all left rows. Confirm by counting matches before relying on it.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Header inference</div><p class="qa-edge-desc"><code>option('header', True)</code> assumes headers; without <code>inferSchema=True</code> all columns are strings. user_id == &lsquo;1&rsquo; vs 1 silently fails the join.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>users_df = (spark.read
+              .option(&quot;header&quot;, True)
+              .option(&quot;inferSchema&quot;, True)
+              .csv(&quot;users.csv&quot;))</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -4744,6 +5175,7 @@ top.show()</code></pre>
 7            8       prod_8  Electronics      572   2</code></pre>
     </div>
     <p class="qa-note"><strong>Window cost:</strong> partition by a high-cardinality column and Spark may shuffle hard. For very wide top-N, consider a two-stage approx-then-exact.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Window without partitionBy is a single-partition shuffle</div><p class="qa-edge-desc"><code>Window.orderBy(...)</code> alone (no partitionBy) collapses all data to one task. For top-N per group, partition by the group key; for global top-N, accept the shuffle but consider <code>limit</code> first.</p></li><li class="qa-edge-item"><div class="qa-edge-label">dense_rank vs row_number</div><p class="qa-edge-desc">If two products tie at #2, dense_rank gives 1,2,2,3 (3 rows &le; 3); row_number gives 1,2,3 deterministically. Same SQL tradeoff: pick by intent.</p></li></ul></details>
   </div>
 </details>
 
@@ -4787,6 +5219,7 @@ joined.explain()       # confirm BroadcastHashJoin in the plan</code></pre>
       +- FileScan csv ... [users.csv]</code></pre>
     </div>
     <p class="qa-note"><strong>Threshold:</strong> Spark auto-broadcasts under <code>spark.sql.autoBroadcastJoinThreshold</code> (default 10 MB). For larger-but-still-small dims, the explicit hint forces the optimizer.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Broadcast threshold</div><p class="qa-edge-desc">Spark auto-broadcasts under <code>spark.sql.autoBroadcastJoinThreshold</code> (default 10 MB). Above that, force with the broadcast() hint. Above ~200 MB, broadcast becomes a memory liability — use bucketing instead.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Skew in the BIG side, not the small one</div><p class="qa-edge-desc">Broadcast helps when the small side is the dim. If the FACTS are skewed on the join key, broadcast still works but the skewed task in the fact is the bottleneck. Salt the fact instead.</p></li></ul></details>
   </div>
 </details>
 
@@ -4841,6 +5274,9 @@ activations = 283
 purchasers  = 128</code></pre>
     </div>
     <p class="qa-note"><strong>For exact counts at huge scale,</strong> consider <code>approx_count_distinct</code> with a tunable rsd — usually 5% error is fine for a funnel chart.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">approx_count_distinct rsd tradeoff</div><p class="qa-edge-desc"><code>approx_count_distinct(col, rsd=0.05)</code> means 5% relative standard deviation. For a funnel chart 5% is fine; for billing it isn't. Pick deliberately.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>from pyspark.sql.functions import approx_count_distinct
+funnel = events_df.agg(approx_count_distinct(&quot;user_id&quot;, rsd=0.05)
+                       .alias(&quot;approx_unique&quot;))</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Pivot with unknown values</div><p class="qa-edge-desc"><code>.pivot('event_type')</code> without an explicit list scans all values (extra job). Pass the list <code>['signup','activation','purchase']</code> to skip the scan.</p></li></ul></details>
   </div>
 </details>
 
@@ -4892,6 +5328,8 @@ salted.groupBy(&quot;salted_key&quot;).count().orderBy(F.desc(&quot;count&quot;)
 [hot_key spread across 16 buckets vs ~700 rows on one]</code></pre>
     </div>
     <p class="qa-note"><strong>Tradeoff:</strong> salting helps shuffle, but downstream needs to un-salt by stripping the suffix before final aggregation. Don't forget the unsalt step.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Salt count vs cluster parallelism</div><p class="qa-edge-desc">N=16 salts means at most 16 tasks for the hot key. If your cluster has 64 cores, 16 salts under-utilize. Tune N to the available parallelism.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Salt the SMALL side too</div><p class="qa-edge-desc">After salting the fact, the dim must be replicated across the salt buckets — either by cross-joining with a salt-numbers table or by emitting N copies, one per salt.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>from pyspark.sql.functions import explode, array, lit
+dim_replicated = dim.withColumn(&quot;salt&quot;, explode(array(*[lit(i) for i in range(N)])))</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -4951,6 +5389,7 @@ running: audit
 order: [&#x27;extract&#x27;, &#x27;stage&#x27;, &#x27;transform&#x27;, &#x27;publish&#x27;, &#x27;audit&#x27;]</code></pre>
     </div>
     <p class="qa-note"><strong>Why this question shows up:</strong> orchestration is half the job. Knowing toposort + cycle detection by heart proves you have built (not just used) a scheduler.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Cycle detection</div><p class="qa-edge-desc">If the DAG has a cycle, <code>topo_run</code> returns fewer nodes than the graph; the final assert catches it. Without the assert, the executor silently runs a partial DAG.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Failure handling</div><p class="qa-edge-desc">The toy executor doesn't handle task failure. Real schedulers retry-with-backoff, mark downstream as upstream_failed, and expose state to a dashboard.</p></li></ul></details>
   </div>
 </details>
 
@@ -4998,6 +5437,13 @@ print(list(c.d.items()))</code></pre>
 <pre class="out-pre"><code>[(&#x27;a&#x27;, 1), (&#x27;c&#x27;, 3)]</code></pre>
     </div>
     <p class="qa-note"><strong>O(1) get/put.</strong> If you write the doubly-linked-list version from scratch you will impress, but the OrderedDict version is the real-world answer.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Thread safety</div><p class="qa-edge-desc"><code>OrderedDict</code> isn't thread-safe. For multi-threaded callers wrap with a Lock, or use <code>functools.lru_cache</code> (which is thread-safe).</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code>from threading import Lock
+class LRUCache:
+    def __init__(self, cap): self.cap = cap; self.d = OrderedDict(); self.lock = Lock()
+    def get(self, k):
+        with self.lock:
+            if k not in self.d: return None
+            self.d.move_to_end(k); return self.d[k]</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Eviction policy edge</div><p class="qa-edge-desc">Capacity 0 should be valid (no caching). Test that <code>put</code> on a 0-capacity cache is a no-op rather than an exception.</p></li></ul></details>
   </div>
 </details>
 
@@ -5051,6 +5497,7 @@ print(&quot;vs orders[&#x27;amount&#x27;].median() :&quot;, round(orders[&quot;a
 vs orders[&#x27;amount&#x27;].median() : 51.78</code></pre>
     </div>
     <p class="qa-note"><strong>Two-heap pattern</strong> shows up in interviews and in real streaming aggregations. Worth memorizing the invariant: <code>len(lo) &isin; {len(hi), len(hi)+1}</code>.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Removing values mid-stream</div><p class="qa-edge-desc">The two-heap pattern only supports add. Real streaming median with deletes needs a counter for tombstones and lazy removal — non-trivial.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Numeric stability</div><p class="qa-edge-desc">For very large N with floats, the median itself is fine, but downstream variance computation can drift. Use Welford's online algorithm for variance.</p></li></ul></details>
   </div>
 </details>
 
@@ -5107,6 +5554,8 @@ for r in written: print(r)</code></pre>
 {&#x27;ds&#x27;: &#x27;2025-01-19&#x27;, &#x27;daily_revenue&#x27;: 455.85, &#x27;daily_dau&#x27;: 8}</code></pre>
     </div>
     <p class="qa-note"><strong>Partition-per-day + overwrite</strong> is the lakehouse pattern. Re-running for the same day produces the same files — that is idempotency.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Idempotent re-run</div><p class="qa-edge-desc">Running backfill for 2025-01-15 twice must produce the same files. Overwriting the partition (Path.rename or Delta MERGE) achieves this; appending does not.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Late-arriving rows mid-backfill</div><p class="qa-edge-desc">If new rows for 2025-01-15 land while you backfill, you may miss them. Snapshot the source (e.g., a fixed read offset) before computing.</p><div class="qa-edge-code-label">Python</div><pre class="edge-pre"><code># Snapshot orders to a versioned read
+orders_snap = orders[orders[&quot;order_date&quot;] &lt;= ds]   # bound by your run timestamp</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -5159,6 +5608,7 @@ print(list(out.iterdir()))</code></pre>
 [PosixPath(&#x27;/tmp/dm_curated/ds=2025-01-20/data.parquet&#x27;)]</code></pre>
     </div>
     <p class="qa-note"><strong>Production reality:</strong> on object stores this becomes Delta / Iceberg <code>replaceWhere</code> or BigQuery's <code>WRITE_TRUNCATE</code> with a partition decorator. The <em>shape</em> of the answer is what matters.</p>
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Atomic rename across filesystems</div><p class="qa-edge-desc">Path.rename is atomic only within the same filesystem. On S3, rename is a copy + delete, not atomic. Use Delta/Iceberg <code>replaceWhere</code> or write to a manifest file.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Frame contains other dates</div><p class="qa-edge-desc">The assert guards against passing a multi-date frame. Without it, you'd silently overwrite the partition with rows from other days. Always validate the partition key before publish.</p></li></ul></details>
   </div>
 </details>
 
