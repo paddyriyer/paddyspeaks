@@ -45,9 +45,17 @@ CREATE TABLE users (
     country     VARCHAR(5)
 );
 
+-- NOTE: Several tables ship with intentional dirty data for SQL-practice
+-- exercises (dedup, anti-join, etc.), so the schema below is relaxed
+-- relative to setup_postgres.sql:
+--   - purchases.purchase_id: PK dropped  (dup at id=6)
+--   - purchases.user_id:     FK dropped  (orphans 99001, 99002 not in users)
+--   - products.product_id:   PK dropped  (dup at id=1)
+--   - daily_metrics.ds:      PK dropped  (dup at 2025-01-11)
+--   - orders.order_id:       PK dropped  (dup at id=11)
 CREATE TABLE purchases (
-    purchase_id      INT PRIMARY KEY,
-    user_id          INT REFERENCES users(user_id),
+    purchase_id      INT,
+    user_id          INT,
     amount           DECIMAL(10,2),
     purchase_date    DATE,
     product_category VARCHAR(30)
@@ -74,7 +82,7 @@ CREATE TABLE sessions (
 );
 
 CREATE TABLE products (
-    product_id   INT PRIMARY KEY,
+    product_id   INT,
     product_name VARCHAR(30),
     category     VARCHAR(30),
     revenue      INT
@@ -99,7 +107,7 @@ CREATE TABLE logins (
 );
 
 CREATE TABLE daily_metrics (
-    ds            DATE PRIMARY KEY,
+    ds            DATE,
     daily_revenue DECIMAL(12,2),
     daily_dau     INT
 );
@@ -119,7 +127,7 @@ CREATE TABLE employees (
 );
 
 CREATE TABLE orders (
-    order_id   INT PRIMARY KEY,
+    order_id   INT,
     user_id    INT,
     order_date DATE,
     amount     DECIMAL(10,2)
