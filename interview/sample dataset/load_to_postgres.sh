@@ -141,23 +141,54 @@ CREATE TABLE skewed_table (
 );
 SQL
 
+echo "==> Pre-processing CSVs (clean known data-quality issues)"
+# The source CSVs have two issues that break \copy against the schema:
+#   1. The literal token "<NULL>" appears in users.country (1 row). It is
+#      6 chars and overflows VARCHAR(5); it should be SQL NULL.
+#   2. Several INT-typed columns are stored as floats with a ".0" suffix
+#      (e.g. employees.salary "250000.0", sessions.duration_sec "388.0",
+#      products.revenue "435.0", employees.manager_id "100.0"). Postgres
+#      INT rejects "250000.0".
+# We fix both by writing cleaned copies into a temp dir and \copy'ing from
+# there. With cleaned files, default CSV null handling (unquoted empty
+# field -> NULL) works for every other empty INT/DATE/DECIMAL field.
+STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
+
+# Generic transform: strip the literal "<NULL>" token everywhere.
+for f in users.csv purchases.csv user_profiles.csv weekly_metrics.csv \
+         sessions.csv products.csv clickstream.csv events.csv logins.csv \
+         daily_metrics.csv daily_metrics_gapped.csv employees.csv \
+         orders.csv product_dim.csv skewed_table.csv; do
+  sed 's/<NULL>//g' "$f" > "$STAGE/$f"
+done
+
+# Per-file transforms: strip ".0" suffix on INT-typed columns.
+# (CSVs contain no quoted fields, so awk -F, is safe.)
+awk 'BEGIN{FS=OFS=","} NR==1{print;next} {sub(/\.0$/,"",$3); sub(/\.0$/,"",$5); print}' \
+    "$STAGE/employees.csv" > "$STAGE/employees.csv.tmp" && mv "$STAGE/employees.csv.tmp" "$STAGE/employees.csv"
+awk 'BEGIN{FS=OFS=","} NR==1{print;next} {sub(/\.0$/,"",$5); print}' \
+    "$STAGE/sessions.csv"  > "$STAGE/sessions.csv.tmp"  && mv "$STAGE/sessions.csv.tmp"  "$STAGE/sessions.csv"
+awk 'BEGIN{FS=OFS=","} NR==1{print;next} {sub(/\.0$/,"",$4); print}' \
+    "$STAGE/products.csv"  > "$STAGE/products.csv.tmp"  && mv "$STAGE/products.csv.tmp"  "$STAGE/products.csv"
+
 echo "==> Loading CSVs (parents before children for FK)"
 psql "$DB_URL" -v ON_ERROR_STOP=1 <<SQL
-\copy users              FROM 'users.csv'              WITH (FORMAT csv, HEADER true);
-\copy purchases          FROM 'purchases.csv'          WITH (FORMAT csv, HEADER true);
-\copy user_profiles      FROM 'user_profiles.csv'      WITH (FORMAT csv, HEADER true);
-\copy weekly_metrics     FROM 'weekly_metrics.csv'     WITH (FORMAT csv, HEADER true);
-\copy sessions           FROM 'sessions.csv'           WITH (FORMAT csv, HEADER true);
-\copy products           FROM 'products.csv'           WITH (FORMAT csv, HEADER true);
-\copy clickstream        FROM 'clickstream.csv'        WITH (FORMAT csv, HEADER true);
-\copy events             FROM 'events.csv'             WITH (FORMAT csv, HEADER true);
-\copy logins             FROM 'logins.csv'             WITH (FORMAT csv, HEADER true);
-\copy daily_metrics      FROM 'daily_metrics.csv'      WITH (FORMAT csv, HEADER true);
-\copy daily_metrics_gapped FROM 'daily_metrics_gapped.csv' WITH (FORMAT csv, HEADER true);
-\copy employees          FROM 'employees.csv'          WITH (FORMAT csv, HEADER true);
-\copy orders             FROM 'orders.csv'             WITH (FORMAT csv, HEADER true);
-\copy product_dim        FROM 'product_dim.csv'        WITH (FORMAT csv, HEADER true);
-\copy skewed_table       FROM 'skewed_table.csv'       WITH (FORMAT csv, HEADER true);
+\copy users              FROM '$STAGE/users.csv'              WITH (FORMAT csv, HEADER true);
+\copy purchases          FROM '$STAGE/purchases.csv'          WITH (FORMAT csv, HEADER true);
+\copy user_profiles      FROM '$STAGE/user_profiles.csv'      WITH (FORMAT csv, HEADER true);
+\copy weekly_metrics     FROM '$STAGE/weekly_metrics.csv'     WITH (FORMAT csv, HEADER true);
+\copy sessions           FROM '$STAGE/sessions.csv'           WITH (FORMAT csv, HEADER true);
+\copy products           FROM '$STAGE/products.csv'           WITH (FORMAT csv, HEADER true);
+\copy clickstream        FROM '$STAGE/clickstream.csv'        WITH (FORMAT csv, HEADER true);
+\copy events             FROM '$STAGE/events.csv'             WITH (FORMAT csv, HEADER true);
+\copy logins             FROM '$STAGE/logins.csv'             WITH (FORMAT csv, HEADER true);
+\copy daily_metrics      FROM '$STAGE/daily_metrics.csv'      WITH (FORMAT csv, HEADER true);
+\copy daily_metrics_gapped FROM '$STAGE/daily_metrics_gapped.csv' WITH (FORMAT csv, HEADER true);
+\copy employees          FROM '$STAGE/employees.csv'          WITH (FORMAT csv, HEADER true);
+\copy orders             FROM '$STAGE/orders.csv'             WITH (FORMAT csv, HEADER true);
+\copy product_dim        FROM '$STAGE/product_dim.csv'        WITH (FORMAT csv, HEADER true);
+\copy skewed_table       FROM '$STAGE/skewed_table.csv'       WITH (FORMAT csv, HEADER true);
 SQL
 
 echo "==> Row counts"
