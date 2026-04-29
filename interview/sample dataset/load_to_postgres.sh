@@ -143,21 +143,23 @@ SQL
 
 echo "==> Loading CSVs (parents before children for FK)"
 psql "$DB_URL" -v ON_ERROR_STOP=1 <<SQL
-\copy users              FROM 'users.csv'              WITH (FORMAT csv, HEADER true);
-\copy purchases          FROM 'purchases.csv'          WITH (FORMAT csv, HEADER true);
-\copy user_profiles      FROM 'user_profiles.csv'      WITH (FORMAT csv, HEADER true);
-\copy weekly_metrics     FROM 'weekly_metrics.csv'     WITH (FORMAT csv, HEADER true);
-\copy sessions           FROM 'sessions.csv'           WITH (FORMAT csv, HEADER true);
-\copy products           FROM 'products.csv'           WITH (FORMAT csv, HEADER true);
-\copy clickstream        FROM 'clickstream.csv'        WITH (FORMAT csv, HEADER true);
-\copy events             FROM 'events.csv'             WITH (FORMAT csv, HEADER true);
-\copy logins             FROM 'logins.csv'             WITH (FORMAT csv, HEADER true);
-\copy daily_metrics      FROM 'daily_metrics.csv'      WITH (FORMAT csv, HEADER true);
-\copy daily_metrics_gapped FROM 'daily_metrics_gapped.csv' WITH (FORMAT csv, HEADER true);
-\copy employees          FROM 'employees.csv'          WITH (FORMAT csv, HEADER true);
-\copy orders             FROM 'orders.csv'             WITH (FORMAT csv, HEADER true);
-\copy product_dim        FROM 'product_dim.csv'        WITH (FORMAT csv, HEADER true);
-\copy skewed_table       FROM 'skewed_table.csv'       WITH (FORMAT csv, HEADER true);
+-- NULL '<NULL>' translates the literal token "<NULL>" in the CSVs (e.g. users.country)
+-- into a SQL NULL, so columns like country VARCHAR(5) don't overflow.
+\copy users              FROM 'users.csv'              WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy purchases          FROM 'purchases.csv'          WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy user_profiles      FROM 'user_profiles.csv'      WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy weekly_metrics     FROM 'weekly_metrics.csv'     WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy sessions           FROM 'sessions.csv'           WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy products           FROM 'products.csv'           WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy clickstream        FROM 'clickstream.csv'        WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy events             FROM 'events.csv'             WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy logins             FROM 'logins.csv'             WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy daily_metrics      FROM 'daily_metrics.csv'      WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy daily_metrics_gapped FROM 'daily_metrics_gapped.csv' WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy employees          FROM 'employees.csv'          WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy orders             FROM 'orders.csv'             WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy product_dim        FROM 'product_dim.csv'        WITH (FORMAT csv, HEADER true, NULL '<NULL>');
+\copy skewed_table       FROM 'skewed_table.csv'       WITH (FORMAT csv, HEADER true, NULL '<NULL>');
 SQL
 
 echo "==> Row counts"
