@@ -314,6 +314,28 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
   color: #8a5a1a; font-weight: 600; margin: 4px 0;
 }
+.article-content .qa-edge-concept {
+  margin: 10px 0;
+  padding: 12px 16px 12px 18px;
+  background: #eef5ff;
+  border-left: 3px solid #1a4f8a;
+  border-radius: 0 3px 3px 0;
+}
+.article-content .qa-edge-concept-label {
+  font-family: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+  color: #1a4f8a; font-weight: 700; margin-bottom: 6px;
+}
+.article-content .qa-edge-concept-body {
+  font-size: 14.5px; line-height: 1.6; color: #1a2c44;
+}
+.article-content .qa-edge-concept-body p { margin: 0 0 10px; }
+.article-content .qa-edge-concept-body p:last-child { margin-bottom: 0; }
+.article-content .qa-edge-concept-body code {
+  font-size: 12.5px; background: rgba(255,255,255,.6);
+  padding: 1px 5px; border: 1px solid #c8d4e2; border-radius: 2px;
+}
+.article-content .qa-edge-concept-body strong { color: #0d2440; }
 .article-content .qa-edges pre.edge-pre {
   margin: 0; padding: 14px 16px;
   background: #1a1410; color: #f5f5f5;
@@ -914,8 +936,8 @@ ORDER BY user_count DESC;</code></pre>
 0       US          53
 1       IN          33
 2       BR          22
-3       FR          20
-4       UK          20
+3       UK          20
+4       FR          20
 ..     ...         ...
 11      br           2
 12  &lt;NULL&gt;           1
@@ -1221,10 +1243,10 @@ SELECT product_category, SUM(amount) AS revenue
 FROM purchases
 GROUP BY product_category
 HAVING SUM(amount) &gt; 1000;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  product_category    revenue
-0         Clothing  105688.15
-1             Food    5179.73
-2      Electronics    6451.80
-3           Sports    4629.85
+0             Food    5179.73
+1         Clothing  105688.15
+2           Sports    4629.85
+3      Electronics    6451.80
 4            Books    5653.72</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Inclusive vs exclusive boundary</div><p class="qa-edge-desc">Always confirm '> 1000' vs '>= 1000'. Off-by-one at category boundaries silently changes the report.</p></li></ul></details>
   </div>
 </details>
@@ -1276,19 +1298,19 @@ ORDER BY avg_duration_sec DESC;</code></pre>
 FROM sessions GROUP BY platform;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  platform  sessions      avg_dur       sd_dur          sem
 0  android       265  1678.973485  1011.429126   103.138521
 1  Android         2  2085.500000   713.470742  1474.671192
-2      web       198  1823.908629  1007.822862   129.619542
-3      iOS         1  2691.000000          NaN  2691.000000
-4      WEB         5  2907.600000   775.846828  1300.318250
+2      WEB         5  2907.600000   775.846828  1300.318250
+3      web       198  1823.908629  1007.822862   129.619542
+4      iOS         1  2691.000000          NaN  2691.000000
 5      ios       329  1744.445122  1062.677389    96.174373</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Outlier-skewed mean</div><p class="qa-edge-desc">A few 12-hour zombie sessions pull AVG up. Report median or a trimmed mean alongside.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT platform,
        AVG(duration_sec) AS avg_dur,
        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_sec) AS p50_dur
 FROM sessions GROUP BY platform;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  platform      avg_dur  p50_dur
 0  android  1678.973485   1557.5
-1      WEB  2907.600000   3257.0
+1  Android  2085.500000   2085.5
 2      web  1823.908629   1928.0
 3      iOS  2691.000000   2691.0
-4      ios  1744.445122   1719.5
-5  Android  2085.500000   2085.5</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">AVG silently drops NULL <em>and</em> negative durations</div><p class="qa-edge-desc">AVG ignores NULL — but a negative <code>duration_sec</code> (corrupt event) is treated as a real value and pulls the mean <em>down</em>. The denominator surprise: NULL rows are excluded from <em>both</em> numerator and denominator. Always pre-filter to valid positives before averaging, AND emit a <code>dropped</code> count so the DQ trail is visible.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT
+4      WEB  2907.600000   3257.0
+5      ios  1744.445122   1719.5</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">AVG silently drops NULL <em>and</em> negative durations</div><p class="qa-edge-desc">AVG ignores NULL — but a negative <code>duration_sec</code> (corrupt event) is treated as a real value and pulls the mean <em>down</em>. The denominator surprise: NULL rows are excluded from <em>both</em> numerator and denominator. Always pre-filter to valid positives before averaging, AND emit a <code>dropped</code> count so the DQ trail is visible.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT
   LOWER(platform)                                  AS platform,
   COUNT(*)                                         AS rows_total,
   COUNT(duration_sec)                              AS rows_with_duration,
@@ -1571,7 +1593,7 @@ WHERE p.purchase_id IS NULL;</code></pre>
 74      199  user_199      US  2025-11-02</code></pre>
     </div>
     <p class="qa-note"><strong>Why anti-join via LEFT JOIN + IS NULL:</strong> often plans better than <code>NOT IN</code> (which silently breaks on NULLs) or <code>NOT EXISTS</code>.</p>
-    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(3)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">NOT IN poisons on NULL</div><p class="qa-edge-desc">If the subquery returns any NULL, NOT IN evaluates to UNKNOWN for every row — the result set becomes empty. Anti-join via LEFT JOIN + IS NULL or NOT EXISTS is NULL-safe.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- DANGEROUS
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(3)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">NOT IN poisons on NULL</div><p class="qa-edge-desc">If the subquery returns any NULL, NOT IN evaluates to UNKNOWN for every row — the result set becomes empty. Anti-join via LEFT JOIN + IS NULL or NOT EXISTS is NULL-safe.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>Why <code>NOT IN</code> breaks on NULL:</strong> SQL uses <em>three-valued logic</em>. Every comparison evaluates to <code>TRUE</code>, <code>FALSE</code>, or <code>UNKNOWN</code>. When the subquery list contains a NULL, <code>x NOT IN (1, 2, NULL)</code> is mechanically equivalent to <code>x &lt;&gt; 1 AND x &lt;&gt; 2 AND x &lt;&gt; NULL</code>, and the last term is <em>always</em> <code>UNKNOWN</code> (comparing to NULL is undefined). <code>UNKNOWN AND anything</code> is at most <code>UNKNOWN</code>, never <code>TRUE</code> &mdash; so <code>WHERE</code> filters the row out. Net effect: <code>NOT IN</code> with even one NULL in the right side returns <em>zero rows</em>, silently.</p><p><strong>Three NULL-safe alternatives:</strong></p><ul><li><strong><code>LEFT JOIN ... IS NULL</code></strong> &mdash; the optimizer treats this as an anti-join. Robust on every engine.</li><li><strong><code>NOT EXISTS (correlated)</code></strong> &mdash; semantically clearest, the optimizer typically rewrites it to the same anti-join plan. Always NULL-safe.</li><li><strong><code>EXCEPT</code></strong> &mdash; set-difference, deduplicates as a side effect. Use when you also want to drop duplicate left-side rows.</li></ul></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- DANGEROUS
 SELECT * FROM users WHERE user_id NOT IN (SELECT user_id FROM purchases);
 
 -- SAFE
@@ -1695,18 +1717,18 @@ SELECT u.country,
 FROM users u
 LEFT JOIN purchases p ON p.user_id = u.user_id
 GROUP BY u.country;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   country  avg_basket  purchases
-0       JP       79.99         23
-1       BR       99.58         28
-2   &lt;NULL&gt;        6.21          1
-3       \N      113.80         21
-4       br       40.26          2
-5       US        3.62          1
+0       BR       99.58         28
+1       JP       79.99         23
+2       FR      108.38         31
+3       US     1271.63         86
+4       IN       89.30         46
+5      NaN      135.66          8
 ..     ...         ...        ...
-10               34.99          4
-11      US     1271.63         86
-12      IN       89.30         46
-13      UK       65.22         29
-14      in      147.87          4
+10                0.00          0
+11      in      147.87          4
+12  &lt;NULL&gt;        6.21          1
+13     UK        27.49          2
+14      UK       65.22         29
 15      DE       84.08         13</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Per-country sample size</div><p class="qa-edge-desc">Always emit purchase count alongside average. A 1-purchase country with avg $999 looks identical to a 1,000-purchase country with avg $999.</p></li></ul></details>
   </div>
 </details>
@@ -1810,7 +1832,7 @@ LEFT JOIN users u ON u.user_id = o.user_id;</code></pre><div class="qa-edge-code
 Either add it to the GROUP BY list, or use &quot;ANY_VALUE(name)&quot; if the exact value of &quot;name&quot; is not important.
 
 LINE 1: SELECT u.name,
-               ^</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Refunded orders (gross vs net)</div><p class="qa-edge-desc">If <code>amount</code> can be negative (refunds), <code>SUM(amount)</code> is the <em>net</em>. Finance usually wants <em>gross + refunds</em> broken out so the refund volume is visible. Use <code>FILTER</code> (Postgres / DuckDB) or <code>CASE WHEN</code> inside SUM to split.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT u.user_id, u.name,
+               ^</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Refunded orders (gross vs net)</div><p class="qa-edge-desc">If <code>amount</code> can be negative (refunds), <code>SUM(amount)</code> is the <em>net</em>. Finance usually wants <em>gross + refunds</em> broken out so the refund volume is visible. Use <code>FILTER</code> (Postgres / DuckDB) or <code>CASE WHEN</code> inside SUM to split.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>What does <code>FILTER (WHERE ...)</code> do?</strong> It is the SQL standard way to apply a row-level predicate <em>inside</em> an aggregate. <code>SUM(amount) FILTER (WHERE amount &gt; 0)</code> sums only the rows where <code>amount</code> is positive. Equivalent to <code>SUM(CASE WHEN amount &gt; 0 THEN amount ELSE 0 END)</code> but more readable and the optimizer can prune harder. Supported on Postgres, DuckDB, SQLite (3.30+), Snowflake; MySQL / BigQuery use the CASE form.</p><p><strong>Why finance wants gross + net both:</strong> <em>Gross revenue</em> measures demand (what customers wanted to buy). <em>Net revenue</em> measures money you actually kept. The gap is the refund volume &mdash; a leading signal for product quality issues, sizing problems, or wardrobing fraud. Reporting only <code>SUM(amount)</code> hides the diagnostic.</p></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT u.user_id, u.name,
        ROUND(SUM(o.amount) FILTER (WHERE o.amount &gt; 0), 2)        AS gross_revenue,
        ROUND(SUM(-o.amount) FILTER (WHERE o.amount &lt; 0), 2)       AS gross_refunded,
        ROUND(SUM(o.amount), 2)                                    AS net_revenue,
@@ -2038,20 +2060,20 @@ SELECT user_id FROM logins;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>    user_id
-0         2
-1        28
-2        39
-3        60
-4        63
+0        11
+1        16
+2        26
+3        55
+4        67
 ..      ...
-95       76
-96       82
-97       89
-98       94
-99       53</code></pre>
+95       20
+96       36
+97       68
+98       69
+99       98</code></pre>
     </div>
     <p class="qa-note"><strong>Tradeoff:</strong> <code>INTERSECT</code> is concise and dedups for free; <code>EXISTS</code> wins when one side is much larger or you want to stream early.</p>
-    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">INTERSECT removes duplicates (set vs multiset)</div><p class="qa-edge-desc"><code>INTERSECT</code> is set-semantics &mdash; duplicates collapse. <code>INTERSECT ALL</code> is multiset-semantics &mdash; duplicates are preserved on the smaller side. Demonstrate the divergence with a synthesized 4-row source where one user has 3 events and 2 logins.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH ev(user_id) AS (VALUES (1),(1),(1),(2),(3),(3)),
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">INTERSECT removes duplicates (set vs multiset)</div><p class="qa-edge-desc"><code>INTERSECT</code> is set-semantics &mdash; duplicates collapse. <code>INTERSECT ALL</code> is multiset-semantics &mdash; duplicates are preserved on the smaller side. Demonstrate the divergence with a synthesized 4-row source where one user has 3 events and 2 logins.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>Set semantics vs multiset semantics</strong> &mdash; this is one of the most under-taught SQL distinctions:</p><ul><li>A <strong>set</strong> contains each element at most once. <code>{1, 1, 2, 2}</code> as a set is just <code>{1, 2}</code>. Operations: <code>UNION</code>, <code>INTERSECT</code>, <code>EXCEPT</code> &mdash; all dedup automatically.</li><li>A <strong>multiset</strong> (or &lsquo;bag&rsquo;) preserves duplicates. <code>{1, 1, 2, 2}</code> stays four elements. Operations: <code>UNION ALL</code>, <code>INTERSECT ALL</code>, <code>EXCEPT ALL</code> &mdash; the <code>ALL</code> keyword switches you into multiset mode.</li></ul><p><strong>Multiset intersection rule:</strong> if value <code>v</code> appears <code>m</code> times on the left and <code>n</code> times on the right, <code>INTERSECT ALL</code> emits <code>min(m, n)</code> copies. So if user 1 has 3 events and 2 logins, the intersect-all keeps 2 copies of user 1.</p><p><strong>When does this matter?</strong> Whenever you care about <em>per-occurrence</em> counts, not per-key presence &mdash; e.g. &lsquo;match each shipment to one order without double-counting&rsquo;, or &lsquo;dedupe-or-not?&rsquo; in a marketing audience pull. Most ad-hoc analyst queries want set semantics; most reconciliation jobs want multiset. State which.</p><p><em>Engine support:</em> Postgres + Snowflake + DuckDB + BigQuery support both. MySQL added INTERSECT in 8.0.31 (set only, no ALL). SQLite has neither natively.</p></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH ev(user_id) AS (VALUES (1),(1),(1),(2),(3),(3)),
      lg(user_id) AS (VALUES (1),(1),(2),(2),(4))
 SELECT &#x27;INTERSECT (set)&#x27;      AS variant, user_id FROM ev INTERSECT     SELECT user_id FROM lg
 UNION ALL
@@ -2101,10 +2123,10 @@ ORDER BY conv_pct DESC;</code></pre>
     <div class="qa-block qa-output">
       <div class="qa-block-label"><span class="dot out"></span>Output</div>
 <pre class="out-pre"><code>   country  signups  purchasers  conv_pct
-0      UK         1           1    100.00
-1   &lt;NULL&gt;        1           1    100.00
-2       in        2           2    100.00
-3       US        1           1    100.00
+0       US        1           1    100.00
+1      UK         1           1    100.00
+2   &lt;NULL&gt;        1           1    100.00
+3       in        2           2    100.00
 4       \N        9           8     88.89
 ..     ...      ...         ...       ...
 11     NaN        7           4     57.14
@@ -2122,18 +2144,18 @@ SELECT u.country,
 FROM users u
 LEFT JOIN purchases p ON p.user_id = u.user_id
 GROUP BY u.country;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   country  conv_30d_pct
-0   &lt;NULL&gt;    100.000000
+0       JP     61.111111
 1       BR     50.000000
-2      NaN     57.142857
-3      UK     100.000000
-4              66.666667
-5       \N     88.888889
+2              66.666667
+3   &lt;NULL&gt;    100.000000
+4       DE     71.428571
+5      NaN     57.142857
 ..     ...           ...
-10      DE     71.428571
-11      in    100.000000
-12      US     62.264151
-13      IN     54.545455
-14      JP     61.111111
+10              0.000000
+11      US     62.264151
+12      IN     54.545455
+13      in    100.000000
+14      FR     60.000000
 15      UK     40.000000</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Tiny-cohort countries</div><p class="qa-edge-desc">DE with 8 users gives a 100% conversion that is statistically meaningless. Add a min_cohort filter for the chart, but report raw counts for completeness.</p></li></ul></details>
   </div>
 </details>
@@ -2384,7 +2406,7 @@ WINDOW w AS (ORDER BY week_start);</code></pre><div class="qa-edge-code-label ed
 48 2024-12-02  16883  7.193651
 49 2024-12-09  16215 -3.956643
 50 2024-12-16  15425 -4.872032
-51 2024-12-23  15680  1.653160</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Missing weeks (gapped data)</div><p class="qa-edge-desc"><code>LAG</code> is <em>positional</em>, not date-aware: if week 2024-01-08 is missing from <code>weekly_metrics</code>, <code>LAG</code> jumps silently from 01-01 to 01-15 and reports &lsquo;1-week growth&rsquo; over a 14-day gap. The fix is a <strong>date-spine left-join first</strong>, so the gap row exists with NULL/0 metrics and the <code>LAG</code> over a sorted spine returns the correct adjacent week. The query below demonstrates the divergence on a synthesized weekly series with an intentional missing week.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- Synthesize a weekly series with an INTENTIONAL gap at 2024-01-08
+51 2024-12-23  15680  1.653160</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Missing weeks (gapped data)</div><p class="qa-edge-desc"><code>LAG</code> is <em>positional</em>, not date-aware: if week 2024-01-08 is missing from <code>weekly_metrics</code>, <code>LAG</code> jumps silently from 01-01 to 01-15 and reports &lsquo;1-week growth&rsquo; over a 14-day gap. The fix is a <strong>date-spine left-join first</strong>, so the gap row exists as a row, and <code>LAG</code> over the dense spine returns the correct adjacent week. The query below demonstrates the divergence on a synthesized weekly series with an intentional missing week.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>What is a &lsquo;date spine&rsquo;?</strong> A complete sequence of every date (or every week, every hour, every minute &mdash; whatever your reporting grain is) in your range, with <em>no gaps</em>. You build it once, then <code>LEFT JOIN</code> your fact table onto it. Every period is now guaranteed to appear as a row, even periods that had no underlying activity. Window functions like <code>LAG</code>, <code>LEAD</code>, and rolling aggregates suddenly behave correctly because the row order matches the calendar order.</p><p><strong>How to build one (cheat sheet):</strong></p><ul><li><strong>Postgres:</strong> <code>SELECT generate_series('2024-01-01'::date, '2024-12-31'::date, INTERVAL '1 week') AS week_start</code></li><li><strong>DuckDB:</strong> <code>SELECT * FROM range(DATE '2024-01-01', DATE '2024-12-31', INTERVAL 7 DAY)</code></li><li><strong>BigQuery / Spark:</strong> <code>SELECT * FROM UNNEST(GENERATE_DATE_ARRAY('2024-01-01','2024-12-31', INTERVAL 7 DAY))</code></li><li><strong>Snowflake:</strong> <code>SELECT DATEADD(week, SEQ4(), '2024-01-01') FROM TABLE(GENERATOR(ROWCOUNT =&gt; 53))</code></li><li><strong>Universal (recursive CTE):</strong> <code>WITH RECURSIVE s(d) AS (SELECT DATE '2024-01-01' UNION ALL SELECT d + 7 FROM s WHERE d &lt; DATE '2024-12-31') SELECT * FROM s;</code></li></ul><p><strong>The semantic question — fill with 0 or leave NULL?</strong> Imagine the store is closed on weekends or holidays. The absence of sales those days is <em>logical</em>, not a missing measurement. Filling with 0 in this case <em>skews</em> the average sales downward (you are averaging operational days <em>and</em> closed days together), under-estimating the company&rsquo;s real performance. Always distinguish:</p><ul><li><strong>Real NULL</strong> (no measurement, but the period existed) &mdash; safe to <code>COALESCE(..., 0)</code> or <code>ffill</code>, depending on what the metric semantics are (revenue is 0 if no transactions; balance is the prior balance).</li><li><strong>Structural absence</strong> (the period <em>shouldn&rsquo;t</em> have data &mdash; closed days, scheduled maintenance, holidays) &mdash; do <strong>not</strong> fill with 0. Either left-join to a calendar dimension that flags <code>is_business_day</code> and exclude non-business rows from averages, or carry the row with an explicit <code>was_closed</code> column.</li></ul><p>The query below uses <code>was_missing</code> as the bridge concept &mdash; it preserves the gap as a row but flags it, so downstream consumers can choose whether to treat it as a real zero or as a structural absence.</p></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- Synthesize a weekly series with an INTENTIONAL gap at 2024-01-08
 WITH wm_gapped(week_start, wau) AS (
     VALUES
       (DATE &#x27;2024-01-01&#x27;, 10000),
@@ -2493,17 +2515,17 @@ LIMIT 10;</code></pre>
 FROM sessions GROUP BY session_date;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   session_date  ios  android  web  other  total
 0    2025-01-22  4.0      3.0  5.0    0.0     12
 1    2025-02-13  7.0      4.0  1.0    0.0     12
-2    2025-01-09  1.0      7.0  4.0    0.0     12
-3    2025-02-14  3.0      6.0  3.0    0.0     12
-4    2025-02-26  5.0      3.0  4.0    0.0     12
-5    2025-03-02  8.0      3.0  1.0    0.0     12
+2    2025-02-02  6.0      2.0  4.0    0.0     12
+3    2025-03-05  6.0      4.0  2.0    0.0     12
+4    2025-01-23  4.0      2.0  6.0    0.0     12
+5    2025-02-06  8.0      2.0  2.0    0.0     12
 ..          ...  ...      ...  ...    ...    ...
-62   2025-02-04  5.0      4.0  3.0    0.0     12
-63   2099-06-01  0.0      0.0  1.0    0.0      1
-64   2025-01-15  6.0      3.0  3.0    0.0     12
-65   2025-03-07  6.0      4.0  2.0    0.0     12
-66   2025-01-18  3.0      6.0  3.0    0.0     12
-67   2025-01-31  7.0      2.0  3.0    0.0     12</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity in platform values</div><p class="qa-edge-desc"><code>'iOS'</code> vs <code>'ios'</code> are two distinct buckets by default. The dirty data has both (we injected 'iOS', 'Android', 'WEB' alongside the lowercase canonical values). Always <code>LOWER(TRIM(...))</code> at the comparator boundary, but surface the raw variants too so DQ can ticket upstream.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT session_date,
+62   2025-01-29  4.0      5.0  3.0    0.0     12
+63   2025-02-01  6.0      3.0  2.0    1.0     12
+64   2025-02-04  5.0      4.0  3.0    0.0     12
+65   2099-06-01  0.0      0.0  1.0    0.0      1
+66   2025-01-24  9.0      1.0  2.0    0.0     12
+67   2025-02-08  4.0      3.0  5.0    0.0     12</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Case sensitivity in platform values</div><p class="qa-edge-desc"><code>'iOS'</code> vs <code>'ios'</code> are two distinct buckets by default. The dirty data has both (we injected 'iOS', 'Android', 'WEB' alongside the lowercase canonical values). Always <code>LOWER(TRIM(...))</code> at the comparator boundary, but surface the raw variants too so DQ can ticket upstream.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT session_date,
        SUM(CASE WHEN LOWER(TRIM(platform)) = &#x27;ios&#x27;     THEN 1 ELSE 0 END) AS ios,
        SUM(CASE WHEN LOWER(TRIM(platform)) = &#x27;android&#x27; THEN 1 ELSE 0 END) AS android,
        SUM(CASE WHEN LOWER(TRIM(platform)) = &#x27;web&#x27;     THEN 1 ELSE 0 END) AS web,
@@ -2574,7 +2596,7 @@ ORDER BY category, rk;</code></pre>
 14    Sports          38      prod_38   2003.0   3</code></pre>
     </div>
     <p class="qa-note"><strong>Why DENSE_RANK:</strong> if two products tie for #2, you keep both <em>and</em> still get a #3.</p>
-    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Ties at #2 mean #3 may not exist</div><p class="qa-edge-desc"><code>DENSE_RANK</code> gives 1,2,2,3 — three rows survive. <code>RANK</code> gives 1,2,2,4 — only two rows survive (#3 is skipped, you would have to filter <code>&le; 3</code> manually to see what happens). Demonstrate by synthesizing a tied scoreboard.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH scoreboard(name, score) AS (
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Ties at #2 mean #3 may not exist</div><p class="qa-edge-desc"><code>DENSE_RANK</code> gives 1,2,2,3 — three rows survive. <code>RANK</code> gives 1,2,2,4 — only two rows survive (#3 is skipped, you would have to filter <code>&le; 3</code> manually to see what happens). Demonstrate by synthesizing a tied scoreboard.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>Three ranking primitives, three different tie behaviors:</strong></p><ul><li><code><strong>RANK()</strong></code> &mdash; assigns the same rank to ties, then <em>skips</em> values. Sequence <code>{100, 90, 90, 80}</code> &rarr; ranks <code>{1, 2, 2, 4}</code>. There is no rank 3.</li><li><code><strong>DENSE_RANK()</strong></code> &mdash; assigns the same rank to ties, but <em>does not skip</em>. <code>{100, 90, 90, 80}</code> &rarr; <code>{1, 2, 2, 3}</code>. Use when you want &lsquo;top N <em>distinct</em> values&rsquo;.</li><li><code><strong>ROW_NUMBER()</strong></code> &mdash; gives every row a unique sequence, ties broken arbitrarily by the engine (or deterministically if you add a secondary sort). <code>{100, 90, 90, 80}</code> &rarr; <code>{1, 2, 3, 4}</code>. Use when you need exactly N rows, no more, no less.</li></ul><p><strong>Picking by intent</strong> &mdash; not by syntax:</p><ul><li><em>&lsquo;Top 3 highest scorers&rsquo;</em>, ties allowed &rarr; <code>WHERE RANK() &lt;= 3</code> (you might get 4+ rows if there is a tie at the top).</li><li><em>&lsquo;Top 3 distinct scores&rsquo;</em> &rarr; <code>WHERE DENSE_RANK() &lt;= 3</code>.</li><li><em>&lsquo;Pick exactly 3 (cutoff is paid prize money)&rsquo;</em> &rarr; <code>WHERE ROW_NUMBER() &lt;= 3</code>, with a deterministic tiebreak in the <code>ORDER BY</code>.</li></ul></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH scoreboard(name, score) AS (
     VALUES (&#x27;A&#x27;, 100), (&#x27;B&#x27;, 90), (&#x27;C&#x27;, 90), (&#x27;D&#x27;, 80), (&#x27;E&#x27;, 70)
 )
 SELECT name, score,
@@ -2602,16 +2624,16 @@ WHERE position &lt;= 3;</code></pre><div class="qa-edge-code-label edge-out-labe
 0       Food         1      prod_50
 1       Food         2      prod_42
 2       Food         3      prod_43
-3   Clothing         1      prod_28
-4   Clothing         2      prod_30
-5   Clothing         3      prod_29
+3     Sports         1      prod_40
+4     Sports         2      prod_36
+5     Sports         3      prod_38
 ..       ...       ...          ...
 9      Books         1      prod_19
 10     Books         2      prod_11
 11     Books         3      prod_15
-12    Sports         1      prod_40
-13    Sports         2      prod_36
-14    Sports         3      prod_38</code></pre></li></ul></details>
+12  Clothing         1      prod_28
+13  Clothing         2      prod_30
+14  Clothing         3      prod_29</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -2763,7 +2785,7 @@ LIMIT 10;</code></pre>
 9        79    5.80     0.020       1</code></pre>
     </div>
     <p class="qa-note"><strong>CUME_DIST vs PERCENT_RANK:</strong> CUME_DIST counts ties as &lsquo;at or below&rsquo; (&le;); PERCENT_RANK uses (rank-1)/(N-1). Use CUME_DIST for &lsquo;what % of orders are &le; this&rsquo;.</p>
-    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">CUME_DIST counts &le;, PERCENT_RANK counts &lt;</div><p class="qa-edge-desc">Subtle but real: <code>CUME_DIST(x)</code> = fraction of rows &le; x. <code>PERCENT_RANK(x)</code> = (rank(x) - 1) / (N - 1). On the same data they give different cutoff values for the &lsquo;same&rsquo; percentile. Demo shows divergence on a 10-row series.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH d(amount) AS (
+    <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">CUME_DIST counts &le;, PERCENT_RANK counts &lt;</div><p class="qa-edge-desc">Subtle but real: <code>CUME_DIST(x)</code> = fraction of rows &le; x. <code>PERCENT_RANK(x)</code> = (rank(x) - 1) / (N - 1). On the same data they give different cutoff values for the &lsquo;same&rsquo; percentile. Demo shows divergence on a 10-row series.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>Two windowed percentiles, two different formulas:</strong></p><ul><li><code><strong>CUME_DIST(x)</strong></code> &mdash; cumulative distribution. Returns the <em>fraction of rows whose value is &le; x</em>, computed as <code>(count of rows &le; x) / N</code>. Range: <code>(0, 1]</code> &mdash; the maximum value always gets 1.0.</li><li><code><strong>PERCENT_RANK(x)</strong></code> &mdash; relative rank percentile. Computed as <code>(rank(x) - 1) / (N - 1)</code>. Range: <code>[0, 1]</code> &mdash; the minimum value gets 0.0, the maximum gets 1.0.</li></ul><p><strong>Where the divergence shows up:</strong> on tied values and at the boundaries.</p><ul><li>For the median in a 10-row series with no ties, <code>CUME_DIST</code> at the 5th row is 0.5; <code>PERCENT_RANK</code> is 0.444 ((5-1)/(10-1)). <strong>Same percentile question, different answers.</strong></li><li><code>CUME_DIST</code> is monotonic non-strict (ties get the same value &mdash; they all see the same set of rows &le; them). <code>PERCENT_RANK</code> is also tie-equal but the formula is rank-based.</li></ul><p><strong>Pick by use case:</strong> <em>&lsquo;What fraction of users spent at most $X?&rsquo;</em> wants <code>CUME_DIST</code>. <em>&lsquo;Where does this user fall in the ranked distribution?&rsquo;</em> wants <code>PERCENT_RANK</code>. They look interchangeable; they aren&rsquo;t.</p></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH d(amount) AS (
     VALUES (10),(20),(30),(40),(50),(50),(60),(70),(80),(100)
 )
 SELECT amount,
@@ -2834,8 +2856,8 @@ LIMIT 10;</code></pre>
 5        90        2 2025-01-12  324.70    141.57  183.13
 6       131        3 2025-01-17   53.76     70.95  -17.19
 7       139        3 2025-01-18    9.77     70.95  -61.18
-8       223        3 2025-01-28   18.93     70.95  -52.02
-9       224        3 2025-01-28  164.63     70.95   93.68</code></pre>
+8       224        3 2025-01-28  164.63     70.95   93.68
+9       223        3 2025-01-28   18.93     70.95  -52.02</code></pre>
     </div>
     <p class="qa-note"><strong>Window without ORDER BY</strong> means the average covers the whole partition (the user) — exactly what we want here.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Single-order users have delta=0</div><p class="qa-edge-desc">AVG over a partition of 1 equals that one value, so delta is 0. Filter to users with &gt;= some min order count for anomaly logic.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH stats AS (
@@ -2846,18 +2868,18 @@ LIMIT 10;</code></pre>
 )
 SELECT * FROM stats WHERE u_n &gt;= 5 AND amount &gt; u_avg * 2;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>    order_id  user_id  amount       u_avg  u_n
 0        298       17  280.68  106.044000    5
-1        323       69  219.62   97.197143    7
-2        128       62  128.41   44.758000    5
-3        445       96  365.97  107.082000    5
-4        198      112  830.40  161.951667    6
-5        424      187  404.41  112.521667    6
+1        238      155  133.38   65.010000    6
+2        323       69  219.62   97.197143    7
+3        117       42  210.43   64.930000    7
+4         15       70  890.88  133.778000   10
+5        277      128  147.61   73.566667    6
 ..       ...      ...     ...         ...  ...
-13       384      161   97.23   44.912000    5
-14       446      176  958.35  180.631250    8
-15       208       99  347.94  107.280000    5
-16       117       42  210.43   64.930000    7
-17        15       70  890.88  133.778000   10
-18       277      128  147.61   73.566667    6</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Order amount distribution is log-normal</div><p class="qa-edge-desc">Linear delta over-flags whales' big-but-normal orders. Use log(amount) - log(u_avg) for ratio thinking.</p></li></ul></details>
+13       494      156  202.47   98.251667    6
+14       198      112  830.40  161.951667    6
+15       424      187  404.41  112.521667    6
+16        14      151  318.91  116.080000    5
+17       384      161   97.23   44.912000    5
+18       446      176  958.35  180.631250    8</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Order amount distribution is log-normal</div><p class="qa-edge-desc">Linear delta over-flags whales' big-but-normal orders. Use log(amount) - log(u_avg) for ratio thinking.</p></li></ul></details>
   </div>
 </details>
 
@@ -2912,11 +2934,11 @@ LIMIT 10;</code></pre>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Multiple signup events per user (DQ)</div><p class="qa-edge-desc">A user firing two 'signup' events is dirty data. NOT EXISTS still works (set-based) but you should DQ-flag it separately.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT user_id, COUNT(*) AS signup_events
 FROM events WHERE event_type = &#x27;signup&#x27;
 GROUP BY user_id HAVING COUNT(*) &gt; 1;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>   user_id  signup_events
-0        1              2
+0        5              2
 1        2              2
-2        4              2
-3        5              2
-4        3              2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Never purchased&rsquo; window</div><p class="qa-edge-desc">Lifetime &lsquo;never&rsquo; is a different cohort from &lsquo;not within 30 days of signup&rsquo;. State the window.</p></li></ul></details>
+2        1              2
+3        3              2
+4        4              2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">&lsquo;Never purchased&rsquo; window</div><p class="qa-edge-desc">Lifetime &lsquo;never&rsquo; is a different cohort from &lsquo;not within 30 days of signup&rsquo;. State the window.</p></li></ul></details>
   </div>
 </details>
 
@@ -3039,10 +3061,10 @@ LIMIT 10;</code></pre>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Late-arriving rows for prior months</div><p class="qa-edge-desc">If a backfill writes a row dated 2024-12-15 today, the MTD for December changes retroactively. Snapshot the curated table or your dashboard becomes a moving target.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone of month boundary</div><p class="qa-edge-desc">DATE_TRUNC('month', ds) is in the server's TZ. For a US-based team, an order at 2024-12-31T23:30 PT is December but the UTC row is January.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>SELECT DATE_TRUNC(&#x27;month&#x27;, ds AT TIME ZONE &#x27;America/Los_Angeles&#x27;) AS m_pt,
        SUM(daily_revenue)
 FROM daily_metrics GROUP BY 1;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>                       m_pt  sum(daily_revenue)
-0 2025-01-01 00:00:00+00:00          1588729.72
-1 2025-03-01 00:00:00+00:00          1470069.99
-2 2025-04-01 00:00:00+00:00          1542605.98
-3 2025-02-01 00:00:00+00:00          1327662.03</code></pre></li></ul></details>
+0 2025-03-01 00:00:00+00:00          1470069.99
+1 2025-04-01 00:00:00+00:00          1542605.98
+2 2025-02-01 00:00:00+00:00          1327662.03
+3 2025-01-01 00:00:00+00:00          1588729.72</code></pre></li></ul></details>
   </div>
 </details>
 
@@ -3156,7 +3178,7 @@ FROM pivoted;</code></pre>
     </div>
     <p class="qa-note"><strong>Order matters.</strong> A &lsquo;purchase&rsquo; before &lsquo;signup&rsquo; is dirty data — the <code>&gt;=</code> guards keep the funnel monotonic.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Activation BEFORE signup</div><p class="qa-edge-desc">Without a monotonicity guard, a user with activation_at &lt; signup_at counts as activated. Add the &gt;= guard or your funnel rate exceeds 100% in some weeks.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>COUNT(*) FILTER (WHERE activation_at IS NOT NULL
-                   AND activation_at &gt;= signup_at) AS step2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Step skipping (strict vs lax funnel)</div><p class="qa-edge-desc">What if a user purchases without an activation event? Two valid answers, very different numbers: <strong>strict</strong> requires the user to hit every step; <strong>lax</strong> counts any user who reached the final step regardless of intermediate signal. Compute both and let the PM pick.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH first_event AS (
+                   AND activation_at &gt;= signup_at) AS step2</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Step skipping (strict vs lax funnel)</div><p class="qa-edge-desc">What if a user purchases without an activation event? Two valid answers, very different numbers: <strong>strict</strong> requires the user to hit every step; <strong>lax</strong> counts any user who reached the final step regardless of intermediate signal. Compute both and let the PM pick.</p><div class="qa-edge-concept"><div class="qa-edge-concept-label">&#9432; Concept</div><div class="qa-edge-concept-body"><p><strong>What is a &lsquo;monotonicity guard&rsquo;?</strong> A funnel assumes events happen in a particular order: signup &rarr; activation &rarr; purchase. If your data is dirty (or the user&rsquo;s identifier was stitched after the fact), you can have a <code>purchase</code> event timestamped <em>before</em> the <code>signup</code>. Without a guard, that purchase counts toward your conversion rate &mdash; and your &lsquo;step 3&rsquo; conversion can exceed 100%, which is a credibility-destroying number on an exec slide.</p><p><strong>The guard:</strong> add a <code>WHERE</code> or <code>FILTER</code> clause requiring each step&rsquo;s timestamp to be &ge; the previous step&rsquo;s. <code>activation_at &gt;= signup_at AND purchase_at &gt;= activation_at</code>. This makes the funnel <em>monotonic</em> &mdash; it can only shrink as you go down the steps.</p><p><strong>Strict vs lax:</strong></p><ul><li><strong>Strict</strong> &mdash; you must hit every step, in order, with monotonicity. Counts the &lsquo;ideal&rsquo; user journey. Use for product-team funnel KPIs where step-by-step optimization is the goal.</li><li><strong>Lax</strong> &mdash; counts any user who reached this step regardless of intermediate signal. Useful when the intermediate event is optional / instrumentation is incomplete / you want a conservative upper-bound on terminal stage achievement.</li></ul><p>Different numbers, both honest. The choice belongs to the PM, not the SQL &mdash; show both and let them pick.</p></div></div><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>WITH first_event AS (
     SELECT user_id, event_type, MIN(event_date) AS first_at
     FROM events
     WHERE event_type IN (&#x27;signup&#x27;,&#x27;activation&#x27;,&#x27;purchase&#x27;)
@@ -3386,10 +3408,10 @@ LIMIT 10;</code></pre>
 3       95              13
 4      100              12
 5       14              12
-6       13              11
-7       12              11
-8       28              11
-9       63              10</code></pre>
+6       28              11
+7       13              11
+8       12              11
+9       54              10</code></pre>
     </div>
     <p class="qa-note"><strong>The trick:</strong> <code>date − row_number</code> is constant within consecutive runs. Group by it, you get the islands. Dedup logins first or streaks lie.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Duplicate (user_id, login_date) pairs</div><p class="qa-edge-desc">If the source has two login rows for the same user on the same day, the row_number trick over-counts the streak length. DEDUP first.</p><div class="qa-edge-code-label">Fix &middot; SQL</div><pre class="edge-pre"><code>-- DEDUP before the gaps-and-islands trick
@@ -3402,12 +3424,12 @@ SELECT user_id, login_date FROM dedup;</code></pre><div class="qa-edge-code-labe
 4           3 2025-03-07
 5           4 2025-03-19
 ...       ...        ...
-1919       97 2025-03-19
-1920       97 2025-03-30
-1921       98 2025-03-04
-1922       98 2025-03-24
-1923       99 2025-03-06
-1924       99 2025-03-28</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone vs &lsquo;day&rsquo;</div><p class="qa-edge-desc">Two logins at 23:30 and 00:30 UTC look like two consecutive days in UTC but the same day for a Pacific user. Bucket login_date in user-local TZ if available.</p></li></ul></details>
+1919       98 2025-03-17
+1920       98 2025-03-26
+1921       98 2025-03-29
+1922       99 2025-03-08
+1923       99 2025-03-10
+1924       99 2025-03-14</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Time zone vs &lsquo;day&rsquo;</div><p class="qa-edge-desc">Two logins at 23:30 and 00:30 UTC look like two consecutive days in UTC but the same day for a Pacific user. Bucket login_date in user-local TZ if available.</p></li></ul></details>
   </div>
 </details>
 
@@ -3505,10 +3527,10 @@ SELECT DATE_TRUNC(&#x27;week&#x27;, login_date) AS week_start,
        COUNT(DISTINCT user_id)        AS wau
 FROM logins GROUP BY 1;</code></pre><div class="qa-edge-code-label edge-out-label">Output</div><pre class="edge-pre edge-out-pre"><code>  week_start  wau
 0        NaT    3
-1 2025-03-03  100
-2 2025-03-10  100
-3 2025-02-24   83
-4 2025-03-24  100
+1 2025-03-10  100
+2 2025-03-03  100
+3 2025-03-24  100
+4 2025-02-24   83
 5 2025-03-17  100</code></pre></li><li class="qa-edge-item"><div class="qa-edge-label">Partial weeks at the boundaries</div><p class="qa-edge-desc">The first and last week may not have 7 full days. Drop or label them, don't average them silently.</p></li></ul></details>
   </div>
 </details>
@@ -3750,11 +3772,11 @@ LIMIT 10;</code></pre>
 2          202   Frank Li              8
 3          203  Grace Kim              5
 4          306     IC_306              3
-5          301     IC_301              3
-6          302     IC_302              3
-7          307     IC_307              0
-8          319     IC_319              0
-9          324     IC_324              0</code></pre>
+5          302     IC_302              3
+6          301     IC_301              3
+7          324     IC_324              0
+8          304     IC_304              0
+9          312     IC_312              0</code></pre>
     </div>
     <p class="qa-note"><strong>Pattern:</strong> seed with <em>self</em>, recurse <em>downward</em>, count − 1 to exclude the root from their own org count.</p>
     <details class="qa-edges"><summary>Edge cases &amp; gotchas <span class="qa-edge-count">(2)</span></summary><ul class="qa-edge-list"><li class="qa-edge-item"><div class="qa-edge-label">Off-by-one (counting self)</div><p class="qa-edge-desc">The seed step puts (root_id, root_id) into descendants — the root counts itself. Subtract 1 in the final aggregate or filter self out in the seed.</p></li><li class="qa-edge-item"><div class="qa-edge-label">Database default recursion limit</div><p class="qa-edge-desc">Postgres default cycle protection is off; SQL Server has MAXRECURSION 100 default. For deep orgs (>100 levels — rare but real), increase the cap explicitly.</p></li></ul></details>
