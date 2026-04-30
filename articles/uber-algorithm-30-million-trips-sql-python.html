@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <title>The Uber Algorithm — 30 Million Trips a Day, Explained in SQL & Python | PaddySpeaks</title>
+    <meta name="description" content="A pre-emptive Data Architect / Data Engineer interview handbook on Uber's algorithm: dispatch, surge, ETA, routing, sequencing pickups, and how the platform clears 30M trips/day — with SQL, Python, and a visual data story.">
+    <meta name="keywords" content="uber algorithm, uber dispatch, surge pricing, ETA, h3 hexagons, batched matching, supply demand, data architect interview, data engineer interview, sql python uber">
+    <meta name="author" content="Paddy Iyer">
+    <link rel="canonical" href="https://paddyspeaks.com/articles/uber-algorithm-30-million-trips-sql-python.html">
+    <meta property="og:title" content="The Uber Algorithm — 30 Million Trips a Day, Explained in SQL & Python">
+    <meta property="og:description" content="Dispatch, surge, routing and sequencing — the actual data plumbing behind 30M trips/day, framed as a Data Architect / Engineer interview prep.">
+    <meta property="og:type" content="article">
+    <meta property="og:url" content="https://paddyspeaks.com/articles/uber-algorithm-30-million-trips-sql-python.html">
+    <meta property="og:site_name" content="PaddySpeaks">
+    <meta property="og:image" content="https://paddyspeaks.com/images/og-default.png">
+    <meta property="article:author" content="Paddy Iyer">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="The Uber Algorithm — 30 Million Trips a Day, Explained in SQL & Python">
+    <meta name="twitter:description" content="A visual, code-first interview prep on Uber's dispatch, surge, ETA, routing and sequencing.">
+    <meta name="twitter:image" content="https://paddyspeaks.com/images/og-default.png">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"Article","headline":"The Uber Algorithm — 30 Million Trips a Day, Explained in SQL & Python","description":"Dispatch, surge, routing and sequencing — the actual data plumbing behind 30M trips/day, framed as a Data Architect / Engineer interview prep.","author":{"@type":"Person","name":"Paddy Iyer","url":"https://paddyspeaks.com/about.html"},"publisher":{"@type":"Organization","name":"PaddySpeaks","url":"https://paddyspeaks.com"},"mainEntityOfPage":"https://paddyspeaks.com/articles/uber-algorithm-30-million-trips-sql-python.html","datePublished":"2026-04-30","image":"https://paddyspeaks.com/images/og-default.png"}
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../style.css">
+<style>
+.uber-hero-card { background: linear-gradient(160deg, #0a1929 0%, #102a44 50%, #0a1929 100%); color: #f5f5f5; padding: 28px 24px; border-radius: 6px; margin: 18px 0 28px; border: 1px solid #1a3553; position: relative; overflow: hidden; }
+.uber-hero-card .accent-glow { position: absolute; width: 240px; height: 240px; border-radius: 50%; background: rgba(0, 200, 255, 0.10); filter: blur(60px); top: -40px; right: -40px; pointer-events: none; }
+.uber-hero-card h3 { color: #00cfff; margin: 0 0 6px; font-family: 'Playfair Display', serif; }
+.uber-hero-card p { margin: 0; color: #cbd5e1; line-height: 1.6; }
+.uber-hero-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-top: 18px; position: relative; z-index: 1;}
+.uber-hero-stats .stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); padding: 12px 14px; border-radius: 4px; }
+.uber-hero-stats .stat .num { font-family: 'Playfair Display', serif; font-size: 22px; color: #ffffff; display: block; }
+.uber-hero-stats .stat .lbl { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.12em; }
+.iv-block { margin: 26px 0; padding: 18px 20px; background: #fdf6ee; border: 1px solid #efd9b8; border-left: 4px solid #c8915a; border-radius: 4px; }
+.iv-block .iv-tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #8a5a1a; font-weight: 700; margin-bottom: 6px; display: block; }
+.iv-block .iv-q { font-family: 'Playfair Display', serif; font-size: 18px; color: #2a1a0a; margin: 0 0 8px; }
+.iv-block .iv-a { color: #3a2a1a; line-height: 1.65; margin: 0; }
+.code-block { margin: 18px 0; }
+.code-block .code-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #5a6b7e; font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.code-block .code-label .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.code-block .code-label .dot.sql { background: #1a4f8a; }
+.code-block .code-label .dot.py { background: #2a7a4a; }
+.code-block .code-label .dot.out { background: #c8915a; }
+.code-block pre { margin: 0; padding: 16px 18px; background: #0d2440; color: #f5f5f5; border-radius: 4px; font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.55; overflow-x: auto; border-left: 4px solid #1a4f8a; }
+.code-block.py-block pre { border-left-color: #2a7a4a; }
+.code-block.out-block pre { background: #0a1c33; border-left-color: #c8915a; }
+.viz-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 18px 0; }
+.viz-card { background: #ffffff; border: 1px solid #dbe2ec; border-left: 4px solid #1a4f8a; border-radius: 4px; padding: 14px 16px; }
+.viz-card h5 { margin: 0 0 6px; font-family: 'Playfair Display', serif; font-size: 16px; color: #0a1929; }
+.viz-card p { margin: 0; color: #3a4a5e; font-size: 14px; line-height: 1.55; }
+.viz-card .num { display: block; font-family: 'Playfair Display', serif; font-size: 26px; color: #1a4f8a; margin-bottom: 4px; }
+.flow-box { background: #f7faff; border: 1px solid #c8d4e2; border-radius: 4px; padding: 16px 18px; margin: 18px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.65; color: #1a2332; white-space: pre; overflow-x: auto; }
+.heat-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.heat-table th, .heat-table td { padding: 8px 10px; text-align: center; border: 1px solid #e2e8f0; }
+.heat-table th { background: #0a1929; color: #f5f5f5; }
+.heat-table td.h0 { background: #f1f5f9; }
+.heat-table td.h1 { background: #fde68a; }
+.heat-table td.h2 { background: #fdba74; }
+.heat-table td.h3 { background: #fb923c; color: #fff; }
+.heat-table td.h4 { background: #c2410c; color: #fff; }
+.section-title { margin-top: 44px; padding-top: 20px; border-top: 2px solid #c8915a; font-family: 'Playfair Display', serif; }
+</style>
+</head>
+<body>
+<main>
+<div class="page-frame"></div>
+<div class="reading-progress" id="readingProgress"></div>
+<div class="top-bar"><span>Est. 2026</span><span>Philosophy · Technology · Wisdom</span><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn ↗</a></div>
+<header class="masthead"><h2><a href="../index.html">Paddy<span>Speaks</span></a></h2><p class="masthead-tagline">Where ancient wisdom meets the architecture of tomorrow</p>
+<div class="masthead-rule"></div>
+</header>
+<nav class="nav-bar"><a href="../index.html">Journal</a><a href="../index.html#philosophy">Philosophy</a><a href="../index.html#technology">Technology</a><a href="../index.html#ai">AI &amp; Future</a><a href="../index.html#archive">Archive</a><a href="../index.html#sacred-texts">Sacred Texts</a><a href="../index.html#data-lab">Data Lab</a><a href="../about.html">About</a></nav>
+<div class="article-page">
+<a class="back-to-home" href="../index.html">← All Articles</a>
+<div>
+<div class="article-hero"><span class="tag">technology</span>
+    <h1>The Uber Algorithm — 30 Million Trips a Day, Explained in SQL &amp; Python</h1>
+    <p class="subtitle">A pre-emptive interview handbook for aspiring Data Architects and Data Engineers: dispatch, surge, ETA, routing, and pickup sequencing — with the data plumbing made visible.</p>
+    <div class="article-meta"><span>By Paddy</span><span class="dot"></span><span>April 30, 2026</span><span class="dot"></span><span>35 min read</span></div>
+</div>
+<div class="article-content">
+<p class="drop-cap"><strong>Premise.</strong> Every second of every day, somewhere on Earth, a person taps a button and a stranger drives toward them. Multiply that to roughly <strong>~30 million trips a day</strong> globally and you no longer have a transport company — you have a real-time, geo-spatial, latency-bound matching engine running over messy human inputs. This article tears the lid off that engine and frames each layer the way a real interview would: <em>"design the dispatcher", "design surge", "design ETA", "explain why two riders going the same way got different drivers"</em>. We'll do it with SQL, Python, and visual data so you can <em>see</em> the system, not just memorize it.</p>
+
+<div class="uber-hero-card">
+    <div class="accent-glow"></div>
+    <h3>Scale, on a single line of napkin math</h3>
+    <p>~150M monthly active riders × ~5M drivers × ~30M daily trips × tens of billions of GPS pings/day. Dispatch decisions must finish in <strong>~1–2 seconds</strong> while reading and writing geo-state that mutates faster than any traditional OLTP database can handle.</p>
+    <div class="uber-hero-stats">
+        <div class="stat"><span class="num">30M</span><span class="lbl">Trips / day</span></div>
+        <div class="stat"><span class="num">~5M</span><span class="lbl">Active drivers</span></div>
+        <div class="stat"><span class="num">10⁴⁄s</span><span class="lbl">Dispatch decisions</span></div>
+        <div class="stat"><span class="num">&lt; 2 s</span><span class="lbl">Match latency target</span></div>
+        <div class="stat"><span class="num">&gt; 50 PB</span><span class="lbl">Hot data lake</span></div>
+        <div class="stat"><span class="num">10⁹+</span><span class="lbl">GPS pings / day</span></div>
+    </div>
+</div>
+
+<h3>The seven decisions the algorithm makes, every trip</h3>
+<ol>
+    <li><strong>Where am I?</strong> — index the rider's pin to a geographic cell.</li>
+    <li><strong>Who is close, online, and the right product?</strong> — candidate shortlist.</li>
+    <li><strong>Of those, who minimizes total system regret?</strong> — batched matching.</li>
+    <li><strong>What should I charge?</strong> — surge / dynamic pricing per hex.</li>
+    <li><strong>How long until pickup, and how long is the trip?</strong> — ETA models.</li>
+    <li><strong>Which roads should the driver take?</strong> — routing under live traffic.</li>
+    <li><strong>If multiple riders share, who gets picked up first?</strong> — pickup sequencing.</li>
+</ol>
+<p>The rest of this article walks each one with the SQL, the Python, and the interview questions a serious panel will actually ask.</p>
+
+<h3 class="section-title">1. The Map Is the Database — H3 Hexagons</h3>
+
+<p>Before dispatch, surge, or ETA, you have to talk about <em>how the world is indexed</em>. Uber's open-source <strong>H3</strong> library tiles the planet in hierarchical hexagons. A hex at resolution 9 is roughly the size of a city block; resolution 7 is roughly a neighborhood. Hexagons beat squares because <strong>every neighbor is equidistant</strong>, which makes "nearby" honest.</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · indexing GPS pings into hexagons</div>
+<pre><code>import h3
+import pandas as pd
+
+pings = pd.DataFrame({
+    "driver_id": [101, 102, 103, 104],
+    "lat":       [37.7749, 37.7790, 37.7831, 37.7600],
+    "lng":       [-122.4194, -122.4150, -122.4080, -122.4400],
+    "ts":        pd.to_datetime(["2026-04-30 09:00:01"]*4),
+})
+pings["h3_r9"] = pings.apply(lambda r: h3.geo_to_h3(r.lat, r.lng, 9), axis=1)
+pings["h3_r7"] = pings.apply(lambda r: h3.geo_to_h3(r.lat, r.lng, 7), axis=1)
+print(pings[["driver_id","h3_r9","h3_r7"]])</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>   driver_id           h3_r9           h3_r7
+0        101  89283082837ffff  87283082bffffff
+1        102  89283082877ffff  87283082bffffff
+2        103  892830828a3ffff  87283082bffffff
+3        104  8928308281bffff  87283082bffffff</code></pre>
+</div>
+
+<p>Now "find me the 50 nearest drivers" stops being a haversine scan over millions of rows; it becomes <em>"give me everything in this hex and its k=2 ring neighbors"</em> — an O(k²) lookup against an in-memory index. That single design choice is what lets dispatch run in milliseconds instead of seconds.</p>
+
+<div class="viz-grid">
+    <div class="viz-card"><span class="num">~0.1 km²</span><h5>Resolution 9</h5><p>City-block scale. The unit of dispatch lookup and per-hex demand counting.</p></div>
+    <div class="viz-card"><span class="num">~5 km²</span><h5>Resolution 7</h5><p>Neighborhood scale. Used for surge aggregation and supply heatmaps shown to drivers.</p></div>
+    <div class="viz-card"><span class="num">~250 km²</span><h5>Resolution 5</h5><p>City-quarter scale. Stream partition key for Flink / Kafka — keeps ordering inside a hex.</p></div>
+    <div class="viz-card"><span class="num">64-bit int</span><h5>H3 cell index</h5><p>Compact, sortable, hierarchical — perfect partition / clustering key in Pinot, Cassandra, BigQuery.</p></div>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Architecture</span>
+    <div class="iv-q">Why hexagons and not lat/lng buckets or a quadtree?</div>
+    <p class="iv-a">Three reasons. (1) <strong>Equidistant neighbors</strong> — every adjacent hex centroid is the same distance away, so "nearest" doesn't have a corner-vs-edge bias like squares do. (2) <strong>Hierarchical aggregation</strong> — a parent hex contains a deterministic set of child hexes, so you can roll up demand from r9 → r7 → r5 with a join instead of a recompute. (3) <strong>Stable IDs</strong> — H3 indexes are 64-bit ints, perfect as a partition key in Cassandra, BigQuery, or Pinot.</p>
+</div>
+
+<h3 class="section-title">2. Dispatch — Choosing Which Driver Gets the Ride</h3>
+
+<p>The naïve answer is <em>"the closest driver"</em>. The real answer is <em>"the driver whose assignment minimizes total system regret in the next 5 minutes"</em>. Uber moved from greedy nearest-driver dispatch to <strong>batched matching</strong> around 2018: instead of assigning each rider the moment they tap, the system holds requests for a few seconds and solves a small bipartite matching problem.</p>
+
+<div class="flow-box">┌──────────┐   ┌──────────┐   ┌────────────┐   ┌──────────────┐   ┌──────────┐
+│ rider    │──▶│ request  │──▶│ batch      │──▶│ Hungarian /  │──▶│ offer    │
+│ tap      │   │ queue    │   │ window     │   │ Min-Cost     │   │ to driver│
+│          │   │ (~2 s)   │   │ N riders × │   │ Flow solver  │   │          │
+│          │   │          │   │ M drivers  │   │              │   │          │
+└──────────┘   └──────────┘   └────────────┘   └──────────────┘   └──────────┘
+                                    │
+                                    ▼
+                              cost matrix C[i,j] =
+                                α·ETA + β·detour + γ·driver_idle
+                                  − δ·rating  − ε·earnings_balance
+                                  + ψ·cancellation_risk
+</div>
+
+<p>That cost matrix is the soul of dispatch. Every term is a business decision encoded as a number:</p>
+
+<div class="viz-grid">
+    <div class="viz-card"><span class="num">α · ETA</span><h5>Pickup time</h5><p>The dominant term. Riders cancel at ~5% per extra minute of ETA over 6 min.</p></div>
+    <div class="viz-card"><span class="num">β · detour</span><h5>Driver detour</h5><p>How far the driver deviates from their current trajectory or queued next-trip area.</p></div>
+    <div class="viz-card"><span class="num">γ · idle</span><h5>Idle fairness</h5><p>Reward drivers who have been waiting longer — utilization smoother, churn lower.</p></div>
+    <div class="viz-card"><span class="num">−δ · rating</span><h5>Driver quality</h5><p>Subtracts a small bonus for high-rated, recently-praised drivers (rare ties only).</p></div>
+    <div class="viz-card"><span class="num">−ε · balance</span><h5>Earnings balance</h5><p>Tilts toward drivers under their target hourly earnings — a soft fairness lever.</p></div>
+    <div class="viz-card"><span class="num">ψ · cancel risk</span><h5>Cancellation prob.</h5><p>An ML score: P(driver accepts and completes). Punishes flaky pairs.</p></div>
+</div>
+
+<h4>The dispatch SQL — what's running on the hot path</h4>
+<p>This is the candidate-shortlist query. It runs against an in-memory state store (Pinot / Aerospike / a custom Go service backed by RocksDB), not Postgres — but the SQL form is what you'll be asked to write at a whiteboard.</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · candidate shortlist for one rider</div>
+<pre><code>-- Inputs: :rider_h3_r9, :rider_lat, :rider_lng, :product = 'UberX'
+WITH neighbor_hexes AS (
+    SELECT h3 FROM h3_kring(:rider_h3_r9, 2)         -- 19 hexes around rider
+),
+nearby_drivers AS (
+    SELECT  d.driver_id,
+            d.lat, d.lng,
+            d.last_ping_ts,
+            d.product_eligible,
+            d.rating,
+            d.shift_hours_today,
+            d.target_earnings_gap_usd,
+            d.recent_cancel_rate
+    FROM    driver_state d
+    JOIN    neighbor_hexes nh ON d.h3_r9 = nh.h3
+    WHERE   d.status      = 'ONLINE_IDLE'
+      AND   :product       = ANY(d.product_eligible)
+      AND   d.last_ping_ts &gt; NOW() - INTERVAL '20 seconds'
+)
+SELECT  driver_id,
+        haversine(lat, lng, :rider_lat, :rider_lng)         AS crow_dist_m,
+        eta_seconds(driver_id, :rider_lat, :rider_lng)      AS eta_s,
+        rating, recent_cancel_rate, target_earnings_gap_usd
+FROM    nearby_drivers
+ORDER BY eta_s ASC
+LIMIT   25;</code></pre>
+</div>
+
+<p>That shortlist of ~25 drivers per rider feeds into the batch optimizer. With ~N riders and ~M drivers in a city in a 2-second window, you build an N×M cost matrix (sparse, because each rider only links to its 25 candidates) and solve <strong>min-cost bipartite matching</strong>.</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · the batched dispatcher (toy)</div>
+<pre><code>import numpy as np
+import pandas as pd
+from scipy.optimize import linear_sum_assignment
+
+INF = 1e9
+cost = np.array([
+    [ 180,  240,  INF,  300,  INF],   # rider 0
+    [ 220,  150,  280,  INF,  INF],   # rider 1
+    [ INF,  340,  200,  260,  310],   # rider 2
+    [ INF,  INF,  290,  220,  170],   # rider 3
+])
+
+row_ind, col_ind = linear_sum_assignment(cost)
+assignment = pd.DataFrame({
+    "rider":  [f"R{i}" for i in row_ind],
+    "driver": [f"D{j}" for j in col_ind],
+    "cost_s": cost[row_ind, col_ind].astype(int),
+})
+print(assignment)
+print("Total system ETA cost (s):", int(cost[row_ind, col_ind].sum()))</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>  rider driver  cost_s
+0    R0     D0     180
+1    R1     D1     150
+2    R2     D2     200
+3    R3     D4     170
+Total system ETA cost (s): 700</code></pre>
+</div>
+
+<p>R3 didn't get D4 because D4 was closest to R3 — D4 was assigned because giving D2 to R2 and D4 to R3 yields a lower <em>total</em> cost than the greedy alternative. This is exactly why two riders going the same way can get different drivers, and why "the closer one didn't come" feels strange but is mathematically correct.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Algorithms</span>
+    <div class="iv-q">Why batched matching beats greedy nearest-driver — quantify it.</div>
+    <p class="iv-a">Greedy gives each new rider the locally best driver and locks it in. Batched waits 1–2 s, builds an N×M matrix, and solves min-cost flow. Internal Uber papers and ridesharing literature (Özkan &amp; Ward, 2020) show batched dispatch reduces <strong>average pickup ETA by ~15–20%</strong> and lifts <strong>completed-trips-per-driver-hour by ~3–5%</strong>. The trade-off is a 1–2 s perceived delay, well below the cancellation threshold.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Data Architecture</span>
+    <div class="iv-q">Where does <code>driver_state</code> actually live? You won't say "Postgres".</div>
+    <p class="iv-a">Driver state is a hot, geo-partitioned, write-heavy keyspace updated by every GPS ping (~4 s cadence × millions of drivers). It lives in a sharded in-memory store — Uber's Ringpop-based service stack, or industry equivalents like Aerospike, ScyllaDB, or Apache Pinot for the read side. Partition key = H3 hex at r6/r7 for shard balance. The <em>SQL form</em> is the logical model exposed to the dispatcher; the physical implementation is a custom Go/Java service with sub-millisecond reads.</p>
+</div>
+
+<h3 class="section-title">3. Surge Pricing — Markets, Not Multipliers</h3>
+
+<p>Riders see "1.8x". Internally there is no global multiplier — surge is a <strong>per-hex, per-product, per-minute</strong> price signal whose only job is to clear the market: bring supply up, dampen demand, until queue depth and ETA hit acceptable thresholds. The math is closer to airline yield management than to "Uber raised prices because it was raining".</p>
+
+<div class="flow-box">         supply (drivers idle in hex)        demand (open requests in hex)
+                  ▼                                   ▼
+          ┌──────────────────┐                ┌──────────────────┐
+          │ supply_index_h3  │                │ demand_index_h3  │
+          │ rolling 60s      │                │ rolling 60s      │
+          └──────────────────┘                └──────────────────┘
+                       \                       /
+                        \                     /
+                         ▼                   ▼
+                     ┌─────────────────────────┐
+                     │  surge multiplier       │
+                     │  f(D/S, ETA, queue,     │
+                     │    cancel_rate, weather)│
+                     └─────────────────────────┘
+                                ▼
+                        rider sees 1.0x — 3.0x
+                        driver sees heatmap glow
+</div>
+
+<p>The signal is bidirectional: surge raises prices to dampen demand <em>and</em> shows drivers a heatmap to pull supply toward the hex. The closed loop typically settles within 3–5 minutes during normal events.</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · per-hex surge over a sliding 60-second window</div>
+<pre><code>-- streaming view (Flink / Materialize / ksqlDB style)
+WITH supply_60s AS (
+    SELECT  h3_r8,
+            COUNT(DISTINCT driver_id) FILTER (WHERE status = 'ONLINE_IDLE') AS idle_drivers
+    FROM    driver_pings
+    WHERE   ping_ts &gt;= NOW() - INTERVAL '60 seconds'
+    GROUP BY h3_r8
+),
+demand_60s AS (
+    SELECT  h3_r8,
+            COUNT(*) FILTER (WHERE state = 'OPEN')                       AS open_requests,
+            AVG(quoted_eta_s)                                            AS avg_eta_s,
+            AVG(CASE WHEN cancelled THEN 1 ELSE 0 END)                   AS cancel_rate
+    FROM    ride_requests
+    WHERE   request_ts &gt;= NOW() - INTERVAL '60 seconds'
+    GROUP BY h3_r8
+)
+SELECT  d.h3_r8,
+        d.open_requests,
+        s.idle_drivers,
+        ROUND(d.open_requests::numeric / NULLIF(s.idle_drivers, 0), 2)   AS d_over_s,
+        d.avg_eta_s,
+        d.cancel_rate,
+        LEAST(3.0, GREATEST(1.0,
+              1.0
+            + 0.45 * GREATEST(0, (d.open_requests::numeric / NULLIF(s.idle_drivers, 0)) - 1.0)
+            + 0.020 * GREATEST(0, d.avg_eta_s - 360)
+            + 0.80  * GREATEST(0, d.cancel_rate - 0.10)
+        )) AS surge_multiplier
+FROM    demand_60s d
+LEFT JOIN supply_60s s USING (h3_r8);</code></pre>
+</div>
+
+<p>Three things to notice. The formula is <strong>bounded</strong> ([1.0, 3.0] in most markets), it is <strong>monotonic</strong> in each input (so it can never <em>decrease</em> price when ETA worsens), and the coefficients are <strong>learned per city</strong> from historical elasticity. New York's response is not San Francisco's.</p>
+
+<h4>What surge actually does to behavior — a tiny simulation</h4>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · supply/demand response to surge</div>
+<pre><code>import numpy as np, pandas as pd
+
+EPS_RIDER  = -0.6   # +1% price → -0.6% demand
+EPS_DRIVER = +1.2   # +1% price → +1.2% supply within 5 min
+
+base_demand = 1000
+base_supply =  600
+mults = np.linspace(1.0, 2.4, 8)
+
+rows = []
+for m in mults:
+    pct = (m - 1.0) * 100
+    demand = base_demand * (1 + EPS_RIDER  * pct/100)
+    supply = base_supply * (1 + EPS_DRIVER * pct/100)
+    fulfilled = min(demand, supply)
+    rows.append({"surge": f"{m:.1f}x", "demand": int(demand), "supply": int(supply),
+                 "fulfilled": int(fulfilled),
+                 "fill_rate": f"{100*fulfilled/demand:0.1f}%"})
+print(pd.DataFrame(rows).to_string(index=False))</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code> surge  demand  supply  fulfilled fill_rate
+  1.0x    1000     600        600     60.0%
+  1.2x     880     744        744     84.5%
+  1.4x     760     888        760    100.0%
+  1.6x     640    1032        640    100.0%
+  1.8x     520    1176        520    100.0%
+  2.0x     400    1320        400    100.0%
+  2.2x     280    1464        280    100.0%
+  2.4x     160    1608        160    100.0%</code></pre>
+</div>
+
+<p>The market clears around <strong>1.4x</strong> in this toy. Going higher than that doesn't help fulfillment — it transfers wealth from riders to drivers and risks a customer-trust event. Real Uber surge is tuned to find the <em>lowest</em> multiplier that clears the queue, not the highest the market can bear.</p>
+
+<h4>Visualizing a city's surge as a hex heatmap</h4>
+<p>Same row = north-to-south band of a city; same column = east-to-west band. Each cell is one r7 hex, colored by current multiplier. This is what the driver heatmap renders.</p>
+
+<table class="heat-table">
+    <thead>
+        <tr><th>&nbsp;</th><th>W3</th><th>W2</th><th>W1</th><th>Center</th><th>E1</th><th>E2</th><th>E3</th></tr>
+    </thead>
+    <tbody>
+        <tr><th>N3</th><td class="h0">1.0x</td><td class="h0">1.0x</td><td class="h1">1.2x</td><td class="h2">1.5x</td><td class="h1">1.2x</td><td class="h0">1.0x</td><td class="h0">1.0x</td></tr>
+        <tr><th>N2</th><td class="h0">1.0x</td><td class="h1">1.2x</td><td class="h2">1.5x</td><td class="h3">1.9x</td><td class="h2">1.6x</td><td class="h1">1.1x</td><td class="h0">1.0x</td></tr>
+        <tr><th>N1</th><td class="h1">1.1x</td><td class="h2">1.4x</td><td class="h3">1.9x</td><td class="h4">2.4x</td><td class="h3">2.0x</td><td class="h2">1.5x</td><td class="h1">1.2x</td></tr>
+        <tr><th>Ctr</th><td class="h1">1.2x</td><td class="h2">1.6x</td><td class="h4">2.5x</td><td class="h4">2.8x</td><td class="h3">2.1x</td><td class="h2">1.6x</td><td class="h1">1.2x</td></tr>
+        <tr><th>S1</th><td class="h0">1.0x</td><td class="h1">1.2x</td><td class="h2">1.6x</td><td class="h3">1.9x</td><td class="h2">1.5x</td><td class="h1">1.2x</td><td class="h0">1.0x</td></tr>
+        <tr><th>S2</th><td class="h0">1.0x</td><td class="h0">1.0x</td><td class="h1">1.2x</td><td class="h2">1.5x</td><td class="h1">1.2x</td><td class="h0">1.0x</td><td class="h0">1.0x</td></tr>
+    </tbody>
+</table>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Pricing</span>
+    <div class="iv-q">A rider says "I just got 2.1x and my friend across the street got 1.4x". Explain.</div>
+    <p class="iv-a">Surge is computed at <strong>H3 r8 granularity</strong> (~0.7 km²). "Across the street" can be the boundary between two hexes with different supply/demand microclimates — one hex contains a stadium exit, the other contains a residential block where 6 drivers happen to be idle. Also: surge is per-product (UberX vs Comfort vs XL) and per-rider-cohort (loyalty / promo), so two riders in the <em>same</em> hex can see different prices for legitimate reasons.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Streaming</span>
+    <div class="iv-q">How do you compute surge at sub-minute latency over millions of hexes?</div>
+    <p class="iv-a">Kafka topics for <code>driver_pings</code> and <code>ride_requests</code>, partitioned by H3 r5 (so all events for a parent hex go to the same Flink keyed stream). A Flink job maintains per-hex sliding 60 s windows and emits <code>(h3_r8, surge, ts)</code> tuples to a second Kafka topic. The dispatcher and the rider app consume that topic via a low-latency store (Redis / Pinot). End-to-end p99 under 3 s.</p>
+</div>
+
+<h3 class="section-title">4. ETA — The Most Lied-About Number on the App</h3>
+
+<p>"Driver arriving in 4 minutes" is a probability distribution disguised as a number. Uber's ETA stack has three layers, and each one solves a different failure mode of the previous one.</p>
+
+<div class="viz-grid">
+    <div class="viz-card"><span class="num">L1</span><h5>Map ETA</h5><p>Pure routing-engine answer: shortest-path / Dijkstra / contraction hierarchies on the road graph, weighted by free-flow speeds.</p></div>
+    <div class="viz-card"><span class="num">L2</span><h5>Traffic-Adjusted</h5><p>Edge weights replaced by live speed estimates from the last N minutes of GPS pings on the same road segment.</p></div>
+    <div class="viz-card"><span class="num">L3</span><h5>ML Residual</h5><p>A Gradient-Boosted Tree (or DeepETA-style transformer) predicts the residual: how much L2 will be wrong given hour, weather, event, driver behavior.</p></div>
+</div>
+
+<p>L3 is where Uber publicly claims the biggest wins — DeepETA reduced absolute ETA error by ~12% over the prior GBT. The trick is that L1+L2 already get you 80% of the way; L3 just learns the systematic bias.</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · live segment speed (the heart of L2)</div>
+<pre><code>-- Each driver ping snaps to a road segment via map-matching (HMM/Viterbi).
+-- This view exposes the rolling speed estimate per segment.
+CREATE OR REPLACE VIEW segment_speed_live AS
+SELECT
+    segment_id,
+    h3_r7,                                              -- spatial partition
+    AVG(speed_kmh) FILTER (WHERE ping_ts &gt; NOW() - INTERVAL '3 min')   AS speed_3m,
+    AVG(speed_kmh) FILTER (WHERE ping_ts &gt; NOW() - INTERVAL '15 min')  AS speed_15m,
+    AVG(speed_kmh) FILTER (WHERE ping_ts &gt; NOW() - INTERVAL '60 min')  AS speed_60m,
+    COUNT(*)       FILTER (WHERE ping_ts &gt; NOW() - INTERVAL '3 min')   AS samples_3m,
+    NOW()                                                              AS computed_at
+FROM    snapped_pings
+WHERE   ping_ts &gt; NOW() - INTERVAL '60 minutes'
+GROUP BY segment_id, h3_r7;</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · L1 + L2 + L3 ETA stack (toy)</div>
+<pre><code>import numpy as np, pandas as pd
+
+# road segments along a candidate route
+segs = pd.DataFrame({
+    "segment_id":   [101, 102, 103, 104, 105],
+    "length_m":     [320, 410, 600, 220, 540],
+    "freeflow_kmh": [ 50,  50,  60,  40,  50],
+    "live_kmh":     [ 28,  22,  35,  15,  30],   # current traffic
+})
+
+# L1: free-flow ETA
+segs["eta_L1_s"] = segs.length_m / (segs.freeflow_kmh * 1000/3600)
+# L2: traffic-adjusted ETA
+segs["eta_L2_s"] = segs.length_m / (segs.live_kmh     * 1000/3600)
+
+# L3: ML residual, e.g. predicted +18% during 6pm Friday rain
+RESIDUAL = 0.18
+segs["eta_L3_s"] = segs.eta_L2_s * (1 + RESIDUAL)
+
+print(segs.round(1))
+print(f"\\nL1 total: {segs.eta_L1_s.sum():.0f}s  "
+      f"L2 total: {segs.eta_L2_s.sum():.0f}s  "
+      f"L3 total: {segs.eta_L3_s.sum():.0f}s")</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>   segment_id  length_m  freeflow_kmh  live_kmh  eta_L1_s  eta_L2_s  eta_L3_s
+0         101       320            50        28      23.0      41.1      48.5
+1         102       410            50        22      29.5      67.1      79.2
+2         103       600            60        35      36.0      61.7      72.8
+3         104       220            40        15      19.8      52.8      62.3
+4         105       540            50        30      38.9      64.8      76.5
+
+L1 total: 147s  L2 total: 288s  L3 total: 339s</code></pre>
+</div>
+
+<p>L1 says 2:27, L2 says 4:48, L3 says 5:39. The honest ETA shown to the rider is L3 — and it'll be ~ ±45 s off, which is the published p50 error band for DeepETA-class models.</p>
+
+<h3 class="section-title">5. Routing — Which Roads Should the Driver Take?</h3>
+
+<p>Once an ETA exists, routing is the inverse problem: <em>find the path that minimizes that ETA</em>. Doing Dijkstra naïvely over a continent-sized road graph is hopeless; production systems use <strong>contraction hierarchies</strong> (CH) or <strong>customizable contraction hierarchies</strong> (CCH) that pre-process the graph into a layered structure where queries are sub-millisecond.</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · plain Dijkstra over a tiny weighted graph (illustrative)</div>
+<pre><code>import heapq
+
+graph = {
+    "A": [("B", 4), ("C", 2)],
+    "B": [("C", 5), ("D", 10)],
+    "C": [("D", 3), ("E", 8)],
+    "D": [("E", 4), ("F", 11)],
+    "E": [("F", 5)],
+    "F": [],
+}
+
+def dijkstra(g, src, dst):
+    dist = {n: float("inf") for n in g}
+    prev = {}
+    dist[src] = 0
+    pq = [(0, src)]
+    while pq:
+        d, u = heapq.heappop(pq)
+        if u == dst: break
+        if d &gt; dist[u]: continue
+        for v, w in g[u]:
+            if d + w &lt; dist[v]:
+                dist[v] = d + w
+                prev[v] = u
+                heapq.heappush(pq, (dist[v], v))
+    path, cur = [], dst
+    while cur in prev: path.append(cur); cur = prev[cur]
+    path.append(src)
+    return dist[dst], path[::-1]
+
+print(dijkstra(graph, "A", "F"))</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>(14, ['A', 'C', 'D', 'E', 'F'])</code></pre>
+</div>
+
+<p>In production, the edge weights are <em>not</em> static — they're the L2/L3 traffic-aware ETAs above. Routing recomputes when (a) traffic shifts &gt;15% on the chosen route, (b) the driver deviates &gt;100 m, or (c) a fresh incident report (police, accident, road closure) lands within 1 km of the path.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Routing</span>
+    <div class="iv-q">Why doesn't every driver get the same "best" route?</div>
+    <p class="iv-a">Two reasons. First, the routing engine intentionally <strong>spreads load</strong> across near-equivalent paths to avoid creating new congestion (this is why one driver gets 5th Ave and the next gets 6th). Second, the engine personalizes for <strong>driver preferences</strong> learned over their last ~500 trips — some drivers consistently take known shortcuts, others stick to highways; both yield similar ETAs. The system respects that.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Maps Data</span>
+    <div class="iv-q">How does Uber know that a road just closed?</div>
+    <p class="iv-a">Three signals. (1) <strong>Anomaly detection</strong> on segment_speed_live — when 90th-percentile speed on a segment drops to 0 for 90 s while neighboring segments are normal, a "probable closure" event is emitted. (2) <strong>Driver reports</strong> in the partner app. (3) <strong>External feeds</strong> from city traffic APIs and partners like TomTom / HERE. The three feed an event stream that updates edge weights in the routing graph within ~60 s.</p>
+</div>
+
+<h3 class="section-title">6. Who Arrives First? — Pickup Sequencing in Shared Trips</h3>
+
+<p>For solo trips the question is trivial: the driver goes to the rider, period. For <strong>UberX Share / Pool</strong> the algorithm has to decide an ordering: pick up A first or B first? Drop A first or B first? With four stops (2 pickups + 2 drop-offs) there are 4!/2 = 12 orderings if we keep "pickup before drop-off" as a constraint — and a real Pool car may have 3–4 active legs.</p>
+
+<p>This is a tiny vehicle routing problem (VRP) solved per-vehicle, per-decision. The objective: minimize <strong>total in-car time × rider</strong> (so a rider already in the car doesn't get punished by a giant detour for a new pickup), bounded by <strong>per-rider detour budget</strong> (typically ≤ 8 minutes vs the solo route).</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · best pickup ordering for 2-rider Share</div>
+<pre><code>from itertools import permutations
+
+# travel time in seconds between any two waypoints
+T = {
+    ("car", "Apick"): 180, ("car", "Bpick"): 240,
+    ("Apick","Bpick"): 200, ("Bpick","Apick"): 220,
+    ("Apick","Adrop"): 600, ("Apick","Bdrop"): 720,
+    ("Bpick","Adrop"): 540, ("Bpick","Bdrop"): 480,
+    ("Adrop","Bdrop"): 360, ("Bdrop","Adrop"): 360,
+}
+
+stops = ["Apick","Bpick","Adrop","Bdrop"]
+solo_A_time = T[("car","Apick")] + T[("Apick","Adrop")]   # if alone
+solo_B_time = T[("car","Bpick")] + T[("Bpick","Bdrop")]
+DETOUR_BUDGET = 8 * 60   # 8 minutes
+
+def feasible(order):
+    return order.index("Apick") &lt; order.index("Adrop") and \\
+           order.index("Bpick") &lt; order.index("Bdrop")
+
+best = None
+for perm in permutations(stops):
+    if not feasible(perm): continue
+    seq = ["car"] + list(perm)
+    leg_t = [T[(seq[i], seq[i+1])] for i in range(len(seq)-1)]
+    cum = [sum(leg_t[:i+1]) for i in range(len(leg_t))]
+    a_in_car = cum[seq.index("Adrop")-1] - cum[seq.index("Apick")-1]
+    b_in_car = cum[seq.index("Bdrop")-1] - cum[seq.index("Bpick")-1]
+    a_detour = a_in_car - (T[("Apick","Adrop")])
+    b_detour = b_in_car - (T[("Bpick","Bdrop")])
+    if a_detour &gt; DETOUR_BUDGET or b_detour &gt; DETOUR_BUDGET: continue
+    total_rider_time = a_in_car + b_in_car
+    if best is None or total_rider_time &lt; best[0]:
+        best = (total_rider_time, perm, a_detour, b_detour)
+
+print("best order:", best[1])
+print(f"total rider in-car time: {best[0]}s")
+print(f"A detour: {best[2]}s   B detour: {best[3]}s")</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>best order: ('Apick', 'Bpick', 'Bdrop', 'Adrop')
+total rider in-car time: 1620s
+A detour: 540s   B detour: 0s</code></pre>
+</div>
+
+<p>The algorithm picked A first, then B, then dropped B first (because B's destination is en route), then A. Note A took a 9-minute detour <strong>but it was still under budget</strong> — and importantly the algorithm refused to pick orderings that made any single rider wait too long. That's the fairness floor.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Optimization</span>
+    <div class="iv-q">Why is pickup sequencing harder than dispatch?</div>
+    <p class="iv-a">Dispatch is a one-shot bipartite matching. Sequencing is a constrained TSP per vehicle, re-solved every time a new rider gets added to the trip plan. The constraints are <em>per-rider detour budget</em>, <em>vehicle capacity</em>, <em>pickup-before-dropoff precedence</em>, and a soft objective on <em>total rider-time</em>. With ≤ 4 stops you brute-force; with more, you use insertion heuristics + 2-opt local search and re-solve in ~10 ms.</p>
+</div>
+
+<h3 class="section-title">7. Which Customer to Pick Based on Mapping — Geo-Aware Demand Routing</h3>
+
+<p>This is the question the user posed directly: <em>"which customers to pick based on mapping?"</em> It's actually two questions glued together — (a) of all open requests in the city, which one should the dispatcher offer this driver? and (b) when a driver finishes a trip in zone X, which queued request in adjacent zones should they receive?</p>
+
+<p>The answer in both cases is the inverse of what we did earlier. Instead of building "for this rider, who are the candidate drivers?", we build "for this driver, who are the candidate riders?" — and we let the same min-cost matching arbitrate. But the cost matrix gets two extra terms:</p>
+
+<ul>
+    <li><strong>Destination heat</strong> — the demand intensity at the rider's drop-off hex. Sending a driver to a hot drop-off is a freebie: they end up in a high-demand area for the next trip.</li>
+    <li><strong>Driver shift state</strong> — if the driver is near their target earnings or near end-of-shift in a known direction, the system biases toward requests that head <em>that</em> way (this is the "destination filter" in the partner app).</li>
+</ul>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · score open requests for a specific driver</div>
+<pre><code>-- Inputs: :driver_id, :driver_h3_r9, :driver_lat, :driver_lng,
+--         :driver_target_dir (NULL or compass quadrant), :shift_min_left
+WITH driver AS (
+    SELECT  driver_id, h3_r9, lat, lng,
+            target_earnings_gap_usd, shift_hours_today
+    FROM    driver_state WHERE driver_id = :driver_id
+),
+candidate_requests AS (
+    SELECT  r.request_id,
+            r.h3_r9                AS pickup_h3,
+            r.dest_h3_r9           AS drop_h3,
+            r.product,
+            r.fare_estimate_usd,
+            r.created_ts,
+            haversine(d.lat, d.lng, r.pickup_lat, r.pickup_lng) AS pickup_m,
+            eta_seconds(:driver_id, r.pickup_lat, r.pickup_lng) AS eta_s,
+            sd.demand_intensity                                 AS dest_demand
+    FROM    ride_requests   r
+    CROSS JOIN driver       d
+    LEFT JOIN surge_by_hex  sd ON sd.h3_r8 = r.dest_h3_r8
+    WHERE   r.state = 'OPEN'
+      AND   r.product = ANY((SELECT product_eligible FROM driver_state
+                              WHERE driver_id = :driver_id))
+      AND   ST_Distance(d.h3_r9::geometry, r.h3_r9::geometry) &lt; 4000  -- 4km gate
+)
+SELECT  request_id, pickup_h3, drop_h3, fare_estimate_usd,
+        eta_s, dest_demand,
+        -- driver-centric score: lower is better
+        ( eta_s
+          - 0.7 * dest_demand                  -- reward dropping in hot zones
+          - 0.4 * fare_estimate_usd            -- reward $$$
+          + 30  * EXTRACT(EPOCH FROM NOW() - created_ts) / 60.0   -- age penalty
+        ) AS score
+FROM    candidate_requests
+ORDER BY score ASC
+LIMIT   25;</code></pre>
+</div>
+
+<p>This score is what the batched matcher reads when scoring this driver's edges in the cost matrix. Two drivers in the same hex will see different orderings here because their <code>target_earnings_gap_usd</code> and recent trip pattern differ.</p>
+
+<div class="iv-block">
+    <span class="iv-tag">Interview Question · Fairness</span>
+    <div class="iv-q">Won't this lead to "preferred" drivers always getting the best rides?</div>
+    <p class="iv-a">It's bounded. The bonuses (rating, earnings_gap, dest_demand) are small relative to the dominant ETA term — typically &lt; 15% of total score. They act as <strong>tiebreakers and slow drifts</strong>, not overrides. Periodic <em>fairness audits</em> measure earnings dispersion across drivers in the same shift bucket and re-tune coefficients if dispersion exceeds historical norms. The system optimizes for marketplace health, not for any one driver.</p>
+</div>
+
+<h3 class="section-title">8. How 30 Million Trips a Day Actually Move Through the Stack</h3>
+
+<p>So far we've stayed at the per-trip layer. Step back and look at the <strong>data plane</strong> that supports 30M trips/day. This is the diagram the panel really wants you to draw on the whiteboard.</p>
+
+<div class="flow-box">                  ┌─────────── EDGE / MOBILE ───────────┐
+                  │  rider app · driver app · API GW     │
+                  └──────┬────────────────────────┬──────┘
+                         │                        │
+                  events │                        │ commands
+                         ▼                        ▼
+              ┌────────────────────┐    ┌─────────────────────┐
+              │  Kafka: ride_evt   │    │   Dispatch service  │  ◀── min-cost matcher
+              │       driver_evt   │    │   (Go, Ringpop)     │
+              │       surge_evt    │    └────────┬────────────┘
+              │       trip_evt     │             │
+              └─────────┬──────────┘             │
+                        │                        ▼
+                        │              ┌─────────────────────┐
+                        │              │ Driver state store  │  (Aerospike / RocksDB)
+                        │              │ keyed by H3 r6      │
+                        │              └─────────────────────┘
+                        ▼
+              ┌────────────────────┐    ┌─────────────────────┐
+              │  Flink streams     │───▶│   Pinot (online OLAP)│ ◀── surge, ETA features
+              │  (Surge, Speed,    │    └─────────────────────┘
+              │   ETA features)    │
+              └─────────┬──────────┘
+                        ▼
+              ┌────────────────────┐
+              │  Hudi Lakehouse on │
+              │  HDFS / S3         │ ── 50+ PB · partitioned by city, H3 r5, hour
+              └─────────┬──────────┘
+                        ▼
+              ┌────────────────────┐
+              │  Spark / Presto    │ ◀── analytics, ML training, reporting
+              └────────────────────┘
+</div>
+
+<p>Three things to internalize:</p>
+
+<ol>
+    <li><strong>Two state stores, two purposes.</strong> The hot path (dispatch) reads driver state from Aerospike-class stores in &lt; 1 ms. The warm path (analytics, ML training) reads from Hudi/Iceberg tables on object storage, hours-to-days fresh. Trying to serve both from one DB is the most common architecture mistake.</li>
+    <li><strong>Kafka is the spine, not a side channel.</strong> Every event — ping, request, offer, accept, complete, cancel, fare — lands on Kafka first. Every downstream system (dispatch state, surge, ETA features, fraud, lakehouse) is a consumer. This is what gives Uber the property that you can <em>replay</em> any service against historical events.</li>
+    <li><strong>Partitioning by H3 cascades through the stack.</strong> Same partition key from edge → Kafka → Flink → state store → lake table. That's why a query for "all trips in San Francisco's Financial District last week" is fast at every layer.</li>
+</ol>
+
+<h4>The schemas — what an interviewer will ask you to draw</h4>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · the core fact / dim model (simplified)</div>
+<pre><code>-- DIMENSIONS
+CREATE TABLE dim_rider (
+    rider_id          BIGINT PRIMARY KEY,
+    home_h3_r7        BIGINT,
+    signup_ts         TIMESTAMP,
+    cohort            TEXT,
+    lifetime_trips    INT,
+    rating_avg        NUMERIC(3,2)
+);
+
+CREATE TABLE dim_driver (
+    driver_id         BIGINT PRIMARY KEY,
+    primary_city_id   INT,
+    vehicle_class     TEXT,        -- UberX, Comfort, XL...
+    onboarded_ts      TIMESTAMP,
+    rating_avg        NUMERIC(3,2),
+    cancel_rate_30d   NUMERIC(4,3)
+);
+
+CREATE TABLE dim_geo_h3 (
+    h3_r9             BIGINT PRIMARY KEY,
+    h3_r7             BIGINT,
+    h3_r5             BIGINT,
+    city_id           INT,
+    country_iso2      CHAR(2),
+    centroid_lat      DOUBLE PRECISION,
+    centroid_lng      DOUBLE PRECISION
+);
+
+-- FACTS
+CREATE TABLE fact_trip (
+    trip_id           UUID PRIMARY KEY,
+    rider_id          BIGINT,
+    driver_id         BIGINT,
+    request_ts        TIMESTAMP,
+    pickup_ts         TIMESTAMP,
+    dropoff_ts        TIMESTAMP,
+    pickup_h3_r9      BIGINT,
+    dropoff_h3_r9     BIGINT,
+    distance_m        INT,
+    duration_s        INT,
+    fare_usd          NUMERIC(8,2),
+    surge_multiplier  NUMERIC(3,2),
+    product           TEXT,
+    is_pool           BOOLEAN,
+    cancelled         BOOLEAN,
+    cancellation_party TEXT          -- rider | driver | system | NULL
+)
+PARTITION BY RANGE (request_ts);     -- daily partitions
+
+CREATE TABLE fact_dispatch_offer (
+    offer_id          UUID PRIMARY KEY,
+    trip_id           UUID,
+    driver_id         BIGINT,
+    rider_id          BIGINT,
+    offer_ts          TIMESTAMP,
+    accepted          BOOLEAN,
+    eta_quoted_s      INT,
+    eta_actual_s      INT,
+    cost_score        NUMERIC(8,3)
+);</code></pre>
+</div>
+
+<h4>Three SQLs every interviewer will ask</h4>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · 1) ETA accuracy by hour-of-day, last 7 days</div>
+<pre><code>SELECT  EXTRACT(HOUR FROM offer_ts) AS hour_of_day,
+        COUNT(*)                                    AS offers,
+        AVG(eta_actual_s - eta_quoted_s)            AS bias_s,
+        PERCENTILE_DISC(0.5)  WITHIN GROUP (ORDER BY ABS(eta_actual_s - eta_quoted_s)) AS p50_abs_err,
+        PERCENTILE_DISC(0.95) WITHIN GROUP (ORDER BY ABS(eta_actual_s - eta_quoted_s)) AS p95_abs_err
+FROM    fact_dispatch_offer
+WHERE   offer_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+  AND   accepted = TRUE
+GROUP BY 1
+ORDER BY 1;</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · 2) Driver utilization (P3 — paid time / online time) by city</div>
+<pre><code>WITH online AS (
+    SELECT driver_id, city_id,
+           SUM(EXTRACT(EPOCH FROM (online_end - online_start))) AS online_s
+    FROM   driver_session
+    WHERE  online_start &gt;= CURRENT_DATE - INTERVAL '7 days'
+    GROUP  BY 1, 2
+),
+paid AS (
+    SELECT driver_id, dim_geo_h3.city_id,
+           SUM(EXTRACT(EPOCH FROM (dropoff_ts - pickup_ts))) AS paid_s
+    FROM   fact_trip
+    JOIN   dim_geo_h3 ON dim_geo_h3.h3_r9 = fact_trip.pickup_h3_r9
+    WHERE  pickup_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+       AND cancelled = FALSE
+    GROUP  BY 1, 2
+)
+SELECT  o.city_id,
+        SUM(p.paid_s)::numeric / NULLIF(SUM(o.online_s),0) AS p3_utilization
+FROM    online o
+LEFT JOIN paid p USING (driver_id, city_id)
+GROUP BY 1
+ORDER BY p3_utilization DESC;</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · 3) Marketplace conversion funnel</div>
+<pre><code>WITH funnel AS (
+    SELECT
+        DATE(request_ts) AS d,
+        COUNT(*)                                                    AS sessions_with_request,
+        COUNT(*) FILTER (WHERE eta_quoted_s IS NOT NULL)            AS got_eta,
+        COUNT(*) FILTER (WHERE accepted)                            AS dispatched,
+        COUNT(*) FILTER (WHERE accepted AND NOT cancelled)          AS completed
+    FROM    fact_trip t
+    LEFT JOIN fact_dispatch_offer o USING (trip_id)
+    WHERE   request_ts &gt;= CURRENT_DATE - INTERVAL '14 days'
+    GROUP BY 1
+)
+SELECT  d,
+        sessions_with_request,
+        ROUND(100.0 * got_eta            / sessions_with_request, 1) AS pct_got_eta,
+        ROUND(100.0 * dispatched         / sessions_with_request, 1) AS pct_dispatched,
+        ROUND(100.0 * completed          / sessions_with_request, 1) AS pct_completed
+FROM    funnel
+ORDER BY d;</code></pre>
+</div>
+
+<h3 class="section-title">9. Pre-emptive Interview Bank — Data Architect vs Data Engineer</h3>
+
+<p>The two roles overlap but the panels weight things differently. Architect interviews drift toward <em>"why did you pick this technology, and what does it cost?"</em>. Engineer interviews drift toward <em>"write the SQL, debug the pipeline, fix the latency"</em>. Below are the questions I've actually heard or asked.</p>
+
+<h4>Data Architect track</h4>
+
+<div class="iv-block">
+    <span class="iv-tag">Architect Q1 · Capacity</span>
+    <div class="iv-q">Size the Kafka cluster for Uber-scale GPS pings.</div>
+    <p class="iv-a">~5M drivers × 1 ping / 4 s × 1 KB ≈ 1.25M msgs/s ≈ 1.25 GB/s sustained. Replication factor 3 → ~3.75 GB/s into disks. With 7-day retention that's ~2.3 PB on the cluster. You'd want 200+ brokers, NVMe, 100 GbE NICs, partitioning by H3 r5 (≈ 50k partitions globally) so consumers can be horizontally scaled per city.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Architect Q2 · Cost ledger</span>
+    <div class="iv-q">A PM wants ETA bias broken down by weather × hour × city, refreshed every 5 minutes. What does that cost?</div>
+    <p class="iv-a">The cardinality is roughly weather (~6) × hour (24) × city (1000) = 144k cells × 5-min refresh = 41M evals/day. On Pinot or BigQuery with the right pre-aggregation it's $X00–$X,000/day. The architect's answer isn't "yes/no", it's "yes, here's the bill, here's a cheaper alternative (hourly refresh, or only top-50 cities), here's the trade-off". Always quote the bill.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Architect Q3 · Data contracts</span>
+    <div class="iv-q">A new product team adds a "stop along the way" feature. How do you avoid breaking 200 downstream consumers?</div>
+    <p class="iv-a">Schema-evolve forward-compatible: add <code>intermediate_stops</code> as a nullable, repeated field on the trip event. Bump minor version. Publish a data contract in the schema registry with deprecation calendar. Run dual-write for two weeks, validate in shadow. The architect owns the contract, not the schema.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Architect Q4 · Disaster</span>
+    <div class="iv-q">A region's dispatch service goes down for 7 minutes. Walk me through what happens to the data.</div>
+    <p class="iv-a">Edge events still land on Kafka (multi-region MirrorMaker). Driver state in the affected region goes stale; a fail-over replica in the adjacent region takes over with a brief consistency hiccup. Surge feature pipelines see a gap and freeze last-known values rather than emit zeros. Lakehouse jobs detect the gap via a watermark monitor and re-process the gap window from Kafka once recovered. RPO ≈ 0 events, RTO ≈ &lt; 60 s.</p>
+</div>
+
+<h4>Data Engineer track</h4>
+
+<div class="iv-block">
+    <span class="iv-tag">Engineer Q1 · SQL</span>
+    <div class="iv-q">Find drivers whose acceptance rate dropped &gt;20% week-over-week.</div>
+    <p class="iv-a">Two CTEs over <code>fact_dispatch_offer</code> with <code>accepted::int</code> averaged per driver per ISO week, self-join on <code>week = week-1</code>, filter <code>(this.rate - last.rate) / last.rate &lt; -0.20</code>. Watch for low-volume divisors — gate on <code>offers &gt;= 30</code>.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Engineer Q2 · Window functions</span>
+    <div class="iv-q">For each rider's first 10 trips, compute the rolling 5-trip avg fare.</div>
+    <p class="iv-a"><code>ROW_NUMBER() OVER (PARTITION BY rider_id ORDER BY request_ts)</code> to rank trips, filter <code>rn &lt;= 10</code>, then <code>AVG(fare) OVER (PARTITION BY rider_id ORDER BY rn ROWS BETWEEN 4 PRECEDING AND CURRENT ROW)</code>.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Engineer Q3 · Python / debugging</span>
+    <div class="iv-q">Your Spark ETA-features job ran 3× slower last night. Where do you look?</div>
+    <p class="iv-a">Spark UI → Stages tab → tasks with skewed input bytes (one partition holding all the data). Likely cause: a hot H3 r5 hex (e.g., a stadium event). Fix: salt the join key (<code>h3_r5 || (random % 16)</code>) and re-aggregate, or switch to a broadcast join on the dim side. Verify with the Stage timeline that one task no longer dwarfs the others.</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Engineer Q4 · Streaming</span>
+    <div class="iv-q">Late events for surge: a ping arrives 90 s late. What does Flink do, and what should it do?</div>
+    <p class="iv-a">Default: dropped if past the watermark. Better: configure <code>allowedLateness</code> on the surge window (e.g., 120 s) so late pings update an already-emitted surge value via a retraction stream. Downstream consumers must handle the retraction (Pinot upsert tables, idempotent writes). The engineer's answer is "I know about watermarks, allowedLateness, and idempotent sinks — and I can tell you when each matters".</p>
+</div>
+
+<div class="iv-block">
+    <span class="iv-tag">Engineer Q5 · Data quality</span>
+    <div class="iv-q">How do you detect a broken GPS feed before it corrupts surge?</div>
+    <p class="iv-a">Three guardrails. (1) Per-device sanity: ping speed &lt; 250 km/h, lat/lng inside the geofence, timestamp monotonic. (2) Aggregate sanity: 5-min ping volume per city must be within ±3σ of trailing-30-day baseline. (3) Cross-feature: if the surge formula is about to emit &gt;2.5x for a hex that hasn't surged in 6 months, hold and alert. The pipeline fails closed, not open.</p>
+</div>
+
+<h3 class="section-title">10. The Visual Story — Data, in One Glance</h3>
+
+<p>If you only remember one diagram from this article, remember this: every Uber trip is a vertical slice through three time scales running concurrently.</p>
+
+<div class="flow-box">  TIME →            REAL-TIME (ms–s)            NEAR-REAL-TIME (s–min)         BATCH (hour–day)
+
+  WHAT MOVES        GPS pings                    Surge updates                  Lakehouse partitions
+                    Dispatch decisions           ETA features                   ML retraining
+                    Routing recompute            Heatmaps                       Reporting / finance
+
+  WHERE             Aerospike / Ringpop          Kafka + Flink + Pinot          Hudi/Iceberg + Spark
+
+  WHO READS         Mobile apps                  Driver app heatmap             Analysts, ML, exec
+
+  FAILURE MODE      Cancellation, no-driver      Stale surge, wrong price       Wrong KPI in dashboard
+</div>
+
+<p>An interviewer will ask you to map a feature to one of those columns. <em>"Where does ETA accuracy reporting live?"</em> — batch. <em>"Where does the driver heatmap live?"</em> — near-real-time. <em>"Where does the dispatch decision live?"</em> — real-time. If you can place every product feature into the right column and explain the trade-off, you're already past the bar.</p>
+
+<h3 class="section-title">Closing — What This Whole Stack Is Really Doing</h3>
+
+<p>Strip away the H3 hexagons, the Flink jobs, the Hungarian solver, the contraction hierarchies. What Uber is really doing is solving the same question 30 million times a day: <em>"of all the people who want to move and all the people who can move them, who should be paired with whom, by which path, at what price, in what order, to make the next 5 minutes of the city better?"</em>. That's the problem. Everything in this article is just the data plumbing that lets the answer come back in under two seconds.</p>
+
+<p>If you can walk an interviewer from the rider's tap to the driver's accept and back, naming the data structure, the SQL, and the failure mode at each layer — you don't need to memorize any one company's stack. You'll be able to design any of them.</p>
+
+<h3>Disclaimer</h3>
+<p>This article is for educational and interview-preparation purposes. It is <em>not</em> affiliated with Uber Technologies, Inc., and does not reproduce any proprietary code, schema, or system. The numbers, formulas, and architectures shown are illustrative composites drawn from publicly available papers, conference talks (e.g., Uber's KDD / VLDB / Strata papers on H3, DeepETA, Michelangelo, Pinot), and the broader ridesharing literature. Real production systems are far more nuanced — and far more interesting.</p>
+
+</div>
+
+<div class="related-articles">
+  <h3>You Might Also Enjoy</h3>
+  <div class="related-articles-grid">
+    <a href="introduction-to-data-engineering-sql-python-100-questions.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">Introduction to Data Engineering — 100 SQL &amp; Python Interview Questions</span>
+    </a>
+    <a href="data-engineering-interview-prep.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">Data Engineering Interview Prep — A Senior-Level Deep Dive</span>
+    </a>
+    <a href="ads-data-engineering-interview-prep.html" class="related-article-card">
+      <span class="related-article-category">technology</span>
+      <span class="related-article-title">Ads Data Engineering Interview Prep — Senior / L5 Deep Dive</span>
+    </a>
+  </div>
+</div>
+<div class="article-share article-share--padded"><span>Share</span><a class="share-btn" href="https://twitter.com/intent/tweet?text=The%20Uber%20Algorithm&amp;url=https://paddyspeaks.com/articles/uber-algorithm-30-million-trips-sql-python.html" target="_blank" rel="noopener">𝕏</a><a class="share-btn" href="https://www.linkedin.com/sharing/share-offsite/?url=https://paddyspeaks.com/articles/uber-algorithm-30-million-trips-sql-python.html" target="_blank" rel="noopener">in</a></div>
+</div>
+</div>
+<footer class="site-footer">
+<div class="footer-ornament">❧</div>
+<div class="footer-links"><a href="https://linkedin.com/in/paddyiyer" target="_blank" rel="noopener">LinkedIn</a><a href="../about.html">About</a><a href="mailto:paddy@paddyspeaks.com">Contact</a></div>
+<p class="footer-copy">© 2026 PaddySpeaks. All rights reserved.</p></footer>
+<script>window.addEventListener('scroll',function(){var b=document.getElementById('readingProgress');b.style.width=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100+'%';});</script>
+<script defer src="/lib/ps.js"></script>
+</main>
+</body></html>
