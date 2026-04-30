@@ -507,6 +507,130 @@ LIMIT   25;</code></pre>
     <p style="margin-top:12px;"><strong>The interview-grade lesson:</strong> "the SQL ran fine in dev" is the most dangerous sentence in marketplace engineering. Skew is not a tail risk — it's a daily event. Every dispatch query must be designed assuming one hex will get 1000× the traffic of its neighbors at some unpredictable moment.</p>
 </div>
 
+<h4>Deep-dive — the Hot Partition problem, taught from first principles</h4>
+
+<p>Most candidates have <em>heard</em> of skew but can't draw it. This is the topic that separates "I read a blog" from "I've been on call". Worth slowing down for.</p>
+
+<p><strong>What is a hot partition?</strong> In a distributed system, data is split across many shards so different servers can share the load. The router sends each event to a shard based on a <em>partition key</em>. A <em>hot partition</em> happens when one key suddenly carries a disproportionate fraction of the traffic — so one server melts while every other server in the cluster is idle.</p>
+
+<p>In Uber's stack the partition key for ride requests is the H3 hex ID. That's a deliberate choice — it means all events for a geographic area land on the same Flink worker, the same Pinot segment, the same dispatch shard, which is what makes neighbor-lookups O(1). The cost of that choice is that 12,000 people in one stadium all hash to the <em>same</em> hex, and therefore the <em>same</em> shard.</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · the bottleneck query — innocent-looking, lethal in production</div>
+<pre><code>-- Looks like a healthy point-lookup. Isn't.
+SELECT *
+FROM   ride_requests
+WHERE  h3_index    = '85283473fffffff'         -- the stadium hex
+  AND  request_ts  &gt; NOW() - INTERVAL '3 minutes';</code></pre>
+</div>
+
+<p>If <code>ride_requests</code> is partitioned by <code>h3_index</code>, this query reads from <em>exactly one</em> Pinot segment / Cassandra partition / Kafka partition. When 12,000 rows match, that one shard does 100% of the work. The CPU on the host owning that segment goes to 100%, p99 read latency climbs from 6 ms to 850 ms, and <strong>every other shard sits at 4% utilization</strong>. The cluster has the capacity to handle the load — it just can't reach it.</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · the meltdown, simulated — the chart shows what the on-call sees</div>
+<pre><code>import random, pandas as pd
+
+# 3 partitions, each can drain 10,000 events/min before lag accumulates
+PARTITIONS    = ["A", "B", "C"]
+DRAIN_PER_MIN = 10_000
+
+def route_naive(hex_id):
+    """Plain hash on the hex — every stadium request goes to one shard."""
+    return PARTITIONS[hash(hex_id) % len(PARTITIONS)]
+
+def route_salted(hex_id, salt_buckets=8):
+    """Append a small random salt — fans the hot hex across many partitions."""
+    salt = random.randint(0, salt_buckets - 1)
+    return PARTITIONS[hash(f"{hex_id}#{salt}") % len(PARTITIONS)]
+
+def simulate(events, route_fn):
+    in_q  = {p: 0 for p in PARTITIONS}                 # incoming this minute
+    lag   = {p: 0 for p in PARTITIONS}                 # backlog carried over
+    for ev in events:
+        in_q[route_fn(ev["h3"])] += 1
+    for p in PARTITIONS:
+        delivered  = min(in_q[p], DRAIN_PER_MIN)
+        lag[p]     = (in_q[p] - delivered) + lag[p]    # whatever the shard couldn't drain
+    return in_q, lag
+
+# Stadium scenario: 12,000 events from one hex, plus 600 ambient from random hexes
+stadium_events = (
+    [{"h3": "85283473fffffff"} for _ in range(12_000)] +
+    [{"h3": f"hex_{random.randint(0,99)}"} for _ in range(600)]
+)
+
+naive_in,  naive_lag  = simulate(stadium_events, route_naive)
+salted_in, salted_lag = simulate(stadium_events, route_salted)
+
+print("NAIVE  routing  in:", naive_in,  " lag:", naive_lag)
+print("SALTED routing  in:", salted_in, " lag:", salted_lag)</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · same load, same hardware, two different worlds</div>
+<pre><code>NAIVE  routing  in: {'A': 12200, 'B': 211, 'C': 189}    lag: {'A': 2200, 'B': 0, 'C': 0}
+SALTED routing  in: {'A': 4225,  'B': 4180, 'C': 4195}  lag: {'A': 0,    'B': 0, 'C': 0}</code></pre>
+</div>
+
+<div class="chart-card">
+    <div class="chart-title">Naive vs salted partitioning under the stadium spike</div>
+    <svg class="chart-svg" viewBox="0 0 720 280" role="img" aria-label="Hot partition vs salted partition bar chart">
+        <line x1="60" y1="240" x2="700" y2="240" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="60" y1="20"  x2="60"  y2="240" stroke="#94a3b8" stroke-width="1"/>
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569">
+            <text x="55" y="244" text-anchor="end">0</text>
+            <text x="55" y="200" text-anchor="end">3k</text>
+            <text x="55" y="156" text-anchor="end">6k</text>
+            <text x="55" y="112" text-anchor="end">9k</text>
+            <text x="55" y="68"  text-anchor="end">12k</text>
+            <text x="55" y="24"  text-anchor="end">15k</text>
+        </g>
+        <!-- drain ceiling line at 10k -->
+        <line x1="60" y1="93" x2="700" y2="93" stroke="#c44b2b" stroke-width="1" stroke-dasharray="4 4"/>
+        <text x="690" y="89" font-family="JetBrains Mono, monospace" font-size="10" fill="#c44b2b" text-anchor="end">drain ceiling = 10k / min</text>
+        <!-- NAIVE group (A=12.2k, B=211, C=189) — bar height proportional, scale 1 row = 44px / 3k -->
+        <g>
+            <rect x="100" y="61"  width="50" height="179" fill="#c44b2b"/><text x="125" y="56" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">12,200</text>
+            <rect x="160" y="237" width="50" height="3"   fill="#94a3b8"/><text x="185" y="232" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">211</text>
+            <rect x="220" y="237" width="50" height="3"   fill="#94a3b8"/><text x="245" y="232" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">189</text>
+            <text x="185" y="262" font-family="JetBrains Mono, monospace" font-size="11" fill="#c44b2b" text-anchor="middle">NAIVE — A is melting</text>
+        </g>
+        <!-- SALTED group (A=4225, B=4180, C=4195) -->
+        <g>
+            <rect x="430" y="178" width="50" height="62"  fill="#2a7a4a"/><text x="455" y="173" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">4,225</text>
+            <rect x="490" y="179" width="50" height="61"  fill="#2a7a4a"/><text x="515" y="174" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">4,180</text>
+            <rect x="550" y="179" width="50" height="61"  fill="#2a7a4a"/><text x="575" y="174" font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332" text-anchor="middle">4,195</text>
+            <text x="515" y="262" font-family="JetBrains Mono, monospace" font-size="11" fill="#2a7a4a" text-anchor="middle">SALTED — even &amp; below ceiling</text>
+        </g>
+        <!-- partition labels -->
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569" text-anchor="middle">
+            <text x="125" y="252">A</text><text x="185" y="252">B</text><text x="245" y="252">C</text>
+            <text x="455" y="252">A</text><text x="515" y="252">B</text><text x="575" y="252">C</text>
+        </g>
+    </svg>
+    <div class="chart-caption">Same 12,600 events. Naive routing puts 12,200 on partition A — 22% above the drain ceiling — and the lag chart on the on-call dashboard goes vertical. Salted routing scatters the same load across three partitions, all comfortably below the ceiling. The fix is one line of routing code.</div>
+</div>
+
+<h5 style="margin-top:24px;">Inline definitions for the terms in this section</h5>
+
+<div class="glossary-list" style="margin-top:8px;">
+    <dt>H3 r5 cell</dt><dd>One hexagonal cell at H3 resolution 5 — covers ~250 km², roughly a city quarter. The unit Kafka and Flink keyed streams are partitioned by. A whole stadium fits inside one r5 cell — that's why one event can saturate one partition.</dd>
+    <dt>Consumer lag</dt><dd>The number of unprocessed events sitting in a Kafka partition because the consumer can't drain them fast enough. "Lag goes vertical" = the line on the dashboard hinges from flat to a 90° climb. The on-call response window is usually 60–120 s before downstream systems start emitting stale data.</dd>
+    <dt>Kafka partition</dt><dd>The unit of parallelism in Kafka. Events with the same key always land in the same partition, in order. Hot key = hot partition.</dd>
+    <dt>Flink keyed stream</dt><dd>The stateful streaming equivalent: Flink's <code>keyBy(h3)</code> guarantees all events for a given hex are processed by the same TaskManager (so windows and aggregates are correct). Cost: that one TaskManager is a single point of saturation.</dd>
+    <dt>Salted key</dt><dd>The fix: append a small random suffix to the hot key — <code>h3 || "#" || (rand % 8)</code>. Splits one hot partition across N "shadow" partitions; downstream re-aggregation sums them back together. Costs O(N) more work in the merge step but unlocks all the cluster's idle capacity.</dd>
+    <dt>Pre-aggregation</dt><dd>The other half of the fix at scale: instead of sending raw events through the hot path, summarize them at the edge (every 1 s, every 50 events) and stream the summaries. The cluster sees orders of magnitude fewer messages without losing the answer.</dd>
+</div>
+
+<div class="senior-note">
+    <span class="sn-tag">Senior note · why salting isn't free</span>
+    <ul>
+        <li>It only works if the downstream operator can <strong>re-aggregate</strong> the salted shards. <code>SUM</code>, <code>COUNT</code>, <code>HLL</code> — yes. <code>EXACTLY-ONCE last-write-wins</code> on a single state row — no.</li>
+        <li>It breaks <strong>per-key ordering</strong>. If your business logic depends on "the latest event for hex H wins", salting destroys that guarantee. Combine with sequence numbers.</li>
+        <li>It needs an <strong>adaptive controller</strong>. Salting all keys all the time wastes capacity; salting on demand requires monitoring per-partition lag and triggering re-shuffle. The full production pattern is <em>elastic salting</em>: turn it on for the hex when its lag exceeds threshold, turn it off when lag clears.</li>
+    </ul>
+</div>
+
 <div class="code-block py-block">
     <div class="code-label"><span class="dot py"></span>Python · the batched dispatcher (toy)</div>
 <pre><code>import numpy as np
