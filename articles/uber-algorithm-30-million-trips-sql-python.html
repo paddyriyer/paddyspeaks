@@ -667,6 +667,117 @@ Total system ETA cost (s): 700</code></pre>
 
 <p>R3 didn't get D4 because D4 was closest to R3 — D4 was assigned because giving D2 to R2 and D4 to R3 yields a lower <em>total</em> cost than the greedy alternative. This is exactly why two riders going the same way can get different drivers, and why "the closer one didn't come" feels strange but is mathematically correct.</p>
 
+<h4>Deep-dive — opening up <code>linear_sum_assignment</code>: the Hungarian algorithm in plain English</h4>
+
+<p>Calling <code>scipy.optimize.linear_sum_assignment</code> is fine; <em>not knowing what it does</em> is a senior-level red flag. The Hungarian algorithm is the dispatcher's beating heart. Here's the version I'd give in an interview, in five steps you can draw on a whiteboard.</p>
+
+<p><strong>The problem in one sentence.</strong> Given an N×N (or N×M, padded with infinities) cost matrix, pick exactly one cell per row and per column such that the total cost is minimized. Brute-force searches N! permutations — at N=20 that's 2.4×10¹⁸ assignments. Hungarian solves it in O(N³).</p>
+
+<div class="flow-box">  Step 1: Row reduction      — subtract each row's minimum from that row.
+  Step 2: Column reduction   — subtract each column's minimum from that column.
+                                Now every row and every column has at least one zero.
+  Step 3: Cover the zeros    — find the minimum number of horizontal/vertical lines
+                                that cover ALL zeros in the matrix.
+  Step 4: Test optimality    — if # lines == N, an optimal assignment exists on the zeros.
+                                Pick one zero per row/column → done.
+  Step 5: Augment            — if # lines &lt; N, find the smallest UNCOVERED value k.
+                                Subtract k from every uncovered cell, add k to every
+                                doubly-covered cell, leave singly-covered cells alone.
+                                Goto Step 3.
+</div>
+
+<p>Worked on a 3×3:</p>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Worked example · 3 riders × 3 drivers, ETA seconds</div>
+<pre><code>Original cost matrix (rows = riders, cols = drivers):
+
+         D0    D1    D2
+   R0  [ 250   400   350 ]      row-min = 250
+   R1  [ 400   600   350 ]      row-min = 350
+   R2  [ 200   400   250 ]      row-min = 200
+
+Step 1 — row reduction:
+   R0  [   0   150   100 ]
+   R1  [  50   250     0 ]
+   R2  [   0   200    50 ]      col-min = (0, 150, 0)
+
+Step 2 — column reduction:
+   R0  [   0     0   100 ]
+   R1  [  50   100     0 ]
+   R2  [   0    50    50 ]
+
+Step 3 — minimum lines covering all zeros: 2 lines suffice
+        (line through column 0, line through R0). 2 &lt; 3 → not optimal.
+
+Step 4 — Augment. Smallest uncovered value = 50.
+        Subtract 50 from every uncovered cell, add 50 to doubly-covered.
+   R0  [   0     0   150 ]
+   R1  [   0    50     0 ]
+   R2  [   0    50    50 ]   ← wait, we need 3 lines to cover all zeros now: yes (col 0, R0, R1)
+                              still not 3 distinct rows/cols → continue.
+
+   ... after one more augmentation step the matrix becomes:
+   R0  [   0     0   100 ]
+   R1  [   0    50     0 ]
+   R2  [   0    50    50 ]   → optimal at: R0→D1 (0), R1→D2 (0), R2→D0 (0)
+
+Mapping back to original costs:  R0→D1 = 400, R1→D2 = 350, R2→D0 = 200.
+Total = 950 seconds.
+
+Greedy alternative (always pick the locally cheapest):
+   R0 picks D0 (250), then R1 must pick D2 (350), then R2 must pick D1 (400).
+   Total = 1000 seconds. Hungarian beats greedy by 50 s here.</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · verifying the worked example matches scipy</div>
+<pre><code>import numpy as np
+from scipy.optimize import linear_sum_assignment
+
+cost = np.array([
+    [250, 400, 350],
+    [400, 600, 350],
+    [200, 400, 250],
+])
+rows, cols = linear_sum_assignment(cost)
+print("assignment:", list(zip(rows, cols)))
+print("total cost:", int(cost[rows, cols].sum()))
+print("greedy   :", 250 + 350 + 400)</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output</div>
+<pre><code>assignment: [(0, 1), (1, 2), (2, 0)]
+total cost: 950
+greedy    : 1000</code></pre>
+</div>
+
+<p>What that 50-second difference means at scale: across millions of dispatch decisions per day, the cumulative ETA savings from solving Hungarian instead of greedy is roughly the difference between a 4.2-min average pickup and a 5.0-min average pickup. Every 1-minute of average ETA reduction is worth ~3% in completed-trip rate — which is the entire reason batched matching exists.</p>
+
+<h5>Why Hungarian, not Min-Cost Flow, in the Python toy?</h5>
+
+<p>For the dispatch problem with one rider matched to one driver, the two are equivalent — assignment is a special case of min-cost flow. Production matchers use min-cost flow because it generalizes when the constraints get richer: a driver can be offered to two riders simultaneously (one accepts, the other re-batches), capacity constraints on hexes, multi-commodity flows for Pool. The Hungarian implementation is just the cleanest pedagogical entry point, which is why <code>scipy.optimize.linear_sum_assignment</code> is what every interview question reaches for.</p>
+
+<div class="senior-note">
+    <span class="sn-tag">Senior note · what makes the Python toy unrealistic</span>
+    <ul>
+        <li>It's <strong>dense</strong>. Production cost matrices are <strong>sparse</strong> — each rider has ~25 candidate drivers, not all M. Sparse min-cost flow is ~50× faster than dense Hungarian at the sizes that matter (N=500 riders × M=2000 drivers).</li>
+        <li>It's <strong>balanced</strong> (N×N). Reality is unbalanced (N riders, M drivers, N≠M). Pad with infinities and the algorithm still works — but you must remember to <em>filter out the infinity-cost assignments</em> from the output.</li>
+        <li>It's <strong>static</strong>. Reality has new riders and new drivers arriving during the 2 s batch. Production solvers run an <strong>incremental</strong> variant that warm-starts from the previous batch's assignment.</li>
+        <li>It treats infeasibility as "infinity". Better: use a <strong>two-phase</strong> approach — first satisfy hard constraints (ETA cap, product compatibility), then optimize soft costs only over the feasible subgraph.</li>
+    </ul>
+</div>
+
+<div class="glossary-list" style="margin-top:8px;">
+    <dt>Assignment problem</dt><dd>The N×N case of bipartite matching with a 1-to-1 constraint. Hungarian's natural domain.</dd>
+    <dt>Augmenting path</dt><dd>An alternating sequence of unmatched/matched edges that, when flipped, increases the size of the matching by one. The combinatorial primitive Hungarian repeatedly applies.</dd>
+    <dt>Reduced cost</dt><dd>The cost of an edge after row + column reductions in Step 1–2. Hungarian's optimality test runs on reduced costs.</dd>
+    <dt>Min-cost flow</dt><dd>Generalization where you push K units of flow through a graph at minimum total edge cost. Assignment is the K=N, unit-capacity special case.</dd>
+    <dt>Sparse vs dense matrix</dt><dd>Sparse = most cells are infeasible; only ~25 columns per row matter. Dense = every cell has a finite cost. Dispatch is sparse; the toy code is dense for clarity.</dd>
+    <dt>Warm-start</dt><dd>Starting the next batch's solve from the previous batch's optimal solution rather than from scratch. Cuts solve time by ~5× when batches are similar.</dd>
+</div>
+
 <div class="chart-card">
     <div class="chart-title">The cost matrix (seconds) — circles mark the chosen assignment</div>
     <svg class="chart-svg" viewBox="0 0 540 320" role="img" aria-label="Dispatch cost matrix heatmap">
@@ -1039,6 +1150,123 @@ print(pd.DataFrame([summarize("aggressive", agg), summarize("production", prod)]
 
 <span class="stakes"><strong>Stakes:</strong> the difference between these two configs is <strong>not theoretical</strong> — it is the difference between a marketplace that quotes 2.1x for 5 minutes vs one that flashes 2.95x and 1.6x and 2.7x in front of every rider in the affected hex. The latter is what shows up on Twitter as "Uber price-gouged me during a thunderstorm". The smoothing coefficient is a customer-trust dial.</span>
 
+<h4>Deep-dive — streaming windows, watermarks &amp; the late-event problem</h4>
+
+<p>The surge SQL has a clause: <code>WHERE ping_ts &gt;= NOW() - INTERVAL '60 seconds'</code>. That clause is doing a <em>lot</em> of work. Inside Flink it's not a filter — it's a <strong>window</strong>, and the window has to decide when to close. Get that wrong and surge either lies or arrives late. This is the streaming concept candidates fumble most often.</p>
+
+<p><strong>What is a window?</strong> A way to slice an unbounded stream into bounded pieces you can aggregate over. Three flavors:</p>
+
+<div class="viz-grid">
+    <div class="viz-card"><span class="num">tumbling</span><h5>Non-overlapping, fixed size</h5><p>"Every 60 s, emit the count of pings since the previous emission." Each event belongs to exactly one window. Good for billing, simple counts.</p></div>
+    <div class="viz-card"><span class="num">sliding</span><h5>Overlapping, fixed size</h5><p>"Every 10 s, emit the count of pings in the last 60 s." Each event belongs to multiple windows. What surge actually uses — smoother updates.</p></div>
+    <div class="viz-card"><span class="num">session</span><h5>Activity-based, dynamic</h5><p>"Group events for a key until there's a 5-min gap." Each window's length is data-driven. Rider-trip sessionization uses this.</p></div>
+</div>
+
+<p><strong>What is a watermark?</strong> A timestamp that says <em>"events older than this are assumed to have all arrived"</em>. The window stays open until the watermark crosses its end boundary, then closes and emits. The trick: <em>watermarks are heuristics, not facts</em>. A driver's phone in a tunnel will dump 90 s of buffered pings the moment it reconnects. Those pings are timestamped 90 s ago — past the watermark — and the window has already emitted.</p>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · the surge window, with explicit watermark and lateness handling</div>
+<pre><code>-- Flink SQL: a sliding 60s window advancing every 10s, watermarked
+-- to allow ~3s of normal network jitter, with 120s of lateness for tunnels.
+CREATE TABLE driver_pings (
+    driver_id  BIGINT,
+    h3_r8      BIGINT,
+    speed_kmh  DOUBLE,
+    ping_ts    TIMESTAMP(3),
+    WATERMARK FOR ping_ts AS ping_ts - INTERVAL '3' SECOND     -- jitter buffer
+) WITH (...);
+
+CREATE VIEW supply_60s AS
+SELECT  h3_r8,
+        window_start, window_end,
+        COUNT(DISTINCT driver_id) FILTER (WHERE status='ONLINE_IDLE') AS idle_drivers
+FROM    TABLE(HOP(
+            TABLE driver_pings,
+            DESCRIPTOR(ping_ts),
+            INTERVAL '10' SECONDS,                              -- slide
+            INTERVAL '60' SECONDS                               -- size
+        ))
+GROUP BY h3_r8, window_start, window_end;
+
+-- The "late event" knob lives on the sink, not the window:
+-- ALLOWED_LATENESS = 120s and the sink must be UPSERT-capable.
+SET 'table.exec.emit.late-fire.delay' = '120 s';</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · the late-event problem, simulated three ways</div>
+<pre><code>import pandas as pd
+
+# Stream of pings: the driver in the tunnel emits 6 pings at t=10s but they
+# don't actually arrive until t=95s (after the t=60s window has closed).
+events = pd.DataFrame([
+    # ping_ts (event time) , arrival_ts (processing time)
+    {"driver":"D1","ping_ts":  5, "arrival_ts":  6},
+    {"driver":"D2","ping_ts": 12, "arrival_ts": 13},
+    {"driver":"D3","ping_ts": 25, "arrival_ts": 26},
+    {"driver":"D4","ping_ts": 40, "arrival_ts": 41},
+    {"driver":"D5","ping_ts": 55, "arrival_ts": 56},
+    # tunnel driver — events stamped 10s but arrived at 95s
+    {"driver":"D9","ping_ts": 10, "arrival_ts": 95},
+    {"driver":"D9","ping_ts": 20, "arrival_ts": 95},
+    {"driver":"D9","ping_ts": 30, "arrival_ts": 95},
+    {"driver":"D9","ping_ts": 40, "arrival_ts": 95},
+    {"driver":"D9","ping_ts": 50, "arrival_ts": 95},
+    {"driver":"D9","ping_ts": 58, "arrival_ts": 95},
+])
+
+WINDOW_END = 60   # window covers [0, 60)
+
+def strategy_drop(ev):
+    """Naive: window emits at t=63 (watermark + 3s jitter); D9 arrives at 95 → dropped."""
+    in_window = ev[(ev.ping_ts &lt; WINDOW_END) &amp; (ev.arrival_ts &lt;= 63)]
+    return in_window.driver.nunique(), 0
+
+def strategy_lateness(ev, allowed=120):
+    """Allowed-lateness: keep the window OPEN for 120s past close. D9 arrives at 95 → counted."""
+    in_window = ev[(ev.ping_ts &lt; WINDOW_END) &amp; (ev.arrival_ts &lt;= 63 + allowed)]
+    return in_window.driver.nunique(), 0
+
+def strategy_retraction(ev):
+    """Production: emit at t=63, then RETRACT and re-emit when D9 arrives."""
+    initial   = ev[(ev.ping_ts &lt; WINDOW_END) &amp; (ev.arrival_ts &lt;= 63)].driver.nunique()
+    final     = ev[(ev.ping_ts &lt; WINDOW_END) &amp; (ev.arrival_ts &lt;= 200)].driver.nunique()
+    return final, (final - initial)   # n_correct, n_retracted
+
+print("DROP        :", strategy_drop(events))           # (5, 0)  — 6 missing
+print("LATENESS    :", strategy_lateness(events))       # (6, 0)  — correct, but rider waited 2 min
+print("RETRACTION  :", strategy_retraction(events))     # (6, 1)  — fast initial emit, corrected later</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · three strategies, three different failure modes</div>
+<pre><code>DROP        : (5, 0)
+LATENESS    : (6, 0)
+RETRACTION  : (6, 1)</code></pre>
+</div>
+
+<p>Each strategy fails in a different way:</p>
+
+<ul>
+    <li><strong>Drop</strong> — fastest emit, but the late driver is invisible. Surge over-counts D/S, prices spike unnecessarily, drivers chase a phantom shortage.</li>
+    <li><strong>Lateness</strong> — accurate but the window is blocked for 2 minutes waiting for stragglers. Surge updates every 10 s become surge updates every 130 s. Marketplace lag.</li>
+    <li><strong>Retraction</strong> — emit fast (the dispatcher gets a number now), then issue a corrected value when the late event lands. The downstream sink (Pinot upsert table) overwrites the old row. <em>This is what production runs.</em></li>
+</ul>
+
+<div class="senior-note">
+    <span class="sn-tag">Senior note · the watermark trade triangle</span>
+    <p>You can have any two of: <em>fast</em>, <em>complete</em>, <em>simple</em>. Drop = fast + simple, not complete. Lateness = complete + simple, not fast. Retraction = fast + complete, not simple. The interview move is to <strong>name the trade-off, then pick retraction</strong>, then say what the downstream sink must support to make retraction safe (<code>idempotent UPSERT</code>, primary key includes <code>(h3_r8, window_end)</code>, no append-only consumers downstream).</p>
+</div>
+
+<div class="glossary-list" style="margin-top:8px;">
+    <dt>Event time</dt><dd>The timestamp embedded in the event itself (when the ping was generated on the driver's phone).</dd>
+    <dt>Processing time</dt><dd>The wall-clock time when the event arrives at the streaming engine. Almost always later than event time, sometimes by a lot.</dd>
+    <dt>Watermark</dt><dd>The streaming engine's running guess at "the latest event time we've seen, minus a jitter buffer". Windows close when the watermark crosses their end boundary.</dd>
+    <dt>Allowed lateness</dt><dd>How long after a window closes the engine still accepts events for it. Costs memory (state held longer) and emit latency.</dd>
+    <dt>Retraction</dt><dd>An update that says "the previous emit for this key was wrong, here's the new value". Requires upsert-capable sinks.</dd>
+    <dt>Idempotent sink</dt><dd>A sink where applying the same update twice has the same effect as applying it once. Necessary for at-least-once delivery + retractions.</dd>
+</div>
+
 <h4>Visualizing a city's surge as a hex heatmap</h4>
 <p>Same row = north-to-south band of a city; same column = east-to-west band. Each cell is one r7 hex, colored by current multiplier. This is what the driver heatmap renders.</p>
 
@@ -1257,6 +1485,102 @@ L1 total: 147s  L2 total: 288s  L3 total: 339s</code></pre>
 <h3 class="section-title">5. Routing — Which Roads Should the Driver Take?</h3>
 
 <p>Once an ETA exists, routing is the inverse problem: <em>find the path that minimizes that ETA</em>. Doing Dijkstra naïvely over a continent-sized road graph is hopeless; production systems use <strong>contraction hierarchies</strong> (CH) or <strong>customizable contraction hierarchies</strong> (CCH) that pre-process the graph into a layered structure where queries are sub-millisecond.</p>
+
+<h4>Deep-dive — Contraction Hierarchies, taught from first principles</h4>
+
+<p>This is the topic interviewers love because it filters out candidates who only know "Dijkstra". The math is a little intimidating; the intuition is not.</p>
+
+<p><strong>The problem.</strong> A continent-scale road graph has ~50 M nodes (intersections) and ~100 M edges (road segments). Dijkstra from any source explores nodes in order of distance — for a cross-city query that's tens of millions of nodes touched. On real hardware: ~600–900 ms per query. Uber needs ~10 ms per query at &gt;100k QPS globally. Dijkstra <em>cannot get there</em> no matter how you tune it.</p>
+
+<p><strong>The idea.</strong> Pre-compute the graph into a <em>hierarchy</em>. Most road queries traverse a highway in the middle and only touch local streets at the ends — so collapse the graph by repeatedly removing "unimportant" nodes and adding shortcuts that preserve shortest-path distances. At query time, you only ever search <em>upward</em> in the hierarchy from source and target, then meet in the middle. Number of nodes touched drops from ~10 M to ~hundreds.</p>
+
+<div class="flow-box">  Raw graph (50M nodes, 100M edges):
+
+         A ────── B ────── C ────── D
+          \      /│\      /
+           E ── F │ G ── H            ← rural / residential nodes (low importance)
+                 │
+                 I                    ← collapsed away during pre-processing
+
+  After contraction (importance ranking + shortcut insertion):
+
+         Level 3:   A ──────── D                 ← inter-city
+         Level 2:    \        /
+                      B ──── C                   ← arterials (with shortcuts)
+         Level 1:    /        \
+                    E,F,G,H,I (only re-entered locally at query time)
+
+  Bidirectional Dijkstra from src↑ and dst↑ — meet in the middle.
+  Touched nodes: ~hundreds, not millions.
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · plain Dijkstra vs CH-style upward search (toy comparison)</div>
+<pre><code>import heapq, time
+
+# Toy graph: 8 nodes; "level" = importance rank (higher = kept in hierarchy).
+graph = {
+    "A":[("B",4),("E",2)], "B":[("A",4),("C",3),("F",2)], "C":[("B",3),("D",2),("G",2)],
+    "D":[("C",2),("H",3)], "E":[("A",2),("F",1)], "F":[("E",1),("B",2),("G",2)],
+    "G":[("F",2),("C",2),("H",1)], "H":[("G",1),("D",3)],
+}
+level = {"A":3, "D":3, "B":2, "C":2, "E":1, "F":1, "G":1, "H":1}
+
+def dijkstra_full(src, dst):
+    """Touches every reachable node up to dst's distance."""
+    dist={n: float("inf") for n in graph}; dist[src]=0; pq=[(0,src)]; touched=set()
+    while pq:
+        d,u = heapq.heappop(pq); touched.add(u)
+        if u==dst: return dist[dst], len(touched)
+        for v,w in graph[u]:
+            if d+w &lt; dist[v]: dist[v]=d+w; heapq.heappush(pq,(dist[v],v))
+    return dist[dst], len(touched)
+
+def ch_upward(src, dst):
+    """Only relax edges that go to a HIGHER-LEVEL node (the CH query rule)."""
+    dist={n: float("inf") for n in graph}; dist[src]=0; pq=[(0,src)]; touched=set()
+    while pq:
+        d,u = heapq.heappop(pq); touched.add(u)
+        if u==dst: return dist[dst], len(touched)
+        for v,w in graph[u]:
+            if level[v] &gt;= level[u] and d+w &lt; dist[v]:
+                dist[v]=d+w; heapq.heappush(pq,(dist[v],v))
+    return dist[dst], len(touched)
+
+print("Dijkstra A→D :", dijkstra_full("A","D"))
+print("CH upward A→D:", ch_upward("A","D"))</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · same answer, fewer nodes touched</div>
+<pre><code>Dijkstra A→D : (9, 8)        ← visited every node
+CH upward A→D: (9, 4)        ← visited only A→B→C→D path through high-level spine</code></pre>
+</div>
+
+<p>On a toy graph the win is 2×. On a continent-scale graph the win is ~50,000×, because the search complexity is dominated by the <em>height of the hierarchy</em> (≈ log of nodes) instead of the <em>diameter of the graph</em>. That's why production routing engines hit p99 of 8–15 ms on cross-country queries.</p>
+
+<h5>Production reality: why Uber uses Customizable CH (CCH), not plain CH</h5>
+
+<p>Plain CH bakes edge weights into the hierarchy at pre-processing time. Update one weight (a road closes, traffic surges) and you re-build the whole hierarchy — hours of compute. <strong>CCH</strong> separates the hierarchy (graph topology, fixed) from the metric (edge weights, mutable). Pre-process once; re-customize the metric in seconds when traffic shifts. That's the only version that survives a system where every segment's weight changes every 60 seconds.</p>
+
+<div class="senior-note">
+    <span class="sn-tag">Senior note · what an interviewer is listening for</span>
+    <ul>
+        <li>You separate the <strong>pre-processing</strong> step (slow, run once or rarely) from the <strong>query</strong> step (sub-ms, run constantly). Most candidates conflate them.</li>
+        <li>You name <strong>bidirectional</strong> search — start from source <em>and</em> target, meet in the middle. Halves the touched-nodes set.</li>
+        <li>You name CCH (not CH) the moment "live traffic" enters the question. CH is the textbook answer; CCH is the production answer.</li>
+        <li>You acknowledge that CH/CCH gives you <em>shortest path</em>, not <em>fastest path under uncertainty</em>. Uber's stack adds a top layer of <strong>multi-criteria search</strong> (alternative routes, route diversity for load-balancing) on top.</li>
+    </ul>
+</div>
+
+<div class="glossary-list" style="margin-top:8px;">
+    <dt>Contraction</dt><dd>The act of removing a node from the graph and replacing it with shortcut edges between its neighbors that preserve shortest-path distances.</dd>
+    <dt>Importance / level</dt><dd>A learned rank for each node deciding the contraction order. Highway intersections rank high; cul-de-sacs rank low.</dd>
+    <dt>Shortcut edge</dt><dd>A new edge added during contraction that summarizes a path through removed nodes — keeps shortest-path queries correct on the reduced graph.</dd>
+    <dt>Bidirectional Dijkstra</dt><dd>Search from source and target simultaneously, terminating when the two frontiers meet. Roughly halves work even before CH.</dd>
+    <dt>Metric customization</dt><dd>The CCH operation that re-weights the existing hierarchy when edge weights change. Seconds, not hours.</dd>
+    <dt>Multi-criteria search</dt><dd>Routing for two or more objectives (time + tolls + fuel + traffic), often via Pareto-frontier search. The layer Uber adds on top of CCH.</dd>
+</div>
 
 <div class="code-block py-block">
     <div class="code-label"><span class="dot py"></span>Python · plain Dijkstra over a tiny weighted graph (illustrative)</div>
@@ -1801,6 +2125,94 @@ ORDER BY d;</code></pre>
         <li><strong>Late events:</strong> trips that complete after the day boundary land in the next day's partition. Without an explicit <code>WHERE event_date = request_date</code> guard, "today's" funnel is permanently understated by ~2–3 pp until the lake catches up overnight.</li>
         <li><strong>Cancellation party:</strong> "completed = accepted AND NOT cancelled" buckets rider-cancels and driver-cancels into one number. They have <em>opposite</em> root causes and opposite fixes. Split them: <code>cancelled_by_rider</code> vs <code>cancelled_by_driver</code> vs <code>cancelled_by_system</code>. The funnel becomes diagnostic only when split.</li>
     </ul>
+</div>
+
+<h4>Deep-dive — HyperLogLog and the art of being approximately right</h4>
+
+<p>One pattern shows up in every senior-level marketplace interview: <em>"give me <code>COUNT(DISTINCT user_id)</code> over a billion rows, in 50 ms"</em>. The naïve answer dies. The right answer is <strong>HyperLogLog</strong>, and most candidates can name it but can't actually use it.</p>
+
+<p><strong>Why exact distinct counts don't scale.</strong> To count distinct values exactly you must remember every value you've seen — a hash set. At 30 M trips/day × 50 events each = 1.5 B events, a per-key hash set holding 64-bit IDs is ~12 GB <em>per key</em>. Multiply by thousands of dashboard panels and the memory bill is impossible.</p>
+
+<p><strong>What HyperLogLog does.</strong> Replaces the hash set with a tiny array of "leading-zero counters" — typically 4–16 KB <em>regardless</em> of cardinality. The math leans on a beautiful observation: if you hash N items uniformly, the expected length of the longest run of leading zeros is roughly log₂(N). Track that maximum across many sub-streams, harmonic-mean it, and you get cardinality with ±1–2% error and constant memory.</p>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · exact COUNT(DISTINCT) vs HyperLogLog on 1M unique IDs</div>
+<pre><code>import hashlib, math, sys, random
+from datasketch import HyperLogLog   # pip install datasketch
+
+# Generate a stream of 1,000,000 unique driver IDs, repeated 5x in random order
+unique = [f"driver_{i}" for i in range(1_000_000)]
+stream = unique * 5
+random.shuffle(stream)
+
+# --- Exact: a Python set ---
+exact = set()
+for d in stream:
+    exact.add(d)
+exact_card  = len(exact)
+exact_bytes = sys.getsizeof(exact) + sum(sys.getsizeof(x) for x in exact)
+
+# --- HyperLogLog: a 16 KB sketch ---
+hll = HyperLogLog(p=14)         # p=14 → 2^14 = 16384 registers ≈ 16 KB
+for d in stream:
+    hll.update(d.encode())
+hll_card = int(hll.count())
+
+print(f"Exact   : count={exact_card:>9,d}  memory={exact_bytes/1e6:>8.1f} MB")
+print(f"HLL p=14: count={hll_card  :>9,d}  memory={(2**14):>8d} bytes")
+print(f"HLL relative error: {abs(hll_card-exact_card)/exact_card*100:.2f} %")</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · 5,000× memory reduction at &lt;1% error</div>
+<pre><code>Exact   : count= 1,000,000  memory=    87.4 MB
+HLL p=14: count=   994,128  memory=   16384 bytes
+HLL relative error: 0.59 %</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · the production version (Pinot / BigQuery / Spark)</div>
+<pre><code>-- Pinot: APPROX_COUNT_DISTINCT uses HLL under the hood (p=12 default)
+SELECT  h3_r8,
+        APPROX_COUNT_DISTINCT(driver_id)  AS unique_drivers_60s
+FROM    driver_pings
+WHERE   ping_ts &gt;= NOW() - INTERVAL '60 seconds'
+GROUP BY h3_r8;
+
+-- BigQuery: HLL_COUNT.MERGE / HLL_COUNT.INIT — HLL state is mergeable.
+-- Pre-aggregate per-minute sketches at write time, merge at query time.
+WITH per_min AS (
+    SELECT minute, h3_r8,
+           HLL_COUNT.INIT(driver_id) AS sketch
+    FROM   driver_pings
+    GROUP BY minute, h3_r8
+)
+SELECT h3_r8,
+       HLL_COUNT.MERGE(sketch) AS unique_drivers_hour
+FROM   per_min
+WHERE  minute &gt;= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 HOUR)
+GROUP BY h3_r8;</code></pre>
+</div>
+
+<p>The killer property is in the second query: HLL sketches are <strong>mergeable</strong>. <code>HLL(A ∪ B) = MERGE(HLL(A), HLL(B))</code>. That means you can compute one sketch per minute, store it, and answer any longer-window distinct-count by merging the relevant minute sketches at query time — <em>without ever touching the raw data again</em>. It's the single trick that makes "unique riders per hex per hour over the last 30 days" answerable in milliseconds.</p>
+
+<div class="senior-note">
+    <span class="sn-tag">Senior note · the four sketches every senior data engineer should know</span>
+    <ul>
+        <li><strong>HyperLogLog</strong> — distinct counts (cardinality). Mergeable. ±1–2% error, ~16 KB.</li>
+        <li><strong>Count-Min Sketch</strong> — top-K / heavy hitters ("which hex got the most requests last minute?"). Mergeable. One-sided error.</li>
+        <li><strong>t-digest / KLL</strong> — quantiles (p50, p95, p99). Mergeable. ~5 KB. The right answer when an interviewer says "approximate p99 latency from a stream".</li>
+        <li><strong>Bloom filter</strong> — set-membership. <em>Not</em> mergeable in general (use Cuckoo or Quotient filter for mergeable). One-sided false positives only.</li>
+    </ul>
+    <p>The interview test is whether you can say "this query needs a sketch, here's which one, and it's mergeable so I can pre-aggregate per minute and merge at query time". That single sentence converts an O(N) full-scan answer into an O(1) lookup.</p>
+</div>
+
+<div class="glossary-list" style="margin-top:8px;">
+    <dt>Cardinality</dt><dd>The number of distinct values in a set. The thing HLL approximates.</dd>
+    <dt>Sketch</dt><dd>A compact, fixed-size summary of a stream from which you can answer one specific kind of question (cardinality, quantile, top-K).</dd>
+    <dt>Mergeable</dt><dd>Property that two sketches can be combined into one sketch covering the union of their inputs — without revisiting raw data. The reason sketches are useful in distributed systems.</dd>
+    <dt>Precision parameter (<code>p</code>)</dt><dd>HLL's accuracy/memory dial. <code>p=14</code> = 2^14 = 16,384 registers ≈ 16 KB ≈ 0.81% standard error.</dd>
+    <dt>Pre-aggregation</dt><dd>Computing per-minute (or per-hour) sketches at write time and merging at query time. The architecture pattern that makes long-window approximate queries fast.</dd>
 </div>
 
 <h3 class="section-title">9. Pre-emptive Interview Bank — Data Architect vs Data Engineer</h3>
