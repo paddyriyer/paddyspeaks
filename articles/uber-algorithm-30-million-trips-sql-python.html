@@ -82,6 +82,51 @@
 .heat-table td.h3 { background: #fb923c; color: #fff; }
 .heat-table td.h4 { background: #c2410c; color: #fff; }
 .section-title { margin-top: 44px; padding-top: 20px; border-top: 2px solid #c8915a; font-family: 'Playfair Display', serif; }
+
+/* failure panel — "what actually breaks" */
+.failure-panel { background: #2b0f0f; color: #fde68a; border-left: 4px solid #c44b2b; padding: 18px 22px; margin: 22px 0; border-radius: 4px; }
+.failure-panel h4 { color: #fdba74; margin: 0 0 10px; font-family: 'Playfair Display', serif; font-size: 18px; }
+.failure-panel p { color: #f5e0c5; margin: 0 0 10px; line-height: 1.65; }
+.failure-panel ul { margin: 6px 0 0; padding-left: 22px; }
+.failure-panel li { color: #f5e0c5; line-height: 1.6; margin-bottom: 4px; }
+.failure-panel code { background: rgba(0,0,0,0.35); color: #fde68a; padding: 1px 6px; border-radius: 2px; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+/* naive vs production contrast cards */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 22px 0; }
+@media (max-width: 720px) { .compare-grid { grid-template-columns: 1fr; } }
+.compare-card { padding: 16px 18px; border-radius: 4px; border: 1px solid; }
+.compare-card.bad { background: #fef2f2; border-color: #fecaca; border-left: 4px solid #c44b2b; }
+.compare-card.good { background: #ecfdf5; border-color: #a7f3d0; border-left: 4px solid #2a7a4a; }
+.compare-card .lbl { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; display: block; }
+.compare-card.bad  .lbl { color: #c44b2b; }
+.compare-card.good .lbl { color: #2a7a4a; }
+.compare-card h5 { margin: 0 0 8px; font-family: 'Playfair Display', serif; font-size: 17px; color: #1a2332; }
+.compare-card p, .compare-card li { margin: 0 0 6px; line-height: 1.6; font-size: 15px; color: #3a4a5e; }
+.compare-card ul { margin: 4px 0 0; padding-left: 20px; }
+
+/* interviewer signal block */
+.signal-block { background: #0a1929; color: #f5f5f5; padding: 18px 22px; margin: 28px 0; border-radius: 4px; border-left: 4px solid #00cfff; }
+.signal-block .signal-tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: #00cfff; font-weight: 700; margin-bottom: 10px; display: block; }
+.signal-block .signal-q { font-family: 'Playfair Display', serif; font-size: 17px; color: #ffffff; margin: 0 0 12px; }
+.signal-block .signal-row { display: grid; grid-template-columns: max-content 1fr; gap: 8px 14px; margin: 6px 0; align-items: start; }
+.signal-block .signal-key { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: #94a3b8; padding-top: 3px; }
+.signal-block .signal-val { color: #e2e8f0; line-height: 1.6; }
+.signal-block .signal-val.good { color: #86efac; }
+.signal-block .signal-val.bad  { color: #fda4af; }
+.signal-block code { background: rgba(255,255,255,0.08); color: #cbd5e1; padding: 1px 6px; border-radius: 2px; font-family: 'JetBrains Mono', monospace; font-size: 12px; border: 0; }
+
+/* edge-case row */
+.edge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 18px 0; }
+.edge-card { background: #fff8ed; border: 1px solid #efd9b8; border-left: 4px solid #c8915a; border-radius: 4px; padding: 14px 16px; }
+.edge-card .edge-tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: #c44b2b; font-weight: 700; margin-bottom: 6px; display: block; }
+.edge-card h5 { margin: 0 0 6px; font-family: 'Playfair Display', serif; font-size: 16px; color: #2a1a0a; }
+.edge-card p { margin: 0; line-height: 1.55; font-size: 14px; color: #3a2a1a; }
+
+/* SVG chart card */
+.chart-card { background: #ffffff; border: 1px solid #dbe2ec; border-radius: 4px; padding: 16px 18px; margin: 22px 0; }
+.chart-card .chart-title { font-family: 'Playfair Display', serif; font-size: 16px; color: #0a1929; margin-bottom: 8px; font-weight: 600; }
+.chart-card .chart-svg { width: 100%; height: auto; display: block; }
+.chart-card .chart-caption { font-size: 13px; color: #475569; line-height: 1.55; margin-top: 8px; font-style: italic; }
 </style>
 </head>
 <body>
@@ -130,9 +175,64 @@
 </ol>
 <p>The rest of this article walks each one with the SQL, the Python, and the interview questions a serious panel will actually ask.</p>
 
+<h3 class="section-title">0. What Actually Breaks at 30 Million Trips a Day</h3>
+
+<p>Before any clever algorithm, you have to internalize what 30M trips/day <em>does</em> to a system. Most candidates skip this and lose the senior signal in the first 60 seconds of the interview. The number isn't decoration — it's a constraint generator. Every architectural decision in the rest of the article exists because something on this list was on fire.</p>
+
+<div class="failure-panel">
+    <h4>The five things that break first</h4>
+    <ul>
+        <li><strong>Hot partition on a single hex.</strong> A stadium lets out → 12,000 ride requests in 3 minutes hit one H3 r5 cell. Whatever Kafka partition / Flink keyed stream / Pinot segment owns that hex melts. Throughput on that one shard goes from 5k/s baseline to 60k/s. Everything else in the city is fine; <em>that</em> shard's consumer lag goes vertical.</li>
+        <li><strong>Join cardinality blow-up.</strong> "Join driver_pings to ride_requests on hex" sounds innocent until you realize a 60-second window is ~75M pings × ~50k requests. A naïve hash join on the wrong key is a 4 TB shuffle. The job either OOMs or runs for 9 hours.</li>
+        <li><strong>Late events polluting closed windows.</strong> A driver's phone goes through a tunnel and dumps 90 s of buffered pings at once. Surge for that hex was already emitted as 1.0x. Now the late pings would have made it 1.6x. Do you retract? Do you ignore? Do you drop the rider's quote? Each answer has a different blast radius.</li>
+        <li><strong>State store fan-out.</strong> Every dispatch decision reads ~25 driver records and writes 1. That's ~250k reads/s and ~10k writes/s globally — and the reads must be &lt; 1 ms p99. Postgres can't. MySQL can't. Even Cassandra struggles without careful partition design.</li>
+        <li><strong>The lake catches fire if you don't compact.</strong> A trip generates ~40 events. 30M × 40 = 1.2B events/day landing as small files on S3. Without Hudi/Iceberg compaction running every 15 minutes, your Spark queries spend 80% of their time listing files instead of reading them.</li>
+    </ul>
+</div>
+
+<h4>The three constraints that drive every design choice</h4>
+
+<div class="viz-grid">
+    <div class="viz-card"><span class="num">&lt; 2 s</span><h5>Match latency</h5><p>If dispatch takes longer than ~2 s the rider perceives lag and cancellation rate jumps ~3 percentage points. This forces in-memory state, batched matching, and pre-computed candidate sets.</p></div>
+    <div class="viz-card"><span class="num">&lt; 60 s</span><h5>Surge / ETA freshness</h5><p>If pricing is &gt; 1 minute stale, the marketplace oscillates: drivers chase a hot zone that already cooled. This forces streaming windows, not micro-batches.</p></div>
+    <div class="viz-card"><span class="num">&lt; $0.001</span><h5>Per-trip data cost</h5><p>30M trips × even $0.01 of pipeline cost = $300k/day = $110M/year just to <em>observe</em> the system. This forces aggressive partition pruning, columnar storage, and tiering of hot vs cold data.</p></div>
+</div>
+
+<h4>The three tradeoffs you must name out loud</h4>
+
+<div class="compare-grid">
+    <div class="compare-card bad">
+        <span class="lbl">❌ Greedy / strongly consistent / row-store</span>
+        <h5>The "obvious" architecture</h5>
+        <ul>
+            <li>Postgres for driver state, single-writer per row</li>
+            <li>Greedy nearest-driver dispatch as each request arrives</li>
+            <li>Recompute surge on-demand from the trips table</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Dies at:</strong> ~50k drivers per region. Locks contend, joins explode, p99 latency breaks 5 s.</p>
+    </div>
+    <div class="compare-card good">
+        <span class="lbl">✅ Eventually consistent / batched / streaming</span>
+        <h5>What actually scales</h5>
+        <ul>
+            <li>Aerospike-class store keyed by H3, eventual consistency with a 4 s freshness SLA</li>
+            <li>Batched matching every 1–2 s on N×M cost matrix</li>
+            <li>Streaming surge in 60 s tumbling windows, served from Pinot</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Costs:</strong> a 1–2 s perceived delay and a stale-data window — both bounded and acceptable.</p>
+    </div>
+</div>
+
+<p>The rest of this article assumes you've internalized that frame: the algorithm exists to <em>survive these constraints</em>, not to be elegant. Now let's go layer by layer.</p>
+
 <h3 class="section-title">1. The Map Is the Database — H3 Hexagons</h3>
 
 <p>Before dispatch, surge, or ETA, you have to talk about <em>how the world is indexed</em>. Uber's open-source <strong>H3</strong> library tiles the planet in hierarchical hexagons. A hex at resolution 9 is roughly the size of a city block; resolution 7 is roughly a neighborhood. Hexagons beat squares because <strong>every neighbor is equidistant</strong>, which makes "nearby" honest.</p>
+
+<div class="iv-block" style="background:#f7faff; border-left-color:#1a4f8a;">
+    <span class="iv-tag" style="color:#1a4f8a;">Aside · Why SQL <em>and</em> Python in this article</span>
+    <p class="iv-a"><strong>SQL</strong> is the language of the data plane: declarative, set-oriented, what an interviewer hands you on a whiteboard, and what actually runs in the streaming engines (Flink SQL), the OLAP layer (Pinot, BigQuery), and the lakehouse (Spark SQL, Trino). Use SQL when the question is <em>"what is the answer to this query?"</em>. <strong>Python</strong> is the language of the <em>algorithm</em>: imperative, library-rich, where you actually express the optimization (<code>scipy.optimize</code>), the simulation (elasticities, surge response), the ML residual model (PyTorch / sklearn), and the orchestration (Airflow DAGs). Use Python when the question is <em>"what is the procedure that produces the answer?"</em>. The interview test you're preparing for will alternate between them precisely because production systems do.</p>
+</div>
 
 <div class="code-block py-block">
     <div class="code-label"><span class="dot py"></span>Python · indexing GPS pings into hexagons</div>
@@ -203,8 +303,49 @@ print(pings[["driver_id","h3_r9","h3_r7"]])</code></pre>
     <div class="viz-card"><span class="num">ψ · cancel risk</span><h5>Cancellation prob.</h5><p>An ML score: P(driver accepts and completes). Punishes flaky pairs.</p></div>
 </div>
 
+<h4>The objective function, named explicitly</h4>
+
+<p>The interview-grade phrasing of the dispatch problem is:</p>
+
+<div class="flow-box">  Decision variable:    x[i,j] ∈ {0,1}   — assign rider i to driver j
+
+  Minimize:             Σ  C[i,j] · x[i,j]
+
+  Subject to:           Σ_j x[i,j] ≤ 1     ∀ i        (each rider gets ≤ 1 driver)
+                        Σ_i x[i,j] ≤ 1     ∀ j        (each driver gets ≤ 1 rider)
+                        x[i,j] = 0  if eta(i,j) &gt; 8 min   (hard ETA cap)
+                        x[i,j] = 0  if cancel_risk(i,j) &gt; 0.4
+
+  Solver:               min-cost bipartite matching (Hungarian / scipy linear_sum_assignment)
+</div>
+
+<p>Most candidates can describe "match riders to drivers". The senior signal is naming this as a <strong>constrained optimization</strong>, knowing the constraints are hard (ETA cap) vs soft (penalize-don't-forbid), and being able to explain why the greedy approximation is provably worse on the dual.</p>
+
+<div class="compare-grid">
+    <div class="compare-card bad">
+        <span class="lbl">❌ Naive: nearest-driver, sync</span>
+        <h5>What a junior would write</h5>
+        <ul>
+            <li>For each request as it arrives, scan all drivers in city, pick closest by haversine.</li>
+            <li>Lock the driver row, mark assigned, return.</li>
+            <li>O(M) per request. ~10 ms × 5M drivers = ~5 s on the hot path.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Why it dies:</strong> linear scan, write-amplified row locks, and locally-greedy choices that increase global ETA. Average pickup ETA is ~18% worse than batched. Cancellation rate climbs.</p>
+    </div>
+    <div class="compare-card good">
+        <span class="lbl">✅ Production: batched matching</span>
+        <h5>What ships at scale</h5>
+        <ul>
+            <li>Hold requests for ~2 s in a per-city batch.</li>
+            <li>Each request fetches a ~25-driver shortlist via H3 k-ring lookup (O(1) on the index).</li>
+            <li>Build sparse N×M cost matrix; solve with Hungarian / min-cost flow in &lt; 200 ms.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Why it wins:</strong> reads are O(1) per request, the global optimum beats the greedy by ~15–20% on average ETA, and the 2 s batch window is below the perceptual cancellation threshold.</p>
+    </div>
+</div>
+
 <h4>The dispatch SQL — what's running on the hot path</h4>
-<p>This is the candidate-shortlist query. It runs against an in-memory state store (Pinot / Aerospike / a custom Go service backed by RocksDB), not Postgres — but the SQL form is what you'll be asked to write at a whiteboard.</p>
+<p>This is the candidate-shortlist query. <strong>It decides who gets a ride in the next two seconds.</strong> Every clause maps to a business stake: the <code>k=2 ring</code> bounds rider wait time; the <code>20-second ping freshness</code> filter prevents handing a rider to a driver whose phone died; the <code>LIMIT 25</code> caps the size of the cost matrix so the solver finishes in &lt; 200 ms. It runs against an in-memory state store (Pinot / Aerospike / a custom Go service backed by RocksDB), not Postgres — but the SQL form is what you'll be asked to write at a whiteboard.</p>
 
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL · candidate shortlist for one rider</div>
@@ -274,6 +415,63 @@ Total system ETA cost (s): 700</code></pre>
 
 <p>R3 didn't get D4 because D4 was closest to R3 — D4 was assigned because giving D2 to R2 and D4 to R3 yields a lower <em>total</em> cost than the greedy alternative. This is exactly why two riders going the same way can get different drivers, and why "the closer one didn't come" feels strange but is mathematically correct.</p>
 
+<div class="chart-card">
+    <div class="chart-title">The cost matrix (seconds) — circles mark the chosen assignment</div>
+    <svg class="chart-svg" viewBox="0 0 540 320" role="img" aria-label="Dispatch cost matrix heatmap">
+        <!-- column headers -->
+        <g font-family="JetBrains Mono, monospace" font-size="12" fill="#1a2332" text-anchor="middle">
+            <text x="160" y="36">D0</text><text x="230" y="36">D1</text><text x="300" y="36">D2</text>
+            <text x="370" y="36">D3</text><text x="440" y="36">D4</text>
+        </g>
+        <!-- row headers -->
+        <g font-family="JetBrains Mono, monospace" font-size="12" fill="#1a2332" text-anchor="end">
+            <text x="115" y="80">R0</text><text x="115" y="140">R1</text>
+            <text x="115" y="200">R2</text><text x="115" y="260">R3</text>
+        </g>
+        <!-- cells: green = chosen by Hungarian, palette warm = high cost, cool = low cost, gray = infeasible -->
+        <!-- Row R0: 180 240 INF 300 INF -->
+        <g>
+            <rect x="125" y="55" width="70" height="50" fill="#bfdbfe"/>           <text x="160" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">180</text>
+            <rect x="195" y="55" width="70" height="50" fill="#fed7aa"/>           <text x="230" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">240</text>
+            <rect x="265" y="55" width="70" height="50" fill="#e2e8f0"/>           <text x="300" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+            <rect x="335" y="55" width="70" height="50" fill="#fb923c"/>           <text x="370" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="#fff" text-anchor="middle">300</text>
+            <rect x="405" y="55" width="70" height="50" fill="#e2e8f0"/>           <text x="440" y="86" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+        </g>
+        <!-- Row R1: 220 150 280 INF INF -->
+        <g>
+            <rect x="125" y="115" width="70" height="50" fill="#fde68a"/>          <text x="160" y="146" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">220</text>
+            <rect x="195" y="115" width="70" height="50" fill="#86efac"/>          <text x="230" y="146" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">150</text>
+            <rect x="265" y="115" width="70" height="50" fill="#fdba74"/>          <text x="300" y="146" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">280</text>
+            <rect x="335" y="115" width="70" height="50" fill="#e2e8f0"/>           <text x="370" y="146" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+            <rect x="405" y="115" width="70" height="50" fill="#e2e8f0"/>           <text x="440" y="146" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+        </g>
+        <!-- Row R2: INF 340 200 260 310 -->
+        <g>
+            <rect x="125" y="175" width="70" height="50" fill="#e2e8f0"/>           <text x="160" y="206" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+            <rect x="195" y="175" width="70" height="50" fill="#fb923c"/>          <text x="230" y="206" font-family="JetBrains Mono, monospace" font-size="13" fill="#fff" text-anchor="middle">340</text>
+            <rect x="265" y="175" width="70" height="50" fill="#bfdbfe"/>          <text x="300" y="206" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">200</text>
+            <rect x="335" y="175" width="70" height="50" fill="#fde68a"/>          <text x="370" y="206" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">260</text>
+            <rect x="405" y="175" width="70" height="50" fill="#fdba74"/>          <text x="440" y="206" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">310</text>
+        </g>
+        <!-- Row R3: INF INF 290 220 170 -->
+        <g>
+            <rect x="125" y="235" width="70" height="50" fill="#e2e8f0"/>           <text x="160" y="266" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+            <rect x="195" y="235" width="70" height="50" fill="#e2e8f0"/>           <text x="230" y="266" font-family="JetBrains Mono, monospace" font-size="13" fill="#94a3b8" text-anchor="middle">∞</text>
+            <rect x="265" y="235" width="70" height="50" fill="#fdba74"/>          <text x="300" y="266" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">290</text>
+            <rect x="335" y="235" width="70" height="50" fill="#fde68a"/>          <text x="370" y="266" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">220</text>
+            <rect x="405" y="235" width="70" height="50" fill="#86efac"/>          <text x="440" y="266" font-family="JetBrains Mono, monospace" font-size="13" fill="#1a2332" text-anchor="middle">170</text>
+        </g>
+        <!-- chosen-cell circles: (R0,D0) (R1,D1) (R2,D2) (R3,D4) -->
+        <g fill="none" stroke="#2a7a4a" stroke-width="3">
+            <circle cx="160" cy="80" r="20"/>
+            <circle cx="230" cy="140" r="20"/>
+            <circle cx="300" cy="200" r="20"/>
+            <circle cx="440" cy="260" r="20"/>
+        </g>
+    </svg>
+    <div class="chart-caption">Greedy would have given R3 → D4 (170 s), then R2 → D3 (260 s), then R1 → D1 (150 s), then R0 → D0 (180 s) = 760 s. The Hungarian solver finds 700 s by routing R2 → D2 instead. Same drivers, same riders, ~8% lower total ETA.</div>
+</div>
+
 <div class="iv-block">
     <span class="iv-tag">Interview Question · Algorithms</span>
     <div class="iv-q">Why batched matching beats greedy nearest-driver — quantify it.</div>
@@ -284,6 +482,36 @@ Total system ETA cost (s): 700</code></pre>
     <span class="iv-tag">Interview Question · Data Architecture</span>
     <div class="iv-q">Where does <code>driver_state</code> actually live? You won't say "Postgres".</div>
     <p class="iv-a">Driver state is a hot, geo-partitioned, write-heavy keyspace updated by every GPS ping (~4 s cadence × millions of drivers). It lives in a sharded in-memory store — Uber's Ringpop-based service stack, or industry equivalents like Aerospike, ScyllaDB, or Apache Pinot for the read side. Partition key = H3 hex at r6/r7 for shard balance. The <em>SQL form</em> is the logical model exposed to the dispatcher; the physical implementation is a custom Go/Java service with sub-millisecond reads.</p>
+</div>
+
+<div class="signal-block">
+    <span class="signal-tag">Interviewer signal · dispatch</span>
+    <div class="signal-q">"Design the matcher" — what tells a panel you're senior</div>
+    <div class="signal-row">
+        <span class="signal-key">tests</span>
+        <span class="signal-val">Whether you can convert a vague product ask ("match riders to drivers") into a constrained optimization with a named objective and explicit feasibility cuts.</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">good</span>
+        <span class="signal-val good">"It's a min-cost bipartite matching with a hard ETA cap and soft cancel-risk penalty. I'd batch ~2 s, shortlist ~25 candidates per rider via H3 k-ring, solve with Hungarian. The 2 s window beats greedy by ~15–20% on average ETA at a perceived-latency cost well under the cancellation threshold."</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">bad</span>
+        <span class="signal-val bad">"I'd find the closest driver and assign them." Or jumping to ML before naming the optimization. Or proposing Postgres / a single transactional table for driver state.</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">trap</span>
+        <span class="signal-val">Solving for ETA only. Senior candidates name <em>three</em> things in the cost: ETA, cancellation risk, and a fairness term (driver idle time / earnings gap). Without fairness, the marketplace eats itself.</span>
+    </div>
+</div>
+
+<h4>Edge cases that bite at scale</h4>
+
+<div class="edge-grid">
+    <div class="edge-card"><span class="edge-tag">Edge · GPS noise</span><h5>Driver "teleports" 800 m</h5><p>Tunnels, urban canyons, malformed Android pings. Solution: median-of-3 smoothing + a Kalman filter; reject any ping that implies &gt; 250 km/h vs the previous one.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Duplicate request</span><h5>Rider double-taps "Request"</h5><p>Network retry produces two identical events. Solution: idempotency key = <code>(rider_id, pickup_h3, ts_minute)</code>; collapse before the matcher sees them.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Driver flake</span><h5>Driver accepts then doesn't move</h5><p>3% of offers stall. Solution: 30 s "intention check" — if the driver hasn't moved toward pickup, reassign and penalize <code>cancel_risk</code> in the cost matrix going forward.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Hot hex</span><h5>Stadium lets out</h5><p>One hex spikes from 5 to 60k req/min. Solution: salt the partition key for that hex temporarily (<code>h3 || (random % 8)</code>), spread to 8 consumers, re-merge in the matcher.</p></div>
 </div>
 
 <h3 class="section-title">3. Surge Pricing — Markets, Not Multipliers</h3>
@@ -310,6 +538,29 @@ Total system ETA cost (s): 700</code></pre>
 </div>
 
 <p>The signal is bidirectional: surge raises prices to dampen demand <em>and</em> shows drivers a heatmap to pull supply toward the hex. The closed loop typically settles within 3–5 minutes during normal events.</p>
+
+<div class="compare-grid">
+    <div class="compare-card bad">
+        <span class="lbl">❌ Naive: recompute from trips table</span>
+        <h5>"Just SUM open requests / online drivers"</h5>
+        <ul>
+            <li>Read from the OLTP trips table on every page load.</li>
+            <li>No windowing — counts are unbounded since midnight.</li>
+            <li>Multiplier swings wildly minute-to-minute.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Dies at:</strong> 50–100k req/s read load, oscillating prices, drivers chasing ghosts.</p>
+    </div>
+    <div class="compare-card good">
+        <span class="lbl">✅ Production: streaming windows + bounded formula</span>
+        <h5>Pre-aggregated, monotonic, clamped</h5>
+        <ul>
+            <li>Flink keyed stream per H3 r5 maintains 60 s sliding windows.</li>
+            <li>Multiplier is monotonic in each input → never <em>decreases</em> on bad signal.</li>
+            <li>Clamped to [1.0, 3.0] so rare bugs can't 100×-charge a rider.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Why it wins:</strong> O(1) read at the dispatcher, smooth price response, blast-radius bounded by the clamp.</p>
+    </div>
+</div>
 
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL · per-hex surge over a sliding 60-second window</div>
@@ -388,6 +639,49 @@ print(pd.DataFrame(rows).to_string(index=False))</code></pre>
 
 <p>The market clears around <strong>1.4x</strong> in this toy. Going higher than that doesn't help fulfillment — it transfers wealth from riders to drivers and risks a customer-trust event. Real Uber surge is tuned to find the <em>lowest</em> multiplier that clears the queue, not the highest the market can bear.</p>
 
+<div class="chart-card">
+    <div class="chart-title">Supply, demand &amp; fulfillment vs surge multiplier</div>
+    <svg class="chart-svg" viewBox="0 0 720 320" role="img" aria-label="Supply demand and fulfillment vs surge">
+        <!-- axes -->
+        <line x1="60" y1="270" x2="700" y2="270" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="60" y1="40"  x2="60"  y2="270" stroke="#94a3b8" stroke-width="1"/>
+        <!-- y ticks -->
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569">
+            <text x="55" y="274" text-anchor="end">0</text>
+            <text x="55" y="217" text-anchor="end">400</text>
+            <text x="55" y="160" text-anchor="end">800</text>
+            <text x="55" y="103" text-anchor="end">1200</text>
+            <text x="55" y="46"  text-anchor="end">1600</text>
+        </g>
+        <!-- x ticks (8 surge levels: 1.0..2.4 step 0.2) -->
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569" text-anchor="middle">
+            <text x="100" y="288">1.0x</text><text x="180" y="288">1.2x</text>
+            <text x="260" y="288">1.4x</text><text x="340" y="288">1.6x</text>
+            <text x="420" y="288">1.8x</text><text x="500" y="288">2.0x</text>
+            <text x="580" y="288">2.2x</text><text x="660" y="288">2.4x</text>
+        </g>
+        <!-- demand curve (red) values: 1000,880,760,640,520,400,280,160 -->
+        <polyline points="100,127 180,144 260,161 340,179 420,196 500,213 580,231 660,248"
+                  fill="none" stroke="#c44b2b" stroke-width="2.5"/>
+        <!-- supply curve (green) values: 600,744,888,1032,1176,1320,1464,1608 -->
+        <polyline points="100,184 180,164 260,143 340,123 420,102 500,82 580,61 660,40"
+                  fill="none" stroke="#2a7a4a" stroke-width="2.5"/>
+        <!-- fulfilled (blue, capped at min) values: 600,744,760,640,520,400,280,160 -->
+        <polyline points="100,184 180,164 260,161 340,179 420,196 500,213 580,231 660,248"
+                  fill="none" stroke="#1a4f8a" stroke-width="2.5" stroke-dasharray="4 3"/>
+        <!-- equilibrium marker at 1.4x -->
+        <line x1="260" y1="40" x2="260" y2="270" stroke="#c8915a" stroke-width="1" stroke-dasharray="3 3"/>
+        <text x="266" y="55" font-family="JetBrains Mono, monospace" font-size="10" fill="#8a5a1a">market clears ≈ 1.4x</text>
+        <!-- legend -->
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332">
+            <rect x="80"  y="18" width="14" height="3" fill="#c44b2b"/><text x="100" y="22">demand</text>
+            <rect x="170" y="18" width="14" height="3" fill="#2a7a4a"/><text x="190" y="22">supply</text>
+            <rect x="260" y="18" width="14" height="3" fill="#1a4f8a"/><text x="280" y="22">fulfilled (= min)</text>
+        </g>
+    </svg>
+    <div class="chart-caption">As surge rises, demand bends down (rider elasticity ~ -0.6) and supply bends up (driver elasticity ~ +1.2). Fulfillment = min(D, S). Past the crossing, raising surge only <em>reduces</em> rides served.</div>
+</div>
+
 <h4>Visualizing a city's surge as a hex heatmap</h4>
 <p>Same row = north-to-south band of a city; same column = east-to-west band. Each cell is one r7 hex, colored by current multiplier. This is what the driver heatmap renders.</p>
 
@@ -417,6 +711,32 @@ print(pd.DataFrame(rows).to_string(index=False))</code></pre>
     <p class="iv-a">Kafka topics for <code>driver_pings</code> and <code>ride_requests</code>, partitioned by H3 r5 (so all events for a parent hex go to the same Flink keyed stream). A Flink job maintains per-hex sliding 60 s windows and emits <code>(h3_r8, surge, ts)</code> tuples to a second Kafka topic. The dispatcher and the rider app consume that topic via a low-latency store (Redis / Pinot). End-to-end p99 under 3 s.</p>
 </div>
 
+<h4>Edge cases that bite surge</h4>
+
+<div class="edge-grid">
+    <div class="edge-card"><span class="edge-tag">Edge · Late events</span><h5>Driver pings arrive 90 s late</h5><p>Window already emitted 1.0x. Solution: <code>allowedLateness=120s</code> on the surge window + retraction stream → downstream Pinot upserts the corrected value. Idempotent sinks only.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Surge spike</span><h5>Lightning strike → 30s blackout</h5><p>All drivers go offline simultaneously. Naive formula spikes to 3.0x. Solution: rate-of-change cap on the multiplier (max +0.3x per 60 s) + freeze if &gt;X% of drivers in the city dropped in the same minute (likely network event, not real demand).</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Cold hex</span><h5>Hex with 0 drivers all morning</h5><p>D/S division by zero. Solution: NULL-safe formula and a <em>floor</em> on supply (assume 1 phantom driver) so prices don't snap to 3.0x in a hex that simply has no traffic at all.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Boundary jitter</span><h5>Rider straddles two hexes</h5><p>One ping says hex A (1.0x), next says hex B (1.8x). Solution: snap rider to the hex they were in for the longest fraction of the last 30 s; show the lower of the two adjacent multipliers as the displayed quote.</p></div>
+</div>
+
+<div class="signal-block">
+    <span class="signal-tag">Interviewer signal · surge</span>
+    <div class="signal-q">"Why doesn't surge just go higher when there are no drivers?"</div>
+    <div class="signal-row">
+        <span class="signal-key">tests</span>
+        <span class="signal-val">Whether you understand surge as a market-clearing mechanism with bounded blast radius — not a profit lever.</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">good</span>
+        <span class="signal-val good">"Surge is a clamped, monotonic function of D/S, ETA, and cancel rate. The clamp at 3.0x is a safety rail — past the demand-curve crossing, raising surge reduces total rides served and damages the trust contract. We tune for the lowest multiplier that clears the queue."</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">bad</span>
+        <span class="signal-val bad">"To make more money during high demand." That's the headline; it isn't the system goal. Saying so signals you've never read a marketplace doc.</span>
+    </div>
+</div>
+
 <h3 class="section-title">4. ETA — The Most Lied-About Number on the App</h3>
 
 <p>"Driver arriving in 4 minutes" is a probability distribution disguised as a number. Uber's ETA stack has three layers, and each one solves a different failure mode of the previous one.</p>
@@ -428,6 +748,29 @@ print(pd.DataFrame(rows).to_string(index=False))</code></pre>
 </div>
 
 <p>L3 is where Uber publicly claims the biggest wins — DeepETA reduced absolute ETA error by ~12% over the prior GBT. The trick is that L1+L2 already get you 80% of the way; L3 just learns the systematic bias.</p>
+
+<div class="compare-grid">
+    <div class="compare-card bad">
+        <span class="lbl">❌ Naive: free-flow Dijkstra only</span>
+        <h5>"Just route on the road graph"</h5>
+        <ul>
+            <li>Static edge weights from speed-limit data.</li>
+            <li>No real-time signal, no ML residual.</li>
+            <li>Median absolute error ~3–4 minutes in any urban core.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Dies at:</strong> rush hour. The system tells riders 4 minutes; the actual ETA is 9. Cancellation rate doubles.</p>
+    </div>
+    <div class="compare-card good">
+        <span class="lbl">✅ Production: L1 + L2 + L3 stack</span>
+        <h5>Layered with traffic + ML residual</h5>
+        <ul>
+            <li>L2 swaps free-flow speeds for live segment speeds (3 / 15 / 60 min rolling).</li>
+            <li>L3 transformer learns systematic bias by hour, weather, event, driver behavior.</li>
+            <li>Median abs error compresses to ~30–45 s.</li>
+        </ul>
+        <p style="margin-top:8px;"><strong>Why it wins:</strong> the rider trusts the number, the dispatcher trusts the cost matrix, and the cancellation curve flattens.</p>
+    </div>
+</div>
 
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL · live segment speed (the heart of L2)</div>
@@ -487,6 +830,72 @@ L1 total: 147s  L2 total: 288s  L3 total: 339s</code></pre>
 </div>
 
 <p>L1 says 2:27, L2 says 4:48, L3 says 5:39. The honest ETA shown to the rider is L3 — and it'll be ~ ±45 s off, which is the published p50 error band for DeepETA-class models.</p>
+
+<div class="chart-card">
+    <div class="chart-title">ETA stack — per-segment seconds (L1 free-flow → L2 live traffic → L3 ML residual)</div>
+    <svg class="chart-svg" viewBox="0 0 720 320" role="img" aria-label="ETA stack per segment">
+        <line x1="60" y1="270" x2="700" y2="270" stroke="#94a3b8" stroke-width="1"/>
+        <line x1="60" y1="40"  x2="60"  y2="270" stroke="#94a3b8" stroke-width="1"/>
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569">
+            <text x="55" y="274" text-anchor="end">0s</text>
+            <text x="55" y="220" text-anchor="end">25s</text>
+            <text x="55" y="166" text-anchor="end">50s</text>
+            <text x="55" y="113" text-anchor="end">75s</text>
+            <text x="55" y="60"  text-anchor="end">100s</text>
+        </g>
+        <!-- 5 segments × 3 bars (L1, L2, L3) -->
+        <!-- bar geometry: bar width 18, gap inside group 4, group width 70, group spacing 50 -->
+        <!-- segment 101 — L1=23, L2=41, L3=49 -->
+        <g><rect x="100" y="221" width="18" height="49"  fill="#1a4f8a"/><rect x="122" y="183" width="18" height="87"  fill="#2a7a4a"/><rect x="144" y="166" width="18" height="104" fill="#c8915a"/></g>
+        <!-- segment 102 — L1=30, L2=67, L3=79 -->
+        <g><rect x="220" y="206" width="18" height="64"  fill="#1a4f8a"/><rect x="242" y="127" width="18" height="143" fill="#2a7a4a"/><rect x="264" y="101" width="18" height="169" fill="#c8915a"/></g>
+        <!-- segment 103 — L1=36, L2=62, L3=73 -->
+        <g><rect x="340" y="193" width="18" height="77"  fill="#1a4f8a"/><rect x="362" y="138" width="18" height="132" fill="#2a7a4a"/><rect x="384" y="115" width="18" height="155" fill="#c8915a"/></g>
+        <!-- segment 104 — L1=20, L2=53, L3=62 -->
+        <g><rect x="460" y="227" width="18" height="43"  fill="#1a4f8a"/><rect x="482" y="156" width="18" height="114" fill="#2a7a4a"/><rect x="504" y="137" width="18" height="133" fill="#c8915a"/></g>
+        <!-- segment 105 — L1=39, L2=65, L3=77 -->
+        <g><rect x="580" y="187" width="18" height="83"  fill="#1a4f8a"/><rect x="602" y="131" width="18" height="139" fill="#2a7a4a"/><rect x="624" y="106" width="18" height="164" fill="#c8915a"/></g>
+        <!-- x labels -->
+        <g font-family="JetBrains Mono, monospace" font-size="10" fill="#475569" text-anchor="middle">
+            <text x="131" y="288">seg 101</text><text x="251" y="288">seg 102</text>
+            <text x="371" y="288">seg 103</text><text x="491" y="288">seg 104</text>
+            <text x="611" y="288">seg 105</text>
+        </g>
+        <!-- legend -->
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332">
+            <rect x="80"  y="14" width="14" height="10" fill="#1a4f8a"/><text x="100" y="22">L1 free-flow</text>
+            <rect x="220" y="14" width="14" height="10" fill="#2a7a4a"/><text x="240" y="22">L2 traffic-adjusted</text>
+            <rect x="400" y="14" width="14" height="10" fill="#c8915a"/><text x="420" y="22">L3 + ML residual</text>
+        </g>
+    </svg>
+    <div class="chart-caption">Same physical road, three views. L1 underestimates by ~50% in rush hour. L2 closes most of the gap. L3 catches the systematic biases L2 still misses (rain, event, driver class).</div>
+</div>
+
+<h4>Edge cases that bite ETA</h4>
+
+<div class="edge-grid">
+    <div class="edge-card"><span class="edge-tag">Edge · Map-match drift</span><h5>GPS sticks the driver to the wrong parallel road</h5><p>Highway vs frontage road look similar from above. Solution: HMM/Viterbi map-matching with road-class priors and turn-restriction penalties, not nearest-segment snap.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Cold segment</span><h5>Segment has 0 GPS samples in last 3 min</h5><p>Don't fall back to free-flow blindly. Solution: cascade to 15-min, then 60-min, then historical-by-hour; mark the ETA confidence as degraded so dispatch can de-prioritize that route.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Toll/closure</span><h5>Bridge closes for an hour</h5><p>L2 will eventually learn from the speed drop, but slowly. Solution: external incident feed → hard-cut the segment from the routing graph within 60 s; retro-flag any in-flight trips on it.</p></div>
+    <div class="edge-card"><span class="edge-tag">Edge · Event spike</span><h5>Concert lets out, traffic explodes everywhere at once</h5><p>L2 drifts but L3 hasn't seen this exact event before. Solution: ML training set includes <em>event proximity features</em>; otherwise ETA quotes lag reality by 5–10 minutes for the first 20 min of the spike.</p></div>
+</div>
+
+<div class="signal-block">
+    <span class="signal-tag">Interviewer signal · ETA</span>
+    <div class="signal-q">"How does Uber compute ETA?"</div>
+    <div class="signal-row">
+        <span class="signal-key">tests</span>
+        <span class="signal-val">Whether you can layer signals correctly: graph → live traffic → ML residual, and explain why each layer exists.</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">good</span>
+        <span class="signal-val good">"Three layers: L1 routing-engine free-flow, L2 swaps in live segment speeds from rolling GPS windows, L3 transformer learns systematic residual by hour/weather/event. ~12% MAE win from L3 alone, but L1+L2 carry 80% of the lift. The number shown to the rider is L3."</span>
+    </div>
+    <div class="signal-row">
+        <span class="signal-key">bad</span>
+        <span class="signal-val bad">"Google Maps API." Or skipping straight to ML without grounding the routing layer. Or claiming a single neural net does it end-to-end (it doesn't — production is layered for explainability and fallback).</span>
+    </div>
+</div>
 
 <h3 class="section-title">5. Routing — Which Roads Should the Driver Take?</h3>
 
@@ -783,6 +1192,24 @@ CREATE TABLE fact_dispatch_offer (
 
 <h4>Three SQLs every interviewer will ask</h4>
 
+<p>For each of these, I'm showing a small slice of the input table, the SQL, and the actual result you'd get back. Whiteboarding the SQL is half the work; explaining what the rows <em>mean</em> is the other half.</p>
+
+<h5 style="margin-top:24px;">SQL 1 — ETA accuracy by hour-of-day, last 7 days</h5>
+<p><strong>Why anyone cares:</strong> systematic ETA bias erodes rider trust and inflates dispatch cost-matrix errors. A +90 s bias at 6 PM means dispatch is over-promising and the matcher is picking the wrong drivers.</p>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Input · sample of <code>fact_dispatch_offer</code></div>
+<pre><code>offer_id   trip_id   driver_id   offer_ts             accepted   eta_quoted_s   eta_actual_s
+o-1001     t-9001    d-501       2026-04-29 06:14:22  TRUE       180            215
+o-1002     t-9002    d-502       2026-04-29 08:02:11  TRUE       240            312
+o-1003     t-9003    d-503       2026-04-29 08:05:48  TRUE       210            268
+o-1004     t-9004    d-504       2026-04-29 12:31:09  TRUE       300            305
+o-1005     t-9005    d-505       2026-04-29 18:47:33  TRUE       240            395
+o-1006     t-9006    d-506       2026-04-29 18:49:01  TRUE       210            350
+o-1007     t-9007    d-507       2026-04-29 22:11:55  TRUE       300            330
+... (~9.4M rows over 7 days)</code></pre>
+</div>
+
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL · 1) ETA accuracy by hour-of-day, last 7 days</div>
 <pre><code>SELECT  EXTRACT(HOUR FROM offer_ts) AS hour_of_day,
@@ -795,6 +1222,48 @@ WHERE   offer_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
   AND   accepted = TRUE
 GROUP BY 1
 ORDER BY 1;</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · ETA bias is worst in the rush hours</div>
+<pre><code>hour_of_day   offers     bias_s   p50_abs_err   p95_abs_err
+          0   180,433       +12            22           110
+          6   312,544       +28            34           135
+          7   501,210       +51            48           185
+          8   612,890       +72            61           220
+         12   401,778       +14            26           115
+         17   598,450       +66            58           205
+         18   642,118       +88            71           245
+         19   571,200       +63            54           198
+         22   330,455       +18            28           120</code></pre>
+</div>
+
+<div class="iv-block" style="margin-top:14px;">
+    <span class="iv-tag">Read this row</span>
+    <div class="iv-q">What does <code>hour=18, bias=+88s, p95=245s</code> tell you?</div>
+    <p class="iv-a">At 6 PM the system <em>under-quotes</em> ETA by ~1.5 minutes on average, and 5% of trips are off by &gt;4 minutes. That's a clear signal that the L3 ML residual is undertrained on the evening rush — likely because feature freshness for "active events in the area" lags by ~10 minutes. Action: shorten the event-feature pipeline and retrain DeepETA with hour-bucketed weighting.</p>
+</div>
+
+<h5 style="margin-top:32px;">SQL 2 — Driver utilization (P3 — paid time / online time) by city</h5>
+<p><strong>Why anyone cares:</strong> P3 is the operating health score of a marketplace. A city with low P3 has too many idle drivers (driver churn risk); a city with very high P3 has too few (rider cancellations climb). Operations teams pull this every morning.</p>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Input · sample of <code>driver_session</code> + <code>fact_trip</code></div>
+<pre><code>-- driver_session
+driver_id   city_id   online_start         online_end
+d-501       NYC       2026-04-29 06:00     2026-04-29 13:30
+d-502       NYC       2026-04-29 16:00     2026-04-30 01:00
+d-601       SFO       2026-04-29 07:30     2026-04-29 16:00
+d-701       LON       2026-04-29 05:00     2026-04-29 14:00
+... (~5M sessions / 7 days)
+
+-- fact_trip (filtered)
+trip_id   driver_id   pickup_h3_r9   pickup_ts            dropoff_ts           cancelled
+t-9001    d-501       891fa726a3...  2026-04-29 06:14     2026-04-29 06:33     FALSE
+t-9008    d-501       891fa726a3...  2026-04-29 06:48     2026-04-29 07:21     FALSE
+t-9015    d-501       891fa726a3...  2026-04-29 07:35     2026-04-29 08:11     FALSE
+t-9080    d-502       891fa726b1...  2026-04-29 16:22     2026-04-29 17:05     FALSE
+... (~210M trips / 7 days)</code></pre>
 </div>
 
 <div class="code-block">
@@ -823,6 +1292,39 @@ GROUP BY 1
 ORDER BY p3_utilization DESC;</code></pre>
 </div>
 
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · P3 utilization, top cities</div>
+<pre><code>city_id    online_s         paid_s          p3_utilization
+NYC        45,210,400       28,532,140              0.631
+SFO        18,440,210       11,108,005              0.602
+LON        22,318,005       13,175,621              0.590
+TOR        14,210,330        7,888,222              0.555
+BOM        38,220,100       19,540,001              0.511
+SAO        21,330,200       10,440,055              0.490
+JNB        12,108,544        5,113,309              0.422</code></pre>
+</div>
+
+<div class="iv-block" style="margin-top:14px;">
+    <span class="iv-tag">Read this row</span>
+    <div class="iv-q">JNB at 0.42 vs NYC at 0.63 — what's the action?</div>
+    <p class="iv-a">42% utilization in Johannesburg means drivers are online but not earning. Either supply is over-matched to demand (slow growth city — pull back driver acquisition spend) or there's a structural issue (driver heatmap is wrong, pickups are clustered in a sub-region with no riders). The senior signal is naming both hypotheses and proposing a check before recommending action.</p>
+</div>
+
+<h5 style="margin-top:32px;">SQL 3 — Marketplace conversion funnel</h5>
+<p><strong>Why anyone cares:</strong> the funnel is the single best diagnostic in the company. Each step that drops more than ~3 pp from the trailing baseline points at a different system: <code>got_eta→dispatched</code> drops mean dispatch failures (no driver), <code>dispatched→completed</code> drops mean cancellations.</p>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Input · joined slice of <code>fact_trip</code> ⨝ <code>fact_dispatch_offer</code></div>
+<pre><code>request_ts            trip_id   eta_quoted_s   accepted   cancelled
+2026-04-29 08:01:14   t-9100     240            TRUE       FALSE
+2026-04-29 08:01:55   t-9101     NULL           NULL       NULL    -- never got an ETA quote
+2026-04-29 08:02:11   t-9102     180            TRUE       FALSE
+2026-04-29 08:02:48   t-9103     220            TRUE       TRUE    -- rider cancelled
+2026-04-29 08:03:09   t-9104     260            FALSE      NULL    -- no driver accepted in window
+2026-04-29 08:03:51   t-9105     300            TRUE       FALSE
+... (~30M / day × 14 days = ~420M rows)</code></pre>
+</div>
+
 <div class="code-block">
     <div class="code-label"><span class="dot sql"></span>SQL · 3) Marketplace conversion funnel</div>
 <pre><code>WITH funnel AS (
@@ -844,6 +1346,45 @@ SELECT  d,
         ROUND(100.0 * completed          / sessions_with_request, 1) AS pct_completed
 FROM    funnel
 ORDER BY d;</code></pre>
+</div>
+
+<div class="code-block out-block">
+    <div class="code-label"><span class="dot out"></span>Output · funnel by day (14 d trailing)</div>
+<pre><code>d            sessions   pct_got_eta   pct_dispatched   pct_completed
+2026-04-16   29,800,212    98.7          92.4              88.1
+2026-04-17   30,110,401    98.6          92.1              87.9
+2026-04-18   31,440,809    98.4          91.8              87.5
+2026-04-19   30,901,544    98.5          92.0              87.6
+2026-04-20   29,055,210    98.6          91.9              87.4
+2026-04-21   30,500,330    98.5          91.7              87.0
+2026-04-22   30,840,001    98.4          88.1              82.7    *
+2026-04-23   30,900,440    98.6          90.9              86.5
+2026-04-24   31,055,221    98.7          91.5              87.1
+2026-04-25   31,440,300    98.7          91.8              87.4
+2026-04-26   30,800,108    98.5          91.9              87.5
+2026-04-27   29,720,505    98.6          92.0              87.6
+2026-04-28   30,560,810    98.6          92.2              87.8
+2026-04-29   30,940,012    98.5          92.1              87.6</code></pre>
+</div>
+
+<div class="chart-card">
+    <div class="chart-title">Conversion funnel (latest day) — request → quote → dispatch → complete</div>
+    <svg class="chart-svg" viewBox="0 0 720 220" role="img" aria-label="Funnel chart of conversion stages">
+        <!-- Stage bars: 100% -> 98.5% -> 92.1% -> 87.6% -->
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="#1a2332">
+            <rect x="40"  y="50" width="640" height="36" fill="#1a4f8a"/><text x="360" y="74" fill="#fff" text-anchor="middle">request · 30,940,012 (100%)</text>
+            <rect x="40"  y="96" width="630" height="36" fill="#3b82f6"/><text x="355" y="120" fill="#fff" text-anchor="middle">got ETA quote · 30,475,912 (98.5%)</text>
+            <rect x="40"  y="142" width="589" height="36" fill="#2a7a4a"/><text x="335" y="166" fill="#fff" text-anchor="middle">dispatched · 28,495,651 (92.1%)</text>
+            <rect x="40"  y="188" width="561" height="22" fill="#c8915a"/><text x="321" y="204" fill="#fff" text-anchor="middle">completed · 27,103,547 (87.6%)</text>
+        </g>
+    </svg>
+    <div class="chart-caption">Each step's drop tells a different story. quote→dispatch loss = supply problem (no driver). dispatch→complete loss = cancellations (rider or driver). Track them separately.</div>
+</div>
+
+<div class="iv-block" style="margin-top:14px;">
+    <span class="iv-tag">Read the anomaly</span>
+    <div class="iv-q">Apr 22 dropped to 88.1% dispatched / 82.7% completed. What do you check first?</div>
+    <p class="iv-a">Dispatched fell ~4 pp and completed fell ~5 pp on the same day — both stages are bleeding. First check: was there a known incident in dispatch (deploy, region failover)? Second: was there an external event (weather, transit strike) that depressed driver supply? The data structure of the funnel makes the diagnosis fast — that's why it's the first SQL anyone runs in an incident.</p>
 </div>
 
 <h3 class="section-title">9. Pre-emptive Interview Bank — Data Architect vs Data Engineer</h3>
