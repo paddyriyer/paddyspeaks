@@ -166,6 +166,21 @@
 .payoff-list li h5 { margin: 0 0 4px; font-family: 'Playfair Display', serif; font-size: 18px; color: #1a2332; }
 .payoff-list li p { margin: 0; line-height: 1.6; color: #3a4a5e; font-size: 15px; }
 .payoff-list li .quote { display: block; margin-top: 8px; padding: 8px 12px; background: #0a1929; color: #cbd5e1; border-radius: 3px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.55; }
+
+/* glossary */
+.glossary { margin: 22px 0; }
+.glossary-cat { margin: 24px 0 8px; padding-bottom: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: #c8915a; font-weight: 700; border-bottom: 1px solid #efd9b8; }
+.glossary-list { display: grid; grid-template-columns: minmax(140px, max-content) 1fr; gap: 0; align-items: stretch; margin: 0; }
+@media (max-width: 720px) {
+    .glossary-list { grid-template-columns: 1fr; }
+    .glossary-list dt { padding-top: 10px !important; border-bottom: 0 !important; }
+    .glossary-list dd { padding-bottom: 10px !important; }
+}
+.glossary-list dt { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #1a4f8a; font-weight: 600; padding: 8px 14px 8px 0; border-bottom: 1px dashed #e2e8f0; }
+.glossary-list dd { margin: 0; font-size: 14px; color: #2d3a4a; line-height: 1.55; padding: 8px 0; border-bottom: 1px dashed #e2e8f0; }
+.glossary-list dt:last-of-type, .glossary-list dd:last-of-type { border-bottom: 0; }
+.glossary-list code { background: rgba(26,79,138,0.08); color: #1a4f8a; padding: 1px 5px; border-radius: 2px; font-family: 'JetBrains Mono', monospace; font-size: 12px; border: 0; }
+.glossary-tip { margin: 14px 0 22px; padding: 12px 16px; background: #f7faff; border: 1px solid #c8d4e2; border-left: 4px solid #1a4f8a; border-radius: 0 3px 3px 0; font-size: 14px; color: #1a2332; line-height: 1.55; }
 </style>
 </head>
 <body>
@@ -1792,6 +1807,146 @@ ORDER BY d;</code></pre>
 <p>Strip away the H3 hexagons, the Flink jobs, the Hungarian solver, the contraction hierarchies. What Uber is really doing is solving the same question 30 million times a day: <em>"of all the people who want to move and all the people who can move them, who should be paired with whom, by which path, at what price, in what order, to make the next 5 minutes of the city better?"</em>. That's the problem. Everything in this article is just the data plumbing that lets the answer come back in under two seconds.</p>
 
 <p>If you can walk an interviewer from the rider's tap to the driver's accept and back, naming the data structure, the SQL, and the failure mode at each layer — you don't need to memorize any one company's stack. You'll be able to design any of them.</p>
+
+<h3 class="section-title">Glossary — Every Term &amp; Abbreviation in This Article</h3>
+
+<div class="glossary-tip">Read this if any acronym above slowed you down. The glossary is grouped by what the term <em>does</em>, not alphabetical, so neighbors are conceptually related — quicker to skim before an interview.</div>
+
+<div class="glossary">
+
+<div class="glossary-cat">A. Geospatial &amp; indexing</div>
+<dl class="glossary-list">
+    <dt>H3</dt><dd>Uber's open-source hexagonal hierarchical geo-indexing library. Tiles the planet in nested hexagons; every cell has a 64-bit integer ID.</dd>
+    <dt>Resolution (r5–r9)</dt><dd>The hex size. <code>r5</code> ≈ 250 km² (city quarter), <code>r7</code> ≈ 5 km² (neighborhood), <code>r8</code> ≈ 0.7 km² (surge unit), <code>r9</code> ≈ 0.1 km² (city block, dispatch unit).</dd>
+    <dt>k-ring</dt><dd>The set of all hexes within <em>k</em> steps of a center hex. <code>k=2</code> = 19 hexes; the standard "nearby drivers" lookup.</dd>
+    <dt>Haversine</dt><dd>Great-circle distance formula between two lat/lng points. Used as a fast crow-flies estimate before the routing engine produces a real ETA.</dd>
+    <dt>Map matching</dt><dd>Snapping a noisy GPS ping to the road segment the driver is most likely actually on. Production-grade implementations use a Hidden Markov Model with Viterbi decoding.</dd>
+    <dt>HMM / Viterbi</dt><dd>Hidden Markov Model + the dynamic-programming algorithm that finds the most likely sequence of hidden states (here: road segments) given noisy observations (GPS pings).</dd>
+    <dt>PostGIS / GIST / <code>ST_DWithin</code></dt><dd>The "PostgreSQL way" of doing geo: spatial extension, geometric index type, distance-predicate function. Fine for offline analytics, far too slow for hot-path dispatch.</dd>
+    <dt>CCH / Contraction Hierarchies</dt><dd>A graph pre-processing technique that lets shortest-path queries run in microseconds on continent-scale road graphs. <em>Customizable</em> CCH lets edge weights change without rebuilding the hierarchy.</dd>
+</dl>
+
+<div class="glossary-cat">B. Dispatch &amp; optimization</div>
+<dl class="glossary-list">
+    <dt>Dispatch</dt><dd>The decision of which driver to offer a given ride request to.</dd>
+    <dt>Greedy matching</dt><dd>Naive approach: assign each new rider to the locally-closest driver, immediately. Fast, but provably worse on global ETA than batched matching.</dd>
+    <dt>Batched matching</dt><dd>Hold incoming requests for a short window (~2 s), then solve a single global matching problem over all riders × candidate drivers.</dd>
+    <dt>Bipartite matching</dt><dd>Graph-theory term for a matching between two disjoint vertex sets — here, riders and drivers.</dd>
+    <dt>Hungarian algorithm</dt><dd>The classic O(n³) algorithm for solving assignment problems (a kind of bipartite matching). Available in Python as <code>scipy.optimize.linear_sum_assignment</code>.</dd>
+    <dt>Min-cost flow</dt><dd>Generalization of bipartite matching to richer graphs with capacities; the formulation production matchers actually solve.</dd>
+    <dt>Cost matrix</dt><dd>The N×M table of "how bad would it be to assign rider i to driver j" used as input to the solver.</dd>
+    <dt>Objective function</dt><dd>The single number the solver minimizes — here, a weighted sum of ETA, detour, idle penalty, rating bonus, earnings balance, and cancel risk.</dd>
+    <dt>Hard / soft constraint</dt><dd><em>Hard</em> = forbidden (e.g., ETA &gt; 8 min ⇒ infeasible). <em>Soft</em> = penalized but allowed (e.g., high cancel risk adds to the cost).</dd>
+    <dt>VRP</dt><dd>Vehicle Routing Problem — the family of problems that includes pickup-sequencing for shared trips. Constrained TSP variant.</dd>
+    <dt>TSP</dt><dd>Traveling Salesman Problem — find the shortest tour visiting all stops. The base abstraction for sequencing a multi-stop trip.</dd>
+</dl>
+
+<div class="glossary-cat">C. Pricing, surge &amp; marketplace</div>
+<dl class="glossary-list">
+    <dt>Surge multiplier</dt><dd>A per-hex, per-product, per-minute price coefficient (1.0× to 3.0×) that clears the local market.</dd>
+    <dt>D/S ratio</dt><dd>Demand over supply in a hex; the dominant input to the surge formula.</dd>
+    <dt>Elasticity</dt><dd>Percent change in quantity for a 1% change in price. Riders are demand-elastic (~−0.6); drivers are supply-elastic (~+1.2) on a ~5-minute lag.</dd>
+    <dt>Monotonic</dt><dd>The surge formula must never <em>decrease</em> the price when an input gets worse (more demand, longer ETA, higher cancel rate). Prevents oscillation.</dd>
+    <dt>Clamp</dt><dd>Hard upper/lower bound on the multiplier ([1.0, 3.0]). The blast-radius safety rail when an input is anomalous.</dd>
+    <dt>EMA smoothing</dt><dd>Exponential Moving Average. <code>surge_t = α·surge_{t-1} + (1−α)·raw</code>. Damps oscillation but adds settling time.</dd>
+    <dt>Market clearing</dt><dd>The lowest multiplier at which fulfilled = min(demand, supply) is maximized. Surge's actual goal.</dd>
+    <dt>P3 utilization</dt><dd>Paid time / online time — the operating-health metric for a driver marketplace.</dd>
+    <dt>GMV</dt><dd>Gross Merchandise Value — total money flowing through the marketplace before take rate.</dd>
+</dl>
+
+<div class="glossary-cat">D. ETA &amp; routing</div>
+<dl class="glossary-list">
+    <dt>ETA</dt><dd>Estimated Time of Arrival. The most lied-about number on the app. Quoted to the rider as L3 below.</dd>
+    <dt>L1 / L2 / L3</dt><dd>The three layers of Uber's ETA stack. <em>L1</em> = free-flow Dijkstra. <em>L2</em> = traffic-adjusted from live segment speeds. <em>L3</em> = ML residual on top of L2.</dd>
+    <dt>DeepETA</dt><dd>Uber's transformer-based ETA residual model. Reduced absolute ETA error by ~12% vs the prior gradient-boosted tree.</dd>
+    <dt>Dijkstra</dt><dd>The textbook shortest-path algorithm. Correct but too slow on continent-scale graphs without pre-processing.</dd>
+    <dt>Routing engine</dt><dd>The service that, given origin / destination / live edge weights, returns a path. Production = CCH or A*-with-landmarks, not raw Dijkstra.</dd>
+    <dt>Segment / edge</dt><dd>A piece of road between two intersections in the routing graph.</dd>
+    <dt>Free-flow speed</dt><dd>The speed limit (or learned uncongested speed) on a segment. The L1 weight.</dd>
+    <dt>Live segment speed</dt><dd>Rolling 3 / 15 / 60 min average of GPS-derived speeds on the segment. The L2 weight.</dd>
+</dl>
+
+<div class="glossary-cat">E. Streaming &amp; data systems</div>
+<dl class="glossary-list">
+    <dt>Kafka</dt><dd>The distributed log used as the spine of the event bus. Every ping, request, offer, accept, complete, fare lands here first.</dd>
+    <dt>Flink</dt><dd>Distributed stateful stream processor. Runs the surge windows, the live segment-speed aggregates, the ETA features.</dd>
+    <dt>Pinot</dt><dd>Real-time OLAP store. Sub-second SQL on streaming data — what the dispatcher and rider app actually read.</dd>
+    <dt>Aerospike / ScyllaDB</dt><dd>Sharded in-memory key-value stores. Where driver_state actually lives at sub-millisecond read latency.</dd>
+    <dt>Ringpop</dt><dd>Uber-built consistent-hashing membership library used for sharding stateful services like dispatch.</dd>
+    <dt>Sliding / tumbling window</dt><dd><em>Tumbling</em> = non-overlapping, fixed-size buckets. <em>Sliding</em> = overlapping windows (e.g., last 60 s, advanced every 10 s). Surge uses sliding.</dd>
+    <dt>Watermark</dt><dd>A timestamp that says "events older than this are assumed to have all arrived". Tells Flink when to close a window.</dd>
+    <dt>Allowed lateness</dt><dd>How long after a window closes Flink will still accept and re-emit corrections for late events.</dd>
+    <dt>Retraction stream</dt><dd>An output mode where downstream consumers receive both old and new values for a key so they can update.</dd>
+    <dt>Idempotent sink</dt><dd>A downstream system (e.g., Pinot upsert table) where applying the same update twice is safe. Required if you allow lateness.</dd>
+    <dt>Bounded staleness</dt><dd>A consistency model that promises reads are no more than X seconds out of date. Driver state uses ~4 s bounded staleness.</dd>
+    <dt>Eventual consistency</dt><dd>Reads <em>will</em> converge to the latest write — eventually. Required to scale geo-distributed state to multi-region.</dd>
+    <dt>Skew / hot partition</dt><dd>One key (one hex, one driver, one region) carrying disproportionate load. The single biggest cause of dispatch outages.</dd>
+    <dt>Salting</dt><dd>Appending a random suffix to a hot key (<code>h3 || (rand % 8)</code>) to spread load across partitions, then re-aggregating.</dd>
+    <dt>HyperLogLog (HLL)</dt><dd>A probabilistic data structure for approximate distinct counts in O(1) memory. Use this when <code>COUNT(DISTINCT ...)</code> threatens to OOM. Exposed in SQL as <code>APPROX_COUNT_DISTINCT</code>.</dd>
+    <dt>t-digest</dt><dd>A probabilistic structure for approximate quantiles (p50, p95, p99) over streaming data.</dd>
+    <dt>Broadcast join</dt><dd>A small dimension table is replicated to every executor; large fact table is not shuffled. Hugely faster than a shuffle join when the small side fits in memory.</dd>
+    <dt>Shuffle</dt><dd>The expensive operation of repartitioning data across the cluster by a join/group-by key. The first thing you blame when a Spark job is slow.</dd>
+    <dt>Partition pruning</dt><dd>The query planner's ability to skip reading partitions that can't possibly satisfy the WHERE clause. Killed by functions like <code>EXTRACT(HOUR FROM ts)</code> applied to the partition column.</dd>
+</dl>
+
+<div class="glossary-cat">F. Storage, lakehouse &amp; warehouse</div>
+<dl class="glossary-list">
+    <dt>OLTP</dt><dd>Online Transaction Processing. Postgres/MySQL territory: row-oriented, ACID, optimized for many small writes.</dd>
+    <dt>OLAP</dt><dd>Online Analytical Processing. Pinot/BigQuery/Trino territory: column-oriented, optimized for large scans and aggregations.</dd>
+    <dt>Lakehouse</dt><dd>Object-store-native data architecture (S3 + open table format) that supports both batch SQL and ACID upserts. Replaces the lake / warehouse split.</dd>
+    <dt>Hudi / Iceberg / Delta</dt><dd>Open table formats for the lakehouse. Add ACID, schema evolution, time travel, and upserts on top of S3 / HDFS.</dd>
+    <dt>Compaction</dt><dd>Periodic merging of small files into fewer, larger ones. Without it, lakehouse queries spend most of their time listing files.</dd>
+    <dt>Schema registry</dt><dd>Central catalog of event schemas (Avro / Protobuf) with versioning and compatibility rules. Producers and consumers agree on the contract here.</dd>
+    <dt>Data contract</dt><dd>The published, versioned commitment about a data set's schema, semantics, freshness and ownership. Architect-level discipline.</dd>
+    <dt>SCD (Type 1 / Type 2)</dt><dd>Slowly Changing Dimensions. <em>Type 1</em> = overwrite. <em>Type 2</em> = append a new row with effective-from / -to dates so history is preserved.</dd>
+    <dt>Star schema / fact / dim</dt><dd>The classic warehouse model: a central <em>fact</em> table (events, measurements) joined to <em>dimension</em> tables (descriptive context).</dd>
+</dl>
+
+<div class="glossary-cat">G. ML &amp; modeling</div>
+<dl class="glossary-list">
+    <dt>GBT / Gradient Boosted Tree</dt><dd>An ensemble of shallow decision trees trained sequentially on each other's residuals. Strong baseline for tabular ETA / fraud / cancel-risk models.</dd>
+    <dt>Transformer</dt><dd>The neural-network architecture (attention-based) that powers DeepETA and most modern sequence models.</dd>
+    <dt>Residual model</dt><dd>An ML model that learns the <em>error</em> of a simpler model, not the target itself. L3 ETA is a residual on top of L2.</dd>
+    <dt>Feature store</dt><dd>A managed service that serves up-to-date model features at low latency for inference and at training-time consistency for offline jobs.</dd>
+    <dt>Michelangelo</dt><dd>Uber's internal end-to-end ML platform — feature store, training, deployment, monitoring.</dd>
+    <dt>MAE</dt><dd>Mean Absolute Error. The standard metric for ETA model quality. Lower is better.</dd>
+</dl>
+
+<div class="glossary-cat">H. Operations, reliability &amp; metrics</div>
+<dl class="glossary-list">
+    <dt>p50 / p95 / p99</dt><dd>Latency percentiles: half / 95% / 99% of requests are at or below this time. <em>p99</em> is what users notice; <em>p50</em> is what dashboards show.</dd>
+    <dt>SLA / SLO</dt><dd><em>Service Level Agreement</em> = external promise. <em>Service Level Objective</em> = internal target you measure against.</dd>
+    <dt>RPO</dt><dd>Recovery Point Objective. Maximum acceptable data loss in a disaster (in seconds / events).</dd>
+    <dt>RTO</dt><dd>Recovery Time Objective. Maximum acceptable downtime (in seconds / minutes).</dd>
+    <dt>pp (percentage points)</dt><dd>Absolute difference between two percentages. "Cancellation up 4 pp" = up by 4 percentage points, not 4%.</dd>
+    <dt>DAU / WAU / MAU</dt><dd>Daily / Weekly / Monthly Active Users — the standard engagement metrics.</dd>
+    <dt>Cancellation party</dt><dd>Whether the rider, the driver, or the system cancelled a trip. Mixing them in one number hides the diagnosis.</dd>
+    <dt>Admission control</dt><dd>Selectively rejecting low-priority work when a system is at capacity, to keep the high-priority work meeting SLA. The "fail closed" pattern.</dd>
+    <dt>Geofence</dt><dd>A polygon on the map used to apply special rules to requests inside it (e.g., airport queues, stadium events).</dd>
+</dl>
+
+<div class="glossary-cat">I. SQL &amp; query terms</div>
+<dl class="glossary-list">
+    <dt>CTE</dt><dd>Common Table Expression — the <code>WITH … AS (…)</code> form. Makes complex queries readable but doesn't always improve plans.</dd>
+    <dt>Window function</dt><dd>An aggregate that runs over a window of rows without collapsing them — <code>SUM() OVER (PARTITION BY … ORDER BY …)</code>.</dd>
+    <dt><code>PERCENTILE_DISC</code> / <code>PERCENTILE_CONT</code></dt><dd>SQL functions for exact percentiles. Both require sorting the group; expensive at scale — replace with t-digest in production.</dd>
+    <dt><code>FILTER</code> clause</dt><dd>The <code>COUNT(*) FILTER (WHERE …)</code> form. Lets you compute multiple conditional aggregates in a single pass.</dd>
+    <dt>Recursive CTE</dt><dd>A <code>WITH RECURSIVE</code> query that references itself. The trick for graph traversal, gaps-and-islands, and bills-of-materials.</dd>
+    <dt>Hash / sort-merge / nested-loop join</dt><dd>The three physical join algorithms a planner can pick. Knowing why each one was chosen is a senior signal.</dd>
+</dl>
+
+<div class="glossary-cat">J. General abbreviations</div>
+<dl class="glossary-list">
+    <dt>API</dt><dd>Application Programming Interface — the contract between two services.</dd>
+    <dt>KV</dt><dd>Key-Value store. Aerospike, Redis, RocksDB, DynamoDB — the family.</dd>
+    <dt>DAG</dt><dd>Directed Acyclic Graph — the topology of an Airflow / Spark / Flink job.</dd>
+    <dt>GPS</dt><dd>Global Positioning System. The ping source. Notoriously noisy in urban canyons and tunnels.</dd>
+    <dt>ML / AI</dt><dd>Machine Learning / Artificial Intelligence. In this article ML = the residual layer of ETA.</dd>
+    <dt>HDFS / S3</dt><dd>Distributed file systems for the lakehouse. <em>HDFS</em> = on-prem Hadoop; <em>S3</em> = AWS object store. Iceberg / Hudi sit on either.</dd>
+    <dt>NYC / SFO / LON / BOM / SAO / JNB</dt><dd>City IATA codes used in the example outputs: New York, San Francisco, London, Mumbai, São Paulo, Johannesburg.</dd>
+</dl>
+
+</div>
 
 <h3>Disclaimer</h3>
 <p>This article is for educational and interview-preparation purposes. It is <em>not</em> affiliated with Uber Technologies, Inc., and does not reproduce any proprietary code, schema, or system. The numbers, formulas, and architectures shown are illustrative composites drawn from publicly available papers, conference talks (e.g., Uber's KDD / VLDB / Strata papers on H3, DeepETA, Michelangelo, Pinot), and the broader ridesharing literature. Real production systems are far more nuanced — and far more interesting.</p>
