@@ -362,6 +362,22 @@
 </ol>
 <p>The rest of this article walks each one with the SQL, the Python, and the interview questions a serious panel will actually ask.</p>
 
+<h4>The whole system in six lines</h4>
+
+<p>If you forget every diagram in this article except one, remember this. Every other system you'll ever design is a variation of it.</p>
+
+<div class="flow-box" style="font-size: 13.5px; font-weight: 500;">  EVENTS   →   STREAM    →   AGGREGATION   →   SERVING       →   DECISION
+  ──────       ───────       ──────────────    ─────────         ─────────
+   Kafka       Flink         Pinot / HLL       Dispatcher        Match · Price · Route
+                                  ↓                                    ↓
+                                LAKE       →     BATCH             Outcome
+                              Hudi / S3       Spark / ML        (trip · cancel · ETA)
+                                                  ↑                    ↓
+                                                  └──── feedback ──────┘
+</div>
+
+<p>Five layers, one feedback loop. <strong>Events</strong> land in Kafka and never disappear. <strong>Stream</strong> processors maintain windowed state for sub-minute freshness. <strong>Aggregation</strong> is fed by streams (online OLAP) and by batch (training, reporting). <strong>Serving</strong> is the millisecond-latency view the dispatcher and apps actually read. <strong>Decision</strong> closes the loop — and every decision becomes a <em>new</em> event flowing back through Kafka, training the next model. Lyft, DoorDash, Instacart, Airbnb, Grab, Bolt — every Uber-class marketplace is a variant of this exact strip. Once you can place a feature on it in five seconds, you can design any of them.</p>
+
 <h3 class="section-title">0. What Actually Breaks at 30 Million Trips a Day</h3>
 
 <p>Before any clever algorithm, you have to internalize what 30M trips/day <em>does</em> to a system. Most candidates skip this and lose the senior signal in the first 60 seconds of the interview. The number isn't decoration — it's a constraint generator. Every architectural decision in the rest of the article exists because something on this list was on fire.</p>
@@ -3215,7 +3231,64 @@ GROUP BY h3_r8;</code></pre>
 
 <p>An interviewer will ask you to map a feature to one of those columns. <em>"Where does ETA accuracy reporting live?"</em> — batch. <em>"Where does the driver heatmap live?"</em> — near-real-time. <em>"Where does the dispatch decision live?"</em> — real-time. If you can place every product feature into the right column and explain the trade-off, you're already past the bar.</p>
 
-<h3 class="section-title">12. What Interviewers Are Actually Looking For — Five Sentences That Win the Round</h3>
+<h3 class="section-title">12. The Failure Modes Atlas — Six Ways This System Eats Itself</h3>
+
+<p>The previous eleven sections explained how the system <em>works</em>. This section explains how it <em>fails</em> — which is what an interviewer is actually testing for. Six named scenarios, each one a real outage pattern from a real marketplace. Memorize the names; the names are the cheat code.</p>
+
+<div class="failure-panel">
+    <h4>1 · The Stadium Effect (skew, partition meltdown)</h4>
+    <p><strong>Trigger:</strong> 12,000 ride requests in 3 minutes, all in one H3 r5 cell.</p>
+    <p><strong>Failure mode:</strong> Single Kafka partition / Pinot segment / Flink keyed stream owns that hex. CPU pegs at 100% on one host while the rest of the cluster idles at 4%. p99 read latency: 6 ms → 850 ms. Consumer lag goes vertical. Surge can't update because the keyed stream is bottlenecked. Cancellation rate spikes +18 pp.</p>
+    <p><strong>Cost in 12 minutes:</strong> ~$340 k of lost GMV in the affected hex.</p>
+    <p><strong>Recovery:</strong> elastic salting (<code>h3 || (rand % 8)</code>) when per-partition lag exceeds 30 s; pre-warm read replicas for known calendar events; geofence the matcher to a wider k-ring with a 5 s window for that hex only.</p>
+</div>
+
+<div class="failure-panel">
+    <h4>2 · The Thunderstorm Cascade (correlated supply collapse)</h4>
+    <p><strong>Trigger:</strong> A regional weather event makes 40% of drivers in a city go offline within 90 s.</p>
+    <p><strong>Failure mode:</strong> The naïve surge formula reads "demand huge, supply collapsed" → multiplier slams to 3.0× across hundreds of hexes simultaneously. Riders scream on social media. Drivers see a heatmap glow and stream toward zones that already cooled by the time they arrive. The marketplace oscillates for 25 minutes before settling.</p>
+    <p><strong>Cost:</strong> a single Twitter screenshot. Customer-trust events are an order of magnitude more expensive than any in-day GMV loss.</p>
+    <p><strong>Recovery:</strong> rate-of-change cap on the multiplier (Δ ≤ 0.30/min); supply-collapse detector that <em>freezes</em> surge instead of spiking when &gt; X% of drivers vanish in one minute (assume network event, not real demand); EMA smoothing on the rider-facing display value.</p>
+</div>
+
+<div class="failure-panel">
+    <h4>3 · The Late-Event Lie (closed window, polluted answer)</h4>
+    <p><strong>Trigger:</strong> A driver's phone goes through a tunnel and dumps 90 s of buffered pings on reconnect — long after the surge window for those timestamps has emitted.</p>
+    <p><strong>Failure mode:</strong> Window fired with 5 drivers, surge quoted 1.0×. Late pings would have made it 6 drivers, 1.6×. Already-quoted riders pay the wrong price; dispatch matched on stale supply assumption. <em>The error is invisible</em> — no exception is thrown, no test catches it, and the dashboard shows the wrong number with full confidence.</p>
+    <p><strong>Cost:</strong> mispriced trips proportional to the late-event volume, plus a multi-week trust hit if a journalist notices the discrepancy.</p>
+    <p><strong>Recovery:</strong> watermarks with explicit jitter buffer; <code>allowed_lateness=120s</code> on the surge window; retraction stream so corrected values overwrite the original; idempotent UPSERT-keyed sink (<code>(h3, window_end)</code>) downstream. Never use append-only sinks for windowed metrics.</p>
+</div>
+
+<div class="failure-panel">
+    <h4>4 · The Schema Drift Domino (silent producer change)</h4>
+    <p><strong>Trigger:</strong> A producer team changes <code>fare_estimate_usd</code> from <code>DECIMAL(8,2)</code> to <code>DECIMAL(10,4)</code> without coordinating. The schema registry accepts it as backward-compatible. It isn't.</p>
+    <p><strong>Failure mode:</strong> Consumers using a fixed-precision deserializer truncate the new field silently. Fares look right at the rider level but the lakehouse aggregates roll up wrong by ~0.4%. The reporting team notices a phantom $4M/month "leak". Three weeks of data are quarantined and back-filled.</p>
+    <p><strong>Cost:</strong> three engineer-weeks plus a finance-team trust event.</p>
+    <p><strong>Recovery:</strong> data contracts with semantic version bumps (not just schema); pre-prod canary that compares aggregate sums between old and new producer output; consumer-driven contract tests in CI; a deprecation calendar enforced at the registry, not in spreadsheets.</p>
+</div>
+
+<div class="failure-panel">
+    <h4>5 · The Compaction Starvation (lakehouse death by a thousand small files)</h4>
+    <p><strong>Trigger:</strong> An incremental ingestion job runs every 30 s and writes one Parquet file per micro-batch. Compaction runs nightly and falls behind during a traffic week.</p>
+    <p><strong>Failure mode:</strong> 30 M trips/day × 40 events × 30 s batches = 100 M small files / week. A Spark query that used to read 50 partitions in 6 minutes now spends 28 minutes <em>listing</em> S3 before it reads anything. The data team's morning dashboards time out. The exec team's quarterly numbers are 3 hours late. Someone gets paged at 7 AM.</p>
+    <p><strong>Cost:</strong> trust in data freshness — the most expensive currency in any data org.</p>
+    <p><strong>Recovery:</strong> set a hard small-files SLO (≤ 128 MB target file size); switch to Hudi / Iceberg with auto-compaction; partition by H3 r5 + hour rather than date alone; monitor file count per partition as a first-class metric.</p>
+</div>
+
+<div class="failure-panel">
+    <h4>6 · The Feedback-Loop Blacklist (model trains on its own bias)</h4>
+    <p><strong>Trigger:</strong> The cancel-risk model penalises a driver who happened to work during a thunderstorm. The model now ranks them lower; the matcher offers them fewer trips; with fewer trips, the model never learns they're actually fine. They quit the platform after 3 weeks.</p>
+    <p><strong>Failure mode:</strong> Selection bias — the matcher only ever observes outcomes for matches it <em>made</em>. Drivers with high cancel-risk are starved of trips and the model ossifies its prior. Silently. With a perfectly clean offline metric.</p>
+    <p><strong>Cost:</strong> driver supply erosion, regulatory risk if any of the affected drivers fall into protected demographic cohorts.</p>
+    <p><strong>Recovery:</strong> dedicate ~1% of dispatch volume to <em>exploration</em> — accept slightly higher cancel risk to keep the training set fresh; time-decayed historical features (14-day half-life on cancel rate); fairness audits that measure earnings dispersion across protected cohorts; counterfactual evaluation on the offline model.</p>
+</div>
+
+<div class="senior-note" style="margin-top:24px;">
+    <span class="sn-tag">Senior takeaway · the framing the panel is testing</span>
+    <p>None of these failure modes is exotic. They're the <em>five</em> things every Uber-class marketplace deals with weekly. The senior signal isn't "I've heard of skew" — it's the ability to <strong>name the failure mode in vocabulary the on-call engineer would use</strong>, and to know which knob you'd reach for at 3 AM. <em>"This is a thunderstorm cascade. I'd freeze the multiplier, page marketplace ops, and post a status update — in that order."</em> That single sentence is the difference between L4 and L5.</p>
+</div>
+
+<h3 class="section-title">13. What Interviewers Are Actually Looking For — Five Sentences That Win the Round</h3>
 
 <p>Most candidates leave their interview wondering whether they said enough. The truth is brutal: panels make their decision on five or six specific signals, and the candidate who hits them <em>in roughly this order</em> walks out with the offer. Memorize the pattern, not the answers.</p>
 
@@ -3257,11 +3330,31 @@ GROUP BY h3_r8;</code></pre>
     <li><strong>Treating Python and SQL as interchangeable.</strong> They are not. SQL describes the world that exists; Python builds the world that hasn't happened yet. Use them for what they're for.</li>
 </ul>
 
-<h3 class="section-title">Closing — What This Whole Stack Is Really Doing</h3>
+<h3 class="section-title">Closing — The One Line to Take Into the Interview</h3>
 
-<p>Strip away the H3 hexagons, the Flink jobs, the Hungarian solver, the contraction hierarchies. What Uber is really doing is solving the same question 30 million times a day: <em>"of all the people who want to move and all the people who can move them, who should be paired with whom, by which path, at what price, in what order, to make the next 5 minutes of the city better?"</em>. That's the problem. Everything in this article is just the data plumbing that lets the answer come back in under two seconds.</p>
+<div class="pull-quote" style="margin-top: 20px;">
+    <p>At small scale, this is SQL.<br>At Uber scale, this is systems thinking.</p>
+    <cite>— The whole article in eleven words</cite>
+</div>
 
-<p>If you can walk an interviewer from the rider's tap to the driver's accept and back, naming the data structure, the SQL, and the failure mode at each layer — you don't need to memorize any one company's stack. You'll be able to design any of them.</p>
+<p>Anyone can write the dispatch query. Anyone can name H3, Hungarian, Flink. The reason most candidates don't get the offer isn't that they don't know the words — it's that they describe a system as if it always works. Senior engineers describe systems by where they fail.</p>
+
+<p>So here is the only frame that matters. Read it twice before the interview:</p>
+
+<div class="mega-stat" style="margin: 28px auto;">
+    <div class="ms-num" style="font-size: clamp(28px, 4vw, 38px); line-height: 1.25;">events → stream → aggregation → serving → decision → events</div>
+    <span class="ms-lbl" style="margin-top: 14px;">One feedback loop. Five layers. Every Uber-class system in the world.</span>
+    <span class="ms-sub">If you can place any new feature on this strip in five seconds, you can design any of them.</span>
+</div>
+
+<p>The 30M trips number isn't impressive because it's big. It's impressive because <em>each one of those trips is a closed control loop</em> — a rider's tap that travels through six separate stateful systems, returns a decision in &lt; 2 s, and then becomes training data for the next decision. That's not a database. That's not a query. That's a marketplace. And once you can see it as one, you don't memorize Uber's stack — you can sketch the next one.</p>
+
+<p>The five sentences in Section 13 are the ones to say. The six failure modes in Section 12 are the ones to expect. The six-line system diagram is the one to draw. Everything else in this article is just the path of getting comfortable enough with all three to do them on a whiteboard, in front of strangers, with a marker in your hand. You're ready when the answers feel obvious — not before.</p>
+
+<p style="margin-top: 28px; padding: 18px 22px; background: #0a1929; color: #cbd5e1; border-radius: 6px; border-left: 4px solid #00cfff; font-style: italic; line-height: 1.7;">
+The difference between someone who studied data engineering and someone who can be trusted with thirty million trips a day isn't the SQL.<br>
+It's knowing where the system fails — <strong style="color: #00cfff; font-style: normal;">and which lever you'd pull at 3 AM</strong>.
+</p>
 
 <h3 class="section-title">Glossary — Every Term &amp; Abbreviation in This Article</h3>
 
