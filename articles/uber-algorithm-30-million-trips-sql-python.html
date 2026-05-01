@@ -278,6 +278,33 @@
 /* --- viz-card and stat-grid: subtle hover glow --- */
 .viz-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
 .viz-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px -10px rgba(26,79,138,0.25); }
+
+/* --- list formatting inside the visual panels (defensive) --- */
+.scale-break ul, .failure-panel ul, .compare-card ul, .signal-block ul, .senior-note ul, .iv-block ul {
+    list-style-type: disc !important;
+    list-style-position: outside !important;
+    padding-left: 26px !important;
+    margin: 8px 0 0 !important;
+}
+.scale-break ul li, .failure-panel ul li { margin-bottom: 8px !important; font-size: 15px !important; line-height: 1.6 !important; }
+.scale-break ul li::marker, .failure-panel ul li::marker { color: #fb923c; font-size: 1.1em; }
+.compare-card.bad  ul li::marker { color: #c44b2b; font-size: 1.1em; }
+.compare-card.good ul li::marker { color: #2a7a4a; font-size: 1.1em; }
+.compare-card ul li { margin-bottom: 6px !important; font-size: 15px !important; line-height: 1.55 !important; }
+.signal-block ul li::marker { color: #00cfff; font-size: 1.1em; }
+.signal-block ul li { margin-bottom: 6px !important; font-size: 14.5px !important; line-height: 1.55 !important; color: #e2e8f0; }
+.senior-note ul li::marker { color: #0369a1; font-size: 1.1em; }
+.senior-note ul li { margin-bottom: 6px !important; font-size: 14.5px !important; line-height: 1.55 !important; }
+.iv-block ul li::marker { color: #c8915a; font-size: 1.1em; }
+
+/* --- H3 hex demo SVG container --- */
+.hex-demo { background: #ffffff; border: 1px solid #dbe2ec; border-radius: 6px; padding: 18px 20px; margin: 22px 0; box-shadow: 0 4px 16px -8px rgba(26,79,138,0.10); }
+.hex-demo .hex-demo-title { font-family: 'Playfair Display', serif; font-size: 17px; color: #0a1929; margin-bottom: 4px; font-weight: 600; }
+.hex-demo .hex-demo-sub { font-size: 13px; color: #475569; margin-bottom: 14px; font-style: italic; }
+.hex-demo svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+.hex-demo .hex-legend { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #475569; }
+.hex-demo .hex-legend .item { display: inline-flex; align-items: center; gap: 6px; }
+.hex-demo .hex-legend .swatch { width: 12px; height: 14px; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
 </style>
 </head>
 <body>
@@ -421,6 +448,90 @@ print(pings[["driver_id","h3_r9","h3_r7"]])</code></pre>
 
 <p>Now "find me the 50 nearest drivers" stops being a haversine scan over millions of rows; it becomes <em>"give me everything in this hex and its k=2 ring neighbors"</em> — an O(k²) lookup against an in-memory index. That single design choice is what lets dispatch run in milliseconds instead of seconds.</p>
 
+<div class="hex-demo">
+    <div class="hex-demo-title">Visual 1 — what the dispatcher actually queries when a rider taps</div>
+    <div class="hex-demo-sub">A k=2 ring around the rider's hex: 1 center + 6 immediate neighbors + 12 outer = <strong>19 hexes total</strong>. The dispatcher reads driver state from exactly these 19 partition keys, never the whole city.</div>
+    <svg viewBox="0 0 600 480" role="img" aria-label="K-ring of 19 hexagons around a center rider">
+        <!-- k=2 outer ring (light blue) -->
+        <g fill="#dbeafe" stroke="#1a4f8a" stroke-width="1.5" opacity="0.85">
+            <polygon points="404,220 430,235 430,265 404,280 378,265 378,235"/>
+            <polygon points="378,175 404,190 404,220 378,235 352,220 352,190"/>
+            <polygon points="352,130 378,145 378,175 352,190 326,175 326,145"/>
+            <polygon points="300,130 326,145 326,175 300,190 274,175 274,145"/>
+            <polygon points="248,130 274,145 274,175 248,190 222,175 222,145"/>
+            <polygon points="222,175 248,190 248,220 222,235 196,220 196,190"/>
+            <polygon points="196,220 222,235 222,265 196,280 170,265 170,235"/>
+            <polygon points="222,265 248,280 248,310 222,325 196,310 196,280"/>
+            <polygon points="248,310 274,325 274,355 248,370 222,355 222,325"/>
+            <polygon points="300,310 326,325 326,355 300,370 274,355 274,325"/>
+            <polygon points="352,310 378,325 378,355 352,370 326,355 326,325"/>
+            <polygon points="378,265 404,280 404,310 378,325 352,310 352,280"/>
+        </g>
+        <!-- k=1 inner ring (cyan) -->
+        <g fill="#a5f3fc" stroke="#0891b2" stroke-width="2">
+            <polygon points="352,220 378,235 378,265 352,280 326,265 326,235"/>
+            <polygon points="326,265 352,280 352,310 326,325 300,310 300,280"/>
+            <polygon points="274,265 300,280 300,310 274,325 248,310 248,280"/>
+            <polygon points="248,220 274,235 274,265 248,280 222,265 222,235"/>
+            <polygon points="274,175 300,190 300,220 274,235 248,220 248,190"/>
+            <polygon points="326,175 352,190 352,220 326,235 300,220 300,190"/>
+        </g>
+        <!-- center hex (gold/rider) -->
+        <polygon points="300,220 326,235 326,265 300,280 274,265 274,235" fill="#fde68a" stroke="#c8915a" stroke-width="2.5"/>
+        <!-- rider star at center -->
+        <circle cx="300" cy="250" r="8" fill="#c8915a"/>
+        <text x="300" y="254" font-family="Playfair Display, serif" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">R</text>
+        <!-- driver dots scattered across hexes -->
+        <g fill="#1a4f8a">
+            <circle cx="365" cy="248" r="5"/>
+            <circle cx="345" cy="265" r="5"/>
+            <circle cx="320" cy="298" r="5"/>
+            <circle cx="282" cy="304" r="5"/>
+            <circle cx="260" cy="262" r="5"/>
+            <circle cx="290" cy="205" r="5"/>
+            <circle cx="335" cy="200" r="5"/>
+            <circle cx="395" cy="252" r="5"/>
+            <circle cx="225" cy="262" r="5"/>
+            <circle cx="262" cy="160" r="5"/>
+            <circle cx="365" cy="345" r="5"/>
+            <circle cx="218" cy="295" r="5"/>
+        </g>
+        <!-- annotations -->
+        <g font-family="JetBrains Mono, monospace" font-size="11" fill="#0a1929">
+            <text x="300" y="60" text-anchor="middle" font-size="13" font-weight="700">k=2 ring lookup · 19 hex partition keys</text>
+            <!-- arrow + label to center -->
+            <path d="M 460 250 L 340 250" stroke="#c8915a" stroke-width="1.5" fill="none" marker-end="url(#arr1)"/>
+            <text x="465" y="245" font-size="11" fill="#8a5a1a">rider's hex (h3_r9)</text>
+            <text x="465" y="260" font-size="10" fill="#c8915a">center · the seed</text>
+            <!-- k=1 label -->
+            <path d="M 130 200 L 215 215" stroke="#0891b2" stroke-width="1.5" fill="none" marker-end="url(#arr2)"/>
+            <text x="20" y="195" font-size="11" fill="#0891b2" font-weight="700">k=1 ring</text>
+            <text x="20" y="210" font-size="10" fill="#0891b2">6 immediate neighbors</text>
+            <!-- k=2 label -->
+            <path d="M 130 360 L 200 340" stroke="#1a4f8a" stroke-width="1.5" fill="none" marker-end="url(#arr3)"/>
+            <text x="20" y="355" font-size="11" fill="#1a4f8a" font-weight="700">k=2 ring</text>
+            <text x="20" y="370" font-size="10" fill="#1a4f8a">12 outer neighbors</text>
+            <!-- driver dots legend -->
+            <text x="475" y="380" font-size="10" fill="#1a4f8a">● driver, online &amp; idle</text>
+            <text x="475" y="395" font-size="10" fill="#c8915a">● rider request</text>
+            <!-- bottom math -->
+            <text x="300" y="440" text-anchor="middle" font-size="11" fill="#475569">Driver count read = 12 (this snapshot) · scan cost = O(19) regardless of city size</text>
+            <text x="300" y="455" text-anchor="middle" font-size="10" fill="#94a3b8" font-style="italic">vs Postgres haversine scan = O(M) over millions of drivers</text>
+        </g>
+        <!-- arrow markers -->
+        <defs>
+            <marker id="arr1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#c8915a"/></marker>
+            <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#0891b2"/></marker>
+            <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1a4f8a"/></marker>
+        </defs>
+    </svg>
+    <div class="hex-legend">
+        <span class="item"><span class="swatch" style="background:#fde68a; border:2px solid #c8915a"></span>center · rider</span>
+        <span class="item"><span class="swatch" style="background:#a5f3fc; border:1.5px solid #0891b2"></span>k=1 · 6 hexes</span>
+        <span class="item"><span class="swatch" style="background:#dbeafe; border:1px solid #1a4f8a"></span>k=2 · 12 hexes</span>
+    </div>
+</div>
+
 <div class="viz-grid">
     <div class="viz-card"><span class="num">~0.1 km²</span><h5>Resolution 9</h5><p>City-block scale. The unit of dispatch lookup and per-hex demand counting.</p></div>
     <div class="viz-card"><span class="num">~5 km²</span><h5>Resolution 7</h5><p>Neighborhood scale. Used for surge aggregation and supply heatmaps shown to drivers.</p></div>
@@ -428,10 +539,161 @@ print(pings[["driver_id","h3_r9","h3_r7"]])</code></pre>
     <div class="viz-card"><span class="num">64-bit int</span><h5>H3 cell index</h5><p>Compact, sortable, hierarchical — perfect partition / clustering key in Pinot, Cassandra, BigQuery.</p></div>
 </div>
 
+<div class="hex-demo">
+    <div class="hex-demo-title">Visual 2 — the hierarchy: r5 → r7 → r9 zoom</div>
+    <div class="hex-demo-sub">Each H3 resolution divides the previous one into ~7 children. Same place, three zoom levels: city quarter → neighborhood → city block. The ID at every level is a 64-bit integer that includes its parent — making "roll up demand from r9 to r7" a substring lookup, not a re-compute.</div>
+    <svg viewBox="0 0 760 320" role="img" aria-label="H3 hierarchical zoom levels r5 r7 r9">
+        <!-- Panel A: r5 (one big hex) -->
+        <g>
+            <polygon points="120,90 207,140 207,240 120,290 33,240 33,140" fill="#dbeafe" stroke="#1a4f8a" stroke-width="3"/>
+            <text x="120" y="195" font-family="Playfair Display, serif" font-size="22" font-weight="700" fill="#1a4f8a" text-anchor="middle">r5</text>
+            <text x="120" y="215" font-family="JetBrains Mono, monospace" font-size="10" fill="#475569" text-anchor="middle">≈ 250 km²</text>
+            <text x="120" y="40" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0a1929" text-anchor="middle">city quarter</text>
+            <text x="120" y="55" font-family="JetBrains Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">streaming partition key</text>
+        </g>
+        <!-- Arrow A → B -->
+        <g stroke="#c8915a" stroke-width="2" fill="none" marker-end="url(#zarrow)">
+            <line x1="225" y1="190" x2="275" y2="190"/>
+        </g>
+        <text x="250" y="180" font-family="JetBrains Mono, monospace" font-size="9" fill="#8a5a1a" text-anchor="middle">7×</text>
+        <!-- Panel B: r7 (7 hexes — center + ring) -->
+        <g fill="#bae6fd" stroke="#0891b2" stroke-width="2">
+            <polygon points="380,160 415,180 415,220 380,240 345,220 345,180"/>
+            <polygon points="415,180 450,200 450,240 415,260 380,240 380,200" fill="#a5f3fc"/>
+            <polygon points="345,180 380,200 380,240 345,260 310,240 310,200" fill="#a5f3fc"/>
+            <polygon points="380,100 415,120 415,160 380,180 345,160 345,120" fill="#a5f3fc"/>
+            <polygon points="380,260 415,280 415,300 380,320 345,300 345,280" fill="#a5f3fc"/>
+            <polygon points="450,120 485,140 485,180 450,200 415,180 415,140" fill="#a5f3fc"/>
+            <polygon points="310,120 345,140 345,180 310,200 275,180 275,140" fill="#a5f3fc"/>
+        </g>
+        <text x="380" y="223" font-family="Playfair Display, serif" font-size="16" font-weight="700" fill="#0891b2" text-anchor="middle">r7</text>
+        <text x="380" y="40" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0a1929" text-anchor="middle">neighborhood</text>
+        <text x="380" y="55" font-family="JetBrains Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">≈ 5 km² · surge unit</text>
+        <!-- Arrow B → C -->
+        <g stroke="#c8915a" stroke-width="2" fill="none" marker-end="url(#zarrow)">
+            <line x1="500" y1="190" x2="550" y2="190"/>
+        </g>
+        <text x="525" y="180" font-family="JetBrains Mono, monospace" font-size="9" fill="#8a5a1a" text-anchor="middle">7×</text>
+        <!-- Panel C: r9 (denser packing, ~19 hexes for visual) -->
+        <g fill="#bfdbfe" stroke="#3b82f6" stroke-width="1.2" opacity="0.9">
+            <!-- center column -->
+            <polygon points="660,180 678,191 678,213 660,224 642,213 642,191" fill="#fde68a" stroke="#c8915a" stroke-width="2"/>
+            <polygon points="660,150 678,161 678,183 660,194 642,183 642,161"/>
+            <polygon points="660,210 678,221 678,243 660,254 642,243 642,221"/>
+            <polygon points="660,120 678,131 678,153 660,164 642,153 642,131"/>
+            <polygon points="660,240 678,251 678,273 660,284 642,273 642,251"/>
+            <!-- left column -->
+            <polygon points="630,165 648,176 648,198 630,209 612,198 612,176"/>
+            <polygon points="630,195 648,206 648,228 630,239 612,228 612,206"/>
+            <polygon points="630,135 648,146 648,168 630,179 612,168 612,146"/>
+            <polygon points="630,225 648,236 648,258 630,269 612,258 612,236"/>
+            <polygon points="600,180 618,191 618,213 600,224 582,213 582,191"/>
+            <polygon points="600,150 618,161 618,183 600,194 582,183 582,161"/>
+            <polygon points="600,210 618,221 618,243 600,254 582,243 582,221"/>
+            <!-- right column -->
+            <polygon points="690,165 708,176 708,198 690,209 672,198 672,176"/>
+            <polygon points="690,195 708,206 708,228 690,239 672,228 672,206"/>
+            <polygon points="690,135 708,146 708,168 690,179 672,168 672,146"/>
+            <polygon points="690,225 708,236 708,258 690,269 672,258 672,236"/>
+            <polygon points="720,180 738,191 738,213 720,224 702,213 702,191"/>
+            <polygon points="720,150 738,161 738,183 720,194 702,183 702,161"/>
+            <polygon points="720,210 738,221 738,243 720,254 702,243 702,221"/>
+        </g>
+        <text x="660" y="207" font-family="Playfair Display, serif" font-size="11" font-weight="700" fill="#0a1929" text-anchor="middle">r9</text>
+        <text x="660" y="40" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#0a1929" text-anchor="middle">city block</text>
+        <text x="660" y="55" font-family="JetBrains Mono, monospace" font-size="9" fill="#94a3b8" text-anchor="middle">≈ 0.1 km² · dispatch unit</text>
+        <defs>
+            <marker id="zarrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#c8915a"/>
+            </marker>
+        </defs>
+    </svg>
+    <div class="hex-legend">
+        <span class="item">r5 ≈ 250 km² · city quarter (Kafka / Flink partition key)</span>
+        <span class="item">r7 ≈ 5 km² · neighborhood (surge unit)</span>
+        <span class="item">r9 ≈ 0.1 km² · city block (dispatch lookup)</span>
+    </div>
+</div>
+
+<div class="hex-demo">
+    <div class="hex-demo-title">Visual 3 — why hexagons beat squares: equidistant neighbors</div>
+    <div class="hex-demo-sub">A square has 4 edge-neighbors at distance d <em>and</em> 4 corner-neighbors at distance d√2 — a 41% bias depending on which way you look. A hexagon has 6 neighbors, all at the same distance. "Nearest" actually means nearest.</div>
+    <svg viewBox="0 0 720 320" role="img" aria-label="Hexagon vs square equidistance comparison">
+        <!-- Square cluster (left) -->
+        <g>
+            <text x="180" y="35" font-family="Playfair Display, serif" font-size="16" font-weight="700" fill="#c44b2b" text-anchor="middle">SQUARE GRID</text>
+            <text x="180" y="52" font-family="JetBrains Mono, monospace" font-size="10" fill="#94a3b8" text-anchor="middle">8 neighbors · 2 distinct distances</text>
+            <!-- 3x3 grid of squares, center at (180, 170) -->
+            <g fill="#fef2f2" stroke="#c44b2b" stroke-width="1.5">
+                <rect x="120" y="110" width="60" height="60"/><rect x="180" y="110" width="60" height="60"/><rect x="240" y="110" width="60" height="60"/>
+                <rect x="120" y="170" width="60" height="60"/><rect x="240" y="170" width="60" height="60"/>
+                <rect x="120" y="230" width="60" height="60"/><rect x="180" y="230" width="60" height="60"/><rect x="240" y="230" width="60" height="60"/>
+            </g>
+            <!-- center square (highlighted) -->
+            <rect x="180" y="170" width="60" height="60" fill="#fde68a" stroke="#c8915a" stroke-width="2"/>
+            <circle cx="210" cy="200" r="5" fill="#c8915a"/>
+            <!-- distance lines from center to each neighbor -->
+            <g stroke="#c44b2b" stroke-width="1.5" fill="none" stroke-dasharray="4 3">
+                <line x1="210" y1="200" x2="210" y2="140"/>
+                <line x1="210" y1="200" x2="210" y2="260"/>
+                <line x1="210" y1="200" x2="150" y2="200"/>
+                <line x1="210" y1="200" x2="270" y2="200"/>
+            </g>
+            <g stroke="#94a3b8" stroke-width="1.2" fill="none" stroke-dasharray="2 3">
+                <line x1="210" y1="200" x2="150" y2="140"/>
+                <line x1="210" y1="200" x2="270" y2="140"/>
+                <line x1="210" y1="200" x2="150" y2="260"/>
+                <line x1="210" y1="200" x2="270" y2="260"/>
+            </g>
+            <!-- distance labels -->
+            <text x="220" y="170" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#c44b2b">d</text>
+            <text x="180" y="175" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#c44b2b">d</text>
+            <text x="148" y="172" font-family="JetBrains Mono, monospace" font-size="11" fill="#94a3b8">d√2</text>
+            <text x="246" y="172" font-family="JetBrains Mono, monospace" font-size="11" fill="#94a3b8">d√2</text>
+        </g>
+        <!-- Hex cluster (right) -->
+        <g>
+            <text x="540" y="35" font-family="Playfair Display, serif" font-size="16" font-weight="700" fill="#1a4f8a" text-anchor="middle">HEXAGON GRID</text>
+            <text x="540" y="52" font-family="JetBrains Mono, monospace" font-size="10" fill="#94a3b8" text-anchor="middle">6 neighbors · 1 distance</text>
+            <!-- 7-hex cluster centered at (540, 200), s = 36, sqrt(3)*36 ≈ 62, 1.5*36 = 54 -->
+            <!-- center (540,200) -->
+            <g fill="#dbeafe" stroke="#1a4f8a" stroke-width="1.5">
+                <polygon points="602,170 633,185 633,215 602,230 571,215 571,185"/>
+                <polygon points="571,215 602,230 602,260 571,275 540,260 540,230"/>
+                <polygon points="478,215 509,230 509,260 478,275 447,260 447,230"/>
+                <polygon points="447,170 478,185 478,215 447,230 416,215 416,185"/>
+                <polygon points="478,125 509,140 509,170 478,185 447,170 447,140"/>
+                <polygon points="571,125 602,140 602,170 571,185 540,170 540,140"/>
+            </g>
+            <!-- center hex -->
+            <polygon points="540,170 571,185 571,215 540,230 509,215 509,185" fill="#fde68a" stroke="#c8915a" stroke-width="2"/>
+            <circle cx="540" cy="200" r="5" fill="#c8915a"/>
+            <!-- distance lines (all 6) -->
+            <g stroke="#1a4f8a" stroke-width="1.5" fill="none" stroke-dasharray="4 3">
+                <line x1="540" y1="200" x2="602" y2="200"/>
+                <line x1="540" y1="200" x2="478" y2="200"/>
+                <line x1="540" y1="200" x2="571" y2="155"/>
+                <line x1="540" y1="200" x2="509" y2="155"/>
+                <line x1="540" y1="200" x2="571" y2="245"/>
+                <line x1="540" y1="200" x2="509" y2="245"/>
+            </g>
+            <!-- one distance label centered -->
+            <text x="582" y="195" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+            <text x="558" y="155" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+            <text x="492" y="155" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+            <text x="468" y="195" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+            <text x="492" y="252" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+            <text x="558" y="252" font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" fill="#1a4f8a">d</text>
+        </g>
+        <!-- bottom takeaway -->
+        <text x="360" y="305" font-family="Source Serif 4, serif" font-size="13" fill="#1a2332" text-anchor="middle" font-style="italic">Squares: "diagonal neighbor is 41% further than edge neighbor" creates a directional bias in every nearest-N query. Hexagons don't.</text>
+    </svg>
+</div>
+
 <div class="iv-block">
     <span class="iv-tag">Interview Question · Architecture</span>
     <div class="iv-q">Why hexagons and not lat/lng buckets or a quadtree?</div>
-    <p class="iv-a">Three reasons. (1) <strong>Equidistant neighbors</strong> — every adjacent hex centroid is the same distance away, so "nearest" doesn't have a corner-vs-edge bias like squares do. (2) <strong>Hierarchical aggregation</strong> — a parent hex contains a deterministic set of child hexes, so you can roll up demand from r9 → r7 → r5 with a join instead of a recompute. (3) <strong>Stable IDs</strong> — H3 indexes are 64-bit ints, perfect as a partition key in Cassandra, BigQuery, or Pinot.</p>
+    <p class="iv-a">Three reasons, all visible above. (1) <strong>Equidistant neighbors</strong> — every adjacent hex centroid is the same distance away, so "nearest" doesn't have the corner-vs-edge bias squares do (Visual 3). (2) <strong>Hierarchical aggregation</strong> — a parent hex deterministically contains its children, so rolling up demand from r9 → r7 → r5 is a substring/parent-ID join, not a re-compute (Visual 2). (3) <strong>Stable 64-bit IDs</strong> that work directly as partition keys in Cassandra, BigQuery, Pinot, Kafka. The k-ring (Visual 1) gives you O(1) "nearby" lookups regardless of city size.</p>
 </div>
 
 <div class="hex-divider"><span class="hex small"></span><span class="hex"></span><span class="hex mid"></span><span class="hex"></span><span class="hex small"></span></div>
@@ -990,6 +1252,99 @@ greedy    : 1000</code></pre>
     <div class="edge-card"><span class="edge-tag">Edge · Hot hex</span><h5>Stadium lets out</h5><p>One hex spikes from 5 to 60k req/min. Solution: salt the partition key for that hex temporarily (<code>h3 || (random % 8)</code>), spread to 8 consumers, re-merge in the matcher.</p></div>
 </div>
 
+<h5 style="margin-top:14px;">The actual code that handles each — not just the prose</h5>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · GPS-noise rejection (median-of-3 + speed-cap filter)</div>
+<pre><code>from collections import deque
+
+class GpsSanityFilter:
+    """Drops physically-impossible pings BEFORE they reach driver_state."""
+    MAX_KMH = 250
+    def __init__(self):
+        self.recent = {}                                # driver_id → deque of last 3 pings
+
+    def accept(self, ping):
+        d = ping["driver_id"]
+        buf = self.recent.setdefault(d, deque(maxlen=3))
+        if buf:
+            prev = buf[-1]
+            dt_h = max((ping["ts"] - prev["ts"]).total_seconds()/3600, 1e-6)
+            km   = haversine(prev["lat"], prev["lng"], ping["lat"], ping["lng"]) / 1000
+            if km / dt_h &gt; self.MAX_KMH:                # "teleport" — reject
+                return False
+        buf.append(ping)
+        # smooth: emit median of the buffered points (kills single-point jitter)
+        if len(buf) == 3:
+            ping["lat"] = sorted(p["lat"] for p in buf)[1]
+            ping["lng"] = sorted(p["lng"] for p in buf)[1]
+        return True</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Duplicate-request collapse (idempotency window in Flink SQL)</div>
+<pre><code>-- Two taps within the same minute on the same rider+pickup hex collapse into one.
+-- The idempotency key is what makes the dedupe deterministic across replays.
+CREATE VIEW deduped_requests AS
+SELECT
+    rider_id, pickup_h3, ts_minute,
+    MIN(request_id)   AS request_id,                   -- canonical winner
+    MIN(request_ts)   AS request_ts,
+    COUNT(*)          AS dupe_count
+FROM (
+    SELECT
+        rider_id, pickup_h3, request_id, request_ts,
+        DATE_TRUNC('minute', request_ts)            AS ts_minute
+    FROM   ride_requests
+)
+GROUP BY rider_id, pickup_h3, ts_minute;</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Driver-flake "intention check" — reassign if no progress in 30 s</div>
+<pre><code>def intention_check(offer, driver_pings, now):
+    """If 30s after accept the driver hasn't moved toward pickup, reassign."""
+    accepted_at = offer["accepted_ts"]
+    if (now - accepted_at).total_seconds() &lt; 30:
+        return "WAIT"
+
+    initial = next(p for p in driver_pings
+                   if p["driver_id"] == offer["driver_id"]
+                   and p["ts"] &gt;= accepted_at)
+    latest  = driver_pings[-1]
+    initial_dist = haversine(initial["lat"], initial["lng"],
+                             offer["pickup_lat"], offer["pickup_lng"])
+    latest_dist  = haversine(latest["lat"],  latest["lng"],
+                             offer["pickup_lat"], offer["pickup_lng"])
+
+    if (initial_dist - latest_dist) &lt; 50:               # less than 50 m of progress
+        # 1) reassign the rider
+        emit_event("RIDER_REASSIGN", offer["rider_id"])
+        # 2) penalize this driver's cancel_risk going forward
+        emit_event("DRIVER_PENALTY", driver_id=offer["driver_id"],
+                   delta=+0.05, reason="flake_no_progress")
+        return "REASSIGN"
+    return "PROGRESS_OK"</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Hot-hex elastic salting (only kicks in when lag exceeds threshold)</div>
+<pre><code>import random
+
+LAG_THRESHOLD_S = 30
+SALT_BUCKETS    = 8
+
+def route_event(event, partition_lag, hot_hexes):
+    """Salt the routing key only for hexes currently exceeding the lag SLA."""
+    h3 = event["h3"]
+    if partition_lag.get(h3, 0) &gt; LAG_THRESHOLD_S:
+        hot_hexes.add(h3)
+    if h3 in hot_hexes:
+        salt = random.randint(0, SALT_BUCKETS - 1)
+        return f"{h3}#{salt}"                           # 8x partitions for this hex
+    return h3                                            # normal routing</code></pre>
+</div>
+
 <div class="hex-divider"><span class="hex small"></span><span class="hex"></span><span class="hex mid"></span><span class="hex"></span><span class="hex small"></span></div>
 
 <div class="mega-stat">
@@ -1426,6 +1781,85 @@ RETRACTION  : (6, 1)</code></pre>
     <div class="edge-card"><span class="edge-tag">Edge · Boundary jitter</span><h5>Rider straddles two hexes</h5><p>One ping says hex A (1.0x), next says hex B (1.8x). Solution: snap rider to the hex they were in for the longest fraction of the last 30 s; show the lower of the two adjacent multipliers as the displayed quote.</p></div>
 </div>
 
+<h5 style="margin-top:14px;">Code that implements each surge defense</h5>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Late-event retraction (Flink SQL with allowed lateness + upsert sink)</div>
+<pre><code>-- Window stays open 120s past close; corrections flow as retractions.
+-- Sink table is UPSERT-keyed on (h3_r8, window_end) so a late update overwrites.
+CREATE TABLE surge_by_hex (
+    h3_r8       BIGINT,
+    window_end  TIMESTAMP(3),
+    multiplier  DECIMAL(3,2),
+    PRIMARY KEY (h3_r8, window_end) NOT ENFORCED
+) WITH ('connector'='upsert-pinot', ...);
+
+INSERT INTO surge_by_hex
+SELECT h3_r8, window_end, surge_multiplier
+FROM   TABLE(HOP(TABLE driver_pings, DESCRIPTOR(ping_ts),
+                 INTERVAL '10' SECOND, INTERVAL '60' SECOND))
+GROUP  BY h3_r8, window_start, window_end;
+
+-- The lateness knob:
+SET 'table.exec.emit.late-fire.enabled' = 'true';
+SET 'table.exec.emit.late-fire.delay'   = '120 s';</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Surge-spike rate-limit + supply-collapse freeze</div>
+<pre><code>MAX_DELTA_PER_60S = 0.30
+SUPPLY_DROP_FREEZE_PCT = 0.40        # if ≥40% of city's drivers vanish in 1 min → freeze
+
+def update_surge(h3, raw_new, prev_multiplier, city_supply_now, city_supply_prev_min):
+    """Bounds how fast surge can move + freezes it during likely network events."""
+    # 1. Detect a city-wide supply collapse (probably a network outage, not real demand)
+    if city_supply_prev_min &gt; 0:
+        drop = (city_supply_prev_min - city_supply_now) / city_supply_prev_min
+        if drop &gt;= SUPPLY_DROP_FREEZE_PCT:
+            return prev_multiplier, "FROZEN_SUPPLY_ANOMALY"
+
+    # 2. Rate-limit per-hex change so a single bad input can't spike 1.0 → 3.0
+    bounded = max(prev_multiplier - MAX_DELTA_PER_60S,
+                  min(prev_multiplier + MAX_DELTA_PER_60S, raw_new))
+    return bounded, "OK"</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Cold-hex floor (no division by zero, no spurious 3.0x quotes)</div>
+<pre><code>-- A hex with literally zero idle drivers gets a phantom-1 floor on supply
+-- so the formula returns 1.0x ("no traffic") instead of 3.0x ("infinite shortage").
+SELECT
+    h3_r8,
+    open_requests,
+    GREATEST(idle_drivers, 1)                            AS supply_floor,
+    LEAST(3.0, GREATEST(1.0,
+        1.0 + 0.45 * GREATEST(0,
+              open_requests::numeric / GREATEST(idle_drivers, 1) - 1.0)
+    ))                                                   AS surge_multiplier_safe
+FROM   surge_by_hex_raw;</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Boundary-jitter snap (assign to the hex held longest in last 30 s)</div>
+<pre><code>from collections import Counter
+
+def stable_hex(rider_pings_30s):
+    """Avoid 1.0x ↔ 1.8x flickering when a rider is at a hex border."""
+    if not rider_pings_30s: return None
+    # weight each hex by the fraction of the last 30s the rider spent in it
+    weights = Counter()
+    for prev, curr in zip(rider_pings_30s, rider_pings_30s[1:]):
+        weights[prev["h3"]] += (curr["ts"] - prev["ts"]).total_seconds()
+    dominant_h3, _ = weights.most_common(1)[0]
+    return dominant_h3
+
+def display_surge(rider_pings_30s, surge_lookup):
+    h3       = stable_hex(rider_pings_30s)
+    neighbors = h3_kring(h3, k=1)                         # adjacent hexes
+    # quote the LOWER of self vs adjacent — kindness during boundary moments
+    return min(surge_lookup[h] for h in [h3, *neighbors])</code></pre>
+</div>
+
 <div class="signal-block">
     <span class="signal-tag">Interviewer signal · surge</span>
     <div class="signal-q">"Why doesn't surge just go higher when there are no drivers?"</div>
@@ -1591,6 +2025,89 @@ L1 total: 147s  L2 total: 288s  L3 total: 339s</code></pre>
     <div class="edge-card"><span class="edge-tag">Edge · Cold segment</span><h5>Segment has 0 GPS samples in last 3 min</h5><p>Don't fall back to free-flow blindly. Solution: cascade to 15-min, then 60-min, then historical-by-hour; mark the ETA confidence as degraded so dispatch can de-prioritize that route.</p></div>
     <div class="edge-card"><span class="edge-tag">Edge · Toll/closure</span><h5>Bridge closes for an hour</h5><p>L2 will eventually learn from the speed drop, but slowly. Solution: external incident feed → hard-cut the segment from the routing graph within 60 s; retro-flag any in-flight trips on it.</p></div>
     <div class="edge-card"><span class="edge-tag">Edge · Event spike</span><h5>Concert lets out, traffic explodes everywhere at once</h5><p>L2 drifts but L3 hasn't seen this exact event before. Solution: ML training set includes <em>event proximity features</em>; otherwise ETA quotes lag reality by 5–10 minutes for the first 20 min of the spike.</p></div>
+</div>
+
+<h5 style="margin-top:14px;">Code that handles each ETA edge case</h5>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Map-match drift fix (HMM emission penalty for road-class mismatch)</div>
+<pre><code>import numpy as np
+
+def hmm_emission_score(ping, candidate_segment):
+    """How likely is the driver actually on this segment, given the ping?"""
+    # 1. Geometric likelihood — how far off the segment is the ping?
+    d_m  = perpendicular_distance(ping, candidate_segment)
+    geom = np.exp(-(d_m**2) / (2 * 25**2))                   # σ = 25 m
+
+    # 2. ROAD-CLASS PRIOR — highway vs frontage road look identical from above
+    if abs(ping.get("speed_kmh", 0) - candidate_segment["speed_limit"]) &gt; 30:
+        geom *= 0.3                                          # speed mismatch → unlikely
+
+    # 3. Turn-restriction penalty — can we even legally have arrived here?
+    if not reachable_from_prev(candidate_segment, ping["prev_segment"]):
+        geom *= 0.05
+    return geom</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Cold-segment cascade fallback (3 min → 15 min → 60 min → historical)</div>
+<pre><code>-- Pick the freshest live signal that has enough samples to be trustworthy.
+-- Tag the row with confidence so dispatch can de-prioritize routes through
+-- segments where we're guessing.
+SELECT
+    segment_id,
+    COALESCE(
+        CASE WHEN samples_3m  &gt;= 5  THEN speed_3m  END,
+        CASE WHEN samples_15m &gt;= 20 THEN speed_15m END,
+        CASE WHEN samples_60m &gt;= 60 THEN speed_60m END,
+        historical_speed_for_hour
+    )                                                AS effective_speed_kmh,
+    CASE
+        WHEN samples_3m  &gt;= 5  THEN 'HIGH'
+        WHEN samples_15m &gt;= 20 THEN 'MEDIUM'
+        WHEN samples_60m &gt;= 60 THEN 'LOW'
+        ELSE                        'HISTORICAL'
+    END                                              AS confidence_tier
+FROM   segment_speed_live
+LEFT JOIN segment_history USING (segment_id, hour_of_day);</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Toll/closure event ingestion → graph edge cut within 60 s</div>
+<pre><code>def apply_incident(routing_graph, incident):
+    """External feed says a road closed. Cut it from CCH within 60 s."""
+    seg = incident["segment_id"]
+    if incident["type"] == "CLOSURE":
+        routing_graph.set_edge_weight(seg, weight=float("inf"))
+        # 1. Cancel any active routes through this segment
+        for trip in active_trips_using(seg):
+            recompute_route(trip, exclude=[seg])
+        # 2. Mark CCH metric as dirty so the next customization regenerates shortcuts
+        routing_graph.mark_metric_dirty(seg)
+    elif incident["type"] == "REOPEN":
+        routing_graph.set_edge_weight(seg, weight=incident["normal_weight"])
+
+    # Watermark the change so downstream ETA jobs know the graph version
+    emit_event("ROUTING_GRAPH_UPDATED", segment_id=seg, version=time.time())</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Event-spike feature added to the L3 model so it doesn't lag reality</div>
+<pre><code>def event_proximity_features(ping_h3, ping_ts, events_calendar):
+    """Features fed into DeepETA so an unfamiliar concert isn't a surprise."""
+    features = {}
+    nearby = events_calendar.within_km(ping_h3, 2.0)
+    if not nearby:
+        features.update(event_within_2km=0, mins_since_event_end=999, expected_attendance=0)
+        return features
+    e = min(nearby, key=lambda x: abs((ping_ts - x["end_ts"]).total_seconds()))
+    features.update(
+        event_within_2km     = 1,
+        mins_since_event_end = (ping_ts - e["end_ts"]).total_seconds() / 60,
+        expected_attendance  = e["attendance"],
+        event_type           = e["type"],                      # 'sports', 'concert', ...
+    )
+    return features                                            # → joins L2 features at inference</code></pre>
 </div>
 
 <div class="signal-block">
@@ -2034,6 +2551,92 @@ Cost-matrix penalty added by cancel risk = 49.4 s-equivalent</code></pre>
     <div class="edge-card"><span class="edge-tag">Edge · Race cancel</span><h5>Both rider and driver tap "Cancel" within 1 s</h5><p>Whose cancellation wins? Solution: idempotency key (<code>trip_id</code>) + last-write-wins by server timestamp + an explicit <code>cancellation_party</code> field; reconcile on the server, never on either client.</p></div>
     <div class="edge-card"><span class="edge-tag">Edge · No-show timeout</span><h5>Driver waited 5 min, rider invisible</h5><p>System auto-cancels with party = "rider", charges the no-show fee, and re-injects the driver at top of the queue with a small earnings credit. Subtle: this is a <em>system</em> cancel that <em>looks like</em> a rider cancel — log both.</p></div>
     <div class="edge-card"><span class="edge-tag">Edge · Surge-rage cancel</span><h5>Rider sees price, accepts, then cancels in 8 s</h5><p>Behavioral signal: the rider accepted reluctantly. Track <code>time_to_cancel_after_accept</code>; bucket cancels under 15 s separately. They predict next-week churn.</p></div>
+</div>
+
+<h5 style="margin-top:14px;">Code that handles each cancellation edge case</h5>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · Phantom-cancel detection (driver heartbeat watchdog)</div>
+<pre><code>HEARTBEAT_TIMEOUT_S = 60
+
+def watchdog(active_trips, last_heartbeat, now):
+    """Freeze a trip into manual-reconcile state if the driver app goes dark."""
+    for trip in active_trips:
+        gap = (now - last_heartbeat[trip["driver_id"]]).total_seconds()
+        if gap &gt; HEARTBEAT_TIMEOUT_S and trip["state"] in ("EN_ROUTE", "IN_TRIP"):
+            emit_event("TRIP_FROZEN_RECONCILE",
+                       trip_id   = trip["trip_id"],
+                       reason    = "driver_app_silent",
+                       gap_s     = int(gap))
+            # Don't auto-cancel — fares + rider safety need a human in the loop
+            trip["state"] = "FROZEN"</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Race-cancel resolution (last-write-wins by server timestamp + party log)</div>
+<pre><code>-- Both rider and driver tap Cancel within 1s. Idempotency key is trip_id.
+-- The PARTY field is preserved as an audit list so disputes can be reconstructed.
+INSERT INTO fact_trip_cancellation (trip_id, party, server_ts, client_ts)
+VALUES (:trip_id, :party, NOW(), :client_ts)
+ON CONFLICT (trip_id) DO UPDATE SET
+    -- Server timestamp breaks the tie; client_ts kept for forensic audit only.
+    party     = CASE WHEN EXCLUDED.server_ts &lt; fact_trip_cancellation.server_ts
+                     THEN EXCLUDED.party
+                     ELSE fact_trip_cancellation.party
+                END,
+    server_ts = LEAST(fact_trip_cancellation.server_ts, EXCLUDED.server_ts),
+    parties_seen = fact_trip_cancellation.parties_seen ||
+                   ARRAY[EXCLUDED.party];                 -- audit list of all attempts</code></pre>
+</div>
+
+<div class="code-block py-block">
+    <div class="code-label"><span class="dot py"></span>Python · No-show timeout — auto-cancel + driver re-injection with priority</div>
+<pre><code>NOSHOW_WAIT_S = 5 * 60
+
+def check_noshow(trip, driver_at_pickup_since, now):
+    """Driver waited 5 min, rider hasn't appeared. System cancels."""
+    if not driver_at_pickup_since:
+        return
+    if (now - driver_at_pickup_since).total_seconds() &lt; NOSHOW_WAIT_S:
+        return
+
+    # 1) Server-side cancellation, marked as system party but billed to rider
+    cancel_trip(trip, party="system", subtype="rider_noshow",
+                rider_fee_usd=5.00)
+    # 2) Driver doesn't lose their slot — re-inject at top of the queue
+    reinject_driver(trip["driver_id"], priority="HIGH",
+                    earnings_credit_usd=2.50)             # compensate the wait
+    # 3) Two cancel events emitted: SYSTEM (truth) and RIDER (for billing/UX)
+    emit_event("CANCEL", trip_id=trip["trip_id"], party="system")
+    emit_event("CANCEL_BILLABLE", trip_id=trip["trip_id"], party="rider")</code></pre>
+</div>
+
+<div class="code-block">
+    <div class="code-label"><span class="dot sql"></span>SQL · Surge-rage cancel cohort — &lt; 15s after-accept cancels predict churn</div>
+<pre><code>-- Riders who cancel within 15s of accepting are signalling discomfort with the
+-- price. Bucket them so retention can intervene before next week's churn.
+WITH rage AS (
+    SELECT
+        rider_id,
+        COUNT(*) FILTER (
+            WHERE cancellation_party = 'rider'
+              AND cancellation_stage = 'en_route'
+              AND time_to_cancel_after_accept_s &lt; 15
+        )                                                   AS rage_cancels_30d,
+        AVG(surge_multiplier) FILTER (WHERE cancelled)      AS avg_surge_at_cancel
+    FROM   fact_trip
+    WHERE  request_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
+    GROUP  BY rider_id
+)
+SELECT  rider_id, rage_cancels_30d, avg_surge_at_cancel,
+        CASE
+            WHEN rage_cancels_30d &gt;= 3 THEN 'HIGH_CHURN_RISK'
+            WHEN rage_cancels_30d &gt;= 1 THEN 'WATCH'
+            ELSE                            'OK'
+        END AS retention_segment
+FROM    rage
+WHERE   rage_cancels_30d &gt; 0
+ORDER BY rage_cancels_30d DESC;</code></pre>
 </div>
 
 <div class="signal-block">
