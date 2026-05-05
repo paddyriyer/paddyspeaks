@@ -172,7 +172,10 @@ def main():
         for q in questions:
             patch = overrides.get(q["id"])
             if isinstance(patch, dict):
-                for key in ("solution", "schema", "type", "language", "title"):
+                for key in (
+                    "solution", "schema", "type", "subtopic", "language",
+                    "title", "difficulty", "question", "scenario",
+                ):
                     if key in patch:
                         q[key] = patch[key]
                 applied += 1
