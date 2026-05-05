@@ -3,14 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Python Playground — coming soon</title>
+<title>Python Playground — Interview Question Bank</title>
+<meta name="description" content="In-browser Python playground (Pyodide) for interview Python questions. Editor, run, stdout — all client-side." />
 <link rel="icon" type="image/svg+xml" href="../../favicon.svg" />
 <link rel="stylesheet" href="../../style.css" />
 <link rel="stylesheet" href="./css/app.css" />
 <link rel="stylesheet" href="./css/playground.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
 <div class="page-frame"></div>
+
 <div class="top-bar">
   <a href="../../index.html">← PaddySpeaks</a>
   <div class="top-bar-links">
@@ -19,16 +24,102 @@
     <a href="./python.html">Python Playground</a>
   </div>
 </div>
+
 <header class="pg-header">
   <h1 class="pg-title">Python Playground</h1>
-  <p class="pg-subtitle">Coming in the next chunk · Pyodide · runs in your browser</p>
+  <p class="pg-subtitle">Pyodide (Python 3.12 WASM) · runs entirely in your browser</p>
 </header>
-<main style="text-align:center; padding: 60px 20px; max-width: 600px; margin: 0 auto;">
-  <p style="font-size: 16px; color: var(--color-muted); line-height: 1.7;">
-    The Python playground will load <strong>Pyodide</strong> (Python-WASM) and provide editor + run + tests for the
-    <strong>175 Python questions</strong>. For now, browse them in the
-    <a href="./index.html?lang=python" style="color: var(--color-gold-dark);">Question Bank</a>.
-  </p>
+
+<main class="pg-shell">
+  <!-- Question -->
+  <section class="pg-question">
+    <div class="pg-question-head">
+      <div class="pg-question-meta">
+        <select id="pg-question-picker" aria-label="Pick a question"></select>
+        <button id="pg-prev-q" type="button" title="Previous">←</button>
+        <button id="pg-next-q" type="button" title="Next">→</button>
+      </div>
+      <div class="pg-question-tags">
+        <span id="pg-q-co"></span>
+        <span id="pg-q-diff"></span>
+        <span id="pg-q-type"></span>
+      </div>
+    </div>
+    <h2 id="pg-q-title" class="pg-q-title">Pick a Python question to start</h2>
+    <div class="pg-q-schema-block" id="pg-q-schema-block" hidden>
+      <div class="pg-detail-label">Notes / inferred signature</div>
+      <pre><code id="pg-q-schema"></code></pre>
+    </div>
+  </section>
+
+  <!-- Editor -->
+  <section class="pg-editor-pane">
+    <div class="pg-editor-toolbar">
+      <button id="pg-run" type="button" class="pg-btn pg-btn-primary">▶ Run (Ctrl+Enter)</button>
+      <button id="pg-show-solution" type="button" class="pg-btn">Show solution</button>
+      <button id="pg-load-solution" type="button" class="pg-btn">Load solution</button>
+      <button id="pg-reset-env" type="button" class="pg-btn pg-btn-ghost">Reset env</button>
+      <label class="pg-pyo-pkg" title="Load pandas + numpy on demand">
+        <input type="checkbox" id="pg-load-pandas" /> +pandas/numpy
+      </label>
+      <span class="pg-status" id="pg-status">Loading Python runtime…</span>
+    </div>
+    <textarea id="pg-editor" class="pg-editor"
+      spellcheck="false" autocomplete="off"
+      placeholder="# Write Python here. Press Ctrl+Enter to run.&#10;print('hello, paddyspeaks')"></textarea>
+  </section>
+
+  <!-- Side info -->
+  <aside class="pg-schema-side">
+    <div class="pg-schema-head">
+      <h3>Environment</h3>
+    </div>
+    <div class="pg-schema-hint">
+      Stdlib pre-imported: <code>collections</code>, <code>heapq</code>, <code>itertools</code>,
+      <code>functools</code>, <code>math</code>, <code>re</code>, <code>json</code>, <code>random</code>.
+      Toggle <em>+pandas/numpy</em> above to add data libs (~10 MB, one-time download).
+    </div>
+    <ul class="pg-table-list" id="pg-snippets-list">
+      <li><div class="pg-table-name"><span>Snippets</span></div></li>
+    </ul>
+    <details class="pg-load-csv">
+      <summary>About this playground</summary>
+      <p style="margin-top: 8px; font-size: 12px; color: var(--color-muted); line-height: 1.55;">
+        Powered by <a href="https://pyodide.org" target="_blank" rel="noopener">Pyodide</a>. Sandboxed —
+        no network, filesystem, or subprocess access. Your code never leaves your browser.
+        Long-running loops will freeze this tab; use <em>Reset env</em> to recover.
+      </p>
+    </details>
+  </aside>
+
+  <!-- Output -->
+  <section class="pg-results-pane">
+    <div class="pg-results-head">
+      <h3 id="pg-results-title">Output</h3>
+      <span id="pg-results-stats" class="pg-status"></span>
+      <button id="pg-clear-output" type="button" class="pg-btn pg-btn-ghost">Clear</button>
+    </div>
+    <div id="pg-results-body" class="pg-results-body pg-py-output">
+      <div class="pg-empty">Run code to see output.</div>
+    </div>
+  </section>
+
+  <!-- Solution -->
+  <section class="pg-solution-pane" id="pg-solution-pane" hidden>
+    <div class="pg-solution-head">
+      <h3>Reference solution</h3>
+      <button id="pg-solution-close" type="button" class="pg-btn pg-btn-ghost">Hide</button>
+    </div>
+    <pre><code id="pg-solution"></code></pre>
+  </section>
 </main>
+
+<footer class="qb-footer">
+  <small>Python engine: Pyodide · No data leaves your browser</small>
+</footer>
+
+<!-- Pyodide loaded from jsDelivr -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script type="module" src="./js/python.js"></script>
 </body>
 </html>
