@@ -1,10 +1,12 @@
 // ════════════════════════════════════════════════════════════
 // SQL Playground — sql.js (SQLite-WASM) in-browser
 // ════════════════════════════════════════════════════════════
+import { generateAndLoad, seedFromQid } from "./sample-gen.js";
 
 const DATA_BASE = "../data";
 const CSV_BASE = "../sample dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
+const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
 const LS_LAST_Q = "pg.sql.lastQ";
 const LS_EDITOR = "pg.sql.editor";
 
@@ -34,9 +36,11 @@ const state = {
   db: null,
   questions: [],
   sqlQuestions: [],
+  schemasByQid: {},
   currentQ: null,
   loadedTables: new Set(),
   lastResult: null,
+  autoLoadQuestionTables: true,
 };
 
 // ─── Status helper ───
@@ -244,6 +248,28 @@ function loadQuestion(qid, opts = {}) {
   const url = new URL(window.location);
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
+
+  // Auto-load this question's tables (synthetic) on top of base CSVs.
+  if (state.autoLoadQuestionTables) loadQuestionTables(qid);
+}
+
+function loadQuestionTables(qid) {
+  const spec = state.schemasByQid[qid];
+  const btn = $("#pg-load-q-tables");
+  if (!spec || !spec.length) {
+    if (btn) { btn.disabled = true; btn.textContent = "No schema for this question"; }
+    return;
+  }
+  if (btn) { btn.disabled = false; btn.textContent = `Reload ${spec.length} table(s) for question`; }
+  try {
+    const summary = generateAndLoad(state.db, spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
+    const names = summary.map((s) => s.table).join(", ");
+    setStatus(`Loaded ${summary.length} synthetic table(s): ${names}`, "ok");
+    refreshTableList();
+  } catch (err) {
+    console.error(err);
+    setStatus("Could not generate question tables: " + err.message, "error");
+  }
 }
 
 function populateQuestionPicker() {
@@ -432,7 +458,16 @@ function wire() {
   $("#pg-reset-db").addEventListener("click", async () => {
     setStatus("Resetting…");
     await resetDB();
+    if (state.autoLoadQuestionTables && state.currentQ) loadQuestionTables(state.currentQ.id);
     setStatus(`Reset · ${state.loadedTables.size} tables loaded`, "ok");
+  });
+
+  $("#pg-load-q-tables")?.addEventListener("click", () => {
+    if (state.currentQ) loadQuestionTables(state.currentQ.id);
+  });
+
+  $("#pg-toggle-autoload")?.addEventListener("change", (e) => {
+    state.autoLoadQuestionTables = e.target.checked;
   });
 
   $("#pg-question-picker").addEventListener("change", (e) => {
@@ -474,10 +509,14 @@ function stepQuestion(delta) {
 // ─── Init ───
 async function init() {
   wire();
-  // Load questions, filter SQL ones
-  const all = await fetch(QUESTIONS_URL).then((r) => r.json());
+  // Load questions + per-question schemas
+  const [all, schemas] = await Promise.all([
+    fetch(QUESTIONS_URL).then((r) => r.json()),
+    fetch(SCHEMAS_URL).then((r) => r.json()).catch(() => ({})),
+  ]);
   state.questions = all;
   state.sqlQuestions = all.filter((q) => q.language === "sql");
+  state.schemasByQid = schemas;
   populateQuestionPicker();
 
   // Initial editor contents (from localStorage if present)
