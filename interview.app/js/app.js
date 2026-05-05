@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════════
 // Interview Question Bank — browse, filter, pick
-// Static, no build step. Loads ../data/*.json relative to app/.
+// Static, no build step. Page lives at /interview.app/, data at /interview/data/.
 // ════════════════════════════════════════════════════════════
 
-const DATA_BASE = "../data";
+const DATA_BASE = "../interview/data";
 const LS_SET = "qb.set.v1";
 const LS_FILTERS = "qb.filters.v1";
 const PAGE_SIZE = 25;
