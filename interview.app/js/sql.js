@@ -8,7 +8,9 @@ const CSV_BASE = "../interview/sample%20dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
 const LS_LAST_Q = "pg.sql.lastQ";
-const LS_EDITOR = "pg.sql.editor";
+// Per-question editor key — one slot per question id so switching questions
+// no longer leaks the previous question's solution into the editor.
+const LS_EDITOR = (qid) => `pg.sql.editor.${qid || "default"}`;
 
 // CSVs we ship in the repo. Names also become table names.
 const CSV_FILES = [
@@ -39,6 +41,7 @@ const state = {
   schemasByQid: {},
   currentQ: null,
   loadedTables: new Set(),
+  questionCreatedTables: new Set(),  // synthetic tables created for the active question
   lastResult: null,
   autoLoadQuestionTables: true,
   engineReady: false,
@@ -194,6 +197,7 @@ async function resetDB() {
   if (state.db) state.db.close();
   state.db = new state.SQL.Database();
   state.loadedTables.clear();
+  state.questionCreatedTables.clear();
   await loadAllCSVs();
   refreshTableList();
 }
@@ -239,7 +243,7 @@ function refreshTableList() {
 }
 
 // ─── Question picker ───
-function loadQuestion(qid, opts = {}) {
+function loadQuestion(qid /* , opts unused */) {
   const q = state.sqlQuestions.find((x) => x.id === qid);
   if (!q) return;
   state.currentQ = q;
@@ -255,9 +259,16 @@ function loadQuestion(qid, opts = {}) {
   }
   $("#pg-question-picker").value = qid;
 
-  // Optional: prefill editor only if user hasn't typed something
-  if (opts.prefill) {
-    $("#pg-editor").value = `-- ${q.title}\n-- ${q.company || ""} · ${q.difficulty || ""}\n-- Schema: ${q.schema || "(see top of page)"}\n\n`;
+  // Editor: load this question's last saved content, otherwise prefill a
+  // header. This is keyed per question id so switching no longer leaks the
+  // previous question's solution into the new editor.
+  const savedForQ = localStorage.getItem(LS_EDITOR(qid));
+  if (savedForQ != null && savedForQ.trim()) {
+    $("#pg-editor").value = savedForQ;
+  } else {
+    $("#pg-editor").value =
+      `-- ${q.title}\n-- ${q.company || ""} · ${q.difficulty || ""}\n` +
+      `-- Schema: ${q.schema || "(see top of page)"}\n\n`;
   }
 
   $("#pg-solution-pane").hidden = true;
@@ -268,9 +279,32 @@ function loadQuestion(qid, opts = {}) {
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
 
-  // Auto-load this question's tables (synthetic) on top of base CSVs —
-  // only if the engine is ready. Otherwise it'll run after init finishes.
-  if (state.autoLoadQuestionTables && state.engineReady) loadQuestionTables(qid);
+  // Auto-load this question's tables. Drop any synthetic tables left over
+  // from the previous question first — otherwise stale shapes (e.g. a
+  // leftover sales_2024 with id/name/value) shadow the new question's
+  // expected schema.
+  if (state.autoLoadQuestionTables && state.engineReady) {
+    dropPreviousQuestionTables(qid);
+    loadQuestionTables(qid);
+  }
+}
+
+// Track which tables were created by which question so we can clean up.
+function dropPreviousQuestionTables(nextQid) {
+  const baseCsv = new Set(CSV_FILES.map((f) => f.replace(/\.csv$/i, "")));
+  const keepFromNext = new Set(
+    (state.schemasByQid[nextQid] || []).map((s) => s.table)
+  );
+  for (const t of Array.from(state.questionCreatedTables || [])) {
+    if (baseCsv.has(t)) continue;            // never drop CSVs
+    if (keepFromNext.has(t)) continue;       // about to be re-created anyway
+    try {
+      state.db.run(`DROP TABLE IF EXISTS "${t.replace(/"/g, '""')}"`);
+    } catch (e) {
+      console.warn("could not drop", t, e.message);
+    }
+    state.questionCreatedTables.delete(t);
+  }
 }
 
 function loadQuestionTables(qid) {
@@ -290,6 +324,7 @@ function loadQuestionTables(qid) {
   if (!state.engineReady) return;
   try {
     const summary = generateAndLoad(state.db, spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
+    for (const s of summary) state.questionCreatedTables.add(s.table);
     const names = summary.map((s) => s.table).join(", ");
     setStatus(`Loaded ${summary.length} synthetic table(s): ${names}`, "ok");
     refreshTableList();
@@ -322,7 +357,7 @@ function runQuery() {
     setStatus("Editor is empty", "error");
     return;
   }
-  localStorage.setItem(LS_EDITOR, sql);
+  if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), sql);
   const t0 = performance.now();
   let attempts = 0;
   const maxAttempts = 3;
@@ -592,9 +627,9 @@ function wire() {
     }
   });
 
-  // Persist editor
+  // Persist editor (per question)
   $("#pg-editor").addEventListener("input", () => {
-    localStorage.setItem(LS_EDITOR, $("#pg-editor").value);
+    if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), $("#pg-editor").value);
   });
 }
 
@@ -621,15 +656,12 @@ async function init() {
   state.schemasByQid = schemas;
   populateQuestionPicker();
 
-  // Initial editor contents (from localStorage if present)
-  const savedEditor = localStorage.getItem(LS_EDITOR);
-  if (savedEditor) $("#pg-editor").value = savedEditor;
-
   // Pick question: ?q= → last → first. Render UI immediately;
-  // tables get auto-loaded once the engine is ready.
+  // tables get auto-loaded once the engine is ready. Editor contents are
+  // restored per-question inside loadQuestion() itself.
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.sqlQuestions[0]?.id;
-  if (qid) loadQuestion(qid, { prefill: !savedEditor });
+  if (qid) loadQuestion(qid);
 
   await initEngine();
 
