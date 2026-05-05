@@ -1,6 +1,7 @@
 // ════════════════════════════════════════════════════════════
 // Python Playground — Pyodide (Python-WASM) in-browser
 // ════════════════════════════════════════════════════════════
+import { generateDemo } from "./demo-gen.js";
 
 const DATA_BASE = "../interview/data";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
@@ -243,7 +244,25 @@ function showSolution() {
 }
 function loadSolution() {
   if (!state.currentQ?.solution) return;
-  $("#pg-editor").value = state.currentQ.solution;
+  const sol = state.currentQ.solution;
+  const demo = generateDemo(sol);
+  $("#pg-editor").value = sol + demo;
+  setStatus(demo ? "Loaded solution + demo — press Run" : "Loaded solution", "ok");
+}
+
+function appendDemo() {
+  const ed = $("#pg-editor");
+  const cur = ed.value;
+  const demo = generateDemo(cur);
+  if (!demo) {
+    setStatus("Couldn't infer a demo from this code — define a function/class first.", "error");
+    return;
+  }
+  // Strip a previously-appended block if present so we don't stack them
+  const stripped = cur.replace(/\n\n# ─── Demo \(auto-generated\) ───[\s\S]*$/m, "");
+  ed.value = stripped + demo;
+  ed.focus();
+  setStatus("Demo appended — press Run", "ok");
 }
 
 // ─── Snippets sidebar ───
@@ -289,6 +308,7 @@ function wire() {
   $("#pg-run").addEventListener("click", safeAsync(runCode));
   $("#pg-show-solution").addEventListener("click", showSolution);
   $("#pg-load-solution").addEventListener("click", loadSolution);
+  $("#pg-add-demo")?.addEventListener("click", appendDemo);
   $("#pg-solution-close").addEventListener("click", () => ($("#pg-solution-pane").hidden = true));
   $("#pg-clear-output").addEventListener("click", clearOutput);
   $("#pg-reset-env").addEventListener("click", safeAsync(resetEnv));
