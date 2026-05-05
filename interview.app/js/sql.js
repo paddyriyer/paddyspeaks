@@ -3,8 +3,8 @@
 // ════════════════════════════════════════════════════════════
 import { generateAndLoad, seedFromQid } from "./sample-gen.js";
 
-const DATA_BASE = "../data";
-const CSV_BASE = "../sample dataset";
+const DATA_BASE = "../interview/data";
+const CSV_BASE = "../interview/sample%20dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
 const LS_LAST_Q = "pg.sql.lastQ";

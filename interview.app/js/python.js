@@ -2,7 +2,7 @@
 // Python Playground — Pyodide (Python-WASM) in-browser
 // ════════════════════════════════════════════════════════════
 
-const DATA_BASE = "../data";
+const DATA_BASE = "../interview/data";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const LS_LAST_Q = "pg.py.lastQ";
 const LS_EDITOR = "pg.py.editor";

@@ -6,10 +6,14 @@ playgrounds so you can try every question without leaving the page.
 
 Everything runs client-side. No backend, no telemetry, no install.
 
+## URL
+
+Hosted at **<https://paddyspeaks.com/interview.app/>**.
+
 ## What's here
 
 ```
-interview/
+interview/                     ← data + scripts
 ├── excel/Interview_Questions_Combined.xlsx   ← source workbook
 ├── scripts/
 │   ├── xlsx_to_json.py        ← convert workbook → JSON (re-runnable)
@@ -23,13 +27,14 @@ interview/
 │   ├── manifest.json
 │   ├── question_schemas.json  ← qid → [{table, columns}]
 │   └── table_coverage.json    ← all 154 referenced tables
-├── sample dataset/            ← real CSVs, auto-loaded into SQLite
-└── app/
-    ├── index.html             ← question bank (browse / filter / pick)
-    ├── sql.html               ← SQL playground (sql.js)
-    ├── python.html            ← Python playground (Pyodide)
-    ├── css/{app,playground}.css
-    └── js/{app,sql,python,sample-gen}.js
+└── sample dataset/            ← real CSVs, auto-loaded into SQLite
+
+interview.app/                 ← the web app served at /interview.app/
+├── index.html                 ← question bank (browse / filter / pick)
+├── sql.html                   ← SQL playground (sql.js)
+├── python.html                ← Python playground (Pyodide)
+├── css/{app,playground}.css
+└── js/{app,sql,python,sample-gen}.js
 ```
 
 ## Running locally
@@ -42,7 +47,7 @@ HTTP (browsers won't fetch them through `file://`).
 python3 -m http.server 8000
 ```
 
-Open <http://localhost:8000/interview/app/>.
+Open <http://localhost:8000/interview.app/>.
 
 ## Workflow
 
