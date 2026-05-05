@@ -30,9 +30,21 @@ __stdout = io.StringIO()
 __stderr = io.StringIO()
 `;
 
+// Buttons that need Pyodide before they're useful.
+const ENGINE_DEPENDENT_IDS = ["pg-run", "pg-reset-env"];
+
+function setEngineReady(ready) {
+  state.ready = ready;
+  for (const id of ENGINE_DEPENDENT_IDS) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !ready;
+  }
+}
+
 // ─── Status ───
 function setStatus(msg, kind = "") {
   const el = $("#pg-status");
+  if (!el) return;
   el.textContent = msg;
   el.className = "pg-status" + (kind ? " is-" + kind : "");
 }
@@ -54,14 +66,17 @@ function clearOutput() {
 
 // ─── Pyodide bootstrap ───
 async function initPyodide() {
-  setStatus("Loading Pyodide…");
+  setStatus("Loading Pyodide (~6 MB WASM)…");
+  if (typeof window.loadPyodide !== "function") {
+    throw new Error("Pyodide failed to load — check your network or ad blocker.");
+  }
   state.pyodide = await window.loadPyodide({
     indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/",
     stdout: (s) => appendOutput(s + "\n"),
     stderr: (s) => appendOutput(s + "\n", "pg-stderr"),
   });
   await state.pyodide.runPythonAsync(PRELUDE);
-  state.ready = true;
+  setEngineReady(true);
   setStatus("Ready · Python " + state.pyodide.runPython("import sys; sys.version.split()[0]"), "ok");
 }
 
@@ -130,6 +145,11 @@ __last_value
     }
     const ms = (performance.now() - t0).toFixed(1);
     $("#pg-results-stats").textContent = `${ms} ms`;
+    // If the body is still empty, show a friendly hint instead of a black void.
+    const body = $("#pg-results-body");
+    if (!body.textContent.trim()) {
+      body.innerHTML = `<span class="pg-empty">No output. Call your function or use print() to see results — e.g. <code>print(subarraySum([1,1,1], 2))</code></span>`;
+    }
     setStatus(`OK · ${ms} ms`, "ok");
   } catch (err) {
     appendOutput(formatPyError(err), "pg-trace");
@@ -253,14 +273,25 @@ function renderSnippets() {
   }
 }
 
+function safeAsync(fn, busyMsg) {
+  return async (...args) => {
+    if (busyMsg) setStatus(busyMsg);
+    try { return await fn(...args); }
+    catch (err) {
+      console.error(err);
+      setStatus("Error · " + (err.message || "see console"), "error");
+    }
+  };
+}
+
 // ─── Wire ───
 function wire() {
-  $("#pg-run").addEventListener("click", runCode);
+  $("#pg-run").addEventListener("click", safeAsync(runCode));
   $("#pg-show-solution").addEventListener("click", showSolution);
   $("#pg-load-solution").addEventListener("click", loadSolution);
   $("#pg-solution-close").addEventListener("click", () => ($("#pg-solution-pane").hidden = true));
   $("#pg-clear-output").addEventListener("click", clearOutput);
-  $("#pg-reset-env").addEventListener("click", resetEnv);
+  $("#pg-reset-env").addEventListener("click", safeAsync(resetEnv));
 
   $("#pg-load-pandas").addEventListener("change", () => {
     if ($("#pg-load-pandas").checked) ensurePandas();
@@ -300,7 +331,9 @@ function stepQuestion(delta) {
 // ─── Init ───
 async function init() {
   wire();
+  setEngineReady(false);
   renderSnippets();
+  setStatus("Loading question data…");
 
   const all = await fetch(QUESTIONS_URL).then((r) => r.json());
   state.questions = all;
@@ -310,11 +343,12 @@ async function init() {
   const savedEditor = localStorage.getItem(LS_EDITOR);
   if (savedEditor) $("#pg-editor").value = savedEditor;
 
-  await initPyodide();
-
+  // Show the question UI immediately even before Pyodide is ready.
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.pyQuestions[0]?.id;
   if (qid) loadQuestion(qid, { prefill: !savedEditor });
+
+  await initPyodide();
 }
 
 init().catch((err) => {
