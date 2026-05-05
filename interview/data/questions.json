@@ -1507,9 +1507,9 @@
     "type": "Programming / Python+1",
     "subtopic": null,
     "difficulty": "Easy",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) sqlite + csv export",
-    "solution": "-- Python pseudocode:\n-- import sqlite3, csv\n-- con = sqlite3.connect('db.sqlite'); rows = con.execute('SELECT * FROM t').fetchall()\n-- with open('out.csv','w',newline='') as f: csv.writer(f).writerows(rows)"
+    "solution": "import sqlite3, csv\n\ncon = sqlite3.connect(':memory:')\ncon.executescript(\"\"\"\nCREATE TABLE t (id INTEGER, name TEXT, amount REAL);\nINSERT INTO t VALUES (1,'A',10.5),(2,'B',7.25),(3,'C',99.0);\n\"\"\")\nrows = con.execute('SELECT * FROM t').fetchall()\ncols = [d[0] for d in con.execute('SELECT * FROM t').description]\n\n# Write to CSV (in-memory demo).\nimport io\nbuf = io.StringIO()\nw = csv.writer(buf); w.writerow(cols); w.writerows(rows)\nprint(buf.getvalue())\n"
   },
   {
     "id": "co_sql_305-0109",
@@ -2935,9 +2935,9 @@
     "type": "Programming / Python+1",
     "subtopic": null,
     "difficulty": "Medium",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) paginated API → SQLite",
-    "solution": "-- requests.get(...page=N) loop until empty, then sqlite3 con.executemany('INSERT...', rows)"
+    "solution": "import sqlite3\n\n# Pretend each call to fetch_page() hits a paginated API.\n# It returns up to `page_size` rows, or [] when exhausted.\n_pages = [\n    [(1, 'a'), (2, 'b')],\n    [(3, 'c')],\n    [],  # end-of-stream marker\n]\ndef fetch_page(page):\n    return _pages[page] if page < len(_pages) else []\n\ncon = sqlite3.connect(':memory:')\ncon.execute('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)')\n\npage = 0\nwhile True:\n    batch = fetch_page(page)\n    if not batch: break\n    con.executemany('INSERT INTO items VALUES (?, ?)', batch)\n    page += 1\ncon.commit()\nprint(con.execute('SELECT COUNT(*) FROM items').fetchone()[0], 'rows loaded')\n"
   },
   {
     "id": "co_sql_305-0211",
@@ -2949,9 +2949,9 @@
     "type": "Programming / Python+2",
     "subtopic": null,
     "difficulty": "Medium",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) SQL JOIN + pandas + CSV",
-    "solution": "-- df = pd.read_sql('SELECT ... FROM a JOIN b ON ...', con); df.to_csv('out.csv', index=False)"
+    "solution": "import sqlite3, csv, io\n\ncon = sqlite3.connect(':memory:')\ncon.executescript(\"\"\"\nCREATE TABLE customers (id INTEGER, name TEXT);\nCREATE TABLE orders    (id INTEGER, customer_id INTEGER, amount REAL);\nINSERT INTO customers VALUES (1,'Alex'),(2,'Bailey');\nINSERT INTO orders    VALUES (10,1,42.0),(11,1,8.0),(12,2,99.5);\n\"\"\")\n\nq = '''\n  SELECT c.id, c.name, SUM(o.amount) AS total\n  FROM customers c LEFT JOIN orders o ON o.customer_id = c.id\n  GROUP BY c.id, c.name\n  ORDER BY total DESC\n'''\nrows = con.execute(q).fetchall()\ncols = [d[0] for d in con.execute(q).description]\n\nbuf = io.StringIO()\nw = csv.writer(buf); w.writerow(cols); w.writerows(rows)\nprint(buf.getvalue())\n"
   },
   {
     "id": "co_sql_305-0212",
@@ -2963,9 +2963,9 @@
     "type": "Programming / Python+2",
     "subtopic": null,
     "difficulty": "Medium",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) CSV → SQLite insert",
-    "solution": "-- pd.read_csv('in.csv').to_sql('t', con, if_exists='append', index=False)"
+    "solution": "import sqlite3, csv, io\n\nCSV_TEXT = 'id,name,price\\n1,widget,3.5\\n2,gizmo,9.0\\n3,gadget,12.75\\n'\n\ncon = sqlite3.connect(':memory:')\ncon.execute('CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL)')\n\nreader = csv.DictReader(io.StringIO(CSV_TEXT))\ncon.executemany(\n    'INSERT INTO products (id, name, price) VALUES (:id, :name, :price)',\n    [{'id': int(r['id']), 'name': r['name'], 'price': float(r['price'])} for r in reader],\n)\ncon.commit()\nprint(con.execute('SELECT * FROM products').fetchall())\n"
   },
   {
     "id": "co_sql_305-0213",
@@ -2977,9 +2977,9 @@
     "type": "Programming / Python+2",
     "subtopic": null,
     "difficulty": "Medium",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) SQL agg → pandas → Excel",
-    "solution": "-- df = pd.read_sql('SELECT region, SUM(amount) FROM sales GROUP BY region', con); df.to_excel('out.xlsx')"
+    "solution": "import sqlite3, csv, io\nfrom collections import defaultdict\n\ncon = sqlite3.connect(':memory:')\ncon.executescript(\"\"\"\nCREATE TABLE sales (region TEXT, amount REAL);\nINSERT INTO sales VALUES ('NA',100),('NA',50),('APAC',75),('EMEA',125),('APAC',25);\n\"\"\")\n\nrows = con.execute('SELECT region, SUM(amount) AS total FROM sales GROUP BY region ORDER BY total DESC').fetchall()\n\n# Pandas+Excel would be: pd.DataFrame(rows, columns=['region','total']).to_excel('out.xlsx', index=False)\n# Equivalent CSV output for a runnable demo:\nbuf = io.StringIO()\nw = csv.writer(buf); w.writerow(['region','total']); w.writerows(rows)\nprint(buf.getvalue())\n"
   },
   {
     "id": "co_sql_305-0214",
@@ -2991,9 +2991,9 @@
     "type": "Programming / Python+1",
     "subtopic": null,
     "difficulty": "Medium",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) Sync CSV → SQLite (upsert)",
-    "solution": "-- For each CSV row: INSERT ... ON CONFLICT(product_id) DO UPDATE SET ..."
+    "solution": "import sqlite3, csv, io\n\nCSV_TEXT = 'product_id,name,price\\n1,widget,3.50\\n2,gizmo,9.00\\n3,gadget,12.75\\n'\n\ncon = sqlite3.connect(':memory:')\ncon.execute('''CREATE TABLE products (\n    product_id INTEGER PRIMARY KEY,\n    name TEXT,\n    price REAL\n)''')\ncon.execute('INSERT INTO products VALUES (1, \"old-widget\", 1.00)')\n\nfor row in csv.DictReader(io.StringIO(CSV_TEXT)):\n    con.execute('''\n        INSERT INTO products (product_id, name, price)\n        VALUES (?, ?, ?)\n        ON CONFLICT(product_id) DO UPDATE SET\n            name  = excluded.name,\n            price = excluded.price\n    ''', (int(row['product_id']), row['name'], float(row['price'])))\ncon.commit()\nprint(con.execute('SELECT * FROM products ORDER BY product_id').fetchall())\n"
   },
   {
     "id": "co_sql_305-0215",
@@ -4139,9 +4139,9 @@
     "type": "Programming / Python+2",
     "subtopic": null,
     "difficulty": "Hard",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) merge multiple sources → unified report",
-    "solution": "-- pandas: pd.concat([df1,df2,df3], ignore_index=True).groupby(...).sum().to_excel('report.xlsx')"
+    "solution": "from collections import defaultdict\n\n# Three CSV-style sources to combine\nsrc_a = [{'region': 'NA',   'amount': 100}, {'region': 'NA',   'amount':  50}]\nsrc_b = [{'region': 'EMEA', 'amount':  75}, {'region': 'APAC', 'amount': 125}]\nsrc_c = [{'region': 'APAC', 'amount':  25}, {'region': 'NA',   'amount':  10}]\n\ntotals = defaultdict(float)\nfor row in (*src_a, *src_b, *src_c):\n    totals[row['region']] += row['amount']\n\nreport = sorted(totals.items(), key=lambda kv: -kv[1])\nfor region, total in report:\n    print(f'{region:6s} {total:8.2f}')\n"
   },
   {
     "id": "co_sql_305-0297",
@@ -4153,9 +4153,9 @@
     "type": "Programming / Python+2",
     "subtopic": null,
     "difficulty": "Hard",
-    "language": "sql",
+    "language": "python",
     "schema": "(Python task) SQLite → Parquet with metadata",
-    "solution": "-- df = pd.read_sql('SELECT * FROM t', con); df.to_parquet('out.parquet', engine='pyarrow', compression='snappy')"
+    "solution": "import sqlite3, json, datetime\n\ncon = sqlite3.connect(':memory:')\ncon.executescript(\"\"\"\nCREATE TABLE t (id INTEGER, payload TEXT, created_at TEXT);\nINSERT INTO t VALUES (1,'alpha','2025-01-01'), (2,'beta','2025-01-02');\n\"\"\")\n\nrows = con.execute('SELECT * FROM t').fetchall()\ncols = [d[0] for d in con.execute('SELECT * FROM t').description]\n\n# In production: df = pd.read_sql('SELECT * FROM t', con)\n#                df.to_parquet('out.parquet', engine='pyarrow', compression='snappy')\n# For an in-browser demo we serialize to a metadata-rich JSON envelope.\nenvelope = {\n    'schema': cols,\n    'row_count': len(rows),\n    'exported_at': datetime.datetime.utcnow().isoformat() + 'Z',\n    'rows': [dict(zip(cols, r)) for r in rows],\n}\nprint(json.dumps(envelope, indent=2))\n"
   },
   {
     "id": "co_sql_305-0298",
@@ -8313,7 +8313,7 @@
     "difficulty": "Hard",
     "language": "python",
     "schema": null,
-    "solution": "from collections import Counter\n\ndef minWindow(s, t):\n    if not s or not t: return \"\"\n    need = Counter(t); have = {}\n    have_cnt, need_cnt = 0, len(need)\n    res, res_len = [-1, -1], float('inf')\n    l = 0\n    for r, c in enumerate(s):\n        have[c] = have.get(c, 0) + 1\n        if c in need and have[c] == need[c]: have_cnt += 1\n        while have_cnt == need_cnt:\n            if r - l + 1 < res_len:\n                res, res_len = [l, r], r - l + 1\n            have[s[l]] -= 1\n            if s[l] in need and have[s[l]] < need[s[l]]: have_cnt -= 1\n            l += 1\n    return s[res[0]:res[1] + 1] if res_len < float('inf') else "
+    "solution": "from collections import Counter\n\ndef minWindow(s, t):\n    if not s or not t: return \"\"\n    need = Counter(t); have = {}\n    have_cnt, need_cnt = 0, len(need)\n    res, res_len = [-1, -1], float('inf')\n    l = 0\n    for r, c in enumerate(s):\n        have[c] = have.get(c, 0) + 1\n        if c in need and have[c] == need[c]: have_cnt += 1\n        while have_cnt == need_cnt:\n            if r - l + 1 < res_len:\n                res, res_len = [l, r], r - l + 1\n            have[s[l]] -= 1\n            if s[l] in need and have[s[l]] < need[s[l]]: have_cnt -= 1\n            l += 1\n    return s[res[0]:res[1] + 1] if res_len < float('inf') else \"\"\n"
   },
   {
     "id": "python_175-0060",
@@ -9769,7 +9769,7 @@
     "difficulty": "Hard",
     "language": "python",
     "schema": null,
-    "solution": "from collections import defaultdict, deque\n\ndef alienOrder(words):\n    g = defaultdict(set); deg = {c: 0 for w in words for c in w}\n    for a, b in zip(words, words[1:]):\n        m = min(len(a), len(b))\n        if len(a) > len(b) and a[:m] == b[:m]: return \"\"   # prefix conflict\n        for i in range(m):\n            if a[i] != b[i]:\n                if b[i] not in g[a[i]]:\n                    g[a[i]].add(b[i]); deg[b[i]] += 1\n                break\n    q = deque([c for c in deg if deg[c] == 0]); order = []\n    while q:\n        c = q.popleft(); order.append(c)\n        for nxt in g[c]:\n            deg[nxt] -= 1\n            if deg[nxt] == 0: q.append(nxt)\n    return ''.join(order) if len(order) == len(deg) else "
+    "solution": "from collections import defaultdict, deque\n\ndef alienOrder(words):\n    deg = {c: 0 for w in words for c in w}\n    g = defaultdict(set)\n    for a, b in zip(words, words[1:]):\n        if len(a) > len(b) and a.startswith(b): return \"\"\n        for x, y in zip(a, b):\n            if x != y:\n                if y not in g[x]:\n                    g[x].add(y)\n                    deg[y] += 1\n                break\n    q = deque([c for c in deg if deg[c] == 0])\n    order = []\n    while q:\n        c = q.popleft(); order.append(c)\n        for nxt in g[c]:\n            deg[nxt] -= 1\n            if deg[nxt] == 0: q.append(nxt)\n    return ''.join(order) if len(order) == len(deg) else \"\"\n"
   },
   {
     "id": "python_175-0164",
