@@ -259,6 +259,16 @@ function loadQuestion(qid /* , opts unused */) {
   $("#pg-q-co").textContent = q.company ? "🏢 " + q.company : "";
   $("#pg-q-diff").textContent = q.difficulty || "";
   $("#pg-q-type").textContent = [q.type, q.subtopic].filter(Boolean).join(" · ");
+  const promptBlock = $("#pg-q-prompt-block");
+  const promptEl = $("#pg-q-prompt");
+  if (promptBlock && promptEl) {
+    if (q.question && q.question.trim()) {
+      promptEl.textContent = q.question.trim();
+      promptBlock.hidden = false;
+    } else {
+      promptBlock.hidden = true;
+    }
+  }
   if (q.schema) {
     $("#pg-q-schema").textContent = q.schema;
     $("#pg-q-schema-block").hidden = false;
