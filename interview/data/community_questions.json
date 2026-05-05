@@ -108,5 +108,25 @@
       "name": "user-supplied",
       "url": ""
     }
+  },
+  {
+    "id": "community_5-0007",
+    "batch": "community_5",
+    "num": 7,
+    "title": "Three-Day Binge Streak — Find Users Who Watched Three Days in a Row",
+    "slug": "three-day-binge-streak",
+    "company": "Community",
+    "type": "SQL / Window functions",
+    "subtopic": "Gaps and islands · LAG · ROW_NUMBER",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "watch_history(watch_id, user_id, watch_date)",
+    "scenario": "A streaming product wants to spot 'binge-watchers' for a re-engagement campaign — anyone who watched on three consecutive calendar days. The team gets a bare watch-log table and needs the list of qualifying user_ids.",
+    "question": "Given a `watch_history` table with one row per watch event, return the distinct user_ids who watched on AT LEAST three consecutive calendar days.\n\nNotes:\n  • Multiple events on the same day count as one (DISTINCT on (user_id, watch_date)).\n  • A streak is consecutive — any gap of ≥ 1 day breaks it.\n  • Generalise: the same pattern with `streak_length >= N` answers any streak length.\n\nExpected output for the canonical test data:\n  user_id\n  501          -- watched 2025-12-01, 02, 03 (three in a row)\n  503          -- watched 2025-12-10, 11, 12 (three in a row)\n\n  502 is excluded — they watched on 12-01 and 12-03 only (gap on 12-02).",
+    "solution": "-- ╭─────────────────────────────────────────────────────────╮\n-- │  Setup — canonical test data baked in so the query     │\n-- │  reproduces the expected output.                        │\n-- ╰─────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS watch_history;\nCREATE TABLE watch_history (\n    watch_id   INTEGER PRIMARY KEY,\n    user_id    INTEGER NOT NULL,\n    watch_date TEXT    NOT NULL\n);\nINSERT INTO watch_history VALUES\n  (1, 501, '2025-12-01'),  -- User 501: day 1\n  (2, 501, '2025-12-02'),  -- User 501: day 2\n  (3, 501, '2025-12-03'),  -- User 501: day 3  (STREAK)\n  (4, 502, '2025-12-01'),  -- User 502: day 1\n  (5, 502, '2025-12-03'),  -- User 502: gap — broken\n  (6, 503, '2025-12-10'),  -- User 503: day 1\n  (7, 503, '2025-12-11'),  -- User 503: day 2\n  (8, 503, '2025-12-12');  -- User 503: day 3  (STREAK)\n\n-- ╭─────────────────────────────────────────────────────────╮\n-- │  METHOD 1 — Gaps & islands (preferred — generalises)   │\n-- │                                                         │\n-- │  Trick: subtract a per-user ROW_NUMBER() ordered by    │\n-- │  date from the date itself. Consecutive dates collapse │\n-- │  to a single arithmetic group; any gap starts a new    │\n-- │  group. Then GROUP BY (user_id, group) and count.      │\n-- ╰─────────────────────────────────────────────────────────╯\nWITH daily_watch AS (\n    SELECT DISTINCT user_id, watch_date\n    FROM watch_history\n),\nstreak_count AS (\n    SELECT\n        user_id,\n        watch_date,\n        julianday(watch_date)\n          - ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY watch_date)\n          AS streak_group\n    FROM daily_watch\n),\nstreak AS (\n    SELECT user_id, COUNT(*) AS streak_length\n    FROM streak_count\n    GROUP BY user_id, streak_group\n)\nSELECT DISTINCT user_id\nFROM streak\nWHERE streak_length >= 3\nORDER BY user_id;\n\n-- ╭─────────────────────────────────────────────────────────╮\n-- │  METHOD 2 — LAG triple-check (only works for fixed N)  │\n-- │                                                         │\n-- │  Walk back 1 and 2 rows; if today, yesterday and the   │\n-- │  day before are exactly 1 day apart we have a 3-streak.│\n-- ╰─────────────────────────────────────────────────────────╯\n-- WITH daily_watch AS (\n--     SELECT DISTINCT user_id, watch_date FROM watch_history\n-- ),\n-- continuity AS (\n--     SELECT\n--         user_id,\n--         watch_date,\n--         LAG(watch_date, 1) OVER (PARTITION BY user_id ORDER BY watch_date) AS prev_1,\n--         LAG(watch_date, 2) OVER (PARTITION BY user_id ORDER BY watch_date) AS prev_2\n--     FROM daily_watch\n-- )\n-- SELECT DISTINCT user_id\n-- FROM continuity\n-- WHERE julianday(watch_date) - julianday(prev_1) = 1\n--   AND julianday(watch_date) - julianday(prev_2) = 2\n-- ORDER BY user_id;\n\n-- For SQL Server / T-SQL, swap julianday() math for DATEADD/DATEDIFF:\n--   DATEDIFF(day, prev_1, watch_date) = 1\n--   DATEADD(day, -ROW_NUMBER() ..., watch_date) AS streak_group\n",
+    "source": {
+      "name": "vishnu-t-r/sql_solved_questions",
+      "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/214_binge%20streak.sql"
+    }
   }
 ]
