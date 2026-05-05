@@ -112,9 +112,10 @@ def load_batch(wb, index_sheet, solutions_sheet, batch_id, language, default_typ
         # Per-batch language can be overridden by Tech/Type where present
         lang = language
         qt = (question_type or "").lower()
-        if qt in ("python", "programming", "spark", "pyspark"):
+        # Substring matches first so 'Programming / Python+1' or 'PySpark Streaming' map cleanly
+        if "python" in qt or qt.startswith("programming") or "pyspark" in qt or qt == "spark":
             lang = "python"
-        elif qt.startswith("sql") or qt in ("snowflake", "snowflake sql", "mysql", "postgres", "postgresql"):
+        elif qt.startswith("sql") or "snowflake" in qt or qt in ("mysql", "postgres", "postgresql"):
             lang = "sql"
         elif qt in ("linux", "shell", "bash", "docker", "git"):
             lang = "shell"
@@ -149,6 +150,21 @@ def main():
     questions += load_batch(wb, "Index_Git12", "Solutions_Git12", "git_12", "shell", default_type="Git")
     questions += load_batch(wb, "Index_SF51", "Solutions_SF51", "snowflake_51", "sql", default_type="Snowflake SQL")
     questions += load_batch(wb, "Index_PY175", "Solutions_PY175", "python_175", "python", default_type="Python")
+
+    # Apply manual overrides for source-data issues we've spotted via audit
+    overrides_path = OUT / "solution_overrides.json"
+    if overrides_path.exists():
+        overrides = json.loads(overrides_path.read_text())
+        applied = 0
+        for q in questions:
+            patch = overrides.get(q["id"])
+            if isinstance(patch, dict):
+                for key in ("solution", "schema", "type", "language", "title"):
+                    if key in patch:
+                        q[key] = patch[key]
+                applied += 1
+        if applied:
+            print(f"Applied {applied} solution override(s) from {overrides_path.name}")
 
     # Facets
     companies = Counter(q["company"] for q in questions if q["company"])
