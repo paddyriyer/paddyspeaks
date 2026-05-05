@@ -109,17 +109,14 @@ def load_batch(wb, index_sheet, solutions_sheet, batch_id, language, default_typ
         company = r[i_co] if i_co != -1 else None
         title = r[i_q] if i_q != -1 else None
 
-        # Per-batch language can be overridden by Tech where present
+        # Per-batch language can be overridden by Tech/Type where present
         lang = language
-        if (question_type or "").lower() in ("python",):
+        qt = (question_type or "").lower()
+        if qt in ("python", "programming", "spark", "pyspark"):
             lang = "python"
-        elif (question_type or "").lower().startswith("sql"):
+        elif qt.startswith("sql") or qt in ("snowflake", "snowflake sql", "mysql", "postgres", "postgresql"):
             lang = "sql"
-        elif (question_type or "").lower() in ("linux", "shell", "bash"):
-            lang = "shell"
-        elif (question_type or "").lower() == "docker":
-            lang = "shell"
-        elif (question_type or "").lower() == "git":
+        elif qt in ("linux", "shell", "bash", "docker", "git"):
             lang = "shell"
 
         qid = f"{batch_id}-{n:04d}"

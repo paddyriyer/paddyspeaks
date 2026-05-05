@@ -41,11 +41,27 @@ const state = {
   loadedTables: new Set(),
   lastResult: null,
   autoLoadQuestionTables: true,
+  engineReady: false,
 };
+
+// Buttons that need the SQL engine before they can do anything useful.
+const ENGINE_DEPENDENT_IDS = [
+  "pg-run", "pg-reset-db", "pg-load-q-tables",
+  "pg-refresh-schema", "pg-csv-load",
+];
+
+function setEngineReady(ready) {
+  state.engineReady = ready;
+  for (const id of ENGINE_DEPENDENT_IDS) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !ready;
+  }
+}
 
 // ─── Status helper ───
 function setStatus(msg, kind = "") {
   const el = $("#pg-status");
+  if (!el) return;
   el.textContent = msg;
   el.className = "pg-status" + (kind ? " is-" + kind : "");
 }
@@ -161,13 +177,16 @@ async function loadAllCSVs() {
 
 // ─── DB lifecycle ───
 async function initEngine() {
-  setStatus("Loading SQLite engine…");
-  // sql.js wasm is hosted alongside the JS on the CDN
+  setStatus("Loading SQLite engine (~1 MB WASM)…");
+  if (typeof window.initSqlJs !== "function") {
+    throw new Error("sql.js failed to load — check your network or ad blocker.");
+  }
   const SQL = await window.initSqlJs({
-    locateFile: (file) => `https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/${file}`,
+    locateFile: (file) => `./vendor/sql.js/${file}`,
   });
   state.SQL = SQL;
   await resetDB();
+  setEngineReady(true);
   setStatus(`Ready · ${state.loadedTables.size} tables loaded`, "ok");
 }
 
@@ -249,18 +268,26 @@ function loadQuestion(qid, opts = {}) {
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
 
-  // Auto-load this question's tables (synthetic) on top of base CSVs.
-  if (state.autoLoadQuestionTables) loadQuestionTables(qid);
+  // Auto-load this question's tables (synthetic) on top of base CSVs —
+  // only if the engine is ready. Otherwise it'll run after init finishes.
+  if (state.autoLoadQuestionTables && state.engineReady) loadQuestionTables(qid);
 }
 
 function loadQuestionTables(qid) {
   const spec = state.schemasByQid[qid];
   const btn = $("#pg-load-q-tables");
   if (!spec || !spec.length) {
-    if (btn) { btn.disabled = true; btn.textContent = "No schema for this question"; }
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "No schema (using base CSVs)";
+    }
     return;
   }
-  if (btn) { btn.disabled = false; btn.textContent = `Reload ${spec.length} table(s) for question`; }
+  if (btn) {
+    btn.disabled = !state.engineReady;
+    btn.textContent = `Reload ${spec.length} table(s) for question`;
+  }
+  if (!state.engineReady) return;
   try {
     const summary = generateAndLoad(state.db, spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
     const names = summary.map((s) => s.table).join(", ");
@@ -286,6 +313,10 @@ function populateQuestionPicker() {
 
 // ─── Run query ───
 function runQuery() {
+  if (!state.engineReady) {
+    setStatus("Still loading the SQL engine — try again in a moment.", "error");
+    return;
+  }
   const sql = $("#pg-editor").value.trim();
   if (!sql) {
     setStatus("Editor is empty", "error");
@@ -293,17 +324,68 @@ function runQuery() {
   }
   localStorage.setItem(LS_EDITOR, sql);
   const t0 = performance.now();
-  try {
-    const results = state.db.exec(sql);
-    const ms = (performance.now() - t0).toFixed(1);
-    state.lastResult = results;
-    renderResults(results, ms);
-    setStatus(`OK · ${ms} ms`, "ok");
-  } catch (err) {
-    renderError(err);
-    setStatus("Error", "error");
+  let attempts = 0;
+  const maxAttempts = 3;
+  while (true) {
+    try {
+      const results = state.db.exec(sql);
+      const ms = (performance.now() - t0).toFixed(1);
+      state.lastResult = results;
+      renderResults(results, ms);
+      setStatus(`OK · ${ms} ms`, "ok");
+      break;
+    } catch (err) {
+      // Auto-create missing tables once or twice if we can guess columns
+      const m = /no such table:\s*(\w+)/i.exec(err.message || "");
+      if (m && attempts < maxAttempts && createTableFromSql(m[1], sql)) {
+        attempts++;
+        continue;
+      }
+      renderError(err);
+      setStatus("Error · " + (err.message || "see results panel"), "error");
+      break;
+    }
   }
   refreshTableList();
+}
+
+/**
+ * If the running query references an alias.column for the missing table,
+ * create the table on the fly with those columns. Returns true if anything
+ * was created (so we can retry).
+ */
+function createTableFromSql(missingTable, sql) {
+  // Find aliases in FROM/JOIN clauses
+  const fromRe = /(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi;
+  const aliasMap = {};
+  let m;
+  while ((m = fromRe.exec(sql)) !== null) {
+    const t = m[1], a = m[2];
+    aliasMap[t.toLowerCase()] = t;
+    if (a) aliasMap[a.toLowerCase()] = t;
+  }
+  // Collect alias.col tokens that resolve to the missing table
+  const cols = new Set();
+  const aliasColRe = /\b(\w+)\.(\w+)\b/g;
+  while ((m = aliasColRe.exec(sql)) !== null) {
+    if (aliasMap[m[1].toLowerCase()] === missingTable) cols.add(m[2]);
+  }
+  // Or columns referenced bare when the only table in FROM is the missing one
+  if (cols.size === 0) {
+    cols.add("id");
+    cols.add("name");
+    cols.add("value");
+  }
+  try {
+    // Reuse the synthetic generator for consistent shape
+    const spec = [{ table: missingTable, columns: [...cols] }];
+    generateAndLoad(state.db, spec, { seed: seedFromQid(missingTable), rowsPerTable: 12 });
+    setStatus(`Auto-created table "${missingTable}" — re-running…`, "ok");
+    return true;
+  } catch (e) {
+    console.error("createTableFromSql failed", e);
+    return false;
+  }
 }
 
 function renderResults(results, ms) {
@@ -444,6 +526,18 @@ function formatSQL() {
   $("#pg-editor").value = s;
 }
 
+// Wraps an async handler so any thrown error becomes a visible status update.
+function safeAsync(fn, busyMsg) {
+  return async (...args) => {
+    if (busyMsg) setStatus(busyMsg);
+    try { return await fn(...args); }
+    catch (err) {
+      console.error(err);
+      setStatus("Error · " + (err.message || "see console"), "error");
+    }
+  };
+}
+
 // ─── Wire ───
 function wire() {
   $("#pg-run").addEventListener("click", runQuery);
@@ -452,17 +546,22 @@ function wire() {
   $("#pg-load-solution").addEventListener("click", loadSolution);
   $("#pg-solution-close").addEventListener("click", () => ($("#pg-solution-pane").hidden = true));
   $("#pg-export-csv").addEventListener("click", exportCSV);
-  $("#pg-refresh-schema").addEventListener("click", refreshTableList);
+  $("#pg-refresh-schema").addEventListener("click", () => {
+    if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
+    refreshTableList();
+  });
   $("#pg-csv-load").addEventListener("click", loadCustomCSV);
 
-  $("#pg-reset-db").addEventListener("click", async () => {
+  $("#pg-reset-db").addEventListener("click", safeAsync(async () => {
+    if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
     setStatus("Resetting…");
     await resetDB();
     if (state.autoLoadQuestionTables && state.currentQ) loadQuestionTables(state.currentQ.id);
     setStatus(`Reset · ${state.loadedTables.size} tables loaded`, "ok");
-  });
+  }));
 
   $("#pg-load-q-tables")?.addEventListener("click", () => {
+    if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
     if (state.currentQ) loadQuestionTables(state.currentQ.id);
   });
 
@@ -509,6 +608,9 @@ function stepQuestion(delta) {
 // ─── Init ───
 async function init() {
   wire();
+  setEngineReady(false);            // start with engine-dependent buttons disabled
+  setStatus("Loading question data…");
+
   // Load questions + per-question schemas
   const [all, schemas] = await Promise.all([
     fetch(QUESTIONS_URL).then((r) => r.json()),
@@ -523,12 +625,18 @@ async function init() {
   const savedEditor = localStorage.getItem(LS_EDITOR);
   if (savedEditor) $("#pg-editor").value = savedEditor;
 
-  await initEngine();
-
-  // Pick question: ?q= → last → first
+  // Pick question: ?q= → last → first. Render UI immediately;
+  // tables get auto-loaded once the engine is ready.
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.sqlQuestions[0]?.id;
   if (qid) loadQuestion(qid, { prefill: !savedEditor });
+
+  await initEngine();
+
+  // Now that engine is ready, populate this question's tables.
+  if (state.currentQ && state.autoLoadQuestionTables) {
+    loadQuestionTables(state.currentQ.id);
+  }
 }
 
 init().catch((err) => {
