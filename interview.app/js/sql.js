@@ -254,13 +254,24 @@ function loadQuestion(qid /* , opts unused */) {
   // Show the problem text (community questions ship a real prompt) when present
   const promptBlock = $("#pg-q-prompt-block");
   const promptEl = $("#pg-q-prompt");
+  const videoEl = $("#pg-q-video");
   if (promptBlock && promptEl) {
-    if (q.question && q.question.trim()) {
+    const hasPrompt = q.question && q.question.trim();
+    const hasVideo = q.video_url && q.video_url.trim();
+    if (hasPrompt) {
       promptEl.textContent = q.question.trim();
-      promptBlock.hidden = false;
     } else {
-      promptBlock.hidden = true;
+      promptEl.textContent = "";
     }
+    if (videoEl) {
+      if (hasVideo) {
+        videoEl.href = q.video_url;
+        videoEl.hidden = false;
+      } else {
+        videoEl.hidden = true;
+      }
+    }
+    promptBlock.hidden = !(hasPrompt || hasVideo);
   }
   if (q.schema) {
     $("#pg-q-schema").textContent = q.schema;
