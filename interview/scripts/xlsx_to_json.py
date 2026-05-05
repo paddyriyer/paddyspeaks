@@ -215,6 +215,8 @@ def main():
         r"|NVL\(|EXTRACT\(|LEFT\(|RIGHT\(|LEAST\(|GREATEST\("
         r"|CURRENT_DATE\s*\(|CURRENT_TIMESTAMP\s*\(|GETDATE\(|SYSDATE\(|NOW\("
         r"|DAYOFWEEK\(|DAYOFMONTH\(|WEEKOFYEAR\(|ANY\("
+        # SQL Server / Oracle PIVOT and UNPIVOT operators (no SQLite equivalent)
+        r"|\bPIVOT\s*\(|\bUNPIVOT\s*\("
         r")|::\s*[A-Za-z]|INTERVAL\s+'[^']+'|DATE\s+'\d{4}-\d{2}-\d{2}'"
         # PG/Snowflake `OFFSET n LIMIT m` order (SQLite needs LIMIT first)
         r"|\bOFFSET\s+\d+\s+LIMIT\b",
@@ -232,7 +234,12 @@ def main():
             elif NEEDS_PANDAS_RE.search(sol):
                 rt = "pandas"
         elif q["language"] == "sql":
-            m = SQL_NONLITE_RE.search(sol)
+            # Strip SQL comments before scanning so a reference-variant
+            # snippet inside a `--` or `/* */` block doesn't mis-flag an
+            # otherwise-portable solution as non-sqlite.
+            sol_code = _re.sub(r"/\*.*?\*/", "", sol, flags=_re.DOTALL)
+            sol_code = _re.sub(r"--[^\n]*", "", sol_code)
+            m = SQL_NONLITE_RE.search(sol_code)
             if m:
                 rt = "non-sqlite"
                 q["dialect_token"] = m.group(0).strip()
