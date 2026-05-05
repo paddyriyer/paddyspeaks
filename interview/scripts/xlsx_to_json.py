@@ -151,6 +151,19 @@ def main():
     questions += load_batch(wb, "Index_SF51", "Solutions_SF51", "snowflake_51", "sql", default_type="Snowflake SQL")
     questions += load_batch(wb, "Index_PY175", "Solutions_PY175", "python_175", "python", default_type="Python")
 
+    # Merge any community-contributed questions stored as plain JSON.
+    for extra_name in ("community_questions.json", "community_solved_questions.json"):
+        extra_path = OUT / extra_name
+        if not extra_path.exists():
+            continue
+        try:
+            extras = json.loads(extra_path.read_text())
+            if isinstance(extras, list):
+                questions += extras
+                print(f"Merged {len(extras)} question(s) from {extra_name}")
+        except Exception as e:
+            print(f"WARN: couldn't merge {extra_name}: {e}")
+
     # Apply manual overrides for source-data issues we've spotted via audit
     overrides_path = OUT / "solution_overrides.json"
     if overrides_path.exists():
@@ -252,6 +265,8 @@ def main():
             {"id": "git_12", "label": "Git (12)", "count": sum(1 for q in questions if q["batch"] == "git_12")},
             {"id": "snowflake_51", "label": "Snowflake SQL (51)", "count": sum(1 for q in questions if q["batch"] == "snowflake_51")},
             {"id": "python_175", "label": "Python (175)", "count": sum(1 for q in questions if q["batch"] == "python_175")},
+            {"id": "community_5", "label": "Community Contributed", "count": sum(1 for q in questions if q["batch"] == "community_5")},
+            {"id": "community_solved", "label": "Solved SQL Workbook", "count": sum(1 for q in questions if q["batch"] == "community_solved")},
         ],
         "total": len(questions),
         "companies": len(companies),
