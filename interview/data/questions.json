@@ -10889,6 +10889,48 @@
     "runtime": null
   },
   {
+    "id": "community_5-0009",
+    "batch": "community_5",
+    "num": 9,
+    "title": "Pivot — Reshape an EAV Attributes Table into a Wide Employee View",
+    "slug": "pivot-eav-attributes-table-into-wide-employee-view",
+    "company": "Community",
+    "type": "SQL / Pivot",
+    "subtopic": "Conditional aggregation · MAX(CASE WHEN)",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "emp_attributes(emp_id, attr_name, attr_value)",
+    "scenario": "An HR audit feed lands in the warehouse as a long, key-value table — one row per (employee, attribute) pair, value stored as text. Reporting needs the same data in a wide format with one row per employee and one column per attribute, with the numeric attributes (years of experience, salary) cast back to integers. Missing attributes should appear as NULL, not silently swallowed.",
+    "question": "Reshape the `emp_attributes` (long / EAV) table into a WIDE result with one row per employee:\n\n  emp_id | full_name | department | years_exp | salary\n\nRequirements:\n  • One row per emp_id, even if the employee is missing some attributes.\n  • Cast `years_exp` and `salary` from TEXT to INTEGER.\n  • If an attribute is missing for an employee, the corresponding column must be NULL (don't drop the row).\n  • Sort by emp_id ascending.\n\nExpected output for the canonical test data (note the NULL salary for emp 403 — they're a recent hire whose payroll record hasn't synced yet):\n\n  emp_id | full_name      | department  | years_exp | salary\n  401    | Priya Iyer     | Engineering | 5         | 82000\n  402    | Marcus Chen    | Marketing   | 3         | 65000\n  403    | Sana Patel     | Engineering | 8         | NULL\n  404    | Diego Reyes    | Finance     | 2         | 58000",
+    "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — canonical test data baked in.                  │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS emp_attributes;\nCREATE TABLE emp_attributes (\n    emp_id     INTEGER NOT NULL,\n    attr_name  TEXT    NOT NULL,\n    attr_value TEXT\n);\nINSERT INTO emp_attributes VALUES\n  -- emp 401 — full record\n  (401, 'full_name',  'Priya Iyer'),\n  (401, 'department', 'Engineering'),\n  (401, 'years_exp',  '5'),\n  (401, 'salary',     '82000'),\n  -- emp 402 — full record\n  (402, 'full_name',  'Marcus Chen'),\n  (402, 'department', 'Marketing'),\n  (402, 'years_exp',  '3'),\n  (402, 'salary',     '65000'),\n  -- emp 403 — recent hire, salary not yet synced\n  (403, 'full_name',  'Sana Patel'),\n  (403, 'department', 'Engineering'),\n  (403, 'years_exp',  '8'),\n  -- emp 404 — full record\n  (404, 'full_name',  'Diego Reyes'),\n  (404, 'department', 'Finance'),\n  (404, 'years_exp',  '2'),\n  (404, 'salary',     '58000');\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 1 — Conditional aggregation (portable)          │\n-- │                                                          │\n-- │  Group by the row identifier (emp_id), then for each    │\n-- │  desired output column do MAX(CASE WHEN ...). MAX is    │\n-- │  the standard pivot aggregator: it skips NULLs from     │\n-- │  the non-matching CASE branches and returns the single  │\n-- │  matching value. Works in SQLite, Postgres, MySQL,      │\n-- │  Snowflake, BigQuery — every dialect.                   │\n-- ╰──────────────────────────────────────────────────────────╯\nSELECT\n  emp_id,\n  MAX(CASE WHEN attr_name = 'full_name'  THEN attr_value END) AS full_name,\n  MAX(CASE WHEN attr_name = 'department' THEN attr_value END) AS department,\n  CAST(MAX(CASE WHEN attr_name = 'years_exp' THEN attr_value END) AS INTEGER)\n      AS years_exp,\n  CAST(MAX(CASE WHEN attr_name = 'salary'    THEN attr_value END) AS INTEGER)\n      AS salary\nFROM emp_attributes\nGROUP BY emp_id\nORDER BY emp_id;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 2 — SQL Server / Snowflake PIVOT operator       │\n-- │  (commented; doesn't run in SQLite)                     │\n-- ╰──────────────────────────────────────────────────────────╯\n-- SELECT emp_id, full_name, department, years_exp, salary\n-- FROM emp_attributes\n-- PIVOT (\n--     MAX(attr_value)\n--     FOR attr_name IN (full_name, department, years_exp, salary)\n-- ) AS p\n-- ORDER BY emp_id;\n",
+    "source": {
+      "name": "user-supplied",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "community_5-0010",
+    "batch": "community_5",
+    "num": 10,
+    "title": "Unpivot — Reshape a Wide Grades Table into One Row per Subject",
+    "slug": "unpivot-wide-grades-table-into-one-row-per-subject",
+    "company": "Community",
+    "type": "SQL / Unpivot",
+    "subtopic": "Wide → long via UNION ALL",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "student_grades(student_id, student_name, math, science, english, history)",
+    "scenario": "Each student has one wide row in `student_grades` with their score in four subjects. The reporting team wants the data normalised — one row per (student, subject, grade) so the dashboards can pivot, filter and rank arbitrarily without column-name gymnastics.",
+    "question": "Unpivot the wide `student_grades` table into a LONG result with the columns:\n\n  student_id | student_name | subject | grade\n\nRequirements:\n  • Each input row becomes 4 output rows — one per subject (math, science, english, history).\n  • Preserve student_name on every output row.\n  • Sort by student_id ASC, then subject ASC.\n\nExpected output for the canonical test data — 4 students × 4 subjects = 16 rows. First 8 rows:\n\n  student_id | student_name    | subject | grade\n  501        | Aarav Krishnan  | english | 85\n  501        | Aarav Krishnan  | history | 70\n  501        | Aarav Krishnan  | math    | 78\n  501        | Aarav Krishnan  | science | 92\n  502        | Bianca Rossi    | english | 91\n  502        | Bianca Rossi    | history | 84\n  502        | Bianca Rossi    | math    | 88\n  502        | Bianca Rossi    | science | 75\n  …",
+    "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — canonical test data baked in.                  │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS student_grades;\nCREATE TABLE student_grades (\n    student_id   INTEGER PRIMARY KEY,\n    student_name TEXT    NOT NULL,\n    math    INTEGER,\n    science INTEGER,\n    english INTEGER,\n    history INTEGER\n);\nINSERT INTO student_grades VALUES\n  (501, 'Aarav Krishnan', 78, 92, 85, 70),\n  (502, 'Bianca Rossi',   88, 75, 91, 84),\n  (503, 'Chen Wei',       95, 98, 80, 88),\n  (504, 'Daria Petrova',  62, 70, 73, 65);\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 1 — UNION ALL (portable, runs everywhere)       │\n-- │                                                          │\n-- │  Emit one query per subject column, label each with the │\n-- │  subject name as a literal, UNION ALL them together.    │\n-- │  Trivial to extend if a new subject column is added.    │\n-- ╰──────────────────────────────────────────────────────────╯\nSELECT student_id, student_name, 'math'    AS subject, math    AS grade FROM student_grades\nUNION ALL\nSELECT student_id, student_name, 'science', science FROM student_grades\nUNION ALL\nSELECT student_id, student_name, 'english', english FROM student_grades\nUNION ALL\nSELECT student_id, student_name, 'history', history FROM student_grades\nORDER BY student_id, subject;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 2 — CROSS JOIN against a tiny inline subjects   │\n-- │  table (also portable, scales better when there are     │\n-- │  many subject columns)                                  │\n-- ╰──────────────────────────────────────────────────────────╯\n-- WITH subjects(subject) AS (\n--   VALUES ('math'), ('science'), ('english'), ('history')\n-- )\n-- SELECT g.student_id, g.student_name, s.subject,\n--        CASE s.subject\n--          WHEN 'math'    THEN g.math\n--          WHEN 'science' THEN g.science\n--          WHEN 'english' THEN g.english\n--          WHEN 'history' THEN g.history\n--        END AS grade\n-- FROM student_grades g CROSS JOIN subjects s\n-- ORDER BY g.student_id, s.subject;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 3 — SQL Server UNPIVOT operator                 │\n-- │  (commented; doesn't run in SQLite)                     │\n-- ╰──────────────────────────────────────────────────────────╯\n-- SELECT student_id, student_name, subject, grade\n-- FROM student_grades\n-- UNPIVOT ( grade FOR subject IN (math, science, english, history) ) AS u\n-- ORDER BY student_id, subject;\n",
+    "source": {
+      "name": "user-supplied",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
     "id": "community_solved-0001",
     "batch": "community_solved",
     "num": 1,
