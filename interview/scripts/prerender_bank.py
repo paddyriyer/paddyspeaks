@@ -92,7 +92,7 @@ def render_section(questions):
         '  <p class="qbpr-lede">'
         "Below is a static preview of the bank — handpicked questions from "
         f"{', '.join(POPULAR_COMPANIES[:8])} and {len(set(q.get('company') for q in questions if q.get('company')))} other companies. "
-        'Use the interactive widget above to filter all 710 questions, '
+        f'Use the interactive widget above to filter all {len(questions)} questions, '
         'save your set, and run answers in the in-browser playground.'
         "</p>"
     )
@@ -135,10 +135,15 @@ def render_section(questions):
     parts.append("</section>")
 
     # FAQ
+    total_q = len(questions)
+    n_companies = len({q.get("company") for q in questions if q.get("company")})
+    sql_q = sum(1 for q in questions if q.get("language") == "sql")
+    py_q = sum(1 for q in questions if q.get("language") == "python")
+
     faqs = [
         ("How many interview questions does the bank include?",
-         "The bank ships 710 hand-curated interview questions across SQL, Python, "
-         "Snowflake and Git, sourced from real interview rounds at 107 companies "
+         f"The bank ships {total_q} hand-curated interview questions across SQL, Python, "
+         f"Snowflake and Git, sourced from real interview rounds at {n_companies} companies "
          "including Google, Amazon, Meta, Apple, Atlassian and Anthropic."),
         ("Do I need an account to use the playgrounds?",
          "No. Both the SQL and Python playgrounds run entirely in your browser. "
@@ -154,11 +159,11 @@ def render_section(questions):
          "Your selections persist in localStorage and can be exported as JSON, "
          "Markdown or a printable PDF."),
         ("Are the SQL solutions guaranteed to run in SQLite?",
-         "312 of the 398 SQL solutions run as-is in the in-browser SQLite. "
-         "The other 86 use Snowflake- or PostgreSQL-only features (QUALIFY, "
-         "INTERVAL '7 days', regex functions, …) — those show a banner with the "
-         "specific token that's incompatible so you can read the reference and "
-         "run it in your target database."),
+         f"Most of the {sql_q} SQL solutions run as-is in the in-browser SQLite. "
+         "Those that use Snowflake- or PostgreSQL-only features (QUALIFY, "
+         "INTERVAL '7 days', regex functions, …) show a banner with the specific "
+         "incompatible token so you can read the reference and run it in your "
+         "target database."),
         ("How do I report a bad question or solution?",
          "Open an issue at github.com/paddyriyer/paddyspeaks. The dataset and "
          "every override are stored as plain JSON files under interview/data/, "
@@ -196,6 +201,20 @@ def render_section(questions):
 
 
 def main():
+    # Refresh hardcoded counts on every run so they never drift from the
+    # actual manifest. Soft-imported so prerender works even if the file
+    # ever moves.
+    try:
+        import importlib.util as _u
+        _spec = _u.spec_from_file_location(
+            "_uc", Path(__file__).with_name("update_counts.py")
+        )
+        _mod = _u.module_from_spec(_spec); _spec.loader.exec_module(_mod)
+        _mod.main()
+        print()
+    except Exception as e:
+        print(f"WARN: count refresh skipped — {e}")
+
     questions = json.loads(QUESTIONS.read_text())
     block = render_section(questions)
 
