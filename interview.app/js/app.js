@@ -207,7 +207,11 @@ async function renderFacets() {
     batchEl.appendChild(chip);
   }
 
-  state._companies = companies;
+  // Companies sort alphabetically (easier to find a specific one); types
+  // keep frequency order so the most common topics surface first.
+  state._companies = [...companies].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+  );
   state._types = topics.types;
 
   const renderCo = () => renderCheckboxFacet("#qb-company-facet", "companies", state._companies, "#qb-company-search");

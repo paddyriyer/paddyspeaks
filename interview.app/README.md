@@ -91,10 +91,44 @@ the same rows — your queries are reproducible.
 ## Tech
 
 - No build step. Plain ES modules, fetched directly by the browser.
-- [sql.js](https://github.com/sql-js/sql.js) 1.10.3 — SQLite in WebAssembly
+- [sql.js](https://github.com/sql-js/sql.js) 1.10.3 — SQLite in WebAssembly (vendored under `vendor/sql.js/`)
 - [Pyodide](https://pyodide.org) 0.26.4 — CPython 3.12 in WebAssembly
 - The PaddySpeaks design tokens from `style.css` (Playfair / Source Serif /
   JetBrains Mono).
+
+## SEO & discoverability
+
+Each page ships:
+
+- canonical `<link>`
+- Open Graph (`og:title`, `og:description`, `og:image`, `og:url`, …)
+- Twitter Card (`summary_large_image`)
+- `<meta name="robots" content="index, follow, max-image-preview:large">`
+- Inherits the site-wide `google-site-verification` token from the homepage
+- JSON-LD `WebApplication` schema, the bank also includes a `BreadcrumbList`
+
+The OG/Twitter share image is rendered by
+`interview/scripts/make_og_image.py` and saved to
+`images/og-interview-bank.png` (1200×630).
+
+The new URLs are listed in `sitemap.xml` and explicitly allowed in
+`robots.txt`.
+
+### Submitting to Google Search Console
+
+Site-level verification is already in place via the `google-site-verification`
+meta tag on `index.html` (and now repeated on every interview-app page for
+belt-and-braces). To make sure the new URLs are crawled quickly:
+
+1. Open <https://search.google.com/search-console> and pick the
+   `paddyspeaks.com` property.
+2. Sitemaps → submit `https://paddyspeaks.com/sitemap.xml` (already known —
+   resubmit so Google re-reads the new entries).
+3. URL Inspection → paste `https://paddyspeaks.com/interview.app/` and click
+   "Request Indexing". Repeat for `sql.html` and `python.html`.
+4. Performance → filter by URL containing `interview.app` to track impressions
+   and clicks once Google starts surfacing the pages (typically within a few
+   days).
 
 ## Privacy
 
