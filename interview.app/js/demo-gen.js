@@ -77,6 +77,60 @@ function pickSample(paramName) {
   return "1";
 }
 
+// Canonical inputs for well-known interview problems. Keyed by exact
+// function name so the demo matches the textbook example each candidate
+// has already seen — produces output that obviously demonstrates intent.
+const FUNC_CANONICAL = {
+  // Sliding-window / strings
+  minWindow:                  '"ADOBECODEBANC", "ABC"',          // → "BANC"
+  lengthOfLongestSubstring:   '"abcabcbb"',                       // → 3
+  characterReplacement:       '"AABABBA", 1',                     // → 4
+  checkInclusion:             '"ab", "eidbaooo"',                 // → True
+  isAnagram:                  '"anagram", "nagaram"',
+  longestPalindrome:          '"babad"',
+  isPalindrome:               '"A man, a plan, a canal: Panama"',
+  groupAnagrams:              '["eat","tea","tan","ate","nat","bat"]',
+  ladderLength:               '"hit", "cog", ["hot","dot","dog","lot","log","cog"]',
+  wordBreak:                  '"leetcode", ["leet","code"]',
+  // Two pointers / arrays
+  twoSum:                     '[2, 7, 11, 15], 9',                // → [0, 1]
+  threeSum:                   '[-1, 0, 1, 2, -1, -4]',
+  maxArea:                    '[1,8,6,2,5,4,8,3,7]',
+  trap:                       '[0,1,0,2,1,0,1,3,2,1,2,1]',
+  productExceptSelf:          '[1, 2, 3, 4]',
+  // `rotate` ambiguous across LeetCode (rotate-array vs rotate-image) — skip.
+  // Hash / counting
+  containsDuplicate:          '[1, 2, 3, 1]',
+  topKFrequent:               '[1,1,1,2,2,3], 2',
+  subarraySum:                '[1, 1, 1], 2',                     // → 2
+  longestConsecutive:         '[100, 4, 200, 1, 3, 2]',
+  // Binary search / sort
+  search:                     '[-1, 0, 3, 5, 9, 12], 9',
+  searchInsert:               '[1, 3, 5, 6], 5',
+  findMin:                    '[3, 4, 5, 1, 2]',
+  // Dynamic programming
+  climbStairs:                '5',
+  fib:                        '10',
+  coinChange:                 '[1, 2, 5], 11',
+  rob:                        '[2, 7, 9, 3, 1]',
+  maxProfit:                  '[7, 1, 5, 3, 6, 4]',
+  uniquePaths:                '3, 7',
+  longestCommonSubsequence:   '"abcde", "ace"',
+  // Trees / graphs (caller has to define a node type — skip if no class)
+  numIslands:                 '[["1","1","0","0","0"],["1","1","0","0","0"],["0","0","1","0","0"],["0","0","0","1","1"]]',
+  canFinish:                  '2, [[1, 0]]',
+  alienOrder:                 '["wrt","wrf","er","ett","rftt"]',  // → "wertf"
+  // Intervals
+  merge:                      '[[1,3],[2,6],[8,10],[15,18]]',
+  insert:                     '[[1,3],[6,9]], [2, 5]',
+  eraseOverlapIntervals:      '[[1,2],[2,3],[3,4],[1,3]]',
+  // Stacks / parsing
+  evalRPN:                    '["2", "1", "+", "3", "*"]',         // → 9
+  isValid:                    '"()[]{}"',
+  decodeString:               '"3[a2[c]]"',
+  // Linked list / others (skip — too involved)
+};
+
 // Returns parsed parameter names (no defaults, no *args/**kwargs).
 function splitParams(paramSig) {
   if (!paramSig.trim()) return [];
@@ -111,9 +165,15 @@ function lastMatch(re, src) {
 }
 
 function callFor(funcName, paramSig) {
-  const params = splitParams(paramSig);
-  const args = params.map(pickSample).join(", ");
-  return `print(${funcName}(${args}))`;
+  // Canonical textbook inputs win when we recognise the function name —
+  // those produce textbook output the candidate immediately recognises.
+  if (FUNC_CANONICAL[funcName]) {
+    return `print(${funcName}(${FUNC_CANONICAL[funcName]}))`;
+  }
+  // No canonical mapping: we'd be guessing inputs. A guess that happens to
+  // crash is worse for credibility than no demo at all, so return null and
+  // let the caller fall back to a hint.
+  return null;
 }
 
 function detectSpecialContext(src) {
@@ -145,17 +205,20 @@ export function generateDemo(src) {
     const funcName = funcM[1];
     const paramSig = funcM[2];
     if (special === "pyspark") {
-      return `\n\n# Demo:\n# pyspark isn't loaded in Pyodide. Read the related question's\n# inferred schema and try the equivalent in pandas, or run this code\n# locally inside a Spark notebook.\nprint("(pyspark — sample inputs not available in-browser)")\n`;
+      return `\n\n# ─── Demo ───\n# PySpark isn't available in Pyodide. Read the schema and run this\n# code locally inside a Spark notebook (or PaddySpeaks SQL playground\n# for SQL-equivalent versions).\nprint("PySpark required — solution shown for reference; not runnable in-browser.")\n`;
     }
     if (special === "pandas") {
-      // Just call with no args if signature is empty; otherwise warn.
       const params = splitParams(paramSig);
       if (!params.length) {
-        return `\n\n# Demo:\nprint(${funcName}())\n`;
+        return `\n\n# ─── Demo ───\n# Toggle '+pandas/numpy' above and re-run.\nprint(${funcName}())\n`;
       }
-      return `\n\n# Demo (uses pandas — toggle '+pandas/numpy' above first):\n# ${funcName}(${params.join(", ")})\n# Construct DataFrames yourself, e.g.\n#   df = pd.DataFrame({'a': [1,2,3]})\n#   ${funcName}(df)\n`;
+      return `\n\n# ─── Demo ───\n# Toggle '+pandas/numpy' above first. Construct an input, e.g.:\n#   df = pd.DataFrame({'a': [1, 2, 3]})\n#   ${funcName}(df)\n`;
     }
-    return `\n\n# ─── Demo (auto-generated) ───\n${callFor(funcName, paramSig)}\n`;
+    const call = callFor(funcName, paramSig);
+    if (call) return `\n\n# ─── Demo (auto-generated) ───\n${call}\n`;
+    // No canonical demo — show a clear hint instead of guessing args.
+    const ps = splitParams(paramSig).map((p) => `<${p}>`).join(", ") || "...";
+    return `\n\n# ─── Demo ───\n# Define inputs that match the question, then call:\n#   print(${funcName}(${ps}))\n`;
   }
 
   // No def/class — maybe top-level expression code that already runs.

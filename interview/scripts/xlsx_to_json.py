@@ -166,6 +166,62 @@ def main():
         if applied:
             print(f"Applied {applied} solution override(s) from {overrides_path.name}")
 
+    # Annotate runtime so the playground can show an upfront banner for
+    # solutions that need a non-bundled library or a non-SQLite dialect.
+    import re as _re
+    PYSPARK_RE = _re.compile(
+        r"^\s*(?:import\s+pyspark|from\s+pyspark)"
+        r"|\bSparkSession\b|\bspark\.(?:read|sql|createDataFrame)\b"
+        # Bare-DataFrame-method patterns (questions tagged 'Spark' / 'PySpark'
+        # often skip the import boilerplate and reference an in-scope `df`).
+        r"|\.repartition\s*\(|\.coalesce\s*\([^)]*\)\s*$|\.partitionBy\s*\("
+        r"|\.withColumnRenamed\s*\(|\.broadcast\s*\("
+        r"|\bF\.(?:col|lit|when|coalesce|sum|avg|count)\s*\(",
+        _re.M,
+    )
+    NEEDS_PANDAS_RE = _re.compile(
+        # Single-line or multi-name imports — `import sqlite3, pandas as pd` too.
+        r"(?:^|\W)(?:import|from)\s+[^\n#]*\b(?:pandas|numpy|pyarrow)\b",
+        _re.M,
+    )
+    THIRDPARTY_RE = _re.compile(
+        r"(?:^|\W)(?:import|from)\s+[^\n#]*\b(?:fastavro|sortedcontainers|bs4|beautifulsoup4|requests|pyarrow)\b",
+        _re.M,
+    )
+    SQL_NONLITE_RE = _re.compile(
+        r"\b(?:QUALIFY|ILIKE|IFF\(|MATCH_RECOGNIZE|MERGE\s+INTO|GROUPING\s+SETS"
+        r"|CUBE\(|ROLLUP\(|TO_CHAR\(|TO_DATE\(|SPLIT_PART\(|LISTAGG\("
+        r"|STRING_AGG\(|ARRAY_AGG\(|OBJECT_AGG\(|REGEXP_MATCHES\(|REGEXP_LIKE\("
+        r"|REGEXP_SUBSTR\(|REGEXP_REPLACE\(|GENERATE_SERIES\(|DATE_TRUNC\("
+        r"|DATE_PART\(|DATE_FORMAT\(|FROM_UNIXTIME\(|UNIX_TIMESTAMP\("
+        r"|UNNEST\(|FLATTEN\(|STDDEV\(|VARIANCE\(|PERCENTILE_(?:CONT|DISC)\("
+        r"|MEDIAN\(|SHA2\(|MD5\(|CONCAT_WS\(|STRING_TO_ARRAY\(|TRY_CAST\("
+        r"|NVL\(|EXTRACT\(|LEFT\(|RIGHT\(|LEAST\(|GREATEST\("
+        r"|CURRENT_DATE\s*\(|CURRENT_TIMESTAMP\s*\(|GETDATE\(|SYSDATE\(|NOW\("
+        r"|DAYOFWEEK\(|DAYOFMONTH\(|WEEKOFYEAR\(|ANY\("
+        r")|::\s*[A-Za-z]|INTERVAL\s+'[^']+'|DATE\s+'\d{4}-\d{2}-\d{2}'"
+        # PG/Snowflake `OFFSET n LIMIT m` order (SQLite needs LIMIT first)
+        r"|\bOFFSET\s+\d+\s+LIMIT\b",
+        _re.IGNORECASE,
+    )
+    for q in questions:
+        sol = q.get("solution") or ""
+        typ = (q.get("type") or "").lower()
+        rt = None
+        if q["language"] == "python":
+            if "spark" in typ or PYSPARK_RE.search(sol):
+                rt = "pyspark"
+            elif THIRDPARTY_RE.search(sol):
+                rt = "third-party"
+            elif NEEDS_PANDAS_RE.search(sol):
+                rt = "pandas"
+        elif q["language"] == "sql":
+            m = SQL_NONLITE_RE.search(sol)
+            if m:
+                rt = "non-sqlite"
+                q["dialect_token"] = m.group(0).strip()
+        q["runtime"] = rt
+
     # Facets
     companies = Counter(q["company"] for q in questions if q["company"])
     types = Counter(q["type"] for q in questions if q["type"])

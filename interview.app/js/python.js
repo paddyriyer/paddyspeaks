@@ -83,7 +83,14 @@ async function initPyodide() {
   setStatus("Ready · Python " + state.pyodide.runPython("import sys; sys.version.split()[0]"), "ok");
 }
 
-async function ensurePandas() {
+async function ensurePandas(autoFromCode = false) {
+  // Auto-detect: if user code imports pandas/numpy, flip the toggle on.
+  if (autoFromCode) {
+    const src = $("#pg-editor").value || "";
+    if (/^\s*(?:import\s+(?:pandas|numpy)|from\s+(?:pandas|numpy))/m.test(src)) {
+      $("#pg-load-pandas").checked = true;
+    }
+  }
   if (state.pandasLoaded || !$("#pg-load-pandas").checked) return;
   if (state.loadingPandas) return;
   state.loadingPandas = true;
@@ -101,6 +108,39 @@ async function ensurePandas() {
   }
 }
 
+// Detect what runtime extras a question's solution needs, based on its code.
+function detectRuntime(src) {
+  if (!src) return null;
+  if (/^\s*(?:import\s+pyspark|from\s+pyspark)/m.test(src) || /\bSparkSession\b|\bspark\.read\b|\bspark\.sql\(/m.test(src)) {
+    return "pyspark";
+  }
+  if (/^\s*(?:import\s+fastavro|import\s+sortedcontainers|from\s+(?:fastavro|sortedcontainers))/m.test(src)) {
+    return "third-party";
+  }
+  if (/^\s*(?:import\s+(?:pandas|numpy)|from\s+(?:pandas|numpy))/m.test(src)) {
+    return "pandas";
+  }
+  return null;
+}
+
+// Render a one-line warning above the output panel for runtime mismatches.
+function setRuntimeBanner(kind) {
+  const body = $("#pg-results-body");
+  if (kind === "pyspark") {
+    body.innerHTML =
+      '<div class="pg-empty">⚠ This solution uses PySpark, which isn\'t available in Pyodide. ' +
+      'It runs as reference only — try the SQL playground for an equivalent query, or run locally in a Spark notebook.</div>';
+    return true;
+  }
+  if (kind === "third-party") {
+    body.innerHTML =
+      '<div class="pg-empty">⚠ This solution imports a third-party library that isn\'t pre-loaded in Pyodide. ' +
+      'It may fail to run; the code is shown for reference.</div>';
+    return true;
+  }
+  return false;
+}
+
 // ─── Run user code ───
 async function runCode() {
   if (!state.ready) {
@@ -114,7 +154,16 @@ async function runCode() {
   }
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), src);
 
-  await ensurePandas();
+  // Auto-flip pandas toggle if the code imports it; warn for unsupported deps.
+  const rt = detectRuntime(src);
+  if (rt === "pyspark" || rt === "third-party") {
+    setRuntimeBanner(rt);
+    setStatus(rt === "pyspark"
+      ? "PySpark not available in Pyodide — solution runs locally only."
+      : "Solution requires a library not bundled with Pyodide.", "error");
+    return;
+  }
+  await ensurePandas(true);
 
   clearOutput();
   $("#pg-results-body").innerHTML = "";
@@ -216,6 +265,12 @@ function loadQuestion(qid /* , opts unused */) {
   const url = new URL(window.location);
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
+
+  // Up-front banner if the reference solution needs a runtime we can't
+  // supply. Trust the question's pre-computed `runtime` field first; fall
+  // back to live source-detection.
+  const rt = q.runtime || detectRuntime(q.solution || "");
+  setRuntimeBanner(rt);
 }
 
 function makeStarter(q) {
