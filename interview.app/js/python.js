@@ -97,7 +97,16 @@ async function ensurePandas(autoFromCode = false) {
   setStatus("Loading pandas + numpy (~10 MB)…");
   try {
     await state.pyodide.loadPackage(["numpy", "pandas"]);
-    await state.pyodide.runPythonAsync("import numpy as np\nimport pandas as pd");
+    // Silence the pyarrow DeprecationWarning pandas emits on first import —
+    // it's an FYI, not an error, and it would otherwise print as red text
+    // in the output panel for any solution that loads pandas.
+    await state.pyodide.runPythonAsync(
+      "import warnings\n" +
+      "warnings.filterwarnings('ignore', category=DeprecationWarning)\n" +
+      "warnings.filterwarnings('ignore', category=FutureWarning)\n" +
+      "import numpy as np\n" +
+      "import pandas as pd\n"
+    );
     state.pandasLoaded = true;
     setStatus("Ready · pandas + numpy loaded", "ok");
   } catch (e) {
@@ -109,15 +118,19 @@ async function ensurePandas(autoFromCode = false) {
 }
 
 // Detect what runtime extras a question's solution needs, based on its code.
+// Mirrors the Python-side detector in xlsx_to_json.py — keep them in sync.
 function detectRuntime(src) {
   if (!src) return null;
-  if (/^\s*(?:import\s+pyspark|from\s+pyspark)/m.test(src) || /\bSparkSession\b|\bspark\.read\b|\bspark\.sql\(/m.test(src)) {
-    return "pyspark";
-  }
-  if (/^\s*(?:import\s+fastavro|import\s+sortedcontainers|from\s+(?:fastavro|sortedcontainers))/m.test(src)) {
+  if (
+    /^\s*(?:import\s+pyspark|from\s+pyspark)/m.test(src) ||
+    /\bSparkSession\b|\bspark\.(?:read|sql|createDataFrame)\b/m.test(src) ||
+    /\.repartition\s*\(|\.partitionBy\s*\(|\.withColumnRenamed\s*\(|\.broadcast\s*\(/m.test(src) ||
+    /\bF\.(?:col|lit|when|coalesce|sum|avg|count)\s*\(/m.test(src)
+  ) return "pyspark";
+  if (/(?:^|\W)(?:import|from)\s+[^\n#]*\b(?:fastavro|sortedcontainers|bs4|beautifulsoup4|requests|pyarrow)\b/m.test(src)) {
     return "third-party";
   }
-  if (/^\s*(?:import\s+(?:pandas|numpy)|from\s+(?:pandas|numpy))/m.test(src)) {
+  if (/(?:^|\W)(?:import|from)\s+[^\n#]*\b(?:pandas|numpy)\b/m.test(src)) {
     return "pandas";
   }
   return null;
@@ -155,12 +168,15 @@ async function runCode() {
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), src);
 
   // Auto-flip pandas toggle if the code imports it; warn for unsupported deps.
-  const rt = detectRuntime(src);
+  // Trust the question's pre-computed runtime tag first (always accurate),
+  // fall back to live source detection (covers user-pasted code).
+  const rt = (state.currentQ && state.currentQ.runtime) || detectRuntime(src);
   if (rt === "pyspark" || rt === "third-party") {
     setRuntimeBanner(rt);
     setStatus(rt === "pyspark"
       ? "PySpark not available in Pyodide — solution runs locally only."
-      : "Solution requires a library not bundled with Pyodide.", "error");
+      : "Solution needs a library that isn't bundled with Pyodide. Code shown for reference.",
+      "error");
     return;
   }
   await ensurePandas(true);
