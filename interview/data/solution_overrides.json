@@ -29,6 +29,11 @@
     "reason": "source had only SQL-comment pseudocode; rewrote as runnable Python",
     "solution": "from collections import defaultdict\n\n# Three CSV-style sources to combine\nsrc_a = [{'region': 'NA',   'amount': 100}, {'region': 'NA',   'amount':  50}]\nsrc_b = [{'region': 'EMEA', 'amount':  75}, {'region': 'APAC', 'amount': 125}]\nsrc_c = [{'region': 'APAC', 'amount':  25}, {'region': 'NA',   'amount':  10}]\n\ntotals = defaultdict(float)\nfor row in (*src_a, *src_b, *src_c):\n    totals[row['region']] += row['amount']\n\nreport = sorted(totals.items(), key=lambda kv: -kv[1])\nfor region, total in report:\n    print(f'{region:6s} {total:8.2f}')\n"
   },
+  "mixed_167-0046": {
+    "reason": "qualified ambiguous 'category' (lives in both sales and products) with table aliases",
+    "solution": "SELECT category, product_id, revenue FROM (\n  SELECT p.category AS category, s.product_id, SUM(s.amount) AS revenue,\n    RANK() OVER (PARTITION BY p.category ORDER BY SUM(s.amount) DESC) AS rk\n  FROM sales s JOIN products p ON s.product_id = p.product_id\n  GROUP BY p.category, s.product_id\n) t WHERE rk <= 5;\n"
+  },
+
   "co_sql_305-0297": {
     "reason": "source had only SQL-comment pseudocode; rewrote as runnable Python (parquet replaced with sqlite-only demo since pyarrow may not be loaded)",
     "solution": "import sqlite3, json, datetime\n\ncon = sqlite3.connect(':memory:')\ncon.executescript(\"\"\"\nCREATE TABLE t (id INTEGER, payload TEXT, created_at TEXT);\nINSERT INTO t VALUES (1,'alpha','2025-01-01'), (2,'beta','2025-01-02');\n\"\"\")\n\nrows = con.execute('SELECT * FROM t').fetchall()\ncols = [d[0] for d in con.execute('SELECT * FROM t').description]\n\n# In production: df = pd.read_sql('SELECT * FROM t', con)\n#                df.to_parquet('out.parquet', engine='pyarrow', compression='snappy')\n# For an in-browser demo we serialize to a metadata-rich JSON envelope.\nenvelope = {\n    'schema': cols,\n    'row_count': len(rows),\n    'exported_at': datetime.datetime.utcnow().isoformat() + 'Z',\n    'rows': [dict(zip(cols, r)) for r in rows],\n}\nprint(json.dumps(envelope, indent=2))\n"

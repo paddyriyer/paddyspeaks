@@ -53,14 +53,25 @@ SQL_KEYWORDS = {
 }
 
 
-def is_real_column(token: str) -> bool:
+def is_real_column(token: str, *, allow_short: bool = False) -> bool:
+    """
+    A column candidate. Inside a structured schema like ``daily_sales(d,
+    region, amount)`` we accept short identifiers because the surrounding
+    parens make it clear they're columns, not table aliases. Outside that
+    context (e.g. when probing schema-text fragments) we still filter
+    1–2-letter tokens as likely aliases.
+    """
     t = token.strip()
     if not t:
         return False
+    # Strip a trailing SQL type annotation like 'amount NUMERIC' or
+    # 'price DECIMAL(10,2)'.
+    if " " in t:
+        t = t.split()[0]
     if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", t):
         return False
-    if len(t) <= 2 and "_" not in t:
-        return False  # likely alias
+    if not allow_short and len(t) <= 2 and "_" not in t:
+        return False
     return True
 
 
@@ -85,8 +96,14 @@ def parse_structured(schema: str):
         raw = [c.strip() for c in m.group(2).split(",")]
         cols = []
         for c in raw:
-            if is_real_column(c) and c not in cols:
-                cols.append(c)
+            # Inside a structured schema we trust short column names —
+            # `daily_sales(d, region, amount)` should keep `d` as a column.
+            if is_real_column(c, allow_short=True):
+                # Drop any trailing type annotation like ' NUMERIC' or
+                # ' DECIMAL(10,2)' that the source workbook sometimes adds.
+                name = c.split()[0]
+                if name not in cols:
+                    cols.append(name)
         if (table, tuple(cols)) in seen:
             continue
         seen.add((table, tuple(cols)))
@@ -150,19 +167,38 @@ def extract_bare_columns(sql: str, alias_cols: dict) -> set:
     cleaned = re.sub(r'"[^"]*"', "", cleaned)
     cleaned = re.sub(r"--.*", "", cleaned)
 
-    output_aliases = {m.group(1).lower() for m in ALIAS_AS_RE.finditer(cleaned)}
+    # Total occurrences of each token (case-insensitive). A name introduced
+    # by ``AS x`` is treated as a pure output alias only when it doesn't
+    # appear elsewhere — otherwise it's also a column reference, e.g.
+    # ``COALESCE(bonus, 0) AS bonus``.
+    occ = {}
+    for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", cleaned):
+        occ[m.group(1).lower()] = occ.get(m.group(1).lower(), 0) + 1
+
+    output_aliases = set()
+    for m in ALIAS_AS_RE.finditer(cleaned):
+        a = m.group(1).lower()
+        if occ.get(a, 0) <= 1:
+            output_aliases.add(a)
     captured_cols = {c.lower() for cs in alias_cols.values() for c in cs}
 
     candidates = set()
     for m in re.finditer(r"\b([A-Za-z_][A-Za-z0-9_]*)\b", cleaned):
         tok = m.group(1)
         low = tok.lower()
-        if low in SQL_KEYWORDS or low in SQL_FUNCS:
+        if low in SQL_KEYWORDS:
             continue
         if low in output_aliases:
             continue
         if len(tok) <= 1:
             continue
+        # SQL function names get filtered ONLY when used as a function call
+        # (i.e., immediately followed by `(`). `year` next to `(` is a
+        # function; `year` standalone is a column.
+        if low in SQL_FUNCS:
+            after = cleaned[m.end():m.end() + 8].lstrip()
+            if after.startswith("("):
+                continue
         # All-caps tokens longer than 2 chars are almost always SQL
         # keywords/functions we haven't enumerated, not column names.
         if tok.isupper() and len(tok) > 2 and "_" not in tok[1:]:
@@ -282,13 +318,20 @@ def parse_question(q: dict):
 
     # Decide whether to broadcast bare columns:
     # - structured tables already have explicit columns, leave them alone
-    # - but for bare tables (e.g. `sales_2024, sales_2025 (same shape)`) or
-    #   tables that came purely from the SQL solution, broadcasting helps.
+    # - but for bare tables (e.g. `sales_2024, sales_2025 (same shape)`),
+    #   single-table questions, or tables only known via the SQL solution,
+    #   broadcasting catches columns the schema text omitted (`order_date`,
+    #   `amount`, `bonus`, `year`, `ts`, …) so the synthetic table actually
+    #   has every column the reference solution touches.
     broadcast = None
+    distinct_tables = len({s["table"] for s in structured} | {s["table"] for s in bare_tables} | set(sql_tables))
     if not structured and (bare_tables or sql_tables):
         broadcast = bare_cols
     elif structured and bare_tables:
-        # Mix: only broadcast to bare tables, not the structured ones
+        broadcast = bare_cols
+    elif distinct_tables == 1 and bare_cols:
+        # Single-table query: any bare identifier almost certainly belongs
+        # to that one table.
         broadcast = bare_cols
 
     spec = merge_specs(structured, bare_tables, sql_tables, sql_cols, broadcast)

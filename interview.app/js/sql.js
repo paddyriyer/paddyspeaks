@@ -287,6 +287,19 @@ function loadQuestion(qid /* , opts unused */) {
     dropPreviousQuestionTables(qid);
     loadQuestionTables(qid);
   }
+
+  // Up-front dialect banner if the reference solution uses
+  // Snowflake/PostgreSQL features we can't run.
+  const body = $("#pg-results-body");
+  if (q.runtime === "non-sqlite") {
+    const tok = q.dialect_token ? ` <code>${q.dialect_token}</code>` : "";
+    body.innerHTML =
+      '<div class="pg-empty">⚠ Reference solution uses' + tok +
+      ' which is part of Snowflake / PostgreSQL but not the in-browser SQLite engine.<br>' +
+      'It runs as reference only — paste it into the matching production engine to execute.</div>';
+  } else {
+    body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
+  }
 }
 
 // Track which tables were created by which question so we can clean up.
@@ -347,6 +360,44 @@ function populateQuestionPicker() {
 }
 
 // ─── Run query ───
+// Tokens that mean "this query targets a different SQL dialect and won't
+// run in the in-browser SQLite". We surface a clear banner instead of the
+// cryptic 'near "..." : syntax error' the user would otherwise see.
+const NON_SQLITE_TOKENS = [
+  /\bQUALIFY\b/i, /\bILIKE\b/i, /\bIFF\s*\(/i, /\bMATCH_RECOGNIZE\b/i,
+  /\bMERGE\s+INTO\b/i, /\bGROUPING\s+SETS\b/i, /\bCUBE\s*\(/i, /\bROLLUP\s*\(/i,
+  /\bTO_CHAR\s*\(/i, /\bTO_DATE\s*\(/i, /\bSPLIT_PART\s*\(/i, /\bLISTAGG\s*\(/i,
+  /\bSTRING_AGG\s*\(/i, /\bARRAY_AGG\s*\(/i, /\bOBJECT_AGG\s*\(/i,
+  /\bREGEXP_MATCHES\s*\(/i, /\bREGEXP_LIKE\s*\(/i, /\bREGEXP_SUBSTR\s*\(/i,
+  /\bREGEXP_REPLACE\s*\(/i,
+  /\bGENERATE_SERIES\s*\(/i, /\bDATE_TRUNC\s*\(/i, /\bDATE_PART\s*\(/i,
+  /\bDATE_FORMAT\s*\(/i, /\bFROM_UNIXTIME\s*\(/i, /\bUNIX_TIMESTAMP\s*\(/i,
+  /\bUNNEST\s*\(/i, /\bFLATTEN\s*\(/i, /\bSTDDEV\s*\(/i, /\bVARIANCE\s*\(/i,
+  /\bPERCENTILE_(?:CONT|DISC)\s*\(/i, /\bMEDIAN\s*\(/i,
+  /\bSHA2\s*\(/i, /\bMD5\s*\(/i, /\bCONCAT_WS\s*\(/i, /\bSTRING_TO_ARRAY\s*\(/i,
+  /\bDAYOFWEEK\s*\(/i, /\bDAYOFMONTH\s*\(/i, /\bWEEKOFYEAR\s*\(/i,
+  /\bANY\s*\(/i, /\bTRY_CAST\s*\(/i, /\bNVL\s*\(/i,
+  /\bLEFT\s*\(/i, /\bRIGHT\s*\(/i, /\bLEAST\s*\(/i, /\bGREATEST\s*\(/i,
+  /\bCURRENT_DATE\s*\(/i, /\bCURRENT_TIMESTAMP\s*\(/i, /\bGETDATE\s*\(/i,
+  /\bSYSDATE\s*\(/i, /\bNOW\s*\(/i,
+  /\bINTERVAL\s+'[^']+'/i,                          // PG/Snowflake interval literals
+  /\bDATE\s+'\d{4}-\d{2}-\d{2}'/i,                  // ANSI date literal
+  /\bOFFSET\s+\d+\s+LIMIT\b/i,                      // PG/Snowflake order
+  /::\s*[A-Za-z]/,                                  // PG cast operator
+  /\bRETURNING\b/i,
+  // EXTRACT() exists in modern SQLite but the playground build doesn't
+  // include it; flag so users see a clear message rather than 'no such function'.
+  /\bEXTRACT\s*\(/i,
+];
+
+function detectNonSqlite(sql) {
+  for (const re of NON_SQLITE_TOKENS) {
+    const m = re.exec(sql);
+    if (m) return m[0];
+  }
+  return null;
+}
+
 function runQuery() {
   if (!state.engineReady) {
     setStatus("Still loading the SQL engine — try again in a moment.", "error");
@@ -355,6 +406,20 @@ function runQuery() {
   const sql = $("#pg-editor").value.trim();
   if (!sql) {
     setStatus("Editor is empty", "error");
+    return;
+  }
+  // Pre-flight: bail with a helpful message before we hit a cryptic
+  // SQLite parse error from a Snowflake-only / Postgres-only feature.
+  const incompat = detectNonSqlite(sql);
+  if (incompat) {
+    renderError({ message:
+      `This solution uses '${incompat}', which is part of Snowflake or PostgreSQL ` +
+      `but isn't supported by the in-browser SQLite engine.\n\n` +
+      `The reference solution is correct for its target dialect — read it as ` +
+      `you would on paper. To execute, paste it into the actual database ` +
+      `(Snowflake / Postgres) you'd use in production.`
+    });
+    setStatus(`Dialect: needs ${incompat} (not in SQLite)`, "error");
     return;
   }
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), sql);
