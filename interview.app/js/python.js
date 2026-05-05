@@ -6,7 +6,9 @@ import { generateDemo } from "./demo-gen.js";
 const DATA_BASE = "../interview/data";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const LS_LAST_Q = "pg.py.lastQ";
-const LS_EDITOR = "pg.py.editor";
+// Per-question editor key — switching questions no longer leaks the previous
+// question's solution into the editor.
+const LS_EDITOR = (qid) => `pg.py.editor.${qid || "default"}`;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -110,7 +112,7 @@ async function runCode() {
     setStatus("Editor is empty", "error");
     return;
   }
-  localStorage.setItem(LS_EDITOR, src);
+  if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), src);
 
   await ensurePandas();
 
@@ -184,7 +186,7 @@ for __k in list(globals().keys()):
 }
 
 // ─── Question picker ───
-function loadQuestion(qid, opts = {}) {
+function loadQuestion(qid /* , opts unused */) {
   const q = state.pyQuestions.find((x) => x.id === qid);
   if (!q) return;
   state.currentQ = q;
@@ -201,9 +203,13 @@ function loadQuestion(qid, opts = {}) {
   $("#pg-question-picker").value = qid;
   $("#pg-solution-pane").hidden = true;
 
-  if (opts.prefill) {
-    const stub = makeStarter(q);
-    $("#pg-editor").value = stub;
+  // Editor: restore this question's saved content, otherwise start with the
+  // generated stub. Keyed per question so switching no longer leaks code.
+  const savedForQ = localStorage.getItem(LS_EDITOR(qid));
+  if (savedForQ != null && savedForQ.trim()) {
+    $("#pg-editor").value = savedForQ;
+  } else {
+    $("#pg-editor").value = makeStarter(q);
   }
 
   localStorage.setItem(LS_LAST_Q, qid);
@@ -337,7 +343,7 @@ function wire() {
     }
   });
   $("#pg-editor").addEventListener("input", () => {
-    localStorage.setItem(LS_EDITOR, $("#pg-editor").value);
+    if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), $("#pg-editor").value);
   });
 }
 
@@ -360,13 +366,11 @@ async function init() {
   state.pyQuestions = all.filter((q) => q.language === "python");
   populatePicker();
 
-  const savedEditor = localStorage.getItem(LS_EDITOR);
-  if (savedEditor) $("#pg-editor").value = savedEditor;
-
   // Show the question UI immediately even before Pyodide is ready.
+  // Editor contents are restored per-question inside loadQuestion().
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.pyQuestions[0]?.id;
-  if (qid) loadQuestion(qid, { prefill: !savedEditor });
+  if (qid) loadQuestion(qid);
 
   await initPyodide();
 }
