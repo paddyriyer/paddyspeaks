@@ -128,5 +128,25 @@
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/214_binge%20streak.sql"
     }
+  },
+  {
+    "id": "community_5-0008",
+    "batch": "community_5",
+    "num": 8,
+    "title": "Peak Concurrent Viewers — Maximum Overlap on a Live Stream",
+    "slug": "peak-concurrent-viewers-maximum-overlap-on-a-live-stream",
+    "company": "Community",
+    "type": "SQL / Window functions",
+    "subtopic": "Sweep-line · UNION ALL · running sum",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "live_stream_viewers(user_id, start_time, end_time)",
+    "scenario": "A live-streaming product wants to know the peak concurrent audience for a stream — the largest number of viewers watching at the same instant. That peak number drives capacity planning, ad inventory, and the headline 'X million tuned in' marketing claim.",
+    "question": "Given a `live_stream_viewers` table where each row is one viewer's session (start_time, end_time), return the maximum number of viewers watching at the same time.\n\nThe canonical interview pattern is the SWEEP LINE: convert each session into two events (+1 at start, –1 at end), sort by time, and take the running sum. Ties are resolved so a start at time T counts BEFORE an end at the same T — i.e. an arrival at the exact second of someone's departure overlaps for that instant.\n\nExpected output for the canonical test data:\n  peak_concurrent_viewers\n  4\n\nReasoning: at 10:07 users 2, 3, 4, 5 are all on the stream simultaneously (user 5 joins exactly as user 3 leaves; the start counts first).",
+    "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — canonical test data baked in.                  │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS live_stream_viewers;\nCREATE TABLE live_stream_viewers (\n    user_id    INTEGER NOT NULL,\n    start_time TEXT    NOT NULL,\n    end_time   TEXT    NOT NULL\n);\nINSERT INTO live_stream_viewers VALUES\n  (1, '2099-01-19 10:00:00', '2099-01-19 10:05:00'),\n  (2, '2099-01-19 10:03:00', '2099-01-19 10:08:00'),\n  (3, '2099-01-19 10:04:00', '2099-01-19 10:07:00'),\n  (4, '2099-01-19 10:06:00', '2099-01-19 10:10:00'),\n  (5, '2099-01-19 10:07:00', '2099-01-19 10:09:00');\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  Sweep-line solution                                     │\n-- │                                                          │\n-- │  Step 1: explode each session into two timeline events  │\n-- │           +1 at start_time, -1 at end_time.             │\n-- │  Step 2: sort by (event_time ASC, indicator DESC) so    │\n-- │           +1 comes before -1 at ties (a viewer joining  │\n-- │           the same second another leaves overlaps for   │\n-- │           that instant).                                │\n-- │  Step 3: running SUM(indicator) is the live audience    │\n-- │           after each event. MAX of that is the peak.    │\n-- ╰──────────────────────────────────────────────────────────╯\nWITH event_log AS (\n    SELECT start_time AS event_time,  1 AS indicator FROM live_stream_viewers\n    UNION ALL\n    SELECT end_time   AS event_time, -1 AS indicator FROM live_stream_viewers\n),\nrunning_total AS (\n    SELECT\n        event_time,\n        SUM(indicator) OVER (ORDER BY event_time ASC, indicator DESC)\n            AS current_viewers\n    FROM event_log\n)\nSELECT MAX(current_viewers) AS peak_concurrent_viewers\nFROM running_total;\n\n-- Variant — to also see WHEN the peak was reached:\n--   SELECT event_time, current_viewers\n--   FROM running_total\n--   ORDER BY current_viewers DESC, event_time ASC\n--   LIMIT 1;\n",
+    "source": {
+      "name": "vishnu-t-r/sql_solved_questions",
+      "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/216_Peak%20Concurrent%20Viewers.sql"
+    }
   }
 ]
