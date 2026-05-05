@@ -1,6 +1,6 @@
 # Interview Question Bank
 
-A static web app that ships **710 real interview questions** from 107 companies
+A static web app that ships **817 real interview questions** from 108 companies
 across SQL, Python, Snowflake, and Git, plus in-browser **SQL** and **Python**
 playgrounds so you can try every question without leaving the page.
 
@@ -19,7 +19,7 @@ interview/                     ← data + scripts
 │   ├── xlsx_to_json.py        ← convert workbook → JSON (re-runnable)
 │   └── extract_schemas.py     ← parse "inferred schema" → per-question table specs
 ├── data/
-│   ├── questions.json         ← 710 unified question records
+│   ├── questions.json         ← 817 unified question records
 │   ├── companies.json         ← facets
 │   ├── topics.json
 │   ├── difficulties.json
