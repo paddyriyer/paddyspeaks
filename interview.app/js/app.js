@@ -89,22 +89,32 @@ async function loadData() {
 }
 
 // ─── Filtering ───
-function applyFilters() {
+// Returns true if a question passes every active filter EXCEPT the named one.
+// Used to cascade facet counts: when computing "what languages are available
+// given the user's current company / difficulty / type picks", we exclude
+// the languages filter itself — otherwise picking a language would shrink
+// its own facet to just that one item.
+function passesFiltersExcept(q, exceptKey) {
   const f = state.filters;
-  const needle = f.search.trim().toLowerCase();
-  state.filtered = state.questions.filter((q) => {
-    if (f.languages.size && !f.languages.has(q.language)) return false;
-    if (f.difficulties.size && !f.difficulties.has(q.difficulty)) return false;
-    if (f.batches.size && !f.batches.has(q.batch)) return false;
-    if (f.companies.size && !f.companies.has(q.company)) return false;
-    if (f.types.size && !f.types.has(q.type)) return false;
+  if (exceptKey !== "languages"    && f.languages.size    && !f.languages.has(q.language))       return false;
+  if (exceptKey !== "difficulties" && f.difficulties.size && !f.difficulties.has(q.difficulty)) return false;
+  if (exceptKey !== "batches"      && f.batches.size      && !f.batches.has(q.batch))            return false;
+  if (exceptKey !== "companies"    && f.companies.size    && !f.companies.has(q.company))        return false;
+  if (exceptKey !== "types"        && f.types.size        && !f.types.has(q.type))               return false;
+  if (exceptKey !== "search") {
+    const needle = f.search.trim().toLowerCase();
     if (needle) {
       const hay = [q.title, q.company, q.type, q.subtopic, q.schema, q.solution]
         .filter(Boolean).join(" ").toLowerCase();
       if (!hay.includes(needle)) return false;
     }
-    return true;
-  });
+  }
+  return true;
+}
+
+function applyFilters() {
+  // Pass null so all filters apply — this is the "real" filtered result set.
+  state.filtered = state.questions.filter((q) => passesFiltersExcept(q, null));
 
   const diffOrder = { Easy: 0, Medium: 1, Hard: 2 };
   if (state.sort === "title") state.filtered.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
@@ -115,7 +125,48 @@ function applyFilters() {
 
   state.page = 1;
   saveFilters();
+  refreshFacetCounts();
   renderResults();
+}
+
+// Walk the question set with all-but-one filter active and tally a field.
+// Returns Map<value, count>.
+function cascadedCounts(facetKey, fieldOf) {
+  const counts = new Map();
+  for (const q of state.questions) {
+    if (!passesFiltersExcept(q, facetKey)) continue;
+    const v = fieldOf(q);
+    if (v == null || v === "") continue;
+    counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  return counts;
+}
+
+// Update facet item counts based on the OTHER active filters. Items that
+// would yield zero results are dropped from the list (UX: don't tempt the
+// user with dead-end picks). A currently-selected item is always kept so
+// the user can deselect it.
+function withCascadedCounts(items, counts, activeSet) {
+  return items
+    .map((it) => ({ ...it, count: counts.get(it.name) || 0 }))
+    .filter((it) => it.count > 0 || activeSet.has(it.name));
+}
+
+function refreshFacetCounts() {
+  const f = state._facets;
+  if (!f) return;   // facets not loaded yet (initial render)
+
+  const langC  = cascadedCounts("languages",    (q) => q.language);
+  const diffC  = cascadedCounts("difficulties", (q) => q.difficulty);
+  const batchC = cascadedCounts("batches",      (q) => q.batch);
+  const coC    = cascadedCounts("companies",    (q) => q.company);
+  const tyC    = cascadedCounts("types",        (q) => q.type);
+
+  renderChipFacet ("#qb-lang-facet",    "languages",    withCascadedCounts(f.languages,    langC,  state.filters.languages));
+  renderChipFacet ("#qb-diff-facet",    "difficulties", withCascadedCounts(f.difficulties, diffC,  state.filters.difficulties));
+  renderBatchFacet(                                     withCascadedCounts(f.batches,      batchC, state.filters.batches));
+  renderCheckboxFacet("#qb-company-facet", "companies", withCascadedCounts(f.companies,    coC,    state.filters.companies), "#qb-company-search");
+  renderCheckboxFacet("#qb-type-facet",    "types",     withCascadedCounts(f.types,        tyC,    state.filters.types),     "#qb-type-search");
 }
 
 // ─── Render: facets ───
@@ -130,8 +181,7 @@ function renderChipFacet(containerSel, key, items) {
       onclick: () => {
         if (active.has(item.name)) active.delete(item.name);
         else active.add(item.name);
-        applyFilters();
-        renderChipFacet(containerSel, key, items);
+        applyFilters();   // applyFilters → refreshFacetCounts re-renders this facet with cascaded counts
       },
     });
     chip.append(
@@ -174,6 +224,30 @@ function renderCheckboxFacet(containerSel, key, items, searchSel) {
   }
 }
 
+// Custom render path for batches — they have a label distinct from their id,
+// so the standard chip renderer (which uses item.name as both filter key and
+// display text) doesn't fit. Extracted so refreshFacetCounts can reuse it.
+function renderBatchFacet(items) {
+  const batchEl = $("#qb-batch-facet");
+  batchEl.innerHTML = "";
+  const active = state.filters.batches;
+  for (const b of items) {
+    const chip = el("button", {
+      type: "button",
+      class: "qb-chip" + (active.has(b.name) ? " is-active" : ""),
+      title: b.name,
+      onclick: () => {
+        if (active.has(b.name)) active.delete(b.name); else active.add(b.name);
+        applyFilters();
+      },
+    },
+      document.createTextNode(b.label || b.name),
+      el("span", { class: "qb-chip-count" }, ` ${b.count}`)
+    );
+    batchEl.appendChild(chip);
+  }
+}
+
 async function renderFacets() {
   const [companies, topics, difficulties, languages] = await Promise.all([
     fetch(`${DATA_BASE}/companies.json`).then((r) => r.json()),
@@ -182,44 +256,40 @@ async function renderFacets() {
     fetch(`${DATA_BASE}/languages.json`).then((r) => r.json()),
   ]);
 
-  renderChipFacet("#qb-lang-facet", "languages", languages);
-  renderChipFacet("#qb-diff-facet", "difficulties", difficulties);
-
-  const batches = state.manifest.batches.map((b) => ({ name: b.id, count: b.count, label: b.label }));
-  // Render batches with custom labels
-  const batchEl = $("#qb-batch-facet");
-  batchEl.innerHTML = "";
-  for (const b of batches) {
-    const active = state.filters.batches;
-    const chip = el("button", {
-      type: "button",
-      class: "qb-chip" + (active.has(b.name) ? " is-active" : ""),
-      title: b.name,
-      onclick: () => {
-        if (active.has(b.name)) active.delete(b.name); else active.add(b.name);
-        chip.classList.toggle("is-active");
-        applyFilters();
-      },
-    },
-      document.createTextNode(b.label),
-      el("span", { class: "qb-chip-count" }, ` ${b.count}`)
-    );
-    batchEl.appendChild(chip);
-  }
-
   // Companies sort alphabetically (easier to find a specific one); types
   // keep frequency order so the most common topics surface first.
-  state._companies = [...companies].sort((a, b) =>
+  const companiesSorted = [...companies].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
   );
-  state._types = topics.types;
+  const batches = state.manifest.batches.map((b) =>
+    ({ name: b.id, count: b.count, label: b.label })
+  );
 
-  const renderCo = () => renderCheckboxFacet("#qb-company-facet", "companies", state._companies, "#qb-company-search");
-  const renderTy = () => renderCheckboxFacet("#qb-type-facet", "types", state._types, "#qb-type-search");
-  renderCo();
-  renderTy();
-  $("#qb-company-search").addEventListener("input", renderCo);
-  $("#qb-type-search").addEventListener("input", renderTy);
+  // Stash master lists so refreshFacetCounts can re-render any facet on
+  // demand with updated counts. Source-of-truth for what's selectable.
+  state._facets = {
+    languages,
+    difficulties,
+    batches,
+    companies: companiesSorted,
+    types: topics.types,
+  };
+
+  // Initial render uses the global counts shipped in the data files. The
+  // first applyFilters() call (kicked off from init) immediately refreshes
+  // these with cascaded counts.
+  renderChipFacet("#qb-lang-facet", "languages", languages);
+  renderChipFacet("#qb-diff-facet", "difficulties", difficulties);
+  renderBatchFacet(batches);
+  renderCheckboxFacet("#qb-company-facet", "companies", companiesSorted, "#qb-company-search");
+  renderCheckboxFacet("#qb-type-facet", "types", topics.types, "#qb-type-search");
+
+  // The two text-search boxes filter the visible options inside the
+  // company/type facets locally. They re-trigger refreshFacetCounts so
+  // the cascade logic still applies — typing a search just narrows the
+  // "what's visible" pass at the very end of that pipeline.
+  $("#qb-company-search").addEventListener("input", refreshFacetCounts);
+  $("#qb-type-search").addEventListener("input", refreshFacetCounts);
 }
 
 // ─── Render: results ───
@@ -436,7 +506,8 @@ function wire() {
     $("#qb-company-search").value = "";
     $("#qb-type-search").value = "";
     saveFilters();
-    init().catch(console.error);
+    // Cascaded counts re-render every facet — no need to re-fetch data files.
+    applyFilters();
   });
 
   $("#qb-set-clear").addEventListener("click", () => {
