@@ -14158,5 +14158,26 @@
       "url": ""
     },
     "runtime": null
+  },
+  {
+    "id": "customer_growth-0023",
+    "batch": "customer_growth",
+    "num": 23,
+    "title": "Consecutive-Day Activity Streaks With In-Stream Zero-Code Days",
+    "slug": "consecutive-day-activity-streaks-with-in-stream-zero-code-days",
+    "company": "Salesforce",
+    "type": "SQL / Window functions",
+    "subtopic": "Gaps-and-islands · zero-code passthrough · attributed-day count",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "user_activity_log(user_name, user_date, user_code)",
+    "scenario": "Marketing logs each customer's daily campaign-attribution code. user_code = 0 means the customer was active that day but the tracker couldn't tag the visit to a campaign (organic / direct traffic). The team wants the multi-day engagement bursts: stretches of consecutive calendar days the customer showed up AT ALL (whether or not the tracker fired) where at least two of those days produced an attributed code. The 'gap' between two streaks is a literal calendar-day gap — a missing day in the log. A zero-code day is in-stream and never breaks a streak.",
+    "question": "Given user_activity_log restricted to dates between 2014-09-01 and 2014-09-11, group rows into consecutive-day islands per user (any row, even user_code = 0, counts as 'in-stream'). For each island return:\n  user_name, start_date, end_date, result\nwhere:\n  • start_date = first calendar day in the island whose user_code <> 0\n  • end_date   = last calendar day in the island whose user_code <> 0\n  • result     = COUNT of days with user_code <> 0\n\nShow only islands with result ≥ 2. Sort by user_name ASC, start_date ASC.\n\nExpected on the canonical sample:\n  user_name | start_date | end_date   | result\n  user1     | 2014-09-01 | 2014-09-03 | 2\n  user1     | 2014-09-08 | 2014-09-11 | 3\n  user2     | 2014-09-04 | 2014-09-07 | 3",
+    "solution": "DROP TABLE IF EXISTS user_activity_log;\nCREATE TABLE user_activity_log (\n    user_name TEXT,\n    user_date TEXT,\n    user_code INTEGER\n);\n-- Canonical test data (mirrors the interview prompt exactly).\nINSERT INTO user_activity_log VALUES\n  ('user1','2014-08-31',232),\n  ('user1','2014-09-01',232),\n  ('user1','2014-09-02',  0),\n  ('user1','2014-09-03',121),\n  ('user1','2014-09-08',122),\n  ('user1','2014-09-09',  0),\n  ('user1','2014-09-10',144),\n  ('user1','2014-09-11',166),\n  ('user2','2014-09-01',177),\n  ('user2','2014-09-04',188),\n  ('user2','2014-09-05',199),\n  ('user2','2014-09-06',  0),\n  ('user2','2014-09-07',155);\n\n-- ── Gaps-and-islands on the activity-day grid ──────────────────\n-- Step 1: filter to the report window. The 08-31 row falls outside\n-- the [09-01, 09-11] range, so it doesn't contaminate the per-user\n-- ROW_NUMBER sequence used by the islands trick below.\n-- Step 2: classic value − ROW_NUMBER() islands. julianday(user_date)\n-- and ROW_NUMBER() both increase by exactly 1 in lock-step inside a\n-- contiguous-day run, so their difference is constant per island.\n-- Note that user_code = 0 rows ARE present in the stream — they\n-- silently slip into the surrounding island and don't break the\n-- ROW_NUMBER sequence. Only a calendar gap (a missing day) opens\n-- a new island.\n-- Step 3: per island, COUNT non-zero rows (the result) and the\n-- MIN / MAX dates among non-zero rows (the start / end the\n-- marketing team actually cares about).\nWITH filtered AS (\n    SELECT\n        user_name,\n        user_date,\n        user_code,\n        CAST(julianday(user_date) AS INTEGER) AS jd\n    FROM user_activity_log\n    WHERE user_date BETWEEN '2014-09-01' AND '2014-09-11'\n),\nindexed AS (\n    SELECT\n        user_name, user_date, user_code, jd,\n        jd - ROW_NUMBER() OVER (PARTITION BY user_name ORDER BY user_date)\n            AS island\n    FROM filtered\n),\nislands AS (\n    SELECT\n        user_name,\n        island,\n        MIN(CASE WHEN user_code <> 0 THEN user_date END)         AS start_date,\n        MAX(CASE WHEN user_code <> 0 THEN user_date END)         AS end_date,\n        SUM(CASE WHEN user_code <> 0 THEN 1 ELSE 0 END)          AS result\n    FROM indexed\n    GROUP BY user_name, island\n)\nSELECT user_name, start_date, end_date, result\nFROM islands\nWHERE result >= 2\nORDER BY user_name ASC, start_date ASC;\n",
+    "source": {
+      "name": "PaddySpeaks · Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
   }
 ]
