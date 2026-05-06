@@ -12918,6 +12918,385 @@
     "runtime": null
   },
   {
+    "id": "customer_growth-0001",
+    "batch": "customer_growth",
+    "num": 1,
+    "title": "RFM Tier Segmentation \u2014 Tier 1 (Top 10%), Tier 2, Tier 3 Repeat Customers",
+    "slug": "rfm-tier-segmentation-repeat-customers",
+    "company": "Shopify",
+    "type": "SQL / Window functions",
+    "subtopic": "RFM \u00b7 PERCENT_RANK \u00b7 Customer growth accounting",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount, status)",
+    "scenario": "An online store wants a tiered loyalty programme grounded in customer growth accounting. Each repeat customer is bucketed using the classic RFM trio (Recency, Frequency, Monetary). The business rule:\n  \u2022 Tier 1 = top 10 % by composite RFM score (the white-glove cohort)\n  \u2022 Tier 2 = next 15 % (high-value but not VIP)\n  \u2022 Tier 3 = the remainder of repeat customers\nOne-time buyers (frequency = 1) are excluded \u2014 they're handled by the first-purchase activation campaign, not the loyalty programme.",
+    "question": "From `orders` (only rows where `status = 'paid'`), compute per customer:\n  \u2022 recency_days  \u2014 days from last order to snapshot date 2025-04-01\n                    (lower = better)\n  \u2022 frequency     \u2014 lifetime paid order count (higher = better)\n  \u2022 monetary      \u2014 lifetime spend (higher = better)\n  \u2022 rfm_pct       \u2014 composite percentile rank in [0, 1] where 1.0 = best.\n                    Compute it as the average of three PERCENT_RANK()\n                    values \u2014 recency (DESC because lower days is better),\n                    frequency (ASC), and monetary (ASC).\n  \u2022 tier          \u2014 'Tier 1' if rfm_pct >= 0.90,\n                    'Tier 2' if rfm_pct >= 0.75,\n                    else 'Tier 3'\n\nExclude one-time customers (frequency = 1). Sort by tier ASC, rfm_pct DESC.",
+    "solution": "-- Setup \u2014 canonical orders table.\nDROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL,\n    status      TEXT    NOT NULL\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 frequent, recent, big spender (Tier 1 candidate)\n  (1,  1, '2024-11-10',  420.00, 'paid'),\n  (2,  1, '2025-01-15',  680.00, 'paid'),\n  (3,  1, '2025-02-20',  510.00, 'paid'),\n  (4,  1, '2025-03-30',  990.00, 'paid'),\n  -- C2 \u2014 moderate (Tier 2 candidate)\n  (5,  2, '2024-08-01',  150.00, 'paid'),\n  (6,  2, '2024-12-12',  240.00, 'paid'),\n  (7,  2, '2025-02-08',  300.00, 'paid'),\n  -- C3 \u2014 long lapsed but lots of orders (Tier 3 \u2014 low recency)\n  (8,  3, '2024-01-05',   70.00, 'paid'),\n  (9,  3, '2024-02-12',   85.00, 'paid'),\n  (10, 3, '2024-03-20',   95.00, 'paid'),\n  -- C4 \u2014 one-timer, EXCLUDED (frequency = 1)\n  (11, 4, '2025-03-01',  180.00, 'paid'),\n  -- C5 \u2014 small recent (Tier 3 \u2014 low frequency / low monetary)\n  (12, 5, '2025-02-15',   60.00, 'paid'),\n  (13, 5, '2025-03-15',   80.00, 'paid'),\n  -- C6 \u2014 refunded order, EXCLUDED at WHERE clause\n  (14, 6, '2025-03-30',  500.00, 'refunded');\n\n-- Solution \u2014 RFM with PERCENT_RANK, then top-10 / next-15 / rest split.\nWITH paid AS (\n    SELECT customer_id, order_date, amount\n    FROM orders\n    WHERE status = 'paid'\n),\nagg AS (\n    SELECT\n        customer_id,\n        CAST(julianday('2025-04-01') - julianday(MAX(order_date)) AS INTEGER)\n            AS recency_days,\n        COUNT(*)              AS frequency,\n        ROUND(SUM(amount), 2) AS monetary\n    FROM paid\n    GROUP BY customer_id\n    HAVING COUNT(*) > 1\n),\nscored AS (\n    SELECT *,\n        PERCENT_RANK() OVER (ORDER BY recency_days DESC) AS r_pct,\n        PERCENT_RANK() OVER (ORDER BY frequency    ASC)  AS f_pct,\n        PERCENT_RANK() OVER (ORDER BY monetary     ASC)  AS m_pct\n    FROM agg\n)\nSELECT\n    customer_id,\n    recency_days,\n    frequency,\n    monetary,\n    ROUND((r_pct + f_pct + m_pct) / 3.0, 3) AS rfm_pct,\n    CASE\n        WHEN (r_pct + f_pct + m_pct) / 3.0 >= 0.90 THEN 'Tier 1'\n        WHEN (r_pct + f_pct + m_pct) / 3.0 >= 0.75 THEN 'Tier 2'\n        ELSE 'Tier 3'\n    END AS tier\nFROM scored\nORDER BY tier ASC, rfm_pct DESC;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0002",
+    "batch": "customer_growth",
+    "num": 2,
+    "title": "Long-Standing Loyal Customers \u2014 Two-Year Active Streak",
+    "slug": "long-standing-loyal-customers-two-year-streak",
+    "company": "Etsy",
+    "type": "SQL / Aggregation",
+    "subtopic": "HAVING \u00b7 DISTINCT month count \u00b7 loyalty",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount)",
+    "scenario": "Marketing wants to identify long-standing customers \u2014 people who have been steadily shopping for at least two years AND placed orders in at least 12 distinct calendar months. These are the backbone of the store's revenue and the natural target of a 'thank-you' campaign.",
+    "question": "Return one row per qualifying customer with:\n  \u2022 customer_id\n  \u2022 first_order_date\n  \u2022 last_order_date\n  \u2022 months_active   \u2014 distinct YYYY-MM with at least one order\n  \u2022 lifetime_orders\n  \u2022 lifetime_spend\n\nQualifying rules:\n  \u2022 last_order_date - first_order_date >= 730 days (2 years), AND\n  \u2022 months_active >= 12\n\nSort by lifetime_spend DESC.",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 qualifies: 2022-01 \u2192 2024-06, 13 distinct months\n  (1, 1, '2022-01-15', 100), (2, 1, '2022-04-10', 80),\n  (3, 1, '2022-07-21', 60), (4, 1, '2022-10-05', 90),\n  (5, 1, '2023-02-12', 110), (6, 1, '2023-05-18', 130),\n  (7, 1, '2023-08-22', 120), (8, 1, '2023-11-30', 200),\n  (9, 1, '2024-01-05', 150), (10, 1, '2024-02-09', 90),\n  (11, 1, '2024-03-14', 60), (12, 1, '2024-05-20', 70),\n  (13, 1, '2024-06-25', 50),\n  -- C2 \u2014 long timespan but only 4 active months \u2192 fails\n  (14, 2, '2022-03-01', 50), (15, 2, '2023-04-01', 50),\n  (16, 2, '2024-05-01', 50), (17, 2, '2024-06-01', 50),\n  -- C3 \u2014 many months but only 8 months between first/last \u2192 fails\n  (18, 3, '2024-01-05', 80), (19, 3, '2024-02-09', 90),\n  (20, 3, '2024-03-14', 60), (21, 3, '2024-05-20', 70),\n  (22, 3, '2024-06-25', 50), (23, 3, '2024-07-25', 70),\n  (24, 3, '2024-08-25', 80);\n\nSELECT\n    customer_id,\n    MIN(order_date) AS first_order_date,\n    MAX(order_date) AS last_order_date,\n    COUNT(DISTINCT substr(order_date, 1, 7)) AS months_active,\n    COUNT(*)        AS lifetime_orders,\n    ROUND(SUM(amount), 2) AS lifetime_spend\nFROM orders\nGROUP BY customer_id\nHAVING (julianday(MAX(order_date)) - julianday(MIN(order_date))) >= 730\n   AND COUNT(DISTINCT substr(order_date, 1, 7)) >= 12\nORDER BY lifetime_spend DESC;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0003",
+    "batch": "customer_growth",
+    "num": 3,
+    "title": "Customer Growth Accounting \u2014 New, Resurrected, Existing, Churned",
+    "slug": "customer-growth-accounting-monthly",
+    "company": "Stripe",
+    "type": "SQL / Window functions",
+    "subtopic": "Growth accounting \u00b7 LAG \u00b7 self-join",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount)",
+    "scenario": "Customer growth accounting (Stripe / Jeff Sauro framework) decomposes every active customer in a given month into one of four buckets so the team can read the health of the business from a single table:\n  \u2022 New        \u2014 first ever order this month\n  \u2022 Resurrected \u2014 active this month, active in some prior month, but NOT last month\n  \u2022 Existing   \u2014 active this month AND active last month\n  \u2022 Churned    \u2014 NOT active this month, but active last month (counted negatively)\n\nThe Quick Ratio = (New + Resurrected) / Churned. > 1 means the store is growing.",
+    "question": "Produce one row per (year_month, bucket) with:\n  year_month  | bucket       | customers\nwhere bucket \u2208 ('new', 'resurrected', 'existing', 'churned'). Customers count is positive for new/resurrected/existing, and we report churned as a separate positive number (the consumer can negate it).",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  (1, 1, '2025-01-05', 100), (2, 1, '2025-02-08', 100),\n  (3, 1, '2025-03-12', 100),                          -- C1 New, Existing, Existing\n  (4, 2, '2025-01-20', 80),  (5, 2, '2025-03-15', 80), -- C2 New, [skip Feb], Resurrected in Mar\n  (6, 3, '2025-02-18', 50),                            -- C3 New in Feb, Churned in Mar\n  (7, 4, '2025-03-22', 200);                           -- C4 New in Mar\n\nWITH monthly AS (\n    SELECT DISTINCT customer_id, substr(order_date, 1, 7) AS ym\n    FROM orders\n),\nfirst_seen AS (\n    SELECT customer_id, MIN(ym) AS first_ym FROM monthly GROUP BY customer_id\n),\nlabeled AS (\n    SELECT\n        m.ym,\n        m.customer_id,\n        CASE\n            WHEN m.ym = fs.first_ym THEN 'new'\n            WHEN EXISTS (\n                SELECT 1 FROM monthly p\n                WHERE p.customer_id = m.customer_id\n                  AND p.ym = strftime('%Y-%m', date(m.ym || '-01', '-1 month'))\n            ) THEN 'existing'\n            ELSE 'resurrected'\n        END AS bucket\n    FROM monthly m\n    JOIN first_seen fs ON fs.customer_id = m.customer_id\n),\nactive_months AS (\n    SELECT DISTINCT ym FROM monthly\n),\nchurn AS (\n    SELECT\n        am.ym,\n        m.customer_id,\n        'churned' AS bucket\n    FROM active_months am\n    JOIN monthly m\n      ON m.ym = strftime('%Y-%m', date(am.ym || '-01', '-1 month'))\n    LEFT JOIN monthly cur\n      ON cur.customer_id = m.customer_id AND cur.ym = am.ym\n    WHERE cur.customer_id IS NULL\n)\nSELECT ym AS year_month, bucket, COUNT(DISTINCT customer_id) AS customers\nFROM (\n    SELECT ym, customer_id, bucket FROM labeled\n    UNION ALL\n    SELECT ym, customer_id, bucket FROM churn\n)\nGROUP BY ym, bucket\nORDER BY ym,\n    CASE bucket WHEN 'new' THEN 1 WHEN 'resurrected' THEN 2\n                WHEN 'existing' THEN 3 ELSE 4 END;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0004",
+    "batch": "customer_growth",
+    "num": 4,
+    "title": "Resurrected Customers \u2014 90-Day Gap Then a Brand-New Order",
+    "slug": "resurrected-customers-90-day-idle-then-active",
+    "company": "Booking.com",
+    "type": "SQL / Window functions",
+    "subtopic": "LAG \u00b7 gap detection \u00b7 resurrection",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount)",
+    "scenario": "A 'resurrected' customer (per the customer-growth-accounting framework) is one who had a gap of MORE than 90 days since their last order and then placed a new order. The single fresh order is enough to count them as resurrected \u2014 they're the natural target of a thank-you-for-coming-back coupon, ahead of any active or fully churned customer.",
+    "question": "Identify every resurrection event \u2014 a customer order whose immediately previous order is strictly MORE than 90 days earlier:\n\n  customer_id | idle_start | comeback_date | gap_days | comeback_amount\n\nReturn one row per such event (a customer with multiple resurrection cycles can appear multiple times). Sort by comeback_date ASC.",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 idle Jan\u2192May (124d) \u2192 RESURRECTED on 2024-05-13\n  (1, 1, '2024-01-10', 200), (2, 1, '2024-05-13', 220),\n  (3, 1, '2024-05-25', 180), (4, 1, '2024-06-04', 240),\n  -- C2 \u2014 single follow-up after a 134d gap \u2192 still RESURRECTED\n  (5, 2, '2024-02-01', 100), (6, 2, '2024-06-15', 110),\n  -- C3 \u2014 never idle \u2192 NOT resurrected\n  (7, 3, '2024-01-01', 90),  (8, 3, '2024-02-15', 90),\n  (9, 3, '2024-03-20', 90),\n  -- C4 \u2014 resurrected on 2024-08-10 after 191d gap; ALSO\n  -- another 90-day-exact gap on 2024-09-25 (boundary, NOT resurrected)\n  (10, 4, '2024-02-01', 50), (11, 4, '2024-08-10', 60),\n  (12, 4, '2024-08-30', 70), (13, 4, '2024-11-28', 90);\n\nWITH gaps AS (\n    SELECT\n        order_id, customer_id, order_date, amount,\n        LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)\n            AS prev_date\n    FROM orders\n)\nSELECT\n    customer_id,\n    prev_date AS idle_start,\n    order_date AS comeback_date,\n    CAST(julianday(order_date) - julianday(prev_date) AS INTEGER) AS gap_days,\n    amount AS comeback_amount\nFROM gaps\nWHERE prev_date IS NOT NULL\n  AND julianday(order_date) - julianday(prev_date) > 90\nORDER BY comeback_date;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0005",
+    "batch": "customer_growth",
+    "num": 5,
+    "title": "Fraud Signal \u2014 Return-to-Purchase Ratio Above 40 %",
+    "slug": "fraud-return-to-purchase-ratio-above-40-pct",
+    "company": "Walmart",
+    "type": "SQL / Aggregation",
+    "subtopic": "LEFT JOIN \u00b7 ratio \u00b7 return-to-purchase",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount, status), returns(return_id, order_id, return_date, refund_amount, reason)",
+    "scenario": "Risk-Ops uses a simple, hard rule for refund fraud screening: any customer whose Return-to-Purchase Ratio exceeds 40 % is automatically flagged for human review. Return-to-Purchase Ratio = returned_orders / total_orders. To rule out statistical noise the rule only applies to customers with at least 5 lifetime orders; smaller histories are labelled 'low_volume'. Analysts also want the refund-to-spend ratio shown alongside so they can see WHY the ratio is high.",
+    "question": "Per customer, return:\n  customer_id, total_orders, returned_orders, return_to_purchase_ratio,\n  total_spend, total_refunded, refund_to_spend_ratio, fraud_flag\n\nfraud_flag rule:\n  \u2022 'low_volume'      if total_orders < 5\n  \u2022 'high_return_rate' if return_to_purchase_ratio > 0.40\n  \u2022 else               'clean'\n\nOrder by return_to_purchase_ratio DESC, then customer_id ASC.",
+    "solution": "DROP TABLE IF EXISTS orders;\nDROP TABLE IF EXISTS returns;\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY,\n    customer_id INTEGER, order_date TEXT, amount REAL, status TEXT\n);\nCREATE TABLE returns (\n    return_id INTEGER PRIMARY KEY,\n    order_id INTEGER, return_date TEXT,\n    refund_amount REAL, reason TEXT\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 6 orders, 5 returned (0.83) \u2192 HIGH_RETURN_RATE\n  (1, 1, '2025-03-01', 100, 'paid'), (2, 1, '2025-03-04', 120, 'paid'),\n  (3, 1, '2025-03-08', 90, 'paid'),  (4, 1, '2025-03-11', 200, 'paid'),\n  (5, 1, '2025-03-15', 80, 'paid'),  (6, 1, '2025-03-18', 110, 'paid'),\n  -- C2 \u2014 5 orders, 2 returned (0.40 \u2014 boundary, NOT > 0.40) \u2192 CLEAN\n  (7, 2, '2025-03-01', 100, 'paid'), (8, 2, '2025-03-03', 200, 'paid'),\n  (9, 2, '2025-03-05', 800, 'paid'), (10, 2, '2025-03-07', 50, 'paid'),\n  (11, 2, '2025-03-09', 50, 'paid'),\n  -- C3 \u2014 5 orders, 0 returns \u2192 CLEAN\n  (12, 3, '2025-03-01', 100, 'paid'), (13, 3, '2025-03-03', 200, 'paid'),\n  (14, 3, '2025-03-05', 150, 'paid'), (15, 3, '2025-03-07', 50, 'paid'),\n  (16, 3, '2025-03-09', 50, 'paid'),\n  -- C4 \u2014 only 3 orders, \u2192 LOW_VOLUME (under min sample)\n  (17, 4, '2025-03-01', 100, 'paid'), (18, 4, '2025-03-03', 100, 'paid'),\n  (19, 4, '2025-03-05', 100, 'paid'),\n  -- C5 \u2014 5 orders, 3 returned (0.60) \u2192 HIGH_RETURN_RATE\n  (20, 5, '2025-03-01', 100, 'paid'), (21, 5, '2025-03-03', 100, 'paid'),\n  (22, 5, '2025-03-05', 100, 'paid'), (23, 5, '2025-03-07', 100, 'paid'),\n  (24, 5, '2025-03-09', 100, 'paid');\nINSERT INTO returns VALUES\n  (1, 1, '2025-03-05', 100, 'wrong size'), (2, 2, '2025-03-09', 120, 'damaged'),\n  (3, 3, '2025-03-12', 90, 'didn''t fit'), (4, 4, '2025-03-15', 200, 'changed mind'),\n  (5, 5, '2025-03-20', 80, 'wrong size'),\n  -- C2: 2 returns out of 5\n  (6, 7, '2025-03-08', 100, 'changed mind'), (7, 8, '2025-03-10', 200, 'damaged'),\n  -- C5: 3 returns out of 5\n  (8, 20, '2025-03-08', 100, 'wrong size'), (9, 21, '2025-03-10', 100, 'damaged'),\n  (10, 22, '2025-03-12', 100, 'changed mind');\n\nWITH per_customer AS (\n    SELECT\n        o.customer_id,\n        COUNT(DISTINCT o.order_id)        AS total_orders,\n        COUNT(DISTINCT r.order_id)        AS returned_orders,\n        SUM(o.amount)                     AS total_spend,\n        COALESCE(SUM(r.refund_amount), 0) AS total_refunded\n    FROM orders o\n    LEFT JOIN returns r ON r.order_id = o.order_id\n    GROUP BY o.customer_id\n)\nSELECT\n    customer_id,\n    total_orders,\n    returned_orders,\n    ROUND(1.0 * returned_orders / total_orders, 2) AS return_to_purchase_ratio,\n    total_spend,\n    total_refunded,\n    ROUND(total_refunded / total_spend, 2) AS refund_to_spend_ratio,\n    CASE\n      WHEN total_orders < 5 THEN 'low_volume'\n      WHEN 1.0 * returned_orders / total_orders > 0.40 THEN 'high_return_rate'\n      ELSE 'clean'\n    END AS fraud_flag\nFROM per_customer\nORDER BY return_to_purchase_ratio DESC, customer_id ASC;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0006",
+    "batch": "customer_growth",
+    "num": 6,
+    "title": "Fraud Signal \u2014 More Than 3 Shipping Addresses In a 30-Day Window",
+    "slug": "fraud-multiple-shipping-addresses-30d",
+    "company": "PayPal",
+    "type": "SQL / Window functions",
+    "subtopic": "self-join \u00b7 rolling 30-day window \u00b7 fraud",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_ts, amount, shipping_address)",
+    "scenario": "A common account-takeover or reshipping-mule fraud pattern is a single account shipping orders to many distinct physical addresses in a short timeframe. Risk wants a daily report of every customer who used MORE than 3 distinct shipping addresses inside any rolling 30-day window \u2014 a hard cutoff that goes straight to manual review.",
+    "question": "Return one row per offending customer:\n  customer_id | window_start | window_end | distinct_addresses | total_amount\n\nwhere the window is the first 30-day stretch in which the customer's distinct shipping-address count exceeds 3 (i.e. \u2265 4 distinct addresses). Order by distinct_addresses DESC, then by customer_id ASC.",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY, customer_id INTEGER,\n    order_ts TEXT, amount REAL, shipping_address TEXT\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 4 different addresses inside 18 days \u2192 FLAG\n  (1, 1, '2025-04-01 09:00:00', 200, '1 Pine St'),\n  (2, 1, '2025-04-05 12:30:00', 350, '7 Birch Ln'),\n  (3, 1, '2025-04-12 18:45:00', 180, '22 Cedar Rd'),\n  (4, 1, '2025-04-19 02:55:00', 410, '88 Elm Way'),\n  -- C2 \u2014 7 orders but only 1 address \u2192 NO flag\n  (5, 2, '2025-04-01 09:00:00', 150, '12 Oak Dr'),\n  (6, 2, '2025-04-05 14:00:00', 180, '12 Oak Dr'),\n  (7, 2, '2025-04-10 19:00:00', 220, '12 Oak Dr'),\n  (8, 2, '2025-04-15 09:00:00', 100, '12 Oak Dr'),\n  (9, 2, '2025-04-20 09:00:00', 100, '12 Oak Dr'),\n  -- C3 \u2014 4 addresses but spread > 30 days \u2192 NO flag\n  (10, 3, '2025-01-01 09:00:00', 120, '5 Maple Ct'),\n  (11, 3, '2025-02-15 14:00:00', 130, '9 Walnut Ave'),\n  (12, 3, '2025-04-04 19:00:00', 140, '11 Spruce Pl'),\n  (13, 3, '2025-05-30 19:00:00', 150, '13 Aspen Way'),\n  -- C4 \u2014 exactly 3 addresses within 30d \u2192 NO flag (boundary, > 3)\n  (14, 4, '2025-04-01 09:00:00', 90, 'A1'),\n  (15, 4, '2025-04-10 18:00:00', 90, 'A2'),\n  (16, 4, '2025-04-25 08:00:00', 90, 'A3'),\n  -- C5 \u2014 5 distinct addresses inside 25 days \u2192 FLAG (most extreme)\n  (17, 5, '2025-03-05 09:00:00', 50, 'X1'),\n  (18, 5, '2025-03-10 09:00:00', 50, 'X2'),\n  (19, 5, '2025-03-15 09:00:00', 50, 'X3'),\n  (20, 5, '2025-03-20 09:00:00', 50, 'X4'),\n  (21, 5, '2025-03-30 09:00:00', 50, 'X5');\n\nWITH paired AS (\n    SELECT\n        a.customer_id,\n        a.order_ts AS window_start,\n        b.order_ts AS later_ts,\n        b.amount,\n        b.shipping_address\n    FROM orders a\n    JOIN orders b\n      ON b.customer_id = a.customer_id\n     AND b.order_ts >= a.order_ts\n     AND julianday(b.order_ts) - julianday(a.order_ts) <= 30.0\n),\nagg AS (\n    SELECT\n        customer_id,\n        window_start,\n        MAX(later_ts) AS window_end,\n        COUNT(DISTINCT shipping_address) AS distinct_addresses,\n        SUM(amount) AS total_amount\n    FROM paired\n    GROUP BY customer_id, window_start\n    HAVING COUNT(DISTINCT shipping_address) > 3\n),\nranked AS (\n    SELECT *,\n        ROW_NUMBER() OVER (PARTITION BY customer_id\n                           ORDER BY distinct_addresses DESC,\n                                    window_start ASC) AS rn\n    FROM agg\n)\nSELECT customer_id, window_start, window_end,\n       distinct_addresses, total_amount\nFROM ranked\nWHERE rn = 1\nORDER BY distinct_addresses DESC, customer_id ASC;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0007",
+    "batch": "customer_growth",
+    "num": 7,
+    "title": "Passive Customers \u2014 Logged In Five+ Times But Never Purchased",
+    "slug": "passive-customers-logged-in-but-never-purchased",
+    "company": "Instacart",
+    "type": "SQL / Joins",
+    "subtopic": "LEFT JOIN \u00b7 IS NULL \u00b7 passive cohort",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "customers(customer_id, signup_date), sessions(session_id, customer_id, session_date, added_to_cart, checked_out), orders(order_id, customer_id, order_date, amount)",
+    "scenario": "Marketing wants to know about 'passive' customers \u2014 people who keep coming back to the site (5+ sessions) but never actually purchase, or who add items to cart but never check out. These are gold for a first-purchase incentive.",
+    "question": "Return three columns: customer_id, sessions, cart_adds.\nInclude only customers with sessions \u2265 5 AND zero orders.\nOrder by sessions DESC, cart_adds DESC.",
+    "solution": "DROP TABLE IF EXISTS customers;\nDROP TABLE IF EXISTS sessions;\nDROP TABLE IF EXISTS orders;\nCREATE TABLE customers (customer_id INTEGER PRIMARY KEY, signup_date TEXT);\nCREATE TABLE sessions (\n    session_id INTEGER PRIMARY KEY, customer_id INTEGER,\n    session_date TEXT, added_to_cart INTEGER, checked_out INTEGER\n);\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY, customer_id INTEGER,\n    order_date TEXT, amount REAL\n);\nINSERT INTO customers VALUES\n  (1,'2024-12-01'),(2,'2024-11-15'),(3,'2025-01-10'),(4,'2024-10-05');\nINSERT INTO sessions VALUES\n  -- C1 \u2014 7 sessions, 4 cart adds, never bought \u2192 PASSIVE\n  (1,1,'2025-03-01',1,0),(2,1,'2025-03-03',0,0),(3,1,'2025-03-05',1,0),\n  (4,1,'2025-03-09',0,0),(5,1,'2025-03-12',1,0),(6,1,'2025-03-19',1,0),\n  (7,1,'2025-03-25',0,0),\n  -- C2 \u2014 6 sessions but DID buy \u2192 NOT passive\n  (8,2,'2025-03-01',1,1),(9,2,'2025-03-03',0,0),(10,2,'2025-03-05',0,0),\n  (11,2,'2025-03-09',1,0),(12,2,'2025-03-12',1,0),(13,2,'2025-03-19',0,0),\n  -- C3 \u2014 only 3 sessions \u2192 EXCLUDED (sessions < 5)\n  (14,3,'2025-03-01',0,0),(15,3,'2025-03-03',0,0),(16,3,'2025-03-05',0,0),\n  -- C4 \u2014 5 sessions, 5 cart adds, never bought \u2192 PASSIVE (heavy abandoner)\n  (17,4,'2025-03-01',1,0),(18,4,'2025-03-03',1,0),(19,4,'2025-03-05',1,0),\n  (20,4,'2025-03-09',1,0),(21,4,'2025-03-12',1,0);\nINSERT INTO orders VALUES\n  (1, 2, '2025-03-01', 70);\n\nSELECT\n    c.customer_id,\n    COUNT(s.session_id) AS sessions,\n    SUM(s.added_to_cart) AS cart_adds\nFROM customers c\nJOIN sessions s ON s.customer_id = c.customer_id\nLEFT JOIN orders o ON o.customer_id = c.customer_id\nWHERE o.order_id IS NULL\nGROUP BY c.customer_id\nHAVING COUNT(s.session_id) >= 5\nORDER BY sessions DESC, cart_adds DESC;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0008",
+    "batch": "customer_growth",
+    "num": 8,
+    "title": "Customer Lifetime Value (CLV) \u2014 pandas",
+    "slug": "customer-lifetime-value-pandas",
+    "company": "Netflix",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 CLV \u00b7 cohort math",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\ndef customer_lifetime_value(orders: pd.DataFrame,\n                            gross_margin: float = 0.25,\n                            discount_rate: float = 0.10) -> pd.DataFrame:\n    \"\"\"\n    Compute the discounted Customer Lifetime Value per customer.\n\n    orders columns: customer_id, order_date (YYYY-MM-DD), amount, status.\n    Only 'paid' rows count. CLV = sum_t (margin_t / (1 + r) ** year_t)\n    where year_t is the calendar-year offset from the customer's\n    first paid order. Returns one row per customer with:\n      customer_id, first_order_date, last_order_date,\n      orders, total_spend, gross_margin, clv\n    \"\"\"\n    paid = orders[orders['status'] == 'paid'].copy()\n    paid['order_date'] = pd.to_datetime(paid['order_date'])\n    paid['margin'] = paid['amount'] * gross_margin\n    first = paid.groupby('customer_id')['order_date'].transform('min')\n    paid['year_offset'] = (paid['order_date'].dt.year - first.dt.year)\n    paid['discounted'] = paid['margin'] / (1 + discount_rate) ** paid['year_offset']\n\n    out = (\n        paid.groupby('customer_id')\n            .agg(first_order_date=('order_date', 'min'),\n                 last_order_date=('order_date', 'max'),\n                 orders=('amount', 'size'),\n                 total_spend=('amount', 'sum'),\n                 gross_margin=('margin', 'sum'),\n                 clv=('discounted', 'sum'))\n            .reset_index()\n    )\n    out['clv'] = out['clv'].round(2)\n    out['gross_margin'] = out['gross_margin'].round(2)\n    return out.sort_values('clv', ascending=False).reset_index(drop=True)\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0009",
+    "batch": "customer_growth",
+    "num": 9,
+    "title": "Unsteady Passive Customers \u2014 High Cart-Add, High Abandonment",
+    "slug": "unsteady-passive-cart-abandoners-pandas",
+    "company": "Amazon",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 groupby \u00b7 abandonment ratio",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\ndef unsteady_passive(events: pd.DataFrame, days: int = 30) -> pd.DataFrame:\n    \"\"\"\n    Find 'unsteady' passive customers \u2014 people who add a lot of items\n    to their cart but rarely complete the purchase. They are the back-\n    and-forth browsers that respond well to a free-shipping or first-\n    purchase coupon.\n\n    events columns: customer_id, event_ts (datetime), event_type\n      \u2208 {'view', 'add_to_cart', 'checkout', 'purchase'}.\n\n    Rules over the last `days` days:\n      \u2022 cart_adds       \u2014 count of 'add_to_cart' events\n      \u2022 checkouts       \u2014 count of 'checkout' events\n      \u2022 purchases       \u2014 count of 'purchase' events\n      \u2022 abandonment_rate = 1 - purchases / cart_adds  (0 if cart_adds = 0)\n      \u2022 label =\n          'unsteady'         if cart_adds >= 3 AND abandonment_rate >= 0.6\n          'window_shopper'   if cart_adds == 0 AND purchases == 0 (browses only)\n          'checkout_dropout' if checkouts > 0 AND purchases == 0\n          'buyer'            if purchases > 0\n          'browser'          otherwise\n\n    Returns sorted by abandonment_rate DESC, cart_adds DESC.\n    \"\"\"\n    events = events.copy()\n    events['event_ts'] = pd.to_datetime(events['event_ts'])\n    cutoff = events['event_ts'].max() - pd.Timedelta(days=days)\n    recent = events[events['event_ts'] >= cutoff]\n\n    pivot = (\n        recent.assign(n=1)\n              .pivot_table(index='customer_id', columns='event_type',\n                           values='n', aggfunc='sum', fill_value=0)\n              .reset_index()\n    )\n    for col in ('view', 'add_to_cart', 'checkout', 'purchase'):\n        if col not in pivot.columns:\n            pivot[col] = 0\n\n    pivot['abandonment_rate'] = (\n        1 - pivot['purchase'] / pivot['add_to_cart'].replace(0, pd.NA)\n    ).fillna(0).clip(lower=0).round(2)\n\n    def _label(r):\n        if r['add_to_cart'] >= 3 and r['abandonment_rate'] >= 0.6:\n            return 'unsteady'\n        if r['purchase'] > 0:\n            return 'buyer'\n        if r['checkout'] > 0:\n            return 'checkout_dropout'\n        if r['add_to_cart'] == 0 and r['purchase'] == 0:\n            return 'window_shopper'\n        return 'browser'\n    pivot['label'] = pivot.apply(_label, axis=1)\n    out = pivot.rename(columns={'add_to_cart': 'cart_adds',\n                                'checkout':    'checkouts',\n                                'purchase':    'purchases'})\n    return (out[['customer_id','cart_adds','checkouts','purchases',\n                 'abandonment_rate','label']]\n            .sort_values(['abandonment_rate','cart_adds'],\n                         ascending=[False, False])\n            .reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0010",
+    "batch": "customer_growth",
+    "num": 10,
+    "title": "Velocity-Rule Fraud Detection \u2014 Sliding Window in pandas",
+    "slug": "velocity-rule-fraud-detection-pandas",
+    "company": "Robinhood",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 rolling \u00b7 fraud detection",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\ndef velocity_alerts(orders: pd.DataFrame,\n                    window_minutes: int = 10,\n                    max_orders: int = 4,\n                    max_amount: float = 2_000.0) -> pd.DataFrame:\n    \"\"\"\n    Flag customers whose order rate breaks a velocity threshold.\n\n    orders columns: order_id, customer_id, order_ts, amount.\n\n    A customer fires an alert when, within any rolling\n    `window_minutes` window, they place more than `max_orders` orders\n    OR the total amount exceeds `max_amount`. The alert row is the\n    last order in the offending window.\n\n    Returns one row per first triggering window per customer:\n      customer_id | trigger_ts | orders_in_window | amount_in_window | rule\n    rule \u2208 {'too_many_orders', 'high_amount', 'both'}.\n    \"\"\"\n    df = orders.copy()\n    df['order_ts'] = pd.to_datetime(df['order_ts'])\n    df = df.sort_values(['customer_id', 'order_ts'])\n\n    pieces = []\n    win = pd.Timedelta(minutes=window_minutes)\n    for cust, g in df.groupby('customer_id'):\n        g = g.set_index('order_ts')\n        cnt = g['order_id'].rolling(win).count()\n        amt = g['amount'].rolling(win).sum()\n        bad = (cnt > max_orders) | (amt > max_amount)\n        if not bad.any():\n            continue\n        first_idx = bad.idxmax()\n        n = int(cnt.loc[first_idx])\n        a = float(amt.loc[first_idx])\n        if n > max_orders and a > max_amount:\n            rule = 'both'\n        elif n > max_orders:\n            rule = 'too_many_orders'\n        else:\n            rule = 'high_amount'\n        pieces.append({\n            'customer_id': cust,\n            'trigger_ts': first_idx,\n            'orders_in_window': n,\n            'amount_in_window': round(a, 2),\n            'rule': rule,\n        })\n    return (pd.DataFrame(pieces)\n              .sort_values('trigger_ts')\n              .reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0011",
+    "batch": "customer_growth",
+    "num": 11,
+    "title": "Quick Ratio of Customer Growth \u2014 Monthly Health Score",
+    "slug": "quick-ratio-customer-growth-numpy",
+    "company": "Airbnb",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 growth accounting \u00b7 Quick Ratio",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import numpy as np\nimport pandas as pd\n\ndef quick_ratio(monthly: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"\n    Compute the Quick Ratio of customer growth per month.\n\n    monthly columns: year_month (YYYY-MM), bucket, customers\n      bucket \u2208 {'new', 'resurrected', 'existing', 'churned'}\n    Quick Ratio = (new + resurrected) / churned. > 1 \u21d2 growing.\n\n    Returns one row per year_month with:\n      year_month | new | resurrected | existing | churned |\n      net_change | quick_ratio | health\n    health \u2208 {'growing', 'flat', 'declining'}.\n    \"\"\"\n    wide = monthly.pivot_table(index='year_month',\n                               columns='bucket',\n                               values='customers',\n                               aggfunc='sum',\n                               fill_value=0).reset_index()\n    for col in ('new', 'resurrected', 'existing', 'churned'):\n        if col not in wide.columns:\n            wide[col] = 0\n    wide['net_change'] = wide['new'] + wide['resurrected'] - wide['churned']\n    denom = wide['churned'].replace(0, np.nan)\n    wide['quick_ratio'] = ((wide['new'] + wide['resurrected']) / denom).round(2)\n    wide['quick_ratio'] = wide['quick_ratio'].fillna(np.inf)\n\n    def _health(r):\n        if r['churned'] == 0 and (r['new'] + r['resurrected']) > 0:\n            return 'growing'\n        if r['quick_ratio'] > 1.2:\n            return 'growing'\n        if r['quick_ratio'] < 0.8:\n            return 'declining'\n        return 'flat'\n    wide['health'] = wide.apply(_health, axis=1)\n    return (wide[['year_month','new','resurrected','existing',\n                  'churned','net_change','quick_ratio','health']]\n            .sort_values('year_month').reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0012",
+    "batch": "customer_growth",
+    "num": 12,
+    "title": "PyFlink Streaming \u2014 Tumbling-Window Order Velocity Fraud Detector",
+    "slug": "pyflink-tumbling-window-fraud-detector",
+    "company": "Stripe",
+    "type": "Programming / Python+1",
+    "subtopic": "Flink \u00b7 DataStream \u00b7 TumblingEventTimeWindows",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "# Flink streaming job \u2014 PyFlink 1.18+\n# Each event: ('order_id', 'customer_id', 'amount', 'event_ts_ms')\n# Emits a fraud alert whenever a customer places > 4 orders or spends\n# > 2_000.00 inside any 1-minute tumbling event-time window.\nfrom pyflink.common import Time, Types, WatermarkStrategy, Duration\nfrom pyflink.common.watermark_strategy import TimestampAssigner\nfrom pyflink.datastream import StreamExecutionEnvironment\nfrom pyflink.datastream.functions import ProcessWindowFunction\nfrom pyflink.datastream.window import TumblingEventTimeWindows\n\nclass _OrderTimestamp(TimestampAssigner):\n    def extract_timestamp(self, value, record_timestamp):\n        return int(value[3])\n\nclass VelocityAlert(ProcessWindowFunction):\n    def process(self, customer_id, ctx, elements):\n        rows = list(elements)\n        n = len(rows)\n        total = sum(r[2] for r in rows)\n        if n > 4 or total > 2_000.0:\n            rule = ('both' if n > 4 and total > 2_000.0\n                    else 'too_many_orders' if n > 4\n                    else 'high_amount')\n            yield (customer_id, ctx.window().start, n, float(total), rule)\n\ndef build_pipeline(env: StreamExecutionEnvironment, source):\n    \"\"\"Wire the fraud detector. `source` is any DataStream of order tuples.\"\"\"\n    watermarks = (\n        WatermarkStrategy\n        .for_bounded_out_of_orderness(Duration.of_seconds(5))\n        .with_timestamp_assigner(_OrderTimestamp())\n    )\n    alerts = (\n        source.assign_timestamps_and_watermarks(watermarks)\n              .key_by(lambda r: r[1])  # customer_id\n              .window(TumblingEventTimeWindows.of(Time.minutes(1)))\n              .process(VelocityAlert(),\n                       output_type=Types.TUPLE([\n                           Types.LONG(), Types.LONG(),\n                           Types.INT(),  Types.DOUBLE(),\n                           Types.STRING()]))\n    )\n    alerts.print('FRAUD_ALERT')\n    return alerts\n\nif __name__ == '__main__':\n    env = StreamExecutionEnvironment.get_execution_environment()\n    env.set_parallelism(2)\n    sample = env.from_collection(\n        collection=[\n            (1, 101, 600.0, 1_700_000_000_000),\n            (2, 101, 700.0, 1_700_000_010_000),\n            (3, 101, 800.0, 1_700_000_020_000),  # 3 orders, $2_100 \u2192 high_amount\n            (4, 102, 100.0, 1_700_000_030_000),\n        ],\n        type_info=Types.TUPLE([Types.LONG(), Types.LONG(),\n                                Types.DOUBLE(), Types.LONG()]))\n    build_pipeline(env, sample)\n    env.execute('velocity-fraud-detector')\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "third-party"
+  },
+  {
+    "id": "customer_growth-0013",
+    "batch": "customer_growth",
+    "num": 13,
+    "title": "PyFlink Streaming \u2014 Address-Change Followed By High-Value Order",
+    "slug": "pyflink-address-change-then-high-value-order",
+    "company": "Coinbase",
+    "type": "Programming / Python+1",
+    "subtopic": "Flink \u00b7 KeyedProcessFunction \u00b7 ValueState \u00b7 CEP",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "# A common account-takeover pattern: the attacker quietly updates the\n# shipping address, then within 30 minutes places an unusually large\n# order. We detect that two-step pattern with a KeyedProcessFunction\n# holding a tiny ValueState (last_address, address_changed_at).\nfrom pyflink.common import Types, WatermarkStrategy, Duration\nfrom pyflink.common.state import ValueStateDescriptor\nfrom pyflink.common.watermark_strategy import TimestampAssigner\nfrom pyflink.datastream import StreamExecutionEnvironment\nfrom pyflink.datastream.functions import KeyedProcessFunction\n\nHIGH_VALUE = 1_000.0\nWINDOW_MS = 30 * 60 * 1000  # 30 minutes\n\nclass _EventTs(TimestampAssigner):\n    def extract_timestamp(self, value, record_timestamp):\n        return int(value['ts'])\n\nclass AddressChangeThenBigOrder(KeyedProcessFunction):\n    \"\"\"State: (last_address, addr_changed_at).\"\"\"\n    def open(self, ctx):\n        self.state = ctx.get_state(\n            ValueStateDescriptor('addr_state', Types.PICKLED_BYTE_ARRAY()))\n\n    def process_element(self, ev, ctx):\n        st = self.state.value() or {'last_address': None, 'changed_at': None}\n        if ev['type'] == 'address_change':\n            if st['last_address'] and ev['address'] != st['last_address']:\n                st['changed_at'] = ev['ts']\n            st['last_address'] = ev['address']\n            self.state.update(st)\n        elif ev['type'] == 'order':\n            ca = st.get('changed_at')\n            if ca and (ev['ts'] - ca) <= WINDOW_MS and ev['amount'] >= HIGH_VALUE:\n                yield {\n                    'customer_id': ev['customer_id'],\n                    'order_id':    ev['order_id'],\n                    'amount':      ev['amount'],\n                    'gap_minutes': round((ev['ts'] - ca) / 60_000, 1),\n                    'reason':      'addr_change_then_high_value',\n                }\n\ndef build_pipeline(env: StreamExecutionEnvironment, source):\n    watermarks = (\n        WatermarkStrategy\n        .for_bounded_out_of_orderness(Duration.of_seconds(5))\n        .with_timestamp_assigner(_EventTs())\n    )\n    return (\n        source.assign_timestamps_and_watermarks(watermarks)\n              .key_by(lambda e: e['customer_id'])\n              .process(AddressChangeThenBigOrder(),\n                       output_type=Types.PICKLED_BYTE_ARRAY())\n    )\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "third-party"
+  },
+  {
+    "id": "customer_growth-0014",
+    "batch": "customer_growth",
+    "num": 14,
+    "title": "Tiered Re-engagement Coupon Allocator \u2014 Incentive Campaign",
+    "slug": "tiered-reengagement-coupon-allocator",
+    "company": "DoorDash",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 campaign \u00b7 incentives",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\nTIER_DISCOUNT = {'Tier 1': 0.20, 'Tier 2': 0.10, 'Tier 3': 0.05}\nSTATE_BUMP    = {'resurrected': 0.05, 'passive': 0.10, 'churned': 0.15}\nMAX_DISCOUNT  = 0.30\n\ndef allocate_coupons(customers: pd.DataFrame,\n                     fraud_excluded_ids: set | None = None) -> pd.DataFrame:\n    \"\"\"\n    Build the next coupon-drop list.\n\n    customers columns: customer_id, tier, lifecycle_state, last_spend\n      tier \u2208 {'Tier 1','Tier 2','Tier 3'}\n      lifecycle_state \u2208 {'active','resurrected','passive','churned'}\n\n    Rules:\n      \u2022 Base discount comes from tier (T1 20 %, T2 10 %, T3 5 %).\n      \u2022 Lifecycle state can ADD a bump (resurrected +5 %, passive +10 %,\n        churned +15 %; active = no bump).\n      \u2022 Total discount is capped at 30 %.\n      \u2022 Fraud-excluded customers get NO coupon (skipped from output).\n\n    Returns: customer_id | tier | lifecycle_state | discount_pct |\n             expected_redemption | suggested_coupon_code\n    \"\"\"\n    excl = fraud_excluded_ids or set()\n    df = customers[~customers['customer_id'].isin(excl)].copy()\n    df['discount_pct'] = (\n        df['tier'].map(TIER_DISCOUNT).fillna(0)\n        + df['lifecycle_state'].map(STATE_BUMP).fillna(0)\n    ).clip(upper=MAX_DISCOUNT)\n    df['expected_redemption'] = (df['last_spend'] * df['discount_pct']).round(2)\n    df['suggested_coupon_code'] = (\n        df['tier'].str.replace(' ', '').str.upper() + '-'\n        + df['lifecycle_state'].str.upper().str[:3] + '-'\n        + (df['discount_pct'] * 100).astype(int).astype(str) + 'OFF'\n    )\n    return (df[['customer_id','tier','lifecycle_state','discount_pct',\n                'expected_redemption','suggested_coupon_code']]\n            .sort_values('expected_redemption', ascending=False)\n            .reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0015",
+    "batch": "customer_growth",
+    "num": 15,
+    "title": "Fraud-Aware Incentive Exclusion List \u2014 Campaign Eligibility",
+    "slug": "fraud-aware-incentive-exclusion-list",
+    "company": "Visa",
+    "type": "SQL / Joins",
+    "subtopic": "EXCEPT \u00b7 campaign eligibility \u00b7 fraud guard",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "customers(customer_id, lifecycle_state, tier), fraud_signals(customer_id, signal_ts, signal_type, severity), campaigns(campaign_id, name, target_state, min_tier)",
+    "scenario": "Marketing wants to send a re-engagement campaign to lapsed Tier 1 / Tier 2 customers. Risk insists that anyone with a HIGH-severity fraud signal in the last 90 days must be hard-excluded, and anyone with a MEDIUM signal in the last 30 days needs manual review. Only LOW or no signals are auto-eligible.",
+    "question": "Given the campaign row whose name = 'win_back_q2_2025', return the eligible customer list with a status column:\n  customer_id | tier | lifecycle_state | status\nwhere status \u2208 {'eligible', 'manual_review'}.\nHard-excluded (HIGH signal in 90d) customers are NOT returned at all.\nFilter to customers whose tier ranks at or above the campaign's min_tier (Tier 1 outranks Tier 2 outranks Tier 3) and whose lifecycle_state matches the campaign's target_state.",
+    "solution": "DROP TABLE IF EXISTS customers;\nDROP TABLE IF EXISTS fraud_signals;\nDROP TABLE IF EXISTS campaigns;\nCREATE TABLE customers (\n    customer_id INTEGER PRIMARY KEY,\n    lifecycle_state TEXT, tier TEXT\n);\nCREATE TABLE fraud_signals (\n    customer_id INTEGER, signal_ts TEXT,\n    signal_type TEXT, severity TEXT\n);\nCREATE TABLE campaigns (\n    campaign_id INTEGER PRIMARY KEY,\n    name TEXT, target_state TEXT, min_tier TEXT\n);\nINSERT INTO customers VALUES\n  (1, 'churned', 'Tier 1'),\n  (2, 'churned', 'Tier 1'),  -- HIGH fraud \u2192 hard excluded\n  (3, 'churned', 'Tier 2'),  -- MEDIUM fraud 20d ago \u2192 manual_review\n  (4, 'churned', 'Tier 3'),  -- below min_tier \u2192 excluded\n  (5, 'active',  'Tier 1'),  -- not target state \u2192 excluded\n  (6, 'churned', 'Tier 2');  -- LOW fraud \u2192 eligible\nINSERT INTO fraud_signals VALUES\n  (2, '2025-03-01', 'address_change_burst', 'HIGH'),\n  (3, '2025-04-12', 'high_return_rate',     'MEDIUM'),\n  (6, '2024-12-01', 'velocity',             'LOW');\nINSERT INTO campaigns VALUES\n  (1, 'win_back_q2_2025', 'churned', 'Tier 2');\n\nWITH cmp AS (\n    SELECT * FROM campaigns WHERE name = 'win_back_q2_2025'\n),\ntier_rank(tier, rk) AS (\n    VALUES ('Tier 1', 1), ('Tier 2', 2), ('Tier 3', 3)\n),\nhard_excluded AS (\n    SELECT DISTINCT customer_id\n    FROM fraud_signals\n    WHERE severity = 'HIGH'\n      AND julianday('2025-05-01') - julianday(signal_ts) <= 90\n),\nneeds_review AS (\n    SELECT DISTINCT customer_id\n    FROM fraud_signals\n    WHERE severity = 'MEDIUM'\n      AND julianday('2025-05-01') - julianday(signal_ts) <= 30\n)\nSELECT\n    c.customer_id,\n    c.tier,\n    c.lifecycle_state,\n    CASE WHEN nr.customer_id IS NOT NULL THEN 'manual_review'\n         ELSE 'eligible' END AS status\nFROM customers c\nJOIN cmp ON c.lifecycle_state = cmp.target_state\nJOIN tier_rank tr_c ON tr_c.tier = c.tier\nJOIN tier_rank tr_m ON tr_m.tier = cmp.min_tier\nLEFT JOIN hard_excluded he ON he.customer_id = c.customer_id\nLEFT JOIN needs_review  nr ON nr.customer_id = c.customer_id\nWHERE he.customer_id IS NULL\n  AND tr_c.rk <= tr_m.rk\nORDER BY status, c.tier, c.customer_id;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0016",
+    "batch": "customer_growth",
+    "num": 16,
+    "title": "Per-Order Growth-Status Classifier \u2014 NEW, RESURRECTED, RETAINED_REPEAT",
+    "slug": "per-order-growth-status-classifier-new-resurrected-retained",
+    "company": "Stripe",
+    "type": "SQL / Window functions",
+    "subtopic": "LAG \u00b7 per-order classification \u00b7 growth accounting",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, amount)",
+    "scenario": "Per-order growth-status labelling is the workhorse of customer growth accounting. For every order in the warehouse we attach one of three labels:\n  \u2022 NEW              \u2014 customer's very first order\n  \u2022 RESURRECTED      \u2014 there is a previous order, but it was MORE than 90 days ago\n  \u2022 RETAINED_REPEAT  \u2014 there is a previous order within 90 days\nOnce labelled, every dashboard (monthly Quick Ratio, win-back queue, VIP funnel) is just a GROUP BY away.",
+    "question": "For the current month (orders on/after 2025-05-01), return:\n  growth_status | customer_count\nwhere customer_count is the number of DISTINCT customers contributing an order in that month with that label. If a customer contributes multiple orders in the same month with different labels, count them in EACH applicable label (e.g. a customer who places their first-ever order on 2025-05-02 and another on 2025-05-12 counts once as NEW and once as RETAINED_REPEAT). Order results NEW, RESURRECTED, RETAINED_REPEAT.",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY,\n    customer_id INTEGER, order_date TEXT, amount REAL\n);\nINSERT INTO orders VALUES\n  -- C1 \u2014 placed first ever order on 2025-05-02 \u2192 NEW; second on 2025-05-12 \u2192 RETAINED_REPEAT\n  (1, 1, '2025-05-02', 100), (2, 1, '2025-05-12', 80),\n  -- C2 \u2014 last order 2024-11-01 (185d gap) \u2192 RESURRECTED on 2025-05-05\n  (3, 2, '2024-11-01', 150), (4, 2, '2025-05-05', 200),\n  -- C3 \u2014 last order 2025-04-25 (12d gap) \u2192 RETAINED_REPEAT on 2025-05-07\n  (5, 3, '2025-04-25', 90), (6, 3, '2025-05-07', 110),\n  -- C4 \u2014 last order 2025-01-15 (gap < 90d on 2025-04-15) but did NOT order in May \u2192 not counted\n  (7, 4, '2025-01-15', 60), (8, 4, '2025-04-15', 70),\n  -- C5 \u2014 first order on 2025-05-20 \u2192 NEW\n  (9, 5, '2025-05-20', 300);\n\nWITH order_history AS (\n    SELECT\n        customer_id, order_date,\n        LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)\n            AS prev_order_date\n    FROM orders\n),\nlabeled AS (\n    SELECT\n        customer_id, order_date,\n        CASE\n            WHEN prev_order_date IS NULL THEN 'NEW'\n            WHEN julianday(order_date) - julianday(prev_order_date) > 90\n                THEN 'RESURRECTED'\n            ELSE 'RETAINED_REPEAT'\n        END AS growth_status\n    FROM order_history\n)\nSELECT\n    growth_status,\n    COUNT(DISTINCT customer_id) AS customer_count\nFROM labeled\nWHERE order_date >= '2025-05-01'\nGROUP BY growth_status\nORDER BY CASE growth_status\n    WHEN 'NEW' THEN 1 WHEN 'RESURRECTED' THEN 2 ELSE 3 END;\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": null
+  },
+  {
+    "id": "customer_growth-0017",
+    "batch": "customer_growth",
+    "num": 17,
+    "title": "Dynamic Customer Tiers via pd.qcut \u2014 Spend \u00d7 Frequency",
+    "slug": "dynamic-customer-tiers-pd-qcut",
+    "company": "Shopify",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 qcut \u00b7 tier classification",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\ndef calculate_tiers(customers: pd.DataFrame) -> pd.DataFrame:\n    \"\"\"\n    Bucket customers into Tier 1 / 2 / 3 by combining a spend tertile and\n    an order-count tertile (qcut \u2192 3 buckets). The tiers are *dynamic* \u2014\n    they re-anchor on the current snapshot's quantiles, so 'Tier 1' always\n    means 'top relative to the rest of the book' rather than a fixed cut.\n\n    customers columns: customer_id, total_spend, order_count.\n\n    Score convention: 1 = top tertile, 3 = bottom tertile. The combined\n    tier is `(spend_score + freq_score) // 2`, capped at 3:\n      \u2022 Tier 1 \u2192 top in both dimensions (combined \u2264 1)\n      \u2022 Tier 2 \u2192 middle\n      \u2022 Tier 3 \u2192 bottom in both\n\n    Returns: customer_id | spend_score | freq_score | tier.\n    \"\"\"\n    df = customers.copy()\n    df['spend_score'] = pd.qcut(df['total_spend'], 3,\n                                labels=[3, 2, 1], duplicates='drop')\n    df['freq_score']  = pd.qcut(df['order_count'], 3,\n                                labels=[3, 2, 1], duplicates='drop')\n    df['tier'] = (\n        (df['spend_score'].astype(int) + df['freq_score'].astype(int)) // 2\n    ).clip(lower=1, upper=3)\n    df['tier'] = 'Tier ' + df['tier'].astype(str)\n    return (df[['customer_id', 'spend_score', 'freq_score', 'tier']]\n            .sort_values(['tier', 'customer_id']).reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
+    "id": "customer_growth-0018",
+    "batch": "customer_growth",
+    "num": 18,
+    "title": "PyFlink Table API \u2014 Serial-Returner Detector with HOP Window",
+    "slug": "pyflink-serial-returner-hop-window",
+    "company": "Stripe",
+    "type": "Programming / Python+1",
+    "subtopic": "Flink \u00b7 Table API \u00b7 HOP \u00b7 sliding window",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "# PyFlink Table API job \u2014 flag accounts triggering > 3 RETURN_REQUESTED\n# events in any rolling 1-hour window (slide: 5 minutes). The pattern\n# is the standard 'serial returner' signature: refund-fraud rings\n# automate dozens of return submissions in a short burst.\nfrom pyflink.table import (\n    EnvironmentSettings, TableEnvironment, DataTypes\n)\n\ndef build_pipeline(t_env: TableEnvironment) -> str:\n    \"\"\"Register a Kafka source + alert sink and return the alert query.\n    Caller is responsible for `t_env.execute_sql(...)` against the result.\n    \"\"\"\n    t_env.execute_sql(\"\"\"\n      CREATE TABLE stream_events (\n        event_id     STRING,\n        user_id      BIGINT,\n        event_type   STRING,\n        proctime AS PROCTIME()\n      ) WITH (\n        'connector' = 'kafka',\n        'topic'     = 'orders.events',\n        'properties.bootstrap.servers' = 'kafka:9092',\n        'format'    = 'json',\n        'scan.startup.mode' = 'latest-offset'\n      )\n    \"\"\")\n    t_env.execute_sql(\"\"\"\n      CREATE TABLE serial_returner_alerts (\n        user_id      BIGINT,\n        window_start TIMESTAMP(3),\n        window_end   TIMESTAMP(3),\n        return_count BIGINT,\n        PRIMARY KEY (user_id, window_start) NOT ENFORCED\n      ) WITH (\n        'connector' = 'jdbc',\n        'url'       = 'jdbc:postgresql://risk-db:5432/fraud',\n        'table-name'= 'serial_returner_alerts'\n      )\n    \"\"\")\n    return \"\"\"\n      INSERT INTO serial_returner_alerts\n      SELECT\n        user_id,\n        HOP_START(proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR)\n          AS window_start,\n        HOP_END  (proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR)\n          AS window_end,\n        COUNT(event_id) AS return_count\n      FROM stream_events\n      WHERE event_type = 'RETURN_REQUESTED'\n      GROUP BY user_id,\n        HOP(proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR)\n      HAVING COUNT(event_id) > 3\n    \"\"\"\n\nif __name__ == '__main__':\n    settings = EnvironmentSettings.in_streaming_mode()\n    env = TableEnvironment.create(settings)\n    sql = build_pipeline(env)\n    env.execute_sql(sql).wait()\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "third-party"
+  },
+  {
+    "id": "customer_growth-0019",
+    "batch": "customer_growth",
+    "num": 19,
+    "title": "Passive Customers \u2014 High-Intent vs Bored Clickstream Classifier",
+    "slug": "passive-high-intent-vs-bored-clickstream",
+    "company": "Pinterest",
+    "type": "Python",
+    "subtopic": "DataFrame \u00b7 clickstream \u00b7 intent scoring",
+    "difficulty": "Hard",
+    "language": "python",
+    "schema": null,
+    "solution": "import pandas as pd\n\ndef passive_intent(events: pd.DataFrame, days: int = 30) -> pd.DataFrame:\n    \"\"\"\n    Among passive customers (no purchase in `days`), separate the\n    'high-intent' shoppers from the 'bored' browsers using clickstream\n    signals \u2014 the same telemetry we already have, just read against\n    different weights.\n\n    events columns: customer_id, event_ts (datetime), event_type, product_id\n      event_type \u2208 {'view', 'detail_view', 'add_to_cart',\n                    'wishlist_add', 'review_read', 'price_check',\n                    'checkout', 'purchase'}.\n\n    Intent score weights:\n        view             = 0.1   wishlist_add = 1.5\n        detail_view      = 0.3   price_check  = 1.5\n        review_read      = 0.5   add_to_cart  = 2.0\n        checkout         = 4.0   purchase     = excludes from cohort\n\n    Bonus: +1.0 if the customer revisited the same product_id \u2265 3\n    times (signal of deliberation).\n\n    Label rules:\n        \u2022 'high_intent' if intent_score >= 5.0\n        \u2022 'considering' if 2.0 <= intent_score < 5.0\n        \u2022 'bored'       if intent_score < 2.0\n\n    Output columns:\n        customer_id | sessions | unique_products | revisits |\n        intent_score | label\n    Sorted by intent_score DESC.\n    \"\"\"\n    weights = {\n        'view': 0.1, 'detail_view': 0.3, 'review_read': 0.5,\n        'wishlist_add': 1.5, 'price_check': 1.5,\n        'add_to_cart': 2.0, 'checkout': 4.0,\n    }\n    df = events.copy()\n    df['event_ts'] = pd.to_datetime(df['event_ts'])\n    cutoff = df['event_ts'].max() - pd.Timedelta(days=days)\n    recent = df[df['event_ts'] >= cutoff]\n\n    # Drop any customer who actually purchased \u2014 they're not passive.\n    buyers = set(recent.loc[recent['event_type'] == 'purchase',\n                            'customer_id'].unique())\n    passive = recent[~recent['customer_id'].isin(buyers)].copy()\n    passive['weight'] = passive['event_type'].map(weights).fillna(0)\n\n    base = (passive.groupby('customer_id')\n                   .agg(sessions=('event_ts', 'nunique'),\n                        unique_products=('product_id', 'nunique'),\n                        intent_score=('weight', 'sum'))\n                   .reset_index())\n\n    revisits = (passive.groupby(['customer_id', 'product_id']).size()\n                       .reset_index(name='hits'))\n    revisit_n = (revisits[revisits['hits'] >= 3]\n                 .groupby('customer_id').size()\n                 .reset_index(name='revisits'))\n    out = base.merge(revisit_n, on='customer_id', how='left')\n    out['revisits'] = out['revisits'].fillna(0).astype(int)\n    out['intent_score'] = (out['intent_score']\n                           + (out['revisits'] > 0).astype(int) * 1.0).round(2)\n\n    def _label(s):\n        if s >= 5.0: return 'high_intent'\n        if s >= 2.0: return 'considering'\n        return 'bored'\n    out['label'] = out['intent_score'].apply(_label)\n    return (out[['customer_id','sessions','unique_products',\n                 'revisits','intent_score','label']]\n            .sort_values('intent_score', ascending=False)\n            .reset_index(drop=True))\n",
+    "source": {
+      "name": "PaddySpeaks \u00b7 Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "pandas"
+  },
+  {
     "id": "practical_40-0001",
     "batch": "practical_40",
     "num": 1,
