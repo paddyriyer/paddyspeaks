@@ -300,17 +300,42 @@ function loadQuestion(qid /* , opts unused */) {
   }
 
   // Up-front dialect banner if the reference solution uses
-  // Snowflake/PostgreSQL features we can't run.
+  // Snowflake/PostgreSQL features we can't run. Show the canonical
+  // MySQL/PostgreSQL/Snowflake solution inline so the reader doesn't have
+  // to hunt for the "Show solution" button — the code is the answer.
   const body = $("#pg-results-body");
   if (q.runtime === "non-sqlite") {
-    const tok = q.dialect_token ? ` <code>${q.dialect_token}</code>` : "";
-    body.innerHTML =
-      '<div class="pg-empty">⚠ Reference solution uses' + tok +
-      ' which is part of Snowflake / PostgreSQL but not the in-browser SQLite engine.<br>' +
-      'It runs as reference only — paste it into the matching production engine to execute.</div>';
+    body.innerHTML = renderDialectReference(q);
   } else {
     body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
   }
+}
+
+// Build the inline dialect-reference block shown in the results pane for
+// questions whose canonical solution targets MySQL / PostgreSQL / Snowflake.
+// We display the actual SQL code (not just a warning) so the reader can read
+// and learn from the canonical solution even though it can't execute here.
+function renderDialectReference(q) {
+  const tok = q.dialect_token
+    ? ` (<code>${escapeHtml(q.dialect_token)}</code>)`
+    : "";
+  const code = (q.solution || "").trim();
+  const codeBlock = code
+    ? `<pre class="pg-dialect-code"><code>${escapeHtml(code)}</code></pre>`
+    : '<div class="pg-dialect-empty">No reference solution shipped with this question.</div>';
+  return (
+    '<div class="pg-dialect-ref">' +
+      '<div class="pg-dialect-banner">' +
+        '<strong>Reference solution — MySQL / PostgreSQL / Snowflake dialect</strong>' + tok +
+        '<div class="pg-dialect-note">' +
+          'This is the canonical answer most interviewers expect. ' +
+          'It uses syntax that the in-browser SQLite engine does not support, ' +
+          'so it will not run here — copy it into MySQL, PostgreSQL, or Snowflake to execute.' +
+        '</div>' +
+      '</div>' +
+      codeBlock +
+    '</div>'
+  );
 }
 
 // Track which tables were created by which question so we can clean up.
@@ -420,17 +445,24 @@ function runQuery() {
     return;
   }
   // Pre-flight: bail with a helpful message before we hit a cryptic
-  // SQLite parse error from a Snowflake-only / Postgres-only feature.
+  // SQLite parse error from a MySQL/Postgres/Snowflake-only feature. We
+  // re-render the canonical reference (banner + code) for the active
+  // question so the reader sees what the answer actually looks like —
+  // that's the value, even when it can't execute here.
   const incompat = detectNonSqlite(sql);
   if (incompat) {
-    renderError({ message:
-      `This solution uses '${incompat}', which is part of Snowflake or PostgreSQL ` +
-      `but isn't supported by the in-browser SQLite engine.\n\n` +
-      `The reference solution is correct for its target dialect — read it as ` +
-      `you would on paper. To execute, paste it into the actual database ` +
-      `(Snowflake / Postgres) you'd use in production.`
-    });
-    setStatus(`Dialect: needs ${incompat} (not in SQLite)`, "error");
+    const body = $("#pg-results-body");
+    if (state.currentQ && state.currentQ.runtime === "non-sqlite") {
+      body.innerHTML = renderDialectReference(state.currentQ);
+    } else {
+      renderError({ message:
+        `This query uses '${incompat}', which is part of MySQL / PostgreSQL / ` +
+        `Snowflake but isn't supported by the in-browser SQLite engine.\n\n` +
+        `The query is valid in those dialects — copy it into MySQL, PostgreSQL, ` +
+        `or Snowflake to execute it as written.`
+      });
+    }
+    setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
     return;
   }
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), sql);

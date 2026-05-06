@@ -13295,5 +13295,805 @@
       "url": ""
     },
     "runtime": "pandas"
+  },
+  {
+    "id": "practical_40-0001",
+    "batch": "practical_40",
+    "num": 1,
+    "title": "Undo a Push to the Wrong Branch",
+    "slug": "undo-a-push-to-the-wrong-branch",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Recovery",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# 1. From your local main (which has the bad commits), branch off a feature branch\ngit checkout main\ngit switch -c feature/wrong-push          # captures current commits\n\n# 2. Find the previous good commit on main (before your push)\ngit log --oneline origin/main             # or check the GitHub compare view\nGOOD_SHA=<previous-good-sha>\n\n# 3. Reset local main to that commit\ngit checkout main\ngit reset --hard $GOOD_SHA\n\n# 4. Force-push main back to origin (coordinate with team first!)\ngit push --force-with-lease origin main\n\n# 5. Push the feature branch where the work belongs\ngit push -u origin feature/wrong-push\n\n# Tip: --force-with-lease is safer than --force — it refuses if someone else\n# has pushed in the meantime, preventing you from clobbering their work.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You ran `git push origin main` but the work was meant for a feature branch. Nothing else has been pushed to main since. How do you (a) move the commits to a new feature branch, (b) restore main to its previous state on origin, and (c) leave your local working tree intact?",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0002",
+    "batch": "practical_40",
+    "num": 2,
+    "title": "Recover a Deleted Local Branch",
+    "slug": "recover-a-deleted-local-branch",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Recovery",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# Yes — git keeps a record of every HEAD position in the reflog for ~90 days.\n\n# 1. Find the branch's last tip SHA\ngit reflog | grep -i \"payments\"\n# Look for a line like: 9a3b1c2 HEAD@{12}: checkout: moving from feature/payments to main\n\n# 2. Re-create the branch at that SHA\ngit branch feature/payments 9a3b1c2\n\n# 3. Verify the work is back\ngit log feature/payments --oneline -10\n\n# Note: reflog is local-only and per-clone. If you'd run `git gc --prune=now`\n# the unreachable commits could be gone — but defaults keep them ~30-90 days.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You ran `git branch -D feature/payments` and immediately realized it had unmerged work. The branch tip was never pushed. Can you get it back?",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0003",
+    "batch": "practical_40",
+    "num": 3,
+    "title": "Squash Last 5 Commits Before Opening a PR",
+    "slug": "squash-last-5-commits-before-opening-a-pr",
+    "company": null,
+    "type": "Git",
+    "subtopic": "History rewrite",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# Option A — interactive rebase (the canonical way)\ngit rebase -i HEAD~5\n# In the editor, leave the first line as 'pick' and change the next 4 to 'squash'\n# (or 'fixup' to discard their messages). Save and exit.\n# Git then opens a second editor for the combined commit message — write a\n# clean summary and close.\n\n# Option B — soft reset + single commit (faster when you want a fresh message)\ngit reset --soft HEAD~5\ngit commit -m \"Add payments retry policy with exponential backoff\"\n\n# Force-push to update the PR branch\ngit push --force-with-lease\n\n# Tip: if the branch is already in a PR review, prefer 'fixup' commits during\n# review and squash on merge — easier for reviewers to track changes.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Your feature branch has 5 messy WIP commits. Before opening the PR, consolidate them into one clean commit with a proper message — without losing any code changes.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0004",
+    "batch": "practical_40",
+    "num": 4,
+    "title": "Recover Commits After Accidental git reset --hard",
+    "slug": "recover-commits-after-accidental-git-reset-hard",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Recovery",
+    "difficulty": "Hard",
+    "language": "shell",
+    "schema": null,
+    "solution": "# git reset --hard moves the branch pointer but doesn't immediately delete\n# the orphaned commits — they live in the reflog until garbage collection.\n\n# 1. Find the pre-reset SHA in the reflog\ngit reflog\n# Look for: abc1234 HEAD@{1}: reset: moving to HEAD~3\n# The SHA on the line ABOVE that (HEAD@{0} before reset) is what you want\n# Or look for: def5678 HEAD@{2}: commit: Your last commit message\n\n# 2. Reset hard back to the recovered SHA\ngit reset --hard def5678\n\n# 3. Confirm\ngit log --oneline -10\n\n# Belt-and-braces: if you're paranoid, create a recovery branch first\ngit branch recovery-2026-05-06 def5678\n# then verify before resetting your real branch.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You ran `git reset --hard HEAD~3` thinking you were on a scratch branch — but it was your feature branch and those 3 commits had unpushed work. The branch is local only. Recover the commits.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0005",
+    "batch": "practical_40",
+    "num": 5,
+    "title": "Cherry-Pick a Hotfix from main into a Release Branch",
+    "slug": "cherry-pick-a-hotfix-from-main-into-a-release-branch",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Branching",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# 1. Switch to the release branch and make sure it's up to date\ngit checkout release/v2.4\ngit pull origin release/v2.4\n\n# 2. Cherry-pick the single commit\ngit cherry-pick a1b2c3d\n\n# If the fix touched files that have diverged on the release branch, you'll\n# get a conflict. Resolve, then continue:\n# git status                # see conflicted files\n# (edit files to resolve)\n# git add <files>\n# git cherry-pick --continue\n\n# 3. Push the hotfix\ngit push origin release/v2.4\n\n# Tip: for a multi-commit fix, cherry-pick a range:\n#   git cherry-pick a1b2c3d^..f9e8d7c\n# The '^' makes the start inclusive.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A bug fix was merged into main as commit `a1b2c3d`. The release/v2.4 branch froze last week and only takes hotfixes. Bring the fix into release/v2.4 without merging in any of main's other recent commits.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0006",
+    "batch": "practical_40",
+    "num": 6,
+    "title": "Find Which Commit Introduced a Bug (git bisect)",
+    "slug": "find-which-commit-introduced-a-bug-git-bisect",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Debugging",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# git bisect runs a binary search across commits — O(log n) checkouts.\n\n# 1. Start the bisect session\ngit bisect start\ngit bisect bad                    # current HEAD (main) is broken\ngit bisect good v1.0.0            # tag/SHA where tests passed\n\n# git checks out the midpoint commit. Run your test:\npytest tests/test_payments.py\n# If it passes:\ngit bisect good\n# If it fails:\ngit bisect bad\n# Repeat — git narrows the range each step.\n\n# 2. When done, git prints: \"<sha> is the first bad commit\"\ngit bisect reset                  # return to your original branch\n\n# Automate it — let git run the test for you:\ngit bisect start HEAD v1.0.0\ngit bisect run pytest tests/test_payments.py\n# Exit code 0 = good, non-zero = bad. git pinpoints the commit, no manual loop.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Tests pass on commit `v1.0.0` but fail on `main` (200 commits later). Find the exact commit that introduced the regression.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0007",
+    "batch": "practical_40",
+    "num": 7,
+    "title": "Rewrite Author Email on the Last 3 Commits",
+    "slug": "rewrite-author-email-on-the-last-3-commits",
+    "company": null,
+    "type": "Git",
+    "subtopic": "History rewrite",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# Set the right identity going forward (do this first so new commits are clean)\ngit config user.email \"you@work.com\"\n\n# Rewrite the last 3 commits' author/committer\ngit rebase -i HEAD~3 --exec 'git commit --amend --reset-author --no-edit'\n# In the editor, leave all lines as 'pick' and save — the --exec runs after\n# each commit is replayed, rewriting it with the current user.email.\n\n# Verify\ngit log --format='%h %ae %s' -3\n\n# If you'd already pushed, you'd need a force-push; coordinate with the team\n# because rewriting public history breaks everyone else's clones.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You committed 3 commits with your personal email but they should show your work email. Nothing has been pushed yet. Fix the author on those commits.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0008",
+    "batch": "practical_40",
+    "num": 8,
+    "title": "Sync a Fork with the Upstream Repository",
+    "slug": "sync-a-fork-with-the-upstream-repository",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Remotes",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# 1. Add the upstream remote (one-time setup)\ngit remote add upstream https://github.com/org/project.git\ngit remote -v                      # confirm: origin = your fork, upstream = original\n\n# 2. Fetch upstream's latest\ngit fetch upstream\n\n# 3. Switch to local main and fast-forward to upstream/main\ngit checkout main\ngit merge --ff-only upstream/main\n# --ff-only refuses if your main has diverged — forcing you to handle it\n# explicitly (rebase or merge), instead of silently creating a merge commit.\n\n# 4. Push the synced main to your fork\ngit push origin main\n\n# Pro tip: GitHub now has a 'Sync fork' button on the repo page that does\n# this in the UI — handy when you're away from a clone.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Your fork of `org/project` is 47 commits behind upstream/main. Sync your fork's main branch with upstream and push the update to your fork on GitHub.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0009",
+    "batch": "practical_40",
+    "num": 9,
+    "title": "Resolve a deleted-by-them, modified-by-us Conflict",
+    "slug": "resolve-a-deleted-by-them-modified-by-us-conflict",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Merge conflicts",
+    "difficulty": "Hard",
+    "language": "shell",
+    "schema": null,
+    "solution": "# Two valid resolutions — pick one based on intent:\n\n# A) Keep the file (your edits matter, the deletion was wrong)\ngit add src/legacy.py\ngit commit                          # finalize the merge\n\n# B) Honor the deletion (the file is going away — discard your edits)\ngit rm src/legacy.py\ngit commit\n\n# Common gotcha: 'git status' shows it as 'deleted by them' AND 'modified by\n# us'. Plain 'git add' won't resolve it because git doesn't know which side\n# you mean. You MUST either explicitly 'git add' (keep) or 'git rm' (delete).\n\n# To inspect what was modified before deciding:\ngit log --all --oneline -- src/legacy.py    # who deleted, who edited?\ngit show HEAD:src/legacy.py | less          # see your version\ngit show MERGE_HEAD:src/legacy.py 2>&1      # error: file is gone in their branch",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "During a merge, git reports `CONFLICT (modify/delete): src/legacy.py deleted in upstream and modified in HEAD`. The other branch deleted the file; you edited it. Decide and resolve.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0010",
+    "batch": "practical_40",
+    "num": 10,
+    "title": "Update Remote URL After Repo Rename or Org Move",
+    "slug": "update-remote-url-after-repo-rename-or-org-move",
+    "company": null,
+    "type": "Git",
+    "subtopic": "Remotes",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# 1. See the current remote\ngit remote -v\n# origin  https://github.com/acme/dashboard.git (fetch)\n# origin  https://github.com/acme/dashboard.git (push)\n\n# 2. Set the new URL\ngit remote set-url origin https://github.com/acme/insights-dashboard.git\n\n# (SSH form — preferred if you use SSH keys)\ngit remote set-url origin git@github.com:acme/insights-dashboard.git\n\n# 3. Verify and refetch\ngit remote -v\ngit fetch origin\n\n# Note: GitHub does redirect old URLs for a while, so pushes often keep\n# working silently after a rename. But it's good hygiene to update — the\n# redirect is not guaranteed forever, and 'git remote -v' lying about your\n# real remote causes confusion later.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Your team renamed the GitHub repo from `acme/dashboard` to `acme/insights-dashboard` (or moved it to a new org). Push now fails with `remote: Repository not found`. Update your local clone's remote URL.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0011",
+    "batch": "practical_40",
+    "num": 11,
+    "title": "Parse JSONL and Save Top 10 Categories to CSV",
+    "slug": "parse-jsonl-and-save-top-10-categories-to-csv",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · file I/O",
+    "difficulty": "Easy",
+    "language": "python",
+    "schema": null,
+    "solution": "import json, csv\nfrom collections import Counter\n\ncounts = Counter()\nwith open('events.jsonl') as f:\n    for line in f:\n        try:\n            obj = json.loads(line)\n        except json.JSONDecodeError:\n            continue                    # skip corrupted lines, don't crash\n        cat = obj.get('category')\n        if cat:\n            counts[cat] += 1\n\nwith open('top10.csv', 'w', newline='') as out:\n    w = csv.writer(out)\n    w.writerow(['category', 'count'])\n    for cat, n in counts.most_common(10):\n        w.writerow([cat, n])\n\n# Why streaming: Counter is O(unique-categories) memory regardless of file\n# size. Loading json.loads(f.read()) on a 2 GB file would OOM most laptops.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You have a 2 GB file `events.jsonl` (one JSON object per line, each with a `category` field). Stream-parse it (don't load it all into memory), count events per category, and write the top 10 categories to `top10.csv`.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0012",
+    "batch": "practical_40",
+    "num": 12,
+    "title": "Retry an HTTP Request with Exponential Backoff",
+    "slug": "retry-an-http-request-with-exponential-backoff",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · networking",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import requests, time, random\n\ndef get_with_retry(url, max_attempts=5, base=1.0, timeout=10):\n    for attempt in range(max_attempts):\n        try:\n            r = requests.get(url, timeout=timeout)\n            if r.status_code < 500:     # 2xx, 3xx, 4xx — return as-is\n                return r\n            last_err = f\"HTTP {r.status_code}\"\n        except requests.RequestException as e:\n            last_err = str(e)\n\n        if attempt == max_attempts - 1:\n            raise RuntimeError(f\"Failed after {max_attempts} attempts: {last_err}\")\n\n        sleep = base * (2 ** attempt) + random.uniform(0, 0.5)   # +jitter\n        time.sleep(sleep)\n\n# In production, prefer urllib3's Retry adapter — it's battle-tested and\n# integrates with requests' Session. The above is the from-scratch version\n# you'd write in an interview where importing extras isn't allowed.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Wrap a `requests.get(url)` call so it retries up to 5 times on connection errors and 5xx responses, with exponential backoff (1s, 2s, 4s, 8s, 16s) and a tiny bit of jitter so 1000 clients don't retry in lockstep.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0013",
+    "batch": "practical_40",
+    "num": 13,
+    "title": "Watch a Directory for New Files (No Dependencies)",
+    "slug": "watch-a-directory-for-new-files-no-dependencies",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · file system",
+    "difficulty": "Easy",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, time\nfrom pathlib import Path\n\nWATCH_DIR = Path('/data/incoming')\n\ndef watch(dir_path, interval=5.0):\n    seen = set(p.name for p in dir_path.iterdir())\n    print(f\"watching {dir_path} ({len(seen)} files at startup)\")\n    while True:\n        time.sleep(interval)\n        current = set(p.name for p in dir_path.iterdir())\n        new = current - seen\n        for name in sorted(new):\n            full = dir_path / name\n            print(f\"new file: {name} ({full.stat().st_size} bytes)\")\n        seen = current\n\nif __name__ == '__main__':\n    watch(WATCH_DIR)\n\n# Polling is fine for a drop folder. For higher fidelity (subsecond,\n# OS-level events), use the 'watchdog' package — but that's a dependency.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A drop folder `/data/incoming/` receives CSV files from an upstream system. Write a small script that polls every 5 seconds and prints the names of any new files it finds. No external libraries.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0014",
+    "batch": "practical_40",
+    "num": 14,
+    "title": "Bulk-Rename Files Using Their Modified Timestamp",
+    "slug": "bulk-rename-files-using-their-modified-timestamp",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · file system",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, sys\nfrom pathlib import Path\nfrom datetime import datetime\n\ndef rename_with_mtime(dir_path, dry_run=True):\n    dir_path = Path(dir_path)\n    for src in sorted(dir_path.glob('IMG_*.jpg')):\n        ts = datetime.fromtimestamp(src.stat().st_mtime)\n        prefix = ts.strftime('%Y-%m-%d_%H%M%S')\n        dst = src.with_name(f\"{prefix}_{src.name}\")\n        if dst.exists():\n            print(f\"SKIP (exists): {dst.name}\")\n            continue\n        print(f\"{'DRY' if dry_run else 'MOVE'}: {src.name} -> {dst.name}\")\n        if not dry_run:\n            src.rename(dst)\n\nif __name__ == '__main__':\n    dry = '--apply' not in sys.argv\n    rename_with_mtime('/photos/iphone-export', dry_run=dry)\n\n# Always dry-run first. A buggy rename loop on a 5000-file folder is the\n# kind of mistake you can't easily undo without backups.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A folder has hundreds of files like `IMG_2847.jpg`, `IMG_3019.jpg`. Rename each one to `YYYY-MM-DD_HHMMSS_<original>.jpg` based on its filesystem modified time. Do a dry-run first.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0015",
+    "batch": "practical_40",
+    "num": 15,
+    "title": "Deduplicate a CSV Keeping the Latest Row per Key",
+    "slug": "deduplicate-a-csv-keeping-the-latest-row-per-key",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · data",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import csv\nfrom datetime import datetime\n\nlatest = {}     # user_id -> row dict\nwith open('users.csv', newline='') as f:\n    reader = csv.DictReader(f)\n    fieldnames = reader.fieldnames\n    for row in reader:\n        uid = row['user_id']\n        ts = datetime.fromisoformat(row['updated_at'])\n        if uid not in latest or ts > datetime.fromisoformat(latest[uid]['updated_at']):\n            latest[uid] = row\n\nwith open('users_clean.csv', 'w', newline='') as out:\n    w = csv.DictWriter(out, fieldnames=fieldnames)\n    w.writeheader()\n    w.writerows(latest.values())\n\nprint(f\"deduped: kept {len(latest)} of {sum(1 for _ in open('users.csv')) - 1} rows\")",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "`users.csv` has columns `user_id, email, updated_at, name`. The same user_id can appear multiple times due to a buggy export. Write the deduplicated rows to `users_clean.csv`, keeping the row with the latest `updated_at` for each user_id.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0016",
+    "batch": "practical_40",
+    "num": 16,
+    "title": "Send a Slack Alert on Script Failure",
+    "slug": "send-a-slack-alert-on-script-failure",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · ops",
+    "difficulty": "Easy",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, sys, json, traceback, urllib.request\n\nWEBHOOK_URL = os.environ['SLACK_WEBHOOK_URL']    # set in cron / env\n\ndef alert_slack(text):\n    payload = json.dumps({'text': text}).encode()\n    req = urllib.request.Request(\n        WEBHOOK_URL, data=payload,\n        headers={'Content-Type': 'application/json'},\n    )\n    urllib.request.urlopen(req, timeout=10).read()\n\ndef main():\n    # ... your ETL here ...\n    raise RuntimeError(\"simulated failure\")\n\nif __name__ == '__main__':\n    try:\n        main()\n    except Exception:\n        tb = traceback.format_exc()\n        alert_slack(f\":rotating_light: ETL failed\\n```{tb[-1500:]}```\")\n        sys.exit(1)\n\n# Slice the last 1500 chars of the traceback — Slack truncates long messages\n# and the bottom of the traceback (the actual error) is what you want.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Your nightly ETL script must post a Slack message via incoming webhook if anything raises. Wrap the script's main() so success is silent but any exception triggers an alert with the traceback.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0017",
+    "batch": "practical_40",
+    "num": 17,
+    "title": "Read a .env File Without python-dotenv",
+    "slug": "read-a-env-file-without-python-dotenv",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · config",
+    "difficulty": "Easy",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, re, shlex\nfrom pathlib import Path\n\ndef load_dotenv(path='.env', override=False):\n    p = Path(path)\n    if not p.exists():\n        return\n    for line in p.read_text().splitlines():\n        line = line.strip()\n        if not line or line.startswith('#'):\n            continue                          # blank or comment\n        if '=' not in line:\n            continue\n        key, _, val = line.partition('=')\n        key = key.strip()\n        val = val.strip()\n        # Strip surrounding quotes if present (single or double)\n        if len(val) >= 2 and val[0] == val[-1] and val[0] in ('\"', \"'\"):\n            val = val[1:-1]\n        if override or key not in os.environ:\n            os.environ[key] = val\n\nload_dotenv()\nprint(os.environ.get('DATABASE_URL'))",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Your script needs to load environment variables from a `.env` file but you can't add new dependencies. Parse it yourself, handling comments, blank lines, and quoted values.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0018",
+    "batch": "practical_40",
+    "num": 18,
+    "title": "Concurrent Downloads with ThreadPoolExecutor",
+    "slug": "concurrent-downloads-with-threadpoolexecutor",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · concurrency",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, urllib.request, hashlib\nfrom concurrent.futures import ThreadPoolExecutor, as_completed\nfrom pathlib import Path\n\nOUT = Path('./downloads')\nOUT.mkdir(exist_ok=True)\n\ndef local_path(url):\n    # Stable filename from URL hash to avoid collisions / weird chars\n    h = hashlib.sha1(url.encode()).hexdigest()[:12]\n    ext = os.path.splitext(url.split('?')[0])[1] or '.bin'\n    return OUT / f\"{h}{ext}\"\n\ndef download(url):\n    dst = local_path(url)\n    if dst.exists() and dst.stat().st_size > 0:\n        return (url, 'skipped')\n    try:\n        urllib.request.urlretrieve(url, dst)\n        return (url, 'ok')\n    except Exception as e:\n        if dst.exists(): dst.unlink()      # remove partial\n        return (url, f'error: {e}')\n\nurls = [line.strip() for line in open('urls.txt') if line.strip()]\nwith ThreadPoolExecutor(max_workers=8) as ex:\n    futures = [ex.submit(download, u) for u in urls]\n    for f in as_completed(futures):\n        url, status = f.result()\n        print(f\"{status:8s} {url}\")\n\n# I/O-bound work (HTTP) → threads, not processes. For CPU-bound work\n# (image resize, parsing huge files) use ProcessPoolExecutor instead.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You have a list of 200 URLs to download to `./downloads/`. A serial loop takes 30 minutes. Parallelize it with ThreadPoolExecutor (8 workers) and skip URLs that already downloaded successfully on a prior run.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0019",
+    "batch": "practical_40",
+    "num": 19,
+    "title": "Find Duplicate Files by Content Hash",
+    "slug": "find-duplicate-files-by-content-hash",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · data",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import hashlib\nfrom pathlib import Path\nfrom collections import defaultdict\n\ndef file_hash(path, chunk=1 << 20):           # 1 MiB chunks\n    h = hashlib.sha256()\n    with open(path, 'rb') as f:\n        while True:\n            data = f.read(chunk)\n            if not data: break\n            h.update(data)\n    return h.hexdigest()\n\ngroups = defaultdict(list)\nfor p in Path('/photos').rglob('*'):\n    if p.is_file():\n        groups[file_hash(p)].append(p)\n\nfor digest, paths in groups.items():\n    if len(paths) > 1:\n        print(f\"\\n{digest[:12]}  ({len(paths)} copies)\")\n        for p in paths:\n            print(f\"  {p}\")\n\n# Optimization for huge libraries: bucket by file SIZE first; only hash\n# files whose sizes collide. Most files have unique sizes, so you skip\n# 99% of hashing work.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A photo backup folder has duplicates with different filenames. Walk the directory, hash each file's contents, and print groups of duplicates so the user can decide which copies to delete.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0020",
+    "batch": "practical_40",
+    "num": 20,
+    "title": "Tail a Log File and Filter by Pattern",
+    "slug": "tail-a-log-file-and-filter-by-pattern",
+    "company": null,
+    "type": "Programming",
+    "subtopic": "Python · ops",
+    "difficulty": "Medium",
+    "language": "python",
+    "schema": null,
+    "solution": "import os, re, time\n\nPATTERN = re.compile(r'ERROR|FATAL|Traceback')\n\ndef tail(path, poll=0.5):\n    f = open(path)\n    f.seek(0, 2)                              # jump to end of file\n    inode = os.fstat(f.fileno()).st_ino\n    while True:\n        line = f.readline()\n        if line:\n            if PATTERN.search(line):\n                yield line.rstrip()\n            continue\n        time.sleep(poll)\n        # Detect rotation: the file at this path now has a different inode\n        try:\n            new_inode = os.stat(path).st_ino\n        except FileNotFoundError:\n            continue\n        if new_inode != inode:\n            f.close()\n            f = open(path)\n            inode = new_inode\n            print('--- log rotated, reopened ---')\n\nif __name__ == '__main__':\n    for hit in tail('/var/log/app.log'):\n        print(hit)",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Like `tail -f /var/log/app.log | grep ERROR`, but in pure Python — so you can also enrich each match with the timestamp and a short context window. Handle log rotation (the file gets replaced).",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0021",
+    "batch": "practical_40",
+    "num": 21,
+    "title": "Find Duplicate Rows in a Table by Composite Key",
+    "slug": "find-duplicate-rows-in-a-table-by-composite-key",
+    "company": null,
+    "type": "SQL / Data Quality",
+    "subtopic": "Audit",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_total, order_date)",
+    "solution": "SELECT customer_id, order_date, order_total, COUNT(*) AS copies\nFROM orders\nGROUP BY customer_id, order_date, order_total\nHAVING COUNT(*) > 1\nORDER BY copies DESC, customer_id;\n\n-- Why HAVING and not WHERE: WHERE filters rows BEFORE grouping; HAVING\n-- filters AFTER aggregation. COUNT(*) only exists post-grouping.\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "An audit found that the `orders` table has duplicate rows. A row is a duplicate if `(customer_id, order_date, order_total)` already exists. Return only the duplicate keys with how many copies exist.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0022",
+    "batch": "practical_40",
+    "num": 22,
+    "title": "Deduplicate Keeping the Latest Row per Key",
+    "slug": "deduplicate-keeping-the-latest-row-per-key",
+    "company": null,
+    "type": "SQL / Data Quality",
+    "subtopic": "Dedup",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "users(user_id, name, email, updated_at)",
+    "solution": "-- ROW_NUMBER() over the partition is the canonical pattern.\nSELECT user_id, name, email, updated_at\nFROM (\n    SELECT *,\n           ROW_NUMBER() OVER (\n               PARTITION BY user_id\n               ORDER BY updated_at DESC, user_id ASC\n           ) AS rn\n    FROM users\n)\nWHERE rn = 1;\n\n-- Alt for engines without window functions: correlated subquery\n-- SELECT u.*\n-- FROM users u\n-- WHERE u.updated_at = (\n--   SELECT MAX(u2.updated_at) FROM users u2 WHERE u2.user_id = u.user_id\n-- );\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "The `users` table has multiple rows per `user_id` (history of edits). Return one row per user_id — the one with the most recent `updated_at`. Tie-break on `user_id` ascending.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0023",
+    "batch": "practical_40",
+    "num": 23,
+    "title": "Find Customers Who Have Never Placed an Order",
+    "slug": "find-customers-who-have-never-placed-an-order",
+    "company": null,
+    "type": "SQL / Joins",
+    "subtopic": "Anti-join",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "users(user_id, name, email), orders(order_id, customer_id, ...)",
+    "solution": "-- LEFT JOIN + IS NULL is the most readable anti-join in SQL.\nSELECT u.user_id, u.name, u.email\nFROM users u\nLEFT JOIN orders o ON o.customer_id = u.user_id\nWHERE o.order_id IS NULL\nORDER BY u.user_id;\n\n-- Equivalent using NOT EXISTS (often faster on large tables — engines can\n-- short-circuit as soon as one match is found):\n-- SELECT u.user_id, u.name, u.email\n-- FROM users u\n-- WHERE NOT EXISTS (\n--   SELECT 1 FROM orders o WHERE o.customer_id = u.user_id\n-- );\n\n-- Avoid 'NOT IN (SELECT customer_id FROM orders)' — it returns nothing if\n-- ANY customer_id is NULL. NOT EXISTS handles NULLs correctly.\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Marketing wants to email customers who have never ordered. Return all rows from `users` that have no matching row in `orders` (joined on user_id = customer_id).",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0024",
+    "batch": "practical_40",
+    "num": 24,
+    "title": "Reconcile Two Tables: Find Rows in A Not in B",
+    "slug": "reconcile-two-tables-find-rows-in-a-not-in-b",
+    "company": null,
+    "type": "SQL / Joins",
+    "subtopic": "Reconcile",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders_old(order_id), orders_new(order_id)",
+    "solution": "-- Symmetric difference via two anti-joins, unioned with a label column.\nSELECT 'old_only' AS side, o.order_id\nFROM orders_old o\nLEFT JOIN orders_new n ON n.order_id = o.order_id\nWHERE n.order_id IS NULL\n\nUNION ALL\n\nSELECT 'new_only' AS side, n.order_id\nFROM orders_new n\nLEFT JOIN orders_old o ON o.order_id = n.order_id\nWHERE o.order_id IS NULL\n\nORDER BY side, order_id;\n\n-- Postgres / Snowflake have an even cleaner shorthand for full diffs:\n-- (SELECT order_id FROM orders_old EXCEPT SELECT order_id FROM orders_new)\n-- UNION ALL\n-- (SELECT order_id FROM orders_new EXCEPT SELECT order_id FROM orders_old);\n-- SQLite supports EXCEPT too, so that variant runs here as well.\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "After migrating from `orders_old` to `orders_new`, both tables exist. Find: (a) order_ids in `orders_old` missing from `orders_new`, and (b) order_ids in `orders_new` missing from `orders_old`. One result set with a 'side' column.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0025",
+    "batch": "practical_40",
+    "num": 25,
+    "title": "Detect Gaps in a Date Sequence",
+    "slug": "detect-gaps-in-a-date-sequence",
+    "company": null,
+    "type": "SQL / Date",
+    "subtopic": "Gaps",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "daily_metrics(metric_date, value)",
+    "solution": "-- LEAD() lets us compare each row to the next one without a self-join.\nWITH ordered AS (\n    SELECT metric_date,\n           LEAD(metric_date) OVER (ORDER BY metric_date) AS next_date\n    FROM daily_metrics\n)\nSELECT metric_date    AS gap_starts_after,\n       next_date      AS gap_ends_before,\n       (julianday(next_date) - julianday(metric_date) - 1) AS missing_days\nFROM ordered\nWHERE next_date IS NOT NULL\n  AND julianday(next_date) - julianday(metric_date) > 1\nORDER BY metric_date;\n\n-- julianday() is SQLite's date arithmetic. In Postgres use:\n--   next_date - metric_date - 1  (returns an integer day count)\n-- In MySQL:\n--   DATEDIFF(next_date, metric_date) - 1\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "`daily_metrics(metric_date, value)` should have one row per day. Return the dates where the next row is more than 1 day later — i.e. the day AFTER the gap starts and the day BEFORE the gap ends.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0026",
+    "batch": "practical_40",
+    "num": 26,
+    "title": "Audit: Find Columns That Are 100% NULL",
+    "slug": "audit-find-columns-that-are-100-null",
+    "company": null,
+    "type": "SQL / Data Quality",
+    "subtopic": "Audit",
+    "difficulty": "Easy",
+    "language": "sql",
+    "schema": "user_profiles(user_id, age, gender, country, signup_source, last_login)",
+    "solution": "-- The portable approach: one COUNT per column, transposed via UNION ALL.\nWITH totals AS (SELECT COUNT(*) AS n FROM user_profiles)\nSELECT 'age'           AS col, SUM(CASE WHEN age           IS NULL THEN 1 ELSE 0 END) AS nulls, (SELECT n FROM totals) AS total FROM user_profiles\nUNION ALL SELECT 'gender',        SUM(CASE WHEN gender        IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'country',       SUM(CASE WHEN country       IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'signup_source', SUM(CASE WHEN signup_source IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nUNION ALL SELECT 'last_login',    SUM(CASE WHEN last_login    IS NULL THEN 1 ELSE 0 END), (SELECT n FROM totals) FROM user_profiles\nORDER BY nulls DESC;\n\n-- For dozens of columns you'd code-generate this from information_schema\n-- in a script — but the UNION ALL pattern is what every dialect supports.\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Quick data-quality check on `user_profiles(user_id, age, gender, country, signup_source, last_login)`. Return one row per column with its null count and percent — sorted nulls-first, so 100% NULL columns surface.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0027",
+    "batch": "practical_40",
+    "num": 27,
+    "title": "Top 2 Products by Revenue per Category",
+    "slug": "top-2-products-by-revenue-per-category",
+    "company": null,
+    "type": "SQL / Window functions",
+    "subtopic": "Top-N per group",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "orders(order_id, product_id, order_total), products(product_id, category)",
+    "solution": "WITH product_revenue AS (\n    SELECT p.category, p.product_id,\n           SUM(o.order_total) AS revenue\n    FROM orders o\n    JOIN products p ON p.product_id = o.product_id\n    GROUP BY p.category, p.product_id\n),\nranked AS (\n    SELECT category, product_id, revenue,\n           ROW_NUMBER() OVER (\n               PARTITION BY category\n               ORDER BY revenue DESC, product_id ASC\n           ) AS rn\n    FROM product_revenue\n)\nSELECT category, product_id, revenue\nFROM ranked\nWHERE rn <= 2\nORDER BY category, rn;\n\n-- ROW_NUMBER vs RANK vs DENSE_RANK matters when ties exist:\n--   ROW_NUMBER  → exactly N rows per partition (arbitrary tie-break)\n--   RANK        → ties share a rank, leaves gaps   (1,1,3)\n--   DENSE_RANK  → ties share a rank, no gaps        (1,1,2)\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "From `orders(order_id, product_id, order_total)` joined with `products(product_id, category)`, return the top 2 highest-grossing products in each category, with ties broken by product_id.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0028",
+    "batch": "practical_40",
+    "num": 28,
+    "title": "7-Day Rolling Average of Daily Revenue",
+    "slug": "7-day-rolling-average-of-daily-revenue",
+    "company": null,
+    "type": "SQL / Window functions",
+    "subtopic": "Moving average",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "daily_metrics(metric_date, value)",
+    "solution": "SELECT metric_date,\n       value,\n       AVG(value) OVER (\n           ORDER BY metric_date\n           ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n       ) AS avg_7d\nFROM daily_metrics\nORDER BY metric_date;\n\n-- \"ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\" is a 7-row physical window.\n-- If the data has gaps (missing days), this still averages 7 ROWS, not\n-- 7 calendar DAYS. For a true calendar window use:\n--   RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW\n-- (Postgres / Snowflake only; SQLite doesn't support RANGE intervals.)\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "From `daily_metrics(metric_date, value)`, return each date with its 7-day trailing average (the row itself plus the 6 prior days).",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0029",
+    "batch": "practical_40",
+    "num": 29,
+    "title": "Latest Snapshot per Entity from a Slowly-Changing Table",
+    "slug": "latest-snapshot-per-entity-from-a-slowly-changing-table",
+    "company": null,
+    "type": "SQL / Window functions",
+    "subtopic": "SCD",
+    "difficulty": "Medium",
+    "language": "sql",
+    "schema": "product_dim(product_id, name, price, effective_date)",
+    "solution": "-- Window-function approach (works everywhere with windows)\nSELECT product_id, name, price, effective_date\nFROM (\n    SELECT *,\n           ROW_NUMBER() OVER (\n               PARTITION BY product_id\n               ORDER BY effective_date DESC\n           ) AS rn\n    FROM product_dim\n)\nWHERE rn = 1\nORDER BY product_id;\n\n-- Equivalent with a self-join via MAX (handy in legacy MySQL <8 without windows):\n-- SELECT p.*\n-- FROM product_dim p\n-- JOIN (\n--     SELECT product_id, MAX(effective_date) AS eff\n--     FROM product_dim GROUP BY product_id\n-- ) m ON m.product_id = p.product_id AND m.eff = p.effective_date;\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "`product_dim(product_id, name, price, effective_date)` keeps every price change as a new row. Return the current row for each product (the row with the latest effective_date).",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0030",
+    "batch": "practical_40",
+    "num": 30,
+    "title": "Detect Week-Over-Week Changes in a Metric",
+    "slug": "detect-week-over-week-changes-in-a-metric",
+    "company": null,
+    "type": "SQL / Window functions",
+    "subtopic": "Change detection",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "weekly_metrics(week_start, segment, value)",
+    "solution": "WITH lagged AS (\n    SELECT week_start, segment, value,\n           LAG(value) OVER (PARTITION BY segment ORDER BY week_start) AS prev_value\n    FROM weekly_metrics\n)\nSELECT week_start,\n       segment,\n       prev_value,\n       value,\n       ROUND(100.0 * (value - prev_value) / prev_value, 2) AS pct_change\nFROM lagged\nWHERE prev_value IS NOT NULL\n  AND prev_value <> 0\n  AND ABS(value - prev_value) * 1.0 / prev_value > 0.20\nORDER BY segment, week_start;\n\n-- Two gotchas built into the WHERE clause:\n--   1. prev_value IS NOT NULL  — first week per segment has no prior row\n--   2. prev_value <> 0         — division-by-zero guard\n-- The * 1.0 forces float division in SQLite/MySQL when both sides are int.\n",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "From `weekly_metrics(week_start, segment, value)`, return only the (segment, week) rows where value changed by more than 20% versus the prior week for that same segment. Include the prior value and the % change.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0031",
+    "batch": "practical_40",
+    "num": 31,
+    "title": "Find Files Larger Than 100 MB Under a Directory",
+    "slug": "find-files-larger-than-100-mb-under-a-directory",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "find · disk",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# find + -size with c (bytes), k (KiB), M (MiB), G (GiB).\nfind /var -type f -size +100M -printf '%s\\t%p\\n' 2>/dev/null \\\n  | sort -nr \\\n  | awk -v OFS='\\t' '{ size_mb = $1 / 1024 / 1024; printf \"%.1f MB\\t%s\\n\", size_mb, $2 }' \\\n  | head -50\n\n# Why -printf '%s\\t%p': gives bytes + path, so we can sort numerically.\n# 'find -ls' would also work but its size column is harder to parse.\n\n# macOS find lacks -printf. Use stat instead:\n#   find /var -type f -size +100M -exec stat -f '%z %N' {} \\; | sort -nr | head -50",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Disk on the server is filling up. Find every file under `/var` larger than 100 MB and print them sorted by size, biggest first.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0032",
+    "batch": "practical_40",
+    "num": 32,
+    "title": "Tail a Log and Alert on a Pattern",
+    "slug": "tail-a-log-and-alert-on-a-pattern",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "log monitoring",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "#!/usr/bin/env bash\nset -euo pipefail\nLOG=/var/log/app.log\nWEBHOOK=${SLACK_WEBHOOK_URL:?need SLACK_WEBHOOK_URL set}\n\n# Buffer lines for 2 seconds, then send as one message.\ntail -F \"$LOG\" | grep --line-buffered -E 'ERROR|FATAL' | while IFS= read -r line; do\n    buffer=\"$line\"\n    # Read additional lines that arrive within 2 seconds (non-blocking via -t)\n    while IFS= read -r -t 2 next; do\n        buffer=\"$buffer\"$'\\n'\"$next\"\n    done\n    # Escape for JSON\n    payload=$(printf '%s' \"$buffer\" | python3 -c \\\n        'import json,sys; print(json.dumps({\"text\":\"```\"+sys.stdin.read()+\"```\"}))')\n    curl -fsS -X POST -H 'Content-Type: application/json' \\\n         -d \"$payload\" \"$WEBHOOK\" >/dev/null\ndone\n\n# Why tail -F (capital F): follows by NAME, not file descriptor — survives\n# log rotation. tail -f silently keeps reading the rotated-away file forever.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Watch `/var/log/app.log` continuously. When a line matching `(ERROR|FATAL)` appears, post it to a Slack webhook. Don't double-alert if 5 errors arrive in 1 second — coalesce.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0033",
+    "batch": "practical_40",
+    "num": 33,
+    "title": "List Files Modified in the Last 24 Hours",
+    "slug": "list-files-modified-in-the-last-24-hours",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "find · time",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# find -mtime is in DAYS; -mmin is in MINUTES (more precise).\nfind /etc/nginx -type f -mmin -1440 -printf '%TY-%Tm-%Td %TH:%TM  %p\\n' \\\n  | sort -r\n\n# -mmin -1440  → modified less than 1440 minutes ago\n# -mtime -1    → modified less than 1 day ago (rounded to whole days)\n# -newer file  → modified more recently than another file (e.g. last deploy)\n\n# Compare against the deploy timestamp:\n#   touch -d '2026-05-06 14:30' /tmp/deploy_marker\n#   find /etc/nginx -type f -newer /tmp/deploy_marker",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "After a deploy went sideways, you want to see every file under `/etc/nginx` that changed in the last 24 hours.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0034",
+    "batch": "practical_40",
+    "num": 34,
+    "title": "Rotate a Log File: Keep the Last N",
+    "slug": "rotate-a-log-file-keep-the-last-n",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "log management",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "#!/usr/bin/env bash\nset -euo pipefail\nLOG=${1:-/var/log/myapp/app.log}\nKEEP=5\n\n# 1. Drop the oldest backup if it exists\n[ -f \"${LOG}.${KEEP}\" ] && rm -f \"${LOG}.${KEEP}\"\n\n# 2. Shift each existing backup up by one slot\nfor i in $(seq $((KEEP - 1)) -1 1); do\n    [ -f \"${LOG}.${i}\" ] && mv \"${LOG}.${i}\" \"${LOG}.$((i + 1))\"\ndone\n\n# 3. Move the live log to .1 and create a new empty one\nif [ -f \"$LOG\" ]; then\n    mv \"$LOG\" \"${LOG}.1\"\n    : > \"$LOG\"               # truncate-create new empty log\n    chmod --reference=\"${LOG}.1\" \"$LOG\" 2>/dev/null || true\nfi\n\n# Caveat: if your service holds the log file open, MOVE-then-create leaves\n# the service writing to the moved file (the old fd). Send the service\n# SIGHUP / SIGUSR1 after rotating, OR use `cp + : > log` instead of mv.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Write a tiny rotator: rename `app.log` → `app.log.1` (and bump existing `.1` to `.2`, `.2` to `.3`, ...) keeping at most 5 backups. Useful for a service that doesn't integrate with logrotate.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0035",
+    "batch": "practical_40",
+    "num": 35,
+    "title": "Run a Command on Many Hosts via SSH",
+    "slug": "run-a-command-on-many-hosts-via-ssh",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "ssh · automation",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "#!/usr/bin/env bash\nset -uo pipefail   # NOT -e: we want to continue on per-host failures\n\nwhile IFS= read -r host; do\n    [ -z \"$host\" ] && continue\n    [[ \"$host\" =~ ^# ]] && continue        # skip comment lines\n    out=$(ssh -o ConnectTimeout=5 \\\n              -o BatchMode=yes \\\n              -o StrictHostKeyChecking=accept-new \\\n              \"$host\" 'uptime' 2>&1) || out=\"UNREACHABLE: $out\"\n    # Prefix every output line with the host name\n    printf '%s\\n' \"$out\" | sed \"s/^/${host}: /\"\ndone < hosts.txt\n\n# BatchMode=yes means: never prompt for a password — fail fast in scripts.\n# For real fanout to dozens of hosts, use 'pdsh', 'ansible -m shell', or\n# parallel-ssh; this loop is the no-deps version.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You have a file `hosts.txt` with one hostname per line. Run `uptime` on each one and prefix each output line with the host. Bail out of any host that doesn't respond within 5 seconds.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0036",
+    "batch": "practical_40",
+    "num": 36,
+    "title": "Run N Jobs in Parallel with xargs",
+    "slug": "run-n-jobs-in-parallel-with-xargs",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "parallelism",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# xargs -P sets the parallelism. -n 1 means one arg per invocation.\n# -0 + find -print0 handle filenames with spaces / newlines safely.\n\nfind ./photos -type f \\( -iname '*.jpg' -o -iname '*.png' \\) -print0 \\\n  | xargs -0 -n 1 -P 4 -I {} bash -c '\n      src=\"$1\"\n      dst=\"${src%.*}.webp\"\n      [ -f \"$dst\" ] && exit 0           # skip already-converted\n      cwebp -q 80 \"$src\" -o \"$dst\" >/dev/null 2>&1 \\\n        && echo \"ok  $src\" \\\n        || echo \"FAIL $src\" >&2\n  ' _ {}\n\n# Why bash -c '...' _ {}:\n#   the '_' becomes $0 (script name placeholder), {} becomes $1.\n#   This lets us derive the destination filename per file inside the worker.\n\n# Alt: GNU parallel is more ergonomic if installed.\n#   find ./photos -name '*.jpg' | parallel -j 4 cwebp -q 80 {} -o {.}.webp",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "You have 500 image files in `./photos/` and want to convert each to a webp using `cwebp`. Run 4 conversions in parallel — no more — using only standard tools.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0037",
+    "batch": "practical_40",
+    "num": 37,
+    "title": "Sum a Column Grouped by Another with awk",
+    "slug": "sum-a-column-grouped-by-another-with-awk",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "awk · data",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# awk processes CSV well enough when there are no embedded commas/quotes.\n# For real-world dirty CSVs, use a CSV-aware tool (csvkit, miller, python).\n\nawk -F, 'NR > 1 { totals[$1] += $3 } END { for (r in totals) print r\",\"totals[r] }' sales.csv \\\n  | sort -t, -k2 -nr\n\n# Walking through the awk:\n#   -F,                  → field separator is comma\n#   NR > 1               → skip header (line 1)\n#   totals[$1] += $3     → accumulate amount ($3) keyed by region ($1)\n#   END { ... }          → after all input, dump the associative array\n\n# Cleaner with miller (mlr), if available:\n#   mlr --csv stats1 -a sum -f amount -g region sales.csv",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A CSV `sales.csv` has columns `region,product,amount`. Print total amount per region, sorted by total descending. No header in the output.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0038",
+    "batch": "practical_40",
+    "num": 38,
+    "title": "Disk Usage of Subdirectories, Sorted Largest First",
+    "slug": "disk-usage-of-subdirectories-sorted-largest-first",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "du · disk",
+    "difficulty": "Easy",
+    "language": "shell",
+    "schema": null,
+    "solution": "# -d 1 (or --max-depth=1) limits the report to one level deep.\n# -h gives human-readable sizes; sort -h sorts those (e.g. 4M < 1G).\n\ndu -h -d 1 /home/user/ 2>/dev/null \\\n  | sort -hr \\\n  | head -20\n\n# Note: the FIRST line of `du -d 1 .` is the directory itself's total —\n# usually the largest entry. You can drop it with `tail -n +2` if you only\n# want children:\n#   du -h -d 1 /home/user/ | sort -hr | tail -n +2 | head -20\n\n# On macOS / BSD du, use:  du -h -d 1   (same flag, just confirming)\n# On older systems without -d, use:     du -h --max-depth=1",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "From `/home/user/`, list each immediate subdirectory's total size in human-readable form, sorted largest to smallest. Don't recurse into the subdirs of subdirs in the output.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0039",
+    "batch": "practical_40",
+    "num": 39,
+    "title": "Find and Safely Kill Processes by Name",
+    "slug": "find-and-safely-kill-processes-by-name",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "process management",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# pgrep / pkill match against the process NAME by default; -f matches the\n# full command line (which is what you usually want for python scripts).\n\n# 1. List first — never trust a kill command without seeing the targets.\npgrep -af 'python3? .*etl_worker\\.py$'\n# -a → show full command line, -f → match against full cmdline\n\n# 2. If the list looks right, kill them gracefully (SIGTERM = 15):\npkill -f 'python3? .*etl_worker\\.py$'\n\n# 3. Wait a few seconds, recheck, then escalate if still alive:\nsleep 5\npgrep -af 'python3? .*etl_worker\\.py$' && \\\n  pkill -9 -f 'python3? .*etl_worker\\.py$'\n\n# Anchored regex ('etl_worker\\.py$') prevents matching your editor's\n# 'vim etl_worker.py.bak' or 'grep etl_worker' processes.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "A buggy worker called `etl_worker.py` has spawned 30 stuck Python processes. Kill all of them — but ONLY exact matches, not your editor that happens to have 'etl_worker' in its file path.",
+    "runtime": null
+  },
+  {
+    "id": "practical_40-0040",
+    "batch": "practical_40",
+    "num": 40,
+    "title": "Replace a String Across Many Files In-Place",
+    "slug": "replace-a-string-across-many-files-in-place",
+    "company": null,
+    "type": "Shell",
+    "subtopic": "find · sed",
+    "difficulty": "Medium",
+    "language": "shell",
+    "schema": null,
+    "solution": "# 1. Dry-run: see WHICH files would change, and what the changes look like.\ngrep -rln 'old_db_host' ./config --include='*.yaml'\ngrep -rn  'old_db_host' ./config --include='*.yaml' | head\n\n# 2. Make a backup of just the files that match.\nmkdir -p .backups/config\ngrep -rln 'old_db_host' ./config --include='*.yaml' | \\\n  xargs -I {} cp --parents {} .backups/\n\n# 3. Replace in place. GNU sed:\nfind ./config -type f -name '*.yaml' \\\n  -exec sed -i 's/old_db_host/new_db_host/g' {} +\n\n# 4. Verify nothing of the old string remains:\ngrep -rln 'old_db_host' ./config && echo \"still present!\" || echo \"all replaced\"\n\n# macOS / BSD sed needs a backup-extension argument (use empty string):\n#   sed -i '' 's/old/new/g' file.yaml\n# This portability quirk is why scripts often write `sed -i.bak ...` and\n# then `find . -name '*.bak' -delete`.",
+    "source": {
+      "name": "PaddySpeaks · Practical scenarios",
+      "url": "https://paddyspeaks.com/interview.app/"
+    },
+    "question": "Rename a deprecated config key — change every occurrence of `old_db_host` to `new_db_host` in every `*.yaml` file under `./config/`. Make a backup first.",
+    "runtime": null
   }
 ]
