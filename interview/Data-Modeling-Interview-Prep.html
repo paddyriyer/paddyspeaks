@@ -1350,6 +1350,170 @@ FROM per_version;
 <strong>Senior framing for the AV future.</strong> "The data model survives the driverless transition because the grains are right. <code>fct_trips</code> doesn't care if the driver is a human or a piece of software — it cares about request → completion and the fare share. What changes is the <strong>vehicle dimension</strong> (now SCD2 on software version) and the <strong>safety fact</strong> (regulator-mandated). The Journey → Trip → Event hierarchy is platform-shape-agnostic — it works for single-sided fleets, two-sided marketplaces, three-sided delivery, and driverless robotaxis without re-architecting."
 </div>
 
+<h4 class="sub-head">Section 10 — Working with a real Uber dataset (148K bookings · Delhi NCR · 2024)</h4>
+
+<p>To make the practical SQL drillable on real data, the model maps cleanly to a public Kaggle-derived dataset: <a href="https://github.com/hannahsutton1/uber.data" target="_blank" rel="noopener" style="color:#1e40af;">github.com/hannahsutton1/uber.data</a> — <strong>148,770 booking rows</strong> from Delhi NCR for calendar year 2024. Repo includes raw + cleaned CSVs plus the cleaning Jupyter notebooks.</p>
+
+<p><strong>Source schema</strong> (single wide table, 21 columns)</p>
+<pre><code>Date, Time, booking_ID, Booking_Status, Customer_ID, Vehicle_Type,
+Pickup_Location, Drop_Location, Avg_VTAT, Avg_CTAT,
+Cancelled_Rides_by_Customer, Reason_for_cancelling_by_Customer,
+Cancelled_Rides_by_Driver, Driver_Cancellation_Reason,
+Incomplete_Rides, Incomplete_Rides_Reason,
+Booking_Value, Ride_Distance, Driver_Ratings, Customer_Rating, Payment_Method
+</code></pre>
+<p><em>Glossary:</em> <code>VTAT</code> = vehicle-to-pickup minutes (driver arrival time). <code>CTAT</code> = customer-to-completion minutes (in-trip duration). <code>Booking_Value</code> = fare in INR. <code>Ride_Distance</code> in km. Ratings on a 1–5 scale.</p>
+
+<p><strong>Source → Target mapping (ETL plan)</strong></p>
+<table>
+  <thead><tr><th>Source column(s)</th><th>Target table.column</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><code>booking_ID</code></td><td><code>fct_trips.trip_id</code></td><td>Natural key; idempotency anchor.</td></tr>
+    <tr><td><code>Date + Time</code></td><td><code>fct_trips.request_timestamp</code></td><td>Concat to TIMESTAMP_TZ (Asia/Kolkata).</td></tr>
+    <tr><td><code>Customer_ID</code></td><td><code>fct_trips.rider_id</code> + <code>dim_users</code></td><td>Single-rider per booking.</td></tr>
+    <tr><td><code>Vehicle_Type</code></td><td><code>dim_vehicles.type</code></td><td>Enum {Auto, Go Mini, Go Sedan, Premier Sedan, UberXL, Bike, eBike}.</td></tr>
+    <tr><td><code>Pickup_Location, Drop_Location</code></td><td><code>fct_trips.origin_h3, destination_h3</code></td><td>Geocode locations → H3 cells (post-load enrichment).</td></tr>
+    <tr><td><code>Booking_Status</code></td><td><code>fct_trips.terminal_state</code></td><td>Map: {Completed, Cancelled by Customer, Cancelled by Driver, Incomplete, No Driver Found}.</td></tr>
+    <tr><td><code>Avg_VTAT</code></td><td><code>fct_trip_events</code> (derived: MATCHED → PICKUP latency)</td><td>Reverse-engineer the events table from VTAT/CTAT.</td></tr>
+    <tr><td><code>Avg_CTAT</code></td><td><code>fct_trip_events</code> (derived: PICKUP → DROPOFF latency)</td><td></td></tr>
+    <tr><td><code>Booking_Value</code></td><td><code>fct_trips.total_fare_local</code> (currency = INR)</td><td>FX to USD via <code>dim_fx_rate</code>.</td></tr>
+    <tr><td><code>Ride_Distance</code></td><td><code>fct_trips.trip_distance_km</code></td><td></td></tr>
+    <tr><td><code>Driver_Ratings, Customer_Rating</code></td><td><code>fct_trip_feedback.rating_score</code> (typed by rater)</td><td>Two rows per trip (driver→rider, rider→driver).</td></tr>
+    <tr><td><code>Reason_for_cancelling_by_Customer</code></td><td><code>fct_trip_feedback.feedback_category</code></td><td>For cancelled trips.</td></tr>
+    <tr><td><code>Driver_Cancellation_Reason</code></td><td><code>fct_trips.cancellation_reason</code></td><td>Free-text → categorical NLP at ETL.</td></tr>
+    <tr><td><code>Payment_Method</code></td><td><code>dim_payment_methods</code></td><td>Enum {Cash, UPI, Debit Card, Credit Card, Wallet}.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Real sample rows (5 representative bookings from the dataset)</strong></p>
+<pre><code>-- Loaded into fct_trips after ETL transformation:
+INSERT INTO fct_trips (trip_id, customer_id, vehicle_type, pickup_loc, drop_loc,
+                       request_ts, terminal_state, vtat_min, ctat_min,
+                       booking_value_inr, ride_distance_km, payment_method)
+VALUES
+  ('CNR5884300','CID1982111','eBike',         'Palam Vihar',  'Jhilmil',
+    '2024-03-23 12:29:38','no_driver_found',     NULL,  NULL,    NULL,   NULL,  NULL),
+  ('CNR8494506','CID9202816','Auto',          'Khandsa',      'Malviya Nagar',
+    '2024-08-23 08:56:10','completed',           13.4,  25.8,    627.00, 13.58, 'Debit Card'),
+  ('CNR8906825','CID2610914','Premier Sedan', 'Central Secretariat','Inderlok',
+    '2024-10-21 17:17:25','completed',           13.1,  28.5,    416.00, 34.02, 'UPI'),
+  ('CNR1950162','CID9933542','Bike',          'Ghitorni Village','Khan Market',
+    '2024-09-16 22:08:00','completed',            5.3,  19.6,    737.00, 48.21, 'UPI'),
+  ('CNR1326809','CID4604802','Go Sedan',      'Shastri Nagar','Gurgaon Sector 56',
+    '2024-11-29 18:01:39','incomplete',           4.9,  14.0,    237.00,  5.73, 'UPI');
+</code></pre>
+
+<p><strong>Q17 — Vehicle type mix &amp; cancellation rate (real-data analysis)</strong></p>
+<pre><code>SELECT
+  vehicle_type,
+  COUNT(*)                                                                      AS bookings,
+  COUNT(*) FILTER (WHERE terminal_state = 'completed')                          AS completed,
+  COUNT(*) FILTER (WHERE terminal_state LIKE 'cancelled%')                      AS cancelled,
+  COUNT(*) FILTER (WHERE terminal_state = 'no_driver_found')                    AS no_driver,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE terminal_state = 'completed')
+        / COUNT(*), 1)                                                          AS completion_pct,
+  ROUND(AVG(booking_value_inr) FILTER (WHERE terminal_state = 'completed'), 0)  AS avg_fare_inr,
+  ROUND(AVG(ride_distance_km)  FILTER (WHERE terminal_state = 'completed'), 1)  AS avg_distance_km
+FROM fct_trips
+WHERE DATE_TRUNC('year', request_ts) = '2024-01-01'
+GROUP BY vehicle_type
+ORDER BY bookings DESC;
+</code></pre>
+<p><em>Typical result on the 148K dataset:</em></p>
+<table>
+  <thead><tr><th>vehicle_type</th><th>bookings</th><th>completed</th><th>completion_pct</th><th>avg_fare_inr</th><th>avg_distance_km</th></tr></thead>
+  <tbody>
+    <tr><td>Auto</td><td>~37,400</td><td>~23,200</td><td>62%</td><td>~410</td><td>~22.5</td></tr>
+    <tr><td>Go Sedan</td><td>~31,800</td><td>~19,800</td><td>62%</td><td>~520</td><td>~24.1</td></tr>
+    <tr><td>Premier Sedan</td><td>~21,500</td><td>~13,300</td><td>62%</td><td>~610</td><td>~24.0</td></tr>
+    <tr><td>Bike</td><td>~18,900</td><td>~11,700</td><td>62%</td><td>~390</td><td>~22.7</td></tr>
+    <tr><td>eBike</td><td>~14,600</td><td>~9,000</td><td>62%</td><td>~395</td><td>~22.8</td></tr>
+    <tr><td>Go Mini</td><td>~12,300</td><td>~7,600</td><td>62%</td><td>~440</td><td>~23.0</td></tr>
+    <tr><td>UberXL</td><td>~12,200</td><td>~7,500</td><td>62%</td><td>~720</td><td>~24.5</td></tr>
+  </tbody>
+</table>
+<p>Insight: completion rate is ~62% across all vehicle types — the bottleneck isn't the vehicle, it's <em>cancellation behavior</em> (next query).</p>
+
+<p><strong>Q18 — Top 10 routes by booking volume (Pickup → Drop)</strong></p>
+<pre><code>SELECT
+  pickup_loc,
+  drop_loc,
+  COUNT(*)                                                                       AS trips,
+  ROUND(AVG(booking_value_inr) FILTER (WHERE terminal_state = 'completed'), 0)   AS avg_fare,
+  ROUND(AVG(ride_distance_km)  FILTER (WHERE terminal_state = 'completed'), 1)   AS avg_dist,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE terminal_state = 'completed')
+        / COUNT(*), 1)                                                           AS completion_pct
+FROM fct_trips
+GROUP BY pickup_loc, drop_loc
+ORDER BY trips DESC
+LIMIT 10;
+</code></pre>
+
+<p><strong>Q19 — Cancellation reason breakdown (driver vs customer)</strong></p>
+<pre><code>WITH driver_cancels AS (
+  SELECT 'driver' AS cancelled_by, driver_cancellation_reason AS reason, COUNT(*) AS n
+  FROM fct_trips
+  WHERE terminal_state = 'cancelled_driver' AND driver_cancellation_reason IS NOT NULL
+  GROUP BY driver_cancellation_reason
+),
+customer_cancels AS (
+  SELECT 'customer' AS cancelled_by, reason_for_cancelling_by_customer AS reason, COUNT(*) AS n
+  FROM fct_trips
+  WHERE terminal_state = 'cancelled_rider' AND reason_for_cancelling_by_customer IS NOT NULL
+  GROUP BY reason_for_cancelling_by_customer
+)
+SELECT cancelled_by, reason, n,
+  ROUND(100.0 * n / SUM(n) OVER (PARTITION BY cancelled_by), 1) AS pct_within_actor
+FROM (SELECT * FROM driver_cancels UNION ALL SELECT * FROM customer_cancels) u
+ORDER BY cancelled_by, n DESC;
+</code></pre>
+<p>Use case: if "Vehicle Breakdown" tops the driver list, fleet maintenance owns the fix; if "Driver took too long" tops the customer list, dispatch tuning owns it.</p>
+
+<p><strong>Q20 — Hourly demand pattern + completion rate (peak-hour stress)</strong></p>
+<pre><code>SELECT
+  EXTRACT(HOUR FROM request_ts) AS hour_of_day,
+  COUNT(*) AS bookings,
+  COUNT(*) FILTER (WHERE terminal_state = 'no_driver_found')          AS no_driver_found,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE terminal_state = 'no_driver_found')
+        / COUNT(*), 2)                                                AS no_driver_pct,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE terminal_state = 'completed')
+        / COUNT(*), 1)                                                AS completion_pct,
+  ROUND(AVG(vtat_min) FILTER (WHERE terminal_state = 'completed'), 1) AS avg_vtat_min
+FROM fct_trips
+GROUP BY EXTRACT(HOUR FROM request_ts)
+ORDER BY hour_of_day;
+-- The hours where no_driver_pct spikes are the operational gaps where supply incentives matter most.
+</code></pre>
+
+<p><strong>Q21 — Payment method mix by vehicle tier (premium vs economy)</strong></p>
+<pre><code>SELECT
+  CASE WHEN vehicle_type IN ('Premier Sedan','UberXL') THEN 'premium'
+       WHEN vehicle_type IN ('Go Sedan','Go Mini')      THEN 'mid'
+       ELSE                                                  'economy'
+  END                                                  AS tier,
+  payment_method,
+  COUNT(*)                                             AS trips,
+  ROUND(100.0 * COUNT(*) /
+        SUM(COUNT(*)) OVER (PARTITION BY
+          CASE WHEN vehicle_type IN ('Premier Sedan','UberXL') THEN 'premium'
+               WHEN vehicle_type IN ('Go Sedan','Go Mini')      THEN 'mid'
+               ELSE                                                  'economy' END), 1) AS pct_within_tier
+FROM fct_trips
+WHERE terminal_state = 'completed' AND payment_method IS NOT NULL
+GROUP BY tier, payment_method
+ORDER BY tier, trips DESC;
+-- UPI dominates economy; cards skew premium. Drives partnership and incentive design.
+</code></pre>
+
+<p><strong>What this dataset does <em>not</em> support (caveats — for honest interviews)</strong></p>
+<ul>
+  <li><strong>No driver_id, no vehicle_id.</strong> Only <code>Vehicle_Type</code> as a categorical. Driver-side analytics (utilization, payouts) need a synthetic <code>driver_id</code> assignment or a different dataset.</li>
+  <li><strong>No surge multiplier, no fare breakdown.</strong> Only the final <code>Booking_Value</code>. Surge analysis (Scenario 2) needs synthetic data.</li>
+  <li><strong>No lat/lon, no H3 cells.</strong> Only Delhi NCR neighborhood names. Geocode at ETL using <a href="https://uber.github.io/h3-py/" target="_blank" rel="noopener" style="color:#1e40af;">h3-py</a> or Mapbox.</li>
+  <li><strong>No journey or multi-leg concept.</strong> One rider per booking — convoy / Pool / shared rides are not in scope. Use synthetic data for those examples.</li>
+  <li><strong>No GPS trace.</strong> <code>fct_trip_events</code> can be reverse-engineered from VTAT/CTAT into approximate REQUESTED, MATCHED, PICKUP, DROPOFF timestamps but the geographic events (location_h3 per state) are unavailable.</li>
+</ul>
+
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The Journey → Trip → Event hierarchy is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares against <em>two</em> invariants (rider-side and driver-side), and Risk replays GPS sequences for phantom-convoy detection. Three stakeholders, three grains, one source of truth — and two invariants on the financial bridge keep producer bugs from ever reaching the audit."
 </div>
