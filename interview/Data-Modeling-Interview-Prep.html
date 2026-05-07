@@ -1993,77 +1993,227 @@ ORDER BY pct_under_supplied DESC;
 <!-- Scenario 3: DoorDash -->
 <div class="scenario" id="sc-doordash">
 <div class="domain-tag">DoorDash / Uber Eats · 3-sided marketplace</div>
-<h4 class="sub-head">Scenario 3 — Order &amp; courier dispatch</h4>
-<div class="prompt">Model the DoorDash order from customer placement → restaurant prep → courier pickup → delivery, accounting for batched (stacked) orders where one courier delivers multiple orders.</div>
+<h4 class="sub-head">Scenario 3 — Order &amp; courier dispatch (with stacked deliveries)</h4>
+<div class="prompt">Model DoorDash's order lifecycle from customer placement → restaurant prep → courier pickup → delivery, supporting Customers (on-time SLA), Couriers (earnings), Restaurants (operations), with native handling of <em>stacked</em> orders where one courier delivers multiple orders on a single dispatch.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>This is a <strong>3-sided marketplace</strong> (customer + restaurant + courier) where one fact table can't satisfy all three. Stacked orders make it worse: one courier dispatch covers multiple orders, but each order has its own customer SLA and its own restaurant relationship. Mutable tips (editable up to 24h post-delivery) demand append-only economics. The model must read clean for each stakeholder without forcing the others to filter.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+
+<p><strong>Fact Tables (the order/dispatch split + bridge)</strong></p>
 <ul>
-  <li>"Stacked orders: one courier, two drop-offs — separate orders, shared <code>dispatch_id</code>."</li>
-  <li>"Restaurant prep time — measured how? Estimated at order time vs actual at pickup; store both."</li>
-  <li>"Tips — can edit post-delivery within 24hr — modeled as a slowly-changing fact (append correction)."</li>
+  <li><code>fct_orders</code> — <strong>The "Customer" grain.</strong> One row per customer order. Drives customer SLA + restaurant operations.</li>
+  <li><code>fct_dispatches</code> — <strong>The "Courier" grain.</strong> One row per courier dispatch. May cover 1 (single) or N (stacked) orders. Drives courier earnings.</li>
+  <li><code>brg_dispatch_orders</code> — <strong>The "Stacking" bridge.</strong> Links a dispatch to its 1-N orders, with leg sequence and per-order distance.</li>
+  <li><code>fct_order_state_events</code> — <strong>The "Telemetry" grain.</strong> One row per order state transition (PLACED, CONFIRMED, READY, PICKED_UP, DELIVERED, CANCELLED).</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
-<blockquote><code>fact_order</code>: one row per order. <code>fact_dispatch</code>: one row per courier dispatch (may cover multiple orders). <code>fact_dispatch_order_link</code>: bridge.</blockquote>
-
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_customer    (SCD1 + history of address changes via SCD2 on dim_address)
-dim_restaurant  (SCD2 — menu, hours, status)
-dim_courier     (SCD2 — vehicle type, rating tier, on/off platform)
-dim_h3_cell     (SCD1)
-
-CREATE TABLE fact_order (
-  order_sk           BIGINT,
-  order_id           STRING,
-  customer_sk        BIGINT,
-  restaurant_sk      BIGINT,
-  delivery_h3_sk     BIGINT,
-  placed_ts          TIMESTAMP_TZ,
-  confirmed_ts       TIMESTAMP_TZ,
-  ready_ts           TIMESTAMP_TZ,
-  picked_up_ts       TIMESTAMP_TZ,
-  delivered_ts       TIMESTAMP_TZ,
-  subtotal_usd       DECIMAL(10,2),
-  tax_usd            DECIMAL(10,2),
-  delivery_fee_usd   DECIMAL(10,2),
-  service_fee_usd    DECIMAL(10,2),
-  tip_usd            DECIMAL(10,2),     -- mutable up to 24h
-  tip_locked_ts      TIMESTAMP_TZ,
-  promo_applied_usd  DECIMAL(10,2),
-  terminal_state     STRING,
-  ingest_ts          TIMESTAMP_TZ
-)
-PARTITION BY DATE(placed_ts);
-
-CREATE TABLE fact_dispatch (
-  dispatch_sk         BIGINT,
-  courier_sk          BIGINT,
-  pickup_h3_sk        BIGINT,
-  dispatch_start_ts   TIMESTAMP_TZ,
-  dispatch_end_ts     TIMESTAMP_TZ,
-  is_batched          BOOLEAN,
-  total_orders        INT,
-  total_distance_km   DECIMAL(8,3),
-  payout_usd          DECIMAL(10,2)
-)
-PARTITION BY DATE(dispatch_start_ts);
-
-CREATE TABLE fact_dispatch_order_link (
-  dispatch_sk BIGINT,
-  order_sk    BIGINT,
-  leg_index   INT,           -- 1, 2 for stacked
-  PRIMARY KEY (dispatch_sk, order_sk)
-);</code></pre>
-
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><strong>Tip mutation:</strong> tips edit up to 24h post-delivery — append correction with <code>tip_corrected_at</code>; never <code>UPDATE</code>.</li>
-  <li><strong>Restaurant outage:</strong> restaurant offline mid-order — terminal_state = <code>cancelled_restaurant</code>; refund cascade.</li>
-  <li><strong>Courier handoff:</strong> rare — first courier abandons, second picks up. Two dispatch rows; first ends as <code>terminal_state = abandoned</code>.</li>
+  <li><code>dim_customers</code> · <code>dim_addresses</code> (SCD2 on address — for legal/refund history)</li>
+  <li><code>dim_restaurants</code> (SCD2 — hours, menu version, status)</li>
+  <li><code>dim_couriers</code> (SCD2 — vehicle type, rating tier, on/off platform)</li>
+  <li><code>dim_h3_cell</code> (SCD1)</li>
+</ul>
+
+<h4 class="sub-head">Section 2 — Logical Data Model</h4>
+
+<p><strong>Customer Fact: <code>fct_orders</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>order_key / order_id</code></td><td>PK / UUID</td><td>Surrogate + natural.</td></tr>
+    <tr><td><code>customer_id, restaurant_id, delivery_h3</code></td><td>FK</td><td>The 3 sides.</td></tr>
+    <tr><td><code>placed_ts, confirmed_ts, ready_ts, picked_up_ts, delivered_ts</code></td><td>TIMESTAMP_TZ</td><td>5 lifecycle timestamps; NULL until reached.</td></tr>
+    <tr><td><code>subtotal_usd, tax_usd, delivery_fee_usd, service_fee_usd</code></td><td>DECIMAL</td><td>Customer-facing.</td></tr>
+    <tr><td><code>tip_usd</code></td><td>DECIMAL</td><td>Mutable up to 24h post-delivery.</td></tr>
+    <tr><td><code>tip_locked_ts</code></td><td>TIMESTAMP_TZ</td><td>When the tip became immutable. NULL = still mutable.</td></tr>
+    <tr><td><code>promo_applied_usd</code></td><td>DECIMAL</td><td>Customer discount.</td></tr>
+    <tr><td><code>terminal_state</code></td><td>ENUM</td><td>{delivered, cancelled_customer, cancelled_restaurant, cancelled_courier, abandoned}.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Courier Fact: <code>fct_dispatches</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>dispatch_key</code></td><td>PK</td><td>Surrogate.</td></tr>
+    <tr><td><code>courier_id</code></td><td>FK</td><td>The courier on this dispatch.</td></tr>
+    <tr><td><code>dispatch_start_ts, dispatch_end_ts</code></td><td>TIMESTAMP_TZ</td><td>From "accept" to "all delivered".</td></tr>
+    <tr><td><code>is_batched</code></td><td>BOOLEAN</td><td>TRUE if N orders stacked.</td></tr>
+    <tr><td><code>total_orders</code></td><td>SMALLINT</td><td>Convenience: COUNT of orders in bridge.</td></tr>
+    <tr><td><code>total_distance_km</code></td><td>DECIMAL</td><td>Sum of all legs.</td></tr>
+    <tr><td><code>base_pay_usd, tips_distributed_usd, payout_usd</code></td><td>DECIMAL</td><td>Earnings.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Bridge: <code>brg_dispatch_orders</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>dispatch_key, order_key</code></td><td>FK</td><td>Composite PK.</td></tr>
+    <tr><td><code>leg_sequence</code></td><td>SMALLINT</td><td>1, 2, 3 — which delivery on this dispatch.</td></tr>
+    <tr><td><code>leg_distance_km</code></td><td>DECIMAL</td><td>Distance from previous leg's drop (or restaurant) to this drop.</td></tr>
+    <tr><td><code>leg_payout_share_usd</code></td><td>DECIMAL</td><td>This leg's share of the dispatch payout.</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+
+<p><strong>Customer · on-time SLA + experience</strong></p>
+<ul>
+  <li><strong>On-time:</strong> <code>delivered_ts ≤ promised_ts</code> from <code>fct_orders</code>.</li>
+  <li><strong>Late stage detection:</strong> join <code>fct_order_state_events</code> to find which stage stalled (restaurant prep? courier route?).</li>
+</ul>
+
+<p><strong>Courier · earnings &amp; efficiency</strong></p>
+<ul>
+  <li><strong>Earnings per hour:</strong> SUM(<code>payout_usd</code>) / dispatch hours from <code>fct_dispatches</code>.</li>
+  <li><strong>Stack uplift:</strong> compare per-leg payout in single vs batched dispatches — quantifies the courier value of stacking.</li>
+</ul>
+
+<p><strong>Restaurant · operational health</strong></p>
+<ul>
+  <li><strong>Prep time variance:</strong> <code>ready_ts − confirmed_ts</code> per restaurant per hour. Spikes = kitchen overload.</li>
+  <li><strong>Cancellation source:</strong> <code>terminal_state = cancelled_restaurant</code> rate; restaurants with &gt;3% rate get warning.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why the order/dispatch split + bridge</h4>
+<p>Three failure modes if you collapse:</p>
+<ul>
+  <li><strong>Single-fact (order grain only):</strong> can't represent "courier did 2 stacked deliveries with shared pickup" — courier earnings get double-counted.</li>
+  <li><strong>Single-fact (dispatch grain only):</strong> the customer SLA query needs to sum within bridge — ugly, error-prone.</li>
+  <li><strong>No bridge:</strong> 1:1 dispatch:order forces non-stacking — kills the entire economic case for batching.</li>
+</ul>
+<p>The bridge with leg_sequence + leg_distance + leg_payout_share enables: <strong>fct_orders</strong> stays clean (1 row = 1 customer order), <strong>fct_dispatches</strong> stays clean (1 row = 1 courier shift-segment), and the join produces correct per-leg attribution for both sides.</p>
+
+<h4 class="sub-head">Enhanced graphical data model — DoorDash 3-sided marketplace</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrDD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">DOORDASH 3-SIDED MARKETPLACE · ORDER + DISPATCH + BRIDGE</text>
+  <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+  <text x="1210" y="103" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#64748b">(Calculated metrics)</text>
+
+  <!-- Dims -->
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_customers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ customer_key · email · plan</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 on address</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_restaurants</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ restaurant_key · name</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">cuisine · hours · prep_avg</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 (menu, hours)</text></g>
+  <g transform="translate(40,330)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▰ dim_couriers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ courier_key · name</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">vehicle_type · rating_tier</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,440)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⌬ dim_h3_cell</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ h3_key · L8 hex</text></g>
+
+  <!-- Facts -->
+  <g transform="translate(385,130)"><rect width="280" height="200" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="280" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_orders · CUSTOMER</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ order_key (PK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ customer_id · restaurant_id</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ placed → confirmed → ready</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ → picked_up → delivered_ts</text><text x="20" y="121" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subtotal · fees · tip</text><text x="20" y="137" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ tip_locked_ts</text><text x="20" y="155" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ terminal_state</text><text x="20" y="180" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per customer order</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="200" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_dispatches · COURIER</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ dispatch_key (PK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ courier_id (FK)</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ dispatch_start_ts · end_ts</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ is_batched · total_orders</text><text x="20" y="119" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ total_distance_km</text><text x="20" y="137" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ base_pay · tips · payout</text><text x="20" y="180" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per courier dispatch</text></g>
+  <g transform="translate(385,360)"><rect width="580" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ brg_dispatch_orders · STACKING BRIDGE</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ dispatch_key · order_key (composite PK)</text><text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ leg_sequence (1, 2, 3...) · leg_distance_km · leg_payout_share_usd</text><text x="20" y="105" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (dispatch × order). N=1 normal, N&gt;1 stacked.</text></g>
+  <g transform="translate(385,510)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_order_state_events · TELEMETRY</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ order_id · state · event_ts · actor</text><text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per order state change · powers stage-latency analysis</text></g>
+
+  <!-- Modules -->
+  <g transform="translate(1015,130)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CUSTOMER · ORDER LATENCIES</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Promised vs Delivered (on-time %)</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Stage breakdown: prep / pickup / drive</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Late stage attribution (whose fault?)</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_orders + fct_order_state_events</text></g>
+  <g transform="translate(1015,285)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">COURIER EFFICIENCY</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Earnings per hour</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Stack uplift (single vs batched)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Idle time between dispatches</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_dispatches × brg_dispatch_orders</text></g>
+  <g transform="translate(1015,440)"><rect width="390" height="140" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CUSTOMER SATISFACTION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">★ Post-delivery rating</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Refund rate</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⌖ Re-order intent (CSAT × repeat)</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_orders × dim_customers</text></g>
+  <g transform="translate(1015,600)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RESTAURANT PERFORMANCE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊞ Prep time p50/p95</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ cancelled_restaurant rate</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ GMV per restaurant per day</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_orders × dim_restaurants</text></g>
+
+  <!-- Lines -->
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="310" y1="270" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="310" y1="375" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="525" y1="330" x2="525" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="700" y1="330" x2="700" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="525" y1="480" x2="525" y2="510" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrDD)"/>
+  <line x1="665" y1="170" x2="1015" y2="200" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+  <line x1="965" y1="220" x2="1015" y2="350" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+  <line x1="665" y1="220" x2="1015" y2="510" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+  <line x1="665" y1="170" x2="1015" y2="660" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrDD)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data</strong> (Dispatch DSP-99: 1 courier, 2 stacked orders from the same restaurant)</p>
+<pre><code>INSERT INTO fct_orders VALUES
+  ('O-201','CUST_A','RST_PIZZA','h3_drop1','2025-05-01 18:00','2025-05-01 18:02','2025-05-01 18:18','2025-05-01 18:22','2025-05-01 18:34', 25.00, 2.10, 2.99, 1.00, 5.00, '2025-05-02 18:34', 0.00, 'delivered'),
+  ('O-202','CUST_B','RST_PIZZA','h3_drop2','2025-05-01 18:01','2025-05-01 18:03','2025-05-01 18:18','2025-05-01 18:22','2025-05-01 18:42', 32.00, 2.69, 2.99, 1.00, 6.00, '2025-05-02 18:42', 0.00, 'delivered');
+
+INSERT INTO fct_dispatches VALUES
+  ('DSP-99','COURIER_X','2025-05-01 18:18','2025-05-01 18:42', TRUE, 2, 4.2, 6.50, 11.00, 17.50);
+
+INSERT INTO brg_dispatch_orders VALUES
+  ('DSP-99','O-201', 1, 2.0, 8.50),
+  ('DSP-99','O-202', 2, 2.2, 9.00);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Customer · order latencies &amp; SLA</h4>
+<p><strong>Q1 — Stage-by-stage latency for the order, with whose-fault attribution</strong></p>
+<pre><code>SELECT
+  order_id,
+  EXTRACT(EPOCH FROM (confirmed_ts - placed_ts)) / 60   AS confirm_min,
+  EXTRACT(EPOCH FROM (ready_ts - confirmed_ts)) / 60    AS prep_min,
+  EXTRACT(EPOCH FROM (picked_up_ts - ready_ts)) / 60    AS pickup_wait_min,
+  EXTRACT(EPOCH FROM (delivered_ts - picked_up_ts)) / 60 AS drive_min,
+  EXTRACT(EPOCH FROM (delivered_ts - placed_ts)) / 60   AS total_min,
+  CASE
+    WHEN (ready_ts - confirmed_ts)   &gt; INTERVAL '20 min' THEN 'restaurant_slow'
+    WHEN (picked_up_ts - ready_ts)   &gt; INTERVAL '10 min' THEN 'courier_late_pickup'
+    WHEN (delivered_ts - picked_up_ts) &gt; INTERVAL '20 min' THEN 'courier_slow_drive'
+    ELSE 'on_track' END                                 AS bottleneck
+FROM fct_orders WHERE DATE(placed_ts) = '2025-05-01';
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Courier · earnings &amp; stack uplift</h4>
+<p><strong>Q2 — Earnings per hour by stacked vs single dispatch</strong></p>
+<pre><code>SELECT
+  is_batched,
+  COUNT(*)                                                      AS dispatches,
+  ROUND(SUM(payout_usd) /
+        SUM(EXTRACT(EPOCH FROM (dispatch_end_ts - dispatch_start_ts))/3600), 2) AS earnings_per_hr,
+  ROUND(SUM(payout_usd) / SUM(total_orders), 2)                 AS payout_per_order,
+  ROUND(AVG(total_distance_km / total_orders), 2)               AS km_per_order
+FROM fct_dispatches
+WHERE DATE(dispatch_start_ts) BETWEEN '2025-05-01' AND '2025-05-31'
+GROUP BY is_batched;
+-- Quantifies the courier value of stacking; if stacked is &lt; 1.3× single payout/hr, batching isn't worth it.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Restaurant · prep time &amp; cancellation</h4>
+<p><strong>Q3 — Prep time p50/p95 per restaurant per day</strong></p>
+<pre><code>SELECT
+  restaurant_id,
+  DATE(placed_ts) AS d,
+  COUNT(*) AS orders,
+  PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ready_ts - confirmed_ts))/60) AS prep_p50_min,
+  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (ready_ts - confirmed_ts))/60) AS prep_p95_min,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE terminal_state = 'cancelled_restaurant') / COUNT(*), 1) AS cancel_pct
+FROM fct_orders
+WHERE confirmed_ts IS NOT NULL AND ready_ts IS NOT NULL
+GROUP BY restaurant_id, DATE(placed_ts)
+ORDER BY prep_p95_min DESC;
+-- Restaurants with prep_p95 > 25min get warned; > 35min get throttled (lower placement priority).
+</code></pre>
+
+<h4 class="sub-head">Worked example — Stacked dispatch DSP-99</h4>
+<ol>
+  <li>Courier X accepts dispatch at 18:18 with 2 stacked orders from RST_PIZZA. Pickup is shared (single restaurant); 2 different drop locations.</li>
+  <li>Order O-201 delivered first at 18:34 (16 min after pickup, 2.0 km).</li>
+  <li>Order O-202 delivered second at 18:42 (24 min after pickup, additional 2.2 km from drop1).</li>
+  <li>Courier earnings: <code>base_pay $6.50 + tips $11.00 = $17.50</code> for 24 min of dispatch time → <strong>$43.75/hr</strong>. A single-order dispatch in the same area pays ~$28/hr.</li>
+  <li>Bridge: O-201 leg_payout_share = $8.50, O-202 leg_payout_share = $9.00. Sum = $17.50 ✓</li>
+  <li>Customer SLAs: O-201 on-time (16 min total); O-202 was 8 min late (waited for O-201 drop). Stacking trade-off: courier earnings up, second customer's SLA at risk.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Three stakeholders, three grains, one model.</strong> Customer queries hit <code>fct_orders</code>; courier queries hit <code>fct_dispatches</code>; the bridge ties them only when stacking math matters.</li>
+  <li><strong>Stack uplift is measurable.</strong> Compare <code>is_batched=TRUE</code> vs <code>FALSE</code> earnings/hr — if stacking doesn't beat single by ~30%, dispatch should stop offering it.</li>
+  <li><strong>Mutable tips handled cleanly.</strong> Append correction rows; <code>tip_locked_ts</code> tracks the immutability boundary. Finance restates from <code>tip_locked_ts</code>.</li>
+  <li><strong>Stage-attribution.</strong> The bottleneck CASE WHEN in Q1 turns "the order was 18 min late" into "the restaurant prep took 22 min" — actionable per stakeholder.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The 3-sided design lets us answer the three different stakeholders in one model: <em>was the customer's order on time?</em> (joins on <code>fact_order</code>), <em>did the courier earn enough per hour?</em> (aggregates <code>fact_dispatch</code>), <em>did the restaurant lose orders to long prep times?</em> (joins <code>placed_ts → ready_ts</code> by <code>restaurant_sk</code>)."
+<strong>Senior framing.</strong> "The 3-sided design lets us answer three different stakeholders in one model: <em>was the customer's order on time?</em> (joins on <code>fct_orders</code>), <em>did the courier earn enough per hour?</em> (aggregates <code>fct_dispatches</code>), <em>did the restaurant lose orders to long prep times?</em> (joins on <code>dim_restaurants</code>). The bridge is what makes stacking a first-class concept rather than a hack."
 </div>
 </div>
 
