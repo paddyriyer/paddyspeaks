@@ -200,71 +200,496 @@
 <h4 class="sub-head">Scenario 1 — Trip lifecycle</h4>
 <div class="prompt">Design a model that captures every Uber trip from request → match → pickup → dropoff → payment, supporting Operations (live ETA), Finance (driver payouts), and Risk (fraud).</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>To design a robust model for a trip lifecycle, we need to balance the <strong>low-latency requirements of Operations</strong> with the <strong>high-integrity requirements of Finance and Risk</strong>. The hybrid approach — combining a <em>state-driven grain</em> for the lifecycle with an <em>entity-driven grain</em> for the trip — is the most resilient path. It serves three different consumers from one source of truth without forcing any of them to compromise.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p>This model uses a <strong>Star Schema</strong> with a high-granularity transition table to capture the "how" and "when" of the trip.</p>
+
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Is one row per trip, or per state transition? Both — trip-level fact + factless transitions table."</li>
-  <li>"UberPool / shared rides — same trip_id with multiple riders, or many trips? Multiple riders → bridge table."</li>
-  <li>"Surge factor — locked at request or at completion? Locked at request, stored as <code>surge_multiplier_at_request</code>."</li>
-  <li>"Cancellations: rider, driver, system — same fact? Same fact, with <code>terminal_state ∈ {completed, cancelled_rider, cancelled_driver, cancelled_system, no_show}</code>."</li>
+  <li><code>fct_trips</code> — Grain: <em>one row per trip</em>. Primary table for Finance and high-level Ops, containing the final state, total fare, total distance, and the surge multiplier locked at request.</li>
+  <li><code>fct_trip_events</code> — Grain: <em>one row per state change</em>. Supports "Time-to-Match", "Time-to-Pickup", and dispatch-latency metrics. This is also the source of truth for spatial replay used by Risk.</li>
+  <li><code>brg_trip_riders</code> — Bridge table for UberPool / shared rides. Allows multiple riders to be associated with a single <code>trip_id</code> while preserving per-rider revenue allocation.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
-<blockquote><code>fact_trip</code>: one row per trip request, terminal-state captured. <code>fact_trip_state_transition</code>: one row per state change (factless).</blockquote>
+<p><strong>Dimension Tables</strong></p>
+<ul>
+  <li><code>dim_users</code> — Riders and drivers, typed via <code>user_role</code>. SCD2 on plan tier and rating.</li>
+  <li><code>dim_vehicles</code> — Vehicle specs (model, type), insurance status, owner. SCD2 on insurance status (Risk needs as-of-trip status).</li>
+  <li><code>dim_geography</code> — H3 hexagonal indexing (level 8 ≈ 0.7 km²) for spatial analysis. SCD1 (geography is structurally static).</li>
+  <li><code>dim_payment_methods</code> — Card / wallet on file. SCD2 — Finance audit needs the as-of-trip card.</li>
+  <li><code>dim_fx_rate</code> — SCD2 daily rates; locked at <code>request_timestamp</code>.</li>
+</ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_rider          (SCD2 — phone changes, plan tier changes)
-dim_driver         (SCD2 — vehicle, rating tier, region)
-dim_vehicle        (SCD2 — owner, insurance status)
-dim_h3_cell        (SCD1 — hex grid, level 9 default)
-dim_payment_method (SCD2)
+<h4 class="sub-head">Section 2 — The Logical Data Model</h4>
 
-CREATE TABLE fact_trip (
-  trip_sk             BIGINT,
-  trip_id             STRING,           -- natural
-  rider_sk            BIGINT,
-  driver_sk           BIGINT,
-  vehicle_sk          BIGINT,
-  origin_h3_sk        BIGINT,
-  destination_h3_sk   BIGINT,
-  request_ts          TIMESTAMP_TZ,
-  match_ts            TIMESTAMP_TZ,
-  pickup_ts           TIMESTAMP_TZ,
-  dropoff_ts          TIMESTAMP_TZ,
-  trip_distance_km    DECIMAL(8,3),
-  trip_duration_sec   INT,
-  base_fare_local     DECIMAL(10,2),
-  surge_multiplier    DECIMAL(4,2),
-  total_fare_local    DECIMAL(10,2),
-  fx_rate_to_usd      DECIMAL(18,8),
-  total_fare_usd      DECIMAL(10,2),
-  currency_code       CHAR(3),
-  product_type        STRING,           -- UberX / Pool / Black
-  terminal_state      STRING,
-  cancellation_actor  STRING NULL,
-  rider_rating        TINYINT NULL,
-  driver_rating       TINYINT NULL,
-  ingest_ts           TIMESTAMP_TZ
+<p><strong>Core Fact: <code>fct_trips</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>trip_key</code></td><td>PK BIGINT</td><td>Surrogate key for the trip.</td></tr>
+    <tr><td><code>trip_id</code></td><td>UUID</td><td>Natural ID from the source system; idempotency anchor.</td></tr>
+    <tr><td><code>rider_id</code></td><td>FK</td><td>Single rider (NULL for Pool — riders live in <code>brg_trip_riders</code>).</td></tr>
+    <tr><td><code>driver_id</code></td><td>FK</td><td>The matched driver.</td></tr>
+    <tr><td><code>vehicle_id</code></td><td>FK</td><td>The vehicle used.</td></tr>
+    <tr><td><code>origin_h3_key</code></td><td>FK</td><td>H3 cell at request time.</td></tr>
+    <tr><td><code>destination_h3_key</code></td><td>FK</td><td>H3 cell at dropoff (NULL on cancellation).</td></tr>
+    <tr><td><code>request_timestamp</code></td><td>TIMESTAMP_TZ</td><td>The beginning of the lifecycle.</td></tr>
+    <tr><td><code>terminal_state</code></td><td>ENUM</td><td>{completed, cancelled_rider, cancelled_driver, cancelled_system, expired, no_show}.</td></tr>
+    <tr><td><code>surge_multiplier</code></td><td>DECIMAL(4,2)</td><td>Locked at request — <strong>immutable</strong>.</td></tr>
+    <tr><td><code>total_fare_local</code></td><td>DECIMAL(10,2)</td><td>Final fare in source currency.</td></tr>
+    <tr><td><code>fx_rate_to_usd</code></td><td>DECIMAL(18,8)</td><td>Locked at <code>request_timestamp</code> — guarantees revenue can never be restated by FX drift.</td></tr>
+    <tr><td><code>total_fare_usd</code></td><td>DECIMAL(10,2)</td><td>Final amount charged to rider(s) — Finance source of truth.</td></tr>
+    <tr><td><code>driver_payout_usd</code></td><td>DECIMAL(10,2)</td><td>Final amount owed to driver after take rate (Finance focus).</td></tr>
+    <tr><td><code>is_flagged_risk</code></td><td>BOOLEAN</td><td>Fraud suspicion flag (Risk focus). Slowly-changing — append correction; never <code>UPDATE</code>.</td></tr>
+    <tr><td><code>ingest_ts</code></td><td>TIMESTAMP_TZ</td><td>For idempotent <code>MERGE</code>.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Event Fact: <code>fct_trip_events</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>event_id</code></td><td>PK</td><td>Unique event identifier (idempotency).</td></tr>
+    <tr><td><code>trip_id</code></td><td>FK</td><td>Link to <code>fct_trips</code>.</td></tr>
+    <tr><td><code>state</code></td><td>STRING</td><td>REQUESTED, MATCHED, ARRIVED, STARTED, DROPOFF, CANCELLED.</td></tr>
+    <tr><td><code>event_timestamp</code></td><td>TIMESTAMP_TZ</td><td>Precise time of transition.</td></tr>
+    <tr><td><code>location_h3</code></td><td>H3_INDEX</td><td>Cell where the event occurred.</td></tr>
+    <tr><td><code>actor</code></td><td>STRING</td><td>Who triggered the transition: rider, driver, system.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Bridge Fact: <code>brg_trip_riders</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>trip_key</code></td><td>FK</td><td>The trip.</td></tr>
+    <tr><td><code>rider_id</code></td><td>FK</td><td>The rider on this leg.</td></tr>
+    <tr><td><code>individual_fare_usd</code></td><td>DECIMAL(10,2)</td><td>This rider's allocated fare.</td></tr>
+    <tr><td><code>pickup_sequence</code></td><td>SMALLINT</td><td>Order in which they were picked up (1, 2, 3…).</td></tr>
+    <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's portion of the route; basis for fare allocation.</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+
+<p><strong>Operations · live ETA &amp; monitoring</strong></p>
+<p>By using <code>fct_trip_events</code>, Operations calculates lead-time metrics directly:</p>
+<ul>
+  <li><strong>Dispatch Latency</strong> = <code>timestamp(MATCHED) − timestamp(REQUESTED)</code></li>
+  <li><strong>Pickup ETA accuracy</strong> = <code>timestamp(STARTED) − timestamp(MATCHED)</code> compared to the predicted ETA</li>
+  <li><strong>Spatial hot-spot detection</strong> via <code>location_h3</code>: aggregate REQUESTED events per cell per minute against MATCHED events to identify cells where demand exceeds supply in real time.</li>
+</ul>
+
+<p><strong>Finance · driver payouts &amp; revenue</strong></p>
+<ul>
+  <li><code>fct_trips</code> is the General Ledger source of truth — every payout in <code>fct_payouts</code> joins back here on <code>trip_key</code>.</li>
+  <li><code>surge_multiplier</code> is immutable once the request is made — ensures the rider's quoted price matches the driver's earning potential. Stored on the row, never derived.</li>
+  <li><code>terminal_state</code> dictates whether a cancellation fee triggers a partial driver payout (e.g. <code>cancelled_rider</code> after MATCHED triggers a fee; <code>cancelled_system</code> does not).</li>
+  <li>FX is locked at <code>request_timestamp</code> — guarantees revenue restatement is impossible from rate drift.</li>
+</ul>
+
+<p><strong>Risk · fraud detection</strong></p>
+<ul>
+  <li><strong>Location anomaly:</strong> compare <code>origin_h3</code> on <code>fct_trips</code> with the first STARTED event's H3 in <code>fct_trip_events</code> — large divergence = potential ride-tampering.</li>
+  <li><strong>Trip-event GPS replay</strong> reveals "teleportation" — impossible speed between consecutive events implies spoofed location.</li>
+  <li><strong>Account farming:</strong> joining <code>fct_trips</code> with a <code>dim_devices</code> table (linked via <code>fct_session</code>) — a single device cycling through multiple <code>rider_id</code>s in a short window flags suspicious activity.</li>
+  <li><code>is_flagged_risk</code> is a slowly-changing fact — appended via correction row, never updated, so Finance can replay any payout decision regardless of subsequent risk re-evaluation.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why a Bridge Table for Shared Rides (UberPool)</h4>
+<p>Without a bridge, you face a binary choice — both bad:</p>
+<ul>
+  <li><strong>Option A: One row per trip, store rider IDs in an array column.</strong> Easy writes, but Finance can't aggregate revenue per rider without exploding the array. SCD2 on rider attributes becomes intractable. Disqualifying for this domain.</li>
+  <li><strong>Option B: One row per rider in <code>fct_trips</code>.</strong> A Pool with 3 riders becomes 3 rows — but now <code>total_fare_usd</code> is triple-counted on every aggregation. Drivers and dispatch counts also triple-count. Disqualifying for Operations.</li>
+</ul>
+
+<p>The bridge table <code>brg_trip_riders</code> is the only design that satisfies both:</p>
+<ul>
+  <li><strong>One driver, one trip, one row in <code>fct_trips</code></strong> — Operations, Finance trip counts, and dispatch totals are all correct on simple aggregation.</li>
+  <li><strong>Multiple rows in <code>brg_trip_riders</code></strong> — Finance computes per-rider fare, per-rider tax, per-rider promo without distorting trip-level metrics.</li>
+  <li><strong>Enforceable invariant</strong>: <code>SUM(individual_fare_usd) per trip_key = total_fare_usd</code>. A continuous data-quality check that fails immediately on producer bugs.</li>
+</ul>
+
+<p><strong>Allocation rule:</strong> <code>individual_fare_usd = total_fare_usd × (leg_distance_km / SUM(leg_distance_km) over trip)</code>.</p>
+
+<h4 class="sub-head">Section 5 — Conceptual data flow (the bridge in plain English)</h4>
+<p>In a shared ride, a single <code>trip_id</code> represents the <strong>physical movement of the vehicle</strong>. The financial and risk aspects, however, are tied to the <strong>individual rider</strong>:</p>
+<ul>
+  <li><code>fct_trips</code> — stores the <strong>driver's perspective</strong> (total distance, total payout, vehicle used).</li>
+  <li><code>brg_trip_riders</code> — stores the <strong>rider's perspective</strong> (specific fare, pickup order, individual rider ID).</li>
+</ul>
+
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:720px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:14px 0">
+  <defs>
+    <marker id="arr-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e40af"/>
+    </marker>
+  </defs>
+  <!-- Vehicle / driver perspective -->
+  <g>
+    <rect x="20" y="20" width="200" height="80" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="120" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1e40af">DRIVER PERSPECTIVE</text>
+    <text x="120" y="66" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fct_trips</text>
+    <text x="120" y="82" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 row · total fare · payout</text>
+  </g>
+  <!-- The single trip -->
+  <g>
+    <rect x="280" y="60" width="160" height="60" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/>
+    <text x="360" y="82" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#92400e">brg_trip_riders</text>
+    <text x="360" y="100" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">N rows · 1 per rider</text>
+    <text x="360" y="113" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">fare allocated by leg km</text>
+  </g>
+  <!-- Riders -->
+  <g>
+    <rect x="500" y="20" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="600" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider A · $10.00 · seq 1</text>
+  </g>
+  <g>
+    <rect x="500" y="70" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="600" y="94" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider B · $7.50 · seq 2</text>
+  </g>
+  <g>
+    <rect x="500" y="120" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="600" y="144" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider C · $12.50 · seq 3</text>
+  </g>
+  <!-- Arrows -->
+  <line x1="220" y1="60" x2="280" y2="80" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+  <line x1="440" y1="78" x2="500" y2="40" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+  <line x1="440" y1="90" x2="500" y2="90" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+  <line x1="440" y1="100" x2="500" y2="140" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+  <text x="245" y="55" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">trip_key</text>
+  <text x="455" y="65" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">rider_id</text>
+  <!-- Invariant note -->
+  <rect x="20" y="170" width="680" height="36" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="360" y="194" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">INVARIANT · SUM(brg_trip_riders.individual_fare_usd) per trip_key = fct_trips.total_fare_usd</text>
+</svg>
+
+<h4 class="sub-head">Section 6 — Sample data representation</h4>
+
+<p><strong>Table: <code>fct_trips</code> (the physical trip)</strong> — high-level metrics for the entire vehicle journey.</p>
+<table>
+  <thead><tr><th>trip_key</th><th>driver_id</th><th>vehicle_id</th><th>total_fare_usd</th><th>terminal_state</th></tr></thead>
+  <tbody>
+    <tr><td>1005</td><td>D_789</td><td>V_456</td><td>$30.00</td><td>completed</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Table: <code>brg_trip_riders</code> (the bridge)</strong> — breaks the physical trip into individual revenue streams.</p>
+<table>
+  <thead><tr><th>trip_key</th><th>rider_id</th><th>individual_fare_usd</th><th>pickup_sequence</th><th>leg_distance_km</th></tr></thead>
+  <tbody>
+    <tr><td>1005</td><td>R_001</td><td>$10.00</td><td>1</td><td>4.0</td></tr>
+    <tr><td>1005</td><td>R_002</td><td>$7.50</td><td>2</td><td>3.0</td></tr>
+    <tr><td>1005</td><td>R_003</td><td>$12.50</td><td>3</td><td>5.0</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Visual model — full ER diagram</h4>
+<svg viewBox="0 0 720 460" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:720px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:10px 0">
+  <defs>
+    <marker id="arr-uber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- Top row: dimensions -->
+  <g>
+    <rect x="20" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="20" y="20" width="170" height="24" rx="4" fill="#475569"/>
+    <text x="105" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_users</text>
+    <text x="30" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK user_key</text>
+    <text x="30" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id</text>
+    <text x="30" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">user_role</text>
+    <text x="30" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">plan_tier · rating</text>
+    <text x="30" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
+  </g>
+
+  <g>
+    <rect x="275" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="275" y="20" width="170" height="24" rx="4" fill="#475569"/>
+    <text x="360" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_vehicles</text>
+    <text x="285" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK vehicle_key</text>
+    <text x="285" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model · type</text>
+    <text x="285" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">insurance_status</text>
+    <text x="285" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">owner_id</text>
+    <text x="285" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
+  </g>
+
+  <g>
+    <rect x="530" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="530" y="20" width="170" height="24" rx="4" fill="#475569"/>
+    <text x="615" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_geography</text>
+    <text x="540" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK h3_key</text>
+    <text x="540" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">h3_index · L8</text>
+    <text x="540" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">city · neighborhood</text>
+    <text x="540" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">timezone</text>
+    <text x="540" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text>
+  </g>
+
+  <!-- Center: fct_trips (large) -->
+  <g>
+    <rect x="180" y="180" width="360" height="180" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <rect x="180" y="180" width="360" height="26" rx="4" fill="#1e40af"/>
+    <text x="360" y="198" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600">fct_trips</text>
+    <text x="190" y="222" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK trip_key  ·  trip_id (UUID)</text>
+    <text x="190" y="238" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK rider_id · driver_id · vehicle_id</text>
+    <text x="190" y="254" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK origin_h3 · destination_h3</text>
+    <text x="190" y="272" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">request_timestamp · terminal_state</text>
+    <text x="190" y="288" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">surge_multiplier  (immutable)</text>
+    <text x="190" y="304" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">total_fare_usd · driver_payout_usd</text>
+    <text x="190" y="320" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fx_rate_to_usd  (locked at request)</text>
+    <text x="190" y="336" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_flagged_risk</text>
+    <text x="190" y="352" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per trip</text>
+  </g>
+
+  <!-- Bottom row: event fact + bridge -->
+  <g>
+    <rect x="20" y="390" width="320" height="60" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <rect x="20" y="390" width="320" height="22" rx="4" fill="#1e40af"/>
+    <text x="180" y="406" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trip_events</text>
+    <text x="30" y="428" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_id · state · event_ts · location_h3</text>
+    <text x="30" y="442" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per state change · powers Ops + Risk</text>
+  </g>
+
+  <g>
+    <rect x="380" y="390" width="320" height="60" rx="4" fill="#fffbeb" stroke="#92400e" stroke-width="1.5"/>
+    <rect x="380" y="390" width="320" height="22" rx="4" fill="#92400e"/>
+    <text x="540" y="406" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">brg_trip_riders</text>
+    <text x="390" y="428" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_key · rider_id · individual_fare_usd</text>
+    <text x="390" y="442" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per (trip × rider) — Pool only</text>
+  </g>
+
+  <!-- Lines from dims down to fct_trips -->
+  <line x1="105" y1="130" x2="240" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <line x1="360" y1="130" x2="360" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <line x1="615" y1="130" x2="480" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+
+  <!-- Lines from fct_trips down to events / bridge -->
+  <line x1="260" y1="360" x2="180" y2="390" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <line x1="460" y1="360" x2="540" y2="390" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+
+  <!-- Cardinality labels -->
+  <text x="160" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
+  <text x="370" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
+  <text x="540" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
+  <text x="200" y="380" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N (every state)</text>
+  <text x="490" y="380" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N (Pool only)</text>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data</strong> (illustrative — 5 trips on 2025-05-01; trip T1005 is a Pool with 3 riders)</p>
+<pre><code>INSERT INTO dim_users VALUES
+  (1,'U101','rider', 'Gold',     '2025-01-01', NULL),
+  (2,'U102','rider', 'Silver',   '2025-01-01', NULL),
+  (3,'U103','rider', 'Silver',   '2025-01-01', NULL),
+  (4,'U201','driver','Platinum', '2025-01-01', NULL),
+  (5,'U202','driver','Gold',     '2025-01-01', NULL);
+
+INSERT INTO fct_trips
+ (trip_key, trip_id, rider_id, driver_id, vehicle_id, origin_h3_key, destination_h3_key,
+  request_timestamp, terminal_state, surge_multiplier, total_fare_usd, driver_payout_usd, is_flagged_risk)
+VALUES
+  (1,'T1001',1,    4, 11, 'h3_a', 'h3_b', '2025-05-01 08:30:00', 'completed',        1.0, 22.50, 16.88, FALSE),
+  (2,'T1002',2,    5, 12, 'h3_a', 'h3_c', '2025-05-01 08:31:00', 'cancelled_rider',  1.0,  5.00,  3.75, FALSE),
+  (3,'T1003',3,    4, 11, 'h3_b', 'h3_a', '2025-05-01 09:10:00', 'completed',        1.5, 35.75, 26.81, FALSE),
+  (4,'T1004',1,    5, 12, 'h3_c', 'h3_a', '2025-05-01 09:15:00', 'cancelled_system', 1.5,  0.00,  0.00, FALSE),
+  (5,'T1005',NULL, 4, 11, 'h3_a', 'h3_b', '2025-05-01 09:30:00', 'completed',        1.5, 30.00, 22.50, FALSE);
+
+INSERT INTO fct_trip_events VALUES
+  ('e01','T1001','REQUESTED','2025-05-01 08:30:00','h3_a','rider'),
+  ('e02','T1001','MATCHED',  '2025-05-01 08:30:50','h3_a','system'),
+  ('e03','T1001','STARTED',  '2025-05-01 08:35:12','h3_a','driver'),
+  ('e04','T1001','DROPOFF',  '2025-05-01 08:55:08','h3_b','driver'),
+  ('e05','T1002','REQUESTED','2025-05-01 08:31:00','h3_a','rider'),
+  ('e06','T1002','MATCHED',  '2025-05-01 08:32:30','h3_a','system'),
+  ('e07','T1002','CANCELLED','2025-05-01 08:33:00','h3_a','rider'),
+  ('e08','T1003','REQUESTED','2025-05-01 09:10:00','h3_b','rider'),
+  ('e09','T1003','MATCHED',  '2025-05-01 09:12:00','h3_b','system'),
+  ('e10','T1003','STARTED',  '2025-05-01 09:20:00','h3_b','driver'),
+  ('e11','T1003','DROPOFF',  '2025-05-01 09:50:00','h3_a','driver'),
+  ('e12','T1005','REQUESTED','2025-05-01 09:30:00','h3_a','rider'),
+  ('e13','T1005','MATCHED',  '2025-05-01 09:32:00','h3_a','system'),
+  ('e14','T1005','STARTED',  '2025-05-01 09:38:00','h3_a','driver'),
+  ('e15','T1005','DROPOFF',  '2025-05-01 10:05:00','h3_b','driver');
+
+-- Pool bridge: trip T1005, 3 riders, distances 4 km / 3 km / 5 km — total 12 km
+INSERT INTO brg_trip_riders VALUES
+  (5, 1, 10.00, 1, 4.0),   -- rider A: 4/12 share = $10.00
+  (5, 2,  7.50, 2, 3.0),   -- rider B: 3/12 share = $7.50
+  (5, 3, 12.50, 3, 5.0);   -- rider C: 5/12 share = $12.50
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Operations · live ETA &amp; lifecycle metrics</h4>
+
+<p><strong>Q1 — Dispatch latency (p50 / p95) per H3 cell per hour</strong></p>
+<pre><code>WITH latency AS (
+  SELECT
+    e.trip_id,
+    DATE_TRUNC('hour',
+      MIN(CASE WHEN state='REQUESTED' THEN event_timestamp END)) AS hour_bucket,
+    MAX(CASE WHEN state='REQUESTED' THEN location_h3 END) AS h3_cell,
+    EXTRACT(EPOCH FROM (
+      MAX(CASE WHEN state='MATCHED'   THEN event_timestamp END)
+      - MAX(CASE WHEN state='REQUESTED' THEN event_timestamp END)
+    )) AS latency_sec
+  FROM fct_trip_events e
+  GROUP BY trip_id
+  HAVING MAX(CASE WHEN state='MATCHED' THEN 1 END) = 1
 )
-PARTITION BY DATE(request_ts)
-CLUSTER BY (origin_h3_sk, driver_sk);</code></pre>
+SELECT
+  hour_bucket, h3_cell,
+  COUNT(*) AS matched_trips,
+  PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY latency_sec) AS p50_sec,
+  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_sec) AS p95_sec
+FROM latency
+GROUP BY hour_bucket, h3_cell
+ORDER BY p95_sec DESC;
+</code></pre>
+<p><em>Result on the sample data:</em></p>
+<table>
+  <thead><tr><th>hour_bucket</th><th>h3_cell</th><th>matched_trips</th><th>p50_sec</th><th>p95_sec</th></tr></thead>
+  <tbody>
+    <tr><td>2025-05-01 08:00</td><td>h3_a</td><td>2</td><td>70</td><td>88</td></tr>
+    <tr><td>2025-05-01 09:00</td><td>h3_b</td><td>1</td><td>120</td><td>120</td></tr>
+    <tr><td>2025-05-01 09:00</td><td>h3_a</td><td>1</td><td>120</td><td>120</td></tr>
+  </tbody>
+</table>
 
-<h4 class="sub-head">Move 4 — SCD strategy</h4>
-<ul>
-  <li><code>dim_driver</code> SCD2 — rating tier and region change; finance needs the historic value.</li>
-  <li><code>dim_vehicle</code> SCD2 — insurance status changes; risk needs as-of-trip status.</li>
-  <li><code>dim_h3_cell</code> SCD1 — hex grid is static; geography rarely re-segmented.</li>
-</ul>
+<p><strong>Q2 — Cancellation breakdown by actor</strong></p>
+<pre><code>SELECT
+  terminal_state,
+  COUNT(*)                                                         AS cnt,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)               AS pct_of_total
+FROM fct_trips
+WHERE DATE(request_timestamp) = '2025-05-01'
+GROUP BY terminal_state
+ORDER BY cnt DESC;
+</code></pre>
+<p><em>Result:</em></p>
+<table>
+  <thead><tr><th>terminal_state</th><th>cnt</th><th>pct_of_total</th></tr></thead>
+  <tbody>
+    <tr><td>completed</td><td>3</td><td>60.0</td></tr>
+    <tr><td>cancelled_rider</td><td>1</td><td>20.0</td></tr>
+    <tr><td>cancelled_system</td><td>1</td><td>20.0</td></tr>
+  </tbody>
+</table>
 
-<h4 class="sub-head">Move 5 — Stress tests (volunteer)</h4>
+<p><strong>Q3 — Shared-ride efficiency (multi-rider stops_made)</strong></p>
+<pre><code>SELECT
+  trip_key,
+  COUNT(rider_id)        AS total_riders,
+  MAX(pickup_sequence)   AS stops_made,
+  ROUND(SUM(leg_distance_km), 1) AS total_route_km
+FROM brg_trip_riders
+GROUP BY trip_key
+HAVING COUNT(rider_id) &gt; 1
+ORDER BY stops_made DESC;
+</code></pre>
+<p><em>Result:</em></p>
+<table>
+  <thead><tr><th>trip_key</th><th>total_riders</th><th>stops_made</th><th>total_route_km</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>3</td><td>3</td><td>12.0</td></tr>
+  </tbody>
+</table>
+<p>Use case: if a rider was picked up first but dropped off last, a detour-credit can be issued — Ops uses this to spot Pool routes that should trigger automatic compensation.</p>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Finance · revenue reconciliation &amp; per-rider fares</h4>
+
+<p><strong>Q4 — Pool fare allocation per rider</strong></p>
+<pre><code>SELECT
+  b.trip_key,
+  b.rider_id,
+  b.pickup_sequence,
+  b.leg_distance_km,
+  ROUND(100.0 * b.leg_distance_km
+        / SUM(b.leg_distance_km) OVER (PARTITION BY b.trip_key), 1) AS distance_share_pct,
+  b.individual_fare_usd,
+  t.total_fare_usd
+FROM brg_trip_riders b
+JOIN fct_trips t USING (trip_key)
+WHERE t.trip_key = 5
+ORDER BY b.pickup_sequence;
+</code></pre>
+<p><em>Result for trip T1005:</em></p>
+<table>
+  <thead><tr><th>trip_key</th><th>rider_id</th><th>pickup_seq</th><th>leg_km</th><th>share_pct</th><th>individual_fare</th><th>total_fare</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>1</td><td>1</td><td>4.0</td><td>33.3</td><td>$10.00</td><td>$30.00</td></tr>
+    <tr><td>5</td><td>2</td><td>2</td><td>3.0</td><td>25.0</td><td>$7.50</td><td>$30.00</td></tr>
+    <tr><td>5</td><td>3</td><td>3</td><td>5.0</td><td>41.7</td><td>$12.50</td><td>$30.00</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Q5 — Bridge invariant data-quality check (revenue reconciliation)</strong></p>
+<pre><code>SELECT
+  t.trip_id,
+  t.total_fare_usd                      AS reported_total,
+  ROUND(SUM(b.individual_fare_usd), 2)  AS calculated_total,
+  ROUND(t.total_fare_usd - SUM(b.individual_fare_usd), 2) AS variance,
+  CASE WHEN ABS(t.total_fare_usd - SUM(b.individual_fare_usd)) &lt; 0.01
+       THEN 'PASS' ELSE 'FAIL' END AS dq_status
+FROM fct_trips t
+JOIN brg_trip_riders b USING (trip_key)
+GROUP BY t.trip_id, t.total_fare_usd
+HAVING ABS(t.total_fare_usd - SUM(b.individual_fare_usd)) &gt;= 0.01;
+-- Empty result = invariant holds. Any row = a data quality bug.
+</code></pre>
+<p>Finance runs this continuously; an emit means a producer regression. Required for SOX / audit reporting.</p>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Risk · fraud detection</h4>
+
+<p><strong>Q6 — Multi-rider capacity check (passengers exceed vehicle limit)</strong></p>
+<pre><code>SELECT
+  t.trip_id,
+  v.model,
+  v.type,
+  COUNT(b.rider_id) AS passenger_count
+FROM fct_trips t
+JOIN brg_trip_riders b USING (trip_key)
+JOIN dim_vehicles    v ON t.vehicle_id = v.vehicle_key
+GROUP BY t.trip_id, v.model, v.type
+HAVING COUNT(b.rider_id) &gt; 4;   -- standard sedan capacity
+</code></pre>
+<p>An over-capacity Pool is either a producer bug or a fraud pattern (drivers gaming the platform with off-app passengers).</p>
+
+<p><strong>Q7 — Location anomaly detection (request vs first-pickup divergence)</strong></p>
+<pre><code>WITH first_pickup AS (
+  SELECT trip_id, location_h3 AS pickup_h3
+  FROM fct_trip_events
+  WHERE state = 'STARTED'
+)
+SELECT
+  t.trip_key, t.trip_id, t.origin_h3_key, fp.pickup_h3,
+  CASE WHEN t.origin_h3_key &lt;&gt; fp.pickup_h3 THEN 'INVESTIGATE' ELSE 'OK' END AS risk_flag
+FROM fct_trips t
+LEFT JOIN first_pickup fp USING (trip_id)
+WHERE t.terminal_state = 'completed';
+</code></pre>
+
+<p><strong>Worked numerical example — Pool fare allocation</strong></p>
+<ol>
+  <li>Trip T1005 has 3 riders. Distances they personally travel: rider A = 4 km, rider B = 3 km, rider C = 5 km. Total route distance = <strong>12 km</strong>.</li>
+  <li>Total fare collected: <strong>$30.00</strong> (after surge × base × distance × time formula).</li>
+  <li>Rider A's allocation: 4 / 12 × $30.00 = <strong>$10.00</strong> (33.3% share).</li>
+  <li>Rider B's allocation: 3 / 12 × $30.00 = <strong>$7.50</strong> (25.0% share).</li>
+  <li>Rider C's allocation: 5 / 12 × $30.00 = <strong>$12.50</strong> (41.7% share).</li>
+  <li>Invariant check: $10.00 + $7.50 + $12.50 = <strong>$30.00</strong> ✓ matches <code>fct_trips.total_fare_usd</code>.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Pool stitching:</strong> shared rides have multiple riders per trip — model with <code>bridge_trip_rider</code>; fares allocated by ratio.</li>
-  <li><strong>Late dropoff signal:</strong> driver app loses connectivity, dropoff arrives 30 min late. Watermark on stream side; daily batch backfills 4-hr tail.</li>
-  <li><strong>FX rate:</strong> lock to <code>request_ts</code> rate, not today's. <code>dim_fx_rate</code> is itself SCD2.</li>
-  <li><strong>GDPR:</strong> tokenize <code>rider_id</code> at ingest; on delete, invalidate the token mapping.</li>
+  <li><strong>Eliminates granularity mismatch.</strong> Without the bridge, you'd have to either duplicate the <code>fct_trips</code> row (wrecking driver-payout sums and trip counts) or stuff multiple rider IDs into a single column (making SQL querying nearly impossible). The bridge keeps trip-level grain pure while exposing per-rider revenue cleanly.</li>
+  <li><strong>Scalability.</strong> If Uber introduces "Pool for 4", "Bus", or any other multi-rider product, the model is unchanged. You simply add more rows to <code>brg_trip_riders</code>. New product, no schema migration.</li>
+  <li><strong>Auditability.</strong> Every dollar in <code>total_fare_usd</code> is traceable back to a specific user via the bridge, which is a hard requirement for financial auditing, tax reporting (per-jurisdiction VAT/GST), and SOX compliance. The continuous invariant check (Q5) is the audit's smoke test.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "And the unlock here is — once <code>fact_trip</code> is conformed with <code>fact_payout</code> through <code>dim_driver</code>, finance can run weekly driver payouts without joining raw event tables."
+<strong>Senior framing.</strong> "The hybrid grain is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares off <code>fct_trips</code> + <code>brg_trip_riders</code>, and Risk replays GPS sequences off <code>fct_trip_events</code>. Three stakeholders, three grains, one source of truth — and the bridge invariant <code>SUM(individual_fare) = total_fare</code> is the contract that keeps Finance honest."
 </div>
 </div>
 
