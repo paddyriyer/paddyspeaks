@@ -197,20 +197,21 @@
 <!-- Scenario 1: Uber trip -->
 <div class="scenario" id="sc-uber-trip">
 <div class="domain-tag">Uber / Lyft · ride-sharing</div>
-<h4 class="sub-head">Scenario 1 — Trip lifecycle</h4>
-<div class="prompt">Design a model that captures every Uber trip from request → match → pickup → dropoff → payment, supporting Operations (live ETA), Finance (driver payouts), and Risk (fraud).</div>
+<h4 class="sub-head">Scenario 1 — Trip lifecycle (with multi-driver convoys)</h4>
+<div class="prompt">Design a complete data model for the Trip Lifecycle — including the complex <em>convoy</em> / multi-driver scenario where one group request is split across two or more vehicles. Must support Operations (live ETA), Finance (driver payouts), and Risk (fraud).</div>
 
 <h4 class="sub-head">Why this is hard — the design tension</h4>
-<p>To design a robust model for a trip lifecycle, we need to balance the <strong>low-latency requirements of Operations</strong> with the <strong>high-integrity requirements of Finance and Risk</strong>. The hybrid approach — combining a <em>state-driven grain</em> for the lifecycle with an <em>entity-driven grain</em> for the trip — is the most resilient path. It serves three different consumers from one source of truth without forcing any of them to compromise.</p>
+<p>The problem isn't a single trip — it's the <strong>group intent</strong>. Five friends going to the airport expect to be charged a single price, but Uber dispatches two vehicles. Operations sees two trips; Finance must charge the group once but pay two drivers fairly; Risk must verify the convoy actually moved together. The robust solution is a <strong>hierarchical Star Schema</strong> that decouples the <em>physical movement of the car</em> from the <em>financial obligation of the rider</em>.</p>
 
 <h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
-<p>This model uses a <strong>Star Schema</strong> with a high-granularity transition table to capture the "how" and "when" of the trip.</p>
+<p>This model uses a <strong>Journey → Trip → Event hierarchy</strong> to handle everything from a single ride to complex shared convoys.</p>
 
-<p><strong>Fact Tables</strong></p>
+<p><strong>Fact Tables (the hierarchy)</strong></p>
 <ul>
-  <li><code>fct_trips</code> — Grain: <em>one row per trip</em>. Primary table for Finance and high-level Ops, containing the final state, total fare, total distance, and the surge multiplier locked at request.</li>
-  <li><code>fct_trip_events</code> — Grain: <em>one row per state change</em>. Supports "Time-to-Match", "Time-to-Pickup", and dispatch-latency metrics. This is also the source of truth for spatial replay used by Risk.</li>
-  <li><code>brg_trip_riders</code> — Bridge table for UberPool / shared rides. Allows multiple riders to be associated with a single <code>trip_id</code> while preserving per-rider revenue allocation.</li>
+  <li><code>fct_journeys</code> — <strong>The "Parent" grain.</strong> One row per group request. Captures group intent (split type, total group cost, status).</li>
+  <li><code>fct_trips</code> — <strong>The "Vehicle" grain.</strong> One row per driver / vehicle per journey. Source of truth for Finance (driver payouts).</li>
+  <li><code>fct_trip_events</code> — <strong>The "Telemetry" grain.</strong> One row per state transition (REQUEST, MATCH, PICKUP, etc.) per trip. Powers Ops (Live ETA) and Risk (GPS replay).</li>
+  <li><code>brg_journey_riders</code> — <strong>The "Financial" bridge.</strong> Links riders to journeys <em>and</em> to a specific assigned trip/vehicle — handles cost-splitting (journey-level) and capacity routing (trip-level).</li>
 </ul>
 
 <p><strong>Dimension Tables</strong></p>
@@ -224,14 +225,31 @@
 
 <h4 class="sub-head">Section 2 — The Logical Data Model</h4>
 
-<p><strong>Core Fact: <code>fct_trips</code></strong></p>
+<p><strong>Parent Fact: <code>fct_journeys</code> (the group intent)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>journey_key</code></td><td>PK BIGINT</td><td>Surrogate.</td></tr>
+    <tr><td><code>journey_id</code></td><td>UUID</td><td>Natural ID; idempotency anchor.</td></tr>
+    <tr><td><code>requesting_user_id</code></td><td>FK</td><td>Who initiated the group request.</td></tr>
+    <tr><td><code>split_type</code></td><td>ENUM</td><td>{EQUAL_SPLIT, DISTANCE_PRORATA, REQUESTER_PAYS, CUSTOM}.</td></tr>
+    <tr><td><code>total_group_fare_usd</code></td><td>DECIMAL(10,2)</td><td>Single bill for the whole group; sum of <code>brg_journey_riders.individual_charge</code> reconciles to this.</td></tr>
+    <tr><td><code>num_vehicles_dispatched</code></td><td>SMALLINT</td><td>1 for normal, ≥2 for convoy.</td></tr>
+    <tr><td><code>num_riders</code></td><td>SMALLINT</td><td>Total riders in the group.</td></tr>
+    <tr><td><code>journey_status</code></td><td>ENUM</td><td>{requested, in_progress, completed, partial, cancelled}.</td></tr>
+    <tr><td><code>request_timestamp</code></td><td>TIMESTAMP_TZ</td><td>Group request time; FX rate locked here.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Vehicle Fact: <code>fct_trips</code> (one row per driver/vehicle per journey)</strong></p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
   <tbody>
     <tr><td><code>trip_key</code></td><td>PK BIGINT</td><td>Surrogate key for the trip.</td></tr>
     <tr><td><code>trip_id</code></td><td>UUID</td><td>Natural ID from the source system; idempotency anchor.</td></tr>
-    <tr><td><code>rider_id</code></td><td>FK</td><td>Single rider (NULL for Pool — riders live in <code>brg_trip_riders</code>).</td></tr>
-    <tr><td><code>driver_id</code></td><td>FK</td><td>The matched driver.</td></tr>
+    <tr><td><code>journey_id</code></td><td>FK</td><td>Parent journey. Multiple trips can share a journey (convoy).</td></tr>
+    <tr><td><code>trip_fare_share_usd</code></td><td>DECIMAL(10,2)</td><td>This vehicle's share of the journey fare. Drives driver payout, NOT what riders pay.</td></tr>
+    <tr><td><code>driver_id</code></td><td>FK</td><td>The matched driver. (driver,journey) is unique — same driver can't take two trips for one journey.</td></tr>
     <tr><td><code>vehicle_id</code></td><td>FK</td><td>The vehicle used.</td></tr>
     <tr><td><code>origin_h3_key</code></td><td>FK</td><td>H3 cell at request time.</td></tr>
     <tr><td><code>destination_h3_key</code></td><td>FK</td><td>H3 cell at dropoff (NULL on cancellation).</td></tr>
@@ -260,15 +278,16 @@
   </tbody>
 </table>
 
-<p><strong>Bridge Fact: <code>brg_trip_riders</code></strong></p>
+<p><strong>Financial Bridge: <code>brg_journey_riders</code></strong></p>
 <table>
   <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
   <tbody>
-    <tr><td><code>trip_key</code></td><td>FK</td><td>The trip.</td></tr>
+    <tr><td><code>journey_id</code></td><td>FK</td><td>Parent journey — drives the group cost-split.</td></tr>
     <tr><td><code>rider_id</code></td><td>FK</td><td>The rider on this leg.</td></tr>
-    <tr><td><code>individual_fare_usd</code></td><td>DECIMAL(10,2)</td><td>This rider's allocated fare.</td></tr>
-    <tr><td><code>pickup_sequence</code></td><td>SMALLINT</td><td>Order in which they were picked up (1, 2, 3…).</td></tr>
-    <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's portion of the route; basis for fare allocation.</td></tr>
+    <tr><td><code>trip_id</code></td><td>FK</td><td>The specific car this rider was assigned to. Critical: in a convoy, riders R_1 + R_2 may ride in T-101 while R_3 rides in T-102.</td></tr>
+    <tr><td><code>individual_charge_usd</code></td><td>DECIMAL(10,2)</td><td>What this rider actually pays. Computed from <code>fct_journeys.split_type</code>.</td></tr>
+    <tr><td><code>pickup_sequence</code></td><td>SMALLINT</td><td>Order picked up within their assigned trip (1, 2, 3…).</td></tr>
+    <tr><td><code>leg_distance_km</code></td><td>DECIMAL(8,3)</td><td>This rider's portion of the route; basis for distance-prorata splits.</td></tr>
   </tbody>
 </table>
 
@@ -298,96 +317,132 @@
   <li><code>is_flagged_risk</code> is a slowly-changing fact — appended via correction row, never updated, so Finance can replay any payout decision regardless of subsequent risk re-evaluation.</li>
 </ul>
 
-<h4 class="sub-head">Section 4 — Why a Bridge Table for Shared Rides (UberPool)</h4>
-<p>Without a bridge, you face a binary choice — both bad:</p>
+<h4 class="sub-head">Section 4 — Why the hierarchy: bridges + parent fact</h4>
+<p>Without the journey/trip split + bridge, you face three bad choices:</p>
 <ul>
-  <li><strong>Option A: One row per trip, store rider IDs in an array column.</strong> Easy writes, but Finance can't aggregate revenue per rider without exploding the array. SCD2 on rider attributes becomes intractable. Disqualifying for this domain.</li>
-  <li><strong>Option B: One row per rider in <code>fct_trips</code>.</strong> A Pool with 3 riders becomes 3 rows — but now <code>total_fare_usd</code> is triple-counted on every aggregation. Drivers and dispatch counts also triple-count. Disqualifying for Operations.</li>
+  <li><strong>Option A: One row per trip, rider IDs in an array column.</strong> Finance can't aggregate revenue per rider without exploding the array. Disqualifying.</li>
+  <li><strong>Option B: One row per rider in <code>fct_trips</code>.</strong> Pool with 3 riders becomes 3 rows — <code>fare</code> is triple-counted on every aggregation. Driver and dispatch counts also triple-count. Disqualifying.</li>
+  <li><strong>Option C: Single fact for everything (rider-grain + driver-grain merged).</strong> A 3-rider, 2-driver convoy = 6 rows. Now you can't tell drivers from riders without filtering by role, and convoy-cost reconciliation needs a self-join. Disqualifying.</li>
 </ul>
 
-<p>The bridge table <code>brg_trip_riders</code> is the only design that satisfies both:</p>
+<p>The hierarchy with bridge is the only design that satisfies all three stakeholders:</p>
 <ul>
-  <li><strong>One driver, one trip, one row in <code>fct_trips</code></strong> — Operations, Finance trip counts, and dispatch totals are all correct on simple aggregation.</li>
-  <li><strong>Multiple rows in <code>brg_trip_riders</code></strong> — Finance computes per-rider fare, per-rider tax, per-rider promo without distorting trip-level metrics.</li>
-  <li><strong>Enforceable invariant</strong>: <code>SUM(individual_fare_usd) per trip_key = total_fare_usd</code>. A continuous data-quality check that fails immediately on producer bugs.</li>
+  <li><strong>One row per group in <code>fct_journeys</code></strong> — group-level KPIs (avg group size, split-type mix) are correct without filters.</li>
+  <li><strong>One row per driver/vehicle per journey in <code>fct_trips</code></strong> — Operations and Finance per-driver counts are correct on simple aggregation. <code>(driver_id, journey_id)</code> uniqueness honored.</li>
+  <li><strong>Multiple rows per journey in <code>brg_journey_riders</code></strong> — Finance computes per-rider charge with the journey's split logic; Risk can route a rider to a specific trip via the FK.</li>
+  <li><strong>Two enforceable invariants:</strong>
+    <ul>
+      <li><code>SUM(brg_journey_riders.individual_charge_usd) per journey_id = fct_journeys.total_group_fare_usd</code></li>
+      <li><code>SUM(fct_trips.trip_fare_share_usd) per journey_id = fct_journeys.total_group_fare_usd</code></li>
+    </ul>
+    Two continuous data-quality checks. Either failing flags a producer bug.
+  </li>
 </ul>
 
-<p><strong>Allocation rule:</strong> <code>individual_fare_usd = total_fare_usd × (leg_distance_km / SUM(leg_distance_km) over trip)</code>.</p>
-
-<h4 class="sub-head">Section 5 — Conceptual data flow (the bridge in plain English)</h4>
-<p>In a shared ride, a single <code>trip_id</code> represents the <strong>physical movement of the vehicle</strong>. The financial and risk aspects, however, are tied to the <strong>individual rider</strong>:</p>
+<p><strong>Allocation rules:</strong></p>
 <ul>
-  <li><code>fct_trips</code> — stores the <strong>driver's perspective</strong> (total distance, total payout, vehicle used).</li>
-  <li><code>brg_trip_riders</code> — stores the <strong>rider's perspective</strong> (specific fare, pickup order, individual rider ID).</li>
+  <li><code>EQUAL_SPLIT</code>: <code>individual_charge = total_group_fare / num_riders</code></li>
+  <li><code>DISTANCE_PRORATA</code>: <code>individual_charge = total_group_fare × (leg_distance_km / SUM(leg_distance_km))</code></li>
+  <li><code>REQUESTER_PAYS</code>: <code>individual_charge = total_group_fare</code> for requester, <code>0</code> for others</li>
 </ul>
 
-<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:720px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:14px 0">
+<h4 class="sub-head">Section 5 — Conceptual data flow (the convoy in plain English)</h4>
+<p>For Journey J-500 with 5 riders heading to the airport, dispatched as a 2-car convoy:</p>
+<ul>
+  <li><code>fct_journeys</code> — the <strong>group's perspective</strong>. One row, $60 total, EQUAL_SPLIT, 2 vehicles dispatched.</li>
+  <li><code>fct_trips</code> — the <strong>drivers' perspective</strong>. Two rows: Driver Alpha ($30 share), Driver Bravo ($30 share).</li>
+  <li><code>brg_journey_riders</code> — the <strong>riders' perspective</strong>. Three rows: each rider charged $20, two assigned to T-101, one to T-102.</li>
+</ul>
+
+<svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:720px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:14px 0">
   <defs>
     <marker id="arr-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e40af"/>
     </marker>
   </defs>
-  <!-- Vehicle / driver perspective -->
+
+  <!-- Top: Journey -->
   <g>
-    <rect x="20" y="20" width="200" height="80" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
-    <text x="120" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1e40af">DRIVER PERSPECTIVE</text>
-    <text x="120" y="66" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fct_trips</text>
-    <text x="120" y="82" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 row · total fare · payout</text>
+    <rect x="240" y="14" width="240" height="58" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="2"/>
+    <text x="360" y="34" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#92400e">fct_journeys · J-500</text>
+    <text x="360" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">EQUAL_SPLIT · $60.00 total</text>
+    <text x="360" y="64" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">2 vehicles · 3 riders</text>
   </g>
-  <!-- The single trip -->
+
+  <!-- Middle row: 2 trips -->
   <g>
-    <rect x="280" y="60" width="160" height="60" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/>
-    <text x="360" y="82" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#92400e">brg_trip_riders</text>
-    <text x="360" y="100" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">N rows · 1 per rider</text>
-    <text x="360" y="113" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">fare allocated by leg km</text>
-  </g>
-  <!-- Riders -->
-  <g>
-    <rect x="500" y="20" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
-    <text x="600" y="44" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider A · $10.00 · seq 1</text>
+    <rect x="40" y="120" width="280" height="60" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="180" y="142" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1e40af">fct_trips · T-101</text>
+    <text x="180" y="158" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">Driver Alpha · V_99 · $30 share</text>
+    <text x="180" y="172" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">driver pays out $30</text>
   </g>
   <g>
-    <rect x="500" y="70" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
-    <text x="600" y="94" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider B · $7.50 · seq 2</text>
+    <rect x="400" y="120" width="280" height="60" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="540" y="142" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#1e40af">fct_trips · T-102</text>
+    <text x="540" y="158" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">Driver Bravo · V_88 · $30 share</text>
+    <text x="540" y="172" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">driver pays out $30</text>
+  </g>
+
+  <!-- Bottom: 3 riders, R_1 + R_2 → T-101, R_3 → T-102 -->
+  <g>
+    <rect x="20" y="220" width="170" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="105" y="244" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">R_1 · $20.00 → T-101</text>
   </g>
   <g>
-    <rect x="500" y="120" width="200" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
-    <text x="600" y="144" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">Rider C · $12.50 · seq 3</text>
+    <rect x="200" y="220" width="170" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="285" y="244" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">R_2 · $20.00 → T-101</text>
   </g>
-  <!-- Arrows -->
-  <line x1="220" y1="60" x2="280" y2="80" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
-  <line x1="440" y1="78" x2="500" y2="40" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
-  <line x1="440" y1="90" x2="500" y2="90" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
-  <line x1="440" y1="100" x2="500" y2="140" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
-  <text x="245" y="55" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">trip_key</text>
-  <text x="455" y="65" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">rider_id</text>
-  <!-- Invariant note -->
-  <rect x="20" y="170" width="680" height="36" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
-  <text x="360" y="194" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">INVARIANT · SUM(brg_trip_riders.individual_fare_usd) per trip_key = fct_trips.total_fare_usd</text>
+  <g>
+    <rect x="450" y="220" width="170" height="40" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.2"/>
+    <text x="535" y="244" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" font-weight="600" fill="#166534">R_3 · $20.00 → T-102</text>
+  </g>
+
+  <!-- Lines journey → trips -->
+  <line x1="320" y1="72" x2="180" y2="120" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+  <line x1="400" y1="72" x2="540" y2="120" stroke="#1e40af" stroke-width="1.5" marker-end="url(#arr-flow)"/>
+
+  <!-- Lines trips → riders -->
+  <line x1="120" y1="180" x2="105" y2="220" stroke="#166534" stroke-width="1.2" marker-end="url(#arr-flow)"/>
+  <line x1="220" y1="180" x2="285" y2="220" stroke="#166534" stroke-width="1.2" marker-end="url(#arr-flow)"/>
+  <line x1="540" y1="180" x2="535" y2="220" stroke="#166534" stroke-width="1.2" marker-end="url(#arr-flow)"/>
+
+  <!-- Invariants -->
+  <rect x="20" y="280" width="680" height="32" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="360" y="300" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">INVARIANTS · SUM(brg.individual_charge) per journey = $60 · SUM(trips.fare_share) per journey = $60</text>
 </svg>
 
 <h4 class="sub-head">Section 6 — Sample data representation</h4>
 
-<p><strong>Table: <code>fct_trips</code> (the physical trip)</strong> — high-level metrics for the entire vehicle journey.</p>
+<p><strong>Table: <code>fct_journeys</code> (the logical group)</strong></p>
 <table>
-  <thead><tr><th>trip_key</th><th>driver_id</th><th>vehicle_id</th><th>total_fare_usd</th><th>terminal_state</th></tr></thead>
+  <thead><tr><th>journey_id</th><th>split_type</th><th>total_group_fare_usd</th><th>num_vehicles</th><th>num_riders</th><th>status</th></tr></thead>
   <tbody>
-    <tr><td>1005</td><td>D_789</td><td>V_456</td><td>$30.00</td><td>completed</td></tr>
+    <tr><td>J-500</td><td>EQUAL_SPLIT</td><td>$60.00</td><td>2</td><td>3</td><td>completed</td></tr>
   </tbody>
 </table>
 
-<p><strong>Table: <code>brg_trip_riders</code> (the bridge)</strong> — breaks the physical trip into individual revenue streams.</p>
+<p><strong>Table: <code>fct_trips</code> (the physical vehicles)</strong></p>
 <table>
-  <thead><tr><th>trip_key</th><th>rider_id</th><th>individual_fare_usd</th><th>pickup_sequence</th><th>leg_distance_km</th></tr></thead>
+  <thead><tr><th>trip_id</th><th>journey_id</th><th>driver_id</th><th>vehicle_id</th><th>trip_fare_share_usd</th></tr></thead>
   <tbody>
-    <tr><td>1005</td><td>R_001</td><td>$10.00</td><td>1</td><td>4.0</td></tr>
-    <tr><td>1005</td><td>R_002</td><td>$7.50</td><td>2</td><td>3.0</td></tr>
-    <tr><td>1005</td><td>R_003</td><td>$12.50</td><td>3</td><td>5.0</td></tr>
+    <tr><td>T-101</td><td>J-500</td><td>D_Alpha</td><td>V_99</td><td>$30.00</td></tr>
+    <tr><td>T-102</td><td>J-500</td><td>D_Bravo</td><td>V_88</td><td>$30.00</td></tr>
   </tbody>
 </table>
 
-<h4 class="sub-head">Visual model — full ER diagram</h4>
-<svg viewBox="0 0 720 460" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:720px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:10px 0">
+<p><strong>Table: <code>brg_journey_riders</code> (the rider split)</strong></p>
+<table>
+  <thead><tr><th>journey_id</th><th>rider_id</th><th>trip_id (assigned car)</th><th>individual_charge_usd</th></tr></thead>
+  <tbody>
+    <tr><td>J-500</td><td>R_1</td><td>T-101</td><td>$20.00</td></tr>
+    <tr><td>J-500</td><td>R_2</td><td>T-101</td><td>$20.00</td></tr>
+    <tr><td>J-500</td><td>R_3</td><td>T-102</td><td>$20.00</td></tr>
+  </tbody>
+</table>
+<p><em>Two reconciliations:</em> SUM(<code>brg.individual_charge</code>) = $20 + $20 + $20 = $60 ✓ &nbsp;|&nbsp; SUM(<code>fct_trips.trip_fare_share</code>) = $30 + $30 = $60 ✓ &nbsp;|&nbsp; both equal <code>fct_journeys.total_group_fare</code>.</p>
+
+<h4 class="sub-head">Visual model — full ER diagram (Journey → Trip → Event)</h4>
+<svg viewBox="0 0 760 580" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:760px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:10px 0">
   <defs>
     <marker id="arr-uber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
@@ -396,135 +451,164 @@
 
   <!-- Top row: dimensions -->
   <g>
-    <rect x="20" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="20" y="20" width="170" height="24" rx="4" fill="#475569"/>
-    <text x="105" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_users</text>
-    <text x="30" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK user_key</text>
-    <text x="30" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id</text>
-    <text x="30" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">user_role</text>
-    <text x="30" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">plan_tier · rating</text>
-    <text x="30" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
+    <rect x="20" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="20" y="20" width="170" height="22" rx="4" fill="#475569"/>
+    <text x="105" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_users</text>
+    <text x="30" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK user_key</text>
+    <text x="30" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · user_role</text>
+    <text x="30" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">plan_tier · rating</text>
+    <text x="30" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
   </g>
-
   <g>
-    <rect x="275" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="275" y="20" width="170" height="24" rx="4" fill="#475569"/>
-    <text x="360" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_vehicles</text>
-    <text x="285" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK vehicle_key</text>
-    <text x="285" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model · type</text>
-    <text x="285" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">insurance_status</text>
-    <text x="285" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">owner_id</text>
-    <text x="285" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
+    <rect x="295" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="295" y="20" width="170" height="22" rx="4" fill="#475569"/>
+    <text x="380" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_vehicles</text>
+    <text x="305" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK vehicle_key</text>
+    <text x="305" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">make · model · plate</text>
+    <text x="305" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">capacity · insurance</text>
+    <text x="305" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
   </g>
-
   <g>
-    <rect x="530" y="20" width="170" height="110" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="530" y="20" width="170" height="24" rx="4" fill="#475569"/>
-    <text x="615" y="37" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_geography</text>
-    <text x="540" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK h3_key</text>
-    <text x="540" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">h3_index · L8</text>
-    <text x="540" y="92" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">city · neighborhood</text>
-    <text x="540" y="108" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">timezone</text>
-    <text x="540" y="124" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text>
+    <rect x="570" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
+    <rect x="570" y="20" width="170" height="22" rx="4" fill="#475569"/>
+    <text x="655" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_geography</text>
+    <text x="580" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK h3_key</text>
+    <text x="580" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">h3_index · L8</text>
+    <text x="580" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">city · timezone</text>
+    <text x="580" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text>
   </g>
 
-  <!-- Center: fct_trips (large) -->
+  <!-- Tier 1: fct_journeys (parent, top center) -->
   <g>
-    <rect x="180" y="180" width="360" height="180" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
-    <rect x="180" y="180" width="360" height="26" rx="4" fill="#1e40af"/>
-    <text x="360" y="198" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600">fct_trips</text>
-    <text x="190" y="222" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK trip_key  ·  trip_id (UUID)</text>
-    <text x="190" y="238" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK rider_id · driver_id · vehicle_id</text>
-    <text x="190" y="254" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK origin_h3 · destination_h3</text>
-    <text x="190" y="272" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">request_timestamp · terminal_state</text>
-    <text x="190" y="288" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">surge_multiplier  (immutable)</text>
-    <text x="190" y="304" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">total_fare_usd · driver_payout_usd</text>
-    <text x="190" y="320" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fx_rate_to_usd  (locked at request)</text>
-    <text x="190" y="336" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_flagged_risk</text>
-    <text x="190" y="352" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per trip</text>
+    <rect x="200" y="160" width="360" height="100" rx="4" fill="#fef3c7" stroke="#92400e" stroke-width="1.8"/>
+    <rect x="200" y="160" width="360" height="26" rx="4" fill="#92400e"/>
+    <text x="380" y="178" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600">fct_journeys  · PARENT</text>
+    <text x="210" y="202" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK journey_key  ·  journey_id (UUID)</text>
+    <text x="210" y="218" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">split_type · total_group_fare_usd</text>
+    <text x="210" y="234" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">num_vehicles · num_riders · status</text>
+    <text x="210" y="250" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per group request</text>
   </g>
 
-  <!-- Bottom row: event fact + bridge -->
+  <!-- Tier 2: fct_trips -->
   <g>
-    <rect x="20" y="390" width="320" height="60" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
-    <rect x="20" y="390" width="320" height="22" rx="4" fill="#1e40af"/>
-    <text x="180" y="406" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trip_events</text>
-    <text x="30" y="428" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_id · state · event_ts · location_h3</text>
-    <text x="30" y="442" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per state change · powers Ops + Risk</text>
+    <rect x="200" y="300" width="360" height="120" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <rect x="200" y="300" width="360" height="24" rx="4" fill="#1e40af"/>
+    <text x="380" y="316" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trips · VEHICLE</text>
+    <text x="210" y="340" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK trip_key  ·  trip_id</text>
+    <text x="210" y="356" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK journey_id · driver_id · vehicle_id</text>
+    <text x="210" y="372" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">trip_fare_share_usd · driver_payout_usd</text>
+    <text x="210" y="388" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">surge_multiplier · terminal_state</text>
+    <text x="210" y="412" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per driver/vehicle per journey</text>
   </g>
 
+  <!-- Tier 3: events + bridge (bottom row) -->
   <g>
-    <rect x="380" y="390" width="320" height="60" rx="4" fill="#fffbeb" stroke="#92400e" stroke-width="1.5"/>
-    <rect x="380" y="390" width="320" height="22" rx="4" fill="#92400e"/>
-    <text x="540" y="406" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">brg_trip_riders</text>
-    <text x="390" y="428" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_key · rider_id · individual_fare_usd</text>
-    <text x="390" y="442" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per (trip × rider) — Pool only</text>
+    <rect x="20" y="460" width="340" height="80" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <rect x="20" y="460" width="340" height="22" rx="4" fill="#1e40af"/>
+    <text x="190" y="476" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trip_events · TELEMETRY</text>
+    <text x="30" y="498" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_id · state · event_ts · location_h3</text>
+    <text x="30" y="514" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">actor</text>
+    <text x="30" y="532" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 state change · powers Ops + Risk</text>
+  </g>
+  <g>
+    <rect x="400" y="460" width="340" height="80" rx="4" fill="#fffbeb" stroke="#92400e" stroke-width="1.5"/>
+    <rect x="400" y="460" width="340" height="22" rx="4" fill="#92400e"/>
+    <text x="570" y="476" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">brg_journey_riders · BRIDGE</text>
+    <text x="410" y="498" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK journey_id · rider_id · trip_id (assigned car)</text>
+    <text x="410" y="514" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">individual_charge_usd · pickup_sequence</text>
+    <text x="410" y="532" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per (journey × rider) — Pool/convoy</text>
   </g>
 
-  <!-- Lines from dims down to fct_trips -->
-  <line x1="105" y1="130" x2="240" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <line x1="360" y1="130" x2="360" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <line x1="615" y1="130" x2="480" y2="180" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <!-- Lines: dims down to journeys (driver/rider via dim_users) and trips -->
+  <line x1="105" y1="120" x2="240" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <line x1="380" y1="120" x2="380" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <line x1="655" y1="120" x2="520" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
 
-  <!-- Lines from fct_trips down to events / bridge -->
-  <line x1="260" y1="360" x2="180" y2="390" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <line x1="460" y1="360" x2="540" y2="390" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <!-- Journey 1:N trips -->
+  <line x1="380" y1="260" x2="380" y2="300" stroke="#92400e" stroke-width="1.5" marker-end="url(#arr-uber)"/>
+  <text x="390" y="285" font-family="JetBrains Mono,monospace" font-size="10" fill="#92400e">1 : N (convoy)</text>
 
-  <!-- Cardinality labels -->
-  <text x="160" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
-  <text x="370" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
-  <text x="540" y="158" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N</text>
-  <text x="200" y="380" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N (every state)</text>
-  <text x="490" y="380" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N (Pool only)</text>
+  <!-- Trip 1:N events -->
+  <line x1="280" y1="420" x2="200" y2="460" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <text x="160" y="450" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N states</text>
+
+  <!-- Journey 1:N bridge (skip-level FK) -->
+  <line x1="480" y1="420" x2="560" y2="460" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <text x="500" y="450" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N riders</text>
 </svg>
 
 <h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
 
-<p><strong>Sample data</strong> (illustrative — 5 trips on 2025-05-01; trip T1005 is a Pool with 3 riders)</p>
+<p><strong>Sample data</strong> (Journey J-500: airport convoy with 3 riders split across 2 vehicles)</p>
 <pre><code>INSERT INTO dim_users VALUES
-  (1,'U101','rider', 'Gold',     '2025-01-01', NULL),
-  (2,'U102','rider', 'Silver',   '2025-01-01', NULL),
-  (3,'U103','rider', 'Silver',   '2025-01-01', NULL),
-  (4,'U201','driver','Platinum', '2025-01-01', NULL),
-  (5,'U202','driver','Gold',     '2025-01-01', NULL);
+  (1,'R_1','rider',  'Gold',     NULL),
+  (2,'R_2','rider',  'Silver',   NULL),
+  (3,'R_3','rider',  'Silver',   NULL),
+  (4,'D_Alpha','driver','Platinum', NULL),
+  (5,'D_Bravo','driver','Gold',     NULL);
 
-INSERT INTO fct_trips
- (trip_key, trip_id, rider_id, driver_id, vehicle_id, origin_h3_key, destination_h3_key,
-  request_timestamp, terminal_state, surge_multiplier, total_fare_usd, driver_payout_usd, is_flagged_risk)
+-- 1 journey
+INSERT INTO fct_journeys
+ (journey_key, journey_id, requesting_user_id, split_type,
+  total_group_fare_usd, num_vehicles_dispatched, num_riders, journey_status, request_timestamp)
 VALUES
-  (1,'T1001',1,    4, 11, 'h3_a', 'h3_b', '2025-05-01 08:30:00', 'completed',        1.0, 22.50, 16.88, FALSE),
-  (2,'T1002',2,    5, 12, 'h3_a', 'h3_c', '2025-05-01 08:31:00', 'cancelled_rider',  1.0,  5.00,  3.75, FALSE),
-  (3,'T1003',3,    4, 11, 'h3_b', 'h3_a', '2025-05-01 09:10:00', 'completed',        1.5, 35.75, 26.81, FALSE),
-  (4,'T1004',1,    5, 12, 'h3_c', 'h3_a', '2025-05-01 09:15:00', 'cancelled_system', 1.5,  0.00,  0.00, FALSE),
-  (5,'T1005',NULL, 4, 11, 'h3_a', 'h3_b', '2025-05-01 09:30:00', 'completed',        1.5, 30.00, 22.50, FALSE);
+  (500,'J-500',1,'EQUAL_SPLIT', 60.00, 2, 3, 'completed', '2025-05-01 08:30:00');
 
+-- 2 trips under J-500 (the convoy)
+INSERT INTO fct_trips
+ (trip_key, trip_id, journey_id, driver_id, vehicle_id, trip_fare_share_usd,
+  surge_multiplier, terminal_state)
+VALUES
+  (101,'T-101','J-500', 4, 99, 30.00, 1.0, 'completed'),
+  (102,'T-102','J-500', 5, 88, 30.00, 1.0, 'completed');
+
+-- Trip events for both vehicles
 INSERT INTO fct_trip_events VALUES
-  ('e01','T1001','REQUESTED','2025-05-01 08:30:00','h3_a','rider'),
-  ('e02','T1001','MATCHED',  '2025-05-01 08:30:50','h3_a','system'),
-  ('e03','T1001','STARTED',  '2025-05-01 08:35:12','h3_a','driver'),
-  ('e04','T1001','DROPOFF',  '2025-05-01 08:55:08','h3_b','driver'),
-  ('e05','T1002','REQUESTED','2025-05-01 08:31:00','h3_a','rider'),
-  ('e06','T1002','MATCHED',  '2025-05-01 08:32:30','h3_a','system'),
-  ('e07','T1002','CANCELLED','2025-05-01 08:33:00','h3_a','rider'),
-  ('e08','T1003','REQUESTED','2025-05-01 09:10:00','h3_b','rider'),
-  ('e09','T1003','MATCHED',  '2025-05-01 09:12:00','h3_b','system'),
-  ('e10','T1003','STARTED',  '2025-05-01 09:20:00','h3_b','driver'),
-  ('e11','T1003','DROPOFF',  '2025-05-01 09:50:00','h3_a','driver'),
-  ('e12','T1005','REQUESTED','2025-05-01 09:30:00','h3_a','rider'),
-  ('e13','T1005','MATCHED',  '2025-05-01 09:32:00','h3_a','system'),
-  ('e14','T1005','STARTED',  '2025-05-01 09:38:00','h3_a','driver'),
-  ('e15','T1005','DROPOFF',  '2025-05-01 10:05:00','h3_b','driver');
+  ('e01','T-101','REQUESTED','2025-05-01 08:30:00','h3_a','rider'),
+  ('e02','T-101','MATCHED',  '2025-05-01 08:31:00','h3_a','system'),
+  ('e03','T-101','PICKUP',   '2025-05-01 08:35:00','h3_a','driver'),
+  ('e04','T-101','DROPOFF',  '2025-05-01 09:00:00','h3_z','driver'),
+  ('e05','T-102','REQUESTED','2025-05-01 08:30:00','h3_a','rider'),
+  ('e06','T-102','MATCHED',  '2025-05-01 08:31:30','h3_a','system'),
+  ('e07','T-102','PICKUP',   '2025-05-01 08:35:00','h3_a','driver'),  -- same cell as T-101 (legit convoy)
+  ('e08','T-102','DROPOFF',  '2025-05-01 09:01:00','h3_z','driver');
 
--- Pool bridge: trip T1005, 3 riders, distances 4 km / 3 km / 5 km — total 12 km
-INSERT INTO brg_trip_riders VALUES
-  (5, 1, 10.00, 1, 4.0),   -- rider A: 4/12 share = $10.00
-  (5, 2,  7.50, 2, 3.0),   -- rider B: 3/12 share = $7.50
-  (5, 3, 12.50, 3, 5.0);   -- rider C: 5/12 share = $12.50
+-- Bridge: 3 riders, 2 assigned to T-101, 1 assigned to T-102
+INSERT INTO brg_journey_riders VALUES
+  ('J-500', 1, 'T-101', 20.00, 1, 12.0),
+  ('J-500', 2, 'T-101', 20.00, 2, 12.0),
+  ('J-500', 3, 'T-102', 20.00, 1, 12.0);
 </code></pre>
 
 <h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Operations · live ETA &amp; lifecycle metrics</h4>
 
-<p><strong>Q1 — Dispatch latency (p50 / p95) per H3 cell per hour</strong></p>
+<p><strong>Q1 — System lag: per-state transition latency using gaps-and-islands</strong></p>
+<pre><code>SELECT
+  trip_id,
+  state,
+  event_timestamp,
+  LAG(event_timestamp) OVER (PARTITION BY trip_id ORDER BY event_timestamp) AS prev_event_time,
+  EXTRACT(EPOCH FROM (
+    event_timestamp -
+    LAG(event_timestamp) OVER (PARTITION BY trip_id ORDER BY event_timestamp)
+  )) AS transition_latency_sec
+FROM fct_trip_events
+WHERE trip_id = 'T-101'
+ORDER BY event_timestamp;
+</code></pre>
+<p><em>Result for T-101:</em></p>
+<table>
+  <thead><tr><th>state</th><th>event_timestamp</th><th>prev_event_time</th><th>transition_latency_sec</th></tr></thead>
+  <tbody>
+    <tr><td>REQUESTED</td><td>08:30:00</td><td>NULL</td><td>NULL</td></tr>
+    <tr><td>MATCHED</td><td>08:31:00</td><td>08:30:00</td><td>60</td></tr>
+    <tr><td>PICKUP</td><td>08:35:00</td><td>08:31:00</td><td>240</td></tr>
+    <tr><td>DROPOFF</td><td>09:00:00</td><td>08:35:00</td><td>1500</td></tr>
+  </tbody>
+</table>
+<p>Use case: high <code>transition_latency_sec</code> on REQUESTED→MATCHED indicates "hot partitions" or processing delays — Ops can alert when the cell-level p95 exceeds threshold.</p>
+
+<p><strong>Q2 — Dispatch latency (p50 / p95) per H3 cell per hour</strong></p>
 <pre><code>WITH latency AS (
   SELECT
     e.trip_id,
@@ -539,125 +623,142 @@ INSERT INTO brg_trip_riders VALUES
   GROUP BY trip_id
   HAVING MAX(CASE WHEN state='MATCHED' THEN 1 END) = 1
 )
-SELECT
-  hour_bucket, h3_cell,
-  COUNT(*) AS matched_trips,
+SELECT hour_bucket, h3_cell, COUNT(*) AS matched_trips,
   PERCENTILE_CONT(0.5)  WITHIN GROUP (ORDER BY latency_sec) AS p50_sec,
   PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_sec) AS p95_sec
-FROM latency
-GROUP BY hour_bucket, h3_cell
-ORDER BY p95_sec DESC;
+FROM latency GROUP BY 1, 2 ORDER BY p95_sec DESC;
 </code></pre>
-<p><em>Result on the sample data:</em></p>
-<table>
-  <thead><tr><th>hour_bucket</th><th>h3_cell</th><th>matched_trips</th><th>p50_sec</th><th>p95_sec</th></tr></thead>
-  <tbody>
-    <tr><td>2025-05-01 08:00</td><td>h3_a</td><td>2</td><td>70</td><td>88</td></tr>
-    <tr><td>2025-05-01 09:00</td><td>h3_b</td><td>1</td><td>120</td><td>120</td></tr>
-    <tr><td>2025-05-01 09:00</td><td>h3_a</td><td>1</td><td>120</td><td>120</td></tr>
-  </tbody>
-</table>
 
-<p><strong>Q2 — Cancellation breakdown by actor</strong></p>
-<pre><code>SELECT
-  terminal_state,
-  COUNT(*)                                                         AS cnt,
-  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1)               AS pct_of_total
+<p><strong>Q3 — Cancellation breakdown by actor</strong></p>
+<pre><code>SELECT terminal_state, COUNT(*) AS cnt,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct_of_total
 FROM fct_trips
-WHERE DATE(request_timestamp) = '2025-05-01'
-GROUP BY terminal_state
-ORDER BY cnt DESC;
+GROUP BY terminal_state ORDER BY cnt DESC;
 </code></pre>
-<p><em>Result:</em></p>
+
+<p><strong>Q4 — Convoy efficiency (vehicles per journey, riders per vehicle)</strong></p>
+<pre><code>SELECT
+  j.journey_id,
+  j.num_riders,
+  j.num_vehicles_dispatched,
+  ROUND(j.num_riders::DECIMAL / j.num_vehicles_dispatched, 2) AS riders_per_vehicle,
+  COUNT(DISTINCT t.trip_id) AS actual_trips,
+  COUNT(DISTINCT b.rider_id) AS riders_seen
+FROM fct_journeys j
+JOIN fct_trips t USING (journey_id)
+JOIN brg_journey_riders b USING (journey_id)
+GROUP BY j.journey_id, j.num_riders, j.num_vehicles_dispatched;
+</code></pre>
+<p><em>Result for J-500:</em></p>
 <table>
-  <thead><tr><th>terminal_state</th><th>cnt</th><th>pct_of_total</th></tr></thead>
+  <thead><tr><th>journey_id</th><th>num_riders</th><th>num_vehicles</th><th>riders_per_vehicle</th><th>actual_trips</th><th>riders_seen</th></tr></thead>
   <tbody>
-    <tr><td>completed</td><td>3</td><td>60.0</td></tr>
-    <tr><td>cancelled_rider</td><td>1</td><td>20.0</td></tr>
-    <tr><td>cancelled_system</td><td>1</td><td>20.0</td></tr>
+    <tr><td>J-500</td><td>3</td><td>2</td><td>1.50</td><td>2</td><td>3</td></tr>
   </tbody>
 </table>
 
-<p><strong>Q3 — Shared-ride efficiency (multi-rider stops_made)</strong></p>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Finance · revenue reconciliation &amp; driver payout</h4>
+
+<p><strong>Q5 — Driver payout reconciliation (per-driver share vs riders' charges)</strong></p>
 <pre><code>SELECT
-  trip_key,
-  COUNT(rider_id)        AS total_riders,
-  MAX(pickup_sequence)   AS stops_made,
-  ROUND(SUM(leg_distance_km), 1) AS total_route_km
-FROM brg_trip_riders
-GROUP BY trip_key
-HAVING COUNT(rider_id) &gt; 1
-ORDER BY stops_made DESC;
+  t.driver_id,
+  t.trip_id,
+  t.trip_fare_share_usd  AS revenue_basis,
+  SUM(b.individual_charge_usd) AS total_collected_from_riders,
+  COUNT(b.rider_id)            AS riders_in_this_car
+FROM fct_trips t
+JOIN brg_journey_riders b ON t.trip_id = b.trip_id
+GROUP BY t.driver_id, t.trip_id, t.trip_fare_share_usd
+ORDER BY t.trip_id;
 </code></pre>
-<p><em>Result:</em></p>
+<p><em>Result for J-500:</em></p>
 <table>
-  <thead><tr><th>trip_key</th><th>total_riders</th><th>stops_made</th><th>total_route_km</th></tr></thead>
+  <thead><tr><th>driver_id</th><th>trip_id</th><th>revenue_basis</th><th>total_collected_from_riders</th><th>riders_in_car</th></tr></thead>
   <tbody>
-    <tr><td>5</td><td>3</td><td>3</td><td>12.0</td></tr>
+    <tr><td>D_Alpha (4)</td><td>T-101</td><td>$30.00</td><td>$40.00</td><td>2</td></tr>
+    <tr><td>D_Bravo (5)</td><td>T-102</td><td>$30.00</td><td>$20.00</td><td>1</td></tr>
   </tbody>
 </table>
-<p>Use case: if a rider was picked up first but dropped off last, a detour-credit can be issued — Ops uses this to spot Pool routes that should trigger automatic compensation.</p>
+<p>Critical insight: Driver Alpha's car collected $40 from riders but Alpha is paid only on <code>$30 revenue_basis</code> (the journey was split equally between drivers). The <code>$10</code> gap goes to the platform as the "convoy coordination" fee. Without this two-grain design, you couldn't represent it.</p>
 
-<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Finance · revenue reconciliation &amp; per-rider fares</h4>
-
-<p><strong>Q4 — Pool fare allocation per rider</strong></p>
-<pre><code>SELECT
-  b.trip_key,
+<p><strong>Q6 — Pool fare allocation per rider (single-vehicle Pool, distance-prorata)</strong></p>
+<pre><code>-- Same query, useful when split_type = DISTANCE_PRORATA
+SELECT
+  b.journey_id,
   b.rider_id,
+  b.trip_id,
   b.pickup_sequence,
   b.leg_distance_km,
   ROUND(100.0 * b.leg_distance_km
-        / SUM(b.leg_distance_km) OVER (PARTITION BY b.trip_key), 1) AS distance_share_pct,
-  b.individual_fare_usd,
-  t.total_fare_usd
-FROM brg_trip_riders b
-JOIN fct_trips t USING (trip_key)
-WHERE t.trip_key = 5
-ORDER BY b.pickup_sequence;
+        / SUM(b.leg_distance_km) OVER (PARTITION BY b.journey_id), 1) AS distance_share_pct,
+  b.individual_charge_usd,
+  j.total_group_fare_usd
+FROM brg_journey_riders b
+JOIN fct_journeys j USING (journey_id)
+WHERE b.journey_id = 'J-500'
+ORDER BY b.trip_id, b.pickup_sequence;
 </code></pre>
-<p><em>Result for trip T1005:</em></p>
-<table>
-  <thead><tr><th>trip_key</th><th>rider_id</th><th>pickup_seq</th><th>leg_km</th><th>share_pct</th><th>individual_fare</th><th>total_fare</th></tr></thead>
-  <tbody>
-    <tr><td>5</td><td>1</td><td>1</td><td>4.0</td><td>33.3</td><td>$10.00</td><td>$30.00</td></tr>
-    <tr><td>5</td><td>2</td><td>2</td><td>3.0</td><td>25.0</td><td>$7.50</td><td>$30.00</td></tr>
-    <tr><td>5</td><td>3</td><td>3</td><td>5.0</td><td>41.7</td><td>$12.50</td><td>$30.00</td></tr>
-  </tbody>
-</table>
 
-<p><strong>Q5 — Bridge invariant data-quality check (revenue reconciliation)</strong></p>
-<pre><code>SELECT
-  t.trip_id,
-  t.total_fare_usd                      AS reported_total,
-  ROUND(SUM(b.individual_fare_usd), 2)  AS calculated_total,
-  ROUND(t.total_fare_usd - SUM(b.individual_fare_usd), 2) AS variance,
-  CASE WHEN ABS(t.total_fare_usd - SUM(b.individual_fare_usd)) &lt; 0.01
-       THEN 'PASS' ELSE 'FAIL' END AS dq_status
-FROM fct_trips t
-JOIN brg_trip_riders b USING (trip_key)
-GROUP BY t.trip_id, t.total_fare_usd
-HAVING ABS(t.total_fare_usd - SUM(b.individual_fare_usd)) &gt;= 0.01;
--- Empty result = invariant holds. Any row = a data quality bug.
+<p><strong>Q7 — Twin invariant data-quality check (continuous DQ)</strong></p>
+<pre><code>-- Invariant 1: SUM(brg.individual_charge) per journey = fct_journeys.total_group_fare
+-- Invariant 2: SUM(fct_trips.trip_fare_share) per journey = fct_journeys.total_group_fare
+SELECT
+  j.journey_id,
+  j.total_group_fare_usd                            AS reported_total,
+  ROUND(SUM(DISTINCT t.trip_fare_share_usd), 2)     AS sum_trip_shares,
+  (SELECT ROUND(SUM(b.individual_charge_usd), 2)
+     FROM brg_journey_riders b WHERE b.journey_id = j.journey_id)
+                                                    AS sum_rider_charges,
+  CASE
+    WHEN j.total_group_fare_usd != SUM(DISTINCT t.trip_fare_share_usd) THEN 'FAIL_TRIP_INVARIANT'
+    WHEN j.total_group_fare_usd != (SELECT SUM(individual_charge_usd)
+                                    FROM brg_journey_riders WHERE journey_id = j.journey_id)
+                                    THEN 'FAIL_RIDER_INVARIANT'
+    ELSE 'PASS'
+  END AS dq_status
+FROM fct_journeys j
+JOIN fct_trips t USING (journey_id)
+GROUP BY j.journey_id, j.total_group_fare_usd;
+-- Any FAIL row = producer regression. Required for SOX / audit.
 </code></pre>
-<p>Finance runs this continuously; an emit means a producer regression. Required for SOX / audit reporting.</p>
 
 <h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Risk · fraud detection</h4>
 
-<p><strong>Q6 — Multi-rider capacity check (passengers exceed vehicle limit)</strong></p>
+<p><strong>Q8 — Phantom Convoy detection (drivers claim convoy but aren't actually together)</strong></p>
+<pre><code>-- Risk pattern: two drivers booked into the same journey but their PICKUP H3 cells
+-- are far apart at the same moment. Either a producer bug or a fraud ring.
+SELECT
+  e1.trip_id        AS car_1,
+  e2.trip_id        AS car_2,
+  e1.location_h3    AS loc_1,
+  e2.location_h3    AS loc_2,
+  EXTRACT(EPOCH FROM ABS(e1.event_timestamp - e2.event_timestamp)) AS pickup_time_gap_sec
+FROM fct_trip_events e1
+JOIN fct_trips t1 ON e1.trip_id = t1.trip_id
+JOIN fct_trips t2 ON t1.journey_id = t2.journey_id AND t1.trip_id &lt; t2.trip_id
+JOIN fct_trip_events e2 ON e2.trip_id = t2.trip_id
+WHERE e1.state = 'PICKUP' AND e2.state = 'PICKUP'
+  AND e1.location_h3 != e2.location_h3                       -- not in same H3 cell
+  AND ABS(EXTRACT(EPOCH FROM (e1.event_timestamp - e2.event_timestamp))) &lt; 600;  -- within 10 min
+-- Any returned row = an investigation item.
+</code></pre>
+<p>For J-500 sample data, both cars pickup at <code>h3_a</code> within 0 seconds of each other → no rows returned → legit convoy.</p>
+
+<p><strong>Q9 — Multi-rider capacity check (over-capacity vehicle)</strong></p>
 <pre><code>SELECT
   t.trip_id,
   v.model,
-  v.type,
-  COUNT(b.rider_id) AS passenger_count
+  v.capacity         AS vehicle_capacity,
+  COUNT(b.rider_id)  AS passenger_count
 FROM fct_trips t
-JOIN brg_trip_riders b USING (trip_key)
-JOIN dim_vehicles    v ON t.vehicle_id = v.vehicle_key
-GROUP BY t.trip_id, v.model, v.type
-HAVING COUNT(b.rider_id) &gt; 4;   -- standard sedan capacity
+JOIN brg_journey_riders b ON t.trip_id = b.trip_id
+JOIN dim_vehicles      v ON t.vehicle_id = v.vehicle_key
+GROUP BY t.trip_id, v.model, v.capacity
+HAVING COUNT(b.rider_id) &gt; v.capacity;
+-- Off-app riders being charged = either producer bug or driver fraud.
 </code></pre>
-<p>An over-capacity Pool is either a producer bug or a fraud pattern (drivers gaming the platform with off-app passengers).</p>
 
-<p><strong>Q7 — Location anomaly detection (request vs first-pickup divergence)</strong></p>
+<p><strong>Q10 — Location anomaly: request vs first-pickup divergence</strong></p>
 <pre><code>WITH first_pickup AS (
   SELECT trip_id, location_h3 AS pickup_h3
   FROM fct_trip_events
@@ -671,25 +772,29 @@ LEFT JOIN first_pickup fp USING (trip_id)
 WHERE t.terminal_state = 'completed';
 </code></pre>
 
-<p><strong>Worked numerical example — Pool fare allocation</strong></p>
+<p><strong>Worked numerical example — Convoy J-500 (EQUAL_SPLIT, $60 group fare)</strong></p>
 <ol>
-  <li>Trip T1005 has 3 riders. Distances they personally travel: rider A = 4 km, rider B = 3 km, rider C = 5 km. Total route distance = <strong>12 km</strong>.</li>
-  <li>Total fare collected: <strong>$30.00</strong> (after surge × base × distance × time formula).</li>
-  <li>Rider A's allocation: 4 / 12 × $30.00 = <strong>$10.00</strong> (33.3% share).</li>
-  <li>Rider B's allocation: 3 / 12 × $30.00 = <strong>$7.50</strong> (25.0% share).</li>
-  <li>Rider C's allocation: 5 / 12 × $30.00 = <strong>$12.50</strong> (41.7% share).</li>
-  <li>Invariant check: $10.00 + $7.50 + $12.50 = <strong>$30.00</strong> ✓ matches <code>fct_trips.total_fare_usd</code>.</li>
+  <li>5 friends call a group ride. 3 are billable riders (R_1, R_2, R_3); the others are children covered under R_1's account. Group fare quoted: <strong>$60.00</strong>.</li>
+  <li>System dispatches 2 vehicles because the group exceeds single-car capacity → <code>fct_journeys.num_vehicles_dispatched = 2</code>.</li>
+  <li>Driver Alpha's car (T-101) takes 2 riders (R_1, R_2). Driver Bravo's car (T-102) takes 1 rider (R_3).</li>
+  <li><strong>Per-rider charge (EQUAL_SPLIT):</strong> $60 / 3 = <strong>$20.00 per rider</strong>. Stored in <code>brg_journey_riders.individual_charge_usd</code>.</li>
+  <li><strong>Per-driver share:</strong> $60 / 2 = <strong>$30.00 per driver</strong>. Stored in <code>fct_trips.trip_fare_share_usd</code>.</li>
+  <li>Invariant 1 (rider side): SUM(<code>brg.individual_charge</code>) = $20 × 3 = <strong>$60</strong> ✓</li>
+  <li>Invariant 2 (driver side): SUM(<code>fct_trips.trip_fare_share</code>) = $30 × 2 = <strong>$60</strong> ✓</li>
+  <li><strong>Note the asymmetry:</strong> Driver Alpha's car collected $40 in charges from his 2 riders, but Alpha's payout basis is $30 — the platform retains $10 as a convoy-coordination fee. Driver Bravo's car collected $20 from his 1 rider but is paid $30 — the platform <em>covers</em> the $10 gap. This is fair: the journey was equally split between drivers regardless of which car each rider sat in. Without the two-grain design (trip share AND rider charge), you couldn't represent it.</li>
 </ol>
 
-<h4 class="sub-head">Section 8 — Why this works</h4>
+<h4 class="sub-head">Section 8 — Why this works for the convoy scenario</h4>
 <ul>
-  <li><strong>Eliminates granularity mismatch.</strong> Without the bridge, you'd have to either duplicate the <code>fct_trips</code> row (wrecking driver-payout sums and trip counts) or stuff multiple rider IDs into a single column (making SQL querying nearly impossible). The bridge keeps trip-level grain pure while exposing per-rider revenue cleanly.</li>
-  <li><strong>Scalability.</strong> If Uber introduces "Pool for 4", "Bus", or any other multi-rider product, the model is unchanged. You simply add more rows to <code>brg_trip_riders</code>. New product, no schema migration.</li>
-  <li><strong>Auditability.</strong> Every dollar in <code>total_fare_usd</code> is traceable back to a specific user via the bridge, which is a hard requirement for financial auditing, tax reporting (per-jurisdiction VAT/GST), and SOX compliance. The continuous invariant check (Q5) is the audit's smoke test.</li>
+  <li><strong>Unique driver accounts.</strong> By placing <code>driver_id</code> on <code>fct_trips</code> (not <code>fct_journeys</code>), the model honors the rule that a (driver, journey) combination is unique — same driver can't take two trips for one journey, but two drivers <em>can</em> share one journey.</li>
+  <li><strong>Cost flexibility.</strong> The bridge supports multi-destination and DISTANCE_PRORATA logic. If Rider 1 exits at Mile 5 and Rider 2 at Mile 10, <code>individual_charge_usd</code> is computed pro-rata using <code>leg_distance_km</code> captured from <code>fct_trip_events</code> — same model, different <code>split_type</code>.</li>
+  <li><strong>Auditability.</strong> Finance traces every cent from a rider's wallet through <code>brg_journey_riders</code> directly to the specific driver's <code>fct_trips</code> payout. The two continuous invariants (Q7) catch producer bugs before they hit a quarterly SOX report.</li>
+  <li><strong>Scalability.</strong> "Pool for 4", "Bus", "Wedding party of 12" — no schema migration. Just more rows in <code>brg_journey_riders</code>; the journey grain is unchanged.</li>
+  <li><strong>Eliminates granularity mismatch.</strong> The 3-tier hierarchy (journey, trip, event) lets each stakeholder query at their natural grain without filters or self-joins.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The hybrid grain is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares off <code>fct_trips</code> + <code>brg_trip_riders</code>, and Risk replays GPS sequences off <code>fct_trip_events</code>. Three stakeholders, three grains, one source of truth — and the bridge invariant <code>SUM(individual_fare) = total_fare</code> is the contract that keeps Finance honest."
+<strong>Senior framing.</strong> "The Journey → Trip → Event hierarchy is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares against <em>two</em> invariants (rider-side and driver-side), and Risk replays GPS sequences for phantom-convoy detection. Three stakeholders, three grains, one source of truth — and two invariants on the financial bridge keep producer bugs from ever reaching the audit."
 </div>
 </div>
 
