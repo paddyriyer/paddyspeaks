@@ -2457,68 +2457,214 @@ ORDER BY ABS(calibration_error_pct) DESC;
 
 <!-- Scenario 5: Meta ads -->
 <div class="scenario" id="sc-meta-ads">
-<div class="domain-tag">Meta / Facebook · ads attribution</div>
-<h4 class="sub-head">Scenario 5 — Cross-device attribution &amp; identity</h4>
-<div class="prompt">Design a model for Facebook ads where a user sees an ad on phone, opens the advertiser's site on laptop later, and converts on tablet a week after. Support 1/7/28-day click + view-through windows, ATT/SKAdNetwork constraints, and incrementality lift.</div>
+<div class="domain-tag">Meta / Facebook · cross-device attribution</div>
+<h4 class="sub-head">Scenario 5 — Cross-device attribution &amp; identity graph</h4>
+<div class="prompt">Design a model for Facebook ads where a user sees an ad on phone, opens the advertiser's site on laptop later, and converts on tablet a week after. Support 1/7/28-day click + view-through windows, ATT/SKAdNetwork iOS constraints, and incrementality lift measurement.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>One human, many devices. Apple's ATT cuts user-level signals on iOS. SKAdNetwork only returns aggregated postbacks. The model must support <strong>cross-device joining via a probabilistic+deterministic identity graph</strong>, <strong>multiple attribution windows in parallel</strong> (1d / 7d / 28d × click vs view), and <strong>two privacy paths</strong> (user-level for opted-in, aggregate-only for SKAN).</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Identity graph: probabilistic + deterministic. <code>dim_identity</code> resolves device → person."</li>
-  <li>"Attribution windows configurable per advertiser. Pre-compute multiple in parallel."</li>
-  <li>"SKAdNetwork (iOS): aggregate-only, postback-based. Different fact table — no user-level."</li>
+  <li><code>fct_ad_events</code> — <strong>The "Touch" grain.</strong> One row per impression OR click (event-typed).</li>
+  <li><code>fct_conversions</code> — <strong>The "Conversion" grain.</strong> One row per advertiser-reported conversion.</li>
+  <li><code>fct_skan_postbacks</code> — <strong>The iOS-aggregate grain.</strong> One row per SKAdNetwork postback (no user-level data).</li>
+  <li><code>fct_attributions</code> — <strong>The "Match" grain.</strong> One row per (conversion × eligible touchpoint × window × model × run). <em>Append-only via <code>attribution_run_id</code>.</em></li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension &amp; Bridge Tables</strong></p>
 <ul>
-  <li><code>fact_ad_event</code>: one row per impression OR click (event-typed).</li>
-  <li><code>fact_conversion</code>: one row per advertiser conversion event.</li>
-  <li><code>fact_skan_postback</code>: one row per SKAdNetwork postback (iOS, aggregate-only).</li>
-  <li><code>fact_attribution</code>: one row per (conversion × ad-event × window × model) — derived.</li>
+  <li><code>dim_identities</code> — One row per resolved person. <em>Probabilistic + deterministic.</em></li>
+  <li><code>bridge_identity_devices</code> — <strong>SCD2.</strong> Many devices per identity; <code>link_confidence</code> drives weighting.</li>
+  <li><code>dim_advertisers, dim_campaigns, dim_creatives</code> — SCD2.</li>
+  <li><code>dim_user_holdouts</code> — Holdout assignment for incrementality (SCD2 per advertiser × period).</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_identity (the graph)
-  identity_sk, person_id_token,
-  -- many-to-many to devices via bridge:
-bridge_identity_device
-  identity_sk, device_id_token, link_confidence DECIMAL(4,3),
-  effective_from, effective_to
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
 
-CREATE TABLE fact_ad_event (
-  event_sk            BIGINT,
-  event_type          STRING,         -- 'impression' | 'click'
-  identity_sk         BIGINT NULL,    -- null on iOS / opt-out
-  device_id_token     STRING,
-  campaign_sk         BIGINT,
-  creative_sk         BIGINT,
-  placement           STRING,         -- feed, story, reel
-  event_ts            TIMESTAMP_TZ,
-  privacy_path        STRING          -- 'opted_in' | 'att_optout' | 'skan'
-)
-PARTITION BY DATE(event_ts);
+<p><strong><code>bridge_identity_devices</code> (the heart of cross-device)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>identity_id, device_id_token</code></td><td>FK</td><td>Composite link.</td></tr>
+    <tr><td><code>link_confidence</code></td><td>DECIMAL(4,3)</td><td>1.0 = deterministic (login). &lt;1.0 = probabilistic (IP, behavior).</td></tr>
+    <tr><td><code>link_method</code></td><td>STRING</td><td>{login, email_match, household_ip, behavioral, deterministic_id}.</td></tr>
+    <tr><td><code>effective_from, effective_to</code></td><td>TIMESTAMP_TZ</td><td>SCD2 — devices come and go.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_attribution (
-  attribution_sk        BIGINT,
-  conversion_sk         BIGINT,
-  ad_event_sk           BIGINT,
-  window_type           STRING,       -- 'click_1d' | 'click_7d' | 'view_1d' | 'view_28d'
-  attribution_model     STRING,       -- 'last_click' | 'last_touch' | 'data_driven'
-  attribution_run_id    STRING,
-  is_attributed         BOOLEAN,
-  fractional_credit     DECIMAL(8,6)  -- for MTA
-)
-PARTITION BY attribution_run_id;</code></pre>
+<p><strong><code>fct_ad_events</code></strong> — <code>event_id, event_type ∈ {impression, click}, identity_id (NULL on iOS), device_id_token, campaign_id, creative_id, placement, event_ts, privacy_path</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong><code>fct_attributions</code></strong> — <code>conversion_id, ad_event_id, window_type ∈ {click_1d, click_7d, view_1d, view_28d, ...}, attribution_model, attribution_run_id, is_attributed BOOLEAN, fractional_credit DECIMAL</code>. <em>Partitioned by <code>attribution_run_id</code>.</em></p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Advertiser · ROAS &amp; window comparison</strong></p>
 <ul>
-  <li><strong>Identity graph drift:</strong> users add/remove devices. Bridge is SCD2 with confidence; never delete history.</li>
-  <li><strong>iOS opt-out:</strong> <code>identity_sk</code> is NULL; can only roll up by <code>campaign × placement × day</code> at advertiser level.</li>
-  <li><strong>Late conversions:</strong> 28-day view-through means attribution today restates impressions from 28 days ago. <code>attribution_run_id</code> is the immutability boundary.</li>
-  <li><strong>Incrementality:</strong> requires a holdout group; modeled as <code>dim_user_holdout</code> with assignment SCD2 per advertiser per period.</li>
+  <li>Run multiple <code>window_type</code> values in parallel: <code>click_1d</code>, <code>click_7d</code>, <code>view_28d</code>. The advertiser picks; we report all.</li>
+  <li>Cross-device join: phone impression + laptop click + tablet conversion all join via <code>identity_id</code> from <code>bridge_identity_devices</code>.</li>
+</ul>
+
+<p><strong>Privacy / iOS · ATT &amp; SKAN</strong></p>
+<ul>
+  <li><code>privacy_path = 'att_optout'</code> events have NULL <code>identity_id</code>; only aggregate roll-ups by campaign × placement × day are valid.</li>
+  <li><code>fct_skan_postbacks</code> is a separate fact — never joins to user-level. Aggregated reporting only.</li>
+</ul>
+
+<p><strong>Measurement · incrementality lift</strong></p>
+<ul>
+  <li>Hold out N% of users from receiving any ad (in <code>dim_user_holdouts</code>). Lift = (treatment conversion rate) − (holdout conversion rate).</li>
+  <li>The holdout group does not appear in <code>fct_attributions</code> at all — they're conversions without ad events.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why "match at read, not at write"</h4>
+<p>The decisive design choice is to never compute attribution at ingest time. Every conversion is paired with every eligible touchpoint, and the attribution model is a <strong>function evaluated at read time</strong>. Three benefits:</p>
+<ul>
+  <li><strong>Re-attribution is a query, not a re-ingest.</strong> Switch from last-click to data-driven without rebuilding the fact table.</li>
+  <li><strong>Multiple windows in parallel.</strong> Same conversion appears in <code>click_1d</code>, <code>click_7d</code>, and <code>view_28d</code> rows simultaneously.</li>
+  <li><strong>Audit-ready.</strong> When an advertiser disputes attribution, you produce the exact <code>attribution_run_id</code> that ran on date X with model Y. Defensible.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Cross-device Attribution</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">META · CROSS-DEVICE ATTRIBUTION · IDENTITY → ADS → CONVERSION</text>
+  <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◉ dim_identities ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ identity_id · person_token</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">resolution_method</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">probabilistic + deterministic</text></g>
+  <g transform="translate(40,250)"><rect width="270" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ bridge_identity_devices ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id · device_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">link_confidence (0.0-1.0)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">link_method · effective_from/to</text><text x="20" y="111" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">SCD2 · devices come and go</text></g>
+  <g transform="translate(40,390)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_campaigns / creatives</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">budget · objective · placement</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,490)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_attribution_models</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">last_click · MTA · DDA</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,590)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊟ dim_user_holdouts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">advertiser × period × identity</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">incrementality</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_ad_events</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ event_id · event_type</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id (FK, NULL on iOS)</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">device_id_token · placement · privacy_path</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per impression OR click</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fct_conversions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">conversion_id · advertiser · ts</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ value_usd · type</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id (FK)</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per conversion event</text></g>
+  <g transform="translate(385,275)"><rect width="580" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊕ fct_attributions ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">conversion_id · ad_event_id · model_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">window_type {click_1d, click_7d, view_1d, view_28d}</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">⛓ attribution_run_id (partition)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">is_attributed · fractional_credit · attributed_value_usd</text><text x="20" y="135" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (conversion × eligible_touchpoint × window × model × run)</text></g>
+  <g transform="translate(385,470)"><rect width="580" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📱 fct_skan_postbacks (iOS aggregate)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">campaign_id · conversion_value_bucket · postback_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">redownload · fidelity_type · postback_count</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">grain: aggregate-only (SKAdNetwork) — never user-level</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CROSS-DEVICE MATCH RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ % conversions joined to ≥1 ad event</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ Avg link_confidence per identity</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ Identity coverage by privacy_path</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: bridge_identity_devices × fct_attributions</text></g>
+  <g transform="translate(1015,290)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ATTRIBUTION LAG &amp; WINDOW MIX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Click-to-conversion median lag</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ % attributed in 1d / 7d / 28d</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ View vs Click split</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_attributions</text></g>
+  <g transform="translate(1015,450)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CONVERSION LIFT (Incrementality)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Treatment − Holdout conv rate</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Cost per incremental conversion</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Statistical significance (Welch's t)</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_conversions × dim_user_holdouts</text></g>
+  <g transform="translate(1015,610)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PRIVACY PATH MIX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📱 % iOS att_optout vs opted_in</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📱 SKAN postback coverage</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Identity-resolved % over time</text></g>
+
+  <line x1="310" y1="180" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="310" y1="305" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="310" y1="305" x2="700" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="525" y1="250" x2="525" y2="275" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="830" y1="250" x2="830" y2="275" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data — 1 user (3 devices) → 3 ad events → 1 conversion</strong></p>
+<pre><code>INSERT INTO dim_identities VALUES ('IDT_001','PERSON_TOK_42','login_email');
+
+INSERT INTO bridge_identity_devices VALUES
+  ('IDT_001','DEV_PHONE',  1.000,'login',        '2024-01-01',NULL),
+  ('IDT_001','DEV_LAPTOP', 0.920,'household_ip', '2024-03-15',NULL),
+  ('IDT_001','DEV_TABLET', 0.880,'behavioral',   '2024-06-22',NULL);
+
+-- 3 ad events across 3 devices, same identity:
+INSERT INTO fct_ad_events VALUES
+  ('AE_001','impression','IDT_001','DEV_PHONE','CMP_NIKE','feed','2025-04-25 09:15:00','opted_in'),
+  ('AE_002','click',     'IDT_001','DEV_LAPTOP','CMP_NIKE','feed','2025-04-28 14:32:00','opted_in'),
+  ('AE_003','impression','IDT_001','DEV_TABLET','CMP_NIKE','reel','2025-04-30 21:00:00','opted_in');
+
+-- Conversion 1 week after first impression
+INSERT INTO fct_conversions VALUES
+  ('CONV_777','ADV_NIKE','2025-05-02 11:42:00','purchase',129.99,'IDT_001');
+
+-- Attribution rows for window=7d_click + last_click vs MTA
+INSERT INTO fct_attributions VALUES
+  ('ATR_01','CONV_777','AE_002','MODEL_LAST_CLICK','RUN_2025_05_03','click_7d',TRUE,1.000,129.99),
+  ('ATR_02','CONV_777','AE_001','MODEL_MTA',       'RUN_2025_05_03','view_28d', TRUE,0.300, 38.99),
+  ('ATR_03','CONV_777','AE_002','MODEL_MTA',       'RUN_2025_05_03','click_7d', TRUE,0.500, 65.00),
+  ('ATR_04','CONV_777','AE_003','MODEL_MTA',       'RUN_2025_05_03','view_28d', TRUE,0.200, 26.00);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Advertiser · cross-device ROAS by window</h4>
+<p><strong>Q1 — Conversions attributed by window_type (1d, 7d, 28d) under last-click</strong></p>
+<pre><code>SELECT
+  atr.window_type,
+  COUNT(DISTINCT atr.conversion_id)         AS conversions_attributed,
+  ROUND(SUM(atr.attributed_value_usd), 2)   AS attributed_value
+FROM fct_attributions atr
+WHERE atr.attribution_run_id = (SELECT MAX(attribution_run_id) FROM fct_attributions)
+  AND atr.model_id = 'MODEL_LAST_CLICK'
+  AND atr.is_attributed = TRUE
+GROUP BY atr.window_type ORDER BY attributed_value DESC;
+-- Lets advertiser see how many conversions fall inside each window. Picks the right window for their funnel.
+</code></pre>
+
+<p><strong>Q2 — Cross-device match rate (% conversions linked to ≥1 ad event via identity)</strong></p>
+<pre><code>WITH conv AS (
+  SELECT conversion_id, identity_id FROM fct_conversions
+  WHERE conversion_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
+),
+matched AS (
+  SELECT DISTINCT atr.conversion_id FROM fct_attributions atr
+  JOIN conv USING (conversion_id)
+  WHERE atr.is_attributed = TRUE
+)
+SELECT
+  COUNT(DISTINCT c.conversion_id) AS total_conversions,
+  COUNT(DISTINCT m.conversion_id) AS matched_conversions,
+  ROUND(100.0 * COUNT(DISTINCT m.conversion_id) / COUNT(DISTINCT c.conversion_id), 1) AS match_rate_pct
+FROM conv c LEFT JOIN matched m USING (conversion_id);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Measurement · incrementality lift</h4>
+<p><strong>Q3 — Conversion rate: treatment vs holdout</strong></p>
+<pre><code>WITH treatment AS (
+  SELECT i.identity_id,
+    EXISTS (SELECT 1 FROM fct_conversions c WHERE c.identity_id = i.identity_id
+            AND c.advertiser_id = 'ADV_NIKE'
+            AND c.conversion_ts BETWEEN '2025-04-01' AND '2025-05-01') AS converted
+  FROM dim_identities i
+  WHERE i.identity_id NOT IN (SELECT identity_id FROM dim_user_holdouts
+                              WHERE advertiser_id = 'ADV_NIKE'
+                                AND period = '2025-04')
+),
+holdout AS (
+  SELECT i.identity_id,
+    EXISTS (SELECT 1 FROM fct_conversions c WHERE c.identity_id = i.identity_id
+            AND c.advertiser_id = 'ADV_NIKE'
+            AND c.conversion_ts BETWEEN '2025-04-01' AND '2025-05-01') AS converted
+  FROM dim_identities i
+  JOIN dim_user_holdouts h ON i.identity_id = h.identity_id
+  WHERE h.advertiser_id = 'ADV_NIKE' AND h.period = '2025-04'
+)
+SELECT 'treatment' AS arm, COUNT(*) AS n, ROUND(100.0 * AVG(converted::INT), 3) AS conv_rate_pct FROM treatment
+UNION ALL
+SELECT 'holdout',  COUNT(*),   ROUND(100.0 * AVG(converted::INT), 3) FROM holdout;
+-- Lift = treatment_rate - holdout_rate. Statistical significance = Welch's t-test on the two proportions.
+</code></pre>
+
+<h4 class="sub-head">Worked example — User IDT_001 attribution math</h4>
+<ol>
+  <li>User IDT_001 sees Nike impression on phone (Apr 25), clicks Nike ad on laptop (Apr 28), sees Nike Reels on tablet (Apr 30).</li>
+  <li>Buys Nike shoes for $129.99 on May 2.</li>
+  <li><strong>Last-click (click_7d window):</strong> credit 1.0 → all $129.99 attributed to AE_002 (the laptop click).</li>
+  <li><strong>MTA model (multi-touch):</strong> AE_001 view 30%, AE_002 click 50%, AE_003 view 20% → $38.99 + $65.00 + $26.00 = $129.99 ✓</li>
+  <li>Identity bridge enabled the cross-device join; without it the 3 events wouldn't connect. <code>link_confidence</code> on each device drives MTA weighting in advanced models.</li>
+  <li>Both attribution rows live in <code>fct_attributions</code> with <code>attribution_run_id = RUN_2025_05_03</code>. Switching models = SELECT, not re-ingest.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Identity graph as a first-class fact.</strong> <code>bridge_identity_devices</code> SCD2 with confidence is how cross-device works without lying about certainty.</li>
+  <li><strong>Match at read.</strong> Multiple windows + multiple models computed in parallel; advertiser picks at query time.</li>
+  <li><strong>iOS / SKAN carve-out.</strong> Privacy path is explicit; aggregate-only queries fall back to <code>fct_skan_postbacks</code>.</li>
+  <li><strong>Incrementality real.</strong> Holdout assignment is a separate dim, not derived — survives campaign re-orgs.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The decisive design choice is to never compute attribution at write time — every conversion is paired with every eligible ad event, and the attribution model is a function evaluated at read time. That's how we re-attribute when an advertiser switches from last-click to data-driven without re-ingesting raw events."
+<strong>Senior framing.</strong> "The decisive design choice is to never compute attribution at write time — every conversion is paired with every eligible ad event, and the attribution model is a function evaluated at read time. That's how we re-attribute when an advertiser switches from last-click to data-driven without re-ingesting raw events. The identity graph as a versioned bridge is what makes cross-device honest about its uncertainty."
 </div>
 </div>
 
