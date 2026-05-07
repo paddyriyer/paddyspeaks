@@ -2457,271 +2457,754 @@ ORDER BY ABS(calibration_error_pct) DESC;
 
 <!-- Scenario 5: Meta ads -->
 <div class="scenario" id="sc-meta-ads">
-<div class="domain-tag">Meta / Facebook · ads attribution</div>
-<h4 class="sub-head">Scenario 5 — Cross-device attribution &amp; identity</h4>
-<div class="prompt">Design a model for Facebook ads where a user sees an ad on phone, opens the advertiser's site on laptop later, and converts on tablet a week after. Support 1/7/28-day click + view-through windows, ATT/SKAdNetwork constraints, and incrementality lift.</div>
+<div class="domain-tag">Meta / Facebook · cross-device attribution</div>
+<h4 class="sub-head">Scenario 5 — Cross-device attribution &amp; identity graph</h4>
+<div class="prompt">Design a model for Facebook ads where a user sees an ad on phone, opens the advertiser's site on laptop later, and converts on tablet a week after. Support 1/7/28-day click + view-through windows, ATT/SKAdNetwork iOS constraints, and incrementality lift measurement.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>One human, many devices. Apple's ATT cuts user-level signals on iOS. SKAdNetwork only returns aggregated postbacks. The model must support <strong>cross-device joining via a probabilistic+deterministic identity graph</strong>, <strong>multiple attribution windows in parallel</strong> (1d / 7d / 28d × click vs view), and <strong>two privacy paths</strong> (user-level for opted-in, aggregate-only for SKAN).</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Identity graph: probabilistic + deterministic. <code>dim_identity</code> resolves device → person."</li>
-  <li>"Attribution windows configurable per advertiser. Pre-compute multiple in parallel."</li>
-  <li>"SKAdNetwork (iOS): aggregate-only, postback-based. Different fact table — no user-level."</li>
+  <li><code>fct_ad_events</code> — <strong>The "Touch" grain.</strong> One row per impression OR click (event-typed).</li>
+  <li><code>fct_conversions</code> — <strong>The "Conversion" grain.</strong> One row per advertiser-reported conversion.</li>
+  <li><code>fct_skan_postbacks</code> — <strong>The iOS-aggregate grain.</strong> One row per SKAdNetwork postback (no user-level data).</li>
+  <li><code>fct_attributions</code> — <strong>The "Match" grain.</strong> One row per (conversion × eligible touchpoint × window × model × run). <em>Append-only via <code>attribution_run_id</code>.</em></li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension &amp; Bridge Tables</strong></p>
 <ul>
-  <li><code>fact_ad_event</code>: one row per impression OR click (event-typed).</li>
-  <li><code>fact_conversion</code>: one row per advertiser conversion event.</li>
-  <li><code>fact_skan_postback</code>: one row per SKAdNetwork postback (iOS, aggregate-only).</li>
-  <li><code>fact_attribution</code>: one row per (conversion × ad-event × window × model) — derived.</li>
+  <li><code>dim_identities</code> — One row per resolved person. <em>Probabilistic + deterministic.</em></li>
+  <li><code>bridge_identity_devices</code> — <strong>SCD2.</strong> Many devices per identity; <code>link_confidence</code> drives weighting.</li>
+  <li><code>dim_advertisers, dim_campaigns, dim_creatives</code> — SCD2.</li>
+  <li><code>dim_user_holdouts</code> — Holdout assignment for incrementality (SCD2 per advertiser × period).</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_identity (the graph)
-  identity_sk, person_id_token,
-  -- many-to-many to devices via bridge:
-bridge_identity_device
-  identity_sk, device_id_token, link_confidence DECIMAL(4,3),
-  effective_from, effective_to
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
 
-CREATE TABLE fact_ad_event (
-  event_sk            BIGINT,
-  event_type          STRING,         -- 'impression' | 'click'
-  identity_sk         BIGINT NULL,    -- null on iOS / opt-out
-  device_id_token     STRING,
-  campaign_sk         BIGINT,
-  creative_sk         BIGINT,
-  placement           STRING,         -- feed, story, reel
-  event_ts            TIMESTAMP_TZ,
-  privacy_path        STRING          -- 'opted_in' | 'att_optout' | 'skan'
-)
-PARTITION BY DATE(event_ts);
+<p><strong><code>bridge_identity_devices</code> (the heart of cross-device)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>identity_id, device_id_token</code></td><td>FK</td><td>Composite link.</td></tr>
+    <tr><td><code>link_confidence</code></td><td>DECIMAL(4,3)</td><td>1.0 = deterministic (login). &lt;1.0 = probabilistic (IP, behavior).</td></tr>
+    <tr><td><code>link_method</code></td><td>STRING</td><td>{login, email_match, household_ip, behavioral, deterministic_id}.</td></tr>
+    <tr><td><code>effective_from, effective_to</code></td><td>TIMESTAMP_TZ</td><td>SCD2 — devices come and go.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_attribution (
-  attribution_sk        BIGINT,
-  conversion_sk         BIGINT,
-  ad_event_sk           BIGINT,
-  window_type           STRING,       -- 'click_1d' | 'click_7d' | 'view_1d' | 'view_28d'
-  attribution_model     STRING,       -- 'last_click' | 'last_touch' | 'data_driven'
-  attribution_run_id    STRING,
-  is_attributed         BOOLEAN,
-  fractional_credit     DECIMAL(8,6)  -- for MTA
-)
-PARTITION BY attribution_run_id;</code></pre>
+<p><strong><code>fct_ad_events</code></strong> — <code>event_id, event_type ∈ {impression, click}, identity_id (NULL on iOS), device_id_token, campaign_id, creative_id, placement, event_ts, privacy_path</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong><code>fct_attributions</code></strong> — <code>conversion_id, ad_event_id, window_type ∈ {click_1d, click_7d, view_1d, view_28d, ...}, attribution_model, attribution_run_id, is_attributed BOOLEAN, fractional_credit DECIMAL</code>. <em>Partitioned by <code>attribution_run_id</code>.</em></p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Advertiser · ROAS &amp; window comparison</strong></p>
 <ul>
-  <li><strong>Identity graph drift:</strong> users add/remove devices. Bridge is SCD2 with confidence; never delete history.</li>
-  <li><strong>iOS opt-out:</strong> <code>identity_sk</code> is NULL; can only roll up by <code>campaign × placement × day</code> at advertiser level.</li>
-  <li><strong>Late conversions:</strong> 28-day view-through means attribution today restates impressions from 28 days ago. <code>attribution_run_id</code> is the immutability boundary.</li>
-  <li><strong>Incrementality:</strong> requires a holdout group; modeled as <code>dim_user_holdout</code> with assignment SCD2 per advertiser per period.</li>
+  <li>Run multiple <code>window_type</code> values in parallel: <code>click_1d</code>, <code>click_7d</code>, <code>view_28d</code>. The advertiser picks; we report all.</li>
+  <li>Cross-device join: phone impression + laptop click + tablet conversion all join via <code>identity_id</code> from <code>bridge_identity_devices</code>.</li>
+</ul>
+
+<p><strong>Privacy / iOS · ATT &amp; SKAN</strong></p>
+<ul>
+  <li><code>privacy_path = 'att_optout'</code> events have NULL <code>identity_id</code>; only aggregate roll-ups by campaign × placement × day are valid.</li>
+  <li><code>fct_skan_postbacks</code> is a separate fact — never joins to user-level. Aggregated reporting only.</li>
+</ul>
+
+<p><strong>Measurement · incrementality lift</strong></p>
+<ul>
+  <li>Hold out N% of users from receiving any ad (in <code>dim_user_holdouts</code>). Lift = (treatment conversion rate) − (holdout conversion rate).</li>
+  <li>The holdout group does not appear in <code>fct_attributions</code> at all — they're conversions without ad events.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why "match at read, not at write"</h4>
+<p>The decisive design choice is to never compute attribution at ingest time. Every conversion is paired with every eligible touchpoint, and the attribution model is a <strong>function evaluated at read time</strong>. Three benefits:</p>
+<ul>
+  <li><strong>Re-attribution is a query, not a re-ingest.</strong> Switch from last-click to data-driven without rebuilding the fact table.</li>
+  <li><strong>Multiple windows in parallel.</strong> Same conversion appears in <code>click_1d</code>, <code>click_7d</code>, and <code>view_28d</code> rows simultaneously.</li>
+  <li><strong>Audit-ready.</strong> When an advertiser disputes attribution, you produce the exact <code>attribution_run_id</code> that ran on date X with model Y. Defensible.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Cross-device Attribution</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrM" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">META · CROSS-DEVICE ATTRIBUTION · IDENTITY → ADS → CONVERSION</text>
+  <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◉ dim_identities ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ identity_id · person_token</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">resolution_method</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">probabilistic + deterministic</text></g>
+  <g transform="translate(40,250)"><rect width="270" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ bridge_identity_devices ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id · device_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">link_confidence (0.0-1.0)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">link_method · effective_from/to</text><text x="20" y="111" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">SCD2 · devices come and go</text></g>
+  <g transform="translate(40,390)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_campaigns / creatives</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">budget · objective · placement</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,490)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_attribution_models</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">last_click · MTA · DDA</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,590)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊟ dim_user_holdouts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">advertiser × period × identity</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">incrementality</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_ad_events</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ event_id · event_type</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id (FK, NULL on iOS)</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">device_id_token · placement · privacy_path</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per impression OR click</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fct_conversions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">conversion_id · advertiser · ts</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ value_usd · type</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ identity_id (FK)</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per conversion event</text></g>
+  <g transform="translate(385,275)"><rect width="580" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊕ fct_attributions ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">conversion_id · ad_event_id · model_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">window_type {click_1d, click_7d, view_1d, view_28d}</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">⛓ attribution_run_id (partition)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">is_attributed · fractional_credit · attributed_value_usd</text><text x="20" y="135" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (conversion × eligible_touchpoint × window × model × run)</text></g>
+  <g transform="translate(385,470)"><rect width="580" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📱 fct_skan_postbacks (iOS aggregate)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">campaign_id · conversion_value_bucket · postback_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">redownload · fidelity_type · postback_count</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">grain: aggregate-only (SKAdNetwork) — never user-level</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CROSS-DEVICE MATCH RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ % conversions joined to ≥1 ad event</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ Avg link_confidence per identity</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ Identity coverage by privacy_path</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: bridge_identity_devices × fct_attributions</text></g>
+  <g transform="translate(1015,290)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ATTRIBUTION LAG &amp; WINDOW MIX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Click-to-conversion median lag</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ % attributed in 1d / 7d / 28d</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ View vs Click split</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_attributions</text></g>
+  <g transform="translate(1015,450)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CONVERSION LIFT (Incrementality)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Treatment − Holdout conv rate</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Cost per incremental conversion</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Statistical significance (Welch's t)</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_conversions × dim_user_holdouts</text></g>
+  <g transform="translate(1015,610)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PRIVACY PATH MIX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📱 % iOS att_optout vs opted_in</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📱 SKAN postback coverage</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Identity-resolved % over time</text></g>
+
+  <line x1="310" y1="180" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="310" y1="305" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="310" y1="305" x2="700" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="525" y1="250" x2="525" y2="275" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+  <line x1="830" y1="250" x2="830" y2="275" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrM)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data — 1 user (3 devices) → 3 ad events → 1 conversion</strong></p>
+<pre><code>INSERT INTO dim_identities VALUES ('IDT_001','PERSON_TOK_42','login_email');
+
+INSERT INTO bridge_identity_devices VALUES
+  ('IDT_001','DEV_PHONE',  1.000,'login',        '2024-01-01',NULL),
+  ('IDT_001','DEV_LAPTOP', 0.920,'household_ip', '2024-03-15',NULL),
+  ('IDT_001','DEV_TABLET', 0.880,'behavioral',   '2024-06-22',NULL);
+
+-- 3 ad events across 3 devices, same identity:
+INSERT INTO fct_ad_events VALUES
+  ('AE_001','impression','IDT_001','DEV_PHONE','CMP_NIKE','feed','2025-04-25 09:15:00','opted_in'),
+  ('AE_002','click',     'IDT_001','DEV_LAPTOP','CMP_NIKE','feed','2025-04-28 14:32:00','opted_in'),
+  ('AE_003','impression','IDT_001','DEV_TABLET','CMP_NIKE','reel','2025-04-30 21:00:00','opted_in');
+
+-- Conversion 1 week after first impression
+INSERT INTO fct_conversions VALUES
+  ('CONV_777','ADV_NIKE','2025-05-02 11:42:00','purchase',129.99,'IDT_001');
+
+-- Attribution rows for window=7d_click + last_click vs MTA
+INSERT INTO fct_attributions VALUES
+  ('ATR_01','CONV_777','AE_002','MODEL_LAST_CLICK','RUN_2025_05_03','click_7d',TRUE,1.000,129.99),
+  ('ATR_02','CONV_777','AE_001','MODEL_MTA',       'RUN_2025_05_03','view_28d', TRUE,0.300, 38.99),
+  ('ATR_03','CONV_777','AE_002','MODEL_MTA',       'RUN_2025_05_03','click_7d', TRUE,0.500, 65.00),
+  ('ATR_04','CONV_777','AE_003','MODEL_MTA',       'RUN_2025_05_03','view_28d', TRUE,0.200, 26.00);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Advertiser · cross-device ROAS by window</h4>
+<p><strong>Q1 — Conversions attributed by window_type (1d, 7d, 28d) under last-click</strong></p>
+<pre><code>SELECT
+  atr.window_type,
+  COUNT(DISTINCT atr.conversion_id)         AS conversions_attributed,
+  ROUND(SUM(atr.attributed_value_usd), 2)   AS attributed_value
+FROM fct_attributions atr
+WHERE atr.attribution_run_id = (SELECT MAX(attribution_run_id) FROM fct_attributions)
+  AND atr.model_id = 'MODEL_LAST_CLICK'
+  AND atr.is_attributed = TRUE
+GROUP BY atr.window_type ORDER BY attributed_value DESC;
+-- Lets advertiser see how many conversions fall inside each window. Picks the right window for their funnel.
+</code></pre>
+
+<p><strong>Q2 — Cross-device match rate (% conversions linked to ≥1 ad event via identity)</strong></p>
+<pre><code>WITH conv AS (
+  SELECT conversion_id, identity_id FROM fct_conversions
+  WHERE conversion_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
+),
+matched AS (
+  SELECT DISTINCT atr.conversion_id FROM fct_attributions atr
+  JOIN conv USING (conversion_id)
+  WHERE atr.is_attributed = TRUE
+)
+SELECT
+  COUNT(DISTINCT c.conversion_id) AS total_conversions,
+  COUNT(DISTINCT m.conversion_id) AS matched_conversions,
+  ROUND(100.0 * COUNT(DISTINCT m.conversion_id) / COUNT(DISTINCT c.conversion_id), 1) AS match_rate_pct
+FROM conv c LEFT JOIN matched m USING (conversion_id);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Measurement · incrementality lift</h4>
+<p><strong>Q3 — Conversion rate: treatment vs holdout</strong></p>
+<pre><code>WITH treatment AS (
+  SELECT i.identity_id,
+    EXISTS (SELECT 1 FROM fct_conversions c WHERE c.identity_id = i.identity_id
+            AND c.advertiser_id = 'ADV_NIKE'
+            AND c.conversion_ts BETWEEN '2025-04-01' AND '2025-05-01') AS converted
+  FROM dim_identities i
+  WHERE i.identity_id NOT IN (SELECT identity_id FROM dim_user_holdouts
+                              WHERE advertiser_id = 'ADV_NIKE'
+                                AND period = '2025-04')
+),
+holdout AS (
+  SELECT i.identity_id,
+    EXISTS (SELECT 1 FROM fct_conversions c WHERE c.identity_id = i.identity_id
+            AND c.advertiser_id = 'ADV_NIKE'
+            AND c.conversion_ts BETWEEN '2025-04-01' AND '2025-05-01') AS converted
+  FROM dim_identities i
+  JOIN dim_user_holdouts h ON i.identity_id = h.identity_id
+  WHERE h.advertiser_id = 'ADV_NIKE' AND h.period = '2025-04'
+)
+SELECT 'treatment' AS arm, COUNT(*) AS n, ROUND(100.0 * AVG(converted::INT), 3) AS conv_rate_pct FROM treatment
+UNION ALL
+SELECT 'holdout',  COUNT(*),   ROUND(100.0 * AVG(converted::INT), 3) FROM holdout;
+-- Lift = treatment_rate - holdout_rate. Statistical significance = Welch's t-test on the two proportions.
+</code></pre>
+
+<h4 class="sub-head">Worked example — User IDT_001 attribution math</h4>
+<ol>
+  <li>User IDT_001 sees Nike impression on phone (Apr 25), clicks Nike ad on laptop (Apr 28), sees Nike Reels on tablet (Apr 30).</li>
+  <li>Buys Nike shoes for $129.99 on May 2.</li>
+  <li><strong>Last-click (click_7d window):</strong> credit 1.0 → all $129.99 attributed to AE_002 (the laptop click).</li>
+  <li><strong>MTA model (multi-touch):</strong> AE_001 view 30%, AE_002 click 50%, AE_003 view 20% → $38.99 + $65.00 + $26.00 = $129.99 ✓</li>
+  <li>Identity bridge enabled the cross-device join; without it the 3 events wouldn't connect. <code>link_confidence</code> on each device drives MTA weighting in advanced models.</li>
+  <li>Both attribution rows live in <code>fct_attributions</code> with <code>attribution_run_id = RUN_2025_05_03</code>. Switching models = SELECT, not re-ingest.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Identity graph as a first-class fact.</strong> <code>bridge_identity_devices</code> SCD2 with confidence is how cross-device works without lying about certainty.</li>
+  <li><strong>Match at read.</strong> Multiple windows + multiple models computed in parallel; advertiser picks at query time.</li>
+  <li><strong>iOS / SKAN carve-out.</strong> Privacy path is explicit; aggregate-only queries fall back to <code>fct_skan_postbacks</code>.</li>
+  <li><strong>Incrementality real.</strong> Holdout assignment is a separate dim, not derived — survives campaign re-orgs.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The decisive design choice is to never compute attribution at write time — every conversion is paired with every eligible ad event, and the attribution model is a function evaluated at read time. That's how we re-attribute when an advertiser switches from last-click to data-driven without re-ingesting raw events."
+<strong>Senior framing.</strong> "The decisive design choice is to never compute attribution at write time — every conversion is paired with every eligible ad event, and the attribution model is a function evaluated at read time. That's how we re-attribute when an advertiser switches from last-click to data-driven without re-ingesting raw events. The identity graph as a versioned bridge is what makes cross-device honest about its uncertainty."
 </div>
 </div>
 
 <!-- Scenario 6: Netflix CTV ads -->
 <div class="scenario" id="sc-netflix-ads">
-<div class="domain-tag">Netflix · CTV ads inventory</div>
+<div class="domain-tag">Netflix · CTV ads · inventory &amp; pacing</div>
 <h4 class="sub-head">Scenario 6 — CTV ad inventory, pacing &amp; frequency capping</h4>
-<div class="prompt">Design a model for Netflix's ad-supported tier — capturing every ad slot opportunity, every ad served, frequency caps per user, and pacing guarantees per advertiser ("guaranteed 10M impressions by month-end").</div>
+<div class="prompt">Design a model for Netflix's ad-supported tier — capturing every ad slot opportunity (filled or unfilled), every ad served, frequency caps per user, and contractual pacing guarantees per advertiser ("guaranteed 10M impressions by month-end with make-good if under-delivered").</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>CTV inventory has a contractual layer that programmatic doesn't: <strong>guaranteed buys with monetary penalties for under-delivery</strong>. Three pressures pull simultaneously: (1) maximize fill rate, (2) honor frequency caps so users don't see the same ad 8 times, (3) hit committed impressions per advertiser per month. Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer <em>"why did we leave money on the table?"</em></p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Inventory unit: one ad-slot opportunity in a viewing session. Pre-roll, mid-roll, post-roll are different slot_types."</li>
-  <li>"Pacing: per (advertiser × campaign × day). Daily delivery vs daily commitment."</li>
-  <li>"Frequency cap: per (user × campaign), e.g. 'no more than 3 per day, 10 per week'."</li>
-  <li>"Make-good: under-delivered campaigns get bonus inventory next month."</li>
+  <li><code>fct_ad_opportunities</code> — <strong>The "Slot" grain.</strong> One row per ad-slot opportunity in a viewing session. Filled or unfilled — both kept.</li>
+  <li><code>fct_ad_impressions</code> — <strong>The "Served" grain.</strong> Subset of opportunities where an ad actually played.</li>
+  <li><code>fct_pacing_daily</code> — <strong>The "Contract" grain.</strong> One row per (campaign × day) aggregating delivered vs committed.</li>
+  <li><code>fct_frequency_state</code> — <strong>The "Cap" grain.</strong> One row per (profile × campaign × day) tracking impressions toward cap.</li>
+  <li><code>fct_makegood_obligations</code> — <strong>The "Owed" grain.</strong> One row per (campaign × month) when committed not met. Drives next-month bonus inventory.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_ad_opportunity</code>: one row per slot opportunity (filled or unfilled).</li>
-  <li><code>fact_ad_impression</code>: one row per ad served (subset of opportunities, with <code>creative_sk</code>).</li>
-  <li><code>fact_pacing_daily</code>: one row per (campaign × day), aggregated.</li>
-  <li><code>fact_frequency_state</code>: one row per (user × campaign × day), capped.</li>
+  <li><code>dim_advertisers, dim_campaigns, dim_creatives</code> (SCD2)</li>
+  <li><code>dim_campaign_flights</code> — Period a campaign runs (start_date / end_date / total_committed_impressions)</li>
+  <li><code>dim_titles</code> (SCD2 for content metadata; ratings drive ad eligibility)</li>
+  <li><code>dim_profiles</code> (SCD2; subscription tier = ad-supported / premium)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>CREATE TABLE fact_ad_opportunity (
-  opportunity_sk    BIGINT,
-  profile_sk        BIGINT,
-  title_sk          BIGINT,
-  session_sk        BIGINT,
-  slot_type         STRING,        -- 'pre_roll' | 'mid_roll' | 'post_roll'
-  slot_position_sec INT,
-  slot_duration_sec INT,
-  predicted_cpm     DECIMAL(8,4),
-  served_creative_sk BIGINT NULL,  -- NULL = unfilled
-  fill_reason       STRING,        -- 'won_auction' | 'guaranteed_buy' | 'house_ad'
-  unfilled_reason   STRING NULL,   -- 'frequency_capped' | 'no_eligible_demand'
-  opportunity_ts    TIMESTAMP_TZ
-)
-PARTITION BY DATE(opportunity_ts);
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_ad_opportunities</code></strong> — <code>opportunity_id, profile_id, title_id, session_id, slot_type ∈ {pre_roll, mid_roll, post_roll}, slot_position_sec, slot_duration_sec, opportunity_ts, predicted_cpm, served_creative_id (NULL=unfilled), fill_reason {won_auction, guaranteed_buy, house_ad}, unfilled_reason {frequency_capped, no_eligible_demand, content_unsuitable}</code>.</p>
 
-CREATE TABLE fact_pacing_daily (
-  campaign_sk        BIGINT,
-  day_sk             INT,
-  delivered          INT,
-  committed_today    INT,           -- daily plan
-  cumulative_to_date INT,
-  total_committed    INT,           -- contract total
-  pacing_index       DECIMAL(6,3)   -- 1.0 = on track
-);</code></pre>
+<p><strong><code>fct_pacing_daily</code></strong> — <code>campaign_id, day, delivered, committed_today, cumulative_delivered, total_committed, pacing_index (1.0 = on track), days_remaining</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong><code>fct_makegood_obligations</code></strong> — <code>campaign_id, original_period, makegood_period, owed_impressions, owed_value_usd, status {pending, scheduled, fulfilled}</code>.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Ad server · live decisions</strong> — for each opportunity, query <code>fct_frequency_state</code> + <code>fct_pacing_daily</code> + active campaign list. Pick a creative or mark unfilled.</p>
+<p><strong>Account managers · advertiser pacing</strong> — track <code>pacing_index</code> per campaign daily. If &lt;0.95 with &lt;5 days left, increase delivery priority.</p>
+<p><strong>Finance · make-good bookkeeping</strong> — <code>fct_makegood_obligations</code> tracks dollars owed when committed impressions not met. Liability on the balance sheet until fulfilled.</p>
+<p><strong>Exec · "money on the table" analysis</strong> — count <code>fct_ad_opportunities</code> with <code>served_creative_id IS NULL</code> grouped by <code>unfilled_reason</code>. Tells you if the bottleneck is demand (sales team) or eligibility rules (ops team).</p>
+
+<h4 class="sub-head">Section 4 — Why model unfilled opportunities</h4>
 <ul>
-  <li><strong>Under-delivery:</strong> if pacing_index &lt; 0.95 with 5 days left, adserver biases toward this campaign. Make-goods append to next month.</li>
-  <li><strong>Frequency cap conflict:</strong> two campaigns both eligible, user at 3/3 cap on one — second wins. Logged in <code>fill_reason</code>.</li>
-  <li><strong>Time zone for daily caps:</strong> per-user TZ for caps that say "per day"; per-advertiser TZ for pacing.</li>
+  <li><strong>Without unfilled rows:</strong> can't compute fill rate. Can't tell if you under-delivered because of low demand vs frequency caps vs content unsuitability.</li>
+  <li><strong>With unfilled rows:</strong> fill rate = COUNT(filled) / COUNT(total opportunities). Drill into <code>unfilled_reason</code> to find the right team to fix.</li>
+  <li><strong>Cost:</strong> doubles the row count. Tradeoff is worth it; partition by date keeps queries fast.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Netflix CTV Inventory</h4>
+<svg viewBox="0 0 1440 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">NETFLIX CTV · OPPORTUNITY → IMPRESSION → PACING → MAKE-GOOD</text>
+  <rect x="20" y="60" width="310" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_advertisers / campaigns</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">objective · daily_cap · total_commit</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▰ dim_campaign_flights</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">flight_id · start_date · end_date</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">total_committed_impressions</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,330)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▣ dim_creatives</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">creative_id · duration · format</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,425)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📺 dim_titles</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rating · genre · ad_eligibility</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,520)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_profiles</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">subscription_tier · region</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ fct_ad_opportunities ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ opportunity_id · session_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ profile_id · title_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">slot_type · slot_position_sec</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">served_creative_id (NULL=unfilled)</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fill_reason · unfilled_reason</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per slot opportunity</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▶ fct_ad_impressions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ opportunity_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">started_ts · completed_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">completion_pct · skipped</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ recognized_cpm · revenue</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">subset of opportunities (filled)</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="120" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 fct_pacing_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ campaign_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">delivered · committed_today</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cumulative · pacing_index</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per (campaign × day)</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🚦 fct_frequency_state</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ profile_id · campaign_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">impressions_today / week</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cap_today · cap_week</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (profile × campaign × day)</text></g>
+  <g transform="translate(385,450)"><rect width="580" height="100" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">＄ fct_makegood_obligations</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ campaign_id · original_period · makegood_period</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">owed_impressions · owed_value_usd · status</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per under-delivered (campaign × month) · finance liability</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PACING INDEX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Daily pacing_index per campaign</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Campaigns &lt; 0.95 with &lt;5 days left</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_pacing_daily</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FREQUENCY-CAP HITS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🚦 Cap-blocked opportunities / day</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Avg impressions/user/campaign</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ad_opportunities × fct_frequency_state</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FILL RATE &amp; UNFILLED REASONS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Fill rate per slot_type</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Top unfilled_reasons</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ad_opportunities</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MAKE-GOOD OWED ($)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Pending make-good liability</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Make-good fulfilled this month</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_makegood_obligations</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="310" y1="265" x2="385" y2="350" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="310" y1="370" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="525" y1="430" x2="525" y2="450" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+<p><strong>Sample data — 1 campaign, 5 opportunities (3 filled / 2 unfilled), 1 day pacing</strong></p>
+<pre><code>INSERT INTO dim_campaigns VALUES ('CMP_FORD','ADV_FORD','2025-05-01','2025-05-31',5000000,1.0);
+
+INSERT INTO fct_ad_opportunities VALUES
+  ('OPP_001','PROF_A','TITLE_X','SESS_1','pre_roll',  0,  15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 19:32:00'),
+  ('OPP_002','PROF_A','TITLE_X','SESS_1','mid_roll',1200, 15, 25.50, NULL,            NULL,             'frequency_capped',     '2025-05-01 19:52:00'),
+  ('OPP_003','PROF_B','TITLE_Y','SESS_2','pre_roll',  0,  15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 20:05:00'),
+  ('OPP_004','PROF_C','TITLE_Z','SESS_3','pre_roll',  0,  30, 25.50, NULL,            NULL,             'no_eligible_demand',   '2025-05-01 20:22:00'),
+  ('OPP_005','PROF_D','TITLE_X','SESS_4','mid_roll',1500, 15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 21:00:00');
+
+-- Pacing for the day:
+INSERT INTO fct_pacing_daily VALUES ('CMP_FORD','2025-05-01', 3, 161290, 3, 5000000, 0.000, 30);
+-- Way under: should have delivered 161290 today, only got 3.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Operations · fill rate &amp; unfilled diagnostics</h4>
+<p><strong>Q1 — Fill rate &amp; unfilled-reason breakdown (the "money on the table" report)</strong></p>
+<pre><code>SELECT
+  slot_type,
+  COUNT(*)                                                              AS opportunities,
+  COUNT(*) FILTER (WHERE served_creative_id IS NOT NULL)                AS filled,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE served_creative_id IS NOT NULL)
+        / COUNT(*), 1)                                                  AS fill_rate_pct,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'frequency_capped')          AS cap_blocked,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'no_eligible_demand')        AS no_demand,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'content_unsuitable')        AS content_block
+FROM fct_ad_opportunities
+WHERE DATE(opportunity_ts) = '2025-05-01'
+GROUP BY slot_type ORDER BY opportunities DESC;
+-- "no_eligible_demand" rows = sales team to fix. "frequency_capped" = ops/cap-policy team.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Account managers · pacing alerts</h4>
+<p><strong>Q2 — Campaigns at risk of under-delivery (pacing &lt; 0.95 with &lt;5 days remaining)</strong></p>
+<pre><code>SELECT p.campaign_id, c.advertiser_id,
+  p.cumulative_delivered, p.total_committed,
+  ROUND(100.0 * p.cumulative_delivered / NULLIF(p.total_committed, 0), 1) AS pct_delivered,
+  p.pacing_index, p.days_remaining,
+  ROUND((p.total_committed - p.cumulative_delivered) / NULLIF(p.days_remaining, 0)) AS daily_needed
+FROM fct_pacing_daily p JOIN dim_campaigns c USING (campaign_id)
+WHERE p.day = CURRENT_DATE
+  AND p.pacing_index &lt; 0.95
+  AND p.days_remaining &lt; 5
+ORDER BY p.pacing_index ASC;
+-- Triggers ad-server priority bump + account-manager Slack alert.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Finance · make-good liability</h4>
+<p><strong>Q3 — Pending make-good liability ($) by advertiser</strong></p>
+<pre><code>SELECT
+  c.advertiser_id,
+  COUNT(DISTINCT mg.campaign_id)                AS campaigns_owed,
+  SUM(mg.owed_impressions)                      AS total_impressions_owed,
+  ROUND(SUM(mg.owed_value_usd), 2)              AS total_dollars_owed,
+  COUNT(*) FILTER (WHERE mg.status = 'pending') AS pending_count
+FROM fct_makegood_obligations mg
+JOIN dim_campaigns c USING (campaign_id)
+WHERE mg.status IN ('pending','scheduled')
+GROUP BY c.advertiser_id
+ORDER BY total_dollars_owed DESC;
+-- Books a liability on Netflix's balance sheet until fulfilled.
+</code></pre>
+
+<h4 class="sub-head">Worked example — CMP_FORD on May 1</h4>
+<ol>
+  <li>Total committed: 5,000,000 impressions over May. Daily target: 161,290.</li>
+  <li>Day 1 delivered: 3 impressions (out of 5 opportunities). 2 unfilled — 1 frequency_capped, 1 no_eligible_demand.</li>
+  <li><code>pacing_index</code> = 3 / 161,290 = <strong>0.0000186</strong> — catastrophic miss.</li>
+  <li>If pattern continues 30 days: ~90 delivered total. Make-good owed = (5M − 90) × CPM-based dollar rate.</li>
+  <li>Queries trigger: account manager alert (Q2), finance liability booking (Q3), unfilled-reason audit (Q1) reveals "no_eligible_demand" needs sales-team push.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Unfilled rows are first-class.</strong> Fill rate becomes a simple COUNT FILTER, not a derived metric.</li>
+  <li><strong>Pacing as a daily snapshot.</strong> Not derived on the fly — pre-aggregated for fast dashboard reads.</li>
+  <li><strong>Make-goods as a liability fact.</strong> Finance owns it; it's a real balance-sheet item, not a metric.</li>
+  <li><strong>Frequency caps as state.</strong> Per (profile × campaign × day) — exactly what the ad server queries pre-decision.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer 'why did we leave money on the table this quarter?' which is the exec-level question this data product exists for."
+<strong>Senior framing.</strong> "Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer 'why did we leave money on the table this quarter?' which is the exec-level question this data product exists for. Pacing as snapshot + make-good as liability turns the contractual layer into queryable finance, not a sales spreadsheet."
 </div>
 </div>
 
 <!-- Scenario 7: Amazon -->
 <div class="scenario" id="sc-amazon">
-<div class="domain-tag">Amazon · e-commerce</div>
+<div class="domain-tag">Amazon · e-commerce · returns &amp; inventory</div>
 <h4 class="sub-head">Scenario 7 — Orders, returns &amp; multi-warehouse inventory</h4>
-<div class="prompt">Design a model for Amazon orders that handles partial returns, replacements, marketplace seller orders, and inventory drawn from multiple warehouses.</div>
+<div class="prompt">Design a model for Amazon orders that handles partial returns, replacements, marketplace seller orders (1P vs FBA vs 3P), and inventory drawn from multiple warehouses with FIFO/LIFO consumption rules.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Returns reshape revenue retroactively. Multi-warehouse fulfillment splits a single SKU across two warehouses. Seller-of-record (1P retail / 2P FBA / 3P marketplace) determines whether Amazon books GMV or commission. And inventory has to reconcile to ledger every night. The model must be append-only on the financial side and movement-based on the physical side — same product, two grains, one source of truth.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Grain: one row per order line item, not per order. An order with 3 items = 3 rows."</li>
-  <li>"Returns: separate fact, append-only, allows partial."</li>
-  <li>"Multi-warehouse: a single line item may be split across warehouses if needed."</li>
-  <li>"Seller-of-record: Amazon retail, FBA seller, marketplace seller — different revenue treatment."</li>
+  <li><code>fct_order_lines</code> — <strong>The "Sale" grain.</strong> One row per (order × product × source_warehouse). 3-item order = 3 rows.</li>
+  <li><code>fct_returns</code> — <strong>The "Refund" grain.</strong> One row per return event, line-level. Append-only.</li>
+  <li><code>fct_inventory_movements</code> — <strong>The "Stock-flow" grain.</strong> One row per stock change (in / out / transfer / damage / adjustment).</li>
+  <li><code>snap_inventory_daily</code> — <strong>The "State" grain.</strong> Daily snapshot per (product × warehouse).</li>
+  <li><code>fct_replacements</code> — <strong>The "Linked-order" grain.</strong> Maps replacement orders back to their original.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_order_line</code>: one row per order × product × warehouse-source.</li>
-  <li><code>fact_return</code>: one row per return event (line-level).</li>
-  <li><code>fact_inventory_movement</code>: one row per stock change (in/out/transfer/damage).</li>
-  <li><code>snap_inventory_daily</code>: one row per (product × warehouse × day) snapshot.</li>
+  <li><code>dim_products</code> (SCD2 — title, category, dimensions drift)</li>
+  <li><code>dim_sellers</code> (SCD2 — <code>seller_type ∈ {retail_1p, fba_2p, marketplace_3p}</code>, <code>recognized_as ∈ {gmv, commission_only}</code>)</li>
+  <li><code>dim_warehouses</code>, <code>dim_customers</code> + <code>dim_addresses</code> (SCD2), <code>dim_promotions</code> (SCD2)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_product       (SCD2 — title, category, dimensions can change)
-dim_seller        (SCD2 — Amazon Retail / FBA seller / 3P)
-dim_warehouse     (SCD1)
-dim_customer      (SCD1, address via SCD2 dim_address)
-dim_promotion     (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_order_lines</code></strong> — <code>order_line_id, order_id, line_number, customer_id, product_id, seller_id, source_warehouse_id, ordered_ts, shipped_ts, delivered_ts, quantity, unit_price_usd, promo_discount, tax, shipping, gross_revenue_usd, is_prime, is_subscribe_save</code>.</p>
 
-CREATE TABLE fact_order_line (
-  order_line_sk        BIGINT,
-  order_id             STRING,
-  line_number          INT,
-  customer_sk          BIGINT,
-  product_sk           BIGINT,
-  seller_sk            BIGINT,
-  source_warehouse_sk  BIGINT,
-  ordered_ts           TIMESTAMP_TZ,
-  shipped_ts           TIMESTAMP_TZ NULL,
-  delivered_ts         TIMESTAMP_TZ NULL,
-  quantity             INT,
-  unit_price_local     DECIMAL(10,2),
-  promo_discount_local DECIMAL(10,2),
-  tax_local            DECIMAL(10,2),
-  shipping_local       DECIMAL(10,2),
-  fx_rate_to_usd       DECIMAL(18,8),
-  total_revenue_usd    DECIMAL(10,2),
-  is_prime             BOOLEAN,
-  is_subscribe_save    BOOLEAN,
-  ingest_ts            TIMESTAMP_TZ
+<p><strong><code>fct_returns</code></strong> — <code>return_id, order_line_id, return_ts, refund_ts, reason_code, quantity (partial OK), refund_amount_usd, restocking_fee_usd, condition_received {new, used, damaged}, is_replacement BOOL</code>.</p>
+
+<p><strong><code>fct_inventory_movements</code></strong> — <code>movement_id, product_id, warehouse_id, movement_ts, movement_type {receipt, sale_out, return_in, transfer_out, transfer_in, damage, adjustment}, quantity (signed), unit_cost_usd, related_order_line_id (NULL for non-sale moves)</code>.</p>
+
+<p><strong><code>snap_inventory_daily</code></strong> — <code>product_id, warehouse_id, snapshot_date, opening_qty, receipts, sales, returns_in, transfers_net, damage, ending_qty, weighted_avg_cost</code>. <em>Reconciliation invariant: <code>opening + receipts + returns_in − sales − damage + transfers_net = ending</code>.</em></p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Customer experience</strong> — order delivery SLA from <code>fct_order_lines</code> (ordered → delivered). Return rate by category from <code>fct_returns</code> tracks product quality.</p>
+<p><strong>Finance</strong> — net revenue = SUM(<code>order_lines.gross_revenue_usd</code>) − SUM(<code>returns.refund_amount_usd</code>). For 3P sellers, <code>dim_sellers.recognized_as = 'commission_only'</code> means only the commission is booked.</p>
+<p><strong>Operations</strong> — multi-warehouse fill rate, transfer efficiency, days of inventory on hand. Reconciliation runs nightly: <code>snap_inventory_daily</code> ending_qty must match SUM(<code>fct_inventory_movements</code>) since opening.</p>
+
+<h4 class="sub-head">Section 4 — Why append-only returns + movement-based inventory</h4>
+<ul>
+  <li><strong>Returns reshape historical revenue.</strong> Never UPDATE <code>fct_order_lines</code>. Append <code>fct_returns</code>. Finance can restate any historical period correctly.</li>
+  <li><strong>Inventory snapshots derive from movements.</strong> Snapshots are pre-aggregated for fast read; movements are the immutable source. Lose a snapshot, rebuild from movements.</li>
+  <li><strong>Replacements are linked, not collapsed.</strong> Original order stays + replacement is a new row + return matches both. Triple-counted at gross level, nets to zero correctly.</li>
+  <li><strong>3P seller revenue carve-out.</strong> <code>dim_sellers.recognized_as</code> drives whether SUM is GMV or commission — single column makes the rule explicit and queryable.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Amazon Orders + Returns + Inventory</h4>
+<svg viewBox="0 0 1440 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">AMAZON · ORDERS + RETURNS + MULTI-WAREHOUSE INVENTORY</text>
+  <rect x="20" y="60" width="310" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📦 dim_products</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ product_id · ASIN · category</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">title · weight · dimensions</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🛒 dim_sellers ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ seller_id · seller_type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">retail_1p · fba_2p · marketplace_3p</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">recognized_as · commission_pct</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · drives revenue rule</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_warehouses</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">warehouse_id · region · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">capacity · zip</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_customers / addresses</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">prime_status · membership_since</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 on address</text></g>
+  <g transform="translate(40,540)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎟 dim_promotions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">promo_id · type · discount</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_order_lines</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ order_line_id · order_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ customer_id · product_id · seller_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ source_warehouse_id (FK)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ ordered → shipped → delivered</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ qty · unit_price · gross_revenue</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: per (order × product × warehouse)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↩ fct_returns ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ return_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ order_line_id (FK)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qty (partial) · reason_code</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ refund_amount · restocking_fee</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">condition_received · is_replacement</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="135" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📈 fct_inventory_movements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ product_id · warehouse_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">movement_type {receipt, sale_out,</text><text x="20" y="89" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">return_in, transfer, damage}</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qty (signed) · unit_cost</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">immutable source of truth</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="135" fill="#fff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 snap_inventory_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ product · warehouse · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">opening · receipts · sales · returns_in</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">transfers_net · damage · ending</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">weighted_avg_cost</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">derived from movements</text></g>
+  <g transform="translate(385,465)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🔗 fct_replacements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ original_order_line_id · replacement_order_line_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">replaced_ts · reason_code</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per replacement linkage · ties original ↔ new for net-zero accounting</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ORDER FUNNEL</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ ordered → shipped → delivered SLA</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Prime vs non-Prime delivery time</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_order_lines</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RETURN RATE &amp; REASONS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↩ Return rate per category</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↩ Top reason_codes</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_returns × dim_products</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">INVENTORY HEALTH</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📊 Days of inventory on hand</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Reconciliation drift (snap vs movements)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: snap × movements</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">COHORT LTV (1P vs 3P)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Net revenue per cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ 1P GMV vs 3P commission</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_order_lines − fct_returns × dim_sellers</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="310" y1="285" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="310" y1="390" x2="385" y2="350" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="525" y1="445" x2="525" y2="465" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — 1 order with 2 line items (one split across 2 warehouses), 1 partial return</strong></p>
+<pre><code>INSERT INTO dim_sellers VALUES
+  ('SLR_AMZN','retail_1p','gmv', 0.0),
+  ('SLR_3P_ABC','marketplace_3p','commission_only', 0.15);
+
+-- 3-item order; line 2 split across 2 warehouses (qty 4 from WH-A, qty 2 from WH-B)
+INSERT INTO fct_order_lines VALUES
+  ('OL_001','ORD_99', 1, 'CUST_X','PROD_BOOK', 'SLR_AMZN','WH-A','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 1, 19.99, 0.00, 1.65, 0.00, 1.0, 21.64, TRUE, FALSE),
+  ('OL_002','ORD_99', 2, 'CUST_X','PROD_PEN',  'SLR_3P_ABC','WH-A','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 4,  3.50, 0.00, 1.16, 0.00, 1.0, 15.16, TRUE, FALSE),
+  ('OL_003','ORD_99', 2, 'CUST_X','PROD_PEN',  'SLR_3P_ABC','WH-B','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 2,  3.50, 0.00, 0.58, 0.00, 1.0,  7.58, TRUE, FALSE);
+
+-- Partial return: customer keeps the book, returns 3 of 6 pens
+INSERT INTO fct_returns VALUES
+  ('RET_001','OL_002','2025-05-08 09:00','2025-05-08 09:30','quality_issue', 3, 11.37, 0.00, 'used', FALSE);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Customer · order funnel + delivery SLA</h4>
+<p><strong>Q1 — Prime vs non-Prime delivery time (last 30 days)</strong></p>
+<pre><code>SELECT
+  is_prime,
+  COUNT(*)                                                                       AS lines,
+  ROUND(AVG(EXTRACT(EPOCH FROM (delivered_ts - ordered_ts))/3600), 1)             AS avg_hours,
+  ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (delivered_ts - ordered_ts))/3600), 1) AS p95_hours
+FROM fct_order_lines
+WHERE delivered_ts IS NOT NULL AND ordered_ts &gt;= CURRENT_DATE - 30
+GROUP BY is_prime;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Finance · net revenue with 1P/3P carve-out</h4>
+<p><strong>Q2 — Net revenue with seller-type carve-out (3P books only commission)</strong></p>
+<pre><code>WITH gross AS (
+  SELECT
+    s.seller_type,
+    s.recognized_as,
+    SUM(CASE WHEN s.recognized_as = 'gmv' THEN ol.gross_revenue_usd
+             ELSE ol.gross_revenue_usd * s.commission_pct END) AS gross_recognized_usd
+  FROM fct_order_lines ol JOIN dim_sellers s USING (seller_id)
+  WHERE DATE(ol.ordered_ts) = '2025-05-01'
+  GROUP BY s.seller_type, s.recognized_as
+),
+returns AS (
+  SELECT
+    s.seller_type,
+    SUM(CASE WHEN s.recognized_as = 'gmv' THEN r.refund_amount_usd
+             ELSE r.refund_amount_usd * s.commission_pct END) AS refund_recognized_usd
+  FROM fct_returns r
+  JOIN fct_order_lines ol ON r.order_line_id = ol.order_line_id
+  JOIN dim_sellers s USING (seller_id)
+  WHERE DATE(r.return_ts) = '2025-05-01'
+  GROUP BY s.seller_type
 )
-PARTITION BY DATE(ordered_ts)
-CLUSTER BY (customer_sk, product_sk);
+SELECT g.seller_type,
+  ROUND(g.gross_recognized_usd, 2)                                                  AS gross_revenue,
+  ROUND(COALESCE(r.refund_recognized_usd, 0), 2)                                    AS refunds,
+  ROUND(g.gross_recognized_usd - COALESCE(r.refund_recognized_usd, 0), 2)           AS net_revenue
+FROM gross g LEFT JOIN returns r USING (seller_type);
+</code></pre>
 
-CREATE TABLE fact_return (
-  return_sk        BIGINT,
-  order_line_sk    BIGINT,
-  return_ts        TIMESTAMP_TZ,
-  refund_ts        TIMESTAMP_TZ NULL,
-  reason_code      STRING,
-  quantity         INT,         -- partial possible
-  refund_amount_usd DECIMAL(10,2),
-  is_replacement   BOOLEAN
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Operations · inventory reconciliation</h4>
+<p><strong>Q3 — Daily inventory invariant check (snap = opening + receipts + returns_in − sales − damage + transfers)</strong></p>
+<pre><code>SELECT
+  product_id, warehouse_id, snapshot_date,
+  opening_qty, receipts, returns_in, sales, damage, transfers_net, ending_qty,
+  (opening_qty + receipts + returns_in - sales - damage + transfers_net) AS computed_ending,
+  ending_qty - (opening_qty + receipts + returns_in - sales - damage + transfers_net) AS drift,
+  CASE WHEN ending_qty = opening_qty + receipts + returns_in - sales - damage + transfers_net
+       THEN 'PASS' ELSE 'FAIL' END AS reconciliation
+FROM snap_inventory_daily
+WHERE snapshot_date = CURRENT_DATE - 1
+  AND ending_qty != opening_qty + receipts + returns_in - sales - damage + transfers_net;
+-- Empty result = clean. Non-empty = inventory adjustment needed; investigate.
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Worked example — Order ORD_99 with split fulfillment + partial return</h4>
+<ol>
+  <li><strong>Order:</strong> 1 book ($21.64) + 6 pens. Pens split across 2 warehouses: 4 from WH-A ($15.16) + 2 from WH-B ($7.58) = 6 pens for $22.74. Total order gross = <strong>$44.38</strong>.</li>
+  <li><strong>Seller-type effects on revenue:</strong> Book is 1P retail → Amazon books $21.64 GMV. Pens are 3P seller (15% commission) → Amazon books $22.74 × 0.15 = <strong>$3.41</strong>. Total Amazon recognized = $21.64 + $3.41 = <strong>$25.05</strong>.</li>
+  <li><strong>Partial return:</strong> 3 of 6 pens returned a week later. Refund = $11.37 (proportional). Amazon's recognized refund = $11.37 × 0.15 = <strong>$1.71</strong>.</li>
+  <li><strong>Net Amazon recognized:</strong> $25.05 − $1.71 = <strong>$23.34</strong>.</li>
+  <li>Inventory: WH-A movements record sale_out (+4 pens out, then return_in +1 pen back). WH-B records sale_out (-2 pens). Daily snapshot reconciles.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Returns:</strong> never <code>UPDATE</code> <code>fact_order_line</code>. Append <code>fact_return</code>. Net revenue = <code>SUM(orders.revenue) - SUM(returns.refund)</code>.</li>
-  <li><strong>Partial returns:</strong> <code>quantity</code> on the return may be less than original. Track on the row.</li>
-  <li><strong>Replacement orders:</strong> linked via <code>is_replacement = TRUE</code> + <code>replacement_for_order_line_sk</code>. Counts as gross order, nets to zero.</li>
-  <li><strong>Multi-warehouse split:</strong> one ordered SKU split = two rows with same <code>order_id, line_number</code>, different <code>source_warehouse_sk</code>.</li>
-  <li><strong>Marketplace seller revenue:</strong> Amazon recognizes only the commission, not the GMV. <code>dim_seller.recognized_as ∈ {gmv, commission_only}</code>.</li>
+  <li><strong>Append-only returns.</strong> Net revenue = SUM(orders) − SUM(returns). No UPDATE; full historical audit.</li>
+  <li><strong>Movements are immutable.</strong> Snapshots derive from movements; rebuild at any time.</li>
+  <li><strong>Seller-type carve-out is a column.</strong> 1P / 2P / 3P revenue rules become a CASE in the query, not a separate ETL path.</li>
+  <li><strong>Multi-warehouse split is a row.</strong> Same order_id + line_number, different warehouse → fulfilment is queryable without losing the customer's "1 line item" mental model.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Append-only on returns is the contract that lets finance restate any historical period without rebuilding orders — and that's the difference between a model that survives quarter-end and one that doesn't."
+<strong>Senior framing.</strong> "Append-only on returns is the contract that lets finance restate any historical period without rebuilding orders. The 1P/3P carve-out as <code>dim_sellers.recognized_as</code> turns a multi-billion-dollar revenue policy into a queryable column, not a brittle ETL branch — that's the difference between a model that survives quarter-end and one that doesn't."
 </div>
 </div>
 
 <!-- Scenario 8: Meta feed -->
 <div class="scenario" id="sc-meta-feed">
-<div class="domain-tag">Meta / Instagram · social feed</div>
-<h4 class="sub-head">Scenario 8 — Feed engagement at scale</h4>
-<div class="prompt">Model engagement on the Instagram feed — impressions, dwell time, likes, saves, comments, shares — supporting feed ranker training, creator analytics, and brand safety.</div>
+<div class="domain-tag">Meta / Instagram · social feed · ranker</div>
+<h4 class="sub-head">Scenario 8 — Feed engagement at scale (with ranker A/B)</h4>
+<div class="prompt">Model engagement on the Instagram feed — impressions, dwell time, likes, saves, comments, shares, plus negative signals (hide, report) — supporting feed ranker training/A-B, creator analytics, and brand safety. Volume: 100B+ impressions/day.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Volume alone forces design choices: 100B impressions/day means exact <code>COUNT DISTINCT</code> is unaffordable; HLL is mandatory. <strong>Mutable engagements</strong> (like → unlike) demand append-only with <code>is_undone</code> flags. <strong>Heartbeat-driven dwell</strong> can't live at raw grain — must be aggregated at ETL. And the ranker A/B requirement means every impression must carry the <strong>model_id that ranked it</strong>, or you can't compare baseline lift.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Grain: one row per (user × post × event_type × event_ts). High volume — billions per day."</li>
-  <li>"Dwell time — heartbeat-based, not single timestamp. Aggregate up to per-impression."</li>
-  <li>"Negative engagement (hide, report, block) — same fact, different event_type."</li>
+  <li><code>fct_impressions</code> — <strong>The "Served" grain.</strong> One row per (viewer × post × impression). Carries <code>ranker_model_id</code> + <code>predicted_score</code>.</li>
+  <li><code>fct_engagements</code> — <strong>The "Reaction" grain.</strong> One row per (viewer × post × event_type × event_ts). Likes, saves, comments, shares, hides, reports — all here.</li>
+  <li><code>fct_dwell_per_impression</code> — <strong>The "Time-on-post" grain.</strong> One row per impression with total dwell_ms (aggregated from heartbeats at ETL).</li>
+  <li><code>fct_ranker_experiments</code> — <strong>The "Treatment" grain.</strong> One row per (viewer × experiment × variant). Drives A/B comparison.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_impression</code>: one row per (viewer × post × impression_ts).</li>
-  <li><code>fact_engagement</code>: one row per (viewer × post × event_type × event_ts).</li>
-  <li><code>fact_dwell_aggregate</code>: one row per impression with total dwell.</li>
+  <li><code>dim_users</code> (SCD2) · <code>dim_posts</code> (SCD2 — caption edits, audio swaps) · <code>dim_creators</code> (SCD2)</li>
+  <li><code>dim_post_audio</code> (SCD1)</li>
+  <li><code>dim_ranker_models</code> — SCD2; semver + model_card_url + deployed_pct.</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_user        (SCD2)
-dim_post        (SCD2 — caption edits, audio swap)
-dim_creator     (SCD2)
-dim_post_audio  (SCD1)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_impressions</code></strong> — <code>impression_id, viewer_id, post_id, feed_position SMALLINT, impression_ts, device_id, ranker_model_id (FK), predicted_score DECIMAL(8,6), surface ∈ {feed, reels, stories, explore}</code>.</p>
 
-CREATE TABLE fact_impression (
-  impression_sk      BIGINT,
-  viewer_sk          BIGINT,
-  post_sk            BIGINT,
-  feed_position      SMALLINT,       -- 1 = top of feed
-  impression_ts      TIMESTAMP_TZ,
-  device_sk          BIGINT,
-  ranker_model_id    STRING,         -- which ranker version
-  predicted_score    DECIMAL(8,6)
+<p><strong><code>fct_engagements</code></strong> — <code>engagement_id, impression_id (NULLable: comments can arrive without prior impression event), viewer_id, post_id, event_type ∈ {like, save, share, comment, hide, report, follow_creator}, event_ts, is_undone BOOLEAN, undone_ts</code>. <em>Append-only — never delete an unlike.</em></p>
+
+<p><strong><code>fct_dwell_per_impression</code></strong> — <code>impression_id, dwell_ms INT, was_full_view BOOLEAN, viewport_pct DECIMAL</code>. Aggregated from raw 250ms heartbeats at ETL — saves 100× rows.</p>
+
+<p><strong><code>fct_ranker_experiments</code></strong> — <code>viewer_id, experiment_id, variant_id, assigned_ts, exit_ts</code>. Bridges viewers to A/B-test arms.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Ranker team · model lift</strong> — Compare engagement-rate per impression for <code>ranker_model_id = v3.1</code> vs <code>v3.2</code>. Positive lift on like-rate but watch hide-rate; both should move favorably.</p>
+<p><strong>Creator analytics</strong> — Reach (impressions), engagement rate (engagements / impressions), dwell distribution per post.</p>
+<p><strong>Brand safety</strong> — Hide+Report rate per post per hour. Posts crossing thresholds get demoted; spike → human review queue.</p>
+<p><strong>Product growth</strong> — Negative-engagement rate is the canary for "this content drives session abandonment".</p>
+
+<h4 class="sub-head">Section 4 — Why <code>ranker_model_id</code> on every impression + append-only engagements</h4>
+<ul>
+  <li><strong>Ranker A/B requires the model on the row.</strong> Without it, a 1% holdout for the new model can't be compared to the 99% baseline. <code>ranker_model_id</code> is a first-class dimension, not a footnote.</li>
+  <li><strong>Likes are mutable, but the fact is immutable.</strong> A like at T1 + unlike at T2 = 2 rows: an insert and an "undone" insert with <code>is_undone=TRUE, undone_ts=T2</code>. Never DELETE; preserves time-series of toggle behavior.</li>
+  <li><strong>Dwell aggregated at ETL.</strong> 250ms heartbeats × 100B impressions × 30 sec average = ~12 trillion raw rows/day. Aggregate before warehouse — only 100B per-impression rows survive.</li>
+  <li><strong>Approximate aggregations.</strong> <code>APPROX_COUNT_DISTINCT</code> + HLL for everything user-level. Exact only when finance demands it (rare).</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Instagram Feed Engagement</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">META / INSTAGRAM · IMPRESSION → DWELL → ENGAGEMENT → RANKER A/B</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_users</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · age_bucket · region</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">privacy_path · plan_tier</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📷 dim_posts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">post_id · creator_id · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">caption · audio_id · created_ts</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">moderation_status</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎤 dim_creators</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">creator_id · follower_count</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⚙ dim_ranker_models ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model_id · semver</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">deployed_pct · feature_set</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · A/B versioning</text></g>
+  <g transform="translate(40,560)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎵 dim_post_audio</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">audio_id · artist · duration</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ fct_impressions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ impression_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · post_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">feed_position · surface</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#0369a1">⛓ ranker_model_id (FK) ★</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">predicted_score · impression_ts</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (viewer × post × impression)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⏱ fct_dwell_per_impression</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ impression_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">dwell_ms · viewport_pct</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">was_full_view BOOL</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">aggregated from raw heartbeats</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="160" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">❤ fct_engagements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ impression_id (NULLable)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · post_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">event_type {like, save, share,</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  comment, hide, report, follow}</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_undone · undone_ts</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only · mutable via flag</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="160" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🧪 fct_ranker_experiments</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · experiment_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">variant_id · assigned_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">exit_ts</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">A/B treatment assignment</text></g>
+  <g transform="translate(385,490)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 mart_post_engagement_daily (rollup)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ post_id · day · APPROX_COUNT_DISTINCT(viewer_id) HLL</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">like_rate · save_rate · share_rate · hide_rate · avg_dwell_ms</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (post × day) · pre-aggregated for dashboards · HLL for distinct</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ENGAGEMENT RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">❤ Like rate · Save rate · Share rate</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Engagement velocity (1h, 24h)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_engagements / fct_impressions</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">DWELL DISTRIBUTION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Dwell p50 / p95 per post</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Watch-through rate (Reels)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_dwell_per_impression</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">NEGATIVE SIGNALS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Hide rate / Report rate per post</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Brand-safety threshold breach</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_engagements (event_type ∈ hide/report)</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RANKER A/B LIFT</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Like rate · v3.1 vs v3.2</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Hide rate (negative test)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: ranker_model_id × engagements</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="310" y1="285" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="310" y1="490" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="525" y1="470" x2="525" y2="490" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+<p><strong>Sample data — 1 viewer sees 3 posts under v3.2 ranker; engages with two</strong></p>
+<pre><code>INSERT INTO fct_impressions VALUES
+  ('IMP_A','U_42','POST_001', 1,'2025-05-01 09:00:00','dev_iphone','model_v3.2',0.72,'feed'),
+  ('IMP_B','U_42','POST_002', 2,'2025-05-01 09:00:08','dev_iphone','model_v3.2',0.55,'feed'),
+  ('IMP_C','U_42','POST_003', 3,'2025-05-01 09:00:15','dev_iphone','model_v3.2',0.41,'feed');
+
+INSERT INTO fct_dwell_per_impression VALUES
+  ('IMP_A',  4200, 1.00, TRUE),   -- 4.2s, full view
+  ('IMP_B',   800, 0.40, FALSE),  -- 0.8s, partial — scrolled past
+  ('IMP_C',  6500, 1.00, TRUE);   -- 6.5s, full view
+
+INSERT INTO fct_engagements VALUES
+  ('ENG_1','IMP_A','U_42','POST_001','like',   '2025-05-01 09:00:04', FALSE, NULL),
+  ('ENG_2','IMP_C','U_42','POST_003','save',   '2025-05-01 09:00:21', FALSE, NULL),
+  ('ENG_3','IMP_C','U_42','POST_003','comment','2025-05-01 09:01:00', FALSE, NULL),
+  ('ENG_4','IMP_A','U_42','POST_001','like',   '2025-05-01 09:05:00', TRUE,  '2025-05-01 09:05:00');  -- unlike
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Creator analytics · post engagement</h4>
+<p><strong>Q1 — Like / save / share rate per post (with active engagements only)</strong></p>
+<pre><code>WITH active_engagements AS (
+  SELECT post_id, event_type FROM fct_engagements WHERE is_undone = FALSE
 )
-PARTITION BY DATE(impression_ts)
-CLUSTER BY (post_sk, viewer_sk);
+SELECT
+  i.post_id,
+  COUNT(*)                                                        AS impressions,
+  APPROX_COUNT_DISTINCT(i.viewer_id)                              AS unique_viewers,
+  COUNT(*) FILTER (WHERE e.event_type = 'like')                   AS likes,
+  COUNT(*) FILTER (WHERE e.event_type = 'save')                   AS saves,
+  COUNT(*) FILTER (WHERE e.event_type = 'share')                  AS shares,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE e.event_type='like') / COUNT(*), 2) AS like_rate_pct,
+  ROUND(AVG(d.dwell_ms), 0)                                       AS avg_dwell_ms
+FROM fct_impressions i
+LEFT JOIN active_engagements e ON e.post_id = i.post_id
+LEFT JOIN fct_dwell_per_impression d ON d.impression_id = i.impression_id
+GROUP BY i.post_id ORDER BY like_rate_pct DESC;
+</code></pre>
 
-CREATE TABLE fact_engagement (
-  engagement_sk   BIGINT,
-  impression_sk   BIGINT,            -- nullable: comments arrive without an impression event
-  viewer_sk       BIGINT,
-  post_sk         BIGINT,
-  event_type      STRING,            -- 'like' | 'save' | 'share' | 'comment' | 'hide' | 'report'
-  event_ts        TIMESTAMP_TZ,
-  is_undone       BOOLEAN,           -- mutable: like → unlike
-  undone_ts       TIMESTAMP_TZ NULL
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Brand safety · negative-signal monitoring</h4>
+<p><strong>Q2 — Posts with hide+report rate above brand-safety threshold</strong></p>
+<pre><code>SELECT
+  i.post_id,
+  COUNT(*)                                                                 AS impressions,
+  COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))                AS negative_signals,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))
+        / COUNT(*), 3)                                                     AS negative_rate_pct
+FROM fct_impressions i
+LEFT JOIN fct_engagements e ON e.impression_id = i.impression_id AND e.is_undone = FALSE
+WHERE DATE(i.impression_ts) = CURRENT_DATE - 1
+GROUP BY i.post_id
+HAVING COUNT(*) &gt; 1000
+   AND COUNT(*) FILTER (WHERE e.event_type IN ('hide','report')) * 1.0 / COUNT(*) &gt; 0.005
+ORDER BY negative_rate_pct DESC;
+-- Posts above 0.5% hide+report rate go to human moderation queue.
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Ranker · A/B model lift</h4>
+<p><strong>Q3 — Engagement-rate lift v3.2 over v3.1</strong></p>
+<pre><code>WITH ranker_metrics AS (
+  SELECT
+    i.ranker_model_id,
+    COUNT(*)                                                    AS impressions,
+    COUNT(*) FILTER (WHERE e.event_type='like'  AND e.is_undone=FALSE) AS likes,
+    COUNT(*) FILTER (WHERE e.event_type='save'  AND e.is_undone=FALSE) AS saves,
+    COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))    AS negatives,
+    AVG(d.dwell_ms)                                             AS avg_dwell_ms
+  FROM fct_impressions i
+  LEFT JOIN fct_engagements        e ON e.impression_id = i.impression_id
+  LEFT JOIN fct_dwell_per_impression d ON d.impression_id = i.impression_id
+  WHERE i.impression_ts &gt;= CURRENT_DATE - 7
+    AND i.ranker_model_id IN ('model_v3.1','model_v3.2')
+  GROUP BY i.ranker_model_id
+)
+SELECT ranker_model_id,
+  ROUND(100.0 * likes     / NULLIF(impressions, 0), 3) AS like_rate_pct,
+  ROUND(100.0 * saves     / NULLIF(impressions, 0), 3) AS save_rate_pct,
+  ROUND(100.0 * negatives / NULLIF(impressions, 0), 3) AS negative_rate_pct,
+  ROUND(avg_dwell_ms, 0)                                AS avg_dwell_ms
+FROM ranker_metrics;
+-- v3.2 wins if like_rate higher AND negative_rate not worse.
+</code></pre>
+
+<h4 class="sub-head">Worked example — viewer U_42's feed session</h4>
+<ol>
+  <li>3 posts impressed under <code>model_v3.2</code>. Predicted scores: 0.72, 0.55, 0.41. Ranker order = score-desc, correct.</li>
+  <li>POST_001 (score 0.72): 4.2s dwell, like at +4s, full view → strong positive.</li>
+  <li>POST_002 (score 0.55): 0.8s dwell, no engagement, partial view (40%) → user scrolled past. Ranker over-predicted.</li>
+  <li>POST_003 (score 0.41): 6.5s dwell, save + comment → strong positive. Ranker under-predicted.</li>
+  <li><strong>Calibration error</strong> on this session: 1/3 (POST_002) too high, 1/3 (POST_003) too low. Logged in <code>fct_impressions.predicted_score</code> for ranker training.</li>
+  <li><strong>Mutable like:</strong> User unlikes POST_001 5 minutes later. <code>fct_engagements</code> stores both events (ENG_1 like, ENG_4 the unlike with <code>is_undone=TRUE</code>). Final state: not liked. Active-only queries filter <code>is_undone=FALSE</code>.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Volume:</strong> billions of impressions per day. Dedup via event_id at ingest. Use <code>APPROX_COUNT_DISTINCT</code> for analytics.</li>
-  <li><strong>Like/unlike toggle:</strong> a like can be undone; track as <code>is_undone</code> + <code>undone_ts</code> rather than deleting.</li>
-  <li><strong>Dwell time:</strong> heartbeats every 250ms while post is on screen. Aggregate to per-impression at ETL time, not at query.</li>
-  <li><strong>Brand safety:</strong> negative engagement (hide, report) is a high-leverage signal — pre-aggregate per post for ranker.</li>
+  <li><strong>Ranker A/B is queryable.</strong> <code>ranker_model_id</code> on every impression → comparing v3.1 vs v3.2 is a GROUP BY, not a separate ETL pipeline.</li>
+  <li><strong>Mutable engagements without losing history.</strong> Append-only with <code>is_undone</code> preserves the full toggle behavior — useful for "regret rate" analysis.</li>
+  <li><strong>Dwell aggregated at ETL.</strong> 100B per-impression rows >> 12T per-heartbeat rows. The aggregation is non-negotiable.</li>
+  <li><strong>HLL by default.</strong> Distinct viewer counts at petabyte scale require <code>APPROX_COUNT_DISTINCT</code> — exact only when finance demands it.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Storing <code>ranker_model_id</code> on the impression is what lets the feed team A/B test new models without losing the ability to compute baseline metrics — model-version is a first-class dimension, not a footnote."
+<strong>Senior framing.</strong> "Storing <code>ranker_model_id</code> on the impression is what lets the feed team A/B test new models without losing the ability to compute baseline metrics — model-version is a first-class dimension, not a footnote. Append-only engagements with <code>is_undone</code> means we can answer 'what % of likes get unliked within 5 min?' which is the canary for low-quality ranker decisions."
 </div>
 </div>
 
