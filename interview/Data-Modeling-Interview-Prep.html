@@ -3545,74 +3545,216 @@ GROUP BY context_type ORDER BY skip_rate_pct DESC;
 
 <!-- Scenario 10: Stripe -->
 <div class="scenario" id="sc-stripe">
-<div class="domain-tag">Stripe · payments &amp; ledger</div>
-<h4 class="sub-head">Scenario 10 — Double-entry ledger for payments</h4>
-<div class="prompt">Design a model for Stripe's payment system supporting charges, refunds, chargebacks, payouts, multi-currency, and rigorous double-entry accounting (every entry has equal debits and credits).</div>
+<div class="domain-tag">Stripe · payments · double-entry ledger</div>
+<h4 class="sub-head">Scenario 10 — Double-entry ledger for payments (charges, refunds, chargebacks, FX, reserves)</h4>
+<div class="prompt">Design a model for Stripe's payment system supporting charges, refunds, chargebacks, payouts, multi-currency FX, reserves, and rigorous double-entry accounting where every transaction's entries sum to zero per currency. Append-only — never UPDATE — for regulatory audit compliance.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Payments is the domain with <strong>zero tolerance for retro edits</strong>. A regulator can ask "what was merchant X's balance on day Y as the books showed it then?" — the answer has to be defensible regardless of corrections made since. That forces append-only on every fact. Multi-currency adds an FX gain/loss leg. Chargebacks arrive 30-180 days after the charge. Reserves are an internal transfer, not external money. The model must enforce <strong>SUM=0 per balance transaction per currency</strong> as a continuous invariant.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Double-entry: every transaction = at least 2 ledger entries summing to zero per currency."</li>
-  <li>"Multi-currency: charges in EUR, payouts in USD, FX in between — three entries minimum."</li>
-  <li>"Append-only ledger. No <code>UPDATE</code>. Ever. Reversal = new entries with opposite signs."</li>
+  <li><code>fct_ledger_entries</code> — <strong>The "Atom" grain.</strong> One row per debit OR credit on (account, currency). The source of truth. <strong>Append-only.</strong></li>
+  <li><code>fct_balance_transactions</code> — <strong>The "Business event" grain.</strong> One row per charge/refund/payout/chargeback. Groups its entries via <code>balance_txn_id</code>.</li>
+  <li><code>snap_account_balance_daily</code> — <strong>The "State" grain.</strong> Derived — running SUM per (account × currency × day). Pre-aggregated for fast balance reads.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_ledger_entry</code>: one row per debit OR credit on a specific account in a specific currency. <strong>This is the source of truth.</strong></li>
-  <li><code>fact_balance_transaction</code>: one row per business event (charge/refund/payout) — joins entries.</li>
-  <li><code>snap_account_balance_daily</code>: derived — running sum per (account × currency × day).</li>
+  <li><code>dim_merchants</code> (SCD2 — risk profile, reserve_pct) · <code>dim_customers</code> · <code>dim_payment_methods</code> (SCD2)</li>
+  <li><code>dim_accounts</code> — Chart of accounts: <code>merchant_balance</code>, <code>fees</code>, <code>reserve</code>, <code>tax</code>, <code>fx_gain_loss</code>, <code>chargeback_reserve</code>.</li>
+  <li><code>dim_currencies</code> · <code>dim_fx_rates</code> (SCD2 daily — FX rate locked at posting time)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_merchant     (SCD2)
-dim_customer     (SCD2)
-dim_payment_method (SCD2)
-dim_account      (SCD1 — chart of accounts: 'merchant_balance', 'fees', 'reserve', 'tax')
-dim_currency     (SCD1)
-dim_country      (SCD1)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_ledger_entries</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>entry_id</code></td><td>PK</td><td>Surrogate.</td></tr>
+    <tr><td><code>balance_txn_id</code></td><td>FK</td><td>Groups entries within one business event.</td></tr>
+    <tr><td><code>account_id</code></td><td>FK</td><td>Which account: merchant_balance, fees, reserve, etc.</td></tr>
+    <tr><td><code>merchant_id</code></td><td>FK</td><td>The merchant.</td></tr>
+    <tr><td><code>currency_code</code></td><td>CHAR(3)</td><td>The currency of this entry.</td></tr>
+    <tr><td><code>amount</code></td><td>DECIMAL(20,4)</td><td>Signed. Convention: positive = credit, negative = debit. Sum per (balance_txn × currency) = 0.</td></tr>
+    <tr><td><code>entry_type</code></td><td>STRING</td><td>{charge, refund, fee, fx_gain, fx_loss, payout, chargeback, reserve_hold, reserve_release}.</td></tr>
+    <tr><td><code>effective_ts, posted_ts</code></td><td>TIMESTAMP_TZ</td><td>When the event happened vs when it hit the ledger.</td></tr>
+    <tr><td><code>source_event_id</code></td><td>UNIQUE</td><td><strong>Idempotency key.</strong> Producer retries write same row.</td></tr>
+    <tr><td><code>reversal_of_id</code></td><td>FK NULL</td><td>For reversal entries — points to the original.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_ledger_entry (
-  entry_sk           BIGINT,
-  entry_id           STRING,         -- natural, idempotent
-  balance_txn_sk     BIGINT,
-  account_sk         BIGINT,         -- which account is being debited/credited
-  merchant_sk        BIGINT,
-  currency_code      CHAR(3),
-  amount             DECIMAL(20,4),  -- signed; debits negative, credits positive (or per convention)
-  entry_type         STRING,         -- 'charge' | 'refund' | 'fee' | 'fx_gain' | 'payout' | 'chargeback' | 'reserve'
-  effective_ts       TIMESTAMP_TZ,
-  posted_ts          TIMESTAMP_TZ,   -- when entered the ledger
-  reversal_of_sk     BIGINT NULL,    -- for reversals
-  source_event_id    STRING,         -- idempotency
-  ingest_ts          TIMESTAMP_TZ,
+<p><strong><code>fct_balance_transactions</code></strong> — <code>balance_txn_id, txn_type ∈ {charge, refund, payout, chargeback, fee, transfer}, txn_ts, source_object_id (charge_id / refund_id), merchant_id, status</code>.</p>
 
-  -- the invariant: SUM(amount) per (balance_txn_sk, currency_code) = 0
-  CONSTRAINT chk_idempotent UNIQUE (source_event_id)
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Merchant · balance &amp; payouts</strong> — Available balance = SUM(<code>fct_ledger_entries.amount</code>) WHERE <code>account = 'merchant_balance'</code> AND <code>merchant_id = X</code>. From <code>snap_account_balance_daily</code> for speed.</p>
+<p><strong>Finance · reconciliation</strong> — Reconcile every <code>balance_txn</code>: <code>SUM(amount) GROUP BY currency = 0</code>. Any failure = producer bug, page on-call.</p>
+<p><strong>Risk · chargeback exposure</strong> — Aggregate <code>entry_type = 'chargeback'</code> per merchant per day. High rate = risk profile change → increase <code>reserve_pct</code>.</p>
+<p><strong>Regulators · audit trail</strong> — "Show merchant X balance as of date Y as the books showed it then" — query <code>fct_ledger_entries</code> WHERE <code>posted_ts &lt;= Y</code> AND filter out reversals for entries posted after Y.</p>
+
+<h4 class="sub-head">Section 4 — Why append-only + invariant + idempotency key</h4>
+<ul>
+  <li><strong>Append-only is regulatory.</strong> SOX / PCI / banking audits require an immutable history. Every reversal is a new pair of entries with opposite signs, never a retro edit.</li>
+  <li><strong>SUM=0 invariant per (balance_txn, currency).</strong> Continuous data-quality check. If it fails, payments stop until fixed.</li>
+  <li><strong>Idempotency at the row.</strong> <code>UNIQUE(source_event_id)</code> guarantees that producer retries don't create duplicate ledger entries — even under network partitions.</li>
+  <li><strong>FX as separate currency entries.</strong> EUR charge → USD payout requires a 4-entry transaction: −EUR (merchant_balance debit) / +EUR (fx_holding credit) / −USD (fx_holding debit at locked rate) / +USD (merchant_balance credit). FX gain/loss recognized in reporting currency.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Stripe Double-Entry Ledger</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">STRIPE · DOUBLE-ENTRY LEDGER · APPEND-ONLY · SUM=0 INVARIANT</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏪 dim_merchants</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_id · risk_profile</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">reserve_pct · country</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📒 dim_accounts (chart)</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_balance · fees · reserve</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tax · fx_gain_loss · chargeback_reserve</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,340)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💱 dim_fx_rates ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_pair · rate</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">effective_from / effective_to</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 daily · locked at posted_ts</text></g>
+  <g transform="translate(40,460)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💳 dim_payment_methods</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">card_brand · funding_type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,560)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">👤 dim_customers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">customer_id · email</text></g>
+
+  <g transform="translate(385,130)"><rect width="580" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚖ fct_ledger_entries ★ THE SOURCE OF TRUTH</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ entry_id · ⛓ balance_txn_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ account_id · merchant_id (FK)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">currency_code · amount (signed) · entry_type</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">effective_ts · posted_ts · reversal_of_id</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">UNIQUE(source_event_id) ← idempotency</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per debit OR credit · APPEND-ONLY · SUM(amount) per (balance_txn × currency) = 0</text></g>
+  <g transform="translate(385,320)"><rect width="280" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📋 fct_balance_transactions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ balance_txn_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">txn_type · source_object_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_id · status</text><text x="20" y="108" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per business event</text></g>
+  <g transform="translate(700,320)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 snap_account_balance_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ account · merchant · currency · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">opening · debits · credits · ending</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">DERIVED · running sum</text></g>
+  <g transform="translate(385,470)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↩ Reversal pattern (NOT a separate fact)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">A chargeback or refund = NEW entries with reversal_of_id pointing to original</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">Original row UNCHANGED. Audit trail preserved. Net = SUM.</text></g>
+  <g transform="translate(385,590)"><rect width="580" height="80" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="290" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#1e293b">CONTINUOUS DQ: ∀ balance_txn_id: SUM(amount) GROUP BY currency = 0</text><text x="290" y="50" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#475569">Any failure = producer bug. Pipeline halts until fixed.</text><text x="290" y="66" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">SOX / PCI / banking audit prerequisite</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">LEDGER INVARIANT (DQ)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚖ SUM=0 per balance_txn × currency</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Idempotency violations</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">AUTHORIZATION RATES</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">✓ Auth approval rate by card_brand</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Decline reason mix</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_balance_transactions</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CHARGEBACK RISK</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Chargeback rate per merchant</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Days from charge to dispute</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries (entry_type='chargeback')</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FX EXPOSURE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💱 Multi-currency balance per merchant</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Realized FX gain/loss</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries × dim_fx_rates</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="310" y1="285" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="310" y1="395" x2="385" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="525" y1="300" x2="525" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="525" y1="440" x2="525" y2="470" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — €100 charge converted to USD payout (multi-currency, 4 entries)</strong></p>
+<pre><code>-- Business event 1: charge €100 (customer pays merchant)
+INSERT INTO fct_balance_transactions VALUES
+  ('BTX_001','charge', '2025-05-01 09:00:00','CH_777','MRC_FR','succeeded');
+
+-- Ledger entries (SUM = 0 per currency):
+INSERT INTO fct_ledger_entries (balance_txn_id, account_id, merchant_id, currency_code, amount, entry_type, effective_ts, source_event_id) VALUES
+  ('BTX_001','merchant_balance','MRC_FR','EUR',  100.00, 'charge',     '2025-05-01 09:00','EVT_001'),
+  ('BTX_001','fees',            'MRC_FR','EUR',   -2.90, 'fee',        '2025-05-01 09:00','EVT_002'),
+  ('BTX_001','customer_balance','MRC_FR','EUR', -100.00, 'charge',     '2025-05-01 09:00','EVT_003'),
+  ('BTX_001','fees_revenue',    'MRC_FR','EUR',    2.90, 'fee',        '2025-05-01 09:00','EVT_004');
+-- SUM(amount WHERE currency='EUR') = 100 - 2.90 - 100 + 2.90 = 0 ✓
+
+-- Business event 2: payout €97.10 → USD at locked rate 1.08
+INSERT INTO fct_balance_transactions VALUES
+  ('BTX_002','payout', '2025-05-03 10:00:00','PO_777','MRC_FR','paid');
+
+INSERT INTO fct_ledger_entries (balance_txn_id, account_id, merchant_id, currency_code, amount, entry_type, effective_ts, source_event_id) VALUES
+  ('BTX_002','merchant_balance','MRC_FR','EUR',  -97.10, 'payout',  '2025-05-03 10:00','EVT_005'),  -- debit EUR
+  ('BTX_002','fx_holding',      'MRC_FR','EUR',   97.10, 'payout',  '2025-05-03 10:00','EVT_006'),  -- credit EUR
+  ('BTX_002','fx_holding',      'MRC_FR','USD', -104.87, 'payout',  '2025-05-03 10:00','EVT_007'),  -- debit USD (97.10 × 1.08)
+  ('BTX_002','merchant_bank',   'MRC_FR','USD',  104.87, 'payout',  '2025-05-03 10:00','EVT_008'); -- credit USD
+-- SUM EUR = 0 ✓ ; SUM USD = 0 ✓
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · invariant DQ check</h4>
+<p><strong>Q1 — Continuous SUM=0 invariant per (balance_txn × currency)</strong></p>
+<pre><code>SELECT
+  balance_txn_id,
+  currency_code,
+  ROUND(SUM(amount), 4) AS sum_amount,
+  COUNT(*)              AS entry_count
+FROM fct_ledger_entries
+WHERE effective_ts &gt;= CURRENT_DATE - 1
+GROUP BY balance_txn_id, currency_code
+HAVING ABS(SUM(amount)) &gt; 0.0001;
+-- Empty = healthy. Any row = producer bug. Halts the payments pipeline.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Merchant · balance &amp; payouts</h4>
+<p><strong>Q2 — Merchant balance per currency (as-of-now)</strong></p>
+<pre><code>SELECT
+  merchant_id, currency_code,
+  ROUND(SUM(amount), 2) AS balance
+FROM fct_ledger_entries
+WHERE account_id = 'merchant_balance' AND merchant_id = 'MRC_FR'
+GROUP BY merchant_id, currency_code;
+-- Or read from snap_account_balance_daily for sub-second response.
+</code></pre>
+
+<p><strong>Q3 — Audit trail: balance as it appeared on a specific historical date</strong></p>
+<pre><code>SELECT
+  merchant_id, currency_code,
+  ROUND(SUM(amount), 2) AS balance_as_of_2025_05_15
+FROM fct_ledger_entries
+WHERE account_id = 'merchant_balance'
+  AND merchant_id = 'MRC_FR'
+  AND posted_ts &lt;= '2025-05-15 23:59:59'
+GROUP BY merchant_id, currency_code;
+-- Defensible regardless of corrections made AFTER 2025-05-15. The append-only contract.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Risk · chargeback exposure</h4>
+<p><strong>Q4 — Chargeback rate per merchant + dispute lag</strong></p>
+<pre><code>WITH charges AS (
+  SELECT merchant_id, balance_txn_id, effective_ts AS charge_ts, ABS(amount) AS gross_usd
+  FROM fct_ledger_entries
+  WHERE entry_type = 'charge' AND account_id = 'merchant_balance' AND amount &gt; 0
+),
+chargebacks AS (
+  SELECT merchant_id, reversal_of_id, effective_ts AS chargeback_ts, ABS(amount) AS chargeback_usd
+  FROM fct_ledger_entries WHERE entry_type = 'chargeback'
 )
-PARTITION BY DATE(effective_ts)
-CLUSTER BY (merchant_sk, account_sk);
+SELECT
+  c.merchant_id,
+  COUNT(c.balance_txn_id)                                                AS total_charges,
+  COUNT(cb.reversal_of_id)                                               AS total_chargebacks,
+  ROUND(100.0 * COUNT(cb.reversal_of_id) / NULLIF(COUNT(c.balance_txn_id), 0), 2) AS chargeback_rate_pct,
+  ROUND(AVG(EXTRACT(EPOCH FROM (cb.chargeback_ts - c.charge_ts))/86400), 1) AS avg_dispute_lag_days
+FROM charges c
+LEFT JOIN chargebacks cb ON cb.reversal_of_id = c.balance_txn_id
+WHERE c.charge_ts &gt;= CURRENT_DATE - 90
+GROUP BY c.merchant_id
+HAVING COUNT(c.balance_txn_id) &gt; 100
+ORDER BY chargeback_rate_pct DESC;
+-- Merchants &gt;1% chargeback rate trigger reserve_pct increase.
+</code></pre>
 
-CREATE TABLE fact_balance_transaction (
-  balance_txn_sk      BIGINT,
-  balance_txn_id      STRING,
-  txn_type            STRING,        -- 'charge' | 'refund' | 'payout' | 'chargeback' | 'fee' | 'transfer'
-  txn_ts              TIMESTAMP_TZ,
-  source_object_id    STRING,        -- charge_id, refund_id, payout_id
-  merchant_sk         BIGINT,
-  status              STRING
-);</code></pre>
+<h4 class="sub-head">Worked example — €100 charge → USD payout</h4>
+<ol>
+  <li><strong>Charge BTX_001 (€100):</strong> 4 ledger entries in EUR.
+    <ul>
+      <li>+€100 to merchant_balance · −€2.90 fee from merchant_balance · net €97.10 to merchant.</li>
+      <li>−€100 from customer_balance · +€2.90 to fees_revenue.</li>
+      <li>EUR sum = 100 − 2.90 − 100 + 2.90 = <strong>0</strong> ✓</li>
+    </ul>
+  </li>
+  <li><strong>Payout BTX_002</strong> (3 days later, FX rate locked at 1 EUR = 1.08 USD).
+    <ul>
+      <li>−€97.10 from merchant_balance · +€97.10 to fx_holding (EUR side closes)</li>
+      <li>−$104.87 from fx_holding (USD side, 97.10 × 1.08) · +$104.87 to merchant_bank</li>
+      <li>EUR sum = 0 ✓ · USD sum = 0 ✓</li>
+    </ul>
+  </li>
+  <li><strong>Two months later: chargeback on BTX_001.</strong> Append 4 new entries that reverse the charge (positive amounts where original was negative). <code>reversal_of_id</code> links each new entry to its original. Original rows untouched. Audit trail preserved. Net effect: merchant balance net change for the chargeback is recorded as a fresh balance_txn.</li>
+</ol>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>The invariant test:</strong> for any <code>balance_txn_sk</code>, <code>SUM(amount) GROUP BY currency = 0</code>. Run as a continuous data-quality check.</li>
-  <li><strong>FX leg:</strong> EUR charge → USD payout creates a third entry in EUR (debit merchant) + entry in USD (credit merchant) + an FX_gain/loss entry in the platform's reporting currency.</li>
-  <li><strong>Chargebacks:</strong> 30+ days after charge. Append-only — debit merchant, credit dispute-reserve. Original charge stays untouched.</li>
-  <li><strong>Idempotency:</strong> retries from upstream produce same <code>source_event_id</code>; <code>UNIQUE</code> constraint prevents double-write.</li>
-  <li><strong>Reserves:</strong> high-risk merchants — N% of balance held as reserve. Modeled as transfer entries between <code>merchant_balance</code> and <code>reserve</code> accounts.</li>
+  <li><strong>Append-only is the contract.</strong> Historical balance reads ("as of date Y") are defensible regardless of corrections made later. Required by SOX, PCI, banking regulators.</li>
+  <li><strong>Invariant catches bugs at write time.</strong> Continuous DQ on SUM=0 — any producer regression halts the pipeline before bad data reaches finance.</li>
+  <li><strong>Idempotency at the row.</strong> <code>UNIQUE(source_event_id)</code> handles producer retries without duplicating money.</li>
+  <li><strong>FX as currency entries.</strong> No "convert at read time" — every conversion is a recorded ledger event with its locked rate.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Append-only is not a style choice in payments — it's a regulatory requirement. The model has to support 'show me the full audit trail for merchant X on date Y as it appeared then' regardless of corrections made since. That's why every reversal is a new pair of entries, never a retro edit."
+<strong>Senior framing.</strong> "Append-only is not a style choice in payments — it's a regulatory requirement. The model has to support 'show me the full audit trail for merchant X on date Y as it appeared then' regardless of corrections made since. That's why every reversal is a new pair of entries, never a retro edit. SUM=0 per (balance_txn × currency) is the invariant that keeps the books honest at write time."
 </div>
 </div>
 
