@@ -2670,62 +2670,170 @@ SELECT 'holdout',  COUNT(*),   ROUND(100.0 * AVG(converted::INT), 3) FROM holdou
 
 <!-- Scenario 6: Netflix CTV ads -->
 <div class="scenario" id="sc-netflix-ads">
-<div class="domain-tag">Netflix · CTV ads inventory</div>
+<div class="domain-tag">Netflix · CTV ads · inventory &amp; pacing</div>
 <h4 class="sub-head">Scenario 6 — CTV ad inventory, pacing &amp; frequency capping</h4>
-<div class="prompt">Design a model for Netflix's ad-supported tier — capturing every ad slot opportunity, every ad served, frequency caps per user, and pacing guarantees per advertiser ("guaranteed 10M impressions by month-end").</div>
+<div class="prompt">Design a model for Netflix's ad-supported tier — capturing every ad slot opportunity (filled or unfilled), every ad served, frequency caps per user, and contractual pacing guarantees per advertiser ("guaranteed 10M impressions by month-end with make-good if under-delivered").</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>CTV inventory has a contractual layer that programmatic doesn't: <strong>guaranteed buys with monetary penalties for under-delivery</strong>. Three pressures pull simultaneously: (1) maximize fill rate, (2) honor frequency caps so users don't see the same ad 8 times, (3) hit committed impressions per advertiser per month. Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer <em>"why did we leave money on the table?"</em></p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Inventory unit: one ad-slot opportunity in a viewing session. Pre-roll, mid-roll, post-roll are different slot_types."</li>
-  <li>"Pacing: per (advertiser × campaign × day). Daily delivery vs daily commitment."</li>
-  <li>"Frequency cap: per (user × campaign), e.g. 'no more than 3 per day, 10 per week'."</li>
-  <li>"Make-good: under-delivered campaigns get bonus inventory next month."</li>
+  <li><code>fct_ad_opportunities</code> — <strong>The "Slot" grain.</strong> One row per ad-slot opportunity in a viewing session. Filled or unfilled — both kept.</li>
+  <li><code>fct_ad_impressions</code> — <strong>The "Served" grain.</strong> Subset of opportunities where an ad actually played.</li>
+  <li><code>fct_pacing_daily</code> — <strong>The "Contract" grain.</strong> One row per (campaign × day) aggregating delivered vs committed.</li>
+  <li><code>fct_frequency_state</code> — <strong>The "Cap" grain.</strong> One row per (profile × campaign × day) tracking impressions toward cap.</li>
+  <li><code>fct_makegood_obligations</code> — <strong>The "Owed" grain.</strong> One row per (campaign × month) when committed not met. Drives next-month bonus inventory.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_ad_opportunity</code>: one row per slot opportunity (filled or unfilled).</li>
-  <li><code>fact_ad_impression</code>: one row per ad served (subset of opportunities, with <code>creative_sk</code>).</li>
-  <li><code>fact_pacing_daily</code>: one row per (campaign × day), aggregated.</li>
-  <li><code>fact_frequency_state</code>: one row per (user × campaign × day), capped.</li>
+  <li><code>dim_advertisers, dim_campaigns, dim_creatives</code> (SCD2)</li>
+  <li><code>dim_campaign_flights</code> — Period a campaign runs (start_date / end_date / total_committed_impressions)</li>
+  <li><code>dim_titles</code> (SCD2 for content metadata; ratings drive ad eligibility)</li>
+  <li><code>dim_profiles</code> (SCD2; subscription tier = ad-supported / premium)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>CREATE TABLE fact_ad_opportunity (
-  opportunity_sk    BIGINT,
-  profile_sk        BIGINT,
-  title_sk          BIGINT,
-  session_sk        BIGINT,
-  slot_type         STRING,        -- 'pre_roll' | 'mid_roll' | 'post_roll'
-  slot_position_sec INT,
-  slot_duration_sec INT,
-  predicted_cpm     DECIMAL(8,4),
-  served_creative_sk BIGINT NULL,  -- NULL = unfilled
-  fill_reason       STRING,        -- 'won_auction' | 'guaranteed_buy' | 'house_ad'
-  unfilled_reason   STRING NULL,   -- 'frequency_capped' | 'no_eligible_demand'
-  opportunity_ts    TIMESTAMP_TZ
-)
-PARTITION BY DATE(opportunity_ts);
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_ad_opportunities</code></strong> — <code>opportunity_id, profile_id, title_id, session_id, slot_type ∈ {pre_roll, mid_roll, post_roll}, slot_position_sec, slot_duration_sec, opportunity_ts, predicted_cpm, served_creative_id (NULL=unfilled), fill_reason {won_auction, guaranteed_buy, house_ad}, unfilled_reason {frequency_capped, no_eligible_demand, content_unsuitable}</code>.</p>
 
-CREATE TABLE fact_pacing_daily (
-  campaign_sk        BIGINT,
-  day_sk             INT,
-  delivered          INT,
-  committed_today    INT,           -- daily plan
-  cumulative_to_date INT,
-  total_committed    INT,           -- contract total
-  pacing_index       DECIMAL(6,3)   -- 1.0 = on track
-);</code></pre>
+<p><strong><code>fct_pacing_daily</code></strong> — <code>campaign_id, day, delivered, committed_today, cumulative_delivered, total_committed, pacing_index (1.0 = on track), days_remaining</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong><code>fct_makegood_obligations</code></strong> — <code>campaign_id, original_period, makegood_period, owed_impressions, owed_value_usd, status {pending, scheduled, fulfilled}</code>.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Ad server · live decisions</strong> — for each opportunity, query <code>fct_frequency_state</code> + <code>fct_pacing_daily</code> + active campaign list. Pick a creative or mark unfilled.</p>
+<p><strong>Account managers · advertiser pacing</strong> — track <code>pacing_index</code> per campaign daily. If &lt;0.95 with &lt;5 days left, increase delivery priority.</p>
+<p><strong>Finance · make-good bookkeeping</strong> — <code>fct_makegood_obligations</code> tracks dollars owed when committed impressions not met. Liability on the balance sheet until fulfilled.</p>
+<p><strong>Exec · "money on the table" analysis</strong> — count <code>fct_ad_opportunities</code> with <code>served_creative_id IS NULL</code> grouped by <code>unfilled_reason</code>. Tells you if the bottleneck is demand (sales team) or eligibility rules (ops team).</p>
+
+<h4 class="sub-head">Section 4 — Why model unfilled opportunities</h4>
 <ul>
-  <li><strong>Under-delivery:</strong> if pacing_index &lt; 0.95 with 5 days left, adserver biases toward this campaign. Make-goods append to next month.</li>
-  <li><strong>Frequency cap conflict:</strong> two campaigns both eligible, user at 3/3 cap on one — second wins. Logged in <code>fill_reason</code>.</li>
-  <li><strong>Time zone for daily caps:</strong> per-user TZ for caps that say "per day"; per-advertiser TZ for pacing.</li>
+  <li><strong>Without unfilled rows:</strong> can't compute fill rate. Can't tell if you under-delivered because of low demand vs frequency caps vs content unsuitability.</li>
+  <li><strong>With unfilled rows:</strong> fill rate = COUNT(filled) / COUNT(total opportunities). Drill into <code>unfilled_reason</code> to find the right team to fix.</li>
+  <li><strong>Cost:</strong> doubles the row count. Tradeoff is worth it; partition by date keeps queries fast.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Netflix CTV Inventory</h4>
+<svg viewBox="0 0 1440 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrN" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">NETFLIX CTV · OPPORTUNITY → IMPRESSION → PACING → MAKE-GOOD</text>
+  <rect x="20" y="60" width="310" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_advertisers / campaigns</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">objective · daily_cap · total_commit</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▰ dim_campaign_flights</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">flight_id · start_date · end_date</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">total_committed_impressions</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,330)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▣ dim_creatives</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">creative_id · duration · format</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,425)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📺 dim_titles</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rating · genre · ad_eligibility</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,520)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_profiles</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">subscription_tier · region</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ fct_ad_opportunities ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ opportunity_id · session_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ profile_id · title_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">slot_type · slot_position_sec</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">served_creative_id (NULL=unfilled)</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fill_reason · unfilled_reason</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per slot opportunity</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▶ fct_ad_impressions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ opportunity_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">started_ts · completed_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">completion_pct · skipped</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ recognized_cpm · revenue</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">subset of opportunities (filled)</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="120" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 fct_pacing_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ campaign_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">delivered · committed_today</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cumulative · pacing_index</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per (campaign × day)</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🚦 fct_frequency_state</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ profile_id · campaign_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">impressions_today / week</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cap_today · cap_week</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (profile × campaign × day)</text></g>
+  <g transform="translate(385,450)"><rect width="580" height="100" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">＄ fct_makegood_obligations</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ campaign_id · original_period · makegood_period</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">owed_impressions · owed_value_usd · status</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per under-delivered (campaign × month) · finance liability</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PACING INDEX</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Daily pacing_index per campaign</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Campaigns &lt; 0.95 with &lt;5 days left</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_pacing_daily</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FREQUENCY-CAP HITS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">🚦 Cap-blocked opportunities / day</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Avg impressions/user/campaign</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ad_opportunities × fct_frequency_state</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FILL RATE &amp; UNFILLED REASONS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Fill rate per slot_type</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Top unfilled_reasons</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ad_opportunities</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MAKE-GOOD OWED ($)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Pending make-good liability</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Make-good fulfilled this month</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_makegood_obligations</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="310" y1="265" x2="385" y2="350" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="310" y1="370" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+  <line x1="525" y1="430" x2="525" y2="450" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrN)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+<p><strong>Sample data — 1 campaign, 5 opportunities (3 filled / 2 unfilled), 1 day pacing</strong></p>
+<pre><code>INSERT INTO dim_campaigns VALUES ('CMP_FORD','ADV_FORD','2025-05-01','2025-05-31',5000000,1.0);
+
+INSERT INTO fct_ad_opportunities VALUES
+  ('OPP_001','PROF_A','TITLE_X','SESS_1','pre_roll',  0,  15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 19:32:00'),
+  ('OPP_002','PROF_A','TITLE_X','SESS_1','mid_roll',1200, 15, 25.50, NULL,            NULL,             'frequency_capped',     '2025-05-01 19:52:00'),
+  ('OPP_003','PROF_B','TITLE_Y','SESS_2','pre_roll',  0,  15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 20:05:00'),
+  ('OPP_004','PROF_C','TITLE_Z','SESS_3','pre_roll',  0,  30, 25.50, NULL,            NULL,             'no_eligible_demand',   '2025-05-01 20:22:00'),
+  ('OPP_005','PROF_D','TITLE_X','SESS_4','mid_roll',1500, 15, 25.50, 'CRT_FORD_15S', 'guaranteed_buy', NULL,                  '2025-05-01 21:00:00');
+
+-- Pacing for the day:
+INSERT INTO fct_pacing_daily VALUES ('CMP_FORD','2025-05-01', 3, 161290, 3, 5000000, 0.000, 30);
+-- Way under: should have delivered 161290 today, only got 3.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Operations · fill rate &amp; unfilled diagnostics</h4>
+<p><strong>Q1 — Fill rate &amp; unfilled-reason breakdown (the "money on the table" report)</strong></p>
+<pre><code>SELECT
+  slot_type,
+  COUNT(*)                                                              AS opportunities,
+  COUNT(*) FILTER (WHERE served_creative_id IS NOT NULL)                AS filled,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE served_creative_id IS NOT NULL)
+        / COUNT(*), 1)                                                  AS fill_rate_pct,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'frequency_capped')          AS cap_blocked,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'no_eligible_demand')        AS no_demand,
+  COUNT(*) FILTER (WHERE unfilled_reason = 'content_unsuitable')        AS content_block
+FROM fct_ad_opportunities
+WHERE DATE(opportunity_ts) = '2025-05-01'
+GROUP BY slot_type ORDER BY opportunities DESC;
+-- "no_eligible_demand" rows = sales team to fix. "frequency_capped" = ops/cap-policy team.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Account managers · pacing alerts</h4>
+<p><strong>Q2 — Campaigns at risk of under-delivery (pacing &lt; 0.95 with &lt;5 days remaining)</strong></p>
+<pre><code>SELECT p.campaign_id, c.advertiser_id,
+  p.cumulative_delivered, p.total_committed,
+  ROUND(100.0 * p.cumulative_delivered / NULLIF(p.total_committed, 0), 1) AS pct_delivered,
+  p.pacing_index, p.days_remaining,
+  ROUND((p.total_committed - p.cumulative_delivered) / NULLIF(p.days_remaining, 0)) AS daily_needed
+FROM fct_pacing_daily p JOIN dim_campaigns c USING (campaign_id)
+WHERE p.day = CURRENT_DATE
+  AND p.pacing_index &lt; 0.95
+  AND p.days_remaining &lt; 5
+ORDER BY p.pacing_index ASC;
+-- Triggers ad-server priority bump + account-manager Slack alert.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Finance · make-good liability</h4>
+<p><strong>Q3 — Pending make-good liability ($) by advertiser</strong></p>
+<pre><code>SELECT
+  c.advertiser_id,
+  COUNT(DISTINCT mg.campaign_id)                AS campaigns_owed,
+  SUM(mg.owed_impressions)                      AS total_impressions_owed,
+  ROUND(SUM(mg.owed_value_usd), 2)              AS total_dollars_owed,
+  COUNT(*) FILTER (WHERE mg.status = 'pending') AS pending_count
+FROM fct_makegood_obligations mg
+JOIN dim_campaigns c USING (campaign_id)
+WHERE mg.status IN ('pending','scheduled')
+GROUP BY c.advertiser_id
+ORDER BY total_dollars_owed DESC;
+-- Books a liability on Netflix's balance sheet until fulfilled.
+</code></pre>
+
+<h4 class="sub-head">Worked example — CMP_FORD on May 1</h4>
+<ol>
+  <li>Total committed: 5,000,000 impressions over May. Daily target: 161,290.</li>
+  <li>Day 1 delivered: 3 impressions (out of 5 opportunities). 2 unfilled — 1 frequency_capped, 1 no_eligible_demand.</li>
+  <li><code>pacing_index</code> = 3 / 161,290 = <strong>0.0000186</strong> — catastrophic miss.</li>
+  <li>If pattern continues 30 days: ~90 delivered total. Make-good owed = (5M − 90) × CPM-based dollar rate.</li>
+  <li>Queries trigger: account manager alert (Q2), finance liability booking (Q3), unfilled-reason audit (Q1) reveals "no_eligible_demand" needs sales-team push.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Unfilled rows are first-class.</strong> Fill rate becomes a simple COUNT FILTER, not a derived metric.</li>
+  <li><strong>Pacing as a daily snapshot.</strong> Not derived on the fly — pre-aggregated for fast dashboard reads.</li>
+  <li><strong>Make-goods as a liability fact.</strong> Finance owns it; it's a real balance-sheet item, not a metric.</li>
+  <li><strong>Frequency caps as state.</strong> Per (profile × campaign × day) — exactly what the ad server queries pre-decision.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer 'why did we leave money on the table this quarter?' which is the exec-level question this data product exists for."
+<strong>Senior framing.</strong> "Modeling unfilled opportunities (not just impressions) is the senior move — it's the only way to answer 'why did we leave money on the table this quarter?' which is the exec-level question this data product exists for. Pacing as snapshot + make-good as liability turns the contractual layer into queryable finance, not a sales spreadsheet."
 </div>
 </div>
 
