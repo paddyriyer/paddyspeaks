@@ -1514,6 +1514,152 @@ ORDER BY tier, trips DESC;
   <li><strong>No GPS trace.</strong> <code>fct_trip_events</code> can be reverse-engineered from VTAT/CTAT into approximate REQUESTED, MATCHED, PICKUP, DROPOFF timestamps but the geographic events (location_h3 per state) are unavailable.</li>
 </ul>
 
+<h4 class="sub-head">Section 11 — Mass-departure scale: 20K+ people, road blocks &amp; growth accounting</h4>
+
+<p>An interview prompt sometimes raises the stakes: <em>"Architect the system to handle a 20,000-person stadium event — accidents, road blocks, supply/demand volatility, all at once."</em> The existing Journey → Trip → Event hierarchy holds, but three additional concerns must be modeled explicitly: <strong>infrastructure as a fact</strong> (SCD2 geography), <strong>growth accounting</strong> on both sides of the marketplace, and <strong>point-in-time financial integrity</strong> under chaos.</p>
+
+<h4 class="sub-head">11.1 — Re-stated grain hierarchy under stress</h4>
+<table>
+  <thead><tr><th>Table</th><th>Grain</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>fct_journeys</code></td><td>One row per group request</td><td>Captures intent (e.g. a group of 6 leaving the stadium together).</td></tr>
+    <tr><td><code>fct_trips</code></td><td>One row per (driver/vehicle × journey)</td><td>Vehicle-grain truth for driver payouts &amp; insurance.</td></tr>
+    <tr><td><code>fct_trip_events</code></td><td>One row per state transition / telemetry sample</td><td>Tracks Matchup &amp; Pickup latencies + GPS replays.</td></tr>
+    <tr><td><code>brg_journey_riders</code></td><td>One row per (rider × journey)</td><td>Financial bridge — many-to-many cost splits.</td></tr>
+    <tr><td><code>dim_geography</code> (SCD2)</td><td>One row per H3 cell × state-change</td><td><strong>NEW emphasis:</strong> infrastructure as a versioned dim. Tracks "as-of-trip" road status (one-way, accident, blocked).</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">11.2 — Growth accounting on both sides of the marketplace</h4>
+
+<p>To know whether a 20K-person event is being fueled by <strong>new</strong> users or <strong>resurrected</strong> ones (and which drivers are <strong>churning</strong>), every user is segmented daily.</p>
+
+<table>
+  <thead><tr><th>Segment</th><th>Definition</th><th>What it tells the business</th></tr></thead>
+  <tbody>
+    <tr><td><strong>New</strong></td><td>First-time activity in this window.</td><td>Acquisition is working.</td></tr>
+    <tr><td><strong>Retained</strong></td><td>Active in previous period AND active now.</td><td>Core ecosystem is healthy.</td></tr>
+    <tr><td><strong>Resurrected</strong></td><td>Active now but inactive in the previous period.</td><td>Re-engagement campaign / event pulled them back.</td></tr>
+    <tr><td><strong>Churned</strong></td><td>Active in previous period, did not show up.</td><td>Supply gap risk — especially among drivers.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Q22 — L1 / L7 / L28 active status per user (daily refresh)</strong></p>
+<pre><code>SELECT
+  user_id,
+  user_role,                                                                -- 'rider' | 'driver'
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 1  THEN 1 ELSE 0 END) AS is_L1,
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 7  THEN 1 ELSE 0 END) AS is_L7,
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 28 THEN 1 ELSE 0 END) AS is_L28
+FROM dw_user_daily_activity
+GROUP BY user_id, user_role;
+</code></pre>
+
+<p><strong>Q23 — Growth segmentation: New / Retained / Resurrected / Churned (daily diff)</strong></p>
+<pre><code>WITH today AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date = CURRENT_DATE - 1                                    -- yesterday's activity
+),
+prior AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date BETWEEN CURRENT_DATE - 8 AND CURRENT_DATE - 2          -- prior 7-day window
+),
+ever AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date &lt; CURRENT_DATE - 8                                    -- before prior window
+)
+SELECT user_role,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NULL  AND e.user_id IS NULL)  AS new_users,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NOT NULL)                      AS retained,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NULL  AND e.user_id IS NOT NULL) AS resurrected,
+  COUNT(*) FILTER (WHERE t.user_id IS NULL     AND p.user_id IS NOT NULL)                      AS churned
+FROM today t
+FULL OUTER JOIN prior p USING (user_id, user_role)
+LEFT  JOIN ever  e USING (user_id, user_role)
+GROUP BY user_role;
+-- Driver "churned" spike before a stadium event = supply crisis incoming. Marketing fires re-engagement push.
+</code></pre>
+
+<h4 class="sub-head">11.3 — Mass departure with road blocks: SCD2 geography in action</h4>
+
+<p>When an accident or police closure occurs during the stadium emptying out, <code>dim_geography</code> records the change as a <strong>new SCD2 row</strong>. Old route remains queryable; new route status is "as-of-trip".</p>
+
+<table>
+  <thead><tr><th>geo_key</th><th>h3_index</th><th>route_status</th><th>valid_from</th><th>valid_to</th></tr></thead>
+  <tbody>
+    <tr><td>7001</td><td>Stadium_Hex</td><td>Normal</td><td>2026-05-07 08:00</td><td>2026-05-07 22:00</td></tr>
+    <tr><td>7002</td><td>Stadium_Hex</td><td><strong>Accident / Blocked</strong></td><td>2026-05-07 22:00</td><td><strong>2026-05-08 02:00</strong></td></tr>
+    <tr><td>7003</td><td>Stadium_Hex</td><td>Normal</td><td>2026-05-08 02:00</td><td>9999-12-31</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Q24 — Correlate pickup latency to road status (was the spike supply or infrastructure?)</strong></p>
+<pre><code>SELECT
+  g.h3_index,
+  g.route_status,
+  COUNT(t.trip_id)                                                                AS total_requests,
+  ROUND(AVG(EXTRACT(EPOCH FROM (e_pic.event_timestamp - e_req.event_timestamp))), 1) AS avg_pickup_latency_sec,
+  ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (e_pic.event_timestamp - e_req.event_timestamp))), 1) AS p95_pickup_latency_sec
+FROM fct_trips t
+JOIN fct_trip_events e_req ON t.trip_id = e_req.trip_id AND e_req.state = 'REQUESTED'
+JOIN fct_trip_events e_pic ON t.trip_id = e_pic.trip_id AND e_pic.state = 'PICKUP'
+JOIN dim_geography  g
+  ON t.pickup_h3_cell = g.h3_index
+ AND e_req.event_timestamp &gt;= g.valid_from
+ AND e_req.event_timestamp &lt;  g.valid_to                                          -- as-of-request status
+GROUP BY g.h3_index, g.route_status
+ORDER BY p95_pickup_latency_sec DESC;
+-- "Accident / Blocked" rows with high p95 = blame infrastructure, not driver supply.
+-- "Normal" rows with high p95 = blame supply, surge it up.
+</code></pre>
+
+<h4 class="sub-head">11.4 — Financial &amp; risk integrity under chaos</h4>
+
+<p>Even when a 20K event triggers cascading surges + accidents + cancellations, three SCD2 rules guarantee restate-ability:</p>
+
+<ul>
+  <li><strong>FX rate locked at <code>request_timestamp</code>.</strong> <code>dim_fx_rate</code> is SCD2; the rate that was current at the moment the journey was requested is the rate the rider is charged in USD, regardless of how the rate moves while the trip is in progress. Prevents arbitrage and revenue restatement.</li>
+  <li><strong>Insurance status as-of accident timestamp.</strong> <code>dim_vehicles</code> SCD2 on insurance. If a crash happens at 22:14, Risk queries <code>dim_vehicles</code> with <code>valid_from ≤ 22:14 &lt; valid_to</code> — exact policy in effect to the millisecond.</li>
+  <li><strong>Surge multiplier locked in <code>fct_trips</code> at journey request.</strong> Even if surge spikes from 1.5× to 3.0× while the rider is being matched, the rider pays the multiplier that was active at request. Stored on the row, not derived.</li>
+</ul>
+
+<p><strong>Q25 — Insurance audit: was the vehicle insured at the moment of the accident?</strong></p>
+<pre><code>SELECT
+  t.trip_id,
+  t.vehicle_id,
+  e.event_timestamp                                                  AS accident_ts,
+  v.insurance_policy_id,
+  v.insurance_status,
+  v.valid_from                                                       AS policy_active_from,
+  v.valid_to                                                         AS policy_active_to,
+  CASE WHEN v.insurance_status = 'active' THEN 'COVERED' ELSE 'GAP' END AS audit_verdict
+FROM fct_trip_events e
+JOIN fct_trips        t ON e.trip_id = t.trip_id
+JOIN dim_vehicles     v ON t.vehicle_id = v.vehicle_id
+                      AND e.event_timestamp &gt;= v.valid_from
+                      AND e.event_timestamp &lt;  v.valid_to
+WHERE e.state = 'ACCIDENT_REPORTED';
+-- Required for insurance claims + regulator audits. Single-row defensible answer.
+</code></pre>
+
+<h4 class="sub-head">11.5 — Scalability rules under load (the engineering details)</h4>
+
+<table>
+  <thead><tr><th>Rule</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Infinity date</strong> <code>9999-12-31</code> instead of <code>NULL</code> for <code>valid_to</code></td><td>Range joins like <code>e_req.ts BETWEEN g.valid_from AND g.valid_to</code> are far more performant than <code>... AND (g.valid_to IS NULL OR g.valid_to &gt; e_req.ts)</code>. Optimizers handle BETWEEN cleanly; OR + IS NULL kills predicate pushdown.</td></tr>
+    <tr><td><strong>H3 sharding by zoom level</strong> — L8 (~0.7 km²) for cities, L10 (~15K m²) for stadium event zones</td><td>Stadium hexes get 100× the requests/min of suburb hexes. Going to L10 inside venues distributes the load across many smaller hexes — the "hot partition" stops being the entire stadium and becomes per-gate.</td></tr>
+    <tr><td><strong>Surge locking</strong> in <code>fct_trips.surge_multiplier_at_request</code></td><td>Rider's quoted price = driver's earning potential = revenue booked. All three numbers must agree forever. Locked at journey-request, never recomputed.</td></tr>
+    <tr><td><strong>Per-partition watermarks</strong> on <code>fct_trip_events</code></td><td>One stadium-area producer with bad clock skew shouldn't stall the entire event-time pipeline. Per-partition watermark contains the damage to its own H3 cell.</td></tr>
+    <tr><td><strong>Pre-event materialization</strong> of <code>dim_geography</code> for the venue area</td><td>Police-coordinated road closures are known hours in advance. Pre-write the SCD2 transitions so they're queryable from minute zero of the event.</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal" style="background:#fef3c7;border-color:#92400e;">
+<strong>Senior framing for mass-event scale.</strong> "The Journey → Trip → Event hierarchy doesn't change at 20K riders — what changes is the load on three specific SCD2 dimensions: <code>dim_geography</code> for road state, <code>dim_vehicles</code> for insurance, <code>dim_fx_rate</code> for currency. Get those three SCD2s right, use infinity-dates instead of NULLs, and shard H3 to L10 inside the venue, and the rest of the model behaves identically — surge locked, payouts reconciled, growth segmented. The chaos is contained at the dimension layer, not the fact layer."
+</div>
+
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The Journey → Trip → Event hierarchy is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares against <em>two</em> invariants (rider-side and driver-side), and Risk replays GPS sequences for phantom-convoy detection. Three stakeholders, three grains, one source of truth — and two invariants on the financial bridge keep producer bugs from ever reaching the audit."
 </div>
