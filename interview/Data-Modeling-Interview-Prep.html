@@ -211,6 +211,7 @@
   <li><code>fct_journeys</code> — <strong>The "Parent" grain.</strong> One row per group request. Captures group intent (split type, total group cost, status).</li>
   <li><code>fct_trips</code> — <strong>The "Vehicle" grain.</strong> One row per driver / vehicle per journey. Source of truth for Finance (driver payouts).</li>
   <li><code>fct_trip_events</code> — <strong>The "Telemetry" grain.</strong> One row per state transition (REQUEST, MATCH, PICKUP, etc.) per trip. Powers Ops (Live ETA) and Risk (GPS replay).</li>
+  <li><code>fct_trip_feedback</code> — <strong>The "Sentiment" grain.</strong> One row per (trip × rider) feedback event. Captures rating, category, free-text comment, sentiment. Powers Product (CSAT, NPS).</li>
   <li><code>brg_journey_riders</code> — <strong>The "Financial" bridge.</strong> Links riders to journeys <em>and</em> to a specific assigned trip/vehicle — handles cost-splitting (journey-level) and capacity routing (trip-level).</li>
 </ul>
 
@@ -275,6 +276,21 @@
     <tr><td><code>event_timestamp</code></td><td>TIMESTAMP_TZ</td><td>Precise time of transition.</td></tr>
     <tr><td><code>location_h3</code></td><td>H3_INDEX</td><td>Cell where the event occurred.</td></tr>
     <tr><td><code>actor</code></td><td>STRING</td><td>Who triggered the transition: rider, driver, system.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Sentiment Fact: <code>fct_trip_feedback</code> (per-rider satisfaction)</strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>feedback_key</code></td><td>PK BIGINT</td><td>Surrogate.</td></tr>
+    <tr><td><code>trip_key</code></td><td>FK</td><td>The trip rated.</td></tr>
+    <tr><td><code>rider_id</code></td><td>FK</td><td>Who left the feedback.</td></tr>
+    <tr><td><code>rating_score</code></td><td>TINYINT</td><td>1–5 stars.</td></tr>
+    <tr><td><code>feedback_category</code></td><td>STRING</td><td>{driver_behavior, vehicle_cleanliness, route, payment, app_issue, other}.</td></tr>
+    <tr><td><code>rider_comment</code></td><td>TEXT</td><td>Free-text; fed to NLP for sentiment.</td></tr>
+    <tr><td><code>sentiment_score</code></td><td>DECIMAL(4,3)</td><td>−1.0 to +1.0; computed nightly via NLP model.</td></tr>
+    <tr><td><code>feedback_timestamp</code></td><td>TIMESTAMP_TZ</td><td>When submitted (often hours after dropoff).</td></tr>
   </tbody>
 </table>
 
@@ -441,101 +457,274 @@
 </table>
 <p><em>Two reconciliations:</em> SUM(<code>brg.individual_charge</code>) = $20 + $20 + $20 = $60 ✓ &nbsp;|&nbsp; SUM(<code>fct_trips.trip_fare_share</code>) = $30 + $30 = $60 ✓ &nbsp;|&nbsp; both equal <code>fct_journeys.total_group_fare</code>.</p>
 
-<h4 class="sub-head">Visual model — full ER diagram (Journey → Trip → Event)</h4>
-<svg viewBox="0 0 760 580" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:760px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:10px 0">
+<h4 class="sub-head">Enhanced graphical data model — Trip Lifecycle &amp; Analytical Metrics</h4>
+<svg viewBox="0 0 1440 820" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
   <defs>
-    <marker id="arr-uber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/>
+    <marker id="arrU" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
     </marker>
   </defs>
 
-  <!-- Top row: dimensions -->
-  <g>
-    <rect x="20" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="20" y="20" width="170" height="22" rx="4" fill="#475569"/>
-    <text x="105" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_users</text>
-    <text x="30" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK user_key</text>
-    <text x="30" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · user_role</text>
-    <text x="30" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">plan_tier · rating</text>
-    <text x="30" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
-  </g>
-  <g>
-    <rect x="295" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="295" y="20" width="170" height="22" rx="4" fill="#475569"/>
-    <text x="380" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_vehicles</text>
-    <text x="305" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK vehicle_key</text>
-    <text x="305" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">make · model · plate</text>
-    <text x="305" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">capacity · insurance</text>
-    <text x="305" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text>
-  </g>
-  <g>
-    <rect x="570" y="20" width="170" height="100" rx="4" fill="#f8fafc" stroke="#475569" stroke-width="1.2"/>
-    <rect x="570" y="20" width="170" height="22" rx="4" fill="#475569"/>
-    <text x="655" y="35" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">dim_geography</text>
-    <text x="580" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK h3_key</text>
-    <text x="580" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">h3_index · L8</text>
-    <text x="580" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">city · timezone</text>
-    <text x="580" y="113" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text>
+  <!-- Title -->
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">ENHANCED GRAPHICAL DATA MODEL · TRIP LIFECYCLE &amp; ANALYTICAL METRICS</text>
+
+  <!-- Column panels -->
+  <rect x="20"   y="60" width="310" height="740" fill="#f1f5f9" stroke="#cbd5e0" stroke-width="1" rx="10"/>
+  <rect x="350"  y="60" width="630" height="740" fill="#f1f5f9" stroke="#cbd5e0" stroke-width="1" rx="10"/>
+  <rect x="1000" y="60" width="420" height="740" fill="#f1f5f9" stroke="#cbd5e0" stroke-width="1" rx="10"/>
+
+  <!-- Column titles -->
+  <text x="175"  y="92" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665"  y="92" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+  <text x="1210" y="103" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="10" font-style="italic" fill="#64748b">(Calculated metrics &amp; Observations)</text>
+
+  <!-- H3 hex accent -->
+  <g transform="translate(940,72)" opacity="0.35">
+    <polygon points="0,8 10,2 20,8 20,18 10,24 0,18" fill="none" stroke="#94a3b8" stroke-width="1"/>
+    <polygon points="14,4 24,-2 34,4 34,14 24,20 14,14" fill="none" stroke="#94a3b8" stroke-width="1"/>
+    <text x="17" y="36" font-size="9" fill="#94a3b8" font-family="JetBrains Mono,monospace">H3</text>
   </g>
 
-  <!-- Tier 1: fct_journeys (parent, top center) -->
-  <g>
-    <rect x="200" y="160" width="360" height="100" rx="4" fill="#fef3c7" stroke="#92400e" stroke-width="1.8"/>
-    <rect x="200" y="160" width="360" height="26" rx="4" fill="#92400e"/>
-    <text x="380" y="178" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600">fct_journeys  · PARENT</text>
-    <text x="210" y="202" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK journey_key  ·  journey_id (UUID)</text>
-    <text x="210" y="218" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">split_type · total_group_fare_usd</text>
-    <text x="210" y="234" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">num_vehicles · num_riders · status</text>
-    <text x="210" y="250" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per group request</text>
+  <!-- ============== DIMENSIONS column ============== -->
+
+  <!-- dim_users -->
+  <g transform="translate(40,135)">
+    <rect width="270" height="120" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="270" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">◉ dim_users</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ user_key</text>
+    <text x="20" y="74" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ name</text>
+    <text x="20" y="93" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ role [rider/driver]</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">≣ attributes</text>
   </g>
 
-  <!-- Tier 2: fct_trips -->
-  <g>
-    <rect x="200" y="300" width="360" height="120" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
-    <rect x="200" y="300" width="360" height="24" rx="4" fill="#1e40af"/>
-    <text x="380" y="316" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trips · VEHICLE</text>
-    <text x="210" y="340" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">PK trip_key  ·  trip_id</text>
-    <text x="210" y="356" font-family="JetBrains Mono,monospace" font-size="10" fill="#64748b">FK journey_id · driver_id · vehicle_id</text>
-    <text x="210" y="372" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">trip_fare_share_usd · driver_payout_usd</text>
-    <text x="210" y="388" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">surge_multiplier · terminal_state</text>
-    <text x="210" y="412" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per driver/vehicle per journey</text>
+  <!-- dim_vehicles -->
+  <g transform="translate(40,275)">
+    <rect width="270" height="115" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="270" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">▰ dim_vehicles</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ vehicle_key</text>
+    <text x="20" y="74" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ make</text>
+    <text x="20" y="93" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ model</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ license_plate</text>
   </g>
 
-  <!-- Tier 3: events + bridge (bottom row) -->
-  <g>
-    <rect x="20" y="460" width="340" height="80" rx="4" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
-    <rect x="20" y="460" width="340" height="22" rx="4" fill="#1e40af"/>
-    <text x="190" y="476" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">fct_trip_events · TELEMETRY</text>
-    <text x="30" y="498" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK trip_id · state · event_ts · location_h3</text>
-    <text x="30" y="514" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">actor</text>
-    <text x="30" y="532" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 state change · powers Ops + Risk</text>
+  <!-- dim_geography -->
+  <g transform="translate(40,410)">
+    <rect width="270" height="155" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="270" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">⌬ dim_geography</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ h3_key</text>
+    <text x="20" y="74" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ spatial (H3 L8)</text>
+    <text x="20" y="93" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">▸ city · neighborhood</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">▸ timezone</text>
+    <!-- H3 hex motif -->
+    <g transform="translate(180,124)" opacity="0.4">
+      <polygon points="0,4 6,1 12,4 12,10 6,13 0,10" fill="none" stroke="#94a3b8"/>
+      <polygon points="9,2 15,-1 21,2 21,8 15,11 9,8" fill="none" stroke="#94a3b8"/>
+      <polygon points="18,4 24,1 30,4 30,10 24,13 18,10" fill="none" stroke="#94a3b8"/>
+      <polygon points="4,11 10,8 16,11 16,17 10,20 4,17" fill="none" stroke="#94a3b8"/>
+      <polygon points="13,11 19,8 25,11 25,17 19,20 13,17" fill="none" stroke="#94a3b8"/>
+    </g>
   </g>
-  <g>
-    <rect x="400" y="460" width="340" height="80" rx="4" fill="#fffbeb" stroke="#92400e" stroke-width="1.5"/>
-    <rect x="400" y="460" width="340" height="22" rx="4" fill="#92400e"/>
-    <text x="570" y="476" fill="#fff" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600">brg_journey_riders · BRIDGE</text>
-    <text x="410" y="498" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">FK journey_id · rider_id · trip_id (assigned car)</text>
-    <text x="410" y="514" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">individual_charge_usd · pickup_sequence</text>
-    <text x="410" y="532" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">grain: 1 row per (journey × rider) — Pool/convoy</text>
+
+  <!-- ============== FACT TABLES column ============== -->
+
+  <!-- fct_journeys (top center) -->
+  <g transform="translate(485,130)">
+    <rect width="320" height="90" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="320" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="320" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_journeys</text>
+    <text x="20" y="51" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ journey_key</text>
+    <text x="20" y="68" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">↗ split_type</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ total_group_fare · status</text>
   </g>
 
-  <!-- Lines: dims down to journeys (driver/rider via dim_users) and trips -->
-  <line x1="105" y1="120" x2="240" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <line x1="380" y1="120" x2="380" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <line x1="655" y1="120" x2="520" y2="160" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
+  <!-- fct_trips (left center, large) -->
+  <g transform="translate(385,260)">
+    <rect width="280" height="220" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="280" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="280" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_trips</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ trip_key (PK)</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ journey_key (FK)</text>
+    <text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ driver_id (FK)</text>
+    <text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ vehicle_id (FK)</text>
+    <text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⏱ request_timestamp</text>
+    <text x="20" y="145" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ terminal_state</text>
+    <text x="20" y="163" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ trip_fare_share</text>
+    <text x="20" y="181" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ driver_payout_amt</text>
+    <text x="20" y="199" font-family="JetBrains Mono,monospace" font-size="11" fill="#b91c1c">⚠ is_flagged_risk</text>
+  </g>
 
-  <!-- Journey 1:N trips -->
-  <line x1="380" y1="260" x2="380" y2="300" stroke="#92400e" stroke-width="1.5" marker-end="url(#arr-uber)"/>
-  <text x="390" y="285" font-family="JetBrains Mono,monospace" font-size="10" fill="#92400e">1 : N (convoy)</text>
+  <!-- fct_trip_feedback (right center) -->
+  <g transform="translate(700,275)">
+    <rect width="265" height="190" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="265" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="265" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fct_trip_feedback</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ feedback_key (PK)</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ trip_key (FK)</text>
+    <text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ rider_id (FK)</text>
+    <text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ rating_score (1–5)</text>
+    <text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ feedback_category</text>
+    <text x="20" y="145" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▣ rider_comment</text>
+    <text x="20" y="163" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⏱ feedback_timestamp</text>
+  </g>
 
-  <!-- Trip 1:N events -->
-  <line x1="280" y1="420" x2="200" y2="460" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <text x="160" y="450" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N states</text>
+  <!-- fct_trip_events (bottom-left) -->
+  <g transform="translate(385,520)">
+    <rect width="280" height="160" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="280" height="32" fill="#1f2937" rx="6"/>
+    <rect y="22" width="280" height="10" fill="#1f2937"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_trip_events</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ event_id (PK)</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ trip_id (FK)</text>
+    <text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ state [REQUESTED,</text>
+    <text x="32" y="107" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">  MATCHED, PICKUP, DROPOFF]</text>
+    <text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⏱ event_timestamp</text>
+    <text x="20" y="143" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌬ location_hex (H3)</text>
+  </g>
 
-  <!-- Journey 1:N bridge (skip-level FK) -->
-  <line x1="480" y1="420" x2="560" y2="460" stroke="#94a3b8" stroke-width="1.2" marker-end="url(#arr-uber)"/>
-  <text x="500" y="450" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">1 : N riders</text>
+  <!-- brg_journey_riders (bottom-right) -->
+  <g transform="translate(700,510)">
+    <rect width="265" height="180" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/>
+    <rect width="265" height="32" fill="#92400e" rx="6"/>
+    <rect y="22" width="265" height="10" fill="#92400e"/>
+    <text x="14" y="22" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ brg_journey_riders</text>
+    <text x="14" y="34" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#fff8e1">Bridge Table</text>
+    <text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ journey_key</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ rider_id (FK)</text>
+    <text x="20" y="94" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ trip_id (FK)</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ miles_traveled</text>
+    <text x="20" y="130" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ individual_charge</text>
+    <text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ calculated_cost</text>
+    <text x="20" y="170" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (journey × rider)</text>
+  </g>
+
+  <!-- ============== ANALYTICAL MODULES column ============== -->
+
+  <!-- OPERATIONAL LATENCIES -->
+  <g transform="translate(1015,130)">
+    <rect width="390" height="135" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <rect y="22" width="390" height="10" fill="#0f172a"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#fff" letter-spacing="0.6">OPERATIONAL LATENCIES</text>
+    <text x="195" y="32" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">(Time-in-State)</text>
+    <text x="20" y="58" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Matchup Latency:</text>
+    <text x="155" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">MATCHED.ts − REQUESTED.ts</text>
+    <text x="20" y="82" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Pickup Latency:</text>
+    <text x="155" y="82" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">ARRIVED.ts − MATCHED.ts</text>
+    <text x="20" y="106" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Dropoff Latency:</text>
+    <text x="155" y="106" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">DROPOFF.ts − STARTED.ts</text>
+    <text x="20" y="125" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_trip_events (gaps and islands)</text>
+  </g>
+
+  <!-- DRIVER EFFICIENCY -->
+  <g transform="translate(1015,290)">
+    <rect width="390" height="135" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <rect y="22" width="390" height="10" fill="#0f172a"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#fff" letter-spacing="0.6">DRIVER EFFICIENCY</text>
+    <text x="195" y="32" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">(Performance &amp; Utilization)</text>
+    <text x="20" y="58" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Utilization Rate:</text>
+    <text x="155" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">Passenger Mins / Online Mins</text>
+    <text x="20" y="82" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">✓ Acceptance Rate:</text>
+    <text x="155" y="82" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">MATCHED / REQUESTED</text>
+    <text x="20" y="106" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊗ Cancellation Rate:</text>
+    <text x="155" y="106" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">CANCELLED / MATCHED</text>
+    <text x="20" y="125" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_trips × fct_trip_events</text>
+  </g>
+
+  <!-- USER SATISFACTION -->
+  <g transform="translate(1015,450)">
+    <rect width="390" height="145" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <rect y="22" width="390" height="10" fill="#0f172a"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#fff" letter-spacing="0.6">USER SATISFACTION</text>
+    <text x="195" y="32" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">(CSAT &amp; Feedback)</text>
+    <text x="20" y="58" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">★ Trip Rating (1–5 Stars)</text>
+    <text x="20" y="80" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Rolling 28d CSAT</text>
+    <text x="20" y="102" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Rolling 7d CSAT</text>
+    <text x="20" y="124" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">☺ Sentiment Score</text>
+    <!-- mini stars -->
+    <g transform="translate(220,52)" fill="#f59e0b">
+      <text font-family="Helvetica,sans-serif" font-size="13">★ ★ ★ ★ ★</text>
+    </g>
+    <text x="20" y="138" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_trip_feedback</text>
+  </g>
+
+  <!-- GROWTH ACCOUNTING -->
+  <g transform="translate(1015,620)">
+    <rect width="390" height="155" fill="#ffffff" stroke="#cbd5e0" stroke-width="1" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <rect y="22" width="390" height="10" fill="#0f172a"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700" fill="#fff" letter-spacing="0.6">GROWTH ACCOUNTING</text>
+    <text x="195" y="32" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">(L1, L7, L28 STATUS)</text>
+    <text x="20" y="58" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊙ L1 Active (Past 24h)</text>
+    <text x="20" y="80" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊙ L7 Active (Past 7d)</text>
+    <text x="20" y="102" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊙ L28 Active (Past 28d)</text>
+    <text x="20" y="124" font-family="Helvetica,Arial,sans-serif" font-size="11" font-weight="600" fill="#1e293b">◉ Driver/Rider Lifecycle State</text>
+    <text x="20" y="144" font-family="Helvetica,Arial,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: brg_journey_riders × dim_users</text>
+  </g>
+
+  <!-- ============== Connections ============== -->
+
+  <!-- dim_users → fct_trips -->
+  <line x1="310" y1="195" x2="385" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="320" y="240" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="375" y="305" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- dim_vehicles → fct_trips -->
+  <line x1="310" y1="333" x2="385" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="320" y="335" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+  <text x="375" y="358" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+
+  <!-- dim_geography → fct_trip_events -->
+  <line x1="310" y1="487" x2="385" y2="600" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="320" y="540" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="375" y="595" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- fct_journeys → fct_trips (1:N convoy) -->
+  <line x1="585" y1="220" x2="525" y2="260" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="568" y="240" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="510" y="265" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- fct_trips → fct_trip_events -->
+  <line x1="525" y1="480" x2="525" y2="520" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="510" y="498" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="510" y="518" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- fct_trips → fct_trip_feedback -->
+  <line x1="665" y1="370" x2="700" y2="370" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="670" y="365" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="688" y="365" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- fct_trips → brg_journey_riders -->
+  <line x1="665" y1="450" x2="700" y2="560" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrU)"/>
+  <text x="668" y="475" font-family="JetBrains Mono,monospace" font-size="11" font-weight="700" fill="#0f172a">1</text>
+  <text x="690" y="555" font-family="JetBrains Mono,monospace" font-size="11" fill="#64748b">∞</text>
+
+  <!-- fct_trip_events → OPERATIONAL LATENCIES (analytical, dashed) -->
+  <line x1="665" y1="600" x2="1015" y2="195" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrU)"/>
+
+  <!-- fct_trips → DRIVER EFFICIENCY -->
+  <line x1="665" y1="370" x2="1015" y2="357" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrU)"/>
+
+  <!-- fct_trip_feedback → USER SATISFACTION -->
+  <line x1="965" y1="385" x2="1015" y2="520" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrU)"/>
+
+  <!-- brg_journey_riders → GROWTH ACCOUNTING -->
+  <line x1="965" y1="600" x2="1015" y2="695" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrU)"/>
 </svg>
+
+<p style="font-size:13px;color:#64748b;font-style:italic;margin-top:8px;">Solid arrows = referential FK relationships. Dashed arrows = analytical lineage (which fact tables feed which metric module).</p>
+
 
 <h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
 
@@ -578,6 +767,12 @@ INSERT INTO brg_journey_riders VALUES
   ('J-500', 1, 'T-101', 20.00, 1, 12.0),
   ('J-500', 2, 'T-101', 20.00, 2, 12.0),
   ('J-500', 3, 'T-102', 20.00, 1, 12.0);
+
+-- Feedback: post-dropoff ratings + sentiment from NLP
+INSERT INTO fct_trip_feedback VALUES
+  (9001,101,1,5,'driver_behavior',     'Great driver, smooth ride',  0.78,'2025-05-01 10:30:00'),
+  (9002,101,2,4,'route',               'Took a slight detour',       0.20,'2025-05-01 10:42:00'),
+  (9003,102,3,2,'vehicle_cleanliness', 'Car smelled bad',           -0.65,'2025-05-01 11:05:00');
 </code></pre>
 
 <h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Operations · live ETA &amp; lifecycle metrics</h4>
@@ -770,6 +965,72 @@ SELECT
 FROM fct_trips t
 LEFT JOIN first_pickup fp USING (trip_id)
 WHERE t.terminal_state = 'completed';
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">D. Product · CSAT, sentiment &amp; growth accounting</h4>
+
+<p><strong>Q11 — Trip rating distribution (1–5 stars) per driver, last 28 days</strong></p>
+<pre><code>SELECT
+  t.driver_id,
+  COUNT(f.feedback_key)                                            AS total_ratings,
+  ROUND(AVG(f.rating_score), 2)                                    AS avg_rating,
+  COUNT(*) FILTER (WHERE f.rating_score &lt;= 2)                      AS low_ratings,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE f.rating_score &lt;= 2)
+        / NULLIF(COUNT(*), 0), 1)                                  AS pct_low_ratings
+FROM fct_trips t
+JOIN fct_trip_feedback f ON f.trip_key = t.trip_key
+WHERE f.feedback_timestamp &gt;= CURRENT_DATE - INTERVAL '28 days'
+GROUP BY t.driver_id
+ORDER BY avg_rating ASC;
+-- Drivers with pct_low_ratings &gt; 5% are flagged for retraining or offboarding.
+</code></pre>
+
+<p><strong>Q12 — Rolling 7d &amp; 28d CSAT (% of ratings ≥ 4)</strong></p>
+<pre><code>WITH daily_ratings AS (
+  SELECT DATE(feedback_timestamp) AS d,
+         COUNT(*)                                  AS n_ratings,
+         COUNT(*) FILTER (WHERE rating_score &gt;= 4) AS n_satisfied
+  FROM fct_trip_feedback
+  GROUP BY 1
+)
+SELECT d,
+  ROUND(100.0 * SUM(n_satisfied) OVER (ORDER BY d ROWS  6 PRECEDING)
+              / NULLIF(SUM(n_ratings) OVER (ORDER BY d ROWS  6 PRECEDING), 0), 1) AS csat_7d,
+  ROUND(100.0 * SUM(n_satisfied) OVER (ORDER BY d ROWS 27 PRECEDING)
+              / NULLIF(SUM(n_ratings) OVER (ORDER BY d ROWS 27 PRECEDING), 0), 1) AS csat_28d
+FROM daily_ratings
+ORDER BY d;
+</code></pre>
+
+<p><strong>Q13 — Sentiment by feedback category (NLP signal × free-text)</strong></p>
+<pre><code>SELECT
+  feedback_category,
+  COUNT(*)                                AS n_comments,
+  ROUND(AVG(sentiment_score), 3)          AS avg_sentiment,
+  ROUND(AVG(rating_score), 2)             AS avg_stars,
+  COUNT(*) FILTER (WHERE sentiment_score &lt; -0.3) AS n_strongly_negative
+FROM fct_trip_feedback
+WHERE feedback_timestamp &gt;= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY feedback_category
+ORDER BY avg_sentiment ASC;
+-- Surfaces what's driving the dissatisfaction — vehicle, route, app, payment, driver.
+</code></pre>
+
+<p><strong>Q14 — Growth accounting: L1 / L7 / L28 active rider counts</strong></p>
+<pre><code>WITH user_activity AS (
+  SELECT b.rider_id,
+    MAX(j.request_timestamp) AS last_active_ts
+  FROM brg_journey_riders b
+  JOIN fct_journeys j USING (journey_id)
+  GROUP BY b.rider_id
+)
+SELECT
+  COUNT(*) FILTER (WHERE last_active_ts &gt;= CURRENT_TIMESTAMP - INTERVAL '1 day')   AS l1_active,
+  COUNT(*) FILTER (WHERE last_active_ts &gt;= CURRENT_TIMESTAMP - INTERVAL '7 days')  AS l7_active,
+  COUNT(*) FILTER (WHERE last_active_ts &gt;= CURRENT_TIMESTAMP - INTERVAL '28 days') AS l28_active,
+  COUNT(*)                                                                          AS total_riders
+FROM user_activity;
+-- Standard L1/L7/L28 active KPIs from Reforge growth-accounting framework.
 </code></pre>
 
 <p><strong>Worked numerical example — Convoy J-500 (EQUAL_SPLIT, $60 group fare)</strong></p>
