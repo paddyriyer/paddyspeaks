@@ -1521,45 +1521,472 @@ ORDER BY tier, trips DESC;
 
 <!-- Scenario 2: Uber surge -->
 <div class="scenario" id="sc-uber-surge">
-<div class="domain-tag">Uber · supply/demand</div>
+<div class="domain-tag">Uber · supply/demand · dynamic pricing</div>
 <h4 class="sub-head">Scenario 2 — Surge pricing &amp; supply/demand state</h4>
-<div class="prompt">Design a model that captures the supply/demand state per geography per minute, supporting the surge engine, post-hoc analysis, and capacity planning.</div>
+<div class="prompt">Design a model for Uber's surge engine that captures the supply/demand state per geography per minute, the surge decisions made, and the actual outcome of those decisions — supporting the live engine, post-hoc effectiveness analysis, capacity planning, and pricing-team experimentation.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Surge isn't one fact — it's a <strong>causal chain</strong>: state observed → model invoked → multiplier set → riders react → drivers reposition → state changes. Each link needs its own grain or you lose the ability to evaluate the engine. The model also has to <strong>replay history with the surge model that was active then</strong>, not today's — pricing teams A/B test new models monthly. And the geographic skew is brutal: midtown Manhattan on New Year's Eve has 100× the rows of suburban Queens.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p>Star Schema with a <strong>State → Decision → Outcome causal chain</strong>.</p>
+
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Geo unit: H3 hexes (level 8 = ~0.7km²)? Yes — Uber's standard."</li>
-  <li>"Time bucket — 1-min, 5-min? 1-min for live, 5-min for analytics."</li>
-  <li>"Snapshot or event-driven? Both — events feed a 1-min snapshot."</li>
+  <li><code>fct_geo_state_minute</code> — <strong>The "Observation" grain.</strong> One row per (H3 cell × minute). Captures open requests, available drivers, ratio, ETA, weather, event signals.</li>
+  <li><code>fct_surge_decision</code> — <strong>The "Decision" grain.</strong> One row per surge-multiplier change per cell. Captures which model version made the call and on what input features.</li>
+  <li><code>fct_surge_outcome</code> — <strong>The "Effectiveness" grain.</strong> One row per surge decision joined to its post-decision N-minute outcome (did supply rebalance? did the price stick?).</li>
+  <li><code>brg_zone_cells</code> — <strong>Hierarchy bridge.</strong> Many H3 cells roll up to a surge zone (operational region used by the pricing team).</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
-<blockquote><code>fact_geo_state_minute</code>: one row per (h3_cell × minute). <code>fact_surge_event</code>: one row per surge multiplier change.</blockquote>
-
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>CREATE TABLE fact_geo_state_minute (
-  h3_sk                 BIGINT,
-  minute_bucket_ts      TIMESTAMP_TZ,
-  open_requests         INT,            -- riders waiting
-  available_drivers     INT,            -- on-app, not on a trip
-  driver_to_request_ratio DECIMAL(8,3),
-  surge_multiplier      DECIMAL(4,2),   -- live computed
-  predicted_eta_sec     INT,
-  weather_signal        STRING NULL,
-  event_signal          STRING NULL,    -- nearby concert, sports event
-  ingest_ts             TIMESTAMP_TZ
-)
-PARTITION BY DATE(minute_bucket_ts)
-CLUSTER BY (h3_sk);</code></pre>
-
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><strong>Empty cells:</strong> not every cell × minute has activity. Don't densify in raw — let consumer queries spine.</li>
-  <li><strong>Skew:</strong> downtown SF on Saturday night = 100× the rows of suburb. Sub-partition popular cells if needed.</li>
-  <li><strong>Cold start:</strong> new cells (just-launched cities) — bootstrap with neighbor-cell averages.</li>
+  <li><code>dim_h3_cell</code> — H3 L8 hexagons. SCD1 (geometry is static).</li>
+  <li><code>dim_surge_zone</code> — Operational regions (e.g. "SF Downtown", "JFK Airport"). SCD2 — boundaries get re-drawn.</li>
+  <li><code>dim_surge_model</code> — Versioned ML/heuristic models. <strong>SCD2 — drives the replay capability.</strong></li>
+  <li><code>dim_weather</code> — Weather state per cell per hour (rain, snow, temperature). SCD1 snapshot.</li>
+  <li><code>dim_event</code> — Concerts, sports games, conferences. SCD1 (each event is a row, not a state).</li>
+</ul>
+
+<h4 class="sub-head">Section 2 — The Logical Data Model</h4>
+
+<p><strong>Observation Fact: <code>fct_geo_state_minute</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>h3_key</code></td><td>FK</td><td>H3 cell observed.</td></tr>
+    <tr><td><code>minute_bucket_ts</code></td><td>TIMESTAMP_TZ</td><td>Truncated to the minute.</td></tr>
+    <tr><td><code>open_requests</code></td><td>INT</td><td>Riders waiting in this cell.</td></tr>
+    <tr><td><code>available_drivers</code></td><td>INT</td><td>On-app, not currently on a trip.</td></tr>
+    <tr><td><code>driver_to_request_ratio</code></td><td>DECIMAL(8,3)</td><td>Computed for convenience.</td></tr>
+    <tr><td><code>predicted_eta_sec</code></td><td>INT</td><td>From the ETA service at this moment.</td></tr>
+    <tr><td><code>weather_key</code></td><td>FK</td><td>Weather conditions in this cell.</td></tr>
+    <tr><td><code>event_keys</code></td><td>ARRAY&lt;FK&gt;</td><td>Active events influencing this cell.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Decision Fact: <code>fct_surge_decision</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>decision_key</code></td><td>PK</td><td>Surrogate.</td></tr>
+    <tr><td><code>h3_key</code></td><td>FK</td><td>Cell the decision applies to.</td></tr>
+    <tr><td><code>decision_ts</code></td><td>TIMESTAMP_TZ</td><td>When the new multiplier became active.</td></tr>
+    <tr><td><code>previous_multiplier</code></td><td>DECIMAL(4,2)</td><td>Just before this decision.</td></tr>
+    <tr><td><code>new_multiplier</code></td><td>DECIMAL(4,2)</td><td>The applied surge factor (1.0 = no surge).</td></tr>
+    <tr><td><code>model_key</code></td><td>FK</td><td>Which <code>dim_surge_model</code> version made the call.</td></tr>
+    <tr><td><code>input_features_json</code></td><td>JSON</td><td>Frozen features the model saw — required for replay.</td></tr>
+    <tr><td><code>decision_reason_code</code></td><td>STRING</td><td>{LOW_SUPPLY, HIGH_DEMAND, EVENT_PROXIMITY, WEATHER_SHOCK, MANUAL_OVERRIDE}.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Outcome Fact: <code>fct_surge_outcome</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>decision_key</code></td><td>FK</td><td>The surge decision.</td></tr>
+    <tr><td><code>n_minutes_after</code></td><td>SMALLINT</td><td>5, 10, 15-min windows post-decision.</td></tr>
+    <tr><td><code>delta_drivers</code></td><td>INT</td><td>Net change in available drivers.</td></tr>
+    <tr><td><code>delta_requests</code></td><td>INT</td><td>Net change in open requests.</td></tr>
+    <tr><td><code>completed_trips</code></td><td>INT</td><td>Trips actually completed in this window.</td></tr>
+    <tr><td><code>abandoned_requests</code></td><td>INT</td><td>Riders who saw the surge and didn't book.</td></tr>
+    <tr><td><code>realized_revenue_usd</code></td><td>DECIMAL</td><td>Revenue earned from trips in this window.</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+
+<p><strong>The Surge Engine · live</strong></p>
+<ul>
+  <li>Reads <code>fct_geo_state_minute</code> for the latest minute, joins <code>dim_surge_model</code> to get the active model, computes a multiplier, writes <code>fct_surge_decision</code>.</li>
+  <li>Round-trip target: under 500 ms per cell. Reads come from a Redis snapshot of the latest minute; writes append to Kafka, then to the warehouse.</li>
+</ul>
+
+<p><strong>Pricing Team · effectiveness analysis</strong></p>
+<ul>
+  <li><strong>Did the surge work?</strong> A surge "worked" if (delta_drivers &gt; 0 within 10 min) AND (abandoned_requests stayed flat). Both signals come from <code>fct_surge_outcome</code>.</li>
+  <li><strong>Pricing elasticity:</strong> for each multiplier band, what % of riders abandoned? Plot abandonment vs multiplier — the inflection point is the pain threshold.</li>
+  <li><strong>Model A/B:</strong> two model versions live in <code>dim_surge_model</code>; route a % of cells to each. Compare <code>realized_revenue_usd</code> + <code>abandoned_requests</code> per model.</li>
+</ul>
+
+<p><strong>Capacity Planning · forecasting</strong></p>
+<ul>
+  <li>Train demand forecast on historical <code>fct_geo_state_minute</code>. MAPE measured against later observed minutes.</li>
+  <li>Identify chronic supply gaps — cells where <code>driver_to_request_ratio</code> is below 0.5 for &gt;30% of peak hours. These get long-term incentive programs.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why versioning the surge model matters (and why <code>input_features_json</code> is mandatory)</h4>
+<p>Without a versioned <code>dim_surge_model</code> + frozen input features, you cannot replay history. Three failure modes show up the moment the pricing team A/B tests:</p>
+<ul>
+  <li><strong>Failure 1: model drift hides a regression.</strong> If today's model retroactively scores yesterday's input, a buggy current-model version "explains" yesterday's outcome cleanly — even when the actual yesterday's model produced a wildly different result.</li>
+  <li><strong>Failure 2: feature drift.</strong> A weather data source upgrades from "rain_mm" to "precip_intensity" mid-week. Without frozen <code>input_features_json</code>, you can't tell whether yesterday's surge was driven by rain or by something else.</li>
+  <li><strong>Failure 3: dispute resolution.</strong> A regulator asks "why was this rider charged 3.2× on this date?" — only frozen features + the SCD2 model row gives you a defensible answer.</li>
+</ul>
+<p><strong>The contract:</strong> every <code>fct_surge_decision</code> row carries a deterministic, replay-safe snapshot of the inputs. Same inputs + same <code>model_key</code> → identical multiplier, every time, forever.</p>
+
+<h4 class="sub-head">Section 5 — Conceptual data flow (the State → Decision → Outcome chain)</h4>
+
+<svg viewBox="0 0 1000 240" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1000px;height:auto;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin:14px 0;display:block">
+  <defs>
+    <marker id="arrSurge" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e40af"/>
+    </marker>
+  </defs>
+  <g>
+    <rect x="20" y="40" width="220" height="100" rx="6" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5"/>
+    <text x="130" y="68" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#1e40af">1 · OBSERVATION</text>
+    <text x="130" y="88" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">fct_geo_state_minute</text>
+    <text x="130" y="108" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" fill="#64748b">supply, demand, weather</text>
+    <text x="130" y="124" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">grain: 1 row per (cell × minute)</text>
+  </g>
+  <g>
+    <rect x="380" y="40" width="240" height="100" rx="6" fill="#fef3c7" stroke="#92400e" stroke-width="1.5"/>
+    <text x="500" y="68" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#92400e">2 · DECISION</text>
+    <text x="500" y="88" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">fct_surge_decision</text>
+    <text x="500" y="108" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" fill="#64748b">model_key + features_json</text>
+    <text x="500" y="124" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">grain: 1 row per multiplier change</text>
+  </g>
+  <g>
+    <rect x="760" y="40" width="220" height="100" rx="6" fill="#f0fdf4" stroke="#166534" stroke-width="1.5"/>
+    <text x="870" y="68" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#166534">3 · OUTCOME</text>
+    <text x="870" y="88" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">fct_surge_outcome</text>
+    <text x="870" y="108" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" fill="#64748b">+5/+10/+15 min deltas</text>
+    <text x="870" y="124" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">grain: 1 row per (decision × window)</text>
+  </g>
+  <line x1="240" y1="90" x2="380" y2="90" stroke="#1e40af" stroke-width="2" marker-end="url(#arrSurge)"/>
+  <line x1="620" y1="90" x2="760" y2="90" stroke="#1e40af" stroke-width="2" marker-end="url(#arrSurge)"/>
+  <text x="310" y="80" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" fill="#475569">trigger surge</text>
+  <text x="690" y="80" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" fill="#475569">measure</text>
+  <rect x="20" y="170" width="960" height="50" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1" stroke-dasharray="4,3"/>
+  <text x="500" y="190" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">REPLAY INVARIANT · same input_features_json + same model_key → identical new_multiplier (forever)</text>
+  <text x="500" y="208" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#64748b">guarantees auditability + dispute resolution + valid A/B comparisons</text>
+</svg>
+
+<h4 class="sub-head">Enhanced graphical data model — Surge Pricing &amp; Effectiveness</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs>
+    <marker id="arrS2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">SURGE PRICING DATA MODEL · STATE → DECISION → OUTCOME</text>
+
+  <rect x="20"   y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350"  y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+
+  <text x="175"  y="92" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665"  y="92" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+  <text x="1210" y="103" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="10" font-style="italic" fill="#64748b">(Calculated metrics &amp; Observations)</text>
+
+  <!-- DIMENSIONS -->
+  <g transform="translate(40,130)">
+    <rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⌬ dim_h3_cell</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ h3_key · h3_index L8</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">city · neighborhood · timezone</text>
+    <text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text>
+  </g>
+  <g transform="translate(40,250)">
+    <rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ dim_surge_zone</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ zone_key · name</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">boundaries (SCD2)</text>
+  </g>
+  <g transform="translate(40,360)">
+    <rect width="270" height="120" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/>
+    <rect width="270" height="32" fill="#0369a1" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚙ dim_surge_model ★</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ model_key · semver</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model_card_url</text>
+    <text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">trained_on_ts · live_from_ts</text>
+    <text x="20" y="111" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · enables replay</text>
+  </g>
+  <g transform="translate(40,500)">
+    <rect width="130" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="130" height="28" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#fff">☁ dim_weather</text>
+    <text x="14" y="48" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">cell × hour</text>
+    <text x="14" y="62" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">precip · temp</text>
+  </g>
+  <g transform="translate(180,500)">
+    <rect width="130" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="130" height="28" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#fff">♪ dim_event</text>
+    <text x="14" y="48" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">concerts · sports</text>
+    <text x="14" y="62" font-family="JetBrains Mono,monospace" font-size="9" fill="#475569">expected_attend</text>
+  </g>
+  <g transform="translate(40,610)">
+    <rect width="270" height="80" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/>
+    <rect width="270" height="32" fill="#92400e" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ brg_zone_cells</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ zone_key · h3_key</text>
+    <text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">N cells per zone</text>
+  </g>
+
+  <!-- FACTS -->
+  <g transform="translate(385,130)">
+    <rect width="280" height="200" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="280" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◷ fct_geo_state_minute</text>
+    <text x="14" y="34" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#cbd5e0">OBSERVATION</text>
+    <text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ h3_key (FK)</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⏱ minute_bucket_ts</text>
+    <text x="20" y="94" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ open_requests</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ available_drivers</text>
+    <text x="20" y="130" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ driver_to_request_ratio</text>
+    <text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ predicted_eta_sec</text>
+    <text x="20" y="166" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ weather_key · event_keys[]</text>
+    <text x="20" y="186" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per (cell × minute)</text>
+  </g>
+  <g transform="translate(700,130)">
+    <rect width="265" height="220" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/>
+    <rect width="265" height="32" fill="#92400e" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚡ fct_surge_decision ★</text>
+    <text x="14" y="34" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#fef3c7">DECISION</text>
+    <text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ decision_key (PK)</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ h3_key · model_key (FK)</text>
+    <text x="20" y="94" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⏱ decision_ts</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ previous_multiplier</text>
+    <text x="20" y="130" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ new_multiplier</text>
+    <text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">▣ input_features_json (frozen)</text>
+    <text x="20" y="166" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ decision_reason_code</text>
+    <text x="20" y="206" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per multiplier change</text>
+  </g>
+  <g transform="translate(385,360)">
+    <rect width="580" height="170" fill="#f0fdf4" stroke="#166534" stroke-width="1.5" rx="6"/>
+    <rect width="580" height="32" fill="#166534" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">✓ fct_surge_outcome</text>
+    <text x="14" y="34" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#dcfce7">EFFECTIVENESS</text>
+    <text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ decision_key (FK)</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ n_minutes_after [5, 10, 15]</text>
+    <text x="20" y="94" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ delta_drivers · delta_requests</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">▸ completed_trips · abandoned_requests</text>
+    <text x="20" y="130" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ realized_revenue_usd</text>
+    <text x="20" y="155" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">grain: 1 row per (decision × time-window) — derived nightly from fct_trips</text>
+  </g>
+  <g transform="translate(385,560)">
+    <rect width="580" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="580" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">→ fct_trips (joined for outcome)</text>
+    <text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">surge_multiplier_at_request comes from this scenario's fct_surge_decision</text>
+    <text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">via point-in-time SCD2 join on (h3_key, decision_ts ≤ request_ts &lt; next_decision_ts)</text>
+    <text x="20" y="105" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">cross-scenario join: ties Scenario 1 and Scenario 2 together</text>
+  </g>
+
+  <!-- ANALYTICAL MODULES -->
+  <g transform="translate(1015,130)">
+    <rect width="390" height="140" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">DEMAND/SUPPLY HEALTH</text>
+    <text x="20" y="56" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Driver:Request Ratio (live)</text>
+    <text x="20" y="78" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Predicted ETA Distribution</text>
+    <text x="20" y="100" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Chronic Supply Gap (% of peak hrs &lt;0.5)</text>
+    <text x="20" y="122" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_geo_state_minute</text>
+  </g>
+  <g transform="translate(1015,290)">
+    <rect width="390" height="140" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">SURGE EFFECTIVENESS</text>
+    <text x="20" y="56" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ % Surges that pulled supply (≤10 min)</text>
+    <text x="20" y="78" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Abandonment-Rate Curve by multiplier</text>
+    <text x="20" y="100" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Realized Revenue per Surge</text>
+    <text x="20" y="122" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_surge_decision × fct_surge_outcome</text>
+  </g>
+  <g transform="translate(1015,450)">
+    <rect width="390" height="140" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FORECAST ACCURACY</text>
+    <text x="20" y="56" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Demand Forecast MAPE</text>
+    <text x="20" y="78" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Supply Forecast MAPE</text>
+    <text x="20" y="100" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Forecast Bias by hour-of-day</text>
+    <text x="20" y="122" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_geo_state_minute (predicted vs actual)</text>
+  </g>
+  <g transform="translate(1015,610)">
+    <rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="32" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PRICING ELASTICITY (A/B)</text>
+    <text x="20" y="56" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Demand elasticity per multiplier band</text>
+    <text x="20" y="78" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚖ Model A vs Model B revenue lift</text>
+    <text x="20" y="100" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: dim_surge_model × fct_surge_outcome</text>
+  </g>
+
+  <!-- Lines -->
+  <line x1="310" y1="180" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+  <line x1="310" y1="420" x2="700" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+  <line x1="310" y1="540" x2="385" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+  <line x1="665" y1="240" x2="700" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+  <line x1="525" y1="330" x2="525" y2="360" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+  <line x1="830" y1="350" x2="675" y2="380" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrS2)"/>
+
+  <!-- Analytical lineage (dashed) -->
+  <line x1="665" y1="220" x2="1015" y2="200" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrS2)"/>
+  <line x1="965" y1="420" x2="1015" y2="360" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrS2)"/>
+  <line x1="665" y1="220" x2="1015" y2="520" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrS2)"/>
+  <line x1="310" y1="420" x2="1015" y2="680" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3,3" marker-end="url(#arrS2)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data</strong> (a single H3 cell, 5 minutes of supply/demand state and 1 surge decision)</p>
+<pre><code>INSERT INTO fct_geo_state_minute VALUES
+  ('h3_sf_market', '2025-05-01 19:00:00',  8, 12, 1.50, 240, 'clear', NULL),
+  ('h3_sf_market', '2025-05-01 19:01:00', 14,  7, 0.50, 360, 'clear', ARRAY['concert_chase_center']),
+  ('h3_sf_market', '2025-05-01 19:02:00', 22,  5, 0.23, 540, 'clear', ARRAY['concert_chase_center']),
+  ('h3_sf_market', '2025-05-01 19:03:00', 19,  9, 0.47, 410, 'clear', ARRAY['concert_chase_center']),
+  ('h3_sf_market', '2025-05-01 19:04:00', 16, 14, 0.88, 280, 'clear', ARRAY['concert_chase_center']);
+
+-- Pricing engine fires a surge decision at 19:02 when ratio crashes:
+INSERT INTO fct_surge_decision VALUES
+  (5001, 'h3_sf_market', 'model_v3.2', '2025-05-01 19:02:00',
+   1.0, 2.5,
+   '{"ratio":0.23,"eta_sec":540,"event":"concert_chase_center","prev_minute_ratio":0.50}',
+   'LOW_SUPPLY');
+
+-- Outcome computed nightly (10-min window post-decision)
+INSERT INTO fct_surge_outcome VALUES
+  (5001, 10, +9, -3, 14, 5, 1240.00);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Pricing engine · live decisions</h4>
+
+<p><strong>Q1 — Cells currently below ratio 0.5 (live surge candidates)</strong></p>
+<pre><code>WITH latest_state AS (
+  SELECT h3_key, MAX(minute_bucket_ts) AS latest_ts
+  FROM fct_geo_state_minute
+  WHERE minute_bucket_ts &gt;= NOW() - INTERVAL '2 minutes'
+  GROUP BY h3_key
+)
+SELECT s.h3_key,
+       s.driver_to_request_ratio,
+       s.open_requests, s.available_drivers,
+       s.predicted_eta_sec,
+       w.precip_intensity, e.event_name
+FROM fct_geo_state_minute s
+JOIN latest_state l USING (h3_key)
+LEFT JOIN dim_weather w ON s.weather_key = w.weather_key
+LEFT JOIN dim_event   e ON e.event_key = ANY(s.event_keys)
+WHERE s.minute_bucket_ts = l.latest_ts
+  AND s.driver_to_request_ratio &lt; 0.5
+ORDER BY s.driver_to_request_ratio ASC;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Pricing team · effectiveness analysis</h4>
+
+<p><strong>Q2 — Surge effectiveness: % of decisions that pulled supply within 10 min</strong></p>
+<pre><code>SELECT
+  d.model_key,
+  COUNT(*)                                                 AS n_decisions,
+  COUNT(*) FILTER (WHERE o.delta_drivers &gt; 0)              AS pulled_supply,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE o.delta_drivers &gt; 0)
+        / COUNT(*), 1)                                     AS effectiveness_pct,
+  ROUND(AVG(o.delta_drivers), 1)                           AS avg_delta_drivers,
+  ROUND(AVG(o.abandoned_requests), 1)                      AS avg_abandoned
+FROM fct_surge_decision d
+JOIN fct_surge_outcome  o USING (decision_key)
+WHERE o.n_minutes_after = 10
+  AND d.decision_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY d.model_key
+ORDER BY effectiveness_pct DESC;
+</code></pre>
+
+<p><strong>Q3 — Pricing elasticity: abandonment by multiplier band</strong></p>
+<pre><code>SELECT
+  CASE
+    WHEN d.new_multiplier &lt;  1.5 THEN '1.0-1.5x'
+    WHEN d.new_multiplier &lt;  2.0 THEN '1.5-2.0x'
+    WHEN d.new_multiplier &lt;  3.0 THEN '2.0-3.0x'
+    ELSE                              '3.0x+'
+  END                                              AS multiplier_band,
+  COUNT(*)                                         AS n_decisions,
+  ROUND(AVG(o.abandoned_requests), 1)              AS avg_abandoned,
+  ROUND(AVG(o.completed_trips), 1)                 AS avg_completed,
+  ROUND(100.0 * AVG(o.abandoned_requests)
+        / NULLIF(AVG(o.abandoned_requests + o.completed_trips), 0), 1) AS abandonment_pct,
+  ROUND(AVG(o.realized_revenue_usd), 2)            AS avg_revenue_usd
+FROM fct_surge_decision d
+JOIN fct_surge_outcome  o USING (decision_key)
+WHERE o.n_minutes_after = 10
+GROUP BY multiplier_band
+ORDER BY multiplier_band;
+-- The inflection point in abandonment_pct is the rider pain threshold.
+</code></pre>
+
+<p><strong>Q4 — Model A/B comparison: revenue per cell-minute under v3.1 vs v3.2</strong></p>
+<pre><code>SELECT
+  d.model_key,
+  COUNT(*)                                          AS n_decisions,
+  ROUND(SUM(o.realized_revenue_usd), 2)             AS total_revenue,
+  ROUND(SUM(o.realized_revenue_usd) / COUNT(*), 2)  AS rev_per_decision,
+  ROUND(AVG(o.completed_trips), 2)                  AS avg_completed,
+  ROUND(AVG(o.abandoned_requests), 2)               AS avg_abandoned
+FROM fct_surge_decision d
+JOIN fct_surge_outcome  o USING (decision_key)
+WHERE d.decision_ts &gt;= CURRENT_DATE - INTERVAL '14 days'
+  AND d.model_key IN ('model_v3.1', 'model_v3.2')
+  AND o.n_minutes_after = 10
+GROUP BY d.model_key;
+-- Statistical significance test runs in the model card; this is the headline.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Capacity planning · forecast accuracy &amp; chronic gaps</h4>
+
+<p><strong>Q5 — Demand forecast MAPE per cell (predicted vs actual)</strong></p>
+<pre><code>SELECT
+  h3_key,
+  COUNT(*)                                                                            AS n_minutes,
+  ROUND(AVG(ABS(predicted_demand - open_requests)
+            / NULLIF(open_requests, 0)) * 100, 2)                                     AS mape_pct,
+  ROUND(AVG(predicted_demand - open_requests), 2)                                     AS avg_bias,
+  COUNT(*) FILTER (WHERE predicted_demand &lt; open_requests)                            AS underforecast_min
+FROM fct_geo_state_minute
+WHERE minute_bucket_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+  AND open_requests &gt; 0
+GROUP BY h3_key
+HAVING AVG(ABS(predicted_demand - open_requests) / NULLIF(open_requests, 0)) &gt; 0.20
+ORDER BY mape_pct DESC;
+-- Cells with MAPE > 20% need feature engineering attention.
+</code></pre>
+
+<p><strong>Q6 — Chronic supply gaps (cells under-supplied during peak hours regularly)</strong></p>
+<pre><code>SELECT
+  h3_key,
+  COUNT(*)                                                            AS peak_minutes,
+  COUNT(*) FILTER (WHERE driver_to_request_ratio &lt; 0.5)                AS under_supplied_min,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE driver_to_request_ratio &lt; 0.5)
+        / COUNT(*), 1)                                                 AS pct_under_supplied
+FROM fct_geo_state_minute
+WHERE minute_bucket_ts &gt;= CURRENT_DATE - INTERVAL '30 days'
+  AND EXTRACT(HOUR FROM minute_bucket_ts) BETWEEN 17 AND 21
+GROUP BY h3_key
+HAVING COUNT(*) FILTER (WHERE driver_to_request_ratio &lt; 0.5) * 1.0 / COUNT(*) &gt; 0.30
+ORDER BY pct_under_supplied DESC;
+-- These cells get long-term driver incentive programs (per-trip bonus, guarantees).
+</code></pre>
+
+<h4 class="sub-head">Worked example — surge math at 19:02 in h3_sf_market</h4>
+<ol>
+  <li>At 19:01, ratio drops from 1.50 → 0.50 (concert lets out). 7 drivers available, 14 open requests. ETA jumps from 240s → 360s.</li>
+  <li>At 19:02, ratio crashes to <strong>0.23</strong> (5 drivers, 22 requests). The model fires a surge decision: <code>new_multiplier = 2.5</code>.</li>
+  <li>Frozen <code>input_features_json</code>: <code>{ratio:0.23, eta_sec:540, event:"concert_chase_center", prev_minute_ratio:0.50}</code>. Same inputs to <code>model_v3.2</code> will always yield 2.5 — replay is deterministic.</li>
+  <li>10 min later (19:12): drivers from neighboring cells reposition (delta_drivers = +9), some riders abandon (5 abandoned out of 19), but 14 trips complete. Realized revenue: <strong>$1,240</strong>.</li>
+  <li><strong>Effectiveness verdict:</strong> the surge worked — supply pulled in (delta_drivers &gt; 0), revenue captured, but at the cost of 5 abandoned trips. The pricing team weighs $1,240 captured vs ~$200 estimated lost-to-abandonment.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Causal chain preserved.</strong> State → Decision → Outcome are three separate facts. Each can be queried in isolation, but they join cleanly via <code>decision_key</code>. Effectiveness analysis is one JOIN, not a self-join puzzle.</li>
+  <li><strong>Replay-safe by construction.</strong> Frozen <code>input_features_json</code> + SCD2 <code>dim_surge_model</code> means any historical surge can be recomputed exactly. Audits, disputes, and A/B baselines all work.</li>
+  <li><strong>Skew managed.</strong> H3 L8 cells partition the geography evenly; downtown skew is contained per-cell. Sub-partition by <code>HASH(h3_key) MOD 8</code> for the hottest few cells if needed.</li>
+  <li><strong>Cold-start covered.</strong> When a new city launches, <code>brg_zone_cells</code> can map untrained cells to their parent zone's averages until enough data accrues.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The surge model itself is a product of <code>fact_geo_state_minute</code> joined to a learned function of (ratio, weather, event_signal). Versioning the model in <code>dim_surge_model</code> SCD2 lets us replay any historical surge with the model that was active then."
+<strong>Senior framing.</strong> "The surge model isn't a column — it's a fact table joined to a versioned dimension. <code>fct_surge_decision</code> + frozen <code>input_features_json</code> + SCD2 <code>dim_surge_model</code> is the contract that lets the pricing team A/B-test new models confidently and lets regulators get a defensible answer to 'why was this rider charged 3.2× on this date?' — every time, forever."
 </div>
 </div>
 
