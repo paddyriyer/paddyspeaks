@@ -2219,96 +2219,239 @@ ORDER BY prep_p95_min DESC;
 
 <!-- Scenario 4: Google ads -->
 <div class="scenario" id="sc-google-ads">
-<div class="domain-tag">Google · search ads</div>
-<h4 class="sub-head">Scenario 4 — Search ads auction &amp; quality score</h4>
-<div class="prompt">Design a model for Google's search ads — capturing the impression (an auction clearing), click, and conversion, supporting advertiser billing, quality-score recomputation, and incrementality measurement.</div>
+<div class="domain-tag">Google · search ads · auction</div>
+<h4 class="sub-head">Scenario 4 — Search ads auction → impression → click → conversion</h4>
+<div class="prompt">Design a model for Google search ads that captures the entire chain from auction clearing → impression → click → conversion, supporting advertiser billing, quality-score recomputation, ranker training, incrementality measurement, and re-runnable attribution windows.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>This is a <strong>causal chain across 4 facts</strong> with extreme asymmetry: 2 billion ad requests/day → 200 billion targeting lookups → ~100 candidate ads per request → 1 winner. Loser logs are 20× winner volume. Auctions clear in &lt;100ms but conversions land days later. The model must keep the join key (<code>auction_decision_id</code>) deterministic across all stages, support <strong>re-attribution</strong> when models change, and protect privacy under ATT/Sandbox.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+
+<p><strong>Fact Tables (the auction chain)</strong></p>
 <ul>
-  <li>"Three facts: impression, click, conversion. Linked by <code>auction_decision_id</code>."</li>
-  <li>"Loser logs — kept? Yes, separate fact, sampled — required for ranker training."</li>
-  <li>"Conversion attribution window — 30 days last-touch by default; configurable per advertiser."</li>
-  <li>"Multi-currency — bid currency, billing currency, FX locked at impression time."</li>
+  <li><code>fct_auctions</code> — <strong>The "Decision" grain.</strong> One row per auction clearing. Carries <code>auction_decision_id</code>.</li>
+  <li><code>fct_impressions</code> — <strong>The "Served" grain.</strong> One row per impression (auction winner served on the page).</li>
+  <li><code>fct_clicks</code> — <strong>The "Click" grain.</strong> One row per click on an impression. Mutable: invalid-click invalidation comes later.</li>
+  <li><code>fct_conversions</code> — <strong>The "Conversion" grain.</strong> One row per advertiser-reported conversion event.</li>
+  <li><code>fct_attributions</code> — <strong>The "Attribution" grain.</strong> One row per (conversion × eligible-touchpoint × model × run). <em>Append-only per <code>attribution_run_id</code>.</em></li>
+  <li><code>fct_auction_losers</code> — <strong>The "Counterfactual" grain.</strong> Sampled losing candidates (1%) for ranker training.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_ad_impression</code>: one row per impression (auction won + ad served).</li>
-  <li><code>fact_ad_click</code>: one row per click on an impression.</li>
-  <li><code>fact_ad_conversion</code>: one row per advertiser-reported conversion, attributed.</li>
-  <li><code>fact_auction_loser</code>: one row per losing candidate (sampled).</li>
+  <li><code>dim_advertisers, dim_campaigns, dim_ad_groups, dim_creatives</code> — all SCD2 (budget, targeting, creative drift).</li>
+  <li><code>dim_keywords</code> — SCD1, high cardinality.</li>
+  <li><code>dim_users</code> · privacy-tokenized (Customer Match, FLoC/Topics, ATT bucket).</li>
+  <li><code>dim_attribution_models</code> — SCD2 — versioned (last_click, position_based, data_driven_v3, etc.).</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_advertiser     (SCD2)
-dim_campaign       (SCD2)
-dim_ad_group       (SCD2)
-dim_creative       (SCD2)
-dim_keyword        (SCD1, high cardinality)
-dim_user_segment   (SCD2)
-dim_device         (SCD1)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns only)</h4>
+<p><strong><code>fct_auctions</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>auction_decision_id</code></td><td>PK STRING</td><td>The join key for the entire chain.</td></tr>
+    <tr><td><code>query_text_hash</code></td><td>STRING</td><td>Hash of search query — never raw.</td></tr>
+    <tr><td><code>keyword_id, user_token, device_id</code></td><td>FK</td><td>Targeting context.</td></tr>
+    <tr><td><code>auction_ts</code></td><td>TIMESTAMP_TZ</td><td>Within ~100 ms of request.</td></tr>
+    <tr><td><code>winning_ad_id, clearing_price_local, fx_rate_to_usd, clearing_price_usd</code></td><td>—</td><td>Second-price clearance.</td></tr>
+    <tr><td><code>privacy_path</code></td><td>STRING</td><td>{standard, ATT_optout, sandbox, FLoC}.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_ad_impression (
-  impression_sk         BIGINT,
-  auction_decision_id   STRING,         -- joins to losers
-  user_id_token         STRING,         -- privacy-tokenized
-  device_sk             BIGINT,
-  query_text_hash       STRING,         -- not raw
-  keyword_sk            BIGINT,
-  campaign_sk           BIGINT,
-  creative_sk           BIGINT,
-  served_ts             TIMESTAMP_TZ,
-  bid_amount_local      DECIMAL(10,4),
-  predicted_action_rate DECIMAL(8,6),
-  quality_score         DECIMAL(4,2),
-  ad_rank               DECIMAL(10,6),
-  clearing_price_local  DECIMAL(10,4),  -- second-price
-  fx_rate_to_usd        DECIMAL(18,8),
-  clearing_price_usd    DECIMAL(10,4),
-  privacy_path          STRING,         -- standard / atta / sandbox
-  is_invalid            BOOLEAN,        -- bot/fraud post-flag
-  ingest_ts             TIMESTAMP_TZ
+<p><strong><code>fct_impressions</code></strong> — joined to auctions on <code>auction_decision_id</code>; carries <code>served_ts</code>, <code>creative_id</code>, <code>predicted_pCTR</code>, <code>quality_score</code>, <code>ad_rank</code>.</p>
+
+<p><strong><code>fct_clicks</code></strong> — <code>impression_id, click_ts, is_invalid, invalidation_ts</code> (slowly-changing).</p>
+
+<p><strong><code>fct_conversions</code></strong> — <code>conversion_id, advertiser_id, conversion_ts, conversion_value_usd, conversion_type</code> (purchase, signup, install).</p>
+
+<p><strong><code>fct_attributions</code></strong> — <code>conversion_id, click_id, impression_id, model_id, attribution_run_id, fractional_credit, window_type</code>. <em>Multiple rows per conversion; one per (model × run × eligible touchpoint).</em></p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Advertiser · billing &amp; ROAS</strong></p>
+<ul>
+  <li>Spend by campaign: SUM(<code>clearing_price_usd</code>) from <code>fct_impressions</code> joined back to <code>fct_auctions</code>.</li>
+  <li>ROAS = SUM(<code>conversion_value_usd</code> attributed) / SUM(<code>clearing_price_usd</code>) — uses the latest <code>attribution_run_id</code>.</li>
+</ul>
+<p><strong>Ranker team · model training &amp; quality score</strong></p>
+<ul>
+  <li><code>fct_auction_losers</code> + <code>fct_impressions</code> = balanced training set for pCTR model.</li>
+  <li>Quality Score retrospective: join historical creative SCD2 row + impression's <code>predicted_pCTR</code> to debug regressions.</li>
+</ul>
+<p><strong>Attribution &amp; measurement</strong></p>
+<ul>
+  <li><strong>Re-attribution:</strong> when the data-driven model upgrades from v2→v3, run a new <code>attribution_run_id</code> over the same conversions and impressions. Old run is preserved — no data lost.</li>
+  <li><strong>Incrementality:</strong> compare conversion-rate of exposed (impression served) vs counterfactual (won auction but didn't serve due to PSA / blank slot) — <code>fct_auction_losers</code> partly enables this.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — Why <code>auction_decision_id</code> + append-only attribution</h4>
+<ul>
+  <li><strong>One key, four facts.</strong> <code>auction_decision_id</code> is generated once at auction-time and travels with the impression, click, conversion. No fuzzy joins, no timestamp matching.</li>
+  <li><strong>Re-runnable attribution.</strong> Attribution is computed, not collected. New models = new <code>attribution_run_id</code>; the latest_run view picks the most recent. Advertisers can compare last-click vs data-driven side by side.</li>
+  <li><strong>Invalid clicks as a slowly-changing fact.</strong> Click validation is asynchronous (bot detection takes hours to days). Append <code>is_invalid=TRUE</code> with <code>invalidation_ts</code> rather than UPDATE — preserves historical billing audit.</li>
+  <li><strong>Loser sampling at 1%.</strong> 20× winners by volume. Reservoir sample to 1% and re-weight in training; full retention is unaffordable.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Search Ads Auction Chain</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrG" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">SEARCH ADS · AUCTION → IMPRESSION → CLICK → CONVERSION → ATTRIBUTION</text>
+  <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+  <text x="1210" y="103" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#64748b">(Calculated metrics)</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_advertisers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ advertiser_key</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 · billing addr drifts</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⊞ dim_campaigns / ad_groups</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">budget · targeting · daily cap</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 · drifts daily</text></g>
+  <g transform="translate(40,320)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▣ dim_creatives</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">headline · body · landing_url</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 · creative version drift</text></g>
+  <g transform="translate(40,415)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">▤ dim_keywords</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ keyword_id · text · match_type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1 · high-cardinality</text></g>
+  <g transform="translate(40,510)"><rect width="270" height="80" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⚙ dim_attribution_models ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">last_click · linear · time_decay · DDA</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · enables re-attribution</text></g>
+  <g transform="translate(40,605)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_users · privacy</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_token · privacy_path</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">never raw user_id</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚡ fct_auctions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#0369a1">⌖ auction_decision_id ★ join key</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ auction_ts · winning_ad_id</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ clearing_price_usd</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per auction clearing</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ fct_impressions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ auction_decision_id (FK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">predicted_pCTR · quality_score</text><text x="20" y="87" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">served_ts · ad_rank</text><text x="20" y="103" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per impression served</text></g>
+  <g transform="translate(385,275)"><rect width="280" height="105" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇒ fct_clicks</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ impression_id (FK)</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">click_ts · is_invalid + invalidation_ts</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">slowly-changing fact</text></g>
+  <g transform="translate(700,275)"><rect width="265" height="105" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fct_conversions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">conversion_id · advertiser</text><text x="20" y="71" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ value_usd · type · ts</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per conversion</text></g>
+  <g transform="translate(385,400)"><rect width="580" height="120" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊕ fct_attributions ★ ATTRIBUTION</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">conversion_id · impression_id · click_id · model_id</text><text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">⛓ attribution_run_id (append-only)</text><text x="20" y="94" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">fractional_credit · window_type · attributed_value_usd</text><text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 row per (conversion × eligible_touchpoint × model × run)</text></g>
+  <g transform="translate(385,540)"><rect width="580" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▱ fct_auction_losers (1% sampled)</text><text x="20" y="58" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ auction_decision_id · candidate_ad_id · ad_rank · sample_weight</text><text x="20" y="74" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per losing candidate (sampled) · ranker training</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">AUCTION HEALTH</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Win rate per advertiser</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Average ad_rank</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Avg clearing price (CPC)</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_auctions × fct_impressions</text></g>
+  <g transform="translate(1015,290)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CTR / CPA / ROAS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ CTR = clicks / impressions</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ CPA = spend / conversions</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ ROAS = conv_value / spend</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: 4-fact join via auction_decision_id</text></g>
+  <g transform="translate(1015,450)"><rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">QUALITY SCORE &amp; RANKER</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▣ Quality Score distribution</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Predicted vs realized pCTR</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Loser-log balanced training</text><text x="20" y="115" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_impressions + losers</text></g>
+  <g transform="translate(1015,610)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ATTRIBUTION CONFIDENCE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ % conversions attributed to a click</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Last-click vs DDA delta</text><text x="20" y="100" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_attributions × dim_attribution_models</text></g>
+
+  <line x1="525" y1="250" x2="525" y2="275" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+  <line x1="665" y1="190" x2="700" y2="190" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+  <line x1="525" y1="380" x2="525" y2="400" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+  <line x1="830" y1="380" x2="830" y2="400" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+  <line x1="310" y1="160" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+  <line x1="310" y1="540" x2="385" y2="450" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrG)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis for business units</h4>
+
+<p><strong>Sample data — Nike "running shoe" auction</strong></p>
+<pre><code>-- Auction at 14:32:01 — 5 candidates compete; Nike wins on ad_rank 0.0751
+INSERT INTO fct_auctions VALUES
+  ('AUC_NIKE_001','q_runningshoe','kw_runningshoe','U_TOK_42','dev_iphone',
+   '2025-05-01 14:32:01.123','AD_NIKE_RUN','1.92','1.0','1.92','standard');
+
+-- Impression served
+INSERT INTO fct_impressions VALUES
+  ('IMP_001','AUC_NIKE_001','AD_NIKE_RUN',0.034,0.92,'2025-05-01 14:32:01.180', 0.0751);
+
+-- User clicks 4 seconds later
+INSERT INTO fct_clicks VALUES ('CLK_001','IMP_001','2025-05-01 14:32:05',FALSE,NULL);
+
+-- Conversion 17 hours later (next-day purchase)
+INSERT INTO fct_conversions VALUES
+  ('CONV_001','ADV_NIKE','2025-05-02 07:42:00','purchase',129.99);
+
+-- Two attribution rows: last-click model + DDA model on the same conversion
+INSERT INTO fct_attributions VALUES
+  ('ATTR_001','CONV_001','IMP_001','CLK_001','MODEL_LAST_CLICK','RUN_2025_05_02', 1.000, 'click_24h', 129.99),
+  ('ATTR_002','CONV_001','IMP_001','CLK_001','MODEL_DDA_v3',    'RUN_2025_05_02', 0.620, 'click_24h',  80.59);
+
+-- Sampled losers (1%)
+INSERT INTO fct_auction_losers VALUES
+  ('AUC_NIKE_001','AD_ASICS_GEL', 0.0572, 100),  -- weight = 1/sample_rate
+  ('AUC_NIKE_001','AD_STRAVA',    0.0408, 100);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Advertiser · ROAS &amp; ranker debug</h4>
+<p><strong>Q1 — CTR + CPA + ROAS per campaign (latest attribution run)</strong></p>
+<pre><code>WITH latest_run AS (
+  SELECT MAX(attribution_run_id) AS run_id FROM fct_attributions
+),
+campaign_metrics AS (
+  SELECT
+    c.campaign_id,
+    COUNT(DISTINCT i.impression_id)                                               AS impressions,
+    COUNT(DISTINCT cl.click_id) FILTER (WHERE cl.is_invalid = FALSE)              AS clicks,
+    SUM(a.clearing_price_usd)                                                     AS spend_usd,
+    COUNT(DISTINCT atr.conversion_id)                                             AS conversions,
+    SUM(atr.attributed_value_usd)                                                 AS attributed_revenue
+  FROM fct_auctions a
+  JOIN fct_impressions i  USING (auction_decision_id)
+  JOIN dim_creatives  cr  ON i.creative_id = cr.creative_id
+  JOIN dim_campaigns  c   ON cr.campaign_id = c.campaign_id
+  LEFT JOIN fct_clicks       cl  USING (impression_id)
+  LEFT JOIN fct_attributions atr ON atr.click_id = cl.click_id
+                                AND atr.attribution_run_id = (SELECT run_id FROM latest_run)
+                                AND atr.model_id = 'MODEL_LAST_CLICK'
+  WHERE a.auction_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+  GROUP BY c.campaign_id
 )
-PARTITION BY DATE(served_ts)
-CLUSTER BY (campaign_sk, keyword_sk);
+SELECT campaign_id, impressions, clicks, spend_usd, conversions, attributed_revenue,
+  ROUND(100.0 * clicks / NULLIF(impressions, 0), 3)                AS ctr_pct,
+  ROUND(spend_usd / NULLIF(clicks, 0), 2)                          AS cpc_usd,
+  ROUND(spend_usd / NULLIF(conversions, 0), 2)                     AS cpa_usd,
+  ROUND(attributed_revenue / NULLIF(spend_usd, 0), 2)              AS roas
+FROM campaign_metrics ORDER BY roas DESC;
+</code></pre>
 
-CREATE TABLE fact_ad_click (
-  click_sk          BIGINT,
-  impression_sk     BIGINT,
-  click_ts          TIMESTAMP_TZ,
-  is_invalid        BOOLEAN,
-  invalidation_ts   TIMESTAMP_TZ NULL    -- detected later
-);
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Attribution &amp; measurement</h4>
+<p><strong>Q2 — Last-click vs DDA: which model gives higher attributed revenue?</strong></p>
+<pre><code>SELECT
+  atr.model_id,
+  COUNT(DISTINCT atr.conversion_id)              AS conversions,
+  ROUND(SUM(atr.attributed_value_usd), 2)        AS total_attributed_value,
+  ROUND(AVG(atr.fractional_credit), 3)           AS avg_credit
+FROM fct_attributions atr
+WHERE atr.attribution_run_id = (SELECT MAX(attribution_run_id) FROM fct_attributions)
+GROUP BY atr.model_id;
+-- Last-click gives full credit (credit=1.0). DDA distributes — useful for diagnosing over-attribution.
+</code></pre>
 
-CREATE TABLE fact_ad_conversion (
-  conversion_sk        BIGINT,
-  advertiser_sk        BIGINT,
-  click_sk             BIGINT NULL,     -- attributed (last-touch)
-  impression_sk        BIGINT NULL,     -- view-through if no click
-  conversion_ts        TIMESTAMP_TZ,
-  conversion_type      STRING,          -- purchase, signup, install
-  conversion_value_usd DECIMAL(10,2),
-  attribution_window_days INT,
-  attribution_model    STRING           -- last_touch, position_based, mta
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Ranker · quality score &amp; pCTR calibration</h4>
+<p><strong>Q3 — Predicted vs realized pCTR per creative (calibration check)</strong></p>
+<pre><code>SELECT
+  i.creative_id,
+  COUNT(*)                                                                   AS impressions,
+  ROUND(AVG(i.predicted_pCTR), 4)                                            AS predicted_pCTR,
+  ROUND(COUNT(*) FILTER (WHERE c.click_id IS NOT NULL)::DECIMAL / COUNT(*), 4) AS realized_pCTR,
+  ROUND(100.0 * (COUNT(*) FILTER (WHERE c.click_id IS NOT NULL)::DECIMAL / COUNT(*) - AVG(i.predicted_pCTR))
+        / AVG(i.predicted_pCTR), 1)                                          AS calibration_error_pct
+FROM fct_impressions i
+LEFT JOIN fct_clicks c USING (impression_id)
+WHERE i.served_ts &gt;= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY i.creative_id
+HAVING COUNT(*) &gt; 1000
+ORDER BY ABS(calibration_error_pct) DESC;
+-- Creatives with calibration_error > 20% need ranker retraining attention.
+</code></pre>
 
-<h4 class="sub-head">Move 4 — SCD</h4>
+<h4 class="sub-head">Worked example — Nike "running shoe" auction clearing &amp; attribution</h4>
+<ol>
+  <li><strong>Auction:</strong> 5 candidates compete. <code>ad_rank = bid × pCTR × quality</code>:
+    <ul>
+      <li>Nike: $2.40 × 0.034 × 0.92 = <strong>0.0751</strong> ← winner</li>
+      <li>Asics: $2.10 × 0.029 × 0.94 = 0.0572</li>
+      <li>Strava: $1.80 × 0.028 × 0.81 = 0.0408</li>
+    </ul>
+  </li>
+  <li><strong>Second-price clearing:</strong> Nike pays just enough to beat Asics's ad_rank — at Nike's quality 0.92, that's <strong>$1.92</strong>, not $2.40. Savings of $0.48 = trust signal.</li>
+  <li>Impression served at 14:32:01. User clicks at 14:32:05.</li>
+  <li>Conversion 17 hours later: $129.99 purchase.</li>
+  <li><strong>Last-click attribution (MODEL_LAST_CLICK):</strong> credit 1.0 → $129.99 attributed to this click.</li>
+  <li><strong>Data-driven attribution (MODEL_DDA_v3):</strong> credit 0.62 → $80.59 attributed to this click. The remaining $49.40 attributed to upstream touchpoints.</li>
+  <li>Nike's ROAS under last-click = $129.99 / $1.92 = <strong>67.7×</strong>. Under DDA = $80.59 / $1.92 = <strong>42.0×</strong>. Both are stored side-by-side via <code>attribution_run_id</code>.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><code>dim_creative</code> SCD2 — creative changes affect quality score; need historic creative for ranker debug.</li>
-  <li><code>dim_campaign</code> SCD2 — budget and targeting drift; advertiser disputes need as-of-impression state.</li>
-  <li><code>dim_user_segment</code> SCD2 — segment membership changes nightly.</li>
-</ul>
-
-<h4 class="sub-head">Move 5 — Stress tests</h4>
-<ul>
-  <li><strong>Invalid clicks:</strong> bots/fraud detected hours-to-days later. Append <code>is_invalid = TRUE</code> with <code>invalidation_ts</code>; advertiser gets credit. Slowly-changing fact.</li>
-  <li><strong>Privacy paths:</strong> ATT-opted-out users hit a different code path with no <code>user_id_token</code>; aggregate-only reporting.</li>
-  <li><strong>Loser log volume:</strong> ~20× winner volume. Sample to 1% and re-weight for ranker training.</li>
-  <li><strong>Attribution churn:</strong> a conversion at T+15d may be re-attributed if a closer click is found. Conversions are append-only with <code>attribution_run_id</code>.</li>
+  <li><strong>One join key, four facts.</strong> <code>auction_decision_id</code> threads through impression, click, conversion. ROAS query is a 4-way join on a single column — efficient and correct.</li>
+  <li><strong>Re-attribution is cheap.</strong> New model = new <code>attribution_run_id</code>. Old runs preserved; advertisers compare side-by-side.</li>
+  <li><strong>Invalid clicks handled losslessly.</strong> Append-only <code>is_invalid</code> + <code>invalidation_ts</code> preserves billing history while crediting advertisers.</li>
+  <li><strong>Loser sampling tractable.</strong> 1% sampled with <code>sample_weight</code> column; ranker training works without 20× data volume.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The auction-decision-id is the join key that turns three independent facts into a coherent advertiser narrative — and re-runnable attribution becomes a question of selecting the right <code>attribution_run_id</code>, not rebuilding the join."
+<strong>Senior framing.</strong> "The <code>auction_decision_id</code> is the join key that turns four independent facts into a coherent advertiser narrative — and the <code>attribution_run_id</code> + <code>dim_attribution_models</code> SCD2 makes re-running attribution a query, not a re-ingest. Last-click vs DDA isn't an ETL decision — it's a column in the SELECT."
 </div>
 </div>
 
