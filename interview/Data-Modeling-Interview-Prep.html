@@ -3356,71 +3356,190 @@ FROM ranker_metrics;
 
 <!-- Scenario 9: Spotify -->
 <div class="scenario" id="sc-spotify">
-<div class="domain-tag">Spotify · streaming media</div>
-<h4 class="sub-head">Scenario 9 — Listening history &amp; royalty payouts</h4>
-<div class="prompt">Design a model for Spotify's listening history that supports recommendations, the "year in review" feature, and per-stream royalty payouts to multiple rights holders (artist + label + publisher + songwriter).</div>
+<div class="domain-tag">Spotify · streaming media · per-stream royalties</div>
+<h4 class="sub-head">Scenario 9 — Listening history &amp; pool-model royalty payouts</h4>
+<div class="prompt">Design a model for Spotify's listening history that supports recommendations, the "Year in Review" feature, and per-stream royalty payouts to multiple rights holders (artist + label + publisher + songwriter) — under the <strong>pool model</strong> where revenue is divided by total qualified streams in a country-period.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Two consumers want the same fact for opposite reasons. <strong>Product</strong> needs every play (skips included) for recommendations. <strong>Finance</strong> only pays on qualified streams (≥30s). <strong>Multi-rights splits</strong> mean one stream produces 4+ payout rows (artist + label + publisher + songwriter) and the splits change mid-quarter when deals renegotiate. <strong>Pool model math</strong> requires computing per-stream rate as <em>revenue ÷ total streams in pool</em> — a chicken-and-egg dependency that resolves only at period close.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Royalty stream is qualified — typically ≥30s play. Below that = no payout."</li>
-  <li>"Per-stream royalty: pool model (revenue / total streams in the pool) — not per-track price."</li>
-  <li>"Multi-rights: one stream pays artist (recording), label (master), publisher (composition), songwriter (composition). Splits stored in <code>bridge_track_rights</code>."</li>
+  <li><code>fct_play_events</code> — <strong>The "Listen" grain.</strong> One row per play event with <code>qualified_play</code> flag.</li>
+  <li><code>fct_royalty_periods</code> — <strong>The "Pool" grain.</strong> One row per (country × period). Holds total pool revenue, total qualified streams, computed per-stream rate.</li>
+  <li><code>fct_royalty_attributions</code> — <strong>The "Payout" grain.</strong> One row per (play × rights_holder × period). Derived nightly at period close.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension &amp; Bridge Tables</strong></p>
 <ul>
-  <li><code>fact_play_event</code>: one row per play event (≥30s threshold flag).</li>
-  <li><code>fact_royalty_attribution</code>: one row per (play × rights_holder × period) — derived.</li>
-  <li><code>bridge_track_rights</code>: SCD2 — splits change with deal renegotiations.</li>
+  <li><code>dim_users</code> (SCD2 — plan tier drifts) · <code>dim_subscriptions</code> (Family/Duo group of users)</li>
+  <li><code>dim_tracks</code> (SCD2 — metadata) · <code>dim_artists</code> · <code>dim_labels</code> (SCD2) · <code>dim_publishers</code> (SCD2) · <code>dim_songwriters</code></li>
+  <li><code>bridge_track_rights</code> — <strong>SCD2 with effective dates.</strong> The deal-terms ledger.</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_user       (SCD2 — plan tier changes)
-dim_track      (SCD2 — title, audio attributes)
-dim_artist     (SCD1)
-dim_label      (SCD2)
-dim_publisher  (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_play_events</code></strong> — <code>play_id, user_id, track_id, played_ts, duration_played_sec, qualified_play BOOL (≥30s), context_type ∈ {playlist, algorithmic, search, radio}, source_playlist_id, device_id, country_id</code>.</p>
 
-bridge_track_rights (SCD2)
-  track_sk, rights_holder_sk, rights_type, share_pct,
-  effective_from, effective_to
+<p><strong><code>bridge_track_rights</code> (SCD2)</strong> — <code>track_id, rights_holder_id, rights_type ∈ {artist, label, publisher, songwriter}, share_pct, effective_from, effective_to</code>. <em>Sum of share_pct per (track, rights_type) per period = 100%.</em></p>
 
-CREATE TABLE fact_play_event (
-  play_sk            BIGINT,
-  user_sk            BIGINT,
-  track_sk           BIGINT,
-  played_ts          TIMESTAMP_TZ,
-  duration_played_sec INT,
-  qualified_play     BOOLEAN,        -- ≥ 30s
-  context_type       STRING,         -- 'playlist' | 'algorithmic' | 'search' | 'radio'
-  source_playlist_sk BIGINT NULL,
-  device_sk          BIGINT,
-  country_sk         BIGINT,
-  ingest_ts          TIMESTAMP_TZ
-)
-PARTITION BY DATE(played_ts)
-CLUSTER BY (track_sk, user_sk);
+<p><strong><code>fct_royalty_periods</code></strong> — <code>period_id, country_id, period_start, period_end, total_pool_revenue_usd, total_qualified_plays, per_stream_rate_usd (= revenue / qualified_plays)</code>.</p>
 
-CREATE TABLE fact_royalty_period (
-  period_sk          BIGINT,
-  period_start       DATE,
-  period_end         DATE,
-  country_sk         BIGINT,
-  total_revenue_usd  DECIMAL(18,2),
-  total_qualified_plays BIGINT,
-  per_stream_rate    DECIMAL(10,8)   -- revenue / plays for the pool
-);</code></pre>
+<p><strong><code>fct_royalty_attributions</code></strong> — <code>play_id, period_id, rights_holder_id, rights_type, share_pct, attributed_payout_usd</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Product · recommendations + Year in Review</strong> — every play counts (qualified or not). Skips are signal. <code>context_type</code> tells the recommender which surface drove the play.</p>
+<p><strong>Finance · royalty payouts</strong> — quarterly close: compute pool revenue per country, count qualified plays, derive rate, generate <code>fct_royalty_attributions</code>. Splits use <strong>as-of-play</strong> bridge rows, never current.</p>
+<p><strong>Rights holders · transparency</strong> — labels/publishers want their cut breakdown. Each <code>fct_royalty_attributions</code> row is a defensible per-play line item.</p>
+
+<h4 class="sub-head">Section 4 — Why the bridge is SCD2 (not just a table)</h4>
+<p>Label deals renegotiate mid-quarter — a label might move 5% from publisher to artist effective Apr 15. Three failure modes if the bridge isn't SCD2:</p>
 <ul>
-  <li><strong>Pool model math:</strong> royalty per stream = (country_pool_revenue × user_plan_share) / total_qualified_plays_in_country. Computed per period, not per stream.</li>
-  <li><strong>Rights split changes:</strong> a label deal renegotiation moves 5% from publisher to artist mid-quarter. <code>bridge_track_rights</code> SCD2 — payouts use as-of-play splits.</li>
-  <li><strong>Family / Duo plans:</strong> multiple users per subscription. <code>dim_user.subscription_id</code> joins to <code>dim_subscription</code> for plan attribution.</li>
-  <li><strong>Skipped tracks:</strong> &lt;30s play is not paid but still feeds the recommender. Two consumers, same fact.</li>
+  <li><strong>Apr 1-14 plays paid under the wrong split.</strong> Restatement needed every quarter — auditor nightmare.</li>
+  <li><strong>Lawsuit risk.</strong> Songwriters can demand "pay me as of the deal that was active when my song was streamed". SCD2 is the only defensible answer.</li>
+  <li><strong>Forecast invalidation.</strong> Finance forecasts use the current bridge; without SCD2, mid-quarter changes silently invalidate projections.</li>
+</ul>
+<p><strong>The contract:</strong> every <code>fct_royalty_attributions</code> row uses <code>bridge_track_rights</code> WHERE <code>play.played_ts BETWEEN bridge.effective_from AND bridge.effective_to</code>.</p>
+
+<h4 class="sub-head">Enhanced graphical data model — Spotify Listening + Royalty Pool</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">SPOTIFY · PLAY → POOL → ATTRIBUTION</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_users / dim_subscriptions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · plan_tier · family_group</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎵 dim_tracks · dim_artists</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">track_id · isrc · audio_features</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,340)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_labels · publishers · songwriters</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rights_holder_id · entity_type · territory</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="135" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ bridge_track_rights ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ track_id · rights_holder_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rights_type · share_pct</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">effective_from / effective_to</text><text x="20" y="113" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">SCD2 · sum=100% per (track, type, period)</text></g>
+  <g transform="translate(40,600)"><rect width="270" height="60" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🌍 dim_countries</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">country_id · pool_id</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▶ fct_play_events</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ play_id · played_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ user_id · track_id · country_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">duration_played_sec</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qualified_play BOOL (≥30s) ★</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">context_type · source_playlist_id</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per play event (skips included)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💰 fct_royalty_periods</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ period_id · country_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period_start / period_end</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ total_pool_revenue_usd</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">total_qualified_plays</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ per_stream_rate_usd ★</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per (country × period)</text></g>
+  <g transform="translate(385,310)"><rect width="580" height="170" fill="#f0fdf4" stroke="#166534" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#166534" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊕ fct_royalty_attributions ★ DERIVED</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ play_id · period_id · rights_holder_id · rights_type</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">share_pct (from bridge as-of played_ts)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ attributed_payout_usd = per_stream_rate × share_pct</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">grain: 1 per (qualified play × rights_holder) · derived at period close</text><text x="20" y="143" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">~4 rows per qualified play (artist + label + publisher + songwriter)</text></g>
+  <g transform="translate(385,500)"><rect width="580" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 mart_track_performance_daily (rollup)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ track_id · day · country_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">plays · qualified_plays · skip_rate · est_payout</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">pre-aggregated for "Year in Review" + label dashboards</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PER-STREAM RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ per_stream_rate by country/period</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Premium vs Free pool comparison</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_royalty_periods</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ROYALTY DISTRIBUTION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💰 Top earners per period</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📈 Long-tail % of total payouts</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_royalty_attributions</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MULTI-RIGHTS SPLITS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ % to artist / label / pub / songwriter</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Split changes per quarter</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: bridge_track_rights SCD2</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">LISTENER LTV / ENGAGEMENT</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Avg listening hours / user / week</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↻ Skip rate by context_type</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_play_events × dim_users</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="280" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="630" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="830" y1="290" x2="700" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="510" x2="385" y2="395" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — Country pool with 1M streams in Q2-2025</strong></p>
+<pre><code>INSERT INTO fct_royalty_periods VALUES
+  ('PER_2025Q2_US','US','2025-04-01','2025-06-30', 5000000.00, 1000000, 0.005000);
+-- Per-stream rate = $5M / 1M plays = $0.005 / qualified play
+
+INSERT INTO bridge_track_rights VALUES
+  ('TRK_001','LBL_BIG',     'label',     0.50,'2024-01-01','2025-04-15'),
+  ('TRK_001','ART_NOVA',    'artist',    0.30,'2024-01-01','2025-04-15'),
+  ('TRK_001','PUB_HARMONY', 'publisher', 0.15,'2024-01-01','2025-04-15'),
+  ('TRK_001','SW_LEE',      'songwriter',0.05,'2024-01-01','2025-04-15'),
+  -- Mid-quarter renegotiation: label gives up 5%, artist gains 5%
+  ('TRK_001','LBL_BIG',     'label',     0.45,'2025-04-15','9999-12-31'),
+  ('TRK_001','ART_NOVA',    'artist',    0.35,'2025-04-15','9999-12-31'),
+  ('TRK_001','PUB_HARMONY', 'publisher', 0.15,'2025-04-15','9999-12-31'),
+  ('TRK_001','SW_LEE',      'songwriter',0.05,'2025-04-15','9999-12-31');
+
+-- 2 plays of TRK_001 in US: one before, one after the renegotiation
+INSERT INTO fct_play_events VALUES
+  ('PLAY_A','U_42','TRK_001','2025-04-10 14:00:00', 180, TRUE,  'algorithmic', NULL,'iphone','US'),
+  ('PLAY_B','U_42','TRK_001','2025-05-20 09:30:00', 240, TRUE,  'playlist','PL_ROCK','iphone','US');
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · per-stream rate &amp; pool reconciliation</h4>
+<p><strong>Q1 — Per-stream rate per country per period</strong></p>
+<pre><code>SELECT
+  rp.country_id, rp.period_start, rp.period_end,
+  rp.total_qualified_plays,
+  ROUND(rp.total_pool_revenue_usd, 2)   AS pool_usd,
+  ROUND(rp.per_stream_rate_usd, 6)      AS rate_per_stream
+FROM fct_royalty_periods rp
+WHERE rp.period_start = '2025-04-01'
+ORDER BY rp.country_id;
+</code></pre>
+
+<p><strong>Q2 — Royalty attribution per qualified play (using as-of-played bridge splits)</strong></p>
+<pre><code>SELECT
+  p.play_id,
+  p.played_ts,
+  b.rights_type,
+  b.rights_holder_id,
+  b.share_pct,
+  rp.per_stream_rate_usd,
+  ROUND(rp.per_stream_rate_usd * b.share_pct, 6) AS attributed_payout_usd
+FROM fct_play_events p
+JOIN dim_countries  c  ON p.country_id = c.country_id
+JOIN fct_royalty_periods rp
+  ON rp.country_id = p.country_id
+ AND p.played_ts BETWEEN rp.period_start AND rp.period_end
+JOIN bridge_track_rights b
+  ON b.track_id = p.track_id
+ AND p.played_ts &gt;= b.effective_from
+ AND p.played_ts &lt;  b.effective_to                 -- as-of-play splits
+WHERE p.qualified_play = TRUE AND p.track_id = 'TRK_001'
+ORDER BY p.played_ts, b.rights_type;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Product · listening behavior</h4>
+<p><strong>Q3 — Skip rate by context_type (algorithmic vs playlist vs radio)</strong></p>
+<pre><code>SELECT context_type,
+  COUNT(*)                                                         AS plays,
+  COUNT(*) FILTER (WHERE qualified_play = FALSE)                   AS skips,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE qualified_play = FALSE)
+        / COUNT(*), 2)                                             AS skip_rate_pct
+FROM fct_play_events
+WHERE played_ts &gt;= CURRENT_DATE - 30
+GROUP BY context_type ORDER BY skip_rate_pct DESC;
+-- High skip rate on algorithmic = recommender quality issue. On radio = expected (lean-back).
+</code></pre>
+
+<h4 class="sub-head">Worked example — TRK_001 royalty math (before vs after renegotiation)</h4>
+<ol>
+  <li>Pool: $5,000,000 in US for Q2-2025. 1,000,000 qualified streams. Per-stream rate = <strong>$0.005</strong>.</li>
+  <li><strong>PLAY_A (Apr 10):</strong> uses pre-renegotiation splits. Label 50% / Artist 30% / Publisher 15% / Songwriter 5%.
+    <ul>
+      <li>Label: $0.005 × 0.50 = <strong>$0.0025</strong></li>
+      <li>Artist: $0.005 × 0.30 = <strong>$0.0015</strong></li>
+      <li>Publisher: $0.005 × 0.15 = <strong>$0.00075</strong></li>
+      <li>Songwriter: $0.005 × 0.05 = <strong>$0.00025</strong></li>
+      <li>Sum: $0.005 ✓</li>
+    </ul>
+  </li>
+  <li><strong>PLAY_B (May 20):</strong> uses post-renegotiation splits. Label 45% / Artist 35% / Publisher 15% / Songwriter 5%.
+    <ul>
+      <li>Label: $0.005 × 0.45 = $0.00225</li>
+      <li>Artist: $0.005 × 0.35 = $0.00175</li>
+      <li>(others unchanged)</li>
+      <li>Sum: $0.005 ✓</li>
+    </ul>
+  </li>
+  <li><strong>Audit query produces 8 rows total</strong> (2 plays × 4 rights holders). Each is defensible: shows the exact bridge row that was active when the play occurred.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>One play, two consumers.</strong> <code>qualified_play</code> as a flag (not a separate table) keeps Product and Finance on the same source of truth.</li>
+  <li><strong>Pool model derived at period close.</strong> Per-stream rate isn't real-time — it's only known when the period closes. Modeled as a fact table, not a daily rolling number.</li>
+  <li><strong>SCD2 bridge keeps deals defensible.</strong> Mid-quarter renegotiations don't break historical payouts.</li>
+  <li><strong>Attribution table grows linearly.</strong> ~4 rows per qualified play. Quarterly bulk-write at period close, then read-only.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The 30-second threshold is the integration point between product analytics (every play matters for recs) and finance (only qualified plays earn royalty) — modeling it as a flag on <code>fact_play_event</code> rather than two separate tables is what lets both teams stay on the same source of truth."
+<strong>Senior framing.</strong> "The 30-second threshold is the integration point between product analytics (every play matters for recs) and finance (only qualified plays earn royalty) — modeling it as a flag on <code>fct_play_events</code> rather than two separate tables is what lets both teams stay on the same source of truth. SCD2 on <code>bridge_track_rights</code> turns deal renegotiations from an audit nightmare into a predicate."
 </div>
 </div>
 
