@@ -3020,64 +3020,191 @@ WHERE snapshot_date = CURRENT_DATE - 1
 
 <!-- Scenario 8: Meta feed -->
 <div class="scenario" id="sc-meta-feed">
-<div class="domain-tag">Meta / Instagram · social feed</div>
-<h4 class="sub-head">Scenario 8 — Feed engagement at scale</h4>
-<div class="prompt">Model engagement on the Instagram feed — impressions, dwell time, likes, saves, comments, shares — supporting feed ranker training, creator analytics, and brand safety.</div>
+<div class="domain-tag">Meta / Instagram · social feed · ranker</div>
+<h4 class="sub-head">Scenario 8 — Feed engagement at scale (with ranker A/B)</h4>
+<div class="prompt">Model engagement on the Instagram feed — impressions, dwell time, likes, saves, comments, shares, plus negative signals (hide, report) — supporting feed ranker training/A-B, creator analytics, and brand safety. Volume: 100B+ impressions/day.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Volume alone forces design choices: 100B impressions/day means exact <code>COUNT DISTINCT</code> is unaffordable; HLL is mandatory. <strong>Mutable engagements</strong> (like → unlike) demand append-only with <code>is_undone</code> flags. <strong>Heartbeat-driven dwell</strong> can't live at raw grain — must be aggregated at ETL. And the ranker A/B requirement means every impression must carry the <strong>model_id that ranked it</strong>, or you can't compare baseline lift.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Grain: one row per (user × post × event_type × event_ts). High volume — billions per day."</li>
-  <li>"Dwell time — heartbeat-based, not single timestamp. Aggregate up to per-impression."</li>
-  <li>"Negative engagement (hide, report, block) — same fact, different event_type."</li>
+  <li><code>fct_impressions</code> — <strong>The "Served" grain.</strong> One row per (viewer × post × impression). Carries <code>ranker_model_id</code> + <code>predicted_score</code>.</li>
+  <li><code>fct_engagements</code> — <strong>The "Reaction" grain.</strong> One row per (viewer × post × event_type × event_ts). Likes, saves, comments, shares, hides, reports — all here.</li>
+  <li><code>fct_dwell_per_impression</code> — <strong>The "Time-on-post" grain.</strong> One row per impression with total dwell_ms (aggregated from heartbeats at ETL).</li>
+  <li><code>fct_ranker_experiments</code> — <strong>The "Treatment" grain.</strong> One row per (viewer × experiment × variant). Drives A/B comparison.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_impression</code>: one row per (viewer × post × impression_ts).</li>
-  <li><code>fact_engagement</code>: one row per (viewer × post × event_type × event_ts).</li>
-  <li><code>fact_dwell_aggregate</code>: one row per impression with total dwell.</li>
+  <li><code>dim_users</code> (SCD2) · <code>dim_posts</code> (SCD2 — caption edits, audio swaps) · <code>dim_creators</code> (SCD2)</li>
+  <li><code>dim_post_audio</code> (SCD1)</li>
+  <li><code>dim_ranker_models</code> — SCD2; semver + model_card_url + deployed_pct.</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_user        (SCD2)
-dim_post        (SCD2 — caption edits, audio swap)
-dim_creator     (SCD2)
-dim_post_audio  (SCD1)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_impressions</code></strong> — <code>impression_id, viewer_id, post_id, feed_position SMALLINT, impression_ts, device_id, ranker_model_id (FK), predicted_score DECIMAL(8,6), surface ∈ {feed, reels, stories, explore}</code>.</p>
 
-CREATE TABLE fact_impression (
-  impression_sk      BIGINT,
-  viewer_sk          BIGINT,
-  post_sk            BIGINT,
-  feed_position      SMALLINT,       -- 1 = top of feed
-  impression_ts      TIMESTAMP_TZ,
-  device_sk          BIGINT,
-  ranker_model_id    STRING,         -- which ranker version
-  predicted_score    DECIMAL(8,6)
+<p><strong><code>fct_engagements</code></strong> — <code>engagement_id, impression_id (NULLable: comments can arrive without prior impression event), viewer_id, post_id, event_type ∈ {like, save, share, comment, hide, report, follow_creator}, event_ts, is_undone BOOLEAN, undone_ts</code>. <em>Append-only — never delete an unlike.</em></p>
+
+<p><strong><code>fct_dwell_per_impression</code></strong> — <code>impression_id, dwell_ms INT, was_full_view BOOLEAN, viewport_pct DECIMAL</code>. Aggregated from raw 250ms heartbeats at ETL — saves 100× rows.</p>
+
+<p><strong><code>fct_ranker_experiments</code></strong> — <code>viewer_id, experiment_id, variant_id, assigned_ts, exit_ts</code>. Bridges viewers to A/B-test arms.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Ranker team · model lift</strong> — Compare engagement-rate per impression for <code>ranker_model_id = v3.1</code> vs <code>v3.2</code>. Positive lift on like-rate but watch hide-rate; both should move favorably.</p>
+<p><strong>Creator analytics</strong> — Reach (impressions), engagement rate (engagements / impressions), dwell distribution per post.</p>
+<p><strong>Brand safety</strong> — Hide+Report rate per post per hour. Posts crossing thresholds get demoted; spike → human review queue.</p>
+<p><strong>Product growth</strong> — Negative-engagement rate is the canary for "this content drives session abandonment".</p>
+
+<h4 class="sub-head">Section 4 — Why <code>ranker_model_id</code> on every impression + append-only engagements</h4>
+<ul>
+  <li><strong>Ranker A/B requires the model on the row.</strong> Without it, a 1% holdout for the new model can't be compared to the 99% baseline. <code>ranker_model_id</code> is a first-class dimension, not a footnote.</li>
+  <li><strong>Likes are mutable, but the fact is immutable.</strong> A like at T1 + unlike at T2 = 2 rows: an insert and an "undone" insert with <code>is_undone=TRUE, undone_ts=T2</code>. Never DELETE; preserves time-series of toggle behavior.</li>
+  <li><strong>Dwell aggregated at ETL.</strong> 250ms heartbeats × 100B impressions × 30 sec average = ~12 trillion raw rows/day. Aggregate before warehouse — only 100B per-impression rows survive.</li>
+  <li><strong>Approximate aggregations.</strong> <code>APPROX_COUNT_DISTINCT</code> + HLL for everything user-level. Exact only when finance demands it (rare).</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Instagram Feed Engagement</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrI" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">META / INSTAGRAM · IMPRESSION → DWELL → ENGAGEMENT → RANKER A/B</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_users</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · age_bucket · region</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">privacy_path · plan_tier</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📷 dim_posts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">post_id · creator_id · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">caption · audio_id · created_ts</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">moderation_status</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎤 dim_creators</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">creator_id · follower_count</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">⚙ dim_ranker_models ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model_id · semver</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">deployed_pct · feature_set</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · A/B versioning</text></g>
+  <g transform="translate(40,560)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎵 dim_post_audio</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">audio_id · artist · duration</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ fct_impressions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ impression_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · post_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">feed_position · surface</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#0369a1">⛓ ranker_model_id (FK) ★</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">predicted_score · impression_ts</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (viewer × post × impression)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⏱ fct_dwell_per_impression</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ impression_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">dwell_ms · viewport_pct</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">was_full_view BOOL</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">aggregated from raw heartbeats</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="160" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">❤ fct_engagements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ impression_id (NULLable)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · post_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">event_type {like, save, share,</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  comment, hide, report, follow}</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_undone · undone_ts</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only · mutable via flag</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="160" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#0369a1" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🧪 fct_ranker_experiments</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ viewer_id · experiment_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">variant_id · assigned_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">exit_ts</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">A/B treatment assignment</text></g>
+  <g transform="translate(385,490)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 mart_post_engagement_daily (rollup)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ post_id · day · APPROX_COUNT_DISTINCT(viewer_id) HLL</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">like_rate · save_rate · share_rate · hide_rate · avg_dwell_ms</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (post × day) · pre-aggregated for dashboards · HLL for distinct</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ENGAGEMENT RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">❤ Like rate · Save rate · Share rate</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Engagement velocity (1h, 24h)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_engagements / fct_impressions</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">DWELL DISTRIBUTION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Dwell p50 / p95 per post</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Watch-through rate (Reels)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_dwell_per_impression</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">NEGATIVE SIGNALS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Hide rate / Report rate per post</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Brand-safety threshold breach</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_engagements (event_type ∈ hide/report)</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RANKER A/B LIFT</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Like rate · v3.1 vs v3.2</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Hide rate (negative test)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: ranker_model_id × engagements</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="310" y1="285" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="310" y1="490" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+  <line x1="525" y1="470" x2="525" y2="490" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrI)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+<p><strong>Sample data — 1 viewer sees 3 posts under v3.2 ranker; engages with two</strong></p>
+<pre><code>INSERT INTO fct_impressions VALUES
+  ('IMP_A','U_42','POST_001', 1,'2025-05-01 09:00:00','dev_iphone','model_v3.2',0.72,'feed'),
+  ('IMP_B','U_42','POST_002', 2,'2025-05-01 09:00:08','dev_iphone','model_v3.2',0.55,'feed'),
+  ('IMP_C','U_42','POST_003', 3,'2025-05-01 09:00:15','dev_iphone','model_v3.2',0.41,'feed');
+
+INSERT INTO fct_dwell_per_impression VALUES
+  ('IMP_A',  4200, 1.00, TRUE),   -- 4.2s, full view
+  ('IMP_B',   800, 0.40, FALSE),  -- 0.8s, partial — scrolled past
+  ('IMP_C',  6500, 1.00, TRUE);   -- 6.5s, full view
+
+INSERT INTO fct_engagements VALUES
+  ('ENG_1','IMP_A','U_42','POST_001','like',   '2025-05-01 09:00:04', FALSE, NULL),
+  ('ENG_2','IMP_C','U_42','POST_003','save',   '2025-05-01 09:00:21', FALSE, NULL),
+  ('ENG_3','IMP_C','U_42','POST_003','comment','2025-05-01 09:01:00', FALSE, NULL),
+  ('ENG_4','IMP_A','U_42','POST_001','like',   '2025-05-01 09:05:00', TRUE,  '2025-05-01 09:05:00');  -- unlike
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Creator analytics · post engagement</h4>
+<p><strong>Q1 — Like / save / share rate per post (with active engagements only)</strong></p>
+<pre><code>WITH active_engagements AS (
+  SELECT post_id, event_type FROM fct_engagements WHERE is_undone = FALSE
 )
-PARTITION BY DATE(impression_ts)
-CLUSTER BY (post_sk, viewer_sk);
+SELECT
+  i.post_id,
+  COUNT(*)                                                        AS impressions,
+  APPROX_COUNT_DISTINCT(i.viewer_id)                              AS unique_viewers,
+  COUNT(*) FILTER (WHERE e.event_type = 'like')                   AS likes,
+  COUNT(*) FILTER (WHERE e.event_type = 'save')                   AS saves,
+  COUNT(*) FILTER (WHERE e.event_type = 'share')                  AS shares,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE e.event_type='like') / COUNT(*), 2) AS like_rate_pct,
+  ROUND(AVG(d.dwell_ms), 0)                                       AS avg_dwell_ms
+FROM fct_impressions i
+LEFT JOIN active_engagements e ON e.post_id = i.post_id
+LEFT JOIN fct_dwell_per_impression d ON d.impression_id = i.impression_id
+GROUP BY i.post_id ORDER BY like_rate_pct DESC;
+</code></pre>
 
-CREATE TABLE fact_engagement (
-  engagement_sk   BIGINT,
-  impression_sk   BIGINT,            -- nullable: comments arrive without an impression event
-  viewer_sk       BIGINT,
-  post_sk         BIGINT,
-  event_type      STRING,            -- 'like' | 'save' | 'share' | 'comment' | 'hide' | 'report'
-  event_ts        TIMESTAMP_TZ,
-  is_undone       BOOLEAN,           -- mutable: like → unlike
-  undone_ts       TIMESTAMP_TZ NULL
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Brand safety · negative-signal monitoring</h4>
+<p><strong>Q2 — Posts with hide+report rate above brand-safety threshold</strong></p>
+<pre><code>SELECT
+  i.post_id,
+  COUNT(*)                                                                 AS impressions,
+  COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))                AS negative_signals,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))
+        / COUNT(*), 3)                                                     AS negative_rate_pct
+FROM fct_impressions i
+LEFT JOIN fct_engagements e ON e.impression_id = i.impression_id AND e.is_undone = FALSE
+WHERE DATE(i.impression_ts) = CURRENT_DATE - 1
+GROUP BY i.post_id
+HAVING COUNT(*) &gt; 1000
+   AND COUNT(*) FILTER (WHERE e.event_type IN ('hide','report')) * 1.0 / COUNT(*) &gt; 0.005
+ORDER BY negative_rate_pct DESC;
+-- Posts above 0.5% hide+report rate go to human moderation queue.
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Ranker · A/B model lift</h4>
+<p><strong>Q3 — Engagement-rate lift v3.2 over v3.1</strong></p>
+<pre><code>WITH ranker_metrics AS (
+  SELECT
+    i.ranker_model_id,
+    COUNT(*)                                                    AS impressions,
+    COUNT(*) FILTER (WHERE e.event_type='like'  AND e.is_undone=FALSE) AS likes,
+    COUNT(*) FILTER (WHERE e.event_type='save'  AND e.is_undone=FALSE) AS saves,
+    COUNT(*) FILTER (WHERE e.event_type IN ('hide','report'))    AS negatives,
+    AVG(d.dwell_ms)                                             AS avg_dwell_ms
+  FROM fct_impressions i
+  LEFT JOIN fct_engagements        e ON e.impression_id = i.impression_id
+  LEFT JOIN fct_dwell_per_impression d ON d.impression_id = i.impression_id
+  WHERE i.impression_ts &gt;= CURRENT_DATE - 7
+    AND i.ranker_model_id IN ('model_v3.1','model_v3.2')
+  GROUP BY i.ranker_model_id
+)
+SELECT ranker_model_id,
+  ROUND(100.0 * likes     / NULLIF(impressions, 0), 3) AS like_rate_pct,
+  ROUND(100.0 * saves     / NULLIF(impressions, 0), 3) AS save_rate_pct,
+  ROUND(100.0 * negatives / NULLIF(impressions, 0), 3) AS negative_rate_pct,
+  ROUND(avg_dwell_ms, 0)                                AS avg_dwell_ms
+FROM ranker_metrics;
+-- v3.2 wins if like_rate higher AND negative_rate not worse.
+</code></pre>
+
+<h4 class="sub-head">Worked example — viewer U_42's feed session</h4>
+<ol>
+  <li>3 posts impressed under <code>model_v3.2</code>. Predicted scores: 0.72, 0.55, 0.41. Ranker order = score-desc, correct.</li>
+  <li>POST_001 (score 0.72): 4.2s dwell, like at +4s, full view → strong positive.</li>
+  <li>POST_002 (score 0.55): 0.8s dwell, no engagement, partial view (40%) → user scrolled past. Ranker over-predicted.</li>
+  <li>POST_003 (score 0.41): 6.5s dwell, save + comment → strong positive. Ranker under-predicted.</li>
+  <li><strong>Calibration error</strong> on this session: 1/3 (POST_002) too high, 1/3 (POST_003) too low. Logged in <code>fct_impressions.predicted_score</code> for ranker training.</li>
+  <li><strong>Mutable like:</strong> User unlikes POST_001 5 minutes later. <code>fct_engagements</code> stores both events (ENG_1 like, ENG_4 the unlike with <code>is_undone=TRUE</code>). Final state: not liked. Active-only queries filter <code>is_undone=FALSE</code>.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Volume:</strong> billions of impressions per day. Dedup via event_id at ingest. Use <code>APPROX_COUNT_DISTINCT</code> for analytics.</li>
-  <li><strong>Like/unlike toggle:</strong> a like can be undone; track as <code>is_undone</code> + <code>undone_ts</code> rather than deleting.</li>
-  <li><strong>Dwell time:</strong> heartbeats every 250ms while post is on screen. Aggregate to per-impression at ETL time, not at query.</li>
-  <li><strong>Brand safety:</strong> negative engagement (hide, report) is a high-leverage signal — pre-aggregate per post for ranker.</li>
+  <li><strong>Ranker A/B is queryable.</strong> <code>ranker_model_id</code> on every impression → comparing v3.1 vs v3.2 is a GROUP BY, not a separate ETL pipeline.</li>
+  <li><strong>Mutable engagements without losing history.</strong> Append-only with <code>is_undone</code> preserves the full toggle behavior — useful for "regret rate" analysis.</li>
+  <li><strong>Dwell aggregated at ETL.</strong> 100B per-impression rows >> 12T per-heartbeat rows. The aggregation is non-negotiable.</li>
+  <li><strong>HLL by default.</strong> Distinct viewer counts at petabyte scale require <code>APPROX_COUNT_DISTINCT</code> — exact only when finance demands it.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Storing <code>ranker_model_id</code> on the impression is what lets the feed team A/B test new models without losing the ability to compute baseline metrics — model-version is a first-class dimension, not a footnote."
+<strong>Senior framing.</strong> "Storing <code>ranker_model_id</code> on the impression is what lets the feed team A/B test new models without losing the ability to compute baseline metrics — model-version is a first-class dimension, not a footnote. Append-only engagements with <code>is_undone</code> means we can answer 'what % of likes get unliked within 5 min?' which is the canary for low-quality ranker decisions."
 </div>
 </div>
 
