@@ -3760,83 +3760,178 @@ ORDER BY chargeback_rate_pct DESC;
 
 <!-- Scenario 11: Airbnb -->
 <div class="scenario" id="sc-airbnb">
-<div class="domain-tag">Airbnb · 2-sided marketplace</div>
-<h4 class="sub-head">Scenario 11 — Bookings, calendar &amp; reviews</h4>
-<div class="prompt">Design a model for Airbnb that supports search/availability lookup, booking lifecycle (request → accepted → stayed → reviewed), cancellation policies, and host payouts after stay completion.</div>
+<div class="domain-tag">Airbnb · 2-sided marketplace · calendar-as-fact</div>
+<h4 class="sub-head">Scenario 11 — Bookings, calendar, cancellations &amp; reviews</h4>
+<div class="prompt">Design a model for Airbnb supporting search/availability lookup, booking lifecycle (request → accepted → stayed → reviewed), cancellation-policy refund logic, host payouts after stay completion, and dynamic pricing — with full point-in-time queryability ("what was the price of listing X on July 4 last year?").</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>The calendar is the hot read path: a search query for "Paris, July 4-7, 2 guests" hits potentially millions of (listing × night) rows in milliseconds. <strong>Calendar-as-fact</strong> with daily snapshots is the canonical answer. Booking modifications require append-only — same booking_id can't UPDATE in place. Cancellation refunds depend on (policy × days-from-check-in) and must be computed at cancel time, locked on the booking row. Multi-currency pays guest in EUR, host in USD; FX locked at booking.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Calendar: one row per (listing × night). Pre-populated for the next 365 nights per listing."</li>
-  <li>"Booking grain: one row per booking. Multi-night = single row with check_in / check_out."</li>
-  <li>"Cancellation policies (flexible / moderate / strict) — drive refund logic — modeled in <code>dim_listing</code> SCD2."</li>
-  <li>"Reviews: bilateral — guest reviews host, host reviews guest. Two facts."</li>
+  <li><code>fct_calendar_nights</code> — <strong>The "Availability" grain.</strong> One row per (listing × night × snapshot_date). Daily snapshots enable point-in-time price lookup.</li>
+  <li><code>fct_bookings</code> — <strong>The "Reservation" grain.</strong> One row per booking lifecycle. Append-only — modifications create new rows.</li>
+  <li><code>fct_reviews</code> — <strong>The "Bilateral feedback" grain.</strong> One row per review (typed: guest_to_host OR host_to_guest).</li>
+  <li><code>fct_host_payouts</code> — <strong>The "Payout" grain.</strong> One row per payout event after stay completion.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_calendar_night</code>: one row per (listing × night) — the calendar-as-fact pattern.</li>
-  <li><code>fact_booking</code>: one row per booking lifecycle.</li>
-  <li><code>fact_review</code>: one row per review (typed: guest_to_host or host_to_guest).</li>
-  <li><code>fact_host_payout</code>: one row per payout event.</li>
+  <li><code>dim_listings</code> (SCD2 — price, policies, capacity drift)</li>
+  <li><code>dim_hosts</code> (SCD2 — superhost status, response rate)</li>
+  <li><code>dim_guests</code></li>
+  <li><code>dim_geography</code> (neighborhood, lat/lon, market_id)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_listing       (SCD2 — price, policies, capacity drift)
-dim_host          (SCD2 — superhost status, response rate)
-dim_guest         (SCD1)
-dim_geography     (SCD1 — neighborhood mapping)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_calendar_nights</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>listing_id, night_date, snapshot_date</code></td><td>Composite PK</td><td>Time-travel via snapshot.</td></tr>
+    <tr><td><code>is_available, is_blocked, is_booked</code></td><td>BOOLEAN</td><td>Mutually exclusive states.</td></tr>
+    <tr><td><code>booking_id</code></td><td>FK NULL</td><td>Set when booked.</td></tr>
+    <tr><td><code>base_price_local</code>, <code>smart_price_local</code>, <code>effective_price_local</code></td><td>DECIMAL</td><td>Base = host-set; smart = algorithmic; effective = what was charged.</td></tr>
+    <tr><td><code>currency_code</code></td><td>CHAR(3)</td><td>Listing's currency.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_calendar_night (
-  listing_sk        BIGINT,
-  night_date        DATE,
-  is_available      BOOLEAN,
-  is_blocked        BOOLEAN,         -- host blocked
-  is_booked         BOOLEAN,
-  booking_sk        BIGINT NULL,
-  base_price_local  DECIMAL(10,2),
-  smart_price_local DECIMAL(10,2),   -- algorithmic
-  effective_price_local DECIMAL(10,2),
-  currency_code     CHAR(3),
-  snapshot_date     DATE             -- as-of, for time-travel
-)
-PARTITION BY night_date;
+<p><strong><code>fct_bookings</code></strong> — <code>booking_id, listing_id, guest_id, request_ts, accepted_ts, cancelled_ts, cancellation_actor ∈ {guest, host, platform}, check_in_date, check_out_date, nights, guests, subtotal/cleaning/service/taxes/total_local, fx_rate_to_usd, total_usd, cancellation_policy ∈ {flexible, moderate, strict, super_strict}, refund_amount_usd, terminal_state</code>.</p>
 
-CREATE TABLE fact_booking (
-  booking_sk          BIGINT,
-  booking_id          STRING,
-  listing_sk          BIGINT,
-  guest_sk            BIGINT,
-  request_ts          TIMESTAMP_TZ,
-  accepted_ts         TIMESTAMP_TZ NULL,
-  cancelled_ts        TIMESTAMP_TZ NULL,
-  cancellation_actor  STRING NULL,    -- 'guest' | 'host' | 'platform'
-  check_in_date       DATE,
-  check_out_date      DATE,
-  nights              SMALLINT,
-  guests              SMALLINT,
-  subtotal_local      DECIMAL(10,2),
-  cleaning_fee_local  DECIMAL(10,2),
-  service_fee_local   DECIMAL(10,2),
-  taxes_local         DECIMAL(10,2),
-  total_local         DECIMAL(10,2),
-  fx_rate_to_usd      DECIMAL(18,8),
-  total_usd           DECIMAL(10,2),
-  cancellation_policy STRING,          -- 'flexible' | 'moderate' | 'strict' | 'super_strict'
-  refund_amount_usd   DECIMAL(10,2) NULL,
-  ingest_ts           TIMESTAMP_TZ
-);</code></pre>
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Guest · search &amp; book</strong> — Search joins <code>fct_calendar_nights</code> WHERE <code>is_available=TRUE</code> AND <code>night_date BETWEEN x AND y</code>. Hot path; pushed to Elasticsearch + indexed in warehouse.</p>
+<p><strong>Host · earnings &amp; calendar mgmt</strong> — Daily payouts from <code>fct_host_payouts</code>. Pricing team analyzes <code>fct_calendar_nights</code> over time to recommend smart-price strategy.</p>
+<p><strong>Pricing team · "what was the price on date X?"</strong> — Time-travel via <code>snapshot_date</code> in the PK. Critical for dynamic-pricing experiments and dispute resolution.</p>
+<p><strong>Trust &amp; safety · review-rate analysis</strong> — Bilateral reviews; if a host has high "guest cancelled" rate, T&amp;S investigates.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 4 — Why calendar-as-fact + daily snapshot</h4>
 <ul>
-  <li><strong>Calendar drift:</strong> host changes price for next month. Daily snapshot of the calendar — <code>snapshot_date</code> is part of the PK so we can time-travel.</li>
-  <li><strong>Cancellation refunds:</strong> policy + days-from-check-in determines refund. Computed at cancellation time, stored on the booking row.</li>
-  <li><strong>Same-day mods:</strong> guest changes dates → new booking row, original booking <code>terminal_state = modified</code>.</li>
-  <li><strong>Currency:</strong> guest pays in EUR, host paid in USD. FX locked at booking time on the row.</li>
-  <li><strong>Search availability lookup:</strong> hot read path — index <code>fact_calendar_night</code> on <code>(geo_sk, night_date, is_available)</code>; or push to a search index (Elasticsearch).</li>
+  <li><strong>Without snapshots:</strong> can only answer "what's the price now?" Time-travel queries require reconstructing from <code>dim_listings</code> SCD2 + booking events — slow, error-prone, often impossible after data drift.</li>
+  <li><strong>With daily snapshots:</strong> "what was the price of listing X on July 4 last year (as Airbnb showed it on July 1)?" is one query.</li>
+  <li><strong>Cost:</strong> 7M listings × 365 future nights × daily snapshot = ~9B rows/day. Partition by <code>night_date</code>; aggressively expire old snapshots (keep 90-day raw, then weekly).</li>
+  <li><strong>Append-only on bookings.</strong> Modifications generate a new booking row with <code>parent_booking_id</code>; original sets <code>terminal_state = modified</code>. Audit trail preserved.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Airbnb Bookings + Calendar</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrAB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">AIRBNB · CALENDAR-AS-FACT · BOOKING LIFECYCLE · BILATERAL REVIEWS</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏠 dim_listings</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">listing_id · capacity · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">amenities · cancellation_policy</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,245)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎤 dim_hosts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">host_id · superhost · response_rate</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">👤 dim_guests</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">guest_id · verified_id · trips_count</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🌍 dim_geography</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">market_id · neighborhood · lat/lon</text></g>
+  <g transform="translate(40,540)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📅 dim_cancellation_policies ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">flexible · moderate · strict · super_strict</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">refund_curve_json (days→%)</text><text x="20" y="84" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">drives refund math</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="170" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📅 fct_calendar_nights ★ HOT PATH</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ listing_id · night_date · snapshot_date</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_available · is_blocked · is_booked</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ booking_id (FK NULL)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ base / smart / effective price</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_code</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (listing × night × snapshot)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="170" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🎟 fct_bookings</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ booking_id · ⛓ listing_id · guest_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ request → accepted → cancelled</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">check_in / check_out · nights</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subtotal · cleaning · service · tax</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cancellation_policy · refund_amount</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only · parent_booking_id for mods</text></g>
+  <g transform="translate(385,320)"><rect width="280" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="280" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⭐ fct_reviews</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ booking_id · review_type</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">{guest_to_host, host_to_guest}</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">overall · cleanliness · accuracy ratings</text><text x="20" y="108" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">bilateral grain</text></g>
+  <g transform="translate(700,320)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💰 fct_host_payouts</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ host_id · booking_id (NULL for batches)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">payout_ts · amount_local · fx · usd</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">payout_method · status</text></g>
+  <g transform="translate(385,460)"><rect width="580" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🔄 fct_booking_modifications</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ original_booking_id · new_booking_id · modification_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">change_type {date_change, guest_change, price_renegotiation}</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">links chains of modified bookings</text></g>
+  <g transform="translate(385,600)"><rect width="580" height="50" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="295" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">REFUND RULE: refund_amount = total × refund_curve(policy, days_to_check_in)</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CALENDAR UTILIZATION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📅 Booked / Available nights per market</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📊 Effective price vs base price</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_calendar_nights</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">BOOKING FUNNEL</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Search → request → accept → stay</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Time-to-accept by host</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_bookings + search_logs</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CANCELLATION RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Rate per cancellation_policy</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Host-cancelled rate (T&amp;S signal)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_bookings × policies</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">HOST EARNINGS &amp; SUPERHOST</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💰 Earnings per host per month</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⭐ Avg rating + response rate</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: payouts × reviews × hosts</text></g>
+
+  <line x1="310" y1="180" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="310" y1="290" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="310" y1="595" x2="700" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="525" y1="300" x2="525" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="830" y1="300" x2="830" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — 1 listing, 5 nights of calendar, 1 booking, 1 guest cancellation</strong></p>
+<pre><code>INSERT INTO fct_calendar_nights VALUES
+  ('LST_PARIS_42','2025-07-04','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-05','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-06','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-07','2025-06-01', TRUE,  FALSE, FALSE,  NULL,    200.00, 220.00, 220.00,'EUR'),
+  ('LST_PARIS_42','2025-07-08','2025-06-01', TRUE,  FALSE, FALSE,  NULL,    200.00, 220.00, 220.00,'EUR');
+
+INSERT INTO fct_bookings VALUES
+  ('BKG_777','LST_PARIS_42','GUEST_LISA','2025-06-01 10:00','2025-06-01 10:30',NULL,NULL,
+   '2025-07-04','2025-07-07', 3, 2,
+   720.00, 80.00, 56.00, 64.00, 920.00, 1.08, 993.60,
+   'moderate', NULL, 'confirmed');
+
+-- Guest cancels 5 days before check-in (under 'moderate' policy = 50% refund)
+UPDATE fct_bookings SET cancelled_ts='2025-06-29 14:00', cancellation_actor='guest',
+  refund_amount_usd=496.80, terminal_state='cancelled' WHERE booking_id='BKG_777';
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Search · calendar utilization</h4>
+<p><strong>Q1 — Available listings in Paris for July 4-7, 2 guests</strong></p>
+<pre><code>SELECT l.listing_id, l.title, MIN(c.effective_price_local) AS price_low, MAX(c.effective_price_local) AS price_high
+FROM dim_listings l
+JOIN fct_calendar_nights c ON l.listing_id = c.listing_id
+JOIN dim_geography g ON l.geography_id = g.geography_id
+WHERE c.snapshot_date = CURRENT_DATE
+  AND c.night_date BETWEEN '2025-07-04' AND '2025-07-06'
+  AND c.is_available = TRUE
+  AND l.capacity &gt;= 2
+  AND g.market_id = 'PARIS'
+GROUP BY l.listing_id, l.title
+HAVING COUNT(*) = 3;     -- all 3 nights available
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Pricing team · time-travel queries</h4>
+<p><strong>Q2 — Price of LST_PARIS_42 on July 4, 2025 — as Airbnb showed it on June 1</strong></p>
+<pre><code>SELECT listing_id, night_date, base_price_local, smart_price_local, effective_price_local
+FROM fct_calendar_nights
+WHERE listing_id = 'LST_PARIS_42'
+  AND night_date = '2025-07-04'
+  AND snapshot_date = '2025-06-01';
+-- The data product the dynamic-pricing team can't ship without.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Trust &amp; safety · cancellation analysis</h4>
+<p><strong>Q3 — Host cancellation rate (a strong T&amp;S signal)</strong></p>
+<pre><code>SELECT
+  l.host_id,
+  COUNT(*)                                                   AS total_bookings,
+  COUNT(*) FILTER (WHERE b.cancellation_actor = 'host')      AS host_cancels,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE b.cancellation_actor = 'host')
+        / COUNT(*), 2)                                        AS host_cancel_rate_pct
+FROM fct_bookings b
+JOIN dim_listings l USING (listing_id)
+WHERE b.request_ts &gt;= CURRENT_DATE - 90
+GROUP BY l.host_id
+HAVING COUNT(*) &gt; 10
+ORDER BY host_cancel_rate_pct DESC;
+-- Hosts &gt;3% rate get warning; &gt;5% lose Superhost status.
+</code></pre>
+
+<h4 class="sub-head">Worked example — BKG_777 cancellation under "moderate" policy</h4>
+<ol>
+  <li>Booking total: <strong>$993.60</strong> for 3 nights ($720 subtotal + $80 cleaning + $56 service + $64 tax, FX 1.08).</li>
+  <li>Cancelled 5 days before check-in.</li>
+  <li><strong>Moderate policy refund_curve:</strong> ≥5 days before = 100% refund of nightly rate (subtotal only); cleaning fee always refunded; service fee non-refundable.</li>
+  <li>Refund = $720 (subtotal at 100%) × 0.50 (we're inside the partial-refund window for "moderate") + $80 cleaning + $0 service = <strong>$496.80</strong>.</li>
+  <li><code>fct_bookings.refund_amount_usd</code> = $496.80, locked at cancellation_ts. Future re-querying gives same result regardless of policy changes after.</li>
+  <li>Calendar nights for Jul 4-6 flip back to <code>is_available=TRUE</code> in the next snapshot. Listing reopens for searches.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Calendar-as-fact + snapshots</strong> = time-travel pricing queries are first-class.</li>
+  <li><strong>Append-only bookings</strong> with <code>parent_booking_id</code> chain = audit trail for modifications.</li>
+  <li><strong>Refund locked at cancel time</strong> = future policy changes don't restate historical refunds.</li>
+  <li><strong>Bilateral reviews</strong> = both guest and host accountability surfaced.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The calendar-as-fact is the unlock — pricing teams can answer 'what was the price of this listing on Jul 4 last year?' from <code>fact_calendar_night</code> without reconstructing it from booking events. That's the data product the dynamic-pricing team can't ship without."
+<strong>Senior framing.</strong> "The calendar-as-fact is the unlock — pricing teams can answer 'what was the price of this listing on Jul 4 last year?' from <code>fct_calendar_nights</code> without reconstructing it from booking events. That's the data product the dynamic-pricing team can't ship without. Snapshot_date in the PK is the cheap engineering choice that pays back every quarter."
 </div>
 </div>
 
