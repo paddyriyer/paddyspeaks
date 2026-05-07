@@ -3937,75 +3937,198 @@ ORDER BY host_cancel_rate_pct DESC;
 
 <!-- Scenario 12: SaaS -->
 <div class="scenario" id="sc-saas">
-<div class="domain-tag">SaaS · subscription billing</div>
-<h4 class="sub-head">Scenario 12 — Subscription billing &amp; usage metering</h4>
-<div class="prompt">Design a model for a SaaS like Snowflake or Datadog with mixed pricing — flat-rate seats + usage-based metering (per-query, per-GB, per-API-call) — handling plan changes mid-cycle, prorations, overages, and trials.</div>
+<div class="domain-tag">SaaS · subscription + usage metering</div>
+<h4 class="sub-head">Scenario 12 — Subscription billing + hourly usage metering (Snowflake / Datadog model)</h4>
+<div class="prompt">Design a model for a SaaS with mixed pricing — flat-rate seats + usage-based metering (per-query, per-GB, per-API-call) — handling mid-cycle plan changes, prorations, overages, free trials, and multi-currency invoicing.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Two revenue streams with opposite shapes. <strong>Subscription</strong> is predictable, monthly, modeled at low row volume. <strong>Usage</strong> is volatile, hourly, billions of rows/day. Mid-cycle plan changes require pro-rated math. Trials look like paid plans but bill $0. Free-tier allowances reset each period. Multi-currency demands FX locked at usage time. The model must keep usage and subscription separate at the fact layer but join cleanly at invoice time.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Two revenue streams: subscription (predictable) and usage (volatile). Different facts."</li>
-  <li>"Plan change mid-cycle: prorated. Old plan billed for the partial period; new plan starts."</li>
-  <li>"Overages: usage above plan tier billed at marginal rate."</li>
-  <li>"Trials: $0 plan with full features. <code>plan_type = 'trial'</code> in <code>dim_plan</code>."</li>
+  <li><code>fct_subscription_state</code> — <strong>The "Daily snapshot" grain.</strong> One row per (subscription × day). Captures plan, status, MRR.</li>
+  <li><code>fct_usage_meter</code> — <strong>The "Hourly usage" grain.</strong> One row per (subscription × meter × hour). High volume.</li>
+  <li><code>fct_billing_events</code> — <strong>The "Charge" grain.</strong> One row per subscription_charge / usage_charge / proration / refund / credit / dunning.</li>
+  <li><code>fct_invoices</code> — <strong>The "Statement" grain.</strong> One row per invoice — derived rollup of billing events.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_subscription_state</code>: one row per (subscription × day) — daily snapshot.</li>
-  <li><code>fact_billing_event</code>: one row per charge/proration/refund/dunning.</li>
-  <li><code>fact_usage_meter</code>: one row per (subscription × meter × hour) — high-volume.</li>
-  <li><code>fact_invoice</code>: one row per invoice — derived rollup.</li>
+  <li><code>dim_accounts</code> · <code>dim_plans</code> (SCD2 — pricing tiers drift) · <code>dim_meters</code> (compute_credits, storage_gb_month, api_calls) · <code>dim_promotions</code> (SCD2)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_account       (SCD1)
-dim_plan          (SCD2 — pricing tiers change)
-dim_meter         (SCD1 — 'compute_credits' | 'storage_gb_month' | 'api_calls')
-dim_promotion     (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_usage_meter</code></strong> — <code>account_id, subscription_id, meter_id, hour_bucket_ts, raw_quantity, billable_quantity (= max(0, raw − free_allowance)), unit_price_local (locked at hour), currency_code, amount_local, fx_rate_to_usd, amount_usd</code>.</p>
 
-CREATE TABLE fact_usage_meter (
-  account_sk        BIGINT,
-  subscription_sk   BIGINT,
-  meter_sk          BIGINT,
-  hour_bucket_ts    TIMESTAMP_TZ,
-  raw_quantity      DECIMAL(20,6),
-  billable_quantity DECIMAL(20,6),     -- after credits/comps applied
-  unit_price_local  DECIMAL(18,8),     -- locked at hour
-  currency_code     CHAR(3),
-  amount_local      DECIMAL(18,4),
-  fx_rate_to_usd    DECIMAL(18,8),
-  amount_usd        DECIMAL(18,4),
-  ingest_ts         TIMESTAMP_TZ
+<p><strong><code>fct_billing_events</code></strong> — <code>event_id, account_id, subscription_id, event_type, plan_id (SCD2 effective at event_ts), event_ts, period_start, period_end, amount_local, currency_code, amount_usd, status, source_event_id UNIQUE</code>.</p>
+
+<p><strong><code>fct_subscription_state</code></strong> — <code>subscription_id, day, plan_id, status ∈ {trialing, active, paused, canceled, past_due}, mrr_usd, currency, days_into_cycle, days_remaining</code>.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Finance · MRR &amp; ARR</strong> — MRR = SUM(<code>fct_subscription_state.mrr_usd</code>) WHERE <code>day = today</code> AND <code>status = 'active'</code>. ARR = MRR × 12.</p>
+<p><strong>Product · usage analytics</strong> — Hourly grain → daily/weekly rollups for adoption analysis. Same source as Finance — one truth.</p>
+<p><strong>Customer Success · expansion signal</strong> — Accounts approaching their plan's overage threshold = upsell trigger. Computed from <code>fct_usage_meter</code> trends + <code>dim_plans.tier_limit</code>.</p>
+<p><strong>Sales · NRR cohorts</strong> — Net revenue retention by quarterly signup cohort. Combines all four facts.</p>
+
+<h4 class="sub-head">Section 4 — Why hourly meter + daily snapshot + event log</h4>
+<ul>
+  <li><strong>Hourly meter resolution</strong> is the integration point: fine enough for usage analytics, coarse enough that the table doesn't explode. Per-query/per-call rolls up to the hour at ingest.</li>
+  <li><strong>Daily subscription state</strong> avoids modeling subscription as a slowly-changing dim — too much daily flux. Daily snapshot is bounded and queryable.</li>
+  <li><strong>Append-only billing events</strong> with <code>UNIQUE(source_event_id)</code> = idempotent + audit-defensible. Mid-cycle plan change emits 2 events (proration credit on old, prorated charge on new); invoice is just SUM of events in the period.</li>
+  <li><strong>FX locked per hour.</strong> Same precision as the meter; never restated.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — SaaS Subscription + Usage</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">SAAS · SUBSCRIPTION + HOURLY USAGE METER + INVOICE ROLLUP</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_accounts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">account_id · billing_email · region</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📋 dim_plans ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">plan_id · tier · monthly_fee_usd</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">included_meters_json (free_allowance)</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">overage_unit_price · plan_type</text><text x="20" y="96" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · pricing drift</text></g>
+  <g transform="translate(40,345)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📊 dim_meters</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">compute_credits · storage_gb_month</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">api_calls · seats · etc</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,455)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎟 dim_promotions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">discount_pct · valid_periods</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,555)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💱 dim_fx_rates</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_pair · rate · effective_from</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 hourly</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⏱ fct_usage_meter ★ HIGH-VOLUME</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · meter_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">hour_bucket_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">raw_quantity · billable_quantity</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">unit_price_local (locked at hour)</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ amount_local · fx · amount_usd</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (sub × meter × hour)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📅 fct_subscription_state</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">plan_id (SCD2)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">status {trialing, active, canceled,</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">       paused, past_due}</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ mrr_usd · days_remaining</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (sub × day)</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💵 fct_billing_events ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ event_id · ⛓ subscription_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">event_type {subscription_charge,</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  usage_charge, proration, refund,</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  credit, dunning}</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period_start / period_end</text><text x="20" y="141" font-family="JetBrains Mono,monospace" font-size="10" fill="#0369a1">UNIQUE(source_event_id) ★</text><text x="20" y="157" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only · idempotent</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="170" fill="#f0fdf4" stroke="#166534" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#166534" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🧾 fct_invoices (DERIVED)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · period</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subscription_total · usage_total</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ overage · proration · credits</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ total_due · currency</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">status · paid_ts · paid_amount</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">grain: 1 per (sub × billing period)</text></g>
+  <g transform="translate(385,500)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="290" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#1e293b">PRORATION RULE: mid-cycle plan change emits 2 billing events</text><text x="290" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">credit_old = old_fee × (days_remaining / days_in_cycle)</text><text x="290" y="66" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">charge_new = new_fee × (days_remaining / days_in_cycle)</text><text x="290" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">net delta = (new - old) × prorate_ratio · invoice picks both up</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MRR / ARR</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ MRR (active subscriptions)</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Net new MRR (expansions − churn)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_subscription_state</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">USAGE OVERAGE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Accounts over plan tier</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Upsell signal (within 90% of cap)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_usage_meter × dim_plans</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">NET REVENUE RETENTION (NRR)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ NRR by quarterly cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚖ Expansion vs churn vs contraction</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_invoices cohort</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">TRIAL → PAID CONVERSION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Trial-to-paid % per cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Days to first usage in trial</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: subscription_state status transitions</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="310" y1="275" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="310" y1="390" x2="385" y2="370" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="665" y1="395" x2="700" y2="395" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — Mid-cycle plan upgrade with 15 days remaining</strong></p>
+<pre><code>-- Account on Pro plan ($100/mo), upgrades to Enterprise ($300/mo) on day 15 of a 30-day cycle
+INSERT INTO fct_billing_events VALUES
+  ('EVT_S1','ACCT_X','SUB_42','subscription_charge','PLAN_PRO',       '2025-05-01 00:00','2025-05-01','2025-05-31',100.00,'USD',100.00,'paid','SRC_001'),
+  -- Day 15: upgrade. Proration credit on PRO (15 days unused = $50)
+  ('EVT_P1','ACCT_X','SUB_42','proration',          'PLAN_PRO',       '2025-05-15 14:00','2025-05-15','2025-05-31',-50.00,'USD',-50.00,'applied','SRC_002'),
+  -- Day 15: prorated charge for ENT (15 days at new rate = $150)
+  ('EVT_P2','ACCT_X','SUB_42','proration',          'PLAN_ENTERPRISE','2025-05-15 14:00','2025-05-15','2025-05-31',150.00,'USD',150.00,'paid','SRC_003');
+
+-- Hourly usage: account exceeds 100 free credits/hour 3 times during the day
+INSERT INTO fct_usage_meter VALUES
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 09:00:00', 120,  20, 0.10,'USD', 2.00,1.0, 2.00,'2025-05-15 09:05'),
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 14:00:00', 180,  80, 0.10,'USD', 8.00,1.0, 8.00,'2025-05-15 14:05'),
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 18:00:00', 250, 150, 0.10,'USD',15.00,1.0,15.00,'2025-05-15 18:05');
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · MRR &amp; invoice rollup</h4>
+<p><strong>Q1 — MRR roll-forward (active subscriptions, latest snapshot)</strong></p>
+<pre><code>SELECT
+  COUNT(*)                                        AS active_subs,
+  ROUND(SUM(mrr_usd), 2)                          AS mrr_usd,
+  ROUND(SUM(mrr_usd) * 12, 2)                     AS arr_usd
+FROM fct_subscription_state
+WHERE day = CURRENT_DATE
+  AND status = 'active';
+</code></pre>
+
+<p><strong>Q2 — Invoice for SUB_42 in May 2025 (sums all event types)</strong></p>
+<pre><code>SELECT
+  subscription_id,
+  SUM(amount_usd) FILTER (WHERE event_type = 'subscription_charge') AS subscription_charges,
+  SUM(amount_usd) FILTER (WHERE event_type = 'usage_charge')        AS usage_charges,
+  SUM(amount_usd) FILTER (WHERE event_type = 'proration')           AS proration_net,
+  SUM(amount_usd) FILTER (WHERE event_type = 'credit')              AS credits,
+  SUM(amount_usd)                                                    AS total_due_usd
+FROM fct_billing_events
+WHERE subscription_id = 'SUB_42'
+  AND period_start = '2025-05-01'
+GROUP BY subscription_id;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Customer Success · upsell signal</h4>
+<p><strong>Q3 — Accounts approaching their plan's overage threshold (upsell candidates)</strong></p>
+<pre><code>WITH usage_30d AS (
+  SELECT subscription_id, meter_id, SUM(billable_quantity) AS used
+  FROM fct_usage_meter
+  WHERE hour_bucket_ts &gt;= CURRENT_DATE - 30
+  GROUP BY subscription_id, meter_id
+),
+plan_caps AS (
+  SELECT s.subscription_id, m.meter_id, p.included_quantity
+  FROM fct_subscription_state s
+  JOIN dim_plans p USING (plan_id)
+  CROSS JOIN dim_meters m
+  WHERE s.day = CURRENT_DATE AND s.status = 'active'
 )
-PARTITION BY DATE(hour_bucket_ts)
-CLUSTER BY (account_sk, meter_sk);
+SELECT u.subscription_id, u.meter_id, u.used, c.included_quantity,
+  ROUND(100.0 * u.used / NULLIF(c.included_quantity, 0), 1) AS pct_of_cap
+FROM usage_30d u
+JOIN plan_caps c USING (subscription_id, meter_id)
+WHERE u.used &gt; c.included_quantity * 0.85
+ORDER BY pct_of_cap DESC;
+-- &gt;85% of cap = upsell trigger; &gt;100% = overage charges hit next invoice.
+</code></pre>
 
-CREATE TABLE fact_billing_event (
-  event_sk         BIGINT,
-  account_sk       BIGINT,
-  subscription_sk  BIGINT,
-  event_type       STRING,    -- 'subscription_charge' | 'usage_charge' | 'proration' | 'refund' | 'credit'
-  plan_sk          BIGINT,    -- SCD2 effective at event_ts
-  event_ts         TIMESTAMP_TZ,
-  period_start     DATE,
-  period_end       DATE,
-  amount_local     DECIMAL(18,4),
-  currency_code    CHAR(3),
-  amount_usd       DECIMAL(18,4),
-  status           STRING,
-  source_event_id  STRING UNIQUE      -- idempotent
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Sales · NRR by cohort</h4>
+<p><strong>Q4 — Net Revenue Retention by signup cohort</strong></p>
+<pre><code>WITH cohort_baseline AS (
+  SELECT subscription_id, DATE_TRUNC('quarter', MIN(day)) AS cohort_q,
+         FIRST_VALUE(mrr_usd) OVER (PARTITION BY subscription_id ORDER BY day) AS starting_mrr
+  FROM fct_subscription_state
+),
+current_state AS (
+  SELECT subscription_id, mrr_usd AS current_mrr
+  FROM fct_subscription_state WHERE day = CURRENT_DATE
+)
+SELECT cb.cohort_q,
+  COUNT(DISTINCT cb.subscription_id)                                      AS cohort_size,
+  ROUND(SUM(cb.starting_mrr), 0)                                          AS starting_mrr_total,
+  ROUND(SUM(COALESCE(cs.current_mrr, 0)), 0)                              AS current_mrr_total,
+  ROUND(100.0 * SUM(COALESCE(cs.current_mrr, 0)) / NULLIF(SUM(cb.starting_mrr), 0), 1) AS nrr_pct
+FROM cohort_baseline cb
+LEFT JOIN current_state cs USING (subscription_id)
+GROUP BY cb.cohort_q
+ORDER BY cb.cohort_q;
+-- NRR &gt; 100% = expansion outpaces churn (the SaaS holy grail).
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Worked example — SUB_42 mid-cycle upgrade + usage overage</h4>
+<ol>
+  <li><strong>Day 1 (May 1):</strong> charged $100 for Pro plan (full month).</li>
+  <li><strong>Day 15 (May 15):</strong> upgrade to Enterprise. Two proration events:
+    <ul>
+      <li>Credit −$50 on Pro (15 unused days × $100/30)</li>
+      <li>Charge +$150 for Enterprise (15 days × $300/30)</li>
+      <li>Net delta: +$100</li>
+    </ul>
+  </li>
+  <li><strong>Day 15 (later):</strong> usage spikes. Plan includes 100 compute_credits/hr; account uses 250 in one hour → 150 billable at $0.10 = <strong>$15</strong> overage.</li>
+  <li><strong>End-of-month invoice for May:</strong> $100 (Pro full) − $50 (credit) + $150 (Ent prorated) + $25 (3-hr usage overage) = <strong>$225</strong>.</li>
+  <li><strong>MRR effect on day 15 onward:</strong> jumps from $100 to $300/mo. Visible in <code>fct_subscription_state.mrr_usd</code> daily snapshot.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Mid-cycle plan change:</strong> emit two billing events — proration credit on old plan, prorated charge on new. Ratio = (days remaining / days in cycle).</li>
-  <li><strong>Usage backfill:</strong> meters can land hours late. Watermark-driven; final bill cuts off at month-end + 24h grace.</li>
-  <li><strong>Free tier and overage:</strong> <code>billable_quantity</code> = max(0, raw - free_allowance). Free allowance is a function of plan, locked at hour.</li>
-  <li><strong>Multi-currency invoices:</strong> charges accrue in local currency, FX locked per hour, sum to invoice in customer's billing currency.</li>
+  <li><strong>Hourly usage + daily subscription</strong> = right resolution at each grain. Usage is high-volume; subscription is bounded.</li>
+  <li><strong>Proration is two events, not one.</strong> Both credit and charge land in <code>fct_billing_events</code>; invoice rollup picks them up cleanly.</li>
+  <li><strong>Idempotent at <code>source_event_id</code>.</strong> Producer retries don't double-charge.</li>
+  <li><strong>FX locked per hour.</strong> Same precision as the meter; no FX restatement.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The hourly grain on <code>fact_usage_meter</code> is the integration point — finance rolls it up to invoices, product teams use it for usage analytics, and customer success uses it for adoption signals. Three consumers, one source of truth."
+<strong>Senior framing.</strong> "The hourly grain on <code>fct_usage_meter</code> is the integration point — finance rolls it up to invoices, product teams use it for usage analytics, and customer success uses it for adoption signals. Three consumers, one source of truth. Mid-cycle plan changes emit two billing events instead of one updated row — that's what makes the invoice a SUM, not a recompute."
 </div>
 </div>
 </section>
