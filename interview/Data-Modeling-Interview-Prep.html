@@ -2839,80 +2839,182 @@ ORDER BY total_dollars_owed DESC;
 
 <!-- Scenario 7: Amazon -->
 <div class="scenario" id="sc-amazon">
-<div class="domain-tag">Amazon · e-commerce</div>
+<div class="domain-tag">Amazon · e-commerce · returns &amp; inventory</div>
 <h4 class="sub-head">Scenario 7 — Orders, returns &amp; multi-warehouse inventory</h4>
-<div class="prompt">Design a model for Amazon orders that handles partial returns, replacements, marketplace seller orders, and inventory drawn from multiple warehouses.</div>
+<div class="prompt">Design a model for Amazon orders that handles partial returns, replacements, marketplace seller orders (1P vs FBA vs 3P), and inventory drawn from multiple warehouses with FIFO/LIFO consumption rules.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Returns reshape revenue retroactively. Multi-warehouse fulfillment splits a single SKU across two warehouses. Seller-of-record (1P retail / 2P FBA / 3P marketplace) determines whether Amazon books GMV or commission. And inventory has to reconcile to ledger every night. The model must be append-only on the financial side and movement-based on the physical side — same product, two grains, one source of truth.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Grain: one row per order line item, not per order. An order with 3 items = 3 rows."</li>
-  <li>"Returns: separate fact, append-only, allows partial."</li>
-  <li>"Multi-warehouse: a single line item may be split across warehouses if needed."</li>
-  <li>"Seller-of-record: Amazon retail, FBA seller, marketplace seller — different revenue treatment."</li>
+  <li><code>fct_order_lines</code> — <strong>The "Sale" grain.</strong> One row per (order × product × source_warehouse). 3-item order = 3 rows.</li>
+  <li><code>fct_returns</code> — <strong>The "Refund" grain.</strong> One row per return event, line-level. Append-only.</li>
+  <li><code>fct_inventory_movements</code> — <strong>The "Stock-flow" grain.</strong> One row per stock change (in / out / transfer / damage / adjustment).</li>
+  <li><code>snap_inventory_daily</code> — <strong>The "State" grain.</strong> Daily snapshot per (product × warehouse).</li>
+  <li><code>fct_replacements</code> — <strong>The "Linked-order" grain.</strong> Maps replacement orders back to their original.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_order_line</code>: one row per order × product × warehouse-source.</li>
-  <li><code>fact_return</code>: one row per return event (line-level).</li>
-  <li><code>fact_inventory_movement</code>: one row per stock change (in/out/transfer/damage).</li>
-  <li><code>snap_inventory_daily</code>: one row per (product × warehouse × day) snapshot.</li>
+  <li><code>dim_products</code> (SCD2 — title, category, dimensions drift)</li>
+  <li><code>dim_sellers</code> (SCD2 — <code>seller_type ∈ {retail_1p, fba_2p, marketplace_3p}</code>, <code>recognized_as ∈ {gmv, commission_only}</code>)</li>
+  <li><code>dim_warehouses</code>, <code>dim_customers</code> + <code>dim_addresses</code> (SCD2), <code>dim_promotions</code> (SCD2)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_product       (SCD2 — title, category, dimensions can change)
-dim_seller        (SCD2 — Amazon Retail / FBA seller / 3P)
-dim_warehouse     (SCD1)
-dim_customer      (SCD1, address via SCD2 dim_address)
-dim_promotion     (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_order_lines</code></strong> — <code>order_line_id, order_id, line_number, customer_id, product_id, seller_id, source_warehouse_id, ordered_ts, shipped_ts, delivered_ts, quantity, unit_price_usd, promo_discount, tax, shipping, gross_revenue_usd, is_prime, is_subscribe_save</code>.</p>
 
-CREATE TABLE fact_order_line (
-  order_line_sk        BIGINT,
-  order_id             STRING,
-  line_number          INT,
-  customer_sk          BIGINT,
-  product_sk           BIGINT,
-  seller_sk            BIGINT,
-  source_warehouse_sk  BIGINT,
-  ordered_ts           TIMESTAMP_TZ,
-  shipped_ts           TIMESTAMP_TZ NULL,
-  delivered_ts         TIMESTAMP_TZ NULL,
-  quantity             INT,
-  unit_price_local     DECIMAL(10,2),
-  promo_discount_local DECIMAL(10,2),
-  tax_local            DECIMAL(10,2),
-  shipping_local       DECIMAL(10,2),
-  fx_rate_to_usd       DECIMAL(18,8),
-  total_revenue_usd    DECIMAL(10,2),
-  is_prime             BOOLEAN,
-  is_subscribe_save    BOOLEAN,
-  ingest_ts            TIMESTAMP_TZ
+<p><strong><code>fct_returns</code></strong> — <code>return_id, order_line_id, return_ts, refund_ts, reason_code, quantity (partial OK), refund_amount_usd, restocking_fee_usd, condition_received {new, used, damaged}, is_replacement BOOL</code>.</p>
+
+<p><strong><code>fct_inventory_movements</code></strong> — <code>movement_id, product_id, warehouse_id, movement_ts, movement_type {receipt, sale_out, return_in, transfer_out, transfer_in, damage, adjustment}, quantity (signed), unit_cost_usd, related_order_line_id (NULL for non-sale moves)</code>.</p>
+
+<p><strong><code>snap_inventory_daily</code></strong> — <code>product_id, warehouse_id, snapshot_date, opening_qty, receipts, sales, returns_in, transfers_net, damage, ending_qty, weighted_avg_cost</code>. <em>Reconciliation invariant: <code>opening + receipts + returns_in − sales − damage + transfers_net = ending</code>.</em></p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Customer experience</strong> — order delivery SLA from <code>fct_order_lines</code> (ordered → delivered). Return rate by category from <code>fct_returns</code> tracks product quality.</p>
+<p><strong>Finance</strong> — net revenue = SUM(<code>order_lines.gross_revenue_usd</code>) − SUM(<code>returns.refund_amount_usd</code>). For 3P sellers, <code>dim_sellers.recognized_as = 'commission_only'</code> means only the commission is booked.</p>
+<p><strong>Operations</strong> — multi-warehouse fill rate, transfer efficiency, days of inventory on hand. Reconciliation runs nightly: <code>snap_inventory_daily</code> ending_qty must match SUM(<code>fct_inventory_movements</code>) since opening.</p>
+
+<h4 class="sub-head">Section 4 — Why append-only returns + movement-based inventory</h4>
+<ul>
+  <li><strong>Returns reshape historical revenue.</strong> Never UPDATE <code>fct_order_lines</code>. Append <code>fct_returns</code>. Finance can restate any historical period correctly.</li>
+  <li><strong>Inventory snapshots derive from movements.</strong> Snapshots are pre-aggregated for fast read; movements are the immutable source. Lose a snapshot, rebuild from movements.</li>
+  <li><strong>Replacements are linked, not collapsed.</strong> Original order stays + replacement is a new row + return matches both. Triple-counted at gross level, nets to zero correctly.</li>
+  <li><strong>3P seller revenue carve-out.</strong> <code>dim_sellers.recognized_as</code> drives whether SUM is GMV or commission — single column makes the rule explicit and queryable.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Amazon Orders + Returns + Inventory</h4>
+<svg viewBox="0 0 1440 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">AMAZON · ORDERS + RETURNS + MULTI-WAREHOUSE INVENTORY</text>
+  <rect x="20" y="60" width="310" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📦 dim_products</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ product_id · ASIN · category</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">title · weight · dimensions</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🛒 dim_sellers ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ seller_id · seller_type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">retail_1p · fba_2p · marketplace_3p</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">recognized_as · commission_pct</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · drives revenue rule</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_warehouses</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">warehouse_id · region · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">capacity · zip</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_customers / addresses</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">prime_status · membership_since</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 on address</text></g>
+  <g transform="translate(40,540)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎟 dim_promotions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">promo_id · type · discount</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ fct_order_lines</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ order_line_id · order_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ customer_id · product_id · seller_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ source_warehouse_id (FK)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ ordered → shipped → delivered</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ qty · unit_price · gross_revenue</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: per (order × product × warehouse)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↩ fct_returns ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ return_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ order_line_id (FK)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qty (partial) · reason_code</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ refund_amount · restocking_fee</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">condition_received · is_replacement</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="135" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📈 fct_inventory_movements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ product_id · warehouse_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">movement_type {receipt, sale_out,</text><text x="20" y="89" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">return_in, transfer, damage}</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qty (signed) · unit_cost</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">immutable source of truth</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="135" fill="#fff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 snap_inventory_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ product · warehouse · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">opening · receipts · sales · returns_in</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">transfers_net · damage · ending</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">weighted_avg_cost</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">derived from movements</text></g>
+  <g transform="translate(385,465)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🔗 fct_replacements</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ original_order_line_id · replacement_order_line_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">replaced_ts · reason_code</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 row per replacement linkage · ties original ↔ new for net-zero accounting</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ORDER FUNNEL</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ ordered → shipped → delivered SLA</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ Prime vs non-Prime delivery time</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_order_lines</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">RETURN RATE &amp; REASONS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↩ Return rate per category</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↩ Top reason_codes</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_returns × dim_products</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">INVENTORY HEALTH</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📊 Days of inventory on hand</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Reconciliation drift (snap vs movements)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: snap × movements</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">COHORT LTV (1P vs 3P)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Net revenue per cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ 1P GMV vs 3P commission</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_order_lines − fct_returns × dim_sellers</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="310" y1="285" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="310" y1="390" x2="385" y2="350" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="665" y1="200" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+  <line x1="525" y1="445" x2="525" y2="465" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrA)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — 1 order with 2 line items (one split across 2 warehouses), 1 partial return</strong></p>
+<pre><code>INSERT INTO dim_sellers VALUES
+  ('SLR_AMZN','retail_1p','gmv', 0.0),
+  ('SLR_3P_ABC','marketplace_3p','commission_only', 0.15);
+
+-- 3-item order; line 2 split across 2 warehouses (qty 4 from WH-A, qty 2 from WH-B)
+INSERT INTO fct_order_lines VALUES
+  ('OL_001','ORD_99', 1, 'CUST_X','PROD_BOOK', 'SLR_AMZN','WH-A','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 1, 19.99, 0.00, 1.65, 0.00, 1.0, 21.64, TRUE, FALSE),
+  ('OL_002','ORD_99', 2, 'CUST_X','PROD_PEN',  'SLR_3P_ABC','WH-A','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 4,  3.50, 0.00, 1.16, 0.00, 1.0, 15.16, TRUE, FALSE),
+  ('OL_003','ORD_99', 2, 'CUST_X','PROD_PEN',  'SLR_3P_ABC','WH-B','2025-05-01 10:00','2025-05-02 14:00','2025-05-03 16:00', 2,  3.50, 0.00, 0.58, 0.00, 1.0,  7.58, TRUE, FALSE);
+
+-- Partial return: customer keeps the book, returns 3 of 6 pens
+INSERT INTO fct_returns VALUES
+  ('RET_001','OL_002','2025-05-08 09:00','2025-05-08 09:30','quality_issue', 3, 11.37, 0.00, 'used', FALSE);
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Customer · order funnel + delivery SLA</h4>
+<p><strong>Q1 — Prime vs non-Prime delivery time (last 30 days)</strong></p>
+<pre><code>SELECT
+  is_prime,
+  COUNT(*)                                                                       AS lines,
+  ROUND(AVG(EXTRACT(EPOCH FROM (delivered_ts - ordered_ts))/3600), 1)             AS avg_hours,
+  ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (delivered_ts - ordered_ts))/3600), 1) AS p95_hours
+FROM fct_order_lines
+WHERE delivered_ts IS NOT NULL AND ordered_ts &gt;= CURRENT_DATE - 30
+GROUP BY is_prime;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Finance · net revenue with 1P/3P carve-out</h4>
+<p><strong>Q2 — Net revenue with seller-type carve-out (3P books only commission)</strong></p>
+<pre><code>WITH gross AS (
+  SELECT
+    s.seller_type,
+    s.recognized_as,
+    SUM(CASE WHEN s.recognized_as = 'gmv' THEN ol.gross_revenue_usd
+             ELSE ol.gross_revenue_usd * s.commission_pct END) AS gross_recognized_usd
+  FROM fct_order_lines ol JOIN dim_sellers s USING (seller_id)
+  WHERE DATE(ol.ordered_ts) = '2025-05-01'
+  GROUP BY s.seller_type, s.recognized_as
+),
+returns AS (
+  SELECT
+    s.seller_type,
+    SUM(CASE WHEN s.recognized_as = 'gmv' THEN r.refund_amount_usd
+             ELSE r.refund_amount_usd * s.commission_pct END) AS refund_recognized_usd
+  FROM fct_returns r
+  JOIN fct_order_lines ol ON r.order_line_id = ol.order_line_id
+  JOIN dim_sellers s USING (seller_id)
+  WHERE DATE(r.return_ts) = '2025-05-01'
+  GROUP BY s.seller_type
 )
-PARTITION BY DATE(ordered_ts)
-CLUSTER BY (customer_sk, product_sk);
+SELECT g.seller_type,
+  ROUND(g.gross_recognized_usd, 2)                                                  AS gross_revenue,
+  ROUND(COALESCE(r.refund_recognized_usd, 0), 2)                                    AS refunds,
+  ROUND(g.gross_recognized_usd - COALESCE(r.refund_recognized_usd, 0), 2)           AS net_revenue
+FROM gross g LEFT JOIN returns r USING (seller_type);
+</code></pre>
 
-CREATE TABLE fact_return (
-  return_sk        BIGINT,
-  order_line_sk    BIGINT,
-  return_ts        TIMESTAMP_TZ,
-  refund_ts        TIMESTAMP_TZ NULL,
-  reason_code      STRING,
-  quantity         INT,         -- partial possible
-  refund_amount_usd DECIMAL(10,2),
-  is_replacement   BOOLEAN
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Operations · inventory reconciliation</h4>
+<p><strong>Q3 — Daily inventory invariant check (snap = opening + receipts + returns_in − sales − damage + transfers)</strong></p>
+<pre><code>SELECT
+  product_id, warehouse_id, snapshot_date,
+  opening_qty, receipts, returns_in, sales, damage, transfers_net, ending_qty,
+  (opening_qty + receipts + returns_in - sales - damage + transfers_net) AS computed_ending,
+  ending_qty - (opening_qty + receipts + returns_in - sales - damage + transfers_net) AS drift,
+  CASE WHEN ending_qty = opening_qty + receipts + returns_in - sales - damage + transfers_net
+       THEN 'PASS' ELSE 'FAIL' END AS reconciliation
+FROM snap_inventory_daily
+WHERE snapshot_date = CURRENT_DATE - 1
+  AND ending_qty != opening_qty + receipts + returns_in - sales - damage + transfers_net;
+-- Empty result = clean. Non-empty = inventory adjustment needed; investigate.
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Worked example — Order ORD_99 with split fulfillment + partial return</h4>
+<ol>
+  <li><strong>Order:</strong> 1 book ($21.64) + 6 pens. Pens split across 2 warehouses: 4 from WH-A ($15.16) + 2 from WH-B ($7.58) = 6 pens for $22.74. Total order gross = <strong>$44.38</strong>.</li>
+  <li><strong>Seller-type effects on revenue:</strong> Book is 1P retail → Amazon books $21.64 GMV. Pens are 3P seller (15% commission) → Amazon books $22.74 × 0.15 = <strong>$3.41</strong>. Total Amazon recognized = $21.64 + $3.41 = <strong>$25.05</strong>.</li>
+  <li><strong>Partial return:</strong> 3 of 6 pens returned a week later. Refund = $11.37 (proportional). Amazon's recognized refund = $11.37 × 0.15 = <strong>$1.71</strong>.</li>
+  <li><strong>Net Amazon recognized:</strong> $25.05 − $1.71 = <strong>$23.34</strong>.</li>
+  <li>Inventory: WH-A movements record sale_out (+4 pens out, then return_in +1 pen back). WH-B records sale_out (-2 pens). Daily snapshot reconciles.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Returns:</strong> never <code>UPDATE</code> <code>fact_order_line</code>. Append <code>fact_return</code>. Net revenue = <code>SUM(orders.revenue) - SUM(returns.refund)</code>.</li>
-  <li><strong>Partial returns:</strong> <code>quantity</code> on the return may be less than original. Track on the row.</li>
-  <li><strong>Replacement orders:</strong> linked via <code>is_replacement = TRUE</code> + <code>replacement_for_order_line_sk</code>. Counts as gross order, nets to zero.</li>
-  <li><strong>Multi-warehouse split:</strong> one ordered SKU split = two rows with same <code>order_id, line_number</code>, different <code>source_warehouse_sk</code>.</li>
-  <li><strong>Marketplace seller revenue:</strong> Amazon recognizes only the commission, not the GMV. <code>dim_seller.recognized_as ∈ {gmv, commission_only}</code>.</li>
+  <li><strong>Append-only returns.</strong> Net revenue = SUM(orders) − SUM(returns). No UPDATE; full historical audit.</li>
+  <li><strong>Movements are immutable.</strong> Snapshots derive from movements; rebuild at any time.</li>
+  <li><strong>Seller-type carve-out is a column.</strong> 1P / 2P / 3P revenue rules become a CASE in the query, not a separate ETL path.</li>
+  <li><strong>Multi-warehouse split is a row.</strong> Same order_id + line_number, different warehouse → fulfilment is queryable without losing the customer's "1 line item" mental model.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Append-only on returns is the contract that lets finance restate any historical period without rebuilding orders — and that's the difference between a model that survives quarter-end and one that doesn't."
+<strong>Senior framing.</strong> "Append-only on returns is the contract that lets finance restate any historical period without rebuilding orders. The 1P/3P carve-out as <code>dim_sellers.recognized_as</code> turns a multi-billion-dollar revenue policy into a queryable column, not a brittle ETL branch — that's the difference between a model that survives quarter-end and one that doesn't."
 </div>
 </div>
 
