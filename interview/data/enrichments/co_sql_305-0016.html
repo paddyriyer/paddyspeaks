@@ -1,0 +1,88 @@
+<p>Okta's GTM ops opens the quarterly board deck and the second slide is always <em>"revenue by region, percent of total."</em> The query is two aggregations stacked: per-region <code>SUM</code> for the numerator, and a window-function <code>SUM</code> across all groups for the denominator. The senior trick is recognising that you can do both in one pass &mdash; a window over the GROUP BY result.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>NA</td><td>$50,000</td></tr>
+    <tr><td>NA</td><td>$30,000</td></tr>
+    <tr><td>EMEA</td><td>$40,000</td></tr>
+    <tr><td>EMEA</td><td>$20,000</td></tr>
+    <tr><td>APAC</td><td>$25,000</td></tr>
+    <tr><td>LATAM</td><td>$10,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; aggregate inside a window aggregate</h4>
+<pre><code>SELECT region,
+  SUM(amount) AS region_total,
+  100.0 * SUM(amount) / SUM(SUM(amount)) OVER () AS pct_contribution
+FROM sales
+GROUP BY region;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>region_total</th><th>pct_contribution</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>NA</td><td>$80,000</td><td><strong>45.7%</strong></td><td>top contributor</td></tr>
+    <tr><td>EMEA</td><td>$60,000</td><td>34.3%</td><td>solid #2</td></tr>
+    <tr><td>APAC</td><td>$25,000</td><td>14.3%</td><td>growth runway</td></tr>
+    <tr><td>LATAM</td><td>$10,000</td><td>5.7%</td><td>bottom-of-deck</td></tr>
+    <tr><td><strong>total</strong></td><td><strong>$175,000</strong></td><td><strong>100%</strong></td><td>sanity check</td></tr>
+  </tbody>
+</table>
+<p>NA at 45.7% is the headline; LATAM at &lt;6% is the "where do we invest?" conversation.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The double-SUM mind-bender &mdash; <code>SUM(SUM(amount)) OVER ()</code></h5>
+<p>The <em>inner</em> <code>SUM(amount)</code> is the GROUP BY aggregate &mdash; per-region total. The <em>outer</em> <code>SUM(...) OVER ()</code> is the window aggregate, and at this point the input is the <em>post-grouping</em> rows. With no PARTITION BY or ORDER BY, the window covers all rows &mdash; so it sums the per-region totals into the grand total. One pass, no subquery.</p>
+<p>Equivalent forms with explicit subquery (less elegant, but easier to read for juniors):</p>
+<pre><code>WITH region_totals AS (
+  SELECT region, SUM(amount) AS region_total
+  FROM sales GROUP BY region
+)
+SELECT region, region_total,
+  100.0 * region_total / SUM(region_total) OVER () AS pct_contribution
+FROM region_totals;</code></pre>
+
+<h5>Beware the <code>100.0 *</code> &mdash; integer division</h5>
+<p>If <code>amount</code> is an integer column and you write <code>100 * SUM(amount) / SUM(...)</code>, some databases (MySQL, SQLite) do integer division and you'll get values like <code>45</code> instead of <code>45.7</code>. The <code>100.0</code> forces the dividend into floating-point. Always lead percentage formulas with a literal that has a decimal point.</p>
+
+<h5>The zero-denominator trap</h5>
+<p>What if the entire window has <code>SUM(amount) = 0</code>? You divide by zero and the query errors out (Postgres) or returns NULL (SQLite). Wrap with <code>NULLIF</code>:</p>
+<pre><code>100.0 * SUM(amount) / NULLIF(SUM(SUM(amount)) OVER (), 0) AS pct</code></pre>
+
+<h5>Per-product within region &mdash; <code>PARTITION BY</code></h5>
+<p>The board's follow-up is usually <em>"break it down by product within each region."</em> Add the partition:</p>
+<pre><code>SELECT region, product,
+  SUM(amount) AS amt,
+  100.0 * SUM(amount) / SUM(SUM(amount)) OVER (PARTITION BY region) AS pct_within_region
+FROM sales
+GROUP BY region, product;</code></pre>
+<p>Now each region's products sum to 100%, and you can spot product-mix shifts within geographies.</p>
+
+<h5>The "what's missing 5% from where?" follow-up &mdash; YoY contribution shift</h5>
+<p>The CFO's actual question is rarely the snapshot &mdash; it's <em>"how did the contribution mix shift YoY?"</em> Two windows, one for current year and one for prior:</p>
+<pre><code>WITH yearly AS (
+  SELECT EXTRACT(YEAR FROM sale_date) AS yr, region, SUM(amount) AS amt
+  FROM sales GROUP BY 1, 2
+),
+mix AS (
+  SELECT yr, region, amt,
+    100.0 * amt / SUM(amt) OVER (PARTITION BY yr) AS pct
+  FROM yearly
+)
+SELECT region,
+  MAX(CASE WHEN yr = 2025 THEN pct END) AS pct_2025,
+  MAX(CASE WHEN yr = 2026 THEN pct END) AS pct_2026,
+  MAX(CASE WHEN yr = 2026 THEN pct END) - MAX(CASE WHEN yr = 2025 THEN pct END) AS pct_shift
+FROM mix GROUP BY region;</code></pre>
+
+<h5>Pareto / 80-20 follow-up</h5>
+<p>Sort regions descending by contribution and take a running total &mdash; the first regions to cross 80% are the Pareto leaders, the rest are the long tail.</p>
+<pre><code>SELECT region, region_total, pct,
+  SUM(pct) OVER (ORDER BY pct DESC ROWS UNBOUNDED PRECEDING) AS cumulative_pct
+FROM regional_mix;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <em>aggregate-of-aggregate</em> idiom (<code>SUM(SUM(...)) OVER ()</code>) crisply, pre-empt integer-division and zero-denominator traps, and offer the per-region <code>PARTITION BY</code> form without being asked. The YoY mix-shift and Pareto follow-ups are over-the-bar.</div>

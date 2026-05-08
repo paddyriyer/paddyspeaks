@@ -1,0 +1,84 @@
+<p>JaneStreet's HR-comp team wants to publish the comp range for each level. The simplest possible question: <em>what's the highest-paid employee's salary?</em> &mdash; and yet it's the question that separates juniors from seniors, because the right answer depends on what the recruiter actually meant by "highest". One person? All people tied at the top? The Nth highest? The trick is to surface those interpretations <em>before</em> writing SQL.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>E_01</td><td>Alex</td><td>$320,000</td></tr>
+    <tr><td>E_02</td><td>Bailey</td><td>$280,000</td></tr>
+    <tr><td>E_03</td><td>Casey</td><td>$320,000</td></tr>
+    <tr><td>E_04</td><td>Drew</td><td>$240,000</td></tr>
+    <tr><td>E_05</td><td>Ellis</td><td>$220,000</td></tr>
+  </tbody>
+</table>
+<p>Alex and Casey are <strong>tied</strong> at $320K. That tie is what makes this interesting.</p>
+
+<h4>2. The SQL &mdash; <code>MAX(salary)</code></h4>
+<pre><code>SELECT MAX(salary) AS highest_salary FROM employees;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>highest_salary</th></tr></thead>
+  <tbody>
+    <tr><td>$320,000</td></tr>
+  </tbody>
+</table>
+<p>One row, one number. But this answer is <em>incomplete</em> for any real recruiter conversation &mdash; they want to know <em>who</em>, not just the number, and they want to handle ties.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "give me the person, not the number" follow-up</h5>
+<p>Most interviewers will immediately ask: <em>"Now show me the employee's name."</em> Three correct ways, with very different semantics:</p>
+<pre><code>-- 1. ORDER BY + LIMIT 1 — returns ONE employee, arbitrary tiebreak
+SELECT name, salary FROM employees ORDER BY salary DESC LIMIT 1;
+
+-- 2. Subquery — returns ALL employees tied at the top
+SELECT name, salary FROM employees
+WHERE salary = (SELECT MAX(salary) FROM employees);
+
+-- 3. RANK() — returns ALL ties AND extends to "top N salaries"
+SELECT name, salary FROM (
+  SELECT name, salary, RANK() OVER (ORDER BY salary DESC) AS rk
+  FROM employees
+) WHERE rk = 1;</code></pre>
+<p>For our data: option 1 returns Alex <em>or</em> Casey (whichever the planner picks &mdash; non-deterministic!). Options 2 and 3 return both. <strong>Always confirm with the interviewer:</strong> "if there's a tie, do you want one row or all of them?"</p>
+
+<h5>The Nth-highest salary &mdash; the LeetCode classic</h5>
+<p>The follow-up is always: <em>"now find the 2nd highest."</em> Three approaches:</p>
+<pre><code>-- A. DENSE_RANK — handles ties correctly (2nd highest = next distinct salary)
+SELECT salary FROM (
+  SELECT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rk
+  FROM employees
+) WHERE rk = 2;
+
+-- B. LIMIT/OFFSET — fast but tie-blind
+SELECT DISTINCT salary FROM employees ORDER BY salary DESC LIMIT 1 OFFSET 1;
+
+-- C. Correlated subquery — slow on large tables, avoid
+SELECT MAX(salary) FROM employees
+WHERE salary &lt; (SELECT MAX(salary) FROM employees);</code></pre>
+<p>For our data: 2nd-highest distinct salary = $280K (Bailey). With <code>RANK</code> instead of <code>DENSE_RANK</code>, the 2nd highest gets <em>skipped</em> (ranks 1, 1, 3) &mdash; that's the trap.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> &mdash; the senior-detail moment</h5>
+<table>
+  <thead><tr><th>employee</th><th>salary</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>Alex</td><td>$320K</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>Casey</td><td>$320K</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>Bailey</td><td>$280K</td><td>3 (skips!)</td><td>2</td><td>3</td></tr>
+    <tr><td>Drew</td><td>$240K</td><td>4</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> leaves gaps after ties. <code>DENSE_RANK</code> doesn't. <code>ROW_NUMBER</code> ignores ties entirely. For "Nth highest" interpretations: <strong>DENSE_RANK is almost always what you want</strong>.</p>
+
+<h5>The empty-table edge case</h5>
+<p><code>MAX</code> on an empty table returns NULL, not an error or 0. If the consumer expects 0, wrap it: <code>COALESCE(MAX(salary), 0)</code>. The Nth-highest patterns return zero rows when N exceeds the number of distinct salaries &mdash; recruiters often want NULL instead, which means a final <code>SELECT (subquery LIMIT 1)</code> wrapper.</p>
+
+<h5>The pay-equity follow-up</h5>
+<p>The recruiter's actual question is rarely just "highest" &mdash; it's usually pay-equity-adjacent: <em>"highest by gender, by location, by level."</em> Add <code>PARTITION BY</code> to <code>RANK</code> and pivot:</p>
+<pre><code>SELECT level, gender, MAX(salary) AS top_salary,
+  COUNT(*) FILTER (WHERE salary &gt;= MAX(salary) OVER (PARTITION BY level, gender)) AS num_at_top
+FROM employees
+GROUP BY level, gender;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> ask "ties or no ties?" before writing SQL, name <code>DENSE_RANK</code> as the safe default for Nth-highest, contrast <code>RANK</code> / <code>DENSE_RANK</code> / <code>ROW_NUMBER</code> in one breath, and pre-empt the empty-table NULL behaviour. Pivoting to the pay-equity question is the over-the-bar finish.</div>

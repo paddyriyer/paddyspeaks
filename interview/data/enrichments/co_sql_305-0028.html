@@ -1,0 +1,115 @@
+<p>Dropbox's RevOps lead asks: <em>"what's the 3rd-largest deal we've ever closed?"</em> &mdash; the answer feeds a slide on average deal size at the top of the funnel. The question generalises to "Nth highest" and is one of the most-asked SQL interview questions on the planet, because it forces a candidate to choose among <code>OFFSET</code>, <code>DENSE_RANK</code>, and a correlated subquery &mdash; each with different tie behaviour, performance profiles, and dialect support.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>O_001</td><td>$1,000,000</td></tr>
+    <tr><td>O_002</td><td>$850,000</td></tr>
+    <tr><td>O_003</td><td>$850,000</td></tr>
+    <tr><td>O_004</td><td>$700,000</td></tr>
+    <tr><td>O_005</td><td>$550,000</td></tr>
+    <tr><td>O_006</td><td>$400,000</td></tr>
+  </tbody>
+</table>
+<p>Notice the <strong>tie at $850K</strong> &mdash; that's the senior conversation.</p>
+
+<h4>2. The SQL &mdash; <code>DISTINCT</code> + <code>OFFSET</code></h4>
+<pre><code>SELECT DISTINCT revenue
+FROM orders
+ORDER BY revenue DESC
+OFFSET 2 LIMIT 1;
+-- Replace 2 with N-1 for the Nth highest distinct revenue</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>revenue (3rd highest distinct)</th></tr></thead>
+  <tbody>
+    <tr><td>$700,000</td></tr>
+  </tbody>
+</table>
+<p>Without <code>DISTINCT</code>, the 3rd row is the second $850K &mdash; almost certainly not what RevOps wanted. The <code>DISTINCT</code> is the senior-detail moment.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Three idioms, three semantics &mdash; pick deliberately</h5>
+
+<pre><code>-- A. OFFSET-based — relies on DISTINCT for tie-handling
+SELECT DISTINCT revenue FROM orders
+ORDER BY revenue DESC OFFSET 2 LIMIT 1;
+
+-- B. DENSE_RANK — most readable, ties native
+SELECT revenue FROM (
+  SELECT revenue, DENSE_RANK() OVER (ORDER BY revenue DESC) AS rk
+  FROM orders
+) WHERE rk = 3;
+
+-- C. Correlated subquery — slow but classic
+SELECT MAX(revenue) FROM orders o1
+WHERE 2 = (SELECT COUNT(DISTINCT revenue) FROM orders o2 WHERE o2.revenue &gt; o1.revenue);</code></pre>
+<p>All three return <strong>$700,000</strong> on this dataset. Differences:</p>
+<table>
+  <thead><tr><th>idiom</th><th>perf at scale</th><th>dialect support</th><th>tie behaviour</th></tr></thead>
+  <tbody>
+    <tr><td>OFFSET + DISTINCT</td><td>fast (one scan)</td><td>universal</td><td>requires DISTINCT</td></tr>
+    <tr><td>DENSE_RANK</td><td>fast (one scan)</td><td>Postgres / BQ / SF / SQLite 3.25+</td><td>native</td></tr>
+    <tr><td>Correlated subquery</td><td>O(n&sup2;) &mdash; AVOID</td><td>universal</td><td>via DISTINCT</td></tr>
+  </tbody>
+</table>
+<p><strong>Pick DENSE_RANK</strong> when window functions are available; OFFSET when they aren't (legacy MySQL/SQLite). The correlated subquery is the historical answer &mdash; never the production answer.</p>
+
+<h5>RANK vs DENSE_RANK &mdash; the trap</h5>
+<p>If two deals tie at the top, what's the "2nd highest"?</p>
+<table>
+  <thead><tr><th>revenue</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>$1,000,000</td><td>1</td><td>1</td></tr>
+    <tr><td>$850,000</td><td>2</td><td>2</td></tr>
+    <tr><td>$850,000</td><td>2</td><td>2</td></tr>
+    <tr><td>$700,000</td><td><strong>4</strong></td><td><strong>3</strong></td></tr>
+  </tbody>
+</table>
+<p>With <code>RANK</code> there is no row at rank 3 &mdash; <code>WHERE rk = 3</code> returns nothing. With <code>DENSE_RANK</code> the next distinct value gets rank 3. <strong>For "Nth highest distinct", always use <code>DENSE_RANK</code>.</strong></p>
+
+<h5>The dialect cheat sheet for OFFSET</h5>
+<pre><code>-- Postgres / SQLite / MySQL 8 / Oracle 12+
+SELECT DISTINCT revenue FROM orders ORDER BY revenue DESC OFFSET 2 LIMIT 1;
+
+-- SQL Server (must include ORDER BY)
+SELECT DISTINCT revenue FROM orders
+ORDER BY revenue DESC OFFSET 2 ROWS FETCH NEXT 1 ROWS ONLY;
+
+-- Oracle 11 and earlier — no OFFSET, use ROWNUM in a nested query
+SELECT revenue FROM (
+  SELECT revenue, ROWNUM rn FROM (
+    SELECT DISTINCT revenue FROM orders ORDER BY revenue DESC
+  ) WHERE ROWNUM &lt;= 3
+) WHERE rn = 3;</code></pre>
+
+<h5>Edge case: N exceeds the number of distinct revenues</h5>
+<p>For 3 distinct revenues, requesting the 5th highest:</p>
+<ul>
+  <li><strong>OFFSET</strong>: returns zero rows.</li>
+  <li><strong>DENSE_RANK</strong>: returns zero rows.</li>
+  <li>If the consumer expects NULL: <code>SELECT (SELECT ... LIMIT 1) AS nth</code> &mdash; outer scalar wrap converts "no row" into NULL.</li>
+</ul>
+
+<h5>Top-N per group &mdash; the senior generalization</h5>
+<p>The follow-up is always <em>"now do it per region"</em>. <code>DENSE_RANK</code> with <code>PARTITION BY</code>:</p>
+<pre><code>SELECT region, revenue
+FROM (
+  SELECT region, revenue,
+    DENSE_RANK() OVER (PARTITION BY region ORDER BY revenue DESC) AS rk
+  FROM orders
+) WHERE rk &lt;= 3;</code></pre>
+<p>Now you've got the top 3 deals per region in one shot &mdash; the canonical "leaderboard" pattern.</p>
+
+<h5>The semantic confusion to flag</h5>
+<p>"3rd highest revenue" can mean three things; clarify before answering:</p>
+<ol>
+  <li><strong>3rd highest distinct revenue value</strong> &mdash; what most people mean (DENSE_RANK = 3 or DISTINCT + OFFSET 2).</li>
+  <li><strong>3rd-ranked deal allowing ties</strong> (RANK = 3) &mdash; rare but RevOps-style.</li>
+  <li><strong>3rd row in descending order</strong> (ROW_NUMBER = 3) &mdash; arbitrary tiebreak, almost always wrong.</li>
+</ol>
+
+<div class="takeaway"><strong>Senior signal:</strong> ask "ties: how do you want them counted?" before writing SQL, name <code>DENSE_RANK</code> as the default and OFFSET-DISTINCT as the dialect-portable fallback, contrast all three with their performance profiles, and pre-empt the top-N-per-group generalisation. The dialect cheat sheet (Oracle 11 ROWNUM!) is the over-the-bar finish.</div>
