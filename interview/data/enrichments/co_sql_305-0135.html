@@ -1,0 +1,108 @@
+<p>Broadcom's analytics platform supports an old MySQL 5.7 cluster where window functions don't exist. The PM still needs the top-3 products by revenue per category for a quarterly catalog refresh. The trick: a <strong>correlated count subquery</strong> &mdash; for each row, count how many rows in the same category have higher revenue, and keep only those with fewer than N higher. This is the canonical "top-N per group" pattern <em>without</em> <code>ROW_NUMBER</code> or <code>RANK</code>.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Electronics</td><td>P_001</td><td>$50,000</td></tr>
+    <tr><td>Electronics</td><td>P_002</td><td>$45,000</td></tr>
+    <tr><td>Electronics</td><td>P_003</td><td>$30,000</td></tr>
+    <tr><td>Electronics</td><td>P_004</td><td>$20,000</td></tr>
+    <tr><td>Electronics</td><td>P_005</td><td>$10,000</td></tr>
+    <tr><td>Apparel</td><td>P_006</td><td>$25,000</td></tr>
+    <tr><td>Apparel</td><td>P_007</td><td>$22,000</td></tr>
+    <tr><td>Apparel</td><td>P_008</td><td>$18,000</td></tr>
+    <tr><td>Apparel</td><td>P_009</td><td>$5,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; correlated count subquery</h4>
+<pre><code>SELECT s1.category, s1.product_id, s1.revenue
+FROM sales s1
+WHERE (
+  SELECT COUNT(*) FROM sales s2
+  WHERE s2.category = s1.category
+    AND s2.revenue  &gt; s1.revenue
+) &lt; 3
+ORDER BY s1.category, s1.revenue DESC;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>product_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>Apparel</td><td>P_006</td><td>$25,000</td></tr>
+    <tr><td>Apparel</td><td>P_007</td><td>$22,000</td></tr>
+    <tr><td>Apparel</td><td>P_008</td><td>$18,000</td></tr>
+    <tr><td>Electronics</td><td>P_001</td><td>$50,000</td></tr>
+    <tr><td>Electronics</td><td>P_002</td><td>$45,000</td></tr>
+    <tr><td>Electronics</td><td>P_003</td><td>$30,000</td></tr>
+  </tbody>
+</table>
+<p>Top 3 of each category. Note: the predicate <code>&lt; 3</code> means "fewer than 3 products in this category beat me" &mdash; i.e. I'm in the top 3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The clever-but-slow trick &mdash; reading the predicate</h5>
+<p>For each outer row, count <em>how many same-category rows have strictly higher revenue</em>:</p>
+<table>
+  <thead><tr><th>row</th><th>count of higher-revenue siblings</th><th>kept?</th></tr></thead>
+  <tbody>
+    <tr><td>P_001 ($50K)</td><td>0 &mdash; nobody beats it</td><td>yes (rank 1)</td></tr>
+    <tr><td>P_002 ($45K)</td><td>1 &mdash; just P_001</td><td>yes (rank 2)</td></tr>
+    <tr><td>P_003 ($30K)</td><td>2 &mdash; P_001, P_002</td><td>yes (rank 3)</td></tr>
+    <tr><td>P_004 ($20K)</td><td>3 &mdash; outside top 3</td><td>NO</td></tr>
+  </tbody>
+</table>
+<p>"Fewer than 3 beat me" = "I'm one of the top 3". The pattern generalises: for top-N, use <code>&lt; N</code>.</p>
+
+<h5>The tie problem &mdash; this is <code>RANK</code>-equivalent, not <code>DENSE_RANK</code>-equivalent</h5>
+<p>If two rows tie at $30K, both have the same higher-revenue count &mdash; both pass the <code>&lt; 3</code> predicate, you get 4 rows, not 3. That's RANK-style tie-emission. To make it <code>ROW_NUMBER</code>-style (exactly N rows, arbitrary tiebreak), add a tiebreaker column to the inner predicate:</p>
+<pre><code>WHERE (
+  SELECT COUNT(*) FROM sales s2
+  WHERE s2.category = s1.category
+    AND (s2.revenue, s2.product_id) &gt; (s1.revenue, s1.product_id)
+) &lt; 3</code></pre>
+<p>The composite tuple comparison breaks ties deterministically by <code>product_id</code>.</p>
+
+<h5>The modern equivalent &mdash; window functions, when available</h5>
+<pre><code>-- Modern: ROW_NUMBER (no ties), RANK (ties allowed, gaps), DENSE_RANK (ties, no gaps)
+SELECT category, product_id, revenue FROM (
+  SELECT *, DENSE_RANK() OVER (PARTITION BY category ORDER BY revenue DESC) AS rk
+  FROM sales
+) WHERE rk &lt;= 3;</code></pre>
+<p>Same answer, one sort instead of N&sup2; predicate evaluations. Use this whenever the dialect supports it (Postgres, BigQuery, Snowflake, MySQL 8+, SQLite 3.25+, SQL Server 2005+).</p>
+
+<h5>Performance &mdash; why the original is dangerous at scale</h5>
+<p>The correlated-subquery pattern is conceptually O(n&sup2;): for each of N outer rows, scan the table again counting matches. Without an index on <code>(category, revenue)</code> it's a full re-scan per row. With that index, the planner can use it to short-circuit the count. Always check:</p>
+<pre><code>EXPLAIN ANALYZE SELECT ... -- look for "Index Scan" not "Seq Scan" on the inner</code></pre>
+<p>For tables with millions of rows, the window-function form is typically 10-100x faster.</p>
+
+<h5>The "top N or all if fewer than N" follow-up</h5>
+<p>What if a category has only 2 products? Both forms return all 2 &mdash; the predicate is naturally robust. No special handling needed.</p>
+
+<h5>Top-N-per-group with secondary aggregations</h5>
+<p>Real ask: <em>"top 3 products per category, plus their share of category revenue."</em></p>
+<pre><code>WITH ranked AS (
+  SELECT category, product_id, revenue,
+    DENSE_RANK() OVER (PARTITION BY category ORDER BY revenue DESC) AS rk,
+    SUM(revenue) OVER (PARTITION BY category) AS category_total
+  FROM sales
+)
+SELECT category, product_id, revenue,
+  ROUND(100.0 * revenue / category_total, 1) AS pct_of_category
+FROM ranked WHERE rk &lt;= 3;</code></pre>
+
+<h5>The "lateral-join" alternative &mdash; Postgres / SQL Server</h5>
+<pre><code>SELECT s.category, top.product_id, top.revenue
+FROM (SELECT DISTINCT category FROM sales) s
+CROSS JOIN LATERAL (
+  SELECT product_id, revenue FROM sales
+  WHERE category = s.category
+  ORDER BY revenue DESC LIMIT 3
+) top;</code></pre>
+<p>One of the few cases where <code>LATERAL</code> is cleaner than window functions &mdash; especially when the LIMIT clause uses different sort orders per outer row.</p>
+
+<h5>The MySQL 5.7 reality &mdash; user-variables hack (avoid in interviews)</h5>
+<p>Pre-window-function MySQL had a notorious "session variable" trick to fake ROW_NUMBER. <strong>Don't reach for it in an interview</strong> &mdash; mention it exists, then either use the correlated-count form (portable, slow) or upgrade the database. The variable trick has surprising semantics about evaluation order and breaks after MySQL 8 deprecated reading-and-writing the same variable in a SELECT.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> trace the "fewer than N beat me" predicate explicitly, name the result as RANK-style (ties emit) and contrast with ROW_NUMBER-style (composite tiebreaker), pre-empt the perf trap with the index requirement, and offer the modern <code>DENSE_RANK</code> form as the upgrade path. The LATERAL-join alternative shows depth.</div>

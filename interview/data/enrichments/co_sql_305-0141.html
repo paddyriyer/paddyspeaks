@@ -1,0 +1,85 @@
+<p>Target's L&D team runs internal certification exams &mdash; some count more than others (the in-store-safety exam carries 5x weight; the optional Excel quiz counts 1x). Final scores must be <em>weighted averages</em>, not simple averages, or someone passing five trivial quizzes ends up "tied" with someone who passed the heavyweight cert. The query is one line, but the senior conversation is about NULL-handling and what happens when weights are missing.</p>
+
+<h4>1. The source data &mdash; <code>scores</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>exam</th><th>score</th><th>weight</th></tr></thead>
+  <tbody>
+    <tr><td>S_01</td><td>safety</td><td>90</td><td>5</td></tr>
+    <tr><td>S_01</td><td>customer_service</td><td>80</td><td>3</td></tr>
+    <tr><td>S_01</td><td>excel_basics</td><td>70</td><td>1</td></tr>
+    <tr><td>S_02</td><td>safety</td><td>60</td><td>5</td></tr>
+    <tr><td>S_02</td><td>customer_service</td><td>95</td><td>3</td></tr>
+    <tr><td>S_02</td><td>excel_basics</td><td>100</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Both students took 3 exams. The simple average gives S_01 = 80, S_02 = 85 &mdash; suggesting S_02 is the stronger learner. The weighted average tells a different story.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(score*weight) / SUM(weight)</code></h4>
+<pre><code>SELECT student_id,
+  SUM(score * weight) / SUM(weight) AS weighted_avg
+FROM scores
+GROUP BY student_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>student_id</th><th>simple_avg</th><th>weighted_avg</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>S_01</td><td>80.0</td><td><strong>83.3</strong></td><td>safety-strong, the keeper</td></tr>
+    <tr><td>S_02</td><td>85.0</td><td><strong>76.1</strong></td><td>safety-weak, needs remediation</td></tr>
+  </tbody>
+</table>
+<p>S_02's weighted average drops below S_01's &mdash; the safety exam dominates because it carries 5x weight. <strong>This is the entire reason weighted averages exist.</strong> The simple average had it backwards.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>SUM(score*weight) / SUM(weight)</code> &mdash; not <code>AVG(score*weight)</code></h5>
+<p>A common mistake: writing <code>AVG(score * weight)</code>. That returns <em>"average weighted score-point"</em> &mdash; a meaningless number scaled by the average weight. The correct identity for weighted mean:</p>
+<pre><code>weighted_avg = sum_of(score_i * weight_i) / sum_of(weight_i)</code></pre>
+<p>Test mentally: if all weights are equal (say all 1), <code>SUM(score*1) / SUM(1) = SUM(score)/N = simple AVG</code>. The formula generalises correctly to the simple-average case. <code>AVG(score*weight)</code> doesn't.</p>
+
+<h5>The integer-division trap</h5>
+<p>If both <code>score</code> and <code>weight</code> are integer columns, MySQL/SQLite may do integer division and lop off the decimal. Cast one operand:</p>
+<pre><code>SUM(score * weight) * 1.0 / SUM(weight)
+-- or
+CAST(SUM(score*weight) AS FLOAT) / SUM(weight)</code></pre>
+
+<h5>The zero-weight trap</h5>
+<p>If a student has all weights zero, the denominator is zero and the query errors (Postgres) or returns NULL (SQLite). Production-grade form:</p>
+<pre><code>SUM(score * weight) * 1.0 / NULLIF(SUM(weight), 0) AS weighted_avg</code></pre>
+
+<h5>Missing-exam handling &mdash; the silent zero</h5>
+<p>What if a student didn't take the safety exam? The simple form just averages what they took &mdash; effectively giving them a "skip" instead of a zero. If the policy is <em>"a missed exam counts as zero"</em>, you need a LEFT JOIN against the full exam catalog:</p>
+<pre><code>SELECT s.student_id, SUM(COALESCE(sc.score, 0) * e.weight) * 1.0 / SUM(e.weight) AS weighted_avg
+FROM students s
+CROSS JOIN exams e
+LEFT JOIN scores sc ON sc.student_id = s.student_id AND sc.exam = e.exam
+GROUP BY s.student_id;</code></pre>
+<p>Always confirm the missing-exam policy with the L&D PM. "We just skip them" vs "they count as zero" are very different curricula.</p>
+
+<h5>The pass / fail / honour-roll buckets</h5>
+<p>The L&D dashboard's actual ask is segmentation:</p>
+<pre><code>WITH wa AS (
+  SELECT student_id,
+    SUM(score*weight) * 1.0 / NULLIF(SUM(weight), 0) AS weighted_avg
+  FROM scores GROUP BY student_id
+)
+SELECT
+  CASE
+    WHEN weighted_avg &gt;= 90 THEN 'honour_roll'
+    WHEN weighted_avg &gt;= 75 THEN 'pass'
+    WHEN weighted_avg &gt;= 60 THEN 'remedial'
+    ELSE 'fail'
+  END AS bucket,
+  COUNT(*) AS students
+FROM wa GROUP BY 1;</code></pre>
+
+<h5>Time-decayed weights &mdash; the over-the-bar variant</h5>
+<p>Real-world certification renewals weight recent scores more than old ones. Multiply the static weight by an exponential decay on age:</p>
+<pre><code>SUM(score * weight * EXP(-0.05 * EXTRACT(DAY FROM CURRENT_DATE - exam_date))) /
+SUM(weight * EXP(-0.05 * EXTRACT(DAY FROM CURRENT_DATE - exam_date))) AS time_decayed_avg</code></pre>
+<p>Used for "your most recent safety exam matters more than the one from 3 years ago" rolling-average dashboards.</p>
+
+<h5>The Simpson's paradox follow-up</h5>
+<p>If you compute weighted average per cohort and then average those, you can get a different number than computing the global weighted average directly &mdash; classic Simpson's paradox. <strong>Always weight at the lowest grain</strong> (per (student, exam)) and aggregate up; never re-average pre-aggregated weighted averages.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>SUM(x*w)/SUM(w)</code> identity and contrast against the <code>AVG(x*w)</code> mistake, pre-empt integer-division and zero-weight traps with explicit guards, and surface the missing-exam policy question unprompted. The time-decayed variant and the Simpson's-paradox warning are over-the-bar.</div>

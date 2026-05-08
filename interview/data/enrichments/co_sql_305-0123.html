@@ -1,0 +1,90 @@
+<p>DoorDash's data team is reconciling two pipelines that should produce identical orders &mdash; the legacy Postgres OLTP and the new Snowflake mart. The ops question: <em>"which order_ids appear in BOTH?"</em> The answer is the canonical use of <code>INTERSECT</code> &mdash; the cleanest of the three SQL set operators (<code>UNION</code>, <code>INTERSECT</code>, <code>EXCEPT</code>). One line of SQL, but the dialect support and dedup behaviour are surprising.</p>
+
+<h4>1. The source data &mdash; <code>orders_a</code> &amp; <code>orders_b</code></h4>
+<table>
+  <thead><tr><th colspan="2">orders_a</th><th colspan="2">orders_b</th></tr></thead>
+  <tbody>
+    <tr><td>order_id</td><td>(narrative)</td><td>order_id</td><td>(narrative)</td></tr>
+    <tr><td>O_001</td><td>both</td><td>O_001</td><td>both</td></tr>
+    <tr><td>O_002</td><td>only A</td><td>O_003</td><td>both</td></tr>
+    <tr><td>O_003</td><td>both</td><td>O_004</td><td>only B</td></tr>
+    <tr><td>O_005</td><td>both</td><td>O_005</td><td>both</td></tr>
+    <tr><td>O_005</td><td>dup in A</td><td>O_006</td><td>only B</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; <code>INTERSECT</code></h4>
+<pre><code>SELECT order_id FROM orders_a
+INTERSECT
+SELECT order_id FROM orders_b;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>O_001</td></tr>
+    <tr><td>O_003</td></tr>
+    <tr><td>O_005</td></tr>
+  </tbody>
+</table>
+<p>3 ids appear in both tables. Note: even though O_005 was duplicated in <code>orders_a</code>, INTERSECT returns it once &mdash; <strong>set operators dedup by default</strong>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The three set operators &mdash; one cheat sheet</h5>
+<table>
+  <thead><tr><th>operator</th><th>returns</th><th>analogous to</th></tr></thead>
+  <tbody>
+    <tr><td><code>UNION</code></td><td>rows in A or B (deduplicated)</td><td>OR + DISTINCT</td></tr>
+    <tr><td><code>UNION ALL</code></td><td>rows in A and B (with duplicates)</td><td>OR (no dedup)</td></tr>
+    <tr><td><code>INTERSECT</code></td><td>rows in A and B (deduplicated)</td><td>AND</td></tr>
+    <tr><td><code>EXCEPT</code> (or <code>MINUS</code> in Oracle)</td><td>rows in A but not B (deduplicated)</td><td>AND NOT</td></tr>
+  </tbody>
+</table>
+<p>All three implicitly <code>DISTINCT</code> the result &mdash; that's the gotcha that surprises senior engineers used to <code>UNION ALL</code>'s no-dedup behaviour.</p>
+
+<h5>The "with duplicates preserved" variants</h5>
+<p>Postgres, BigQuery, Snowflake and SQL Server support:</p>
+<pre><code>SELECT order_id FROM orders_a INTERSECT ALL SELECT order_id FROM orders_b;
+-- Returns each id MIN(count_in_a, count_in_b) times — multiset semantics</code></pre>
+<p>For our data with O_005 duplicated in A but unique in B, <code>INTERSECT ALL</code> returns O_005 once (the min). MySQL doesn't support <code>INTERSECT</code> at all (until 8.0.31) &mdash; portability matters.</p>
+
+<h5>Equivalent forms &mdash; when INTERSECT isn't available</h5>
+<pre><code>-- Inner join on the matching column
+SELECT DISTINCT a.order_id
+FROM orders_a a JOIN orders_b b USING (order_id);
+
+-- IN / EXISTS
+SELECT DISTINCT order_id FROM orders_a
+WHERE order_id IN (SELECT order_id FROM orders_b);
+
+SELECT DISTINCT order_id FROM orders_a a
+WHERE EXISTS (SELECT 1 FROM orders_b b WHERE b.order_id = a.order_id);</code></pre>
+<p>For a single column the JOIN form is the most readable. For <em>"all columns must match exactly"</em> (full row dedup), <code>INTERSECT</code> is shorter than the equivalent JOIN with N=ColCount equality predicates.</p>
+
+<h5>The NULL trap &mdash; INTERSECT treats NULLs as equal</h5>
+<p>Surprising but true: <code>SELECT NULL INTERSECT SELECT NULL</code> returns one row. INTERSECT uses "is not distinct from" semantics, not <code>=</code>. This is the right behaviour for set semantics but trips up engineers who expect <code>NULL = NULL &rarr; NULL &rarr; FALSE</code>.</p>
+<pre><code>-- INTERSECT: NULL behaves like a value (matches another NULL)
+-- JOIN with =: NULL never matches NULL — query loses these rows silently</code></pre>
+<p>If you're dedup-reconciling rows that may contain NULLs, INTERSECT is safer than the JOIN form.</p>
+
+<h5>The reconciliation report &mdash; all three set operators in one query</h5>
+<p>The actual ask is rarely just "the intersection" &mdash; it's the full reconciliation matrix:</p>
+<pre><code>SELECT 'in_both'    AS bucket, COUNT(*) AS n FROM (SELECT order_id FROM orders_a INTERSECT SELECT order_id FROM orders_b) t
+UNION ALL
+SELECT 'only_in_a',           COUNT(*)        FROM (SELECT order_id FROM orders_a EXCEPT    SELECT order_id FROM orders_b) t
+UNION ALL
+SELECT 'only_in_b',           COUNT(*)        FROM (SELECT order_id FROM orders_b EXCEPT    SELECT order_id FROM orders_a) t;</code></pre>
+<p>Three counts, one slide. The data-quality team's daily smoke test for any pipeline migration.</p>
+
+<h5>Schema-mismatch trap &mdash; row shape matters</h5>
+<p>INTERSECT requires both sides to have <strong>the same number of columns and compatible types</strong>. The names are taken from the first SELECT. If <code>orders_a</code> has <code>order_id BIGINT</code> and <code>orders_b</code> has <code>order_id VARCHAR</code>, you must cast: <code>SELECT order_id::TEXT FROM orders_a INTERSECT SELECT order_id FROM orders_b</code>.</p>
+
+<h5>The "row-level reconciliation" pattern</h5>
+<p>For "do these two tables match column-for-column?", run <code>EXCEPT</code> in both directions:</p>
+<pre><code>(SELECT * FROM orders_a EXCEPT SELECT * FROM orders_b)
+UNION ALL
+(SELECT * FROM orders_b EXCEPT SELECT * FROM orders_a);</code></pre>
+<p>Empty result &rarr; the tables are identical. Any rows &rarr; precise diff of the mismatch. Standard pattern for golden-vs-candidate ETL validation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the implicit-dedup behaviour of all three set operators in one breath, surface the <code>INTERSECT ALL</code> multiset variant, contrast against the JOIN/EXISTS equivalents, and bring up the NULL-equality difference. The full reconciliation matrix and the bidirectional <code>EXCEPT</code> diff pattern are over-the-bar.</div>

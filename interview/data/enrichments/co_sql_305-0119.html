@@ -1,0 +1,94 @@
+<p>X (formerly Twitter) runs an internal "spaces booking" system &mdash; conference rooms reserved by team. Operations gets a complaint: <em>"two meetings double-booked the same room at the same time."</em> The classic SQL problem: find pairs of bookings on the same room whose time ranges overlap. The trick is the <strong>two-condition overlap predicate</strong>; getting it wrong produces missed conflicts or false positives.</p>
+
+<h4>1. The source data &mdash; <code>bookings</code></h4>
+<table>
+  <thead><tr><th>booking_id</th><th>room_id</th><th>start_dt</th><th>end_dt</th></tr></thead>
+  <tbody>
+    <tr><td>B_001</td><td>R_A</td><td>2026-04-22 09:00</td><td>2026-04-22 10:00</td></tr>
+    <tr><td>B_002</td><td>R_A</td><td>2026-04-22 09:30</td><td>2026-04-22 10:30</td></tr>
+    <tr><td>B_003</td><td>R_A</td><td>2026-04-22 11:00</td><td>2026-04-22 12:00</td></tr>
+    <tr><td>B_004</td><td>R_B</td><td>2026-04-22 09:00</td><td>2026-04-22 10:00</td></tr>
+    <tr><td>B_005</td><td>R_A</td><td>2026-04-22 09:45</td><td>2026-04-22 11:15</td></tr>
+  </tbody>
+</table>
+<p>R_A has the conflicts: B_001/B_002 overlap, B_001/B_005 overlap, B_002/B_005 overlap. B_003 is clean. B_004 is on a different room.</p>
+
+<h4>2. The SQL &mdash; the two-condition overlap predicate</h4>
+<pre><code>SELECT a.booking_id AS b1, b.booking_id AS b2
+FROM bookings a
+JOIN bookings b
+  ON a.room_id = b.room_id
+ AND a.booking_id &lt; b.booking_id           -- dedup the pair
+ AND a.start_dt  &lt; b.end_dt                -- a starts before b ends
+ AND b.start_dt  &lt; a.end_dt;               -- b starts before a ends</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>b1</th><th>b2</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>B_001</td><td>B_002</td><td>9:00-10:00 vs 9:30-10:30</td></tr>
+    <tr><td>B_001</td><td>B_005</td><td>9:00-10:00 vs 9:45-11:15</td></tr>
+    <tr><td>B_002</td><td>B_005</td><td>9:30-10:30 vs 9:45-11:15</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The two-condition overlap rule &mdash; the <em>only</em> right way</h5>
+<p>Two intervals [a_start, a_end] and [b_start, b_end] overlap iff:</p>
+<pre><code>a.start_dt &lt; b.end_dt   AND   b.start_dt &lt; a.end_dt</code></pre>
+<p>The intuition: <em>a starts before b ends</em> AND <em>b starts before a ends</em>. If either fails, one finishes before the other begins. Junior engineers reach for "<code>BETWEEN</code>" or check just one endpoint &mdash; both are wrong. Memorize this two-line predicate.</p>
+
+<h5>Strict <code>&lt;</code> vs <code>&lt;=</code> &mdash; touching ranges</h5>
+<p>What about <em>[9:00, 10:00]</em> and <em>[10:00, 11:00]</em>? Are they "overlapping"?</p>
+<ul>
+  <li><strong>Half-open intervals</strong> (industry standard, [start, end)): the second starts when the first ends &mdash; not overlapping. Use <code>&lt;</code>.</li>
+  <li><strong>Closed intervals</strong> ([start, end]): they share the boundary 10:00 &mdash; overlapping. Use <code>&lt;=</code>.</li>
+</ul>
+<p>Calendar systems are universally half-open (the 10:00 meeting "starts" at 10:00 sharp, the 9:00 meeting "ends" at 10:00 sharp, they don't conflict). Strict <code>&lt;</code> is the calendar-correct choice.</p>
+
+<h5>The dedup trick &mdash; <code>booking_id &lt; booking_id</code></h5>
+<p>Without the <code>a.booking_id &lt; b.booking_id</code> predicate, the join produces <em>both directions</em> (B_001/B_002 <em>and</em> B_002/B_001) plus self-pairs (B_001/B_001). The strict-less-than picks a canonical order and emits each pair exactly once &mdash; same trick as the duplicate-email and pizza-toppings problems.</p>
+
+<h5>The "find conflicts for one specific booking" variant</h5>
+<p>Real-world "is my new booking valid?":</p>
+<pre><code>SELECT * FROM bookings
+WHERE room_id  = :new_room
+  AND start_dt &lt; :new_end
+  AND end_dt   &gt; :new_start;</code></pre>
+<p>If this returns any row, the new booking conflicts. The two-condition overlap, applied with the candidate as one side.</p>
+
+<h5>The naive "BETWEEN" trap &mdash; why it's wrong</h5>
+<pre><code>-- WRONG — misses conflicts where a fully contains b
+WHERE a.start_dt BETWEEN b.start_dt AND b.end_dt
+   OR a.end_dt   BETWEEN b.start_dt AND b.end_dt</code></pre>
+<p>This catches <em>endpoint-inside</em> overlaps but misses the case where one interval fully contains the other (both endpoints are outside b's range, but b is wholly inside a). The two-condition rule handles all four overlap shapes (left-overlap, right-overlap, contained, contains) in a single predicate.</p>
+
+<h5>Performance &mdash; the index that matters</h5>
+<p>For large tables, a self-join on time ranges is O(n&sup2;) without help. Standard indexes don't accelerate range overlap; what does:</p>
+<ul>
+  <li>Partition the table by date and only join within the same day's partition.</li>
+  <li>Postgres: <code>GIST</code> index on <code>tstzrange(start_dt, end_dt)</code> + <code>&amp;&amp;</code> overlap operator &mdash; sub-linear lookup.</li>
+  <li>BigQuery / Snowflake: clustering on <code>(room_id, start_dt)</code>.</li>
+</ul>
+<pre><code>-- Postgres GiST — production-grade overlap query
+SELECT a.booking_id, b.booking_id
+FROM bookings a JOIN bookings b
+  ON a.room_id = b.room_id
+ AND a.booking_id &lt; b.booking_id
+ AND tstzrange(a.start_dt, a.end_dt) &amp;&amp; tstzrange(b.start_dt, b.end_dt);</code></pre>
+
+<h5>The three-or-more-overlap follow-up</h5>
+<p>"Find rooms that had three or more concurrent bookings at any moment." Sweep-line via window function:</p>
+<pre><code>WITH events AS (
+  SELECT room_id, start_dt AS t, +1 AS delta FROM bookings
+  UNION ALL
+  SELECT room_id, end_dt,         -1        FROM bookings
+)
+SELECT room_id, t,
+  SUM(delta) OVER (PARTITION BY room_id ORDER BY t ROWS UNBOUNDED PRECEDING) AS active
+FROM events
+ORDER BY room_id, t;</code></pre>
+<p>Filter <code>WHERE active &gt;= 3</code> for the moments of triple-booking. Sweep-line is the canonical algorithm for any "how many active simultaneously?" question.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> nail the two-condition overlap predicate without hesitation, articulate strict-vs-non-strict for half-open intervals, contrast it cleanly against the BETWEEN trap, and pre-empt the perf question with a GiST/range-type sketch. The sweep-line for triple-booking is the over-the-bar move.</div>
