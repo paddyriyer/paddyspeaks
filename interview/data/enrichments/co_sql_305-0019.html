@@ -1,0 +1,103 @@
+<p>Etsy's CX team wants the list of customers who've returned at least one item &mdash; the inputs to a "ship more carefully" outreach segment, or to feed an LTV-adjustment model. Trivial-looking query (<code>DISTINCT</code> on the returns table) hides the actual senior conversation: which definition of "customer with returns" does the marketing brief mean? Unique returners ever? In the last 90 days? <em>Above some threshold</em>?</p>
+
+<h4>1. The source data &mdash; <code>returns</code></h4>
+<table>
+  <thead><tr><th>return_id</th><th>customer_id</th><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>R_001</td><td>C_01</td><td>O_111</td></tr>
+    <tr><td>R_002</td><td>C_02</td><td>O_222</td></tr>
+    <tr><td>R_003</td><td>C_01</td><td>O_333</td></tr>
+    <tr><td>R_004</td><td>C_03</td><td>O_444</td></tr>
+    <tr><td>R_005</td><td>C_01</td><td>O_555</td></tr>
+  </tbody>
+</table>
+<p>5 return events but only 3 distinct customers. C_01 returned 3 times &mdash; potentially a "serial returner" worth flagging.</p>
+
+<h4>2. The SQL &mdash; <code>DISTINCT</code> on the returns table</h4>
+<pre><code>SELECT DISTINCT customer_id FROM returns;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>C_01</td></tr>
+    <tr><td>C_02</td></tr>
+    <tr><td>C_03</td></tr>
+  </tbody>
+</table>
+<p>Three rows. Plain answer to a plain question &mdash; but the marketing team will follow up with three more questions.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>DISTINCT</code> vs <code>GROUP BY</code> &mdash; which is "right"?</h5>
+<p>For a single column with no aggregation, both produce identical results. Style varies by team; semantically:</p>
+<pre><code>SELECT DISTINCT customer_id FROM returns;
+-- equivalent
+SELECT customer_id FROM returns GROUP BY customer_id;</code></pre>
+<p>Use <code>GROUP BY</code> the moment you want to <em>add an aggregate</em> &mdash; <em>"how many returns each?"</em>:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS return_count
+FROM returns GROUP BY customer_id
+ORDER BY return_count DESC;</code></pre>
+<p>For our data: C_01 = 3 returns. That's the serial-returner signal.</p>
+
+<h5>The "with at least N returns" threshold</h5>
+<p>Marketing's actual ask is rarely "anyone who ever returned" &mdash; it's "frequent returners". <code>HAVING</code>:</p>
+<pre><code>SELECT customer_id
+FROM returns
+GROUP BY customer_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>Returns just C_01.</p>
+
+<h5>The return-rate denominator &mdash; the senior reframe</h5>
+<p>"Number of returns" is misleading without context. A customer with 50 orders and 5 returns has a <strong>10%</strong> return rate; a customer with 2 orders and 1 return has a <strong>50%</strong> return rate. The latter is the actually-problematic profile. Join to <code>orders</code>:</p>
+<pre><code>WITH agg AS (
+  SELECT o.customer_id,
+    COUNT(*) AS orders,
+    COUNT(DISTINCT r.return_id) AS returns
+  FROM orders o
+  LEFT JOIN returns r ON r.order_id = o.order_id
+  GROUP BY o.customer_id
+)
+SELECT customer_id, orders, returns,
+  ROUND(100.0 * returns / NULLIF(orders, 0), 1) AS return_rate_pct
+FROM agg
+WHERE orders &gt;= 5             -- only customers with enough volume to be statistically meaningful
+ORDER BY return_rate_pct DESC;</code></pre>
+<p>The <code>WHERE orders &gt;= 5</code> filter is the senior touch &mdash; without it, the top of the leaderboard is dominated by customers with one order and one return at 100%.</p>
+
+<h5>The 90-day window &mdash; recency matters</h5>
+<p>Lifetime return behaviour is usually less actionable than recent. Recent returners get the "we're so sorry, here's a credit" email; 5-year-old returners get nothing.</p>
+<pre><code>SELECT DISTINCT customer_id
+FROM returns
+WHERE return_date &gt;= CURRENT_DATE - INTERVAL '90 days';</code></pre>
+
+<h5>The "left ALSO returned the replacement" deep-cut</h5>
+<p>A signal Etsy actually cares about: customers who got a replacement and <em>still</em> returned it. That's the <em>refund-the-relationship</em> trigger. Self-join the returns table by <code>original_order_id</code>:</p>
+<pre><code>SELECT r2.customer_id
+FROM returns r1
+JOIN returns r2 ON r2.order_id = r1.replacement_order_id
+   AND r2.customer_id = r1.customer_id;</code></pre>
+
+<h5>The full segment definition &mdash; combine everything</h5>
+<pre><code>-- "Frequent recent returners with high return-rate, excluding low-volume noise"
+WITH last_90d AS (
+  SELECT customer_id, COUNT(*) AS recent_returns
+  FROM returns
+  WHERE return_date &gt;= CURRENT_DATE - INTERVAL '90 days'
+  GROUP BY customer_id
+),
+volumes AS (
+  SELECT customer_id, COUNT(*) AS orders_90d
+  FROM orders
+  WHERE order_date &gt;= CURRENT_DATE - INTERVAL '90 days'
+  GROUP BY customer_id
+)
+SELECT v.customer_id, v.orders_90d, COALESCE(l.recent_returns, 0) AS returns_90d,
+  ROUND(100.0 * l.recent_returns / NULLIF(v.orders_90d, 0), 1) AS return_rate_90d
+FROM volumes v
+LEFT JOIN last_90d l USING (customer_id)
+WHERE v.orders_90d &gt;= 5
+  AND COALESCE(l.recent_returns, 0) &gt;= 3
+ORDER BY return_rate_90d DESC;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> answer the literal question first, then immediately surface the marketing-actionable variants &mdash; threshold, recency window, return-rate denominator, low-volume guard. The "ALSO returned the replacement" follow-up shows familiarity with how returns operations actually work.</div>

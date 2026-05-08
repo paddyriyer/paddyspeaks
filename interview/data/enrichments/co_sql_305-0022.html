@@ -1,0 +1,89 @@
+<p>Instacart's identity team gets a routine ticket: <em>"the new fraud model is firing on accounts that share an email with a different user_id."</em> First step is finding all such pairs &mdash; users with the same email address but different user_ids. This is the canonical <em>self-join with an inequality predicate</em>: same table aliased twice, joined on the duplicate field, with <code>&lt;</code> on the id to surface each pair exactly once.</p>
+
+<h4>1. The source data &mdash; <code>users</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>email</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_002</td><td>bailey@yahoo.com</td></tr>
+    <tr><td>U_003</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_004</td><td>casey@hotmail.com</td></tr>
+    <tr><td>U_005</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_006</td><td>bailey@yahoo.com</td></tr>
+  </tbody>
+</table>
+<p>"alex@gmail.com" appears 3 times, "bailey@yahoo.com" 2 times.</p>
+
+<h4>2. The SQL &mdash; self-join with <code>&lt;</code> ordering</h4>
+<pre><code>SELECT a.user_id AS u1, b.user_id AS u2, a.email
+FROM users a
+JOIN users b ON a.email = b.email AND a.user_id &lt; b.user_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>u1</th><th>u2</th><th>email</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>U_003</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_001</td><td>U_005</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_003</td><td>U_005</td><td>alex@gmail.com</td></tr>
+    <tr><td>U_002</td><td>U_006</td><td>bailey@yahoo.com</td></tr>
+  </tbody>
+</table>
+<p>4 unique pairs: 3 from alex's three-way collision (C(3,2)=3), 1 from bailey's pair.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>&lt;</code> not <code>&lt;&gt;</code> &mdash; deduping pairs</h5>
+<p><code>&lt;&gt;</code> (not equal) gives <em>both directions</em> &mdash; (U_001, U_003) <em>and</em> (U_003, U_001). For 3 colliding ids you'd get 6 rows instead of 3. Strict <code>&lt;</code> picks a canonical order and emits each pair exactly once. This is the same trick as the pizza-toppings combinations problem, applied to dedup detection.</p>
+
+<h5>The simpler alternative &mdash; <code>GROUP BY ... HAVING COUNT &gt; 1</code></h5>
+<p>If all you need is the <em>list of duplicated emails</em> (not the user-id pairs), <code>GROUP BY</code> is shorter:</p>
+<pre><code>SELECT email, COUNT(*) AS dup_count, ARRAY_AGG(user_id) AS user_ids
+FROM users
+GROUP BY email
+HAVING COUNT(*) &gt; 1;</code></pre>
+<p>This collapses each duplicated email into one row, which is more compact for the fraud-investigation dashboard. The self-join form is preferred when you want to emit one row per <em>pair</em> (good for graph-traversal: connecting each pair as an edge).</p>
+
+<h5>Email normalization &mdash; the silent miss</h5>
+<p><code>a.email = b.email</code> is a <em>strict string equality</em>. Real-world duplicates fall into the gap:</p>
+<ul>
+  <li><code>Alex@gmail.com</code> vs <code>alex@gmail.com</code> &mdash; case difference</li>
+  <li><code>alex@gmail.com</code> vs <code>alex@gmail.com   </code> &mdash; trailing whitespace</li>
+  <li><code>alex+sale@gmail.com</code> vs <code>alex@gmail.com</code> &mdash; Gmail-style plus addressing (same inbox)</li>
+  <li><code>alex.smith@gmail.com</code> vs <code>alexsmith@gmail.com</code> &mdash; Gmail's dots-don't-matter rule</li>
+</ul>
+<pre><code>-- Normalize before joining
+ON LOWER(TRIM(a.email)) = LOWER(TRIM(b.email))
+-- For Gmail-aware dedup
+ON LOWER(REGEXP_REPLACE(SPLIT_PART(a.email,'@',1), '\\+.*$', ''))
+ = LOWER(REGEXP_REPLACE(SPLIT_PART(b.email,'@',1), '\\+.*$', ''))</code></pre>
+<p>For an interview answer, mention the normalization layer up front &mdash; it's the difference between catching 60% of fraud collisions and 95%.</p>
+
+<h5>The "find <em>fully-merged</em> identity clusters" follow-up</h5>
+<p>Pairs are useful, clusters are better. <em>"Show me all groups of users that share an email."</em> Just <code>GROUP BY email</code> and aggregate the ids:</p>
+<pre><code>SELECT email, ARRAY_AGG(user_id ORDER BY user_id) AS cluster
+FROM users
+GROUP BY email
+HAVING COUNT(*) &gt; 1;</code></pre>
+
+<h5>The transitive-cluster trap &mdash; A=B, B=C, A=?C</h5>
+<p>Real identity matching uses multiple keys: same email <em>or</em> same phone <em>or</em> same payment_token. A=B by email, B=C by phone, A=C indirectly. Pure self-join only catches direct ties &mdash; the senior follow-up is to mention <strong>graph-traversal</strong> via recursive CTE or external tools (DBT-Identity, Splink, even pandas' connected components).</p>
+
+<pre><code>WITH RECURSIVE edges AS (
+  SELECT a.user_id AS u1, b.user_id AS u2 FROM users a JOIN users b
+   ON LOWER(a.email)=LOWER(b.email) AND a.user_id&lt;&gt;b.user_id
+  UNION
+  SELECT a.user_id, b.user_id FROM users a JOIN users b
+   ON a.phone=b.phone AND a.user_id&lt;&gt;b.user_id
+),
+cluster AS (
+  SELECT u1, u2 FROM edges
+  UNION
+  SELECT c.u1, e.u2 FROM cluster c JOIN edges e ON c.u2 = e.u1
+)
+SELECT u1, MIN(u2) AS canonical_id FROM cluster GROUP BY u1;</code></pre>
+
+<h5>The unique-constraint follow-up &mdash; prevention &gt; detection</h5>
+<p>If duplicate emails are a bug not a feature, the right fix is upstream: <code>UNIQUE INDEX users(LOWER(email))</code> at create-time. Self-join queries are for the historical mess; the constraint stops the next one. Always close with <em>"and we should add the constraint going forward."</em></p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the strict-<code>&lt;</code> dedup mechanism, surface email normalization (case, whitespace, plus-addressing, Gmail dots) as a first-class concern, contrast pair-emit (self-join) with cluster-emit (GROUP BY), and pre-empt the transitive-cluster problem with a recursive-CTE sketch. Closing on the unique-index prevention is the over-the-bar finish.</div>

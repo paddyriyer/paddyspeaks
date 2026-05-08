@@ -1,0 +1,87 @@
+<p>Google Ads finance opens the daily reconciliation: <em>"per day, what was the gross sale dollars and the txn count?"</em> &mdash; the negative rows are refunds and shouldn't pollute the gross. The query is conditional aggregation: a <code>CASE</code> inside <code>SUM</code> that filters at row level, paired with <code>COUNT(*)</code> for total volume. This is the spreadsheet-pivot pattern translated to SQL.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$120</td><td>sale</td></tr>
+    <tr><td>2026-04-01</td><td>$200</td><td>sale</td></tr>
+    <tr><td>2026-04-01</td><td>-$50</td><td>refund</td></tr>
+    <tr><td>2026-04-02</td><td>$300</td><td>sale</td></tr>
+    <tr><td>2026-04-02</td><td>$80</td><td>sale</td></tr>
+    <tr><td>2026-04-03</td><td>-$100</td><td>refund only</td></tr>
+    <tr><td>2026-04-03</td><td>$450</td><td>sale</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; conditional aggregation with <code>CASE</code></h4>
+<pre><code>SELECT sale_date,
+  SUM(CASE WHEN amount &gt; 0 THEN amount END) AS positive_sales,
+  COUNT(*) AS txn_count
+FROM sales
+GROUP BY sale_date
+ORDER BY sale_date;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sale_date</th><th>positive_sales</th><th>txn_count</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$320</td><td>3</td><td>2 sales + 1 refund</td></tr>
+    <tr><td>2026-04-02</td><td>$380</td><td>2</td><td>2 sales, no refunds</td></tr>
+    <tr><td>2026-04-03</td><td>$450</td><td>2</td><td>1 sale, 1 refund &mdash; gross hides the refund</td></tr>
+  </tbody>
+</table>
+<p>April 3 is the interesting row: gross sales were $450 but a $100 refund pulled net to $350. The query exposes both signals.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>CASE</code> with no ELSE works</h5>
+<p><code>CASE WHEN amount &gt; 0 THEN amount END</code> &mdash; with no <code>ELSE</code>, non-matching rows return <em>NULL</em>. <code>SUM</code> ignores NULLs (unlike <code>COUNT(*)</code>, which counts every row). So the negative rows are filtered out of <code>SUM</code> but still counted in <code>COUNT(*)</code>. This is the cleanest "filter inside aggregate" idiom in SQL.</p>
+
+<h5><code>FILTER (WHERE ...)</code> &mdash; the modern, more readable form</h5>
+<p>PostgreSQL, BigQuery, Snowflake, and SQLite 3.30+ support <code>FILTER</code>:</p>
+<pre><code>SELECT sale_date,
+  SUM(amount)         FILTER (WHERE amount &gt; 0) AS positive_sales,
+  SUM(amount)         FILTER (WHERE amount &lt; 0) AS refunds,
+  COUNT(*)                                      AS txn_count,
+  COUNT(*)            FILTER (WHERE amount &gt; 0) AS sale_count,
+  COUNT(*)            FILTER (WHERE amount &lt; 0) AS refund_count
+FROM sales GROUP BY sale_date;</code></pre>
+<p>Same semantics, no nested CASE. MySQL still doesn't support FILTER &mdash; fall back to CASE there.</p>
+
+<h5>The "true pivot" &mdash; one column per channel/category</h5>
+<p>Google's actual finance ask is usually: <em>"per day, columns for ads, search, cloud, hardware."</em> That's a real pivot &mdash; one column per category value:</p>
+<pre><code>SELECT sale_date,
+  SUM(CASE WHEN channel = 'ads'      THEN amount END) AS ads,
+  SUM(CASE WHEN channel = 'search'   THEN amount END) AS search,
+  SUM(CASE WHEN channel = 'cloud'    THEN amount END) AS cloud,
+  SUM(CASE WHEN channel = 'hardware' THEN amount END) AS hardware
+FROM sales GROUP BY sale_date;</code></pre>
+<p>Snowflake, Oracle, and SQL Server have a dedicated <code>PIVOT</code> operator; in Postgres / SQLite / BigQuery the conditional-aggregation idiom is the universal pattern. Either way, you must enumerate the categories at query-time &mdash; truly dynamic pivoting needs a procedural step (or <code>crosstab</code> in Postgres).</p>
+
+<h5>The unknown-categories trap</h5>
+<p>What happens when Google adds a new <em>"YouTube Premium"</em> channel and nobody updates the SQL? Those rows fall into <em>none</em> of the CASE branches and silently disappear from the pivot. Production-grade defenses:</p>
+<ul>
+  <li>Keep an <code>other</code> bucket: <code>SUM(CASE WHEN channel NOT IN ('ads','search','cloud','hardware') THEN amount END) AS other</code> &mdash; if it's ever non-zero, alert.</li>
+  <li>A row-level invariant: <code>SUM(amount) = ads + search + cloud + hardware + other</code>. If that fails, the categorization has a hole.</li>
+</ul>
+
+<h5>The unpivot follow-up &mdash; flip a wide table into long</h5>
+<p>Sometimes the source is the pivoted version (one row per day, columns per channel) and the consumer needs the long format. <code>UNION ALL</code> is the universal unpivot:</p>
+<pre><code>SELECT sale_date, 'ads' AS channel, ads AS amount FROM daily_pivot
+UNION ALL
+SELECT sale_date, 'search', search FROM daily_pivot
+UNION ALL
+SELECT sale_date, 'cloud',  cloud  FROM daily_pivot
+UNION ALL
+SELECT sale_date, 'hardware', hardware FROM daily_pivot;</code></pre>
+
+<h5>The ratio follow-up &mdash; gross / net / refund-rate in one query</h5>
+<pre><code>SELECT sale_date,
+  SUM(CASE WHEN amount &gt; 0 THEN amount END) AS gross,
+  SUM(amount) AS net,
+  -1.0 * SUM(CASE WHEN amount &lt; 0 THEN amount END) /
+   NULLIF(SUM(CASE WHEN amount &gt; 0 THEN amount END), 0) AS refund_rate
+FROM sales GROUP BY sale_date;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>SUM(CASE)</code> as conditional aggregation, contrast it cleanly with <code>FILTER (WHERE)</code>, and bring up the unknown-category trap unprompted with a defensive <em>"other"</em> bucket. The pivot &harr; unpivot pair plus the refund-rate ratio is the over-the-bar finish.</div>
