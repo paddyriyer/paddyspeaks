@@ -493,9 +493,25 @@ const NON_SQLITE_TOKENS = [
   /\bEXTRACT\s*\(/i,
 ];
 
+// Strip strings + comments before dialect detection so a string LITERAL
+// like 'Returning' or 'qualify' never trips the regex (the keyword RETURNING
+// in Postgres is a real clause; the word inside quotes is just data).
+function stripStringsAndComments(sql) {
+  return sql
+    // single-quoted strings (handle '' escape inside)
+    .replace(/'(?:''|\\'|[^'])*'/g, "''")
+    // double-quoted identifiers / strings
+    .replace(/"(?:""|\\"|[^"])*"/g, '""')
+    // line comments
+    .replace(/--.*$/gm, '')
+    // block comments
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
 function detectNonSqlite(sql) {
+  const cleaned = stripStringsAndComments(sql);
   for (const re of NON_SQLITE_TOKENS) {
-    const m = re.exec(sql);
+    const m = re.exec(cleaned);
     if (m) return m[0];
   }
   return null;
