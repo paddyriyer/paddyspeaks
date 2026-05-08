@@ -242,6 +242,50 @@ function refreshTableList() {
   }
 }
 
+// ─── Real-world enrichment loader ───
+// Each question may have an optional HTML fragment at
+// /interview/data/enrichments/<qid>.html with a business-flavoured scenario,
+// sample data table, annotated SQL, result table, and strategic commentary.
+// If the fetch returns 404 (or the network fails), we silently fall back to
+// the bare prompt — nothing breaks for unenriched questions.
+const enrichmentCache = new Map();
+const ENRICHMENTS_BASE = `${DATA_BASE}/enrichments`;
+async function loadEnrichment(qid) {
+  const block = $("#pg-q-enrichment-block");
+  const body = $("#pg-q-enrichment");
+  if (!block || !body) return;
+  // Reset before async work — we don't want a stale enrichment from a
+  // previously selected question to flash before the new one is fetched.
+  block.hidden = true;
+  body.innerHTML = "";
+  if (!qid) return;
+  if (enrichmentCache.has(qid)) {
+    const cached = enrichmentCache.get(qid);
+    if (cached) {
+      body.innerHTML = cached;
+      block.hidden = false;
+    }
+    return;
+  }
+  try {
+    const res = await fetch(`${ENRICHMENTS_BASE}/${encodeURIComponent(qid)}.html`);
+    if (!res.ok) {
+      enrichmentCache.set(qid, null);
+      return;
+    }
+    const html = await res.text();
+    enrichmentCache.set(qid, html);
+    // Race-guard: only render if we're still on the same question. Switching
+    // questions fast must not leak the previous question's enrichment.
+    if (state.currentQ && state.currentQ.id === qid) {
+      body.innerHTML = html;
+      block.hidden = false;
+    }
+  } catch (err) {
+    enrichmentCache.set(qid, null);
+  }
+}
+
 // ─── Question picker ───
 function loadQuestion(qid /* , opts unused */) {
   const q = state.sqlQuestions.find((x) => x.id === qid);
@@ -268,6 +312,11 @@ function loadQuestion(qid /* , opts unused */) {
   } else {
     $("#pg-q-schema-block").hidden = true;
   }
+
+  // Load the optional real-world enrichment file. One HTML fragment per qid
+  // under /interview/data/enrichments/<qid>.html. Missing file = no enrichment.
+  loadEnrichment(qid);
+
   $("#pg-question-picker").value = qid;
 
   // Editor: load this question's last saved content, otherwise prefill a

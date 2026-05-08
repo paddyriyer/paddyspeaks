@@ -1,0 +1,64 @@
+<p>Year-end at a tech company. The CFO needs the total bonus liability for the board meeting tomorrow morning. HR has agreed on a tiered scheme: high performers ('A') get bigger bonuses than steady performers ('B'); within each band, employees with 5+ years of tenure get a multiplier. The query has to be readable enough that legal can audit it on a one-page printout.</p>
+
+<h4>1. The source data — six employees, year-end snapshot</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>performance</th><th>tenure_yrs</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td><strong>A</strong></td><td>7</td><td>$160,000</td></tr>
+    <tr><td>E02</td><td><strong>A</strong></td><td>2</td><td>$130,000</td></tr>
+    <tr><td>E03</td><td><strong>B</strong></td><td>9</td><td>$110,000</td></tr>
+    <tr><td>E04</td><td><strong>B</strong></td><td>3</td><td>$95,000</td></tr>
+    <tr><td>E05</td><td>C</td><td>4</td><td>$80,000</td></tr>
+    <tr><td>E06</td><td><strong>B</strong></td><td>4.99</td><td>$92,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — nested CASE, ordered by specificity</h4>
+<p>The nested <code>CASE</code> walks rules from most specific to least. Order matters: a senior 'A' (perf=A, tenure≥5) must be evaluated before the generic 'A' rule, otherwise everyone with perf=A would land in the 15% bucket regardless of tenure.</p>
+<pre><code>SELECT
+  emp_id,
+  performance,
+  tenure_yrs,
+  salary,
+  CASE
+    -- Most specific rules first — order matters in CASE
+    WHEN performance = 'A' AND tenure_yrs &gt;= 5 THEN salary * 0.25
+    WHEN performance = 'A'                      THEN salary * 0.15
+    WHEN performance = 'B' AND tenure_yrs &gt;= 5 THEN salary * 0.10
+    WHEN performance = 'B'                      THEN salary * 0.05
+    ELSE 0                                                          -- C and below: no bonus
+  END AS bonus
+FROM employees;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>perf</th><th>tenure</th><th>salary</th><th>bonus</th><th>tier hit</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>A</td><td>7</td><td>$160,000</td><td><strong>$40,000</strong></td><td>Senior A · 25%</td></tr>
+    <tr><td>E02</td><td>A</td><td>2</td><td>$130,000</td><td>$19,500</td><td>A · 15%</td></tr>
+    <tr><td>E03</td><td>B</td><td>9</td><td>$110,000</td><td>$11,000</td><td>Senior B · 10%</td></tr>
+    <tr><td>E04</td><td>B</td><td>3</td><td>$95,000</td><td>$4,750</td><td>B · 5%</td></tr>
+    <tr><td>E05</td><td>C</td><td>4</td><td>$80,000</td><td>$0</td><td>fallback (ELSE)</td></tr>
+    <tr><td>E06</td><td>B</td><td>4.99</td><td>$92,000</td><td><strong>$4,600</strong></td><td>B · 5% <em>(tenure cliff!)</em></td></tr>
+  </tbody>
+</table>
+<p>Total bonus liability: <strong>$79,850</strong>. The CFO sees this number; legal sees the rule list; HR sees the per-employee breakdown. One query, three audiences.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why nested <code>CASE</code> beats a multi-table lookup (for now)</h5>
+<p>An alternative is a <code>dim_bonus_rule</code> table with rows like <em>('A', 5, 0.25)</em>, joined on perf and tenure-bucket. That's cleaner once the rules grow past ~6 — but for a one-time year-end run with stable rules, the inline <code>CASE</code> is auditable on a single screen, which legal prefers over a JOIN they have to chase across two tables.</p>
+
+<h5>Order-of-CASE matters — specific first, fallback last</h5>
+<p>Reverse the order and Employee E01 (perf=A, tenure=7) hits the <em>generic</em> "A" rule first, gets 15% instead of 25%, and the company underpays a senior performer. The pattern is: <strong>most-restrictive WHEN goes top, fallback WHEN goes last, ELSE catches the unhandled.</strong></p>
+
+<h5>The "tenure cliff" — Employee E06's $920 problem</h5>
+<p>E06 has 4.99 years of tenure and is one day short of the senior-B bonus. Result: $4,600 instead of $9,200 — a $4,600 cliff over a single day's tenure difference. Boards usually don't care; HR usually does. Production systems either smooth this with a continuous formula (<code>0.05 + 0.01 × LEAST(tenure_yrs, 10)</code>) or codify the cliff explicitly in the offer letter.</p>
+
+<h5>The <code>ELSE 0</code> matters more than it looks</h5>
+<p>Without <code>ELSE 0</code>, employees who don't match any WHEN get <code>NULL</code> in their bonus column. <code>SUM(bonus)</code> ignores NULLs (which is what you want), but downstream pipelines that check <code>WHERE bonus &gt; 0</code> silently miss them. The explicit zero makes the contract clear: every employee has a bonus row, even if it's $0.</p>
+
+<h5>When this query gets too big — refactor to a rules table</h5>
+<p>Rule of thumb: 6+ tiers, or rules that change quarterly, or rules that vary by org → move to a <code>dim_bonus_rule</code> table joined on (performance, tenure_band, org_id). The CASE becomes a JOIN; the query is a one-liner; the rules become editable without a deploy.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> the interviewer wants to hear two things — <em>order of CASE matters</em> (specific-first, fallback-last) and <em>this works until rules become data, then you refactor</em>. Bonus points for spotting the tenure-cliff problem on E06 unprompted.</div>
