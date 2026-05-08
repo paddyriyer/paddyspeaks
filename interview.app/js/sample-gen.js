@@ -156,13 +156,6 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
   // emp_id for `employees`), then (b) bare "id", then (c) the first id-shaped
   // column that ISN'T a well-known grouping FK (so user_id in a fact table
   // doesn't get mistaken for the PK).
-  const GROUPING_FK_NAMES = new Set([
-    "user_id","customer_id","account_id","profile_id","series_id","show_id",
-    "title_id","content_id","channel_id","region_id","country_id","employee_id",
-    "manager_id","supervisor_id","parent_id","dept_id","department_id",
-    "team_id","product_id","merchant_id","store_id","company_id","ad_id",
-    "session_id","room_id","device_id","isp_id",
-  ]);
   const tableSingular = table.replace(/s$/, "");
   const tableAbbrevs = [
     `${table}_id`, `${tableSingular}_id`,
