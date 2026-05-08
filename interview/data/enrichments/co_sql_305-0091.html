@@ -1,0 +1,143 @@
+<p>Netflix's Content Engineering org runs the morning standup looking at one chart: <em>viewership by device</em>. Mobile vs TV vs web vs game-console isn't a vanity slice &mdash; it dictates encoding-ladder priorities, ad-tier rollouts, and the famous "next episode" auto-play timing. The query is a one-liner; the senior conversation is what <em>"watch_time"</em> actually means and why the answer is hardly ever just "sum it up by device".</p>
+
+<h4>1. The source data &mdash; <code>viewership</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>device_type</th><th>watch_time (minutes)</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>tv</td><td>120</td></tr>
+    <tr><td>U_001</td><td>mobile</td><td>15</td></tr>
+    <tr><td>U_002</td><td>tv</td><td>240</td></tr>
+    <tr><td>U_002</td><td>tablet</td><td>45</td></tr>
+    <tr><td>U_003</td><td>mobile</td><td>30</td></tr>
+    <tr><td>U_003</td><td>mobile</td><td>20</td></tr>
+    <tr><td>U_004</td><td>web</td><td>90</td></tr>
+    <tr><td>U_004</td><td>tv</td><td>180</td></tr>
+    <tr><td>U_005</td><td>game_console</td><td>60</td></tr>
+    <tr><td>U_005</td><td>tv</td><td>200</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; per-device users + total minutes</h4>
+<pre><code>SELECT device_type,
+  COUNT(DISTINCT user_id) AS users,
+  SUM(watch_time)         AS total_watch
+FROM viewership
+GROUP BY device_type;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>device_type</th><th>users</th><th>total_watch</th><th>avg_per_user</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td><strong>tv</strong></td><td>4</td><td>740 min</td><td>185 min</td><td>headline screen &mdash; long sessions, lean-back</td></tr>
+    <tr><td>mobile</td><td>2</td><td>65 min</td><td>32 min</td><td>short-burst &mdash; commute, snack-watching</td></tr>
+    <tr><td>web</td><td>1</td><td>90 min</td><td>90 min</td><td>desktop, often work-from-home midday</td></tr>
+    <tr><td>game_console</td><td>1</td><td>60 min</td><td>60 min</td><td>secondary screen, evening</td></tr>
+    <tr><td>tablet</td><td>1</td><td>45 min</td><td>45 min</td><td>kids / travel</td></tr>
+  </tbody>
+</table>
+<p>TV dominates total minutes <em>and</em> distinct users. Mobile has more sessions per user (the multiple-row hint) but lower depth. This split drives every Netflix product investment.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>COUNT(DISTINCT user_id)</code> &mdash; not <code>COUNT(*)</code></h5>
+<p>Without DISTINCT, a user who fires three viewership events on mobile gets counted three times &mdash; you'd see "millions of mobile users" when really it's the same handful watching repeatedly. <code>COUNT(DISTINCT user_id)</code> dedupes within the group; <code>COUNT(*)</code> counts events, which is a different (and equally valuable) metric. Production dashboards usually emit <em>both</em>:</p>
+<pre><code>SELECT device_type,
+  COUNT(*)                AS sessions,
+  COUNT(DISTINCT user_id) AS users,
+  SUM(watch_time)         AS total_minutes,
+  AVG(watch_time)         AS avg_session_minutes,
+  SUM(watch_time) * 1.0 / COUNT(DISTINCT user_id) AS minutes_per_user
+FROM viewership
+GROUP BY device_type;</code></pre>
+
+<h5>The "what's a session?" trap</h5>
+<p>Each <em>row</em> in <code>viewership</code> probably represents one playback event &mdash; not one session. A user pausing for 15 minutes and resuming creates one or two rows depending on the instrumentation. Real-world Netflix queries pre-sessionize:</p>
+<pre><code>WITH sessionized AS (
+  SELECT user_id, device_type,
+    SUM(CASE WHEN started_at - LAG(ended_at) OVER (
+                  PARTITION BY user_id, device_type ORDER BY started_at)
+              &gt; INTERVAL '30 minutes' THEN 1 ELSE 0 END
+    ) OVER (PARTITION BY user_id, device_type ORDER BY started_at) AS session_id
+  FROM viewership
+)
+SELECT device_type, COUNT(DISTINCT (user_id, session_id)) AS sessions
+FROM sessionized GROUP BY device_type;</code></pre>
+<p>The 30-minute idle threshold is the Netflix-published default; mobile uses 5 minutes (different consumption pattern).</p>
+
+<h5>Watch-time semantics &mdash; minutes streamed vs minutes engaged</h5>
+<p><code>watch_time</code> in raw form usually means <em>"minutes the player was emitting heartbeats"</em>, which includes:</p>
+<ul>
+  <li>Background playback after the user walked away (very common on TV)</li>
+  <li>Skipped intros (counted as watched if heartbeats fired)</li>
+  <li>The auto-play preview reel on the home page (counted by some pipelines, not by others)</li>
+</ul>
+<p>The <em>"engaged minutes"</em> metric subtracts these &mdash; usually computed in a downstream Spark job, not in this query. Always confirm with the PM which definition the dashboard expects. Engaged minutes is typically 70-85% of raw watch_time.</p>
+
+<h5>Per-user vs per-device deduplication</h5>
+<p>The query above dedupes users <em>per device</em> &mdash; U_001 contributes 1 to <code>tv.users</code> AND 1 to <code>mobile.users</code> &mdash; total across rows is 6, but distinct users is 5. To answer <em>"how many users total?"</em> you need a separate query:</p>
+<pre><code>SELECT COUNT(DISTINCT user_id) AS total_users FROM viewership;</code></pre>
+<p>The double-counting is correct (a multi-device user really does appear on each device they used), but reporting must be careful about adding column totals.</p>
+
+<h5>The cross-device follow-up &mdash; multi-device users</h5>
+<p>The actual product question: <em>"what fraction of users watch on more than one device?"</em> Multi-device users are the high-engagement segment.</p>
+<pre><code>WITH per_user AS (
+  SELECT user_id, COUNT(DISTINCT device_type) AS devices
+  FROM viewership GROUP BY user_id
+)
+SELECT devices, COUNT(*) AS users
+FROM per_user
+GROUP BY devices
+ORDER BY devices;</code></pre>
+<p>Distribution typically: 1 device = 60%, 2 = 25%, 3+ = 15%. The 3+ segment converts to ad-free at much higher rates &mdash; ARPU-relevant.</p>
+
+<h5>The "primary device" classification</h5>
+<p>For each multi-device user, which device is dominant? Use <code>ROW_NUMBER</code>:</p>
+<pre><code>WITH per_user_device AS (
+  SELECT user_id, device_type, SUM(watch_time) AS minutes
+  FROM viewership GROUP BY user_id, device_type
+),
+ranked AS (
+  SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY minutes DESC) AS rk
+  FROM per_user_device
+)
+SELECT device_type AS primary_device, COUNT(*) AS users
+FROM ranked WHERE rk = 1
+GROUP BY device_type;</code></pre>
+<p>Drives the home-screen layout: the TV-primary user sees the lean-back row layout; the mobile-primary user sees vertical-card layout.</p>
+
+<h5>The encoding-ladder follow-up &mdash; what content gets which ABR rung</h5>
+<p>Netflix's per-title encoding budget is set by device-mix forecasts. Game consoles and TVs need 4K HDR; mobile rarely justifies anything above 1080p. The query that answers "should we encode 4K for this title?":</p>
+<pre><code>SELECT title_id,
+  100.0 * SUM(CASE WHEN device_type IN ('tv','game_console') THEN watch_time END)
+        / NULLIF(SUM(watch_time),0) AS pct_big_screen
+FROM viewership v JOIN sessions s USING (session_id)
+GROUP BY title_id
+HAVING SUM(watch_time) &gt; 1000000  -- only well-watched titles
+ORDER BY pct_big_screen DESC;</code></pre>
+<p>If <code>pct_big_screen &gt; 50%</code> &rarr; encode 4K HDR. Otherwise skip the budget.</p>
+
+<h5>The QoE join &mdash; minutes weighted by quality</h5>
+<p>Senior follow-up: <em>"raw watch_time treats a buffering-heavy session the same as a perfect playback. Adjust for QoE."</em></p>
+<pre><code>SELECT device_type,
+  SUM(watch_time)                   AS raw_minutes,
+  SUM(watch_time * (1 - rebuf_pct)) AS quality_adjusted_minutes,
+  AVG(rebuf_pct) AS avg_rebuffer_rate
+FROM viewership v JOIN qoe q USING (session_id)
+GROUP BY device_type;</code></pre>
+<p>Quality-adjusted minutes is the metric the SRE team is on the hook for. Diverges most on game consoles (older Wi-Fi chipsets &rarr; rebuffering).</p>
+
+<h5>Cohort splits the dashboard never ships without</h5>
+<p>"Per-device" is rarely the slide on its own. The real chart is per-device-by-X for some X:</p>
+<ul>
+  <li><strong>Country</strong> &mdash; mobile dominates in IN/BR/ID; TV dominates in US/EU.</li>
+  <li><strong>Plan tier</strong> &mdash; mobile-only basic plan vs ad-tier vs premium.</li>
+  <li><strong>Account age</strong> &mdash; new signups skew mobile (download-first), old accounts skew TV.</li>
+  <li><strong>Daypart</strong> &mdash; mobile peaks 8am commute, TV peaks 9pm.</li>
+</ul>
+
+<h5>The denominator the analyst forgets</h5>
+<p>Watching minutes &uarr; can mean (a) more users, (b) longer sessions per user, or (c) more sessions per user. Without splitting the lever, you can't know <em>why</em>. The composite metric is:</p>
+<pre><code>minutes_per_dau = SUM(watch_time) / COUNT(DISTINCT user_id, watch_date)</code></pre>
+<p>Always show <em>users</em>, <em>sessions</em>, <em>minutes-per-session</em>, <em>minutes-per-DAU</em> on the same slide so the eye lands on the changing variable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> dedupe users with <code>COUNT(DISTINCT)</code> and emit sessions/users/minutes/per-user in one go, raise the engaged-vs-raw watch_time distinction unprompted, and pre-empt the multi-device cross-tab. The encoding-ladder application (TV+console &rarr; 4K) and the QoE-adjusted minutes connect the query to actual Netflix decisions &mdash; that's the over-the-bar finish.</div>

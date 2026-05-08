@@ -1,0 +1,141 @@
+<p>The composite question that wraps everything Netflix Data Engineering cares about: <strong>binge detection that survives late-arriving dimensions</strong>. When <em>Stranger Things</em> S5 drops globally at midnight, millions of view events fire seconds later &mdash; before <code>dim_series_metadata</code> has finished propagating across regional shards. An <code>INNER JOIN</code> would silently drop those views and the launch-day binge dashboard would show "0 bingers". The defensive pattern: <code>LEFT JOIN</code> + most-recent-effective dim + <code>COALESCE</code> placeholder + per-day series aggregation. The <strong>fact is the truth, the dimension is just an attribute</strong>.</p>
+
+<h4>1. The source data</h4>
+<table>
+  <thead><tr><th colspan="4">fact_viewing_history (the truth)</th></tr></thead>
+  <tbody>
+    <tr><td>user_id</td><td>series_id</td><td>episode_id</td><td>view_date</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_S5_01</td><td>2026-05-01</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_S5_02</td><td>2026-05-01</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_S5_03</td><td>2026-05-01</td></tr>
+    <tr><td>U_002</td><td><strong>S_brandnewshow</strong></td><td>E_BNS_01</td><td>2026-05-01</td></tr>
+    <tr><td>U_002</td><td><strong>S_brandnewshow</strong></td><td>E_BNS_02</td><td>2026-05-01</td></tr>
+    <tr><td>U_002</td><td><strong>S_brandnewshow</strong></td><td>E_BNS_03</td><td>2026-05-01</td></tr>
+    <tr><td>U_002</td><td><strong>S_brandnewshow</strong></td><td>E_BNS_04</td><td>2026-05-01</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="4">dim_series_metadata (the attribute &mdash; possibly stale)</th></tr></thead>
+  <tbody>
+    <tr><td>series_id</td><td>series_title</td><td>season_number</td><td>effective_date</td></tr>
+    <tr><td>S_strangerthings</td><td>Stranger Things</td><td>5</td><td>2026-04-01</td></tr>
+    <tr><td>S_strangerthings</td><td>Stranger Things</td><td>4</td><td>2025-04-01</td></tr>
+  </tbody>
+</table>
+<p><code>S_brandnewshow</code> has zero rows in <code>dim_series_metadata</code> &mdash; the dim hasn't propagated. <code>S_strangerthings</code> has multiple rows (SCD2 across seasons).</p>
+
+<h4>2. The SQL &mdash; defensive join + per-day series binge</h4>
+<pre><code>WITH current_metadata AS (
+  -- Step 1: dedupe SCD2 dim to most-recent row per series
+  SELECT series_id, series_title, season_number
+  FROM (
+    SELECT *,
+      ROW_NUMBER() OVER (PARTITION BY series_id ORDER BY effective_date DESC) AS rn
+    FROM dim_series_metadata
+  ) m
+  WHERE rn = 1
+),
+daily_binges AS (
+  -- Step 2: count episodes per (user, series, day); LEFT JOIN keeps orphan-fact users
+  SELECT v.user_id, v.series_id, v.view_date,
+    COUNT(v.episode_id) AS episodes_watched,
+    COALESCE(m.series_title,
+             'Series ID: ' || v.series_id || ' (Pending Metadata)') AS series_display_name
+  FROM fact_viewing_history v
+  LEFT JOIN current_metadata m USING (series_id)
+  GROUP BY v.user_id, v.series_id, v.view_date, m.series_title
+)
+SELECT *
+FROM daily_binges
+WHERE episodes_watched &gt;= 3
+ORDER BY view_date DESC, episodes_watched DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why this is one query, not three</h5>
+<p>It composes three patterns that engineers usually meet separately:</p>
+<ol>
+  <li><strong>SCD2 latest-effective</strong> &mdash; <code>ROW_NUMBER</code> + <code>WHERE rn = 1</code> picks the current dim row.</li>
+  <li><strong>LAD defensive join</strong> &mdash; <code>LEFT JOIN</code> + <code>COALESCE</code> placeholder so orphan facts aren't lost.</li>
+  <li><strong>Per-day binge aggregation</strong> &mdash; <code>GROUP BY user, series, date</code> + <code>HAVING COUNT &gt;= 3</code>.</li>
+</ol>
+
+<h5>The crucial insight &mdash; the join key is the FK, not the title</h5>
+<p>The streak math doesn't depend on whether the metadata has arrived. <code>series_id</code> is the source-of-truth identifier; <code>series_title</code> is decoration. Even with <em>zero</em> dim rows, the binge-detection still works correctly because <code>GROUP BY v.series_id</code> groups on the FK. The <code>COALESCE</code> only affects the human-readable display column. <strong>Always join on IDs, not names</strong>.</p>
+
+<h5>The placeholder string is searchable on purpose</h5>
+<pre><code>COALESCE(m.series_title, 'Series ID: ' || v.series_id || ' (Pending Metadata)')</code></pre>
+<p>Two design choices encoded:</p>
+<ul>
+  <li>The placeholder includes the actual <code>series_id</code> &mdash; the analyst can copy it into a metadata-investigate query.</li>
+  <li>The "(Pending Metadata)" suffix is grep-able &mdash; the BI tool's filter dropdown shows it as a real bucket and the platform team can alert on its prevalence.</li>
+</ul>
+
+<h5>Why <code>GROUP BY ... m.series_title</code> appears</h5>
+<p>In Postgres-strict GROUP BY mode, every non-aggregate column in SELECT must appear in GROUP BY. <code>m.series_title</code> appears in the COALESCE expression, so it must be grouped. If you forget this, you get <em>"column must appear in GROUP BY"</em>. Some engines (MySQL non-strict, BigQuery with ANY_VALUE) tolerate it; portable code lists it explicitly.</p>
+
+<h5>The pre-aggregation performance trick</h5>
+<p>The query <em>aggregates first</em>, then filters. If you reversed it (filtered after window function over 100M raw rows), you'd sort the entire fact table. <code>GROUP BY</code> reduces the working set to ~100x fewer rows before the next step. The order is intentional and matters at scale.</p>
+
+<h5>Joining at fact-row grain vs aggregated grain</h5>
+<p>You could equivalently join AFTER aggregation:</p>
+<pre><code>WITH per_day AS (
+  SELECT user_id, series_id, view_date, COUNT(*) AS eps
+  FROM fact_viewing_history
+  GROUP BY user_id, series_id, view_date
+)
+SELECT pd.*,
+  COALESCE(m.series_title, 'Pending') AS title
+FROM per_day pd
+LEFT JOIN current_metadata m USING (series_id)
+WHERE pd.eps &gt;= 3;</code></pre>
+<p>This is even more performant for big fact tables &mdash; fewer rows enter the join. Either form is correct; pick the one that fits the surrounding pipeline conventions.</p>
+
+<h5>The "series streak across days" cousin</h5>
+<p>Per-day binge says <em>"watched 3 episodes Tuesday"</em>. <em>Series streak</em> says <em>"watched any episode of Stranger Things every day for 5 days"</em>. Both signals are valuable; combine them via gaps-and-islands on the <code>(user_id, series_id, view_date)</code> grain:</p>
+<pre><code>WITH series_active_days AS (
+  SELECT user_id, series_id, view_date
+  FROM fact_viewing_history
+  GROUP BY user_id, series_id, view_date
+),
+series_islands AS (
+  SELECT user_id, series_id, view_date,
+    (view_date - DATE '1970-01-01') -
+    ROW_NUMBER() OVER (PARTITION BY user_id, series_id ORDER BY view_date) AS island_id
+  FROM series_active_days
+)
+SELECT user_id, series_id,
+  MIN(view_date) AS streak_start,
+  MAX(view_date) AS streak_end,
+  COUNT(*)       AS days_in_streak
+FROM series_islands
+GROUP BY user_id, series_id, island_id
+HAVING COUNT(*) &gt;= 2
+ORDER BY days_in_streak DESC;</code></pre>
+<p>The <em>same-series-multiple-days</em> streak is the "hooked-on-this-show" diagnostic. It's the input to the recommendation algorithm's "watch what's next" surface and the user-segment most likely to renew at price hikes.</p>
+
+<h5>Operational guard &mdash; alert on orphan rate</h5>
+<pre><code>SELECT view_date,
+  100.0 * SUM(CASE WHEN m.series_title IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS pct_orphan_views
+FROM fact_viewing_history v
+LEFT JOIN current_metadata m USING (series_id)
+GROUP BY view_date
+ORDER BY view_date DESC;</code></pre>
+<p>SLO: <code>pct_orphan_views &lt; 0.5%</code>. A spike above 1% pages the data-platform on-call &mdash; the dim-replication pipeline has stalled. This is exactly how Netflix instruments the LAD pattern in production.</p>
+
+<h5>The interview signal &mdash; what the question is really testing</h5>
+<table>
+  <thead><tr><th>signal</th><th>what they're checking</th></tr></thead>
+  <tbody>
+    <tr><td>You used LEFT JOIN</td><td>You understand fact-vs-dim asymmetry &mdash; facts are the source of truth.</td></tr>
+    <tr><td>You used ROW_NUMBER &mdash; not just the latest dim row by date</td><td>You handle SCD2 / re-titles / re-genre correctly.</td></tr>
+    <tr><td>You aggregated before filtering</td><td>You think about scan volume &mdash; performance instinct.</td></tr>
+    <tr><td>You COALESCEd to a meaningful placeholder, not NULL</td><td>You're thinking about the consumer (the analyst opening the BI tool).</td></tr>
+    <tr><td>You can extend the same pattern to series streak</td><td>You see the family of questions, not just this one.</td></tr>
+  </tbody>
+</table>
+
+<h5>Late-arriving facts &mdash; the dual problem</h5>
+<p>The opposite case (current dim, late fact) is the temporal-join problem. A fact arriving days late from offline-mode mobile must attribute against the dim version that was current <em>at fact time</em>, not now. SCD2 with <code>effective_from / effective_to</code> + a temporal join solves it. Same family of patterns; different direction.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the fact-vs-dim asymmetry in one sentence ("the fact is the truth"), name the LAD pattern (LEFT JOIN + COALESCE placeholder + ROW_NUMBER for SCD2), aggregate before joining for performance, and extend the same shape to multi-day series streaks. The orphan-rate SLO and the late-arriving-fact temporal-join cousin are the over-the-bar finish.</div>

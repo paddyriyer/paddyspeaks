@@ -1,0 +1,134 @@
+<p>The classic Netflix interview phrasing: <em>"find every user who has watched on three or more consecutive calendar days."</em> The answer is the canonical <strong>gaps-and-islands</strong> trick &mdash; <code>view_date - row_number = constant</code> within a streak. This is the <em>per-day</em> binge metric (vs the per-session "3 episodes in 24h" metric); both are real Netflix metrics for different teams.</p>
+
+<h4>1. The source data &mdash; <code>user_views</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>view_date</th></tr></thead>
+  <tbody>
+    <tr><td>U_101</td><td>2026-05-01</td></tr>
+    <tr><td>U_101</td><td>2026-05-02</td></tr>
+    <tr><td>U_101</td><td>2026-05-03</td></tr>
+    <tr><td>U_101</td><td>2026-05-03</td></tr>
+    <tr><td>U_102</td><td>2026-05-01</td></tr>
+    <tr><td>U_102</td><td>2026-05-03</td></tr>
+    <tr><td>U_102</td><td>2026-05-05</td></tr>
+    <tr><td>U_103</td><td>2026-05-10</td></tr>
+    <tr><td>U_103</td><td>2026-05-11</td></tr>
+    <tr><td>U_103</td><td>2026-05-12</td></tr>
+    <tr><td>U_103</td><td>2026-05-13</td></tr>
+  </tbody>
+</table>
+<p>U_101 has a 3-day streak (with one duplicate row on May 3). U_102 watched every other day &mdash; no streak. U_103 has a 4-day streak.</p>
+
+<h4>2. The SQL &mdash; the 3-CTE pattern</h4>
+<pre><code>WITH daily_views AS (
+  -- Step 1: dedupe — a user can watch 10 shows in one day
+  SELECT user_id, view_date
+  FROM user_views
+  GROUP BY user_id, view_date
+),
+islands AS (
+  -- Step 2: the trick — date minus row-number is constant within a streak
+  SELECT user_id, view_date,
+    view_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY view_date) * INTERVAL '1 day') AS island_group
+  FROM daily_views
+),
+streak_counts AS (
+  -- Step 3: aggregate per island
+  SELECT user_id,
+    MIN(view_date) AS streak_start,
+    MAX(view_date) AS streak_end,
+    COUNT(*)       AS consecutive_days
+  FROM islands
+  GROUP BY user_id, island_group
+)
+SELECT *
+FROM streak_counts
+WHERE consecutive_days &gt;= 3
+ORDER BY consecutive_days DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The DEDUP step is the silent-bug killer</h5>
+<p>Without the <code>daily_views</code> CTE, a user who watches 5 shows on May 3 would create 5 rows for May 3, the row_number jumps by 5 in one day, and the island_id math collapses. <strong>Always dedupe to one row per (user, day) before applying the streak trick.</strong> This is the #1 mistake in interview answers.</p>
+
+<h5>The trick &mdash; why <code>date - rn</code> equals constant within a streak</h5>
+<table>
+  <thead><tr><th>view_date</th><th>row_number</th><th>view_date - rn (days)</th></tr></thead>
+  <tbody>
+    <tr><td>May 1</td><td>1</td><td><strong>Apr 30</strong></td></tr>
+    <tr><td>May 2</td><td>2</td><td><strong>Apr 30</strong></td></tr>
+    <tr><td>May 3</td><td>3</td><td><strong>Apr 30</strong></td></tr>
+    <tr><td>May 5 (gap!)</td><td>4</td><td>May 1</td></tr>
+    <tr><td>May 6</td><td>5</td><td>May 1</td></tr>
+  </tbody>
+</table>
+<p>Within a streak, both date and row_number tick by 1 each row &mdash; their difference is constant. The moment a date skips, the difference shifts. <strong>Distinct difference = distinct streak.</strong></p>
+
+<h5>The <code>* INTERVAL '1 day'</code> idiom</h5>
+<p>In Postgres, <code>date - integer</code> works directly: <code>'2026-05-01'::DATE - 3 = '2026-04-28'</code>. But in some dialects you need to multiply by an interval to get type-correct subtraction. The original solution uses the explicit interval form for cross-dialect safety. Equivalent forms:</p>
+<pre><code>-- Postgres / Snowflake / DuckDB
+view_date - ROW_NUMBER() OVER (...)::INT
+
+-- BigQuery — DATE_SUB
+DATE_SUB(view_date, INTERVAL CAST(ROW_NUMBER() OVER (...) AS INT64) DAY)
+
+-- SQLite — julianday math
+julianday(view_date) - ROW_NUMBER() OVER (...)
+
+-- MySQL — TO_DAYS
+TO_DAYS(view_date) - ROW_NUMBER() OVER (...)</code></pre>
+
+<h5>The interpretation question &mdash; "any 3-day streak" vs "longest streak &ge; 3"</h5>
+<p>The query above returns <strong>every</strong> qualifying streak. A user with two 3-day streaks shows up twice. Three plausible interpretations:</p>
+<ul>
+  <li><strong>"Users who have any 3-day streak"</strong>: <code>SELECT DISTINCT user_id FROM streak_counts WHERE consecutive_days &gt;= 3</code></li>
+  <li><strong>"Users whose longest streak is &ge; 3"</strong>: aggregate first &mdash; <code>SELECT user_id, MAX(consecutive_days) AS longest FROM streak_counts GROUP BY user_id HAVING longest &gt;= 3</code></li>
+  <li><strong>"Each qualifying streak with start/end dates"</strong> (the original): for downstream campaign targeting, useful as-is</li>
+</ul>
+<p>Always pin the interpretation with the requester before writing.</p>
+
+<h5>The session-aware cousin &mdash; "binge" vs "consecutive days"</h5>
+<p>"3 episodes within 24 hours" (true binge) and "3 consecutive calendar days" (this query) are different metrics:</p>
+<table>
+  <thead><tr><th>metric</th><th>definition</th><th>used for</th></tr></thead>
+  <tbody>
+    <tr><td>Per-session binge</td><td>3+ episodes within 24h, same show</td><td>algorithm tuning, "auto-play next" decisioning</td></tr>
+    <tr><td>Per-day streak (this)</td><td>any view on 3+ consecutive days</td><td>retention dashboards, lifecycle marketing</td></tr>
+  </tbody>
+</table>
+
+<h5>The lifecycle layer on top &mdash; what happens AFTER the streak?</h5>
+<p>The truly senior version (matching the customer_growth-0020 question) doesn't stop at "they had a streak". It computes the <em>exit pattern</em> from each streak:</p>
+<pre><code>WITH /* ... streak_counts ... */
+next_activity AS (
+  SELECT s.user_id, s.streak_end,
+    MIN(d.view_date) AS next_date
+  FROM streak_counts s
+  LEFT JOIN daily_views d
+    ON d.user_id = s.user_id AND d.view_date &gt; s.streak_end
+  GROUP BY s.user_id, s.streak_end
+)
+SELECT user_id, streak_start, streak_end, consecutive_days,
+  CASE
+    WHEN next_date - streak_end &lt;= 1   THEN 'continuing'
+    WHEN next_date - streak_end &lt;= 28  THEN 'engaged'
+    WHEN next_date - streak_end &lt;= 90  THEN 'resurrected'
+    WHEN next_date IS NULL AND CURRENT_DATE - streak_end &gt; 90 THEN 'churned'
+    WHEN next_date IS NULL                 THEN 'open'
+    ELSE 'long_resurrect'
+  END AS exit_status
+FROM streak_counts s LEFT JOIN next_activity USING (user_id, streak_end);</code></pre>
+<p>Now the streak isn't an endpoint &mdash; it's the input to a retention CASE that drives the winback campaign.</p>
+
+<h5>The tolerant-streak follow-up</h5>
+<p>"3 consecutive days" is strict. Real-world tax-software / fitness-app / news-app analytics often allow a single missed day. Use LAG:</p>
+<pre><code>SELECT user_id, view_date,
+  CASE WHEN LAG(view_date) OVER (PARTITION BY user_id ORDER BY view_date)
+            &gt;= view_date - INTERVAL '2 days' THEN 0 ELSE 1 END AS new_streak
+FROM daily_views;</code></pre>
+<p>Cumulative-sum the <code>new_streak</code> flag = streak_id. Replace <code>2 days</code> with the tolerated gap.</p>
+
+<h5>Index that makes this query fast</h5>
+<p>Composite index on <code>(user_id, view_date)</code> lets the planner do an index-only sort within partitions. Without it, the ROW_NUMBER triggers a full table sort &mdash; for 100M+ rows the difference is hours vs minutes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> never skip the dedupe step, articulate the date-rn-constant trick from first principles, contrast per-day-streak with per-session-binge as different real metrics, and pre-empt the interpretation ambiguity ("any streak" vs "longest streak"). Layering the lifecycle CASE on top to expose churn / resurrect status is the over-the-bar finish.</div>

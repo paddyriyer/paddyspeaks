@@ -1,0 +1,87 @@
+<p>Netflix's SRE-CDN team owns one number that wakes them up at 3am: <strong>rebuffering rate by ISP</strong>. When Comcast Northeast spikes to 2% rebuf vs the 0.3% baseline, peering links are being throttled or last-mile is congested &mdash; and that's worth a phone call to Comcast Operations. The query is straight aggregation; the senior depth is the denominator choice and the partner-management implications.</p>
+
+<h4>1. The source data &mdash; <code>qoe</code></h4>
+<table>
+  <thead><tr><th>session_id</th><th>isp</th><th>watched_seconds</th><th>rebuf_seconds</th><th>rebuf_count</th></tr></thead>
+  <tbody>
+    <tr><td>S_001</td><td>Comcast</td><td>3540</td><td>60</td><td>2</td></tr>
+    <tr><td>S_002</td><td>Verizon</td><td>3600</td><td>0</td><td>0</td></tr>
+    <tr><td>S_003</td><td>Comcast</td><td>1750</td><td>50</td><td>3</td></tr>
+    <tr><td>S_004</td><td>AT&amp;T</td><td>3000</td><td>15</td><td>1</td></tr>
+    <tr><td>...</td><td>...</td><td>...</td><td>...</td><td>...</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; rebuf-time / total-time per ISP</h4>
+<pre><code>SELECT isp,
+  COUNT(*) AS sessions,
+  ROUND(SUM(rebuf_seconds) * 100.0
+      / NULLIF(SUM(watched_seconds + rebuf_seconds), 0), 3) AS rebuf_pct,
+  ROUND(AVG(rebuf_count), 2) AS avg_rebufs_per_session
+FROM qoe
+GROUP BY isp
+HAVING COUNT(*) &gt;= 1000
+ORDER BY rebuf_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The denominator that actually matters</h5>
+<p>Three plausible denominators give very different numbers:</p>
+<table>
+  <thead><tr><th>denominator</th><th>formula</th><th>what it measures</th></tr></thead>
+  <tbody>
+    <tr><td>watched_seconds only</td><td>rebuf / watched</td><td>"per minute of content, how much rebuffering?" &mdash; <strong>biased low</strong></td></tr>
+    <tr><td>watched + rebuf</td><td>rebuf / (watched + rebuf)</td><td>"what fraction of session time was rebuffering?" &mdash; <strong>industry standard</strong></td></tr>
+    <tr><td>session count</td><td>rebufs / sessions</td><td>"events per session" &mdash; useful but doesn't reflect <em>duration</em></td></tr>
+  </tbody>
+</table>
+<p>Always use <code>watched + rebuf</code> for percentage metrics. Rebuf-time / watched-time can exceed 100% on a bad session (more rebuf than playback) which makes no sense as a "%".</p>
+
+<h5>Average-of-averages trap (Simpson's paradox)</h5>
+<p>Computing rebuf-rate per session and then averaging across sessions:</p>
+<pre><code>-- WRONG — heavily biased by short sessions
+AVG(rebuf_seconds * 1.0 / NULLIF(watched_seconds + rebuf_seconds, 0))</code></pre>
+<p>A 5-second session with 2 seconds of rebuf is 40%. A 90-min session with 10 seconds of rebuf is 0.2%. Simple-averaging weights both equally and gives a wildly inflated number. <strong>Always weight by duration:</strong> <code>SUM(rebuf) / SUM(total)</code>.</p>
+
+<h5>The HAVING threshold &mdash; sample size matters</h5>
+<p>Long-tail ISPs with 50 sessions can show 5% rebuf rate that's pure noise. <code>HAVING COUNT(*) &gt;= 1000</code> filters those out. Add a per-row CI for visualization:</p>
+<pre><code>SQRT(rebuf_pct * (100 - rebuf_pct) / sessions) * 1.96 AS ci_pp_at_95</code></pre>
+
+<h5>The 95th-percentile metric &mdash; tail matters more than mean</h5>
+<p>Average rebuf rate misses the catastrophic tail (the 5% of sessions that rebuffered every 30 seconds). The user-experience metric Netflix uses is "% of sessions with &gt; 1% rebuf time" &mdash; the <em>bad-session rate</em>:</p>
+<pre><code>SELECT isp,
+  100.0 * SUM(CASE WHEN rebuf_seconds * 1.0 / NULLIF(watched_seconds + rebuf_seconds, 0) &gt; 0.01
+              THEN 1 ELSE 0 END) / COUNT(*) AS pct_bad_sessions
+FROM qoe GROUP BY isp;</code></pre>
+
+<h5>The peering-link diagnosis &mdash; ISP &times; geo</h5>
+<p>"Comcast bad" isn't actionable; "Comcast in the Northeast bad" is &mdash; that's a peering-router or backbone issue. Always cross-tab:</p>
+<pre><code>SELECT isp, region, COUNT(*) AS sessions,
+  100.0 * SUM(rebuf_seconds) / NULLIF(SUM(watched_seconds + rebuf_seconds), 0) AS rebuf_pct
+FROM qoe GROUP BY isp, region
+HAVING COUNT(*) &gt;= 500
+ORDER BY rebuf_pct DESC;</code></pre>
+<p>The top-of-leaderboard cells are the partner-management calls. Netflix's <strong>ISP Speed Index</strong> public page is essentially this query.</p>
+
+<h5>Time-of-day effect &mdash; primetime is the load test</h5>
+<p>Rebuf rates 7-11pm are systematically higher than 2-6am (concurrent demand). Flat-averaging across the day under-reports the primetime experience. Slice:</p>
+<pre><code>SELECT isp,
+  CASE WHEN EXTRACT(HOUR FROM started_at) BETWEEN 19 AND 23 THEN 'primetime' ELSE 'offpeak' END AS daypart,
+  ...</code></pre>
+
+<h5>Codec and bitrate confounders</h5>
+<p>HEVC sessions rebuffer less than AVC (smaller bitstream &rarr; less to buffer). Mobile uses lower bitrates than TV. Without controlling for codec/device/bitrate, you compare apples to oranges. Senior-level QoE dashboards always pin a single bitrate-tier as the comparison axis.</p>
+
+<h5>The customer-impact escalation</h5>
+<p>The query result drives concrete action:</p>
+<ul>
+  <li>Top ISP &times; region with HIGH rebuf &mdash; partner-management call to ISP NOC</li>
+  <li>Top ISP &times; region with normal rebuf but HIGH bad-session-pct &mdash; peering-link investigation</li>
+  <li>One-time spike in time-series &mdash; PagerDuty</li>
+  <li>Sustained drift over weeks &mdash; capacity-planning RFP</li>
+</ul>
+
+<h5>The Open Connect cousin</h5>
+<p>Netflix's Open Connect appliances live <em>inside</em> ISP networks. A high-rebuf ISP without Open Connect is a sales target ("install our box in your network for free"). A high-rebuf ISP <em>with</em> Open Connect is an operational issue (the box is full, mis-configured, or the ISP is throttling around it). The query result feeds both teams.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pick <code>SUM(rebuf) / SUM(total)</code> over AVG-of-ratios with the Simpson's-paradox warning, name the bad-session-rate as the more-useful tail metric, and pre-empt the ISP&times;region peering-link diagnosis. Day-part slicing and codec/bitrate confounder control are the over-the-bar finish that turns the query into a partner-management tool.</div>

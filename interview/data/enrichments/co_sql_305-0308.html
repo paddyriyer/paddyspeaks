@@ -1,0 +1,98 @@
+<p>Netflix coined the term: <em>bingewatching</em> = three or more episodes of the same show within 24 hours. The metric drives the auto-play algorithm, the "Continue Watching" row priority, and the show-greenlighting model (a binge-friendly show like Stranger Things justifies a 9-figure budget; a slow-burn like The Crown does not). The query is a <strong>sliding-window count</strong> &mdash; one of the most underused window-function tricks in SQL.</p>
+
+<h4>1. The source data &mdash; <code>episode_plays</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>show_id</th><th>episode_id</th><th>started_at</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_01</td><td>2026-04-22 19:00</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_02</td><td>2026-04-22 20:30</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_03</td><td>2026-04-22 22:00</td></tr>
+    <tr><td>U_001</td><td>S_strangerthings</td><td>E_04</td><td>2026-04-23 09:00</td></tr>
+    <tr><td>U_002</td><td>S_thecrown</td><td>E_01</td><td>2026-04-22 21:00</td></tr>
+    <tr><td>U_002</td><td>S_thecrown</td><td>E_02</td><td>2026-04-25 21:00</td></tr>
+  </tbody>
+</table>
+<p>U_001 watched 3 episodes Friday night within 3 hours &mdash; binge. U_002 spaced episodes across the week &mdash; not a binge.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT</code> over a 24-hour <code>RANGE</code> window</h4>
+<pre><code>WITH ranked AS (
+  SELECT user_id, show_id, episode_id, started_at,
+    COUNT(*) OVER (
+      PARTITION BY user_id, show_id
+      ORDER BY started_at
+      RANGE BETWEEN INTERVAL '24 hours' PRECEDING AND CURRENT ROW
+    ) AS eps_in_last_24h
+  FROM episode_plays
+)
+SELECT DISTINCT user_id, show_id
+FROM ranked
+WHERE eps_in_last_24h &gt;= 3;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The <code>RANGE BETWEEN INTERVAL</code> trick &mdash; sliding time windows</h5>
+<p>The default window frame counts <em>physical rows</em> (<code>ROWS BETWEEN N PRECEDING</code>). For "within 24 hours" you need a <em>time-based</em> window: <code>RANGE BETWEEN INTERVAL '24 hours' PRECEDING AND CURRENT ROW</code>. Behind the scenes the engine looks back from the current row to all rows whose <code>ORDER BY</code> column is within 24 hours &mdash; could be 3 rows, could be 30, could be 1.</p>
+<p>Dialect support:</p>
+<table>
+  <thead><tr><th>engine</th><th>RANGE INTERVAL</th><th>workaround</th></tr></thead>
+  <tbody>
+    <tr><td>Postgres / DuckDB / Snowflake / BigQuery / Oracle</td><td>yes</td><td>&mdash;</td></tr>
+    <tr><td>SQL Server</td><td>partial (RANGE only with date-rounded values)</td><td>self-join with time predicate</td></tr>
+    <tr><td>SQLite, MySQL</td><td>no</td><td>self-join</td></tr>
+  </tbody>
+</table>
+
+<h5>Self-join workaround for SQLite / MySQL</h5>
+<pre><code>SELECT DISTINCT a.user_id, a.show_id
+FROM episode_plays a
+JOIN episode_plays b
+  ON a.user_id = b.user_id
+ AND a.show_id = b.show_id
+ AND b.started_at BETWEEN a.started_at - INTERVAL '24 hours' AND a.started_at
+GROUP BY a.user_id, a.show_id, a.started_at
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>O(n&sup2;) without index; in production add a composite index on <code>(user_id, show_id, started_at)</code>.</p>
+
+<h5>The "3 distinct episodes" precision</h5>
+<p>If a user watches E_01 three times in 24 hours (re-watch), the original query counts that as 3 &mdash; technically a binge by row count, semantically not a binge by content. Fix:</p>
+<pre><code>COUNT(DISTINCT episode_id) OVER (PARTITION BY ...)</code></pre>
+<p>...except <strong><code>COUNT DISTINCT</code> in a window function is not supported</strong> in most engines. Workaround: dedup first via DISTINCT in a CTE, then run the window count on the deduped rows.</p>
+
+<h5>The session-aware version &mdash; back-to-back not just within 24h</h5>
+<p>"3 episodes within 24 hours" includes "1 in the morning, 2 at night" &mdash; arguably not a binge. The truer binge is <em>back-to-back</em>: each episode starts within 30 minutes of the previous one ending. Use LAG and a sessionizer:</p>
+<pre><code>WITH sessions AS (
+  SELECT user_id, show_id, episode_id, started_at,
+    SUM(CASE WHEN started_at - LAG(started_at) OVER (
+                  PARTITION BY user_id, show_id ORDER BY started_at)
+              &gt; INTERVAL '30 minutes' THEN 1 ELSE 0 END
+    ) OVER (PARTITION BY user_id, show_id ORDER BY started_at) AS session_id
+  FROM episode_plays
+)
+SELECT user_id, show_id, session_id, COUNT(*) AS eps_in_session
+FROM sessions GROUP BY user_id, show_id, session_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>This is the Netflix-published definition of "binge session". The 30-minute threshold is the auto-play timeout.</p>
+
+<h5>The "completion-aware" binge</h5>
+<p>If users skip-around (start E_01, hit "next episode", abandon, jump to E_05), is that 5 episodes started or 1 episode actually watched? Production binge-detection joins to <code>episode_completion</code> and only counts plays that crossed an 80% completion threshold:</p>
+<pre><code>WHERE completion_pct &gt;= 0.80</code></pre>
+
+<h5>The downstream metric &mdash; "binge-worthiness score"</h5>
+<p>Aggregate over titles to get a binge propensity score per show:</p>
+<pre><code>SELECT show_id,
+  COUNT(DISTINCT (user_id, session_id)) AS binge_sessions,
+  COUNT(DISTINCT user_id)               AS unique_bingers,
+  AVG(eps_in_session)                   AS avg_eps_per_binge
+FROM (... session-aware query ...)
+GROUP BY show_id
+ORDER BY binge_sessions DESC;</code></pre>
+<p>Stranger Things, You, Squid Game = top of leaderboard. The binge-score is what the content org uses to argue for season 2 budget.</p>
+
+<h5>The release-strategy implication</h5>
+<p>Binge-friendly shows get the all-episodes-day-one drop. Slow-burn shows get the weekly-release schedule. The query's output literally drives Netflix's launch-strategy decisions.</p>
+
+<h5>Cross-show binge &mdash; a different question</h5>
+<p>"Watched 3 episodes of <em>any</em> show in 24h" is a different metric &mdash; user-level engagement, not show-level. Drop the <code>show_id</code> partition:</p>
+<pre><code>OVER (PARTITION BY user_id ORDER BY started_at RANGE BETWEEN INTERVAL '24 hours' PRECEDING AND CURRENT ROW)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>RANGE BETWEEN INTERVAL</code> sliding-window pattern crisply, contrast against ROWS-based windows and against the self-join fallback for non-supporting dialects, then upgrade to the session-aware definition (LAG + cumulative-flag sessionization) to match Netflix's published "binge session" definition. The completion-pct gate and downstream binge-worthiness leaderboard tie the query to actual greenlight decisions &mdash; the over-the-bar finish.</div>

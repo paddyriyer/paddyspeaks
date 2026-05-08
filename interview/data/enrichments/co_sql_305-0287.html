@@ -1,0 +1,190 @@
+<p>Tax-software companies (TurboTax, H&amp;R Block) live and die by <em>filing-day cadence</em>. The compliance team's deceptively simple ask: <em>which users filed at least 3 days in a row?</em> Underneath sits the same gaps-and-islands engine that powers every retention dashboard. The senior conversation isn't the count &mdash; it's classifying each user's <em>exit</em> from their most recent streak.</p>
+
+<h4>1. The source data &mdash; <code>filings</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>filed_date(s)</th><th>persona</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>Apr 12, 13, 14, 15, 16; gap; Apr 22, 23, 24</td><td><strong>Habitual</strong> &mdash; two long streaks</td></tr>
+    <tr><td>U_002</td><td>Jan 28, 29, 30; nothing for 11 weeks; Apr 18, 19, 20</td><td><strong>Long Resurrect</strong> &mdash; came back after the gap</td></tr>
+    <tr><td>U_003</td><td>Mar 03, 04, 05; nothing since</td><td><strong>Churned</strong> &mdash; one solid streak, vanished</td></tr>
+    <tr><td>U_004</td><td>Apr 28, 29</td><td><strong>Open</strong> &mdash; fresh, only 2 days, still in grace period</td></tr>
+    <tr><td>U_005</td><td>Apr 10, 12, 14, 16</td><td><strong>Non-Streak</strong> &mdash; every other day, no consecutive run</td></tr>
+  </tbody>
+</table>
+<p>Snapshot date: 2026-05-01.</p>
+
+<h4>2. The SQL &mdash; gaps-and-islands + <code>HAVING &gt;= 3</code></h4>
+<pre><code>WITH ranked AS (
+  SELECT user_id, filed_date,
+    filed_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY filed_date))::int AS grp
+  FROM filings
+)
+SELECT user_id, COUNT(*) AS streak
+FROM ranked
+GROUP BY user_id, grp
+HAVING COUNT(*) &gt;= 3;</code></pre>
+
+<h4>3. The mechanism &mdash; why <code>filed_date &minus; row_number</code> labels each island</h4>
+<p>Within a streak, both <code>filed_date</code> and the user-partitioned <code>row_number</code> increment by 1 each row. Their difference is constant. As soon as a date skips, <code>filed_date</code> jumps forward but <code>row_number</code> only ticks 1 &mdash; the difference shifts to a new value. <strong>Distinct difference values = distinct streaks.</strong></p>
+<table>
+  <thead><tr><th>filed_date</th><th>day_number</th><th>row_number</th><th>island_id (day - rn)</th></tr></thead>
+  <tbody>
+    <tr><td>Apr 12</td><td>102</td><td>1</td><td><strong>101</strong></td></tr>
+    <tr><td>Apr 13</td><td>103</td><td>2</td><td><strong>101</strong></td></tr>
+    <tr><td>Apr 14</td><td>104</td><td>3</td><td><strong>101</strong></td></tr>
+    <tr><td>Apr 15</td><td>105</td><td>4</td><td><strong>101</strong></td></tr>
+    <tr><td>Apr 16</td><td>106</td><td>5</td><td><strong>101</strong></td></tr>
+    <tr><td><em>(gap Apr 17-21)</em></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>Apr 22</td><td>112</td><td>6</td><td><strong>106</strong></td></tr>
+    <tr><td>Apr 23</td><td>113</td><td>7</td><td><strong>106</strong></td></tr>
+    <tr><td>Apr 24</td><td>114</td><td>8</td><td><strong>106</strong></td></tr>
+  </tbody>
+</table>
+<p>Two distinct island IDs (<strong>101</strong> and <strong>106</strong>) for U_001 &rarr; two streaks of 5 and 3.</p>
+
+<h4>4. Persona walk-through &mdash; what each user emits</h4>
+
+<h5>Persona A &mdash; U_001 "Habitual"</h5>
+<p>Two islands &rarr; the GROUP BY emits two rows: <code>(streak=5)</code> and <code>(streak=3)</code>. Both pass <code>HAVING &gt;= 3</code> &mdash; this user shows up <em>twice</em> in the result, which is usually <em>not</em> what compliance wants. To get longest streak only:</p>
+<pre><code>-- Wrap the original query and aggregate again
+SELECT user_id, MAX(streak) AS longest_streak
+FROM (/* the gaps-and-islands query */) GROUP BY user_id;</code></pre>
+
+<h5>Persona B &mdash; U_002 "Long Resurrect"</h5>
+<p>Streak 1: Jan 28-30 (3 days). Streak 2: Apr 18-20 (3 days). Both islands pass HAVING. Inter-streak gap is ~78 days &mdash; this is the lifecycle signal. The basic query returns <em>both</em> streaks but doesn't expose the gap. The lifecycle layer (next section) does.</p>
+
+<h5>Persona C &mdash; U_003 "Churned"</h5>
+<p>One streak, Mar 03-05 (3 days), passes HAVING. But today is May 1 &mdash; 57 days since last filing. The base query says "yes, qualifying streak"; the lifecycle layer says "churned" because <code>today &minus; streak_end &gt; 28</code> with no resurrection.</p>
+
+<h5>Persona D &mdash; U_004 "Open"</h5>
+<p>Apr 28-29 = 2 consecutive days. <strong>Fails</strong> the <code>HAVING &gt;= 3</code> filter &mdash; doesn't appear in the result. But they're an active user; the dashboard shouldn't lose them. Lifecycle perspective: they're "open" / in grace period. Use the <em>unfiltered</em> streak table for retention dashboards; the HAVING filter is for the specific "3+" compliance ask.</p>
+
+<h5>Persona E &mdash; U_005 "Non-Streak"</h5>
+<p>Every-other-day filings &rarr; each row gets a unique island_id (the date jumps by 2 while row_number jumps by 1):</p>
+<table>
+  <thead><tr><th>filed_date</th><th>day_number</th><th>row_number</th><th>island_id</th></tr></thead>
+  <tbody>
+    <tr><td>Apr 10</td><td>100</td><td>1</td><td>99</td></tr>
+    <tr><td>Apr 12</td><td>102</td><td>2</td><td>100</td></tr>
+    <tr><td>Apr 14</td><td>104</td><td>3</td><td>101</td></tr>
+    <tr><td>Apr 16</td><td>106</td><td>4</td><td>102</td></tr>
+  </tbody>
+</table>
+<p>Four streaks of length 1. None pass HAVING &mdash; this user is invisible to the basic query. <em>That's the right answer for compliance</em> ("no 3-day streak") but the wrong answer for engagement ("user filed 4 times in a week!").</p>
+
+<h4>5. Strategic explanations &mdash; lifecycle on top of streaks</h4>
+
+<h5>The full pipeline &mdash; streaks + next_activity + exit_status</h5>
+<pre><code>WITH d AS (
+  SELECT DISTINCT user_id, filed_date FROM filings
+),
+ranked AS (
+  SELECT user_id, filed_date,
+    filed_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY filed_date))::int AS grp
+  FROM d
+),
+streaks AS (
+  SELECT user_id, grp,
+    MIN(filed_date) AS streak_start,
+    MAX(filed_date) AS streak_end,
+    COUNT(*)        AS streak_days,
+    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY MIN(filed_date)) AS streak_id
+  FROM ranked GROUP BY user_id, grp
+),
+next_activity AS (
+  SELECT s.user_id, s.streak_id, s.streak_end,
+    MIN(d.filed_date) AS next_filed
+  FROM streaks s
+  LEFT JOIN d
+    ON d.user_id = s.user_id
+   AND d.filed_date &gt; s.streak_end
+  GROUP BY s.user_id, s.streak_id, s.streak_end
+),
+enriched AS (
+  SELECT s.user_id, s.streak_id, s.streak_start, s.streak_end, s.streak_days,
+    n.next_filed,
+    CASE WHEN n.next_filed IS NOT NULL THEN n.next_filed - s.streak_end END AS gap_days,
+    DATE '2026-05-01' - s.streak_end AS days_since_streak_end
+  FROM streaks s LEFT JOIN next_activity n USING (user_id, streak_id, streak_end)
+)
+SELECT user_id, streak_id, streak_start, streak_end, streak_days, next_filed,
+  CASE
+    WHEN gap_days IS NOT NULL AND gap_days &lt;= 28              THEN 'continuing'
+    WHEN gap_days IS NOT NULL AND gap_days &lt;= 90              THEN 'resurrected'
+    WHEN gap_days IS NOT NULL AND gap_days  &gt; 90              THEN 'long_resurrect'
+    WHEN gap_days IS NULL     AND days_since_streak_end &gt; 90  THEN 'churned'
+    WHEN gap_days IS NULL                                     THEN 'open'
+  END AS exit_status
+FROM enriched
+ORDER BY user_id, streak_id;</code></pre>
+
+<h5>Lifecycle table &mdash; the dashboard's right-hand side</h5>
+<table>
+  <thead><tr><th>status</th><th>math requirement</th><th>business meaning</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Continuing</strong></td><td>gap &le; 28 days</td><td>healthy, retained</td><td>none &mdash; do not disturb</td></tr>
+    <tr><td><strong>Resurrected</strong></td><td>28 &lt; gap &le; 90</td><td>recovered before churn</td><td>study what brought them back</td></tr>
+    <tr><td><strong>Long Resurrect</strong></td><td>gap &gt; 90, returned</td><td>was dead, came back</td><td>identify the trigger, scale it</td></tr>
+    <tr><td><strong>Churned</strong></td><td>no return, gap &gt; 90</td><td>lost user</td><td>winback campaign</td></tr>
+    <tr><td><strong>Open</strong></td><td>no return, gap &le; 90</td><td>still in grace</td><td>watch &mdash; pre-emptive nudge at 60d</td></tr>
+  </tbody>
+</table>
+
+<h5>The threshold-calibration follow-up</h5>
+<p>The 28/90 split is a Mixpanel-template default, not a universal truth:</p>
+<ul>
+  <li>Tax software (this question): cycles are <em>annual</em>; "long resurrect" is anyone returning after the next April. Calibrate to 365/730.</li>
+  <li>Subscription B2C (Spotify, Netflix): 30/90 is fine.</li>
+  <li>Grocery (Instacart): 7/30 &mdash; weekly cadence.</li>
+  <li>Travel (Booking.com): 90/365 &mdash; once-a-year is normal.</li>
+</ul>
+<p>Always derive thresholds <em>from the data</em> &mdash; e.g., the 80th percentile of recurring inter-event gaps among confirmed-active users.</p>
+
+<h5>D1 / D7 / D28 retention flags &mdash; the leaderboard metric</h5>
+<p>Beyond "did they ever come back?", the growth team usually wants the granular retention rates. Add three boolean flags to <code>enriched</code>:</p>
+<pre><code>CASE WHEN gap_days &lt;= 1  THEN 1 ELSE 0 END AS d1_retained,
+CASE WHEN gap_days &lt;= 7  THEN 1 ELSE 0 END AS d7_retained,
+CASE WHEN gap_days &lt;= 28 THEN 1 ELSE 0 END AS d28_retained</code></pre>
+<p>Aggregate over all streaks to compute fleet-wide retention curves; aggregate over the most-recent streak per user for the "current state of the funnel".</p>
+
+<h5>The "tolerant streak" variant &mdash; allow a 1-day grace</h5>
+<p>For tax filing especially, weekends or single-day skips shouldn't break a streak. Use LAG instead of pure gaps-and-islands:</p>
+<pre><code>WITH d AS (SELECT DISTINCT user_id, filed_date FROM filings),
+flagged AS (
+  SELECT user_id, filed_date,
+    CASE WHEN LAG(filed_date) OVER (PARTITION BY user_id ORDER BY filed_date)
+              &gt;= filed_date - INTERVAL '2 days' THEN 0 ELSE 1 END AS new_streak
+  FROM d
+),
+sessioned AS (
+  SELECT user_id, filed_date,
+    SUM(new_streak) OVER (PARTITION BY user_id ORDER BY filed_date) AS streak_id
+  FROM flagged
+)
+SELECT user_id, streak_id, COUNT(*) AS days
+FROM sessioned GROUP BY user_id, streak_id HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>Replace <code>2 days</code> with whatever tolerance the business defines. Same shape solves "30-minute web sessions" and "audio playback sessions with 5-second tolerance".</p>
+
+<h5>The HAVING-on-streaks-vs-on-users distinction</h5>
+<p>The original query's <code>HAVING COUNT(*) &gt;= 3</code> filters <em>per island</em> &mdash; "give me every streak of 3+". A user with one 5-day streak appears once; a user with two 3-day streaks appears twice. The follow-up question is usually one of:</p>
+<ul>
+  <li>"Users who have <em>any</em> 3+ streak" &rarr; <code>SELECT DISTINCT user_id FROM (...)</code></li>
+  <li>"Users whose <em>longest</em> streak is 3+" &rarr; <code>HAVING MAX(...) &gt;= 3</code> on the outer aggregation</li>
+  <li>"Users with at least 5 separate streaks of 3+" &rarr; count islands per user</li>
+</ul>
+<p>Always pin which interpretation the requester means before writing code.</p>
+
+<h5>Dialect cheat sheet for date arithmetic</h5>
+<pre><code>-- Postgres / DuckDB / Snowflake — date - integer = date
+filed_date - ROW_NUMBER() OVER (...)::int
+
+-- BigQuery — DATE_SUB with INT64
+DATE_SUB(filed_date, INTERVAL CAST(ROW_NUMBER() OVER (...) AS INT64) DAY)
+
+-- SQLite — julianday
+julianday(filed_date) - ROW_NUMBER() OVER (...)
+
+-- MySQL — TO_DAYS
+TO_DAYS(filed_date) - ROW_NUMBER() OVER (...)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> walk through <em>multiple personas</em> to prove gaps-and-islands handles habitual / resurrect / churned / open / non-streak users in one pass, layer the lifecycle <code>CASE</code> on top to convert streaks into a retention dashboard, and call out that the 28/90 thresholds are domain-specific (tax software needs 365/730, not Mixpanel defaults). The tolerant-streak LAG variant and D1/D7/D28 flag pattern are the over-the-bar finish.</div>
