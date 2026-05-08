@@ -132,6 +132,22 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
         const ids = ownedIdMap[meta.fkTo];
         return ids[(i - 1) % ids.length];
       }
+      // FK-shaped column (e.g. customer_id, product_id) without an explicit
+      // owning table in the schema. Cycle through a small pool of values so
+      // queries that depend on repeated foreign keys (group-by-customer,
+      // new-vs-returning, multi-row patterns) actually have repeated keys to
+      // group on. Without this, every row had a unique value and questions
+      // like "find customers with multiple orders" returned zero rows.
+      const isOwnPk = (
+        c === `${tableName.replace(/s$/, "")}_id` ||
+        c === `${tableName}_id` ||
+        c === "id"
+      );
+      if (!isOwnPk) {
+        // 5 distinct values cycling — produces a realistic mix of cardinality
+        // (~12 rows / 5 keys = avg ~2.4 rows per key, with some 1-of-a-kind).
+        return ((i - 1) % 5) + 1;
+      }
       return i;
     case "boolean": return rng() < 0.5 ? 0 : 1;
     case "date": return dateOffset(baseDate, intBetween(rng, 0, 180));

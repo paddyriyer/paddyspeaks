@@ -104,8 +104,12 @@ function passesFiltersExcept(q, exceptKey) {
   if (exceptKey !== "search") {
     const needle = f.search.trim().toLowerCase();
     if (needle) {
-      const hay = [q.title, q.company, q.type, q.subtopic, q.schema, q.solution]
-        .filter(Boolean).join(" ").toLowerCase();
+      const hay = [
+        q.title, q.company, q.type, q.subtopic, q.schema, q.solution,
+        // Include auto-detected SQL technique tags so searches like
+        // "analytical" or "recursive" actually surface matching questions.
+        Array.isArray(q.tags) ? q.tags.join(" ") : "",
+      ].filter(Boolean).join(" ").toLowerCase();
       if (!hay.includes(needle)) return false;
     }
   }
@@ -341,6 +345,32 @@ function buildCard(q, tpl) {
   node.querySelector(".qb-meta-co").textContent = q.company || "—";
   node.querySelector(".qb-meta-type").textContent = [q.type, q.subtopic].filter(Boolean).join(" · ") || "—";
   node.querySelector(".qb-meta-lang").textContent = q.language || "—";
+
+  // Auto-detected technique tags (analytical-functions, joins, cte, …).
+  // Renders a chip strip below the meta-row when q.tags is non-empty.
+  // The chips are clickable and toggle the tag filter.
+  if (Array.isArray(q.tags) && q.tags.length) {
+    const head = node.querySelector(".qb-card-head");
+    if (head) {
+      const strip = document.createElement("div");
+      strip.className = "qb-card-tagchips";
+      for (const t of q.tags) {
+        const chip = document.createElement("span");
+        chip.className = "qb-card-tagchip qb-tag-" + t;
+        chip.textContent = t;
+        chip.title = "Click to filter by " + t;
+        chip.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          $("#qb-search").value = t;
+          state.filters.search = t;
+          render();
+        });
+        strip.appendChild(chip);
+      }
+      head.parentNode.insertBefore(strip, head.nextSibling);
+    }
+  }
 
   const schemaEl = node.querySelector(".qb-schema-text");
   const solEl = node.querySelector(".qb-solution-text");
