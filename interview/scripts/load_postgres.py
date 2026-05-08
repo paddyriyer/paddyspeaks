@@ -107,7 +107,7 @@ def infer_type_role(col: str) -> tuple[str, str]:
             r"watch_seconds|duration_sec|delay_minutes|streak_days|streak)$",
             "INTEGER", "count",
         ),
-        (r"(_at|_ts)$|^(timestamp|started_at|ended_at|search_ts|play_ts|autoplay_shown_at|posted_at|launched_on|filed_date|signup_date|trial_end_date|first_paid_date|cancel_date|action_date|activity_date|order_date|sale_date)$",
+        (r"(_at|_ts)$|^(start|end|started|ended)_(at|ts|time|dt)$|^(timestamp|search_ts|play_ts|autoplay_shown_at|posted_at)$",
          "TIMESTAMP", "datetime"),
         (
             r"(amount|price|total|revenue|salary|bonus|cost|budget|spend|spent|weight|score|rate|value|"
@@ -140,7 +140,7 @@ def infer_type_role(col: str) -> tuple[str, str]:
         (
             r"(first_name|last_name|full_name|customer_name|product_name|emp_name|name|title|description|"
             r"content|gender|currency|sector|level|job_title|manufacturer|tier|plan|action|event_type|"
-            r"txn_type|attribute_json|query_text)",
+            r"txn_type|attribute_json|query_text|^sku$|^ticker$)",
             "TEXT", "text",
         ),
     ]
@@ -151,26 +151,41 @@ def infer_type_role(col: str) -> tuple[str, str]:
 
 
 # ─── Value generator (deterministic via seeded PRNG) ─────────────────────────
-def gen_value(rng: random.Random, col: str, role: str, table: str, i: int, fk_pool: dict | None):
+def date_schedule_offset(i: int) -> int:
+    """Mirror sample-gen.js: 5-day runs interspersed with gaps."""
+    week = (i - 1) // 5
+    day = (i - 1) % 5
+    long_jumps = week // 5
+    return week * 5 + day + long_jumps * 10
+
+
+def gen_value(rng: random.Random, col: str, role: str, table: str, i: int, fk_pool: dict | None,
+              is_own_pk: bool = False):
     c = col.lower()
     if role == "id":
+        if is_own_pk:
+            return i
         # Foreign-key columns cycle through a small pool so joins find matches.
         if c.endswith("_id") and not (
             c == f"{table.rstrip('s')}_id" or c == f"{table}_id" or c == "id"
         ):
-            pool = fk_pool.setdefault(c, [rng.randint(1, 5) for _ in range(5)]) if fk_pool is not None else [1, 2, 3, 4, 5]
-            return rng.choice(pool)
+            if re.match(r"^(manager|supervisor|parent|reports_to)_id$", c):
+                if i == 1:
+                    return None
+                return max(1, (i - 1) // 3)
+            pool = fk_pool.setdefault(c, [1, 2, 3, 4, 5])
+            return pool[(i - 1) % len(pool)]
         return i
     if role == "boolean":
         return rng.choice([0, 1])
     if role == "date":
-        # Match interview.app/js/sample-gen.js — 60-day span produces useful
-        # clustering for streak / gap / binge / cohort questions.
-        base = date(2026, 1, 1)
-        return base + timedelta(days=rng.randint(0, 60))
+        base = date(2024, 1, 1)
+        return base + timedelta(days=date_schedule_offset(i))
     if role == "datetime":
-        base = datetime(2026, 1, 1, 0, 0, 0)
-        return base + timedelta(minutes=rng.randint(0, 60 * 24 * 60))
+        base = datetime(2024, 1, 1, 0, 0, 0)
+        day_off = date_schedule_offset(i)
+        sec_off = (i * 137) % 86400
+        return base + timedelta(days=day_off, seconds=sec_off)
     if role == "money":
         return round(rng.uniform(10, 5000), 2)
     if role == "count":
@@ -178,7 +193,10 @@ def gen_value(rng: random.Random, col: str, role: str, table: str, i: int, fk_po
     if role == "age":
         return rng.randint(18, 75)
     if role == "email":
-        return f"{rng.choice(NAME_POOL).lower()}.{i}@example.com"
+        # Cycle through 8 distinct emails so duplicate-detection queries match.
+        idx = (i - 1) % 8
+        name = NAME_POOL[idx % len(NAME_POOL)].lower()
+        return f"{name}{idx}@example.com"
     if role == "phone":
         return f"+1-555-{rng.randint(1000, 9999)}"
     if role == "country":
@@ -213,9 +231,15 @@ def gen_value(rng: random.Random, col: str, role: str, table: str, i: int, fk_po
         if c.endswith("_name") or c in ("name", "full_name", "customer_name", "product_name"):
             return f"{rng.choice(NAME_POOL)} {rng.choice(SURNAME_POOL)}"
         if c == "title":
-            return f"Item {i}"
+            return f"Item {((i - 1) % 8) + 1}"
         if c == "description" or c == "content":
-            return f"Sample {table} content #{i}"
+            return f"Sample {table} content #{((i - 1) % 8) + 1}"
+        if c == "sku":
+            buckets = [f"PROMO-{i}", f"STD-{i}", f"LTD-{i}-2025", f"CLEAR-{i}", f"BUNDLE-{i}-2024"]
+            return buckets[(i - 1) % len(buckets)]
+        if c == "ticker":
+            tickers = ["META", "AAPL", "AMZN", "NFLX", "GOOG", "MSFT", "TSLA"]
+            return tickers[(i - 1) % len(tickers)]
         if c == "gender":
             return rng.choice(GENDER_POOL)
         if c == "currency":
@@ -268,31 +292,122 @@ def sql_literal(v) -> str:
     return f"'{s}'"
 
 
-def emit_table(qid_schema: str, table_spec: dict, rows: int, seed: int) -> list[str]:
+EVENT_TABLE_RE = re.compile(
+    r"^fact_|_history$|_events$|_log$|_logs$|_plays$|_views$|_visits$|_clicks$|"
+    r"_sessions$|_activity$|_filings$|_streams$|_touches$|_records$|"
+    r"^plays$|^viewership$|^messages$|^orders$|^transactions$|^payments$|"
+    r"^searches$|^calls$|^bookings$|^shifts$|^filings$|^returns$|^touches$|"
+    r"^streams$|^events$|^logs$|^sessions$|^activity$|^user_views$|"
+    r"^user_activity$|^scores$"
+)
+
+def emit_table(qid_schema: str, table_spec: dict, rows_default: int, seed: int) -> list[str]:
     table = table_spec["table"]
     columns = table_spec["columns"]
     if not columns:
         return [f"-- skipped {table}: no columns inferred"]
 
+    is_event = bool(EVENT_TABLE_RE.search(table.lower()))
+    rows = 60 if is_event and rows_default <= 30 else rows_default
+    GROUPING_FK_NAMES_EARLY = {
+        "user_id","customer_id","account_id","profile_id","series_id","show_id",
+        "title_id","content_id","channel_id","region_id","country_id","employee_id",
+        "manager_id","supervisor_id","parent_id","dept_id","department_id",
+        "team_id","product_id","merchant_id","store_id","company_id","ad_id",
+        "session_id","room_id","device_id","isp_id",
+    }
+    grouping_fk_count = sum(1 for c in columns if c in GROUPING_FK_NAMES_EARLY)
+    if is_event and grouping_fk_count >= 2:
+        mode = "binge"
+    elif is_event and grouping_fk_count == 1:
+        mode = "streak"
+    else:
+        mode = "none"
+    cluster = 5 if mode in ("binge", "streak") else 1
+
     rng = random.Random(seed)
     column_meta = [(c, *infer_type_role(c)) for c in columns]
     fk_pool: dict = {}
 
+    # Own-PK detection (mirror sample-gen.js).
+    GROUPING_FK_NAMES = {
+        "user_id","customer_id","account_id","profile_id","series_id","show_id",
+        "title_id","content_id","channel_id","region_id","country_id","employee_id",
+        "manager_id","supervisor_id","parent_id","dept_id","department_id",
+        "team_id","product_id","merchant_id","store_id","company_id","ad_id",
+        "session_id","room_id","device_id","isp_id",
+    }
+    table_abbrevs = [f"{table}_id", f"{table.rstrip('s')}_id"]
+    if table == "employees": table_abbrevs.append("emp_id")
+    if table == "departments": table_abbrevs.append("dept_id")
+    if table == "products": table_abbrevs.append("prod_id")
+    if table == "customers": table_abbrevs.append("cust_id")
+    if table == "transactions": table_abbrevs.append("txn_id")
+    cols = [c for c, _, _ in column_meta]
+    first_id_col = next((c for c in cols if c in table_abbrevs or c == "id"), None)
+    if not first_id_col:
+        first_id_col = next(
+            (c for c in cols if re.search(r"(^|_)id$", c) and c not in GROUPING_FK_NAMES),
+            None,
+        )
+
     out = []
-    out.append(f"-- Table: {qid_schema}.{table}")
+    out.append(f"-- Table: {qid_schema}.{table} (event={is_event}, rows={rows}, cluster={cluster})")
     out.append(f"DROP TABLE IF EXISTS {quote_ident(qid_schema)}.{quote_ident(table)} CASCADE;")
     col_defs = ",\n  ".join(f"{quote_ident(c)} {t}" for c, t, _ in column_meta)
     out.append(
         f"CREATE TABLE {quote_ident(qid_schema)}.{quote_ident(table)} (\n  {col_defs}\n);"
     )
 
+    def is_own_pk(name):
+        return name == first_id_col
+
+    GROUPING_FK = {
+        "user_id", "customer_id", "account_id", "profile_id", "series_id",
+        "show_id", "title_id", "content_id", "channel_id", "region_id",
+        "country_id", "employee_id", "emp_id", "manager_id", "supervisor_id",
+        "parent_id", "dept_id", "department_id", "team_id", "product_id",
+        "merchant_id", "store_id", "company_id", "ad_id", "session_id",
+        "room_id", "device_id", "isp_id",
+    }
+
+    # Interval tables: end_* must be after start_*
+    start_cols = [c for c, _, _ in column_meta if re.match(r"^(start|started)_(at|ts|dt|time)$", c)]
+    end_cols   = [c for c, _, _ in column_meta if re.match(r"^(end|ended)_(at|ts|dt|time)$", c)]
+    is_interval = bool(start_cols) and bool(end_cols)
+    col_names = [c for c, _, _ in column_meta]
+
     insert_cols = ", ".join(quote_ident(c) for c, _, _ in column_meta)
     values = []
     for i in range(1, rows + 1):
-        row_vals = [
-            sql_literal(gen_value(rng, c, role, table, i, fk_pool))
-            for c, _, role in column_meta
-        ]
+        # 1-indexed CLUSTER INDEX (so cluster 0 → seed 1, cluster 1 → seed 2)
+        cluster_start = ((i - 1) // cluster) + 1 if cluster > 1 else i
+        row = {}
+        for c, _, role in column_meta:
+            own_pk = is_own_pk(c)
+            is_unique = own_pk or (role == "id" and c not in GROUPING_FK)
+            is_date_col = role in ("date", "datetime")
+            if mode == "streak" and is_date_col:
+                seed_i = i
+            elif mode in ("binge", "streak") and not is_unique:
+                seed_i = cluster_start
+            else:
+                seed_i = i
+            row[c] = gen_value(rng, c, role, table, seed_i, fk_pool, is_own_pk=own_pk)
+        # Force end_* to be after start_*
+        if is_interval:
+            for sc in start_cols:
+                start_v = row.get(sc)
+                if start_v is None: continue
+                ec = sc.replace("start", "end").replace("started", "ended")
+                if ec not in row:
+                    ec = end_cols[0]
+                minutes = 30 + ((i * 47) % 150)
+                if isinstance(start_v, datetime):
+                    row[ec] = start_v + timedelta(minutes=minutes)
+                elif isinstance(start_v, date):
+                    row[ec] = start_v + timedelta(days=1)
+        row_vals = [sql_literal(row[c]) for c in col_names]
         values.append("(" + ", ".join(row_vals) + ")")
     if values:
         # Chunk INSERTs to keep statements readable
