@@ -164,11 +164,13 @@ def gen_value(rng: random.Random, col: str, role: str, table: str, i: int, fk_po
     if role == "boolean":
         return rng.choice([0, 1])
     if role == "date":
+        # Match interview.app/js/sample-gen.js — 60-day span produces useful
+        # clustering for streak / gap / binge / cohort questions.
         base = date(2026, 1, 1)
-        return base + timedelta(days=rng.randint(0, 120))
+        return base + timedelta(days=rng.randint(0, 60))
     if role == "datetime":
         base = datetime(2026, 1, 1, 0, 0, 0)
-        return base + timedelta(minutes=rng.randint(0, 120 * 24 * 60))
+        return base + timedelta(minutes=rng.randint(0, 60 * 24 * 60))
     if role == "money":
         return round(rng.uniform(10, 5000), 2)
     if role == "count":

@@ -94,7 +94,11 @@ function findOwningTable(spec, col) {
 
 // Generate one table's rows.
 function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
-  const N = opts.rows || 12;
+  // 25 rows over a 60-day date range produces useful clustering for streak,
+  // gap, binge, cohort and sliding-window questions while staying compact
+  // enough for visual demo. Tighten the date span (was 180) so multiple rows
+  // land on the same calendar day for the same FK partition.
+  const N = opts.rows || 25;
   const baseDate = new Date(Date.UTC(2024, 0, 1));
   const rows = [];
 
@@ -150,8 +154,8 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
       }
       return i;
     case "boolean": return rng() < 0.5 ? 0 : 1;
-    case "date": return dateOffset(baseDate, intBetween(rng, 0, 180));
-    case "datetime": return datetimeOffset(baseDate, intBetween(rng, 0, 180 * 86400));
+    case "date": return dateOffset(baseDate, intBetween(rng, 0, 60));
+    case "datetime": return datetimeOffset(baseDate, intBetween(rng, 0, 60 * 86400));
     case "money": return moneyBetween(rng, 10, 1000);
     case "count": return intBetween(rng, 1, 500);
     case "age": return intBetween(rng, 18, 75);
