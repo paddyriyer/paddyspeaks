@@ -1,0 +1,91 @@
+<p>The CFO opens the daily revenue dashboard and immediately scans for the cumulative line: <em>"are we ahead of last quarter's pace at this point in the month?"</em> Running totals are how every finance dashboard answers that question. The query is a one-line window function — the part that goes wrong in the real world is the date-spine and the partition.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$1,200</td></tr>
+    <tr><td>2026-04-02</td><td>$950</td></tr>
+    <tr><td>2026-04-03</td><td>$1,400</td></tr>
+    <tr><td>2026-04-04</td><td>$880</td></tr>
+    <tr><td>2026-04-06</td><td>$1,650</td></tr>
+    <tr><td>2026-04-07</td><td>$1,100</td></tr>
+  </tbody>
+</table>
+<p>Notice April 5 is missing — a weekend with zero orders. This is where naïve queries silently produce wrong charts.</p>
+
+<h4>2. The SQL — <code>SUM</code> as window function over date</h4>
+<pre><code>SELECT
+  order_date,
+  amount,
+  SUM(amount) OVER (ORDER BY order_date) AS running_total
+FROM orders;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_date</th><th>amount</th><th>running_total</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$1,200</td><td>$1,200</td></tr>
+    <tr><td>2026-04-02</td><td>$950</td><td>$2,150</td></tr>
+    <tr><td>2026-04-03</td><td>$1,400</td><td>$3,550</td></tr>
+    <tr><td>2026-04-04</td><td>$880</td><td>$4,430</td></tr>
+    <tr><td>2026-04-06</td><td>$1,650</td><td>$6,080</td></tr>
+    <tr><td>2026-04-07</td><td>$1,100</td><td>$7,180</td></tr>
+  </tbody>
+</table>
+<p>Each row's <code>running_total</code> = sum of <code>amount</code> from the start through this row.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>SUM() OVER (ORDER BY date)</code> works without <code>PARTITION BY</code></h5>
+<p>Omitting <code>PARTITION BY</code> means the entire result set is one partition. <code>ORDER BY order_date</code> ranks rows within it. The default frame for <code>ORDER BY</code> with no explicit frame clause is <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> — i.e. "everything from the beginning up to and including this row." Sum that frame → running total.</p>
+
+<h5>Explicit frame — be precise</h5>
+<p>Implicit frames are a portability gotcha. Make it explicit:</p>
+<pre><code>SUM(amount) OVER (
+  ORDER BY order_date
+  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+) AS running_total</code></pre>
+<p><code>ROWS</code> = count physical rows, fast. <code>RANGE</code> = include all rows with the same ORDER BY value (matters when there are ties on order_date). For most running totals on date columns, ROWS is what you actually want and is faster.</p>
+
+<h5>The missing-day trap — date spine before SUM</h5>
+<p>April 5 had zero orders. The running total <em>jumps</em> from $4,430 to $6,080 with no intermediate row. If the dashboard plots running_total on a continuous date axis, April 5 is missing — the chart line connects April 4 directly to April 6, which looks like nothing happened. Production fix: build a date spine first, LEFT JOIN the orders, then run the cumulative:</p>
+<pre><code>WITH dates AS (
+  SELECT generate_series(DATE '2026-04-01', DATE '2026-04-07', '1 day'::interval)::DATE AS d
+  -- Or in SQLite: WITH RECURSIVE dates(d) AS (
+  --   SELECT '2026-04-01' UNION ALL SELECT date(d, '+1 day') FROM dates WHERE d &lt; '2026-04-07'
+  -- )
+)
+SELECT d.d, COALESCE(o.amount, 0) AS amount,
+  SUM(COALESCE(o.amount, 0)) OVER (ORDER BY d.d) AS running_total
+FROM dates d
+LEFT JOIN orders o ON o.order_date = d.d
+ORDER BY d.d;</code></pre>
+<p>Now April 5 shows as <code>amount = $0, running_total = $4,430</code> — the chart has a flat segment showing the actual zero day.</p>
+
+<h5>Per-region or per-product running total — <code>PARTITION BY</code></h5>
+<p>The CFO follow-up: <em>"break down the running total by region — I want to see how each is pacing."</em></p>
+<pre><code>SUM(amount) OVER (
+  PARTITION BY region
+  ORDER BY order_date
+  ROWS UNBOUNDED PRECEDING
+) AS running_total_by_region</code></pre>
+<p>Each region resets to zero at its first row. Without <code>PARTITION BY</code>, regions all share one accumulator — wrong.</p>
+
+<h5>"Last 7 days running" — sliding window, not cumulative</h5>
+<p>Drop <code>UNBOUNDED PRECEDING</code> and put a numeric anchor instead — you have a sliding window:</p>
+<pre><code>SUM(amount) OVER (
+  ORDER BY order_date
+  ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+) AS rolling_7d_total</code></pre>
+<p>Useful for "how much did we sell in the last 7 days?" trailing-window dashboards.</p>
+
+<h5>Year-to-date that resets at January</h5>
+<p>The CFO's actual ask is usually YTD: cumulative from Jan 1 of the current year, then resets. Two PARTITION BYs:</p>
+<pre><code>SUM(amount) OVER (
+  PARTITION BY EXTRACT(YEAR FROM order_date)
+  ORDER BY order_date
+  ROWS UNBOUNDED PRECEDING
+) AS ytd_total</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate <code>ROWS</code> vs <code>RANGE</code> and pick <code>ROWS</code> with explicit frame, name the missing-day trap and bring up the date-spine fix unprompted, and show the YTD partition variant. The sliding-window vs cumulative-window distinction is the senior detail.</div>

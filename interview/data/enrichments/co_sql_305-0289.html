@@ -1,0 +1,100 @@
+<p>DoorDash's pizza-merchant team wants to surface "build your own" combinations on the menu. Given a list of available toppings, generate all unique 3-topping combos &mdash; <em>{Mushroom, Olive, Pepper}</em> should appear once, not six times (one per ordering). This is the classic combinations-without-repetition problem solved cleanly with a self-join and an ordering predicate.</p>
+
+<h4>1. The source data &mdash; <code>toppings</code></h4>
+<table>
+  <thead><tr><th>topping</th></tr></thead>
+  <tbody>
+    <tr><td>Mushroom</td></tr>
+    <tr><td>Olive</td></tr>
+    <tr><td>Pepper</td></tr>
+    <tr><td>Sausage</td></tr>
+    <tr><td>Tomato</td></tr>
+  </tbody>
+</table>
+<p>5 toppings &rarr; expected combinations = C(5,3) = 10.</p>
+
+<h4>2. The SQL &mdash; triple self-join with strict <code>&lt;</code> ordering</h4>
+<pre><code>SELECT a.topping AS t1, b.topping AS t2, c.topping AS t3
+FROM toppings a
+JOIN toppings b ON a.topping &lt; b.topping
+JOIN toppings c ON b.topping &lt; c.topping;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>t1</th><th>t2</th><th>t3</th></tr></thead>
+  <tbody>
+    <tr><td>Mushroom</td><td>Olive</td><td>Pepper</td></tr>
+    <tr><td>Mushroom</td><td>Olive</td><td>Sausage</td></tr>
+    <tr><td>Mushroom</td><td>Olive</td><td>Tomato</td></tr>
+    <tr><td>Mushroom</td><td>Pepper</td><td>Sausage</td></tr>
+    <tr><td>Mushroom</td><td>Pepper</td><td>Tomato</td></tr>
+    <tr><td>Mushroom</td><td>Sausage</td><td>Tomato</td></tr>
+    <tr><td>Olive</td><td>Pepper</td><td>Sausage</td></tr>
+    <tr><td>Olive</td><td>Pepper</td><td>Tomato</td></tr>
+    <tr><td>Olive</td><td>Sausage</td><td>Tomato</td></tr>
+    <tr><td>Pepper</td><td>Sausage</td><td>Tomato</td></tr>
+  </tbody>
+</table>
+<p>Exactly 10 rows &mdash; matches C(5,3). Each combo appears once with toppings in alphabetical order.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>&lt;</code> not <code>&lt;=</code> &mdash; the dedup mechanism</h5>
+<p>A naive <code>CROSS JOIN</code> of 3 copies of <code>toppings</code> gives 5&times;5&times;5 = 125 rows, including duplicates like <em>{Olive, Mushroom, Pepper}</em> and <em>{Pepper, Olive, Mushroom}</em> (the same set in different orders) plus repeats like <em>{Mushroom, Mushroom, Olive}</em>. The trick:</p>
+<ul>
+  <li><code>a.topping &lt; b.topping &lt; c.topping</code> &mdash; <strong>strict</strong> less-than enforces both <em>distinct values</em> (a &ne; b &ne; c) and a <em>canonical ordering</em> (alphabetical) so each set surfaces exactly once.</li>
+  <li><code>&lt;=</code> would allow <em>{Mushroom, Mushroom, Olive}</em> &mdash; combinations with repetition, not what was asked.</li>
+</ul>
+<table>
+  <thead><tr><th>predicate</th><th>result</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>(no predicate)</td><td>n^3 = 125</td><td>Cartesian (with repeats and orders)</td></tr>
+    <tr><td>a &ne; b &ne; c &ne; a</td><td>n!/(n-3)! = 60</td><td>Permutations</td></tr>
+    <tr><td>a &lt; b &lt; c</td><td>C(n,3) = 10</td><td>Combinations &mdash; what we want</td></tr>
+    <tr><td>a &lt;= b &lt;= c</td><td>C(n+2,3) = 35</td><td>Combinations with repetition</td></tr>
+  </tbody>
+</table>
+
+<h5>Generalizing to k-combinations</h5>
+<p>The pattern extends directly: k self-joins with <code>&lt;</code> chained between adjacent aliases.</p>
+<pre><code>-- 4-topping combo
+SELECT a.topping, b.topping, c.topping, d.topping
+FROM toppings a
+JOIN toppings b ON a.topping &lt; b.topping
+JOIN toppings c ON b.topping &lt; c.topping
+JOIN toppings d ON c.topping &lt; d.topping;</code></pre>
+<p>For k unknown at query-time, use a recursive CTE instead of a fixed number of joins.</p>
+
+<h5>Recursive CTE &mdash; variable-size combinations</h5>
+<pre><code>WITH RECURSIVE combos AS (
+  SELECT topping AS path, topping AS last_topping, 1 AS depth
+  FROM toppings
+  UNION ALL
+  SELECT c.path || ',' || t.topping, t.topping, c.depth + 1
+  FROM combos c
+  JOIN toppings t ON t.topping &gt; c.last_topping
+  WHERE c.depth &lt; 3
+)
+SELECT path FROM combos WHERE depth = 3;</code></pre>
+
+<h5>The performance trap &mdash; cardinality explosion</h5>
+<p>This pattern is O(n<sup>k</sup>) in the worst case (without the predicate) and O(n<sup>k</sup>/k!) with the ordering predicate. For 5 toppings &times; 3 = 10 rows. For <strong>50 toppings &times; 3</strong> = 19,600. For <strong>500 toppings &times; 5</strong> = 250 billion. Don't run unbounded combination generation against a real product catalog &mdash; bound the depth and pre-filter:</p>
+<pre><code>JOIN toppings b ON a.topping &lt; b.topping
+                AND b.popularity_rank &lt;= 20  -- top 20 only</code></pre>
+
+<h5>The product-sense follow-up &mdash; co-occurrence ranking</h5>
+<p>The PM's actual question is rarely "all combos" &mdash; it's <em>"which 3-topping combos are most ordered together?"</em> That requires the orders table and counts, not pure combinatorics:</p>
+<pre><code>SELECT a.topping, b.topping, c.topping, COUNT(DISTINCT oa.order_id) AS orders
+FROM order_toppings oa
+JOIN order_toppings ob USING (order_id)
+JOIN order_toppings oc USING (order_id)
+JOIN toppings a ON a.topping = oa.topping
+JOIN toppings b ON b.topping = ob.topping AND a.topping &lt; b.topping
+JOIN toppings c ON c.topping = oc.topping AND b.topping &lt; c.topping
+GROUP BY a.topping, b.topping, c.topping
+ORDER BY orders DESC LIMIT 10;</code></pre>
+
+<h5>The dietary-constraint wrinkle</h5>
+<p>Real menus exclude impossible combos: pepperoni + cheese-free, anchovy + dessert pizza. Add a <code>compatible(topping_a, topping_b)</code> table or a <code>NOT IN ('forbidden_pair_set')</code> guard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <em>strict-less-than</em> as the dedup-and-distinct mechanism in one breath, contrast it crisply against permutations (&ne;) and combinations-with-repetition (&lt;=), and pre-empt the cardinality explosion at scale. Pivoting to "what the PM actually wants" (co-occurrence ranking from the orders table) is the over-the-bar finish.</div>
