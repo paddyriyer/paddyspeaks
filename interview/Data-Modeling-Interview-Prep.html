@@ -1514,6 +1514,152 @@ ORDER BY tier, trips DESC;
   <li><strong>No GPS trace.</strong> <code>fct_trip_events</code> can be reverse-engineered from VTAT/CTAT into approximate REQUESTED, MATCHED, PICKUP, DROPOFF timestamps but the geographic events (location_h3 per state) are unavailable.</li>
 </ul>
 
+<h4 class="sub-head">Section 11 — Mass-departure scale: 20K+ people, road blocks &amp; growth accounting</h4>
+
+<p>An interview prompt sometimes raises the stakes: <em>"Architect the system to handle a 20,000-person stadium event — accidents, road blocks, supply/demand volatility, all at once."</em> The existing Journey → Trip → Event hierarchy holds, but three additional concerns must be modeled explicitly: <strong>infrastructure as a fact</strong> (SCD2 geography), <strong>growth accounting</strong> on both sides of the marketplace, and <strong>point-in-time financial integrity</strong> under chaos.</p>
+
+<h4 class="sub-head">11.1 — Re-stated grain hierarchy under stress</h4>
+<table>
+  <thead><tr><th>Table</th><th>Grain</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>fct_journeys</code></td><td>One row per group request</td><td>Captures intent (e.g. a group of 6 leaving the stadium together).</td></tr>
+    <tr><td><code>fct_trips</code></td><td>One row per (driver/vehicle × journey)</td><td>Vehicle-grain truth for driver payouts &amp; insurance.</td></tr>
+    <tr><td><code>fct_trip_events</code></td><td>One row per state transition / telemetry sample</td><td>Tracks Matchup &amp; Pickup latencies + GPS replays.</td></tr>
+    <tr><td><code>brg_journey_riders</code></td><td>One row per (rider × journey)</td><td>Financial bridge — many-to-many cost splits.</td></tr>
+    <tr><td><code>dim_geography</code> (SCD2)</td><td>One row per H3 cell × state-change</td><td><strong>NEW emphasis:</strong> infrastructure as a versioned dim. Tracks "as-of-trip" road status (one-way, accident, blocked).</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">11.2 — Growth accounting on both sides of the marketplace</h4>
+
+<p>To know whether a 20K-person event is being fueled by <strong>new</strong> users or <strong>resurrected</strong> ones (and which drivers are <strong>churning</strong>), every user is segmented daily.</p>
+
+<table>
+  <thead><tr><th>Segment</th><th>Definition</th><th>What it tells the business</th></tr></thead>
+  <tbody>
+    <tr><td><strong>New</strong></td><td>First-time activity in this window.</td><td>Acquisition is working.</td></tr>
+    <tr><td><strong>Retained</strong></td><td>Active in previous period AND active now.</td><td>Core ecosystem is healthy.</td></tr>
+    <tr><td><strong>Resurrected</strong></td><td>Active now but inactive in the previous period.</td><td>Re-engagement campaign / event pulled them back.</td></tr>
+    <tr><td><strong>Churned</strong></td><td>Active in previous period, did not show up.</td><td>Supply gap risk — especially among drivers.</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Q22 — L1 / L7 / L28 active status per user (daily refresh)</strong></p>
+<pre><code>SELECT
+  user_id,
+  user_role,                                                                -- 'rider' | 'driver'
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 1  THEN 1 ELSE 0 END) AS is_L1,
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 7  THEN 1 ELSE 0 END) AS is_L7,
+  MAX(CASE WHEN activity_date &gt;= CURRENT_DATE - 28 THEN 1 ELSE 0 END) AS is_L28
+FROM dw_user_daily_activity
+GROUP BY user_id, user_role;
+</code></pre>
+
+<p><strong>Q23 — Growth segmentation: New / Retained / Resurrected / Churned (daily diff)</strong></p>
+<pre><code>WITH today AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date = CURRENT_DATE - 1                                    -- yesterday's activity
+),
+prior AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date BETWEEN CURRENT_DATE - 8 AND CURRENT_DATE - 2          -- prior 7-day window
+),
+ever AS (
+  SELECT DISTINCT user_id, user_role FROM dw_user_daily_activity
+  WHERE activity_date &lt; CURRENT_DATE - 8                                    -- before prior window
+)
+SELECT user_role,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NULL  AND e.user_id IS NULL)  AS new_users,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NOT NULL)                      AS retained,
+  COUNT(*) FILTER (WHERE t.user_id IS NOT NULL AND p.user_id IS NULL  AND e.user_id IS NOT NULL) AS resurrected,
+  COUNT(*) FILTER (WHERE t.user_id IS NULL     AND p.user_id IS NOT NULL)                      AS churned
+FROM today t
+FULL OUTER JOIN prior p USING (user_id, user_role)
+LEFT  JOIN ever  e USING (user_id, user_role)
+GROUP BY user_role;
+-- Driver "churned" spike before a stadium event = supply crisis incoming. Marketing fires re-engagement push.
+</code></pre>
+
+<h4 class="sub-head">11.3 — Mass departure with road blocks: SCD2 geography in action</h4>
+
+<p>When an accident or police closure occurs during the stadium emptying out, <code>dim_geography</code> records the change as a <strong>new SCD2 row</strong>. Old route remains queryable; new route status is "as-of-trip".</p>
+
+<table>
+  <thead><tr><th>geo_key</th><th>h3_index</th><th>route_status</th><th>valid_from</th><th>valid_to</th></tr></thead>
+  <tbody>
+    <tr><td>7001</td><td>Stadium_Hex</td><td>Normal</td><td>2026-05-07 08:00</td><td>2026-05-07 22:00</td></tr>
+    <tr><td>7002</td><td>Stadium_Hex</td><td><strong>Accident / Blocked</strong></td><td>2026-05-07 22:00</td><td><strong>2026-05-08 02:00</strong></td></tr>
+    <tr><td>7003</td><td>Stadium_Hex</td><td>Normal</td><td>2026-05-08 02:00</td><td>9999-12-31</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Q24 — Correlate pickup latency to road status (was the spike supply or infrastructure?)</strong></p>
+<pre><code>SELECT
+  g.h3_index,
+  g.route_status,
+  COUNT(t.trip_id)                                                                AS total_requests,
+  ROUND(AVG(EXTRACT(EPOCH FROM (e_pic.event_timestamp - e_req.event_timestamp))), 1) AS avg_pickup_latency_sec,
+  ROUND(PERCENTILE_CONT(0.95) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (e_pic.event_timestamp - e_req.event_timestamp))), 1) AS p95_pickup_latency_sec
+FROM fct_trips t
+JOIN fct_trip_events e_req ON t.trip_id = e_req.trip_id AND e_req.state = 'REQUESTED'
+JOIN fct_trip_events e_pic ON t.trip_id = e_pic.trip_id AND e_pic.state = 'PICKUP'
+JOIN dim_geography  g
+  ON t.pickup_h3_cell = g.h3_index
+ AND e_req.event_timestamp &gt;= g.valid_from
+ AND e_req.event_timestamp &lt;  g.valid_to                                          -- as-of-request status
+GROUP BY g.h3_index, g.route_status
+ORDER BY p95_pickup_latency_sec DESC;
+-- "Accident / Blocked" rows with high p95 = blame infrastructure, not driver supply.
+-- "Normal" rows with high p95 = blame supply, surge it up.
+</code></pre>
+
+<h4 class="sub-head">11.4 — Financial &amp; risk integrity under chaos</h4>
+
+<p>Even when a 20K event triggers cascading surges + accidents + cancellations, three SCD2 rules guarantee restate-ability:</p>
+
+<ul>
+  <li><strong>FX rate locked at <code>request_timestamp</code>.</strong> <code>dim_fx_rate</code> is SCD2; the rate that was current at the moment the journey was requested is the rate the rider is charged in USD, regardless of how the rate moves while the trip is in progress. Prevents arbitrage and revenue restatement.</li>
+  <li><strong>Insurance status as-of accident timestamp.</strong> <code>dim_vehicles</code> SCD2 on insurance. If a crash happens at 22:14, Risk queries <code>dim_vehicles</code> with <code>valid_from ≤ 22:14 &lt; valid_to</code> — exact policy in effect to the millisecond.</li>
+  <li><strong>Surge multiplier locked in <code>fct_trips</code> at journey request.</strong> Even if surge spikes from 1.5× to 3.0× while the rider is being matched, the rider pays the multiplier that was active at request. Stored on the row, not derived.</li>
+</ul>
+
+<p><strong>Q25 — Insurance audit: was the vehicle insured at the moment of the accident?</strong></p>
+<pre><code>SELECT
+  t.trip_id,
+  t.vehicle_id,
+  e.event_timestamp                                                  AS accident_ts,
+  v.insurance_policy_id,
+  v.insurance_status,
+  v.valid_from                                                       AS policy_active_from,
+  v.valid_to                                                         AS policy_active_to,
+  CASE WHEN v.insurance_status = 'active' THEN 'COVERED' ELSE 'GAP' END AS audit_verdict
+FROM fct_trip_events e
+JOIN fct_trips        t ON e.trip_id = t.trip_id
+JOIN dim_vehicles     v ON t.vehicle_id = v.vehicle_id
+                      AND e.event_timestamp &gt;= v.valid_from
+                      AND e.event_timestamp &lt;  v.valid_to
+WHERE e.state = 'ACCIDENT_REPORTED';
+-- Required for insurance claims + regulator audits. Single-row defensible answer.
+</code></pre>
+
+<h4 class="sub-head">11.5 — Scalability rules under load (the engineering details)</h4>
+
+<table>
+  <thead><tr><th>Rule</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Infinity date</strong> <code>9999-12-31</code> instead of <code>NULL</code> for <code>valid_to</code></td><td>Range joins like <code>e_req.ts BETWEEN g.valid_from AND g.valid_to</code> are far more performant than <code>... AND (g.valid_to IS NULL OR g.valid_to &gt; e_req.ts)</code>. Optimizers handle BETWEEN cleanly; OR + IS NULL kills predicate pushdown.</td></tr>
+    <tr><td><strong>H3 sharding by zoom level</strong> — L8 (~0.7 km²) for cities, L10 (~15K m²) for stadium event zones</td><td>Stadium hexes get 100× the requests/min of suburb hexes. Going to L10 inside venues distributes the load across many smaller hexes — the "hot partition" stops being the entire stadium and becomes per-gate.</td></tr>
+    <tr><td><strong>Surge locking</strong> in <code>fct_trips.surge_multiplier_at_request</code></td><td>Rider's quoted price = driver's earning potential = revenue booked. All three numbers must agree forever. Locked at journey-request, never recomputed.</td></tr>
+    <tr><td><strong>Per-partition watermarks</strong> on <code>fct_trip_events</code></td><td>One stadium-area producer with bad clock skew shouldn't stall the entire event-time pipeline. Per-partition watermark contains the damage to its own H3 cell.</td></tr>
+    <tr><td><strong>Pre-event materialization</strong> of <code>dim_geography</code> for the venue area</td><td>Police-coordinated road closures are known hours in advance. Pre-write the SCD2 transitions so they're queryable from minute zero of the event.</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal" style="background:#fef3c7;border-color:#92400e;">
+<strong>Senior framing for mass-event scale.</strong> "The Journey → Trip → Event hierarchy doesn't change at 20K riders — what changes is the load on three specific SCD2 dimensions: <code>dim_geography</code> for road state, <code>dim_vehicles</code> for insurance, <code>dim_fx_rate</code> for currency. Get those three SCD2s right, use infinity-dates instead of NULLs, and shard H3 to L10 inside the venue, and the rest of the model behaves identically — surge locked, payouts reconciled, growth segmented. The chaos is contained at the dimension layer, not the fact layer."
+</div>
+
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The Journey → Trip → Event hierarchy is the unlock — Operations runs latency metrics off <code>fct_trip_events</code>, Finance reconciles fares against <em>two</em> invariants (rider-side and driver-side), and Risk replays GPS sequences for phantom-convoy detection. Three stakeholders, three grains, one source of truth — and two invariants on the financial bridge keep producer bugs from ever reaching the audit."
 </div>
@@ -3210,300 +3356,779 @@ FROM ranker_metrics;
 
 <!-- Scenario 9: Spotify -->
 <div class="scenario" id="sc-spotify">
-<div class="domain-tag">Spotify · streaming media</div>
-<h4 class="sub-head">Scenario 9 — Listening history &amp; royalty payouts</h4>
-<div class="prompt">Design a model for Spotify's listening history that supports recommendations, the "year in review" feature, and per-stream royalty payouts to multiple rights holders (artist + label + publisher + songwriter).</div>
+<div class="domain-tag">Spotify · streaming media · per-stream royalties</div>
+<h4 class="sub-head">Scenario 9 — Listening history &amp; pool-model royalty payouts</h4>
+<div class="prompt">Design a model for Spotify's listening history that supports recommendations, the "Year in Review" feature, and per-stream royalty payouts to multiple rights holders (artist + label + publisher + songwriter) — under the <strong>pool model</strong> where revenue is divided by total qualified streams in a country-period.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Two consumers want the same fact for opposite reasons. <strong>Product</strong> needs every play (skips included) for recommendations. <strong>Finance</strong> only pays on qualified streams (≥30s). <strong>Multi-rights splits</strong> mean one stream produces 4+ payout rows (artist + label + publisher + songwriter) and the splits change mid-quarter when deals renegotiate. <strong>Pool model math</strong> requires computing per-stream rate as <em>revenue ÷ total streams in pool</em> — a chicken-and-egg dependency that resolves only at period close.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Royalty stream is qualified — typically ≥30s play. Below that = no payout."</li>
-  <li>"Per-stream royalty: pool model (revenue / total streams in the pool) — not per-track price."</li>
-  <li>"Multi-rights: one stream pays artist (recording), label (master), publisher (composition), songwriter (composition). Splits stored in <code>bridge_track_rights</code>."</li>
+  <li><code>fct_play_events</code> — <strong>The "Listen" grain.</strong> One row per play event with <code>qualified_play</code> flag.</li>
+  <li><code>fct_royalty_periods</code> — <strong>The "Pool" grain.</strong> One row per (country × period). Holds total pool revenue, total qualified streams, computed per-stream rate.</li>
+  <li><code>fct_royalty_attributions</code> — <strong>The "Payout" grain.</strong> One row per (play × rights_holder × period). Derived nightly at period close.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension &amp; Bridge Tables</strong></p>
 <ul>
-  <li><code>fact_play_event</code>: one row per play event (≥30s threshold flag).</li>
-  <li><code>fact_royalty_attribution</code>: one row per (play × rights_holder × period) — derived.</li>
-  <li><code>bridge_track_rights</code>: SCD2 — splits change with deal renegotiations.</li>
+  <li><code>dim_users</code> (SCD2 — plan tier drifts) · <code>dim_subscriptions</code> (Family/Duo group of users)</li>
+  <li><code>dim_tracks</code> (SCD2 — metadata) · <code>dim_artists</code> · <code>dim_labels</code> (SCD2) · <code>dim_publishers</code> (SCD2) · <code>dim_songwriters</code></li>
+  <li><code>bridge_track_rights</code> — <strong>SCD2 with effective dates.</strong> The deal-terms ledger.</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_user       (SCD2 — plan tier changes)
-dim_track      (SCD2 — title, audio attributes)
-dim_artist     (SCD1)
-dim_label      (SCD2)
-dim_publisher  (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_play_events</code></strong> — <code>play_id, user_id, track_id, played_ts, duration_played_sec, qualified_play BOOL (≥30s), context_type ∈ {playlist, algorithmic, search, radio}, source_playlist_id, device_id, country_id</code>.</p>
 
-bridge_track_rights (SCD2)
-  track_sk, rights_holder_sk, rights_type, share_pct,
-  effective_from, effective_to
+<p><strong><code>bridge_track_rights</code> (SCD2)</strong> — <code>track_id, rights_holder_id, rights_type ∈ {artist, label, publisher, songwriter}, share_pct, effective_from, effective_to</code>. <em>Sum of share_pct per (track, rights_type) per period = 100%.</em></p>
 
-CREATE TABLE fact_play_event (
-  play_sk            BIGINT,
-  user_sk            BIGINT,
-  track_sk           BIGINT,
-  played_ts          TIMESTAMP_TZ,
-  duration_played_sec INT,
-  qualified_play     BOOLEAN,        -- ≥ 30s
-  context_type       STRING,         -- 'playlist' | 'algorithmic' | 'search' | 'radio'
-  source_playlist_sk BIGINT NULL,
-  device_sk          BIGINT,
-  country_sk         BIGINT,
-  ingest_ts          TIMESTAMP_TZ
-)
-PARTITION BY DATE(played_ts)
-CLUSTER BY (track_sk, user_sk);
+<p><strong><code>fct_royalty_periods</code></strong> — <code>period_id, country_id, period_start, period_end, total_pool_revenue_usd, total_qualified_plays, per_stream_rate_usd (= revenue / qualified_plays)</code>.</p>
 
-CREATE TABLE fact_royalty_period (
-  period_sk          BIGINT,
-  period_start       DATE,
-  period_end         DATE,
-  country_sk         BIGINT,
-  total_revenue_usd  DECIMAL(18,2),
-  total_qualified_plays BIGINT,
-  per_stream_rate    DECIMAL(10,8)   -- revenue / plays for the pool
-);</code></pre>
+<p><strong><code>fct_royalty_attributions</code></strong> — <code>play_id, period_id, rights_holder_id, rights_type, share_pct, attributed_payout_usd</code>.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Product · recommendations + Year in Review</strong> — every play counts (qualified or not). Skips are signal. <code>context_type</code> tells the recommender which surface drove the play.</p>
+<p><strong>Finance · royalty payouts</strong> — quarterly close: compute pool revenue per country, count qualified plays, derive rate, generate <code>fct_royalty_attributions</code>. Splits use <strong>as-of-play</strong> bridge rows, never current.</p>
+<p><strong>Rights holders · transparency</strong> — labels/publishers want their cut breakdown. Each <code>fct_royalty_attributions</code> row is a defensible per-play line item.</p>
+
+<h4 class="sub-head">Section 4 — Why the bridge is SCD2 (not just a table)</h4>
+<p>Label deals renegotiate mid-quarter — a label might move 5% from publisher to artist effective Apr 15. Three failure modes if the bridge isn't SCD2:</p>
 <ul>
-  <li><strong>Pool model math:</strong> royalty per stream = (country_pool_revenue × user_plan_share) / total_qualified_plays_in_country. Computed per period, not per stream.</li>
-  <li><strong>Rights split changes:</strong> a label deal renegotiation moves 5% from publisher to artist mid-quarter. <code>bridge_track_rights</code> SCD2 — payouts use as-of-play splits.</li>
-  <li><strong>Family / Duo plans:</strong> multiple users per subscription. <code>dim_user.subscription_id</code> joins to <code>dim_subscription</code> for plan attribution.</li>
-  <li><strong>Skipped tracks:</strong> &lt;30s play is not paid but still feeds the recommender. Two consumers, same fact.</li>
+  <li><strong>Apr 1-14 plays paid under the wrong split.</strong> Restatement needed every quarter — auditor nightmare.</li>
+  <li><strong>Lawsuit risk.</strong> Songwriters can demand "pay me as of the deal that was active when my song was streamed". SCD2 is the only defensible answer.</li>
+  <li><strong>Forecast invalidation.</strong> Finance forecasts use the current bridge; without SCD2, mid-quarter changes silently invalidate projections.</li>
+</ul>
+<p><strong>The contract:</strong> every <code>fct_royalty_attributions</code> row uses <code>bridge_track_rights</code> WHERE <code>play.played_ts BETWEEN bridge.effective_from AND bridge.effective_to</code>.</p>
+
+<h4 class="sub-head">Enhanced graphical data model — Spotify Listening + Royalty Pool</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">SPOTIFY · PLAY → POOL → ATTRIBUTION</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">◉ dim_users / dim_subscriptions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · plan_tier · family_group</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎵 dim_tracks · dim_artists</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">track_id · isrc · audio_features</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,340)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_labels · publishers · songwriters</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rights_holder_id · entity_type · territory</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="135" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="270" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ bridge_track_rights ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ track_id · rights_holder_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">rights_type · share_pct</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">effective_from / effective_to</text><text x="20" y="113" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">SCD2 · sum=100% per (track, type, period)</text></g>
+  <g transform="translate(40,600)"><rect width="270" height="60" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🌍 dim_countries</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">country_id · pool_id</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▶ fct_play_events</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ play_id · played_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ user_id · track_id · country_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">duration_played_sec</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">qualified_play BOOL (≥30s) ★</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">context_type · source_playlist_id</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per play event (skips included)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💰 fct_royalty_periods</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ period_id · country_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period_start / period_end</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ total_pool_revenue_usd</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">total_qualified_plays</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ per_stream_rate_usd ★</text><text x="20" y="146" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per (country × period)</text></g>
+  <g transform="translate(385,310)"><rect width="580" height="170" fill="#f0fdf4" stroke="#166534" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#166534" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊕ fct_royalty_attributions ★ DERIVED</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ play_id · period_id · rights_holder_id · rights_type</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">share_pct (from bridge as-of played_ts)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">＄ attributed_payout_usd = per_stream_rate × share_pct</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">grain: 1 per (qualified play × rights_holder) · derived at period close</text><text x="20" y="143" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">~4 rows per qualified play (artist + label + publisher + songwriter)</text></g>
+  <g transform="translate(385,500)"><rect width="580" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 mart_track_performance_daily (rollup)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ track_id · day · country_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">plays · qualified_plays · skip_rate · est_payout</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">pre-aggregated for "Year in Review" + label dashboards</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">PER-STREAM RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ per_stream_rate by country/period</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Premium vs Free pool comparison</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_royalty_periods</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">ROYALTY DISTRIBUTION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💰 Top earners per period</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📈 Long-tail % of total payouts</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_royalty_attributions</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MULTI-RIGHTS SPLITS</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⇄ % to artist / label / pub / songwriter</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Split changes per quarter</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: bridge_track_rights SCD2</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">LISTENER LTV / ENGAGEMENT</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Avg listening hours / user / week</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↻ Skip rate by context_type</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_play_events × dim_users</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="280" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="630" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="830" y1="290" x2="700" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+  <line x1="310" y1="510" x2="385" y2="395" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSp)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — Country pool with 1M streams in Q2-2025</strong></p>
+<pre><code>INSERT INTO fct_royalty_periods VALUES
+  ('PER_2025Q2_US','US','2025-04-01','2025-06-30', 5000000.00, 1000000, 0.005000);
+-- Per-stream rate = $5M / 1M plays = $0.005 / qualified play
+
+INSERT INTO bridge_track_rights VALUES
+  ('TRK_001','LBL_BIG',     'label',     0.50,'2024-01-01','2025-04-15'),
+  ('TRK_001','ART_NOVA',    'artist',    0.30,'2024-01-01','2025-04-15'),
+  ('TRK_001','PUB_HARMONY', 'publisher', 0.15,'2024-01-01','2025-04-15'),
+  ('TRK_001','SW_LEE',      'songwriter',0.05,'2024-01-01','2025-04-15'),
+  -- Mid-quarter renegotiation: label gives up 5%, artist gains 5%
+  ('TRK_001','LBL_BIG',     'label',     0.45,'2025-04-15','9999-12-31'),
+  ('TRK_001','ART_NOVA',    'artist',    0.35,'2025-04-15','9999-12-31'),
+  ('TRK_001','PUB_HARMONY', 'publisher', 0.15,'2025-04-15','9999-12-31'),
+  ('TRK_001','SW_LEE',      'songwriter',0.05,'2025-04-15','9999-12-31');
+
+-- 2 plays of TRK_001 in US: one before, one after the renegotiation
+INSERT INTO fct_play_events VALUES
+  ('PLAY_A','U_42','TRK_001','2025-04-10 14:00:00', 180, TRUE,  'algorithmic', NULL,'iphone','US'),
+  ('PLAY_B','U_42','TRK_001','2025-05-20 09:30:00', 240, TRUE,  'playlist','PL_ROCK','iphone','US');
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · per-stream rate &amp; pool reconciliation</h4>
+<p><strong>Q1 — Per-stream rate per country per period</strong></p>
+<pre><code>SELECT
+  rp.country_id, rp.period_start, rp.period_end,
+  rp.total_qualified_plays,
+  ROUND(rp.total_pool_revenue_usd, 2)   AS pool_usd,
+  ROUND(rp.per_stream_rate_usd, 6)      AS rate_per_stream
+FROM fct_royalty_periods rp
+WHERE rp.period_start = '2025-04-01'
+ORDER BY rp.country_id;
+</code></pre>
+
+<p><strong>Q2 — Royalty attribution per qualified play (using as-of-played bridge splits)</strong></p>
+<pre><code>SELECT
+  p.play_id,
+  p.played_ts,
+  b.rights_type,
+  b.rights_holder_id,
+  b.share_pct,
+  rp.per_stream_rate_usd,
+  ROUND(rp.per_stream_rate_usd * b.share_pct, 6) AS attributed_payout_usd
+FROM fct_play_events p
+JOIN dim_countries  c  ON p.country_id = c.country_id
+JOIN fct_royalty_periods rp
+  ON rp.country_id = p.country_id
+ AND p.played_ts BETWEEN rp.period_start AND rp.period_end
+JOIN bridge_track_rights b
+  ON b.track_id = p.track_id
+ AND p.played_ts &gt;= b.effective_from
+ AND p.played_ts &lt;  b.effective_to                 -- as-of-play splits
+WHERE p.qualified_play = TRUE AND p.track_id = 'TRK_001'
+ORDER BY p.played_ts, b.rights_type;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Product · listening behavior</h4>
+<p><strong>Q3 — Skip rate by context_type (algorithmic vs playlist vs radio)</strong></p>
+<pre><code>SELECT context_type,
+  COUNT(*)                                                         AS plays,
+  COUNT(*) FILTER (WHERE qualified_play = FALSE)                   AS skips,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE qualified_play = FALSE)
+        / COUNT(*), 2)                                             AS skip_rate_pct
+FROM fct_play_events
+WHERE played_ts &gt;= CURRENT_DATE - 30
+GROUP BY context_type ORDER BY skip_rate_pct DESC;
+-- High skip rate on algorithmic = recommender quality issue. On radio = expected (lean-back).
+</code></pre>
+
+<h4 class="sub-head">Worked example — TRK_001 royalty math (before vs after renegotiation)</h4>
+<ol>
+  <li>Pool: $5,000,000 in US for Q2-2025. 1,000,000 qualified streams. Per-stream rate = <strong>$0.005</strong>.</li>
+  <li><strong>PLAY_A (Apr 10):</strong> uses pre-renegotiation splits. Label 50% / Artist 30% / Publisher 15% / Songwriter 5%.
+    <ul>
+      <li>Label: $0.005 × 0.50 = <strong>$0.0025</strong></li>
+      <li>Artist: $0.005 × 0.30 = <strong>$0.0015</strong></li>
+      <li>Publisher: $0.005 × 0.15 = <strong>$0.00075</strong></li>
+      <li>Songwriter: $0.005 × 0.05 = <strong>$0.00025</strong></li>
+      <li>Sum: $0.005 ✓</li>
+    </ul>
+  </li>
+  <li><strong>PLAY_B (May 20):</strong> uses post-renegotiation splits. Label 45% / Artist 35% / Publisher 15% / Songwriter 5%.
+    <ul>
+      <li>Label: $0.005 × 0.45 = $0.00225</li>
+      <li>Artist: $0.005 × 0.35 = $0.00175</li>
+      <li>(others unchanged)</li>
+      <li>Sum: $0.005 ✓</li>
+    </ul>
+  </li>
+  <li><strong>Audit query produces 8 rows total</strong> (2 plays × 4 rights holders). Each is defensible: shows the exact bridge row that was active when the play occurred.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>One play, two consumers.</strong> <code>qualified_play</code> as a flag (not a separate table) keeps Product and Finance on the same source of truth.</li>
+  <li><strong>Pool model derived at period close.</strong> Per-stream rate isn't real-time — it's only known when the period closes. Modeled as a fact table, not a daily rolling number.</li>
+  <li><strong>SCD2 bridge keeps deals defensible.</strong> Mid-quarter renegotiations don't break historical payouts.</li>
+  <li><strong>Attribution table grows linearly.</strong> ~4 rows per qualified play. Quarterly bulk-write at period close, then read-only.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The 30-second threshold is the integration point between product analytics (every play matters for recs) and finance (only qualified plays earn royalty) — modeling it as a flag on <code>fact_play_event</code> rather than two separate tables is what lets both teams stay on the same source of truth."
+<strong>Senior framing.</strong> "The 30-second threshold is the integration point between product analytics (every play matters for recs) and finance (only qualified plays earn royalty) — modeling it as a flag on <code>fct_play_events</code> rather than two separate tables is what lets both teams stay on the same source of truth. SCD2 on <code>bridge_track_rights</code> turns deal renegotiations from an audit nightmare into a predicate."
 </div>
 </div>
 
 <!-- Scenario 10: Stripe -->
 <div class="scenario" id="sc-stripe">
-<div class="domain-tag">Stripe · payments &amp; ledger</div>
-<h4 class="sub-head">Scenario 10 — Double-entry ledger for payments</h4>
-<div class="prompt">Design a model for Stripe's payment system supporting charges, refunds, chargebacks, payouts, multi-currency, and rigorous double-entry accounting (every entry has equal debits and credits).</div>
+<div class="domain-tag">Stripe · payments · double-entry ledger</div>
+<h4 class="sub-head">Scenario 10 — Double-entry ledger for payments (charges, refunds, chargebacks, FX, reserves)</h4>
+<div class="prompt">Design a model for Stripe's payment system supporting charges, refunds, chargebacks, payouts, multi-currency FX, reserves, and rigorous double-entry accounting where every transaction's entries sum to zero per currency. Append-only — never UPDATE — for regulatory audit compliance.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Payments is the domain with <strong>zero tolerance for retro edits</strong>. A regulator can ask "what was merchant X's balance on day Y as the books showed it then?" — the answer has to be defensible regardless of corrections made since. That forces append-only on every fact. Multi-currency adds an FX gain/loss leg. Chargebacks arrive 30-180 days after the charge. Reserves are an internal transfer, not external money. The model must enforce <strong>SUM=0 per balance transaction per currency</strong> as a continuous invariant.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Double-entry: every transaction = at least 2 ledger entries summing to zero per currency."</li>
-  <li>"Multi-currency: charges in EUR, payouts in USD, FX in between — three entries minimum."</li>
-  <li>"Append-only ledger. No <code>UPDATE</code>. Ever. Reversal = new entries with opposite signs."</li>
+  <li><code>fct_ledger_entries</code> — <strong>The "Atom" grain.</strong> One row per debit OR credit on (account, currency). The source of truth. <strong>Append-only.</strong></li>
+  <li><code>fct_balance_transactions</code> — <strong>The "Business event" grain.</strong> One row per charge/refund/payout/chargeback. Groups its entries via <code>balance_txn_id</code>.</li>
+  <li><code>snap_account_balance_daily</code> — <strong>The "State" grain.</strong> Derived — running SUM per (account × currency × day). Pre-aggregated for fast balance reads.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_ledger_entry</code>: one row per debit OR credit on a specific account in a specific currency. <strong>This is the source of truth.</strong></li>
-  <li><code>fact_balance_transaction</code>: one row per business event (charge/refund/payout) — joins entries.</li>
-  <li><code>snap_account_balance_daily</code>: derived — running sum per (account × currency × day).</li>
+  <li><code>dim_merchants</code> (SCD2 — risk profile, reserve_pct) · <code>dim_customers</code> · <code>dim_payment_methods</code> (SCD2)</li>
+  <li><code>dim_accounts</code> — Chart of accounts: <code>merchant_balance</code>, <code>fees</code>, <code>reserve</code>, <code>tax</code>, <code>fx_gain_loss</code>, <code>chargeback_reserve</code>.</li>
+  <li><code>dim_currencies</code> · <code>dim_fx_rates</code> (SCD2 daily — FX rate locked at posting time)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_merchant     (SCD2)
-dim_customer     (SCD2)
-dim_payment_method (SCD2)
-dim_account      (SCD1 — chart of accounts: 'merchant_balance', 'fees', 'reserve', 'tax')
-dim_currency     (SCD1)
-dim_country      (SCD1)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_ledger_entries</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>entry_id</code></td><td>PK</td><td>Surrogate.</td></tr>
+    <tr><td><code>balance_txn_id</code></td><td>FK</td><td>Groups entries within one business event.</td></tr>
+    <tr><td><code>account_id</code></td><td>FK</td><td>Which account: merchant_balance, fees, reserve, etc.</td></tr>
+    <tr><td><code>merchant_id</code></td><td>FK</td><td>The merchant.</td></tr>
+    <tr><td><code>currency_code</code></td><td>CHAR(3)</td><td>The currency of this entry.</td></tr>
+    <tr><td><code>amount</code></td><td>DECIMAL(20,4)</td><td>Signed. Convention: positive = credit, negative = debit. Sum per (balance_txn × currency) = 0.</td></tr>
+    <tr><td><code>entry_type</code></td><td>STRING</td><td>{charge, refund, fee, fx_gain, fx_loss, payout, chargeback, reserve_hold, reserve_release}.</td></tr>
+    <tr><td><code>effective_ts, posted_ts</code></td><td>TIMESTAMP_TZ</td><td>When the event happened vs when it hit the ledger.</td></tr>
+    <tr><td><code>source_event_id</code></td><td>UNIQUE</td><td><strong>Idempotency key.</strong> Producer retries write same row.</td></tr>
+    <tr><td><code>reversal_of_id</code></td><td>FK NULL</td><td>For reversal entries — points to the original.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_ledger_entry (
-  entry_sk           BIGINT,
-  entry_id           STRING,         -- natural, idempotent
-  balance_txn_sk     BIGINT,
-  account_sk         BIGINT,         -- which account is being debited/credited
-  merchant_sk        BIGINT,
-  currency_code      CHAR(3),
-  amount             DECIMAL(20,4),  -- signed; debits negative, credits positive (or per convention)
-  entry_type         STRING,         -- 'charge' | 'refund' | 'fee' | 'fx_gain' | 'payout' | 'chargeback' | 'reserve'
-  effective_ts       TIMESTAMP_TZ,
-  posted_ts          TIMESTAMP_TZ,   -- when entered the ledger
-  reversal_of_sk     BIGINT NULL,    -- for reversals
-  source_event_id    STRING,         -- idempotency
-  ingest_ts          TIMESTAMP_TZ,
+<p><strong><code>fct_balance_transactions</code></strong> — <code>balance_txn_id, txn_type ∈ {charge, refund, payout, chargeback, fee, transfer}, txn_ts, source_object_id (charge_id / refund_id), merchant_id, status</code>.</p>
 
-  -- the invariant: SUM(amount) per (balance_txn_sk, currency_code) = 0
-  CONSTRAINT chk_idempotent UNIQUE (source_event_id)
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Merchant · balance &amp; payouts</strong> — Available balance = SUM(<code>fct_ledger_entries.amount</code>) WHERE <code>account = 'merchant_balance'</code> AND <code>merchant_id = X</code>. From <code>snap_account_balance_daily</code> for speed.</p>
+<p><strong>Finance · reconciliation</strong> — Reconcile every <code>balance_txn</code>: <code>SUM(amount) GROUP BY currency = 0</code>. Any failure = producer bug, page on-call.</p>
+<p><strong>Risk · chargeback exposure</strong> — Aggregate <code>entry_type = 'chargeback'</code> per merchant per day. High rate = risk profile change → increase <code>reserve_pct</code>.</p>
+<p><strong>Regulators · audit trail</strong> — "Show merchant X balance as of date Y as the books showed it then" — query <code>fct_ledger_entries</code> WHERE <code>posted_ts &lt;= Y</code> AND filter out reversals for entries posted after Y.</p>
+
+<h4 class="sub-head">Section 4 — Why append-only + invariant + idempotency key</h4>
+<ul>
+  <li><strong>Append-only is regulatory.</strong> SOX / PCI / banking audits require an immutable history. Every reversal is a new pair of entries with opposite signs, never a retro edit.</li>
+  <li><strong>SUM=0 invariant per (balance_txn, currency).</strong> Continuous data-quality check. If it fails, payments stop until fixed.</li>
+  <li><strong>Idempotency at the row.</strong> <code>UNIQUE(source_event_id)</code> guarantees that producer retries don't create duplicate ledger entries — even under network partitions.</li>
+  <li><strong>FX as separate currency entries.</strong> EUR charge → USD payout requires a 4-entry transaction: −EUR (merchant_balance debit) / +EUR (fx_holding credit) / −USD (fx_holding debit at locked rate) / +USD (merchant_balance credit). FX gain/loss recognized in reporting currency.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Stripe Double-Entry Ledger</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">STRIPE · DOUBLE-ENTRY LEDGER · APPEND-ONLY · SUM=0 INVARIANT</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏪 dim_merchants</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_id · risk_profile</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">reserve_pct · country</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,235)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📒 dim_accounts (chart)</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_balance · fees · reserve</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tax · fx_gain_loss · chargeback_reserve</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,340)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💱 dim_fx_rates ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_pair · rate</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">effective_from / effective_to</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 daily · locked at posted_ts</text></g>
+  <g transform="translate(40,460)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💳 dim_payment_methods</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">card_brand · funding_type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,560)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">👤 dim_customers</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">customer_id · email</text></g>
+
+  <g transform="translate(385,130)"><rect width="580" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚖ fct_ledger_entries ★ THE SOURCE OF TRUTH</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">⌖ entry_id · ⛓ balance_txn_id (FK)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ account_id · merchant_id (FK)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">currency_code · amount (signed) · entry_type</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">effective_ts · posted_ts · reversal_of_id</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="11" fill="#0369a1">UNIQUE(source_event_id) ← idempotency</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">grain: 1 per debit OR credit · APPEND-ONLY · SUM(amount) per (balance_txn × currency) = 0</text></g>
+  <g transform="translate(385,320)"><rect width="280" height="120" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📋 fct_balance_transactions</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ balance_txn_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">txn_type · source_object_id</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant_id · status</text><text x="20" y="108" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per business event</text></g>
+  <g transform="translate(700,320)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📊 snap_account_balance_daily</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ account · merchant · currency · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">opening · debits · credits · ending</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">DERIVED · running sum</text></g>
+  <g transform="translate(385,470)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="580" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↩ Reversal pattern (NOT a separate fact)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">A chargeback or refund = NEW entries with reversal_of_id pointing to original</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">Original row UNCHANGED. Audit trail preserved. Net = SUM.</text></g>
+  <g transform="translate(385,590)"><rect width="580" height="80" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="290" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#1e293b">CONTINUOUS DQ: ∀ balance_txn_id: SUM(amount) GROUP BY currency = 0</text><text x="290" y="50" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#475569">Any failure = producer bug. Pipeline halts until fixed.</text><text x="290" y="66" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">SOX / PCI / banking audit prerequisite</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">LEDGER INVARIANT (DQ)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚖ SUM=0 per balance_txn × currency</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Idempotency violations</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">AUTHORIZATION RATES</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">✓ Auth approval rate by card_brand</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Decline reason mix</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_balance_transactions</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CHARGEBACK RISK</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Chargeback rate per merchant</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Days from charge to dispute</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries (entry_type='chargeback')</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">FX EXPOSURE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💱 Multi-currency balance per merchant</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Realized FX gain/loss</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_ledger_entries × dim_fx_rates</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="310" y1="285" x2="385" y2="220" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="310" y1="395" x2="385" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="525" y1="300" x2="525" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+  <line x1="525" y1="440" x2="525" y2="470" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSt)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — €100 charge converted to USD payout (multi-currency, 4 entries)</strong></p>
+<pre><code>-- Business event 1: charge €100 (customer pays merchant)
+INSERT INTO fct_balance_transactions VALUES
+  ('BTX_001','charge', '2025-05-01 09:00:00','CH_777','MRC_FR','succeeded');
+
+-- Ledger entries (SUM = 0 per currency):
+INSERT INTO fct_ledger_entries (balance_txn_id, account_id, merchant_id, currency_code, amount, entry_type, effective_ts, source_event_id) VALUES
+  ('BTX_001','merchant_balance','MRC_FR','EUR',  100.00, 'charge',     '2025-05-01 09:00','EVT_001'),
+  ('BTX_001','fees',            'MRC_FR','EUR',   -2.90, 'fee',        '2025-05-01 09:00','EVT_002'),
+  ('BTX_001','customer_balance','MRC_FR','EUR', -100.00, 'charge',     '2025-05-01 09:00','EVT_003'),
+  ('BTX_001','fees_revenue',    'MRC_FR','EUR',    2.90, 'fee',        '2025-05-01 09:00','EVT_004');
+-- SUM(amount WHERE currency='EUR') = 100 - 2.90 - 100 + 2.90 = 0 ✓
+
+-- Business event 2: payout €97.10 → USD at locked rate 1.08
+INSERT INTO fct_balance_transactions VALUES
+  ('BTX_002','payout', '2025-05-03 10:00:00','PO_777','MRC_FR','paid');
+
+INSERT INTO fct_ledger_entries (balance_txn_id, account_id, merchant_id, currency_code, amount, entry_type, effective_ts, source_event_id) VALUES
+  ('BTX_002','merchant_balance','MRC_FR','EUR',  -97.10, 'payout',  '2025-05-03 10:00','EVT_005'),  -- debit EUR
+  ('BTX_002','fx_holding',      'MRC_FR','EUR',   97.10, 'payout',  '2025-05-03 10:00','EVT_006'),  -- credit EUR
+  ('BTX_002','fx_holding',      'MRC_FR','USD', -104.87, 'payout',  '2025-05-03 10:00','EVT_007'),  -- debit USD (97.10 × 1.08)
+  ('BTX_002','merchant_bank',   'MRC_FR','USD',  104.87, 'payout',  '2025-05-03 10:00','EVT_008'); -- credit USD
+-- SUM EUR = 0 ✓ ; SUM USD = 0 ✓
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · invariant DQ check</h4>
+<p><strong>Q1 — Continuous SUM=0 invariant per (balance_txn × currency)</strong></p>
+<pre><code>SELECT
+  balance_txn_id,
+  currency_code,
+  ROUND(SUM(amount), 4) AS sum_amount,
+  COUNT(*)              AS entry_count
+FROM fct_ledger_entries
+WHERE effective_ts &gt;= CURRENT_DATE - 1
+GROUP BY balance_txn_id, currency_code
+HAVING ABS(SUM(amount)) &gt; 0.0001;
+-- Empty = healthy. Any row = producer bug. Halts the payments pipeline.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Merchant · balance &amp; payouts</h4>
+<p><strong>Q2 — Merchant balance per currency (as-of-now)</strong></p>
+<pre><code>SELECT
+  merchant_id, currency_code,
+  ROUND(SUM(amount), 2) AS balance
+FROM fct_ledger_entries
+WHERE account_id = 'merchant_balance' AND merchant_id = 'MRC_FR'
+GROUP BY merchant_id, currency_code;
+-- Or read from snap_account_balance_daily for sub-second response.
+</code></pre>
+
+<p><strong>Q3 — Audit trail: balance as it appeared on a specific historical date</strong></p>
+<pre><code>SELECT
+  merchant_id, currency_code,
+  ROUND(SUM(amount), 2) AS balance_as_of_2025_05_15
+FROM fct_ledger_entries
+WHERE account_id = 'merchant_balance'
+  AND merchant_id = 'MRC_FR'
+  AND posted_ts &lt;= '2025-05-15 23:59:59'
+GROUP BY merchant_id, currency_code;
+-- Defensible regardless of corrections made AFTER 2025-05-15. The append-only contract.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Risk · chargeback exposure</h4>
+<p><strong>Q4 — Chargeback rate per merchant + dispute lag</strong></p>
+<pre><code>WITH charges AS (
+  SELECT merchant_id, balance_txn_id, effective_ts AS charge_ts, ABS(amount) AS gross_usd
+  FROM fct_ledger_entries
+  WHERE entry_type = 'charge' AND account_id = 'merchant_balance' AND amount &gt; 0
+),
+chargebacks AS (
+  SELECT merchant_id, reversal_of_id, effective_ts AS chargeback_ts, ABS(amount) AS chargeback_usd
+  FROM fct_ledger_entries WHERE entry_type = 'chargeback'
 )
-PARTITION BY DATE(effective_ts)
-CLUSTER BY (merchant_sk, account_sk);
+SELECT
+  c.merchant_id,
+  COUNT(c.balance_txn_id)                                                AS total_charges,
+  COUNT(cb.reversal_of_id)                                               AS total_chargebacks,
+  ROUND(100.0 * COUNT(cb.reversal_of_id) / NULLIF(COUNT(c.balance_txn_id), 0), 2) AS chargeback_rate_pct,
+  ROUND(AVG(EXTRACT(EPOCH FROM (cb.chargeback_ts - c.charge_ts))/86400), 1) AS avg_dispute_lag_days
+FROM charges c
+LEFT JOIN chargebacks cb ON cb.reversal_of_id = c.balance_txn_id
+WHERE c.charge_ts &gt;= CURRENT_DATE - 90
+GROUP BY c.merchant_id
+HAVING COUNT(c.balance_txn_id) &gt; 100
+ORDER BY chargeback_rate_pct DESC;
+-- Merchants &gt;1% chargeback rate trigger reserve_pct increase.
+</code></pre>
 
-CREATE TABLE fact_balance_transaction (
-  balance_txn_sk      BIGINT,
-  balance_txn_id      STRING,
-  txn_type            STRING,        -- 'charge' | 'refund' | 'payout' | 'chargeback' | 'fee' | 'transfer'
-  txn_ts              TIMESTAMP_TZ,
-  source_object_id    STRING,        -- charge_id, refund_id, payout_id
-  merchant_sk         BIGINT,
-  status              STRING
-);</code></pre>
+<h4 class="sub-head">Worked example — €100 charge → USD payout</h4>
+<ol>
+  <li><strong>Charge BTX_001 (€100):</strong> 4 ledger entries in EUR.
+    <ul>
+      <li>+€100 to merchant_balance · −€2.90 fee from merchant_balance · net €97.10 to merchant.</li>
+      <li>−€100 from customer_balance · +€2.90 to fees_revenue.</li>
+      <li>EUR sum = 100 − 2.90 − 100 + 2.90 = <strong>0</strong> ✓</li>
+    </ul>
+  </li>
+  <li><strong>Payout BTX_002</strong> (3 days later, FX rate locked at 1 EUR = 1.08 USD).
+    <ul>
+      <li>−€97.10 from merchant_balance · +€97.10 to fx_holding (EUR side closes)</li>
+      <li>−$104.87 from fx_holding (USD side, 97.10 × 1.08) · +$104.87 to merchant_bank</li>
+      <li>EUR sum = 0 ✓ · USD sum = 0 ✓</li>
+    </ul>
+  </li>
+  <li><strong>Two months later: chargeback on BTX_001.</strong> Append 4 new entries that reverse the charge (positive amounts where original was negative). <code>reversal_of_id</code> links each new entry to its original. Original rows untouched. Audit trail preserved. Net effect: merchant balance net change for the chargeback is recorded as a fresh balance_txn.</li>
+</ol>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>The invariant test:</strong> for any <code>balance_txn_sk</code>, <code>SUM(amount) GROUP BY currency = 0</code>. Run as a continuous data-quality check.</li>
-  <li><strong>FX leg:</strong> EUR charge → USD payout creates a third entry in EUR (debit merchant) + entry in USD (credit merchant) + an FX_gain/loss entry in the platform's reporting currency.</li>
-  <li><strong>Chargebacks:</strong> 30+ days after charge. Append-only — debit merchant, credit dispute-reserve. Original charge stays untouched.</li>
-  <li><strong>Idempotency:</strong> retries from upstream produce same <code>source_event_id</code>; <code>UNIQUE</code> constraint prevents double-write.</li>
-  <li><strong>Reserves:</strong> high-risk merchants — N% of balance held as reserve. Modeled as transfer entries between <code>merchant_balance</code> and <code>reserve</code> accounts.</li>
+  <li><strong>Append-only is the contract.</strong> Historical balance reads ("as of date Y") are defensible regardless of corrections made later. Required by SOX, PCI, banking regulators.</li>
+  <li><strong>Invariant catches bugs at write time.</strong> Continuous DQ on SUM=0 — any producer regression halts the pipeline before bad data reaches finance.</li>
+  <li><strong>Idempotency at the row.</strong> <code>UNIQUE(source_event_id)</code> handles producer retries without duplicating money.</li>
+  <li><strong>FX as currency entries.</strong> No "convert at read time" — every conversion is a recorded ledger event with its locked rate.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "Append-only is not a style choice in payments — it's a regulatory requirement. The model has to support 'show me the full audit trail for merchant X on date Y as it appeared then' regardless of corrections made since. That's why every reversal is a new pair of entries, never a retro edit."
+<strong>Senior framing.</strong> "Append-only is not a style choice in payments — it's a regulatory requirement. The model has to support 'show me the full audit trail for merchant X on date Y as it appeared then' regardless of corrections made since. That's why every reversal is a new pair of entries, never a retro edit. SUM=0 per (balance_txn × currency) is the invariant that keeps the books honest at write time."
 </div>
 </div>
 
 <!-- Scenario 11: Airbnb -->
 <div class="scenario" id="sc-airbnb">
-<div class="domain-tag">Airbnb · 2-sided marketplace</div>
-<h4 class="sub-head">Scenario 11 — Bookings, calendar &amp; reviews</h4>
-<div class="prompt">Design a model for Airbnb that supports search/availability lookup, booking lifecycle (request → accepted → stayed → reviewed), cancellation policies, and host payouts after stay completion.</div>
+<div class="domain-tag">Airbnb · 2-sided marketplace · calendar-as-fact</div>
+<h4 class="sub-head">Scenario 11 — Bookings, calendar, cancellations &amp; reviews</h4>
+<div class="prompt">Design a model for Airbnb supporting search/availability lookup, booking lifecycle (request → accepted → stayed → reviewed), cancellation-policy refund logic, host payouts after stay completion, and dynamic pricing — with full point-in-time queryability ("what was the price of listing X on July 4 last year?").</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>The calendar is the hot read path: a search query for "Paris, July 4-7, 2 guests" hits potentially millions of (listing × night) rows in milliseconds. <strong>Calendar-as-fact</strong> with daily snapshots is the canonical answer. Booking modifications require append-only — same booking_id can't UPDATE in place. Cancellation refunds depend on (policy × days-from-check-in) and must be computed at cancel time, locked on the booking row. Multi-currency pays guest in EUR, host in USD; FX locked at booking.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Calendar: one row per (listing × night). Pre-populated for the next 365 nights per listing."</li>
-  <li>"Booking grain: one row per booking. Multi-night = single row with check_in / check_out."</li>
-  <li>"Cancellation policies (flexible / moderate / strict) — drive refund logic — modeled in <code>dim_listing</code> SCD2."</li>
-  <li>"Reviews: bilateral — guest reviews host, host reviews guest. Two facts."</li>
+  <li><code>fct_calendar_nights</code> — <strong>The "Availability" grain.</strong> One row per (listing × night × snapshot_date). Daily snapshots enable point-in-time price lookup.</li>
+  <li><code>fct_bookings</code> — <strong>The "Reservation" grain.</strong> One row per booking lifecycle. Append-only — modifications create new rows.</li>
+  <li><code>fct_reviews</code> — <strong>The "Bilateral feedback" grain.</strong> One row per review (typed: guest_to_host OR host_to_guest).</li>
+  <li><code>fct_host_payouts</code> — <strong>The "Payout" grain.</strong> One row per payout event after stay completion.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_calendar_night</code>: one row per (listing × night) — the calendar-as-fact pattern.</li>
-  <li><code>fact_booking</code>: one row per booking lifecycle.</li>
-  <li><code>fact_review</code>: one row per review (typed: guest_to_host or host_to_guest).</li>
-  <li><code>fact_host_payout</code>: one row per payout event.</li>
+  <li><code>dim_listings</code> (SCD2 — price, policies, capacity drift)</li>
+  <li><code>dim_hosts</code> (SCD2 — superhost status, response rate)</li>
+  <li><code>dim_guests</code></li>
+  <li><code>dim_geography</code> (neighborhood, lat/lon, market_id)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical</h4>
-<pre><code>dim_listing       (SCD2 — price, policies, capacity drift)
-dim_host          (SCD2 — superhost status, response rate)
-dim_guest         (SCD1)
-dim_geography     (SCD1 — neighborhood mapping)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_calendar_nights</code></strong></p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>listing_id, night_date, snapshot_date</code></td><td>Composite PK</td><td>Time-travel via snapshot.</td></tr>
+    <tr><td><code>is_available, is_blocked, is_booked</code></td><td>BOOLEAN</td><td>Mutually exclusive states.</td></tr>
+    <tr><td><code>booking_id</code></td><td>FK NULL</td><td>Set when booked.</td></tr>
+    <tr><td><code>base_price_local</code>, <code>smart_price_local</code>, <code>effective_price_local</code></td><td>DECIMAL</td><td>Base = host-set; smart = algorithmic; effective = what was charged.</td></tr>
+    <tr><td><code>currency_code</code></td><td>CHAR(3)</td><td>Listing's currency.</td></tr>
+  </tbody>
+</table>
 
-CREATE TABLE fact_calendar_night (
-  listing_sk        BIGINT,
-  night_date        DATE,
-  is_available      BOOLEAN,
-  is_blocked        BOOLEAN,         -- host blocked
-  is_booked         BOOLEAN,
-  booking_sk        BIGINT NULL,
-  base_price_local  DECIMAL(10,2),
-  smart_price_local DECIMAL(10,2),   -- algorithmic
-  effective_price_local DECIMAL(10,2),
-  currency_code     CHAR(3),
-  snapshot_date     DATE             -- as-of, for time-travel
-)
-PARTITION BY night_date;
+<p><strong><code>fct_bookings</code></strong> — <code>booking_id, listing_id, guest_id, request_ts, accepted_ts, cancelled_ts, cancellation_actor ∈ {guest, host, platform}, check_in_date, check_out_date, nights, guests, subtotal/cleaning/service/taxes/total_local, fx_rate_to_usd, total_usd, cancellation_policy ∈ {flexible, moderate, strict, super_strict}, refund_amount_usd, terminal_state</code>.</p>
 
-CREATE TABLE fact_booking (
-  booking_sk          BIGINT,
-  booking_id          STRING,
-  listing_sk          BIGINT,
-  guest_sk            BIGINT,
-  request_ts          TIMESTAMP_TZ,
-  accepted_ts         TIMESTAMP_TZ NULL,
-  cancelled_ts        TIMESTAMP_TZ NULL,
-  cancellation_actor  STRING NULL,    -- 'guest' | 'host' | 'platform'
-  check_in_date       DATE,
-  check_out_date      DATE,
-  nights              SMALLINT,
-  guests              SMALLINT,
-  subtotal_local      DECIMAL(10,2),
-  cleaning_fee_local  DECIMAL(10,2),
-  service_fee_local   DECIMAL(10,2),
-  taxes_local         DECIMAL(10,2),
-  total_local         DECIMAL(10,2),
-  fx_rate_to_usd      DECIMAL(18,8),
-  total_usd           DECIMAL(10,2),
-  cancellation_policy STRING,          -- 'flexible' | 'moderate' | 'strict' | 'super_strict'
-  refund_amount_usd   DECIMAL(10,2) NULL,
-  ingest_ts           TIMESTAMP_TZ
-);</code></pre>
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Guest · search &amp; book</strong> — Search joins <code>fct_calendar_nights</code> WHERE <code>is_available=TRUE</code> AND <code>night_date BETWEEN x AND y</code>. Hot path; pushed to Elasticsearch + indexed in warehouse.</p>
+<p><strong>Host · earnings &amp; calendar mgmt</strong> — Daily payouts from <code>fct_host_payouts</code>. Pricing team analyzes <code>fct_calendar_nights</code> over time to recommend smart-price strategy.</p>
+<p><strong>Pricing team · "what was the price on date X?"</strong> — Time-travel via <code>snapshot_date</code> in the PK. Critical for dynamic-pricing experiments and dispute resolution.</p>
+<p><strong>Trust &amp; safety · review-rate analysis</strong> — Bilateral reviews; if a host has high "guest cancelled" rate, T&amp;S investigates.</p>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Section 4 — Why calendar-as-fact + daily snapshot</h4>
 <ul>
-  <li><strong>Calendar drift:</strong> host changes price for next month. Daily snapshot of the calendar — <code>snapshot_date</code> is part of the PK so we can time-travel.</li>
-  <li><strong>Cancellation refunds:</strong> policy + days-from-check-in determines refund. Computed at cancellation time, stored on the booking row.</li>
-  <li><strong>Same-day mods:</strong> guest changes dates → new booking row, original booking <code>terminal_state = modified</code>.</li>
-  <li><strong>Currency:</strong> guest pays in EUR, host paid in USD. FX locked at booking time on the row.</li>
-  <li><strong>Search availability lookup:</strong> hot read path — index <code>fact_calendar_night</code> on <code>(geo_sk, night_date, is_available)</code>; or push to a search index (Elasticsearch).</li>
+  <li><strong>Without snapshots:</strong> can only answer "what's the price now?" Time-travel queries require reconstructing from <code>dim_listings</code> SCD2 + booking events — slow, error-prone, often impossible after data drift.</li>
+  <li><strong>With daily snapshots:</strong> "what was the price of listing X on July 4 last year (as Airbnb showed it on July 1)?" is one query.</li>
+  <li><strong>Cost:</strong> 7M listings × 365 future nights × daily snapshot = ~9B rows/day. Partition by <code>night_date</code>; aggressively expire old snapshots (keep 90-day raw, then weekly).</li>
+  <li><strong>Append-only on bookings.</strong> Modifications generate a new booking row with <code>parent_booking_id</code>; original sets <code>terminal_state = modified</code>. Audit trail preserved.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — Airbnb Bookings + Calendar</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrAB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">AIRBNB · CALENDAR-AS-FACT · BOOKING LIFECYCLE · BILATERAL REVIEWS</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏠 dim_listings</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">listing_id · capacity · type</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">amenities · cancellation_policy</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,245)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎤 dim_hosts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">host_id · superhost · response_rate</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,350)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">👤 dim_guests</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">guest_id · verified_id · trips_count</text></g>
+  <g transform="translate(40,445)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🌍 dim_geography</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">market_id · neighborhood · lat/lon</text></g>
+  <g transform="translate(40,540)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📅 dim_cancellation_policies ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">flexible · moderate · strict · super_strict</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">refund_curve_json (days→%)</text><text x="20" y="84" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">drives refund math</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="170" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📅 fct_calendar_nights ★ HOT PATH</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ listing_id · night_date · snapshot_date</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_available · is_blocked · is_booked</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ booking_id (FK NULL)</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ base / smart / effective price</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_code</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (listing × night × snapshot)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="170" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🎟 fct_bookings</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ booking_id · ⛓ listing_id · guest_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⏱ request → accepted → cancelled</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">check_in / check_out · nights</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subtotal · cleaning · service · tax</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cancellation_policy · refund_amount</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only · parent_booking_id for mods</text></g>
+  <g transform="translate(385,320)"><rect width="280" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="280" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⭐ fct_reviews</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ booking_id · review_type</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">{guest_to_host, host_to_guest}</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">overall · cleanliness · accuracy ratings</text><text x="20" y="108" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">bilateral grain</text></g>
+  <g transform="translate(700,320)"><rect width="265" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="265" height="32" fill="#1f2937" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💰 fct_host_payouts</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ host_id · booking_id (NULL for batches)</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">payout_ts · amount_local · fx · usd</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">payout_method · status</text></g>
+  <g transform="translate(385,460)"><rect width="580" height="120" fill="#fffbeb" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="580" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🔄 fct_booking_modifications</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">⛓ original_booking_id · new_booking_id · modification_ts</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">change_type {date_change, guest_change, price_renegotiation}</text><text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">links chains of modified bookings</text></g>
+  <g transform="translate(385,600)"><rect width="580" height="50" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="295" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">REFUND RULE: refund_amount = total × refund_curve(policy, days_to_check_in)</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CALENDAR UTILIZATION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📅 Booked / Available nights per market</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">📊 Effective price vs base price</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_calendar_nights</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">BOOKING FUNNEL</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Search → request → accept → stay</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Time-to-accept by host</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_bookings + search_logs</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CANCELLATION RATE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊖ Rate per cancellation_policy</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Host-cancelled rate (T&amp;S signal)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_bookings × policies</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">HOST EARNINGS &amp; SUPERHOST</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">💰 Earnings per host per month</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⭐ Avg rating + response rate</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: payouts × reviews × hosts</text></g>
+
+  <line x1="310" y1="180" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="310" y1="290" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="310" y1="595" x2="700" y2="240" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="525" y1="300" x2="525" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+  <line x1="830" y1="300" x2="830" y2="320" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrAB)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — 1 listing, 5 nights of calendar, 1 booking, 1 guest cancellation</strong></p>
+<pre><code>INSERT INTO fct_calendar_nights VALUES
+  ('LST_PARIS_42','2025-07-04','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-05','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-06','2025-06-01', FALSE, FALSE, TRUE,  'BKG_777', 200.00, 240.00, 240.00,'EUR'),
+  ('LST_PARIS_42','2025-07-07','2025-06-01', TRUE,  FALSE, FALSE,  NULL,    200.00, 220.00, 220.00,'EUR'),
+  ('LST_PARIS_42','2025-07-08','2025-06-01', TRUE,  FALSE, FALSE,  NULL,    200.00, 220.00, 220.00,'EUR');
+
+INSERT INTO fct_bookings VALUES
+  ('BKG_777','LST_PARIS_42','GUEST_LISA','2025-06-01 10:00','2025-06-01 10:30',NULL,NULL,
+   '2025-07-04','2025-07-07', 3, 2,
+   720.00, 80.00, 56.00, 64.00, 920.00, 1.08, 993.60,
+   'moderate', NULL, 'confirmed');
+
+-- Guest cancels 5 days before check-in (under 'moderate' policy = 50% refund)
+UPDATE fct_bookings SET cancelled_ts='2025-06-29 14:00', cancellation_actor='guest',
+  refund_amount_usd=496.80, terminal_state='cancelled' WHERE booking_id='BKG_777';
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Search · calendar utilization</h4>
+<p><strong>Q1 — Available listings in Paris for July 4-7, 2 guests</strong></p>
+<pre><code>SELECT l.listing_id, l.title, MIN(c.effective_price_local) AS price_low, MAX(c.effective_price_local) AS price_high
+FROM dim_listings l
+JOIN fct_calendar_nights c ON l.listing_id = c.listing_id
+JOIN dim_geography g ON l.geography_id = g.geography_id
+WHERE c.snapshot_date = CURRENT_DATE
+  AND c.night_date BETWEEN '2025-07-04' AND '2025-07-06'
+  AND c.is_available = TRUE
+  AND l.capacity &gt;= 2
+  AND g.market_id = 'PARIS'
+GROUP BY l.listing_id, l.title
+HAVING COUNT(*) = 3;     -- all 3 nights available
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Pricing team · time-travel queries</h4>
+<p><strong>Q2 — Price of LST_PARIS_42 on July 4, 2025 — as Airbnb showed it on June 1</strong></p>
+<pre><code>SELECT listing_id, night_date, base_price_local, smart_price_local, effective_price_local
+FROM fct_calendar_nights
+WHERE listing_id = 'LST_PARIS_42'
+  AND night_date = '2025-07-04'
+  AND snapshot_date = '2025-06-01';
+-- The data product the dynamic-pricing team can't ship without.
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Trust &amp; safety · cancellation analysis</h4>
+<p><strong>Q3 — Host cancellation rate (a strong T&amp;S signal)</strong></p>
+<pre><code>SELECT
+  l.host_id,
+  COUNT(*)                                                   AS total_bookings,
+  COUNT(*) FILTER (WHERE b.cancellation_actor = 'host')      AS host_cancels,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE b.cancellation_actor = 'host')
+        / COUNT(*), 2)                                        AS host_cancel_rate_pct
+FROM fct_bookings b
+JOIN dim_listings l USING (listing_id)
+WHERE b.request_ts &gt;= CURRENT_DATE - 90
+GROUP BY l.host_id
+HAVING COUNT(*) &gt; 10
+ORDER BY host_cancel_rate_pct DESC;
+-- Hosts &gt;3% rate get warning; &gt;5% lose Superhost status.
+</code></pre>
+
+<h4 class="sub-head">Worked example — BKG_777 cancellation under "moderate" policy</h4>
+<ol>
+  <li>Booking total: <strong>$993.60</strong> for 3 nights ($720 subtotal + $80 cleaning + $56 service + $64 tax, FX 1.08).</li>
+  <li>Cancelled 5 days before check-in.</li>
+  <li><strong>Moderate policy refund_curve:</strong> ≥5 days before = 100% refund of nightly rate (subtotal only); cleaning fee always refunded; service fee non-refundable.</li>
+  <li>Refund = $720 (subtotal at 100%) × 0.50 (we're inside the partial-refund window for "moderate") + $80 cleaning + $0 service = <strong>$496.80</strong>.</li>
+  <li><code>fct_bookings.refund_amount_usd</code> = $496.80, locked at cancellation_ts. Future re-querying gives same result regardless of policy changes after.</li>
+  <li>Calendar nights for Jul 4-6 flip back to <code>is_available=TRUE</code> in the next snapshot. Listing reopens for searches.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
+<ul>
+  <li><strong>Calendar-as-fact + snapshots</strong> = time-travel pricing queries are first-class.</li>
+  <li><strong>Append-only bookings</strong> with <code>parent_booking_id</code> chain = audit trail for modifications.</li>
+  <li><strong>Refund locked at cancel time</strong> = future policy changes don't restate historical refunds.</li>
+  <li><strong>Bilateral reviews</strong> = both guest and host accountability surfaced.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The calendar-as-fact is the unlock — pricing teams can answer 'what was the price of this listing on Jul 4 last year?' from <code>fact_calendar_night</code> without reconstructing it from booking events. That's the data product the dynamic-pricing team can't ship without."
+<strong>Senior framing.</strong> "The calendar-as-fact is the unlock — pricing teams can answer 'what was the price of this listing on Jul 4 last year?' from <code>fct_calendar_nights</code> without reconstructing it from booking events. That's the data product the dynamic-pricing team can't ship without. Snapshot_date in the PK is the cheap engineering choice that pays back every quarter."
 </div>
 </div>
 
 <!-- Scenario 12: SaaS -->
 <div class="scenario" id="sc-saas">
-<div class="domain-tag">SaaS · subscription billing</div>
-<h4 class="sub-head">Scenario 12 — Subscription billing &amp; usage metering</h4>
-<div class="prompt">Design a model for a SaaS like Snowflake or Datadog with mixed pricing — flat-rate seats + usage-based metering (per-query, per-GB, per-API-call) — handling plan changes mid-cycle, prorations, overages, and trials.</div>
+<div class="domain-tag">SaaS · subscription + usage metering</div>
+<h4 class="sub-head">Scenario 12 — Subscription billing + hourly usage metering (Snowflake / Datadog model)</h4>
+<div class="prompt">Design a model for a SaaS with mixed pricing — flat-rate seats + usage-based metering (per-query, per-GB, per-API-call) — handling mid-cycle plan changes, prorations, overages, free trials, and multi-currency invoicing.</div>
 
-<h4 class="sub-head">Move 1 — Clarify</h4>
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Two revenue streams with opposite shapes. <strong>Subscription</strong> is predictable, monthly, modeled at low row volume. <strong>Usage</strong> is volatile, hourly, billions of rows/day. Mid-cycle plan changes require pro-rated math. Trials look like paid plans but bill $0. Free-tier allowances reset each period. Multi-currency demands FX locked at usage time. The model must keep usage and subscription separate at the fact layer but join cleanly at invoice time.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model Overview</h4>
+<p><strong>Fact Tables</strong></p>
 <ul>
-  <li>"Two revenue streams: subscription (predictable) and usage (volatile). Different facts."</li>
-  <li>"Plan change mid-cycle: prorated. Old plan billed for the partial period; new plan starts."</li>
-  <li>"Overages: usage above plan tier billed at marginal rate."</li>
-  <li>"Trials: $0 plan with full features. <code>plan_type = 'trial'</code> in <code>dim_plan</code>."</li>
+  <li><code>fct_subscription_state</code> — <strong>The "Daily snapshot" grain.</strong> One row per (subscription × day). Captures plan, status, MRR.</li>
+  <li><code>fct_usage_meter</code> — <strong>The "Hourly usage" grain.</strong> One row per (subscription × meter × hour). High volume.</li>
+  <li><code>fct_billing_events</code> — <strong>The "Charge" grain.</strong> One row per subscription_charge / usage_charge / proration / refund / credit / dunning.</li>
+  <li><code>fct_invoices</code> — <strong>The "Statement" grain.</strong> One row per invoice — derived rollup of billing events.</li>
 </ul>
 
-<h4 class="sub-head">Move 2 — Grain</h4>
+<p><strong>Dimension Tables</strong></p>
 <ul>
-  <li><code>fact_subscription_state</code>: one row per (subscription × day) — daily snapshot.</li>
-  <li><code>fact_billing_event</code>: one row per charge/proration/refund/dunning.</li>
-  <li><code>fact_usage_meter</code>: one row per (subscription × meter × hour) — high-volume.</li>
-  <li><code>fact_invoice</code>: one row per invoice — derived rollup.</li>
+  <li><code>dim_accounts</code> · <code>dim_plans</code> (SCD2 — pricing tiers drift) · <code>dim_meters</code> (compute_credits, storage_gb_month, api_calls) · <code>dim_promotions</code> (SCD2)</li>
 </ul>
 
-<h4 class="sub-head">Move 3 — Physical (sketch)</h4>
-<pre><code>dim_account       (SCD1)
-dim_plan          (SCD2 — pricing tiers change)
-dim_meter         (SCD1 — 'compute_credits' | 'storage_gb_month' | 'api_calls')
-dim_promotion     (SCD2)
+<h4 class="sub-head">Section 2 — Logical Data Model (key columns)</h4>
+<p><strong><code>fct_usage_meter</code></strong> — <code>account_id, subscription_id, meter_id, hour_bucket_ts, raw_quantity, billable_quantity (= max(0, raw − free_allowance)), unit_price_local (locked at hour), currency_code, amount_local, fx_rate_to_usd, amount_usd</code>.</p>
 
-CREATE TABLE fact_usage_meter (
-  account_sk        BIGINT,
-  subscription_sk   BIGINT,
-  meter_sk          BIGINT,
-  hour_bucket_ts    TIMESTAMP_TZ,
-  raw_quantity      DECIMAL(20,6),
-  billable_quantity DECIMAL(20,6),     -- after credits/comps applied
-  unit_price_local  DECIMAL(18,8),     -- locked at hour
-  currency_code     CHAR(3),
-  amount_local      DECIMAL(18,4),
-  fx_rate_to_usd    DECIMAL(18,8),
-  amount_usd        DECIMAL(18,4),
-  ingest_ts         TIMESTAMP_TZ
+<p><strong><code>fct_billing_events</code></strong> — <code>event_id, account_id, subscription_id, event_type, plan_id (SCD2 effective at event_ts), event_ts, period_start, period_end, amount_local, currency_code, amount_usd, status, source_event_id UNIQUE</code>.</p>
+
+<p><strong><code>fct_subscription_state</code></strong> — <code>subscription_id, day, plan_id, status ∈ {trialing, active, paused, canceled, past_due}, mrr_usd, currency, days_into_cycle, days_remaining</code>.</p>
+
+<h4 class="sub-head">Section 3 — How the model serves each stakeholder</h4>
+<p><strong>Finance · MRR &amp; ARR</strong> — MRR = SUM(<code>fct_subscription_state.mrr_usd</code>) WHERE <code>day = today</code> AND <code>status = 'active'</code>. ARR = MRR × 12.</p>
+<p><strong>Product · usage analytics</strong> — Hourly grain → daily/weekly rollups for adoption analysis. Same source as Finance — one truth.</p>
+<p><strong>Customer Success · expansion signal</strong> — Accounts approaching their plan's overage threshold = upsell trigger. Computed from <code>fct_usage_meter</code> trends + <code>dim_plans.tier_limit</code>.</p>
+<p><strong>Sales · NRR cohorts</strong> — Net revenue retention by quarterly signup cohort. Combines all four facts.</p>
+
+<h4 class="sub-head">Section 4 — Why hourly meter + daily snapshot + event log</h4>
+<ul>
+  <li><strong>Hourly meter resolution</strong> is the integration point: fine enough for usage analytics, coarse enough that the table doesn't explode. Per-query/per-call rolls up to the hour at ingest.</li>
+  <li><strong>Daily subscription state</strong> avoids modeling subscription as a slowly-changing dim — too much daily flux. Daily snapshot is bounded and queryable.</li>
+  <li><strong>Append-only billing events</strong> with <code>UNIQUE(source_event_id)</code> = idempotent + audit-defensible. Mid-cycle plan change emits 2 events (proration credit on old, prorated charge on new); invoice is just SUM of events in the period.</li>
+  <li><strong>FX locked per hour.</strong> Same precision as the meter; never restated.</li>
+</ul>
+
+<h4 class="sub-head">Enhanced graphical data model — SaaS Subscription + Usage</h4>
+<svg viewBox="0 0 1440 700" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrSa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a">SAAS · SUBSCRIPTION + HOURLY USAGE METER + INVOICE ROLLUP</text>
+  <rect x="20" y="60" width="310" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="620" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">FACT TABLES</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+
+  <g transform="translate(40,130)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🏢 dim_accounts</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">account_id · billing_email · region</text></g>
+  <g transform="translate(40,225)"><rect width="270" height="100" fill="#fff" stroke="#0369a1" stroke-width="1.5" rx="6"/><rect width="270" height="28" fill="#0369a1" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📋 dim_plans ★</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">plan_id · tier · monthly_fee_usd</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">included_meters_json (free_allowance)</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">overage_unit_price · plan_type</text><text x="20" y="96" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#0369a1">SCD2 · pricing drift</text></g>
+  <g transform="translate(40,345)"><rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">📊 dim_meters</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">compute_credits · storage_gb_month</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">api_calls · seats · etc</text><text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD1</text></g>
+  <g transform="translate(40,455)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">🎟 dim_promotions</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">discount_pct · valid_periods</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2</text></g>
+  <g transform="translate(40,555)"><rect width="270" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="270" height="28" fill="#1f2937" rx="6"/><text x="14" y="20" font-family="Helvetica,sans-serif" font-size="12" font-weight="600" fill="#fff">💱 dim_fx_rates</text><text x="20" y="48" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_pair · rate · effective_from</text><text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">SCD2 hourly</text></g>
+
+  <g transform="translate(385,130)"><rect width="280" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⏱ fct_usage_meter ★ HIGH-VOLUME</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · meter_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">hour_bucket_ts</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">raw_quantity · billable_quantity</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">unit_price_local (locked at hour)</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ amount_local · fx · amount_usd</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (sub × meter × hour)</text></g>
+  <g transform="translate(700,130)"><rect width="265" height="160" fill="#eff6ff" stroke="#1e40af" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#1e40af" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">📅 fct_subscription_state</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · day</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">plan_id (SCD2)</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">status {trialing, active, canceled,</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">       paused, past_due}</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ mrr_usd · days_remaining</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">grain: 1 per (sub × day)</text></g>
+  <g transform="translate(385,310)"><rect width="280" height="170" fill="#fef3c7" stroke="#92400e" stroke-width="1.5" rx="6"/><rect width="280" height="32" fill="#92400e" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">💵 fct_billing_events ★</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ event_id · ⛓ subscription_id</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">event_type {subscription_charge,</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  usage_charge, proration, refund,</text><text x="20" y="107" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">  credit, dunning}</text><text x="20" y="125" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period_start / period_end</text><text x="20" y="141" font-family="JetBrains Mono,monospace" font-size="10" fill="#0369a1">UNIQUE(source_event_id) ★</text><text x="20" y="157" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#92400e">append-only · idempotent</text></g>
+  <g transform="translate(700,310)"><rect width="265" height="170" fill="#f0fdf4" stroke="#166534" stroke-width="1.5" rx="6"/><rect width="265" height="32" fill="#166534" rx="6"/><text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">🧾 fct_invoices (DERIVED)</text><text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⛓ subscription_id · period</text><text x="20" y="73" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ subscription_total · usage_total</text><text x="20" y="91" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ overage · proration · credits</text><text x="20" y="109" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">＄ total_due · currency</text><text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">status · paid_ts · paid_amount</text><text x="20" y="148" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#166534">grain: 1 per (sub × billing period)</text></g>
+  <g transform="translate(385,500)"><rect width="580" height="100" fill="#fff" stroke="#cbd5e0" rx="6" stroke-dasharray="4,3"/><text x="290" y="32" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" font-weight="600" fill="#1e293b">PRORATION RULE: mid-cycle plan change emits 2 billing events</text><text x="290" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">credit_old = old_fee × (days_remaining / days_in_cycle)</text><text x="290" y="66" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">charge_new = new_fee × (days_remaining / days_in_cycle)</text><text x="290" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#94a3b8">net delta = (new - old) × prorate_ratio · invoice picks both up</text></g>
+
+  <g transform="translate(1015,130)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">MRR / ARR</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ MRR (active subscriptions)</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">＄ Net new MRR (expansions − churn)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_subscription_state</text></g>
+  <g transform="translate(1015,275)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">USAGE OVERAGE</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚠ Accounts over plan tier</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">↗ Upsell signal (within 90% of cap)</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_usage_meter × dim_plans</text></g>
+  <g transform="translate(1015,420)"><rect width="390" height="125" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">NET REVENUE RETENTION (NRR)</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▰ NRR by quarterly cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⚖ Expansion vs churn vs contraction</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: fct_invoices cohort</text></g>
+  <g transform="translate(1015,565)"><rect width="390" height="115" fill="#fff" stroke="#cbd5e0" rx="6"/><rect width="390" height="30" fill="#0f172a" rx="6"/><text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">TRIAL → PAID CONVERSION</text><text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⊕ Trial-to-paid % per cohort</text><text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">⏱ Days to first usage in trial</text><text x="20" y="86" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: subscription_state status transitions</text></g>
+
+  <line x1="310" y1="170" x2="385" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="310" y1="275" x2="700" y2="200" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="310" y1="390" x2="385" y2="370" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="525" y1="290" x2="525" y2="310" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+  <line x1="665" y1="395" x2="700" y2="395" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrSa)"/>
+</svg>
+
+<h4 class="sub-head">Section 7 — SQL analysis</h4>
+
+<p><strong>Sample data — Mid-cycle plan upgrade with 15 days remaining</strong></p>
+<pre><code>-- Account on Pro plan ($100/mo), upgrades to Enterprise ($300/mo) on day 15 of a 30-day cycle
+INSERT INTO fct_billing_events VALUES
+  ('EVT_S1','ACCT_X','SUB_42','subscription_charge','PLAN_PRO',       '2025-05-01 00:00','2025-05-01','2025-05-31',100.00,'USD',100.00,'paid','SRC_001'),
+  -- Day 15: upgrade. Proration credit on PRO (15 days unused = $50)
+  ('EVT_P1','ACCT_X','SUB_42','proration',          'PLAN_PRO',       '2025-05-15 14:00','2025-05-15','2025-05-31',-50.00,'USD',-50.00,'applied','SRC_002'),
+  -- Day 15: prorated charge for ENT (15 days at new rate = $150)
+  ('EVT_P2','ACCT_X','SUB_42','proration',          'PLAN_ENTERPRISE','2025-05-15 14:00','2025-05-15','2025-05-31',150.00,'USD',150.00,'paid','SRC_003');
+
+-- Hourly usage: account exceeds 100 free credits/hour 3 times during the day
+INSERT INTO fct_usage_meter VALUES
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 09:00:00', 120,  20, 0.10,'USD', 2.00,1.0, 2.00,'2025-05-15 09:05'),
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 14:00:00', 180,  80, 0.10,'USD', 8.00,1.0, 8.00,'2025-05-15 14:05'),
+  ('ACCT_X','SUB_42','METER_COMPUTE','2025-05-15 18:00:00', 250, 150, 0.10,'USD',15.00,1.0,15.00,'2025-05-15 18:05');
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">A. Finance · MRR &amp; invoice rollup</h4>
+<p><strong>Q1 — MRR roll-forward (active subscriptions, latest snapshot)</strong></p>
+<pre><code>SELECT
+  COUNT(*)                                        AS active_subs,
+  ROUND(SUM(mrr_usd), 2)                          AS mrr_usd,
+  ROUND(SUM(mrr_usd) * 12, 2)                     AS arr_usd
+FROM fct_subscription_state
+WHERE day = CURRENT_DATE
+  AND status = 'active';
+</code></pre>
+
+<p><strong>Q2 — Invoice for SUB_42 in May 2025 (sums all event types)</strong></p>
+<pre><code>SELECT
+  subscription_id,
+  SUM(amount_usd) FILTER (WHERE event_type = 'subscription_charge') AS subscription_charges,
+  SUM(amount_usd) FILTER (WHERE event_type = 'usage_charge')        AS usage_charges,
+  SUM(amount_usd) FILTER (WHERE event_type = 'proration')           AS proration_net,
+  SUM(amount_usd) FILTER (WHERE event_type = 'credit')              AS credits,
+  SUM(amount_usd)                                                    AS total_due_usd
+FROM fct_billing_events
+WHERE subscription_id = 'SUB_42'
+  AND period_start = '2025-05-01'
+GROUP BY subscription_id;
+</code></pre>
+
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">B. Customer Success · upsell signal</h4>
+<p><strong>Q3 — Accounts approaching their plan's overage threshold (upsell candidates)</strong></p>
+<pre><code>WITH usage_30d AS (
+  SELECT subscription_id, meter_id, SUM(billable_quantity) AS used
+  FROM fct_usage_meter
+  WHERE hour_bucket_ts &gt;= CURRENT_DATE - 30
+  GROUP BY subscription_id, meter_id
+),
+plan_caps AS (
+  SELECT s.subscription_id, m.meter_id, p.included_quantity
+  FROM fct_subscription_state s
+  JOIN dim_plans p USING (plan_id)
+  CROSS JOIN dim_meters m
+  WHERE s.day = CURRENT_DATE AND s.status = 'active'
 )
-PARTITION BY DATE(hour_bucket_ts)
-CLUSTER BY (account_sk, meter_sk);
+SELECT u.subscription_id, u.meter_id, u.used, c.included_quantity,
+  ROUND(100.0 * u.used / NULLIF(c.included_quantity, 0), 1) AS pct_of_cap
+FROM usage_30d u
+JOIN plan_caps c USING (subscription_id, meter_id)
+WHERE u.used &gt; c.included_quantity * 0.85
+ORDER BY pct_of_cap DESC;
+-- &gt;85% of cap = upsell trigger; &gt;100% = overage charges hit next invoice.
+</code></pre>
 
-CREATE TABLE fact_billing_event (
-  event_sk         BIGINT,
-  account_sk       BIGINT,
-  subscription_sk  BIGINT,
-  event_type       STRING,    -- 'subscription_charge' | 'usage_charge' | 'proration' | 'refund' | 'credit'
-  plan_sk          BIGINT,    -- SCD2 effective at event_ts
-  event_ts         TIMESTAMP_TZ,
-  period_start     DATE,
-  period_end       DATE,
-  amount_local     DECIMAL(18,4),
-  currency_code    CHAR(3),
-  amount_usd       DECIMAL(18,4),
-  status           STRING,
-  source_event_id  STRING UNIQUE      -- idempotent
-);</code></pre>
+<h4 style="margin-top:28px;color:#1e40af;font-family:JetBrains Mono,monospace;font-size:13px;letter-spacing:1.5px;text-transform:uppercase;">C. Sales · NRR by cohort</h4>
+<p><strong>Q4 — Net Revenue Retention by signup cohort</strong></p>
+<pre><code>WITH cohort_baseline AS (
+  SELECT subscription_id, DATE_TRUNC('quarter', MIN(day)) AS cohort_q,
+         FIRST_VALUE(mrr_usd) OVER (PARTITION BY subscription_id ORDER BY day) AS starting_mrr
+  FROM fct_subscription_state
+),
+current_state AS (
+  SELECT subscription_id, mrr_usd AS current_mrr
+  FROM fct_subscription_state WHERE day = CURRENT_DATE
+)
+SELECT cb.cohort_q,
+  COUNT(DISTINCT cb.subscription_id)                                      AS cohort_size,
+  ROUND(SUM(cb.starting_mrr), 0)                                          AS starting_mrr_total,
+  ROUND(SUM(COALESCE(cs.current_mrr, 0)), 0)                              AS current_mrr_total,
+  ROUND(100.0 * SUM(COALESCE(cs.current_mrr, 0)) / NULLIF(SUM(cb.starting_mrr), 0), 1) AS nrr_pct
+FROM cohort_baseline cb
+LEFT JOIN current_state cs USING (subscription_id)
+GROUP BY cb.cohort_q
+ORDER BY cb.cohort_q;
+-- NRR &gt; 100% = expansion outpaces churn (the SaaS holy grail).
+</code></pre>
 
-<h4 class="sub-head">Move 5 — Stress tests</h4>
+<h4 class="sub-head">Worked example — SUB_42 mid-cycle upgrade + usage overage</h4>
+<ol>
+  <li><strong>Day 1 (May 1):</strong> charged $100 for Pro plan (full month).</li>
+  <li><strong>Day 15 (May 15):</strong> upgrade to Enterprise. Two proration events:
+    <ul>
+      <li>Credit −$50 on Pro (15 unused days × $100/30)</li>
+      <li>Charge +$150 for Enterprise (15 days × $300/30)</li>
+      <li>Net delta: +$100</li>
+    </ul>
+  </li>
+  <li><strong>Day 15 (later):</strong> usage spikes. Plan includes 100 compute_credits/hr; account uses 250 in one hour → 150 billable at $0.10 = <strong>$15</strong> overage.</li>
+  <li><strong>End-of-month invoice for May:</strong> $100 (Pro full) − $50 (credit) + $150 (Ent prorated) + $25 (3-hr usage overage) = <strong>$225</strong>.</li>
+  <li><strong>MRR effect on day 15 onward:</strong> jumps from $100 to $300/mo. Visible in <code>fct_subscription_state.mrr_usd</code> daily snapshot.</li>
+</ol>
+
+<h4 class="sub-head">Section 8 — Why this works</h4>
 <ul>
-  <li><strong>Mid-cycle plan change:</strong> emit two billing events — proration credit on old plan, prorated charge on new. Ratio = (days remaining / days in cycle).</li>
-  <li><strong>Usage backfill:</strong> meters can land hours late. Watermark-driven; final bill cuts off at month-end + 24h grace.</li>
-  <li><strong>Free tier and overage:</strong> <code>billable_quantity</code> = max(0, raw - free_allowance). Free allowance is a function of plan, locked at hour.</li>
-  <li><strong>Multi-currency invoices:</strong> charges accrue in local currency, FX locked per hour, sum to invoice in customer's billing currency.</li>
+  <li><strong>Hourly usage + daily subscription</strong> = right resolution at each grain. Usage is high-volume; subscription is bounded.</li>
+  <li><strong>Proration is two events, not one.</strong> Both credit and charge land in <code>fct_billing_events</code>; invoice rollup picks them up cleanly.</li>
+  <li><strong>Idempotent at <code>source_event_id</code>.</strong> Producer retries don't double-charge.</li>
+  <li><strong>FX locked per hour.</strong> Same precision as the meter; no FX restatement.</li>
 </ul>
 
 <div class="senior-signal">
-<strong>Senior framing.</strong> "The hourly grain on <code>fact_usage_meter</code> is the integration point — finance rolls it up to invoices, product teams use it for usage analytics, and customer success uses it for adoption signals. Three consumers, one source of truth."
+<strong>Senior framing.</strong> "The hourly grain on <code>fct_usage_meter</code> is the integration point — finance rolls it up to invoices, product teams use it for usage analytics, and customer success uses it for adoption signals. Three consumers, one source of truth. Mid-cycle plan changes emit two billing events instead of one updated row — that's what makes the invoice a SUM, not a recompute."
 </div>
 </div>
 </section>
