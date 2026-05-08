@@ -1,0 +1,113 @@
+<p>"Most recent per group" is the second-most-asked SQL pattern in interviews — and it shows up across wildly different business problems. Below: the same <code>ROW_NUMBER()</code> shape solving four high-stakes real-time scenarios. Once you see the pattern, you can apply it anywhere.</p>
+
+<h4>Scenario 1 — Marketing: the win-back campaign</h4>
+<p><strong>The goal.</strong> Find the last order for customers who haven't shopped in over 6 months, then mail them a targeted discount.</p>
+
+<p><strong>The data — <code>orders</code></strong></p>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>A1</td><td>2026-01-10</td></tr>
+    <tr><td>101</td><td>A2</td><td><strong>2026-05-01 (recent)</strong></td></tr>
+    <tr><td>102</td><td>B1</td><td><strong>2025-08-15 (old)</strong></td></tr>
+    <tr><td>103</td><td>C1</td><td><strong>2025-09-20 (old)</strong></td></tr>
+  </tbody>
+</table>
+
+<p><strong>The SQL</strong></p>
+<pre><code>WITH LatestOrders AS (
+  SELECT customer_id, order_id, order_date,
+    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn
+  FROM orders
+)
+SELECT customer_id, order_id, order_date
+FROM LatestOrders
+WHERE rn = 1
+  AND order_date &lt; CURRENT_DATE - INTERVAL '6 months';</code></pre>
+
+<p><strong>The logic.</strong> <code>PARTITION BY customer_id</code> groups order history per customer. <code>ORDER BY order_date DESC</code> puts the most recent order at <code>rn = 1</code>. The outer <code>WHERE</code> filters: pull only the most-recent order, <em>and only if</em> it's older than 6 months.</p>
+<p><strong>Result:</strong> customers 102 and 103 are flagged for the win-back. Customer 101 is excluded because their most recent order (May 2026) is too fresh — they don't need a discount yet.</p>
+
+<h4>Scenario 2 — Logistics: real-time GPS "ping"</h4>
+<p><strong>The goal.</strong> A delivery truck sends a GPS ping every 30 seconds. The customer-facing map only needs the <em>last</em> coordinate to render the live truck position.</p>
+
+<p><strong>The data — <code>pings</code></strong></p>
+<table>
+  <thead><tr><th>delivery_id</th><th>lat_long</th><th>ping_time</th></tr></thead>
+  <tbody>
+    <tr><td>TRUCK_7</td><td>34.05, -118.24</td><td>12:00:01</td></tr>
+    <tr><td>TRUCK_7</td><td>34.06, -118.25</td><td><strong>12:00:31 (live)</strong></td></tr>
+    <tr><td>TRUCK_9</td><td>40.71, -74.00</td><td><strong>11:59:45 (live)</strong></td></tr>
+  </tbody>
+</table>
+
+<p><strong>The SQL</strong></p>
+<pre><code>SELECT delivery_id, lat_long, ping_time
+FROM (
+  SELECT *,
+    ROW_NUMBER() OVER (PARTITION BY delivery_id ORDER BY ping_time DESC) AS rn
+  FROM pings
+) t
+WHERE rn = 1;</code></pre>
+
+<p><strong>The logic.</strong> This handles <strong>high-velocity data</strong>. In a table with millions of pings, the query "flattens" history so the UI only sees one row per truck. <code>ROW_NUMBER()</code> is safer than <code>MAX(ping_time)</code> here because it pulls the associated <code>lat_long</code> column on the same row — no second JOIN required.</p>
+
+<h4>Scenario 3 — Fraud: point of compromise</h4>
+<p><strong>The goal.</strong> A user reports their card stolen at 2:00 PM. The risk team needs the last legitimate transaction <em>before</em> that report to see where the thief's spree started.</p>
+
+<p><strong>The data — <code>orders</code> joined to <code>reports</code></strong></p>
+<table>
+  <thead><tr><th>user_id</th><th>order_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>55</td><td>X_99</td><td>10:00 AM</td></tr>
+    <tr><td>55</td><td>X_100</td><td><strong>01:30 PM (last legit)</strong></td></tr>
+    <tr><td>55</td><td>X_101</td><td>02:15 PM <em>(after report — fraud?)</em></td></tr>
+  </tbody>
+</table>
+
+<p><strong>The SQL</strong></p>
+<pre><code>SELECT o.user_id, o.order_id, o.order_date
+FROM (
+  SELECT o.*,
+    ROW_NUMBER() OVER (PARTITION BY o.user_id ORDER BY o.order_date DESC) AS rn
+  FROM orders o
+  JOIN reports r ON o.user_id = r.user_id
+  WHERE o.order_date &lt; r.report_time          -- only look at events BEFORE report
+) o
+WHERE rn = 1;</code></pre>
+
+<p><strong>The logic.</strong> This is a <strong>point-in-time</strong> analysis. By joining the order history to the report timestamp and filtering <code>order_date &lt; report_time</code>, we "cut off" everything after the theft. <code>rn = 1</code> then identifies the very last <em>safe</em> transaction — the cliff edge before fraud started. That row's location, merchant, and time are the breadcrumbs the fraud team uses to triangulate the compromise point.</p>
+
+<h4>Scenario 4 — Growth: identify "power shoppers"</h4>
+<p><strong>The goal.</strong> Find customers whose last 3 orders all happened within a 7-day window — they're on a streak and warrant a VIP-tier upgrade.</p>
+
+<p><strong>The SQL</strong></p>
+<pre><code>SELECT customer_id, order_date, two_orders_ago
+FROM (
+  SELECT customer_id, order_date,
+    -- Reach back two rows in the customer's history
+    LAG(order_date, 2) OVER (PARTITION BY customer_id ORDER BY order_date ASC) AS two_orders_ago,
+    ROW_NUMBER()      OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn
+  FROM orders
+) t
+WHERE rn = 1                                            -- only their current state
+  AND order_date - two_orders_ago &lt;= INTERVAL '7 days'; -- 3 orders inside a week</code></pre>
+
+<p><strong>The logic.</strong> This combines <code>LAG</code> with the ranking pattern:</p>
+<ol>
+  <li>Look at the latest order (<code>rn = 1</code>).</li>
+  <li>Reach back two rows via <code>LAG(order_date, 2)</code> — the order from <em>two purchases ago</em>.</li>
+  <li>Compare the most-recent date to the two-back date.</li>
+</ol>
+<p>If those three orders happened within 7 days, the customer is a <strong>power shopper</strong>. This is materially harder than the first three scenarios because it looks at the <em>relationship between rows</em>, not just a single row's attributes.</p>
+
+<h4>The unifying pattern</h4>
+<p>Every scenario above uses the same shape: <code>ROW_NUMBER() OVER (PARTITION BY entity ORDER BY ts DESC)</code> + <code>WHERE rn = 1</code>. The variation is what you do <em>around</em> it:</p>
+<ul>
+  <li><strong>Marketing</strong> adds an outer date filter (<code>... AND order_date &lt; CURRENT_DATE - 6 months</code>).</li>
+  <li><strong>Logistics</strong> uses it directly for live-state flattening.</li>
+  <li><strong>Fraud</strong> wraps the partition in a JOIN that pre-filters by report time.</li>
+  <li><strong>Growth</strong> layers <code>LAG</code> on top to compare the latest row against earlier rows.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> the interviewer wants to hear "this is the <em>Latest-N per group</em> pattern" — and that you can recognise it across domains. Bonus points: explain why <code>ROW_NUMBER()</code> beats <code>MAX(date)</code> when you also need the row's other columns (you don't have to re-join), and why ties matter (use <code>RANK</code> if ties should both qualify, deterministic tie-breaker if you want exactly one).</div>

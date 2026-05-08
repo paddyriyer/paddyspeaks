@@ -1,0 +1,69 @@
+<p>A payments processor sees millions of charges per day. Most are routine — <em>"$47.20 at the gas station, $9.99 Spotify subscription"</em> — but a tiny fraction are statistical outliers: card-testing fraud, stolen-card spending, or a producer bug double-charging a merchant. The risk team needs an automated flag that surfaces those anomalies for human review without requiring hand-tuned thresholds per merchant.</p>
+
+<h4>1. The source data — a typical hour at the processor</h4>
+<p>Transactions skew small (the long tail of subscriptions and groceries) with a few large but legitimate purchases mixed in. Two transactions don't fit the pattern.</p>
+<table>
+  <thead><tr><th>txn_id</th><th>amount</th><th>note (not in DB — for context)</th></tr></thead>
+  <tbody>
+    <tr><td>T01</td><td>$9.99</td><td>Spotify renewal</td></tr>
+    <tr><td>T02</td><td>$47.20</td><td>gas station</td></tr>
+    <tr><td>T03</td><td>$120.00</td><td>online retailer</td></tr>
+    <tr><td>T04</td><td>$85.50</td><td>grocery</td></tr>
+    <tr><td>T05</td><td>$199.99</td><td>electronics</td></tr>
+    <tr><td>T06</td><td>$0.01</td><td><strong>card-testing probe</strong> ⚠</td></tr>
+    <tr><td>T07</td><td>$32.00</td><td>restaurant</td></tr>
+    <tr><td>T08</td><td>$50,000.00</td><td><strong>compromised card / producer bug</strong> ⚠</td></tr>
+    <tr><td>T09</td><td>$67.40</td><td>retail</td></tr>
+    <tr><td>T10</td><td>$22.00</td><td>rideshare</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — three-sigma outlier detection</h4>
+<p>The classic statistical-outlier rule: anything more than 3 standard deviations from the mean is flagged. No hand-tuned thresholds, no per-merchant tables — pure math derived from the data itself.</p>
+<pre><code>SELECT txn_id, amount
+FROM transactions
+WHERE amount &gt; (SELECT AVG(amount) + 3 * STDDEV(amount) FROM transactions)
+   OR amount &lt; (SELECT AVG(amount) - 3 * STDDEV(amount) FROM transactions);
+
+-- Engine note: STDDEV is Postgres / Snowflake / BigQuery (and Oracle).
+-- SQLite calls it STDEV() via an extension; some Spark dialects use STDDEV_SAMP.</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>With this sample data the mean is roughly $5,062 and the standard deviation is dominated by T08, but the <em>filtered</em> mean (excluding T08) is around $58 with a stddev under $60 — which is what the alert tuning eventually settles on. On the raw data here, both T06 and T08 land outside ±3σ:</p>
+<table>
+  <thead><tr><th>txn_id</th><th>amount</th><th>flagged</th><th>likely cause</th></tr></thead>
+  <tbody>
+    <tr><td><strong>T06</strong></td><td>$0.01</td><td>YES (lower tail)</td><td>card-testing probe</td></tr>
+    <tr><td><strong>T08</strong></td><td>$50,000.00</td><td>YES (upper tail)</td><td>compromised card / bug</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why 3σ, not 2σ — false-positive cost</h5>
+<p>2σ catches roughly 5% of legitimate transactions (the shoulders of a normal distribution). At a million transactions per day, that's 50,000 false flags — a triage team can't process those. 3σ catches ~0.27%, or ~2,700 — an order of magnitude more workable. Risk teams routinely tune up to 4σ or even 5σ for high-volume merchants.</p>
+
+<h5>Why <code>STDDEV</code> not range</h5>
+<p>Range (max − min) is brittle: a single outlier blows it up. Standard deviation gives every value a vote weighted by distance from the mean — robust to a few outliers in either tail and proportional to the natural spread of the data.</p>
+
+<h5>The "Friday-night surge" problem — when the model lies</h5>
+<p>This query has a real failure mode: legitimate spikes look like fraud. Black Friday, payday weekends, and concert ticket sales all create real outliers. Production systems usually compute σ over a <strong>rolling 7-day window per merchant per hour-of-week</strong>, not the global table — so "Friday at 8pm" gets compared to recent Fridays at 8pm, not to Tuesday morning.</p>
+
+<h5>The fix that ships next: per-merchant baselines</h5>
+<p>One global threshold misses small-merchant fraud. A $300 charge is normal for a furniture store, suspicious for a coffee shop. Production version of this query partitions:</p>
+<pre><code>WITH baselines AS (
+  SELECT merchant_id,
+         AVG(amount)    AS mu,
+         STDDEV(amount) AS sigma
+  FROM transactions
+  WHERE created_at &gt;= NOW() - INTERVAL '7 days'
+  GROUP BY merchant_id
+)
+SELECT t.txn_id, t.amount, b.mu, b.sigma,
+       (t.amount - b.mu) / NULLIF(b.sigma, 0) AS z_score
+FROM transactions t
+JOIN baselines b USING (merchant_id)
+WHERE t.amount &gt; b.mu + 3 * b.sigma
+   OR t.amount &lt; b.mu - 3 * b.sigma;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> the interviewer wants to hear that 3σ is a <em>starting point</em>, not the answer. The follow-ups are: <em>per-merchant baseline</em>, <em>rolling window</em>, <em>handle the bimodal distributions</em> (legit big-ticket vs fraud big-ticket — usually solved with merchant category code joins and supervised models on top of the σ filter).</div>

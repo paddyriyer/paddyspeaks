@@ -1,0 +1,67 @@
+<p>Sales reps don't all carry the same quota. Ranking by raw dollars rewards the rep with the biggest territory — not the most effective closer. To answer "who actually performed?" we move from raw ranking to <strong>Attainment Analytics</strong>: success measured as a percentage of each rep's specific goal.</p>
+
+<h4>1. The source data</h4>
+<p>Targets vary. A senior rep might have a $500k target, while a junior rep has a $100k target. Success = <strong>percentage of goal reached</strong>.</p>
+<table>
+  <thead><tr><th>rep_id</th><th>amount (Actual)</th><th>target (Goal)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>A</strong></td><td>$250,000</td><td>$200,000</td></tr>
+    <tr><td><strong>B</strong></td><td>$120,000</td><td>$150,000</td></tr>
+    <tr><td><strong>C</strong></td><td>$400,000</td><td>$500,000</td></tr>
+    <tr><td><strong>D</strong></td><td>$120,000</td><td>$100,000</td></tr>
+    <tr><td><strong>E</strong></td><td>$80,000</td><td>$100,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — attainment &amp; rank</h4>
+<p>This query computes attainment percentage and ranks reps by <strong>success</strong>, not raw dollars.</p>
+<pre><code>WITH AttainmentData AS (
+  SELECT
+    rep_id,
+    amount,
+    target,
+    -- What % of target was met (1.0 = exactly hit, &gt;1.0 = over-attained)
+    (amount * 1.0 / target) AS attainment_ratio
+  FROM sales
+)
+SELECT
+  rep_id,
+  amount,
+  target,
+  ROUND(attainment_ratio * 100, 2)                                   AS attainment_pct,
+  -- Hard yes/no on goal — gatekeeper for accelerators &amp; President's Club
+  CASE WHEN attainment_ratio &gt;= 1 THEN 'YES' ELSE 'NO' END           AS met_target,
+  -- 0.00 = worst attainment, 1.00 = best (ties take the lower position)
+  PERCENT_RANK() OVER (ORDER BY attainment_ratio)                    AS success_rank,
+  -- Quartile: 1 = at-risk · 2-3 = on-track · 4 = over-performer
+  NTILE(4) OVER (ORDER BY attainment_ratio)                          AS success_quartile
+FROM AttainmentData;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>rep_id</th><th>Amount</th><th>Target</th><th>Attainment %</th><th>Met Target?</th><th>Success Rank</th><th>Quartile</th></tr></thead>
+  <tbody>
+    <tr><td><strong>A</strong></td><td>$250,000</td><td>$200,000</td><td><strong>125%</strong></td><td><strong>YES</strong></td><td>1.00</td><td>4</td></tr>
+    <tr><td><strong>D</strong></td><td>$120,000</td><td>$100,000</td><td><strong>120%</strong></td><td><strong>YES</strong></td><td>0.75</td><td>4</td></tr>
+    <tr><td><strong>B</strong></td><td>$120,000</td><td>$150,000</td><td><strong>80%</strong></td><td><strong>NO</strong></td><td>0.00</td><td>1</td></tr>
+    <tr><td><strong>C</strong></td><td>$400,000</td><td>$500,000</td><td><strong>80%</strong></td><td><strong>NO</strong></td><td>0.00</td><td>2</td></tr>
+    <tr><td><strong>E</strong></td><td>$80,000</td><td>$100,000</td><td><strong>80%</strong></td><td><strong>NO</strong></td><td>0.00</td><td>3</td></tr>
+  </tbody>
+</table>
+<p><em>Tie-handling note:</em> Reps B, C and E all attained 80% — <code>PERCENT_RANK</code> assigns ties the same lowest position (0.00). <code>NTILE(4)</code> distributes ties across adjacent quartiles deterministically (here by row order in the engine).</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "raw vs. relative" flip</h5>
+<p>Look at <strong>Rep C</strong> vs <strong>Rep D</strong>. <em>Raw amount:</em> Rep C ($400k) crushed Rep D ($120k). <em>Attainment:</em> Rep D is the winner at <strong>120%</strong> of goal; Rep C is an underperformer at <strong>80%</strong>. In most Sales Performance Management systems, Rep D earns a larger bonus despite the smaller absolute number — they're the most effective closer relative to expectations.</p>
+
+<h5>The "met target" boolean — your gatekeeper metric</h5>
+<p>The <code>CASE</code> creates a hard yes/no line. Even if a rep has a high <code>PERCENT_RANK</code>, if <code>met_target = 'NO'</code> they may not qualify for the President's Club or commission accelerators. This is the single most-asked column in any SPM dashboard review.</p>
+
+<h5><code>NTILE(4)</code> instead of <code>NTILE(100)</code> — quartiles for action</h5>
+<p>Quartile 4 = over-performers (accelerated commission). Quartiles 2-3 = on-track (standard). Quartile 1 = at-risk (manager coaching plan). Coarser tiles map cleanly to operational decisions; percentiles are too granular to drive action.</p>
+
+<h5>Why <code>attainment_ratio</code> lives in a CTE</h5>
+<p>Computing the ratio once and reusing it three times (in <code>attainment_pct</code>, <code>met_target</code>, and the two window functions) keeps the math single-source. Inline it everywhere and a future engineer changes one occurrence and forgets the others — the dashboard silently drifts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> the interviewer wants to hear that "ranking by amount" is the wrong question. The right question is "ranking by relative performance" — and <code>PERCENT_RANK</code> + <code>NTILE</code> are the two functions that turn that into actionable commission tiers.</div>
