@@ -295,6 +295,24 @@ function loadQuestion(qid /* , opts unused */) {
   $("#pg-q-co").textContent = q.company ? "🏢 " + q.company : "";
   $("#pg-q-diff").textContent = q.difficulty || "";
   $("#pg-q-type").textContent = [q.type, q.subtopic].filter(Boolean).join(" · ");
+  // Render auto-detected SQL technique tags (analytical-functions, joins, cte, …).
+  // Tags come from the bulk auto-tagger that scans each question's solution SQL.
+  const tagBox = $("#pg-q-tagchips");
+  if (tagBox) {
+    tagBox.innerHTML = "";
+    const tags = Array.isArray(q.tags) ? q.tags : [];
+    if (tags.length) {
+      for (const t of tags) {
+        const chip = document.createElement("span");
+        chip.className = "pg-q-tagchip pg-q-tag-" + t;
+        chip.textContent = t;
+        tagBox.appendChild(chip);
+      }
+      tagBox.hidden = false;
+    } else {
+      tagBox.hidden = true;
+    }
+  }
   // Show the problem text (community questions ship a real prompt) when present
   const promptBlock = $("#pg-q-prompt-block");
   const promptEl = $("#pg-q-prompt");

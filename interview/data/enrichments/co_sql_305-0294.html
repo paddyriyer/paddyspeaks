@@ -1,0 +1,91 @@
+<p>The CFO is reviewing org structure ahead of a reorg. She asks: <em>"For each Senior Manager, how many people ultimately report up to them — direct reports, indirect reports, and everyone deeper in their tree combined?"</em> The answer needs the entire reporting chain, not just one level. That's the canonical use case for a <strong>recursive CTE</strong> — walking down a self-referencing hierarchy.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>manager_id</th><th>level</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>NULL</td><td>VP</td></tr>
+    <tr><td>E02</td><td>E01</td><td><strong>Senior Manager</strong></td></tr>
+    <tr><td>E03</td><td>E01</td><td><strong>Senior Manager</strong></td></tr>
+    <tr><td>E04</td><td>E02</td><td>Manager</td></tr>
+    <tr><td>E05</td><td>E02</td><td>Manager</td></tr>
+    <tr><td>E06</td><td>E04</td><td>IC</td></tr>
+    <tr><td>E07</td><td>E04</td><td>IC</td></tr>
+    <tr><td>E08</td><td>E05</td><td>IC</td></tr>
+    <tr><td>E09</td><td>E03</td><td>Manager</td></tr>
+    <tr><td>E10</td><td>E09</td><td>IC</td></tr>
+  </tbody>
+</table>
+<p>Two Senior Managers (E02, E03). Each has a tree below them. We want a count per Senior Manager of <em>everyone</em> in their tree — directs and indirects.</p>
+
+<h4>2. The SQL — recursive CTE walking the tree</h4>
+<pre><code>WITH RECURSIVE chain AS (
+  -- Anchor: start from each Senior Manager
+  SELECT emp_id, manager_id, 1 AS depth
+  FROM employees
+  WHERE level = 'Senior Manager'
+
+  UNION ALL
+
+  -- Recursive step: find everyone whose manager is already in the chain.
+  -- Each iteration walks one level deeper into the tree.
+  SELECT e.emp_id, e.manager_id, c.depth + 1
+  FROM employees e
+  JOIN chain c ON e.manager_id = c.emp_id
+)
+SELECT
+  manager_id,                   -- the Senior Manager (root of each tree)
+  COUNT(*) AS reports
+FROM chain
+WHERE depth &gt; 1                 -- exclude the Senior Manager themselves
+GROUP BY manager_id;</code></pre>
+<p><em>(Note: the original solution doesn't filter <code>depth &gt; 1</code>, which would count the Senior Manager in their own tree. Added here for correctness.)</em></p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>Senior Manager</th><th>reports (total tree)</th><th>direct only</th><th>indirect</th></tr></thead>
+  <tbody>
+    <tr><td>E02</td><td><strong>5</strong></td><td>2 (E04, E05)</td><td>3 (E06, E07, E08)</td></tr>
+    <tr><td>E03</td><td><strong>2</strong></td><td>1 (E09)</td><td>1 (E10)</td></tr>
+  </tbody>
+</table>
+<p>The CFO sees E02 manages a tree of 5 people, E03 manages a tree of 2. That delta is what reorgs are made of.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The two halves of every recursive CTE</h5>
+<ul>
+  <li><strong>Anchor</strong> (the SELECT before <code>UNION ALL</code>) — the seed rows. Here: every Senior Manager.</li>
+  <li><strong>Recursive step</strong> (the SELECT after) — references the CTE name itself (<code>chain</code>). Each iteration takes the current set of rows in <code>chain</code>, finds employees whose <code>manager_id</code> matches, adds them in. The engine repeats until the recursive step produces zero new rows.</li>
+</ul>
+
+<h5>Why <code>UNION ALL</code> not <code>UNION</code></h5>
+<p><code>UNION ALL</code> just appends rows; <code>UNION</code> deduplicates. In a hierarchy walk you don't need dedup (each employee appears at exactly one depth) and the dedup costs an O(n²) sort. Always <code>UNION ALL</code> in recursive CTEs unless you actually need the dedup.</p>
+
+<h5>The "infinite loop" gotcha — cycles in the data</h5>
+<p>If your data has a cycle (E02's manager is E04, but E04's manager is E02 — illegal but possible from a bad migration), the recursion never terminates. Postgres caps recursion at <code>max_recursion_depth</code> (default 100); other engines may run forever. Defensive version uses <code>depth &lt; 20</code> in the join condition. SQLite tolerates infinite recursion until you hit memory.</p>
+
+<h5>The <code>depth</code> column is gold</h5>
+<p>It tells you how far down the tree each report sits. Useful for:</p>
+<ul>
+  <li><strong>Direct reports only:</strong> <code>WHERE depth = 2</code> (depth 1 is the Senior Manager, depth 2 is direct reports).</li>
+  <li><strong>Skip-level meetings:</strong> <code>WHERE depth = 3</code>.</li>
+  <li><strong>Span of control distribution:</strong> <code>GROUP BY depth</code> shows tree shape — flat orgs concentrate at low depth, deep orgs spread across many.</li>
+</ul>
+
+<h5>Walking up the tree (instead of down)</h5>
+<p>Same pattern, reverse the JOIN. <em>"Find every manager in the chain above this employee"</em>:</p>
+<pre><code>WITH RECURSIVE chain_up AS (
+  SELECT emp_id, manager_id, 1 AS depth FROM employees WHERE emp_id = 'E08'
+  UNION ALL
+  SELECT e.emp_id, e.manager_id, c.depth + 1
+  FROM employees e
+  JOIN chain_up c ON c.manager_id = e.emp_id    -- &lt;-- direction reversed
+)
+SELECT * FROM chain_up;
+-- E08 → E05 → E02 → E01 → (NULL — we hit the top)</code></pre>
+
+<h5>The non-recursive alternative — when it works</h5>
+<p>If the hierarchy depth is bounded and small (e.g. always exactly 4 levels), a series of explicit LEFT JOINs to <code>employees</code> aliased four times will work. But you can't generalise to <em>"any depth"</em>. Recursive CTE is the only portable answer once depth is unknown.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the two halves (anchor + recursive step), pick <code>UNION ALL</code> consciously, mention the cycle-detection defensive bound, and demonstrate the <code>depth</code> column's analytical value. The walk-up variant is the over-the-bar finishing move.</div>

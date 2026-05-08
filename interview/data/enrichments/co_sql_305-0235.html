@@ -1,0 +1,77 @@
+<p>An on-call engineer is paged at 2am: <em>"the daily ETL pipeline only loaded 4.3M rows last night instead of the usual 5M."</em> The first question is always: <em>"are we missing log_ids?"</em> A row-by-row check is impossible at that scale — the canonical SQL answer is <strong>gap-and-island detection with <code>LAG</code></strong>. Same pattern flags missing invoice numbers, missing transaction sequences, missing event IDs in any append-only stream.</p>
+
+<h4>1. The source data — <code>logs</code></h4>
+<p>An ingest pipeline writes monotonic <code>log_id</code>s. In healthy operation, IDs are dense (1, 2, 3, 4...). When ingest is incomplete, gaps appear.</p>
+<table>
+  <thead><tr><th>log_id</th><th>(state)</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>OK</td></tr>
+    <tr><td>2</td><td>OK</td></tr>
+    <tr><td>3</td><td>OK</td></tr>
+    <tr><td>7</td><td><strong>← gap of 4-6 before</strong></td></tr>
+    <tr><td>8</td><td>OK</td></tr>
+    <tr><td>9</td><td>OK</td></tr>
+    <tr><td>15</td><td><strong>← gap of 10-14 before</strong></td></tr>
+    <tr><td>16</td><td>OK</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — <code>LAG</code> + arithmetic difference</h4>
+<pre><code>WITH ids AS (
+  SELECT log_id,
+         LAG(log_id) OVER (ORDER BY log_id) AS prev
+  FROM logs
+)
+SELECT
+  prev + 1     AS gap_start,    -- first missing id
+  log_id - 1   AS gap_end       -- last missing id
+FROM ids
+WHERE log_id - prev &gt; 1;        -- non-adjacent rows = a gap</code></pre>
+
+<h4>3. The resulting gap report</h4>
+<table>
+  <thead><tr><th>gap_start</th><th>gap_end</th><th>missing_count</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>6</td><td>3 IDs</td></tr>
+    <tr><td>10</td><td>14</td><td>5 IDs</td></tr>
+  </tbody>
+</table>
+<p>On-call now knows exactly which ID ranges to backfill. Add <code>(log_id - prev - 1) AS missing_count</code> to the SELECT for the third column.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> beats a self-join here</h5>
+<p>The naïve solution is <code>SELECT a.log_id+1 FROM logs a LEFT JOIN logs b ON b.log_id = a.log_id+1 WHERE b.log_id IS NULL</code>. That works but does an O(n²) self-join in the worst case. <code>LAG</code> is a single sorted pass — same answer, far cheaper. On a million-row log table, the self-join takes minutes; <code>LAG</code> takes seconds.</p>
+
+<h5>The first row gotcha — <code>LAG</code> returns NULL</h5>
+<p>For the very first row in the partition, <code>LAG</code> returns NULL. Our <code>WHERE log_id - prev &gt; 1</code> filter excludes that row automatically (NULL arithmetic = NULL = filtered out). But if the first <em>expected</em> ID is 1 and the actual first row is 5, the gap from 1-4 is invisible. Fix: anchor with a known boundary:</p>
+<pre><code>WITH ids AS (
+  SELECT log_id,
+    COALESCE(
+      LAG(log_id) OVER (ORDER BY log_id),
+      0                              -- assume gap starts at id=1
+    ) AS prev
+  FROM logs
+)
+SELECT prev + 1 AS gap_start, log_id - 1 AS gap_end
+FROM ids
+WHERE log_id - prev &gt; 1;</code></pre>
+
+<h5>The "missing range" pattern is a gap-and-islands cousin</h5>
+<p>Same shape works on dates (<em>"which days had no orders?"</em>), transaction IDs (<em>"which invoice numbers were skipped — possible voided invoices?"</em>), and time-bucketed metrics (<em>"which 5-minute windows had zero pings — outage?"</em>). The function family is always: <code>LAG</code> for the previous expected anchor, arithmetic difference for the gap test, optional date-spine for buckets that should always exist.</p>
+
+<h5>The follow-up: detect gaps within a partition</h5>
+<p>Real systems have multiple log streams (one log_id sequence per service). The gap detection has to run per-service:</p>
+<pre><code>WITH ids AS (
+  SELECT service_name, log_id,
+    LAG(log_id) OVER (PARTITION BY service_name ORDER BY log_id) AS prev
+  FROM logs
+)
+SELECT service_name, prev + 1 AS gap_start, log_id - 1 AS gap_end
+FROM ids
+WHERE log_id - prev &gt; 1;</code></pre>
+
+<h5>Why this query goes in the on-call playbook</h5>
+<p>Gap detection is the first triage step for any append-only data quality issue. Senior data engineers keep a parameterised version of this query in their on-call playbook — point it at any sequence column, get the missing ranges in seconds.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the pattern (<em>gap detection via LAG</em>), volunteer the first-row gotcha unprompted, and demonstrate the per-partition variant. Bonus: show how this generalises to date-spine queries for missing days/hours.</div>
