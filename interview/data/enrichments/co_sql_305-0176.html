@@ -1,0 +1,77 @@
+<p>Cart abandonment is the single highest-leverage e-commerce metric. Reducing it by 1 percentage point on a $1B-annual store recovers $10M. Every checkout team at Amazon / Shopify / Target watches this number daily. The query is one line; the trap is what counts as "abandoned" and how to slice the metric to find the broken step.</p>
+
+<h4>1. The source data — <code>sessions</code></h4>
+<table>
+  <thead><tr><th>session_id</th><th>added_to_cart</th><th>checked_out</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>S_001</td><td>1</td><td>1</td><td>added &amp; converted</td></tr>
+    <tr><td>S_002</td><td>1</td><td>0</td><td><strong>added but abandoned ⚠</strong></td></tr>
+    <tr><td>S_003</td><td>0</td><td>0</td><td>browsed, didn't add (not abandoned)</td></tr>
+    <tr><td>S_004</td><td>1</td><td>1</td><td>added &amp; converted</td></tr>
+    <tr><td>S_005</td><td>1</td><td>0</td><td><strong>added but abandoned ⚠</strong></td></tr>
+    <tr><td>S_006</td><td>1</td><td>0</td><td><strong>added but abandoned ⚠</strong></td></tr>
+    <tr><td>S_007</td><td>0</td><td>0</td><td>browsed, didn't add</td></tr>
+    <tr><td>S_008</td><td>1</td><td>1</td><td>added &amp; converted</td></tr>
+  </tbody>
+</table>
+<p>8 sessions. 5 added to cart; 3 of those abandoned (didn't check out). Two browse-only sessions don't count toward the abandonment metric — they never added anything to abandon.</p>
+
+<h4>2. The SQL — conditional aggregation</h4>
+<pre><code>SELECT
+  100.0 * SUM(CASE WHEN added_to_cart AND NOT checked_out THEN 1 ELSE 0 END)
+        / NULLIF(SUM(CASE WHEN added_to_cart THEN 1 ELSE 0 END), 0) AS abandon_rate
+FROM sessions;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>abandon_rate</th></tr></thead>
+  <tbody>
+    <tr><td><strong>60.0%</strong></td></tr>
+  </tbody>
+</table>
+<p>3 abandons ÷ 5 add-to-cart sessions × 100 = 60%. (Industry baseline is around 70% — this fictional store is slightly better than average.) The CRO sees this number and asks: <em>"Where in the checkout flow are we losing them?"</em> — which the next query answers.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The denominator is "added_to_cart", not all sessions</h5>
+<p>The most common bug in cart-abandonment queries: dividing by total sessions instead of carted sessions. That dilutes the metric — a store with 10x more browse-only traffic looks like its abandonment dropped, when nothing changed at the cart step. The right denominator is <code>SUM(added_to_cart)</code>; sessions that never added anything aren't candidates for abandonment.</p>
+
+<h5>SQLite handles boolean columns as integers</h5>
+<p><code>added_to_cart AND NOT checked_out</code> works in SQLite because BOOLEAN is stored as INTEGER (0/1). In MySQL / Postgres it works because they have native BOOL. In Snowflake also fine. The query is dialect-portable as written. Just don't expect <code>WHERE added_to_cart = TRUE</code> to work in older SQLite — use <code>WHERE added_to_cart = 1</code> or just <code>WHERE added_to_cart</code> (which both engines coerce).</p>
+
+<h5>The funnel-step breakdown — the question that always comes next</h5>
+<p>Single-number abandonment is the headline. The actionable version slices by funnel step:</p>
+<pre><code>SELECT
+  COUNT(*) FILTER (WHERE viewed_product)               AS step_1_viewed,
+  COUNT(*) FILTER (WHERE added_to_cart)                AS step_2_added,
+  COUNT(*) FILTER (WHERE entered_checkout)             AS step_3_checkout,
+  COUNT(*) FILTER (WHERE entered_payment)              AS step_4_payment,
+  COUNT(*) FILTER (WHERE checked_out)                  AS step_5_purchased,
+  -- conversion ratios between steps
+  ROUND(100.0 * COUNT(*) FILTER (WHERE added_to_cart)
+        / NULLIF(COUNT(*) FILTER (WHERE viewed_product), 0), 1) AS view_to_add_pct,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE checked_out)
+        / NULLIF(COUNT(*) FILTER (WHERE added_to_cart), 0),  1) AS add_to_buy_pct
+FROM sessions;</code></pre>
+<p>Each step's drop-off rate localises the problem. If <code>step_3 → step_4</code> drops 40%, it's a payment-flow issue; if <code>step_2 → step_3</code> drops 50%, it's the cart UX or shipping reveal.</p>
+
+<h5>Time-segmented abandonment — for cohort experiments</h5>
+<p>When the team A/B tests a new checkout flow, slicing abandonment by experiment variant is the win condition:</p>
+<pre><code>SELECT variant_id,
+  ROUND(100.0 * SUM(CASE WHEN added_to_cart AND NOT checked_out THEN 1 ELSE 0 END)
+              / NULLIF(SUM(CASE WHEN added_to_cart THEN 1 ELSE 0 END), 0), 1) AS abandon_rate
+FROM sessions JOIN ab_assignments USING (session_id)
+GROUP BY variant_id;</code></pre>
+<p>Variant with lower abandonment wins (assuming sample size + statistical significance).</p>
+
+<h5>"Recovered" carts — the email-reminder layer</h5>
+<p>Many e-commerce platforms send a reminder email 1-3 hours after abandon. Recovered carts (added → abandoned → returned later → converted) flip from abandon to convert. Production query needs a <code>last_event_ts</code> + a 24-hour window to handle this:</p>
+<pre><code>-- Sessions classed as "abandoned" only if no checkout within 24h of last cart add
+WHERE added_to_cart
+  AND NOT EXISTS (
+    SELECT 1 FROM checkouts c
+    WHERE c.session_id = sessions.session_id
+      AND c.checked_out_ts &lt;= sessions.last_cart_add_ts + INTERVAL '24 hours'
+  )</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> the right denominator (added-to-cart, not all-sessions) is the basic bar. Volunteering the funnel-step breakdown and the A/B variant slice is what moves the answer up. The "recovered carts" 24-hour window is over-the-bar — most candidates miss it.</div>

@@ -1,0 +1,87 @@
+<p>Search query frequency follows an extreme power-law distribution. The top 1% of queries (head terms like "weather", "youtube") account for 30%+ of all volume; the bottom 99% are the long tail of typos, niche queries, and one-shot searches. The mean is dominated by the head and lies; the median is the actual "typical" query frequency. Computing the median in SQL is a class of question every analytics engineer hits.</p>
+
+<h4>1. The source data — <code>searches</code></h4>
+<p>10 query terms with their daily search counts. Most are small; a few head terms blow up the mean.</p>
+<table>
+  <thead><tr><th>query</th><th>freq</th></tr></thead>
+  <tbody>
+    <tr><td>"how to tie a tie"</td><td>1,200</td></tr>
+    <tr><td>"weather"</td><td>2,800,000</td></tr>
+    <tr><td>"reciept printer error e-12"</td><td>14</td></tr>
+    <tr><td>"youtube"</td><td>5,400,000</td></tr>
+    <tr><td>"obscure 1976 b-movie name"</td><td>3</td></tr>
+    <tr><td>"facebook"</td><td>3,200,000</td></tr>
+    <tr><td>"stocks"</td><td>180,000</td></tr>
+    <tr><td>"calculator"</td><td>620,000</td></tr>
+    <tr><td>"weath"  <em>(typo)</em></td><td>22</td></tr>
+    <tr><td>"how to fold a fitted sheet"</td><td>4,500</td></tr>
+  </tbody>
+</table>
+<p>Mean = (sum) / 10 ≈ <strong>1.22M</strong>. Median = (5th + 6th by sort) / 2. The mean is wildly misleading — most queries are run a handful of times.</p>
+
+<h4>2. The SQL — <code>PERCENTILE_CONT</code></h4>
+<pre><code>SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY freq) AS median_freq
+FROM searches;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Sort the 10 frequencies: 3, 14, 22, 1.2K, 4.5K, <strong>180K, 620K</strong>, 3.2M, 5.4M, 2.8M.
+Re-sorted: 3, 14, 22, 1200, 4500, 180000, 620000, 2800000, 3200000, 5400000.
+The 5th and 6th values are 4,500 and 180,000 → median = 92,250.</p>
+<table>
+  <thead><tr><th>median_freq</th></tr></thead>
+  <tbody>
+    <tr><td><strong>92,250</strong></td></tr>
+  </tbody>
+</table>
+<p>Compare to mean (1,220,485): the median is 92,250 — <strong>13× smaller</strong>. The mean told you "queries run on average 1.2M times"; the median tells the truth: "half of queries run fewer than 92K times". Both are correct; only one is honest about the long tail.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>PERCENTILE_CONT</code> not <code>AVG</code></h5>
+<p><code>AVG(freq)</code> is the mean — distorted by the head. <code>PERCENTILE_CONT(0.5)</code> is the median — robust to outliers. For any power-law distribution (search frequency, income, file sizes, transaction amounts), the median is what stakeholders actually want even when they ask for the "average". Senior analytics engineers volunteer this distinction unprompted.</p>
+
+<h5>The dialect note — <code>PERCENTILE_CONT</code> is Postgres / Snowflake / BigQuery</h5>
+<p>The query above runs in Postgres, Snowflake, BigQuery, Oracle, SQL Server. <strong>It does not run in SQLite (or older MySQL).</strong> The SQLite-portable workaround uses window-function ranking:</p>
+<pre><code>-- SQLite-friendly median via row ranking
+WITH ranked AS (
+  SELECT freq,
+    ROW_NUMBER() OVER (ORDER BY freq)                 AS rn,
+    COUNT(*) OVER ()                                   AS total
+  FROM searches
+)
+SELECT AVG(freq) AS median_freq
+FROM ranked
+WHERE rn IN ((total + 1) / 2, (total + 2) / 2);
+-- For 10 rows: rn IN (5, 6) → average of the 5th and 6th values.
+-- For 11 rows: rn IN (6, 6) → just the 6th value.</code></pre>
+
+<h5><code>PERCENTILE_CONT</code> vs <code>PERCENTILE_DISC</code></h5>
+<p>Same syntax, subtly different math:</p>
+<ul>
+  <li><strong><code>PERCENTILE_CONT</code></strong> — interpolates between the two surrounding values when the rank is fractional. <em>"continuous"</em>. Smooth.</li>
+  <li><strong><code>PERCENTILE_DISC</code></strong> — picks the actual nearest value (no interpolation). <em>"discrete"</em>. Always returns a real data point.</li>
+</ul>
+<p>For 10 rows, the 50th percentile is technically between rank 5 and 6 — <code>CONT</code> interpolates the average; <code>DISC</code> just returns the 5th. For finance / regulatory reports requiring an actual data point (no synthesised values), use <code>DISC</code>. For everything else, <code>CONT</code> is fine.</p>
+
+<h5>Multiple percentiles in one pass — the dashboard query</h5>
+<p>Real reporting doesn't stop at the median — analytics teams want p10, p25, p50, p75, p90, p95, p99 in one row:</p>
+<pre><code>SELECT
+  PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY freq) AS p10,
+  PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY freq) AS p25,
+  PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY freq) AS p50,
+  PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY freq) AS p75,
+  PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY freq) AS p90,
+  PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY freq) AS p99,
+  AVG(freq)                                             AS mean
+FROM searches;</code></pre>
+<p>The gap between p99 and mean tells you how heavy-tailed the distribution is. p99 / median is the "skew ratio" data scientists watch.</p>
+
+<h5>The over-the-bar finish: per-group medians</h5>
+<p>Search frequency by category (medical / commercial / news / etc.) makes the long-tail comparison even more interesting:</p>
+<pre><code>SELECT
+  category,
+  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY freq) AS median_freq
+FROM searches
+GROUP BY category;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <em>median is robust to outliers</em>, mention the dialect difference (PERCENTILE_CONT works in Postgres/Snowflake/BigQuery, NOT SQLite — so this question is flagged non-sqlite in the playground), volunteer the SQLite workaround using ROW_NUMBER, and pre-empt the multi-percentile dashboard query. The PERCENTILE_CONT vs DISC distinction is the over-the-bar move.</div>
