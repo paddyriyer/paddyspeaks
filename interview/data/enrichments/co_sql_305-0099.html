@@ -1,0 +1,77 @@
+<p>Click-through rate is the single most-stared-at metric in product analytics. Every PM dashboard has it; every growth experiment moves on it. The SQL is a one-liner — but the gotchas (zero-impression denominators, mis-counted clicks, multi-impression sessions) are where every shipping CTR query goes wrong.</p>
+
+<h4>1. The source data — <code>app_events</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>event_type</th><th>(annotation)</th></tr></thead>
+  <tbody>
+    <tr><td>U_42</td><td>impression</td><td>card shown on feed</td></tr>
+    <tr><td>U_42</td><td>impression</td><td>same card, second time</td></tr>
+    <tr><td>U_42</td><td>click</td><td>finally clicked</td></tr>
+    <tr><td>U_43</td><td>impression</td><td>card shown</td></tr>
+    <tr><td>U_43</td><td>impression</td><td>scrolled past</td></tr>
+    <tr><td>U_44</td><td>impression</td><td>shown</td></tr>
+    <tr><td>U_44</td><td>click</td><td>clicked</td></tr>
+    <tr><td>U_45</td><td>click</td><td><strong>orphan click — no impression?</strong></td></tr>
+  </tbody>
+</table>
+<p>8 events: 5 impressions, 3 clicks. Notice U_45's click without an impression — possibly a logging order issue, possibly a pre-loaded card, possibly a producer bug.</p>
+
+<h4>2. The SQL — conditional aggregation in a single pass</h4>
+<pre><code>SELECT
+  100.0 * SUM(CASE WHEN event_type = 'click'      THEN 1 ELSE 0 END) /
+  NULLIF(  SUM(CASE WHEN event_type = 'impression' THEN 1 ELSE 0 END), 0) AS ctr_pct
+FROM app_events;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>ctr_pct</th></tr></thead>
+  <tbody>
+    <tr><td><strong>60.0%</strong></td></tr>
+  </tbody>
+</table>
+<p>3 clicks ÷ 5 impressions × 100 = 60% — extraordinarily high (real CTR is usually &lt;5%). The orphan click from U_45 inflated it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>NULLIF(... , 0)</code> matters more than it looks</h5>
+<p>If a particular surface had zero impressions on a given day (rare but real — a feature flag killed it, an outage, a brand-new feature with no traffic yet), the denominator is 0 and the query <strong>crashes with a division-by-zero error</strong>. <code>NULLIF</code> turns the 0 into NULL; dividing by NULL gives NULL; the dashboard shows "—" instead of erroring. Always wrap denominators of rate metrics with <code>NULLIF</code>.</p>
+
+<h5>The "orphan click" problem — should U_45 count?</h5>
+<p>Click-without-impression usually means one of:</p>
+<ul>
+  <li><strong>Logging race condition</strong> — the click event landed before the impression event due to network reordering. Production systems usually accept these as legit.</li>
+  <li><strong>Pre-loaded card</strong> — the impression was on a previous session that wasn't logged.</li>
+  <li><strong>Producer bug</strong> — the impression beacon failed but the click beacon succeeded.</li>
+</ul>
+<p>The query above counts orphan clicks. To exclude them, switch to a join-based version that requires a matching impression first:</p>
+<pre><code>WITH paired AS (
+  SELECT user_id,
+    MAX(CASE WHEN event_type = 'impression' THEN 1 END) AS had_impression,
+    MAX(CASE WHEN event_type = 'click'      THEN 1 END) AS had_click
+  FROM app_events
+  GROUP BY user_id
+)
+SELECT 100.0 * COUNT(*) FILTER (WHERE had_click = 1)
+       / NULLIF(COUNT(*) FILTER (WHERE had_impression = 1), 0) AS ctr_pct
+FROM paired
+WHERE had_impression = 1;
+-- Now CTR is per-user (not per-event) and orphan clicks are excluded.</code></pre>
+
+<h5>Per-event vs per-user CTR — different metrics</h5>
+<p>The naïve query is <em>per-event</em>: 3 clicks / 5 impressions = 60%. The senior version is <em>per-user</em>: of the 3 users who saw an impression, how many clicked? 2 out of 3 = 66.7%. They tell different stories — make sure you know which one the PM asked for.</p>
+
+<h5>Multi-impression sessions and click attribution</h5>
+<p>U_42 had 2 impressions before clicking. Should that count as 1 click / 2 impressions (50%) or 1 click / 1 impression (100%)? Production systems define <strong>impression-to-click attribution windows</strong> — usually first-impression credit (CTR = clicks / first-impressions). Under that model, U_42 = 1 click / 1 first-impression = 100%.</p>
+
+<h5>Daily / weekly / per-surface breakdowns</h5>
+<p>The single-number CTR is dashboard wallpaper. The useful version slices by time and surface:</p>
+<pre><code>SELECT
+  DATE(event_ts)                                                          AS day,
+  surface,                                                                  -- e.g. feed, story, reel
+  100.0 * SUM(CASE WHEN event_type='click'      THEN 1 ELSE 0 END) /
+  NULLIF( SUM(CASE WHEN event_type='impression' THEN 1 ELSE 0 END), 0)    AS ctr_pct
+FROM app_events
+GROUP BY DATE(event_ts), surface
+ORDER BY day, surface;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the per-event vs per-user distinction unprompted, mention <code>NULLIF</code> as the division-safety contract, and pre-empt the breakdown follow-up. The orphan-click handling is the over-the-bar move — it's the kind of edge case that comes up in real production CTR audits.</div>

@@ -1,0 +1,99 @@
+<p>The growth team wants the list of <strong>VIP customers</strong> for a holiday-season targeted email campaign — defined as customers with <em>both</em> high frequency (more than 5 orders) <em>and</em> high spend (more than $500 lifetime). Either signal alone is too loose: a customer with 20 small orders is just a window-shopper; a customer with one big order is one-shot. The intersection is the right cohort.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>$120</td></tr>
+    <tr><td>C_001</td><td>$95</td></tr>
+    <tr><td>C_001</td><td>$80</td></tr>
+    <tr><td>C_001</td><td>$140</td></tr>
+    <tr><td>C_001</td><td>$110</td></tr>
+    <tr><td>C_001</td><td>$75</td></tr>
+    <tr><td>C_002</td><td>$25</td></tr>
+    <tr><td>C_002</td><td>$30</td></tr>
+    <tr><td>C_002</td><td>$22</td></tr>
+    <tr><td>C_002</td><td>$28</td></tr>
+    <tr><td>C_002</td><td>$24</td></tr>
+    <tr><td>C_002</td><td>$26</td></tr>
+    <tr><td>C_002</td><td>$31</td></tr>
+    <tr><td>C_003</td><td>$890</td></tr>
+    <tr><td>C_004</td><td>$1,200</td></tr>
+    <tr><td>C_004</td><td>$95</td></tr>
+  </tbody>
+</table>
+<p>4 customers, mixed frequency/spend profiles. Goal: who hits BOTH thresholds?</p>
+
+<h4>2. The SQL — <code>HAVING</code> with double condition</h4>
+<pre><code>SELECT
+  customer_id,
+  COUNT(*)    AS n,
+  SUM(amount) AS total
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(*) &gt; 5
+   AND SUM(amount) &gt; 500;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Walk through each customer:</p>
+<table>
+  <thead><tr><th>customer_id</th><th>n (count)</th><th>total ($)</th><th>n &gt; 5?</th><th>total &gt; 500?</th><th>VIP?</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>6</td><td>$620</td><td>✓</td><td>✓</td><td><strong>YES — VIP</strong></td></tr>
+    <tr><td>C_002</td><td>7</td><td>$186</td><td>✓</td><td>✗</td><td>no — too cheap</td></tr>
+    <tr><td>C_003</td><td>1</td><td>$890</td><td>✗</td><td>✓</td><td>no — one-shot</td></tr>
+    <tr><td>C_004</td><td>2</td><td>$1,295</td><td>✗</td><td>✓</td><td>no — infrequent</td></tr>
+  </tbody>
+</table>
+<p>Final query output (1 row, the VIP only):</p>
+<table>
+  <thead><tr><th>customer_id</th><th>n</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>6</td><td>$620</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>HAVING vs WHERE — the universal confusion</h5>
+<p><code>WHERE</code> filters individual rows BEFORE aggregation. <code>HAVING</code> filters AGGREGATED groups AFTER. You can't write <code>WHERE COUNT(*) &gt; 5</code> — there's no aggregation yet at the WHERE phase. Use <code>HAVING</code> for aggregate-conditions; <code>WHERE</code> for row-conditions. Often both apply in the same query:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS n, SUM(amount) AS total
+FROM orders
+WHERE order_date &gt;= '2025-01-01'           -- per-row filter
+  AND amount &gt; 0                            -- per-row filter
+GROUP BY customer_id
+HAVING COUNT(*) &gt; 5                         -- per-group filter
+   AND SUM(amount) &gt; 500;                   -- per-group filter</code></pre>
+
+<h5>Both conditions intersect — AND vs OR matters a lot</h5>
+<p>Replace <code>AND</code> with <code>OR</code> and the cohort changes: anyone with EITHER 5+ orders OR $500+ spend qualifies. That'd include C_001, C_002 (frequent), C_003 (high spend), and C_004 (high spend) — almost everyone. The marketing team has to pick: AND for tight precision, OR for wide reach. The choice is product strategy, not SQL.</p>
+
+<h5>The dollar threshold trap — choose your time window</h5>
+<p>The query above measures <em>lifetime</em> spend. A customer who spent $500 over 5 years isn't a current VIP. The actionable version filters by recency:</p>
+<pre><code>WHERE order_date &gt;= CURRENT_DATE - INTERVAL '90 days'  -- last 90 days only
+GROUP BY customer_id
+HAVING COUNT(*) &gt; 5 AND SUM(amount) &gt; 500;</code></pre>
+
+<h5>Why this works without a CTE</h5>
+<p>The naïve attempt is to compute aggregates in a CTE first, then filter:</p>
+<pre><code>WITH stats AS (
+  SELECT customer_id, COUNT(*) AS n, SUM(amount) AS total
+  FROM orders GROUP BY customer_id
+)
+SELECT * FROM stats WHERE n &gt; 5 AND total &gt; 500;</code></pre>
+<p>This works fine and reads more clearly. <code>HAVING</code> is the equivalent that avoids the CTE wrapper. Pick CTE when you need to reuse the aggregates downstream (e.g. for a window function); pick <code>HAVING</code> when filtering is the only thing you need.</p>
+
+<h5>The over-the-bar finish: tier the VIPs</h5>
+<p>Sometimes the marketing team wants tiers, not a single bucket. Use <code>CASE</code> to assign tiers based on which thresholds get crossed:</p>
+<pre><code>SELECT customer_id,
+  COUNT(*) AS n, SUM(amount) AS total,
+  CASE
+    WHEN COUNT(*) &gt; 10 AND SUM(amount) &gt; 1000 THEN 'Diamond'
+    WHEN COUNT(*) &gt; 5  AND SUM(amount) &gt; 500  THEN 'Gold'
+    WHEN COUNT(*) &gt; 5  OR  SUM(amount) &gt; 500  THEN 'Silver'
+    ELSE                                          'Bronze'
+  END AS tier
+FROM orders GROUP BY customer_id
+HAVING COUNT(*) &gt; 5 OR SUM(amount) &gt; 500;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the WHERE-vs-HAVING distinction unprompted, name the AND-vs-OR cohort-size trade-off, and pre-empt the time-window question. The CTE-vs-HAVING equivalence and the tier-assignment finish are the over-the-bar moves.</div>
