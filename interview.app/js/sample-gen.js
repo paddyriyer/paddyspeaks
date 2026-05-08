@@ -31,7 +31,7 @@ const CITY_POOL = ["Bengaluru", "Singapore", "Berlin", "Lagos", "Lima", "Tokyo",
 const COUNTRY_POOL = ["IN", "US", "DE", "BR", "JP", "NG", "GB", "FR", "AU", "SG"];
 const DEPT_POOL = ["Engineering", "Marketing", "Sales", "Finance", "HR", "Product", "Data", "Ops", "Design"];
 const CATEGORY_POOL = ["Electronics", "Books", "Apparel", "Home", "Toys", "Sports", "Beauty", "Grocery"];
-const STATUS_POOL = ["pending", "active", "completed", "cancelled", "shipped", "failed"];
+const STATUS_POOL = ["pending", "active", "inactive", "completed", "cancelled", "shipped", "failed", "up", "down"];
 const PLATFORM_POOL = ["ios", "android", "web", "macos", "windows"];
 const CHANNEL_POOL = ["organic", "paid", "email", "referral", "social"];
 const METHOD_POOL = ["card", "cash", "wire", "ach", "wallet"];
@@ -181,7 +181,7 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
       if (c === "gender") return pick(rng, ["F", "M", "X"]);
       if (c === "currency") return pick(rng, ["USD", "EUR", "INR", "JPY", "GBP"]);
       if (c === "sector") return pick(rng, ["Tech", "Retail", "Health", "Finance", "Energy"]);
-      if (c === "level") return pick(rng, ["L3", "L4", "L5", "L6", "L7"]);
+      if (c === "level") return pick(rng, ["IC", "Manager", "Senior Manager", "Director", "VP"]);
       if (c === "job_title") return pick(rng, ["Engineer", "Manager", "Analyst", "Designer", "PM", "Director"]);
       if (c === "manufacturer") return pick(rng, ["Acme", "Globex", "Initech", "Umbrella", "Wayne"]);
       if (c === "tier") return pick(rng, ["bronze", "silver", "gold", "platinum"]);
