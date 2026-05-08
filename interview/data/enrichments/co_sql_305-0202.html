@@ -1,0 +1,180 @@
+<p>"Streak" looks innocent: <em>which customers shop several days in a row?</em> But the engine that powers it &mdash; the <strong>gaps-and-islands</strong> trick &mdash; is one of the most-misunderstood SQL patterns. The query below is the textbook one-liner. The senior layer is what comes <em>after</em>: turning streaks into a lifecycle (continuing / resurrected / long-resurrect / churned / open) that drives retention dashboards.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>persona (narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>2026-03-01 ... 03-05</td><td>5-day streak, gap, then 3-day streak Mar 12-14 &mdash; <strong>Habitual</strong></td></tr>
+    <tr><td>U_002</td><td>2025-12-10 ... 12-12</td><td>active in December, gone for months, returns Mar 26 &mdash; <strong>Long Resurrect</strong></td></tr>
+    <tr><td>U_003</td><td>2026-02-15</td><td>one order, 6 weeks ago, never came back &mdash; <strong>Churned</strong></td></tr>
+    <tr><td>U_004</td><td>2026-03-28, 03-29</td><td>fresh customer, 2 days, hasn't returned yet &mdash; <strong>Open</strong></td></tr>
+    <tr><td>U_005</td><td>2026-03-10, 12, 14, 16</td><td>every-other-day &mdash; <strong>Non-Streak</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; gaps-and-islands via <code>date - ROW_NUMBER</code></h4>
+<pre><code>WITH d AS (
+  SELECT DISTINCT customer_id, order_date FROM orders
+),
+ranked AS (
+  SELECT customer_id, order_date,
+    order_date - (ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date))::int AS grp
+  FROM d
+)
+SELECT customer_id, COUNT(*) AS streak
+FROM ranked
+GROUP BY customer_id, grp;</code></pre>
+
+<h4>3. The trick &mdash; why <code>date - row_number</code> identifies an island</h4>
+<p>Within a streak, both <code>order_date</code> and <code>row_number</code> increment by 1 each step &mdash; so their difference is constant. The moment a date skips, <code>order_date</code> jumps but <code>row_number</code> only ticks by 1; the difference shifts. Group by that difference and you've grouped by streak.</p>
+<table>
+  <thead><tr><th>date</th><th>day_number (or JD)</th><th>row_number (per user)</th><th>island_id = day - rn</th></tr></thead>
+  <tbody>
+    <tr><td>Mar 01</td><td>60</td><td>1</td><td><strong>59</strong></td></tr>
+    <tr><td>Mar 02</td><td>61</td><td>2</td><td><strong>59</strong></td></tr>
+    <tr><td>Mar 03</td><td>62</td><td>3</td><td><strong>59</strong></td></tr>
+    <tr><td>Mar 04</td><td>63</td><td>4</td><td><strong>59</strong></td></tr>
+    <tr><td>Mar 05</td><td>64</td><td>5</td><td><strong>59</strong></td></tr>
+    <tr><td><em>(gap Mar 06-11)</em></td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td></tr>
+    <tr><td>Mar 12</td><td>71</td><td>6</td><td><strong>65</strong></td></tr>
+    <tr><td>Mar 13</td><td>72</td><td>7</td><td><strong>65</strong></td></tr>
+    <tr><td>Mar 14</td><td>73</td><td>8</td><td><strong>65</strong></td></tr>
+  </tbody>
+</table>
+<p>Two distinct island IDs (<strong>59</strong> and <strong>65</strong>) &rarr; two streaks. The "first-row-of-island" date subtracted from the row counter creates a constant within each consecutive run.</p>
+
+<h4>4. Persona walk-through &mdash; what each user produces</h4>
+
+<h5>Persona A &mdash; U_001 "Habitual"</h5>
+<p>5 dates in a row (Mar 01-05), gap, 3 dates in a row (Mar 12-14). Two distinct <code>grp</code> values, the GROUP BY emits two rows: <code>streak=5</code> and <code>streak=3</code>. The longest streak (the relevant signal) is captured by an outer <code>MAX</code>:</p>
+<pre><code>SELECT customer_id, MAX(streak) AS longest_streak FROM (
+  /* the original query */
+) GROUP BY customer_id;</code></pre>
+
+<h5>Persona B &mdash; U_002 "Long Resurrect"</h5>
+<p>Active Dec 10-12, gone, returns Mar 26. The gaps-and-islands trick produces two streaks: <code>(Dec 10-12, streak=3)</code> and <code>(Mar 26, streak=1)</code>. The 103-day gap between island_2.first and island_1.last is the lifecycle signal &mdash; you classify this user as <em>long_resurrect</em> after the streak detection completes.</p>
+
+<h5>Persona C &mdash; U_003 "Churned"</h5>
+<p>One order Feb 15, never returns. Just one island, streak=1. The lifecycle layer (next paragraph) flags this user as churned because today &minus; last_order &gt; 90 days and there's no next island to resurrect.</p>
+
+<h5>Persona D &mdash; U_004 "Open"</h5>
+<p>Two consecutive days Mar 28-29, no follow-up yet. One island, streak=2. Today &minus; last_order &le; 90 days &rarr; <em>still in grace period</em>. Renewal-marketing eligible but not panicking yet.</p>
+
+<h5>Persona E &mdash; U_005 "Non-Streak"</h5>
+<p>Every other day &mdash; Mar 10, 12, 14, 16. <strong>Each login creates a new island</strong> because the date-rn difference shifts every time:</p>
+<table>
+  <thead><tr><th>date</th><th>rn</th><th>island_id</th></tr></thead>
+  <tbody>
+    <tr><td>Mar 10</td><td>1</td><td>69</td></tr>
+    <tr><td>Mar 12</td><td>2</td><td>70</td></tr>
+    <tr><td>Mar 14</td><td>3</td><td>71</td></tr>
+    <tr><td>Mar 16</td><td>4</td><td>72</td></tr>
+  </tbody>
+</table>
+<p>Four streaks of length 1. The signal: this is an <em>active but non-streaking</em> user. Plenty of activity, no consecutive days. Different segment, different campaign.</p>
+
+<h4>5. Strategic explanations &mdash; lifecycle on top of streaks</h4>
+
+<h5>The "longest streak per user" first-pass</h5>
+<pre><code>WITH islands AS (
+  SELECT customer_id, order_date,
+    order_date - (ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date))::int AS grp
+  FROM (SELECT DISTINCT customer_id, order_date FROM orders) d
+),
+streaks AS (
+  SELECT customer_id, grp,
+    MIN(order_date) AS streak_start,
+    MAX(order_date) AS streak_end,
+    COUNT(*)        AS streak_len
+  FROM islands GROUP BY customer_id, grp
+)
+SELECT customer_id, MAX(streak_len) AS longest_streak FROM streaks GROUP BY customer_id;</code></pre>
+
+<h5>The lifecycle classification &mdash; what makes the dashboard land</h5>
+<p>The CRM team's actual question isn't "longest streak" &mdash; it's <em>which retention bucket is each user in right now?</em> Layer two more CTEs on top of <code>streaks</code>:</p>
+<pre><code>WITH /* islands + streaks as above */
+next_activity AS (
+  SELECT customer_id, grp, streak_start, streak_end, streak_len,
+    LEAD(streak_start) OVER (PARTITION BY customer_id ORDER BY streak_start) AS next_start
+  FROM streaks
+),
+enriched AS (
+  SELECT *,
+    CASE
+      WHEN next_start IS NULL
+        THEN CURRENT_DATE - streak_end          -- still inactive
+      ELSE next_start - streak_end              -- gap before resurrection
+    END AS gap_days
+  FROM next_activity
+)
+SELECT customer_id, streak_start, streak_end, streak_len, gap_days,
+  CASE
+    WHEN next_start IS NOT NULL AND gap_days &lt;= 28              THEN 'continuing'
+    WHEN next_start IS NOT NULL AND gap_days &lt;= 90              THEN 'resurrected'
+    WHEN next_start IS NOT NULL AND gap_days  &gt; 90              THEN 'long_resurrect'
+    WHEN next_start IS NULL     AND gap_days  &gt; 90              THEN 'churned'
+    WHEN next_start IS NULL     AND gap_days &lt;= 90              THEN 'open'
+  END AS exit_status
+FROM enriched;</code></pre>
+
+<h5>The lifecycle table &mdash; what the dashboard actually shows</h5>
+<table>
+  <thead><tr><th>status</th><th>math requirement</th><th>business meaning</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Continuing</strong></td><td>gap &le; 28 days</td><td>healthy, retained</td><td>keep doing what you're doing</td></tr>
+    <tr><td><strong>Resurrected</strong></td><td>28 &lt; gap &le; 90 days</td><td>recovered before "death"</td><td>study what brought them back</td></tr>
+    <tr><td><strong>Long Resurrect</strong></td><td>gap &gt; 90 days, returned</td><td>was churned, came back</td><td>identify the trigger, scale it</td></tr>
+    <tr><td><strong>Churned</strong></td><td>no return AND gap &gt; 90 days</td><td>lost user</td><td>intervention: reactivation campaign</td></tr>
+    <tr><td><strong>Open</strong></td><td>no return AND gap &le; 90 days</td><td>still in grace period</td><td>watch &mdash; pre-emptive nudge if 60d+</td></tr>
+  </tbody>
+</table>
+
+<h5>The "calibrate the windows" senior follow-up</h5>
+<p>The 28-day and 90-day thresholds are <strong>not universal</strong>. They're business-cycle dependent:</p>
+<ul>
+  <li>Subscription B2C (Spotify, Netflix): 30 / 90 is fine.</li>
+  <li>Grocery ecommerce (Instacart): 7 / 30 &mdash; people shop weekly.</li>
+  <li>Travel booking (Booking.com): 90 / 365 &mdash; once-a-year users are normal.</li>
+  <li>Enterprise SaaS: 30 / 180 &mdash; account-cycle dictated.</li>
+</ul>
+<p>Always derive the thresholds <em>from the data</em> &mdash; e.g., "the 80th percentile of recurring-customer inter-purchase gaps". Do not let a default like 30/90 leak from a Mixpanel template into your dashboard.</p>
+
+<h5>Streak breakers &mdash; what counts as "consecutive"?</h5>
+<p>The query treats <em>consecutive calendar days</em> as the streak unit. Real-world variants:</p>
+<ul>
+  <li><strong>Consecutive weeks</strong>: bucket dates to <code>DATE_TRUNC('week', ...)</code> first &mdash; allows for Tue/Thu cadence to count as a "weekly streak".</li>
+  <li><strong>"At least one purchase per period"</strong>: bucket to month, then island-detect the buckets.</li>
+  <li><strong>Allow a 1-day grace</strong>: this requires LAG-style logic, not gaps-and-islands &mdash; see the "tolerant streak" pattern.</li>
+</ul>
+
+<h5>The tolerant-streak variant (LAG-based)</h5>
+<pre><code>WITH d AS (SELECT DISTINCT customer_id, order_date FROM orders),
+flagged AS (
+  SELECT customer_id, order_date,
+    CASE WHEN LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date)
+              &gt;= order_date - INTERVAL '2 days' THEN 0 ELSE 1 END AS new_streak
+  FROM d
+),
+sessioned AS (
+  SELECT customer_id, order_date,
+    SUM(new_streak) OVER (PARTITION BY customer_id ORDER BY order_date) AS streak_id
+  FROM flagged
+)
+SELECT customer_id, streak_id, COUNT(*) AS days, MIN(order_date) AS start, MAX(order_date) AS end
+FROM sessioned GROUP BY customer_id, streak_id;</code></pre>
+<p>Replace <code>2 days</code> with the tolerated gap. This pattern generalises to "session detection" &mdash; the same shape solves "30-minute browsing sessions in a clickstream".</p>
+
+<h5>The dialect note &mdash; date arithmetic</h5>
+<pre><code>-- Postgres / DuckDB / Snowflake: date - integer = date (julian-style)
+order_date - ROW_NUMBER() OVER (...)::int
+
+-- BigQuery: must use DATE_SUB
+DATE_SUB(order_date, INTERVAL CAST(ROW_NUMBER() OVER (...) AS INT64) DAY)
+
+-- SQLite: julianday() math
+julianday(order_date) - ROW_NUMBER() OVER (...)
+
+-- MySQL: TO_DAYS
+TO_DAYS(order_date) - ROW_NUMBER() OVER (...)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the <em>why</em> of the date-rn trick (constant within an island, shifts at every gap), walk through 3-4 personas to prove the pattern handles habitual, resurrect, churned, open, and non-streak users without modification, then layer a lifecycle <code>CASE</code> on top to turn streaks into a retention dashboard. Calibrating the 28/90 windows from the data and offering the tolerant-streak LAG-variant is the over-the-bar finish.</div>
