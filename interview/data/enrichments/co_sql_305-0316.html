@@ -1,0 +1,105 @@
+<p>At Netflix's scale, <strong>fact rows arrive before their dimension rows</strong> &mdash; routinely. A "Netflix Original" goes live globally at midnight Pacific; millions of <em>view</em> events fire within seconds; the <code>content_dim</code> propagation across regional shards takes minutes. An <code>INNER JOIN</code> between viewing events and content metadata silently <strong>drops</strong> those first-minutes views &mdash; the Content Strategy team is staring at "0 views in the first 3 minutes" for the most-anticipated launch of the quarter. The defensive pattern is the <strong>inferred-member</strong> fix.</p>
+
+<h4>1. The source data &mdash; <code>viewing_events</code> (the fact) and <code>content_dim</code> (the dimension)</h4>
+<table>
+  <thead><tr><th colspan="3">viewing_events</th></tr></thead>
+  <tbody>
+    <tr><td>view_id</td><td>content_id</td><td>watch_time_seconds</td></tr>
+    <tr><td>V_001</td><td>C_strangerthings_S5</td><td>180</td></tr>
+    <tr><td>V_002</td><td>C_strangerthings_S5</td><td>3500</td></tr>
+    <tr><td>V_003</td><td><strong>C_brandnewshow</strong></td><td>120</td></tr>
+    <tr><td>V_004</td><td><strong>C_brandnewshow</strong></td><td>2400</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="4">content_dim</th></tr></thead>
+  <tbody>
+    <tr><td>content_id</td><td>title</td><td>genre</td><td>effective_date</td></tr>
+    <tr><td>C_strangerthings_S5</td><td>Stranger Things S5</td><td>Sci-Fi</td><td>2026-04-01</td></tr>
+  </tbody>
+</table>
+<p>C_brandnewshow has 2 view events but <strong>no row in <code>content_dim</code></strong> &mdash; the dim record hasn't propagated yet. An <code>INNER JOIN</code> would lose those views.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + <code>COALESCE</code> + most-recent-effective via <code>ROW_NUMBER</code></h4>
+<pre><code>WITH current_content AS (
+  SELECT content_id, title, genre,
+    ROW_NUMBER() OVER (
+      PARTITION BY content_id
+      ORDER BY COALESCE(effective_date, '9999-12-31'::DATE) DESC
+    ) AS rn
+  FROM content_dim
+)
+SELECT v.view_id,
+  COALESCE(c.title, 'Pending Metadata Update') AS title,
+  COALESCE(c.genre, 'Unknown') AS genre,
+  v.watch_time_seconds
+FROM viewing_events v
+LEFT JOIN current_content c
+  ON v.content_id = c.content_id AND c.rn = 1;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The three layers of the fix</h5>
+<ol>
+  <li><strong><code>LEFT JOIN</code></strong> instead of INNER &mdash; keeps every view, even when the dim is missing.</li>
+  <li><strong><code>COALESCE</code></strong> with placeholder strings ("Pending Metadata Update", "Unknown") &mdash; the dashboard renders <em>something</em> instead of NULL, and the analyst can filter on these specific tokens to see "how much was orphaned".</li>
+  <li><strong><code>ROW_NUMBER</code> + <code>rn = 1</code></strong> &mdash; if <code>content_dim</code> is an SCD2 with multiple effective rows per <code>content_id</code>, this picks the most-recent one. Critical for shows that get re-genre'd or retitled.</li>
+</ol>
+
+<h5>Why <code>COALESCE(effective_date, '9999-12-31')</code> in the ORDER BY</h5>
+<p>An SCD2 row with <code>effective_date IS NULL</code> usually means "currently active". A naive <code>ORDER BY effective_date DESC</code> puts NULLs last (in Postgres, depends on dialect), so the still-active row gets ranked <em>worse</em> than expired rows. <code>COALESCE</code> to a far-future sentinel forces the active row to rank first. The pattern works regardless of NULLS FIRST/LAST defaults.</p>
+
+<h5>The "Inferred Member" data-warehouse pattern</h5>
+<p>Kimball's classic fix is to <em>insert</em> a placeholder dim row at fact-load time:</p>
+<pre><code>-- ETL: when ingesting fact rows, ensure dim row exists
+INSERT INTO content_dim (content_id, title, genre, is_inferred)
+SELECT DISTINCT v.content_id, NULL, NULL, TRUE
+FROM viewing_events v
+LEFT JOIN content_dim c ON c.content_id = v.content_id
+WHERE c.content_id IS NULL
+ON CONFLICT (content_id) DO NOTHING;</code></pre>
+<p>The <code>is_inferred = TRUE</code> flag tells the dim-update job to overwrite when real metadata arrives. Two trade-offs:</p>
+<ul>
+  <li>Inferred-member-at-load &mdash; cleaner downstream (every join is INNER), but the fact ingest is now coupled to the dim table.</li>
+  <li>Inferred-member-at-query (the original solution) &mdash; loose coupling, but every analyst query needs the COALESCE pattern.</li>
+</ul>
+<p>Production lakehouses lean toward at-load (Snowflake, BigQuery, Databricks); near-real-time event pipelines lean toward at-query.</p>
+
+<h5>The analytical impact &mdash; how much data is "stranded"?</h5>
+<pre><code>SELECT
+  100.0 * SUM(CASE WHEN c.title IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS pct_orphan_views,
+  COUNT(DISTINCT CASE WHEN c.title IS NULL THEN v.content_id END) AS distinct_orphan_titles
+FROM viewing_events v
+LEFT JOIN current_content c USING (content_id);</code></pre>
+<p>Production target is <code>pct_orphan_views &lt; 0.5%</code>; if it spikes above 1% the dim-propagation pipeline is broken. This is a paged-on metric.</p>
+
+<h5>Late-arriving FACTS, not dimensions &mdash; the cousin problem</h5>
+<p>The opposite case: dim is current, but a fact arrives <em>days late</em> (offline-mode mobile that uploaded a watch session 3 days after the fact). The dim has <em>moved on</em> &mdash; the show has been re-genre'd. Now <code>JOIN</code>ing the late fact to the current dim attributes it to the wrong genre. Fix: SCD2 + temporal join:</p>
+<pre><code>FROM viewing_events v
+LEFT JOIN content_dim c
+  ON v.content_id = c.content_id
+ AND v.event_ts BETWEEN c.effective_from AND COALESCE(c.effective_to, '9999-12-31')</code></pre>
+<p>This is the <em>"as-of-event"</em> attribution &mdash; uses the dim version that was current when the fact happened, not the dim version that's current now.</p>
+
+<h5>The CDC-stream wrinkle</h5>
+<p>If <code>content_dim</code> is fed by a CDC stream (Debezium &rarr; Kafka), late dim rows can also include <em>retraction</em> events (a row was deleted upstream). The current_content CTE needs to filter:</p>
+<pre><code>WHERE (deleted_at IS NULL OR deleted_at &gt; CURRENT_TIMESTAMP)</code></pre>
+
+<h5>Operational signal &mdash; alert the data-platform team</h5>
+<p>Three escalations driven by this query:</p>
+<ul>
+  <li>Single show with &gt; 1k orphan views &rarr; investigate that show's onboarding pipeline.</li>
+  <li>Sustained orphan rate over 1% &rarr; CDC connector might be stuck.</li>
+  <li>"Unknown" genre concentrated in one region &rarr; regional dim-shard replication is lagging.</li>
+</ul>
+
+<h5>The placeholder-token convention</h5>
+<p>Use a <strong>specific, searchable</strong> placeholder string ("Pending Metadata Update"), not just an empty string or NULL passed through. The point is that downstream analysts can <code>WHERE genre = 'Unknown'</code> to find the gaps and the BI tool's filter dropdown shows them as a real bucket.</p>
+
+<h5>Postgres-vs-other-dialect note</h5>
+<pre><code>-- Postgres: '9999-12-31'::DATE
+-- BigQuery: DATE '9999-12-31'
+-- Snowflake / SQL Server: '9999-12-31' (auto-cast)
+-- SQLite: '9999-12-31' (text comparison; works because ISO-format sorts correctly)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the LAD problem in one sentence (facts before dims at scale), choose <code>LEFT JOIN</code> + <code>COALESCE</code> + ROW_NUMBER-on-most-recent as the defensive query pattern, and contrast with the inferred-member-at-load alternative. Surface the late-arriving-fact temporal-join cousin and the orphan-rate alerting metric as the over-the-bar finish that turns a query into an SLA.</div>

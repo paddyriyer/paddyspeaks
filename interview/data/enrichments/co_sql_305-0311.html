@@ -1,0 +1,106 @@
+<p>Netflix plans cap simultaneous streams &mdash; Basic-with-Ads = 1, Standard = 2, Premium = 4. The famous 2023 "password sharing crackdown" required answering one query at scale: <em>which accounts exceeded their cap, ever?</em> Each session has a start and end, and the question becomes <em>"how many were active at the same instant?"</em> &mdash; the canonical <strong>sweep-line concurrency</strong> problem.</p>
+
+<h4>1. The source data &mdash; <code>streams</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>profile_id</th><th>started_at</th><th>ended_at</th></tr></thead>
+  <tbody>
+    <tr><td>A_001</td><td>P_kid</td><td>2026-04-22 19:00</td><td>2026-04-22 19:30</td></tr>
+    <tr><td>A_001</td><td>P_mom</td><td>2026-04-22 19:15</td><td>2026-04-22 20:30</td></tr>
+    <tr><td>A_001</td><td>P_dad</td><td>2026-04-22 19:20</td><td>2026-04-22 21:00</td></tr>
+    <tr><td>A_001</td><td>P_guest</td><td>2026-04-22 19:25</td><td>2026-04-22 20:15</td></tr>
+    <tr><td>A_001</td><td>P_other</td><td>2026-04-22 19:28</td><td>2026-04-22 19:55</td></tr>
+  </tbody>
+</table>
+<p>From 19:28 to 19:30 there are <strong>5 concurrent streams</strong> on this account &mdash; one over the Premium cap of 4.</p>
+
+<h4>2. The SQL &mdash; sweep-line via UNION ALL of start/end events</h4>
+<pre><code>WITH events AS (
+  SELECT account_id, started_at AS t, +1 AS delta FROM streams
+  UNION ALL
+  SELECT account_id, ended_at,           -1        FROM streams
+),
+active AS (
+  SELECT account_id, t,
+    SUM(delta) OVER (
+      PARTITION BY account_id
+      ORDER BY t
+      ROWS UNBOUNDED PRECEDING
+    ) AS concurrent
+  FROM events
+)
+SELECT DISTINCT account_id
+FROM active
+WHERE concurrent &gt; 4;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The sweep-line algorithm in 6 lines</h5>
+<p>This is one of the most elegant patterns in SQL. The mental model:</p>
+<ol>
+  <li>For each session, emit two events: <code>+1</code> at start, <code>-1</code> at end. Now you have an event stream with deltas.</li>
+  <li>Sort by time within each account.</li>
+  <li>Running cumulative sum of the deltas = active count at any instant.</li>
+  <li>Filter where the cumulative ever exceeded the cap.</li>
+</ol>
+<p>The same shape solves <em>any</em> "how many simultaneous?" question: emergency rooms (patients in vs out), parking lots (cars in vs out), thread pools, lock contention.</p>
+
+<h5>The tie problem &mdash; ends and starts at the same timestamp</h5>
+<p>If session A ends at 19:30:00 exactly when session B starts, do they overlap? Half-open intervals (industry standard) say no. But sorting by <code>t</code> alone is non-deterministic when ties exist. Force ends before starts:</p>
+<pre><code>UNION ALL
+SELECT account_id, started_at AS t, 1 AS delta, 1 AS sort_priority FROM streams
+UNION ALL
+SELECT account_id, ended_at,    -1,           0 FROM streams
+-- then ORDER BY t, sort_priority
+ORDER BY t, sort_priority</code></pre>
+<p>Ends process first &rarr; the count drops <em>then</em> the new session bumps it &mdash; correct half-open semantics. Without this fix, the count momentarily over-counts at the boundary and you get false positives.</p>
+
+<h5>Per-plan cap &mdash; join to the plan-tier table</h5>
+<p>The "&gt; 4" hardcode is sloppy &mdash; different plans have different caps. Production form:</p>
+<pre><code>SELECT DISTINCT a.account_id
+FROM active a
+JOIN accounts ac USING (account_id)
+JOIN plans p ON p.tier = ac.tier
+WHERE a.concurrent &gt; p.stream_cap;</code></pre>
+
+<h5>The reverse query &mdash; max concurrent per account</h5>
+<p>Often more useful than the binary "exceeded" flag is the actual peak:</p>
+<pre><code>SELECT account_id, MAX(concurrent) AS peak_concurrent_streams
+FROM active GROUP BY account_id ORDER BY peak_concurrent_streams DESC;</code></pre>
+<p>Distribution: 95% of accounts peak at 1, the next 4% at 2-3, then a fat tail of 5+ that drives the password-sharing campaign.</p>
+
+<h5>Why <code>ROWS UNBOUNDED PRECEDING</code> not the default <code>RANGE</code></h5>
+<p>With <code>RANGE</code> default frame, ties on <code>t</code> get summed together &mdash; the running total sees both a +1 and -1 of a tie at once, and you can't observe the momentary peak. <code>ROWS</code> processes one event at a time, exactly what sweep-line needs.</p>
+
+<h5>The "duration over cap" follow-up</h5>
+<p>"Did the cap get exceeded at all?" is binary. "For how long was it exceeded?" is the policy-relevant version &mdash; a 2-second blip during plan-change vs 3 hours of household sharing are very different:</p>
+<pre><code>WITH spans AS (
+  SELECT account_id, t, concurrent,
+    LEAD(t) OVER (PARTITION BY account_id ORDER BY t) - t AS duration
+  FROM active
+)
+SELECT account_id,
+  SUM(CASE WHEN concurrent &gt; 4 THEN duration END) AS over_cap_duration
+FROM spans GROUP BY account_id
+HAVING SUM(CASE WHEN concurrent &gt; 4 THEN duration END) &gt; INTERVAL '5 minutes';</code></pre>
+
+<h5>Geo-aware sharing detection</h5>
+<p>Two streams from the same account with one in NYC and one in LA, simultaneously, is the canonical password-sharing signal &mdash; geographically impossible for one household. Add IP/geo to the events:</p>
+<pre><code>WITH events AS (
+  SELECT account_id, location_state AS state, started_at AS t, +1 AS delta FROM streams
+  UNION ALL
+  SELECT account_id, location_state, ended_at, -1 FROM streams
+)
+-- Then for each account, look at moments where 2+ states were active.</code></pre>
+
+<h5>The "household" exemption complexity</h5>
+<p>Netflix's TOS allows multiple users in one <em>household</em> &mdash; defined by IP-bucket / device-association / fingerprint. The query above flags everyone, including legitimate households. Production filtering exempts:</p>
+<ul>
+  <li>Streams from the "primary location" (the IP that paid for the plan)</li>
+  <li>Devices registered as "household devices" via MAC/fingerprint</li>
+  <li>Sessions during travel (verified by login flow)</li>
+</ul>
+
+<h5>The "4-stream-burst" false positive</h5>
+<p>A user pausing then resuming creates a new session &mdash; not 4 distinct viewers. Production data quality dedupes within a 30-second window before sweep-line.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the sweep-line algorithm crisply (+1/-1 events, cumulative sum), pin the tie-breaking via the end-before-start sort priority, and pick <code>ROWS UNBOUNDED PRECEDING</code> over the default <code>RANGE</code> frame. The duration-over-cap follow-up and geo-aware household-exemption logic connect the query directly to the password-sharing crackdown decisioning &mdash; over-the-bar.</div>

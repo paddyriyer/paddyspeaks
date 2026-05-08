@@ -1,0 +1,96 @@
+<p>The Search team's KPI sounds simple: <em>"of all searches, how many led to a play?"</em>. Every search is a small bet by Netflix &mdash; surface the right thing or the user bounces. The query is a time-bounded LEFT JOIN: each search either matches a play of the searched title within the next 30 minutes, or it doesn't. The senior conversation is what counts as <em>"the searched title"</em> and how to handle abandoned searches.</p>
+
+<h4>1. The source data &mdash; <code>searches</code> + <code>plays</code></h4>
+<table>
+  <thead><tr><th colspan="4">searches</th></tr></thead>
+  <tbody>
+    <tr><td>user_id</td><td>search_ts</td><td>query_text</td><td>top_title_id</td></tr>
+    <tr><td>U_001</td><td>2026-04-22 19:00</td><td>"stranger"</td><td>T_strangerthings</td></tr>
+    <tr><td>U_002</td><td>2026-04-22 20:00</td><td>"crown"</td><td>T_thecrown</td></tr>
+    <tr><td>U_003</td><td>2026-04-22 21:00</td><td>"asdf"</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="3">plays</th></tr></thead>
+  <tbody>
+    <tr><td>user_id</td><td>play_ts</td><td>title_id</td></tr>
+    <tr><td>U_001</td><td>2026-04-22 19:02</td><td>T_strangerthings</td></tr>
+    <tr><td>U_002</td><td>2026-04-22 23:00</td><td>T_thecrown</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> with time-bounded predicate</h4>
+<pre><code>SELECT s.query_text,
+  COUNT(*) AS searches,
+  COUNT(p.title_id) AS resulting_plays,
+  ROUND(100.0 * COUNT(p.title_id) / NULLIF(COUNT(*), 0), 1) AS search_to_play_pct
+FROM searches s
+LEFT JOIN plays p
+  ON p.user_id  = s.user_id
+ AND p.title_id = s.top_title_id
+ AND p.play_ts BETWEEN s.search_ts AND s.search_ts + INTERVAL '30 minutes'
+GROUP BY s.query_text
+HAVING COUNT(*) &gt;= 50
+ORDER BY search_to_play_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 30-minute attribution window &mdash; not arbitrary</h5>
+<p>Netflix's published session-timeout is 30 minutes &mdash; if the user's next play is more than 30 minutes after the search, attribution becomes ambiguous (was it the search that drove it or some unrelated session?). Tighter windows (5-min) miss legitimate "I'll watch later" cases; wider windows (24-hour) over-attribute. 30 minutes is the empirically-determined sweet spot.</p>
+
+<h5>Why <code>LEFT JOIN</code> is non-negotiable</h5>
+<p>An <code>INNER JOIN</code> drops searches that didn't lead to a play &mdash; the dropouts are the entire point of the metric. <code>LEFT JOIN</code> keeps every search row; the matched-or-NULL state of <code>p.title_id</code> drives the conversion count. <code>COUNT(p.title_id)</code> counts only non-NULL (matched) rows.</p>
+
+<h5>The "why &lt;= and not =" thing</h5>
+<p>The query asks "was there <em>any</em> play within 30 minutes?" but the LEFT JOIN can match multiple plays (if the user replayed the title). Two solutions:</p>
+<pre><code>-- A. dedup by counting distinct
+COUNT(DISTINCT p.user_id, p.title_id, p.play_ts) AS resulting_plays
+
+-- B. only count the FIRST play per search
+LEFT JOIN LATERAL (
+  SELECT title_id FROM plays p
+  WHERE p.user_id = s.user_id AND p.title_id = s.top_title_id
+    AND p.play_ts BETWEEN s.search_ts AND s.search_ts + INTERVAL '30 minutes'
+  ORDER BY play_ts LIMIT 1
+) p ON TRUE</code></pre>
+
+<h5>The <code>top_title_id IS NULL</code> wrinkle &mdash; "no results" searches</h5>
+<p>The <code>"asdf"</code> search has <code>top_title_id = NULL</code> (no result returned). The LEFT JOIN never matches (NULL = anything is NULL), so the search counts but the play doesn't. <strong>That's the right behavior</strong>: a no-results search can never lead to a play of "the searched title" because there isn't one. But you should split this in reporting:</p>
+<pre><code>SUM(CASE WHEN s.top_title_id IS NULL THEN 1 END) AS no_results_searches,
+SUM(CASE WHEN s.top_title_id IS NOT NULL AND p.title_id IS NULL THEN 1 END) AS results_but_no_play,
+COUNT(p.title_id) AS results_and_play</code></pre>
+
+<h5>The "any play" vs "searched-title play" distinction</h5>
+<p>The query attributes only when the user plays the <em>top result</em> of their search. But maybe the user searched for "stranger" and ended up watching "Stranger in the Night" (different title that came up in the same search results). To capture that, drop the <code>p.title_id = s.top_title_id</code> predicate &mdash; but then you need a way to know which titles appeared in the search-result rail (a <code>search_results</code> table with one row per displayed title).</p>
+
+<h5>The query-grade leaderboard &mdash; what the search team optimizes</h5>
+<p>"stranger" at 85% search-to-play is a healthy query &mdash; the algorithm matches user intent. "comedies for tonight" at 12% is broken &mdash; users searched for a vibe and didn't find one. The query-text leaderboard drives the search-relevance backlog.</p>
+
+<h5>The session-attribution variant</h5>
+<p>The strict definition above attributes per-search. The session-aware version groups searches into sessions and credits "did this <em>search session</em> lead to a play?":</p>
+<pre><code>WITH search_sessions AS (
+  SELECT user_id, search_ts,
+    SUM(CASE WHEN search_ts - LAG(search_ts) OVER (PARTITION BY user_id ORDER BY search_ts)
+              &gt; INTERVAL '5 minutes' THEN 1 ELSE 0 END
+    ) OVER (PARTITION BY user_id ORDER BY search_ts) AS session_id
+  FROM searches
+)
+SELECT user_id, session_id, COUNT(*) AS query_refinements,
+  MAX(CASE WHEN p.title_id IS NOT NULL THEN 1 ELSE 0 END) AS led_to_play
+FROM search_sessions s LEFT JOIN plays p ON ...
+GROUP BY user_id, session_id;</code></pre>
+<p>"Query refinements" = how many times the user refined the search before something worked. High refinement-count = poor first-result relevance.</p>
+
+<h5>The reverse causality trap</h5>
+<p>Some users <em>play first then search</em> for the next thing. The query above only looks forward in time, but the same data could be misused to compute "play-to-search %" which has reverse causality. Always pin the temporal direction explicitly in the predicate.</p>
+
+<h5>The personalization confounder</h5>
+<p>Search-to-play rates are confounded by personalization: the algorithm puts your most-likely watch as the top result, so a high rate may just mean "the algorithm guessed right". Diff vs a random-results control bucket (an A/B test) gives you the algorithm's <em>incremental lift</em> over a no-personalization baseline.</p>
+
+<h5>Empty-handed dropout &mdash; the dark-pattern follow-up</h5>
+<p>The opposite signal: users who searched, didn't find, and <em>left the platform within the next session</em>. That's a churn risk:</p>
+<pre><code>WHERE p.title_id IS NULL
+  AND NOT EXISTS (SELECT 1 FROM plays p2 WHERE p2.user_id = s.user_id
+                  AND p2.play_ts BETWEEN s.search_ts AND s.search_ts + INTERVAL '24 hours')</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> the LEFT-JOIN-with-time-bounded-predicate idiom in one breath, surface the no-results-vs-results-but-no-play split unprompted, and pre-empt the multi-match dedup with the LATERAL trick. The session-aware refinement count and the personalization-confounder discussion are the over-the-bar finish.</div>
