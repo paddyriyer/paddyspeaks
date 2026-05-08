@@ -1,0 +1,85 @@
+<p>The Trust &amp; Safety team at a marketplace got a complaint: <em>"this seller keeps changing the price on the same item — bait-and-switch."</em> They want a list of products whose price has changed more than 5 times. The query is one line; the interesting part is what counts as a "change" and what to do once flagged.</p>
+
+<h4>1. The source data — <code>price_history</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>change_date</th></tr></thead>
+  <tbody>
+    <tr><td>P_001</td><td>2026-04-01</td></tr>
+    <tr><td>P_001</td><td>2026-04-05</td></tr>
+    <tr><td>P_001</td><td>2026-04-12</td></tr>
+    <tr><td>P_002</td><td>2026-04-08</td></tr>
+    <tr><td>P_002</td><td>2026-04-09</td></tr>
+    <tr><td>P_002</td><td>2026-04-10</td></tr>
+    <tr><td>P_002</td><td>2026-04-11</td></tr>
+    <tr><td>P_002</td><td>2026-04-12</td></tr>
+    <tr><td>P_002</td><td>2026-04-13</td></tr>
+    <tr><td>P_002</td><td>2026-04-14</td></tr>
+    <tr><td>P_003</td><td>2026-04-22</td></tr>
+  </tbody>
+</table>
+<p>P_002 changed price 7 times in a week — that's the signal Trust &amp; Safety cares about.</p>
+
+<h4>2. The SQL — <code>GROUP BY</code> + <code>HAVING</code> on aggregate count</h4>
+<pre><code>SELECT product_id, COUNT(*) AS change_count
+FROM price_history
+GROUP BY product_id
+HAVING COUNT(*) &gt; 5;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>change_count</th><th>flag?</th></tr></thead>
+  <tbody>
+    <tr><td>P_002</td><td><strong>7</strong></td><td>YES — investigate seller</td></tr>
+  </tbody>
+</table>
+<p>P_001 (3 changes) and P_003 (1 change) drop out — they didn't cross the threshold.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>HAVING</code> not <code>WHERE</code></h5>
+<p><code>WHERE COUNT(*) &gt; 5</code> doesn't work — there's no aggregation at the WHERE phase. <code>HAVING</code> filters AFTER the GROUP BY produces aggregated rows. Standard interview-answer phrasing: <em>"WHERE filters rows; HAVING filters groups."</em></p>
+
+<h5>The "5" is arbitrary — make it data-driven</h5>
+<p>Why 5? Probably because someone said "more than five feels frequent" in a meeting. The data-driven version compares each product to the population's distribution and flags genuine outliers:</p>
+<pre><code>WITH stats AS (
+  SELECT AVG(c)    AS mu,
+         STDDEV(c) AS sigma
+  FROM (SELECT COUNT(*) AS c FROM price_history GROUP BY product_id) t
+)
+SELECT p.product_id, COUNT(*) AS change_count
+FROM price_history p, stats
+GROUP BY p.product_id, mu, sigma
+HAVING COUNT(*) &gt; mu + 2 * sigma;
+-- Flags products whose change count is &gt;2 standard deviations above the mean.</code></pre>
+<p>Senior signal: don't hardcode magic numbers when the data can pick them.</p>
+
+<h5>Time-bounded version — "5 changes in 7 days"</h5>
+<p>Most price-manipulation patterns happen in burst windows, not lifetime. The actionable version layers a date filter:</p>
+<pre><code>SELECT product_id, COUNT(*) AS changes_last_week
+FROM price_history
+WHERE change_date &gt;= CURRENT_DATE - INTERVAL '7 days'
+GROUP BY product_id
+HAVING COUNT(*) &gt; 5;</code></pre>
+
+<h5>Distinct-day vs total-change distinction</h5>
+<p>What if a seller changed the price 7 times in one day but 0 times the rest of the week? That's still suspicious but a different pattern. Use <code>COUNT(DISTINCT change_date)</code> to require changes on different days:</p>
+<pre><code>HAVING COUNT(DISTINCT change_date) &gt; 5</code></pre>
+
+<h5>The "magnitude" follow-up — flagging price swings, not just changes</h5>
+<p>5 small price tweaks (±$0.50) is normal merchandising. 5 huge price swings (50% up, 30% down, ...) is bait-and-switch. The audit-grade query joins to the actual prices:</p>
+<pre><code>WITH change_swings AS (
+  SELECT product_id, change_date, price,
+    LAG(price) OVER (PARTITION BY product_id ORDER BY change_date) AS prev_price
+  FROM price_history
+)
+SELECT product_id,
+  COUNT(*) AS total_changes,
+  ROUND(AVG(ABS(price - prev_price) / NULLIF(prev_price, 0)) * 100, 1) AS avg_pct_swing
+FROM change_swings
+WHERE prev_price IS NOT NULL
+GROUP BY product_id
+HAVING COUNT(*) &gt; 5
+   AND AVG(ABS(price - prev_price) / NULLIF(prev_price, 0)) &gt; 0.10;
+-- Products with 5+ changes AND average swing &gt; 10% — actionable signal.</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate WHERE-vs-HAVING upfront, refuse the magic number ("5") and propose the σ-based variant, layer a time-window filter, and pre-empt the magnitude question with the LAG-based swing calculation. The σ-based threshold is the over-the-bar move — Trust &amp; Safety teams actually use it.</div>

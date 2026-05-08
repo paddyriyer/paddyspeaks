@@ -1,0 +1,87 @@
+<p>The CRO at a marketplace asks: <em>"Which customers have purchased from every product category we sell? They're our highest-value advocates — Amazon Prime members, Costco loyalists. Send them a milestone thank-you and a free upgrade."</em> The query is the canonical <strong>relational division</strong> pattern — find customers whose purchase set covers the universal set of categories.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<p>4 distinct categories exist platform-wide: Electronics, Books, Apparel, Home.</p>
+<table>
+  <thead><tr><th>customer_id</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>Electronics</td></tr>
+    <tr><td>C_001</td><td>Books</td></tr>
+    <tr><td>C_001</td><td>Apparel</td></tr>
+    <tr><td>C_001</td><td>Home</td></tr>
+    <tr><td>C_001</td><td>Electronics</td></tr>
+    <tr><td>C_002</td><td>Electronics</td></tr>
+    <tr><td>C_002</td><td>Books</td></tr>
+    <tr><td>C_003</td><td>Books</td></tr>
+    <tr><td>C_003</td><td>Apparel</td></tr>
+    <tr><td>C_003</td><td>Home</td></tr>
+    <tr><td>C_004</td><td>Electronics</td></tr>
+    <tr><td>C_004</td><td>Books</td></tr>
+    <tr><td>C_004</td><td>Apparel</td></tr>
+    <tr><td>C_004</td><td>Home</td></tr>
+    <tr><td>C_004</td><td>Books</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — count distinct categories vs the universal count</h4>
+<pre><code>SELECT customer_id
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(DISTINCT category) = (
+  SELECT COUNT(DISTINCT category) FROM orders
+);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<p>Walk through:</p>
+<table>
+  <thead><tr><th>customer_id</th><th>distinct categories</th><th>covers all 4?</th><th>thank-you?</th></tr></thead>
+  <tbody>
+    <tr><td>C_001</td><td>4 (E, B, A, H)</td><td>✓</td><td><strong>YES</strong></td></tr>
+    <tr><td>C_002</td><td>2 (E, B)</td><td>✗</td><td>no</td></tr>
+    <tr><td>C_003</td><td>3 (B, A, H)</td><td>✗ (missing Electronics)</td><td>no</td></tr>
+    <tr><td>C_004</td><td>4 (E, B, A, H — duplicates of B don't count twice)</td><td>✓</td><td><strong>YES</strong></td></tr>
+  </tbody>
+</table>
+<p>Final query output (2 rows): C_001, C_004.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The trick — a scalar subquery in <code>HAVING</code></h5>
+<p>The right-hand side of <code>HAVING COUNT(DISTINCT category) = (SELECT COUNT(DISTINCT category) FROM orders)</code> is a <strong>scalar subquery</strong> — it returns exactly one number (the universal category count). The query computes it once and compares each customer's distinct-category count against it. Engines typically run the inner query once and cache the result, so it's not an O(n²) per-customer rescan.</p>
+
+<h5>Why <code>COUNT(DISTINCT category)</code> not <code>COUNT(*)</code></h5>
+<p>C_004 has 5 orders but only 4 distinct categories (Books appears twice). A naïve <code>COUNT(*)</code> would say C_004 has 5 categories — wrong. <code>DISTINCT</code> deduplicates within the group; this is the bug-or-feature distinction that catches a lot of candidates.</p>
+
+<h5>What if a category has zero customers — the "missing dimension" trap</h5>
+<p>The query computes the universal category count from <code>orders</code> itself. If a category exists in <code>products</code> but has zero orders, the query won't see it — and a customer who hasn't bought from it would still be flagged as "complete". To handle that, derive the universal count from the dimension table:</p>
+<pre><code>HAVING COUNT(DISTINCT category) = (SELECT COUNT(DISTINCT category) FROM products)</code></pre>
+<p>This is a real production bug; senior candidates ask <em>"where does the universal set come from?"</em> unprompted.</p>
+
+<h5>Relational division — the deeper pattern</h5>
+<p>This question is the textbook <strong>relational division</strong>: <em>"find R-rows that cover all S-rows under a given relationship."</em> Other instances:</p>
+<ul>
+  <li><strong>Skills coverage:</strong> "find candidates who have every required skill"</li>
+  <li><strong>Region presence:</strong> "find sellers active in every region we operate"</li>
+  <li><strong>Permission completeness:</strong> "find users with every permission needed for an admin role"</li>
+</ul>
+<p>The SQL shape — <code>HAVING COUNT(DISTINCT x) = (SELECT COUNT(DISTINCT x) FROM ...)</code> — is universal. Naming the pattern in the interview is a senior signal.</p>
+
+<h5>The double-NOT-EXISTS variant — when DISTINCT is too expensive</h5>
+<p>At billions-of-rows scale, <code>COUNT(DISTINCT)</code> is expensive (no shortcut without a hash). The set-theory equivalent is <strong>"find customers for whom no required category is missing"</strong>:</p>
+<pre><code>SELECT c.customer_id
+FROM customers c
+WHERE NOT EXISTS (
+  SELECT 1 FROM products p
+  WHERE NOT EXISTS (
+    SELECT 1 FROM orders o
+    WHERE o.customer_id = c.customer_id AND o.category = p.category
+  )
+);
+-- "Customers for whom there is NO category they did NOT buy"</code></pre>
+<p>The double-negation is brain-bending but lets the optimiser use indexes. Production reporting tables sometimes prefer it.</p>
+
+<h5>The "X-of-Y" relaxation — most-but-not-all coverage</h5>
+<p>CRO follow-up: <em>"What about customers who covered 3 of 4 categories? They're almost-complete; one nudge might convert them."</em></p>
+<pre><code>HAVING COUNT(DISTINCT category) &gt;= (SELECT COUNT(DISTINCT category) FROM products) - 1</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <em>relational division</em> pattern, articulate the DISTINCT-vs-COUNT(*) distinction, identify the "missing dimension" trap (universal count from products vs orders), and pre-empt the X-of-Y relaxation. The double-NOT-EXISTS variant is the over-the-bar performance move.</div>
