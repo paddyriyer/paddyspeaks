@@ -1,0 +1,95 @@
+<p>The growth team's monthly question: <em>"For each customer, how does their relationship with our top SKUs evolve? When did they buy this product the first time? The third time? What's the gap between purchases? What's their cumulative spend per product?"</em> All four metrics drop out of one query that stacks four window functions on the same partition.</p>
+
+<h4>1. The source data — <code>purchases</code></h4>
+<table>
+  <thead><tr><th>purchase_id</th><th>customer_id</th><th>product_id</th><th>purchase_ts</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>P_001</td><td>C_42</td><td>SKU_A</td><td>2025-01-10</td><td>$120</td></tr>
+    <tr><td>P_002</td><td>C_42</td><td>SKU_A</td><td>2025-02-15</td><td>$135</td></tr>
+    <tr><td>P_003</td><td>C_42</td><td>SKU_A</td><td>2025-03-20</td><td>$110</td></tr>
+    <tr><td>P_004</td><td>C_42</td><td>SKU_B</td><td>2025-01-25</td><td>$80</td></tr>
+    <tr><td>P_005</td><td>C_42</td><td>SKU_B</td><td>2025-04-10</td><td>$95</td></tr>
+    <tr><td>P_006</td><td>C_88</td><td>SKU_A</td><td>2025-02-05</td><td>$150</td></tr>
+    <tr><td>P_007</td><td>C_88</td><td>SKU_A</td><td>2025-02-20</td><td>$140</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — four window functions, one partition</h4>
+<pre><code>SELECT
+  customer_id, product_id, purchase_ts, amount,
+
+  -- 1. Which-purchase-number is this for this (customer, product)?
+  ROW_NUMBER() OVER (
+    PARTITION BY customer_id, product_id
+    ORDER BY purchase_ts
+  ) AS purchase_no,
+
+  -- 2. Timestamp of the previous purchase of this product by this customer
+  LAG(purchase_ts) OVER (
+    PARTITION BY customer_id, product_id
+    ORDER BY purchase_ts
+  ) AS prev_ts,
+
+  -- 3. Days since the last purchase (NULL on first)
+  DATEDIFF(day,
+    LAG(purchase_ts) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts),
+    purchase_ts
+  ) AS days_since_last,
+
+  -- 4. Cumulative spend on this product by this customer over time
+  SUM(amount) OVER (
+    PARTITION BY customer_id, product_id
+    ORDER BY purchase_ts
+    ROWS UNBOUNDED PRECEDING
+  ) AS cumulative_spend
+FROM purchases;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer</th><th>product</th><th>ts</th><th>amount</th><th>purchase_no</th><th>days_since_last</th><th>cumulative_spend</th></tr></thead>
+  <tbody>
+    <tr><td>C_42</td><td>SKU_A</td><td>2025-01-10</td><td>$120</td><td>1</td><td>NULL</td><td>$120</td></tr>
+    <tr><td>C_42</td><td>SKU_A</td><td>2025-02-15</td><td>$135</td><td>2</td><td>36</td><td>$255</td></tr>
+    <tr><td>C_42</td><td>SKU_A</td><td>2025-03-20</td><td>$110</td><td>3</td><td>33</td><td>$365</td></tr>
+    <tr><td>C_42</td><td>SKU_B</td><td>2025-01-25</td><td>$80</td><td>1</td><td>NULL</td><td>$80</td></tr>
+    <tr><td>C_42</td><td>SKU_B</td><td>2025-04-10</td><td>$95</td><td>2</td><td>75</td><td>$175</td></tr>
+    <tr><td>C_88</td><td>SKU_A</td><td>2025-02-05</td><td>$150</td><td>1</td><td>NULL</td><td>$150</td></tr>
+    <tr><td>C_88</td><td>SKU_A</td><td>2025-02-20</td><td>$140</td><td>2</td><td>15</td><td>$290</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>One PARTITION, four functions — the engine de-duplicates the sort</h5>
+<p>The partition <code>(customer_id, product_id) ORDER BY purchase_ts</code> appears in all four window functions. Modern engines (Postgres, Snowflake, BigQuery) compute the partition once and run all four functions in a single pass — not 4× the work. SQLite is the same. So this 4-window query is roughly the cost of the most expensive single window.</p>
+
+<h5>Why <code>(customer_id, product_id)</code> as the partition</h5>
+<p>The metric is per-customer-per-product. If you partitioned only by <code>customer_id</code>, the cumulative spend would mix products together; if only by <code>product_id</code>, it'd mix customers. The composite partition isolates each (customer × product) timeline cleanly. This is the most-asked variant in interviews — composite partitions with a time order.</p>
+
+<h5>The <code>ROWS UNBOUNDED PRECEDING</code> frame — explicit beats implicit</h5>
+<p>By default, <code>SUM() OVER (... ORDER BY ...)</code> uses <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code>. <code>ROWS UNBOUNDED PRECEDING</code> is the equivalent in row-counting mode (faster on most engines, identical answer when the order column has no ties). Always state the frame explicitly — implicit defaults are a portability gotcha.</p>
+
+<h5>Dialect note: <code>DATEDIFF</code></h5>
+<p>The query uses <code>DATEDIFF(day, prev, curr)</code> — Snowflake / SQL Server / Oracle syntax. Other dialects:</p>
+<ul>
+  <li><strong>Postgres / BigQuery:</strong> <code>DATE_DIFF(curr, prev, DAY)</code> or <code>(curr - prev)</code> for date-typed columns</li>
+  <li><strong>SQLite:</strong> <code>JULIANDAY(curr) - JULIANDAY(prev)</code></li>
+  <li><strong>MySQL:</strong> <code>DATEDIFF(curr, prev)</code> — note: NOT 3 args</li>
+</ul>
+
+<h5>Related metrics that drop out of the same shape</h5>
+<ul>
+  <li><strong>First-purchase date:</strong> filter <code>WHERE purchase_no = 1</code> — gives you each customer's first encounter with each product. Acquisition channel attribution starts here.</li>
+  <li><strong>Inter-purchase interval (mean):</strong> <code>AVG(days_since_last) GROUP BY customer_id, product_id</code> — the customer's natural cadence per product. Re-engagement campaigns trigger when the gap exceeds 2× this mean.</li>
+  <li><strong>"Bought this 5+ times" cohort:</strong> <code>WHERE purchase_no &gt;= 5</code> — high-affinity customers per product. Brand loyalty signal.</li>
+  <li><strong>Lifetime value per (customer × product):</strong> <code>WHERE purchase_no = MAX(purchase_no) OVER (PARTITION BY customer_id, product_id)</code> — final cumulative_spend = lifetime spend on this SKU.</li>
+</ul>
+
+<h5>The over-the-bar finish: cohort retention by product</h5>
+<p>Add a <code>NTILE(4)</code> over time-since-first-purchase to bucket customers into "first-quarter buyers, second-quarter buyers, …" — feeds product-cohort retention curves directly:</p>
+<pre><code>NTILE(4) OVER (
+  PARTITION BY product_id
+  ORDER BY MIN(purchase_ts) OVER (PARTITION BY customer_id, product_id)
+) AS acquisition_quartile</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the composite-partition pattern, explain why all four windows in one pass cost almost the same as one (engine de-duplicates the sort), state the frame explicitly (<code>ROWS UNBOUNDED PRECEDING</code>), and pre-empt the dialect difference for <code>DATEDIFF</code>. The cohort-retention extension is the over-the-bar move.</div>

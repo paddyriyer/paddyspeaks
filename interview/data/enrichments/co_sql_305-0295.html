@@ -1,0 +1,95 @@
+<p>SRE Monday morning. The infrastructure team committed to a 99.9% uptime SLO across the fleet. The CTO asks: <em>"Which servers are missing the SLO this quarter? They're our top maintenance candidates."</em> The query is conditional aggregation — but the operational nuance (sample interval, weighted uptime, scheduled vs unscheduled downtime) is what separates a junior answer from a Staff SRE answer.</p>
+
+<h4>1. The source data — <code>server_status</code></h4>
+<p>Each row is one health-check sample. The Sentinel service samples every server every 60 seconds and writes its current state.</p>
+<table>
+  <thead><tr><th>server_id</th><th>status</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>SRV_A</td><td>up</td><td>2026-04-01 00:00:00</td></tr>
+    <tr><td>SRV_A</td><td>up</td><td>2026-04-01 00:01:00</td></tr>
+    <tr><td>SRV_A</td><td>up</td><td>2026-04-01 00:02:00</td></tr>
+    <tr><td>SRV_A</td><td>up</td><td>2026-04-01 00:03:00</td></tr>
+    <tr><td>SRV_A</td><td>down</td><td>2026-04-01 00:04:00</td></tr>
+    <tr><td>SRV_A</td><td>up</td><td>2026-04-01 00:05:00</td></tr>
+    <tr><td>SRV_B</td><td>up</td><td>2026-04-01 00:00:00</td></tr>
+    <tr><td>SRV_B</td><td>down</td><td>2026-04-01 00:01:00</td></tr>
+    <tr><td>SRV_B</td><td>down</td><td>2026-04-01 00:02:00</td></tr>
+    <tr><td>SRV_B</td><td>down</td><td>2026-04-01 00:03:00</td></tr>
+    <tr><td>SRV_B</td><td>up</td><td>2026-04-01 00:04:00</td></tr>
+    <tr><td>SRV_C</td><td>up</td><td>2026-04-01 00:00:00</td></tr>
+    <tr><td>SRV_C</td><td>up</td><td>2026-04-01 00:01:00</td></tr>
+    <tr><td>SRV_C</td><td>up</td><td>2026-04-01 00:02:00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — conditional-aggregation uptime ratio</h4>
+<pre><code>SELECT
+  server_id,
+  100.0 * SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) / COUNT(*) AS uptime_pct
+FROM server_status
+GROUP BY server_id;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>server_id</th><th>up samples</th><th>total samples</th><th>uptime_pct</th><th>SLO ≥ 99.9%?</th></tr></thead>
+  <tbody>
+    <tr><td>SRV_A</td><td>5</td><td>6</td><td><strong>83.33%</strong></td><td>FAIL</td></tr>
+    <tr><td>SRV_B</td><td>2</td><td>5</td><td><strong>40.00%</strong></td><td>FAIL — page on-call</td></tr>
+    <tr><td>SRV_C</td><td>3</td><td>3</td><td><strong>100.00%</strong></td><td>OK</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>What 99.9% actually means in minutes per year</h5>
+<p>SRE language uses "nines": 99% = 87.6 hours of downtime/year; 99.9% = 8.76 hours; 99.99% = 52.6 minutes; 99.999% = 5.26 minutes. Every additional nine costs ~10× more engineering. Knowing the conversion is a senior signal.</p>
+
+<h5>The big trap — sampling interval bias</h5>
+<p>The query above counts <em>samples</em>, not <em>seconds</em>. If samples are uniformly spaced (every 60 seconds), it's roughly correct. If samples are bursty — say the agent crashes during outages and only resumes after recovery — you'll <strong>overstate</strong> uptime because the down period had fewer samples logged. Production fleet-uptime queries weight by inter-sample duration:</p>
+<pre><code>WITH durations AS (
+  SELECT server_id, status, ts,
+    LEAD(ts) OVER (PARTITION BY server_id ORDER BY ts) AS next_ts
+  FROM server_status
+)
+SELECT server_id,
+  100.0 * SUM(CASE WHEN status = 'up'
+                   THEN EXTRACT(EPOCH FROM (next_ts - ts)) END)
+        / SUM(EXTRACT(EPOCH FROM (next_ts - ts))) AS time_weighted_uptime_pct
+FROM durations
+WHERE next_ts IS NOT NULL                 -- skip the open last-sample
+GROUP BY server_id;</code></pre>
+<p>This is the <em>real</em> uptime — what the customer-facing SLA actually measures.</p>
+
+<h5>Scheduled vs unscheduled downtime</h5>
+<p>SLAs typically exclude scheduled maintenance windows (you announced them). Production queries join <code>maintenance_windows</code> and exclude samples inside those:</p>
+<pre><code>WHERE NOT EXISTS (
+  SELECT 1 FROM maintenance_windows m
+  WHERE m.server_id = s.server_id
+    AND s.ts BETWEEN m.start_ts AND m.end_ts
+)</code></pre>
+
+<h5>Per-region / per-tier breakdowns</h5>
+<p>Single-server uptime is operational. <em>Fleet</em> uptime is what the CTO reports. Aggregate by region or tier for the executive dashboard:</p>
+<pre><code>SELECT region, server_tier,
+  100.0 * SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) / COUNT(*) AS uptime_pct
+FROM server_status JOIN servers USING (server_id)
+GROUP BY region, server_tier
+HAVING 100.0 * SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) / COUNT(*) &lt; 99.9
+ORDER BY uptime_pct ASC;
+-- Lists every (region × tier) bucket missing the SLO. Sorted by worst.</code></pre>
+
+<h5>Error budget — the SRE framing</h5>
+<p>SREs don't track uptime, they track <em>error budget</em>: time you're <em>allowed</em> to be down before breaking SLA. 99.9% × 30 days = 43.2 minutes of error budget per month. Burn it slowly with reliability work; burn it fast with a feature push that crashes things. The query becomes:</p>
+<pre><code>WITH up AS (
+  SELECT server_id,
+    SUM(CASE WHEN status = 'down' THEN 60 ELSE 0 END) AS down_seconds_this_month
+  FROM server_status
+  WHERE ts &gt;= DATE_TRUNC('month', CURRENT_DATE)
+  GROUP BY server_id
+)
+SELECT server_id, down_seconds_this_month,
+  43 * 60 - down_seconds_this_month AS error_budget_remaining_seconds
+FROM up;
+-- Negative remaining = you blew the budget; freeze deploys.</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> recite the nines→time conversion (99.9% = 8.76h/yr), name the sampling-interval bias unprompted, distinguish scheduled vs unscheduled downtime, and pre-empt the error-budget framing. The time-weighted variant is the over-the-bar move — it's what real SRE on-call playbooks use.</div>

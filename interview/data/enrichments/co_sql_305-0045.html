@@ -1,0 +1,68 @@
+<p>The Site Reliability team watches a stream of daily metrics — request count, error rate, p99 latency, signup conversions. Single-day numbers tell you nothing; what matters is <strong>day-over-day change</strong>. Did errors spike? Did signups drop? <code>LAG</code> over a date-ordered series is the universal answer.</p>
+
+<h4>1. The source data — <code>metrics</code></h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>(narrative)</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-28</td><td>1,200</td><td>steady</td></tr>
+    <tr><td>2026-04-29</td><td>1,240</td><td>+40, normal noise</td></tr>
+    <tr><td>2026-04-30</td><td>1,310</td><td>+70, slight uptick</td></tr>
+    <tr><td>2026-05-01</td><td>1,180</td><td><strong>−130, dip — investigate?</strong></td></tr>
+    <tr><td>2026-05-02</td><td>1,950</td><td><strong>+770, big spike — what happened?</strong></td></tr>
+    <tr><td>2026-05-03</td><td>1,290</td><td>back to baseline, spike was a one-off</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — <code>LAG</code> for the previous-day delta</h4>
+<pre><code>SELECT
+  metric_date,
+  value,
+  value - LAG(value) OVER (ORDER BY metric_date) AS day_over_day_change
+FROM metrics;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>metric_date</th><th>value</th><th>day_over_day_change</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-28</td><td>1,200</td><td>NULL</td><td>baseline (no prior day)</td></tr>
+    <tr><td>2026-04-29</td><td>1,240</td><td>+40</td><td>noise</td></tr>
+    <tr><td>2026-04-30</td><td>1,310</td><td>+70</td><td>noise</td></tr>
+    <tr><td>2026-05-01</td><td>1,180</td><td><strong>−130</strong></td><td>under threshold — page</td></tr>
+    <tr><td>2026-05-02</td><td>1,950</td><td><strong>+770</strong></td><td>over threshold — investigate</td></tr>
+    <tr><td>2026-05-03</td><td>1,290</td><td>−660</td><td>spike unwound — likely campaign blast</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> beats a self-join</h5>
+<p>The traditional way is <code>FROM metrics a LEFT JOIN metrics b ON b.metric_date = a.metric_date - 1</code>. That works but does a costly join even when the data is naturally ordered. <code>LAG</code> is a single sorted pass — same answer, far cheaper. On a million-row metrics table, the self-join takes seconds; <code>LAG</code> takes milliseconds.</p>
+
+<h5>The first-row NULL — feature, not bug</h5>
+<p>The earliest date has no prior day → <code>LAG = NULL</code> → delta is NULL. That's correct: you can't compute "change since yesterday" if there is no yesterday. Dashboards render NULL as "—" or skip the row.</p>
+
+<h5>Day-over-day raw delta vs percent change</h5>
+<p>Raw delta is good for absolute counts (1,310 → 1,180 = −130 fewer signups). Percent change is better for things that scale (a +130 change at scale 100 is huge; at scale 100,000 is noise). The percent variant:</p>
+<pre><code>SELECT metric_date, value,
+  100.0 * (value - LAG(value) OVER (ORDER BY metric_date))
+        / NULLIF(LAG(value) OVER (ORDER BY metric_date), 0) AS dod_pct_change
+FROM metrics;</code></pre>
+
+<h5>Anomaly detection — comparing to a rolling baseline, not just yesterday</h5>
+<p>"Yesterday vs today" is noisy. Real ops dashboards compare today to a <strong>7-day rolling average</strong> — much more robust:</p>
+<pre><code>SELECT metric_date, value,
+  AVG(value) OVER (ORDER BY metric_date ROWS BETWEEN 7 PRECEDING AND 1 PRECEDING) AS baseline_7d,
+  ROUND(100.0 * (value - AVG(value) OVER (...)) / AVG(value) OVER (...), 1) AS pct_vs_baseline
+FROM metrics;</code></pre>
+<p>Pages fire when <code>pct_vs_baseline</code> exceeds ±20% (tuneable per metric).</p>
+
+<h5>Multi-metric ranking — <code>PARTITION BY metric_name</code></h5>
+<p>Real systems track 100+ metrics in the same table. Compare each to its own history:</p>
+<pre><code>value - LAG(value) OVER (PARTITION BY metric_name ORDER BY metric_date) AS dod_change</code></pre>
+<p>Without the PARTITION, <code>LAG</code> would compare today's signup count to yesterday's error rate — nonsense. Always partition by the entity whose history you want.</p>
+
+<h5>Day-7 / day-28 comparison via <code>LAG(value, N)</code></h5>
+<p><code>LAG(value, 7)</code> reaches back 7 rows. Useful for "same-day-last-week" comparisons (controlling for day-of-week effects):</p>
+<pre><code>value - LAG(value, 7) OVER (ORDER BY metric_date) AS week_over_week_change</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the rolling-baseline upgrade unprompted (raw day-over-day is too noisy for production alerting), articulate the <code>PARTITION BY</code> as the safety net for multi-metric tables, and pre-empt the WoW / MoM follow-ups with <code>LAG(value, 7)</code> / <code>LAG(value, 30)</code>.</div>
