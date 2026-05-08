@@ -1,0 +1,103 @@
+<p>Uber's CFO opens the daily ride-revenue tab: <em>"are we tracking ahead of last quarter's pace?"</em> &mdash; the answer is always a cumulative line. Running totals are the bedrock of every finance dashboard. The query is a single window function; the subtleties live in the frame clause and the missing-day trap.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$1,200</td></tr>
+    <tr><td>2026-04-02</td><td>$950</td></tr>
+    <tr><td>2026-04-03</td><td>$1,400</td></tr>
+    <tr><td>2026-04-04</td><td>$880</td></tr>
+    <tr><td>2026-04-05</td><td>$1,650</td></tr>
+    <tr><td>2026-04-06</td><td>$1,100</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; <code>SUM</code> as a window function</h4>
+<pre><code>SELECT sale_date, amount,
+  SUM(amount) OVER (ORDER BY sale_date ROWS UNBOUNDED PRECEDING) AS cumulative
+FROM sales
+ORDER BY sale_date;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>sale_date</th><th>amount</th><th>cumulative</th></tr></thead>
+  <tbody>
+    <tr><td>2026-04-01</td><td>$1,200</td><td>$1,200</td></tr>
+    <tr><td>2026-04-02</td><td>$950</td><td>$2,150</td></tr>
+    <tr><td>2026-04-03</td><td>$1,400</td><td>$3,550</td></tr>
+    <tr><td>2026-04-04</td><td>$880</td><td>$4,430</td></tr>
+    <tr><td>2026-04-05</td><td>$1,650</td><td>$6,080</td></tr>
+    <tr><td>2026-04-06</td><td>$1,100</td><td>$7,180</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ROWS UNBOUNDED PRECEDING</code> &mdash; the explicit frame</h5>
+<p>Without a frame clause, <code>SUM(...) OVER (ORDER BY x)</code> uses the default <code>RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW</code> &mdash; which sums all rows with the same ORDER BY value as the current row, plus everything before. For unique dates the result is identical to <code>ROWS</code>; the moment you have two rows on the same date, <code>RANGE</code> gives you both rows' totals on each row of that date. Always pin the frame:</p>
+<pre><code>-- ROWS = physical row count, fast, what you usually want
+SUM(amount) OVER (ORDER BY sale_date ROWS UNBOUNDED PRECEDING)
+
+-- RANGE = include all peers (rows with same ORDER BY key) — surprising on ties
+SUM(amount) OVER (ORDER BY sale_date RANGE UNBOUNDED PRECEDING)</code></pre>
+
+<h5>The missing-day trap &mdash; build a date spine first</h5>
+<p>If April 5 had zero rides, the cumulative line jumps from $4,430 to $6,080 with no intermediate row. Charts plotted on a continuous axis show a flat line across the gap, not a "$0 day, no progress" point. Production fix: generate a date spine and LEFT JOIN:</p>
+<pre><code>WITH dates AS (
+  SELECT generate_series(DATE '2026-04-01', DATE '2026-04-30', '1 day'::interval)::DATE AS d
+)
+SELECT d.d, COALESCE(s.amount, 0) AS amount,
+  SUM(COALESCE(s.amount, 0)) OVER (ORDER BY d.d ROWS UNBOUNDED PRECEDING) AS cumulative
+FROM dates d
+LEFT JOIN sales s ON s.sale_date = d.d
+ORDER BY d.d;</code></pre>
+
+<h5>Per-region cumulative &mdash; <code>PARTITION BY</code></h5>
+<p>The CFO's follow-up is always <em>"break it down by region or city."</em> Partition the window:</p>
+<pre><code>SUM(amount) OVER (
+  PARTITION BY city
+  ORDER BY sale_date
+  ROWS UNBOUNDED PRECEDING
+) AS cumulative_by_city</code></pre>
+<p>Each city's accumulator resets at its first row. Without <code>PARTITION BY</code>, all cities share one running sum &mdash; useless for comparison.</p>
+
+<h5>Year-to-date that resets every January</h5>
+<p>The actual finance ask is YTD: cumulative from Jan 1 of the current year, then resets. Two PARTITION BYs:</p>
+<pre><code>SUM(amount) OVER (
+  PARTITION BY EXTRACT(YEAR FROM sale_date)
+  ORDER BY sale_date
+  ROWS UNBOUNDED PRECEDING
+) AS ytd_total</code></pre>
+
+<h5>Sliding window vs cumulative window &mdash; the senior distinction</h5>
+<p>Drop <code>UNBOUNDED PRECEDING</code> and put a numeric anchor and you have a <em>trailing window</em>, not a cumulative:</p>
+<pre><code>-- Last-7-days running total
+SUM(amount) OVER (ORDER BY sale_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rolling_7d
+
+-- Forward-looking 30-day projection (rare but useful for backlog)
+SUM(amount) OVER (ORDER BY sale_date ROWS BETWEEN CURRENT ROW AND 29 FOLLOWING) AS next_30d</code></pre>
+<p>Cumulative gives "how far ahead are we?". Trailing gives "is recent demand strong?". They answer different questions; finance dashboards usually need both.</p>
+
+<h5>The pace-vs-target follow-up</h5>
+<p>Cumulative alone isn't the punchline &mdash; the punchline is <em>"are we ahead of plan?"</em> Join to a daily target:</p>
+<pre><code>SELECT s.sale_date, s.cumulative,
+  t.cumulative_target,
+  s.cumulative - t.cumulative_target AS variance,
+  ROUND(100.0 * s.cumulative / NULLIF(t.cumulative_target,0), 1) AS pct_of_plan
+FROM cumulative_sales s
+LEFT JOIN daily_targets t USING (sale_date);</code></pre>
+
+<h5>The "this month vs last month" overlay &mdash; the actual chart</h5>
+<p>Most finance dashboards plot two cumulatives on the same axis indexed to month-day-1. The trick is to extract the day-of-month and partition by month:</p>
+<pre><code>SELECT DATE_TRUNC('month', sale_date) AS month,
+  EXTRACT(DAY FROM sale_date) AS dom,
+  SUM(amount) OVER (
+    PARTITION BY DATE_TRUNC('month', sale_date)
+    ORDER BY sale_date
+    ROWS UNBOUNDED PRECEDING
+  ) AS mtd
+FROM sales;</code></pre>
+<p>Plot <code>mtd</code> against <code>dom</code> with one line per month &mdash; instant pace comparison.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>ROWS</code> vs <code>RANGE</code> (with the ties caveat), pre-empt the missing-day trap with a date spine, and offer the per-region <code>PARTITION BY</code> + YTD reset variants without being asked. The MTD pace overlay (PARTITION BY month, ORDER BY date) is the over-the-bar finish.</div>
