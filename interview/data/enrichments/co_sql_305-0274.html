@@ -1,0 +1,82 @@
+<p>The growth team is studying <em>purchase cadence</em>: how often each customer buys, and whether they're slowing down (a churn leading indicator). The single most useful column to compute is the <strong>days since their previous order</strong> — the inter-purchase interval. <code>LAG</code> handles it in one line.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>(annotation)</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>2026-01-05</td><td>first order</td></tr>
+    <tr><td>1001</td><td>2026-01-19</td><td>14-day cadence</td></tr>
+    <tr><td>1001</td><td>2026-02-02</td><td>14-day cadence — steady</td></tr>
+    <tr><td>1001</td><td>2026-04-15</td><td><strong>72-day gap — slowing</strong></td></tr>
+    <tr><td>2002</td><td>2026-02-10</td><td>first order</td></tr>
+    <tr><td>2002</td><td>2026-02-13</td><td>3-day cadence</td></tr>
+    <tr><td>2002</td><td>2026-02-15</td><td>2-day cadence — power user</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — <code>LAG</code> partitioned per customer</h4>
+<pre><code>SELECT
+  customer_id,
+  order_date,
+  -- Subtract the previous order_date (per customer) from this one
+  order_date - LAG(order_date) OVER (
+    PARTITION BY customer_id
+    ORDER BY order_date
+  ) AS gap_days
+FROM orders;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>gap_days</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>2026-01-05</td><td>NULL</td><td>first order</td></tr>
+    <tr><td>1001</td><td>2026-01-19</td><td>14</td><td>steady</td></tr>
+    <tr><td>1001</td><td>2026-02-02</td><td>14</td><td>steady</td></tr>
+    <tr><td>1001</td><td>2026-04-15</td><td><strong>72</strong></td><td><strong>slowing — risk flag ⚠</strong></td></tr>
+    <tr><td>2002</td><td>2026-02-10</td><td>NULL</td><td>first order</td></tr>
+    <tr><td>2002</td><td>2026-02-13</td><td>3</td><td>active</td></tr>
+    <tr><td>2002</td><td>2026-02-15</td><td>2</td><td>power user</td></tr>
+  </tbody>
+</table>
+<p>The <code>NULL</code> on each customer's first row is correct — they have no prior order to compare against. Ignore those when computing per-customer averages.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>PARTITION BY</code> is the entire point</h5>
+<p>Drop <code>PARTITION BY customer_id</code> and the gap on row 5 (customer 2002's first order) becomes <code>2026-02-10 − 2026-04-15 = -64 days</code> — the LAG would compare to the previous customer's last order. Wrong, and the dashboard quietly produces nonsense. The partition isolates each customer's history into its own LAG window.</p>
+
+<h5>Why <code>order_date - LAG(order_date)</code> returns days (in some dialects)</h5>
+<p>In Postgres, BigQuery and Snowflake, subtracting two <code>DATE</code> values returns an integer number of days — exactly what you want. In SQLite, you need <code>julianday(order_date) - julianday(LAG(order_date) OVER ...)</code>. In MySQL, <code>DATEDIFF(order_date, LAG(...))</code>. State the dialect; the pattern is identical.</p>
+
+<h5>The follow-up: average gap per customer (cadence)</h5>
+<p>Once each row has its gap, the average per customer is the cadence:</p>
+<pre><code>WITH gaps AS (
+  SELECT customer_id,
+    order_date - LAG(order_date) OVER (PARTITION BY customer_id ORDER BY order_date) AS gap_days
+  FROM orders
+)
+SELECT customer_id,
+  ROUND(AVG(gap_days), 1) AS avg_cadence_days,
+  COUNT(*) - 1            AS gap_observations,    -- exclude NULL first-row
+  MAX(gap_days)           AS longest_gap
+FROM gaps
+WHERE gap_days IS NOT NULL
+GROUP BY customer_id;</code></pre>
+
+<h5>The "is this customer slowing down?" version — compare last gap to running median</h5>
+<p>The real growth-team query is: <em>"flag customers whose most recent gap is &gt;2× their median historical gap"</em>. That's churn risk. Achievable by extending the LAG pattern with another window function:</p>
+<pre><code>SELECT customer_id, order_date, gap_days,
+  ROUND(gap_days * 1.0 / median_gap_so_far, 2) AS gap_vs_median
+FROM (
+  SELECT customer_id, order_date, gap_days,
+    -- median of all gaps seen so far for this customer (excluding NULL)
+    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY gap_days)
+      OVER (PARTITION BY customer_id ROWS UNBOUNDED PRECEDING) AS median_gap_so_far
+  FROM gaps
+)
+WHERE gap_vs_median &gt;= 2;</code></pre>
+
+<h5>"Days since last order" right now — <code>CURRENT_DATE − MAX(order_date)</code></h5>
+<p>For a live "are they still active?" check, you don't need LAG — just <code>CURRENT_DATE - MAX(order_date)</code> per customer. LAG is for <em>historical</em> gap pattern; a single value is for <em>current state</em>. Both have a place.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show the <code>PARTITION BY customer_id</code> as the critical piece (without it the query is silently wrong), volunteer the dialect difference for date subtraction, and pre-empt the cadence-aggregation follow-up. The "gap-vs-median" extension is the over-the-bar answer.</div>

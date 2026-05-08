@@ -1,0 +1,82 @@
+<p>The CRO's Monday morning email: <em>"Send me the top seller in each region for last quarter — they're getting a personal call from the CEO."</em> The data team has billions of rows of sales detail. The query needs to roll the rows up <strong>per (region × seller)</strong>, then rank within region, then keep only the top.</p>
+
+<h4>1. The source data — <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>seller_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>S101</td><td>$45,000</td></tr>
+    <tr><td>North</td><td>S101</td><td>$60,000</td></tr>
+    <tr><td>North</td><td>S102</td><td>$80,000</td></tr>
+    <tr><td>North</td><td>S103</td><td>$25,000</td></tr>
+    <tr><td>South</td><td>S201</td><td>$95,000</td></tr>
+    <tr><td>South</td><td>S202</td><td>$70,000</td></tr>
+    <tr><td>South</td><td>S202</td><td>$50,000</td></tr>
+    <tr><td>East</td><td>S301</td><td>$30,000</td></tr>
+    <tr><td>East</td><td>S301</td><td>$20,000</td></tr>
+    <tr><td>East</td><td>S302</td><td>$48,000</td></tr>
+  </tbody>
+</table>
+<p>Multiple rows per seller (each row = one sale). Need to sum first, then rank.</p>
+
+<h4>2. The SQL — aggregate inside, rank outside</h4>
+<pre><code>SELECT region, seller_id, total
+FROM (
+  SELECT
+    region, seller_id,
+    SUM(amount) AS total,
+    -- RANK over the GROUPED result, not the raw rows
+    RANK() OVER (PARTITION BY region ORDER BY SUM(amount) DESC) AS rk
+  FROM sales
+  GROUP BY region, seller_id
+) t
+WHERE rk = 1;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>seller_id</th><th>total</th><th>(2nd place)</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td><strong>S101</strong></td><td><strong>$105,000</strong></td><td>S102 $80K</td></tr>
+    <tr><td>South</td><td><strong>S201</strong></td><td><strong>$95,000</strong></td><td>S202 $120K — wait!</td></tr>
+    <tr><td>East</td><td><strong>S301</strong></td><td><strong>$50,000</strong></td><td>S302 $48K</td></tr>
+  </tbody>
+</table>
+<p><em>(I added the 2nd-place column for context — it's not in the actual query output.)</em> Notice the South region: S202 had two rows summing to $120K, beating S201's $95K. The query correctly returns S202 as the winner — the SUM happens before the RANK.</p>
+
+<table>
+  <thead><tr><th>region</th><th>seller_id</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>S101</td><td>$105,000</td></tr>
+    <tr><td>South</td><td>S202</td><td>$120,000</td></tr>
+    <tr><td>East</td><td>S301</td><td>$50,000</td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "aggregate then rank" composition trap</h5>
+<p>The order matters: <code>GROUP BY</code> first, <code>RANK</code> second. Reverse it (rank inside an unaggregated query) and you'd be ranking individual sale rows, not seller totals — the answer would be the seller with the single biggest sale, not the biggest cumulative seller. Senior engineers spot this composition error in code review.</p>
+
+<h5>Why <code>RANK()</code> over <code>SUM(amount)</code> works</h5>
+<p>Window functions can use aggregate expressions in their <code>ORDER BY</code> when they live in the same SELECT as the GROUP BY. The engine first computes the aggregate, then ranks the aggregated rows. This is a really clean pattern — <em>rank over the aggregated metric</em> — and worth memorising.</p>
+
+<h5>Tie-handling — what if two sellers tie?</h5>
+<p>If S101 and S102 both totalled $105,000 in North, <code>RANK() = 1</code> would return both rows. That's usually right (both get the CEO call). If you must return exactly one (say, an engraving on a single trophy), add a deterministic tie-breaker:</p>
+<pre><code>RANK() OVER (
+  PARTITION BY region
+  ORDER BY SUM(amount) DESC, seller_id ASC    -- alphabetical fallback
+) AS rk</code></pre>
+<p>Or switch to <code>ROW_NUMBER()</code> with the same ORDER BY — guaranteed exactly one row per partition.</p>
+
+<h5>"Top 3" instead of "top 1"</h5>
+<p>The CRO's next email: <em>"Actually, give me the top 3 per region so I can also send notes to the runners-up."</em> Trivial change:</p>
+<pre><code>... WHERE rk &lt;= 3</code></pre>
+<p>This is the killer case for window functions vs subqueries — top-3-per-group via correlated subquery is awful; via window function it's trivial. Mention this contrast in the interview.</p>
+
+<h5>Snowflake / BigQuery shortcut: <code>QUALIFY</code></h5>
+<pre><code>-- Snowflake / BigQuery — no outer subquery
+SELECT region, seller_id, SUM(amount) AS total
+FROM sales
+GROUP BY region, seller_id
+QUALIFY RANK() OVER (PARTITION BY region ORDER BY SUM(amount) DESC) = 1;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the pattern (<em>top-N per group via window function over an aggregated query</em>), justify the GROUP-then-RANK ordering, and show the trivial <code>WHERE rk &lt;= N</code> extension for top-N. The contrast with correlated subqueries (which fall apart at top-3) is the senior insight.</div>

@@ -1,0 +1,69 @@
+<p>HR runs comp band reviews twice a year. The People-Analytics team needs a per-department salary leaderboard: who's the highest paid in each org, who's at risk of being underpaid relative to peers, and where pay-band overlaps create grievance risk. Different ranking functions answer different versions of these questions — picking the wrong one quietly corrupts the analysis.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td><strong>ENG</strong></td><td>$210,000</td></tr>
+    <tr><td>E02</td><td><strong>ENG</strong></td><td>$180,000</td></tr>
+    <tr><td>E03</td><td><strong>ENG</strong></td><td>$180,000</td></tr>
+    <tr><td>E04</td><td><strong>ENG</strong></td><td>$155,000</td></tr>
+    <tr><td>E05</td><td><strong>SALES</strong></td><td>$240,000</td></tr>
+    <tr><td>E06</td><td><strong>SALES</strong></td><td>$190,000</td></tr>
+    <tr><td>E07</td><td><strong>SALES</strong></td><td>$135,000</td></tr>
+  </tbody>
+</table>
+<p>Notice E02 and E03 are tied at $180K — that's the interesting case the ranking function has to handle correctly.</p>
+
+<h4>2. The SQL — <code>RANK()</code> with <code>PARTITION BY dept_id</code></h4>
+<pre><code>SELECT emp_id, dept_id, salary,
+  RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+FROM employees;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>RANK()</th><th>DENSE_RANK()</th><th>ROW_NUMBER()</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>ENG</td><td>$210,000</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>E02</td><td>ENG</td><td>$180,000</td><td><strong>2</strong></td><td><strong>2</strong></td><td>2</td></tr>
+    <tr><td>E03</td><td>ENG</td><td>$180,000</td><td><strong>2</strong> <em>(tied)</em></td><td><strong>2</strong> <em>(tied)</em></td><td>3</td></tr>
+    <tr><td>E04</td><td>ENG</td><td>$155,000</td><td><strong>4</strong></td><td><strong>3</strong></td><td>4</td></tr>
+    <tr><td>E05</td><td>SALES</td><td>$240,000</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>E06</td><td>SALES</td><td>$190,000</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>E07</td><td>SALES</td><td>$135,000</td><td>3</td><td>3</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>I included <code>DENSE_RANK()</code> and <code>ROW_NUMBER()</code> to make the ties explicit. <code>RANK</code> jumps from 2 to 4 (skipping 3) because two people are tied at position 2; <code>DENSE_RANK</code> doesn't skip; <code>ROW_NUMBER</code> picks an arbitrary tie-breaker.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> — pick consciously</h5>
+<ul>
+  <li><strong><code>RANK</code></strong> — ties get the same number, then rank skips. Use when "how far behind first place are you?" matters. <em>"3rd place finisher in a race"</em> stays the 3rd best even if 2 people tied for 2nd.</li>
+  <li><strong><code>DENSE_RANK</code></strong> — ties get the same number, no skip. Use for <em>pay bands</em>: HR cares about how many distinct salary tiers exist, not how many people sit at each.</li>
+  <li><strong><code>ROW_NUMBER</code></strong> — ties broken arbitrarily by the engine. Use only when you need <em>exactly one row per partition</em>; never trust the tie-break unless you add a deterministic secondary <code>ORDER BY</code>.</li>
+</ul>
+
+<h5>The "top earner per dept" question — wrap in a subquery</h5>
+<p>The query as written returns every employee with their rank. To filter to just the top earners, wrap it:</p>
+<pre><code>SELECT * FROM (
+  SELECT emp_id, dept_id, salary,
+    RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk = 1;
+-- Returns 3 rows: E01 (ENG #1), E02 and E03 (both tied for ENG #1 ... wait, no)
+-- Actually returns just E01 and E05 because E02/E03 are at rank 2.</code></pre>
+<p>If the goal is <em>"all employees tied for first place"</em> and ties should both qualify, switch to <code>RANK() = 1</code> over a re-ordered partition or use <code>DENSE_RANK</code>. State the tie semantics in the interview.</p>
+
+<h5>The Snowflake / BigQuery shortcut: <code>QUALIFY</code></h5>
+<pre><code>-- Snowflake / BigQuery — collapses two CTEs into one
+SELECT emp_id, dept_id, salary,
+  RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+FROM employees
+QUALIFY rk = 1;</code></pre>
+<p>Mention <code>QUALIFY</code> in the interview as the dialect-specific shortcut, but lead with the portable subquery — Postgres and SQLite don't have it.</p>
+
+<h5>What HR actually does next: pay-band overlap detection</h5>
+<p>The grievance-risk question is: <em>"Is anyone in dept A earning less than the lowest-paid person at the same level in dept B?"</em> That's a JOIN on dept-level aggregates, not a single ranking — but the ranking output above is the input. Once the rank column exists, HR can compare <code>WHERE rk = N</code> across departments to find pay parity issues.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show all three ranking functions in one breath, name the tie-handling difference, and mention <code>QUALIFY</code>. The interviewer is checking whether you've internalised the <em>why</em> of each function, not just the syntax of <code>OVER</code>.</div>
