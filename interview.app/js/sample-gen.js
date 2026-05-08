@@ -44,7 +44,7 @@ const TYPE_RULES = [
   { test: (c) => /(^|_)is_/.test(c), type: "INTEGER", role: "boolean" },
   { test: (c) => /^(start|end|hire|signup|birth|order|purchase|posted|updated|created|delivered|completed|paid|received|effective|expiry|action|metric|due)_(date|on)$/.test(c) || /_date$/.test(c) || c === "ds" || c === "date" || c === "dob" || c === "month" || c === "week_start", type: "TEXT", role: "date" },
   { test: (c) => /(_at|_ts|_time)$/.test(c) || c === "timestamp", type: "TEXT", role: "datetime" },
-  { test: (c) => /(amount|price|total|revenue|salary|bonus|cost|budget|spend|spent|weight|score|rate|value|profit|gmv|gross|net|fee|tax|discount|balance|due_amount|paid_amount|cogs|avg_)/.test(c), type: "REAL", role: "money" },
+  { test: (c) => /(amount|price|total|revenue|salary|bonus|cost|budget|spend|spent|weight|score|rate|value|profit|gmv|gross|net|fee|tax|discount|balance|due_amount|paid_amount|cogs|avg_|target|quota|goal|forecast|commission|payout)/.test(c), type: "REAL", role: "money" },
   { test: (c) => /(qty|quantity|count|views|likes|comments|clicks|impressions|sessions|wau|dau|mau|days|seconds|minutes|hours|capacity|tickets_sold|delay_minutes|on_hand|new_subs|cancelled_subs|action_count|duration_sec)/.test(c), type: "INTEGER", role: "count" },
   { test: (c) => /^age$/.test(c), type: "INTEGER", role: "age" },
   { test: (c) => /^email/.test(c), type: "TEXT", role: "email" },

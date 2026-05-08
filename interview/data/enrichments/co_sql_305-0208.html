@@ -1,0 +1,83 @@
+<p>Every Monday morning, the Meta product leads open the Growth Review and the first chart on the slide is <em>MAU by month</em>. Monthly Active Users — distinct users who took any action in the calendar month — is the textbook health metric for a B2C product. The query is a one-liner; the strategic depth is in <em>what counts as "active"</em> and <em>what timezone defines "month"</em>.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>action_date</th></tr></thead>
+  <tbody>
+    <tr><td>U_001</td><td>2026-03-29</td></tr>
+    <tr><td>U_002</td><td>2026-03-30</td></tr>
+    <tr><td>U_001</td><td>2026-03-31</td></tr>
+    <tr><td>U_003</td><td>2026-04-01</td></tr>
+    <tr><td>U_001</td><td>2026-04-02</td></tr>
+    <tr><td>U_002</td><td>2026-04-15</td></tr>
+    <tr><td>U_004</td><td>2026-04-22</td></tr>
+    <tr><td>U_001</td><td>2026-04-28</td></tr>
+    <tr><td>U_005</td><td>2026-05-01</td></tr>
+    <tr><td>U_003</td><td>2026-05-04</td></tr>
+  </tbody>
+</table>
+<p>Three months of data. U_001 is active in all three months, but should count once per month, not three times within April.</p>
+
+<h4>2. The SQL &mdash; <code>DATE_TRUNC</code> + <code>COUNT(DISTINCT user_id)</code></h4>
+<pre><code>SELECT
+  DATE_TRUNC('month', action_date) AS month,
+  COUNT(DISTINCT user_id) AS mau
+FROM activity
+GROUP BY DATE_TRUNC('month', action_date)
+ORDER BY month;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>mau</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>2026-03-01</td><td>2</td><td>U_001, U_002</td></tr>
+    <tr><td>2026-04-01</td><td>4</td><td>U_001, U_002, U_003, U_004 &mdash; 2x growth</td></tr>
+    <tr><td>2026-05-01</td><td>2</td><td>U_003, U_005 &mdash; partial month, watch carefully</td></tr>
+  </tbody>
+</table>
+<p>U_001 took 3 actions across April but contributed exactly 1 to April's MAU. <code>COUNT(DISTINCT user_id)</code> dedupes within the group.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>DATE_TRUNC</code> over <code>EXTRACT(MONTH FROM ...)</code></h5>
+<p><code>EXTRACT(MONTH FROM action_date)</code> returns the integer 1-12 &mdash; so April 2025 and April 2026 collapse into the same bucket. Use <code>DATE_TRUNC('month', action_date)</code>, which returns a date pinned to the first of the month (e.g., <code>2026-04-01</code>) &mdash; year-distinct and chart-ready. SQLite has no DATE_TRUNC; use <code>strftime('%Y-%m', action_date)</code> or <code>date(action_date, 'start of month')</code>.</p>
+
+<h5>The "active" definition trap &mdash; what <em>counts</em>?</h5>
+<p>The query above counts <em>any row in <code>activity</code></em> as a sign of life. Real product orgs draw a sharper line: a passive push-notification open isn't the same as a real session. Production MAU usually filters:</p>
+<pre><code>WHERE action_type IN ('feed_view', 'post', 'comment', 'message', 'reaction')
+  AND session_duration_seconds &gt;= 5</code></pre>
+<p>Always pin the active-event whitelist with the PM in the kickoff &mdash; "what counts as active" is the most common silent disagreement in growth analytics.</p>
+
+<h5>The timezone trap &mdash; UTC vs user-local</h5>
+<p><code>action_date</code> is usually stored in UTC. A user in Tokyo posting at 11pm local on March 31 lands in UTC on April 1 &mdash; and counts toward April MAU instead of March. For global products this skews month-end heavily. The fix:</p>
+<pre><code>DATE_TRUNC('month', action_ts AT TIME ZONE user_timezone) AS month</code></pre>
+<p>...assuming a <code>users.timezone</code> column. If you don't have user timezone, at minimum use the company's reporting timezone (PT for Meta, ET for finance teams).</p>
+
+<h5>L28 vs calendar-month MAU</h5>
+<p>Calendar-month MAU has a known bias: a user active on the 1st gets credit for the whole month; a user active on the 30th barely scrapes in. Meta and Snap report <strong>L28</strong> (rolling 28-day window, ending on the report date) precisely because it's resampling-stable.</p>
+<pre><code>SELECT report_date,
+  COUNT(DISTINCT user_id) AS l28_mau
+FROM activity
+WHERE action_date BETWEEN report_date - INTERVAL '27 days' AND report_date
+GROUP BY report_date;</code></pre>
+<p>For an interview answer, present calendar-month MAU first (what was asked) then volunteer L28 as the "what we actually use in production" follow-up.</p>
+
+<h5>The DAU/MAU stickiness ratio &mdash; the senior follow-up</h5>
+<p>The PM's actual question is usually <em>"is the product getting stickier?"</em> &mdash; the DAU/MAU ratio (Facebook's famous &gt;50% benchmark). Run both metrics and divide:</p>
+<pre><code>WITH dau AS (
+  SELECT action_date AS d, COUNT(DISTINCT user_id) AS dau
+  FROM activity GROUP BY action_date
+),
+mau AS (
+  SELECT d, COUNT(DISTINCT user_id) AS mau
+  FROM activity, generate_series(...) g(d)  -- date spine
+  WHERE action_date BETWEEN d - INTERVAL '29 days' AND d
+  GROUP BY d
+)
+SELECT d, dau, mau, ROUND(100.0 * dau / mau, 1) AS stickiness_pct
+FROM dau JOIN mau USING (d);</code></pre>
+
+<h5>WAU and the engagement pyramid</h5>
+<p>Mature product orgs report DAU / WAU / MAU together &mdash; the "engagement pyramid". WAU/MAU sniffs out users who log in only once a month (low quality); DAU/WAU sniffs out daily-vs-weekly cadence shifts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>DATE_TRUNC</code>'s year-distinct property over <code>EXTRACT</code>, raise the timezone trap unprompted, and pre-empt the L28 vs calendar-month conversation. The DAU/MAU stickiness ratio with a date-spine'd L28 implementation is the over-the-bar finish.</div>

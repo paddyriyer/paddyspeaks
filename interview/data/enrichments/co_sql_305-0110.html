@@ -1,0 +1,97 @@
+<p>Every B2C product team has a funnel chart on the wall: <em>Landing → Plan Select → Payment Info → Confirm</em>. Each step loses some users; the question is always <em>"where's the biggest leak?"</em>. The query computes per-step user counts and the percent-of-top so the leakiest step pops out instantly.</p>
+
+<h4>1. The source data — <code>funnel</code></h4>
+<table>
+  <thead><tr><th>step</th><th>user_id</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>U_001</td><td>2026-04-22 09:01</td></tr>
+    <tr><td>1</td><td>U_002</td><td>2026-04-22 09:05</td></tr>
+    <tr><td>1</td><td>U_003</td><td>2026-04-22 09:11</td></tr>
+    <tr><td>1</td><td>U_004</td><td>2026-04-22 09:18</td></tr>
+    <tr><td>1</td><td>U_005</td><td>2026-04-22 09:23</td></tr>
+    <tr><td>2</td><td>U_001</td><td>2026-04-22 09:02</td></tr>
+    <tr><td>2</td><td>U_002</td><td>2026-04-22 09:07</td></tr>
+    <tr><td>2</td><td>U_003</td><td>2026-04-22 09:14</td></tr>
+    <tr><td>2</td><td>U_004</td><td>2026-04-22 09:20</td></tr>
+    <tr><td>3</td><td>U_001</td><td>2026-04-22 09:08</td></tr>
+    <tr><td>3</td><td>U_002</td><td>2026-04-22 09:09</td></tr>
+    <tr><td>4</td><td>U_001</td><td>2026-04-22 09:12</td></tr>
+  </tbody>
+</table>
+<p>5 users hit Step 1, 4 hit Step 2, 2 hit Step 3, 1 reached Step 4 (Confirm). The biggest drop-off is Step 2 → Step 3 (4 → 2 = 50% loss).</p>
+
+<h4>2. The SQL — distinct count per step + percent-of-top via window function</h4>
+<pre><code>SELECT
+  step,
+  COUNT(DISTINCT user_id) AS users,
+  100.0 * COUNT(DISTINCT user_id) /
+    FIRST_VALUE(COUNT(DISTINCT user_id)) OVER (ORDER BY step) AS pct_of_top
+FROM funnel
+GROUP BY step
+ORDER BY step;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>step</th><th>users</th><th>pct_of_top</th><th>step-to-step %</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>1 (Landing)</td><td>5</td><td>100%</td><td>—</td><td>baseline</td></tr>
+    <tr><td>2 (Plan Select)</td><td>4</td><td>80%</td><td>80%</td><td>healthy</td></tr>
+    <tr><td>3 (Payment Info)</td><td>2</td><td><strong>40%</strong></td><td><strong>50%</strong></td><td><strong>biggest leak — investigate ⚠</strong></td></tr>
+    <tr><td>4 (Confirm)</td><td>1</td><td>20%</td><td>50%</td><td>final-step friction</td></tr>
+  </tbody>
+</table>
+<p>Step 2 → 3 (Plan Select → Payment Info) lost half the users. That's where the redesign focus goes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>FIRST_VALUE</code> over <code>step</code></h5>
+<p><code>FIRST_VALUE(COUNT(DISTINCT user_id)) OVER (ORDER BY step)</code> grabs the count from the lowest-numbered step (Landing) and replicates it on every row — so every step can divide by the top. Without this, you'd need a self-join to the step-1 count or a CTE — much more code for the same answer.</p>
+
+<h5>The "leaky funnel" follow-up — step-to-step ratio</h5>
+<p>The query above shows percent-of-top, which is good for the headline. The actionable view is step-to-step (how much did THIS step lose vs the previous step), which highlights where the friction is:</p>
+<pre><code>WITH step_counts AS (
+  SELECT step, COUNT(DISTINCT user_id) AS users
+  FROM funnel GROUP BY step
+)
+SELECT step, users,
+  LAG(users) OVER (ORDER BY step) AS prev_step_users,
+  ROUND(100.0 * users / NULLIF(LAG(users) OVER (ORDER BY step), 0), 1) AS step_to_step_pct
+FROM step_counts
+ORDER BY step;</code></pre>
+
+<h5>The strict-funnel trap — does the user need to complete previous steps?</h5>
+<p>The query above counts <em>any user who hit step N</em>, regardless of whether they hit steps 1 through N-1. In a real funnel this is wrong: a user who jumped to "Confirm" via a deep link without doing "Plan Select" should not count toward Step 4. Strict funnel:</p>
+<pre><code>WITH per_user AS (
+  SELECT user_id,
+    MAX(CASE WHEN step = 1 THEN 1 END) AS hit_1,
+    MAX(CASE WHEN step = 2 THEN 1 END) AS hit_2,
+    MAX(CASE WHEN step = 3 THEN 1 END) AS hit_3,
+    MAX(CASE WHEN step = 4 THEN 1 END) AS hit_4
+  FROM funnel
+  GROUP BY user_id
+)
+SELECT
+  SUM(hit_1)                                                AS step_1,
+  SUM(CASE WHEN hit_1 = 1 AND hit_2 = 1                              THEN 1 END) AS step_2,
+  SUM(CASE WHEN hit_1 = 1 AND hit_2 = 1 AND hit_3 = 1                  THEN 1 END) AS step_3,
+  SUM(CASE WHEN hit_1 = 1 AND hit_2 = 1 AND hit_3 = 1 AND hit_4 = 1    THEN 1 END) AS step_4
+FROM per_user;</code></pre>
+
+<h5>Time-bounded funnel — "did they finish within 7 days?"</h5>
+<p>Production funnels add a <strong>per-step time window</strong>: a user who hit Plan Select 30 days after Landing isn't really in the same funnel session. Add timestamp checks:</p>
+<pre><code>MAX(CASE WHEN step = 2 AND ts &lt; landing_ts + INTERVAL '7 days' THEN 1 END) AS hit_2_within_7d</code></pre>
+
+<h5>Cohort funnel — break by signup week</h5>
+<p>The PM's actual question is usually <em>"is the funnel improving or getting worse over time?"</em> Slice by acquisition cohort:</p>
+<pre><code>WITH cohorts AS (
+  SELECT user_id, DATE_TRUNC('week', MIN(ts)) AS cohort_week
+  FROM funnel
+  WHERE step = 1
+  GROUP BY user_id
+)
+SELECT c.cohort_week, f.step, COUNT(DISTINCT f.user_id) AS users
+FROM cohorts c JOIN funnel f USING (user_id)
+GROUP BY c.cohort_week, f.step
+ORDER BY c.cohort_week, f.step;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name <code>FIRST_VALUE</code> as a clean alternative to a self-join, articulate the strict-vs-loose funnel distinction unprompted, layer in the time-window per step, and pre-empt the cohort-funnel question. The strict funnel via per-user MAX(CASE) is the over-the-bar move.</div>

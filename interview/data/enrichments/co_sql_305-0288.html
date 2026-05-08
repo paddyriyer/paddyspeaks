@@ -1,0 +1,99 @@
+<p>Salesforce's marketing-cloud team gets a brand-safety complaint: <em>"customers are saying we're hammering them with the same channel."</em> The growth lead asks for the list of customers who got <strong>three or more consecutive touches on the same channel</strong> &mdash; e.g., email after email after email with no SMS or in-app in between. This is a textbook "consecutive run" pattern: <code>LAG</code> to compare to the previous row, then count.</p>
+
+<h4>1. The source data &mdash; <code>touches</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>channel</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>C_01</td><td>email</td><td>2026-04-01 09:00</td></tr>
+    <tr><td>C_01</td><td>email</td><td>2026-04-02 09:00</td></tr>
+    <tr><td>C_01</td><td>email</td><td>2026-04-03 09:00</td></tr>
+    <tr><td>C_01</td><td>sms</td><td>2026-04-04 10:00</td></tr>
+    <tr><td>C_02</td><td>email</td><td>2026-04-01 11:00</td></tr>
+    <tr><td>C_02</td><td>sms</td><td>2026-04-02 11:00</td></tr>
+    <tr><td>C_02</td><td>email</td><td>2026-04-03 11:00</td></tr>
+    <tr><td>C_03</td><td>push</td><td>2026-04-01 08:00</td></tr>
+    <tr><td>C_03</td><td>push</td><td>2026-04-02 08:00</td></tr>
+    <tr><td>C_03</td><td>push</td><td>2026-04-03 08:00</td></tr>
+    <tr><td>C_03</td><td>push</td><td>2026-04-04 08:00</td></tr>
+  </tbody>
+</table>
+<p>C_01: 3 consecutive emails &rarr; FLAG. C_02: alternating channels &rarr; OK. C_03: 4 consecutive pushes &rarr; FLAG.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> + <code>HAVING COUNT(*) &gt;= 3</code></h4>
+<pre><code>SELECT customer_id
+FROM (
+  SELECT customer_id, channel, ts,
+    LAG(channel) OVER (PARTITION BY customer_id ORDER BY ts) AS prev
+  FROM touches
+) t
+WHERE channel = prev
+GROUP BY customer_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>C_03</td><td>4 consecutive pushes &rarr; flagged</td></tr>
+  </tbody>
+</table>
+<p>Wait &mdash; only C_03? Let's trace what the query actually does and why C_01 didn't make it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The off-by-one trap &mdash; what does <code>HAVING COUNT(*) &gt;= 3</code> actually count?</h5>
+<p>The inner query produces rows where <code>channel = prev</code>: that is, rows where this touch matches the previous touch. For C_01's 3 emails, that's <em>2 matching rows</em> (row 2 matches row 1; row 3 matches row 2). For 3 consecutive same-channel, <code>HAVING COUNT(*) &gt;= 2</code> is correct. The original query needs <code>&gt;= 3</code> to mean <strong>4 consecutive same-channel</strong>. Always trace the off-by-one explicitly:</p>
+<table>
+  <thead><tr><th>n consecutive</th><th>matching pairs</th><th>HAVING threshold</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>1</td><td>&gt;= 1</td></tr>
+    <tr><td>3</td><td>2</td><td>&gt;= 2</td></tr>
+    <tr><td>4</td><td>3</td><td>&gt;= 3</td></tr>
+  </tbody>
+</table>
+<p>The senior version pins this down without ambiguity:</p>
+<pre><code>HAVING COUNT(*) &gt;= 2  -- 3 consecutive same-channel (which is the actual ask)</code></pre>
+
+<h5>Why <code>LAG</code> over a self-join</h5>
+<p><code>LAG(channel) OVER (PARTITION BY customer_id ORDER BY ts)</code> reaches back exactly one row within each customer's chronologically-ordered touches. Equivalent self-join with <code>ROW_NUMBER</code>:</p>
+<pre><code>WITH n AS (
+  SELECT customer_id, channel, ts,
+    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY ts) AS rn
+  FROM touches
+)
+SELECT a.customer_id
+FROM n a JOIN n b
+  ON a.customer_id = b.customer_id
+ AND b.rn = a.rn - 1
+ AND a.channel = b.channel
+GROUP BY a.customer_id
+HAVING COUNT(*) &gt;= 2;</code></pre>
+<p><code>LAG</code> is shorter and the planner usually executes it as a single sort. Pick LAG.</p>
+
+<h5>The "any consecutive run of 3" gotcha &mdash; gaps-and-islands</h5>
+<p>The query above flags customers who have <em>2 same-channel pairs total</em>. But those pairs could be spread across the timeline: 2 emails on Mon-Tue, then a gap, then 2 emails on Sat-Sun is also 2 pairs, but it's not a "run of 3". To find a customer with <em>any single run of length &ge; 3</em>, use the gaps-and-islands trick:</p>
+<pre><code>WITH labeled AS (
+  SELECT customer_id, channel, ts,
+    ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY ts) -
+    ROW_NUMBER() OVER (PARTITION BY customer_id, channel ORDER BY ts) AS island_id
+  FROM touches
+)
+SELECT DISTINCT customer_id
+FROM labeled
+GROUP BY customer_id, channel, island_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>The two-row-number difference is constant within each island and changes when the channel breaks &mdash; the canonical pattern for "consecutive runs."</p>
+
+<h5>The time-window addition &mdash; "consecutive within 7 days"</h5>
+<p>Marketing's actual concern is <em>"3 same-channel touches within a week"</em>, not 3 consecutive over any timespan. Add a time-gap check via LAG on the timestamp:</p>
+<pre><code>SELECT customer_id, channel, ts,
+  LAG(channel) OVER w AS prev_ch,
+  LAG(ts)      OVER w AS prev_ts
+FROM touches
+WINDOW w AS (PARTITION BY customer_id ORDER BY ts)
+-- then filter: channel = prev_ch AND ts - prev_ts &lt;= INTERVAL '7 days'</code></pre>
+
+<h5>The do-not-disturb policy follow-up</h5>
+<p>Production marketing systems don't just <em>find</em> these customers &mdash; they have a <strong>frequency-cap rule</strong> upstream that blocks the third email from being sent in the first place. The query is for the audit / compliance side: <em>which customers escaped the cap and why?</em> The runbook is: query &rarr; compare to cap config &rarr; identify the broken segment / journey.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> trace the off-by-one explicitly (<code>HAVING &gt;= 2</code> for 3 consecutive), choose <code>LAG</code> over a self-join, raise the gaps-and-islands flag for the "any run of 3" interpretation, and pre-empt the 7-day time-window variant. Linking back to the upstream frequency cap is the over-the-bar move.</div>
