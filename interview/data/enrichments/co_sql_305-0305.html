@@ -1,0 +1,127 @@
+<p>This is a sophisticated <strong>Trend &amp; Momentum</strong> analysis &mdash; the SAP-style answer to a common Sales Performance Management problem: <em>seasonality and volatility</em>. By combining a <strong>3-month rolling average</strong> with a <strong>month-over-month (MoM) growth %</strong>, the dashboard distinguishes a "lucky month" from a genuine upward trend. Two windows on the same axis: the smooth trendline and the velocity ticker.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<p>Two channels: <strong>Direct</strong> (enterprise field sales) and <strong>Web</strong> (self-service signups). Daily transactions, mixed amounts, multiple months.</p>
+<table>
+  <thead><tr><th>channel</th><th>sale_date</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>Direct</td><td>2026-01-15</td><td>$50,000</td></tr>
+    <tr><td>Direct</td><td>2026-01-28</td><td>$30,000</td></tr>
+    <tr><td>Web</td><td>2026-01-20</td><td>$10,000</td></tr>
+    <tr><td>Direct</td><td>2026-02-10</td><td>$45,000</td></tr>
+    <tr><td>Web</td><td>2026-02-05</td><td>$7,000</td></tr>
+    <tr><td>Web</td><td>2026-02-22</td><td>$5,000</td></tr>
+    <tr><td>Direct</td><td>2026-03-12</td><td>$60,000</td></tr>
+    <tr><td>Web</td><td>2026-03-18</td><td>$20,000</td></tr>
+    <tr><td>Direct</td><td>2026-04-05</td><td>$55,000</td></tr>
+    <tr><td>Web</td><td>2026-04-22</td><td>$15,000</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL &mdash; CTE + double window function</h4>
+<pre><code>WITH monthly AS (
+  SELECT channel, DATE_TRUNC('month', sale_date) AS mo, SUM(amount) AS total
+  FROM sales
+  GROUP BY channel, DATE_TRUNC('month', sale_date)
+)
+SELECT channel, mo, total,
+  AVG(total) OVER (
+    PARTITION BY channel ORDER BY mo
+    ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
+  ) AS rolling_3mo,
+  100.0 * (total - LAG(total) OVER (PARTITION BY channel ORDER BY mo))
+        / NULLIF(LAG(total) OVER (PARTITION BY channel ORDER BY mo), 0) AS mom_pct
+FROM monthly
+ORDER BY channel, mo;</code></pre>
+
+<h4>3. The step-by-step logic</h4>
+
+<h5>Step 1 &mdash; the <code>monthly</code> CTE (pre-aggregation)</h5>
+<p>Thousands of daily transactions become one row per (channel, month). Window functions like <code>LAG</code> and <code>ROWS BETWEEN</code> need a <em>regular time grid</em> &mdash; one row per month, no gaps. <code>DATE_TRUNC('month', sale_date)</code> is the canonical bucketing primitive (SQLite alternative: <code>strftime('%Y-%m-01', sale_date)</code>).</p>
+
+<h5>Step 2 &mdash; <code>rolling_3mo</code> (the trendline)</h5>
+<p><code>AVG(total) OVER (... ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)</code> looks at the current month plus the two before. This <em>smooths</em> the data: a one-time spike (e.g. a Black Friday surge or a single mega-deal) gets averaged across three months instead of being mistaken for a permanent step-change.</p>
+
+<h5>Step 3 &mdash; <code>mom_pct</code> (the momentum)</h5>
+<p><code>LAG(total) OVER (PARTITION BY channel ORDER BY mo)</code> reaches back exactly one month within the same channel. The percentage formula gives instant velocity: <em>this month vs last month</em>. Combined signals:</p>
+<ul>
+  <li><strong>total &gt; rolling_3mo AND mom_pct &gt; 0</strong> &rarr; channel is <em>accelerating</em> (above trend AND positive momentum)</li>
+  <li><strong>total &lt; rolling_3mo AND mom_pct &lt; 0</strong> &rarr; channel is <em>decelerating</em> (below trend AND negative momentum)</li>
+  <li><strong>total &gt; rolling_3mo BUT mom_pct &lt; 0</strong> &rarr; <em>cooling spike</em> (still elevated but losing steam)</li>
+</ul>
+
+<h4>4. The resulting analysis (Web channel)</h4>
+<table>
+  <thead><tr><th>channel</th><th>mo</th><th>total</th><th>rolling_3mo</th><th>mom_pct</th><th>signal</th></tr></thead>
+  <tbody>
+    <tr><td>Web</td><td>2026-01-01</td><td>$10,000</td><td>$10,000</td><td>NULL</td><td>start of data</td></tr>
+    <tr><td>Web</td><td>2026-02-01</td><td>$12,000</td><td>$11,000</td><td>+20.0%</td><td>steady growth</td></tr>
+    <tr><td>Web</td><td>2026-03-01</td><td><strong>$20,000</strong></td><td>$14,000</td><td><strong>+66.7%</strong></td><td><strong>spike: current &gt; trend</strong></td></tr>
+    <tr><td>Web</td><td>2026-04-01</td><td>$15,000</td><td><strong>$15,667</strong></td><td>-25.0%</td><td>correction back to trend</td></tr>
+  </tbody>
+</table>
+<p>March looked explosive (+66.7%), but April's pullback against an elevated 3-month trend reveals the spike was promotional, not structural.</p>
+
+<h4>5. Strategic explanations &mdash; SPM applications</h4>
+
+<h5>Identifying channel fatigue / saturation</h5>
+<p>If <code>mom_pct</code> declines smoothly &mdash; say +20% &rarr; +10% &rarr; +2% &rarr; -1% &mdash; while <code>total</code> is still high, the channel is hitting <strong>saturation</strong>: the addressable market is exhausted. The Sales Ops playbook here is to shift marketing spend or sales headcount to a less-mature channel <em>before</em> the absolute number turns negative. The momentum signal leads the revenue signal.</p>
+
+<h5>Dynamic quotas via the rolling baseline</h5>
+<p>Instead of a fixed annual target, set the next-month quota as <em>"110% of the trailing 3-month rolling average"</em>. This auto-adjusts to market conditions:</p>
+<pre><code>SELECT channel, mo,
+  rolling_3mo * 1.10 AS next_month_target
+FROM trend_table
+WHERE mo = (SELECT MAX(mo) FROM trend_table);</code></pre>
+<p>Reps stop being penalised for hitting a fixed target during a downturn or sandbagging during a boom.</p>
+
+<h5>The <code>NULLIF</code> safety net &mdash; not optional</h5>
+<p><code>NULLIF(LAG(total) OVER (...), 0)</code> handles the edge case where the previous month had zero revenue (newly-launched channel, paused campaign). Without it: division by zero &rarr; entire row errors (Postgres) or returns infinity/NaN (other engines). With it: the <code>mom_pct</code> column shows NULL for that month &mdash; the dashboard renders a gap, not a crash.</p>
+
+<h5>The first-month NULL is by design</h5>
+<p>Every channel's first row has <code>mom_pct = NULL</code> because <code>LAG</code> has nothing to look back at. Don't filter these out &mdash; they're the channel's birthday and the dashboard should render them as "start of data" not an error.</p>
+
+<h5>The seasonality cousin &mdash; YoY %, not just MoM %</h5>
+<p>For seasonal businesses (retail, travel, education), MoM is misleading: December always beats November because of holidays. The senior follow-up is YoY:</p>
+<pre><code>LAG(total, 12) OVER (PARTITION BY channel ORDER BY mo) AS same_month_last_year,
+100.0 * (total - LAG(total, 12) OVER (...)) /
+   NULLIF(LAG(total, 12) OVER (...), 0) AS yoy_pct</code></pre>
+<p>Production trend dashboards usually show MoM <em>and</em> YoY side by side &mdash; MoM for short-cycle businesses, YoY for seasonal ones.</p>
+
+<h5>Trend-direction CASE for management readability</h5>
+<pre><code>SELECT channel, mo, total, rolling_3mo, mom_pct,
+  CASE
+    WHEN total &gt; rolling_3mo AND mom_pct &gt; 0 THEN 'Accelerating'
+    WHEN total &lt; rolling_3mo AND mom_pct &lt; 0 THEN 'Decelerating'
+    WHEN total &gt; rolling_3mo AND mom_pct &lt; 0 THEN 'Cooling Spike'
+    WHEN total &lt; rolling_3mo AND mom_pct &gt; 0 THEN 'Recovering'
+    ELSE 'Stable'
+  END AS momentum_status
+FROM /* the trend CTE */;</code></pre>
+<p>Four quadrants instead of two columns. The CFO scans the column for "Decelerating" once a month and asks Sales Ops about each.</p>
+
+<h5>The <code>ROWS</code> vs <code>RANGE</code> reminder</h5>
+<p><code>ROWS BETWEEN 2 PRECEDING AND CURRENT ROW</code> is <strong>physical rows</strong>: even if April had no data and is missing from the CTE, the window picks the last 3 <em>existing</em> rows, which silently smooths over a real gap. If the data has missing months, build a <strong>month spine</strong> first (LEFT JOIN against <code>generate_series</code>) so missing months show as zeros and the window math is honest.</p>
+
+<h5>The dialect cheat sheet</h5>
+<pre><code>-- Postgres / BigQuery / Snowflake (DATE_TRUNC supported)
+DATE_TRUNC('month', sale_date)
+
+-- SQLite (no DATE_TRUNC)
+DATE(sale_date, 'start of month')   -- or strftime('%Y-%m-01', sale_date)
+
+-- MySQL
+DATE_FORMAT(sale_date, '%Y-%m-01')
+
+-- SQL Server
+DATEFROMPARTS(YEAR(sale_date), MONTH(sale_date), 1)</code></pre>
+
+<h4>6. The over-the-bar finish &mdash; alerting from the trend table</h4>
+<p>Production SPM doesn't just <em>render</em> the trend table &mdash; it alerts on it. A daily job materialises the CTE, joins to the previous run, and posts to Slack when:</p>
+<ul>
+  <li>any channel transitions to "Decelerating" for the first time in 3 months (early-warning signal)</li>
+  <li>any channel's <code>mom_pct</code> falls more than 2 standard deviations below its 12-month mean (statistical anomaly)</li>
+  <li>the spread between <code>total</code> and <code>rolling_3mo</code> exceeds &plusmn;25% (unusual volatility)</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the two-window pattern (smooth trendline + momentum velocity) as solving <em>seasonality vs lucky-month</em> conflation, name the <code>NULLIF</code> safety net unprompted, and pre-empt the YoY follow-up for seasonal businesses. The four-quadrant momentum-status CASE and the trend-table-driven alerting design are the over-the-bar finish that turns the query into a system.</div>
