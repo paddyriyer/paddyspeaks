@@ -1,0 +1,43 @@
+<p>Uber's Growth team segments riders by recency and frequency. <em>"Riders with 3+ trips in the last 30 days"</em> is the <strong>active rider cohort</strong> — they've crossed the habit threshold and are predictable revenue. The query is HAVING + a date-window filter.</p>
+
+<h4>1. The source data — <code>rides</code></h4>
+<table><thead><tr><th>ride_id</th><th>rider_id</th><th>started_at</th></tr></thead>
+<tbody><tr><td>R_001</td><td>U_01</td><td>2024-01-15 08:00</td></tr><tr><td>R_002</td><td>U_01</td><td>2024-01-22 17:00</td></tr></tbody></table>
+
+<h4>2. The SQL — date window + HAVING</h4>
+<pre><code>SELECT rider_id, COUNT(*) AS rides_30d
+FROM rides
+WHERE julianday(started_at) &gt;= julianday('2024-02-01') - 30
+  AND julianday(started_at) &lt;= julianday('2024-02-01')
+GROUP BY rider_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY rides_30d DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The "snapshot date" pattern</h5>
+<p>Hardcoding <code>'2024-02-01'</code> as the snapshot makes the result reproducible — same data, same answer regardless of when the query runs. Production analytics jobs always use a snapshot variable, not <code>CURRENT_DATE</code>. Set it via a CTE in real workflows:</p>
+<pre><code>WITH params(snapshot) AS (VALUES ('2024-02-01'))
+SELECT ... WHERE julianday(started_at) BETWEEN
+  julianday((SELECT snapshot FROM params)) - 30 AND julianday((SELECT snapshot FROM params))</code></pre>
+
+<h5>The "3 rides" threshold — why this number</h5>
+<p>Empirically derived. Uber's published frequency curve has a clear knee at 3-4 trips/month: riders below that often churn within 90 days; riders above stick around 12+ months. The threshold should be calibrated per-market — Bangalore commute riders cross the habit threshold at 8+, NYC airport riders at 1.</p>
+
+<h5>The recency vs frequency split</h5>
+<p>"3 rides in 30 days" combines two signals. Better: split into <strong>R</strong> (days since last) and <strong>F</strong> (count of trips), the classic RFM framework. Different combinations need different campaigns:</p>
+<table><thead><tr><th>R</th><th>F</th><th>segment</th><th>action</th></tr></thead>
+<tbody>
+<tr><td>&lt;7d</td><td>&gt;5</td><td>champion</td><td>nothing — don't disturb</td></tr>
+<tr><td>&lt;7d</td><td>1-2</td><td>new active</td><td>welcome series</td></tr>
+<tr><td>&gt;30d</td><td>&gt;5</td><td>at-risk power user</td><td>winback offer</td></tr>
+<tr><td>&gt;30d</td><td>1-2</td><td>likely churned</td><td>final nudge</td></tr>
+</tbody></table>
+
+<h5>The "type of rides" qualifier</h5>
+<p>3 airport runs in 30 days = high-LTV business traveler. 3 short rides in 30 days = different segment. Always split rides by trip-type (airport, work-commute, social, late-night) before forming cohorts.</p>
+
+<h5>The cohort-decay follow-up</h5>
+<p>Rolling the 30-day filter forward week-by-week shows cohort retention curves. Repeat the query for snapshot dates 2024-01-08, 01-15, 01-22, 01-29... and track the % of users staying in the active cohort. That curve <em>is</em> Uber's monthly board-deck slide.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use a snapshot date for reproducibility, calibrate the threshold from data not gut, and reframe the 30-day filter as recency × frequency RFM. The trip-type split and rolling cohort curve are the over-the-bar move.</div>

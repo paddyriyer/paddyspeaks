@@ -1,0 +1,55 @@
+<p>Google Ads' core economic question: <strong>which match-type performs?</strong>. <em>Exact</em> match has high CTR but small reach; <em>broad</em> match has huge reach but unpredictable quality; <em>phrase</em> sits in between. The query computes spend, revenue, and ROAS per match-type.</p>
+
+<h4>1. The source data — <code>ad_keywords</code></h4>
+<table><thead><tr><th>keyword_id</th><th>match_type</th><th>impressions</th><th>clicks</th><th>cost</th><th>revenue</th></tr></thead>
+<tbody><tr><td>K_001</td><td>exact</td><td>1000</td><td>50</td><td>$25</td><td>$200</td></tr></tbody></table>
+
+<h4>2. The SQL — ROAS = revenue / spend</h4>
+<pre><code>SELECT match_type,
+  SUM(impressions) AS impressions,
+  SUM(clicks)      AS clicks,
+  ROUND(SUM(cost), 2)    AS spend,
+  ROUND(SUM(revenue), 2) AS revenue,
+  ROUND(SUM(revenue) * 1.0 / NULLIF(SUM(cost), 0), 2) AS roas
+FROM ad_keywords
+GROUP BY match_type
+ORDER BY roas DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>ROAS vs ROI — different denominators</h5>
+<table><thead><tr><th>metric</th><th>formula</th><th>interpretation</th></tr></thead>
+<tbody>
+<tr><td>ROAS</td><td>revenue / spend</td><td>"return on ad spend" — must be &gt; 1 to be profitable on revenue</td></tr>
+<tr><td>ROI</td><td>(revenue − cost − COGS) / cost</td><td>true profit return — accounts for product cost</td></tr>
+<tr><td>CPA</td><td>spend / conversions</td><td>cost-per-acquisition — easiest to negotiate caps on</td></tr>
+</tbody></table>
+<p>Marketing-org reports ROAS; Finance reports ROI. The query above does ROAS.</p>
+
+<h5>The match-type spectrum</h5>
+<table><thead><tr><th>match type</th><th>reach</th><th>quality</th><th>typical ROAS</th></tr></thead>
+<tbody>
+<tr><td>Exact</td><td>narrow</td><td>highest</td><td>5-10x</td></tr>
+<tr><td>Phrase</td><td>medium</td><td>good</td><td>3-5x</td></tr>
+<tr><td>Broad</td><td>wide</td><td>variable</td><td>1-3x</td></tr>
+<tr><td>Negative</td><td>(used to exclude)</td><td>—</td><td>—</td></tr>
+</tbody></table>
+
+<h5>Why Broad Match isn't always worse</h5>
+<p>Despite lower per-keyword ROAS, Broad Match captures search-intent variations the team didn't think of — and Google's smart bidding has improved its quality. The actual diagnostic: <em>Broad Match's ROAS within the marketer's portfolio</em>. Some advertisers find Broad delivers 80% of profit at scale; others find it bleeds.</p>
+
+<h5>The ROAS-by-spend-tier breakdown</h5>
+<p>Average ROAS hides the long tail. Top 10% of keywords might ROAS at 15x; bottom 50% at 0.5x. Aggregate ROAS = 4x masks the distribution. Use NTILE or PERCENT_RANK to surface keywords below the breakeven threshold:</p>
+<pre><code>NTILE(10) OVER (ORDER BY revenue / NULLIF(cost, 0) DESC) AS roas_decile</code></pre>
+
+<h5>The attribution window</h5>
+<p>"Revenue" depends on attribution window: 1-day click, 30-day click, 30-day view-through. Switching from 1-day to 30-day can double revenue. Always pin the window in the title of the dashboard.</p>
+
+<h5>The "low-spend high-ROAS" trap</h5>
+<p>A keyword with $5 spend and $500 revenue (ROAS 100x) is exciting — and statistically meaningless. Add a HAVING:</p>
+<pre><code>HAVING SUM(cost) &gt;= 100   -- minimum spend threshold for ROAS to be meaningful</code></pre>
+
+<h5>Incrementality — the senior reframe</h5>
+<p>ROAS measures revenue attributed to the ad. <strong>Incrementality</strong> measures revenue that <em>wouldn't have happened without</em> the ad — the right number for budget decisions. Most paid-search converts users who would've found you organically; true incremental ROAS is often 30-50% of attributed ROAS. Mention this — it's the senior reframe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish ROAS / ROI / CPA, place each match-type on the reach-vs-quality spectrum, decile-rank to expose the long tail, and pin the attribution window. The incrementality-vs-attributed ROAS reframe is the over-the-bar move.</div>

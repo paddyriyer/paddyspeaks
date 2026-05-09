@@ -1,0 +1,41 @@
+<p>Uber Business sees a distinctive pattern: corporate riders who go office → airport → office, or home → meeting → home. Detecting these <strong>round trips</strong> drives commute-bundle pricing, expense-report grouping, and dispatch pre-positioning. The query is a self-join on rider + temporal proximity.</p>
+
+<h4>1. The source data — <code>rides</code></h4>
+<table><thead><tr><th>ride_id</th><th>rider_id</th><th>started_at</th><th>origin_zone</th><th>dest_zone</th></tr></thead>
+<tbody><tr><td>R_001</td><td>U_01</td><td>06:00</td><td>downtown</td><td>airport</td></tr><tr><td>R_002</td><td>U_01</td><td>18:00</td><td>airport</td><td>downtown</td></tr></tbody></table>
+
+<h4>2. The SQL — self-join on rider + same-day window</h4>
+<pre><code>SELECT a.rider_id, a.ride_id AS first_ride, b.ride_id AS second_ride,
+  a.origin_zone || ' -&gt; ' || a.dest_zone AS first_leg,
+  b.origin_zone || ' -&gt; ' || b.dest_zone AS second_leg,
+  CAST((julianday(b.started_at) - julianday(a.started_at)) * 24 AS INTEGER) AS hours_between
+FROM rides a
+JOIN rides b
+  ON b.rider_id = a.rider_id
+ AND b.ride_id != a.ride_id
+ AND julianday(b.started_at) &gt; julianday(a.started_at)
+ AND julianday(b.started_at) - julianday(a.started_at) &lt;= 1
+ORDER BY a.rider_id, hours_between
+LIMIT 20;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>b.started_at &gt; a.started_at</code> not <code>b.ride_id &gt; a.ride_id</code></h5>
+<p>The strict time-ordering predicate establishes "a is the outbound, b is the return". Using <code>ride_id &lt;</code> would dedup pairs but doesn't enforce temporal direction — and ride_ids aren't guaranteed monotonic in time across regions/shards.</p>
+
+<h5>The "true round trip" predicate</h5>
+<p>The strict reverse-zone form: <code>b.origin_zone = a.dest_zone AND b.dest_zone = a.origin_zone</code>. Real-world variation: a return trip might go to a slightly different zone (different door of the same airport, nearby restaurant). Use a <code>zone_within_5km</code> lookup table to relax:</p>
+<pre><code>JOIN zone_neighbors zn1 ON zn1.zone_a = a.origin_zone AND zn1.zone_b = b.dest_zone
+JOIN zone_neighbors zn2 ON zn2.zone_a = a.dest_zone   AND zn2.zone_b = b.origin_zone</code></pre>
+
+<h5>The 24-hour window — why this number</h5>
+<p>"Same day" is the colloquial phrasing; "within 24 hours" is the operational one. Uber Business specifically uses <strong>4-12 hour</strong> windows: shorter than 4h is usually a course correction (driver took wrong route), longer than 12h is two trips not a round trip. Tighten the window for cleaner signal.</p>
+
+<h5>The expense-report grouping use case</h5>
+<p>Uber Business automatically groups round trips into a single expense entry. The query result feeds the bookkeeping logic: each (a, b) pair becomes one expense line with combined fare, total elapsed time, and "round trip" tag. Riders save admin time; Uber retains the relationship.</p>
+
+<h5>The fraud watch</h5>
+<p>The same pattern but with different riders flags driver-rider collusion: <em>"driver picks up a 'rider' who is actually his cousin, drives to airport, drives back"</em> is a fake-trip fraud pattern. Switch the predicate to find this:</p>
+<pre><code>JOIN rides b ON b.driver_id = a.driver_id  -- same driver, different rider, reverse route</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the temporal-direction predicate (vs id-ordering), bring up the zone-tolerance refinement, and pre-empt the expense-bundling product use case. The driver-side fraud-detection variant is the over-the-bar finish.</div>

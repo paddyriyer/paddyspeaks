@@ -1,0 +1,49 @@
+<p>When a user searches once and the results don't satisfy them, they refine the query and search again. <strong>Reformulation rate</strong> is the inverse of search-task-success: high reformulation = users aren't getting what they need. The query uses LAG within session to detect successive searches.</p>
+
+<h4>1. The source data — <code>searches</code></h4>
+<table><thead><tr><th>search_id</th><th>session_id</th><th>query_text</th><th>search_at</th></tr></thead>
+<tbody><tr><td>S_001</td><td>SS_01</td><td>"weather"</td><td>10:00</td></tr><tr><td>S_002</td><td>SS_01</td><td>"weather sf"</td><td>10:01</td></tr></tbody></table>
+
+<h4>2. The SQL — LAG to compare consecutive searches in session</h4>
+<pre><code>WITH ordered AS (
+  SELECT session_id, search_id, query_text, search_at,
+    LAG(query_text) OVER (PARTITION BY session_id ORDER BY search_at) AS prev_query
+  FROM searches
+)
+SELECT session_id,
+  COUNT(*) AS searches_in_session,
+  SUM(CASE WHEN prev_query IS NOT NULL AND prev_query &lt;&gt; query_text THEN 1 ELSE 0 END) AS reformulations
+FROM ordered
+GROUP BY session_id
+HAVING COUNT(*) &gt;= 2
+ORDER BY reformulations DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The LAG window — same-session compare</h5>
+<p><code>LAG(query_text) OVER (PARTITION BY session_id ORDER BY search_at)</code> reaches back to the previous search within the same session. The first search has <code>prev_query IS NULL</code> — that's not a reformulation, it's a fresh start. The predicate filters those out.</p>
+
+<h5>"Reformulation" — define carefully</h5>
+<p>Three flavors with different signals:</p>
+<table><thead><tr><th>type</th><th>predicate</th><th>signal</th></tr></thead>
+<tbody>
+<tr><td>Refinement</td><td>new query starts with old + extra words</td><td>narrowing — algorithm under-targeted</td></tr>
+<tr><td>Replacement</td><td>completely different terms</td><td>reset — first attempt failed entirely</td></tr>
+<tr><td>Spelling fix</td><td>edit distance &lt;= 2</td><td>typo — algorithm or autocomplete bug</td></tr>
+</tbody></table>
+<p>Production splits all three. The query above only catches the union "any change".</p>
+
+<h5>The session boundary</h5>
+<p>What's a session? Production uses 30-minute idle threshold (Google's published rule). Reformulations across sessions are different intents, not failed-task signals. The query relies on session_id being correctly bucketed upstream.</p>
+
+<h5>The success-via-click correlation</h5>
+<p>A reformulation that results in a click and 30+ second dwell on the destination = "we eventually got it". A session that ends in reformulations with no click = "abandoned task". Join to clicks and split:</p>
+<pre><code>LEFT JOIN clicks c ON c.session_id = s.session_id AND c.dwell_seconds &gt;= 30</code></pre>
+
+<h5>The reformulation-graph</h5>
+<p>Common reformulation pairs ("weather" → "weather sf" → "weather san francisco") reveal user-intent gaps. The training data for query-rewriting and "did you mean" comes from this. Build a graph of (prev_query → next_query) with frequencies; the top edges are auto-suggest candidates.</p>
+
+<h5>The Position-1 confound</h5>
+<p>Reformulation rate looks artificially low for queries where Google's first result is excellent (Wikipedia, official site). Removing those reveals the true struggle queries. Senior analysis stratifies by query difficulty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the LAG-within-session pattern, taxonomize reformulation into refinement/replacement/spelling-fix, pin the 30-min session boundary, and connect to the click+dwell success signal. The reformulation-graph for auto-suggest training is the over-the-bar reframe.</div>

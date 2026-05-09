@@ -1,0 +1,42 @@
+<p>Google's most-watched ML signal: <strong>CTR by SERP position</strong>. Position 1 sees 30%+ CTR; position 10 sees under 1%; the curve is the headline product metric. The query is per-position aggregation; the senior conversation is what makes the curve flatten or steepen.</p>
+
+<h4>1. The source data — <code>search_results</code></h4>
+<table><thead><tr><th>query_id</th><th>position</th><th>clicked (1/0)</th></tr></thead>
+<tbody><tr><td>Q_001</td><td>1</td><td>1</td></tr><tr><td>Q_001</td><td>2</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — straight per-position rate</h4>
+<pre><code>SELECT position,
+  COUNT(*) AS impressions,
+  SUM(clicked) AS clicks,
+  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct
+FROM search_results
+GROUP BY position
+ORDER BY position;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The published CTR curve</h5>
+<table><thead><tr><th>position</th><th>typical CTR</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>27-35%</td></tr><tr><td>2</td><td>15-18%</td></tr><tr><td>3</td><td>10-12%</td></tr>
+<tr><td>5</td><td>5-7%</td></tr><tr><td>10</td><td>1-2%</td></tr></tbody></table>
+<p>This curve is the basis of every SEO/SEM bidding model. Cite it from memory.</p>
+
+<h5>The "feature" pollution</h5>
+<p>Google's SERP isn't 10 organic results anymore — it has Knowledge Panels, Featured Snippets, Maps, Shopping, Ads. These crowd organic results down, so "position 5 in 2010" and "position 5 in 2024" mean very different real-estate. Always join to <code>serp_features</code> and exclude when the analysis assumes pure organic.</p>
+
+<h5>Mobile vs desktop</h5>
+<p>Mobile screens show 3-4 results above the fold; desktop shows 5-7. Position-3 CTR diverges between devices. Always slice:</p>
+<pre><code>GROUP BY position, device_type</code></pre>
+
+<h5>Branded vs generic queries</h5>
+<p>Branded queries (someone searched "facebook") have an extreme position-1 spike (often 95%+ CTR) because the user knew what they wanted. Generic queries (someone searched "social media") spread clicks across positions. Average CTR by position confounds these. Split by query intent.</p>
+
+<h5>The "pogo-sticking" follow-up</h5>
+<p>A click that returns to the SERP within 5 seconds is a <strong>bounce</strong> — the user clicked but found nothing useful. Production CTR analysis filters these out for the "satisfied click" metric:</p>
+<pre><code>SUM(CASE WHEN clicked = 1 AND time_on_target_seconds &gt;= 30 THEN 1 ELSE 0 END)</code></pre>
+
+<h5>The CTR-prediction model</h5>
+<p>The query result is the training-data validation for the ad-ranker's predicted CTR. If observed CTR at position 3 deviates from the model's predicted CTR, the model retrains. The query is a feedback-loop input.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> cite the position-CTR curve from memory, name the SERP-feature pollution caveat, split by device + branded/generic, and connect to the satisfied-click vs raw-click distinction. Pogo-sticking filtering and the CTR-prediction-model retraining loop are the over-the-bar finish.</div>

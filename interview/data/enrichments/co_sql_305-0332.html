@@ -1,0 +1,52 @@
+<p>Facebook Groups follow the classic <strong>1-9-90 rule</strong>: 1% post, 9% comment, 90% lurk (or react). Group-Health team monitors the pyramid because top-of-funnel posters drive the entire group's vitality. If posters fall to zero, the group dies in 30 days. The query classifies users by their highest-engagement action and counts each tier.</p>
+
+<h4>1. The source data — <code>group_actions</code></h4>
+<table><thead><tr><th>group_id</th><th>user_id</th><th>action_type</th></tr></thead>
+<tbody><tr><td>G_001</td><td>U_01</td><td>post</td></tr><tr><td>G_001</td><td>U_02</td><td>comment</td></tr><tr><td>G_001</td><td>U_03</td><td>reaction</td></tr></tbody></table>
+
+<h4>2. The SQL — multi-level CASE classification</h4>
+<pre><code>WITH per_user AS (
+  SELECT group_id, user_id,
+    SUM(CASE WHEN action_type = 'post'    THEN 1 ELSE 0 END) AS posts,
+    SUM(CASE WHEN action_type = 'comment' THEN 1 ELSE 0 END) AS comments,
+    SUM(CASE WHEN action_type = 'reaction' THEN 1 ELSE 0 END) AS reactions
+  FROM group_actions
+  GROUP BY group_id, user_id
+)
+SELECT group_id,
+  SUM(CASE WHEN posts &gt;= 1                THEN 1 ELSE 0 END) AS posters,
+  SUM(CASE WHEN posts = 0 AND comments &gt;= 1 THEN 1 ELSE 0 END) AS commenters,
+  SUM(CASE WHEN posts = 0 AND comments = 0 AND reactions &gt;= 1 THEN 1 ELSE 0 END) AS reactors,
+  COUNT(DISTINCT user_id) AS active_members
+FROM per_user
+GROUP BY group_id
+ORDER BY active_members DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The "highest action" classification — mutually exclusive</h5>
+<p>A user who both posts AND comments should count once as a "poster", not twice. The cascading <code>posts = 0 AND ...</code> predicates enforce mutual exclusion. Without that, summing the three columns would exceed <code>active_members</code> — clearly wrong.</p>
+
+<h5>The 1-9-90 expectation</h5>
+<table><thead><tr><th>tier</th><th>typical share</th><th>health signal</th></tr></thead>
+<tbody>
+<tr><td>Posters</td><td>1-3%</td><td>&lt; 0.5% = group dying</td></tr>
+<tr><td>Commenters</td><td>5-15%</td><td>healthy if 8-12%</td></tr>
+<tr><td>Reactors</td><td>30-50%</td><td>&lt; 20% = lurker-heavy, fragile</td></tr>
+<tr><td>Lurkers (visited but no action)</td><td>40-60%</td><td>fine if other tiers are healthy</td></tr>
+</tbody></table>
+
+<h5>The "poster churn" warning</h5>
+<p>Track posters week-over-week. Top-5% groups have 80% poster retention; declining groups dip to 30% — that's the early-warning signal 4-8 weeks before the group flatlines. Pair this query with a LAG-based week-over-week diff to catch the slope.</p>
+
+<h5>The "lurker activation" intervention</h5>
+<p>The product team's actual question: <em>"can we move 10% of reactors into commenters?"</em>. That requires a different CTE: which reactors have stopped reacting (engagement-decline early) — they're the easiest to reactivate. Different query, related framework.</p>
+
+<h5>The action-quality bonus</h5>
+<p>"Posts" isn't a single thing. A 2-paragraph thoughtful post and a "lol" share are both <code>action_type = 'post'</code>. Production splits posts by quality (length, image included, prompt-followed) for the actual influence ranking. Mention this when probed.</p>
+
+<h5>The community-manager signal</h5>
+<p>Most groups have 1-3 "anchor" posters who drive 50%+ of content. Identifying them and protecting their engagement is the highest-leverage Group-Health intervention. The query above doesn't rank posters within a group — add a window function to identify top contributors:</p>
+<pre><code>RANK() OVER (PARTITION BY group_id ORDER BY posts DESC) AS poster_rank</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use cascading CASE for mutually-exclusive tier classification, name the 1-9-90 expectation as the diagnostic baseline, and pre-empt the "poster churn" early-warning use case. The anchor-poster identification follow-up (RANK on posts) is the over-the-bar move.</div>
