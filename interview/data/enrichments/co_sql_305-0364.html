@@ -1,0 +1,47 @@
+<p>Airbnb's <strong>calendar-as-fact</strong> table has one row per (listing, night). The query aggregates booked vs available nights per city to compute occupancy — the headline metric for host quality and city saturation.</p>
+
+<h4>1. The source data — <code>calendar_nights</code></h4>
+<table><thead><tr><th>listing_id</th><th>night</th><th>available</th><th>booked</th><th>city</th></tr></thead>
+<tbody><tr><td>L_01</td><td>2024-01-01</td><td>0</td><td>1</td><td>Tokyo</td></tr></tbody></table>
+
+<h4>2. The SQL — booked / (available + booked)</h4>
+<pre><code>SELECT city,
+  COUNT(*) AS listing_nights,
+  SUM(booked) AS booked_nights,
+  SUM(available) AS available_nights,
+  ROUND(100.0 * SUM(booked) / NULLIF(SUM(available) + SUM(booked), 0), 1) AS occupancy_pct
+FROM calendar_nights
+GROUP BY city
+ORDER BY occupancy_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why "calendar-as-fact" — the modeling choice</h5>
+<p>Most companies have facts as <em>events</em> (orders, clicks). Airbnb's calendar is a <strong>periodic snapshot</strong>: one row per (listing, night) regardless of activity. This is unusual but powerful — every night exists in the table whether booked or blocked. Density-of-data answer.</p>
+
+<h5>The "blocked" vs "available" trap</h5>
+<p>Hosts can block nights without bookings (private use, repairs). The query above conflates "blocked" and "available". The honest occupancy rate is <em>booked / not-blocked</em>:</p>
+<pre><code>SUM(booked) / NULLIF(SUM(booked) + SUM(available), 0)
+-- where available means "open for booking", excludes blocked nights</code></pre>
+
+<h5>Demand-side vs supply-side</h5>
+<p>Low occupancy in Tokyo can mean:</p>
+<ul>
+<li><strong>Demand low</strong> — pricing too high, marketing weak</li>
+<li><strong>Supply too high</strong> — too many listings competing</li>
+<li><strong>Seasonal</strong> — winter in beach city</li>
+</ul>
+<p>The query result is the symptom; pair with search-volume + listing-count for diagnosis.</p>
+
+<h5>Per-listing distribution</h5>
+<p>City average can hide a bimodal distribution: 20% of listings at 90% occupancy, 80% at 20%. The "stars vs strugglers" split is the host-quality story:</p>
+<pre><code>NTILE(10) OVER (PARTITION BY city ORDER BY occupancy_pct DESC) AS occupancy_decile</code></pre>
+
+<h5>The seasonality cut</h5>
+<p>Most cities have 3-5x peak/trough seasonal occupancy. Slice by month for honest comparison:</p>
+<pre><code>GROUP BY city, substr(night, 1, 7) AS month</code></pre>
+
+<h5>Holiday + event spikes</h5>
+<p>Olympics in Paris, Coachella in Indio — single-event spikes. The query above includes them; for "normal" baselines, exclude top-5 highest-occupancy weeks.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name "calendar-as-fact" as an unusual periodic-snapshot pattern, distinguish blocked vs available in the denominator, pair with search-volume for demand-vs-supply diagnosis, and decile-rank to expose the long-tail. Seasonal slicing and event exclusion are the over-the-bar refinements.</div>

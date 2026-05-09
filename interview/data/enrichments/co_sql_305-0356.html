@@ -1,0 +1,37 @@
+<p>App Store Search is one of Apple's hidden ML systems. CTR per query term measures search-relevance quality. The query is straightforward GROUP BY + sample-size HAVING.</p>
+
+<h4>1. The source data — <code>app_searches</code></h4>
+<table><thead><tr><th>search_id</th><th>query_term</th><th>app_id</th><th>position</th><th>clicked</th></tr></thead>
+<tbody><tr><td>S_001</td><td>"weather"</td><td>APP_01</td><td>1</td><td>1</td></tr></tbody></table>
+
+<h4>2. The SQL — per-query-term CTR</h4>
+<pre><code>SELECT query_term,
+  COUNT(*) AS impressions,
+  SUM(clicked) AS clicks,
+  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct
+FROM app_searches
+GROUP BY query_term
+HAVING COUNT(*) &gt;= 3
+ORDER BY ctr_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Branded vs generic queries</h5>
+<p>Searches for "Spotify" have CTR ≈ 95% (user knew what they wanted). Searches for "music" have CTR ≈ 30% (multiple apps compete). Mixing them gives a meaningless average. Always classify:</p>
+<pre><code>CASE WHEN EXISTS (SELECT 1 FROM apps a WHERE LOWER(a.name) LIKE LOWER(query_term) || '%')
+     THEN 'branded' ELSE 'generic' END AS query_type</code></pre>
+
+<h5>Position confound</h5>
+<p>CTR depends on which apps appear in slots 1-5. A query with great results at position 1 has high CTR; the same query with mediocre results has low CTR — same query, different supply. Slice by query × top_app_quality.</p>
+
+<h5>The "no-click → search-again" pattern</h5>
+<p>Low-CTR queries often signal poor relevance. Combined with reformulation rate (user searches again immediately after), the diagnostic is precise:</p>
+<pre><code>... user reformulated within 30 seconds = sign that this query failed</code></pre>
+
+<h5>Promo vs editorial vs algorithm slot</h5>
+<p>App Store has three slot types: paid promotion, editorial pick, algorithm. Each has different CTR characteristics. Comparing them is unfair. Production splits.</p>
+
+<h5>The search-stickiness signal</h5>
+<p>Per-query CTR is search-engine quality. Per-user retention after first install is product quality. Production tracks both: high CTR + low retention = "Apple's search is great, but the apps don't deliver".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> classify branded vs generic, control for position/slot quality, link low-CTR to immediate reformulation, distinguish promo/editorial/algorithm slots. The CTR-vs-retention complementary metric is the over-the-bar honest framing.</div>

@@ -166,7 +166,7 @@
         <li><a href="#sc-saas">12. SaaS subscription billing &amp; usage metering</a></li>
       </ul>
     </a></li>
-    <li><a href="#part-04">Cross-cutting concerns — SCDs, late data, GDPR, FX, skew</a></li>
+    <li><a href="#part-04">Cross-cutting concerns — SCDs, LAD, factless facts, streaming, GDPR, FX, skew</a></li>
     <li><a href="#part-05">Common traps + the 90-second articulation script</a></li>
   </ol>
 </div>
@@ -4190,6 +4190,7 @@ ORDER BY cb.cohort_q;
 <section id="part-04">
 <div class="part-eyebrow">§ 04 — Cross-Cutting Concerns</div>
 <h2 class="part-title">The patterns that show up regardless of domain.</h2>
+<p style="color:#64748b;font-size:14px;margin-top:-4px;">Eleven patterns. <strong>§9 (LAD), §10 (factless facts), §11 (streaming-first)</strong> are the senior-level moves — drop them in interviews and the room shifts.</p>
 
 <h3 class="section-head">1. SCD Types — the deep dive</h3>
 <table>
@@ -4268,6 +4269,201 @@ ORDER BY cb.cohort_q;
   <li>SCD2 versioning drifts.</li>
 </ul>
 <p>Drop the term in interviews: <em>"I'd want this to share <code>dim_user</code> with the existing customer-data platform — otherwise we're rebuilding the join every team."</em></p>
+
+<h3 class="section-head">9. Late-Arriving Dimensions (LAD) — the deep dive</h3>
+<p>Almost every cross-cutting concern collapses into one of four scenarios. <strong>LAD</strong> is the one that bites hardest in production because it silently <em>drops</em> rows on inner-join — Content Strategy stares at "0 views in the first 3 minutes" of a Netflix Original launch and the dim hadn't propagated yet.</p>
+
+<h4 class="sub-head">When LAD happens</h4>
+<table>
+  <thead><tr><th>Trigger</th><th>Domain example</th><th>Time scale</th></tr></thead>
+  <tbody>
+    <tr><td>Global launch — fact stream is global, dim sync is regional</td><td>Netflix Originals at midnight Pacific; <em>Stranger Things</em> S5</td><td>seconds–minutes</td></tr>
+    <tr><td>CDC connector lag — Debezium → Kafka → warehouse</td><td>Amazon catalog updates during Prime Day</td><td>minutes–hours</td></tr>
+    <tr><td>Manual dim load — someone must approve the new SKU</td><td>App Store new-app review</td><td>hours–days</td></tr>
+    <tr><td>Cross-region replication</td><td>Stripe payment dim from US to EU</td><td>seconds</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">The two strategies</h4>
+<table>
+  <thead><tr><th>Strategy</th><th>Where the fix lives</th><th>Pros</th><th>Cons</th></tr></thead>
+  <tbody>
+    <tr><td><strong>At-ingest (inferred member)</strong></td><td>ETL inserts placeholder dim row when a fact arrives without a dim</td><td>Downstream queries are clean INNER JOINs; no every-query repetition</td><td>Fact ingest now coupled to dim; needs <code>is_inferred = TRUE</code> flag for later overwrite</td></tr>
+    <tr><td><strong>At-query (defensive LEFT JOIN)</strong></td><td>Every analyst query uses LEFT JOIN + COALESCE</td><td>Loose coupling; ingest stays simple</td><td>Repeated boilerplate; analysts forget the COALESCE and lose data silently</td></tr>
+  </tbody>
+</table>
+<p>Lakehouses (Snowflake, BigQuery, Databricks) typically prefer at-ingest with an <code>is_inferred</code> flag. Real-time event pipelines (Kafka → Pinot) prefer at-query because the placeholder write would cause race conditions.</p>
+
+<h4 class="sub-head">The defensive query template</h4>
+<pre><code>WITH current_dim AS (
+  SELECT dim_key, attr_a, attr_b,
+    ROW_NUMBER() OVER (PARTITION BY dim_key ORDER BY effective_date DESC) AS rn
+  FROM dim_table
+)
+SELECT f.fact_id, f.dim_key,
+  COALESCE(d.attr_a, '<dim_key> ' || f.dim_key || ' (Pending Sync)') AS attr_a,
+  COALESCE(d.attr_b, 'Unknown')                                       AS attr_b
+FROM fact_table f
+LEFT JOIN current_dim d ON d.dim_key = f.dim_key AND d.rn = 1;</code></pre>
+<p>Three things working together:</p>
+<ol>
+  <li><strong>LEFT JOIN</strong> keeps every fact row, even when the dim is missing.</li>
+  <li><strong>ROW_NUMBER + rn = 1</strong> picks the most-recent SCD2 version of the dim (re-titled, re-genre'd entries handled).</li>
+  <li><strong>COALESCE with a searchable placeholder</strong> ("Pending Sync") instead of NULL so the BI tool's filter dropdown surfaces the gap.</li>
+</ol>
+
+<h4 class="sub-head">The orphan-rate SLO</h4>
+<p>Production target: <code>pct_orphan_facts &lt; 0.5%</code>. Above 1% pages the data-platform on-call. The query that drives the alert:</p>
+<pre><code>SELECT 100.0 * SUM(CASE WHEN d.dim_key IS NULL THEN 1 ELSE 0 END) / COUNT(*) AS pct_orphan
+FROM fact_table f LEFT JOIN current_dim d ON d.dim_key = f.dim_key AND d.rn = 1;</code></pre>
+
+<h4 class="sub-head">The dual problem — late-arriving FACT</h4>
+<p>The mirror image: dim is current, fact arrives days late from offline-mode mobile. Now you must attribute against the dim version that was current <em>at fact time</em>, not now. SCD2 + temporal join:</p>
+<pre><code>JOIN dim_table d
+  ON d.dim_key = f.dim_key
+ AND f.event_ts BETWEEN d.effective_from AND COALESCE(d.effective_to, '9999-12-31')</code></pre>
+<p>The "as-of-event" attribution. Same family of patterns; opposite direction.</p>
+
+<h4 class="sub-head">Senior signal in the room</h4>
+<p>Drop the phrase: <em>"the fact is the truth; the dimension is just an attribute that can be late."</em> That single line tells the interviewer you've shipped LAD-aware pipelines.</p>
+
+<h3 class="section-head">10. Factless fact tables — the modeling pattern that gets missed</h3>
+<p><strong>Factless facts</strong> have no measure column — they record that an event happened or that a relationship existed. Two flavors:</p>
+<table>
+  <thead><tr><th>Flavor</th><th>Records</th><th>Domain example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event-tracking</strong></td><td>Things that happened with no dollars/qty</td><td>Page views, login attempts, push notification deliveries, video impressions, search queries</td></tr>
+    <tr><td><strong>Coverage</strong></td><td>Eligibility / availability that ENABLED an event</td><td>Promotions ran in store-month, students enrolled in course, products featured on home page, ads scheduled to a slot</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Why they exist — the canonical examples</h4>
+<table>
+  <thead><tr><th>Question</th><th>Need a factless fact</th></tr></thead>
+  <tbody>
+    <tr><td>"Which products were featured on the home page but didn't sell?"</td><td>Featuring is the absence of a sales fact — needs a coverage table to spot the negative space.</td></tr>
+    <tr><td>"Which students were registered for a class but never attended?"</td><td>Registration is one event, attendance is another. A registration-with-no-attendance row only exists if you store both.</td></tr>
+    <tr><td>"Which ads were scheduled but didn't get an impression?"</td><td>Same shape — coverage of scheduled minus measure of fired.</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">The schema</h4>
+<pre><code>CREATE TABLE fact_class_registration (
+  student_sk     INTEGER NOT NULL,    -- FK to dim_student
+  course_sk      INTEGER NOT NULL,    -- FK to dim_course
+  semester_sk    INTEGER NOT NULL,    -- FK to dim_semester (date-like)
+  registration_sk INTEGER NOT NULL,   -- degenerate dim (the registration event id)
+  -- NO measure columns
+  PRIMARY KEY (student_sk, course_sk, semester_sk)
+);</code></pre>
+<p>Pure foreign keys. The <em>existence of the row</em> is the measurement.</p>
+
+<h4 class="sub-head">The COUNT(*) pattern</h4>
+<p>Aggregations on a factless fact are always <code>COUNT(*)</code>:</p>
+<pre><code>-- How many students registered per course?
+SELECT c.course_name, COUNT(*) AS registrations
+FROM fact_class_registration r JOIN dim_course c USING (course_sk)
+GROUP BY c.course_name;
+
+-- Coverage gap: registered but no attendance?
+SELECT r.student_sk, r.course_sk
+FROM fact_class_registration r
+LEFT JOIN fact_class_attendance a USING (student_sk, course_sk, semester_sk)
+WHERE a.student_sk IS NULL;</code></pre>
+
+<h4 class="sub-head">The trap — when to use vs when to add a measure</h4>
+<table>
+  <thead><tr><th>Hint</th><th>Decision</th></tr></thead>
+  <tbody>
+    <tr><td>"Did this happen?"</td><td>Factless</td></tr>
+    <tr><td>"How much / how many of X?"</td><td>Add a measure</td></tr>
+    <tr><td>"Was X eligible / scheduled / present?"</td><td>Factless coverage</td></tr>
+    <tr><td>"What's the dollar / quantity / score?"</td><td>Add a measure</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Senior signal in the room</h4>
+<p>Drop the phrase: <em>"this is a factless fact — the existence of the row is the measurement."</em> Junior engineers add a junk <code>count = 1</code> column. Seniors don't.</p>
+
+<h3 class="section-head">11. Streaming-first modeling — Kappa, watermarks, exactly-once</h3>
+<p>The lambda/kappa decision shifts your modeling. Once you commit to streaming-first, your fact tables become <strong>append-only event logs</strong> that the warehouse incrementally materializes.</p>
+
+<h4 class="sub-head">Lambda vs Kappa — when to pick which</h4>
+<table>
+  <thead><tr><th>Architecture</th><th>Description</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Lambda</strong></td><td>Two paths — batch (correct, slow) + speed (fresh, approximate). Reconcile downstream.</td><td>Legacy migration, very high accuracy needs, regulator requires audit trail of corrections.</td></tr>
+    <tr><td><strong>Kappa</strong></td><td>Stream is the single source of truth. Replay from log to rebuild any state. No batch path.</td><td>Greenfield, modern stack, you can replay, latency &gt; correctness for most consumers.</td></tr>
+  </tbody>
+</table>
+<p>Most 2024+ designs lean Kappa with a "snapshot every N hours" view for analyst convenience.</p>
+
+<h4 class="sub-head">Watermarks — the late-event contract</h4>
+<p>A <strong>watermark</strong> is the timestamp the engine guarantees no event with an earlier event-time will arrive. It's a promise: <em>"I've waited 90 seconds past max_seen_event_time; anything older is now late."</em></p>
+<table>
+  <thead><tr><th>Window state</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>watermark &lt; window_end</td><td>Window still open; keep accumulating</td></tr>
+    <tr><td>watermark ≥ window_end</td><td>Emit window result; close it</td></tr>
+    <tr><td>Event arrives after window closed</td><td>Late event; either drop, side-output, or update via "allowed lateness"</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Event-time vs ingest-time vs processing-time</h4>
+<table>
+  <thead><tr><th>Time</th><th>What it measures</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event-time</strong></td><td>When the event actually happened (client clock or server-side at originating event)</td><td>Almost always — it's the "truth"</td></tr>
+    <tr><td><strong>Ingest-time</strong></td><td>When the event entered the streaming engine</td><td>You can't trust event-time (no client clock); audit trails</td></tr>
+    <tr><td><strong>Processing-time</strong></td><td>When the engine processed the event</td><td>Wallclock-driven side effects; never for analytics</td></tr>
+  </tbody>
+</table>
+<p>Modeling rule: store all three on every row. Partition / window by event-time; alert / debug by processing-time.</p>
+
+<h4 class="sub-head">Exactly-once — the contract chain</h4>
+<p>"Exactly-once" isn't a single feature — it's a chain that breaks if any link fails. The four required pieces:</p>
+<ol>
+  <li><strong>Idempotent producer</strong> — Kafka transactional producer + producer_id + sequence number</li>
+  <li><strong>Idempotent consumer</strong> — store offset + transactional output (often via 2PC or Kafka transactions)</li>
+  <li><strong>Idempotent sink</strong> — natural-key MERGE; or upsert by source_event_id with unique constraint</li>
+  <li><strong>Replay-safe state</strong> — Flink savepoints; Kafka Streams state stores backed by Kafka topics</li>
+</ol>
+<p>Senior framing: <em>"exactly-once is end-to-end; if your sink doesn't have a unique key, the upstream guarantees don't matter."</em></p>
+
+<h4 class="sub-head">Stream-table duality</h4>
+<p>Every streaming concept maps to a SQL concept:</p>
+<table>
+  <thead><tr><th>Streaming</th><th>SQL equivalent</th></tr></thead>
+  <tbody>
+    <tr><td>Stream (append-only)</td><td>Insert-only fact table</td></tr>
+    <tr><td>Table (latest value per key)</td><td>SCD1 dim table</td></tr>
+    <tr><td>Stream → Table (KTable)</td><td>Materialized view with <code>ROW_NUMBER() OVER ... = 1</code></td></tr>
+    <tr><td>Tumbling window</td><td><code>GROUP BY DATE_TRUNC('hour', event_ts)</code></td></tr>
+    <tr><td>Hopping window</td><td>Multiple overlapping <code>GROUP BY</code> with <code>generate_series</code> spine</td></tr>
+    <tr><td>Session window</td><td>Gaps-and-islands via LAG + cumulative sum</td></tr>
+    <tr><td>Watermark</td><td>"Don't query rows newer than NOW() - 90s"</td></tr>
+  </tbody>
+</table>
+<p>Drop this in interviews: <em>"every Flink job is just a SQL query that hasn't been run yet."</em></p>
+
+<h4 class="sub-head">CDC patterns — the bridge</h4>
+<p>Most companies don't go pure-streaming overnight. They hybridize via <strong>change-data-capture</strong>:</p>
+<ul>
+  <li><strong>Debezium</strong> reads the OLTP database write-ahead log</li>
+  <li>Emits a Kafka topic with one record per row-change (insert/update/delete)</li>
+  <li>Sink connector materializes the stream into the warehouse with eventual consistency</li>
+</ul>
+<p>Modeling consequence: every dim becomes <em>SCD2 by design</em> (every change is an event), and the warehouse can replay history at any point.</p>
+
+<h4 class="sub-head">The skew + checkpoint storm</h4>
+<p>Streaming jobs fail in two characteristic ways:</p>
+<ul>
+  <li><strong>Hot key skew</strong> — one user/title/merchant dominates one task slot. Fix: salt the key (<code>HASH(key) MOD 16</code>) for the heavy aggregation, then re-aggregate.</li>
+  <li><strong>Checkpoint storm</strong> — checkpoint duration grows past interval; backpressure cascades. Fix: incremental checkpoints (RocksDB), unaligned checkpoints, smaller state.</li>
+</ul>
+
+<h4 class="sub-head">Senior signal in the room</h4>
+<p>Drop two phrases: <em>"watermark + allowed lateness handles late-arriving events deterministically"</em> and <em>"exactly-once is end-to-end — sink idempotency is non-negotiable."</em> The interviewer immediately stops asking streaming questions and moves to the hard parts.</p>
 </section>
 
 <div class="ornament">· · ·</div>

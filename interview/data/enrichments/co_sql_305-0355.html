@@ -1,0 +1,46 @@
+<p>APNs (Apple Push Notification service) processes hundreds of billions of notifications per day. The 5-second SLA is the published target. The query computes per-app delivery latency distribution + within-5s rate.</p>
+
+<h4>1. The source data — <code>push_events</code></h4>
+<table><thead><tr><th>notification_id</th><th>queued_at</th><th>delivered_at</th><th>app_id</th></tr></thead>
+<tbody><tr><td>N_001</td><td>10:00:00</td><td>10:00:02</td><td>APP_01</td></tr></tbody></table>
+
+<h4>2. The SQL — latency CTE + within-SLA rate</h4>
+<pre><code>WITH latencies AS (
+  SELECT app_id,
+    CAST((julianday(delivered_at) - julianday(queued_at)) * 86400 AS INTEGER) AS latency_seconds
+  FROM push_events
+  WHERE delivered_at IS NOT NULL
+)
+SELECT app_id,
+  COUNT(*) AS deliveries,
+  ROUND(AVG(latency_seconds), 1) AS avg_latency_sec,
+  MAX(latency_seconds) AS max_latency_sec,
+  SUM(CASE WHEN latency_seconds &lt;= 5 THEN 1 ELSE 0 END) AS within_5s_count,
+  ROUND(100.0 * SUM(CASE WHEN latency_seconds &lt;= 5 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS within_5s_pct
+FROM latencies
+GROUP BY app_id
+ORDER BY within_5s_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The seconds conversion — *86400</h5>
+<p>julianday-diff is in days. Multiply by 86400 for seconds. Memorize: 1 / 60 / 1440 / 86400 for days/hours/minutes/seconds.</p>
+
+<h5>SLA reporting — the within-N count</h5>
+<p>"Average latency 1.2s" can hide that 5% of pushes take 30s. The within-5s percentage is the SLA. Apple's published target is 99% within 5 seconds. Below 99% triggers SRE investigation.</p>
+
+<h5>The undelivered-notification handling</h5>
+<p>Pushes can fail (token invalid, device offline). The query filters with <code>WHERE delivered_at IS NOT NULL</code> — measuring only delivered ones. To measure deliverability, compute delivery-rate separately:</p>
+<pre><code>COUNT(delivered_at) * 1.0 / COUNT(*) AS deliverability</code></pre>
+
+<h5>Per-region latency divergence</h5>
+<p>APNs has regional gateways. Latencies vary by region: US sub-1s, India 2-3s typical. Slice:</p>
+<pre><code>GROUP BY app_id, region</code></pre>
+
+<h5>Time-of-day spike</h5>
+<p>Latency spikes at peak (e.g., when a major news event triggers mass push from many apps simultaneously). Production monitors per-hour to catch capacity-planning gaps.</p>
+
+<h5>The priority-class twist</h5>
+<p>APNs has high-priority (immediate) and low-priority (battery-aware, delayed) classes. Low-priority pushes legitimately take minutes — they shouldn't be counted against the 5s SLA.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute within-SLA rate not just average, separate latency from deliverability, slice by region + time-of-day, and exclude low-priority class from SLA evaluation. Production target 99% within 5s is the published bar.</div>

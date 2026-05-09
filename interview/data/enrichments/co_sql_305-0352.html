@@ -1,0 +1,38 @@
+<p>Apple's App Store keeps 15-30% of in-app purchase (IAP) revenue. The query computes per-category gross + dev cut + Apple cut + share-of-total, with the share calculated as a window-aggregate.</p>
+
+<h4>1. The source data — <code>iap_transactions</code></h4>
+<table><thead><tr><th>txn_id</th><th>app_id</th><th>category</th><th>amount</th><th>txn_at</th></tr></thead>
+<tbody><tr><td>T_001</td><td>APP_01</td><td>Games</td><td>$9.99</td><td>2024-01-01</td></tr></tbody></table>
+
+<h4>2. The SQL — gross + cuts + share</h4>
+<pre><code>SELECT category,
+  COUNT(*) AS transactions,
+  ROUND(SUM(amount), 2) AS gross_revenue,
+  ROUND(SUM(amount) * 0.85, 2) AS dev_revenue,
+  ROUND(SUM(amount) * 0.15, 2) AS apple_cut,
+  ROUND(100.0 * SUM(amount) / SUM(SUM(amount)) OVER (), 1) AS share_of_total_pct
+FROM iap_transactions
+GROUP BY category
+ORDER BY gross_revenue DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 85/15 split — the simplification</h5>
+<p>Apple's actual cut varies: 15% for first $1M of dev annual revenue (Small Business Program), 30% above that, 15% for subscriptions in year 2+. The query uses 15% for clarity. Production joins to <code>app_pricing_tier</code> for the right per-app rate.</p>
+
+<h5>The aggregate-of-aggregate share</h5>
+<p><code>SUM(SUM(amount)) OVER ()</code> — inner SUM is the GROUP BY; outer SUM-window aggregates across all groups. One pass for the share computation.</p>
+
+<h5>The currency conversion gap</h5>
+<p>iap_transactions store local currency. Reporting in USD requires the <em>at-purchase</em> FX rate, locked at txn_time. Production:</p>
+<pre><code>JOIN dim_fx_rate fx ON fx.from_currency = t.local_currency
+  AND fx.effective_from &lt;= t.txn_at AND fx.effective_to &gt; t.txn_at
+SELECT SUM(t.amount * fx.rate_to_usd)</code></pre>
+
+<h5>Refunds — net not gross</h5>
+<p>The query reports gross. Apple's net (refunds back to user) is 5-15% lower depending on category (impulse-buy categories higher refund). Subtract refunds for the financially-honest number.</p>
+
+<h5>Subscription vs one-time IAP</h5>
+<p>Different revenue dynamics: subs grow MRR; one-time spikes. The query treats both as equivalent. Production splits.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> note the 85/15 simplification and look up tier-specific rates, use SUM-of-SUM-OVER for share, FX-rate-at-event-time, and split subs vs one-time IAP. Refund subtraction for net is the financial-correctness move.</div>

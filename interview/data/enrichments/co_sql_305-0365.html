@@ -1,0 +1,51 @@
+<p>Airbnb's host-response-time SLA is a Superhost criterion. The query uses LEAD to find each host's first response after a guest message and computes per-listing average response latency.</p>
+
+<h4>1. The source data — <code>messages</code></h4>
+<table><thead><tr><th>listing_id</th><th>host_id</th><th>sent_by</th><th>sent_at</th></tr></thead>
+<tbody><tr><td>L_01</td><td>H_01</td><td>guest</td><td>10:00</td></tr><tr><td>L_01</td><td>H_01</td><td>host</td><td>10:30</td></tr></tbody></table>
+
+<h4>2. The SQL — LEAD for next message + filter to host responses</h4>
+<pre><code>WITH guest_msgs AS (
+  SELECT listing_id, sent_at AS guest_at,
+    LEAD(sent_at) OVER (PARTITION BY listing_id ORDER BY sent_at) AS host_at,
+    LEAD(sent_by) OVER (PARTITION BY listing_id ORDER BY sent_at) AS next_sender
+  FROM messages
+)
+SELECT listing_id,
+  COUNT(*) AS guest_messages,
+  ROUND(AVG((julianday(host_at) - julianday(guest_at)) * 1440), 1) AS avg_response_minutes
+FROM guest_msgs
+WHERE next_sender = 'host'
+GROUP BY listing_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY avg_response_minutes;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>LEAD for "next message" pairing</h5>
+<p>For each guest message, look at the very next message (same listing, by sent_at). If the next message is from the host, the time-diff is response latency. If it's another guest message, no response yet — exclude.</p>
+
+<h5>The thread-fragmentation problem</h5>
+<p>"Same listing" doesn't mean "same conversation". One listing has many guest threads. The query above conflates them — treats every host msg as response to every preceding guest msg. Production keys on <code>(listing_id, conversation_id)</code> for honest pairing.</p>
+
+<h5>The 24-hour Superhost gate</h5>
+<p>Airbnb's Superhost criterion: 90% of inquiries answered within 24 hours. The query measures latency; flag the per-listing breach rate:</p>
+<pre><code>SUM(CASE WHEN host_at - guest_at &gt; 1.0 THEN 1 ELSE 0 END) AS breaches_24h</code></pre>
+
+<h5>Mean vs median latency</h5>
+<p>One bad night-time message taking 8 hours skews the mean. Median is more representative. SQLite lacks <code>PERCENTILE_CONT</code>; workaround via ROW_NUMBER:</p>
+<pre><code>WITH ranked AS (
+  SELECT listing_id, latency,
+    ROW_NUMBER() OVER (PARTITION BY listing_id ORDER BY latency) AS rn,
+    COUNT(*) OVER (PARTITION BY listing_id) AS n
+  FROM /* the diff CTE */
+) SELECT listing_id, AVG(latency) AS median FROM ranked WHERE rn IN (n/2, n/2+1) GROUP BY listing_id;</code></pre>
+
+<h5>Host-side timezone gap</h5>
+<p>Inquiries from US guests at 9pm ET arrive at 2am for a Tokyo host. Excluding overnight gaps gives the actual responsiveness:</p>
+<pre><code>WHERE NOT (CAST(strftime('%H', guest_at) AS INT) BETWEEN 0 AND 6)</code></pre>
+
+<h5>Bot-response proxy</h5>
+<p>Hosts using Airbnb's auto-reply tool have artificially fast first-response times that don't reflect real engagement. Flag where first response time &lt; 5 seconds = likely auto-reply.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use LEAD for next-message pairing, name the thread-fragmentation problem, surface the 24-hour Superhost gate, prefer median over mean for latency, and exclude overnight gaps for honest responsiveness. Auto-reply detection is the over-the-bar nuance.</div>

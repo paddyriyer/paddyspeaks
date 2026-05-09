@@ -1,0 +1,56 @@
+<p>Stripe's ARR (Annual Recurring Revenue) chart slices subscribers by signup-month cohort and tracks how many remain active at each subsequent month. The query is the canonical cohort matrix using FIRST_VALUE for the denominator.</p>
+
+<h4>1. The source data — <code>subscriptions</code></h4>
+<table><thead><tr><th>customer_id</th><th>signup_month</th><th>active_month</th></tr></thead>
+<tbody><tr><td>C_001</td><td>2024-01</td><td>2024-01</td></tr><tr><td>C_001</td><td>2024-01</td><td>2024-02</td></tr></tbody></table>
+
+<h4>2. The SQL — month-N retention with FIRST_VALUE</h4>
+<pre><code>WITH joined AS (
+  SELECT signup_month,
+    CAST((julianday(active_month || '-01') - julianday(signup_month || '-01')) / 30 AS INTEGER) AS month_n,
+    customer_id
+  FROM subscriptions
+)
+SELECT signup_month, month_n,
+  COUNT(DISTINCT customer_id) AS active_customers,
+  ROUND(100.0 * COUNT(DISTINCT customer_id) /
+    FIRST_VALUE(COUNT(DISTINCT customer_id)) OVER (PARTITION BY signup_month ORDER BY month_n), 1) AS retention_pct
+FROM joined
+WHERE month_n BETWEEN 0 AND 12
+GROUP BY signup_month, month_n
+ORDER BY signup_month, month_n;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>FIRST_VALUE for the cohort baseline</h5>
+<p>The denominator for retention% is the cohort's month-0 size. <code>FIRST_VALUE(...) OVER (PARTITION BY signup_month ORDER BY month_n)</code> grabs the count from month_n=0 and replicates it across rows of the same cohort — one-pass instead of a self-join.</p>
+
+<h5>The month_n calculation</h5>
+<p><code>julianday(active_month || '-01') - julianday(signup_month || '-01')</code> is the day-difference. Dividing by 30 approximates months (rough but adequate for cohort buckets).</p>
+
+<h5>The in-flight cohort hide</h5>
+<p>Cohorts &lt; 12 months old don't have full retention data — month-12 cells are NULL. Either hide them with <code>WHERE julianday(signup_month) &lt;= julianday('now') - INTERVAL '13 months'</code> OR render them with explicit NULL.</p>
+
+<h5>Net vs gross retention</h5>
+<table><thead><tr><th>metric</th><th>formula</th></tr></thead>
+<tbody>
+<tr><td>Gross retention</td><td>customers retained / cohort size</td></tr>
+<tr><td>Net dollar retention (NDR)</td><td>(retained MRR - churned MRR + expansion MRR) / cohort MRR</td></tr>
+</tbody></table>
+<p>NDR can exceed 100% (expansion outweighs churn). The query above is gross. SaaS dashboards focus on NDR.</p>
+
+<h5>The curve shape diagnosis</h5>
+<table><thead><tr><th>shape</th><th>diagnosis</th></tr></thead>
+<tbody>
+<tr><td>steep drop M1, flat after</td><td>onboarding leak; core sticks</td></tr>
+<tr><td>smooth exponential</td><td>healthy, predictable churn</td></tr>
+<tr><td>"smiling" (down then up)</td><td>resurrection campaigns working</td></tr>
+<tr><td>cliff at M12</td><td>annual contract churn</td></tr>
+</tbody></table>
+
+<h5>The cohort comparison</h5>
+<p>The PM-actionable view is side-by-side: this month's cohort vs last quarter's. Use a pivot to compare:</p>
+<pre><code>MAX(CASE WHEN signup_month = '2024-01' THEN retention_pct END) AS cohort_jan
+MAX(CASE WHEN signup_month = '2024-04' THEN retention_pct END) AS cohort_apr</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use FIRST_VALUE as the cleanest cohort denominator, hide in-flight cohorts, contrast gross retention with NDR, diagnose curve shape (cliff at M12 = annual contracts), and pivot for cohort-vs-cohort comparison.</div>

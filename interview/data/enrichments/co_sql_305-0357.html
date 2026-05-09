@@ -1,0 +1,42 @@
+<p>Apple's refund rate is a quality signal — high refund rate signals user dissatisfaction or fraud. App Review's threshold for category-level investigation is &gt; 3% refund rate.</p>
+
+<h4>1. The source data — <code>iap_transactions</code></h4>
+<table><thead><tr><th>txn_id</th><th>app_id</th><th>category</th><th>amount</th><th>refunded</th></tr></thead>
+<tbody><tr><td>T_001</td><td>APP_01</td><td>Games</td><td>$9.99</td><td>1</td></tr></tbody></table>
+
+<h4>2. The SQL — refund rate + dollar impact</h4>
+<pre><code>SELECT category,
+  COUNT(*) AS purchases,
+  SUM(refunded) AS refunds,
+  ROUND(100.0 * SUM(refunded) / NULLIF(COUNT(*), 0), 2) AS refund_rate_pct,
+  ROUND(SUM(CASE WHEN refunded = 1 THEN amount END), 2) AS refunded_dollars
+FROM iap_transactions
+GROUP BY category
+HAVING COUNT(*) &gt;= 5
+ORDER BY refund_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why refund-rate AND refund-dollars</h5>
+<p>Rate alone hides scale. A category with 5% refund rate and $5K refunded is much smaller than a category with 1% refund rate and $5M refunded. Production reports both — flag the dollar-heavy refunders even at low rate.</p>
+
+<h5>Refund reasons — the diagnostic</h5>
+<p>Refunds split into:</p>
+<ul>
+<li><strong>Buyer remorse</strong> — fast-acting, "didn't realize" — UX/pricing issue</li>
+<li><strong>Subscription auto-renewal forgot</strong> — friction issue, fixable with reminders</li>
+<li><strong>Fraud</strong> — chargeback-driven, fraudulent purchase</li>
+<li><strong>App quality</strong> — broken / not as described</li>
+</ul>
+<p>Production joins to <code>refund_reason</code> for actionable splits.</p>
+
+<h5>Time-to-refund</h5>
+<p>Most legitimate refunds happen within 24 hours of purchase. Refunds 30+ days post-purchase are different (chargebacks, family-sharing disputes). Slice by time-since-purchase.</p>
+
+<h5>The Family Sharing twist</h5>
+<p>One purchase, multiple family members. If one disputes, Apple refunds the whole purchase to keep the family. The category aggregation can over-count if the same purchase appears in multiple family-member views.</p>
+
+<h5>Subscription vs one-time IAP refund pattern</h5>
+<p>Subs have higher refund rate (impulse trial signups + cancel). One-time has lower (intentional purchase). Mixing them inflates the average for one-time IAP categories.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit rate + dollars together, split refund reasons for actionable diagnosis, slice by time-to-refund, and isolate sub-refund inflation from one-time. The Family Sharing double-count gotcha is the over-the-bar deep cut.</div>

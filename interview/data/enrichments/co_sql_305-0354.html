@@ -1,0 +1,44 @@
+<p>Apple's iPhone upgrade cycle is the company's central revenue rhythm. The query measures months between consecutive purchases per customer — the input to demand forecasting + trade-in pricing.</p>
+
+<h4>1. The source data — <code>device_purchases</code></h4>
+<table><thead><tr><th>customer_id</th><th>device_model</th><th>purchased_at</th></tr></thead>
+<tbody><tr><td>C_001</td><td>iPhone 14</td><td>2022-09-16</td></tr><tr><td>C_001</td><td>iPhone 16</td><td>2024-09-20</td></tr></tbody></table>
+
+<h4>2. The SQL — LAG-based gap detection</h4>
+<pre><code>WITH gaps AS (
+  SELECT customer_id, device_model, purchased_at,
+    LAG(purchased_at) OVER (PARTITION BY customer_id ORDER BY purchased_at) AS prev_purchase
+  FROM device_purchases
+)
+SELECT customer_id, device_model, purchased_at,
+  CAST((julianday(purchased_at) - julianday(prev_purchase)) / 30.0 AS INTEGER) AS months_since_last
+FROM gaps
+WHERE prev_purchase IS NOT NULL
+ORDER BY months_since_last DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Cycle length distribution — what it reveals</h5>
+<table><thead><tr><th>months_since_last</th><th>segment</th></tr></thead>
+<tbody>
+<tr><td>1-12</td><td>premium-cycle (every iPhone launch)</td></tr>
+<tr><td>13-24</td><td>two-year cycle (carrier contracts)</td></tr>
+<tr><td>25-36</td><td>standard upgrade</td></tr>
+<tr><td>37+</td><td>late-cycle (price-sensitive)</td></tr>
+</tbody></table>
+<p>Apple's installed-base growth model breaks customers into these buckets. The 25-36 bucket is the largest; that's the demand-forecasting input.</p>
+
+<h5>Device-line-cross signal</h5>
+<p>iPhone-only customers are different from iPhone+iPad+Mac. Multi-device customers have shorter cycle (more devices to upgrade more often). Group:</p>
+<pre><code>GROUP BY customer_id, CASE WHEN device_model LIKE 'iPhone%' THEN 'phone' ELSE 'other' END</code></pre>
+
+<h5>The "first purchase" exclusion</h5>
+<p>The first iPhone has no "previous" — the LAG is NULL. That's correctly excluded by the WHERE clause. New customers contribute to the SUM but not to the cycle metric.</p>
+
+<h5>Trade-in offset</h5>
+<p>Apple's trade-in program affects cycle: trade-in lowers effective new-device price, encouraging shorter cycles. Joining to <code>trade_ins</code> shows the lift.</p>
+
+<h5>Premium vs basic-tier cycle divergence</h5>
+<p>Pro models have shorter cycles (early-adopter audience); base models have longer (price-sensitive audience). Splitting by tier reveals divergent demand curves.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distribute customers into 12/24/36 month cycle buckets, distinguish iPhone-only from multi-device, surface trade-in's effect on cycle length, and split by Pro vs base tier. The 25-36 bucket as the demand-forecasting baseline is the senior frame.</div>

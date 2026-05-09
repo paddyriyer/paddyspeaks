@@ -1,0 +1,46 @@
+<p>Airbnb's search-to-book funnel is the central conversion metric. The query joins searches to subsequent bookings within 30 days and computes per-property-type conversion rates.</p>
+
+<h4>1. The source data — <code>search_events</code> + <code>bookings</code></h4>
+<table><thead><tr><th>search_id</th><th>user_id</th><th>property_type</th><th>viewed_listing_id</th></tr></thead>
+<tbody><tr><td>S_001</td><td>U_01</td><td>entire</td><td>L_01</td></tr></tbody></table>
+
+<h4>2. The SQL — time-bounded LEFT JOIN</h4>
+<pre><code>SELECT s.property_type,
+  COUNT(DISTINCT s.search_id) AS searches,
+  COUNT(DISTINCT b.user_id) AS booked_users,
+  ROUND(100.0 * COUNT(DISTINCT b.user_id) / NULLIF(COUNT(DISTINCT s.user_id), 0), 1) AS user_book_pct
+FROM search_events s
+LEFT JOIN bookings b
+  ON b.user_id = s.user_id
+ AND b.listing_id = s.viewed_listing_id
+ AND julianday(b.booked_at) - julianday(s.searched_at) BETWEEN 0 AND 30
+GROUP BY s.property_type
+ORDER BY user_book_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 30-day window — Airbnb's published attribution</h5>
+<p>Airbnb measures conversion within 30 days of search. Shorter windows (7d) miss vacation-planners; longer (90d) over-attribute. 30 is the operational compromise.</p>
+
+<h5>The exact-listing-match strictness</h5>
+<p>The query requires user to book the SAME listing they searched. Real-world: users browse 10 listings, book 1. Counting only exact matches under-attributes. Loosen by joining on (user_id, property_type, city) for "anything close" attribution.</p>
+
+<h5>Searches vs unique-users</h5>
+<p>The query mixes <code>search_id</code> (impressions) and <code>user_id</code> (unique users). For "user_book_pct" the denominator should be unique users. Be explicit about which counter you're using.</p>
+
+<h5>Property-type segmentation</h5>
+<p>Conversion rates differ structurally:</p>
+<table><thead><tr><th>property_type</th><th>typical conversion</th></tr></thead>
+<tbody>
+<tr><td>Entire home</td><td>4-8% (high intent)</td></tr>
+<tr><td>Private room</td><td>2-4% (lower intent, multi-search)</td></tr>
+<tr><td>Hotel</td><td>1-3% (compares against Booking.com)</td></tr>
+</tbody></table>
+
+<h5>The seasonality / lead-time trap</h5>
+<p>Searches in November for a March vacation have a 4-month lag — won't book in 30 days. The 30-day window misses these. For long-lead-time bookings, use a 90-day attribution.</p>
+
+<h5>Search-to-message vs search-to-book</h5>
+<p>Some users message hosts (questions about pets, group size) before booking. Search-to-message is a leading indicator that converts to book at 60% rate. Add the intermediate step for early-funnel insight.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pin the 30-day window as published-and-conventional, distinguish exact-match vs property-match attribution, separate impressions from unique users, and surface property-type baseline differences. The search-to-message intermediate-step funnel is the over-the-bar refinement.</div>

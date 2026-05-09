@@ -1,0 +1,52 @@
+<p>Airbnb's Superhost program is a quality signal — Superhosts get higher search ranking, +20% bookings, and a badge. The query checks 4 criteria simultaneously via a single CASE expression.</p>
+
+<h4>1. The source data — <code>host_metrics</code></h4>
+<table><thead><tr><th>host_id</th><th>completed_trips</th><th>avg_rating</th><th>response_rate_pct</th><th>cancellation_count</th></tr></thead>
+<tbody><tr><td>H_01</td><td>15</td><td>4.9</td><td>95</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — multi-criteria CASE</h4>
+<pre><code>SELECT host_id, completed_trips, avg_rating, response_rate_pct, cancellation_count,
+  CASE
+    WHEN completed_trips     &gt;= 10
+     AND avg_rating          &gt;= 4.8
+     AND response_rate_pct   &gt;= 90
+     AND cancellation_count  =  0
+    THEN 'superhost' ELSE 'not_eligible'
+  END AS status
+FROM host_metrics
+ORDER BY status, avg_rating DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Multi-criteria AND — all four must hold</h5>
+<p>The four criteria are AND-joined: ALL must be true. A 4.9-rated host with 1 cancellation fails. This strictness is intentional — Superhost is a guarantee.</p>
+
+<h5>Why these four — the trust framework</h5>
+<table><thead><tr><th>criterion</th><th>signal</th></tr></thead>
+<tbody>
+<tr><td>completed_trips ≥ 10</td><td>experience — not a one-off</td></tr>
+<tr><td>avg_rating ≥ 4.8</td><td>guest satisfaction</td></tr>
+<tr><td>response_rate ≥ 90%</td><td>responsiveness</td></tr>
+<tr><td>cancellation_count = 0</td><td>reliability</td></tr>
+</tbody></table>
+
+<h5>The "near-miss" segment</h5>
+<p>Hosts who fail ONE criterion are the highest-leverage marketing target — a small nudge gets them eligible. Surface them:</p>
+<pre><code>SELECT host_id,
+  CASE WHEN completed_trips    &lt; 10 THEN 'needs_more_trips' END,
+  CASE WHEN avg_rating         &lt; 4.8 THEN 'needs_better_reviews' END,
+  CASE WHEN response_rate_pct  &lt; 90 THEN 'needs_faster_response' END,
+  CASE WHEN cancellation_count &gt; 0 THEN 'cancellation_blocker' END
+FROM host_metrics</code></pre>
+
+<h5>The retroactive removal</h5>
+<p>Superhost is recalculated quarterly. A Superhost who cancels mid-quarter loses status. The query represents the latest snapshot; production tracks transitions over time.</p>
+
+<h5>The rating-trap: response volume</h5>
+<p>5.0-star with 3 reviews is statistically meaningless. Production adds a Bayesian smoothing — true rating moves toward 4.5 baseline as review count drops. Senior implementation:</p>
+<pre><code>(avg_rating * review_count + 4.5 * 5) / (review_count + 5) AS smoothed_rating</code></pre>
+
+<h5>The criteria-tuning loop</h5>
+<p>Airbnb tweaks the 4 thresholds based on Superhost density. Too many → tighten (raise rating bar). Too few → loosen (drop trips bar to 5). The query result feeds the calibration.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> combine multi-criteria via AND for the strict gate, surface the "near-miss" segment as the highest-leverage marketing target, apply Bayesian rating smoothing for low-review hosts, and connect to the threshold-tuning calibration loop. Quarterly retro removal is the operational nuance.</div>
