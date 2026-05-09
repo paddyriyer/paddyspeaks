@@ -1,0 +1,54 @@
+<p>Messenger's read-receipt latency drives a lot of UX decisions: blue-tick anxiety, "active now" status, last-seen indicators. The query computes per-conversation read latency (sent → read time) and sorts to find the slowest-responding conversations.</p>
+
+<h4>1. The source data — <code>messages</code></h4>
+<table><thead><tr><th>message_id</th><th>conversation_id</th><th>sent_at</th><th>read_at</th></tr></thead>
+<tbody><tr><td>M_001</td><td>C_01</td><td>14:30:00</td><td>14:32:15</td></tr><tr><td>M_002</td><td>C_01</td><td>14:35:00</td><td>NULL</td></tr></tbody></table>
+
+<h4>2. The SQL — julianday diff in minutes</h4>
+<pre><code>SELECT conversation_id,
+  COUNT(*) AS messages,
+  COUNT(read_at) AS read_messages,
+  ROUND(AVG((julianday(read_at) - julianday(sent_at)) * 1440), 1) AS avg_read_minutes,
+  ROUND(MAX((julianday(read_at) - julianday(sent_at)) * 1440), 1) AS max_read_minutes
+FROM messages
+WHERE read_at IS NOT NULL
+GROUP BY conversation_id
+HAVING COUNT(read_at) &gt;= 2
+ORDER BY avg_read_minutes DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The minutes conversion — *1440</h5>
+<p><code>julianday()</code> returns days. Multiply by 1440 (24×60) to get minutes. Multiply by 86400 for seconds. Memorize the constants:</p>
+<table><thead><tr><th>unit</th><th>multiplier</th></tr></thead>
+<tbody><tr><td>days</td><td>1</td></tr><tr><td>hours</td><td>24</td></tr><tr><td>minutes</td><td>1440</td></tr><tr><td>seconds</td><td>86400</td></tr></tbody></table>
+
+<h5>The unread-message handling</h5>
+<p><code>WHERE read_at IS NOT NULL</code> excludes unread messages from the latency calc — otherwise <code>julianday(NULL)</code> returns NULL, polluting the average. The <code>COUNT(read_at)</code> column counts only-read; <code>COUNT(*)</code> counts all messages — emit both so the reader sees the unread ratio.</p>
+
+<h5>The mean vs median trap</h5>
+<p>Average is sensitive to outliers — one message read 3 days later distorts the average for the whole conversation. Production uses median (or P50/P95) which SQLite doesn't have natively. Workaround:</p>
+<pre><code>WITH ranked AS (
+  SELECT conversation_id, latency,
+    ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY latency) AS rn,
+    COUNT(*) OVER (PARTITION BY conversation_id) AS n
+  FROM /* the diff CTE */
+)
+SELECT conversation_id, AVG(latency) AS median_latency
+FROM ranked WHERE rn IN (n/2, n/2 + 1)
+GROUP BY conversation_id;</code></pre>
+
+<h5>The "active hours" filter</h5>
+<p>A message sent at 3am and read at 8am has 5 hours of latency — but the recipient was asleep. To measure <em>actual</em> response speed, exclude overnight gaps:</p>
+<pre><code>WHERE NOT (CAST(strftime('%H', sent_at) AS INT) BETWEEN 0 AND 6)</code></pre>
+
+<h5>Per-relationship-type cut</h5>
+<p>1-on-1 chats vs group chats have wildly different read-latency distributions: 1-on-1 is fast (focused), group is slow (everyone reads when they happen by). Always slice by chat type.</p>
+
+<h5>The "double tick" signal</h5>
+<p>WhatsApp's blue ticks (and Messenger's read receipt) are based on this exact metric. Disabled-receipts users skew the data: their <code>read_at</code> is NULL even when they read, depressing the answered-rate. Filter to receipts-on users for a clean denominator.</p>
+
+<h5>The product-decisioning use case</h5>
+<p>Messenger's "active now" status uses read-latency: under 5 min = "active now"; 5-30 min = "active recently"; over 30 = no status shown. The thresholds come from the distribution of this query's output.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> memorize the julianday-to-minutes multiplier (1440), guard against NULL read_at, prefer median/P95 over AVG for latencies, and exclude overnight gaps for the actual response-speed metric. The "active now" UX threshold derivation is the over-the-bar tie-back.</div>

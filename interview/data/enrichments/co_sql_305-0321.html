@@ -1,0 +1,47 @@
+<p>Uber's Pricing team owns one number that drives both rider acquisition (low surge) and supply rebalancing (high surge): the <strong>surge multiplier</strong>. The query buckets each ride by surge band and aggregates volume + revenue. The senior conversation: surge isn't binary — it's a continuous response curve.</p>
+
+<h4>1. The source data — <code>rides</code></h4>
+<table><thead><tr><th>ride_id</th><th>area_id</th><th>started_at</th><th>fare</th><th>surge_multiplier</th></tr></thead>
+<tbody><tr><td>R_001</td><td>A1</td><td>2024-01-01 06:00</td><td>$12.50</td><td>1.0</td></tr>
+<tr><td>R_002</td><td>A1</td><td>2024-01-01 18:30</td><td>$28.00</td><td>1.7</td></tr>
+<tr><td>R_003</td><td>A1</td><td>2024-01-01 23:00</td><td>$45.00</td><td>2.4</td></tr></tbody></table>
+
+<h4>2. The SQL — bucketed surge band aggregation</h4>
+<pre><code>SELECT area_id,
+  CASE
+    WHEN surge_multiplier &lt; 1.5 THEN 'normal'
+    WHEN surge_multiplier &lt; 2.0 THEN 'mild_surge'
+    ELSE 'heavy_surge'
+  END AS surge_band,
+  COUNT(*)            AS rides,
+  ROUND(AVG(fare), 2) AS avg_fare,
+  ROUND(SUM(fare), 2) AS total_fare
+FROM rides
+GROUP BY area_id, surge_band
+ORDER BY area_id, surge_band;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why bucket — not raw multiplier</h5>
+<p>Continuous surge multipliers (1.0, 1.2, 1.4, ...) produce 10+ groups per area — too many to read on a dashboard. Buckets compress the long tail: <em>normal</em> (90% of rides), <em>mild_surge</em> (8%), <em>heavy_surge</em> (2%). The 2% heavy-surge band drives a disproportionate share of revenue and complaints — that's the policy lever.</p>
+
+<h5>The <code>CASE</code>-in-<code>GROUP BY</code> idiom</h5>
+<p>SQLite (and most engines) accepts <code>GROUP BY</code> on a CASE expression directly. Some strict dialects (older PG) require wrapping in a CTE first. Portable form:</p>
+<pre><code>WITH banded AS (
+  SELECT area_id, fare,
+    CASE WHEN surge_multiplier &lt; 1.5 THEN 'normal' ... END AS surge_band
+  FROM rides
+)
+SELECT area_id, surge_band, COUNT(*), AVG(fare) FROM banded GROUP BY 1, 2;</code></pre>
+
+<h5>The price-elasticity follow-up</h5>
+<p>Surge raises prices to balance the marketplace. The actual research question: <em>"at 1.7x surge, how many riders abandon vs accept?"</em> That requires the <em>requested</em> fare data, not just completed rides. Production: join to <code>fare_estimates</code> (shown to user before booking) and compute <em>conversion rate per surge band</em>.</p>
+
+<h5>The driver-side mirror</h5>
+<p>Surge attracts drivers to the area. The companion query: <em>"at 1.7x surge, how many drivers came online within 10 min?"</em> If the ratio is too low, surge isn't doing its supply-rebalancing job — the multiplier needs to be higher OR the alert mechanism is broken.</p>
+
+<h5>Geo-temporal heatmap follow-up</h5>
+<p>Real Uber dashboards plot <code>area × hour</code> heatmaps with surge color. Add hour to GROUP BY:</p>
+<pre><code>GROUP BY area_id, CAST(strftime('%H', started_at) AS INTEGER), surge_band</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> bucket the continuous variable for readability, surface the price-elasticity question (the missing denominator), and connect surge to both rider abandonment and driver supply response. The geo-temporal heatmap GROUP BY is the over-the-bar slice.</div>

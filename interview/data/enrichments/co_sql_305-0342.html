@@ -1,0 +1,62 @@
+<p>Google Analytics' canonical chart: the conversion funnel. <em>Landing → Sign-up → Activate → Convert.</em> The query computes per-step user counts and step-to-step conversion. The senior layer is the strict-vs-loose funnel distinction and cohort-vs-snapshot.</p>
+
+<h4>1. The source data — <code>funnel</code></h4>
+<table><thead><tr><th>user_id</th><th>step</th><th>reached_at</th></tr></thead>
+<tbody><tr><td>U_01</td><td>1</td><td>10:00</td></tr><tr><td>U_01</td><td>2</td><td>10:01</td></tr></tbody></table>
+
+<h4>2. The SQL — counts + step-to-step + percent-of-top</h4>
+<pre><code>WITH counts AS (
+  SELECT step, COUNT(DISTINCT user_id) AS users
+  FROM funnel GROUP BY step
+)
+SELECT step, users,
+  LAG(users) OVER (ORDER BY step) AS prev_users,
+  ROUND(100.0 * users * 1.0 / NULLIF(LAG(users) OVER (ORDER BY step), 0), 1) AS step_to_step_pct,
+  ROUND(100.0 * users * 1.0 / FIRST_VALUE(users) OVER (ORDER BY step), 1) AS pct_of_top
+FROM counts
+ORDER BY step;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Step-to-step vs percent-of-top — both are needed</h5>
+<table><thead><tr><th>metric</th><th>question it answers</th></tr></thead>
+<tbody>
+<tr><td>step_to_step_pct</td><td>"how leaky is THIS step?"</td></tr>
+<tr><td>pct_of_top</td><td>"of original visitors, who's still here?"</td></tr>
+</tbody></table>
+<p>The two surface different problems: a step with 95% step-rate but the funnel converts 1% overall has 50 leaky earlier steps; a step with 30% step-rate is the single broken funnel step.</p>
+
+<h5>The strict-vs-loose funnel trap</h5>
+<p>The query treats anyone hitting step N as having "reached" step N. But did they hit steps 1..N-1 first? A user who deep-links into step 4 (skipping 2 and 3) shouldn't count toward step 4's conversion in a sequential funnel. The strict version requires a per-user CASE:</p>
+<pre><code>WITH per_user AS (
+  SELECT user_id,
+    MAX(CASE WHEN step = 1 THEN 1 END) AS hit_1,
+    MAX(CASE WHEN step = 2 THEN 1 END) AS hit_2,
+    MAX(CASE WHEN step = 3 THEN 1 END) AS hit_3,
+    MAX(CASE WHEN step = 4 THEN 1 END) AS hit_4
+  FROM funnel GROUP BY user_id
+)
+SELECT
+  SUM(hit_1) AS step_1,
+  SUM(CASE WHEN hit_1=1 AND hit_2=1 THEN 1 END) AS step_2,
+  SUM(CASE WHEN hit_1=1 AND hit_2=1 AND hit_3=1 THEN 1 END) AS step_3,
+  SUM(CASE WHEN hit_1=1 AND hit_2=1 AND hit_3=1 AND hit_4=1 THEN 1 END) AS step_4
+FROM per_user;</code></pre>
+
+<h5>The temporal-window addition</h5>
+<p>Production funnels add: <em>"hit step N within 7 days of step 1"</em>. A user who lands on day 1 and converts on day 90 is technically converted but not from this campaign. Add timestamp checks to the strict funnel.</p>
+
+<h5>The cohort dimension</h5>
+<p>The PM's actual question is <em>"is the funnel improving over time?"</em> Slice by acquisition cohort and re-run the funnel per cohort:</p>
+<pre><code>WITH cohorts AS (
+  SELECT user_id, DATE(MIN(reached_at)) AS cohort_date FROM funnel WHERE step=1 GROUP BY user_id
+)
+... join + GROUP BY cohort_date, step</code></pre>
+
+<h5>FIRST_VALUE for the denominator</h5>
+<p><code>FIRST_VALUE(users) OVER (ORDER BY step)</code> grabs step-1's count and replicates it on every row. Cleaner than a self-join to step 1.</p>
+
+<h5>The "leakiest step" diagnostic</h5>
+<p>Sort by step_to_step_pct ascending — the smallest number is the biggest leak. Production dashboards highlight that cell in red and trigger a redesign sprint.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit both step-to-step and percent-of-top, surface the strict-vs-loose funnel distinction, layer the time-window predicate, and pivot to cohort-funnel for the "is it getting worse?" PM question. FIRST_VALUE for the top denominator is the cleaner-than-self-join pattern.</div>

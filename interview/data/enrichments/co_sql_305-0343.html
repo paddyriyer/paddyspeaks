@@ -1,0 +1,54 @@
+<p>Gmail's auto-categorization (Primary / Social / Promotions / Updates / Forums) is one of Google's most-used ML systems. The query is a <strong>confusion-matrix</strong>-style aggregation: predicted vs actual label, with row-percentages showing where the model confuses categories.</p>
+
+<h4>1. The source data — <code>email_labels</code></h4>
+<table><thead><tr><th>message_id</th><th>predicted_label</th><th>actual_label</th></tr></thead>
+<tbody><tr><td>M_001</td><td>primary</td><td>primary</td></tr><tr><td>M_002</td><td>promotions</td><td>updates</td></tr></tbody></table>
+
+<h4>2. The SQL — confusion matrix with row %</h4>
+<pre><code>SELECT predicted_label, actual_label,
+  COUNT(*) AS messages,
+  ROUND(100.0 * COUNT(*)
+              / SUM(COUNT(*)) OVER (PARTITION BY actual_label), 1) AS pct_of_actual
+FROM email_labels
+GROUP BY predicted_label, actual_label
+ORDER BY actual_label, messages DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Reading the confusion matrix</h5>
+<p>For each <em>actual</em> label, what % does the model predict each <em>predicted</em> label?</p>
+<ul>
+<li>Diagonal cells (predicted = actual) = correct classifications. Want these high.</li>
+<li>Off-diagonal cells = errors. Want these low.</li>
+<li>The biggest off-diagonal cell is the model's most-confused pair — the prime improvement target.</li>
+</ul>
+
+<h5>Per-actual normalization — why <code>PARTITION BY actual_label</code></h5>
+<p>The window-aggregate denominator partitions by actual_label. So each row's % is "of all messages whose true label is X, what % were predicted as Y?". This gives <strong>recall</strong> per row. Switching to <code>PARTITION BY predicted_label</code> gives <strong>precision</strong> instead.</p>
+
+<h5>Precision vs Recall — both views are needed</h5>
+<table><thead><tr><th>view</th><th>partition</th><th>diagonal interpretation</th></tr></thead>
+<tbody>
+<tr><td>Recall</td><td>by actual_label</td><td>"of true X messages, % we caught"</td></tr>
+<tr><td>Precision</td><td>by predicted_label</td><td>"of predicted X messages, % were really X"</td></tr>
+</tbody></table>
+<p>Production dashboards show both. F1 score (their harmonic mean) is the single-number summary.</p>
+
+<h5>The cost-asymmetry — false positives kill</h5>
+<p>Misclassifying a personal email as Promotions = user misses something important = delete-Gmail event. Misclassifying a Promotions email as Primary = user sees ads in main inbox = annoyance. <strong>The two errors have different costs.</strong> Production weights the confusion matrix by impact — so the algorithm minimizes cost-weighted error, not raw error.</p>
+
+<h5>The "user override" gold-standard</h5>
+<p>"Actual label" is itself a model output (user moves messages to fix). Two flavors:</p>
+<ul>
+<li>User-confirmed (user moved to a label) = high-quality label</li>
+<li>Auto-assigned without override = could be wrong without us knowing</li>
+</ul>
+<p>Senior production splits the matrix by label-source for an honest evaluation.</p>
+
+<h5>The class-imbalance trap</h5>
+<p>If 90% of emails are Promotions, a naive "always predict Promotions" model is 90% accurate but useless. The confusion matrix exposes this — diagonal is dominated by one class, others are zeroed. Always weight by class balance.</p>
+
+<h5>The retraining cadence</h5>
+<p>Drift detection: monthly comparison of this matrix vs last month's. Cells that shift &gt; 2pp trigger retraining. Spam senders adapt; the model has to keep up.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read the matrix as recall-per-row, distinguish recall vs precision via partition choice, weight the off-diagonal by cost asymmetry, and pin the class-imbalance gotcha. The label-source split for honest evaluation and retraining-on-drift cadence are the over-the-bar finishes.</div>

@@ -1,0 +1,44 @@
+<p>Uber's Driver Operations team segments drivers into earnings deciles to target the right incentive at the right pool. Top decile already maxed out — incentives waste. Bottom 3 deciles need basic activation. The middle 5 deciles are the pricing-sensitive zone where bonuses move the needle. <code>NTILE(10)</code> is the canonical operator.</p>
+
+<h4>1. The source data — <code>driver_weeks</code></h4>
+<table><thead><tr><th>driver_id</th><th>week</th><th>gross</th><th>tips</th><th>bonus</th></tr></thead>
+<tbody><tr><td>D_001</td><td>2024-W01</td><td>$1,200</td><td>$80</td><td>$50</td></tr></tbody></table>
+
+<h4>2. The SQL — <code>NTILE(10)</code> over total earnings</h4>
+<pre><code>SELECT driver_id, gross, tips, bonus, gross + tips + bonus AS total_earnings,
+  NTILE(10) OVER (ORDER BY gross + tips + bonus DESC) AS earnings_decile
+FROM driver_weeks
+ORDER BY total_earnings DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>NTILE vs PERCENT_RANK vs CUME_DIST</h5>
+<table><thead><tr><th>function</th><th>output</th><th>use when</th></tr></thead>
+<tbody>
+<tr><td><code>NTILE(N)</code></td><td>1..N integer bucket</td><td>need exactly N equal-sized buckets</td></tr>
+<tr><td><code>PERCENT_RANK</code></td><td>0.0-1.0 continuous rank</td><td>need the relative position</td></tr>
+<tr><td><code>CUME_DIST</code></td><td>0.0-1.0 cumulative distribution</td><td>need % of rows below this value</td></tr>
+</tbody></table>
+<p>NTILE is what Driver Operations wants — clean buckets for campaign targeting.</p>
+
+<h5>The "tied at the boundary" gotcha</h5>
+<p>NTILE distributes rows as evenly as possible. If 100 drivers have identical total_earnings, NTILE assigns the first 10 to bucket 1, next 10 to bucket 2, etc. — splitting tied values across buckets. For ties: add a deterministic tiebreaker like driver_id to avoid run-to-run instability.</p>
+
+<h5>The PARTITION BY follow-up</h5>
+<p>Per-city deciles separate the New York high earners from Bangalore high earners — each city gets its own internal ranking:</p>
+<pre><code>NTILE(10) OVER (PARTITION BY city ORDER BY total_earnings DESC)</code></pre>
+
+<h5>The component breakdown</h5>
+<p>Decile 1 = $$$$. But split into gross/tips/bonus — different drivers max different components:</p>
+<ul>
+<li>High gross + low tips: airport drivers (long routes, no in-cabin chat)</li>
+<li>High tips + medium gross: late-night downtown (vibe drivers)</li>
+<li>High bonus: quest-completers, gaming the system</li>
+</ul>
+<p>Per-component decile reveals strategy.</p>
+
+<h5>Decile transition tracking</h5>
+<p>Decile 7 → decile 5 is a driver getting more efficient. Decile 5 → decile 8 is a driver disengaging. Track week-over-week transitions:</p>
+<pre><code>LAG(earnings_decile) OVER (PARTITION BY driver_id ORDER BY week) AS prev_decile</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> pick NTILE for clean buckets vs PERCENT_RANK for continuous rank, raise the tied-boundary gotcha, and add city-PARTITION for fair cross-market segments. The decile-transition LAG is the over-the-bar campaign-targeting signal.</div>

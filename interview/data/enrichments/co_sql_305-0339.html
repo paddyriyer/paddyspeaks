@@ -1,0 +1,48 @@
+<p>YouTube ranks videos primarily by <strong>watch time</strong> and <strong>watch percentage</strong>. The query computes the average completion rate per video and total minutes watched. The senior framing: completion rate is creator-quality; total minutes is platform-attention. They reward different content.</p>
+
+<h4>1. The source data — <code>yt_views</code></h4>
+<table><thead><tr><th>view_id</th><th>video_id</th><th>watched_seconds</th><th>total_seconds</th></tr></thead>
+<tbody><tr><td>V_001</td><td>VID_01</td><td>180</td><td>200</td></tr></tbody></table>
+
+<h4>2. The SQL — per-video AVG completion + total minutes</h4>
+<pre><code>SELECT video_id,
+  COUNT(*) AS views,
+  ROUND(AVG(watched_seconds * 1.0 / NULLIF(total_seconds, 0)) * 100.0, 1) AS avg_completion_pct,
+  ROUND(SUM(watched_seconds) / 60.0, 1) AS total_minutes_watched
+FROM yt_views
+GROUP BY video_id
+HAVING COUNT(*) &gt;= 2
+ORDER BY avg_completion_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>AVG-of-ratio vs SUM/SUM — which is right?</h5>
+<p>Two methodologies, different answers:</p>
+<table><thead><tr><th>method</th><th>formula</th><th>weights</th></tr></thead>
+<tbody>
+<tr><td>Mean of completion rates</td><td>AVG(watched/total)</td><td>each view equal</td></tr>
+<tr><td>Aggregate completion</td><td>SUM(watched)/SUM(total)</td><td>longer views weighted more</td></tr>
+</tbody></table>
+<p>For "creator quality" use mean-of-ratios (each viewer's experience equally). For "platform-utilization" use aggregate (total minutes are what the platform sells). The query above uses the first.</p>
+
+<h5>The AVG-of-ratio Simpson's-paradox warning</h5>
+<p>If a video has 1 view at 100% (1-second clip) and 1 view at 10% (1-hour clip), AVG = 55% completion — but the platform got 6 seconds of value, not "55% of an hour". Be aware of the discrepancy when reporting.</p>
+
+<h5>The 50% completion threshold</h5>
+<p>YouTube's algorithm internally uses 50% as the "satisfied watch" gate. Videos with average completion &gt; 50% earn algorithmic boost; below 50% are demoted. The query result feeds the rank — not just a dashboard.</p>
+
+<h5>The video-length confound</h5>
+<p>Short videos (Shorts: &lt; 60 sec) have structurally higher completion than long-form (10+ min). Comparing them directly is unfair. Stratify:</p>
+<pre><code>GROUP BY video_id,
+  CASE WHEN total_seconds &lt;= 60 THEN 'short' WHEN total_seconds &lt;= 600 THEN 'mid' ELSE 'long' END</code></pre>
+
+<h5>The intro-engagement metric</h5>
+<p>"% of viewers still watching at second 30" is more diagnostic than average completion. A video with 80% completion across viewers who watched ≥ 30 sec is much stronger than one with 80% completion across all viewers. Production splits.</p>
+
+<h5>The skip-pattern signal</h5>
+<p>Average completion hides which parts get skipped. Production aggregates per-second engagement curves to find the "boring middle" or the "drop-off cliff". The query above doesn't expose this; it requires sub-event-level data (every 10-sec heartbeat).</p>
+
+<h5>Watch-time vs ad-time</h5>
+<p>YouTube monetizes ad views, not just content views. A video with low completion but pre-roll ad watched is still revenue. The full revenue calc joins to <code>ad_impressions</code> and weights accordingly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name AVG-of-ratio vs SUM/SUM with their different semantics, surface the 50% algorithm gate, stratify by video length, and connect to per-second drop-off curves. The watch-time-vs-ad-time revenue tie-back is the over-the-bar reframe.</div>

@@ -1,0 +1,52 @@
+<p>Uber's Marketplace team has one number on the wall: <strong>unfilled rate</strong> = % of ride requests that didn't match a driver. High unfilled rate means lost revenue + frustrated rider + drift to Lyft. The query is conditional aggregation; the senior layer is <em>which areas</em> consistently spike vs which are episodic.</p>
+
+<h4>1. The source data — <code>ride_requests</code></h4>
+<table><thead><tr><th>request_id</th><th>area_id</th><th>requested_at</th><th>fulfilled (1/0)</th></tr></thead>
+<tbody><tr><td>RQ_001</td><td>A1</td><td>2024-01-01 19:00</td><td>1</td></tr><tr><td>RQ_002</td><td>A1</td><td>2024-01-01 19:01</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — fulfillment rate per area</h4>
+<pre><code>SELECT area_id,
+  COUNT(*)                                       AS total_requests,
+  SUM(CASE WHEN fulfilled = 1 THEN 1 ELSE 0 END) AS fulfilled,
+  SUM(CASE WHEN fulfilled = 0 THEN 1 ELSE 0 END) AS unfilled,
+  ROUND(100.0 * SUM(CASE WHEN fulfilled = 0 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS unfill_rate_pct
+FROM ride_requests
+GROUP BY area_id
+ORDER BY unfill_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why three buckets — fulfilled, unfilled, total</h5>
+<p>Reporting raw rate alone (e.g. "12% unfilled") loses the volume signal. An area with 1000 requests and 12% unfilled is a real problem. An area with 50 requests and 12% unfilled is statistical noise. Always emit the volume so the reader can weight the rate.</p>
+
+<h5>The <code>NULLIF(COUNT(*), 0)</code> safety net</h5>
+<p>If GROUP BY produces an area with no requests (shouldn't happen if filtered correctly), division by zero. <code>NULLIF</code> turns 0 into NULL, division returns NULL, dashboard renders "—" gracefully.</p>
+
+<h5>Episodic vs sustained — the senior diagnostic</h5>
+<p>One-day spike (concert lets out) needs no marketplace intervention — fix it next time. Sustained week-over-week unfill rate is a structural supply gap. The query above doesn't separate them; the time-series version does:</p>
+<pre><code>SELECT area_id, DATE(requested_at) AS day,
+  ROUND(100.0 * SUM(CASE WHEN fulfilled=0 THEN 1 ELSE 0 END) / COUNT(*), 1) AS rate
+FROM ride_requests
+GROUP BY area_id, day
+ORDER BY area_id, day;</code></pre>
+<p>An area where rate &gt; 10% for 5+ consecutive days is "sustained" — that's the driver-incentive trigger.</p>
+
+<h5>The hour-of-day cut</h5>
+<p>Rush hour 5-7pm has structurally higher unfill than 11am offpeak. Don't compare across hours without normalizing — slice by hour:</p>
+<pre><code>GROUP BY area_id, CAST(strftime('%H', requested_at) AS INTEGER)</code></pre>
+
+<h5>The "unfilled because" decomposition</h5>
+<p>An unfilled request can be:</p>
+<ul>
+<li><strong>No driver online</strong> — fix: incentive supply</li>
+<li><strong>All drivers busy</strong> — fix: surge to throttle demand or attract new supply</li>
+<li><strong>Driver declined</strong> — fix: matching algorithm tweak (route longer rides to nearer drivers)</li>
+<li><strong>Rider cancelled before match</strong> — fix: faster matching latency</li>
+</ul>
+<p>Each diagnosis needs different data: <code>drivers_online_at_request</code>, <code>match_attempts</code>, <code>cancel_reason</code>. The unfilled rate alone is the symptom; the breakdown is the prescription.</p>
+
+<h5>The action threshold</h5>
+<p>Production ops dashboards page when <code>unfill_rate &gt; 8%</code> for 30 minutes in a top-10 area. The query result feeds the alerting; the action is operations dispatching driver bonuses to the area within 15 minutes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit volume alongside rate, distinguish episodic from sustained, and decompose "unfilled" into actionable subcategories (no driver / all busy / declined / pre-match cancel). Hour-of-day normalization is the over-the-bar slice.</div>

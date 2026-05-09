@@ -1,0 +1,52 @@
+<p>Google Search Suggest (autocomplete) is one of the highest-leverage ML systems on the planet — every accepted suggestion saves a few hundred ms across billions of queries. <strong>Acceptance rate</strong> by prefix-length tells the team whether the model is firing too early (low quality, low acceptance) or too late (user already typed the full query).</p>
+
+<h4>1. The source data — <code>autocomplete_events</code></h4>
+<table><thead><tr><th>event_id</th><th>prefix_length</th><th>accepted (1/0)</th></tr></thead>
+<tbody><tr><td>E_001</td><td>3</td><td>1</td></tr><tr><td>E_002</td><td>5</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — per-prefix-length acceptance</h4>
+<pre><code>SELECT prefix_length,
+  COUNT(*) AS shows,
+  SUM(accepted) AS accepts,
+  ROUND(100.0 * SUM(accepted) / NULLIF(COUNT(*), 0), 1) AS acceptance_pct
+FROM autocomplete_events
+GROUP BY prefix_length
+ORDER BY prefix_length;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The expected curve shape</h5>
+<table><thead><tr><th>prefix length</th><th>typical acceptance</th><th>signal</th></tr></thead>
+<tbody>
+<tr><td>1-2 chars</td><td>5-15%</td><td>too early — many possible queries</td></tr>
+<tr><td>3-5 chars</td><td>30-50%</td><td>sweet spot</td></tr>
+<tr><td>6-10 chars</td><td>40-60%</td><td>good — model has enough signal</td></tr>
+<tr><td>11+ chars</td><td>10-20%</td><td>too late — user nearly done typing</td></tr>
+</tbody></table>
+<p>The curve is bell-shaped. A flat curve means the suggestion model isn't adapting to confidence; a sharp peak at 5 chars means the model "decides" too rigidly.</p>
+
+<h5>Time saved — the latent metric</h5>
+<p>Acceptance rate alone hides the time savings. Accepting a 50-char suggestion at length 5 saves a lot more than accepting a 7-char suggestion at length 5. Production multiplies:</p>
+<pre><code>SUM(accepted * (suggestion_length - prefix_length))   -- chars saved</code></pre>
+<p>Total chars saved is the system's value-creation metric.</p>
+
+<h5>The acceptance-without-show ghost</h5>
+<p>Some users accept by pressing Enter on a query that happens to match a suggestion they didn't see. The instrumentation must distinguish:</p>
+<ul>
+<li>Suggestion shown + user clicked it = explicit acceptance</li>
+<li>Suggestion shown + user typed the same thing = passive acceptance</li>
+<li>Suggestion shown + user typed something different = rejection</li>
+<li>Suggestion not shown = no event</li>
+</ul>
+
+<h5>Prefix-length-N is per-CHAR, not per-WORD</h5>
+<p>"barack obama" at length 6 = "barack" — first word complete. The model's behavior at word boundaries differs from mid-word: word-end suggestions tend to accept more. Slice:</p>
+<pre><code>GROUP BY prefix_length, CASE WHEN substr(prefix, -1) = ' ' THEN 'word_boundary' ELSE 'mid_word' END</code></pre>
+
+<h5>The mobile-vs-desktop divide</h5>
+<p>Mobile users accept suggestions much more readily (typing is harder). Desktop users often type through. Curve shape diverges: mobile peaks at length 3-4; desktop peaks at length 6-8. Production splits.</p>
+
+<h5>The personalization layer</h5>
+<p>Personalized autocomplete (using your search history) has 2x acceptance over generic. The query above doesn't differentiate. Join to <code>autocomplete_personalization_flag</code> to split.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> describe the bell-shaped expected curve, name the chars-saved value metric beyond raw acceptance, distinguish active/passive/no-show acceptance variants, and pre-empt the mobile vs desktop split. The personalization-flag stratification is the over-the-bar finish.</div>

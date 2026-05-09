@@ -1,0 +1,79 @@
+<p>Uber's marketplace lead opens the morning huddle and the first slide is always <strong>driver utilization</strong> — the % of online time spent on a paying trip. It's the single best proxy for both driver income (high utilization = more rides per shift) and rider experience (high utilization = drivers are busy → ETAs longer). The query is two timestamp diffs and a ratio; the senior depth is what counts as "online" and how to handle multi-trip overlaps.</p>
+
+<h4>1. The source data</h4>
+<table>
+  <thead><tr><th colspan="3">driver_shifts (online-status windows)</th></tr></thead>
+  <tbody>
+    <tr><td>driver_id</td><td>online_at</td><td>offline_at</td></tr>
+    <tr><td>D_001</td><td>2024-01-01 06:00</td><td>2024-01-01 14:00</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="3">trips (only "passenger in car" segments)</th></tr></thead>
+  <tbody>
+    <tr><td>driver_id</td><td>started_at</td><td>ended_at</td></tr>
+    <tr><td>D_001</td><td>2024-01-01 06:30</td><td>2024-01-01 07:15</td></tr>
+    <tr><td>D_001</td><td>2024-01-01 08:00</td><td>2024-01-01 09:30</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — <code>julianday()</code> diffs + ratio</h4>
+<pre><code>SELECT s.driver_id,
+  ROUND(SUM(julianday(s.offline_at) - julianday(s.online_at)) * 24.0, 2) AS hours_online,
+  ROUND(SUM(julianday(t.ended_at)   - julianday(t.started_at)) * 24.0, 2) AS hours_on_trip,
+  ROUND(100.0 * SUM(julianday(t.ended_at) - julianday(t.started_at))
+              / NULLIF(SUM(julianday(s.offline_at) - julianday(s.online_at)), 0), 1) AS utilization_pct
+FROM driver_shifts s
+LEFT JOIN trips t ON t.driver_id = s.driver_id
+GROUP BY s.driver_id
+ORDER BY utilization_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5><code>julianday()</code> — the SQLite portable date diff</h5>
+<p><code>julianday(date)</code> returns the date as a fractional day count from a 4713 BC epoch. Subtracting two julian days gives a fractional day difference. Multiply by 24 for hours, 1440 for minutes, 86400 for seconds. In Postgres the equivalent is <code>EXTRACT(EPOCH FROM (b - a)) / 86400</code>.</p>
+
+<h5>The "online" definition trap — three flavors</h5>
+<table>
+  <thead><tr><th>flavor</th><th>what it counts</th><th>typical %</th></tr></thead>
+  <tbody>
+    <tr><td><strong>P0 — passenger in car</strong></td><td>start-of-trip → end-of-trip (this query)</td><td>40-55%</td></tr>
+    <tr><td><strong>P1 — accepted ride</strong></td><td>P0 + en-route-to-pickup time</td><td>55-70%</td></tr>
+    <tr><td><strong>P2 — engaged</strong></td><td>P1 + en-route-to-stand minutes</td><td>70-85%</td></tr>
+    <tr><td>Online</td><td>app open, anywhere</td><td>baseline 100%</td></tr>
+  </tbody>
+</table>
+<p>The query above measures P0/Online — the strictest metric. Production dashboards usually show P0, P1, P2 side-by-side. Marketplace ops cares about P1 (accepted but not driving = positioning inefficiency); driver income cares about P0.</p>
+
+<h5>The overlap pitfall</h5>
+<p>If <code>trips</code> ever shows overlapping intervals for the same driver (data error: the app fired two "trip start" events for one ride), summing trip durations double-counts that overlap. Two defenses:</p>
+<ul>
+  <li><strong>Sweep-line dedup</strong> before summing — flatten trip intervals to a single non-overlapping list per driver, then sum.</li>
+  <li><strong>Cap utilization at 100%</strong> as a sanity gate: <code>LEAST(utilization_pct, 100)</code>. If many drivers exceed 100% the data pipeline has a bug.</li>
+</ul>
+
+<h5>The "shift" definition</h5>
+<p>The query treats each shift row as one online window. Real driver-status data is a stream of state changes (online → idle → busy → offline). Reconstructing shifts means pairing consecutive online-online-offline events:</p>
+<pre><code>WITH events AS (
+  SELECT driver_id, status, status_at,
+    LAG(status) OVER (PARTITION BY driver_id ORDER BY status_at) AS prev
+  FROM driver_status_events
+),
+shifts AS (
+  SELECT driver_id, status_at AS online_at,
+    LEAD(status_at) OVER (PARTITION BY driver_id ORDER BY status_at) AS offline_at
+  FROM events
+  WHERE status = 'online' AND (prev IS NULL OR prev = 'offline')
+)</code></pre>
+
+<h5>Per-hour utilization — the daypart cut</h5>
+<p>Average utilization hides peak-vs-trough variation. Marketplace's actual question: <em>"in what hours is utilization &lt; 30%?"</em> — those are the hours to incentivize driver supply pullback or rider demand push. Slice by hour:</p>
+<pre><code>GROUP BY driver_id, CAST(strftime('%H', s.online_at) AS INTEGER)</code></pre>
+
+<h5>The driver-income tie-in</h5>
+<p>Drivers paid per-trip-mile have utilization correlate directly with earnings. Drivers paid per-online-hour (some markets) have utilization decouple. The query result feeds both: per-trip-mile drivers want utilization &gt; 60%; per-hour drivers don't care.</p>
+
+<h5>The marketplace-balance follow-up</h5>
+<p>Pair this with the demand-side question: <em>"during the same hour, what was the unfulfilled-request rate?"</em> If utilization &gt; 80% AND unfulfilled &gt; 5%, you're under-supplied; the playbook is incentive bonuses to bring more drivers online.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name P0 / P1 / P2 utilization tiers, surface the overlap-double-count trap, and connect the metric to both driver income and marketplace ops decisions. The shift-reconstruction LAG/LEAD pattern is the over-the-bar finish.</div>

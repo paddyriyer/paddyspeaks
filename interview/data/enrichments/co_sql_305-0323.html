@@ -1,0 +1,42 @@
+<p>Uber's ETA model is one of the most-watched ML systems in the company. Riders cancel when the ETA shifts; drivers route inefficiently when it's wrong. The query computes <strong>MAE</strong> (mean absolute error), <strong>MAPE</strong> (mean absolute percentage error), and <strong>bias</strong> per city.</p>
+
+<h4>1. The source data — <code>trip_eta</code></h4>
+<table><thead><tr><th>ride_id</th><th>city</th><th>predicted_minutes</th><th>actual_minutes</th></tr></thead>
+<tbody><tr><td>R_001</td><td>Bengaluru</td><td>15</td><td>22</td></tr><tr><td>R_002</td><td>Bengaluru</td><td>10</td><td>9</td></tr></tbody></table>
+
+<h4>2. The SQL — three error metrics in one pass</h4>
+<pre><code>SELECT city,
+  COUNT(*) AS rides,
+  ROUND(AVG(ABS(predicted_minutes - actual_minutes)), 1) AS mae_minutes,
+  ROUND(100.0 * AVG(ABS(predicted_minutes - actual_minutes) * 1.0
+                  / NULLIF(actual_minutes, 0)), 1) AS mape_pct,
+  ROUND(AVG(predicted_minutes - actual_minutes), 1) AS mean_bias_minutes
+FROM trip_eta
+GROUP BY city
+ORDER BY mape_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>MAE vs MAPE — when to use which</h5>
+<table><thead><tr><th>metric</th><th>strength</th><th>weakness</th></tr></thead>
+<tbody>
+<tr><td>MAE (minutes)</td><td>directly interpretable</td><td>can't compare cities with different trip lengths</td></tr>
+<tr><td>MAPE (%)</td><td>dimensionless, cross-city comparable</td><td>blows up when actual_minutes is small (NULLIF guard required)</td></tr>
+<tr><td>Bias</td><td>signed: shows systematic over/under-prediction</td><td>cancels noise but not systematic error</td></tr>
+</tbody></table>
+
+<h5>The bias signal — over- vs under-promise</h5>
+<p>Bias = AVG(predicted - actual). Positive bias = ETAs longer than reality (rider waits less than told — pleasant surprise). Negative bias = ETAs shorter than reality (rider waits MORE than told — complaint trigger). <strong>Production targets +0.5 to +1 minute positive bias</strong>; pure zero is suspicious (model overfits validation).</p>
+
+<h5>The percentile follow-up</h5>
+<p>Mean error hides the catastrophic tail. The metric Uber actually monitors is <strong>P95 absolute error</strong> — 95% of rides have error below this number. A model with MAE=2min but P95=15min has a long tail of rider experience disasters. Use <code>NTILE</code> or window functions to estimate.</p>
+
+<h5>The traffic-condition confounder</h5>
+<p>Rush-hour ETAs are systematically harder. Splitting by daypart shows the model's actual struggle:</p>
+<pre><code>GROUP BY city, CASE WHEN CAST(strftime('%H', started_at) AS INT) BETWEEN 17 AND 20
+  THEN 'evening_rush' ELSE 'offpeak' END</code></pre>
+
+<h5>The retraining trigger</h5>
+<p>If MAPE drifts up &gt; 10% over 4 weeks, the model retraining job fires. The query result feeds an alerting Airflow DAG, not just a dashboard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute MAE / MAPE / bias in one pass, name MAPE's small-denominator pitfall (NULLIF), explain why slight positive bias is the production target, and connect the result to the retraining pipeline.</div>

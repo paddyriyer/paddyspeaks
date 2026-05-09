@@ -17118,5 +17118,484 @@
       "string-functions",
       "subquery"
     ]
+  },
+  {
+    "id": "co_sql_305-0320",
+    "num": 320,
+    "title": "Driver Utilization Rate \u2014 Time-on-Trip / Time-Online",
+    "company": "Uber",
+    "difficulty": "Hard",
+    "subtopic": "Time-aware aggregation with julianday",
+    "schema": "driver_shifts(driver_id, online_at, offline_at), trips(driver_id, started_at, ended_at)",
+    "solution": "SELECT s.driver_id,\n  ROUND(SUM(julianday(s.offline_at) - julianday(s.online_at)) * 24.0, 2) AS hours_online,\n  ROUND(SUM(julianday(t.ended_at)   - julianday(t.started_at)) * 24.0, 2) AS hours_on_trip,\n  ROUND(100.0 * SUM(julianday(t.ended_at) - julianday(t.started_at))\n              / NULLIF(SUM(julianday(s.offline_at) - julianday(s.online_at)), 0), 1) AS utilization_pct\nFROM driver_shifts s\nLEFT JOIN trips t ON t.driver_id = s.driver_id\nGROUP BY s.driver_id\nORDER BY utilization_pct DESC;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "driver-utilization-rate--time-on-trip--time-online"
+  },
+  {
+    "id": "co_sql_305-0321",
+    "num": 321,
+    "title": "Surge Multiplier vs Ride Volume per Area",
+    "company": "Uber",
+    "difficulty": "Medium",
+    "subtopic": "Conditional aggregation with bucketed surge",
+    "schema": "rides(ride_id, area_id, started_at, fare, surge_multiplier)",
+    "solution": "SELECT area_id,\n  CASE\n    WHEN surge_multiplier <  1.5 THEN 'normal'\n    WHEN surge_multiplier <  2.0 THEN 'mild_surge'\n    ELSE 'heavy_surge'\n  END AS surge_band,\n  COUNT(*)        AS rides,\n  ROUND(AVG(fare), 2) AS avg_fare,\n  ROUND(SUM(fare), 2) AS total_fare\nFROM rides\nGROUP BY area_id, surge_band\nORDER BY area_id, surge_band;",
+    "tags": [
+      "aggregation",
+      "case-when"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "surge-multiplier-vs-ride-volume-per-area"
+  },
+  {
+    "id": "co_sql_305-0322",
+    "num": 322,
+    "title": "Cancellation Reason Distribution by Side",
+    "company": "Uber",
+    "difficulty": "Easy",
+    "subtopic": "Group-by with percentage of total",
+    "schema": "cancellations(ride_id, cancelled_by, reason)",
+    "solution": "SELECT cancelled_by, reason,\n  COUNT(*) AS cancellations,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY cancelled_by), 1) AS pct_of_side\nFROM cancellations\nGROUP BY cancelled_by, reason\nORDER BY cancelled_by, cancellations DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "cancellation-reason-distribution-by-side"
+  },
+  {
+    "id": "co_sql_305-0323",
+    "num": 323,
+    "title": "ETA Accuracy \u2014 Predicted vs Actual by City",
+    "company": "Uber",
+    "difficulty": "Medium",
+    "subtopic": "MAE / MAPE error metrics",
+    "schema": "trip_eta(ride_id, city, predicted_minutes, actual_minutes)",
+    "solution": "SELECT city,\n  COUNT(*) AS rides,\n  ROUND(AVG(ABS(predicted_minutes - actual_minutes)), 1) AS mae_minutes,\n  ROUND(100.0 * AVG(ABS(predicted_minutes - actual_minutes) * 1.0\n                  / NULLIF(actual_minutes, 0)), 1) AS mape_pct,\n  ROUND(AVG(predicted_minutes - actual_minutes), 1) AS mean_bias_minutes\nFROM trip_eta\nGROUP BY city\nORDER BY mape_pct DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "eta-accuracy--predicted-vs-actual-by-city"
+  },
+  {
+    "id": "co_sql_305-0324",
+    "num": 324,
+    "title": "Repeat Rider Cohort \u2014 3+ Rides in 30 Days",
+    "company": "Uber",
+    "difficulty": "Medium",
+    "subtopic": "HAVING + sliding-window via self-join",
+    "schema": "rides(ride_id, rider_id, started_at)",
+    "solution": "SELECT rider_id, COUNT(*) AS rides_30d\nFROM rides\nWHERE julianday(started_at) >= julianday('2024-02-01') - 30\n  AND julianday(started_at) <= julianday('2024-02-01')\nGROUP BY rider_id\nHAVING COUNT(*) >= 3\nORDER BY rides_30d DESC;",
+    "tags": [
+      "aggregation",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "repeat-rider-cohort--3+-rides-in-30-days"
+  },
+  {
+    "id": "co_sql_305-0325",
+    "num": 325,
+    "title": "Round-Trip Detection \u2014 Same-Day Return Rides",
+    "company": "Uber",
+    "difficulty": "Hard",
+    "subtopic": "Self-join on temporal + spatial reverse",
+    "schema": "rides(ride_id, rider_id, started_at, origin_zone, dest_zone)",
+    "solution": "SELECT a.rider_id, a.ride_id AS first_ride, b.ride_id AS second_ride,\n  a.origin_zone || ' -> ' || a.dest_zone AS first_leg,\n  b.origin_zone || ' -> ' || b.dest_zone AS second_leg,\n  CAST((julianday(b.started_at) - julianday(a.started_at)) * 24 AS INTEGER) AS hours_between\nFROM rides a\nJOIN rides b\n  ON b.rider_id = a.rider_id\n AND b.ride_id != a.ride_id\n AND julianday(b.started_at) > julianday(a.started_at)\n AND julianday(b.started_at) - julianday(a.started_at) <= 1\nORDER BY a.rider_id, hours_between\nLIMIT 20;",
+    "tags": [
+      "joins",
+      "self-join",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "round-trip-detection--same-day-return-rides"
+  },
+  {
+    "id": "co_sql_305-0326",
+    "num": 326,
+    "title": "Driver Tier Earnings Decile \u2014 NTILE Distribution",
+    "company": "Uber",
+    "difficulty": "Medium",
+    "subtopic": "NTILE buckets",
+    "schema": "driver_weeks(driver_id, week, gross, tips, bonus)",
+    "solution": "SELECT driver_id, gross, tips, bonus, gross + tips + bonus AS total_earnings,\n  NTILE(10) OVER (ORDER BY gross + tips + bonus DESC) AS earnings_decile\nFROM driver_weeks\nORDER BY total_earnings DESC;",
+    "tags": [
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "driver-tier-earnings-decile--ntile-distribution"
+  },
+  {
+    "id": "co_sql_305-0327",
+    "num": 327,
+    "title": "Demand-Supply Gap \u2014 Unfilled Requests per Area",
+    "company": "Uber",
+    "difficulty": "Hard",
+    "subtopic": "Conditional rate + window context",
+    "schema": "ride_requests(request_id, area_id, requested_at, fulfilled)",
+    "solution": "SELECT area_id,\n  COUNT(*)                                       AS total_requests,\n  SUM(CASE WHEN fulfilled = 1 THEN 1 ELSE 0 END) AS fulfilled,\n  SUM(CASE WHEN fulfilled = 0 THEN 1 ELSE 0 END) AS unfilled,\n  ROUND(100.0 * SUM(CASE WHEN fulfilled = 0 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS unfill_rate_pct\nFROM ride_requests\nGROUP BY area_id\nORDER BY unfill_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "demand-supply-gap--unfilled-requests-per-area"
+  },
+  {
+    "id": "co_sql_305-0328",
+    "num": 328,
+    "title": "Feed Dwell Time per Post Type",
+    "company": "Meta",
+    "difficulty": "Medium",
+    "subtopic": "Per-category aggregation + share",
+    "schema": "feed_views(view_id, user_id, post_type, dwell_seconds)",
+    "solution": "SELECT post_type,\n  COUNT(*) AS views,\n  COUNT(DISTINCT user_id) AS unique_viewers,\n  ROUND(AVG(dwell_seconds), 1) AS avg_dwell,\n  ROUND(SUM(dwell_seconds) * 100.0\n      / SUM(SUM(dwell_seconds)) OVER (), 1) AS share_of_total_time_pct\nFROM feed_views\nGROUP BY post_type\nORDER BY share_of_total_time_pct DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "feed-dwell-time-per-post-type"
+  },
+  {
+    "id": "co_sql_305-0329",
+    "num": 329,
+    "title": "Friend-of-Friend Recommendations \u2014 2-Hop Graph",
+    "company": "Meta",
+    "difficulty": "Hard",
+    "subtopic": "Self-join hop count",
+    "schema": "friendships(user_id, friend_id)",
+    "solution": "WITH pairs AS (\n  SELECT a.user_id AS me, b.friend_id AS suggested_friend,\n    COUNT(*) AS mutual_friends\n  FROM friendships a\n  JOIN friendships b\n    ON a.friend_id = b.user_id\n   AND a.user_id != b.friend_id\n  GROUP BY a.user_id, b.friend_id\n)\nSELECT * FROM pairs\nORDER BY mutual_friends DESC, me, suggested_friend\nLIMIT 20;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "self-join",
+      "subquery"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "friend-of-friend-recommendations--2-hop-graph"
+  },
+  {
+    "id": "co_sql_305-0330",
+    "num": 330,
+    "title": "Story 24-Hour Engagement Decay",
+    "company": "Meta",
+    "difficulty": "Medium",
+    "subtopic": "Bucketed time-since-post analysis",
+    "schema": "story_views(story_id, posted_at, viewed_at)",
+    "solution": "SELECT\n  CAST((julianday(viewed_at) - julianday(posted_at)) * 24 AS INTEGER) AS hours_since_post,\n  COUNT(*) AS views\nFROM story_views\nWHERE julianday(viewed_at) - julianday(posted_at) BETWEEN 0 AND 1\nGROUP BY hours_since_post\nORDER BY hours_since_post;",
+    "tags": [
+      "aggregation"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "story-24-hour-engagement-decay"
+  },
+  {
+    "id": "co_sql_305-0331",
+    "num": 331,
+    "title": "Ad Click-Through-Rate by Placement",
+    "company": "Meta",
+    "difficulty": "Medium",
+    "subtopic": "CTR + sample-size HAVING",
+    "schema": "ad_events(impression_id, ad_id, placement, clicked)",
+    "solution": "SELECT placement,\n  COUNT(*) AS impressions,\n  SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END) AS clicks,\n  ROUND(100.0 * SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 3) AS ctr_pct\nFROM ad_events\nGROUP BY placement\nHAVING COUNT(*) >= 5\nORDER BY ctr_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "ad-click-through-rate-by-placement"
+  },
+  {
+    "id": "co_sql_305-0332",
+    "num": 332,
+    "title": "Group Engagement Pyramid \u2014 Posters / Commenters / Lurkers",
+    "company": "Meta",
+    "difficulty": "Hard",
+    "subtopic": "Multi-event role classification",
+    "schema": "group_actions(group_id, user_id, action_type)",
+    "solution": "WITH per_user AS (\n  SELECT group_id, user_id,\n    SUM(CASE WHEN action_type = 'post'    THEN 1 ELSE 0 END) AS posts,\n    SUM(CASE WHEN action_type = 'comment' THEN 1 ELSE 0 END) AS comments,\n    SUM(CASE WHEN action_type = 'reaction' THEN 1 ELSE 0 END) AS reactions\n  FROM group_actions\n  GROUP BY group_id, user_id\n)\nSELECT group_id,\n  SUM(CASE WHEN posts >= 1                THEN 1 ELSE 0 END) AS posters,\n  SUM(CASE WHEN posts = 0 AND comments >= 1 THEN 1 ELSE 0 END) AS commenters,\n  SUM(CASE WHEN posts = 0 AND comments = 0 AND reactions >= 1 THEN 1 ELSE 0 END) AS reactors,\n  COUNT(DISTINCT user_id) AS active_members\nFROM per_user\nGROUP BY group_id\nORDER BY active_members DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte",
+      "conditional-aggregation"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "group-engagement-pyramid--posters--commenters--lurkers"
+  },
+  {
+    "id": "co_sql_305-0333",
+    "num": 333,
+    "title": "Comment Thread Depth \u2014 Recursive Reply Chain",
+    "company": "Meta",
+    "difficulty": "Hard",
+    "subtopic": "Recursive CTE depth measurement",
+    "schema": "comments(comment_id, parent_id, post_id, posted_at)",
+    "solution": "WITH RECURSIVE chain AS (\n  SELECT comment_id, parent_id, post_id, 1 AS depth\n  FROM comments WHERE parent_id IS NULL\n  UNION ALL\n  SELECT c.comment_id, c.parent_id, c.post_id, ch.depth + 1\n  FROM comments c JOIN chain ch ON c.parent_id = ch.comment_id\n)\nSELECT post_id,\n  MAX(depth) AS max_depth,\n  COUNT(*)   AS total_comments\nFROM chain\nGROUP BY post_id\nORDER BY max_depth DESC;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "recursive-cte",
+      "set-operations",
+      "union"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "comment-thread-depth--recursive-reply-chain"
+  },
+  {
+    "id": "co_sql_305-0334",
+    "num": 334,
+    "title": "Reels Watch-Completion Buckets",
+    "company": "Meta",
+    "difficulty": "Medium",
+    "subtopic": "Histogram via CASE bands",
+    "schema": "reel_plays(play_id, reel_id, watched_seconds, total_seconds)",
+    "solution": "WITH classified AS (\n  SELECT *,\n    CASE\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.95 THEN 'completed'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.50 THEN 'engaged'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.10 THEN 'sampled'\n      ELSE 'bounced'\n    END AS engagement_band\n  FROM reel_plays\n)\nSELECT engagement_band,\n  COUNT(*) AS plays,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM classified\nGROUP BY engagement_band\nORDER BY plays DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "reels-watch-completion-buckets"
+  },
+  {
+    "id": "co_sql_305-0335",
+    "num": 335,
+    "title": "Message Read Latency \u2014 Sent-to-Read Time per Conversation",
+    "company": "Meta",
+    "difficulty": "Medium",
+    "subtopic": "Datetime arithmetic + percentiles",
+    "schema": "messages(message_id, conversation_id, sent_at, read_at)",
+    "solution": "SELECT conversation_id,\n  COUNT(*) AS messages,\n  COUNT(read_at) AS read_messages,\n  ROUND(AVG((julianday(read_at) - julianday(sent_at)) * 1440), 1) AS avg_read_minutes,\n  ROUND(MAX((julianday(read_at) - julianday(sent_at)) * 1440), 1) AS max_read_minutes\nFROM messages\nWHERE read_at IS NOT NULL\nGROUP BY conversation_id\nHAVING COUNT(read_at) >= 2\nORDER BY avg_read_minutes DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "message-read-latency--sent-to-read-time-per-conversation"
+  },
+  {
+    "id": "co_sql_305-0336",
+    "num": 336,
+    "title": "Search CTR by Result Position",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Per-position aggregation",
+    "schema": "search_results(query_id, position, clicked)",
+    "solution": "SELECT position,\n  COUNT(*) AS impressions,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM search_results\nGROUP BY position\nORDER BY position;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "search-ctr-by-result-position"
+  },
+  {
+    "id": "co_sql_305-0337",
+    "num": 337,
+    "title": "Query Reformulation \u2014 Same Session Different Query",
+    "company": "Google",
+    "difficulty": "Hard",
+    "subtopic": "LAG within session",
+    "schema": "searches(search_id, session_id, query_text, search_at)",
+    "solution": "WITH ordered AS (\n  SELECT session_id, search_id, query_text, search_at,\n    LAG(query_text) OVER (PARTITION BY session_id ORDER BY search_at) AS prev_query\n  FROM searches\n)\nSELECT session_id,\n  COUNT(*) AS searches_in_session,\n  SUM(CASE WHEN prev_query IS NOT NULL AND prev_query <> query_text THEN 1 ELSE 0 END) AS reformulations\nFROM ordered\nGROUP BY session_id\nHAVING COUNT(*) >= 2\nORDER BY reformulations DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "query-reformulation--same-session-different-query"
+  },
+  {
+    "id": "co_sql_305-0338",
+    "num": 338,
+    "title": "Autocomplete Acceptance Rate per Prefix",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Conditional rate aggregation",
+    "schema": "autocomplete_events(event_id, prefix_length, accepted)",
+    "solution": "SELECT prefix_length,\n  COUNT(*) AS shows,\n  SUM(accepted) AS accepts,\n  ROUND(100.0 * SUM(accepted) / NULLIF(COUNT(*), 0), 1) AS acceptance_pct\nFROM autocomplete_events\nGROUP BY prefix_length\nORDER BY prefix_length;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "autocomplete-acceptance-rate-per-prefix"
+  },
+  {
+    "id": "co_sql_305-0339",
+    "num": 339,
+    "title": "YouTube Watch-Completion per Video",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Ratio aggregation with sample-size gate",
+    "schema": "yt_views(view_id, video_id, watched_seconds, total_seconds)",
+    "solution": "SELECT video_id,\n  COUNT(*) AS views,\n  ROUND(AVG(watched_seconds * 1.0 / NULLIF(total_seconds, 0)) * 100.0, 1) AS avg_completion_pct,\n  ROUND(SUM(watched_seconds) / 60.0, 1) AS total_minutes_watched\nFROM yt_views\nGROUP BY video_id\nHAVING COUNT(*) >= 2\nORDER BY avg_completion_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "youtube-watch-completion-per-video"
+  },
+  {
+    "id": "co_sql_305-0340",
+    "num": 340,
+    "title": "Ad Keyword Match-Type ROI",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Per-bucket ROAS calculation",
+    "schema": "ad_keywords(keyword_id, match_type, impressions, clicks, cost, revenue)",
+    "solution": "SELECT match_type,\n  SUM(impressions) AS impressions,\n  SUM(clicks)      AS clicks,\n  ROUND(SUM(cost), 2)    AS spend,\n  ROUND(SUM(revenue), 2) AS revenue,\n  ROUND(SUM(revenue) * 1.0 / NULLIF(SUM(cost), 0), 2) AS roas\nFROM ad_keywords\nGROUP BY match_type\nORDER BY roas DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "ad-keyword-match-type-roi"
+  },
+  {
+    "id": "co_sql_305-0341",
+    "num": 341,
+    "title": "Maps ETA Bias by Travel Mode",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Bias detection across categories",
+    "schema": "maps_eta(trip_id, mode, predicted_minutes, actual_minutes)",
+    "solution": "SELECT mode,\n  COUNT(*) AS trips,\n  ROUND(AVG(predicted_minutes - actual_minutes), 2)             AS mean_bias,\n  ROUND(AVG(ABS(predicted_minutes - actual_minutes)), 2)        AS mae,\n  ROUND(100.0 * SUM(CASE WHEN predicted_minutes > actual_minutes THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS pct_overestimated\nFROM maps_eta\nGROUP BY mode\nORDER BY mae DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "maps-eta-bias-by-travel-mode"
+  },
+  {
+    "id": "co_sql_305-0342",
+    "num": 342,
+    "title": "GA Funnel Drop-Off \u2014 Step-to-Step Conversion",
+    "company": "Google",
+    "difficulty": "Hard",
+    "subtopic": "Sequential funnel + LAG step-rate",
+    "schema": "funnel(user_id, step, reached_at)",
+    "solution": "WITH counts AS (\n  SELECT step, COUNT(DISTINCT user_id) AS users\n  FROM funnel GROUP BY step\n)\nSELECT step, users,\n  LAG(users) OVER (ORDER BY step) AS prev_users,\n  ROUND(100.0 * users * 1.0 / NULLIF(LAG(users) OVER (ORDER BY step), 0), 1) AS step_to_step_pct,\n  ROUND(100.0 * users * 1.0 / FIRST_VALUE(users) OVER (ORDER BY step), 1) AS pct_of_top\nFROM counts\nORDER BY step;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "ga-funnel-drop-off--step-to-step-conversion"
+  },
+  {
+    "id": "co_sql_305-0343",
+    "num": 343,
+    "title": "Gmail Label Auto-Classification Hit Rate",
+    "company": "Google",
+    "difficulty": "Medium",
+    "subtopic": "Confusion-matrix-style aggregation",
+    "schema": "email_labels(message_id, predicted_label, actual_label)",
+    "solution": "SELECT predicted_label, actual_label,\n  COUNT(*) AS messages,\n  ROUND(100.0 * COUNT(*)\n              / SUM(COUNT(*)) OVER (PARTITION BY actual_label), 1) AS pct_of_actual\nFROM email_labels\nGROUP BY predicted_label, actual_label\nORDER BY actual_label, messages DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "gmail-label-auto-classification-hit-rate"
   }
 ]

@@ -1,0 +1,42 @@
+<p>Meta's Ads platform measures one number for advertisers: <strong>CTR by placement</strong>. Feed ads, story ads, Reels ads, and sidebar ads all have different costs and engagement characteristics. The query is conditional aggregation; the senior layer is sample-size gating + confidence intervals.</p>
+
+<h4>1. The source data — <code>ad_events</code></h4>
+<table><thead><tr><th>impression_id</th><th>ad_id</th><th>placement</th><th>clicked (1/0)</th></tr></thead>
+<tbody><tr><td>I_001</td><td>AD_001</td><td>feed</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — CTR with sample-size HAVING</h4>
+<pre><code>SELECT placement,
+  COUNT(*) AS impressions,
+  SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END) AS clicks,
+  ROUND(100.0 * SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 3) AS ctr_pct
+FROM ad_events
+GROUP BY placement
+HAVING COUNT(*) &gt;= 5
+ORDER BY ctr_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why <code>HAVING COUNT &gt;= N</code> is mandatory</h5>
+<p>An ad with 3 impressions and 1 click is "33.3% CTR" — and topped the leaderboard. With 100 impressions, the 95% CI on rate is &plusmn;10pp; with 1000, &plusmn;3pp; with 10K, &plusmn;1pp. Production CTR leaderboards use HAVING ≥ 1000 minimum. The query above uses 5 only because the playground has tiny data.</p>
+
+<h5>The CI column for honest reporting</h5>
+<pre><code>1.96 * SQRT(ctr_pct/100 * (1 - ctr_pct/100) / impressions) * 100 AS ci_pp_at_95</code></pre>
+<p>"Feed CTR 1.5% &plusmn; 0.3pp" is honest; "Feed CTR 1.5%" alone hides the certainty. Senior dashboards always emit the CI.</p>
+
+<h5>Three CTR idioms</h5>
+<pre><code>SUM(CASE WHEN clicked = 1 THEN 1 ELSE 0 END)  -- portable, MySQL-friendly
+COUNT(*) FILTER (WHERE clicked = 1)            -- modern, PG/SQLite 3.30+
+SUM(clicked)                                   -- terse if clicked is strictly 0/1</code></pre>
+
+<h5>Placement vs creative — confounder</h5>
+<p>"Feed CTR 2%, Story CTR 0.5%" might mean feed is better, OR it might mean the same advertiser bought premium feed inventory and cheap story inventory with weaker creative. To isolate placement, control for advertiser and creative quartile:</p>
+<pre><code>GROUP BY placement, advertiser_tier, creative_quartile</code></pre>
+
+<h5>The Conversion Cousin</h5>
+<p>CTR measures "clicked the ad". The advertiser cares about <em>conversion</em> (purchased / signed up / installed). High-CTR placements that don't convert (clickbait) are worse than lower-CTR placements that do. Always pair with conversion rate downstream.</p>
+
+<h5>The auction-context layer</h5>
+<p>Ad placements with higher cost-per-impression need higher CTR to break even. The action threshold isn't "max CTR"; it's "max <code>CTR × LTV - CPM</code>". Bring this up unprompted — it's the diagnostic for when to invest more in low-CTR-but-high-LTV placements.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> mandate the sample-size HAVING gate with CI emission, name FILTER (WHERE) as the modern idiom, and surface placement-vs-creative confounder + the click-vs-conversion distinction. Auction-context economics (CTR × LTV − CPM) is the over-the-bar reframe.</div>
