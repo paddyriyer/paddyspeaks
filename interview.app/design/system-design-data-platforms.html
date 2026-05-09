@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design — Data Platforms · PaddySpeaks Interview Studio</title>
+<meta name="description" content="System Design notebook for senior data engineers — lakehouse vs warehouse, batch vs streaming, dbt + Airflow patterns, schema registry, Kappa architecture. Whiteboard-ready answers.">
+<meta name="keywords" content="data platform system design, lakehouse vs warehouse, kappa lambda architecture, dbt patterns, airflow patterns, schema registry, data engineering interview">
+<meta property="og:type" content="article">
+<meta property="og:title" content="System Design — Data Platforms">
+<meta property="og:description" content="Lakehouse vs warehouse · batch vs streaming · dbt + Airflow · schema registry · Kappa. Whiteboard-ready.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/system-design-data-platforms.html">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #1d4ed8; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #1d4ed8; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #1d4ed8; border-bottom-color: #1d4ed8; }
+.netflix-prep .ascii-diagram { background: #0b0f17; color: #cfe1f5; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.45; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; white-space: pre; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #1d4ed8;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · System Design · Data Platforms</div>
+<h1 class="hero-title">System Design — Data Platforms.</h1>
+<p class="hero-sub">The whiteboard round when they say <em>"design a data platform for X"</em>. Lakehouse vs warehouse, batch vs streaming, dbt + Airflow patterns, schema registry, Kappa. Six sections, every diagram drawable in 30 seconds, every trade-off articulable in two sentences.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The 5-minute opening — frame the system in one diagram</a></li>
+  <li><a href="#part-02">Lakehouse vs warehouse vs lake — pick the right primitive</a></li>
+  <li><a href="#part-03">Batch vs streaming vs Lambda vs Kappa — the architecture quadrant</a></li>
+  <li><a href="#part-04">dbt + Airflow patterns — orchestration that survives audit</a></li>
+  <li><a href="#part-05">Schema registry &amp; contract-first pipelines</a></li>
+  <li><a href="#part-06">The 90-second articulation script — works on any prompt</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The opening move</div>
+<h2 class="part-title">The 5-minute opening — frame the system in one diagram.</h2>
+
+<p>Most candidates fail the data-platform whiteboard in the first 90 seconds — they jump to "use Spark" before establishing the <strong>shape</strong> of the system. The opening isn't tools; it's the <em>data flow with grain hints</em>. Draw this, then layer in technology choices.</p>
+
+<h3 class="section-head">The canonical 5-box diagram</h3>
+<div class="ascii-diagram">
+   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+   │   SOURCES    │───▶│   INGEST     │───▶│   STORAGE    │───▶│  TRANSFORM   │───▶│   SERVE      │
+   │              │    │              │    │              │    │              │    │              │
+   │ • OLTP DBs   │    │ • Kafka      │    │ • S3 / GCS   │    │ • dbt models │    │ • BI dash    │
+   │ • Mobile SDK │    │ • Kinesis    │    │ • Iceberg /  │    │ • Spark jobs │    │ • REST API   │
+   │ • Web events │    │ • CDC stream │    │   Delta Lake │    │ • Flink       │    │ • Reverse    │
+   │ • SaaS APIs  │    │ • Batch SFTP │    │ • Warehouse   │    │   stream jobs │    │   ETL → CRM  │
+   │              │    │              │    │   (Snowflake) │    │              │    │ • ML serving │
+   └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘    └──────────────┘
+                                ▲                  ▲                  ▲
+                                │                  │                  │
+                          schema registry    metadata catalog    lineage tracker
+                          (Confluent /        (Datahub /          (OpenLineage /
+                           Apicurio)           Atlas / Unity)      Marquez)
+</div>
+
+<p>Five rectangles. Five steady-state arrows. Three control-plane services underneath (registry, catalog, lineage). That's the entire opening — repeated for any data-platform prompt: ride-share, ads, payments, e-commerce. The <em>contents</em> of each box change; the shape doesn't.</p>
+
+<h3 class="section-head">The five questions to ask BEFORE drawing</h3>
+<table>
+  <thead><tr><th>Question</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>What's the latency SLA — minutes, hours, daily?</td><td>Picks streaming vs batch in box 4</td></tr>
+    <tr><td>What's the data volume / event rate?</td><td>Drives storage tier (warehouse vs lakehouse) and ingest tooling</td></tr>
+    <tr><td>Who consumes the data and how?</td><td>Determines the serve box — BI / API / reverse-ETL / ML</td></tr>
+    <tr><td>What's the regulatory environment?</td><td>GDPR/HIPAA/SOX shifts toward immutable lakehouse + lineage</td></tr>
+    <tr><td>What's the team size + maturity?</td><td>3-engineer team can't run Flink; 100-engineer team can</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> Don't ask all five — ask the two that obviously aren't pinned. <em>"Before I dive in: are we serving sub-second analytics or daily reports? And is the team running Spark today or starting from scratch?"</em> Two well-chosen questions show you're prioritizing.
+</div>
+
+<h3 class="section-head">The grain-first articulation</h3>
+<p>After the diagram, say one sentence per box that pins the <strong>grain</strong> — the level of detail at each stage:</p>
+<ul>
+  <li><strong>Sources</strong> — "Each source emits events at its own grain. Mobile SDK is per-action; OLTP CDC is per-row-change."</li>
+  <li><strong>Ingest</strong> — "Kafka topics are partitioned by entity_id; one event = one Kafka message."</li>
+  <li><strong>Storage</strong> — "Raw zone keeps every event forever; curated zone is per-entity-per-hour rollups."</li>
+  <li><strong>Transform</strong> — "Star schema in the warehouse — dim_user, fact_event at user-event grain."</li>
+  <li><strong>Serve</strong> — "BI queries hit per-user-per-day aggregates; ML serving hits per-user-realtime feature store."</li>
+</ul>
+<p>Junior engineers say "Spark transforms data". Senior engineers say "the transform layer aggregates from per-event to per-user-per-day grain, with both grains co-existing for different consumer needs."</p>
+
+</section>
+
+<!-- =============== PART 02 =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Storage primitives</div>
+<h2 class="part-title">Lakehouse vs warehouse vs lake — pick the right primitive.</h2>
+
+<p>The 2024 reality: most companies are mid-migration from warehouse-only or lake-only to <strong>lakehouse</strong>. Knowing why each exists and where each wins is the difference between a recommendation and a religious war.</p>
+
+<h3 class="section-head">The four flavors</h3>
+<table>
+  <thead><tr><th>Flavor</th><th>Examples</th><th>Strength</th><th>Weakness</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Warehouse</strong></td><td>Snowflake, BigQuery, Redshift</td><td>Fastest SQL, strongest governance, easy for analysts</td><td>Compute coupled to vendor; expensive at PB scale; weak for ML / images</td></tr>
+    <tr><td><strong>Lake</strong></td><td>S3, GCS + Spark / Presto</td><td>Cheapest storage; supports any file type; full vendor neutrality</td><td>Slow on small queries; no transactions; "data swamp" risk</td></tr>
+    <tr><td><strong>Lakehouse</strong></td><td>Databricks Delta, Iceberg + any engine, Snowflake Unistore</td><td>Lake's economics + warehouse's transactions; vendor-portable file format</td><td>Younger tooling; more moving parts; team must understand both worlds</td></tr>
+    <tr><td><strong>Streaming store</strong></td><td>Pinot, Druid, ClickHouse</td><td>Sub-second analytics on event data</td><td>Limited SQL surface; one-shape-of-question per cluster</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Lakehouse — what makes it different</h3>
+<p>The lakehouse isn't a product — it's a <strong>file format</strong> with transactional metadata layered on top of cheap object storage. Three open-source contenders: <strong>Apache Iceberg</strong>, <strong>Delta Lake</strong>, <strong>Apache Hudi</strong>. All three solve the same problems:</p>
+
+<table>
+  <thead><tr><th>Lake limitation</th><th>How lakehouse fixes it</th></tr></thead>
+  <tbody>
+    <tr><td>No ACID — concurrent writes corrupt</td><td>Transaction log records every commit; readers see consistent snapshot</td></tr>
+    <tr><td>No schema enforcement — junk data accumulates</td><td>Schema validation at write; evolution rules tracked</td></tr>
+    <tr><td>No DELETE / UPDATE — only file overwrite</td><td>Row-level operations via merge-on-read or copy-on-write</td></tr>
+    <tr><td>No time-travel — can't see "yesterday's view"</td><td>Snapshot history; query as of any prior commit</td></tr>
+    <tr><td>Slow file listing at scale</td><td>Manifest files index the data files; planning is O(metadata) not O(data)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Iceberg vs Delta vs Hudi — when to pick which</h3>
+<table>
+  <thead><tr><th></th><th>Iceberg</th><th>Delta Lake</th><th>Hudi</th></tr></thead>
+  <tbody>
+    <tr><td>Sponsor</td><td>Netflix, Apache</td><td>Databricks, now Linux Foundation</td><td>Uber, Apache</td></tr>
+    <tr><td>Engine support</td><td>Broadest — Trino, Spark, Flink, Snowflake, BigQuery</td><td>Spark-first; Flink + Trino added</td><td>Spark-first; Flink + Presto added</td></tr>
+    <tr><td>Update strategy</td><td>Copy-on-write or merge-on-read</td><td>Copy-on-write (default), MoR added</td><td>Native MoR — best for streaming upserts</td></tr>
+    <tr><td>Pick when</td><td>Multi-engine reads required, vendor-neutral future</td><td>All-in on Databricks; deepest tooling integration</td><td>Heavy CDC / streaming-upsert workload</td></tr>
+  </tbody>
+</table>
+<p>The 2024 momentum: <strong>Iceberg</strong> is winning the multi-engine race; Snowflake, BigQuery, and Databricks all support it. Delta is sticky if you're on Databricks. Hudi remains the choice for high-volume streaming upserts.</p>
+
+<h3 class="section-head">When NOT to use a lakehouse</h3>
+<div class="callout">
+<strong>Anti-pattern.</strong> Small data (&lt; 1 TB), single team, simple analytics: a lakehouse is overkill. Snowflake or BigQuery alone is faster to ship and cheaper to operate. Lakehouse pays off at multi-PB scale, multi-engine consumers, or when ML training needs raw files alongside curated tables.
+</div>
+
+<h3 class="section-head">The medallion architecture (bronze / silver / gold)</h3>
+<p>Most lakehouse implementations follow a three-tier "medallion" layering:</p>
+<table>
+  <thead><tr><th>Tier</th><th>Contents</th><th>SLA</th><th>Schema enforcement</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Bronze</strong></td><td>Raw ingested events, exactly as received</td><td>Best-effort, no SLA</td><td>None — schema-on-read</td></tr>
+    <tr><td><strong>Silver</strong></td><td>Cleaned, deduplicated, conformed dims</td><td>Hours</td><td>Strict — schema registry enforced</td></tr>
+    <tr><td><strong>Gold</strong></td><td>Business-ready aggregates / cubes</td><td>Daily or near-real-time</td><td>Strict — versioned + dbt-tested</td></tr>
+  </tbody>
+</table>
+<p>Drop the term in the interview: <em>"raw events land in bronze, dbt cleans them into silver with conformed dims, gold is the per-team aggregation marts."</em></p>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "I'd default to Iceberg-on-S3 with Snowflake as the primary query engine — that gives me Snowflake's SQL polish without locking transformation jobs to Snowflake compute. The medallion layering means bronze is replayable forever; silver is the contract layer; gold is the per-team mart."
+</div>
+
+</section>
+
+<!-- =============== PART 03 =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — Architectural quadrant</div>
+<h2 class="part-title">Batch vs streaming vs Lambda vs Kappa — the quadrant.</h2>
+
+<p>The interview's hardest moment: <em>"how would you architect this — batch or streaming?"</em>. The honest answer is <strong>both, with a clear seam</strong>. Lambda and Kappa are the two ways to draw the seam.</p>
+
+<h3 class="section-head">The four cases</h3>
+<table>
+  <thead><tr><th>Case</th><th>Example</th><th>Latency tolerance</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Pure batch</strong></td><td>Monthly close, regulatory reports</td><td>Hours-to-days</td></tr>
+    <tr><td><strong>Pure streaming</strong></td><td>Fraud detection, live dashboards</td><td>Seconds</td></tr>
+    <tr><td><strong>Lambda (both paths)</strong></td><td>Recommendations: stream for real-time, batch for daily refresh</td><td>Mixed</td></tr>
+    <tr><td><strong>Kappa (single stream)</strong></td><td>Modern event-sourced platform — stream is the source of truth, batch is replay</td><td>Mixed</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Lambda — the dual-path architecture</h3>
+<div class="ascii-diagram">
+                                    ┌─────────────────┐
+                                    │  Speed Layer    │
+                                    │  (Flink/Storm)  │──▶ approximate
+                                    │                 │   real-time view
+                  ┌──────────┐      └─────────────────┘         │
+                  │  Source  │──┐                                │  ┌──────────┐
+                  │  events  │  │                                ├─▶│  Serve   │
+                  └──────────┘  │   ┌─────────────────┐         │  │  layer   │
+                                └──▶│  Batch Layer    │         │  └──────────┘
+                                    │  (Spark/dbt)    │──▶ accurate
+                                    │                 │   delayed view
+                                    └─────────────────┘
+</div>
+
+<table>
+  <thead><tr><th>Lambda pros</th><th>Lambda cons</th></tr></thead>
+  <tbody>
+    <tr><td>Real-time + accurate; never blocked on accuracy</td><td>Two codebases for the same logic — drift inevitable</td></tr>
+    <tr><td>Batch can fix streaming approximation errors</td><td>Reconciliation step is its own problem</td></tr>
+    <tr><td>Migrate-incrementally pattern (start batch, add stream)</td><td>Operational burden — two systems, two on-calls</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Kappa — the single-stream architecture</h3>
+<div class="ascii-diagram">
+                                                                    ┌──────────┐
+                  ┌──────────┐    ┌──────────────────┐              │  Serve   │
+                  │  Source  │───▶│  Kafka log       │──┬──streaming┴─▶layer   │
+                  │  events  │    │  (durable,       │  │  (Flink job)         │
+                  └──────────┘    │   replayable)    │  │
+                                  └──────────────────┘  └──── replay──┐
+                                                                       │
+                                                                       ▼
+                                                                ┌──────────────┐
+                                                                │   Replay     │
+                                                                │   batch job  │
+                                                                │   (rebuilds  │
+                                                                │   any state) │
+                                                                └──────────────┘
+</div>
+
+<p>Kappa eliminates the dual codebase. The stream is the source of truth; batch is just <em>the same job replayed</em> against historical Kafka offsets. Three preconditions to make Kappa work:</p>
+<ol>
+  <li><strong>Durable, retentioned event log</strong> — Kafka with infinite retention OR tiered storage (Confluent Cloud, Pulsar)</li>
+  <li><strong>Idempotent / deterministic stream jobs</strong> — replay must produce identical output</li>
+  <li><strong>Replay-friendly state backend</strong> — RocksDB checkpoints in Flink; Kafka Streams state stores</li>
+</ol>
+
+<h3 class="section-head">When to pick which</h3>
+<table>
+  <thead><tr><th>Pick Lambda when</th><th>Pick Kappa when</th></tr></thead>
+  <tbody>
+    <tr><td>Migrating from a legacy batch warehouse</td><td>Greenfield platform with strong streaming culture</td></tr>
+    <tr><td>Accuracy SLA is regulator-grade (banking close)</td><td>Eventual consistency is acceptable</td></tr>
+    <tr><td>Team can't yet replay confidently</td><td>Team can replay 30+ days of events deterministically</td></tr>
+    <tr><td>Heterogeneous source latencies (mix of CDC + nightly SFTP)</td><td>All sources can be modeled as event streams</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The 2024+ default — Kappa-leaning hybrid</h3>
+<p>Most modern platforms aren't pure either. The shape that's winning:</p>
+<ul>
+  <li>Kafka as the spine (event-source-of-truth)</li>
+  <li>Flink jobs writing to Iceberg in near-real-time (sub-minute)</li>
+  <li>"Batch" jobs are dbt incremental models that read the same Iceberg tables</li>
+  <li>One transform logic; two query paths (Flink for low-latency views, dbt for analyst SQL)</li>
+</ul>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "I'd start Kappa-leaning — Kafka spine, Flink jobs writing to Iceberg, dbt models reading from there. If accuracy regulators force a true Lambda dual-path, I'd add the batch reconciliation only for the regulated facts (revenue, settlement) — not the whole platform. The cost of dual code is the cost of the audit; Kappa for everything else."
+</div>
+
+</section>
+
+<!-- =============== PART 04 =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Orchestration</div>
+<h2 class="part-title">dbt + Airflow patterns — orchestration that survives audit.</h2>
+
+<p>Airflow runs the schedule. dbt builds the SQL. Together they're the most common transformation stack in 2024. The interview question is rarely "what tool" — it's <strong>"how do they integrate so a failed step doesn't corrupt the warehouse"</strong>.</p>
+
+<h3 class="section-head">The division of labor</h3>
+<table>
+  <thead><tr><th>Concern</th><th>Owner</th></tr></thead>
+  <tbody>
+    <tr><td>Schedule (cron / sensor / event)</td><td>Airflow</td></tr>
+    <tr><td>Inter-DAG dependencies</td><td>Airflow (TriggerDagRunOperator, ExternalTaskSensor)</td></tr>
+    <tr><td>Within-DAG transformation logic</td><td>dbt (models, tests, docs)</td></tr>
+    <tr><td>Idempotency (same input → same output)</td><td>dbt (materializations + incremental keys)</td></tr>
+    <tr><td>Data quality assertions</td><td>dbt (schema.yml tests) + Great Expectations / Soda for richer checks</td></tr>
+    <tr><td>Lineage</td><td>dbt's auto-generated DAG; OpenLineage for cross-tool</td></tr>
+    <tr><td>Backfill</td><td>Airflow's date-range backfill + dbt's --vars '{"target_date": ...}'</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The canonical dbt model lifecycle</h3>
+<p>One dbt model goes through this lifecycle on every run:</p>
+<pre><code>1. Source check     ─▶  dbt source freshness   (is upstream data fresh?)
+2. Build            ─▶  dbt run --models +my_model  (run model + upstream deps)
+3. Test             ─▶  dbt test --models my_model  (assertions: not_null, unique, accepted_values, custom)
+4. Docs / lineage   ─▶  dbt docs generate              (refresh DAG + descriptions)
+5. Notify           ─▶  Slack / PagerDuty on failure   (Airflow on_failure_callback)</code></pre>
+
+<h3 class="section-head">Materializations — pick the right one</h3>
+<table>
+  <thead><tr><th>Materialization</th><th>What it does</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>view</code></td><td>Just CREATE VIEW; no data stored</td><td>Cheap transforms over small upstream</td></tr>
+    <tr><td><code>table</code></td><td>Full rebuild every run</td><td>Small dim tables; logic changes frequently</td></tr>
+    <tr><td><code>incremental</code></td><td>Insert new rows; merge on key</td><td>Large fact tables; only recent data changes</td></tr>
+    <tr><td><code>snapshot</code></td><td>SCD2 — track history of changes</td><td>Slowly-changing dims you must audit</td></tr>
+    <tr><td><code>ephemeral</code></td><td>Inlined as a CTE; never materialized</td><td>Reusable transformation logic, no separate object</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The incremental pattern that survives backfill</h3>
+<pre><code>{{ config(
+    materialized='incremental',
+    unique_key='event_id',
+    on_schema_change='append_new_columns',
+    incremental_strategy='merge'
+) }}
+
+SELECT event_id, user_id, event_type, event_at
+FROM {{ source('raw', 'events') }}
+
+{% if is_incremental() %}
+  WHERE event_at &gt; (SELECT MAX(event_at) FROM {{ this }})
+{% endif %}</code></pre>
+<p>Two failure modes to anticipate:</p>
+<ul>
+  <li><strong>Late-arriving rows</strong> — events with <code>event_at</code> earlier than current MAX get skipped. Fix: add a lookback (<code>event_at &gt; MAX(event_at) - INTERVAL '24 hours'</code>) and let MERGE deduplicate.</li>
+  <li><strong>Reprocessing</strong> — the <code>--full-refresh</code> flag rebuilds from scratch. Required when business logic changes; protected by branch-CI gating.</li>
+</ul>
+
+<h3 class="section-head">Airflow patterns — the four every senior knows</h3>
+<table>
+  <thead><tr><th>Pattern</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Sensor + downstream DAG</strong> (ExternalTaskSensor)</td><td>Wait for upstream team's DAG to finish before starting</td></tr>
+    <tr><td><strong>Dynamic task mapping</strong> (.expand)</td><td>One task per partition / customer / date — fan-out at runtime</td></tr>
+    <tr><td><strong>TaskGroup</strong></td><td>Visual grouping of related tasks; reusable patterns across DAGs</td></tr>
+    <tr><td><strong>Branching</strong> (BranchPythonOperator)</td><td>Different paths based on data-driven decision (only run gold-layer if silver passed quality)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The "audit-safe" pattern</h3>
+<p>Compliance-grade pipelines need to prove <em>what ran, when, with what version, and what the input was</em>. The pattern:</p>
+<ol>
+  <li><strong>Versioned dbt manifest</strong> — every run captures the dbt project version + git SHA</li>
+  <li><strong>Run logs in a database</strong> — Airflow's metadata DB plus dbt's <code>run_results.json</code> uploaded to S3 per run</li>
+  <li><strong>Lineage snapshot</strong> — OpenLineage events per task to a central catalog</li>
+  <li><strong>Reproducibility test</strong> — quarterly job that rebuilds last quarter's gold table from raw + git SHA, asserts byte-equality</li>
+</ol>
+
+<div class="trap-box">
+<strong>Trap.</strong> "We use dbt + Airflow" is not an answer. The senior version names the materializations, the incremental lookback, the audit trail, and the failure-callback wiring. Memorize that stack.
+</div>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Airflow owns scheduling and inter-DAG dependencies; dbt owns within-DAG SQL and data quality. The integration point is one BashOperator running <code>dbt run --models +tag:gold</code> with a <code>retries=2</code> and an <code>on_failure_callback</code> posting to PagerDuty. Backfill is two flags away — Airflow's <code>--start-date</code> + dbt's <code>--vars</code>. And the dbt manifest goes to S3 every run for audit replay."
+</div>
+
+</section>
+
+<!-- =============== PART 05 =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Contracts</div>
+<h2 class="part-title">Schema registry &amp; contract-first pipelines.</h2>
+
+<p>Three things break a data platform: schema changes, schema changes, and schema changes. A field renamed upstream silently breaks 40 downstream dashboards two weeks later. <strong>Schema registry</strong> is the contract layer that prevents this.</p>
+
+<h3 class="section-head">What a schema registry actually is</h3>
+<p>A schema registry stores the structure (Avro / Protobuf / JSON Schema) of every Kafka topic. Producers register their schema; consumers fetch it; the registry enforces compatibility rules on every change.</p>
+
+<table>
+  <thead><tr><th>Component</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td>Schema registry</td><td>Confluent Schema Registry, Apicurio, AWS Glue Schema Registry</td></tr>
+    <tr><td>Schema format</td><td>Avro (most common, binary), Protobuf (Google preferred), JSON Schema (least efficient)</td></tr>
+    <tr><td>Compatibility check</td><td>Backward / Forward / Full / None — enforced at publish-time</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The four compatibility modes</h3>
+<table>
+  <thead><tr><th>Mode</th><th>Producer change OK if</th><th>Consumer impact</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Backward</strong></td><td>New consumer can read OLD data with new schema</td><td>Safe to upgrade consumer first</td></tr>
+    <tr><td><strong>Forward</strong></td><td>OLD consumer can read NEW data with old schema</td><td>Safe to upgrade producer first</td></tr>
+    <tr><td><strong>Full</strong></td><td>Both directions</td><td>Anyone can upgrade in any order</td></tr>
+    <tr><td><strong>None</strong></td><td>Anything goes</td><td>Production fire</td></tr>
+  </tbody>
+</table>
+<p>Default to <strong>backward</strong> for fact streams (consumers are usually dashboards / analytics that lag producers). Default to <strong>full</strong> for multi-team event APIs.</p>
+
+<h3 class="section-head">Allowed schema changes (Avro example)</h3>
+<table>
+  <thead><tr><th>Change</th><th>Backward</th><th>Forward</th><th>Full</th></tr></thead>
+  <tbody>
+    <tr><td>Add field with default</td><td>✓</td><td>✓</td><td>✓</td></tr>
+    <tr><td>Remove field</td><td>✗</td><td>✓</td><td>✗</td></tr>
+    <tr><td>Add field without default</td><td>✗</td><td>✓</td><td>✗</td></tr>
+    <tr><td>Rename field</td><td>✗</td><td>✗</td><td>✗</td></tr>
+    <tr><td>Change field type</td><td>✗</td><td>✗</td><td>✗</td></tr>
+  </tbody>
+</table>
+<p>Renames and type changes are <em>never</em> compatible. The senior pattern: <em>"add the new field, dual-write for a deprecation window, switch consumers, drop the old field."</em></p>
+
+<h3 class="section-ход">Contract-first development — the workflow</h3>
+<ol>
+  <li><strong>Producer team writes Avro schema</strong> in a shared repo (typically a "schemas" monorepo)</li>
+  <li><strong>CI validates compatibility</strong> against the registered schema — PR fails if break</li>
+  <li><strong>Schema published on merge</strong> to schema registry; producer code generated from it</li>
+  <li><strong>Consumer teams discover schemas</strong> via registry browser; generate their own client code</li>
+  <li><strong>Runtime enforcement</strong> — Kafka brokers reject messages that don't match registered schema</li>
+</ol>
+
+<h3 class="section-head">The tombstone / deprecation pattern</h3>
+<pre><code>// Schema v1
+{ "type": "record", "name": "User", "fields": [
+  { "name": "user_id", "type": "long" },
+  { "name": "name",    "type": "string" }
+]}
+
+// Schema v2 — adding email, deprecating name
+{ "type": "record", "name": "User", "fields": [
+  { "name": "user_id", "type": "long" },
+  { "name": "name",    "type": "string", "deprecated": true },
+  { "name": "email",   "type": ["null", "string"], "default": null },
+  { "name": "first_name", "type": ["null", "string"], "default": null },
+  { "name": "last_name",  "type": ["null", "string"], "default": null }
+]}
+
+// 90 days later, schema v3 — drop name
+{ "type": "record", "name": "User", "fields": [
+  { "name": "user_id", "type": "long" },
+  { "name": "first_name", "type": ["null", "string"], "default": null },
+  { "name": "last_name",  "type": ["null", "string"], "default": null }
+]}</code></pre>
+
+<h3 class="section-head">Schema in the warehouse — dbt contracts</h3>
+<p>dbt 1.5+ added <strong>contract enforcement</strong> at the model level — runtime validation that the output table matches a declared schema:</p>
+<pre><code>models:
+  - name: dim_user
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: user_id
+        data_type: bigint
+        constraints: [{ type: not_null }, { type: primary_key }]
+      - name: email
+        data_type: varchar
+        constraints: [{ type: not_null }]</code></pre>
+<p>The model fails to build if the output schema drifts. Combined with downstream tests, this is the warehouse-side equivalent of schema registry.</p>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Every Kafka topic has an Avro schema in Confluent Registry, defaulted to backward compatibility. Schema changes go through a PR-CI loop that runs the registry's compatibility check. Renames are tombstone-then-add — a 90-day deprecation window with both fields populated. In the warehouse we layer dbt contracts so the model build fails on accidental schema drift. The contract is the entire architectural backbone — without it, the platform rots in 6 months."
+</div>
+
+</section>
+
+<!-- =============== PART 06 =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Articulation</div>
+<h2 class="part-title">The 90-second articulation script — works on any prompt.</h2>
+
+<p>You've drawn the diagram, named the technologies, called out the trade-offs. The closing 90 seconds bring it together as one coherent design. Memorize this template; substitute the specific tools and grain.</p>
+
+<div style="background:linear-gradient(135deg,#0b0f17,#1a2332);color:#f5f0e8;padding:24px 28px;border-radius:8px;margin:28px 0;font-style:italic;line-height:1.6;">
+<p style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#9bb4d6;margin-bottom:12px;font-style:normal;">▸ THE 90-SECOND SCRIPT</p>
+
+<p>"For a platform with [latency requirement] and [volume hint], I'd shape this as five stages: <strong>sources → ingest → storage → transform → serve</strong>, with <strong>schema registry, metadata catalog, and lineage</strong> as cross-cutting control planes."</p>
+
+<p>"On <strong>storage</strong>, I'd default to a <strong>lakehouse pattern</strong> — Iceberg files on S3 — with a medallion layering: bronze for raw, silver for cleaned with conformed dims, gold for the per-team aggregation marts. That gives me lake economics with warehouse transactional guarantees, and Iceberg's broad engine support means I'm not locked into one query engine."</p>
+
+<p>"On the <strong>batch-vs-streaming</strong> question, I'd go <strong>Kappa-leaning</strong>: Kafka as the event spine, Flink jobs writing into Iceberg in near-real-time, dbt models on top reading the same tables. One transform logic, two read paths — Flink for sub-minute views, dbt for analyst SQL. If a regulatory fact like revenue needs reconciliation, I'd add a true Lambda batch path just for that fact, not the whole platform."</p>
+
+<p>"<strong>Orchestration</strong> is Airflow over dbt — Airflow owns scheduling and cross-DAG dependencies, dbt owns within-DAG SQL transformations and data-quality tests. Materializations are mostly incremental with merge strategy for late-arriving data. Audit replay works because every dbt run uploads its manifest + run_results to S3 keyed by git SHA."</p>
+
+<p>"<strong>Schema registry</strong> with backward compatibility is non-negotiable — every Kafka topic registered, schema PRs CI-validated, renames are tombstone-then-add over 90 days. Warehouse-side, dbt contracts enforce output schema at build time. The contract layer is what keeps the platform from rotting."</p>
+
+<p>"The <strong>three risks</strong> I'd flag and mitigate first: schema drift (registry + contracts), late-arriving data (incremental lookback windows), and skew at the heaviest entity (salted aggregation in Spark / Flink). The platform without these three is a ticking clock."</p>
+</div>
+
+<h3 class="section-head">Three sentences that signal seniority — in any round</h3>
+<ol>
+  <li><em>"I'd start with the grain question — what's the smallest unit of fact, and what's the consumer grain?"</em></li>
+  <li><em>"The contract layer (schema registry + dbt contracts) does more for reliability than the orchestration choice."</em></li>
+  <li><em>"Lambda is what you choose when the team can't yet replay confidently; Kappa is the default when they can."</em></li>
+</ol>
+
+</section>
+
+<div style="text-align:center;margin:64px 0 32px;color:#cbd5e0;letter-spacing:12px;font-size:14px;">· · ·</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:2px;margin-bottom:24px;">▸ Six sections · the patterns hold across domains · go well.</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:1px;">
+  <a href="/interview.app/design/" style="color:#1d4ed8;text-decoration:none;">← Back to Design pillar</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/data-modeling.html" style="color:#1d4ed8;text-decoration:none;">Data Modeling notebook</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/senior-de-prep.html" style="color:#1d4ed8;text-decoration:none;">Senior DE Prep</a>
+</div>
+
+</article>
+</main>
+</body>
+</html>
