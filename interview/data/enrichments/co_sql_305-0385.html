@@ -1,0 +1,41 @@
+<p>Tipping behavior is the single best signal of customer-side dasher economics. The query crosses order size × daypart for a tip-rate matrix.</p>
+
+<h4>2. The SQL — two-axis bucketed tip rate</h4>
+<pre><code>SELECT
+  CASE WHEN total &lt; 25 THEN 'small' WHEN total &lt; 60 THEN 'medium' ELSE 'large' END AS order_band,
+  CASE
+    WHEN CAST(strftime('%H', ordered_at) AS INTEGER) BETWEEN 17 AND 21 THEN 'dinner'
+    WHEN CAST(strftime('%H', ordered_at) AS INTEGER) BETWEEN 11 AND 14 THEN 'lunch'
+    ELSE 'offpeak'
+  END AS daypart,
+  COUNT(*) AS orders,
+  ROUND(AVG(tip), 2) AS avg_tip,
+  ROUND(100.0 * AVG(tip * 1.0 / NULLIF(total, 0)), 1) AS tip_pct_of_total
+FROM orders GROUP BY order_band, daypart
+ORDER BY order_band, daypart;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Tip patterns — empirical findings</h5>
+<table><thead><tr><th>segment</th><th>typical tip</th></tr></thead>
+<tbody>
+<tr><td>Small × lunch</td><td>$2-3 (~12-15%)</td></tr>
+<tr><td>Large × dinner</td><td>$8-12 (~12-18%)</td></tr>
+<tr><td>Small × offpeak (late night)</td><td>$1-2 (10-12%)</td></tr>
+<tr><td>Large × weekend dinner</td><td>$10-15 (15-20%)</td></tr>
+</tbody></table>
+
+<h5>The tip-as-% pattern</h5>
+<p>% tip stays remarkably constant 10-18% across order sizes. Dollar amount scales with order. Predicts dasher income better than tip count.</p>
+
+<h5>The pre-tip vs post-tip dispatch</h5>
+<p>DoorDash shows dashers the pre-tip total when offering a job. Drivers cherry-pick high-pre-tip orders. Production tracks "pre-tip vs post-tip dispatch acceptance" — when tips are hidden, acceptance distribution evens out but average earnings differ.</p>
+
+<h5>The geographic tip culture</h5>
+<p>NYC tips average 22%; Texas 18%; Bay Area 15%. Per-market tip-rate informs region-specific Peak Pay calculations.</p>
+
+<h5>No-tip orders</h5>
+<p>10-15% of DoorDash orders have $0 tip. These are often rejected by dashers, creating wait-time problems. Filter:</p>
+<pre><code>WHERE tip = 0  -- isolate the rejected-by-economics segment</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> tip-as-% is constant 10-18% across order size, contrast pre-tip vs post-tip dispatch behavior, surface geographic tip-culture variance, and isolate $0-tip orders as the dispatch-friction segment.</div>

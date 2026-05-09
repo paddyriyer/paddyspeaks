@@ -1,0 +1,42 @@
+<p>Pinterest boards: collections of pins. Active boards (10+ pins, recent activity) are health signals. New users with empty boards predict churn.</p>
+
+<h4>2. The SQL — board age band × pin count</h4>
+<pre><code>SELECT
+  CASE
+    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) &lt;= 1 THEN 'new (&lt;= 1mo)'
+    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) &lt;= 6 THEN '1-6 mo'
+    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) &lt;= 12 THEN '6-12 mo'
+    ELSE '12+ mo'
+  END AS board_age_band,
+  COUNT(DISTINCT b.board_id) AS boards,
+  COUNT(bp.pin_id) AS total_pins,
+  ROUND(COUNT(bp.pin_id) * 1.0 / NULLIF(COUNT(DISTINCT b.board_id), 0), 1) AS avg_pins_per_board
+FROM boards b
+LEFT JOIN board_pins bp ON bp.board_id = b.board_id
+GROUP BY board_age_band
+ORDER BY avg_pins_per_board DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The growth curve</h5>
+<table><thead><tr><th>age</th><th>typical avg pins</th></tr></thead>
+<tbody>
+<tr><td>0-1 month</td><td>5-15 (bootstrapping)</td></tr>
+<tr><td>1-6 months</td><td>20-50 (active building)</td></tr>
+<tr><td>6-12 months</td><td>50-100 (curating)</td></tr>
+<tr><td>12+ months</td><td>100+ (mature)</td></tr>
+</tbody></table>
+
+<h5>The "stuck at 5 pins" signal</h5>
+<p>Boards with 5 pins after 6 months — abandoned. That's the user-engagement red flag. Targeting users with high abandoned-board ratio for re-engagement campaigns.</p>
+
+<h5>The "topical-relevance" cousin</h5>
+<p>A 200-pin board on coherent topic ("modern kitchens") is high-quality. A 200-pin board with mixed topics is dump-style. Coherence is a different metric — production adds NLP-based topic-cohesion score.</p>
+
+<h5>The seasonality wave</h5>
+<p>Wedding boards spike Jan (engagement season). Holiday boards spike Oct-Dec. Per-category cohorting reveals which boards are seasonal.</p>
+
+<h5>Public vs secret boards</h5>
+<p>Secret boards (hidden from feed) have 1.5x more pins on average — less performance pressure. Production splits public vs secret.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use age-banded cohorts for growth-curve assessment, identify "stuck at 5" as engagement red flag, surface topic-cohesion as the quality dimension, and split public vs secret for accurate engagement read.</div>

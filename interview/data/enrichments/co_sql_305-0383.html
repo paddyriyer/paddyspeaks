@@ -1,0 +1,43 @@
+<p>DoorDash's LTV model breaks customers by acquisition month and tracks cumulative spend over the next 90 days. High-LTV cohorts justify higher CAC.</p>
+
+<h4>2. The SQL — cohort + 90-day spend window</h4>
+<pre><code>WITH cohorts AS (
+  SELECT customer_id, MIN(ordered_at) AS first_order_at
+  FROM orders GROUP BY customer_id
+),
+spend_in_window AS (
+  SELECT c.customer_id,
+    substr(c.first_order_at, 1, 7) AS cohort_month,
+    SUM(o.total) AS cumulative_spend
+  FROM cohorts c
+  JOIN orders o
+    ON o.customer_id = c.customer_id
+   AND julianday(o.ordered_at) - julianday(c.first_order_at) BETWEEN 0 AND 90
+  GROUP BY c.customer_id, cohort_month
+)
+SELECT cohort_month,
+  COUNT(*) AS new_customers,
+  ROUND(AVG(cumulative_spend), 2) AS avg_90d_ltv,
+  ROUND(SUM(cumulative_spend), 2) AS cohort_total_spend
+FROM spend_in_window
+GROUP BY cohort_month
+ORDER BY cohort_month;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why 90 days — early-LTV proxy</h5>
+<p>True LTV = revenue over customer lifetime; only known after they churn. <strong>D90 LTV</strong> (first-90-days spend) is a strong predictor — accounts for 60-70% of 12-month LTV in DoorDash's data. Faster signal for acquisition-tuning.</p>
+
+<h5>The first-order-at definition</h5>
+<p>"Acquired" = first order. Some companies use "first signup". Different denominators. DoorDash uses first-order — only paying customers count.</p>
+
+<h5>The substr trick for month-bucket</h5>
+<p>SQLite has no DATE_TRUNC. <code>substr(date, 1, 7)</code> returns "YYYY-MM" — works because ISO format is fixed-width.</p>
+
+<h5>Cohort variance signal</h5>
+<p>Marketing campaigns in different months acquire different customer types. Aug 2024 cohort might have higher LTV than Sep 2024 if August ran a "premium customer acquisition" promo. Variance across cohorts → marketing-mix-tuning input.</p>
+
+<h5>The CAC payback ratio</h5>
+<p>Pair this with CAC per cohort: <code>D90 LTV / CAC</code>. &gt; 1.5 = unit economics work; &lt; 1 = unsustainable.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use D90 LTV as the early predictor of full LTV, define "acquired" as first-paying-order, name the substr trick for portable month-bucket, and connect to LTV/CAC as the unit-economics ratio.</div>

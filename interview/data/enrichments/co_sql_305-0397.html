@@ -1,0 +1,28 @@
+<p>Snap Map shows real-time location density. The query buckets activity by geohash + hour to produce the "heat map" data — the input to the visual map UI.</p>
+
+<h4>2. The SQL — geohash × hour density</h4>
+<pre><code>SELECT geohash,
+  CAST(strftime('%H', recorded_at) AS INTEGER) AS hour,
+  COUNT(DISTINCT user_id) AS active_users
+FROM map_activity GROUP BY geohash, hour
+ORDER BY active_users DESC LIMIT 20;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Geohash — the spatial bucketing</h5>
+<p>Geohash encodes lat/long into a string of variable precision. 4-char prefix ≈ 20km×20km city. 6-char ≈ 1km. 8-char ≈ 50m. Bucketing at the right precision matches the use case.</p>
+
+<h5>The privacy guarantee — k-anonymity</h5>
+<p>Snap Map shows aggregated heat — never individual location. <strong>k-anonymity</strong>: don't show data unless ≥ k=20 users in the bucket. Add HAVING:</p>
+<pre><code>HAVING COUNT(DISTINCT user_id) &gt;= 20</code></pre>
+
+<h5>The temporal grain</h5>
+<p>Hour-level density vs 15-minute density. Finer = more responsive map; less = better k-anonymity. Production uses 15-minute internally, displays at hour-level.</p>
+
+<h5>Daypart-vs-event spike</h5>
+<p>Routine diurnal pattern: bucket density peaks 6-9pm. Spike density peaks at events (concerts, sports). Compare to baseline to identify "interesting" buckets.</p>
+
+<h5>The friend-presence filter</h5>
+<p>Snap Map respects friendship privacy: viewers see only buckets containing their friends. The query is the population-level view; production adds per-viewer joins.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> geohash precision matches use-case grain, k-anonymity gate is non-negotiable, distinguish baseline diurnal from event-spike, and connect to friend-presence filtering for the user-facing version.</div>

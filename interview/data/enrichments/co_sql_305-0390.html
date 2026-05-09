@@ -1,0 +1,38 @@
+<p>LinkedIn Recruiter's per-seat usage analysis: how many searches do recruiters run per day, and how many are active each month. The query uses window aggregates for cross-day totals.</p>
+
+<h4>2. The SQL — per-day searches + per-recruiter rollup</h4>
+<pre><code>WITH per_day AS (
+  SELECT recruiter_id, DATE(searched_at) AS day, COUNT(*) AS searches
+  FROM recruiter_searches GROUP BY recruiter_id, DATE(searched_at)
+)
+SELECT recruiter_id, day, searches,
+  SUM(searches) OVER (PARTITION BY recruiter_id) AS total_searches,
+  COUNT(*) OVER (PARTITION BY recruiter_id) AS active_days
+FROM per_day
+ORDER BY recruiter_id, day;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 2-CTE shape</h5>
+<p>Aggregate to (recruiter, day) first; then window-aggregate across days. Two passes, clear semantics. Cleaner than nested aggregates.</p>
+
+<h5>The "active recruiter" definition</h5>
+<p>LinkedIn defines an active Recruiter seat as: 5+ searches in 30 days. The active-days count is the input to renewal-prediction.</p>
+
+<h5>Per-seat ROI signal</h5>
+<p>Recruiter seat costs $9000+/year. Renewal depends on usage:</p>
+<table><thead><tr><th>active_days/month</th><th>renewal probability</th></tr></thead>
+<tbody>
+<tr><td>20+</td><td>95%</td></tr>
+<tr><td>10-19</td><td>75%</td></tr>
+<tr><td>1-9</td><td>40%</td></tr>
+<tr><td>0</td><td>15%</td></tr>
+</tbody></table>
+
+<h5>The intervention threshold</h5>
+<p>Recruiters with &lt; 5 days/month get a Customer Success outreach. The query result feeds the alerting trigger.</p>
+
+<h5>Search-quality vs quantity</h5>
+<p>500 searches with no InMails sent ≠ 50 with high engagement. Production tracks downstream metrics. Search count is the activity signal; InMail-sent is the value signal.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 2-CTE structure for per-grain-then-rollup, define "active" as 5+ searches/30 days, surface the seat-renewal probability ladder, and pair quantity with downstream-quality signals.</div>

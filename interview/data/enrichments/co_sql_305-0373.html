@@ -1,0 +1,32 @@
+<p>Podcasts are Spotify's growth lever. <strong>Completion rate</strong> per episode is the host-quality signal — high completion = engaging content, low = drop-off boredom. The query bands plays into completed/engaged/sampled/bounced.</p>
+
+<h4>2. The SQL — banded completion (95/50/10%)</h4>
+<pre><code>WITH banded AS (
+  SELECT episode_id,
+    CASE
+      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) &gt;= 0.95 THEN 'completed'
+      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) &gt;= 0.50 THEN 'engaged'
+      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) &gt;= 0.10 THEN 'sampled'
+      ELSE 'bounced'
+    END AS engagement_band
+  FROM podcast_plays
+)
+SELECT episode_id, engagement_band, COUNT(*) AS plays
+FROM banded GROUP BY episode_id, engagement_band
+ORDER BY episode_id, plays DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why bands not raw % — actionability</h5>
+<p>Banded percentages map to host-feedback signals: "completed = great" / "engaged = strong middle / weak end" / "sampled = bad hook" / "bounced = thumbnail mismatch". Raw 0-100% values don't suggest interventions; bands do.</p>
+
+<h5>The intro-3-minutes metric</h5>
+<p>Podcasts live or die in the first 3 minutes. A separate metric: <code>listened_seconds &gt;= 180</code> = "passed the hook". 70%+ pass-rate is healthy; below 50% the intro needs reworking.</p>
+
+<h5>Length-bias caveat</h5>
+<p>Long podcasts (90+ min) have lower completion structurally. Comparing a 90-min interview to a 15-min daily news episode is unfair. Stratify by duration band.</p>
+
+<h5>The drop-off diagnostic</h5>
+<p>Per-episode aggregation hides WHERE in the episode users drop. The high-fidelity version aggregates per-second engagement curves across users — production has a separate "audio_heartbeats" table for this.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 95/50/10 bands tied to host-feedback signals, surface the 3-min hook-pass rate, control for duration when comparing episodes, and acknowledge per-second drop-off curves as the higher-fidelity diagnostic.</div>

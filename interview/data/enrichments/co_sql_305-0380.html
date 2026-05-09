@@ -1,0 +1,32 @@
+<p>DoorDash's restaurant-quality team uses a weighted composite of order volume × rating to identify "stars" vs "strugglers". The query computes a 70/30 weighted score.</p>
+
+<h4>2. The SQL — composite score</h4>
+<pre><code>SELECT r.restaurant_id, r.name, r.market,
+  COUNT(o.order_id) AS orders,
+  ROUND(AVG(o.rating), 2) AS avg_rating,
+  ROUND(AVG(o.rating) * 0.7 + (COUNT(o.order_id) * 1.0 / 100) * 0.3, 2) AS composite_score
+FROM restaurants r
+LEFT JOIN orders o ON o.restaurant_id = r.restaurant_id
+GROUP BY r.restaurant_id, r.name, r.market
+HAVING COUNT(o.order_id) &gt;= 3
+ORDER BY composite_score DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why composite — single-axis lies</h5>
+<p>Rating-only ranks tiny restaurants with 5 orders × 5.0 rating above proven mid-volume operators. Volume-only ranks chains with mediocre service. Composite balances both.</p>
+
+<h5>The 70/30 weighting</h5>
+<p>Quality (rating) weighted higher than volume — DoorDash prioritizes customer experience over scale. Some markets prefer 50/50; the weights are configurable per region.</p>
+
+<h5>The volume normalization (×1/100)</h5>
+<p>Without dividing by 100, a restaurant with 1000 orders × 0.3 = 300 dwarfs the rating component (5 × 0.7 = 3.5). The /100 puts volume on the same scale as rating. Production uses log-volume for better scaling.</p>
+
+<h5>Bayesian smoothing — the rating fix</h5>
+<p>5.0 with 3 reviews is unreliable. Bayesian-smoothed rating moves toward 4.5 baseline as review count drops:</p>
+<pre><code>(SUM(rating) + 4.5 * 5) / (COUNT(*) + 5) AS smoothed_rating</code></pre>
+
+<h5>Time-decay</h5>
+<p>A 4.8 average from a year of reviews vs 4.8 from last week — the recent one is more relevant. Add a recency-weighted average for active restaurant ranking.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> argue for composite over single-axis, justify the 70/30 weighting toward quality, normalize volume to rating-scale (or log-volume), and apply Bayesian smoothing for low-review restaurants.</div>

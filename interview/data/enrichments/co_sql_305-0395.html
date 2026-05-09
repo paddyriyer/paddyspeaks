@@ -1,0 +1,34 @@
+<p>Snapstreaks — consecutive days both users send a snap to each other — are Snap's signature engagement loop. Streak length predicts retention: 100+ day streaks have 95%+ retention. The query is gaps-and-islands on bidirectional pairs.</p>
+
+<h4>2. The SQL — per-pair gaps-and-islands</h4>
+<pre><code>WITH islands AS (
+  SELECT user_a, user_b, exchange_date,
+    julianday(exchange_date) - ROW_NUMBER() OVER (PARTITION BY user_a, user_b ORDER BY exchange_date) AS island_id
+  FROM snap_exchanges
+)
+SELECT user_a, user_b,
+  MIN(exchange_date) AS streak_start,
+  MAX(exchange_date) AS streak_end,
+  COUNT(*) AS streak_days
+FROM islands
+GROUP BY user_a, user_b, island_id
+ORDER BY streak_days DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The mechanic — both sides, every 24h</h5>
+<p>Streak rule: BOTH users must exchange a snap within a 24-hour window. The data table assumes that's pre-filtered (one row per qualifying day). Gaps-and-islands picks up the streak structure.</p>
+
+<h5>The 100-day badge</h5>
+<p>Snap awards a "💯" emoji at 100 days. That visual reward drives streak preservation behavior — users send half-hearted "streak snaps" purely to maintain. Production has a quality filter on what counts.</p>
+
+<h5>The 24-hour grace</h5>
+<p>Snap allows a "streak save" — if you forget for 24h, you can pay or beg for a one-time grace. Production tracks streak-save activations as a separate metric.</p>
+
+<h5>Streak-loss intervention</h5>
+<p>When a 50+ day streak breaks, both users get notifications + an offer to "restart the streak". 30-40% accept. The query result feeds these alerts.</p>
+
+<h5>Bidirectional vs directional</h5>
+<p>The query uses (user_a, user_b) but doesn't enforce symmetry. Streaks ARE symmetric — should canonical-order: <code>WHERE user_a &lt; user_b</code> to dedupe pairs.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the both-sides 24h mechanic, surface the 100-day badge psychology, raise the streak-save grace mechanic, and dedupe bidirectional pairs with a canonical ordering.</div>
