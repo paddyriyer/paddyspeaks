@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ML Engineering Interview Prep · PaddySpeaks Interview Studio</title>
+<meta name="description" content="ML engineering interview prep — feature stores, training/serving skew, model versioning, online vs offline metrics, A/B testing and incrementality. Where data engineering meets ML.">
+<meta name="keywords" content="ml engineering interview, feature store, training serving skew, model versioning, online offline metrics, ab testing, incrementality, mlops">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ML Engineering Interview Prep">
+<meta property="og:description" content="Feature stores · training/serving skew · model versioning · online vs offline metrics · A/B and incrementality.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/ml-engineering-prep.html">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #c44b2b; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #c44b2b; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #c44b2b; border-bottom-color: #c44b2b; }
+.netflix-prep .ascii-diagram { background: #0b0f17; color: #cfe1f5; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.45; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; white-space: pre; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #c44b2b;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · ML Engineering Interview Prep</div>
+<h1 class="hero-title">ML Engineering Interview Prep — where DE meets ML.</h1>
+<p class="hero-sub">The round when the prompt is <em>"design a recommendation system"</em> or <em>"productionize this model"</em>. Feature stores, training/serving skew, model versioning, online vs offline metrics, A/B and incrementality. Seven sections — every concept articulable in two sentences, every trap pre-empted.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The MLE opening — five-box ML system diagram</a></li>
+  <li><a href="#part-02">Feature stores — offline + online + the consistency contract</a></li>
+  <li><a href="#part-03">Training/serving skew — the #1 cause of "good model, bad production"</a></li>
+  <li><a href="#part-04">Model versioning &amp; rollouts (shadow → canary → A/B → 100%)</a></li>
+  <li><a href="#part-05">Online vs offline metrics — why they disagree</a></li>
+  <li><a href="#part-06">A/B testing &amp; incrementality — the causal layer</a></li>
+  <li><a href="#part-07">The 90-second articulation script</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The opening</div>
+<h2 class="part-title">The MLE opening — five-box ML system diagram.</h2>
+
+<p>The data-platform diagram has 5 boxes (sources → ingest → storage → transform → serve). The ML diagram has the same 5 boxes plus a <strong>training loop</strong> on the side and a <strong>feature store</strong> in the middle. Draw this; everything else slots into it.</p>
+
+<div class="ascii-diagram">
+   ┌──────────┐    ┌──────────┐    ┌─────────────────┐    ┌──────────┐    ┌──────────┐
+   │ Events   │───▶│ Ingest   │───▶│ Feature Store   │───▶│ Online   │───▶│ Product  │
+   │ (clicks, │    │ (Kafka,  │    │ ┌─────────────┐ │    │ Inference│    │ surface  │
+   │  views,  │    │  CDC,    │    │ │ Offline (S3)│ │    │ (model   │    │ (UI, API,│
+   │  txns)   │    │  batch)  │    │ │  for train  │ │    │  server) │    │ ML rec)  │
+   │          │    │          │    │ ├─────────────┤ │    │          │    │          │
+   └──────────┘    └──────────┘    │ │ Online (KV) │ │    └──────────┘    └──────────┘
+                                   │ │  for serve  │ │          │              │
+                                   │ └─────────────┘ │          │              │
+                                   └────────┬────────┘          │              │
+                                            │                   │              │
+                                            ▼                   │              │
+                                    ┌──────────────┐            │              │
+                                    │  Training    │◀───────────┘              │
+                                    │  pipeline    │       feedback events     │
+                                    │  (Spark ML,  │       (impression+label)  │
+                                    │   PyTorch,   │◀──────────────────────────┘
+                                    │   TF)        │
+                                    └──────┬───────┘
+                                           │  trained model
+                                           ▼
+                                    ┌──────────────┐
+                                    │  Model       │──▶ deployed to inference server
+                                    │  Registry    │   with version, metadata, A/B config
+                                    └──────────────┘
+</div>
+
+<h3 class="section-head">The seven questions to ask BEFORE drawing</h3>
+<ol>
+  <li><strong>Online or batch inference?</strong> Real-time (recommendations on page load) vs batch (nightly fraud scoring) — completely different latency tier.</li>
+  <li><strong>How fresh do features need to be?</strong> Last-7-day clickstream is OK at hourly freshness; "items in your cart right now" is sub-second.</li>
+  <li><strong>How big is the feature space?</strong> 100 features = simple; 10K features = embeddings + dedicated infra.</li>
+  <li><strong>What's the label latency?</strong> Click feedback in seconds; conversion in days; LTV in months.</li>
+  <li><strong>How often does the model retrain?</strong> Continuous (online learning), daily, weekly, monthly?</li>
+  <li><strong>What are the online and offline metrics?</strong> Are they known to align?</li>
+  <li><strong>Is there a counterfactual?</strong> Can we measure incremental impact, or only attributed impact?</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> Don't ask all seven — ask the two that aren't pinned. <em>"Before I dive in, is this online inference with sub-second latency, or batch scoring? And what's the label latency — clicks return in seconds, conversions in days?"</em> Two questions, system shape decided.
+</div>
+
+</section>
+
+<!-- =============== PART 02 =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Feature stores</div>
+<h2 class="part-title">Feature stores — offline + online + the consistency contract.</h2>
+
+<p>The feature store is the most important infrastructure piece in modern MLE — and the easiest to skip in the interview. The single sentence to memorize: <strong>"a feature store guarantees the model sees the same feature definition at training and at serving."</strong></p>
+
+<h3 class="section-head">Why feature stores exist — the 2018 problem</h3>
+<p>Before feature stores, every team built their own pipeline twice: once in Spark for training (read from S3, batch transform), once in Python for serving (read from KV cache, real-time transform). The two implementations <strong>drifted</strong> — different timezone handling, different null fills, different aggregation windows. Models that performed in offline eval would tank online. The feature store collapses both pipelines into one source of truth.</p>
+
+<h3 class="section-head">The dual-store architecture</h3>
+<table>
+  <thead><tr><th></th><th>Offline store</th><th>Online store</th></tr></thead>
+  <tbody>
+    <tr><td>Storage</td><td>S3 / GCS / Iceberg</td><td>Redis / DynamoDB / Cassandra / Pinot</td></tr>
+    <tr><td>Read pattern</td><td>Bulk scan for training</td><td>Point lookup by entity_id</td></tr>
+    <tr><td>Latency</td><td>Seconds-minutes</td><td>Sub-10ms</td></tr>
+    <tr><td>Freshness</td><td>Hours-days</td><td>Seconds-minutes</td></tr>
+    <tr><td>Use case</td><td>Training set generation; offline batch scoring</td><td>Online inference at request time</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Point-in-time-correct training data — the must-have</h3>
+<p>A user's "last_7_day_purchase_count" today is not the same as it was when the model was being trained. <strong>Point-in-time joins</strong> reconstruct the feature value <em>as of the prediction timestamp</em>, not <em>as of now</em>:</p>
+<pre><code># Tecton / Feast pattern — get_historical_features
+training_df = feature_store.get_historical_features(
+  entity_df=labels_df,                      # has user_id + label_ts
+  features=[
+    "user_features:last_7d_purchases",
+    "user_features:avg_order_value",
+    "session_features:current_session_clicks"
+  ]
+)
+# Each row in training_df: features computed AS OF the label's timestamp.
+# Crucially: features that didn't exist at label_ts (because data was late-arriving)
+# are NULL, not back-filled with "current" values — that would leak the future.</code></pre>
+
+<h3 class="section-head">The leakage trap</h3>
+<div class="trap-box">
+<strong>Trap.</strong> Naive training join: "for each label, look up the feature now." Looks reasonable; catastrophically wrong. The "now" features include data from AFTER the label was generated — the model "predicts" using the future. Models look amazing in offline eval; tank in production. This is the #1 reason "good model, bad production" happens. <strong>Always point-in-time join.</strong>
+</div>
+
+<h3 class="section-head">Open-source vs managed feature stores</h3>
+<table>
+  <thead><tr><th>Tool</th><th>Type</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Feast</strong></td><td>Open-source</td><td>You control the cloud; small-mid team; no $$$ for vendor</td></tr>
+    <tr><td><strong>Tecton</strong></td><td>Managed</td><td>Fast time-to-production; Spark + streaming features; $$$</td></tr>
+    <tr><td><strong>Databricks Feature Store</strong></td><td>Managed (DBX)</td><td>All-in on Databricks; co-located with notebooks</td></tr>
+    <tr><td><strong>Vertex AI / SageMaker FS</strong></td><td>Managed (cloud-native)</td><td>Single-cloud shop; integrated with the rest of the ML stack</td></tr>
+    <tr><td>DIY</td><td>Built in-house</td><td>FAANG-scale; custom requirements; deep platform team</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Feature definition as code</h3>
+<pre><code># Feast example — a feature view with offline + online materialization
+@feature_view(
+  entities=[user],
+  ttl=Duration(days=30),
+  source=user_purchases_source,
+)
+def user_features_v1(df):
+  return df.groupBy("user_id").agg(
+    F.count("*").over(window_7d).alias("last_7d_purchases"),
+    F.avg("amount").over(window_30d).alias("avg_order_value")
+  )
+
+# Same definition serves training (offline) and inference (online)</code></pre>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Feature stores guarantee training/serving consistency. Offline store is S3/Iceberg for bulk scan; online store is Redis/Dynamo for sub-10ms point lookup. Critical: point-in-time-correct joins for training data — features as-of-label-timestamp, not as-of-now. Otherwise the future leaks into training and offline eval lies to you."
+</div>
+
+</section>
+
+<!-- =============== PART 03 =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — The skew problem</div>
+<h2 class="part-title">Training/serving skew — the #1 cause of "good model, bad production".</h2>
+
+<p>Even with a feature store, models drift between training and serving. The four classic skew types every senior MLE knows by heart:</p>
+
+<h3 class="section-head">The four skew types</h3>
+<table>
+  <thead><tr><th>Skew type</th><th>What it is</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Schema skew</strong></td><td>Training uses N features; serving sends N±1</td><td>Training has <code>user_age</code>; serving forgot to populate it (null) → model handles NULL differently than zero</td></tr>
+    <tr><td><strong>Distribution skew</strong></td><td>Same features, different value distribution</td><td>Training data from last quarter (winter); serving on summer traffic</td></tr>
+    <tr><td><strong>Concept drift</strong></td><td>Underlying relationship changes over time</td><td>Pre-COVID purchase patterns vs post-COVID; user preferences shift</td></tr>
+    <tr><td><strong>Computation skew</strong></td><td>Same logical feature, different implementation</td><td>Training: pandas <code>mean()</code> ignores NaN; serving: Java <code>average()</code> propagates NaN</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Detection — what to monitor</h3>
+<table>
+  <thead><tr><th>Skew</th><th>Detection</th></tr></thead>
+  <tbody>
+    <tr><td>Schema</td><td>Compare feature schema at train-time vs request-time; alert on diff</td></tr>
+    <tr><td>Distribution</td><td>KL-divergence or PSI (Population Stability Index) per feature, train vs serving daily</td></tr>
+    <tr><td>Concept</td><td>Online metric (CTR, conversion) trending below offline-predicted</td></tr>
+    <tr><td>Computation</td><td>Replay training-served features through the serving path; compare byte-equal</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">PSI — the production drift metric</h3>
+<pre><code># Population Stability Index — bucketed feature distribution shift
+def psi(train_dist, serving_dist, eps=1e-6):
+    return sum(
+      (s - t) * np.log((s + eps) / (t + eps))
+      for t, s in zip(train_dist, serving_dist)
+    )
+
+# PSI &lt; 0.1  : no significant drift
+# 0.1-0.25  : moderate drift, investigate
+# &gt; 0.25    : major drift, retrain</code></pre>
+
+<h3 class="section-head">Mitigation — the four moves</h3>
+<ol>
+  <li><strong>Same code path</strong> — use the feature store's serving SDK, not a re-implementation.</li>
+  <li><strong>Shadow traffic logging</strong> — log served features; replay through training pipeline; assert byte-equal.</li>
+  <li><strong>Continuous retraining</strong> — daily/weekly retrains keep the model close to current distribution.</li>
+  <li><strong>Automatic drift alarm</strong> — page the team when PSI &gt; 0.25 sustained.</li>
+</ol>
+
+<h3 class="section-head">The "training pipeline ≠ serving pipeline" smell</h3>
+<div class="callout">
+<strong>Diagnostic.</strong> If your team has a "train Spark job" and a "serve Python service" and the feature transforms exist in both, you have skew. Detect it: pick a recent training row, replay the user_id through the serving pipeline at the training timestamp, compare feature values. The diff is your skew. <strong>Fix it once, in the feature store.</strong>
+</div>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Training/serving skew kills more models than any other cause. Four flavors — schema, distribution, concept, computation — each detected differently. PSI per feature on a daily schedule for distribution drift; replay-and-compare for computation skew. Mitigation is single source of truth — the feature store's serving SDK, not a re-implementation. Most 'good in eval, bad in prod' bugs are computation skew."
+</div>
+
+</section>
+
+<!-- =============== PART 04 =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Rollouts</div>
+<h2 class="part-title">Model versioning &amp; rollouts (shadow → canary → A/B → 100%).</h2>
+
+<p>You don't deploy a new model to 100% on day one. The four-stage rollout is the safety contract — every step has a failure boundary.</p>
+
+<h3 class="section-head">The four stages</h3>
+<table>
+  <thead><tr><th>Stage</th><th>Traffic %</th><th>What gets validated</th><th>Time at this stage</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Shadow</strong></td><td>0% (new model scores requests but doesn't serve)</td><td>Latency, error rate, prediction distribution</td><td>1-7 days</td></tr>
+    <tr><td><strong>Canary</strong></td><td>1-5%</td><td>Live online metrics (CTR, conversion) on small slice</td><td>3-7 days</td></tr>
+    <tr><td><strong>A/B</strong></td><td>50/50 (proper experiment)</td><td>Statistical significance vs old model</td><td>1-4 weeks (until stat-sig)</td></tr>
+    <tr><td><strong>100%</strong></td><td>100%</td><td>Long-term stability, drift, retention impact</td><td>Until next model</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Shadow — the cheap safety net</h3>
+<p>New model receives every request and produces a prediction; the old model's output is what the user sees. Logs the new prediction alongside actual user behavior. Detects:</p>
+<ul>
+  <li>Latency regression (new model takes 200ms; old takes 50ms)</li>
+  <li>Error rate (new model crashes on certain inputs)</li>
+  <li>Prediction distribution skew (new model heavily favors one class)</li>
+</ul>
+
+<h3 class="section-head">Canary — the small-blast-radius online test</h3>
+<p>1-5% of real users see the new model's predictions. Watch:</p>
+<ul>
+  <li>Online metric (CTR, conversion) — directional only; not yet stat-sig</li>
+  <li>User complaints / support tickets</li>
+  <li>Downstream system load (does the new model cause spikes elsewhere?)</li>
+</ul>
+
+<h3 class="section-head">A/B — the proper experiment</h3>
+<p>50/50 (or 90/10 if risk-averse). Run until <strong>statistical significance</strong> on the primary metric. Pre-register:</p>
+<ul>
+  <li><strong>Primary metric</strong> — the one you'll commit on (e.g., 7-day retention)</li>
+  <li><strong>Guardrail metrics</strong> — must not regress (e.g., latency P99, support contact rate)</li>
+  <li><strong>Sample size</strong> — pre-computed for desired power (typically 80%) and minimum detectable effect (e.g., +1pp CTR)</li>
+  <li><strong>Stop conditions</strong> — early-stop on guardrail breach; otherwise wait for full sample</li>
+</ul>
+
+<h3 class="section-head">Model registry — the version-of-record</h3>
+<table>
+  <thead><tr><th>Tool</th><th>Strength</th></tr></thead>
+  <tbody>
+    <tr><td><strong>MLflow Model Registry</strong></td><td>Open-source; tracks artifacts + metadata + transitions</td></tr>
+    <tr><td><strong>Weights &amp; Biases / Comet</strong></td><td>Experiment tracking + lineage; commercial</td></tr>
+    <tr><td><strong>Vertex AI / SageMaker Model Registry</strong></td><td>Cloud-native; integrated with deployment</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">What every model version must store</h3>
+<pre><code>model_v117:
+  model_artifact:    s3://models/recsys/v117.pkl
+  training_run_id:   wandb-run-abc123
+  training_data:     s3://snapshots/2024-09-01/train.parquet  (frozen)
+  feature_view:      user_features_v3                          (versioned!)
+  hyperparameters:   { learning_rate: 0.001, n_layers: 4, ... }
+  offline_metrics:   { auc: 0.81, recall@10: 0.42 }
+  deployed_at:       2024-09-12T10:00:00Z
+  rolled_back_from:  null   (or v116 if rollback)</code></pre>
+
+<h3 class="section-head">Rollback — the must-have</h3>
+<p>Production model crashes / regresses. The rollback path must be: <strong>one config flip, &lt; 60 seconds to revert.</strong> Two patterns:</p>
+<ol>
+  <li><strong>Blue-green</strong> — old model still loaded; flip routes between v117 and v116.</li>
+  <li><strong>Shadow keep-alive</strong> — old model continues to score in shadow during canary; instant revert if needed.</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Four-stage rollout: shadow → canary → A/B → 100%, with a model registry holding artifact + training-data snapshot + feature-view version + hyperparameters per version. Rollback is one config flip, &lt; 60 seconds. Pre-register primary + guardrail metrics + sample size before A/B starts — peeking at the experiment is how teams convince themselves of fake wins."
+</div>
+
+</section>
+
+<!-- =============== PART 05 =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Metric divergence</div>
+<h2 class="part-title">Online vs offline metrics — why they disagree.</h2>
+
+<p>The most disorienting moment in ML: offline AUC up 5%, online CTR down 2%. Either the offline metric is the wrong proxy, or the system is doing something different in production. Both are common.</p>
+
+<h3 class="section-head">Why they diverge — the four reasons</h3>
+<table>
+  <thead><tr><th>Reason</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Selection bias in eval data</strong></td><td>Offline data only contains items the OLD model surfaced — new model is evaluated on a self-selected set</td></tr>
+    <tr><td><strong>Feedback-loop bias</strong></td><td>Old model's outputs influenced past user behavior; future labels are conditioned on old model</td></tr>
+    <tr><td><strong>Distribution shift</strong></td><td>Training data is N days old; live traffic distribution has moved</td></tr>
+    <tr><td><strong>Wrong metric</strong></td><td>Offline AUC measures ranking quality; online CTR measures CTR — they're related but not the same</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Selection bias — the silent killer</h3>
+<p>Old recommender showed 10 items per page. Users clicked some, ignored others. Training data has labels only for shown items. New model trained on that data is evaluated on... the same shown items. <strong>It's never seen the items the old model didn't show.</strong> Online, the new model recommends some of those unshown items — and we have no idea how they'll perform.</p>
+
+<h3 class="section-head">Counterfactual evaluation — the fix</h3>
+<p>Reserve <strong>5-10% of traffic for random or holdout recommendations</strong>. This data is <em>unbiased</em> — no model selection. Train on it (or use it to weight the rest). The TikTok FYP design (Scenario 14 in Data Modeling) does exactly this with <code>fct_exploration_event</code>.</p>
+
+<h3 class="section-head">Picking the right offline metric</h3>
+<table>
+  <thead><tr><th>Online metric</th><th>Best offline proxy</th><th>Trap</th></tr></thead>
+  <tbody>
+    <tr><td>CTR</td><td>Top-K accuracy or NDCG@K</td><td>AUC measures ranking quality globally; CTR depends on top of list — different things</td></tr>
+    <tr><td>Conversion rate</td><td>Pointwise calibration + uplift modeling</td><td>Predicted probability ≠ actual rate; calibration matters</td></tr>
+    <tr><td>Watch time / engagement</td><td>Mean watched-time on holdout</td><td>Highly censored — many events don't have observed completion</td></tr>
+    <tr><td>Long-term retention</td><td>Lift on 7-day return</td><td>Multi-day signal; can't be measured offline at all without simulation</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">When online metric goes negative — the diagnostic</h3>
+<ol>
+  <li>Check guardrails — did anything regress (latency, error rate)?</li>
+  <li>Slice by user segment — is the regression concentrated (e.g., new users) or uniform?</li>
+  <li>Check exploration data — does the new model perform worse on unbiased data too, or just on biased eval?</li>
+  <li>Compare to shadow logs — is the new model's prediction distribution different from old?</li>
+  <li>If all 4 are clean, suspect concept drift between training and serving.</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Offline-online divergence is almost always one of: selection bias in eval (the old model picked the test set), feedback-loop bias, distribution shift, or wrong metric. The fix is exploration data — 5-10% random traffic — for unbiased evaluation. Without it, you can't tell whether the new model is better or just <em>different</em>."
+</div>
+
+</section>
+
+<!-- =============== PART 06 =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Causality</div>
+<h2 class="part-title">A/B testing &amp; incrementality — the causal layer.</h2>
+
+<p>The hardest interview reframe: <strong>attribution ≠ causality</strong>. "We attribute $50M of revenue to recommendations" is not the same as "recommendations CAUSED $50M of revenue". Most of those purchases would have happened anyway. Senior MLE separates the two.</p>
+
+<h3 class="section-head">Attribution vs incrementality — the definitions</h3>
+<table>
+  <thead><tr><th>Concept</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Attribution</strong></td><td>Of all conversions, how many touched the model's output? (e.g., last-click, multi-touch)</td></tr>
+    <tr><td><strong>Incrementality</strong></td><td>Of all conversions, how many would NOT have happened without the model?</td></tr>
+  </tbody>
+</table>
+<p>Incrementality is always lower — often 30-50% of attribution. The gap is the model's actual value.</p>
+
+<h3 class="section-head">Measuring incrementality — three methods</h3>
+<table>
+  <thead><tr><th>Method</th><th>Setup</th><th>Pros / cons</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Holdout</strong> (best)</td><td>Random subset of users sees no model output (or default version) — measure their conversion vs treated users</td><td>Causal by construction; expensive (foregone revenue on holdout)</td></tr>
+    <tr><td><strong>Geo / time split</strong></td><td>Roll out model in some markets / weeks first; compare</td><td>No within-user leakage; weaker control for confounds</td></tr>
+    <tr><td><strong>Causal modeling</strong></td><td>Use ML / econometrics to estimate from observational data</td><td>No revenue cost; many assumptions (selection, confounding)</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">A/B test — the standard tool</h3>
+<p>The 50/50 A/B test with random assignment is the gold standard. Pre-register everything:</p>
+<pre><code>experiment:
+  name:                 recsys_v117_vs_v116
+  hypothesis:           "v117 will lift 7-day return by ≥ 1pp"
+  primary_metric:       7d_return_rate
+  guardrail_metrics:
+    - latency_p99 (must not increase &gt; 5%)
+    - error_rate  (must not increase &gt; 0.1pp)
+    - support_contact_rate
+  treatment_split:      50/50
+  randomization_unit:   user_id
+  pre-registered_n:     50,000 users per arm  (80% power for +1pp MDE)
+  duration:             14 days minimum (capture weekly cycles)
+  stop_conditions:
+    - guardrail breach &gt; 1 day
+    - primary metric stat-sig at p &lt; 0.01 with bonferroni for peeking</code></pre>
+
+<h3 class="section-head">Common A/B mistakes</h3>
+<table>
+  <thead><tr><th>Mistake</th><th>Why it's wrong</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Peeking</strong> — checking results daily and stopping when "significant"</td><td>Inflates false-positive rate; nominal p-value lies</td></tr>
+    <tr><td><strong>Sample-ratio mismatch</strong> — actual treatment % drifts from 50%</td><td>Randomization is broken; results invalid</td></tr>
+    <tr><td><strong>Novelty effect</strong> — measuring during the first week</td><td>Users react to "new" regardless of quality; revisit at 4 weeks</td></tr>
+    <tr><td><strong>Heterogeneous treatment effects</strong> — averaging hides segment-specific harm</td><td>+5% on power users, -3% on new users; net positive but new-user damage is real</td></tr>
+    <tr><td><strong>Post-treatment selection</strong> — comparing only users who "engaged" with treatment</td><td>Selects on the dependent variable; biased comparison</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">CUPED &mdash; variance reduction in A/B</h3>
+<p>For metrics with high variance (purchase amount, watch time), <strong>CUPED</strong> reduces required sample size by 30-50% by adjusting for pre-experiment user covariates:</p>
+<pre><code>Y_adjusted = Y - θ * (X_pre - mean(X_pre))
+# Y     = post-experiment metric
+# X_pre = same metric measured in pre-experiment period
+# θ     = correlation coefficient
+
+# Compare Y_adjusted across arms instead of Y. Same statistical power, ~half the sample.</code></pre>
+
+<h3 class="section-head">When A/B isn't possible — switch-back / time-series</h3>
+<p>Some scenarios prevent random A/B:</p>
+<ul>
+  <li>Network effects (your "treatment" affects untreated users via friend graph)</li>
+  <li>Marketplace dynamics (treatment changes inventory available to control)</li>
+  <li>Two-sided platforms (driver-side change affects rider-side metric)</li>
+</ul>
+<p>Use <strong>switch-back tests</strong> (alternate treatment / control by time period) or <strong>geo-split tests</strong> (random by region). Acknowledge confounds explicitly.</p>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Attribution measures the model's contact with conversions; incrementality measures conversions that wouldn't have happened without it. Always 30-50% lower. Gold standard is a 5-10% holdout — expensive but causal. A/B tests with pre-registered primary + guardrails + sample size are the standard tool; CUPED cuts required sample in half. Network-effect domains need switch-back or geo-split, not user-level random."
+</div>
+
+</section>
+
+<!-- =============== PART 07 =============== -->
+<section id="part-07">
+<div class="part-eyebrow">§ 07 — Articulation</div>
+<h2 class="part-title">The 90-second articulation script.</h2>
+
+<div style="background:linear-gradient(135deg,#0b0f17,#1a2332);color:#f5f0e8;padding:24px 28px;border-radius:8px;margin:28px 0;font-style:italic;line-height:1.6;">
+<p style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#fb9d7e;margin-bottom:12px;font-style:normal;">▸ THE 90-SECOND SCRIPT</p>
+
+<p>"For an ML system, I'd shape it as the standard five-box pipeline plus a <strong>feature store</strong> in the middle and a <strong>training loop</strong> on the side. The feature store guarantees training/serving consistency — same feature definition produces the same value at training time and at request time. Offline store on S3 / Iceberg for bulk training scans; online store on Redis / DynamoDB for sub-10ms point lookups."</p>
+
+<p>"<strong>Training-data correctness</strong>: point-in-time joins are non-negotiable — features as-of-label-timestamp, not as-of-now. Naive 'look up features now' joins leak the future and inflate offline metrics."</p>
+
+<p>"<strong>Training/serving skew</strong> is the #1 cause of 'good in eval, bad in prod'. Four flavors — schema, distribution, concept, computation — detected by feature-schema diff, PSI per feature, online-vs-offline metric divergence, and replay-byte-equality. Mitigation is single source of truth — feature store's serving SDK, never a re-implementation."</p>
+
+<p>"<strong>Model rollouts</strong> go through four stages: shadow (0% traffic, validate latency / errors), canary (1-5%, real users on small slice), A/B (50/50 with pre-registered primary + guardrails), 100%. Model registry holds artifact + training data snapshot + feature view version + hyperparameters per version. Rollback is &lt; 60 seconds via blue-green."</p>
+
+<p>"<strong>Online vs offline metrics</strong>: divergence is normal. Causes are selection bias in eval, feedback-loop bias, distribution shift, or wrong proxy metric. Fix with 5-10% exploration traffic — random / holdout — for unbiased evaluation."</p>
+
+<p>"<strong>Causality</strong>: attribution ≠ incrementality. Most attributed conversions would happen anyway. Gold standard for incrementality is a 5-10% holdout; switch-back or geo-split when user-level A/B isn't possible (network effects, marketplaces). Pre-register primary + guardrail + sample size; CUPED for variance reduction."</p>
+
+<p>"<strong>Two risks</strong> I'd flag and mitigate first: training-serving computation skew (replay-and-compare in CI), and selection-bias-driven metric divergence (exploration table from day one). The system without these two is a ticking clock."</p>
+</div>
+
+<h3 class="section-head">Three sentences that signal seniority — in any MLE round</h3>
+<ol>
+  <li><em>"Point-in-time correct training joins are the difference between a model that ships and a model that lies in offline eval."</em></li>
+  <li><em>"Training/serving skew is computational at root — same code path, single source of truth, or you're rebuilding the same logic twice and they will drift."</em></li>
+  <li><em>"Attribution measures association; incrementality measures causation. The 5-10% holdout cost is the price of knowing which one your model produces."</em></li>
+</ol>
+
+</section>
+
+<div style="text-align:center;margin:64px 0 32px;color:#cbd5e0;letter-spacing:12px;font-size:14px;">· · ·</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:2px;margin-bottom:24px;">▸ Seven sections · the patterns hold across domains · go well.</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:1px;">
+  <a href="/interview.app/design/" style="color:#c44b2b;text-decoration:none;">← Back to Design pillar</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/streaming-architecture.html" style="color:#c44b2b;text-decoration:none;">Streaming Architecture</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/data-quality-reliability.html" style="color:#c44b2b;text-decoration:none;">Data Quality &amp; Reliability</a>
+</div>
+
+</article>
+</main>
+</body>
+</html>
