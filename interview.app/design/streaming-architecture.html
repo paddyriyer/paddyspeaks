@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streaming Architecture — Flink + Kafka · PaddySpeaks Interview Studio</title>
+<meta name="description" content="Streaming architecture deep-dive — event-time, watermarks, exactly-once, backpressure, checkpointing, state backends, schema evolution, and the 8-step play-event walkthrough.">
+<meta name="keywords" content="flink interview, kafka interview, watermarks, exactly-once, backpressure, checkpointing, state backend, schema evolution, streaming architecture">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Streaming Architecture — Flink + Kafka deep-dive">
+<meta property="og:description" content="Event-time · watermarks · exactly-once · backpressure · checkpointing · state · schema evolution · the 8-step play-event walkthrough.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/streaming-architecture.html">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #7c3aed; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #7c3aed; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #7c3aed; border-bottom-color: #7c3aed; }
+.netflix-prep .ascii-diagram { background: #0b0f17; color: #cfe1f5; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.45; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; white-space: pre; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #7c3aed;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · Streaming Architecture · Flink + Kafka</div>
+<h1 class="hero-title">Streaming Architecture — Flink + Kafka deep-dive.</h1>
+<p class="hero-sub">The round when they say <em>"design a real-time pipeline for X"</em>. Event-time, watermarks, exactly-once, backpressure, checkpointing, state backends, schema evolution. Eight sections, every concept reducible to a one-paragraph "what it is + when it bites".</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The streaming opening — Kafka as the spine, Flink as the engine</a></li>
+  <li><a href="#part-02">Event-time vs ingest-time vs processing-time</a></li>
+  <li><a href="#part-03">Watermarks — the late-event contract</a></li>
+  <li><a href="#part-04">Exactly-once — the 4-link end-to-end chain</a></li>
+  <li><a href="#part-05">Backpressure, checkpointing &amp; state backends</a></li>
+  <li><a href="#part-06">Schema evolution in a streaming world</a></li>
+  <li><a href="#part-07">The 8-step play-event walkthrough (Netflix-flavored)</a></li>
+  <li><a href="#part-08">The 90-second articulation script</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The streaming opening</div>
+<h2 class="part-title">Kafka as the spine, Flink as the engine.</h2>
+
+<p>Most modern streaming designs are some flavor of: <strong>events into Kafka, transformations in Flink, sink to a serving store</strong>. Every interview prompt — fraud detection, real-time recommendations, IoT telemetry, click-stream attribution — fits this skeleton. The <em>contents</em> change; the shape doesn't.</p>
+
+<div class="ascii-diagram">
+   ┌──────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+   │ Producer │─────▶│  Kafka       │─────▶│  Flink       │─────▶│  Serving     │◀─────│  Consumer    │
+   │  apps    │      │  (durable    │      │  (transform, │      │  store       │      │  (UI / API / │
+   │          │      │   ordered    │      │   join,      │      │  (Pinot,     │      │   ML model)  │
+   │ • mobile │      │   log)       │      │   window,    │      │   Druid,     │      │              │
+   │ • web    │      │              │      │   stateful)  │      │   Redis,     │      │              │
+   │ • IoT    │      │  topic /     │      │              │      │   Iceberg)   │      │              │
+   │ • CDC    │      │  partition   │      │   sub-second │      │              │      │              │
+   └──────────┘      └──────────────┘      └──────────────┘      └──────────────┘      └──────────────┘
+                            │                      │                      │
+                            ▼                      ▼                      ▼
+                    Schema Registry         Checkpoint store         Lineage tracker
+                    (Avro / Proto)          (S3 / RocksDB)           (OpenLineage)
+</div>
+
+<h3 class="section-head">Why Kafka is non-negotiable for the spine</h3>
+<table>
+  <thead><tr><th>Property</th><th>Why it matters for streaming</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Durable + ordered</strong></td><td>Replay any past window from disk; order preserved within partition</td></tr>
+    <tr><td><strong>Partitioned by key</strong></td><td>Same key always lands on same partition → stateful operators stay local</td></tr>
+    <tr><td><strong>Decoupled producer / consumer</strong></td><td>Consumers can lag, restart, scale independently of producers</td></tr>
+    <tr><td><strong>Tiered / infinite retention</strong></td><td>Replay last 90 days for backfill; Kappa architecture relies on this</td></tr>
+    <tr><td><strong>Cross-language clients</strong></td><td>Java/Python/Go/Node producers all write the same wire format</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Why Flink usually beats the alternatives</h3>
+<table>
+  <thead><tr><th></th><th>Flink</th><th>Spark Structured Streaming</th><th>Kafka Streams</th></tr></thead>
+  <tbody>
+    <tr><td>Latency</td><td>True per-event, sub-100ms</td><td>Micro-batch (typically 1-30s)</td><td>Per-event, sub-100ms</td></tr>
+    <tr><td>State semantics</td><td>Exactly-once with savepoints</td><td>Exactly-once via WAL</td><td>Exactly-once within Kafka</td></tr>
+    <tr><td>Event-time + watermarks</td><td>First-class, mature</td><td>Supported, less flexible</td><td>Yes</td></tr>
+    <tr><td>Pick when</td><td>Latency-critical + complex state</td><td>Same team owns batch ETL + streaming</td><td>Lightweight, Kafka-only, no extra cluster</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The five questions to ask BEFORE drawing</h3>
+<ol>
+  <li><strong>What's the latency target?</strong> Sub-second changes the architecture; minutes is just batch with smaller windows.</li>
+  <li><strong>What's the event volume?</strong> 10K/sec vs 10M/sec is a different system entirely.</li>
+  <li><strong>Is state involved?</strong> Stateless filters are easy; stateful joins / windowed aggregations need RocksDB + checkpoints.</li>
+  <li><strong>What's the ordering requirement?</strong> Per-key order is cheap (partition key); global order is expensive.</li>
+  <li><strong>How do you replay if the job crashes?</strong> Kafka offsets + Flink savepoints define the answer.</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> Don't ask all five — ask the two that aren't obvious: <em>"Before I dive in, is sub-second latency the requirement, or are we OK with 1-5 second windows? And does state need to survive job restarts — i.e., are we doing windowed aggregations or just filter+enrich?"</em>
+</div>
+
+</section>
+
+<!-- =============== PART 02 =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Time semantics</div>
+<h2 class="part-title">Event-time vs ingest-time vs processing-time.</h2>
+
+<p>Every event has at least three timestamps. Knowing which one to use is the most-asked streaming question after "what's a watermark".</p>
+
+<table>
+  <thead><tr><th>Time</th><th>What it measures</th><th>Set by</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Event-time</strong></td><td>When the event actually happened in the real world</td><td>The producing client</td><td>Almost always — it's the truth</td></tr>
+    <tr><td><strong>Ingest-time</strong></td><td>When the event entered Kafka / the streaming engine</td><td>The broker / engine</td><td>When client clocks aren't trustworthy; audit trails</td></tr>
+    <tr><td><strong>Processing-time</strong></td><td>When the operator processed the event</td><td>The Flink task manager wall clock</td><td>Wallclock-driven side effects (rate limiters); never for analytics</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Why event-time is almost always right</h3>
+<p>Imagine a click on a banner ad at 3:00:00 PM. The mobile is offline, uploads at 3:30:00 PM. Three timestamps:</p>
+<ul>
+  <li><strong>Event-time</strong>: 3:00:00 (when the click happened)</li>
+  <li><strong>Ingest-time</strong>: 3:30:00 (when Kafka received it)</li>
+  <li><strong>Processing-time</strong>: 3:30:01 (when Flink processed it)</li>
+</ul>
+<p>The "click happened at 3pm" is the truth users care about; the other two are infrastructure timestamps. <strong>Always partition / window by event-time.</strong></p>
+
+<h3 class="section-head">The store-all-three discipline</h3>
+<pre><code>// Every event row should carry all three timestamps:
+{
+  "user_id": "U_001",
+  "event":   "click",
+  "event_ts":     "2024-09-12T15:00:00Z",   // client-set
+  "ingest_ts":    "2024-09-12T15:30:00Z",   // Kafka-set
+  "processing_ts":"2024-09-12T15:30:01Z"    // Flink-set
+}</code></pre>
+<p>Partition / window by <code>event_ts</code>. Alert / debug by <code>processing_ts - event_ts</code> latency. Audit by <code>ingest_ts</code>.</p>
+
+<h3 class="section-head">When event-time goes wrong</h3>
+<table>
+  <thead><tr><th>Failure mode</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td>Client clock skew (mobile clocks drift)</td><td>Bound event_ts to ±N minutes from ingest_ts; reject implausible</td></tr>
+    <tr><td>Replay attack (forged old timestamps)</td><td>Sign event_ts at trusted edge; reject if signature mismatch</td></tr>
+    <tr><td>No client clock (some IoT devices)</td><td>Use ingest_ts; document explicitly; downstream knows it's lossy</td></tr>
+    <tr><td>Daylight Saving / TZ confusion</td><td>Store UTC always; never local TZ in event timestamps</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "I always partition by event_time and store all three timestamps on the event row. The processing_ts − event_ts gap is the operational SLO — if it widens past 60 seconds, the pipeline is backpressured and pages on-call."
+</div>
+
+</section>
+
+<!-- =============== PART 03 =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — Watermarks</div>
+<h2 class="part-title">Watermarks — the late-event contract.</h2>
+
+<p>A <strong>watermark</strong> is a timestamp the engine commits to: <em>"I've waited long enough; I do not expect any event with event-time earlier than this watermark to arrive from now on."</em> It's the contract that lets windowed aggregations close.</p>
+
+<h3 class="section-head">The mental model</h3>
+<div class="ascii-diagram">
+   Event-time axis:  ────────────────────────────────────────────▶
+
+   Events arriving:           ●  ●  ●     ●    ●●   ●          ●    [late!]
+                              :  :  :     :    ::   :          :     :
+   Watermark advancing:    ──▶W
+                                  ──▶W
+                                        ──▶W
+                                              ──▶W
+                                                   ──▶W (window close)
+
+   Window [t1, t2]:        ┃═══════════════┃
+                                                   ↑ window result emitted
+                                                   ↑ further events for [t1,t2]
+                                                     are LATE (drop, side-output, or update)
+</div>
+
+<h3 class="section-head">Watermark generation strategies</h3>
+<table>
+  <thead><tr><th>Strategy</th><th>How it picks the watermark</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Bounded out-of-orderness</strong></td><td>watermark = max_seen_event_time − N seconds</td><td>Default; pick N as the 99th-percentile lateness</td></tr>
+    <tr><td><strong>Punctuated</strong></td><td>Producer emits explicit watermark messages</td><td>You control the producer + bounded sources</td></tr>
+    <tr><td><strong>Idle-source aware</strong></td><td>If a partition has no events, advance watermark anyway after timeout</td><td>Prevents stalled partitions from blocking the whole job</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// Flink — bounded-out-of-orderness watermark, 10s tolerance
+WatermarkStrategy
+  .&lt;Event&gt;forBoundedOutOfOrderness(Duration.ofSeconds(10))
+  .withTimestampAssigner((event, timestamp) -&gt; event.getEventTs())
+  .withIdleness(Duration.ofMinutes(1));   // idle-source escape</code></pre>
+
+<h3 class="section-head">What happens when an event arrives AFTER its watermark</h3>
+<p>The event is <strong>late</strong>. Three options:</p>
+<ol>
+  <li><strong>Drop</strong> — the simplest; you lose the event. Default in many engines.</li>
+  <li><strong>Side-output</strong> — route late events to a separate stream for offline processing / alerting.</li>
+  <li><strong>Allowed lateness + update</strong> — keep the window state for an extra grace period; emit an UPDATE result when a late event arrives.</li>
+</ol>
+
+<pre><code>// Flink — windowed aggregation with allowed lateness + late-event side output
+DataStream&lt;Result&gt; results = events
+  .keyBy(Event::getUserId)
+  .window(TumblingEventTimeWindows.of(Time.minutes(5)))
+  .allowedLateness(Time.minutes(2))                    // grace period
+  .sideOutputLateData(LATE_EVENTS_TAG)                  // side output the late ones
+  .aggregate(new MyAggregator());
+
+DataStream&lt;Event&gt; lateEvents = results.getSideOutput(LATE_EVENTS_TAG);</code></pre>
+
+<h3 class="section-head">The trade-off</h3>
+<table>
+  <thead><tr><th>Tighter watermark (small lag)</th><th>Looser watermark (big lag)</th></tr></thead>
+  <tbody>
+    <tr><td>Lower output latency</td><td>Higher output latency</td></tr>
+    <tr><td>More late events dropped</td><td>Fewer late events</td></tr>
+    <tr><td>Risk: emitting incorrect early results</td><td>Risk: nobody trusts the freshness</td></tr>
+  </tbody>
+</table>
+<p>The right answer is empirical: measure the 99th-percentile event-arrival lag for your pipeline; pick watermark lag = P99 + safety margin. Re-tune quarterly.</p>
+
+<div class="trap-box">
+<strong>Trap.</strong> "We use 10-second watermarks" without explaining why is the giveaway answer. The senior version: <em>"P99 of <code>processing_ts − event_ts</code> is 6 seconds, so I'd set watermark lag to 10 seconds. We side-output anything beyond and run a nightly batch reconciliation against the side-output topic."</em>
+</div>
+
+</section>
+
+<!-- =============== PART 04 =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Delivery semantics</div>
+<h2 class="part-title">Exactly-once — the 4-link end-to-end chain.</h2>
+
+<p>"Exactly-once" is not a feature you turn on. It's a chain of four guarantees, and the chain is only as strong as the weakest link. If your sink isn't idempotent, the producer / consumer / engine-level guarantees don't matter.</p>
+
+<h3 class="section-head">The four links</h3>
+<table>
+  <thead><tr><th>Link</th><th>Mechanism</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td>1. <strong>Idempotent producer</strong></td><td>Producer ID + sequence number; broker dedupes retries</td><td>Kafka <code>enable.idempotence=true</code></td></tr>
+    <tr><td>2. <strong>Idempotent consumer</strong></td><td>Commit offset + output in one transaction</td><td>Kafka transactions; Flink's two-phase commit</td></tr>
+    <tr><td>3. <strong>Idempotent sink</strong></td><td>Natural-key MERGE or unique constraint on source_event_id</td><td>Postgres ON CONFLICT, Snowflake MERGE, Iceberg upsert</td></tr>
+    <tr><td>4. <strong>Replay-safe state</strong></td><td>Checkpointed state restored on restart</td><td>Flink savepoints, Kafka Streams state stores</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Producer-side idempotency (link 1)</h3>
+<pre><code># Kafka producer config
+enable.idempotence       = true
+acks                     = all
+max.in.flight.requests   = 5    # ≤ 5 with idempotence enabled
+retries                  = MAX
+
+# What this gives you:
+# - Producer attaches (producer_id, sequence_number) to every batch
+# - Broker rejects duplicates with the same (PID, seq) pair
+# - Retries are safe — no double-write</code></pre>
+
+<h3 class="section-head">Consumer + engine atomicity (links 2 + 4)</h3>
+<p>Flink's two-phase commit barrier:</p>
+<ol>
+  <li>Periodic <strong>checkpoint barrier</strong> flows through the operator graph alongside data.</li>
+  <li>Each operator snapshots its state (RocksDB → S3) when the barrier arrives.</li>
+  <li>Sink operator pre-commits — the next batch of output is staged but not visible to consumers.</li>
+  <li>When all operators acknowledge, the JobManager commits — pre-committed sink batches become visible.</li>
+  <li>Crash before commit → restart from last successful checkpoint, replay from Kafka offset stored in checkpoint.</li>
+</ol>
+
+<h3 class="section-head">Sink-side idempotency (link 3) — the hardest link</h3>
+<table>
+  <thead><tr><th>Sink type</th><th>Idempotency strategy</th></tr></thead>
+  <tbody>
+    <tr><td>Postgres / MySQL</td><td><code>INSERT ... ON CONFLICT (source_event_id) DO UPDATE</code></td></tr>
+    <tr><td>Snowflake / BigQuery</td><td><code>MERGE</code> on natural key with <code>WHEN MATCHED AND ts &gt; existing</code></td></tr>
+    <tr><td>Iceberg / Delta</td><td>Upsert by primary key; engine handles tombstone-and-rewrite</td></tr>
+    <tr><td>Kafka (sink-as-source for next stage)</td><td>Kafka transactions — pre-commit + commit atomic with offset commit</td></tr>
+    <tr><td>HTTP API (downstream service)</td><td>Pass <code>idempotency_key</code> header; downstream MUST honor</td></tr>
+    <tr><td>S3 / object store</td><td>Write to <code>{key}.tmp</code>, atomic rename; or use Iceberg manifest</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+<strong>Reality check.</strong> "We have exactly-once" usually means "we have at-least-once + idempotent sinks". The end-to-end semantic is exactly-once <em>from the consumer's perspective</em> even though internally events may be processed twice. That's fine — and what every production system actually does.
+</div>
+
+<h3 class="section-head">When at-least-once is OK</h3>
+<p>Exactly-once is expensive (latency cost of two-phase commit, throughput cost of transactions). Skip it when:</p>
+<ul>
+  <li>Downstream is itself idempotent (counter increment via SUM is naturally tolerant of duplicates? No — but distinct count of events IS, with proper deduplication on event_id).</li>
+  <li>The metric is approximate anyway (DAU, click-through-rate — small dup counts wash out).</li>
+  <li>You can run a daily reconciliation batch that fixes any dup damage.</li>
+</ul>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Exactly-once is a 4-link chain — idempotent producer, atomic consumer-sink commit, idempotent sink, replay-safe state. The sink is almost always the weakest link. If the sink doesn't have a unique constraint on source_event_id, the upstream guarantees don't matter — events will eventually duplicate after a Flink restart."
+</div>
+
+</section>
+
+<!-- =============== PART 05 =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Operations</div>
+<h2 class="part-title">Backpressure, checkpointing &amp; state backends.</h2>
+
+<p>The interview moves from semantics to operations. <em>"What happens when the job lags?"</em>, <em>"How do you handle 200GB of state?"</em> — these are the questions that separate someone who's read the docs from someone who's run Flink in production.</p>
+
+<h3 class="section-head">Backpressure — what it is</h3>
+<p><strong>Backpressure</strong> = downstream operator can't keep up with upstream's rate. Flink's transport layer signals upstream to slow down. Symptoms:</p>
+<ul>
+  <li>Kafka consumer lag rising — you're consuming slower than producing.</li>
+  <li>Operator CPU pinned at 100%, but throughput flat.</li>
+  <li>End-to-end event latency growing without bound.</li>
+</ul>
+
+<h3 class="section-head">Backpressure causes — the four classics</h3>
+<table>
+  <thead><tr><th>Cause</th><th>Detection signal</th><th>Mitigation</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Skewed key</strong> (one user / one product gets 50% of events)</td><td>One subtask CPU pinned; others idle</td><td>Salt the key for the heavy aggregation; pre-aggregate</td></tr>
+    <tr><td><strong>Slow external call</strong> (sync HTTP / RPC in operator)</td><td>Operator latency = downstream service latency</td><td>Async I/O with bounded queue; cache; circuit-break</td></tr>
+    <tr><td><strong>State grew too big</strong></td><td>Checkpoint duration creeping up</td><td>Reduce window size; TTL on state; compaction tuning</td></tr>
+    <tr><td><strong>Sink bottleneck</strong></td><td>Sink operator is the lagging one in metrics</td><td>Batch writes; partition by sink-friendly key; provision sink</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Async I/O — the #1 fix for slow external calls</h3>
+<pre><code>// BAD — synchronous; one slow call blocks the whole subtask
+DataStream&lt;Enriched&gt; enriched = events.map(event -&gt; {
+  Profile profile = http.get("/profile/" + event.userId);  // blocks!
+  return enrich(event, profile);
+});
+
+// GOOD — async; many in-flight requests, bounded by capacity
+DataStream&lt;Enriched&gt; enriched = AsyncDataStream.unorderedWait(
+  events,
+  new ProfileLookup(),
+  /*timeout*/ 1, TimeUnit.SECONDS,
+  /*capacity*/ 100   // max in-flight async requests
+);</code></pre>
+
+<h3 class="section-head">Checkpointing — what to know</h3>
+<table>
+  <thead><tr><th>Aspect</th><th>Default</th><th>Tuning</th></tr></thead>
+  <tbody>
+    <tr><td>Interval</td><td>10s-60s typical</td><td>Smaller = lower restart-replay window; bigger = less overhead</td></tr>
+    <tr><td>Mode</td><td>EXACTLY_ONCE</td><td>Switch to AT_LEAST_ONCE if exactly-once latency cost too high</td></tr>
+    <tr><td>Storage</td><td>S3 / GCS / HDFS</td><td>Use incremental checkpoints (RocksDB) for &gt; 10GB state</td></tr>
+    <tr><td>Timeout</td><td>10 minutes</td><td>If checkpoints exceed timeout repeatedly, state is too big OR aligned-checkpoint barriers stuck</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">Aligned vs unaligned checkpoints</h3>
+<table>
+  <thead><tr><th>Mode</th><th>Behavior</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td>Aligned (default)</td><td>Operator waits for barrier on ALL input channels before snapshotting</td><td>Stable, no backpressure — typical case</td></tr>
+    <tr><td>Unaligned</td><td>Snapshot in-flight buffers immediately; faster under backpressure</td><td>Backpressure regular; checkpoint duration matters more than overhead</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">State backends — the three flavors</h3>
+<table>
+  <thead><tr><th>Backend</th><th>Storage</th><th>Pick when</th></tr></thead>
+  <tbody>
+    <tr><td><strong>HashMapStateBackend</strong></td><td>JVM heap</td><td>Small state (&lt; 1GB); lowest latency</td></tr>
+    <tr><td><strong>EmbeddedRocksDBStateBackend</strong></td><td>Local disk via RocksDB</td><td>Large state (10GB-1TB+); spills past heap</td></tr>
+    <tr><td><strong>RocksDB + incremental checkpoints</strong></td><td>RocksDB SSTables uploaded to S3 incrementally</td><td>Production default for stateful jobs at scale</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The "checkpoint storm" anti-pattern</h3>
+<div class="trap-box">
+<strong>Trap.</strong> Checkpoints take longer than checkpoint interval → next checkpoint starts before previous finishes → backpressure cascades → job grinds to a halt. Detection: <code>checkpoint_duration_ms / checkpoint_interval_ms &gt; 0.5</code> means you're &gt; 50% time checkpointing. Fix with incremental checkpoints, smaller state, or async/unaligned checkpoints.
+</div>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Default state backend is RocksDB with incremental checkpoints to S3, 30-second interval, 10-minute timeout, unaligned mode. The diagnostic loop is: check Kafka consumer lag → identify the bottleneck operator from Flink UI → check if it's CPU-bound (skew → salt the key) or I/O-bound (sync call → async I/O) or state-bound (window too big → TTL or shrink). 90% of streaming production issues are one of these four."
+</div>
+
+</section>
+
+<!-- =============== PART 06 =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Schema evolution</div>
+<h2 class="part-title">Schema evolution in a streaming world.</h2>
+
+<p>Schema changes break streaming jobs catastrophically. A producer adds a field; the consumer's deserializer fails; the entire pipeline stalls. The schema registry pattern (covered in the System Design page) is how you survive change.</p>
+
+<h3 class="section-head">The four schema-evolution scenarios</h3>
+<table>
+  <thead><tr><th>Change</th><th>Backward-compatible?</th><th>How to ship safely</th></tr></thead>
+  <tbody>
+    <tr><td>Add optional field with default</td><td>Yes</td><td>Just deploy producer; consumers ignore unknown fields</td></tr>
+    <tr><td>Add required field</td><td>No</td><td>Deploy as optional first; backfill; THEN switch consumers; THEN make required</td></tr>
+    <tr><td>Remove field</td><td>No</td><td>Deprecation flag → wait for consumer migration → drop</td></tr>
+    <tr><td>Rename / change type</td><td>Never compatible</td><td>Add new field; dual-write; migrate consumers; drop old field — over weeks</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The dual-write deprecation pattern</h3>
+<p>Rename <code>username</code> → <code>display_name</code>:</p>
+<ol>
+  <li><strong>Phase 1 — Add new field</strong>: producer writes BOTH <code>username</code> and <code>display_name</code> with same value.</li>
+  <li><strong>Phase 2 — Migrate consumers</strong>: each consumer team switches to read <code>display_name</code>; mark <code>username</code> as deprecated in the schema.</li>
+  <li><strong>Phase 3 — Drop the old field</strong>: after deprecation window (typically 90 days), producer stops writing <code>username</code>; schema removes it.</li>
+</ol>
+
+<h3 class="section-head">Stream-Table joins with evolving dimensions</h3>
+<p>If your stream joins to a slowly-changing dim table, schema changes on the dim ripple through:</p>
+<pre><code>// Flink SQL — streaming fact joined to versioned dim (event-time temporal join)
+SELECT
+  e.user_id,
+  e.event_ts,
+  d.tier,
+  d.region
+FROM events e
+JOIN dim_user FOR SYSTEM_TIME AS OF e.event_ts AS d
+  ON e.user_id = d.user_id;
+-- Joins against the dim VERSION current at event time, not now.
+-- Schema-evolves cleanly: as long as new fields have defaults.</code></pre>
+
+<h3 class="section-head">CDC streams — schema evolution at the source</h3>
+<p>Most streaming pipelines today have CDC (Debezium → Kafka) as a source. The OLTP database adds a column → Debezium emits the change with the new schema. Three things to set up:</p>
+<ol>
+  <li><strong>Schema registry per CDC topic</strong> with backward compatibility</li>
+  <li><strong>Tolerant Flink deserializer</strong> that skips unknown fields rather than crashing</li>
+  <li><strong>Alert on schema-version mismatch</strong> — when consumer's expected version drifts &gt; 1 from latest, page the team</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior signal.</strong> "Schema registry backward-compatibility is enforced at the broker. Renames and type changes are tombstone-and-add over a 90-day window — never an in-place change. Flink's <code>FOR SYSTEM_TIME AS OF</code> temporal join lets dim evolution stay invisible to fact streams as long as new fields have defaults."
+</div>
+
+</section>
+
+<!-- =============== PART 07 =============== -->
+<section id="part-07">
+<div class="part-eyebrow">§ 07 — The walkthrough</div>
+<h2 class="part-title">The 8-step play-event walkthrough (Netflix-flavored).</h2>
+
+<p>Putting it all together — every concept above shows up in a single canonical walkthrough. The interview prompt: <em>"design Netflix's playback-event pipeline."</em>. The 8-step answer:</p>
+
+<h3 class="section-head">Step 1 — Producer: client SDK emits event</h3>
+<pre><code>// On every play-start, pause, resume, complete:
+{
+  "event_id":     "evt_8f3a...",   // client-generated UUID — idempotency key
+  "user_id":      "U_001",
+  "profile_id":   "P_005",
+  "title_id":     "T_strangerthings_S5E1",
+  "event_type":   "play_start",
+  "event_ts":     "2024-09-12T19:00:00Z",   // client clock
+  "device":       "tv",
+  "country":      "US"
+}</code></pre>
+<p>The <code>event_id</code> is the idempotency key — every retry uses the same id; the broker dedupes.</p>
+
+<h3 class="section-head">Step 2 — Kafka: durable spine</h3>
+<p>Topic <code>play_events</code>, partitioned by <code>profile_id</code> (so one profile's events stay in order), 30 partitions, 7-day retention (shorter than typical because we Iceberg-archive everything).</p>
+
+<h3 class="section-head">Step 3 — Flink job: enrich + sessionize</h3>
+<pre><code>// Pseudo-Flink:
+events
+  .keyBy(Event::getProfileId)
+  .map(new ProfileEnrichment())               // async I/O lookup to dim_profile
+  .process(new SessionAssigner())              // 30-min idle → new session_id
+  .keyBy(e -&gt; e.userId + "|" + e.titleId)
+  .window(SessionWindow.withGap(Time.minutes(30)))
+  .aggregate(new SessionMetrics())            // total watch_minutes per session
+  .addSink(new IcebergSink());                // exactly-once via 2PC + Iceberg</code></pre>
+
+<h3 class="section-head">Step 4 — Watermarks: 60-second lateness budget</h3>
+<p>Mobile uploads can lag (subway tunnel = 2-minute spike). Set watermark = max_event_ts − 60s. P99 lateness in production is 8s, so 60s is comfortable. Side-output anything later for the daily reconciliation job.</p>
+
+<h3 class="section-head">Step 5 — State: per-profile session window</h3>
+<p>State backend is RocksDB with 30-second incremental checkpoints to S3. Session state is small (a few hundred bytes per profile) but multiplied by 250M profiles = 50GB working set. RocksDB handles this comfortably; HashMap would OOM.</p>
+
+<h3 class="section-head">Step 6 — Sink: Iceberg upsert by event_id</h3>
+<p>Iceberg <code>fct_play_event</code> table partitioned by <code>DATE(event_ts)</code>. Sink writes use Iceberg's two-phase commit; uniqueness on <code>event_id</code> means retries are no-ops. Downstream Flink re-streams and dbt batch jobs both read from this Iceberg table.</p>
+
+<h3 class="section-head">Step 7 — Serving: low-latency analytical store</h3>
+<p>Per-title rolling counts (last 1h, 24h, 7d) shipped to <strong>Pinot</strong> for sub-100ms queries. The TopN-by-country dashboard reads Pinot directly; the historical reports read the Iceberg table via Spark or Trino.</p>
+
+<h3 class="section-head">Step 8 — Operations: the 4 SLOs</h3>
+<table>
+  <thead><tr><th>SLO</th><th>Target</th><th>Alert at</th></tr></thead>
+  <tbody>
+    <tr><td>End-to-end latency (event_ts → Iceberg)</td><td>P99 &lt; 90 sec</td><td>P99 &gt; 5 min for 10 min</td></tr>
+    <tr><td>Kafka consumer lag</td><td>&lt; 60s</td><td>&gt; 5 min</td></tr>
+    <tr><td>Checkpoint duration</td><td>&lt; 30s</td><td>&gt; 5 min</td></tr>
+    <tr><td>Late-event rate (after watermark)</td><td>&lt; 0.5%</td><td>&gt; 2%</td></tr>
+  </tbody>
+</table>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "Producer attaches event_id as idempotency key. Kafka partitioned by profile_id for ordering. Flink keyBy(profile) → async-enrich → session-window → Iceberg sink with 2PC. Watermark lag is 60s based on P99 mobile-upload-lateness. State is RocksDB incremental checkpoints. Serving splits between Pinot (low-latency dashboards) and Iceberg-via-Trino (analytics). Four SLOs, four alerts. That's the entire system in one breath."
+</div>
+
+</section>
+
+<!-- =============== PART 08 =============== -->
+<section id="part-08">
+<div class="part-eyebrow">§ 08 — Articulation</div>
+<h2 class="part-title">The 90-second articulation script.</h2>
+
+<div style="background:linear-gradient(135deg,#0b0f17,#1a2332);color:#f5f0e8;padding:24px 28px;border-radius:8px;margin:28px 0;font-style:italic;line-height:1.6;">
+<p style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:3px;color:#c4b5fd;margin-bottom:12px;font-style:normal;">▸ THE 90-SECOND SCRIPT</p>
+
+<p>"For a streaming pipeline with [latency target] and [event volume], I'd shape it as five layers: <strong>producer → Kafka → Flink → sink → serving</strong>, with schema registry and checkpoint store as cross-cutting infrastructure."</p>
+
+<p>"Time semantics: <strong>partition by event-time</strong>, store all three timestamps on the row, watermark with bounded out-of-orderness set to P99 of mobile-upload lateness — typically 30-60 seconds. Late events go to a side-output topic; nightly batch reconciles."</p>
+
+<p>"<strong>Exactly-once</strong> is a four-link chain: idempotent Kafka producer with <code>enable.idempotence</code>, Flink's two-phase commit barriers for atomic consumer+sink, an idempotent sink with unique constraint on <code>source_event_id</code>, and replay-safe state via RocksDB incremental checkpoints. The sink is almost always the weakest link."</p>
+
+<p>"<strong>Backpressure</strong> diagnostic loop: check Kafka lag → identify lagging operator from Flink UI → classify as skew (salt the key), I/O-bound (async I/O), state-bound (TTL or shrink window), or sink-bound (batch + provision). 90% of incidents are one of these four."</p>
+
+<p>"<strong>Schema evolution</strong> goes through schema registry with backward compatibility default. Renames are tombstone-then-add over 90 days. Flink temporal joins with <code>FOR SYSTEM_TIME AS OF</code> let dim changes stay invisible to fact streams."</p>
+
+<p>"<strong>Four operational SLOs</strong> to surface and page on: end-to-end latency P99, Kafka consumer lag, checkpoint duration, late-event rate. Without these, the pipeline is un-runnable in production."</p>
+</div>
+
+<h3 class="section-head">Three sentences that signal seniority — in any streaming round</h3>
+<ol>
+  <li><em>"Watermarks are a contract, not a clock — the engine commits to not seeing earlier events, and downstream windows close on that commitment."</em></li>
+  <li><em>"Exactly-once is end-to-end; if the sink isn't idempotent, the upstream guarantees don't matter."</em></li>
+  <li><em>"Backpressure is rarely about throughput — it's almost always skew, sync I/O, state size, or sink bottleneck. Diagnose by exclusion."</em></li>
+</ol>
+
+</section>
+
+<div style="text-align:center;margin:64px 0 32px;color:#cbd5e0;letter-spacing:12px;font-size:14px;">· · ·</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:2px;margin-bottom:24px;">▸ Eight sections · the patterns hold across domains · go well.</div>
+
+<div style="text-align:center;font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;letter-spacing:1px;">
+  <a href="/interview.app/design/" style="color:#7c3aed;text-decoration:none;">← Back to Design pillar</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/system-design-data-platforms.html" style="color:#7c3aed;text-decoration:none;">System Design — Data Platforms</a>
+  &nbsp;·&nbsp;
+  <a href="/interview.app/design/data-modeling.html" style="color:#7c3aed;text-decoration:none;">Data Modeling notebook</a>
+</div>
+
+</article>
+</main>
+</body>
+</html>
