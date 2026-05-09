@@ -142,7 +142,7 @@
 <article class="netflix-prep">
 
 <div class="hero-meta">Interview Studio · Design · Data Modeling</div>
-<h1 class="hero-title">Data modeling — sixteen scenarios across the industries that actually ask.</h1>
+<h1 class="hero-title">Data modeling — seventeen scenarios across the industries that actually ask.</h1>
 <p class="hero-sub">Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe, Spotify, TikTok, and Salesforce all test the same five-move sequence — but the domain context changes everything you say. This notebook walks the framework once, then drills sixteen most-asked scenarios end to end (including LAD, factless facts, and streaming-first patterns). Use it to swap domains in 60 seconds when the prompt arrives.</p>
 
 <div class="toc">
@@ -168,6 +168,7 @@
         <li><a href="#sc-tiktok-fyp">14. TikTok — recommendation feedback loop &amp; off-policy eval</a></li>
         <li><a href="#sc-stripe-ledger">15. Stripe — double-entry ledger &amp; idempotency</a></li>
         <li><a href="#sc-salesforce-hierarchy">16. Salesforce — account hierarchy &amp; multi-tenant CRM</a></li>
+        <li><a href="#sc-netflix-streaming">17. Netflix — streaming + series + bingewatching + LAD</a></li>
       </ul>
     </a></li>
     <li><a href="#part-04">Cross-cutting concerns — SCDs, LAD, factless facts, streaming, GDPR, FX, skew</a></li>
@@ -247,7 +248,7 @@
 <!-- ==================== PART 03 ==================== -->
 <section id="part-03">
 <div class="part-eyebrow">§ 03 — Twelve Scenarios</div>
-<h2 class="part-title">The sixteen most-asked modeling prompts — full walk-throughs.</h2>
+<h2 class="part-title">The seventeen most-asked modeling prompts — full walk-throughs.</h2>
 
 <!-- Scenario 1: Uber trip -->
 <div class="scenario" id="sc-uber-trip">
@@ -4447,6 +4448,135 @@ FROM (
 
 <div class="senior-signal">
 <strong>Senior framing.</strong> "I'd model account hierarchy with both parent_id (for clean writes) AND a materialized path column (for fast subtree reads), refreshed nightly. Multi-tenant isolation is enforced at THREE layers — partition key + composite-index leading column + row-level security policy — because losing tenant data isolation is an existential bug. Pipeline state lives in a fact table of stage-changes, never as a current-stage column on the opportunity, because that loses time-in-stage and velocity."
+</div>
+</div>
+
+<!-- Scenario 17: Netflix streaming + binge + LAD -->
+<div class="scenario" id="sc-netflix-streaming">
+<h4 class="sub-head">Scenario 17 — Netflix streaming, series + bingewatching, late-arriving dimensions</h4>
+
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Netflix has the data problem most consumer platforms can only dream of: <strong>250M subscribers, 15B+ play events per day, content metadata that propagates regionally over minutes-to-hours</strong>. Three structural challenges intersect:</p>
+<ul>
+  <li><strong>Late-arriving dimensions (LAD)</strong> — a Netflix Original drops at midnight Pacific; play events fire <em>before</em> the title metadata propagates to every regional shard. INNER JOIN drops the views silently and Content Strategy stares at "0 plays in the first 3 minutes" of the most-anticipated launch of the quarter.</li>
+  <li><strong>Series-vs-episode-vs-season grain</strong> — "Stranger Things S5 E1" is one episode, of one season, of one series, of one franchise. Aggregations must roll up cleanly without double-counting (a viewer watched 8 episodes — that's 1 series-bingewatcher, not 8 series-views).</li>
+  <li><strong>Bingewatching as a derived behavior</strong> — bingewatching isn't recorded; it's <em>computed</em> from the play stream. The schema must support both per-session binge (3+ episodes within 24h) and per-day binge (any 3+ episodes of same series in a calendar day) without a re-write.</li>
+</ul>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Dim — content tree</td><td>dim_franchise, dim_series, dim_season, dim_episode</td><td>Each row links to its parent FK; SCD2 on series_title (re-titled, re-genre'd)</td></tr>
+    <tr><td>Dim — user</td><td>dim_account, dim_profile, dim_device, dim_subscription_tier</td><td>Profile is a child of account; both visible in events</td></tr>
+    <tr><td>Dim — geo</td><td>dim_country, dim_isp, dim_city</td><td>For QoE + regional content licensing</td></tr>
+    <tr><td>Fact — play event (raw)</td><td>fct_play_event — one row per playback session start</td><td>Append-only; partition by play_date</td></tr>
+    <tr><td>Fact — heartbeat</td><td>fct_play_heartbeat — every 60s during playback</td><td>For QoE / completion rate; downsampled in warehouse</td></tr>
+    <tr><td>Fact — derived</td><td>fct_binge_session, fct_series_streak — computed nightly from plays</td><td>Materialized so analyst queries don't re-derive</td></tr>
+    <tr><td>SCD2 bridge</td><td>bridge_episode_title (episode_id, title, effective_from, effective_to)</td><td>For temporal-correct attribution of late-arriving plays</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — The LAD-defensive query (the make-or-break pattern)</h4>
+<p>Every play-event-to-content-dim join must be defensive. The shape:</p>
+<pre><code>WITH current_episode AS (
+  SELECT episode_id, title, series_id, season_number, episode_number,
+    ROW_NUMBER() OVER (PARTITION BY episode_id ORDER BY effective_date DESC) AS rn
+  FROM dim_episode
+)
+SELECT p.play_id, p.account_id, p.profile_id,
+  COALESCE(e.title,         'Episode ID: ' || p.episode_id || ' (Pending Sync)') AS title,
+  COALESCE(e.series_id,     -1) AS series_id_safe,
+  COALESCE(e.season_number, -1) AS season_number_safe,
+  p.watch_minutes
+FROM fct_play_event p
+LEFT JOIN current_episode e ON e.episode_id = p.episode_id AND e.rn = 1;</code></pre>
+<p>Three things working together: <code>LEFT JOIN</code> keeps every play; <code>ROW_NUMBER + rn=1</code> picks the most-recent SCD2 dim version; <code>COALESCE</code> with a searchable placeholder ("Pending Sync") so the BI tool's filter dropdown surfaces orphans. The orphan-rate SLO is <code>&lt; 0.5%</code> — above 1% pages the data-platform on-call.</p>
+
+<h4 class="sub-head">Section 3 — Series + episode roll-up — the bridge approach</h4>
+<p>"Top binged series this week" requires going from episode → series. Naive approach: store series_id directly on every play. Problem: when a series is re-titled (Marvel acquires a show, renames it), all historical plays now point to the wrong series name.</p>
+<p>The bridge approach: store only <code>episode_id</code> on the fact (the immutable identity); join through SCD2 dim hierarchy at query time, with temporal-correctness via the bridge:</p>
+<pre><code>SELECT s.series_title, COUNT(DISTINCT p.account_id || '|' || s.series_id) AS unique_viewers
+FROM fct_play_event p
+JOIN dim_episode e USING (episode_id)
+JOIN dim_series s
+  ON s.series_id = e.series_id
+ AND p.played_at BETWEEN s.effective_from AND COALESCE(s.effective_to, '9999-12-31')
+GROUP BY s.series_title
+ORDER BY unique_viewers DESC;</code></pre>
+<p>Plays that happened during the OLD series_title attribute correctly to the OLD title; new plays attribute to the new. No backfill required when re-titling.</p>
+
+<h4 class="sub-head">Section 4 — Bingewatching as a derived fact</h4>
+<p>Bingewatching is not an event — it's a pattern. Two co-existing definitions need separate derived facts:</p>
+<table>
+  <thead><tr><th>Metric</th><th>Definition</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td>Per-session binge</td><td>3+ episodes of same series within 24h, with &lt; 30-min gap between episodes</td><td>Algorithm tuning — "auto-play next" decisioning</td></tr>
+    <tr><td>Per-day binge</td><td>Any 3+ episodes of same series in a calendar day</td><td>Marketing analytics — "% of subscribers who binged this month"</td></tr>
+  </tbody>
+</table>
+<pre><code>-- fct_binge_session derivation, refreshed nightly
+WITH same_series_runs AS (
+  SELECT account_id, profile_id, series_id, episode_id, started_at,
+    LAG(started_at) OVER (PARTITION BY account_id, profile_id, series_id ORDER BY started_at) AS prev_start
+  FROM fct_play_event
+),
+sessioned AS (
+  SELECT *,
+    SUM(CASE WHEN prev_start IS NULL OR started_at - prev_start &gt; INTERVAL '30 min' THEN 1 ELSE 0 END)
+      OVER (PARTITION BY account_id, profile_id, series_id ORDER BY started_at) AS session_id
+  FROM same_series_runs
+)
+SELECT account_id, profile_id, series_id, session_id,
+  MIN(started_at) AS session_start, COUNT(*) AS episodes_in_session
+FROM sessioned
+GROUP BY account_id, profile_id, series_id, session_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+
+<h4 class="sub-head">Section 5 — Series-streak detection — gaps-and-islands per (user, series)</h4>
+<p>"Watched at least one episode every day for 5 days" is the engagement loyalty signal. Different shape from binge — same user across CONSECUTIVE days, not multiple episodes in one day. The pattern is gaps-and-islands:</p>
+<pre><code>WITH active_days AS (
+  SELECT DISTINCT account_id, series_id, DATE(started_at) AS active_date
+  FROM fct_play_event
+),
+islands AS (
+  SELECT account_id, series_id, active_date,
+    julianday(active_date) - ROW_NUMBER() OVER (PARTITION BY account_id, series_id ORDER BY active_date) AS island_id
+  FROM active_days
+)
+SELECT account_id, series_id,
+  MIN(active_date) AS streak_start, MAX(active_date) AS streak_end, COUNT(*) AS streak_days
+FROM islands
+GROUP BY account_id, series_id, island_id
+HAVING COUNT(*) &gt;= 5;</code></pre>
+<p>Per-series streaks reveal which shows hook viewers — the "people kept coming back to Stranger Things every day for a week" insight. Used by content acquisition for renewal decisions.</p>
+
+<h4 class="sub-head">Section 6 — Profile-vs-account distinction</h4>
+<p>Netflix's profile model is unusual: one billing account with up to 5 profiles. Mom watches drama; Kid watches cartoons. Modeling consequences:</p>
+<ul>
+  <li><strong>Account-grain facts</strong> — billing, plan tier, payment events. These cross profile boundaries.</li>
+  <li><strong>Profile-grain facts</strong> — every play, search, browse, rating. These are profile-keyed.</li>
+  <li><strong>Both keys on every event</strong> — fct_play_event has BOTH account_id AND profile_id, never just one. Otherwise rolling up "minutes per account" requires joining back through dim.</li>
+</ul>
+<p>The 2023 password-sharing crackdown depended on this distinction — accounts with profiles being used in geographically-incompatible patterns flagged for sharing.</p>
+
+<h4 class="sub-head">Section 7 — The QoE side-table</h4>
+<p>Quality-of-experience (rebuffering, bitrate switches, startup latency) is high-volume — heartbeats every 60s. Storing on the play fact bloats it. Production splits:</p>
+<pre><code>fct_play_event       — one row per session, low volume, hot
+fct_play_heartbeat   — many rows per session, high volume, downsampled to 5-min in warehouse
+fct_qoe_summary      — derived nightly, rebuf-time / total-time per session
+</code></pre>
+<p>Analysts query <code>fct_qoe_summary</code> 99% of the time; raw heartbeats are reserved for SRE incident drills.</p>
+
+<h4 class="sub-head">Section 8 — Late-arriving FACTS — the offline-mobile problem</h4>
+<p>A user watches an episode offline on the subway. The mobile uploads the play event 4 hours later. By then the dim_episode might have moved on (re-genre'd). The defensive temporal join handles it:</p>
+<pre><code>JOIN dim_episode e
+  ON e.episode_id = p.episode_id
+ AND p.played_at BETWEEN e.effective_from AND COALESCE(e.effective_to, '9999-12-31')</code></pre>
+<p>The play attributes against the dim version that was current AT THE TIME OF THE EVENT, not now. This is the LAD-FACT cousin of the LAD-DIM problem — same SCD2 mechanism, opposite direction of lateness.</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "The defensive LAD pattern (LEFT JOIN + ROW_NUMBER + COALESCE) is non-negotiable on every play-to-episode join because launch-day metadata propagation is measured in minutes and we can't lose the launch-day analytics. Bingewatching is two distinct derived facts — per-session (algorithm input) and per-day (marketing rollup) — both materialized nightly so analyst queries don't re-derive. The episode-only fact + temporal series_title bridge means re-titling a show doesn't require backfilling 5 years of plays. And profile_id alongside account_id on every event is what makes the password-sharing crackdown queries possible without join gymnastics."
 </div>
 </div>
 </section>
