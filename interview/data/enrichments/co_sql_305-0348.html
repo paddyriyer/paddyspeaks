@@ -1,0 +1,40 @@
+<p>Amazon's fulfillment optimization: pick the closest warehouse with stock for each order. The query uses ROW_NUMBER over a CASE-based ordering — closest zone first, then highest stock level — to assign one FC per order.</p>
+
+<h4>1. The source data — <code>orders</code> + <code>inventory</code></h4>
+<table><thead><tr><th>order_id</th><th>customer_zone</th></tr></thead>
+<tbody><tr><td>O_001</td><td>NORTH</td></tr></tbody></table>
+<table><thead><tr><th>asin</th><th>warehouse_id</th><th>zone</th><th>qty_on_hand</th></tr></thead>
+<tbody><tr><td>A_01</td><td>W1</td><td>NORTH</td><td>50</td></tr><tr><td>A_01</td><td>W2</td><td>SOUTH</td><td>200</td></tr></tbody></table>
+
+<h4>2. The SQL — multi-criteria ROW_NUMBER</h4>
+<pre><code>WITH ranked AS (
+  SELECT o.order_id, o.customer_zone, i.warehouse_id, i.zone AS warehouse_zone, i.qty_on_hand,
+    ROW_NUMBER() OVER (
+      PARTITION BY o.order_id
+      ORDER BY CASE WHEN o.customer_zone = i.zone THEN 0 ELSE 1 END,
+               i.qty_on_hand DESC
+    ) AS pick_order
+  FROM orders o
+  JOIN inventory i ON i.qty_on_hand &gt; 0
+)
+SELECT order_id, customer_zone, warehouse_id, warehouse_zone, qty_on_hand
+FROM ranked WHERE pick_order = 1;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The CASE-in-ORDER-BY trick</h5>
+<p>Compound priority: <em>"prefer same zone, otherwise any zone with most stock"</em>. The CASE returns 0 for same-zone (sorted first), 1 otherwise. <code>i.qty_on_hand DESC</code> breaks ties.</p>
+
+<h5>The single-row-per-order pattern</h5>
+<p>ROW_NUMBER + WHERE rn = 1 is the canonical "best-row-per-group". DENSE_RANK would emit ties as multiple rows — wrong for routing (need one decision).</p>
+
+<h5>The cost-model upgrade</h5>
+<p>Real Amazon routing is a multi-objective optimization: distance, stock level, shipping cost, carrier capacity, expected delivery date. The CASE-based version is a useful baseline. Production runs an external solver (mixed-integer programming) and writes the result back as a fact table.</p>
+
+<h5>Multi-item orders — the bin-packing twist</h5>
+<p>The query handles single-item orders. Multi-item orders need to decide: ship from one warehouse (slower if not all stocked) or split shipment (more boxes but parallel)? That's a different optimization, often solved per-customer-tier (Prime gets split-OK, others get single-warehouse).</p>
+
+<h5>The stock-update race</h5>
+<p>Between query and pick, qty_on_hand can change. Production wraps the routing in a transaction with reservation: SELECT the chosen warehouse, then UPDATE qty_on_hand atomically before commit. Without it, two orders can be promised the same last unit.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use CASE-in-ORDER-BY for compound priority, name ROW_NUMBER as the best-row picker, distinguish single-objective baseline from multi-objective MIP, and surface the multi-item bin-packing variant + atomic reservation gotcha.</div>

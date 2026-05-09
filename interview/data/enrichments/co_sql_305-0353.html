@@ -1,0 +1,39 @@
+<p>iCloud's tier ladder (free → 50GB → 200GB → 2TB) is one of Apple's stickiest revenue moats. The query uses LAG to detect tier transitions and counts each direction (upgrade / downgrade / churn).</p>
+
+<h4>1. The source data — <code>icloud_tiers</code></h4>
+<table><thead><tr><th>user_id</th><th>tier</th><th>upgraded_at</th></tr></thead>
+<tbody><tr><td>U_001</td><td>free</td><td>2024-01-01</td></tr><tr><td>U_001</td><td>50gb</td><td>2024-03-15</td></tr></tbody></table>
+
+<h4>2. The SQL — LAG-based transition counting</h4>
+<pre><code>WITH transitions AS (
+  SELECT user_id, tier,
+    LAG(tier) OVER (PARTITION BY user_id ORDER BY upgraded_at) AS prev_tier
+  FROM icloud_tiers
+)
+SELECT prev_tier, tier AS new_tier, COUNT(*) AS users
+FROM transitions
+WHERE prev_tier IS NOT NULL
+GROUP BY prev_tier, tier
+ORDER BY prev_tier, users DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The LAG trap — first row has NULL</h5>
+<p>The first row per user has <code>prev_tier IS NULL</code> — that's a brand-new account, not a transition. Filter it out: <code>WHERE prev_tier IS NOT NULL</code>.</p>
+
+<h5>Upgrade vs downgrade — directional</h5>
+<p>The transition matrix has both directions: 50gb → 200gb (upgrade) and 200gb → 50gb (downgrade). Add a tier-rank lookup to classify:</p>
+<pre><code>JOIN tier_rank rp ON rp.tier = prev_tier
+JOIN tier_rank rn ON rn.tier = new_tier
+... CASE WHEN rn.rank &gt; rp.rank THEN 'upgrade' ELSE 'downgrade' END</code></pre>
+
+<h5>Time-to-upgrade — the velocity metric</h5>
+<p>Average time spent on each tier before upgrading is the marketing-intervention signal. Users on free for 90 days unlikely to ever pay; users who upgrade within 30 are the high-intent segment.</p>
+
+<h5>Skip-tier upgrades — the cliff</h5>
+<p>Free → 2TB skipping 50gb and 200gb is rare but high-LTV. Users who skip indicate strong commitment + photo-heavy use case. The query treats free→2TB as one row; you can spot it directly.</p>
+
+<h5>Cohort-by-signup-month split</h5>
+<p>Cohorts that signed up in iPhone-launch months have different upgrade behavior (new device = more photos). Slice by signup cohort to see if marketing campaigns are working.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the LAG-NULL-first-row gotcha, classify direction (upgrade / downgrade) via tier-rank join, time-to-upgrade as velocity, and skip-tier identification. Cohort split by signup month is the over-the-bar segmentation.</div>

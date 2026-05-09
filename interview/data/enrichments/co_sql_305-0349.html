@@ -1,0 +1,49 @@
+<p>Amazon runs hundreds of recommendation A/B tests concurrently. The query splits events by treatment bucket and computes CTR + add-to-cart rate, with a derived "add-to-cart-per-click" metric for funnel-stage diagnosis.</p>
+
+<h4>1. The source data — <code>ab_events</code></h4>
+<table><thead><tr><th>user_id</th><th>bucket</th><th>recommended_asin</th><th>clicked</th><th>added_to_cart</th></tr></thead>
+<tbody><tr><td>U_001</td><td>treatment</td><td>A_01</td><td>1</td><td>1</td></tr></tbody></table>
+
+<h4>2. The SQL — three rates per bucket</h4>
+<pre><code>SELECT bucket,
+  COUNT(*) AS impressions,
+  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct,
+  ROUND(100.0 * SUM(added_to_cart) / NULLIF(COUNT(*), 0), 2) AS atc_pct,
+  ROUND(100.0 * SUM(added_to_cart) / NULLIF(SUM(clicked), 0), 2) AS atc_per_click_pct
+FROM ab_events
+GROUP BY bucket
+ORDER BY bucket;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Three metrics — three different stories</h5>
+<table><thead><tr><th>metric</th><th>asks</th></tr></thead>
+<tbody>
+<tr><td>CTR</td><td>"do users notice the rec?"</td></tr>
+<tr><td>ATC</td><td>"do recs lead to intent?"</td></tr>
+<tr><td>ATC-per-click</td><td>"are clicks high-intent?"</td></tr>
+</tbody></table>
+<p>A treatment that boosts CTR but tanks ATC-per-click is clickbait — net negative. Always compute the funnel-stage ratio.</p>
+
+<h5>The lift calculation</h5>
+<p>"Treatment 5% CTR, control 4% CTR" — what's the lift? +25% relative, +1pp absolute. Both matter; one number lies. Senior dashboards report:</p>
+<pre><code>(treatment.ctr - control.ctr) AS abs_lift_pp,
+(treatment.ctr - control.ctr) / NULLIF(control.ctr, 0) AS rel_lift</code></pre>
+
+<h5>Statistical significance — the blocking gate</h5>
+<p>"Treatment looks 8% better" is meaningless without a CI. Use 2-proportion z-test:</p>
+<pre><code>1.96 * SQRT((p_t * (1-p_t) / n_t) + (p_c * (1-p_c) / n_c)) AS ci_pp_at_95</code></pre>
+<p>Promote the treatment only when |lift| &gt; CI.</p>
+
+<h5>Sample-ratio mismatch (SRM) — the validity check</h5>
+<p>Treatment should have ~50% of impressions vs control. If the actual ratio is 47/53, randomization broke. SRM check:</p>
+<pre><code>SUM(CASE WHEN bucket = 'treatment' THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS treatment_share</code></pre>
+<p>Off by &gt; 1pp = invalid test, void the result, debug the bucketing logic.</p>
+
+<h5>The novelty effect</h5>
+<p>New recs initially boost CTR (curiosity) then plateau. A 7-day test shows fake lift; a 28-day test shows truth. Production runs tests for full novelty + recency cycles before declaring a winner.</p>
+
+<h5>Heterogeneous treatment effects</h5>
+<p>Average lift hides segment-specific effects. Treatment may help new users (+5%) but hurt power users (-3%). Slice by user-tenure for honest assessment.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute CTR / ATC / ATC-per-click as a funnel chain, emit absolute + relative lift + CI, run SRM as a blocking gate, and pre-empt the novelty + heterogeneous-effect traps.</div>

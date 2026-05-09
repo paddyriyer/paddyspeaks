@@ -17597,5 +17597,536 @@
     "language": "sql",
     "runtime": null,
     "slug": "gmail-label-auto-classification-hit-rate"
+  },
+  {
+    "id": "co_sql_305-0344",
+    "num": 344,
+    "company": "Amazon",
+    "difficulty": "Medium",
+    "title": "Order Fulfillment SLA \u2014 On-Time Delivery %",
+    "subtopic": "On-time SLA aggregation",
+    "schema": "orders(order_id, ordered_at, promised_at, delivered_at, marketplace)",
+    "solution": "SELECT marketplace,\n  COUNT(*) AS orders,\n  SUM(CASE WHEN julianday(delivered_at) <= julianday(promised_at) THEN 1 ELSE 0 END) AS on_time,\n  ROUND(100.0 * SUM(CASE WHEN julianday(delivered_at) <= julianday(promised_at) THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS on_time_pct,\n  ROUND(AVG((julianday(delivered_at) - julianday(ordered_at)) * 24), 1) AS avg_delivery_hours\nFROM orders\nWHERE delivered_at IS NOT NULL\nGROUP BY marketplace\nORDER BY on_time_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "order-fulfillment-sla--on-time-delivery-%"
+  },
+  {
+    "id": "co_sql_305-0345",
+    "num": 345,
+    "company": "Amazon",
+    "difficulty": "Medium",
+    "title": "Prime Conversion Funnel \u2014 Trial \u2192 Paid \u2192 Renewed",
+    "subtopic": "Cohort funnel with sequential gates",
+    "schema": "prime_subs(user_id, trial_started, trial_converted, first_renewal, cancelled_at)",
+    "solution": "SELECT\n  COUNT(*) AS trials,\n  COUNT(trial_converted) AS converted,\n  COUNT(first_renewal) AS renewed,\n  ROUND(100.0 * COUNT(trial_converted) / NULLIF(COUNT(*), 0), 1) AS trial_to_paid_pct,\n  ROUND(100.0 * COUNT(first_renewal)   / NULLIF(COUNT(trial_converted), 0), 1) AS paid_to_renew_pct,\n  ROUND(100.0 * COUNT(first_renewal)   / NULLIF(COUNT(*), 0), 1) AS overall_renewal_pct\nFROM prime_subs;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "prime-conversion-funnel--trial-\u2192-paid-\u2192-renewed"
+  },
+  {
+    "id": "co_sql_305-0346",
+    "num": 346,
+    "company": "Amazon",
+    "difficulty": "Hard",
+    "title": "Catalog LAD \u2014 ASIN with Late-Arriving Metadata",
+    "subtopic": "LAD inferred-member with COALESCE",
+    "schema": "orders(order_id, asin, ordered_at), asin_dim(asin, title, category, effective_date)",
+    "solution": "WITH current_dim AS (\n  SELECT asin, title, category,\n    ROW_NUMBER() OVER (PARTITION BY asin ORDER BY effective_date DESC) AS rn\n  FROM asin_dim\n)\nSELECT o.order_id, o.asin,\n  COALESCE(d.title,    'ASIN ' || o.asin || ' (Pending Catalog Sync)') AS title,\n  COALESCE(d.category, 'Uncategorized') AS category,\n  o.ordered_at\nFROM orders o\nLEFT JOIN current_dim d\n  ON d.asin = o.asin AND d.rn = 1\nORDER BY o.ordered_at DESC;",
+    "tags": [
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "catalog-lad--asin-with-late-arriving-metadata"
+  },
+  {
+    "id": "co_sql_305-0347",
+    "num": 347,
+    "company": "Amazon",
+    "difficulty": "Medium",
+    "title": "Return-Rate by Category with Reason Mix",
+    "subtopic": "Return-rate denominator + top reason",
+    "schema": "orders(order_id, asin, category), returns(return_id, order_id, reason)",
+    "solution": "SELECT o.category,\n  COUNT(DISTINCT o.order_id) AS orders,\n  COUNT(DISTINCT r.return_id) AS returns,\n  ROUND(100.0 * COUNT(DISTINCT r.return_id) / NULLIF(COUNT(DISTINCT o.order_id), 0), 1) AS return_rate_pct\nFROM orders o\nLEFT JOIN returns r ON r.order_id = o.order_id\nGROUP BY o.category\nHAVING COUNT(DISTINCT o.order_id) >= 5\nORDER BY return_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "return-rate-by-category-with-reason-mix"
+  },
+  {
+    "id": "co_sql_305-0348",
+    "num": 348,
+    "company": "Amazon",
+    "difficulty": "Hard",
+    "title": "Multi-Warehouse Inventory Routing \u2014 Closest-FC Wins",
+    "subtopic": "Self-join distance ranking",
+    "schema": "orders(order_id, customer_zone, ordered_at), inventory(asin, warehouse_id, zone, qty_on_hand)",
+    "solution": "WITH ranked AS (\n  SELECT o.order_id, o.customer_zone, i.warehouse_id, i.zone AS warehouse_zone, i.qty_on_hand,\n    ROW_NUMBER() OVER (\n      PARTITION BY o.order_id\n      ORDER BY CASE WHEN o.customer_zone = i.zone THEN 0 ELSE 1 END,\n               i.qty_on_hand DESC\n    ) AS pick_order\n  FROM orders o\n  JOIN inventory i ON i.qty_on_hand > 0\n)\nSELECT order_id, customer_zone, warehouse_id, warehouse_zone, qty_on_hand\nFROM ranked\nWHERE pick_order = 1;",
+    "tags": [
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "joins"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "multi-warehouse-inventory-routing--closest-fc-wins"
+  },
+  {
+    "id": "co_sql_305-0349",
+    "num": 349,
+    "company": "Amazon",
+    "difficulty": "Hard",
+    "title": "Recommendation A/B Test \u2014 Lift in Add-to-Cart Rate",
+    "subtopic": "A/B uplift with confidence gate",
+    "schema": "ab_events(user_id, bucket, recommended_asin, clicked, added_to_cart)",
+    "solution": "SELECT bucket,\n  COUNT(*) AS impressions,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct,\n  ROUND(100.0 * SUM(added_to_cart) / NULLIF(COUNT(*), 0), 2) AS atc_pct,\n  ROUND(100.0 * SUM(added_to_cart) / NULLIF(SUM(clicked), 0), 2) AS atc_per_click_pct\nFROM ab_events\nGROUP BY bucket\nORDER BY bucket;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "recommendation-ab-test--lift-in-add-to-cart-rate"
+  },
+  {
+    "id": "co_sql_305-0350",
+    "num": 350,
+    "company": "Amazon",
+    "difficulty": "Medium",
+    "title": "FBA Seller Performance \u2014 Stockout Days per Month",
+    "subtopic": "Conditional-aggregation across daily snapshots",
+    "schema": "inventory_snapshots(seller_id, asin, snapshot_date, qty_on_hand)",
+    "solution": "SELECT seller_id,\n  substr(snapshot_date, 1, 7) AS month,\n  COUNT(DISTINCT snapshot_date) AS days_observed,\n  SUM(CASE WHEN qty_on_hand = 0 THEN 1 ELSE 0 END) AS stockout_days,\n  ROUND(100.0 * SUM(CASE WHEN qty_on_hand = 0 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS stockout_rate_pct\nFROM inventory_snapshots\nGROUP BY seller_id, month\nORDER BY stockout_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "fba-seller-performance--stockout-days-per-month"
+  },
+  {
+    "id": "co_sql_305-0351",
+    "num": 351,
+    "company": "Amazon",
+    "difficulty": "Hard",
+    "title": "Sponsored Products Attribution \u2014 Click-Through vs View-Through",
+    "subtopic": "Multi-touch attribution windowing",
+    "schema": "ad_impressions(impression_id, user_id, asin, shown_at, clicked), purchases(user_id, asin, purchased_at)",
+    "solution": "SELECT\n  SUM(CASE WHEN i.clicked = 1 AND julianday(p.purchased_at) - julianday(i.shown_at) BETWEEN 0 AND 7 THEN 1 ELSE 0 END) AS click_through_attr,\n  SUM(CASE WHEN i.clicked = 0 AND julianday(p.purchased_at) - julianday(i.shown_at) BETWEEN 0 AND 1 THEN 1 ELSE 0 END) AS view_through_attr,\n  COUNT(*) AS attributed_pairs\nFROM ad_impressions i\nJOIN purchases p ON p.user_id = i.user_id AND p.asin = i.asin\n  AND julianday(p.purchased_at) > julianday(i.shown_at)\n  AND julianday(p.purchased_at) - julianday(i.shown_at) <= 7;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "joins"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "sponsored-products-attribution--click-through-vs-view-through"
+  },
+  {
+    "id": "co_sql_305-0352",
+    "num": 352,
+    "company": "Apple",
+    "difficulty": "Medium",
+    "title": "App Store IAP Revenue by Category",
+    "subtopic": "Category aggregation with share",
+    "schema": "iap_transactions(txn_id, app_id, category, amount, txn_at)",
+    "solution": "SELECT category,\n  COUNT(*) AS transactions,\n  ROUND(SUM(amount), 2) AS gross_revenue,\n  ROUND(SUM(amount) * 0.85, 2) AS dev_revenue,\n  ROUND(SUM(amount) * 0.15, 2) AS apple_cut,\n  ROUND(100.0 * SUM(amount) / SUM(SUM(amount)) OVER (), 1) AS share_of_total_pct\nFROM iap_transactions\nGROUP BY category\nORDER BY gross_revenue DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "app-store-iap-revenue-by-category"
+  },
+  {
+    "id": "co_sql_305-0353",
+    "num": 353,
+    "company": "Apple",
+    "difficulty": "Medium",
+    "title": "iCloud Tier Upgrade Funnel",
+    "subtopic": "Sequential tier transition counting",
+    "schema": "icloud_tiers(user_id, tier, upgraded_at)",
+    "solution": "WITH transitions AS (\n  SELECT user_id, tier,\n    LAG(tier) OVER (PARTITION BY user_id ORDER BY upgraded_at) AS prev_tier\n  FROM icloud_tiers\n)\nSELECT prev_tier, tier AS new_tier, COUNT(*) AS users\nFROM transitions\nWHERE prev_tier IS NOT NULL\nGROUP BY prev_tier, tier\nORDER BY prev_tier, users DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "icloud-tier-upgrade-funnel"
+  },
+  {
+    "id": "co_sql_305-0354",
+    "num": 354,
+    "company": "Apple",
+    "difficulty": "Medium",
+    "title": "Device Upgrade Cycle \u2014 Months Between Purchases",
+    "subtopic": "Per-customer LAG difference",
+    "schema": "device_purchases(customer_id, device_model, purchased_at)",
+    "solution": "WITH gaps AS (\n  SELECT customer_id, device_model, purchased_at,\n    LAG(purchased_at) OVER (PARTITION BY customer_id ORDER BY purchased_at) AS prev_purchase\n  FROM device_purchases\n)\nSELECT customer_id, device_model, purchased_at,\n  CAST((julianday(purchased_at) - julianday(prev_purchase)) / 30.0 AS INTEGER) AS months_since_last\nFROM gaps\nWHERE prev_purchase IS NOT NULL\nORDER BY months_since_last DESC;",
+    "tags": [
+      "analytical-functions",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "device-upgrade-cycle--months-between-purchases"
+  },
+  {
+    "id": "co_sql_305-0355",
+    "num": 355,
+    "company": "Apple",
+    "difficulty": "Medium",
+    "title": "Push Notification Delivery SLA",
+    "subtopic": "Latency percentile via NTILE",
+    "schema": "push_events(notification_id, queued_at, delivered_at, app_id)",
+    "solution": "WITH latencies AS (\n  SELECT app_id,\n    CAST((julianday(delivered_at) - julianday(queued_at)) * 86400 AS INTEGER) AS latency_seconds\n  FROM push_events\n  WHERE delivered_at IS NOT NULL\n)\nSELECT app_id,\n  COUNT(*) AS deliveries,\n  ROUND(AVG(latency_seconds), 1) AS avg_latency_sec,\n  MAX(latency_seconds) AS max_latency_sec,\n  SUM(CASE WHEN latency_seconds <= 5 THEN 1 ELSE 0 END) AS within_5s_count,\n  ROUND(100.0 * SUM(CASE WHEN latency_seconds <= 5 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS within_5s_pct\nFROM latencies\nGROUP BY app_id\nORDER BY within_5s_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "push-notification-delivery-sla"
+  },
+  {
+    "id": "co_sql_305-0356",
+    "num": 356,
+    "company": "Apple",
+    "difficulty": "Easy",
+    "title": "App Store Search CTR per Query Term",
+    "subtopic": "CTR per group with sample-size gate",
+    "schema": "app_searches(search_id, query_term, app_id, position, clicked)",
+    "solution": "SELECT query_term,\n  COUNT(*) AS impressions,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM app_searches\nGROUP BY query_term\nHAVING COUNT(*) >= 3\nORDER BY ctr_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "app-store-search-ctr-per-query-term"
+  },
+  {
+    "id": "co_sql_305-0357",
+    "num": 357,
+    "company": "Apple",
+    "difficulty": "Medium",
+    "title": "Refund Rate by App Category \u2014 Quality Signal",
+    "subtopic": "Refund-vs-purchase ratio with floor",
+    "schema": "iap_transactions(txn_id, app_id, category, amount, refunded)",
+    "solution": "SELECT category,\n  COUNT(*) AS purchases,\n  SUM(refunded) AS refunds,\n  ROUND(100.0 * SUM(refunded) / NULLIF(COUNT(*), 0), 2) AS refund_rate_pct,\n  ROUND(SUM(CASE WHEN refunded = 1 THEN amount END), 2) AS refunded_dollars\nFROM iap_transactions\nGROUP BY category\nHAVING COUNT(*) >= 5\nORDER BY refund_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "refund-rate-by-app-category--quality-signal"
+  },
+  {
+    "id": "co_sql_305-0358",
+    "num": 358,
+    "company": "Stripe",
+    "difficulty": "Medium",
+    "title": "Payment Success Rate by Method + Country",
+    "subtopic": "Two-axis success-rate matrix",
+    "schema": "payments(payment_id, method, country, status, amount)",
+    "solution": "SELECT method, country,\n  COUNT(*) AS attempts,\n  SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END) AS successes,\n  ROUND(100.0 * SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS success_rate_pct\nFROM payments\nGROUP BY method, country\nHAVING COUNT(*) >= 1\nORDER BY method, success_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "payment-success-rate-by-method-plus-country"
+  },
+  {
+    "id": "co_sql_305-0359",
+    "num": 359,
+    "company": "Stripe",
+    "difficulty": "Hard",
+    "title": "Velocity-Rule Fraud \u2014 3+ Attempts Within 5 Minutes",
+    "subtopic": "Sliding-window via self-join",
+    "schema": "payment_attempts(attempt_id, user_id, attempted_at, status)",
+    "solution": "SELECT a.user_id, a.attempted_at,\n  COUNT(b.attempt_id) AS attempts_in_5min\nFROM payment_attempts a\nJOIN payment_attempts b\n  ON b.user_id = a.user_id\n AND julianday(b.attempted_at) BETWEEN julianday(a.attempted_at) - 1.0/288 AND julianday(a.attempted_at)\nGROUP BY a.user_id, a.attempted_at\nHAVING COUNT(b.attempt_id) >= 3\nORDER BY a.user_id, a.attempted_at;",
+    "tags": [
+      "aggregation",
+      "having",
+      "joins",
+      "self-join"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "velocity-rule-fraud--3plus-attempts-within-5-minutes"
+  },
+  {
+    "id": "co_sql_305-0360",
+    "num": 360,
+    "company": "Stripe",
+    "difficulty": "Hard",
+    "title": "MRR Cohort Retention \u2014 Monthly Survival Curve",
+    "subtopic": "Cohort matrix with FIRST_VALUE denominator",
+    "schema": "subscriptions(customer_id, signup_month, active_month)",
+    "solution": "WITH joined AS (\n  SELECT signup_month,\n    CAST((julianday(active_month || '-01') - julianday(signup_month || '-01')) / 30 AS INTEGER) AS month_n,\n    customer_id\n  FROM subscriptions\n)\nSELECT signup_month, month_n,\n  COUNT(DISTINCT customer_id) AS active_customers,\n  ROUND(100.0 * COUNT(DISTINCT customer_id) /\n    FIRST_VALUE(COUNT(DISTINCT customer_id)) OVER (PARTITION BY signup_month ORDER BY month_n), 1) AS retention_pct\nFROM joined\nWHERE month_n BETWEEN 0 AND 12\nGROUP BY signup_month, month_n\nORDER BY signup_month, month_n;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "mrr-cohort-retention--monthly-survival-curve"
+  },
+  {
+    "id": "co_sql_305-0361",
+    "num": 361,
+    "company": "Stripe",
+    "difficulty": "Hard",
+    "title": "Churn Waterfall \u2014 New / Existing / Churned / Resurrected",
+    "subtopic": "Customer state transitions LAG/LEAD",
+    "schema": "monthly_revenue(customer_id, month, mrr)",
+    "solution": "WITH classified AS (\n  SELECT customer_id, month, mrr,\n    LAG(mrr) OVER (PARTITION BY customer_id ORDER BY month) AS prev_mrr\n  FROM monthly_revenue\n)\nSELECT month,\n  SUM(CASE WHEN prev_mrr IS NULL  AND mrr > 0          THEN 1 ELSE 0 END) AS new_customers,\n  SUM(CASE WHEN prev_mrr > 0      AND mrr > 0          THEN 1 ELSE 0 END) AS existing,\n  SUM(CASE WHEN prev_mrr > 0      AND (mrr = 0 OR mrr IS NULL) THEN 1 ELSE 0 END) AS churned,\n  SUM(CASE WHEN prev_mrr = 0      AND mrr > 0          THEN 1 ELSE 0 END) AS resurrected\nFROM classified\nGROUP BY month\nORDER BY month;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "churn-waterfall--new--existing--churned--resurrected"
+  },
+  {
+    "id": "co_sql_305-0362",
+    "num": 362,
+    "company": "Stripe",
+    "difficulty": "Medium",
+    "title": "Dispute Rate per Merchant \u2014 Risk Scoring",
+    "subtopic": "Per-merchant rate with tier classification",
+    "schema": "charges(charge_id, merchant_id, amount, disputed)",
+    "solution": "SELECT merchant_id,\n  COUNT(*) AS charges,\n  SUM(disputed) AS disputes,\n  ROUND(100.0 * SUM(disputed) / NULLIF(COUNT(*), 0), 2) AS dispute_rate_pct,\n  CASE\n    WHEN 100.0 * SUM(disputed) / NULLIF(COUNT(*), 0) >= 1.0 THEN 'high_risk'\n    WHEN 100.0 * SUM(disputed) / NULLIF(COUNT(*), 0) >= 0.3 THEN 'monitor'\n    ELSE 'normal'\n  END AS risk_tier\nFROM charges\nGROUP BY merchant_id\nHAVING COUNT(*) >= 5\nORDER BY dispute_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "dispute-rate-per-merchant--risk-scoring"
+  },
+  {
+    "id": "co_sql_305-0363",
+    "num": 363,
+    "company": "Stripe",
+    "difficulty": "Medium",
+    "title": "Payout Reconciliation \u2014 Charges \u2212 Refunds = Payout",
+    "subtopic": "Multi-table net calculation",
+    "schema": "charges(charge_id, merchant_id, amount, charged_at), refunds(refund_id, charge_id, amount, refunded_at), payouts(payout_id, merchant_id, amount, paid_at)",
+    "solution": "WITH net AS (\n  SELECT c.merchant_id,\n    ROUND(SUM(c.amount), 2) AS gross_charges,\n    ROUND(COALESCE(SUM(r.amount), 0), 2) AS gross_refunds,\n    ROUND(SUM(c.amount) - COALESCE(SUM(r.amount), 0), 2) AS expected_payout\n  FROM charges c\n  LEFT JOIN refunds r ON r.charge_id = c.charge_id\n  GROUP BY c.merchant_id\n)\nSELECT n.merchant_id, n.gross_charges, n.gross_refunds, n.expected_payout,\n  ROUND(COALESCE(SUM(p.amount), 0), 2) AS actual_payout,\n  ROUND(n.expected_payout - COALESCE(SUM(p.amount), 0), 2) AS reconciliation_diff\nFROM net n\nLEFT JOIN payouts p ON p.merchant_id = n.merchant_id\nGROUP BY n.merchant_id, n.gross_charges, n.gross_refunds, n.expected_payout\nORDER BY ABS(reconciliation_diff) DESC;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "payout-reconciliation--charges-\u2212-refunds-=-payout"
+  },
+  {
+    "id": "co_sql_305-0364",
+    "num": 364,
+    "company": "Airbnb",
+    "difficulty": "Medium",
+    "title": "Occupancy Rate by City \u2014 Booked Nights / Available Nights",
+    "subtopic": "Calendar-as-fact density",
+    "schema": "calendar_nights(listing_id, night, available, booked, city)",
+    "solution": "SELECT city,\n  COUNT(*) AS listing_nights,\n  SUM(booked) AS booked_nights,\n  SUM(available) AS available_nights,\n  ROUND(100.0 * SUM(booked) / NULLIF(SUM(available) + SUM(booked), 0), 1) AS occupancy_pct\nFROM calendar_nights\nGROUP BY city\nORDER BY occupancy_pct DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "occupancy-rate-by-city--booked-nights--available-nights"
+  },
+  {
+    "id": "co_sql_305-0365",
+    "num": 365,
+    "company": "Airbnb",
+    "difficulty": "Medium",
+    "title": "Host Response Time \u2014 Median per Listing",
+    "subtopic": "Per-host latency P50/P95",
+    "schema": "messages(message_id, listing_id, host_id, sent_by, sent_at)",
+    "solution": "WITH guest_msgs AS (\n  SELECT listing_id, sent_at AS guest_at,\n    LEAD(sent_at) OVER (PARTITION BY listing_id ORDER BY sent_at) AS host_at,\n    LEAD(sent_by) OVER (PARTITION BY listing_id ORDER BY sent_at) AS next_sender\n  FROM messages\n)\nSELECT listing_id,\n  COUNT(*) AS guest_messages,\n  ROUND(AVG((julianday(host_at) - julianday(guest_at)) * 1440), 1) AS avg_response_minutes\nFROM guest_msgs\nWHERE next_sender = 'host'\nGROUP BY listing_id\nHAVING COUNT(*) >= 3\nORDER BY avg_response_minutes;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "host-response-time--median-per-listing"
+  },
+  {
+    "id": "co_sql_305-0366",
+    "num": 366,
+    "company": "Airbnb",
+    "difficulty": "Hard",
+    "title": "Search-to-Book Funnel by Property Type",
+    "subtopic": "Cohort funnel with property segmentation",
+    "schema": "search_events(search_id, user_id, property_type, viewed_listing_id, searched_at), bookings(user_id, listing_id, booked_at)",
+    "solution": "SELECT s.property_type,\n  COUNT(DISTINCT s.search_id) AS searches,\n  COUNT(DISTINCT b.user_id) AS booked_users,\n  ROUND(100.0 * COUNT(DISTINCT b.user_id) / NULLIF(COUNT(DISTINCT s.user_id), 0), 1) AS user_book_pct\nFROM search_events s\nLEFT JOIN bookings b\n  ON b.user_id = s.user_id\n AND b.listing_id = s.viewed_listing_id\n AND julianday(b.booked_at) - julianday(s.searched_at) BETWEEN 0 AND 30\nGROUP BY s.property_type\nORDER BY user_book_pct DESC;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "search-to-book-funnel-by-property-type"
+  },
+  {
+    "id": "co_sql_305-0367",
+    "num": 367,
+    "company": "Airbnb",
+    "difficulty": "Medium",
+    "title": "Superhost Eligibility \u2014 Multi-Criteria Boolean",
+    "subtopic": "Multi-criteria HAVING composite",
+    "schema": "host_metrics(host_id, completed_trips, avg_rating, response_rate_pct, cancellation_count)",
+    "solution": "SELECT host_id, completed_trips, avg_rating, response_rate_pct, cancellation_count,\n  CASE\n    WHEN completed_trips >= 10\n     AND avg_rating       >= 4.8\n     AND response_rate_pct >= 90\n     AND cancellation_count = 0\n    THEN 'superhost' ELSE 'not_eligible'\n  END AS status\nFROM host_metrics\nORDER BY status, avg_rating DESC;",
+    "tags": [
+      "case-when"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "superhost-eligibility--multi-criteria-boolean"
+  },
+  {
+    "id": "co_sql_305-0368",
+    "num": 368,
+    "company": "Airbnb",
+    "difficulty": "Medium",
+    "title": "Cancellation Rate by Stay Length",
+    "subtopic": "Bucketed stay-length analysis",
+    "schema": "bookings(booking_id, listing_id, nights, cancelled)",
+    "solution": "SELECT\n  CASE\n    WHEN nights <= 2  THEN '1-2 nights'\n    WHEN nights <= 6  THEN '3-6 nights'\n    WHEN nights <= 14 THEN '1-2 weeks'\n    ELSE '15+ nights'\n  END AS stay_band,\n  COUNT(*) AS bookings,\n  SUM(cancelled) AS cancellations,\n  ROUND(100.0 * SUM(cancelled) / NULLIF(COUNT(*), 0), 1) AS cancel_rate_pct\nFROM bookings\nGROUP BY stay_band\nORDER BY cancel_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "cancellation-rate-by-stay-length"
+  },
+  {
+    "id": "co_sql_305-0369",
+    "num": 369,
+    "company": "Airbnb",
+    "difficulty": "Hard",
+    "title": "Calendar Gap Detection \u2014 Listings With Black-Out Stretches",
+    "subtopic": "Gaps-and-islands on listing calendar",
+    "schema": "calendar_nights(listing_id, night, available)",
+    "solution": "WITH unavail AS (\n  SELECT listing_id, night,\n    julianday(night) - ROW_NUMBER() OVER (PARTITION BY listing_id ORDER BY night) AS island_id\n  FROM calendar_nights\n  WHERE available = 0\n)\nSELECT listing_id,\n  MIN(night) AS blackout_start,\n  MAX(night) AS blackout_end,\n  COUNT(*) AS blackout_days\nFROM unavail\nGROUP BY listing_id, island_id\nHAVING COUNT(*) >= 1\nORDER BY blackout_days DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "calendar-gap-detection--listings-with-black-out-stretches"
   }
 ]

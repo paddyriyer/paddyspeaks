@@ -1,0 +1,43 @@
+<p>Stripe's "auth rate" — the % of payment attempts that successfully charge — is the single most-watched product number. The query slices by payment method and country, exposing the cells where authorization is failing.</p>
+
+<h4>1. The source data — <code>payments</code></h4>
+<table><thead><tr><th>payment_id</th><th>method</th><th>country</th><th>status</th><th>amount</th></tr></thead>
+<tbody><tr><td>P_001</td><td>card</td><td>US</td><td>succeeded</td><td>$50</td></tr></tbody></table>
+
+<h4>2. The SQL — two-axis success-rate matrix</h4>
+<pre><code>SELECT method, country,
+  COUNT(*) AS attempts,
+  SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END) AS successes,
+  ROUND(100.0 * SUM(CASE WHEN status = 'succeeded' THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS success_rate_pct
+FROM payments
+GROUP BY method, country
+HAVING COUNT(*) &gt;= 1
+ORDER BY method, success_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The matrix view</h5>
+<p>Single dimension (just country, just method) hides the cross-effect. <strong>Card payments in Brazil have 70% auth; card payments in US have 92%</strong> — totally different stories per country. Cross-tab is the actionable view.</p>
+
+<h5>The fail-reason breakdown</h5>
+<p>"Failed" is one bucket; production splits into:</p>
+<ul>
+<li><strong>insufficient_funds</strong> — user issue, retry later</li>
+<li><strong>card_declined</strong> — bank issue, contact bank</li>
+<li><strong>do_not_honor</strong> — bank silent fail, often network glitch</li>
+<li><strong>3ds_required</strong> — needs second-factor authentication</li>
+<li><strong>fraudulent</strong> — Stripe's risk score blocked it</li>
+</ul>
+<p>Each bucket has different remediation. Show the top-5 fail reason per cell.</p>
+
+<h5>The 3DS gate</h5>
+<p>EU's PSD2 mandates 3D-Secure for many transactions, dropping auth rate by 5-15pp. Comparing EU to US auth rate without controlling for 3DS is unfair. Slice by <code>requires_3ds</code>.</p>
+
+<h5>Network-level signal</h5>
+<p>Visa, Mastercard, Amex have different auth profiles per country. Grouping all card-method together hides the network split. Add <code>card_network</code> dimension.</p>
+
+<h5>The retry pattern</h5>
+<p>One "failed" attempt may be retried successfully 5 minutes later. <strong>Net auth rate</strong> (any of N attempts succeeded) is much higher than per-attempt rate. Production tracks both.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> always cross-tab method × country, split fail reasons for remediation, isolate 3DS impact for EU comparison, separate card networks, and contrast attempt-rate vs net-rate. The EU 3DS-mandate effect is the over-the-bar regulatory framing.</div>

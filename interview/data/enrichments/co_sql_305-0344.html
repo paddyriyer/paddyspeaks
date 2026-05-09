@@ -1,0 +1,38 @@
+<p>Amazon's Operations team measures one number daily: <strong>on-time delivery rate</strong>. The query joins each order's promised vs actual delivery date and computes the % within SLA per marketplace.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table><thead><tr><th>order_id</th><th>ordered_at</th><th>promised_at</th><th>delivered_at</th><th>marketplace</th></tr></thead>
+<tbody><tr><td>O_001</td><td>Jan 1 09:00</td><td>Jan 3</td><td>Jan 2</td><td>US</td></tr></tbody></table>
+
+<h4>2. The SQL — julianday compare + on-time conditional aggregation</h4>
+<pre><code>SELECT marketplace,
+  COUNT(*) AS orders,
+  SUM(CASE WHEN julianday(delivered_at) &lt;= julianday(promised_at) THEN 1 ELSE 0 END) AS on_time,
+  ROUND(100.0 * SUM(CASE WHEN julianday(delivered_at) &lt;= julianday(promised_at) THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS on_time_pct,
+  ROUND(AVG((julianday(delivered_at) - julianday(ordered_at)) * 24), 1) AS avg_delivery_hours
+FROM orders WHERE delivered_at IS NOT NULL
+GROUP BY marketplace ORDER BY on_time_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The two metrics — on-time pct + avg duration</h5>
+<p>Pct alone ("95% on-time") doesn't say <em>how</em> on-time. A 95% rate at 30-hour avg vs 95% at 18-hour avg are different products. Always emit both.</p>
+
+<h5>The undelivered-still-in-flight trap</h5>
+<p><code>WHERE delivered_at IS NOT NULL</code> excludes in-flight orders — without it, you'd treat them as "late" (NULL is not ≤ promised_at). For active-fleet visibility, replace with <code>OR delivered_at IS NULL</code> in a separate "in_flight" bucket.</p>
+
+<h5>P95 / tail latency — beyond average</h5>
+<p>Average masks the long tail. Production SLAs target P95 ("95% of deliveries within 24 hours") not mean. NTILE-based percentile estimation:</p>
+<pre><code>WITH ntiled AS (SELECT *, NTILE(20) OVER (PARTITION BY marketplace ORDER BY julianday(delivered_at) - julianday(ordered_at)) AS tile FROM orders)
+SELECT marketplace, MAX((julianday(delivered_at) - julianday(ordered_at)) * 24) AS p95_hours
+FROM ntiled WHERE tile &lt;= 19 GROUP BY marketplace;</code></pre>
+
+<h5>Prime vs non-Prime split</h5>
+<p>Prime orders have 2-day SLA; non-Prime has 5-7. Mixing them in one number obscures the actual story. Slice:</p>
+<pre><code>GROUP BY marketplace, is_prime</code></pre>
+
+<h5>The "promised" definition trap</h5>
+<p><code>promised_at</code> changes during the order lifecycle: initial estimate at checkout, then revised after carrier pickup, then revised again on day-of-delivery. <em>Which</em> promise are we comparing against? Use the <em>customer-facing initial promise</em> for trust metrics, the <em>final carrier ETA</em> for ops.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit both rate + duration, surface the in-flight NULL handling, push to P95 over mean, split Prime vs non-Prime, and disambiguate which "promised_at" is being measured.</div>

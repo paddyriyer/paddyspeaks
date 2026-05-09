@@ -1,0 +1,50 @@
+<p>Disputes (chargebacks) are Stripe's risk metric — too many disputes means the card networks penalize Stripe AND the merchant. The query computes per-merchant dispute rate and classifies into risk tiers.</p>
+
+<h4>1. The source data — <code>charges</code></h4>
+<table><thead><tr><th>charge_id</th><th>merchant_id</th><th>amount</th><th>disputed</th></tr></thead>
+<tbody><tr><td>C_001</td><td>M_01</td><td>$50</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — rate + tier-classification</h4>
+<pre><code>SELECT merchant_id,
+  COUNT(*) AS charges,
+  SUM(disputed) AS disputes,
+  ROUND(100.0 * SUM(disputed) / NULLIF(COUNT(*), 0), 2) AS dispute_rate_pct,
+  CASE
+    WHEN 100.0 * SUM(disputed) / NULLIF(COUNT(*), 0) &gt;= 1.0 THEN 'high_risk'
+    WHEN 100.0 * SUM(disputed) / NULLIF(COUNT(*), 0) &gt;= 0.3 THEN 'monitor'
+    ELSE 'normal'
+  END AS risk_tier
+FROM charges
+GROUP BY merchant_id
+HAVING COUNT(*) &gt;= 5
+ORDER BY dispute_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 1% threshold — the network-mandated bright line</h5>
+<p>Visa and Mastercard impose penalties on merchants with sustained &gt; 1% dispute rate. Stripe pre-emptively flags merchants approaching this to give them time to fix.</p>
+
+<h5>The CASE-in-SELECT for tier classification</h5>
+<p>Inline CASE keeps the query single-pass. Alternative: CTE with the rate first, then classify. The inline form is more readable for reports.</p>
+
+<h5>The chargeback fight-back rate</h5>
+<p>Disputes can be contested by the merchant. <strong>Win-rate</strong> (disputes won / disputes filed) is a quality signal too — high dispute rate but high win-rate means buyer-fraud, not merchant-fraud.</p>
+<pre><code>SUM(CASE WHEN d.outcome = 'won' THEN 1 ELSE 0 END) * 1.0 / NULLIF(SUM(disputed), 0) AS win_rate</code></pre>
+
+<h5>Time-to-dispute</h5>
+<p>Most disputes happen 30-90 days after charge. A merchant with disputes spread across 1-180 days has different risk profile from one with disputes clustered at day 1. Slice by time-since-charge.</p>
+
+<h5>Reason-code grouping</h5>
+<p>Visa's chargeback reason codes split into:</p>
+<ul>
+<li>"Fraud" (4837) — card stolen</li>
+<li>"Customer dispute" (4853) — service not as described</li>
+<li>"Authorization" (4808) — auth failure</li>
+<li>"Processing error" (4831) — operational</li>
+</ul>
+<p>Different remediations. Production groups by reason-code top-N per merchant.</p>
+
+<h5>The Radar feedback loop</h5>
+<p>High-risk merchants get tighter Radar rules — more transactions blocked at the auth stage to prevent the dispute downstream. The query result feeds the Radar model retrain.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the 1% network bright line, surface chargeback win-rate as a counter-signal, slice by time-since-charge and reason-code, and connect to the Radar feedback loop. Inline CASE for tier is the readability move.</div>

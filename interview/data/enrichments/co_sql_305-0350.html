@@ -1,0 +1,43 @@
+<p>FBA (Fulfillment by Amazon) sellers depend on inventory availability. Amazon's seller-quality team measures <strong>stockout days</strong> per ASIN per month — sustained stockouts demote search ranking and signal poor inventory planning.</p>
+
+<h4>1. The source data — <code>inventory_snapshots</code></h4>
+<table><thead><tr><th>seller_id</th><th>asin</th><th>snapshot_date</th><th>qty_on_hand</th></tr></thead>
+<tbody><tr><td>S_001</td><td>A_01</td><td>2024-01-15</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — count zero-qty days per (seller, month)</h4>
+<pre><code>SELECT seller_id,
+  substr(snapshot_date, 1, 7) AS month,
+  COUNT(DISTINCT snapshot_date) AS days_observed,
+  SUM(CASE WHEN qty_on_hand = 0 THEN 1 ELSE 0 END) AS stockout_days,
+  ROUND(100.0 * SUM(CASE WHEN qty_on_hand = 0 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS stockout_rate_pct
+FROM inventory_snapshots
+GROUP BY seller_id, month
+ORDER BY stockout_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The substr trick for month bucket</h5>
+<p>SQLite has no DATE_TRUNC. <code>substr(date, 1, 7)</code> takes "YYYY-MM" from "YYYY-MM-DD" — works because ISO dates are length-fixed. Cross-dialect portable.</p>
+
+<h5>The "qty_on_hand = 0" semantic gap</h5>
+<p>Inventory tables capture different scenarios as zero:</p>
+<ul>
+<li>Sold out — recoverable (restock)</li>
+<li>Discontinued — permanent</li>
+<li>Reserved (not net-available)</li>
+<li>Data feed broken</li>
+</ul>
+<p>Production tracks <code>qty_on_hand</code> AND <code>qty_available</code> separately. The query should use <code>qty_available</code> for stockout-the-customer-experiences metric.</p>
+
+<h5>Snapshot frequency matters</h5>
+<p>Daily snapshots = stockout-day granularity. Hourly snapshots show the % of HOURS out of stock — much higher fidelity. Match the metric grain to the snapshot grain.</p>
+
+<h5>The "search-rank impact" tie-back</h5>
+<p>Amazon's search-ranking model penalizes sustained stockouts. Each stockout day costs ~30% of normal sales velocity for 1-2 weeks after restock. The query result feeds the seller-warning email at &gt; 5% stockout rate.</p>
+
+<h5>Seasonality adjustment</h5>
+<p>Holiday-season stockouts are common but devastating. Compare each (seller, month) to the seller's historical baseline:</p>
+<pre><code>... stockout_rate_pct - AVG(stockout_rate_pct) OVER (PARTITION BY seller_id) AS deviation</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> use substr for portable month-bucketing, distinguish qty_on_hand vs qty_available, match metric grain to snapshot grain, and connect stockouts to search-rank impact. Per-seller-baseline normalization is the over-the-bar slice.</div>

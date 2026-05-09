@@ -1,0 +1,48 @@
+<p>Airbnb's cancellation rate varies dramatically by stay length: 1-2 nights have 8-12% cancel rate; 30+ nights have 2-3%. The query buckets by stay length and reports rate per band.</p>
+
+<h4>1. The source data — <code>bookings</code></h4>
+<table><thead><tr><th>booking_id</th><th>listing_id</th><th>nights</th><th>cancelled</th></tr></thead>
+<tbody><tr><td>B_01</td><td>L_01</td><td>3</td><td>0</td></tr></tbody></table>
+
+<h4>2. The SQL — CASE-bucketed cancellation rate</h4>
+<pre><code>SELECT
+  CASE
+    WHEN nights &lt;= 2  THEN '1-2 nights'
+    WHEN nights &lt;= 6  THEN '3-6 nights'
+    WHEN nights &lt;= 14 THEN '1-2 weeks'
+    ELSE '15+ nights'
+  END AS stay_band,
+  COUNT(*) AS bookings,
+  SUM(cancelled) AS cancellations,
+  ROUND(100.0 * SUM(cancelled) / NULLIF(COUNT(*), 0), 1) AS cancel_rate_pct
+FROM bookings
+GROUP BY stay_band
+ORDER BY cancel_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why bucket — not raw nights</h5>
+<p>Per-night cancel rates produce a noisy curve. Buckets compress them into 4 readable bands. The bucket boundaries are picked to match the business: weekend (1-2), weeklong (3-6), week+ (7-14), monthly (15+).</p>
+
+<h5>Cancel-by-whom — the missing dimension</h5>
+<p>"Cancelled" lumps host-cancels and guest-cancels. They have different costs:</p>
+<ul>
+<li><strong>Host cancel</strong> — host violates Airbnb's reliability promise, penalty applies</li>
+<li><strong>Guest cancel</strong> — refund varies by host's policy (flexible/moderate/strict)</li>
+</ul>
+<p>Always split.</p>
+
+<h5>Time-to-cancel</h5>
+<p>Cancellations 7+ days before check-in are different from same-day. Same-day cancels disrupt the host more. Slice by lead-time:</p>
+<pre><code>CASE WHEN julianday(cancelled_at) - julianday(checkin_date) &lt;= 1 THEN 'last_minute' END</code></pre>
+
+<h5>The cancellation-policy interaction</h5>
+<p>Strict-policy listings see lower guest-cancel rate (less refundable, fewer change of mind). The same listing under flexible policy might see 2x cancels. Comparing across policies is unfair.</p>
+
+<h5>Cohort by booking lead-time</h5>
+<p>Bookings made 6 months ahead have more time to cancel; same-day bookings rarely cancel. Lead-time and stay-length confound. Senior analysis controls for both.</p>
+
+<h5>The "cancel and rebook" pattern</h5>
+<p>Some "cancellations" are actually upgrades — guest cancels short stay to rebook longer one. Production tracks these as <em>modifications</em>, not pure cancellations.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use CASE-bucketed bands for readability, split host-cancel vs guest-cancel for cost asymmetry, slice by time-to-cancel and cancellation-policy, and disambiguate cancel-and-rebook as modifications. Lead-time vs stay-length confound is the over-the-bar control.</div>

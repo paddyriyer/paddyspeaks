@@ -1,0 +1,52 @@
+<p>Stripe's growth-accounting framework: every month, customers fall into 4 mutually-exclusive buckets — <strong>new / existing / churned / resurrected</strong>. The query uses LAG to compare current vs previous month MRR per customer.</p>
+
+<h4>1. The source data — <code>monthly_revenue</code></h4>
+<table><thead><tr><th>customer_id</th><th>month</th><th>mrr</th></tr></thead>
+<tbody><tr><td>C_001</td><td>2024-01</td><td>$50</td></tr><tr><td>C_001</td><td>2024-02</td><td>$50</td></tr></tbody></table>
+
+<h4>2. The SQL — LAG-based state classification</h4>
+<pre><code>WITH classified AS (
+  SELECT customer_id, month, mrr,
+    LAG(mrr) OVER (PARTITION BY customer_id ORDER BY month) AS prev_mrr
+  FROM monthly_revenue
+)
+SELECT month,
+  SUM(CASE WHEN prev_mrr IS NULL  AND mrr &gt; 0          THEN 1 ELSE 0 END) AS new_customers,
+  SUM(CASE WHEN prev_mrr &gt; 0      AND mrr &gt; 0          THEN 1 ELSE 0 END) AS existing,
+  SUM(CASE WHEN prev_mrr &gt; 0      AND (mrr = 0 OR mrr IS NULL) THEN 1 ELSE 0 END) AS churned,
+  SUM(CASE WHEN prev_mrr = 0      AND mrr &gt; 0          THEN 1 ELSE 0 END) AS resurrected
+FROM classified
+GROUP BY month
+ORDER BY month;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The four mutually-exclusive states</h5>
+<table><thead><tr><th>state</th><th>condition</th><th>signal</th></tr></thead>
+<tbody>
+<tr><td>New</td><td>prev_mrr IS NULL, mrr &gt; 0</td><td>acquisition</td></tr>
+<tr><td>Existing</td><td>prev_mrr &gt; 0, mrr &gt; 0</td><td>retained</td></tr>
+<tr><td>Churned</td><td>prev_mrr &gt; 0, mrr = 0</td><td>lost</td></tr>
+<tr><td>Resurrected</td><td>prev_mrr = 0, mrr &gt; 0</td><td>winback</td></tr>
+</tbody></table>
+
+<h5>The waterfall reconciliation</h5>
+<p>Each month's count: <code>existing + new + resurrected = active_customers</code>. <code>churned</code> goes the OTHER way. The CFO loves this because it reconciles the customer-base growth equation.</p>
+
+<h5>The expansion / contraction extension</h5>
+<p>Existing customers split: <code>expansion</code> (mrr grew), <code>contraction</code> (mrr shrank), <code>flat</code>. Real growth-accounting models all three:</p>
+<pre><code>SUM(CASE WHEN prev_mrr &gt; 0 AND mrr &gt; prev_mrr THEN 1 END) AS expansion
+SUM(CASE WHEN prev_mrr &gt; 0 AND mrr &lt; prev_mrr AND mrr &gt; 0 THEN 1 END) AS contraction</code></pre>
+
+<h5>Net dollar retention from the waterfall</h5>
+<pre><code>SUM(mrr WHERE existing OR resurrected OR expansion) /
+SUM(prev_mrr WHERE existing OR churned OR contraction) = NDR</code></pre>
+<p>NDR &gt; 100% = expansion outpaces churn (Snowflake-grade). NDR ≈ 100% = healthy. NDR &lt; 90% = product-market-fit problem.</p>
+
+<h5>Resurrected — the leading indicator</h5>
+<p>Resurrected count growing over time = winback campaigns are working OR product is improving. Watch this trend; it predicts churn-rate inflection 3-6 months out.</p>
+
+<h5>The first-month edge</h5>
+<p>Month 1 of the data has no LAG → all customers look "new". Filter out the bootstrap row, OR pre-populate with a synthetic month-0 starting point.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the 4-bucket waterfall (new/existing/churned/resurrected), expand existing into expansion/contraction/flat for full growth accounting, compute NDR from the waterfall, and watch resurrected as the leading indicator. The first-month bootstrap edge case is the over-the-bar guard.</div>
