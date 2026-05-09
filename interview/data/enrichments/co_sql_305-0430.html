@@ -1,0 +1,28 @@
+<p>Distributed traces decompose request latency by service. Per-service span aggregation pinpoints which downstream is slow.</p>
+
+<h4>2. The SQL — per-service span stats</h4>
+<pre><code>SELECT service_name, COUNT(*) AS spans,
+  ROUND(AVG(duration_ms), 1) AS avg_ms, MAX(duration_ms) AS max_ms,
+  COUNT(DISTINCT trace_id) AS traces_touched,
+  ROUND(SUM(duration_ms) * 1.0 / NULLIF(COUNT(DISTINCT trace_id), 0), 1) AS avg_total_per_trace_ms
+FROM spans GROUP BY service_name ORDER BY avg_ms DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Avg vs P95 vs P99</h5>
+<p>Average hides tail. The metric SREs actually monitor: <strong>P99 latency</strong>. SQLite-friendly approximation:</p>
+<pre><code>WITH ranked AS (SELECT *, NTILE(100) OVER (PARTITION BY service_name ORDER BY duration_ms) AS pct FROM spans)
+SELECT service_name, MAX(duration_ms) AS p99 FROM ranked WHERE pct &lt;= 99 GROUP BY service_name;</code></pre>
+
+<h5>Total time per trace</h5>
+<p>Avg span duration × spans-per-trace = wall-clock per request. The customer-facing number. Different from per-span latency.</p>
+
+<h5>Critical-path filtering</h5>
+<p>Many spans run in parallel; only the longest blocking path matters. Production filters to <code>spans_on_critical_path</code> before computing latency.</p>
+
+<h5>Service-mesh vs business-logic</h5>
+<p>50% of latency is often network / proxy / TLS. Splitting by span-kind (server / client / internal) reveals where to optimize.</p>
+
+<h5>The error-correlated latency</h5>
+<p>Failed spans often have very different latency than successful ones (timeouts vs fast errors). Filter or split.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> P99 over avg, total-per-trace as the customer-facing number, filter to critical-path for optimization targeting, split by span-kind to isolate network from logic, and separate error-spans from success.</div>

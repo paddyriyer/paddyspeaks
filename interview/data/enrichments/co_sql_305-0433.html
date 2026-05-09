@@ -1,0 +1,31 @@
+<p>Shopify's "Abandoned Cart Email" feature is one of its highest-ROI features for merchants. The query measures recovery rate within a 7-day window.</p>
+
+<h4>2. The SQL — time-bounded recovery attribution</h4>
+<pre><code>SELECT COUNT(*) AS abandoned_carts,
+  COUNT(c.email_sent_at) AS emails_sent,
+  COUNT(DISTINCT CASE WHEN o.customer_id IS NOT NULL THEN c.cart_id END) AS recovered,
+  ROUND(100.0 * COUNT(DISTINCT CASE WHEN o.customer_id IS NOT NULL THEN c.cart_id END)
+              / NULLIF(COUNT(c.email_sent_at), 0), 1) AS recovery_rate_pct
+FROM cart_events c
+LEFT JOIN orders o
+  ON o.customer_id = c.customer_id
+ AND julianday(o.ordered_at) &gt;= julianday(c.email_sent_at)
+ AND julianday(o.ordered_at) - julianday(c.email_sent_at) &lt;= 7;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 10-15% benchmark</h5>
+<p>Industry: 10-15% of cart-recovery emails lead to a purchase. Above 15% = excellent (good email subject + offer). Below 5% = email content broken or shopper segment cold.</p>
+
+<h5>The 7-day attribution</h5>
+<p>Customer might come back after 30 days but for unrelated reasons. 7-day window isolates email-attributed conversions.</p>
+
+<h5>The SAME-cart vs ANY-purchase question</h5>
+<p>Did they buy what was in the cart, OR anything? The query attributes any purchase. Strict: <code>AND o.product_id = c.product_id</code>.</p>
+
+<h5>Email vs SMS recovery</h5>
+<p>SMS recovery converts 2-3x higher than email but at higher unsubscribe rate. Production splits.</p>
+
+<h5>The discount-temptation lever</h5>
+<p>Recovery emails with discount codes convert 2x non-discount. But discount cannibalizes margin. Per-merchant tuning.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 10-15% benchmark, 7-day window for clean attribution, distinguish same-cart vs any-purchase strictness, contrast email vs SMS, and balance discount lift against margin cost.</div>

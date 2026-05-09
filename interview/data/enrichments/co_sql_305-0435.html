@@ -1,0 +1,36 @@
+<p>Checkout funnel: <strong>cart → contact → shipping → payment → confirm</strong>. Each step loses customers; the worst step is the merchant's #1 fix.</p>
+
+<h4>2. The SQL — step-to-step + percent-of-top</h4>
+<pre><code>WITH counts AS (
+  SELECT step, COUNT(DISTINCT session_id) AS sessions
+  FROM checkout_events GROUP BY step
+)
+SELECT step, sessions,
+  LAG(sessions) OVER (ORDER BY step) AS prev_step,
+  ROUND(100.0 * sessions * 1.0 / NULLIF(LAG(sessions) OVER (ORDER BY step), 0), 1) AS step_to_step_pct,
+  ROUND(100.0 * sessions * 1.0 / FIRST_VALUE(sessions) OVER (ORDER BY step), 1) AS pct_of_top
+FROM counts ORDER BY step;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>FIRST_VALUE for the cleanest denominator</h5>
+<p>Top of funnel size = step 1. <code>FIRST_VALUE</code> grabs it and replicates on every row. Cleaner than self-join.</p>
+
+<h5>Two metrics — different stories</h5>
+<p>Step-to-step exposes the leakiest single transition. Pct-of-top shows the cumulative loss. Together: which gate to fix AND how much it'd recover.</p>
+
+<h5>Industry benchmarks</h5>
+<table><thead><tr><th>step</th><th>typical conversion (next step)</th></tr></thead>
+<tbody>
+<tr><td>Cart → Contact</td><td>60-75%</td></tr>
+<tr><td>Contact → Shipping</td><td>85-92%</td></tr>
+<tr><td>Shipping → Payment</td><td>80-90%</td></tr>
+<tr><td>Payment → Confirm</td><td>92-97%</td></tr>
+</tbody></table>
+
+<h5>Mobile-vs-desktop divergence</h5>
+<p>Mobile checkout converts ~30% lower than desktop. Production splits.</p>
+
+<h5>The Shop Pay shortcut</h5>
+<p>Shop Pay (Shopify's wallet) skips half the steps. Stores with Shop Pay enabled convert 2x. The funnel comparison reveals the lift.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> FIRST_VALUE for top-of-funnel denominator, emit both step-to-step and pct-of-top, cite industry benchmarks per step, split mobile vs desktop, and quantify Shop Pay lift.</div>

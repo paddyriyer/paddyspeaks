@@ -1,0 +1,30 @@
+<p>Salesforce's Sales Ops dashboard: <strong>average days in each pipeline stage</strong>. Stages with high duration are the bottlenecks; coaching focuses there.</p>
+
+<h4>2. The SQL — LEAD-based duration</h4>
+<pre><code>WITH transitions AS (
+  SELECT opp_id, stage, entered_at,
+    LEAD(entered_at) OVER (PARTITION BY opp_id ORDER BY entered_at) AS exited_at
+  FROM opp_stages
+)
+SELECT stage, COUNT(*) AS transitions,
+  ROUND(AVG(CASE WHEN exited_at IS NOT NULL
+    THEN (julianday(exited_at) - julianday(entered_at)) END), 1) AS avg_days_in_stage
+FROM transitions GROUP BY stage ORDER BY avg_days_in_stage DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>LEAD pattern for time-in-state</h5>
+<p>Each stage row has a <code>entered_at</code>. The next-row's <code>entered_at</code> = THIS row's exit. <code>LEAD</code> grabs it. The last stage of a deal has <code>exited_at IS NULL</code> — the deal is currently in that stage.</p>
+
+<h5>The current-stage exclusion</h5>
+<p>Open deals have unfinished stage durations. Excluding them with <code>WHERE exited_at IS NOT NULL</code> shows historical avg. Including them with <code>COALESCE(exited_at, NOW())</code> shows current cycle health.</p>
+
+<h5>The "stage skipped" pattern</h5>
+<p>Some deals jump stage 2 → stage 5. The schema records the jump as one row. Production tracks "stage skip rate" as a separate metric — high skip rates mean the stage is non-binding.</p>
+
+<h5>Median &gt; mean for duration</h5>
+<p>Two stuck deals (180 days) skew avg. Median is more representative. SQLite needs a workaround:</p>
+<pre><code>WITH ranked AS (SELECT stage, days, ROW_NUMBER() OVER (PARTITION BY stage ORDER BY days) AS rn,
+  COUNT(*) OVER (PARTITION BY stage) AS n FROM ...)
+SELECT stage, AVG(days) AS median FROM ranked WHERE rn IN (n/2, n/2+1) GROUP BY stage;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> LEAD for time-in-state, distinguish historical-avg from current-cycle-health via NULL handling, surface stage-skip rate as a separate metric, and prefer median over mean for skewed durations.</div>

@@ -1,0 +1,31 @@
+<p>Datadog tiered plans (Pro / Enterprise) come with quota limits. The query computes per-tier average utilization and identifies over-quota customers.</p>
+
+<h4>2. The SQL — utilization ratio per tier</h4>
+<pre><code>SELECT plan_tier, COUNT(*) AS customers,
+  ROUND(AVG(hosts_billed * 1.0 / NULLIF(hosts_quota, 0)), 2) AS avg_utilization_ratio,
+  SUM(CASE WHEN hosts_billed &gt; hosts_quota THEN 1 ELSE 0 END) AS over_quota_customers
+FROM customer_usage GROUP BY plan_tier ORDER BY avg_utilization_ratio DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Three customer states</h5>
+<table><thead><tr><th>utilization</th><th>action</th></tr></thead>
+<tbody>
+<tr><td>&lt; 30%</td><td>oversold — downgrade candidate</td></tr>
+<tr><td>30-70%</td><td>healthy</td></tr>
+<tr><td>70-95%</td><td>upsell prompt</td></tr>
+<tr><td>&gt; 95%</td><td>imminent over-quota — sales call</td></tr>
+</tbody></table>
+
+<h5>Over-quota = revenue opportunity</h5>
+<p>Datadog charges overage at premium rate. Customers consistently &gt; 100% are willing-to-pay-more candidates for upgrade negotiation.</p>
+
+<h5>The seasonal swing</h5>
+<p>Black Friday spike: e-commerce customers temporarily 200% utilization. Don't auto-upgrade; offer "burst pricing" instead.</p>
+
+<h5>Per-feature breakdown</h5>
+<p>Hosts quota is one. APM / RUM / Synthetics each have their own quotas. Customer might be 10% on hosts but 95% on APM. Production reports per-feature.</p>
+
+<h5>The renewal predictor</h5>
+<p>Utilization &gt; 70% has 95% renewal rate. &lt; 20% has 60% rate. The query feeds the customer-success book-of-business prioritization.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 4-tier utilization classification, identify over-quota as upsell, allow seasonal burst pricing, split by feature-quota not just hosts, and use utilization for renewal prediction.</div>

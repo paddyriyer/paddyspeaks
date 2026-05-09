@@ -1,0 +1,31 @@
+<p>Salesforce's enterprise customers organize into hierarchies (parent company → subsidiary → division). Revenue rollups must aggregate up the tree. The query is a recursive CTE.</p>
+
+<h4>2. The SQL — recursive CTE + rollup</h4>
+<pre><code>WITH RECURSIVE chain AS (
+  SELECT account_id, name, parent_account_id, arr, account_id AS root_id, 1 AS depth
+  FROM accounts WHERE parent_account_id IS NULL
+  UNION ALL
+  SELECT a.account_id, a.name, a.parent_account_id, a.arr, c.root_id, c.depth + 1
+  FROM accounts a JOIN chain c ON a.parent_account_id = c.account_id
+)
+SELECT root_id, MAX(depth) AS tree_depth, COUNT(*) AS total_accounts,
+  ROUND(SUM(arr), 2) AS rolled_up_arr
+FROM chain GROUP BY root_id ORDER BY rolled_up_arr DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The root_id trick</h5>
+<p>The anchor sets root_id = account_id (self). The recursive part propagates: each descendant inherits its grandparent's root. After traversal, every account knows its top-level ancestor.</p>
+
+<h5>Cycle-protection — depth cap</h5>
+<p>If the data has a cycle (A → B → A), recursive CTE loops infinitely. Add <code>WHERE c.depth &lt; 100</code> as a circuit breaker.</p>
+
+<h5>Materialized path alternative</h5>
+<p>Instead of recursing per query, store the path: <code>'/JPM/Chase/Investment/'</code>. Subtree queries become <code>WHERE path LIKE '/JPM/%'</code> — O(1) with a prefix index. Re-orgs require rewriting paths nightly.</p>
+
+<h5>The double-count avoidance</h5>
+<p>If <code>arr</code> is stored at every level (parent + child both have $$), summing gives 2x. Production stores arr only at leaf accounts; rollup sums only leaves. Or: store arr only at parent + use a flag.</p>
+
+<h5>The "report at any level" requirement</h5>
+<p>The CFO might want JPM total OR JPM-Chase total OR JPM-Chase-Investment total. The query above only rolls to root; production parameterizes the rollup level.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> propagate root_id through the recursion for clean rollup, depth-cap as cycle protection, materialized path as a perf alternative, and pin where arr lives (leaf-only) to avoid double-count.</div>

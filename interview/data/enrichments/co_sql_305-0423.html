@@ -1,0 +1,31 @@
+<p>Reddit moderators have wide latitude to remove submissions. <strong>Removal rate per subreddit</strong> exposes the moderation style — light-touch vs over-moderated. Both extremes hurt growth.</p>
+
+<h4>2. The SQL — removal rate + tier classification</h4>
+<pre><code>SELECT subreddit_id,
+  COUNT(*) AS submissions, SUM(removed) AS removed,
+  ROUND(100.0 * SUM(removed) / NULLIF(COUNT(*), 0), 1) AS removal_rate_pct,
+  CASE
+    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) &gt;= 30 THEN 'over_moderated'
+    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) &gt;= 10 THEN 'active'
+    ELSE 'light_touch'
+  END AS mod_style
+FROM submissions GROUP BY subreddit_id HAVING COUNT(*) &gt;= 3
+ORDER BY removal_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 30%/10% style cutoffs</h5>
+<p>Calibrated from Reddit's published mod stats. Above 30% = users hit the wall, churn out. Below 10% = spam takes over. 10-30% is the productive band.</p>
+
+<h5>Auto-mod vs human</h5>
+<p>Removals split: auto-mod (rule-based) + human-mod (judgment). Auto-mod removals are not controversial. Human removals are the contentious slice. Production splits.</p>
+
+<h5>Rule-violation distribution</h5>
+<p>Removal reasons: spam, rule violation, low-effort, off-topic. Each different policy. Production groups by reason.</p>
+
+<h5>The shadow-removal practice</h5>
+<p>"Removed but visible to author" is a Reddit pattern. Production differentiates from full removal.</p>
+
+<h5>Restoration rate</h5>
+<p>Some removals get restored on appeal. The restoration rate flags over-aggressive auto-mod.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 10-30% productive removal band, split auto-mod vs human, group by reason, handle shadow-remove distinction, and track restoration rate as auto-mod calibration signal.</div>

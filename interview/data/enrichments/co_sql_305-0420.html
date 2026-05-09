@@ -1,0 +1,29 @@
+<p>Reddit's "score" (upvotes - downvotes) is the engagement signal. Per-subreddit distribution exposes which communities reward which content. The query computes top/mean/min + decile rank.</p>
+
+<h4>2. The SQL — distribution stats per subreddit</h4>
+<pre><code>SELECT subreddit_id,
+  COUNT(*) AS posts,
+  ROUND(AVG(score), 1) AS avg_score,
+  MAX(score) AS top_score, MIN(score) AS min_score,
+  NTILE(10) OVER (PARTITION BY subreddit_id ORDER BY score DESC) AS placeholder_decile
+FROM posts GROUP BY subreddit_id, score ORDER BY subreddit_id, score DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Reddit's Pareto distribution</h5>
+<p>1% of posts get 90% of upvotes. Per-subreddit shape varies: tightly-curated (askscience) has narrow distribution; loose (funny) has extreme Pareto.</p>
+
+<h5>Why per-subreddit — different cultures</h5>
+<p>r/askhistorians' "average score" of 50 is great. r/funny's average of 50 is terrible. Karma is community-relative; comparing across subs is meaningless.</p>
+
+<h5>Time-decay</h5>
+<p>3-year-old posts have accumulated more upvotes than 1-day posts. Reddit's algorithm uses time-normalized score:</p>
+<pre><code>(LOG(MAX(ABS(score), 1)) + (julianday(posted_at) - julianday('2005-12-08')) / 45000) AS hot_score</code></pre>
+
+<h5>The downvote brigade</h5>
+<p>Negative scores ≈ "downvoted to oblivion". Filter to net-positive for "what's working":</p>
+<pre><code>WHERE score &gt; 0</code></pre>
+
+<h5>Awards layer</h5>
+<p>Reddit Gold/Premium awards add a paid signal beyond upvotes. Production weights awards 100x upvotes.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> Pareto-distributed scores by community, normalize per-subreddit, use Reddit's hot-score time-decay, filter to net-positive for content quality, and weight awards heavily.</div>

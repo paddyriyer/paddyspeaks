@@ -1,0 +1,31 @@
+<p>Per-store <strong>repeat-customer rate</strong> is the leading indicator of LTV. Stores with &gt; 30% repeat-buyer rate retain customers; below 15% means each acquisition is a one-off.</p>
+
+<h4>2. The SQL — per-store repeat ratio</h4>
+<pre><code>WITH per_customer AS (
+  SELECT store_id, customer_id, COUNT(*) AS order_count
+  FROM orders GROUP BY store_id, customer_id
+)
+SELECT store_id, COUNT(*) AS unique_customers,
+  SUM(CASE WHEN order_count &gt;= 2 THEN 1 ELSE 0 END) AS repeat_customers,
+  ROUND(100.0 * SUM(CASE WHEN order_count &gt;= 2 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS repeat_rate_pct
+FROM per_customer GROUP BY store_id HAVING COUNT(*) &gt;= 3
+ORDER BY repeat_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The 30% benchmark</h5>
+<p>Above 30% = strong loyalty (subscription / replenishment products like beauty, supplements, food). 15-30% = average. Below 15% = one-off categories (furniture, weddings).</p>
+
+<h5>2-orders is the minimum bar</h5>
+<p>Some studies use 3+ orders for "loyal". 2 is the most permissive. Pin the threshold.</p>
+
+<h5>Time-window normalization</h5>
+<p>Lifetime repeat-rate vs 12-month repeat-rate are different. Production restricts to a window.</p>
+
+<h5>Category-baseline divergence</h5>
+<p>Apparel: 35% expected. Electronics: 12%. Comparing across categories without controlling unfairly judges electronics merchants. Stratify.</p>
+
+<h5>The CAC payback signal</h5>
+<p>Stores with high repeat rate can afford higher CAC (each customer worth more). The query feeds the marketing-budget allocator.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 30% benchmark, define "repeat" threshold explicitly, time-window for honest rate, stratify by category baseline, and connect to CAC-payback economics.</div>

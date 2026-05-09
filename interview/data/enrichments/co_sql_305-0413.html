@@ -1,0 +1,26 @@
+<p>TikTok's For-You-Page is constantly A/B tested. The query compares treatment vs control on watch-time — the canonical relevance metric.</p>
+
+<h4>2. The SQL — per-bucket aggregates</h4>
+<pre><code>SELECT bucket, COUNT(*) AS views, COUNT(DISTINCT user_id) AS unique_users,
+  ROUND(AVG(watched_seconds), 1) AS avg_watch_seconds,
+  ROUND(SUM(watched_seconds) * 1.0 / NULLIF(COUNT(DISTINCT user_id), 0), 1) AS seconds_per_user
+FROM fyp_experiments GROUP BY bucket ORDER BY bucket;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Why seconds-per-user, not seconds-per-view</h5>
+<p>Per-view inflates: a treatment that shows BIGGER videos can win on per-view without serving more total content. Per-user normalizes — total time spent on platform is the actual goal.</p>
+
+<h5>Statistical significance</h5>
+<p>2% lift on a 1B-user test = real. 2% lift on a 1K-user test = noise. Always pair with a CI:</p>
+<pre><code>1.96 * SQRT(VARIANCE(watched_seconds) / COUNT(*)) AS ci_seconds</code></pre>
+
+<h5>The novelty effect</h5>
+<p>New ranker: users explore (high engagement). Plateau by week 2. A 7-day test overstates lift. Production runs 21+ day tests.</p>
+
+<h5>Heterogeneous treatment effects</h5>
+<p>Avg lift hides that treatment helped power users (+5%) but hurt new users (-3%). Slice by user-tenure.</p>
+
+<h5>The exploration-table tie-in</h5>
+<p>5% of impressions are random. Treatment lift = (treatment − exploration) / exploration. Without exploration, you measure attribution-not-causation.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> seconds-per-user as the platform-level KPI, attach CI for stat-sig, allow novelty-decay window (21+ days), check heterogeneous effects by tenure, and reference the exploration table for causal lift.</div>

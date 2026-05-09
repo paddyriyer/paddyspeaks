@@ -1,0 +1,28 @@
+<p>Sales coaching prioritizes the bottom-quartile reps. NTILE(4) over per-rep win-rate produces the segments. Top quartile = leave alone (let them sell). Bottom = coach intensively.</p>
+
+<h4>2. The SQL — per-rep win + quartile</h4>
+<pre><code>WITH per_rep AS (
+  SELECT owner_id, COUNT(*) AS opps,
+    SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) AS wins,
+    ROUND(100.0 * SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END)
+                / NULLIF(COUNT(*), 0), 1) AS win_rate_pct
+  FROM opportunities GROUP BY owner_id HAVING COUNT(*) &gt;= 3
+)
+SELECT owner_id, opps, wins, win_rate_pct,
+  NTILE(4) OVER (ORDER BY win_rate_pct DESC) AS quartile
+FROM per_rep ORDER BY win_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Why HAVING ≥ 3 — sample size</h5>
+<p>A rep with 1 won deal has 100% win rate. With 3 deals, the rate is more reliable. Production threshold is 10+ deals for honest quartiles.</p>
+
+<h5>Win rate vs Win volume</h5>
+<p>50% × 4 deals = 2 wins. 25% × 100 deals = 25 wins. Same rep tier, very different scale. Production splits by quota size.</p>
+
+<h5>Lead-quality confound</h5>
+<p>A rep on government accounts has 10% win rate; a rep on SMB has 35%. Different markets. Stratify by territory or vertical for fair compare.</p>
+
+<h5>The bottom-quartile coaching loop</h5>
+<p>Bottom 25% reps get weekly 1:1s, deal reviews, ride-alongs. The query result drives the coaching scheduler. Tracking quartile transitions month-over-month measures coaching ROI.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> threshold by sample size for stable rates, distinguish rate from volume, stratify by territory/vertical, and connect to coaching-loop interventions.</div>

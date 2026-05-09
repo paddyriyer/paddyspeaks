@@ -1,0 +1,32 @@
+<p>TikTok's For-You-Page algorithm uses watch-completion as its #1 ranking signal. The 4-band classification (completed/engaged/sampled/bounced) maps to creator-feedback signals.</p>
+
+<h4>2. The SQL — banded completion</h4>
+<pre><code>WITH banded AS (
+  SELECT video_id,
+    CASE
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.95 THEN 'completed'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.50 THEN 'engaged'
+      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) &gt;= 0.25 THEN 'sampled'
+      ELSE 'bounced'
+    END AS band
+  FROM video_views
+)
+SELECT band, COUNT(*) AS plays,
+  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct
+FROM banded GROUP BY band ORDER BY plays DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The TikTok-specific cuts (95/50/25)</h5>
+<p>Higher than Reels' 95/50/10 — TikTok videos are 15-60sec average; longer = more drop-off chances. Production tunes per-platform.</p>
+
+<h5>The first-3-second hook</h5>
+<p>Critical metric: <code>watched_seconds &gt;= 3</code> = "passed the hook". 60%+ pass-rate is healthy. Below 40% = thumbnail/sound is broken.</p>
+
+<h5>The repeat-watch signal</h5>
+<p>One user watching the same video 3x in a row is the strongest engagement signal — beyond completion. Track:</p>
+<pre><code>COUNT(*) FILTER (WHERE rewatch_count &gt;= 2)</code></pre>
+
+<h5>The algorithm feedback loop</h5>
+<p>Completion rate predicts which videos get amplified to next 100x audience. Creators with 60%+ completion break out; under 30% never reach scale. The query feeds the ranker.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 95/50/25 cuts (TikTok-specific), surface first-3-sec hook as the highest-leverage metric, track rewatch as ultra-strong signal, and connect to ranker amplification.</div>
