@@ -1,0 +1,37 @@
+<p>LinkedIn's growth team measures <strong>network density</strong> = avg connections per member, per industry. Tech and Finance have densely-connected networks; emerging industries have sparse ones — they're the recruitment opportunity.</p>
+
+<h4>2. The SQL — connections / members per industry</h4>
+<pre><code>SELECT m.industry,
+  COUNT(DISTINCT m.member_id) AS members_in_industry,
+  COUNT(c.connection_id) AS total_connections,
+  ROUND(COUNT(c.connection_id) * 1.0 / NULLIF(COUNT(DISTINCT m.member_id), 0), 1) AS avg_connections_per_member
+FROM members m
+LEFT JOIN connections c ON c.member_id = m.member_id
+GROUP BY m.industry
+HAVING COUNT(DISTINCT m.member_id) &gt;= 2
+ORDER BY avg_connections_per_member DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why LEFT JOIN</h5>
+<p>Some members have 0 connections. INNER JOIN drops them, inflating the avg. LEFT JOIN keeps the zero-connection members in the denominator — honest avg.</p>
+
+<h5>Mature vs emerging — density bands</h5>
+<table><thead><tr><th>industry maturity</th><th>density</th></tr></thead>
+<tbody>
+<tr><td>Mature (Tech / Finance)</td><td>500+ avg connections</td></tr>
+<tr><td>Mid (Healthcare / Edu)</td><td>200-400</td></tr>
+<tr><td>Emerging (Climate / AI startups)</td><td>50-150</td></tr>
+</tbody></table>
+
+<h5>The growth-targeting use</h5>
+<p>Low-density industries are growth targets — viral coefficient compounds: more connections per user → more PYMK suggestions → more signups. Marketing budget allocated to industries below the median.</p>
+
+<h5>Bidirectional vs directional</h5>
+<p>LinkedIn connections are bidirectional. <code>COUNT(c.connection_id)</code> double-counts (each connection = 2 rows). For "true degree" divide by 2:</p>
+<pre><code>COUNT(c.connection_id) / 2.0 / COUNT(DISTINCT m.member_id) AS avg_degree</code></pre>
+
+<h5>The "second-degree reach"</h5>
+<p>Avg connections × avg connections = 2-hop reach. Tech: 500 × 500 = 250K reachable; Climate startup: 100 × 100 = 10K. The 25x difference drives recruiter-tool ROI.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> LEFT JOIN to keep zero-degree members, name the bidirectional double-count, classify industries by maturity bands, and connect density to growth-targeting + 2-hop reach (the killer use case).</div>

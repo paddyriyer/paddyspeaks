@@ -1,0 +1,34 @@
+<p>Spotify's playlist team measures three actions: <strong>listen / save / share</strong>. The composite tells a story: high listens + low saves = transient enjoyment; high saves + low shares = personal favorite; high shares = social signal.</p>
+
+<h4>1. The source data — <code>playlist_actions</code></h4>
+<table><thead><tr><th>playlist_id</th><th>user_id</th><th>action_type</th></tr></thead>
+<tbody><tr><td>PL_001</td><td>U_01</td><td>listen</td></tr></tbody></table>
+
+<h4>2. The SQL — multi-action conditional aggregation + ratio</h4>
+<pre><code>SELECT playlist_id,
+  SUM(CASE WHEN action_type = 'listen' THEN 1 ELSE 0 END) AS listens,
+  SUM(CASE WHEN action_type = 'save'   THEN 1 ELSE 0 END) AS saves,
+  SUM(CASE WHEN action_type = 'share'  THEN 1 ELSE 0 END) AS shares,
+  COUNT(DISTINCT user_id) AS unique_users,
+  ROUND(100.0 * SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END)
+              / NULLIF(SUM(CASE WHEN action_type = 'listen' THEN 1 ELSE 0 END), 0), 1) AS save_per_listen_pct
+FROM playlist_actions
+GROUP BY playlist_id
+HAVING COUNT(*) &gt;= 3
+ORDER BY save_per_listen_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The save/listen ratio — engagement quality</h5>
+<p>Industry baseline: 5-10% of listens lead to a save for a curated playlist; below 3% means the playlist isn't resonating. Above 15% = strong personal-fit signal, candidate for similar-playlist recommendations.</p>
+
+<h5>Reach vs depth — uniqueness</h5>
+<p>1000 listens from 10 users (100/user) is different from 1000 from 1000 users (1/user). The first is super-fan binge; the second is broad reach. <code>COUNT(DISTINCT user_id)</code> exposes this.</p>
+
+<h5>The growth signal — share count</h5>
+<p>Shares are forward-looking: users who share are creating new acquisition. Playlists with shares-per-listen &gt; 1% are the editorial team's "next breakout" candidates.</p>
+
+<h5>The seasonal listener-segment</h5>
+<p>"Workout" playlists peak in January (resolutions); "holiday" peaks in December. Trending alone misleads if you don't account for season.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> read the listen/save/share triangle as engagement-quality + reach-depth + acquisition-signal, calibrate ratio thresholds (5-10% save baseline), and isolate seasonality before declaring a "trend".</div>

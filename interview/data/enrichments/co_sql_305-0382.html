@@ -1,0 +1,38 @@
+<p>DoorDash's "Peak Pay" surge multipliers attract dashers during demand spikes. The query buckets orders by surge band and shows volume + revenue impact per band.</p>
+
+<h4>2. The SQL — banded surge analysis</h4>
+<pre><code>SELECT market,
+  CASE
+    WHEN surge_multiplier &lt; 1.3 THEN 'normal'
+    WHEN surge_multiplier &lt; 1.7 THEN 'mild'
+    ELSE 'heavy'
+  END AS surge_band,
+  COUNT(*) AS orders,
+  ROUND(AVG(fare), 2) AS avg_fare,
+  ROUND(SUM(fare), 2) AS total_revenue
+FROM orders GROUP BY market, surge_band
+ORDER BY market, surge_band;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Normal vs Mild vs Heavy — the policy bands</h5>
+<table><thead><tr><th>band</th><th>cutoff</th><th>typical % of orders</th></tr></thead>
+<tbody>
+<tr><td>Normal</td><td>&lt; 1.3x</td><td>80%</td></tr>
+<tr><td>Mild</td><td>1.3-1.7x</td><td>15%</td></tr>
+<tr><td>Heavy</td><td>≥ 1.7x</td><td>5%</td></tr>
+</tbody></table>
+
+<h5>The supply-demand response</h5>
+<p>Heavy surge should attract drivers within 10 min, dropping back to mild. Sustained heavy surge for 30+ min = supply pipeline broken; needs operational intervention (Dasher recruitment campaigns).</p>
+
+<h5>Customer-side abandonment</h5>
+<p>Higher surge increases customer abandonment. Production tracks: at 1.7x surge, ~20% of carts abandon. Above 2x, ~40%. The optimal surge balances driver attraction vs customer loss.</p>
+
+<h5>Cuisine elasticity</h5>
+<p>Pizza customers are price-sensitive (abandon at 1.5x). Sushi customers less so (continue through 2x). Per-cuisine surge tuning is the modern approach.</p>
+
+<h5>Platform-vs-restaurant cut</h5>
+<p>Surge fees go to dashers (Peak Pay) or to DoorDash (service fee). Splitting which entity benefits informs pricing strategy.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 3-band surge (normal/mild/heavy) with policy cutoffs, watch sustained-heavy as supply-pipeline failure, surface customer-abandonment elasticity, and split per-cuisine.</div>

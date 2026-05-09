@@ -1,0 +1,35 @@
+<p>Dashers can reject offered orders. Restaurants in tier-3 areas (low population density, far from kitchens) get higher rejection rates. The query exposes the disparity for marketplace investment decisions.</p>
+
+<h4>2. The SQL — rejection rate per tier</h4>
+<pre><code>SELECT tier,
+  COUNT(*) AS offers,
+  SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,
+  ROUND(100.0 * SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS rejection_rate_pct
+FROM order_offers
+GROUP BY tier
+HAVING COUNT(*) &gt;= 3
+ORDER BY rejection_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why tier — supply heterogeneity</h5>
+<table><thead><tr><th>tier</th><th>characteristics</th><th>typical reject rate</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>dense urban, high pay</td><td>10-20%</td></tr>
+<tr><td>2</td><td>suburban</td><td>20-35%</td></tr>
+<tr><td>3</td><td>rural / outskirts</td><td>40-60%</td></tr>
+</tbody></table>
+
+<h5>The reject-reason layer</h5>
+<p>"Rejected" hides:</p>
+<ul><li>Pay too low for distance</li><li>Restaurant too far for drive-time</li><li>Item-type unwanted (alcohol/large)</li><li>Tip too low</li></ul>
+<p>Production splits by reason for actionable diagnosis.</p>
+
+<h5>The downstream effect — customer wait</h5>
+<p>Each rejection adds ~3 min to customer wait while DoorDash searches for next dasher. Tier-3 with 50% reject rate → cumulative delays. Operational target: keep reject rate &lt; 25% globally.</p>
+
+<h5>Pay-bonus as a counter-lever</h5>
+<p>DoorDash boosts Peak Pay in high-reject tiers to incentivize acceptance. The query's tier-rate feeds the dynamic pay-tuning algorithm.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> tier as supply-heterogeneity proxy, decompose "rejected" into actionable reasons, name the 25% global target, and tie to pay-bonus tuning.</div>

@@ -1,0 +1,30 @@
+<p>DoorDash's headline SLA: <strong>30-minute delivery</strong> from order placed to drop-off. The query computes per-market on-time percentage and average delivery duration.</p>
+
+<h4>2. The SQL — within-30-min count + rate</h4>
+<pre><code>SELECT market,
+  COUNT(*) AS deliveries,
+  SUM(CASE WHEN (julianday(delivered_at) - julianday(ordered_at)) * 1440 &lt;= 30 THEN 1 ELSE 0 END) AS within_30min,
+  ROUND(100.0 * SUM(CASE WHEN (julianday(delivered_at) - julianday(ordered_at)) * 1440 &lt;= 30 THEN 1 ELSE 0 END)
+              / NULLIF(COUNT(*), 0), 1) AS sla_pct,
+  ROUND(AVG((julianday(delivered_at) - julianday(ordered_at)) * 1440), 1) AS avg_minutes
+FROM orders WHERE delivered_at IS NOT NULL
+GROUP BY market ORDER BY sla_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The minutes conversion *1440</h5>
+<p><code>julianday(...)</code> returns days; multiply by 1440 (24×60) for minutes. Memorize: 1/24/1440/86400 for d/h/m/s.</p>
+
+<h5>30-minute marketing claim vs reality</h5>
+<p>"30-minute delivery" was DoorDash's marketing promise — actually 35-50 min average. The SLA% measures the <em>marketing-promise</em> compliance. Below 50% means the brand promise breaks frequently.</p>
+
+<h5>The P95 tail</h5>
+<p>Average is mean. The customer-experience-disaster cases are the P95. <em>"95% of deliveries within 60 min"</em> is the more-honest SLA.</p>
+
+<h5>Decompose into segments</h5>
+<p>Total time = order-to-acceptance + restaurant-prep + dasher-drive. Each segment has its own SLA. Aggregating into one number hides which segment is broken.</p>
+
+<h5>Per-cuisine adjustment</h5>
+<p>Pizza: 25-min average. Sushi: 45-min (longer prep). Comparing cuisines without normalization unfair-ranks slow-prep restaurants.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 1440 for julianday-to-minutes, name the marketing-30 vs operational-45 gap, push to P95 tail, and decompose into accept/prep/drive segments. Per-cuisine normalization is the over-the-bar fairness move.</div>

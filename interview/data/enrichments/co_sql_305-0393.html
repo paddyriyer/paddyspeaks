@@ -1,0 +1,41 @@
+<p>LinkedIn's content team compares engagement rates across post formats: <strong>article / update / video / poll</strong>. The query produces engagement rate (engagements / impressions) per format.</p>
+
+<h4>2. The SQL — per-format engagement rate</h4>
+<pre><code>SELECT post_type,
+  COUNT(*) AS posts,
+  SUM(impressions) AS total_impressions,
+  SUM(engagements) AS total_engagements,
+  ROUND(100.0 * SUM(engagements) / NULLIF(SUM(impressions), 0), 2) AS engagement_rate_pct,
+  ROUND(SUM(engagements) * 1.0 / NULLIF(COUNT(*), 0), 1) AS avg_engagements_per_post
+FROM posts GROUP BY post_type
+ORDER BY engagement_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Engagement rate vs avg-per-post</h5>
+<p>Two complementary metrics:</p>
+<ul><li><strong>Rate (eng/impressions)</strong> — quality of viewer reach</li><li><strong>Avg per post</strong> — absolute scale</li></ul>
+<p>A format with 5% rate × 1K impressions = 50 engagements per post. Rate-only would prefer it; avg-per-post-only might prefer a 1% × 1M format.</p>
+
+<h5>The format ranking baseline</h5>
+<table><thead><tr><th>format</th><th>typical eng rate</th></tr></thead>
+<tbody>
+<tr><td>Polls</td><td>2-4%</td></tr>
+<tr><td>Videos</td><td>1.5-3%</td></tr>
+<tr><td>Carousels</td><td>1-2.5%</td></tr>
+<tr><td>Articles (long-form)</td><td>0.5-1.5%</td></tr>
+<tr><td>Plain updates</td><td>1-2%</td></tr>
+</tbody></table>
+<p>Polls win on rate because the action is built-in (clicking is engaging).</p>
+
+<h5>The content-team trade-off</h5>
+<p>Articles have lower rate but produce SEO + thought-leadership benefits beyond engagement. Optimizing only for rate would kill long-form. Production reports both rate AND "downstream" metrics (profile views from articles).</p>
+
+<h5>Author-tier confound</h5>
+<p>Influencer authors get higher rates regardless of format. Strip the author effect:</p>
+<pre><code>... per author-rank-quartile</code></pre>
+
+<h5>The algorithm-amplification feedback</h5>
+<p>LinkedIn's feed promotes high-engagement formats more. High polls rate → more polls served → more polls posted → market saturation. Production includes "freshness" features to prevent any format from dominating.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit both rate and avg-per-post, cite per-format baselines (polls top), surface non-engagement value (articles drive SEO), strip author-tier confound, and acknowledge algorithm-amplification feedback loop.</div>

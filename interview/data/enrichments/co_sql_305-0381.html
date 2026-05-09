@@ -1,0 +1,33 @@
+<p>DoorDash's batched-delivery feature stacks two orders for one driver. The query detects when one dasher serviced two orders within an hour — the data signal of stacking.</p>
+
+<h4>2. The SQL — temporal self-join</h4>
+<pre><code>SELECT a.dasher_id, a.delivery_id AS order_a, b.delivery_id AS order_b,
+  CAST((julianday(b.started_at) - julianday(a.started_at)) * 60 AS INTEGER) AS minutes_apart
+FROM deliveries a
+JOIN deliveries b
+  ON b.dasher_id = a.dasher_id
+ AND b.delivery_id != a.delivery_id
+ AND julianday(b.started_at) &gt; julianday(a.started_at)
+ AND julianday(b.started_at) - julianday(a.started_at) &lt;= 1.0/24
+ORDER BY a.dasher_id, a.started_at;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 1.0/24 idiom</h5>
+<p>1 hour = 1/24 days = 0.0417. The constant comes from julianday's day-units.</p>
+
+<h5>Why stacking matters — economics</h5>
+<p>Two orders, one trip:</p>
+<ul><li>Dasher gets paid for both</li><li>DoorDash saves a delivery fee</li><li>Customer waits longer (avg +8 min for the second drop)</li></ul>
+<p>Customer experience trade-off; revenue boost. Production has a target rate (~25% of orders stacked).</p>
+
+<h5>True stack vs back-to-back</h5>
+<p>A dasher who finishes order A and immediately accepts order B is back-to-back, not stacked. True stacking has the dasher carry both at once. The query's 1-hour window captures both. Production splits with <code>order_a.ended_at &gt; order_b.started_at</code> as the strict-stacking predicate.</p>
+
+<h5>The stacking-acceptance rate</h5>
+<p>Drivers can decline stacked offers. The acceptance rate per market signals dasher attitude — low acceptance indicates the stack-pay isn't compensating for added complexity.</p>
+
+<h5>Customer-tier impact</h5>
+<p>DashPass (subscription) customers shouldn't be stacked — they pay for premium delivery. Production excludes their orders from stacking offers.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use 1.0/24 for julianday-hour conversion, distinguish true-stack (overlapping) from back-to-back, name the 25% target rate, and exclude DashPass from stacking.</div>

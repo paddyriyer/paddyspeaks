@@ -18128,5 +18128,702 @@
     "language": "sql",
     "runtime": null,
     "slug": "calendar-gap-detection--listings-with-black-out-stretches"
+  },
+  {
+    "id": "co_sql_305-0370",
+    "num": 370,
+    "company": "Spotify",
+    "difficulty": "Easy",
+    "title": "Song Skip Rate by Genre",
+    "subtopic": "Skip-rate per category",
+    "schema": "plays(play_id, user_id, song_id, genre, played_seconds, song_seconds, skipped)",
+    "solution": "SELECT genre,\n  COUNT(*) AS plays,\n  SUM(skipped) AS skips,\n  ROUND(100.0 * SUM(skipped) / NULLIF(COUNT(*), 0), 1) AS skip_rate_pct,\n  ROUND(AVG(played_seconds * 100.0 / NULLIF(song_seconds, 0)), 1) AS avg_completion_pct\nFROM plays\nGROUP BY genre\nHAVING COUNT(*) >= 3\nORDER BY skip_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "song-skip-rate-by-genre"
+  },
+  {
+    "id": "co_sql_305-0371",
+    "num": 371,
+    "company": "Spotify",
+    "difficulty": "Medium",
+    "title": "Playlist Engagement \u2014 Listens / Saves / Shares",
+    "subtopic": "Multi-action per-playlist aggregation",
+    "schema": "playlist_actions(playlist_id, user_id, action_type)",
+    "solution": "SELECT playlist_id,\n  SUM(CASE WHEN action_type = 'listen' THEN 1 ELSE 0 END) AS listens,\n  SUM(CASE WHEN action_type = 'save'   THEN 1 ELSE 0 END) AS saves,\n  SUM(CASE WHEN action_type = 'share'  THEN 1 ELSE 0 END) AS shares,\n  COUNT(DISTINCT user_id) AS unique_users,\n  ROUND(100.0 * SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END)\n              / NULLIF(SUM(CASE WHEN action_type = 'listen' THEN 1 ELSE 0 END), 0), 1) AS save_per_listen_pct\nFROM playlist_actions\nGROUP BY playlist_id\nHAVING COUNT(*) >= 3\nORDER BY save_per_listen_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "conditional-aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "playlist-engagement--listens--saves--shares"
+  },
+  {
+    "id": "co_sql_305-0372",
+    "num": 372,
+    "company": "Spotify",
+    "difficulty": "Hard",
+    "title": "Discover Weekly Discovery Rate \u2014 Tracks Saved After First Play",
+    "subtopic": "Time-bounded LEFT JOIN attribution",
+    "schema": "discover_plays(user_id, song_id, played_at), library_saves(user_id, song_id, saved_at)",
+    "solution": "SELECT\n  COUNT(DISTINCT d.user_id || '|' || d.song_id) AS discovered_pairs,\n  COUNT(DISTINCT CASE WHEN s.song_id IS NOT NULL THEN d.user_id || '|' || d.song_id END) AS saved_pairs,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN s.song_id IS NOT NULL THEN d.user_id || '|' || d.song_id END)\n              / NULLIF(COUNT(DISTINCT d.user_id || '|' || d.song_id), 0), 1) AS discovery_save_rate_pct\nFROM discover_plays d\nLEFT JOIN library_saves s\n  ON s.user_id = d.user_id\n AND s.song_id = d.song_id\n AND julianday(s.saved_at) >= julianday(d.played_at)\n AND julianday(s.saved_at) - julianday(d.played_at) <= 7;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "joins",
+      "left-join",
+      "null-handling",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "discover-weekly-discovery-rate--tracks-saved-after-first-play"
+  },
+  {
+    "id": "co_sql_305-0373",
+    "num": 373,
+    "company": "Spotify",
+    "difficulty": "Medium",
+    "title": "Podcast Episode Completion Rate",
+    "subtopic": "Banded completion via CASE",
+    "schema": "podcast_plays(play_id, episode_id, listened_seconds, episode_seconds)",
+    "solution": "WITH banded AS (\n  SELECT episode_id,\n    CASE\n      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) >= 0.95 THEN 'completed'\n      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) >= 0.50 THEN 'engaged'\n      WHEN listened_seconds * 1.0 / NULLIF(episode_seconds, 0) >= 0.10 THEN 'sampled'\n      ELSE 'bounced'\n    END AS engagement_band\n  FROM podcast_plays\n)\nSELECT episode_id, engagement_band, COUNT(*) AS plays\nFROM banded\nGROUP BY episode_id, engagement_band\nORDER BY episode_id, plays DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "podcast-episode-completion-rate"
+  },
+  {
+    "id": "co_sql_305-0374",
+    "num": 374,
+    "company": "Spotify",
+    "difficulty": "Medium",
+    "title": "Premium Trial Conversion by Country",
+    "subtopic": "Cohort funnel by region",
+    "schema": "trials(user_id, country, trial_start, converted_to_paid, cancelled_at)",
+    "solution": "SELECT country,\n  COUNT(*) AS trials,\n  COUNT(converted_to_paid) AS converted,\n  ROUND(100.0 * COUNT(converted_to_paid) / NULLIF(COUNT(*), 0), 1) AS conversion_pct,\n  COUNT(CASE WHEN cancelled_at IS NOT NULL THEN 1 END) AS cancelled\nFROM trials\nGROUP BY country\nHAVING COUNT(*) >= 3\nORDER BY conversion_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "premium-trial-conversion-by-country"
+  },
+  {
+    "id": "co_sql_305-0375",
+    "num": 375,
+    "company": "Spotify",
+    "difficulty": "Hard",
+    "title": "Royalty Pool Pro-Rata \u2014 Streams \u00d7 Country Rate",
+    "subtopic": "Window-aggregate share calculation",
+    "schema": "streams(stream_id, artist_id, country, played_at), country_pool(country, monthly_pool_usd)",
+    "solution": "WITH streams_per_artist AS (\n  SELECT s.country, s.artist_id, COUNT(*) AS streams\n  FROM streams s GROUP BY s.country, s.artist_id\n),\ncountry_total AS (\n  SELECT country, SUM(streams) AS total_streams\n  FROM streams_per_artist GROUP BY country\n)\nSELECT spa.country, spa.artist_id, spa.streams,\n  ct.total_streams,\n  ROUND(spa.streams * 1.0 / NULLIF(ct.total_streams, 0) * cp.monthly_pool_usd, 2) AS payout_usd\nFROM streams_per_artist spa\nJOIN country_total ct  ON ct.country = spa.country\nJOIN country_pool cp   ON cp.country = spa.country\nORDER BY payout_usd DESC;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "royalty-pool-pro-rata--streams-\u00d7-country-rate"
+  },
+  {
+    "id": "co_sql_305-0376",
+    "num": 376,
+    "company": "Spotify",
+    "difficulty": "Medium",
+    "title": "Family Plan Member Utilization",
+    "subtopic": "Per-account active-member ratio",
+    "schema": "family_plans(account_id, max_members), family_listening(account_id, member_id, listened_minutes)",
+    "solution": "SELECT fp.account_id, fp.max_members,\n  COUNT(DISTINCT fl.member_id) AS active_members,\n  ROUND(100.0 * COUNT(DISTINCT fl.member_id) / NULLIF(fp.max_members, 0), 1) AS utilization_pct,\n  ROUND(SUM(fl.listened_minutes) * 1.0 / NULLIF(COUNT(DISTINCT fl.member_id), 0), 0) AS avg_minutes_per_member\nFROM family_plans fp\nLEFT JOIN family_listening fl ON fl.account_id = fp.account_id\nGROUP BY fp.account_id, fp.max_members\nORDER BY utilization_pct DESC;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "family-plan-member-utilization"
+  },
+  {
+    "id": "co_sql_305-0377",
+    "num": 377,
+    "company": "Spotify",
+    "difficulty": "Hard",
+    "title": "Audio Quality Bitrate Drops \u2014 Per Session",
+    "subtopic": "LAG-based state-change detection",
+    "schema": "playback_events(session_id, event_at, bitrate_kbps)",
+    "solution": "WITH transitions AS (\n  SELECT session_id, event_at, bitrate_kbps,\n    LAG(bitrate_kbps) OVER (PARTITION BY session_id ORDER BY event_at) AS prev_bitrate\n  FROM playback_events\n)\nSELECT session_id,\n  COUNT(*) AS events,\n  SUM(CASE WHEN prev_bitrate IS NOT NULL AND bitrate_kbps != prev_bitrate THEN 1 ELSE 0 END) AS quality_changes,\n  MIN(bitrate_kbps) AS lowest_bitrate,\n  MAX(bitrate_kbps) AS highest_bitrate\nFROM transitions\nGROUP BY session_id\nORDER BY quality_changes DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "audio-quality-bitrate-drops--per-session"
+  },
+  {
+    "id": "co_sql_305-0378",
+    "num": 378,
+    "company": "DoorDash",
+    "difficulty": "Medium",
+    "title": "Dasher Utilization \u2014 Active Time / Online Time",
+    "subtopic": "Time-on-delivery ratio",
+    "schema": "dasher_shifts(dasher_id, online_at, offline_at), deliveries(dasher_id, started_at, ended_at)",
+    "solution": "SELECT s.dasher_id,\n  ROUND(SUM(julianday(s.offline_at) - julianday(s.online_at)) * 24.0, 2) AS hours_online,\n  ROUND(SUM(julianday(d.ended_at) - julianday(d.started_at)) * 24.0, 2) AS hours_delivering,\n  ROUND(100.0 * SUM(julianday(d.ended_at) - julianday(d.started_at))\n              / NULLIF(SUM(julianday(s.offline_at) - julianday(s.online_at)), 0), 1) AS utilization_pct\nFROM dasher_shifts s\nLEFT JOIN deliveries d ON d.dasher_id = s.dasher_id\nGROUP BY s.dasher_id\nORDER BY utilization_pct DESC;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "dasher-utilization--active-time--online-time"
+  },
+  {
+    "id": "co_sql_305-0379",
+    "num": 379,
+    "company": "DoorDash",
+    "difficulty": "Easy",
+    "title": "Delivery Time SLA \u2014 Within 30 Minutes",
+    "subtopic": "On-time conditional rate",
+    "schema": "orders(order_id, ordered_at, delivered_at, market)",
+    "solution": "SELECT market,\n  COUNT(*) AS deliveries,\n  SUM(CASE WHEN (julianday(delivered_at) - julianday(ordered_at)) * 1440 <= 30 THEN 1 ELSE 0 END) AS within_30min,\n  ROUND(100.0 * SUM(CASE WHEN (julianday(delivered_at) - julianday(ordered_at)) * 1440 <= 30 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS sla_pct,\n  ROUND(AVG((julianday(delivered_at) - julianday(ordered_at)) * 1440), 1) AS avg_minutes\nFROM orders\nWHERE delivered_at IS NOT NULL\nGROUP BY market\nORDER BY sla_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "delivery-time-sla--within-30-minutes"
+  },
+  {
+    "id": "co_sql_305-0380",
+    "num": 380,
+    "company": "DoorDash",
+    "difficulty": "Medium",
+    "title": "Restaurant Performance \u2014 Volume \u00d7 Rating Composite",
+    "subtopic": "Composite score with weighted blend",
+    "schema": "restaurants(restaurant_id, name, market), orders(order_id, restaurant_id, rating)",
+    "solution": "SELECT r.restaurant_id, r.name, r.market,\n  COUNT(o.order_id) AS orders,\n  ROUND(AVG(o.rating), 2) AS avg_rating,\n  ROUND(AVG(o.rating) * 0.7 + (COUNT(o.order_id) * 1.0 / 100) * 0.3, 2) AS composite_score\nFROM restaurants r\nLEFT JOIN orders o ON o.restaurant_id = r.restaurant_id\nGROUP BY r.restaurant_id, r.name, r.market\nHAVING COUNT(o.order_id) >= 3\nORDER BY composite_score DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "joins",
+      "left-join"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "restaurant-performance--volume-\u00d7-rating-composite"
+  },
+  {
+    "id": "co_sql_305-0381",
+    "num": 381,
+    "company": "DoorDash",
+    "difficulty": "Hard",
+    "title": "Multi-Order Stacking \u2014 Two Orders Same Dasher Same Hour",
+    "subtopic": "Self-join with temporal proximity",
+    "schema": "deliveries(delivery_id, dasher_id, started_at, restaurant_id)",
+    "solution": "SELECT a.dasher_id, a.delivery_id AS order_a, b.delivery_id AS order_b,\n  CAST((julianday(b.started_at) - julianday(a.started_at)) * 60 AS INTEGER) AS minutes_apart\nFROM deliveries a\nJOIN deliveries b\n  ON b.dasher_id = a.dasher_id\n AND b.delivery_id != a.delivery_id\n AND julianday(b.started_at) > julianday(a.started_at)\n AND julianday(b.started_at) - julianday(a.started_at) <= 1.0/24\nORDER BY a.dasher_id, a.started_at;",
+    "tags": [
+      "joins",
+      "self-join"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "multi-order-stacking--two-orders-same-dasher-same-hour"
+  },
+  {
+    "id": "co_sql_305-0382",
+    "num": 382,
+    "company": "DoorDash",
+    "difficulty": "Medium",
+    "title": "Surge Multiplier Effectiveness \u2014 Lift Above Normal Volume",
+    "subtopic": "Banded surge analysis",
+    "schema": "orders(order_id, market, ordered_at, fare, surge_multiplier)",
+    "solution": "SELECT market,\n  CASE\n    WHEN surge_multiplier <  1.3 THEN 'normal'\n    WHEN surge_multiplier <  1.7 THEN 'mild'\n    ELSE 'heavy'\n  END AS surge_band,\n  COUNT(*) AS orders,\n  ROUND(AVG(fare), 2) AS avg_fare,\n  ROUND(SUM(fare), 2) AS total_revenue\nFROM orders\nGROUP BY market, surge_band\nORDER BY market, surge_band;",
+    "tags": [
+      "aggregation",
+      "case-when"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "surge-multiplier-effectiveness--lift-above-normal-volume"
+  },
+  {
+    "id": "co_sql_305-0383",
+    "num": 383,
+    "company": "DoorDash",
+    "difficulty": "Hard",
+    "title": "Customer Cohort LTV \u2014 90-Day Spend per Acquisition Month",
+    "subtopic": "Cohort-style cumulative spend",
+    "schema": "orders(customer_id, ordered_at, total)",
+    "solution": "WITH cohorts AS (\n  SELECT customer_id, MIN(ordered_at) AS first_order_at\n  FROM orders GROUP BY customer_id\n),\nspend_in_window AS (\n  SELECT c.customer_id,\n    substr(c.first_order_at, 1, 7) AS cohort_month,\n    SUM(o.total) AS cumulative_spend\n  FROM cohorts c\n  JOIN orders o\n    ON o.customer_id = c.customer_id\n   AND julianday(o.ordered_at) - julianday(c.first_order_at) BETWEEN 0 AND 90\n  GROUP BY c.customer_id, cohort_month\n)\nSELECT cohort_month,\n  COUNT(*) AS new_customers,\n  ROUND(AVG(cumulative_spend), 2) AS avg_90d_ltv,\n  ROUND(SUM(cumulative_spend), 2) AS cohort_total_spend\nFROM spend_in_window\nGROUP BY cohort_month\nORDER BY cohort_month;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "customer-cohort-ltv--90-day-spend-per-acquisition-month"
+  },
+  {
+    "id": "co_sql_305-0384",
+    "num": 384,
+    "company": "DoorDash",
+    "difficulty": "Medium",
+    "title": "Order Rejection Rate by Restaurant Tier",
+    "subtopic": "Rate per tier with sample-size gate",
+    "schema": "order_offers(offer_id, restaurant_id, dasher_id, status, tier)",
+    "solution": "SELECT tier,\n  COUNT(*) AS offers,\n  SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) AS rejected,\n  ROUND(100.0 * SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS rejection_rate_pct\nFROM order_offers\nGROUP BY tier\nHAVING COUNT(*) >= 3\nORDER BY rejection_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "order-rejection-rate-by-restaurant-tier"
+  },
+  {
+    "id": "co_sql_305-0385",
+    "num": 385,
+    "company": "DoorDash",
+    "difficulty": "Medium",
+    "title": "Tip Pattern by Order Size + Time of Day",
+    "subtopic": "Bucketed tip-rate matrix",
+    "schema": "orders(order_id, total, tip, ordered_at)",
+    "solution": "SELECT\n  CASE\n    WHEN total < 25 THEN 'small'\n    WHEN total < 60 THEN 'medium'\n    ELSE 'large'\n  END AS order_band,\n  CASE\n    WHEN CAST(strftime('%H', ordered_at) AS INTEGER) BETWEEN 17 AND 21 THEN 'dinner'\n    WHEN CAST(strftime('%H', ordered_at) AS INTEGER) BETWEEN 11 AND 14 THEN 'lunch'\n    ELSE 'offpeak'\n  END AS daypart,\n  COUNT(*) AS orders,\n  ROUND(AVG(tip), 2) AS avg_tip,\n  ROUND(100.0 * AVG(tip * 1.0 / NULLIF(total, 0)), 1) AS tip_pct_of_total\nFROM orders\nGROUP BY order_band, daypart\nORDER BY order_band, daypart;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "tip-pattern-by-order-size-plus-time-of-day"
+  },
+  {
+    "id": "co_sql_305-0386",
+    "num": 386,
+    "company": "LinkedIn",
+    "difficulty": "Hard",
+    "title": "Connection-of-Connection \u2014 2-Hop Suggestions",
+    "subtopic": "Self-join 2-hop graph",
+    "schema": "connections(member_id, connection_id)",
+    "solution": "SELECT a.member_id AS me, b.connection_id AS suggested,\n  COUNT(*) AS shared_connections\nFROM connections a\nJOIN connections b\n  ON a.connection_id = b.member_id\n AND a.member_id != b.connection_id\nGROUP BY a.member_id, b.connection_id\nORDER BY shared_connections DESC, me, suggested\nLIMIT 30;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "self-join"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "connection-of-connection--2-hop-suggestions"
+  },
+  {
+    "id": "co_sql_305-0387",
+    "num": 387,
+    "company": "LinkedIn",
+    "difficulty": "Medium",
+    "title": "InMail Response Rate by Recipient Industry",
+    "subtopic": "Cross-table response-rate matrix",
+    "schema": "inmails(inmail_id, sender_id, recipient_id, sent_at, replied), members(member_id, industry)",
+    "solution": "SELECT m.industry,\n  COUNT(*) AS inmails,\n  SUM(i.replied) AS replies,\n  ROUND(100.0 * SUM(i.replied) / NULLIF(COUNT(*), 0), 1) AS response_rate_pct\nFROM inmails i\nJOIN members m ON m.member_id = i.recipient_id\nGROUP BY m.industry\nHAVING COUNT(*) >= 3\nORDER BY response_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "joins",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "inmail-response-rate-by-recipient-industry"
+  },
+  {
+    "id": "co_sql_305-0388",
+    "num": 388,
+    "company": "LinkedIn",
+    "difficulty": "Medium",
+    "title": "Job Application Funnel \u2014 Saved \u2192 Applied \u2192 Recruiter-Viewed",
+    "subtopic": "Sequential conditional aggregation",
+    "schema": "job_actions(action_id, member_id, job_id, action_type, action_at)",
+    "solution": "WITH per_pair AS (\n  SELECT member_id, job_id,\n    SUM(CASE WHEN action_type = 'saved'   THEN 1 ELSE 0 END) AS saved,\n    SUM(CASE WHEN action_type = 'applied' THEN 1 ELSE 0 END) AS applied,\n    SUM(CASE WHEN action_type = 'recruiter_viewed' THEN 1 ELSE 0 END) AS recruiter_viewed\n  FROM job_actions\n  GROUP BY member_id, job_id\n)\nSELECT\n  COUNT(*) AS member_job_pairs,\n  SUM(CASE WHEN saved >= 1   THEN 1 ELSE 0 END) AS saved_step,\n  SUM(CASE WHEN applied >= 1 THEN 1 ELSE 0 END) AS applied_step,\n  SUM(CASE WHEN recruiter_viewed >= 1 THEN 1 ELSE 0 END) AS recruiter_viewed_step,\n  ROUND(100.0 * SUM(CASE WHEN applied >= 1 THEN 1 ELSE 0 END)\n              / NULLIF(SUM(CASE WHEN saved >= 1 THEN 1 ELSE 0 END), 0), 1) AS save_to_apply_pct\nFROM per_pair;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "conditional-aggregation",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "job-application-funnel--saved-\u2192-applied-\u2192-recruiter-viewed"
+  },
+  {
+    "id": "co_sql_305-0389",
+    "num": 389,
+    "company": "LinkedIn",
+    "difficulty": "Hard",
+    "title": "Feed Post Virality Score \u2014 Reactions / Comments / Reshares",
+    "subtopic": "Weighted virality composite",
+    "schema": "post_engagements(post_id, author_id, action_type)",
+    "solution": "SELECT post_id, author_id,\n  SUM(CASE WHEN action_type = 'reaction'  THEN 1 ELSE 0 END) AS reactions,\n  SUM(CASE WHEN action_type = 'comment'   THEN 1 ELSE 0 END) AS comments,\n  SUM(CASE WHEN action_type = 'reshare'   THEN 1 ELSE 0 END) AS reshares,\n  SUM(CASE WHEN action_type = 'reaction'  THEN 1 ELSE 0 END) * 1\n  + SUM(CASE WHEN action_type = 'comment' THEN 1 ELSE 0 END) * 3\n  + SUM(CASE WHEN action_type = 'reshare' THEN 1 ELSE 0 END) * 5 AS virality_score\nFROM post_engagements\nGROUP BY post_id, author_id\nORDER BY virality_score DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "conditional-aggregation"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "feed-post-virality-score--reactions--comments--reshares"
+  },
+  {
+    "id": "co_sql_305-0390",
+    "num": 390,
+    "company": "LinkedIn",
+    "difficulty": "Medium",
+    "title": "Recruiter Daily Search Volume",
+    "subtopic": "Per-day per-recruiter activity",
+    "schema": "recruiter_searches(search_id, recruiter_id, searched_at)",
+    "solution": "WITH per_day AS (\n  SELECT recruiter_id, DATE(searched_at) AS day, COUNT(*) AS searches\n  FROM recruiter_searches\n  GROUP BY recruiter_id, DATE(searched_at)\n)\nSELECT recruiter_id, day, searches,\n  SUM(searches) OVER (PARTITION BY recruiter_id) AS total_searches,\n  COUNT(*) OVER (PARTITION BY recruiter_id) AS active_days\nFROM per_day\nORDER BY recruiter_id, day;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "recruiter-daily-search-volume"
+  },
+  {
+    "id": "co_sql_305-0391",
+    "num": 391,
+    "company": "LinkedIn",
+    "difficulty": "Medium",
+    "title": "Premium Plan Upgrade Funnel",
+    "subtopic": "Multi-step upgrade conversion",
+    "schema": "premium_funnel(member_id, viewed_at, started_trial_at, converted_at)",
+    "solution": "SELECT\n  COUNT(*) AS viewers,\n  COUNT(started_trial_at) AS started_trial,\n  COUNT(converted_at) AS converted,\n  ROUND(100.0 * COUNT(started_trial_at) / NULLIF(COUNT(*), 0), 1) AS view_to_trial_pct,\n  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(started_trial_at), 0), 1) AS trial_to_paid_pct,\n  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(*), 0), 1) AS view_to_paid_pct\nFROM premium_funnel;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "premium-plan-upgrade-funnel"
+  },
+  {
+    "id": "co_sql_305-0392",
+    "num": 392,
+    "company": "LinkedIn",
+    "difficulty": "Hard",
+    "title": "Network Density per Industry \u2014 Avg Connections",
+    "subtopic": "Cross-table aggregation with industry partition",
+    "schema": "connections(member_id, connection_id), members(member_id, industry)",
+    "solution": "SELECT m.industry,\n  COUNT(DISTINCT m.member_id) AS members_in_industry,\n  COUNT(c.connection_id) AS total_connections,\n  ROUND(COUNT(c.connection_id) * 1.0 / NULLIF(COUNT(DISTINCT m.member_id), 0), 1) AS avg_connections_per_member\nFROM members m\nLEFT JOIN connections c ON c.member_id = m.member_id\nGROUP BY m.industry\nHAVING COUNT(DISTINCT m.member_id) >= 2\nORDER BY avg_connections_per_member DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "network-density-per-industry--avg-connections"
+  },
+  {
+    "id": "co_sql_305-0393",
+    "num": 393,
+    "company": "LinkedIn",
+    "difficulty": "Medium",
+    "title": "Post Engagement by Type \u2014 Articles vs Updates vs Videos",
+    "subtopic": "Per-post-type rate comparison",
+    "schema": "posts(post_id, author_id, post_type, impressions, engagements)",
+    "solution": "SELECT post_type,\n  COUNT(*) AS posts,\n  SUM(impressions) AS total_impressions,\n  SUM(engagements) AS total_engagements,\n  ROUND(100.0 * SUM(engagements) / NULLIF(SUM(impressions), 0), 2) AS engagement_rate_pct,\n  ROUND(SUM(engagements) * 1.0 / NULLIF(COUNT(*), 0), 1) AS avg_engagements_per_post\nFROM posts\nGROUP BY post_type\nORDER BY engagement_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "post-engagement-by-type--articles-vs-updates-vs-videos"
+  },
+  {
+    "id": "co_sql_305-0394",
+    "num": 394,
+    "company": "Snap",
+    "difficulty": "Medium",
+    "title": "Story View Completion per Snap",
+    "subtopic": "Per-story completion + reach",
+    "schema": "story_snaps(snap_id, story_id, viewed, swiped_through)",
+    "solution": "SELECT story_id,\n  COUNT(*) AS impressions,\n  SUM(viewed) AS views,\n  SUM(swiped_through) AS swiped_away,\n  ROUND(100.0 * SUM(swiped_through) / NULLIF(SUM(viewed), 0), 1) AS swipe_through_pct\nFROM story_snaps\nGROUP BY story_id\nHAVING SUM(viewed) >= 3\nORDER BY swipe_through_pct;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "story-view-completion-per-snap"
+  },
+  {
+    "id": "co_sql_305-0395",
+    "num": 395,
+    "company": "Snap",
+    "difficulty": "Hard",
+    "title": "Snapstreak Detection \u2014 Consecutive Days Both Sides Sent",
+    "subtopic": "Gaps-and-islands on bidirectional pair",
+    "schema": "snap_exchanges(user_a, user_b, exchange_date)",
+    "solution": "WITH islands AS (\n  SELECT user_a, user_b, exchange_date,\n    julianday(exchange_date) - ROW_NUMBER() OVER (PARTITION BY user_a, user_b ORDER BY exchange_date) AS island_id\n  FROM snap_exchanges\n)\nSELECT user_a, user_b,\n  MIN(exchange_date) AS streak_start,\n  MAX(exchange_date) AS streak_end,\n  COUNT(*) AS streak_days\nFROM islands\nGROUP BY user_a, user_b, island_id\nORDER BY streak_days DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "having"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "snapstreak-detection--consecutive-days-both-sides-sent"
+  },
+  {
+    "id": "co_sql_305-0396",
+    "num": 396,
+    "company": "Snap",
+    "difficulty": "Medium",
+    "title": "AR Filter Usage \u2014 Top Filters by Send Volume",
+    "subtopic": "Top-N + percent-of-total",
+    "schema": "filter_usage(usage_id, filter_id, user_id, used_at)",
+    "solution": "SELECT filter_id,\n  COUNT(*) AS uses,\n  COUNT(DISTINCT user_id) AS unique_users,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS share_of_uses_pct\nFROM filter_usage\nGROUP BY filter_id\nORDER BY uses DESC\nLIMIT 10;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "ar-filter-usage--top-filters-by-send-volume"
+  },
+  {
+    "id": "co_sql_305-0397",
+    "num": 397,
+    "company": "Snap",
+    "difficulty": "Medium",
+    "title": "Snap Map Active Locations \u2014 Per-Hour Density",
+    "subtopic": "Spatial-temporal bucketing",
+    "schema": "map_activity(activity_id, user_id, geohash, recorded_at)",
+    "solution": "SELECT geohash,\n  CAST(strftime('%H', recorded_at) AS INTEGER) AS hour,\n  COUNT(DISTINCT user_id) AS active_users\nFROM map_activity\nGROUP BY geohash, hour\nORDER BY active_users DESC\nLIMIT 20;",
+    "tags": [
+      "aggregation"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "snap-map-active-locations--per-hour-density"
+  },
+  {
+    "id": "co_sql_305-0398",
+    "num": 398,
+    "company": "Snap",
+    "difficulty": "Medium",
+    "title": "Discover Channel Engagement \u2014 Subscribers vs Repeat Viewers",
+    "subtopic": "Subscriber vs casual breakout",
+    "schema": "discover_views(view_id, user_id, channel_id, is_subscriber)",
+    "solution": "SELECT channel_id,\n  COUNT(*) AS views,\n  COUNT(DISTINCT user_id) AS unique_viewers,\n  SUM(is_subscriber) AS subscriber_views,\n  ROUND(100.0 * SUM(is_subscriber) / NULLIF(COUNT(*), 0), 1) AS subscriber_share_pct\nFROM discover_views\nGROUP BY channel_id\nHAVING COUNT(*) >= 3\nORDER BY views DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "discover-channel-engagement--subscribers-vs-repeat-viewers"
+  },
+  {
+    "id": "co_sql_305-0399",
+    "num": 399,
+    "company": "Pinterest",
+    "difficulty": "Easy",
+    "title": "Pin Save Rate by Category",
+    "subtopic": "Save-rate per category",
+    "schema": "pin_events(event_id, pin_id, category, action_type)",
+    "solution": "SELECT category,\n  SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END) AS views,\n  SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END) AS saves,\n  ROUND(100.0 * SUM(CASE WHEN action_type = 'save' THEN 1 ELSE 0 END)\n              / NULLIF(SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END), 0), 2) AS save_rate_pct\nFROM pin_events\nGROUP BY category\nHAVING SUM(CASE WHEN action_type = 'view' THEN 1 ELSE 0 END) >= 3\nORDER BY save_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "pin-save-rate-by-category"
+  },
+  {
+    "id": "co_sql_305-0400",
+    "num": 400,
+    "company": "Pinterest",
+    "difficulty": "Medium",
+    "title": "Search Intent \u2014 Visual Query vs Text Query CTR",
+    "subtopic": "CTR by query modality",
+    "schema": "searches(search_id, query_type, clicked)",
+    "solution": "SELECT query_type,\n  COUNT(*) AS searches,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM searches\nGROUP BY query_type\nORDER BY ctr_pct DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "search-intent--visual-query-vs-text-query-ctr"
+  },
+  {
+    "id": "co_sql_305-0401",
+    "num": 401,
+    "company": "Pinterest",
+    "difficulty": "Medium",
+    "title": "Board Completion Cohort \u2014 Pins Saved per Board Age",
+    "subtopic": "Board age \u00d7 save count cohort",
+    "schema": "boards(board_id, owner_id, created_at), board_pins(board_id, pin_id, saved_at)",
+    "solution": "SELECT\n  CASE\n    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) <= 1 THEN 'new (<= 1mo)'\n    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) <= 6 THEN '1-6 mo'\n    WHEN CAST((julianday('2024-04-01') - julianday(b.created_at)) / 30 AS INTEGER) <= 12 THEN '6-12 mo'\n    ELSE '12+ mo'\n  END AS board_age_band,\n  COUNT(DISTINCT b.board_id) AS boards,\n  COUNT(bp.pin_id) AS total_pins,\n  ROUND(COUNT(bp.pin_id) * 1.0 / NULLIF(COUNT(DISTINCT b.board_id), 0), 1) AS avg_pins_per_board\nFROM boards b\nLEFT JOIN board_pins bp ON bp.board_id = b.board_id\nGROUP BY board_age_band\nORDER BY avg_pins_per_board DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "board-completion-cohort--pins-saved-per-board-age"
+  },
+  {
+    "id": "co_sql_305-0402",
+    "num": 402,
+    "company": "Pinterest",
+    "difficulty": "Medium",
+    "title": "Promoted Pin CTR by Pin Type",
+    "subtopic": "Per-format CTR with sample-size gate",
+    "schema": "promoted_pins(impression_id, pin_id, pin_format, clicked)",
+    "solution": "SELECT pin_format,\n  COUNT(*) AS impressions,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM promoted_pins\nGROUP BY pin_format\nHAVING COUNT(*) >= 3\nORDER BY ctr_pct DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "promoted-pin-ctr-by-pin-type"
+  },
+  {
+    "id": "co_sql_305-0403",
+    "num": 403,
+    "company": "Pinterest",
+    "difficulty": "Medium",
+    "title": "Idea Pin Watch-Time Distribution",
+    "subtopic": "Banded watch-time histogram",
+    "schema": "idea_pin_views(view_id, pin_id, watched_seconds, total_seconds)",
+    "solution": "WITH banded AS (\n  SELECT pin_id,\n    CASE\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.95 THEN 'completed'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.50 THEN 'engaged'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.10 THEN 'sampled'\n      ELSE 'bounced'\n    END AS band\n  FROM idea_pin_views\n)\nSELECT band, COUNT(*) AS plays,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM banded\nGROUP BY band\nORDER BY plays DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "idea-pin-watch-time-distribution"
   }
 ]

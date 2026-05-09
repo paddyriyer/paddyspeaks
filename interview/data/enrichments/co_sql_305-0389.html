@@ -1,0 +1,32 @@
+<p>LinkedIn's feed-ranking team uses a weighted-engagement <strong>virality score</strong>: reactions × 1, comments × 3, reshares × 5. The weights reflect signal strength — reshares are highest-value.</p>
+
+<h4>2. The SQL — weighted virality composite</h4>
+<pre><code>SELECT post_id, author_id,
+  SUM(CASE WHEN action_type = 'reaction'  THEN 1 ELSE 0 END) AS reactions,
+  SUM(CASE WHEN action_type = 'comment'   THEN 1 ELSE 0 END) AS comments,
+  SUM(CASE WHEN action_type = 'reshare'   THEN 1 ELSE 0 END) AS reshares,
+  SUM(CASE WHEN action_type = 'reaction'  THEN 1 ELSE 0 END) * 1
+  + SUM(CASE WHEN action_type = 'comment' THEN 1 ELSE 0 END) * 3
+  + SUM(CASE WHEN action_type = 'reshare' THEN 1 ELSE 0 END) * 5 AS virality_score
+FROM post_engagements GROUP BY post_id, author_id
+ORDER BY virality_score DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why weighted — engagement asymmetry</h5>
+<p>Reactions are cheap (1-tap). Comments require 30+ seconds of attention. Reshares put your reputation behind it. Weighting reflects effort + signal strength.</p>
+
+<h5>The 1-3-5 ratio — calibrated, not arbitrary</h5>
+<p>Empirical: a comment drives 3x more downstream feed views than a reaction; a reshare 5x more than a reaction. Weights are tuned regression coefficients from feed-engagement modeling.</p>
+
+<h5>Time-decay</h5>
+<p>A post viral for 24 hours then dead vs sustained over 7 days have different value. Production multiplies by recency:</p>
+<pre><code>SUM(CASE WHEN ... THEN exp(-decay * hours_since_post) END)</code></pre>
+
+<h5>The negative-engagement signal</h5>
+<p>"Hide post" / "report" are negative actions. Production virality models subtract them. Pure additive model overstates controversy-driven engagement.</p>
+
+<h5>Author-quality signal</h5>
+<p>An author with 50K followers has structurally higher virality than 500-follower author. For "intrinsic post quality" normalize by follower count or use rank-percentile within author.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> justify the 1-3-5 weights as calibrated regression coefficients, layer time-decay for recency, subtract negative engagement, and normalize by author-reach for intrinsic quality.</div>

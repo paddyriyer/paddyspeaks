@@ -1,0 +1,35 @@
+<p>DoorDash's #1 marketplace metric: <strong>dasher utilization</strong> = time-on-active-delivery ÷ time-online. High utilization = efficient marketplace but tired drivers; low = supply slack but lost income.</p>
+
+<h4>2. The SQL — julianday-based time ratio</h4>
+<pre><code>SELECT s.dasher_id,
+  ROUND(SUM(julianday(s.offline_at) - julianday(s.online_at)) * 24.0, 2) AS hours_online,
+  ROUND(SUM(julianday(d.ended_at) - julianday(d.started_at)) * 24.0, 2) AS hours_delivering,
+  ROUND(100.0 * SUM(julianday(d.ended_at) - julianday(d.started_at))
+              / NULLIF(SUM(julianday(s.offline_at) - julianday(s.online_at)), 0), 1) AS utilization_pct
+FROM dasher_shifts s
+LEFT JOIN deliveries d ON d.dasher_id = s.dasher_id
+GROUP BY s.dasher_id
+ORDER BY utilization_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Three utilization tiers — pick the right one</h5>
+<table><thead><tr><th>tier</th><th>what it counts</th></tr></thead>
+<tbody>
+<tr><td>P0 — restaurant-to-customer</td><td>start-of-pickup → drop-off (this query)</td></tr>
+<tr><td>P1 — accepted-to-drop-off</td><td>P0 + drive-to-restaurant</td></tr>
+<tr><td>P2 — engaged</td><td>P1 + post-drop-off-rebalance time</td></tr>
+</tbody></table>
+<p>P0 is the strictest. Production reports all three.</p>
+
+<h5>The 50% target</h5>
+<p>DoorDash internally targets 50% P0 utilization. Below 35% drivers earn too little; above 65% drivers burn out. The query result feeds the dispatch algorithm's load balancing.</p>
+
+<h5>Multi-stop bonus</h5>
+<p>Stacked deliveries (multiple orders, one trip) inflate utilization unfairly because <code>ended_at</code> includes all stops. Production breaks per-leg.</p>
+
+<h5>Per-hour utilization</h5>
+<p>Lunch peak 11-2 has higher utilization than 3-5 trough. Comparing dashers across hours is unfair. Slice:</p>
+<pre><code>GROUP BY dasher_id, CAST(strftime('%H', online_at) AS INTEGER)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name P0/P1/P2 tiers, pin the 50% target with directional implications, raise multi-stop double-count, and stratify by hour for fair comparison.</div>

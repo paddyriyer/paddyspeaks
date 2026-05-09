@@ -1,0 +1,30 @@
+<p>LinkedIn's Premium upsell funnel: <em>saw upgrade prompt → started trial → converted to paid</em>. The query computes per-stage conversion with the COUNT-of-non-NULL idiom.</p>
+
+<h4>2. The SQL — three-step funnel</h4>
+<pre><code>SELECT
+  COUNT(*) AS viewers,
+  COUNT(started_trial_at) AS started_trial,
+  COUNT(converted_at) AS converted,
+  ROUND(100.0 * COUNT(started_trial_at) / NULLIF(COUNT(*), 0), 1) AS view_to_trial_pct,
+  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(started_trial_at), 0), 1) AS trial_to_paid_pct,
+  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(*), 0), 1) AS view_to_paid_pct
+FROM premium_funnel;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The compounding gates</h5>
+<p>View → trial 5% × trial → paid 50% = view → paid 2.5%. Each gate compounds. Improving the worst gate moves overall conversion the most.</p>
+
+<h5>The Premium tier comparison</h5>
+<p>4 tiers: Career, Business, Sales Navigator, Recruiter Lite. Each has different conversion. The query above aggregates; production splits by target_tier.</p>
+
+<h5>The trigger-context dimension</h5>
+<p>Upgrade prompts fire in different contexts: hitting a search limit, profile viewer paywall, InMail credit exhaustion, free-trial offer. Context determines intent — paywall-hit prompts convert 5x better than browse-page banners.</p>
+
+<h5>The free-trial gotcha</h5>
+<p>Trial → paid measures forced auto-renewal vs explicit retention. Some users forget to cancel and convert "passively". Distinguish active conversion (kept using) from passive (forgot to cancel) for honest economics.</p>
+
+<h5>The upgrade-by-feature attribution</h5>
+<p>Conversion is often triggered by ONE specific feature need (e.g., "see who viewed my profile"). Surveys post-conversion reveal which feature drove which segment — informs feature investment.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> COUNT-of-non-NULL for sequential funnel, identify the worst-gate as highest-leverage, slice by trigger context, distinguish active vs passive conversion, and connect to feature-attribution surveys.</div>

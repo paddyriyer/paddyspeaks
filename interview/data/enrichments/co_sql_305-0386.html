@@ -1,0 +1,35 @@
+<p>LinkedIn's "People You May Know" (PYMK) suggestions: friends-of-friends ranked by mutual count. The query is a self-join 2-hop graph aggregation.</p>
+
+<h4>2. The SQL — 2-hop self-join</h4>
+<pre><code>SELECT a.member_id AS me, b.connection_id AS suggested,
+  COUNT(*) AS shared_connections
+FROM connections a
+JOIN connections b
+  ON a.connection_id = b.member_id
+ AND a.member_id != b.connection_id
+GROUP BY a.member_id, b.connection_id
+ORDER BY shared_connections DESC, me, suggested
+LIMIT 30;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The 2-hop join in 3 lines</h5>
+<p>From me → my-connection-A → A's-connection-B = me to B (2 hops). <code>a.connection_id = b.member_id</code> bridges the hop. <code>a.member_id != b.connection_id</code> excludes self.</p>
+
+<h5>The "exclude existing direct connection" filter</h5>
+<p>Production PYMK omits already-connected pairs:</p>
+<pre><code>WHERE NOT EXISTS (
+  SELECT 1 FROM connections f
+  WHERE f.member_id = me AND f.connection_id = suggested
+)</code></pre>
+
+<h5>Undirected vs directed</h5>
+<p>LinkedIn connections are bidirectional (every accept produces a row pair). The query assumes undirected; if the schema is directed, OR-condition the join.</p>
+
+<h5>Cardinality — the scale problem</h5>
+<p>Avg 200 connections × 1B users = 40B candidate edges per user. Real LinkedIn precomputes this in a daily Spark job; the query above is the offline-analytics version, not the live UI.</p>
+
+<h5>The ranking signal stack</h5>
+<p>"Mutual count" is one signal. Production adds: school overlap, employer overlap, geo, profile-views, message exchanges. The query emits the candidate pool; the ranker model orders them.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate the 2-hop bridge predicate, exclude existing direct connections, name the precomputation requirement at scale, and contrast mutual-count as one of 5-10 signals fed to the ranker.</div>
