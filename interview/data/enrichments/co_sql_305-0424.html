@@ -1,0 +1,32 @@
+<p>Same content posted to multiple subreddits = either cross-promotion (legit) or spam-farm (illegit). The query identifies posts appearing across 2+ subreddits.</p>
+
+<h4>2. The SQL — title-based cross-post detection</h4>
+<pre><code>SELECT a.title,
+  COUNT(DISTINCT a.subreddit_id) AS subreddits_count,
+  GROUP_CONCAT(DISTINCT a.subreddit_id) AS subreddits
+FROM posts a
+GROUP BY a.title HAVING COUNT(DISTINCT a.subreddit_id) &gt;= 2
+ORDER BY subreddits_count DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Title-match vs content-match</h5>
+<p>Titles match across subs is the simplest detection. URL match is stronger (content identity). Hash of body text catches reposted text. Production runs all three.</p>
+
+<h5>GROUP_CONCAT — SQLite's array-agg</h5>
+<p>SQLite's <code>GROUP_CONCAT(DISTINCT col)</code> = Postgres's <code>STRING_AGG(DISTINCT col, ', ')</code> = comma-separated list. Useful for showing the set inline.</p>
+
+<h5>Legit vs spam classification</h5>
+<table><thead><tr><th>signal</th><th>direction</th></tr></thead>
+<tbody>
+<tr><td>Same author cross-posting</td><td>likely legit (intended cross-promo)</td></tr>
+<tr><td>Different authors, same content</td><td>karma farm</td></tr>
+<tr><td>5+ subreddits in &lt; 1 hour</td><td>spam network</td></tr>
+</tbody></table>
+
+<h5>The Reddit-built crosspost feature</h5>
+<p>Reddit has an explicit "crosspost" mechanism — link to original. The query flags <em>independent</em> cross-posting (same content, no link). Production excludes built-in crossposts.</p>
+
+<h5>The repost economy</h5>
+<p>Some users intentionally repost old content for karma. Time-since-original-post is the signal: posts re-appearing 6+ months later = repost farm.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> escalate from title-match → URL-match → content-hash, use GROUP_CONCAT for inline subreddit list, distinguish legit cross-promo from karma farm, exclude Reddit's built-in crosspost mechanism, and watch repost-after-time as farm signal.</div>

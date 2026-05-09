@@ -1,0 +1,33 @@
+<p>TikTok's Duet and Stitch features create <em>derivative content</em> — videos responding to or remixing originals. High derivative count = original video achieved memetic status.</p>
+
+<h4>2. The SQL — original to derivatives self-join</h4>
+<pre><code>SELECT v.video_id AS original_video,
+  COUNT(d.video_id) AS derivatives,
+  SUM(CASE WHEN d.video_type = 'duet'   THEN 1 ELSE 0 END) AS duets,
+  SUM(CASE WHEN d.video_type = 'stitch' THEN 1 ELSE 0 END) AS stitches
+FROM videos v
+LEFT JOIN videos d ON d.parent_video_id = v.video_id
+WHERE v.parent_video_id IS NULL
+GROUP BY v.video_id ORDER BY derivatives DESC LIMIT 20;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The self-join shape</h5>
+<p>Same table, two aliases: <code>v</code> for originals (parent_video_id IS NULL), <code>d</code> for derivatives (parent_video_id = v.video_id). LEFT JOIN keeps originals with zero derivatives.</p>
+
+<h5>Duet vs Stitch — different mechanics</h5>
+<table><thead><tr><th>type</th><th>structure</th><th>typical use</th></tr></thead>
+<tbody>
+<tr><td>Duet</td><td>side-by-side, plays simultaneously</td><td>reaction, harmony</td></tr>
+<tr><td>Stitch</td><td>5-sec clip from original, then own content</td><td>"my response", commentary</td></tr>
+</tbody></table>
+
+<h5>Memetic threshold</h5>
+<p>100+ derivatives = meme. Top originals reach 10K+. The query result is the input to "trending challenges" feature.</p>
+
+<h5>Permission-revoke handling</h5>
+<p>Original creator can disable Duet/Stitch retroactively. Existing derivatives stay; new ones blocked. Production has a <code>derivatives_disabled_at</code> column.</p>
+
+<h5>Cross-platform leak (the dark side)</h5>
+<p>Derivatives uploaded to Instagram Reels reduce TikTok's value capture. Production tracks "derivative-only" creators who drive TikTok engagement but monetize elsewhere.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> self-join with LEFT to keep zero-derivative originals, contrast Duet (parallel) vs Stitch (sequential) mechanics, identify 100+ derivatives as meme threshold, and acknowledge cross-platform leak risk.</div>

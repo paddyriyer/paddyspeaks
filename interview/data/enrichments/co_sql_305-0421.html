@@ -1,0 +1,28 @@
+<p>Subreddit growth velocity is one of Reddit's leading retention indicators. The query uses LAG over weekly subscriber snapshots to compute WoW change.</p>
+
+<h4>2. The SQL — LAG-based WoW growth</h4>
+<pre><code>SELECT subreddit_id, week, subscribers,
+  LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS prev_week,
+  subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS net_new,
+  ROUND(100.0 * (subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week))
+              / NULLIF(LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week), 0), 1) AS wow_growth_pct
+FROM subreddit_subs ORDER BY subreddit_id, week;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Net new vs % growth</h5>
+<p>r/news growing +10K/week (0.05% growth) is huge in absolute. r/newsmall growing +100/week (50% growth) is huge in relative. Both matter; show both.</p>
+
+<h5>The viral-event spike</h5>
+<p>A subreddit can gain 100K subs in a week from a viral event. Sustained 5%+ weekly growth = healthy organic. One-off spike = recheck next week.</p>
+
+<h5>Defaults and rebrands</h5>
+<p>Reddit's default subreddits get auto-subscriptions when users sign up. Their growth is mostly user-acquisition not community-quality. Filter out:</p>
+<pre><code>WHERE subreddit_id NOT IN (SELECT id FROM dim_subreddit WHERE is_default = 1)</code></pre>
+
+<h5>The first-snapshot NULL</h5>
+<p>The earliest week per subreddit has prev_week NULL. Filter or COALESCE to 0.</p>
+
+<h5>Quitter detection</h5>
+<p>Some weeks show negative net_new (mass unsubscribe). Triggered by mod controversy, spam, or rebrands. Production alerts on -5% WoW for &gt; 1 week.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> emit both net-new and % growth, identify viral spikes vs sustained, exclude default subreddits from organic growth, handle the first-snapshot NULL, and alert on sustained negative growth.</div>

@@ -1,0 +1,26 @@
+<p>Shopify's per-plan revenue mix: Basic / Shopify / Advanced / Plus tiers have very different per-store GMV. The query joins stores to orders for tier-level aggregation.</p>
+
+<h4>2. The SQL — GMV per tier with per-store avg</h4>
+<pre><code>SELECT s.plan_tier, COUNT(DISTINCT s.store_id) AS stores,
+  COUNT(o.total) AS orders, ROUND(SUM(o.total), 2) AS gmv,
+  ROUND(SUM(o.total) * 1.0 / NULLIF(COUNT(DISTINCT s.store_id), 0), 2) AS gmv_per_store
+FROM stores s LEFT JOIN orders o ON o.store_id = s.store_id
+GROUP BY s.plan_tier ORDER BY gmv DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The Plus-tier reality</h5>
+<p>Plus customers (~5% of stores) drive 40-50% of GMV. Disproportionate revenue concentration; account-management heavily prioritizes Plus.</p>
+
+<h5>Why LEFT JOIN — empty-store carry-through</h5>
+<p>New stores with 0 orders should still count in "stores" denominator. INNER JOIN drops them, inflating GMV-per-store.</p>
+
+<h5>The activation metric</h5>
+<p>"Stores with 0 orders" / total stores = activation gap. New customers signing up but not making first sale = onboarding leak.</p>
+
+<h5>Currency normalization</h5>
+<p>Multi-currency Shopify stores: order.total is in store's local currency. Sum across currencies is meaningless. Production multiplies by FX rate at order-time.</p>
+
+<h5>Take-rate by plan</h5>
+<p>Shopify charges transaction fees on lower tiers (no Shopify Payments) and subscription only on higher. Per-tier take-rate is the actual revenue contribution.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> Plus-tier concentration as 40-50%, LEFT JOIN to keep zero-order stores, surface activation gap, FX-normalize multi-currency, and compute true take-rate per plan.</div>

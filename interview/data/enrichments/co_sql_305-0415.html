@@ -1,0 +1,32 @@
+<p>TikTok's algorithm amplifies sounds that are spreading. <strong>5+ unique creators using a sound in 7 days</strong> = candidate for "trending" page. The query is a windowed creator-count.</p>
+
+<h4>2. The SQL — 7-day sound usage</h4>
+<pre><code>WITH window_uses AS (
+  SELECT sound_id, COUNT(*) AS uses_7d, COUNT(DISTINCT creator_id) AS unique_creators_7d
+  FROM sound_uses
+  WHERE julianday('2024-04-01') - julianday(used_at) BETWEEN 0 AND 7
+  GROUP BY sound_id
+)
+SELECT sound_id, uses_7d, unique_creators_7d,
+  CASE WHEN unique_creators_7d &gt;= 5 THEN 'viral' ELSE 'normal' END AS classification
+FROM window_uses ORDER BY unique_creators_7d DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Unique creators &gt;&gt; total uses</h5>
+<p>1 creator using a sound 100 times is a personal favorite. 100 creators using it once each = trend. Diversity matters more than volume for "viral".</p>
+
+<h5>The bot-creator filter</h5>
+<p>Spam farms use a sound 1000x. Filter <code>WHERE creator.is_legitimate</code>; otherwise virality is gameable.</p>
+
+<h5>Velocity acceleration vs steady state</h5>
+<p>5 creators in last 7 days might be normal — same as last week. Real virality is acceleration:</p>
+<pre><code>uses_7d / NULLIF(uses_in_prior_7d, 0) AS growth_multiplier</code></pre>
+<p>3x+ growth is the "actually trending" signal.</p>
+
+<h5>The amplification feedback</h5>
+<p>"Viral" sounds get pushed to the Discover page → more creators see → more uses → more viral. Production caps the amplification rate to prevent runaway memes from drowning organic content.</p>
+
+<h5>The trademark risk</h5>
+<p>Some viral sounds are unauthorized music clips. Legal team monitors top-N viral sounds for licensing violations.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use unique-creators not raw uses, filter bot-creators upfront, distinguish steady-state from acceleration via growth_multiplier, and acknowledge legal review of trending audio.</div>

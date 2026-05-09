@@ -1,0 +1,33 @@
+<p>TikTok's "Trending" tab needs more than total volume — the algorithm picks hashtags <em>accelerating</em>. The query computes WoW growth via LAG.</p>
+
+<h4>2. The SQL — week-over-week growth</h4>
+<pre><code>WITH weekly AS (
+  SELECT hashtag_id,
+    CAST((julianday(used_at) - julianday('2024-01-01')) / 7 AS INTEGER) AS week_n,
+    COUNT(*) AS uses
+  FROM hashtag_uses GROUP BY hashtag_id, week_n
+)
+SELECT hashtag_id, week_n, uses,
+  LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n) AS prev_week,
+  ROUND(100.0 * (uses - LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n))
+              / NULLIF(LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n), 0), 1) AS wow_pct
+FROM weekly ORDER BY hashtag_id, week_n;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The week-bucket via integer division</h5>
+<p><code>(julianday(date) - julianday(epoch)) / 7</code> casts to integer = week number from epoch. Cleaner than <code>strftime('%W')</code> which has year-boundary issues.</p>
+
+<h5>The double-LAG idiom</h5>
+<p>Using <code>LAG(...)</code> twice (once for value, once in the formula) is repetitive. SQLite doesn't have a way to alias window expressions in WHERE; production wraps in another CTE.</p>
+
+<h5>Trending vs spam</h5>
+<p>1 → 100 uses (10000% growth) is meaningless if absolute volume is tiny. Filter:</p>
+<pre><code>WHERE uses &gt;= 100 AND wow_pct &gt;= 50</code></pre>
+
+<h5>Decay detection</h5>
+<p>Trending hashtags peak then decay. <em>Negative</em> WoW after several positive = peak passed. Production demotes from "Trending" page.</p>
+
+<h5>Geographic localization</h5>
+<p>"Brat summer" trends US. Different hashtags trend in IN, BR, DE. Production runs per-country trend detection.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> integer week-bucket via julianday math, filter both volume + growth to avoid noise, detect decay for demoting from Trending, and run per-country localization.</div>

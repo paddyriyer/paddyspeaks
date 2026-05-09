@@ -1,0 +1,32 @@
+<p>TikTok comment threads can go deep (5-10 levels). Threads with deep nesting indicate <strong>conversation</strong> — the highest engagement signal. Recursive CTE walks the chain.</p>
+
+<h4>2. The SQL — recursive thread depth</h4>
+<pre><code>WITH RECURSIVE thread AS (
+  SELECT comment_id, parent_id, video_id, likes, 1 AS depth
+  FROM comments WHERE parent_id IS NULL
+  UNION ALL
+  SELECT c.comment_id, c.parent_id, c.video_id, c.likes, t.depth + 1
+  FROM comments c JOIN thread t ON c.parent_id = t.comment_id
+)
+SELECT video_id, MAX(depth) AS max_thread_depth, COUNT(*) AS total_comments,
+  SUM(likes) AS total_likes
+FROM thread GROUP BY video_id ORDER BY max_thread_depth DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>Conversation as engagement</h5>
+<p>Single-level (10 separate top-level comments) = bunch of reactions. Deep thread (one comment with 9 replies) = real discussion. Algorithm weights thread-depth higher than comment count.</p>
+
+<h5>Cycle protection</h5>
+<p>Bad data: A reply to B, B reply to A. Recursive CTE infinite-loops. Add <code>WHERE t.depth &lt; 50</code> as a safety.</p>
+
+<h5>Most-engaged thread per video</h5>
+<p>Total likes on a thread = the conversation's quality. Branching:</p>
+<pre><code>WITH thread_likes AS (...) SELECT video_id, MAX(branch_likes) AS top_thread_quality FROM ...</code></pre>
+
+<h5>The reply-chain controversy signal</h5>
+<p>Deep threads on controversial topics get heavy moderation. TikTok's safety system monitors deep-nested comments for harassment patterns.</p>
+
+<h5>The performance reality</h5>
+<p>Recursive CTE is slow at scale (billion-comment table). Production materializes thread_summary nightly via Spark.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> thread-depth as conversation signal, depth-cap for cycle protection, separate branch-likes for thread-quality, watch deep-threads for harassment, and acknowledge nightly materialization for scale.</div>

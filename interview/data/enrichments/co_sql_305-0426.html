@@ -1,0 +1,25 @@
+<p>Datadog charges by metric volume. Per-service ingest rate is the billing signal AND the capacity-planning input.</p>
+
+<h4>2. The SQL — datapoints + active days</h4>
+<pre><code>SELECT service_id, COUNT(*) AS total_datapoints,
+  COUNT(DISTINCT DATE(ingested_at)) AS active_days,
+  ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(ingested_at)), 0), 0) AS avg_datapoints_per_day
+FROM metric_datapoints GROUP BY service_id ORDER BY total_datapoints DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The "service" granularity</h5>
+<p>Customers are billed at the host level, but troubleshooting needs service-level. Both grains exist; this query is service.</p>
+
+<h5>Bursty vs steady</h5>
+<p>A service with 1M datapoints over 30 days = 33K/day. A service with 1M in 1 day, then 0 = bursty (test? scheduled job?). active_days exposes the shape.</p>
+
+<h5>Cardinality explosion</h5>
+<p>One service emitting <code>request_id</code> as a tag = billions of unique time series, 100x cost. Production tracks "high-cardinality tags" and alerts customers before billing surprises.</p>
+
+<h5>Throttling at limit</h5>
+<p>Customers approaching plan limits get throttled. Per-service ingest rate is the input to the throttle decision.</p>
+
+<h5>Aggregation as a cost-saver</h5>
+<p>Pre-aggregate per-host counters into per-service before sending. Cuts ingest 100x. Datadog's StatsD agent does this; the query measures effectiveness.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish bursty vs steady via active-days, watch for cardinality explosion as a cost crisis, connect to throttle-decisioning, and recommend aggregation as cost optimization.</div>

@@ -18825,5 +18825,701 @@
     "language": "sql",
     "runtime": null,
     "slug": "idea-pin-watch-time-distribution"
+  },
+  {
+    "id": "co_sql_305-0404",
+    "num": 404,
+    "company": "Salesforce",
+    "difficulty": "Medium",
+    "title": "Lead \u2192 Opportunity Conversion Rate by Source",
+    "subtopic": "Sequential funnel by attribution channel",
+    "schema": "leads(lead_id, source, created_at, converted_at)",
+    "solution": "SELECT source,\n  COUNT(*) AS leads,\n  COUNT(converted_at) AS converted,\n  ROUND(100.0 * COUNT(converted_at) / NULLIF(COUNT(*), 0), 1) AS conversion_pct,\n  ROUND(AVG(CASE WHEN converted_at IS NOT NULL\n                 THEN (julianday(converted_at) - julianday(created_at)) END), 1) AS avg_days_to_convert\nFROM leads\nGROUP BY source\nHAVING COUNT(*) >= 3\nORDER BY conversion_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "lead-\u2192-opportunity-conversion-rate-by-source"
+  },
+  {
+    "id": "co_sql_305-0405",
+    "num": 405,
+    "company": "Salesforce",
+    "difficulty": "Hard",
+    "title": "Pipeline Velocity \u2014 Stage Duration per Opportunity",
+    "subtopic": "Per-stage time-in-state via LAG",
+    "schema": "opp_stages(opp_id, stage, entered_at)",
+    "solution": "WITH transitions AS (\n  SELECT opp_id, stage, entered_at,\n    LEAD(entered_at) OVER (PARTITION BY opp_id ORDER BY entered_at) AS exited_at\n  FROM opp_stages\n)\nSELECT stage,\n  COUNT(*) AS transitions,\n  ROUND(AVG(CASE WHEN exited_at IS NOT NULL\n                 THEN (julianday(exited_at) - julianday(entered_at)) END), 1) AS avg_days_in_stage\nFROM transitions\nGROUP BY stage\nORDER BY avg_days_in_stage DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "pipeline-velocity--stage-duration-per-opportunity"
+  },
+  {
+    "id": "co_sql_305-0406",
+    "num": 406,
+    "company": "Salesforce",
+    "difficulty": "Medium",
+    "title": "MQL \u2192 SQL \u2192 Won Funnel Per Quarter",
+    "subtopic": "Multi-stage cohort waterfall",
+    "schema": "opportunities(opp_id, mql_at, sql_at, won_at, lost_at)",
+    "solution": "SELECT\n  substr(mql_at, 1, 7) AS quarter_proxy,\n  COUNT(*) AS mqls,\n  COUNT(sql_at) AS sqls,\n  COUNT(won_at) AS won,\n  ROUND(100.0 * COUNT(sql_at) / NULLIF(COUNT(*), 0), 1) AS mql_to_sql_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(sql_at), 0), 1) AS sql_to_won_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(*), 0), 1) AS overall_pct\nFROM opportunities\nGROUP BY substr(mql_at, 1, 7)\nORDER BY quarter_proxy;",
+    "tags": [
+      "aggregation",
+      "null-handling",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "mql-\u2192-sql-\u2192-won-funnel-per-quarter"
+  },
+  {
+    "id": "co_sql_305-0407",
+    "num": 407,
+    "company": "Salesforce",
+    "difficulty": "Hard",
+    "title": "Account Hierarchy \u2014 Recursive Parent-Child Rollup",
+    "subtopic": "Recursive CTE for org tree",
+    "schema": "accounts(account_id, name, parent_account_id, arr)",
+    "solution": "WITH RECURSIVE chain AS (\n  SELECT account_id, name, parent_account_id, arr, account_id AS root_id, 1 AS depth\n  FROM accounts WHERE parent_account_id IS NULL\n  UNION ALL\n  SELECT a.account_id, a.name, a.parent_account_id, a.arr, c.root_id, c.depth + 1\n  FROM accounts a JOIN chain c ON a.parent_account_id = c.account_id\n)\nSELECT root_id, MAX(depth) AS tree_depth, COUNT(*) AS total_accounts,\n  ROUND(SUM(arr), 2) AS rolled_up_arr\nFROM chain\nGROUP BY root_id\nORDER BY rolled_up_arr DESC;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "recursive-cte",
+      "set-operations",
+      "union"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "account-hierarchy--recursive-parent-child-rollup"
+  },
+  {
+    "id": "co_sql_305-0408",
+    "num": 408,
+    "company": "Salesforce",
+    "difficulty": "Medium",
+    "title": "Win-Rate by Sales Rep \u2014 Top vs Bottom Quartile",
+    "subtopic": "Per-rep aggregation with NTILE bucketing",
+    "schema": "opportunities(opp_id, owner_id, status, amount)",
+    "solution": "WITH per_rep AS (\n  SELECT owner_id,\n    COUNT(*) AS opps,\n    SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END) AS wins,\n    ROUND(100.0 * SUM(CASE WHEN status = 'won' THEN 1 ELSE 0 END)\n                / NULLIF(COUNT(*), 0), 1) AS win_rate_pct\n  FROM opportunities\n  GROUP BY owner_id\n  HAVING COUNT(*) >= 3\n)\nSELECT owner_id, opps, wins, win_rate_pct,\n  NTILE(4) OVER (ORDER BY win_rate_pct DESC) AS quartile\nFROM per_rep\nORDER BY win_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "win-rate-by-sales-rep--top-vs-bottom-quartile"
+  },
+  {
+    "id": "co_sql_305-0409",
+    "num": 409,
+    "company": "Salesforce",
+    "difficulty": "Hard",
+    "title": "Stale Opportunities \u2014 No Activity in 30+ Days",
+    "subtopic": "Latest-activity LAG with stale flag",
+    "schema": "opp_activities(activity_id, opp_id, activity_at)",
+    "solution": "WITH last_activity AS (\n  SELECT opp_id, MAX(activity_at) AS most_recent\n  FROM opp_activities\n  GROUP BY opp_id\n)\nSELECT opp_id, most_recent,\n  CAST((julianday('2024-04-01') - julianday(most_recent)) AS INTEGER) AS days_idle,\n  CASE\n    WHEN julianday('2024-04-01') - julianday(most_recent) > 60 THEN 'critical_stale'\n    WHEN julianday('2024-04-01') - julianday(most_recent) > 30 THEN 'stale'\n    ELSE 'active'\n  END AS health\nFROM last_activity\nORDER BY days_idle DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "stale-opportunities--no-activity-in-30plus-days"
+  },
+  {
+    "id": "co_sql_305-0410",
+    "num": 410,
+    "company": "Salesforce",
+    "difficulty": "Medium",
+    "title": "Customer Health Score \u2014 Composite",
+    "subtopic": "Multi-input weighted score",
+    "schema": "customer_signals(customer_id, login_30d_count, support_tickets_open, nps, last_renewal_pct)",
+    "solution": "SELECT customer_id,\n  login_30d_count, support_tickets_open, nps, last_renewal_pct,\n  ROUND(\n    MIN(login_30d_count * 1.0 / 10, 1.0) * 30\n    + (CASE WHEN support_tickets_open <= 1 THEN 25 WHEN support_tickets_open <= 3 THEN 15 ELSE 0 END)\n    + (nps + 100) / 200.0 * 25\n    + last_renewal_pct * 0.20\n  , 1) AS health_score\nFROM customer_signals\nORDER BY health_score DESC;",
+    "tags": [
+      "case-when"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "customer-health-score--composite"
+  },
+  {
+    "id": "co_sql_305-0411",
+    "num": 411,
+    "company": "Salesforce",
+    "difficulty": "Medium",
+    "title": "Forecast Accuracy \u2014 Predicted vs Actual Close",
+    "subtopic": "Bias and MAE in $$ forecast",
+    "schema": "forecasts(opp_id, forecast_amount, actual_amount, forecast_date)",
+    "solution": "SELECT\n  COUNT(*) AS opps,\n  ROUND(AVG(forecast_amount - actual_amount), 2) AS avg_bias,\n  ROUND(AVG(ABS(forecast_amount - actual_amount)), 2) AS mae,\n  ROUND(100.0 * AVG(ABS(forecast_amount - actual_amount) / NULLIF(actual_amount, 0)), 1) AS mape_pct,\n  ROUND(SUM(forecast_amount), 2) AS total_forecast,\n  ROUND(SUM(actual_amount), 2) AS total_actual\nFROM forecasts\nWHERE actual_amount IS NOT NULL;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "forecast-accuracy--predicted-vs-actual-close"
+  },
+  {
+    "id": "co_sql_305-0412",
+    "num": 412,
+    "company": "TikTok",
+    "difficulty": "Medium",
+    "title": "Video Watch Retention \u2014 Per-Second Drop-Off",
+    "subtopic": "Banded watch-completion histogram",
+    "schema": "video_views(view_id, video_id, watched_seconds, total_seconds)",
+    "solution": "WITH banded AS (\n  SELECT video_id,\n    CASE\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.95 THEN 'completed'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.50 THEN 'engaged'\n      WHEN watched_seconds * 1.0 / NULLIF(total_seconds, 0) >= 0.25 THEN 'sampled'\n      ELSE 'bounced'\n    END AS band\n  FROM video_views\n)\nSELECT band, COUNT(*) AS plays,\n  ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS pct\nFROM banded\nGROUP BY band\nORDER BY plays DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "video-watch-retention--per-second-drop-off"
+  },
+  {
+    "id": "co_sql_305-0413",
+    "num": 413,
+    "company": "TikTok",
+    "difficulty": "Hard",
+    "title": "For-You-Page Recommendation Lift \u2014 Treatment vs Control",
+    "subtopic": "A/B watch-time uplift",
+    "schema": "fyp_experiments(view_id, user_id, bucket, watched_seconds)",
+    "solution": "SELECT bucket,\n  COUNT(*) AS views,\n  COUNT(DISTINCT user_id) AS unique_users,\n  ROUND(AVG(watched_seconds), 1) AS avg_watch_seconds,\n  ROUND(SUM(watched_seconds) * 1.0 / NULLIF(COUNT(DISTINCT user_id), 0), 1) AS seconds_per_user\nFROM fyp_experiments\nGROUP BY bucket\nORDER BY bucket;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "for-you-page-recommendation-lift--treatment-vs-control"
+  },
+  {
+    "id": "co_sql_305-0414",
+    "num": 414,
+    "company": "TikTok",
+    "difficulty": "Medium",
+    "title": "Creator Earnings by Tier \u2014 Creator Fund",
+    "subtopic": "Tiered payout per follower band",
+    "schema": "creators(creator_id, follower_count, total_views, earnings)",
+    "solution": "SELECT\n  CASE\n    WHEN follower_count >= 1000000 THEN 'mega (1M+)'\n    WHEN follower_count >= 100000  THEN 'macro (100K+)'\n    WHEN follower_count >= 10000   THEN 'mid (10K+)'\n    WHEN follower_count >= 1000    THEN 'micro (1K+)'\n    ELSE 'nano'\n  END AS tier,\n  COUNT(*) AS creators,\n  ROUND(AVG(earnings), 2) AS avg_earnings,\n  ROUND(SUM(earnings), 2) AS total_earnings,\n  ROUND(SUM(earnings) * 1000.0 / NULLIF(SUM(total_views), 0), 3) AS rpm\nFROM creators\nGROUP BY tier\nORDER BY avg_earnings DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "creator-earnings-by-tier--creator-fund"
+  },
+  {
+    "id": "co_sql_305-0415",
+    "num": 415,
+    "company": "TikTok",
+    "difficulty": "Hard",
+    "title": "Sound Virality \u2014 Used by 1000+ Creators in 7 Days",
+    "subtopic": "Time-bounded usage count",
+    "schema": "sound_uses(use_id, sound_id, creator_id, used_at)",
+    "solution": "WITH window_uses AS (\n  SELECT sound_id,\n    COUNT(*) AS uses_7d,\n    COUNT(DISTINCT creator_id) AS unique_creators_7d\n  FROM sound_uses\n  WHERE julianday('2024-04-01') - julianday(used_at) BETWEEN 0 AND 7\n  GROUP BY sound_id\n)\nSELECT sound_id, uses_7d, unique_creators_7d,\n  CASE WHEN unique_creators_7d >= 5 THEN 'viral' ELSE 'normal' END AS classification\nFROM window_uses\nORDER BY unique_creators_7d DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "sound-virality--used-by-1000plus-creators-in-7-days"
+  },
+  {
+    "id": "co_sql_305-0416",
+    "num": 416,
+    "company": "TikTok",
+    "difficulty": "Medium",
+    "title": "Live Stream Gift Revenue per Streamer",
+    "subtopic": "Donation aggregation with per-streamer rank",
+    "schema": "live_gifts(gift_id, streamer_id, viewer_id, gift_value_coins)",
+    "solution": "SELECT streamer_id,\n  COUNT(*) AS gifts_received,\n  COUNT(DISTINCT viewer_id) AS unique_gifters,\n  SUM(gift_value_coins) AS total_coins,\n  ROUND(SUM(gift_value_coins) / 100.0, 2) AS dollar_value,\n  RANK() OVER (ORDER BY SUM(gift_value_coins) DESC) AS revenue_rank\nFROM live_gifts\nGROUP BY streamer_id\nORDER BY total_coins DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "live-stream-gift-revenue-per-streamer"
+  },
+  {
+    "id": "co_sql_305-0417",
+    "num": 417,
+    "company": "TikTok",
+    "difficulty": "Medium",
+    "title": "Hashtag Trend Detection \u2014 Velocity Increase",
+    "subtopic": "WoW change with LAG",
+    "schema": "hashtag_uses(hashtag_id, used_at)",
+    "solution": "WITH weekly AS (\n  SELECT hashtag_id,\n    CAST((julianday(used_at) - julianday('2024-01-01')) / 7 AS INTEGER) AS week_n,\n    COUNT(*) AS uses\n  FROM hashtag_uses\n  GROUP BY hashtag_id, week_n\n)\nSELECT hashtag_id, week_n, uses,\n  LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n) AS prev_week,\n  ROUND(100.0 * (uses - LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n))\n              / NULLIF(LAG(uses) OVER (PARTITION BY hashtag_id ORDER BY week_n), 0), 1) AS wow_pct\nFROM weekly\nORDER BY hashtag_id, week_n;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "hashtag-trend-detection--velocity-increase"
+  },
+  {
+    "id": "co_sql_305-0418",
+    "num": 418,
+    "company": "TikTok",
+    "difficulty": "Hard",
+    "title": "Comment Engagement Quality \u2014 Reply Depth + Like Volume",
+    "subtopic": "Recursive thread depth + like aggregate",
+    "schema": "comments(comment_id, parent_id, video_id, likes)",
+    "solution": "WITH RECURSIVE thread AS (\n  SELECT comment_id, parent_id, video_id, likes, 1 AS depth\n  FROM comments WHERE parent_id IS NULL\n  UNION ALL\n  SELECT c.comment_id, c.parent_id, c.video_id, c.likes, t.depth + 1\n  FROM comments c JOIN thread t ON c.parent_id = t.comment_id\n)\nSELECT video_id,\n  MAX(depth) AS max_thread_depth,\n  COUNT(*) AS total_comments,\n  SUM(likes) AS total_likes\nFROM thread\nGROUP BY video_id\nORDER BY max_thread_depth DESC;",
+    "tags": [
+      "aggregation",
+      "cte",
+      "joins",
+      "recursive-cte",
+      "set-operations",
+      "union"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "comment-engagement-quality--reply-depth-plus-like-volume"
+  },
+  {
+    "id": "co_sql_305-0419",
+    "num": 419,
+    "company": "TikTok",
+    "difficulty": "Medium",
+    "title": "Duet/Stitch Adoption \u2014 Original vs Derivative Volume",
+    "subtopic": "Self-join derivative count",
+    "schema": "videos(video_id, creator_id, parent_video_id, video_type)",
+    "solution": "SELECT v.video_id AS original_video,\n  COUNT(d.video_id) AS derivatives,\n  SUM(CASE WHEN d.video_type = 'duet'   THEN 1 ELSE 0 END) AS duets,\n  SUM(CASE WHEN d.video_type = 'stitch' THEN 1 ELSE 0 END) AS stitches\nFROM videos v\nLEFT JOIN videos d ON d.parent_video_id = v.video_id\nWHERE v.parent_video_id IS NULL\nGROUP BY v.video_id\nORDER BY derivatives DESC\nLIMIT 20;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "joins",
+      "left-join",
+      "self-join"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "duetstitch-adoption--original-vs-derivative-volume"
+  },
+  {
+    "id": "co_sql_305-0420",
+    "num": 420,
+    "company": "Reddit",
+    "difficulty": "Medium",
+    "title": "Post Karma Distribution \u2014 Top vs Median",
+    "subtopic": "Per-subreddit post-score percentile",
+    "schema": "posts(post_id, subreddit_id, score)",
+    "solution": "SELECT subreddit_id,\n  COUNT(*) AS posts,\n  ROUND(AVG(score), 1) AS avg_score,\n  MAX(score) AS top_score,\n  MIN(score) AS min_score,\n  NTILE(10) OVER (PARTITION BY subreddit_id ORDER BY score DESC) AS placeholder_decile\nFROM posts\nGROUP BY subreddit_id, score\nORDER BY subreddit_id, score DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "post-karma-distribution--top-vs-median"
+  },
+  {
+    "id": "co_sql_305-0421",
+    "num": 421,
+    "company": "Reddit",
+    "difficulty": "Medium",
+    "title": "Subreddit Growth \u2014 Subscriber WoW Velocity",
+    "subtopic": "WoW comparison via LAG",
+    "schema": "subreddit_subs(subreddit_id, week, subscribers)",
+    "solution": "SELECT subreddit_id, week, subscribers,\n  LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS prev_week,\n  subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS net_new,\n  ROUND(100.0 * (subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week))\n              / NULLIF(LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week), 0), 1) AS wow_growth_pct\nFROM subreddit_subs\nORDER BY subreddit_id, week;",
+    "tags": [
+      "analytical-functions",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "subreddit-growth--subscriber-wow-velocity"
+  },
+  {
+    "id": "co_sql_305-0422",
+    "num": 422,
+    "company": "Reddit",
+    "difficulty": "Hard",
+    "title": "AMA Engagement \u2014 Reply Within 1 Hour Rate",
+    "subtopic": "Time-bounded host-response rate",
+    "schema": "ama_questions(question_id, ama_id, asked_at, answered_at)",
+    "solution": "SELECT ama_id,\n  COUNT(*) AS questions,\n  COUNT(answered_at) AS answered,\n  SUM(CASE WHEN julianday(answered_at) - julianday(asked_at) <= 1.0/24 THEN 1 ELSE 0 END) AS answered_within_1h,\n  ROUND(100.0 * SUM(CASE WHEN julianday(answered_at) - julianday(asked_at) <= 1.0/24 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS within_1h_pct\nFROM ama_questions\nGROUP BY ama_id\nORDER BY within_1h_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "ama-engagement--reply-within-1-hour-rate"
+  },
+  {
+    "id": "co_sql_305-0423",
+    "num": 423,
+    "company": "Reddit",
+    "difficulty": "Hard",
+    "title": "Moderator Removal Rate by Subreddit",
+    "subtopic": "Per-mod aggregation with content-rate context",
+    "schema": "submissions(submission_id, subreddit_id, removed)",
+    "solution": "SELECT subreddit_id,\n  COUNT(*) AS submissions,\n  SUM(removed) AS removed,\n  ROUND(100.0 * SUM(removed) / NULLIF(COUNT(*), 0), 1) AS removal_rate_pct,\n  CASE\n    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) >= 30 THEN 'over_moderated'\n    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) >= 10 THEN 'active'\n    ELSE 'light_touch'\n  END AS mod_style\nFROM submissions\nGROUP BY subreddit_id\nHAVING COUNT(*) >= 3\nORDER BY removal_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "moderator-removal-rate-by-subreddit"
+  },
+  {
+    "id": "co_sql_305-0424",
+    "num": 424,
+    "company": "Reddit",
+    "difficulty": "Medium",
+    "title": "Cross-Posting Network \u2014 Same Post in Multiple Subreddits",
+    "subtopic": "Self-join on title similarity",
+    "schema": "posts(post_id, subreddit_id, title, posted_at)",
+    "solution": "SELECT a.title,\n  COUNT(DISTINCT a.subreddit_id) AS subreddits_count,\n  GROUP_CONCAT(DISTINCT a.subreddit_id) AS subreddits\nFROM posts a\nGROUP BY a.title\nHAVING COUNT(DISTINCT a.subreddit_id) >= 2\nORDER BY subreddits_count DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "cross-posting-network--same-post-in-multiple-subreddits"
+  },
+  {
+    "id": "co_sql_305-0425",
+    "num": 425,
+    "company": "Reddit",
+    "difficulty": "Medium",
+    "title": "User Comment Karma \u2014 Positive vs Negative Distribution",
+    "subtopic": "Per-user score distribution",
+    "schema": "comments(comment_id, user_id, score)",
+    "solution": "SELECT user_id,\n  COUNT(*) AS comments,\n  ROUND(AVG(score), 1) AS avg_score,\n  SUM(CASE WHEN score > 0 THEN 1 ELSE 0 END) AS positive_count,\n  SUM(CASE WHEN score < 0 THEN 1 ELSE 0 END) AS negative_count,\n  ROUND(100.0 * SUM(CASE WHEN score < 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS negative_pct\nFROM comments\nGROUP BY user_id\nHAVING COUNT(*) >= 3\nORDER BY avg_score DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "user-comment-karma--positive-vs-negative-distribution"
+  },
+  {
+    "id": "co_sql_305-0426",
+    "num": 426,
+    "company": "Datadog",
+    "difficulty": "Medium",
+    "title": "Metric Ingest Rate \u2014 Datapoints per Service",
+    "subtopic": "Aggregated time-series volume",
+    "schema": "metric_datapoints(datapoint_id, service_id, ingested_at)",
+    "solution": "SELECT service_id,\n  COUNT(*) AS total_datapoints,\n  COUNT(DISTINCT DATE(ingested_at)) AS active_days,\n  ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT DATE(ingested_at)), 0), 0) AS avg_datapoints_per_day\nFROM metric_datapoints\nGROUP BY service_id\nORDER BY total_datapoints DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "metric-ingest-rate--datapoints-per-service"
+  },
+  {
+    "id": "co_sql_305-0427",
+    "num": 427,
+    "company": "Datadog",
+    "difficulty": "Hard",
+    "title": "Alert Noise Ratio \u2014 Acknowledged vs Auto-Resolved",
+    "subtopic": "Conditional aggregation alert quality",
+    "schema": "alerts(alert_id, monitor_id, fired_at, acknowledged, auto_resolved)",
+    "solution": "SELECT monitor_id,\n  COUNT(*) AS fires,\n  SUM(acknowledged) AS acknowledged,\n  SUM(auto_resolved) AS auto_resolved,\n  ROUND(100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0), 1) AS noise_ratio_pct,\n  CASE\n    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) >= 70 THEN 'noisy'\n    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) >= 30 THEN 'flaky'\n    ELSE 'actionable'\n  END AS quality\nFROM alerts\nGROUP BY monitor_id\nHAVING COUNT(*) >= 3\nORDER BY noise_ratio_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "alert-noise-ratio--acknowledged-vs-auto-resolved"
+  },
+  {
+    "id": "co_sql_305-0428",
+    "num": 428,
+    "company": "Datadog",
+    "difficulty": "Medium",
+    "title": "Dashboard Usage \u2014 Views and Unique Viewers",
+    "subtopic": "Engagement aggregation per dashboard",
+    "schema": "dashboard_views(view_id, dashboard_id, user_id, viewed_at)",
+    "solution": "SELECT dashboard_id,\n  COUNT(*) AS views,\n  COUNT(DISTINCT user_id) AS unique_viewers,\n  ROUND(COUNT(*) * 1.0 / NULLIF(COUNT(DISTINCT user_id), 0), 1) AS views_per_user,\n  COUNT(DISTINCT DATE(viewed_at)) AS active_days\nFROM dashboard_views\nGROUP BY dashboard_id\nHAVING COUNT(*) >= 3\nORDER BY unique_viewers DESC;",
+    "tags": [
+      "aggregation",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "dashboard-usage--views-and-unique-viewers"
+  },
+  {
+    "id": "co_sql_305-0429",
+    "num": 429,
+    "company": "Datadog",
+    "difficulty": "Medium",
+    "title": "Log Volume per Severity \u2014 Error Rate Detection",
+    "subtopic": "Severity distribution over time",
+    "schema": "log_events(log_id, service_id, severity, logged_at)",
+    "solution": "SELECT service_id,\n  COUNT(*) AS total_logs,\n  SUM(CASE WHEN severity = 'ERROR'   THEN 1 ELSE 0 END) AS errors,\n  SUM(CASE WHEN severity = 'WARN'    THEN 1 ELSE 0 END) AS warnings,\n  ROUND(100.0 * SUM(CASE WHEN severity = 'ERROR' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS error_rate_pct\nFROM log_events\nGROUP BY service_id\nHAVING COUNT(*) >= 3\nORDER BY error_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "log-volume-per-severity--error-rate-detection"
+  },
+  {
+    "id": "co_sql_305-0430",
+    "num": 430,
+    "company": "Datadog",
+    "difficulty": "Hard",
+    "title": "Service Dependency Latency \u2014 Trace Span Aggregation",
+    "subtopic": "Per-service span percentile + parent attribution",
+    "schema": "spans(span_id, trace_id, service_name, duration_ms, parent_span_id)",
+    "solution": "SELECT service_name,\n  COUNT(*) AS spans,\n  ROUND(AVG(duration_ms), 1) AS avg_ms,\n  MAX(duration_ms) AS max_ms,\n  COUNT(DISTINCT trace_id) AS traces_touched,\n  ROUND(SUM(duration_ms) * 1.0 / NULLIF(COUNT(DISTINCT trace_id), 0), 1) AS avg_total_per_trace_ms\nFROM spans\nGROUP BY service_name\nORDER BY avg_ms DESC;",
+    "tags": [
+      "aggregation",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "service-dependency-latency--trace-span-aggregation"
+  },
+  {
+    "id": "co_sql_305-0431",
+    "num": 431,
+    "company": "Datadog",
+    "difficulty": "Medium",
+    "title": "Customer Plan Tier \u2014 Usage vs Quota",
+    "subtopic": "Quota utilization aggregation",
+    "schema": "customer_usage(customer_id, plan_tier, hosts_billed, hosts_quota)",
+    "solution": "SELECT plan_tier,\n  COUNT(*) AS customers,\n  ROUND(AVG(hosts_billed * 1.0 / NULLIF(hosts_quota, 0)), 2) AS avg_utilization_ratio,\n  SUM(CASE WHEN hosts_billed > hosts_quota THEN 1 ELSE 0 END) AS over_quota_customers\nFROM customer_usage\nGROUP BY plan_tier\nORDER BY avg_utilization_ratio DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "customer-plan-tier--usage-vs-quota"
+  },
+  {
+    "id": "co_sql_305-0432",
+    "num": 432,
+    "company": "Shopify",
+    "difficulty": "Medium",
+    "title": "Store GMV by Plan Tier",
+    "subtopic": "Per-tier revenue aggregation",
+    "schema": "stores(store_id, plan_tier), orders(store_id, total)",
+    "solution": "SELECT s.plan_tier,\n  COUNT(DISTINCT s.store_id) AS stores,\n  COUNT(o.total) AS orders,\n  ROUND(SUM(o.total), 2) AS gmv,\n  ROUND(SUM(o.total) * 1.0 / NULLIF(COUNT(DISTINCT s.store_id), 0), 2) AS gmv_per_store\nFROM stores s\nLEFT JOIN orders o ON o.store_id = s.store_id\nGROUP BY s.plan_tier\nORDER BY gmv DESC;",
+    "tags": [
+      "aggregation",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "store-gmv-by-plan-tier"
+  },
+  {
+    "id": "co_sql_305-0433",
+    "num": 433,
+    "company": "Shopify",
+    "difficulty": "Hard",
+    "title": "Abandoned-Cart Recovery \u2014 Email Sent \u2192 Order Placed",
+    "subtopic": "Time-bounded conversion attribution",
+    "schema": "cart_events(cart_id, customer_id, abandoned_at, email_sent_at), orders(customer_id, ordered_at)",
+    "solution": "SELECT\n  COUNT(*) AS abandoned_carts,\n  COUNT(c.email_sent_at) AS emails_sent,\n  COUNT(DISTINCT CASE WHEN o.customer_id IS NOT NULL THEN c.cart_id END) AS recovered,\n  ROUND(100.0 * COUNT(DISTINCT CASE WHEN o.customer_id IS NOT NULL THEN c.cart_id END)\n              / NULLIF(COUNT(c.email_sent_at), 0), 1) AS recovery_rate_pct\nFROM cart_events c\nLEFT JOIN orders o\n  ON o.customer_id = c.customer_id\n AND julianday(o.ordered_at) >= julianday(c.email_sent_at)\n AND julianday(o.ordered_at) - julianday(c.email_sent_at) <= 7;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "joins",
+      "left-join",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "abandoned-cart-recovery--email-sent-\u2192-order-placed"
+  },
+  {
+    "id": "co_sql_305-0434",
+    "num": 434,
+    "company": "Shopify",
+    "difficulty": "Medium",
+    "title": "Product Variant Performance \u2014 Best Color/Size by SKU",
+    "subtopic": "Per-product variant ranking",
+    "schema": "sales(sale_id, product_id, variant_id, color, size, units_sold)",
+    "solution": "WITH ranked AS (\n  SELECT product_id, color, size, SUM(units_sold) AS total_units,\n    RANK() OVER (PARTITION BY product_id ORDER BY SUM(units_sold) DESC) AS variant_rank\n  FROM sales\n  GROUP BY product_id, color, size\n)\nSELECT product_id, color, size, total_units\nFROM ranked\nWHERE variant_rank = 1\nORDER BY total_units DESC;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "product-variant-performance--best-colorsize-by-sku"
+  },
+  {
+    "id": "co_sql_305-0435",
+    "num": 435,
+    "company": "Shopify",
+    "difficulty": "Medium",
+    "title": "Checkout Drop-Off \u2014 Step-to-Step Conversion",
+    "subtopic": "Sequential funnel with FIRST_VALUE denominator",
+    "schema": "checkout_events(session_id, step, reached_at)",
+    "solution": "WITH counts AS (\n  SELECT step, COUNT(DISTINCT session_id) AS sessions\n  FROM checkout_events GROUP BY step\n)\nSELECT step, sessions,\n  LAG(sessions) OVER (ORDER BY step) AS prev_step,\n  ROUND(100.0 * sessions * 1.0 / NULLIF(LAG(sessions) OVER (ORDER BY step), 0), 1) AS step_to_step_pct,\n  ROUND(100.0 * sessions * 1.0 / FIRST_VALUE(sessions) OVER (ORDER BY step), 1) AS pct_of_top\nFROM counts\nORDER BY step;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "checkout-drop-off--step-to-step-conversion"
+  },
+  {
+    "id": "co_sql_305-0436",
+    "num": 436,
+    "company": "Shopify",
+    "difficulty": "Medium",
+    "title": "Repeat Customer Rate per Store",
+    "subtopic": "Distinct vs repeat customer ratio",
+    "schema": "orders(order_id, store_id, customer_id, ordered_at)",
+    "solution": "WITH per_customer AS (\n  SELECT store_id, customer_id, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY store_id, customer_id\n)\nSELECT store_id,\n  COUNT(*) AS unique_customers,\n  SUM(CASE WHEN order_count >= 2 THEN 1 ELSE 0 END) AS repeat_customers,\n  ROUND(100.0 * SUM(CASE WHEN order_count >= 2 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS repeat_rate_pct\nFROM per_customer\nGROUP BY store_id\nHAVING COUNT(*) >= 3\nORDER BY repeat_rate_pct DESC;",
+    "tags": [
+      "aggregation",
+      "case-when",
+      "cte",
+      "having",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "repeat-customer-rate-per-store"
+  },
+  {
+    "id": "co_sql_305-0437",
+    "num": 437,
+    "company": "Shopify",
+    "difficulty": "Medium",
+    "title": "Discount Impact \u2014 AOV Lift With vs Without Coupons",
+    "subtopic": "Two-bucket comparison with significance",
+    "schema": "orders(order_id, total, has_discount)",
+    "solution": "SELECT has_discount,\n  COUNT(*) AS orders,\n  ROUND(AVG(total), 2) AS avg_order_value,\n  ROUND(SUM(total), 2) AS total_revenue,\n  ROUND(MIN(total), 2) AS min_order,\n  ROUND(MAX(total), 2) AS max_order\nFROM orders\nGROUP BY has_discount\nORDER BY has_discount;",
+    "tags": [
+      "aggregation"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL",
+    "language": "sql",
+    "runtime": null,
+    "slug": "discount-impact--aov-lift-with-vs-without-coupons"
   }
 ]

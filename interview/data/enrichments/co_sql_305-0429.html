@@ -1,0 +1,27 @@
+<p>Datadog's log management charges by volume. Per-service severity distribution exposes log-quality issues — a service emitting 90% INFO logs is wasteful; one emitting only ERRORs is too lean.</p>
+
+<h4>2. The SQL — per-service severity breakdown</h4>
+<pre><code>SELECT service_id, COUNT(*) AS total_logs,
+  SUM(CASE WHEN severity = 'ERROR' THEN 1 ELSE 0 END) AS errors,
+  SUM(CASE WHEN severity = 'WARN'  THEN 1 ELSE 0 END) AS warnings,
+  ROUND(100.0 * SUM(CASE WHEN severity = 'ERROR' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS error_rate_pct
+FROM log_events GROUP BY service_id HAVING COUNT(*) &gt;= 3
+ORDER BY error_rate_pct DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The error-rate alarm thresholds</h5>
+<p>Healthy service: &lt; 0.5% ERROR rate. Spiking service: 1-3%. Failing service: &gt; 5%. Production alerts on threshold + sustained-duration.</p>
+
+<h5>The volume-vs-rate trap</h5>
+<p>1000 errors out of 1B logs = 0.0001% — probably fine. 1000 errors out of 10K logs = 10% — failing. Volume context matters.</p>
+
+<h5>Log-level discipline</h5>
+<p>Some services log everything as INFO (cheap to ingest, useless to alert on). Others log nothing (no diagnostic info). Production publishes per-language conventions: 5-10% WARN, 0.1-0.5% ERROR.</p>
+
+<h5>Cardinality vs severity</h5>
+<p>1000 distinct ERROR messages = 1000 different bugs. 1 ERROR message firing 1000 times = same bug. Group by message hash for distinct-error-count.</p>
+
+<h5>The cost-cutting opportunity</h5>
+<p>Sample DEBUG / INFO at 10% to cut bill 80%. Keep WARN / ERROR at 100%. Production has tail-based sampling per severity.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> threshold error rates by service health, beware volume-vs-rate trap, publish severity-mix conventions, distinguish distinct-bug from same-bug-firing-loud, and recommend severity-tiered sampling for cost.</div>

@@ -1,0 +1,37 @@
+<p>TikTok Creator Fund pays based on follower-tier × engagement. The query buckets creators into nano/micro/mid/macro/mega and computes RPM (revenue per mille views).</p>
+
+<h4>2. The SQL — tier classification + RPM</h4>
+<pre><code>SELECT
+  CASE
+    WHEN follower_count &gt;= 1000000 THEN 'mega (1M+)'
+    WHEN follower_count &gt;= 100000  THEN 'macro (100K+)'
+    WHEN follower_count &gt;= 10000   THEN 'mid (10K+)'
+    WHEN follower_count &gt;= 1000    THEN 'micro (1K+)'
+    ELSE 'nano' END AS tier,
+  COUNT(*) AS creators,
+  ROUND(AVG(earnings), 2) AS avg_earnings,
+  ROUND(SUM(earnings), 2) AS total_earnings,
+  ROUND(SUM(earnings) * 1000.0 / NULLIF(SUM(total_views), 0), 3) AS rpm
+FROM creators GROUP BY tier ORDER BY avg_earnings DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The TikTok-published RPM tiers</h5>
+<table><thead><tr><th>tier</th><th>typical RPM (USD)</th></tr></thead>
+<tbody>
+<tr><td>Nano (&lt;1K)</td><td>$0 (not eligible)</td></tr>
+<tr><td>Micro</td><td>$0.02-0.04</td></tr>
+<tr><td>Mid-Macro</td><td>$0.03-0.05</td></tr>
+<tr><td>Mega</td><td>$0.04-0.10</td></tr>
+</tbody></table>
+<p>TikTok's RPMs are 10-20x lower than YouTube — controversial. Creators monetize via brand deals, not Fund.</p>
+
+<h5>Niche multiplier</h5>
+<p>Same RPM doesn't apply to all categories. Finance/business niches: 2-3x base. Lifestyle: base. Music: 0.5x. Production multiplies by category.</p>
+
+<h5>The anti-spam guard</h5>
+<p>Fake-view bots inflate RPM denominators. Anti-fraud filters before the rate calc.</p>
+
+<h5>The Creator Fund vs Creativity Program</h5>
+<p>TikTok migrated from Creator Fund (low pay) to Creativity Program (higher pay, longer-form videos required). The query above is plan-agnostic; production splits.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> 5-tier follower bucketing with named ranges, compute RPM as the per-mille payout, cite TikTok's 10-20x lower vs YouTube reality, apply niche multipliers, and split by Creator Fund vs Creativity Program plan.</div>

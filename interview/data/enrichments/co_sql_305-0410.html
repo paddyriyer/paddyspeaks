@@ -1,0 +1,29 @@
+<p>Customer Success teams synthesize multiple signals into one health score: <strong>logins + tickets + NPS + renewal-pct</strong>. Single number drives the renewal prediction; breakdowns drive the conversation.</p>
+
+<h4>2. The SQL — weighted composite</h4>
+<pre><code>SELECT customer_id, login_30d_count, support_tickets_open, nps, last_renewal_pct,
+  ROUND(
+    MIN(login_30d_count * 1.0 / 10, 1.0) * 30
+    + (CASE WHEN support_tickets_open &lt;= 1 THEN 25 WHEN support_tickets_open &lt;= 3 THEN 15 ELSE 0 END)
+    + (nps + 100) / 200.0 * 25
+    + last_renewal_pct * 0.20
+  , 1) AS health_score
+FROM customer_signals ORDER BY health_score DESC;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+<h5>The MIN-cap on login bonus</h5>
+<p>Logins beyond 10/month don't add value (already engaged). <code>MIN(count/10, 1.0)</code> caps the contribution at 1.0 = 30 points. SQLite uses MIN; Postgres has LEAST.</p>
+
+<h5>The 30/25/25/20 weights</h5>
+<p>Calibrated weights summing to 100. CS teams tune these via regression on observed renewal vs each component. Production weights drift quarterly as the customer base changes.</p>
+
+<h5>The NPS scaling</h5>
+<p>NPS is -100 to +100. <code>(nps + 100) / 200</code> scales to 0-1. Multiply by 25 for the points. Symmetric: -100 = 0 points, 0 = 12.5, +100 = 25.</p>
+
+<h5>Composite vs component view</h5>
+<p>The number alone hides why. CS reps need: "score 65 — but tickets are high (5 open) AND NPS dropped from 50 to 20". Always emit components alongside.</p>
+
+<h5>Predictive vs descriptive</h5>
+<p>This is a descriptive composite. Predictive (ML model) outperforms — but is opaque. Best-of-both: ML for the prediction, composite for the human-readable "why".</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> cap engagement contributions to prevent gaming, calibrate weights via regression, expose components alongside the score, and contrast descriptive composite vs ML predictive.</div>

@@ -142,8 +142,8 @@
 <article class="netflix-prep">
 
 <div class="hero-meta">Interview Studio · Design · Data Modeling</div>
-<h1 class="hero-title">Data modeling — twelve scenarios across the industries that actually ask.</h1>
-<p class="hero-sub">Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe and Spotify all test the same five-move sequence — but the domain context changes everything you say. This notebook walks the framework once, then drills the twelve most-asked scenarios end to end. Use it to swap domains in 60 seconds when the prompt arrives.</p>
+<h1 class="hero-title">Data modeling — sixteen scenarios across the industries that actually ask.</h1>
+<p class="hero-sub">Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe, Spotify, TikTok, and Salesforce all test the same five-move sequence — but the domain context changes everything you say. This notebook walks the framework once, then drills sixteen most-asked scenarios end to end (including LAD, factless facts, and streaming-first patterns). Use it to swap domains in 60 seconds when the prompt arrives.</p>
 
 <div class="toc">
   <h4>Contents</h4>
@@ -164,6 +164,10 @@
         <li><a href="#sc-stripe">10. Stripe — payments &amp; double-entry ledger</a></li>
         <li><a href="#sc-airbnb">11. Airbnb — bookings, calendar &amp; reviews</a></li>
         <li><a href="#sc-saas">12. SaaS subscription billing &amp; usage metering</a></li>
+        <li><a href="#sc-spotify-royalty">13. Spotify — streaming royalty pool distribution</a></li>
+        <li><a href="#sc-tiktok-fyp">14. TikTok — recommendation feedback loop &amp; off-policy eval</a></li>
+        <li><a href="#sc-stripe-ledger">15. Stripe — double-entry ledger &amp; idempotency</a></li>
+        <li><a href="#sc-salesforce-hierarchy">16. Salesforce — account hierarchy &amp; multi-tenant CRM</a></li>
       </ul>
     </a></li>
     <li><a href="#part-04">Cross-cutting concerns — SCDs, LAD, factless facts, streaming, GDPR, FX, skew</a></li>
@@ -243,7 +247,7 @@
 <!-- ==================== PART 03 ==================== -->
 <section id="part-03">
 <div class="part-eyebrow">§ 03 — Twelve Scenarios</div>
-<h2 class="part-title">The twelve most-asked modeling prompts — full walk-throughs.</h2>
+<h2 class="part-title">The sixteen most-asked modeling prompts — full walk-throughs.</h2>
 
 <!-- Scenario 1: Uber trip -->
 <div class="scenario" id="sc-uber-trip">
@@ -4180,6 +4184,269 @@ ORDER BY cb.cohort_q;
 
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The hourly grain on <code>fct_usage_meter</code> is the integration point — finance rolls it up to invoices, product teams use it for usage analytics, and customer success uses it for adoption signals. Three consumers, one source of truth. Mid-cycle plan changes emit two billing events instead of one updated row — that's what makes the invoice a SUM, not a recompute."
+</div>
+</div>
+
+<!-- Scenario 13: Spotify royalty pool -->
+<div class="scenario" id="sc-spotify-royalty">
+<h4 class="sub-head">Scenario 13 — Streaming royalty distribution (Spotify pool-based payout)</h4>
+
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Spotify's royalty model is the cleanest example of a <strong>multi-party financial fact</strong>: each stream is a small event, but the dollars get split across artist + label + publisher + Spotify, with the rate calibrated per-country and the pool refreshed monthly. Mistakes are not just dollars — they're rights-holder lawsuits.</p>
+
+<p>Two competing structural forces:</p>
+<ul>
+  <li><strong>Pool-based pro-rata</strong> (Spotify's choice): every premium subscriber's $$ enters one country pool; each artist gets <em>their streams ÷ total country streams × pool</em>. Fast, simple, predictable.</li>
+  <li><strong>User-centric (UCPS)</strong> (Apple/Deezer testing): each subscriber's $$ goes ONLY to the artists THEY listened to. Fairer to niche artists; computationally heavy at billions-of-users × millions-of-artists scale.</li>
+</ul>
+<p>The query in <code>co_sql_305-0375</code> implements pro-rata; the modeling section here covers the schema that makes both possible without a rewrite.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Dim</td><td>dim_artist, dim_track, dim_album, dim_label, dim_publisher, dim_user, dim_country, dim_subscription_tier, dim_date</td><td>SCD2 on artist→label and track→album where rights can transfer</td></tr>
+    <tr><td>Bridge</td><td>bridge_track_rightsholder (track_sk, party_sk, party_role, share_pct, effective_from, effective_to)</td><td>SCD2 — owners change between accounting periods</td></tr>
+    <tr><td>Fact (event)</td><td>fct_stream — one row per playback ≥ 30 sec</td><td>Append-only; partition by play_date</td></tr>
+    <tr><td>Fact (periodic)</td><td>fct_subscription_revenue — monthly per (user, country, tier)</td><td>The denominator pool source</td></tr>
+    <tr><td>Fact (snapshot)</td><td>fct_country_pool — monthly per country, computed from subscription revenue × ~70%</td><td>Refreshed at month-close; never recomputed</td></tr>
+    <tr><td>Fact (output)</td><td>fct_payout — one row per (track, party_role, country, month)</td><td>Frozen at close; audit trail</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — The crucial SCD2 — bridge_track_rightsholder</h4>
+<p>The same track can have its label, publisher, or featured-artist split CHANGE between months. A pre-Sept rights deal pays Label A; a Sept-onward deal pays Label B. Rolling up against the <em>current</em> rights table gives wrong attribution for August streams.</p>
+<pre><code>SELECT t.track_sk, b.party_sk, b.party_role, b.share_pct
+FROM fct_stream s
+JOIN bridge_track_rightsholder b
+  ON b.track_sk = s.track_sk
+ AND s.played_at BETWEEN b.effective_from AND COALESCE(b.effective_to, '9999-12-31')</code></pre>
+<p>Every query joins by event-time, never by current. The bridge supports BOTH pro-rata (sum streams × share) AND UCPS (sum user_share × stream_share) without schema rewrite.</p>
+
+<h4 class="sub-head">Section 3 — Why the pool table is its own fact</h4>
+<p>The country pool isn't computed at query time — it's <em>frozen at month-close</em>. Storing it in <code>fct_country_pool</code>:</p>
+<ul>
+  <li>Auditors can replay any month's payout from the same inputs.</li>
+  <li>Late-arriving streams (offline mode upload Day 35) attribute to the month-of-event, not month-of-ingest.</li>
+  <li>If the calculation logic changes (e.g. UCPS rollout), past months' payouts are unaffected.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — The 30-second royalty boundary</h4>
+<p>Industry standard: streams under 30 seconds DO NOT trigger royalty. Embed at the <em>fact-table</em> level:</p>
+<pre><code>CREATE TABLE fct_stream (
+  ...
+  played_seconds INTEGER NOT NULL,
+  is_royalty_eligible INTEGER GENERATED ALWAYS AS (played_seconds &gt;= 30) STORED
+);</code></pre>
+<p>Every downstream query can filter <code>WHERE is_royalty_eligible</code> with no risk of forgetting. The flag is denormalized for performance; computed once at write.</p>
+
+<h4 class="sub-head">Section 5 — Fraud-stream filtering</h4>
+<p>Bot-driven streams (5-second-loop attacks to inflate small artists) are real. Anti-fraud writes a <em>side flag</em> rather than deleting events:</p>
+<pre><code>fct_stream.is_fraudulent INTEGER (default 0)
+-- Updated by a separate Spark job, not the player</code></pre>
+<p>Why update-not-delete: legal teams want the audit trail of "what was claimed vs paid". Deleted rows lose the "we caught X% of fraud" reporting capability.</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "The bridge_track_rightsholder is SCD2 because rights deals change between accounting periods, and the country_pool is its own fact table because the month-close freezes the denominator. Together they let me support pro-rata today and UCPS later without a rewrite — the schema doesn't bake in the distribution algorithm."
+</div>
+</div>
+
+<!-- Scenario 14: TikTok ML feedback loop -->
+<div class="scenario" id="sc-tiktok-fyp">
+<h4 class="sub-head">Scenario 14 — TikTok For-You-Page recommendation feedback loop</h4>
+
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>The For-You-Page is the most-watched ML system on the planet — billions of impressions per day, sub-200ms latency, and the recommendations <em>train on themselves</em>. Modeling this without producing biased feedback loops is the entire game.</p>
+
+<p>The trap: <strong>echo-chamber bias</strong>. The ranker boosts videos that are already getting watched; users see them more; they get watched more; they're boosted more. New videos and new creators starve. The schema must support both <em>online learning</em> (continuous updates) and <em>counterfactual evaluation</em> (was the recommendation actually causal?).</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Dim</td><td>dim_user, dim_video, dim_creator, dim_sound, dim_hashtag, dim_device</td><td>Bridge: video↔hashtags is many-to-many</td></tr>
+    <tr><td>Fact (event)</td><td>fct_impression — one row per video shown to user (BILLIONS/day)</td><td>Sample to 1% for analytics; full data lives in feature store</td></tr>
+    <tr><td>Fact (event)</td><td>fct_engagement — like, share, comment, watch_complete, swipe_away</td><td>Joined to impression by impression_id</td></tr>
+    <tr><td>Fact (counterfactual)</td><td>fct_exploration_event — random or holdout videos (5% traffic)</td><td>Critical for causal estimation</td></tr>
+    <tr><td>Fact (model)</td><td>fct_ranker_score — predicted engagement at impression-time</td><td>Stored alongside impression for off-policy evaluation</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — The exploration table is non-negotiable</h4>
+<p><code>fct_exploration_event</code> stores the 5% of impressions that were RANDOM (or from a holdout pool). Without this, you can't measure causality:</p>
+<ul>
+  <li>"Watched videos liked by similar users" gets clicked 80% — is that because the algorithm is good, or because the videos were going to win anyway?</li>
+  <li>Random exploration data answers: "if we showed this video to 1000 random users, how many would have engaged?" — the counterfactual baseline.</li>
+  <li>Model lift = (algorithmic CTR − exploration CTR) ÷ exploration CTR. Without exploration, you can't compute lift, just attribution.</li>
+</ul>
+<p>Every recommendation system at FAANG scale has this. <strong>Drop the term "off-policy evaluation" in interviews.</strong></p>
+
+<h4 class="sub-head">Section 3 — Storing the predicted score</h4>
+<p>The ranker's predicted engagement score (e.g., predicted_watch_seconds = 18.3) is stored AT IMPRESSION TIME, not query time. Why:</p>
+<ul>
+  <li>Models are versioned. Today's prediction was made by ranker v117; replaying with v118 changes everything.</li>
+  <li>"Was the model right?" requires comparing prediction-then to outcome-now. Storing the score freezes the test.</li>
+  <li>Production debugging: a video shown 10M times with high score but low actual engagement is the diagnostic signal of model drift.</li>
+</ul>
+
+<h4 class="sub-head">Section 4 — The cold-start lever</h4>
+<p>New videos have no engagement history; the ranker can't predict. Two design moves:</p>
+<table>
+  <thead><tr><th>Lever</th><th>Schema implication</th></tr></thead>
+  <tbody>
+    <tr><td>Forced exploration in the first 1000 impressions</td><td><code>fct_video_lifecycle.bootstrap_pool_remaining</code> — counted down per impression</td></tr>
+    <tr><td>Inherit creator's prior + sound's prior</td><td>Joining to <code>dim_creator.recent_engagement_rate</code> at impression-time as a fallback feature</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 5 — The shadow-traffic pattern for model rollouts</h4>
+<p>New ranker versions get <em>shadow traffic</em>: same impressions served, but new model also produces predictions logged to <code>fct_ranker_score_shadow</code>. If shadow looks good, promote to a 1% A/B; if A/B wins, ramp to 100%.</p>
+<p>Schema requirement: <code>fct_ranker_score</code> has a model_version column. Production runs 5-10 ranker versions concurrently — all writing to the same table, joined by version for evaluation.</p>
+
+<h4 class="sub-head">Section 6 — Privacy + retention</h4>
+<p>Engagement data is high-PII. The schema separates:</p>
+<ul>
+  <li><code>fct_engagement</code> — keyed by user_id_token (not user_id directly)</li>
+  <li><code>vault.user_id_map</code> — encrypted token mapping, separate access pool</li>
+  <li>30-day retention on raw events; aggregated rollups (per-user-per-day-per-video-cluster) kept indefinitely</li>
+</ul>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "The 5% exploration table is what makes the system improvable — without it, every metric is confounded by the ranker's own selection. Storing predicted_score at impression-time enables off-policy evaluation: I can compare ranker v117 vs v118 on the SAME impressions retroactively, which is how we ship safely without 100% A/B rollouts."
+</div>
+</div>
+
+<!-- Scenario 15: Stripe double-entry ledger -->
+<div class="scenario" id="sc-stripe-ledger">
+<h4 class="sub-head">Scenario 15 — Stripe payment ledger (double-entry, replay-safe)</h4>
+
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Stripe processes ~$1T/year. Every cent must reconcile across charges, refunds, fees, payouts, FX, taxes, chargebacks — and survive replay, retries, and partial failures. The whole system is an <strong>append-only double-entry ledger</strong>: nothing is updated, only debited or credited. This is the same model banks have used for centuries; the schema is just the SQL realization.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Dim</td><td>dim_account (every party: customer, merchant, platform, fee, FX, tax, chargeback)</td><td>Each is an "account" with a balance</td></tr>
+    <tr><td>Dim</td><td>dim_currency, dim_country, dim_payment_method</td><td>SCD2 on payment_method when bank rules change</td></tr>
+    <tr><td>Fact (event)</td><td>fct_journal_entry — every transaction emits N rows summing to zero</td><td>The append-only spine</td></tr>
+    <tr><td>Fact (snapshot)</td><td>fct_account_balance — derived per-account daily balance</td><td>Materialized from journal entries</td></tr>
+    <tr><td>Bridge</td><td>bridge_charge_journal — links a charge to its journal-entry rows</td><td>One charge → many entries (revenue + fee + tax)</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — The double-entry contract</h4>
+<p>Every transaction emits a set of journal entries. Their <strong>signed amounts MUST sum to zero per transaction_id</strong>. This is the core integrity constraint:</p>
+<pre><code>-- A $100 charge with a $3 Stripe fee:
+INSERT INTO fct_journal_entry (txn_id, account, currency, amount) VALUES
+  ('TXN_001', 'customer_xyz',  'USD', -100.00),  -- customer debited $100
+  ('TXN_001', 'merchant_abc',  'USD',   97.00),  -- merchant credited $97
+  ('TXN_001', 'stripe_revenue','USD',    3.00);  -- Stripe credited $3
+-- SUM = 0 ✓</code></pre>
+<p>Run a daily integrity check:</p>
+<pre><code>SELECT txn_id, SUM(amount) AS net
+FROM fct_journal_entry
+GROUP BY txn_id
+HAVING ABS(SUM(amount)) &gt; 0.001;
+-- ANY row returned = data corruption, page on-call</code></pre>
+
+<h4 class="sub-head">Section 3 — Idempotency via natural key</h4>
+<p>Stripe's API is idempotent: same idempotency key + same body = same result. The schema enforces:</p>
+<pre><code>UNIQUE (idempotency_key, account_id, txn_type)
+ON fct_journal_entry</code></pre>
+<p>A retry tries to insert a duplicate row → unique violation → application catches and returns the original txn. Replay-safe by construction.</p>
+
+<h4 class="sub-head">Section 4 — Refunds are NEW entries, not deletes</h4>
+<p>Junior engineers mark a charge as "refunded" with an UPDATE. Wrong. The double-entry ledger appends:</p>
+<pre><code>-- Refund of TXN_001
+INSERT INTO fct_journal_entry (txn_id, account, currency, amount, references_txn) VALUES
+  ('TXN_002', 'merchant_abc',  'USD',  -97.00, 'TXN_001'),
+  ('TXN_002', 'customer_xyz',  'USD',  100.00, 'TXN_001'),
+  ('TXN_002', 'stripe_revenue','USD',   -3.00, 'TXN_001');</code></pre>
+<p>Both transactions exist forever. <code>fct_account_balance</code> is just <code>SUM(amount) GROUP BY account</code> — always derivable, never wrong.</p>
+
+<h4 class="sub-head">Section 5 — Multi-currency lock</h4>
+<p>Charge in EUR, Stripe books revenue in USD, merchant settles in GBP. Three currencies, one transaction. Three journal entries with different currency columns + an <code>fx_rate_locked_at_event</code> column on each. Querying "what did we earn in March in USD?" sums the USD-denominated entries — never re-does FX.</p>
+
+<h4 class="sub-head">Section 6 — Chargebacks are 60-90 days late</h4>
+<p>Card networks send chargebacks 30-90 days after the charge. The original transaction has long since posted; the chargeback emits a NEW journal entry with <code>references_txn = 'TXN_001'</code>. The merchant balance silently goes down 60 days later. Schema accommodates: monthly close-of-books locks the past, but new chargeback rows can still arrive — they go to a "post-close adjustment" sub-period.</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "The append-only double-entry ledger is the only model where SUM-equals-zero is an enforceable integrity constraint at the database level. Refunds, chargebacks, FX adjustments are all NEW journal entries, not updates — that's what makes the entire system replay-safe and auditable. The unique constraint on idempotency_key turns API retries into no-ops."
+</div>
+</div>
+
+<!-- Scenario 16: Salesforce account hierarchy -->
+<div class="scenario" id="sc-salesforce-hierarchy">
+<h4 class="sub-head">Scenario 16 — Salesforce account hierarchy + multi-tenant CRM</h4>
+
+<h4 class="sub-head">Why this is hard — the design tension</h4>
+<p>Enterprise CRM has a problem most B2C platforms never face: <strong>nested organizations</strong>. JP Morgan has 100 subsidiaries, each with their own opportunity flow, but the renewal happens at the parent level. A revenue rollup that doesn't aggregate up the tree is wrong; one that aggregates incorrectly double-counts subsidiaries.</p>
+
+<p>Plus multi-tenancy: every Salesforce customer's data is in the same physical tables, partitioned by <code>org_id</code>. One bad query reads someone else's data. The schema design and the row-level security stack must enforce isolation absolutely.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Dim</td><td>dim_account — recursive: parent_account_id FK to self</td><td>SCD2 when re-orged</td></tr>
+    <tr><td>Dim</td><td>dim_user, dim_role (with role_hierarchy), dim_territory</td><td>Permission edges live here</td></tr>
+    <tr><td>Bridge</td><td>bridge_account_user_access — many-to-many account↔user with permission_level</td><td>Implements record-sharing rules</td></tr>
+    <tr><td>Fact (event)</td><td>fct_opportunity_stage_change — one row per stage transition</td><td>The pipeline-velocity source</td></tr>
+    <tr><td>Fact (snapshot)</td><td>fct_account_arr_snapshot — daily ARR per account</td><td>Survives renewals + downgrades</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — Recursive hierarchy with materialized path</h4>
+<p>Two ways to model the parent-child tree:</p>
+<table>
+  <thead><tr><th>Approach</th><th>Pros</th><th>Cons</th></tr></thead>
+  <tbody>
+    <tr><td>Pure parent_id (recursive CTE)</td><td>Cheap writes; clean schema</td><td>Every read recursion; slow at depth-10+</td></tr>
+    <tr><td>Materialized path (path = '/JPM/Chase/Investment/')</td><td>Fast LIKE 'path%' subtree queries</td><td>Re-org requires rewriting paths</td></tr>
+    <tr><td>Closure table (ancestor, descendant rows)</td><td>O(1) lookup either direction</td><td>Heavy writes on re-org (cascade rewrite)</td></tr>
+  </tbody>
+</table>
+<p>Salesforce uses a hybrid: parent_id for writes + materialized path for read perf, with a daily job to rebuild paths. Mention all three in the interview.</p>
+
+<h4 class="sub-head">Section 3 — Rollup query — the recursive CTE</h4>
+<pre><code>WITH RECURSIVE descendants AS (
+  SELECT account_id, account_id AS root, 0 AS depth FROM dim_account WHERE parent_account_id IS NULL
+  UNION ALL
+  SELECT a.account_id, d.root, d.depth + 1
+  FROM dim_account a JOIN descendants d ON a.parent_account_id = d.account_id
+  WHERE d.depth &lt; 10  -- circuit breaker
+)
+SELECT d.root AS top_level_account,
+  SUM(s.arr) AS total_subtree_arr,
+  COUNT(DISTINCT a.account_id) AS subsidiaries
+FROM descendants d
+JOIN fct_account_arr_snapshot s ON s.account_id = d.account_id
+GROUP BY d.root;</code></pre>
+
+<h4 class="sub-head">Section 4 — Multi-tenant isolation</h4>
+<p>Every fact and dim table has a leading <code>org_id</code> column. The platform enforces:</p>
+<ul>
+  <li><strong>Partition key:</strong> org_id is part of the primary key</li>
+  <li><strong>Index leading column:</strong> org_id-first composite indexes</li>
+  <li><strong>Row-level security:</strong> CREATE POLICY filters every query — engineers can't access a tenant's data without going through the API layer</li>
+  <li><strong>Per-tenant query caps:</strong> a runaway query in one org doesn't take down the cluster</li>
+</ul>
+
+<h4 class="sub-head">Section 5 — Record sharing (the bridge)</h4>
+<p>Salesforce's "share with my manager" feature: opportunity Y is owned by rep A but visible to manager B + VP C. Modeled as <code>bridge_account_user_access(account_sk, user_sk, permission_level, granted_via)</code>. Sharing rules cascade up the role hierarchy automatically — bridge rows generated by a daily job from the role tree.</p>
+
+<h4 class="sub-head">Section 6 — Pipeline velocity from stage changes</h4>
+<p>Don't store "current_stage" as a column on the opportunity — that's lossy. Store every stage change as an event in <code>fct_opportunity_stage_change(opp_id, stage, entered_at)</code>. Current stage is the latest event:</p>
+<pre><code>SELECT opp_id, stage AS current_stage
+FROM (
+  SELECT opp_id, stage, ROW_NUMBER() OVER (PARTITION BY opp_id ORDER BY entered_at DESC) AS rn
+  FROM fct_opportunity_stage_change
+) WHERE rn = 1;</code></pre>
+<p>Velocity, conversion-by-stage, time-in-stage all derivable from the same table. Single source of truth for "everything pipeline".</p>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "I'd model account hierarchy with both parent_id (for clean writes) AND a materialized path column (for fast subtree reads), refreshed nightly. Multi-tenant isolation is enforced at THREE layers — partition key + composite-index leading column + row-level security policy — because losing tenant data isolation is an existential bug. Pipeline state lives in a fact table of stage-changes, never as a current-stage column on the opportunity, because that loses time-in-stage and velocity."
 </div>
 </div>
 </section>
