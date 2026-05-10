@@ -458,28 +458,55 @@ async function dropPreviousQuestionTables(nextQid) {
 function extractWindowHints(sql) {
   const partition = new Set();
   const orderByInWindow = new Set();
-  if (!sql) return { partition, orderByInWindow };
-  // Strip strings + comments first so SQL inside literals / docstrings can't
-  // pollute the column list.
-  const cleaned = String(sql)
+  // categoryHints maps column-name → Set of string literals the solution
+  // expects to see in that column. The all-null pivot bug: a solution does
+  // `SUM(CASE WHEN region='North' THEN ...)` but sample-gen seeded region
+  // with ['NA','EMEA','APAC'], so the CASE never fires and the column is
+  // structurally NULL. Seeding 'North' into the data fixes the pivot.
+  const categoryHints = {};
+  if (!sql) return { partition, orderByInWindow, categoryHints };
+  // We DELIBERATELY work on the original SQL (NOT comment-stripped) for
+  // PARTITION BY because column names live in code, but we still strip
+  // strings for the partition-column extraction.
+  const stripStrings = (s) => s
     .replace(/'(?:''|\\'|[^'])*'/g, "''")
     .replace(/"(?:""|\\"|[^"])*"/g, '""')
     .replace(/--.*$/gm, "")
     .replace(/\/\*[\s\S]*?\*\//g, "");
+  const cleaned = stripStrings(sql);
   const partRe = /\bPARTITION\s+BY\s+([\s\S]+?)(?=\bORDER\s+BY\b|\bROWS\b|\bRANGE\b|\)|$)/gi;
   let m;
   while ((m = partRe.exec(cleaned)) !== null) {
     splitColList(m[1]).forEach((c) => partition.add(c));
   }
-  // ORDER BY inside an OVER() clause — different from a top-level ORDER BY,
-  // so we look only AFTER an OVER ( and stop at the closing paren.
   const overRe = /\bOVER\s*\(([\s\S]*?)\)/gi;
   while ((m = overRe.exec(cleaned)) !== null) {
     const inside = m[1];
     const ord = /\bORDER\s+BY\s+([\s\S]+?)(?=\bROWS\b|\bRANGE\b|$)/i.exec(inside);
     if (ord) splitColList(ord[1]).forEach((c) => orderByInWindow.add(c));
   }
-  return { partition, orderByInWindow };
+  // For category-literal extraction we keep strings intact but strip comments.
+  const noComments = String(sql).replace(/--.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const addLit = (col, lit) => {
+    if (!col || lit == null) return;
+    const c = col.toLowerCase();
+    if (!categoryHints[c]) categoryHints[c] = new Set();
+    categoryHints[c].add(lit);
+  };
+  // <col> = '<literal>'  or  <col>='<literal>'
+  const eqRe = /\b(\w+)\s*=\s*'((?:[^']|'')*)'/g;
+  while ((m = eqRe.exec(noComments)) !== null) addLit(m[1], m[2].replace(/''/g, "'"));
+  // <col> IN ('a','b','c')
+  const inRe = /\b(\w+)\s+IN\s*\(\s*('(?:[^']|'')*'(?:\s*,\s*'(?:[^']|'')*')*)\s*\)/gi;
+  while ((m = inRe.exec(noComments)) !== null) {
+    const col = m[1];
+    const litList = m[2];
+    const litRe = /'((?:[^']|'')*)'/g;
+    let lm;
+    while ((lm = litRe.exec(litList)) !== null) addLit(col, lm[1].replace(/''/g, "'"));
+  }
+  // CASE WHEN <col> = '<lit>' THEN ... — already covered by the eq pattern.
+  return { partition, orderByInWindow, categoryHints };
 }
 
 function splitColList(text) {
@@ -512,15 +539,24 @@ async function loadQuestionTables(qid) {
   if (!state.engineReady) return;
   // Pull window-clause hints from the question's reference solution so the
   // sampler clusters on PARTITION BY columns instead of generating unique
-  // PKs that defeat the window function.
+  // PKs that defeat the window function. categoryHints seeds the column
+  // pool with literals the solution expects (region='North', etc.) so
+  // pivot CASE branches actually fire instead of returning all-NULL.
   const q = state.sqlQuestions.find((x) => x.id === qid);
   const hints = extractWindowHints(q?.solution || "");
+  // Convert Sets in categoryHints to arrays for serialization across module
+  // boundaries.
+  const categoryHints = {};
+  for (const [col, set] of Object.entries(hints.categoryHints)) {
+    categoryHints[col] = [...set];
+  }
   try {
     const summary = await state.engine.loadSpec(spec, {
       seed: seedFromQid(qid),
       rowsPerTable: 12,
       partitionCols: [...hints.partition],
       windowOrderCols: [...hints.orderByInWindow],
+      categoryHints,
     });
     for (const s of summary) state.questionCreatedTables.add(s.table);
     const names = summary.map((s) => s.table).join(", ");
