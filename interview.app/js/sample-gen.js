@@ -97,6 +97,35 @@ function dateScheduleOffset(i) {
   return week * 5 + day + longJumps * 10;  // ~50 days span over 25-60 rows
 }
 
+// Multi-streak pattern for a user: 4 streaks of 4-6 days separated by gaps
+// designed to exercise gap-classification SQL branches. Cumulative offsets:
+//   rows 0-4   (streak 1, 5 days):       day 0 .. 4
+//   rows 5-9   (gap 12d → 'continuing'): day 17 .. 21
+//   rows 10-13 (gap 40d → 'resurrected'): day 62 .. 65
+//   rows 14-19 (gap 95d → 'long_resurrect' / 'churned'): day 161 .. 166
+// Total: 20 rows over 167 days per user. Useful for:
+//   • streak detection (multiple distinct streaks per user)
+//   • gap-bucket CASE WHEN (≤28, ≤90, >90)
+//   • cohort retention (rows span multiple weeks/months)
+//   • churned / open / resurrected exit-status queries
+const MULTI_STREAK_PATTERN = [
+  { offset: 0,   length: 5 },
+  { offset: 17,  length: 5 },
+  { offset: 62,  length: 4 },
+  { offset: 161, length: 6 },
+];
+function multiStreakDayOffset(rowInUser /* 0-based */) {
+  let acc = 0;
+  for (const s of MULTI_STREAK_PATTERN) {
+    if (rowInUser < acc + s.length) return s.offset + (rowInUser - acc);
+    acc += s.length;
+  }
+  // Fallback for rowInUser >= 20 — extra rows tack on after the last streak
+  return MULTI_STREAK_PATTERN[MULTI_STREAK_PATTERN.length - 1].offset
+    + MULTI_STREAK_PATTERN[MULTI_STREAK_PATTERN.length - 1].length
+    + (rowInUser - 20) * 5;
+}
+
 function dateOffset(baseDate, days) {
   const d = new Date(baseDate.getTime() + days * 86400000);
   return d.toISOString().slice(0, 10);
@@ -185,8 +214,27 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
   if (hintPartition.size > 0 && groupingFkCount >= 1) {
     MODE = groupingFkCount >= 2 ? "binge" : "streak";
   } else if (isEvent && groupingFkCount >= 2) MODE = "binge";
+  // In streak mode, switch to a wider per-user date pattern (4 streaks
+  // separated by gaps of 12 / 40 / 95 days) so the canonical
+  //   CASE WHEN gap_days ≤ 28 → 'continuing'
+  //   CASE WHEN gap_days ≤ 90 → 'resurrected'
+  //   ELSE 'long_resurrect' / 'churned'
+  // questions actually exercise every branch instead of producing one
+  // monolithic 5-day streak per user. Triggered when:
+  //   (a) we're in streak mode AND
+  //   (b) the table has enough rows for the pattern (≥ 12)
+  // and forces user_id to cycle slowly (3-4 distinct users per N rows).
   else if (isEvent && groupingFkCount === 1) MODE = "streak";
-  const CLUSTER_SIZE = (MODE === "binge" || MODE === "streak") ? 5 : 1;
+  // Multi-streak: each user gets ROWS_PER_USER rows distributed across
+  // 4 sub-streaks. Drops user count to N/ROWS_PER_USER (≈3 users for
+  // N=60) but each user demonstrates streak detection + multiple gap
+  // buckets. CLUSTER_SIZE in this mode = ROWS_PER_USER (each "cluster"
+  // = one user's full history) so user_id sharing logic still works.
+  const USE_MULTI_STREAK = MODE === "streak" && N >= 12;
+  const ROWS_PER_USER = USE_MULTI_STREAK ? Math.min(20, N) : 5;
+  const CLUSTER_SIZE = USE_MULTI_STREAK
+    ? ROWS_PER_USER
+    : ((MODE === "binge" || MODE === "streak") ? 5 : 1);
 
   // Resolve column metadata up-front.
   // Own-PK detection: prefer (a) table-derived names (user_id for `users`,
@@ -257,14 +305,29 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
       // Hint-driven: hint partition cols cluster-share regardless of name.
       let seedI;
       if (MODE === "streak" && (isDate || m.isHintWindowOrder)) {
-        // Date follows i directly so we get 5 consecutive days per user.
+        // Date follows i directly so we get consecutive days per user.
         seedI = i;
       } else if ((MODE === "binge" || MODE === "streak") && !isUniqueRow) {
         seedI = clusterStart;
       } else {
         seedI = i;
       }
-      row[m.name] = generateCell(m, seedI, table, baseDate, rng, ownedIdMap);
+      // Multi-streak override for date columns: instead of monotonically
+      // walking forward across all rows, each user (cluster) traces the
+      // same MULTI_STREAK_PATTERN over 167 days — so streaks 1..4 within
+      // a single user produce gap_days of {12, 40, 95}.
+      if (USE_MULTI_STREAK && isDate) {
+        const rowInUser = (i - 1) % ROWS_PER_USER;
+        const dayOffset = multiStreakDayOffset(rowInUser);
+        if (m.role === "date") {
+          row[m.name] = dateOffset(baseDate, dayOffset);
+        } else {
+          // datetime — keep a deterministic seconds offset for variety
+          row[m.name] = datetimeOffset(baseDate, dayOffset * 86400 + (i * 137) % 86400);
+        }
+      } else {
+        row[m.name] = generateCell(m, seedI, table, baseDate, rng, ownedIdMap);
+      }
     }
     // Force end_* > start_* on interval tables: end = start + 1-3 hours.
     if (isInterval) {
@@ -460,7 +523,10 @@ export function planRowsForSpec(spec, opts = {}) {
   const out = [];
   for (const t of ordered) {
     const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, {
-      rows: opts.rowsPerTable || 12,
+      // Don't default to 12 here — let generateRows pick the right N
+      // (25 dim / 60 event) so streak / multi-streak / cohort questions
+      // get enough rows to exercise their CASE WHEN gap branches.
+      rows: opts.rowsPerTable,
       partitionCols: opts.partitionCols,
       windowOrderCols: opts.windowOrderCols,
       categoryHints: opts.categoryHints,

@@ -584,7 +584,11 @@ async function loadQuestionTables(qid) {
   try {
     const summary = await state.engine.loadSpec(spec, {
       seed: seedFromQid(qid),
-      rowsPerTable: 12,
+      // Don't pin rowsPerTable — let sample-gen pick (25 for dim tables,
+      // 60 for event/fact tables) so streak / multi-streak / cohort
+      // questions get enough rows per user to exercise their CASE
+      // branches. Forcing 12 here collapsed each user to a single
+      // cluster and made gap-classification CASE WHEN logic unreachable.
       partitionCols: [...hints.partition],
       windowOrderCols: [...hints.orderByInWindow],
       categoryHints,
