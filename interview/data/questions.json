@@ -440,7 +440,7 @@
     "language": "sql",
     "schema": "orders(order_id, order_date)",
     "solution": "SELECT order_id, order_date, date(order_date, '+7 days') AS due_date FROM orders;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "date-interval"
     ]
@@ -1232,7 +1232,7 @@
     "language": "sql",
     "schema": "sales(sale_date, amount)",
     "solution": "SELECT\n  SUM(CASE WHEN sale_date >= date(CURRENT_DATE, '-7 days') THEN amount END) AS this_week,\n  SUM(CASE WHEN sale_date BETWEEN date(CURRENT_DATE, '-14 days') AND date(CURRENT_DATE, '-8 days') THEN amount END) AS last_week\nFROM sales;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -1272,7 +1272,7 @@
     "language": "sql",
     "schema": "projects(project_id, budget, actual_spend, deadline, end_date)",
     "solution": "SELECT project_id FROM projects\nWHERE actual_spend > budget OR end_date > deadline;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -1307,7 +1307,7 @@
     "language": "sql",
     "schema": "content(content_id, views, engagements)",
     "solution": "SELECT content_id,\n  100.0 * engagements / NULLIF(views,0) AS engagement_rate_pct\nFROM content;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "null-handling"
     ]
@@ -1397,7 +1397,7 @@
     "language": "sql",
     "schema": "training(emp_id, course_id, completed)",
     "solution": "SELECT emp_id,\n  100.0 * SUM(CASE WHEN completed THEN 1 ELSE 0 END)/COUNT(*) AS completion_rate\nFROM training GROUP BY emp_id;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -1582,7 +1582,7 @@
     "language": "sql",
     "schema": "users(user_id, email)",
     "solution": "SELECT substr(email, instr(email, '@') + 1) AS domain, COUNT(*) AS users\nFROM users\nGROUP BY domain\nORDER BY users DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "string-functions"
@@ -1655,7 +1655,7 @@
     "language": "sql",
     "schema": "pages(page_id, views, engagements)",
     "solution": "SELECT page_id FROM pages WHERE views > 0 AND engagements = 0;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -1705,7 +1705,7 @@
     "language": "sql",
     "schema": "posts(user_id, posted_at)",
     "solution": "SELECT user_id, MAX(posted_at) AS last_post,\n  CURRENT_DATE - MAX(posted_at) AS days_silent\nFROM posts GROUP BY user_id HAVING CURRENT_DATE - MAX(posted_at) > 30;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "casting",
@@ -1782,7 +1782,7 @@
     "language": "sql",
     "schema": "reviews(product_id, rating)",
     "solution": "SELECT product_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count\nFROM reviews GROUP BY product_id;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation"
     ]
@@ -1989,7 +1989,7 @@
     "language": "sql",
     "schema": "customers(customer_id, last_purchase_date)",
     "solution": "SELECT customer_id FROM customers\nWHERE last_purchase_date >= date(CURRENT_DATE, '-90 days');",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "date-interval"
     ]
@@ -2209,7 +2209,7 @@
     "language": "sql",
     "schema": "bookings(booking_id, room_id, start_dt, end_dt)",
     "solution": "SELECT a.booking_id, b.booking_id FROM bookings a JOIN bookings b\nON a.room_id = b.room_id AND a.booking_id < b.booking_id\nAND a.start_dt < b.end_dt AND b.start_dt < a.end_dt;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins",
       "self-join"
@@ -2371,7 +2371,7 @@
     "language": "sql",
     "schema": "transactions(txn_id, amount)",
     "solution": "WITH stats AS (\n  SELECT AVG(amount) AS mu, AVG(amount*amount) - AVG(amount)*AVG(amount) AS variance\n  FROM transactions\n)\nSELECT t.txn_id, t.amount\nFROM transactions t, stats s\nWHERE ABS(t.amount - s.mu) > 3 * (s.variance * (s.variance > 0))\n   OR (s.variance > 0 AND ABS(t.amount - s.mu) > 3 * SQRT(s.variance));",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "subquery"
@@ -2390,7 +2390,7 @@
     "language": "sql",
     "schema": "employees(emp_id, performance, tenure_yrs, salary)",
     "solution": "SELECT emp_id,\n  CASE WHEN performance='A' AND tenure_yrs >= 5 THEN salary*0.25\n       WHEN performance='A' THEN salary*0.15\n       WHEN performance='B' AND tenure_yrs >= 5 THEN salary*0.10\n       WHEN performance='B' THEN salary*0.05\n       ELSE 0 END AS bonus\nFROM employees;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "case-when"
     ]
@@ -2749,7 +2749,7 @@
     "language": "sql",
     "schema": "users(user_id, tags_csv)",
     "solution": "WITH RECURSIVE split(user_id, tag, rest) AS (\n  SELECT user_id, '', tags_csv || ',' FROM users\n  UNION ALL\n  SELECT user_id,\n    substr(rest, 1, instr(rest, ',') - 1),\n    substr(rest, instr(rest, ',') + 1)\n  FROM split\n  WHERE rest != ''\n)\nSELECT trim(tag) AS tag, COUNT(*) AS users\nFROM split\nWHERE tag != ''\nGROUP BY trim(tag);",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "string-functions"
@@ -2808,7 +2808,7 @@
     "schema": "sales(month, amount)",
     "solution": "SELECT a.month, a.amount,\n  b.amount AS prev_year_amount,\n  a.amount - b.amount AS yoy_diff\nFROM sales a LEFT JOIN sales b ON a.month = b.month + '1 years';",
     "dialect_token": "INTERVAL '1 year'",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "date-interval",
       "joins",
@@ -2960,7 +2960,7 @@
     "language": "sql",
     "schema": "employees(emp_id, performance, tenure_yrs)",
     "solution": "SELECT emp_id,\n  CASE WHEN performance>=90 AND tenure_yrs>=2 THEN 'Eligible' ELSE 'Not Eligible' END AS bonus_status\nFROM employees;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "case-when"
     ]
@@ -3072,7 +3072,7 @@
     "language": "sql",
     "schema": "inventory(product_id, qty_on_hand, reorder_point)",
     "solution": "SELECT product_id FROM inventory WHERE qty_on_hand <= reorder_point;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -3187,7 +3187,7 @@
     "language": "sql",
     "schema": "forecasts(period, forecast, actual)",
     "solution": "SELECT period, ABS(forecast - actual)/NULLIF(actual,0) * 100 AS error_pct FROM forecasts;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "null-handling"
     ]
@@ -3281,7 +3281,7 @@
     "language": "sql",
     "schema": "sessions(session_id, added_to_cart, checked_out)",
     "solution": "SELECT 100.0 * SUM(CASE WHEN added_to_cart AND NOT checked_out THEN 1 ELSE 0 END)\n       / NULLIF(SUM(CASE WHEN added_to_cart THEN 1 ELSE 0 END),0) AS abandon_rate\nFROM sessions;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -3358,7 +3358,7 @@
     "language": "sql",
     "schema": "employees(emp_id, salary, projected_pct)",
     "solution": "SELECT emp_id, salary, salary*(1+projected_pct/100.0) AS projected FROM employees;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -3471,7 +3471,7 @@
     "language": "sql",
     "schema": "customers(customer_id, is_vip), orders(customer_id, amount)",
     "solution": "SELECT AVG(o.amount) AS vip_avg\nFROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE c.is_vip;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins"
@@ -3551,7 +3551,7 @@
     "language": "sql",
     "schema": "users(user_id, signup_date), activity(user_id, action_date)",
     "solution": "SELECT 100.0 * COUNT(DISTINCT a.user_id) / COUNT(DISTINCT u.user_id) AS activation_rate\nFROM users u LEFT JOIN activity a\n  ON u.user_id=a.user_id AND a.action_date <= date(u.signup_date, '+7 days');",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "date-interval",
@@ -3778,7 +3778,7 @@
     "language": "sql",
     "schema": "orders(customer_id, order_date)",
     "solution": "WITH d AS (SELECT DISTINCT customer_id, order_date FROM orders),\nranked AS (SELECT customer_id, order_date,\n  order_date - (ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date)) AS grp FROM d)\nSELECT customer_id, COUNT(*) AS streak FROM ranked GROUP BY customer_id, grp;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -3838,7 +3838,7 @@
     "language": "sql",
     "schema": "cards(card_id, launch_date, applications)",
     "solution": "SELECT launch_date, applications,\n  applications - LAG(applications) OVER (ORDER BY launch_date) AS delta FROM cards;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions"
     ]
@@ -3856,7 +3856,7 @@
     "language": "sql",
     "schema": "calls(call_id, is_international)",
     "solution": "SELECT 100.0 * SUM(CASE WHEN is_international THEN 1 ELSE 0 END)/COUNT(*) AS intl_pct FROM calls;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -4429,7 +4429,7 @@
     "language": "sql",
     "schema": "enrollments(student_id, course_id, term)",
     "solution": "SELECT 100.0 * COUNT(DISTINCT b.student_id)/COUNT(DISTINCT a.student_id) AS reenroll_rate\nFROM enrollments a JOIN enrollments b ON a.student_id=b.student_id AND b.term > a.term;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins",
@@ -4467,7 +4467,7 @@
     "language": "sql",
     "schema": "inventory(product_id, qty), sales_velocity(product_id, daily_avg)",
     "solution": "SELECT i.product_id, i.qty/NULLIF(s.daily_avg,0) AS days_left\nFROM inventory i JOIN sales_velocity s ON i.product_id = s.product_id\nWHERE i.qty/NULLIF(s.daily_avg,0) < 14;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins",
       "null-handling"
@@ -4486,7 +4486,7 @@
     "language": "sql",
     "schema": "shipments(supplier_id, on_time)",
     "solution": "SELECT supplier_id, 100.0 * SUM(CASE WHEN on_time THEN 1 ELSE 0 END)/COUNT(*) AS reliability\nFROM shipments GROUP BY supplier_id ORDER BY reliability DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -4785,7 +4785,7 @@
     "language": "sql",
     "schema": "traffic(week_start, visits)",
     "solution": "SELECT week_start, visits,\n  100.0*(visits-LAG(visits) OVER (ORDER BY week_start))/NULLIF(LAG(visits) OVER (ORDER BY week_start),0) AS wow_pct\nFROM traffic;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions",
       "null-handling"
@@ -4804,7 +4804,7 @@
     "language": "sql",
     "schema": "inventory(product_id, received_at)",
     "solution": "SELECT product_id,\n  CASE WHEN CURRENT_DATE - received_at < 30 THEN '0-30'\n       WHEN CURRENT_DATE - received_at < 60 THEN '31-60'\n       WHEN CURRENT_DATE - received_at < 90 THEN '61-90'\n       ELSE '90+' END AS aging_bucket\nFROM inventory;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "case-when"
     ]
@@ -4822,7 +4822,7 @@
     "language": "sql",
     "schema": "feedback(feedback_date, rating)",
     "solution": "SELECT date(feedback_date, 'weekday 0', '-6 days') AS wk, AVG(rating) AS avg_rating\nFROM feedback GROUP BY date(feedback_date, 'weekday 0', '-6 days');",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "date-functions"
@@ -4857,7 +4857,7 @@
     "language": "sql",
     "schema": "loans(loan_id, default_flag, principal)",
     "solution": "SELECT 100.0 * SUM(CASE WHEN default_flag THEN principal ELSE 0 END)/SUM(principal) AS default_rate_pct\nFROM loans;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -4934,7 +4934,7 @@
     "language": "sql",
     "schema": "network(month, members)",
     "solution": "SELECT month, members,\n  100.0*(members-LAG(members) OVER (ORDER BY month))/NULLIF(LAG(members) OVER (ORDER BY month),0) AS mom_growth\nFROM network;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions",
       "null-handling"
@@ -5087,7 +5087,7 @@
     "language": "sql",
     "schema": "shipments(supplier_id, on_time)",
     "solution": "SELECT supplier_id, AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) AS rate,\n  RANK() OVER (ORDER BY AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) DESC) AS rk\nFROM shipments GROUP BY supplier_id;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -5146,7 +5146,7 @@
     "schema": "products(product_id, category, attribute_json)",
     "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — products with category-specific JSON attributes │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS products;\nCREATE TABLE products (\n    product_id     INTEGER PRIMARY KEY,\n    category       TEXT NOT NULL,\n    attribute_json TEXT NOT NULL\n);\nINSERT INTO products VALUES\n  -- Phones — screen_size, ram_gb, storage_gb\n  (1, 'phone', '{\"screen_size\": 6.1, \"ram_gb\": 8,  \"storage_gb\": 128}'),\n  (2, 'phone', '{\"screen_size\": 6.7, \"ram_gb\": 12, \"storage_gb\": 256}'),\n  -- Books — author, pages, isbn\n  (3, 'book',  '{\"author\": \"Ursula K. Le Guin\", \"pages\": 254, \"isbn\": \"9780441478125\"}'),\n  (4, 'book',  '{\"author\": \"N.K. Jemisin\",      \"pages\": 449, \"isbn\": \"9780316229296\"}'),\n  -- Shirts — size, color, fabric\n  (5, 'shirt', '{\"size\": \"M\", \"color\": \"navy\",  \"fabric\": \"cotton\"}'),\n  (6, 'shirt', '{\"size\": \"L\", \"color\": \"olive\", \"fabric\": \"cotton-blend\"}');\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  Solution — CASE picks the right JSON path per category │\n-- │                                                          │\n-- │  This simulates 'dynamic SQL' in pure SQL: the column   │\n-- │  selection logic that an app would normally code-       │\n-- │  generate is expressed inline with json_extract() +     │\n-- │  CASE. Works in SQLite (JSON1), Postgres (->>), MySQL   │\n-- │  (->>), Snowflake (:), BigQuery (JSON_VALUE) — same     │\n-- │  pattern, dialect-specific operators.                   │\n-- ╰──────────────────────────────────────────────────────────╯\nSELECT\n    product_id,\n    category,\n    CASE category\n        WHEN 'phone' THEN json_extract(attribute_json, '$.screen_size')\n        WHEN 'book'  THEN json_extract(attribute_json, '$.author')\n        WHEN 'shirt' THEN json_extract(attribute_json, '$.size')\n    END AS primary_attr,\n    CASE category\n        WHEN 'phone' THEN json_extract(attribute_json, '$.ram_gb')\n        WHEN 'book'  THEN json_extract(attribute_json, '$.pages')\n        WHEN 'shirt' THEN json_extract(attribute_json, '$.color')\n    END AS secondary_attr\nFROM products\nORDER BY category, product_id;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  Variant — when you actually want one wide row per      │\n-- │  category with EVERY possible attribute as its own      │\n-- │  column, code-generate a UNION ALL per category in the  │\n-- │  app layer. Conceptual sketch:                          │\n-- ╰──────────────────────────────────────────────────────────╯\n--   SELECT product_id,\n--          json_extract(attribute_json, '$.screen_size')  AS screen_size,\n--          json_extract(attribute_json, '$.ram_gb')       AS ram_gb,\n--          json_extract(attribute_json, '$.storage_gb')   AS storage_gb,\n--          NULL AS author, NULL AS pages, NULL AS isbn,\n--          NULL AS size,   NULL AS color, NULL AS fabric\n--   FROM products WHERE category = 'phone'\n--   UNION ALL\n--   SELECT product_id, NULL, NULL, NULL,\n--          json_extract(attribute_json, '$.author'),\n--          json_extract(attribute_json, '$.pages'),\n--          json_extract(attribute_json, '$.isbn'),\n--          NULL, NULL, NULL\n--   FROM products WHERE category = 'book'\n--   UNION ALL …  -- one branch per category",
     "question": "A products catalog stores category-specific attributes as a JSON blob in `attribute_json`. Different categories have different keys:\n\n  • phones — screen_size, ram_gb, storage_gb\n  • books  — author, pages, isbn\n  • shirts — size, color, fabric\n\nWrite a SQL query that returns each product with its category-relevant primary and secondary attributes EXTRACTED into named columns. This is the 'dynamic SQL simulation' pattern: in a real app you'd code-generate per-category SELECTs; in pure SQL you simulate the same effect with CASE + json_extract().\n\nExpected output (six rows ordered by category, product_id):\n\n  product_id | category | primary_attr      | secondary_attr\n  3          | book     | Ursula K. Le Guin | 254\n  4          | book     | N.K. Jemisin      | 449\n  1          | phone    | 6.1               | 8\n  2          | phone    | 6.7               | 12\n  5          | shirt    | M                 | navy\n  6          | shirt    | L                 | olive",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "union"
     ]
@@ -5318,7 +5318,7 @@
     "language": "sql",
     "schema": "warehouses(warehouse_id, capacity, used)",
     "solution": "SELECT warehouse_id, capacity, used, capacity-used AS available,\n  100.0*used/NULLIF(capacity,0) AS utilization_pct\nFROM warehouses WHERE 100.0*used/NULLIF(capacity,0) > 80;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "null-handling"
     ]
@@ -5336,7 +5336,7 @@
     "language": "sql",
     "schema": "searches(query, freq)",
     "solution": "WITH ranked AS (\n  SELECT query, freq,\n    ROW_NUMBER() OVER (ORDER BY freq) AS rn,\n    COUNT(*)    OVER ()                AS n\n  FROM searches\n)\nSELECT AVG(freq) AS median_frequency\nFROM ranked\nWHERE rn IN (n/2, n/2 + 1, (n+1)/2);",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions"
     ]
@@ -5372,8 +5372,8 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "filings(user_id, filed_date)",
-    "solution": "WITH ranked AS (\n  SELECT user_id, filed_date,\n    filed_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY filed_date)) AS grp\n  FROM filings)\nSELECT user_id, COUNT(*) AS streak FROM ranked GROUP BY user_id, grp HAVING COUNT(*) >= 2;",
-    "runtime": null,
+    "solution": "WITH ranked AS (\n  SELECT user_id, filed_date,\n    filed_date - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY filed_date))::INT AS grp\n  FROM filings)\nSELECT user_id, COUNT(*) AS streak FROM ranked GROUP BY user_id, grp HAVING COUNT(*) >= 2;",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -5436,7 +5436,7 @@
     "language": "sql",
     "schema": "calls(caller_id, call_at)",
     "solution": "SELECT DISTINCT a.caller_id FROM calls a JOIN calls b\nON a.caller_id = b.caller_id AND a.call_at < b.call_at\nAND b.call_at <= date(a.call_at, '+7 days');",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "date-interval",
       "distinct",
@@ -5670,7 +5670,7 @@
     "language": "sql",
     "schema": "orders(order_id, customer_id, year, amount)",
     "solution": "SELECT customer_id,\n  SUM(CASE WHEN year=2024 THEN amount END) AS y2024,\n  SUM(CASE WHEN year=2025 THEN amount END) AS y2025,\n  SUM(CASE WHEN year=2026 THEN amount END) AS y2026\nFROM orders GROUP BY customer_id;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -6019,7 +6019,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT a.id, b.id FROM ranges a JOIN ranges b\nON a.id < b.id AND a.start_dt < b.end_dt AND b.start_dt < a.end_dt;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins",
       "self-join"
@@ -6112,7 +6112,7 @@
     "language": "sql",
     "schema": null,
     "solution": "WITH RECURSIVE split(tag, rest) AS (\n  SELECT '', tags_csv || ',' FROM users\n  UNION ALL\n  SELECT substr(rest, 1, instr(rest, ',') - 1),\n         substr(rest, instr(rest, ',') + 1)\n  FROM split\n  WHERE rest != ''\n)\nSELECT trim(tag) AS tag, COUNT(*) AS users\nFROM split\nWHERE tag != ''\nGROUP BY trim(tag);",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "string-functions"
@@ -6208,7 +6208,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT 100.0 * COUNT(DISTINCT b.student_id)/COUNT(DISTINCT a.student_id) AS reenroll_rate\nFROM enrollments a JOIN enrollments b ON a.student_id=b.student_id AND b.term > a.term;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins",
@@ -6380,7 +6380,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT movie_id, title FROM movies WHERE box_office IS NULL OR box_office = 0;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "null-handling"
     ]
@@ -6458,7 +6458,8 @@
     "tags": [
       "regex",
       "string-functions"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "mixed_167-0041",
@@ -6512,7 +6513,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT a.application_id, a.principal, r.rate_pct,\n  a.principal * (r.rate_pct/100/12) /\n   (1 - POWER(1 + r.rate_pct/100/12, -a.term_months)) AS monthly_payment\nFROM applications a\nJOIN rates r ON a.product_code = r.product_code AND a.applied_on BETWEEN r.valid_from AND r.valid_to;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins"
     ]
@@ -6533,7 +6534,8 @@
     "dialect_token": "DAYOFWEEK(",
     "tags": [
       "date-functions"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "mixed_167-0045",
@@ -6548,7 +6550,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT j.job_id, c.customer_name, m.material_name, j.sqft, j.sqft * m.cost_per_sqft AS total_cost\nFROM jobs j\nJOIN customers c ON j.customer_id = c.customer_id\nJOIN materials m ON j.material_id = m.material_id;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins"
     ]
@@ -6607,7 +6609,7 @@
     "language": "sql",
     "schema": null,
     "solution": "SELECT expression,\n  REGEXP_SUBSTR_ALL(expression, '\\\\d+(\\\\.\\\\d+)?') AS numbers,\n  REGEXP_SUBSTR_ALL(expression, '\"+\\\\-*/\"') AS operators\nFROM math_inputs;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -7852,7 +7854,8 @@
       "cte",
       "joins",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "mixed_167-0131",
@@ -8674,7 +8677,8 @@
       "date-functions",
       "regex",
       "string-functions"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0005",
@@ -8785,7 +8789,7 @@
     "language": "sql",
     "schema": "products(product_id, name), sales(sale_id, product_id, qty, sold_at), inventory(product_id, on_hand, reorder_point)",
     "solution": "SELECT p.product_id, p.name,\n       COALESCE(SUM(s.qty), 0)        AS units_sold,\n       MAX(i.on_hand)                 AS current_stock,\n       MAX(i.reorder_point)           AS reorder_point,\n       CASE WHEN MAX(i.on_hand) <= MAX(i.reorder_point) THEN 'REORDER'\n            ELSE 'OK' END             AS stock_status\nFROM products  p\nLEFT JOIN sales     s ON p.product_id = s.product_id\nLEFT JOIN inventory i ON p.product_id = i.product_id\nGROUP BY p.product_id, p.name;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -8807,7 +8811,7 @@
     "language": "sql",
     "schema": "movies(movie_id, title, release_year, box_office)",
     "solution": "SELECT movie_id, title, release_year\nFROM movies\nWHERE box_office IS NULL\n   OR box_office = 0\nORDER BY release_year DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "null-handling"
     ]
@@ -9015,7 +9019,7 @@
     "schema": "subscriptions(sub_id, user_id, plan_id, started_at, ended_at), plans(plan_id, name, monthly_price), users(user_id, country)",
     "solution": "SELECT u.country, p.name AS plan,\n       COUNT(*)                AS active_subs,\n       SUM(p.monthly_price)    AS mrr\nFROM subscriptions s\nJOIN users u ON s.user_id = u.user_id\nJOIN plans p ON s.plan_id = p.plan_id\nWHERE s.started_at <= CURRENT_DATE()\n  AND (s.ended_at IS NULL OR s.ended_at > CURRENT_DATE())\nGROUP BY u.country, p.name\nORDER BY u.country, mrr DESC;",
     "dialect_token": "CURRENT_DATE(",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins",
@@ -9076,7 +9080,7 @@
     "language": "sql",
     "schema": "extractions(extraction_id, mine_id, mineral, tonnage, extracted_on), mines(mine_id, location)",
     "solution": "SELECT m.location, e.mineral,\n       SUM(e.tonnage)        AS total_tonnage,\n       COUNT(*)              AS extraction_events\nFROM extractions e\nJOIN mines       m ON e.mine_id = m.mine_id\nGROUP BY m.location, e.mineral\nORDER BY m.location, total_tonnage DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins"
@@ -9098,7 +9102,8 @@
     "dialect_token": "REGEXP_SUBSTR(",
     "tags": [
       "regex"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0027",
@@ -9113,7 +9118,7 @@
     "language": "sql",
     "schema": "applications(app_id, principal, term_months, product_code, applied_on), rates(product_code, rate_pct, valid_from, valid_to)",
     "solution": "SELECT a.app_id, a.principal, a.term_months, r.rate_pct,\n       a.principal\n         * (r.rate_pct / 100 / 12)\n         / (1 - POWER(1 + r.rate_pct / 100 / 12, -a.term_months)) AS monthly_payment\nFROM applications a\nJOIN rates        r\n  ON a.product_code = r.product_code\n AND a.applied_on BETWEEN r.valid_from AND r.valid_to;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins"
     ]
@@ -9149,7 +9154,7 @@
     "language": "sql",
     "schema": "budgets(dept_id, fiscal_year, budgeted), expenses(expense_id, dept_id, fiscal_year, amount)",
     "solution": "SELECT b.dept_id, b.fiscal_year,\n       b.budgeted,\n       COALESCE(SUM(e.amount), 0)              AS actual,\n       b.budgeted - COALESCE(SUM(e.amount), 0) AS variance,\n       CASE WHEN b.budgeted = 0 THEN NULL\n            ELSE 100.0 * (COALESCE(SUM(e.amount), 0) - b.budgeted) / b.budgeted\n       END                                     AS variance_pct\nFROM budgets  b\nLEFT JOIN expenses e\n       ON b.dept_id     = e.dept_id\n      AND b.fiscal_year = e.fiscal_year\nGROUP BY b.dept_id, b.fiscal_year, b.budgeted\nORDER BY ABS(variance) DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -9196,7 +9201,8 @@
     "tags": [
       "case-when",
       "date-functions"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0032",
@@ -9218,7 +9224,8 @@
       "joins",
       "null-handling",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0033",
@@ -9238,7 +9245,8 @@
       "aggregation",
       "joins",
       "left-join"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0034",
@@ -9365,7 +9373,7 @@
     "language": "sql",
     "schema": "rooms(room_id, building_id, floor, ceiling_height_m)",
     "solution": "SELECT building_id, floor,\n       AVG(ceiling_height_m) AS avg_height_m,\n       CASE WHEN AVG(ceiling_height_m) >= 3 THEN 'High'\n            WHEN AVG(ceiling_height_m) >= 2.5 THEN 'Standard'\n            ELSE 'Low' END AS height_class\nFROM rooms\nGROUP BY building_id, floor\nORDER BY building_id, floor;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when"
@@ -9388,7 +9396,8 @@
     "tags": [
       "aggregation",
       "joins"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "snowflake_51-0042",
@@ -9425,7 +9434,7 @@
     "language": "sql",
     "schema": "holdings(portfolio_id, asset_id, shares, as_of_date), prices(asset_id, price_date, close_price)",
     "solution": "SELECT h.portfolio_id, h.as_of_date AS day,\n       SUM(h.shares * p.close_price) AS portfolio_value\nFROM holdings h\nJOIN prices   p\n  ON h.asset_id   = p.asset_id\n AND h.as_of_date = p.price_date\nGROUP BY h.portfolio_id, h.as_of_date\nORDER BY h.portfolio_id, day;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins"
@@ -9464,7 +9473,7 @@
     "language": "sql",
     "schema": "experiments(exp_id, name, run_at), measurements(meas_id, exp_id, temperature_k, pressure_pa)",
     "solution": "SELECT e.exp_id, e.name,\n       AVG(m.temperature_k) AS avg_temp_k,\n       AVG(m.pressure_pa)   AS avg_pressure_pa,\n       COUNT(m.meas_id)     AS measurement_count\nFROM experiments  e\nJOIN measurements m ON e.exp_id = m.exp_id\nGROUP BY e.exp_id, e.name;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins"
@@ -9503,7 +9512,7 @@
     "language": "sql",
     "schema": "jobs(job_id, customer_id, material_id, sqft), customers(customer_id, customer_name), materials(material_id, material_name, cost_per_sqft)",
     "solution": "SELECT j.job_id, c.customer_name, m.material_name, j.sqft,\n       j.sqft * m.cost_per_sqft AS total_cost\nFROM jobs       j\nJOIN customers  c ON j.customer_id = c.customer_id\nJOIN materials  m ON j.material_id = m.material_id\nORDER BY total_cost DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "joins"
     ]
@@ -9561,7 +9570,7 @@
     "language": "sql",
     "schema": "math_inputs(input_id, expression)  -- e.g. '12 + 4 * (3 - 1) / 2.5'",
     "solution": "-- Snowflake supports REGEXP_SUBSTR_ALL since 2023\nSELECT input_id, expression,\n       REGEXP_SUBSTR_ALL(expression, '\\\\d+(\\\\.\\\\d+)?') AS numbers,\n       REGEXP_SUBSTR_ALL(expression, '\"+\\\\-*/\"')          AS operators,\n       REGEXP_SUBSTR_ALL(expression, '\"()\"')              AS parentheses,\n       ARRAY_SIZE(REGEXP_SUBSTR_ALL(expression, '\\\\d+(\\\\.\\\\d+)?')) AS number_count,\n       ARRAY_SIZE(REGEXP_SUBSTR_ALL(expression, '\"+\\\\-*/\"'))           AS operator_count\nFROM math_inputs;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": []
   },
   {
@@ -9577,7 +9586,7 @@
     "language": "sql",
     "schema": "stars(star_id, name, spectral_type), planets(planet_id, star_id, name, mass_earth, orbital_period_days)",
     "solution": "SELECT s.name AS star, s.spectral_type,\n       COUNT(p.planet_id)               AS planet_count,\n       AVG(p.mass_earth)                AS avg_planet_mass,\n       MIN(p.orbital_period_days)       AS shortest_orbit_days,\n       MAX(p.orbital_period_days)       AS longest_orbit_days\nFROM stars   s\nLEFT JOIN planets p ON s.star_id = p.star_id\nGROUP BY s.name, s.spectral_type\nORDER BY planet_count DESC;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "joins",
@@ -12276,7 +12285,7 @@
       "name": "vishnu-t-r/youtube_channel_resource",
       "url": "https://github.com/vishnu-t-r/youtube_channel_resource/blob/main/domain_specific_sql_interview_question/solution_3.sql"
     },
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -12539,7 +12548,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/11_hierarchy_of_managers_for_a_given_employee_recursion.sql"
     },
     "question": "find the hierarchy of managers for a given employee",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "cte",
       "joins",
@@ -12565,7 +12574,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/12_parent_age_when_the_child_was_born_recursion.sql"
     },
     "question": "FIND THE ARENT AGE WHEN THE CHILD WAS BORN",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "cte",
       "joins",
@@ -12591,7 +12600,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/13_records_of_brands_whose_amount_increase_from_one_year_to_another.sql"
     },
     "question": "Query to fetch the records of brands whose amounts is increasing from one year to another?",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions",
       "cte",
@@ -12617,7 +12626,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/14_record_of_brand_whose_amount_increase_every_year_only_increasing_solution_1.sql"
     },
     "question": "Query to fetch the record of brand whose amounts is increasing every year?\n(amount increasing year by year)",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "analytical-functions",
       "cte",
@@ -12698,7 +12707,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/17_find_the_average_distance_between_the_locations_solution_2.sql"
     },
     "question": "find the average dstance between the locations?",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -13317,7 +13326,8 @@
       "cte",
       "string-functions",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0033",
@@ -13451,7 +13461,8 @@
       "joins",
       "left-join",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0038",
@@ -13471,7 +13482,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/127_Min_max%20from%20group%20and%20sequence%20%28using%20row_number%20function%29.sql"
     },
     "question": "Min Max from group and sequence",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -13653,7 +13664,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/134_derive%20the%20net%20balance%20based%20on%20the%20credit%20or%20debit%20of%20the%20amount.sql"
     },
     "question": "Question Statements :- Write SQL to derive the Net_Balance column based on\nCredit/Debit of the Amount",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -13791,7 +13802,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/139_determine%20the%20number%20of%20consecutive%20occupied%20seat%20IDs%20and%20the%20total%20count%20of%20these%20seats.sql"
     },
     "question": "Question :- Write a query to determine the number of consecutive occupied seat IDs and the total count of these seats?",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -13848,7 +13859,8 @@
       "null-handling",
       "subquery",
       "union"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0053",
@@ -13895,7 +13907,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/143_display%20the%20sequence%20number%20from%20the%20given%20range%20of%20numbers.sql"
     },
     "question": "'Sequence' Table has columns namely Start_Range and End_Range\n\nQuestion :- Write a SQL query to print the Sequence Number from the given range of number.",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "cte",
@@ -14002,7 +14014,8 @@
     "tags": [
       "aggregation",
       "analytical-functions"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0059",
@@ -14110,7 +14123,8 @@
       "analytical-functions",
       "cte",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0063",
@@ -14334,7 +14348,8 @@
       "cte",
       "subquery",
       "union"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0071",
@@ -14656,7 +14671,8 @@
       "analytical-functions",
       "cte",
       "subquery"
-    ]
+    ],
+    "runtime": "non-sqlite"
   },
   {
     "id": "community_solved-0083",
@@ -14704,7 +14720,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/174_identify%20patients%20who%20may%20elevated%20average%20heart%20rate%20and%20low%20physical%20activity.sql"
     },
     "question": "Question\r\nYou are given a table, PatientActivity, with information about patients' daily activity and heart rate. \r\nWrite a query to identify patients who may be at high risk due to an elevated average heart rate \r\nand low physical activity.\r\n\r\nConditions:\n\n1) A high-risk patient is defined as someone whose average heart rate over the past 7 days is above 100.\n2) They also need to have taken fewer than 4000 steps per day on average over the same period.\n\nWrite a query to return the patient_id of all high-risk patients based on the above criteria.",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -15014,7 +15030,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/188_review%20rating%20for%20products.sql"
     },
     "question": "Question:\r\n\r\nPerform a comprehensive analysis of product reviews to generate the following insights:\n\n  > The average review rating for each product.\n  > The total number of reviews for each product.\n  > Number of 5-star reviews for each product.\n  > A ranking of products based on their average rating in descending order.\n\t\t1.If two products have the same average rating, rank them by number of 5-star reviews in descending order.\n\t\t2.If there is still a tie, rank them by the total number of reviews in descending order.",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "case-when",
@@ -15038,7 +15054,7 @@
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/189_average%20review%20rating%20and%20top%20performing%20products.sql"
     },
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -16762,7 +16778,7 @@
     "language": "sql",
     "schema": "subscriptions(user_id, signup_date, trial_end_date, first_paid_date, cancel_date)",
     "solution": "SELECT\n  date(signup_date, 'weekday 0', '-6 days') AS cohort_week,\n  COUNT(*) AS signups,\n  COUNT(first_paid_date) AS converted_to_paid,\n  SUM(CASE WHEN first_paid_date IS NULL AND cancel_date <= trial_end_date THEN 1 ELSE 0 END) AS dropped_in_trial,\n  ROUND(100.0 * COUNT(first_paid_date) / NULLIF(COUNT(*), 0), 1) AS trial_to_paid_pct\nFROM subscriptions\nGROUP BY date(signup_date, 'weekday 0', '-6 days')\nORDER BY cohort_week;",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "tags": [
       "aggregation",
       "conditional-aggregation",
@@ -17068,7 +17084,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "surge-multiplier-vs-ride-volume-per-area"
   },
   {
@@ -17163,7 +17179,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "driver-tier-earnings-decile--ntile-distribution"
   },
   {
@@ -17183,7 +17199,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "demand-supply-gap--unfilled-requests-per-area"
   },
   {
@@ -17262,7 +17278,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "ad-click-through-rate-by-placement"
   },
   {
@@ -17367,7 +17383,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "search-ctr-by-result-position"
   },
   {
@@ -17408,7 +17424,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "autocomplete-acceptance-rate-per-prefix"
   },
   {
@@ -17631,7 +17647,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "recommendation-ab-test--lift-in-add-to-cart-rate"
   },
   {
@@ -17652,7 +17668,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "fba-seller-performance--stockout-days-per-month"
   },
   {
@@ -17771,7 +17787,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "app-store-search-ctr-per-query-term"
   },
   {
@@ -17792,7 +17808,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "refund-rate-by-app-category--quality-signal"
   },
   {
@@ -17875,7 +17891,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "churn-waterfall--new--existing--churned--resurrected"
   },
   {
@@ -17896,7 +17912,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "dispute-rate-per-merchant--risk-scoring"
   },
   {
@@ -17918,7 +17934,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "payout-reconciliation--charges-−-refunds-=-payout"
   },
   {
@@ -17937,7 +17953,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "occupancy-rate-by-city--booked-nights--available-nights"
   },
   {
@@ -17997,7 +18013,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "superhost-eligibility--multi-criteria-boolean"
   },
   {
@@ -18017,7 +18033,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "cancellation-rate-by-stay-length"
   },
   {
@@ -18058,7 +18074,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "song-skip-rate-by-genre"
   },
   {
@@ -18166,7 +18182,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "royalty-pool-pro-rata--streams-×-country-rate"
   },
   {
@@ -18187,7 +18203,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "family-plan-member-utilization"
   },
   {
@@ -18271,7 +18287,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "restaurant-performance--volume-×-rating-composite"
   },
   {
@@ -18309,7 +18325,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "surge-multiplier-effectiveness--lift-above-normal-volume"
   },
   {
@@ -18412,7 +18428,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "inmail-response-rate-by-recipient-industry"
   },
   {
@@ -18533,7 +18549,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "post-engagement-by-type--articles-vs-updates-vs-videos"
   },
   {
@@ -18553,7 +18569,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "story-view-completion-per-snap"
   },
   {
@@ -18671,7 +18687,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "search-intent--visual-query-vs-text-query-ctr"
   },
   {
@@ -18713,7 +18729,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "promoted-pin-ctr-by-pin-type"
   },
   {
@@ -18798,7 +18814,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "mql-→-sql-→-won-funnel-per-quarter"
   },
   {
@@ -18821,7 +18837,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "account-hierarchy--recursive-parent-child-rollup"
   },
   {
@@ -18882,7 +18898,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "customer-health-score--composite"
   },
   {
@@ -18962,7 +18978,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "creator-earnings-by-tier--creator-fund"
   },
   {
@@ -19105,7 +19121,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "subreddit-growth--subscriber-wow-velocity"
   },
   {
@@ -19146,7 +19162,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "moderator-removal-rate-by-subreddit"
   },
   {
@@ -19166,7 +19182,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "cross-posting-network--same-post-in-multiple-subreddits"
   },
   {
@@ -19227,7 +19243,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "alert-noise-ratio--acknowledged-vs-auto-resolved"
   },
   {
@@ -19287,7 +19303,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "service-dependency-latency--trace-span-aggregation"
   },
   {
@@ -19307,7 +19323,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "customer-plan-tier--usage-vs-quota"
   },
   {
@@ -19370,7 +19386,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": null,
+    "runtime": "non-sqlite",
     "slug": "product-variant-performance--best-colorsize-by-sku"
   },
   {
