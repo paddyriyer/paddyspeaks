@@ -134,6 +134,13 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
   const hintWindowOrder = new Set(
     (opts.windowOrderCols || []).map((c) => String(c).toLowerCase())
   );
+  // Per-column literal pool from the solution's `WHERE col='X'` /
+  // `col IN ('a','b')` patterns. When set, generateCell prefers these
+  // values over the built-in defaults so pivot CASE branches fire.
+  const categoryHints = {};
+  for (const [k, v] of Object.entries(opts.categoryHints || {})) {
+    categoryHints[String(k).toLowerCase()] = Array.isArray(v) ? v : [...v];
+  }
 
   // 25 rows for dim-style tables; 60 for event/fact tables so streak, gap,
   // binge, cohort and sliding-window queries actually fire.
@@ -204,7 +211,8 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     const isHintWindowOrder = hintWindowOrder.has(c.toLowerCase());
     const isOwnPk = c === detectedPk && !isHintPartition;
     const fkTo = (role.role === "id" && !isOwnPk) ? findOwningTable(spec, c) : null;
-    return { name: c, ...role, fkTo, isOwnPk, isHintPartition, isHintWindowOrder };
+    const literalPool = categoryHints[c.toLowerCase()] || null;
+    return { name: c, ...role, fkTo, isOwnPk, isHintPartition, isHintWindowOrder, literalPool };
   });
 
   // Which *_id columns should cluster-share (grouping FKs) vs be unique per row.
@@ -282,6 +290,16 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
 
 function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
   const c = meta.name;
+  // Solution-derived literal pool wins over the role's default pool — so
+  // `WHERE region='North'` queries against a region column actually find
+  // a 'North' row instead of the generic 'NA','EMEA' built-ins. We only
+  // do this for non-id, non-numeric roles where a literal substitution
+  // makes sense. Cycle through the literals so multiple distinct values
+  // land in the data.
+  if (meta.literalPool && meta.literalPool.length &&
+      !["id","date","datetime","money","count","boolean","age"].includes(meta.role)) {
+    return meta.literalPool[(i - 1) % meta.literalPool.length];
+  }
   switch (meta.role) {
     case "id":
       if (meta.fkTo && ownedIdMap[meta.fkTo]) {
@@ -414,6 +432,7 @@ export function planRowsForSpec(spec, opts = {}) {
       rows: opts.rowsPerTable || 12,
       partitionCols: opts.partitionCols,
       windowOrderCols: opts.windowOrderCols,
+      categoryHints: opts.categoryHints,
     });
     out.push({ table: t.table, colMeta, rows });
   }

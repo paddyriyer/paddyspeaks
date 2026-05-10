@@ -3,10 +3,11 @@
 // Postgres runtime, keeping the default-SQLite payload unchanged.
 import { planRowsForSpec, pgTypeFor } from "../sample-gen.js";
 
-// esm.sh rewrites bare imports so pglite's internal modules load cleanly in
-// a browser without a bundler. Pinning the version keeps the runtime stable
-// when upstream ships breaking changes.
-const PGLITE_CDN = "https://esm.sh/@electric-sql/pglite@0.4.5";
+// PGlite is vendored locally because public CDNs (esm.sh / jsdelivr) either
+// polyfill `process` (which makes pglite take its Node-only fs/promises
+// path and crash with "readFile is not a function") or don't bundle the
+// chunked deps. The local copy mirrors @electric-sql/pglite@0.4.5/dist
+// and ships ~15 MB of WASM+data once, browser-cached afterwards.
 
 // In Postgres, double-quoted identifiers preserve case; unquoted ones get
 // folded to lowercase. The interview corpus often references columns in
@@ -49,7 +50,10 @@ export class PgliteEngine {
   }
 
   async init() {
-    const mod = await import(/* webpackIgnore: true */ PGLITE_CDN);
+    // Path is relative to engines/pglite-engine.js → ../../vendor/pglite/...
+    // but dynamic import() resolves against the page URL, so we use
+    // ../vendor/pglite/index.js (one level up from /interview.app/js).
+    const mod = await import(/* @vite-ignore */ "../../vendor/pglite/index.js");
     const PGlite = mod.PGlite || mod.default?.PGlite || mod.default;
     if (!PGlite) throw new Error("PGlite module did not expose a PGlite class");
     this.db = await PGlite.create();
