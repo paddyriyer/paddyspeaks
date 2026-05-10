@@ -1,0 +1,63 @@
+<p>Uber driver-status pings fire every minute or so — the system records "online" repeatedly even when the driver hasn't done anything. Useful for telemetry; useless for "how many distinct online sessions did this driver have today?". The query collapses pings into <strong>session_id</strong>-labelled groups using the cumulative-flag trick.</p>
+
+<h4>1. The source data — <code>driver_status_pings</code></h4>
+<table>
+  <thead><tr><th>driver_id</th><th>status</th><th>ping_at</th></tr></thead>
+  <tbody>
+    <tr><td>D_001</td><td>online</td><td>06:00</td></tr>
+    <tr><td>D_001</td><td>online</td><td>06:05</td></tr>
+    <tr><td>D_001</td><td>offline</td><td>12:00</td></tr>
+    <tr><td>D_001</td><td>online</td><td>17:00</td></tr>
+    <tr><td>D_001</td><td>online</td><td>17:30</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — cumulative-flag SUM for session_id</h4>
+<pre><code>WITH transitions AS (
+  SELECT driver_id, ping_at, status,
+    CASE WHEN status != COALESCE(LAG(status) OVER (PARTITION BY driver_id ORDER BY ping_at), '__none__')
+         THEN 1 ELSE 0 END AS is_change
+  FROM driver_status_pings
+),
+sessioned AS (
+  SELECT driver_id, ping_at, status,
+    SUM(is_change) OVER (PARTITION BY driver_id ORDER BY ping_at) AS session_id
+  FROM transitions
+)
+SELECT driver_id, session_id, status,
+  MIN(ping_at) AS session_start,
+  MAX(ping_at) AS session_end,
+  COUNT(*)    AS pings_in_session
+FROM sessioned
+GROUP BY driver_id, session_id, status
+ORDER BY driver_id, session_start;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>The cumulative-flag SUM idiom</h5>
+<p>The is_change flag is 1 when status differs from the previous ping, 0 otherwise. <code>SUM(is_change) OVER (... ORDER BY ping_at)</code> gives a monotonically-increasing label that bumps once per state change. Within a state run, all rows share the same session_id; across changes, the id increments.</p>
+<table>
+  <thead><tr><th>row</th><th>status</th><th>is_change</th><th>session_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>online</td><td>1 (no prev)</td><td>1</td></tr>
+    <tr><td>2</td><td>online</td><td>0</td><td>1</td></tr>
+    <tr><td>3</td><td>offline</td><td>1</td><td>2</td></tr>
+    <tr><td>4</td><td>online</td><td>1</td><td>3</td></tr>
+    <tr><td>5</td><td>online</td><td>0</td><td>3</td></tr>
+  </tbody>
+</table>
+
+<h5>Why <code>COALESCE(LAG(status), '__none__')</code> instead of OR IS NULL</h5>
+<p>Both forms work; the COALESCE-to-sentinel form is one expression instead of two predicates. Pick whichever your team finds clearer; the optimizer treats them identically.</p>
+
+<h5>The "online with no rides" diagnostic</h5>
+<p>Sessions with status='online' AND zero rides are the marketplace's idle-supply signal. Joining this query's output to <code>fct_rides</code> on overlapping time produces the <em>"driver was online but un-utilized"</em> minutes — input to surge-pricing and Peak Pay tuning.</p>
+
+<h5>The minimum-session-length filter</h5>
+<p>3-second online sessions (driver toggled accidentally) are noise. Production filter:</p>
+<pre><code>HAVING COUNT(*) &gt;= 3 AND julianday(MAX(ping_at)) - julianday(MIN(ping_at)) &gt;= 1.0/144   -- &gt;= 10 min</code></pre>
+
+<h5>The 30-minute-grace cousin (tolerant streak)</h5>
+<p>If pings are flaky and a driver might miss one or two, treat gaps &lt; 30 sec as the same session even if there's no ping in that window. Modify the is_change flag to require <em>both</em> status difference AND time gap exceeding tolerance. Same pattern, richer condition.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the cumulative-flag SUM idiom (LAG-detect-change + SUM-OVER-ORDER), filter minimum session length to remove toggle noise, and connect online-but-no-rides sessions to the marketplace's idle-supply metric. The 30-minute-grace tolerant variant is the over-the-bar generalization.</div>

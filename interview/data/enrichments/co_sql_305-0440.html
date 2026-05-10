@@ -1,0 +1,54 @@
+<p>Netflix subscriptions move through a lifecycle — <em>active → paused → cancelled → reactivated</em> — with billing-cycle status events that don't always represent a real change. The query reconstructs the actual state periods from the noisy log: when did each status start, when did the next one begin, and which period is still open.</p>
+
+<h4>1. The source data — <code>subscription_events</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>status</th><th>recorded_at</th><th>narrative</th></tr></thead>
+  <tbody>
+    <tr><td>A_001</td><td>active</td><td>Jan 1</td><td>signed up</td></tr>
+    <tr><td>A_001</td><td>active</td><td>Jan 15</td><td>billing-cycle ping (no real change)</td></tr>
+    <tr><td>A_001</td><td>paused</td><td>Feb 1</td><td>real change</td></tr>
+    <tr><td>A_001</td><td>active</td><td>Mar 1</td><td>resumed</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — LAG to detect change + LEAD for end_date</h4>
+<pre><code>WITH changes AS (
+  SELECT account_id, recorded_at, status,
+    LAG(status) OVER (PARTITION BY account_id ORDER BY recorded_at) AS prev_status
+  FROM subscription_events
+),
+filtered AS (
+  SELECT account_id, recorded_at, status
+  FROM changes
+  WHERE status != prev_status OR prev_status IS NULL
+)
+SELECT account_id, status,
+  recorded_at AS period_start,
+  LEAD(recorded_at) OVER (PARTITION BY account_id ORDER BY recorded_at) AS period_end
+FROM filtered
+ORDER BY account_id, period_start;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Why "ping noise" is the Netflix-specific twist</h5>
+<p>Most state-machine logs at Netflix are append-only event streams that re-emit on every billing cycle, every region replication, every CDC retry. The same <code>active</code> status appears 12 times a year per account even when nothing changed. Period reconstruction requires deduplicating these pings before any analysis.</p>
+
+<h5>The lifecycle question pattern</h5>
+<p>The output of this query is the input to half of Netflix's growth-accounting questions:</p>
+<ul>
+  <li>"What's our churn-recovery rate?" — count <code>active → cancelled → active</code> sequences</li>
+  <li>"How long does the average pause last?" — <code>AVG(period_end - period_start) WHERE status='paused'</code></li>
+  <li>"At any given moment, what's our DAU mix?" — find periods where <code>period_start ≤ ts &lt; period_end</code></li>
+</ul>
+
+<h5>The LAD-cousin warning</h5>
+<p>If the subscription_events stream has late-arriving events (offline mobile uploads), an event timestamped Jan 5 might land in the table on Feb 10. Re-running the query produces different periods than yesterday. Production guards: snapshot the input as of a watermark, OR sort by <code>(recorded_at, ingest_seq)</code> for deterministic tiebreak.</p>
+
+<h5>The "still open" period semantic</h5>
+<p>The most-recent status has <code>period_end IS NULL</code> — that's correct. The user is currently in that state; the period hasn't closed. Downstream queries that compute period duration should use <code>COALESCE(period_end, CURRENT_DATE)</code> for live duration.</p>
+
+<h5>The cross-account aggregate</h5>
+<p>"How many accounts are currently paused?" — filter to NULL period_end + status='paused':</p>
+<pre><code>SELECT COUNT(*) FROM (/* this query */) WHERE period_end IS NULL AND status = 'paused';</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognize billing-cycle ping noise as the Netflix-specific data-quality issue, dedup before period computation, treat NULL period_end as "still in this state", and connect the period output to growth-accounting questions (churn-recovery rate, pause duration). The LAD watermark caveat is the over-the-bar pre-empt.</div>

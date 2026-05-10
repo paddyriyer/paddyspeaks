@@ -19567,5 +19567,132 @@
       "cte",
       "null-handling"
     ]
+  },
+  {
+    "id": "co_sql_305-0440",
+    "num": 440,
+    "company": "Netflix",
+    "difficulty": "Hard",
+    "title": "Subscription Status Periods \u2014 Lifecycle Stitching",
+    "subtopic": "Gaps-and-islands \u00b7 LAG-detect + LEAD-end \u00b7 NULL-safe equality",
+    "schema": "subscription_events(account_id, status, recorded_at)",
+    "solution": "WITH changes AS (\n  SELECT account_id, recorded_at, status,\n    LAG(status) OVER (PARTITION BY account_id ORDER BY recorded_at) AS prev_status\n  FROM subscription_events\n),\nfiltered AS (\n  SELECT account_id, recorded_at, status\n  FROM changes\n  WHERE status != prev_status OR prev_status IS NULL\n)\nSELECT account_id, status,\n  recorded_at AS period_start,\n  LEAD(recorded_at) OVER (PARTITION BY account_id ORDER BY recorded_at) AS period_end\nFROM filtered\nORDER BY account_id, period_start;",
+    "tags": [
+      "analytical-functions",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "subscription-status-periods--lifecycle-stitching"
+  },
+  {
+    "id": "co_sql_305-0441",
+    "num": 441,
+    "company": "Uber",
+    "difficulty": "Hard",
+    "title": "Driver Online Sessions \u2014 Collapsing Status Pings",
+    "subtopic": "Gaps-and-islands per-driver \u00b7 cumulative-flag SUM for session_id",
+    "schema": "driver_status_pings(driver_id, status, ping_at)",
+    "solution": "WITH transitions AS (\n  SELECT driver_id, ping_at, status,\n    CASE WHEN status != COALESCE(LAG(status) OVER (PARTITION BY driver_id ORDER BY ping_at), '__none__')\n         THEN 1 ELSE 0 END AS is_change\n  FROM driver_status_pings\n),\nsessioned AS (\n  SELECT driver_id, ping_at, status,\n    SUM(is_change) OVER (PARTITION BY driver_id ORDER BY ping_at) AS session_id\n  FROM transitions\n)\nSELECT driver_id, session_id, status,\n  MIN(ping_at) AS session_start,\n  MAX(ping_at) AS session_end,\n  COUNT(*)    AS pings_in_session\nFROM sessioned\nGROUP BY driver_id, session_id, status\nORDER BY driver_id, session_start;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "driver-online-sessions--collapsing-status-pings"
+  },
+  {
+    "id": "co_sql_305-0442",
+    "num": 442,
+    "company": "Stripe",
+    "difficulty": "Hard",
+    "title": "Payment State Lifecycle \u2014 Terminal-State Closure",
+    "subtopic": "Gaps-and-islands + terminal-state filter",
+    "schema": "payment_state_log(payment_id, state, changed_at)",
+    "solution": "WITH changes AS (\n  SELECT payment_id, changed_at, state,\n    LAG(state) OVER (PARTITION BY payment_id ORDER BY changed_at) AS prev_state\n  FROM payment_state_log\n),\nfiltered AS (\n  SELECT payment_id, changed_at, state\n  FROM changes\n  WHERE state IS DISTINCT FROM prev_state\n)\nSELECT payment_id, state,\n  changed_at AS state_start,\n  LEAD(changed_at) OVER (PARTITION BY payment_id ORDER BY changed_at) AS state_end,\n  CASE WHEN state IN ('succeeded','failed','refunded','disputed') THEN 1 ELSE 0 END AS is_terminal\nFROM filtered\nORDER BY payment_id, state_start;",
+    "tags": [
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "payment-state-lifecycle--terminal-state-closure"
+  },
+  {
+    "id": "co_sql_305-0443",
+    "num": 443,
+    "company": "Salesforce",
+    "difficulty": "Hard",
+    "title": "Opportunity Stage Periods \u2014 Allowing Backward Transitions",
+    "subtopic": "Gaps-and-islands + direction labelling",
+    "schema": "opp_stage_history(opp_id, stage, stage_rank, entered_at)",
+    "solution": "WITH changes AS (\n  SELECT opp_id, entered_at, stage, stage_rank,\n    LAG(stage)      OVER (PARTITION BY opp_id ORDER BY entered_at) AS prev_stage,\n    LAG(stage_rank) OVER (PARTITION BY opp_id ORDER BY entered_at) AS prev_rank\n  FROM opp_stage_history\n),\nfiltered AS (\n  SELECT opp_id, entered_at, stage, stage_rank, prev_rank\n  FROM changes\n  WHERE stage != prev_stage OR prev_stage IS NULL\n)\nSELECT opp_id, stage,\n  entered_at AS period_start,\n  LEAD(entered_at) OVER (PARTITION BY opp_id ORDER BY entered_at) AS period_end,\n  CASE\n    WHEN prev_rank IS NULL                        THEN 'initial'\n    WHEN stage_rank > prev_rank                   THEN 'forward'\n    WHEN stage_rank < prev_rank                   THEN 'backward'\n    ELSE 'lateral'\n  END AS direction\nFROM filtered\nORDER BY opp_id, period_start;",
+    "tags": [
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "opportunity-stage-periods--allowing-backward-transitions"
+  },
+  {
+    "id": "co_sql_305-0444",
+    "num": 444,
+    "company": "LinkedIn",
+    "difficulty": "Hard",
+    "title": "Member Position Periods \u2014 Per-Member Per-Company Tenure",
+    "subtopic": "Gaps-and-islands per (member \u00d7 company) \u2014 overlapping positions allowed",
+    "schema": "member_company_events(member_id, company_id, event_type, event_at)",
+    "solution": "WITH paired AS (\n  SELECT member_id, company_id, event_type, event_at,\n    LAG(event_type) OVER (PARTITION BY member_id, company_id ORDER BY event_at) AS prev_event\n  FROM member_company_events\n),\nfiltered AS (\n  SELECT member_id, company_id, event_type, event_at\n  FROM paired\n  WHERE event_type != prev_event OR prev_event IS NULL\n)\nSELECT member_id, company_id,\n  MIN(CASE WHEN event_type = 'started'  THEN event_at END) AS started_at,\n  MAX(CASE WHEN event_type = 'ended'    THEN event_at END) AS ended_at\nFROM filtered\nGROUP BY member_id, company_id\nORDER BY member_id, started_at;",
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "case-when",
+      "cte",
+      "null-handling"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "member-position-periods--per-member-per-company-tenure"
+  },
+  {
+    "id": "co_sql_305-0445",
+    "num": 445,
+    "company": "DoorDash",
+    "difficulty": "Hard",
+    "title": "Order Delivery State Periods \u2014 Parallel Restaurant + Dasher States",
+    "subtopic": "Gaps-and-islands on COMPOSITE state",
+    "schema": "order_state_pings(order_id, restaurant_state, dasher_state, ping_at)",
+    "solution": "WITH composite AS (\n  SELECT order_id, ping_at,\n    restaurant_state || '|' || dasher_state AS combined_state,\n    restaurant_state, dasher_state\n  FROM order_state_pings\n),\nchanges AS (\n  SELECT order_id, ping_at, combined_state, restaurant_state, dasher_state,\n    LAG(combined_state) OVER (PARTITION BY order_id ORDER BY ping_at) AS prev_combined\n  FROM composite\n),\nfiltered AS (\n  SELECT order_id, ping_at, restaurant_state, dasher_state, combined_state\n  FROM changes\n  WHERE combined_state != prev_combined OR prev_combined IS NULL\n)\nSELECT order_id, restaurant_state, dasher_state,\n  ping_at AS period_start,\n  LEAD(ping_at) OVER (PARTITION BY order_id ORDER BY ping_at) AS period_end\nFROM filtered\nORDER BY order_id, period_start;",
+    "tags": [
+      "analytical-functions",
+      "cte",
+      "null-handling",
+      "string-functions"
+    ],
+    "batch": "co_sql_305",
+    "type": "SQL / Window functions",
+    "language": "sql",
+    "runtime": null,
+    "slug": "order-delivery-state-periods--parallel-restaurant-+-dasher-states"
   }
 ]
