@@ -121,6 +121,20 @@ function isEventTable(table) {
 
 // Generate one table's rows.
 function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
+  // Per-question hint: columns the solution PARTITIONs or GROUPs by. When
+  // such a column is present in this table we treat it as a grouping FK
+  // (rows REPEAT it) instead of a PK, so window functions like
+  // LAG/LEAD OVER (PARTITION BY ...) actually have something to look at.
+  const hintPartition = new Set(
+    (opts.partitionCols || []).map((c) => String(c).toLowerCase())
+  );
+  // Same idea for the ORDER BY column inside windows — if the solution
+  // orders a window by `order_date`, the synthetic data should ensure that
+  // column varies monotonically within each cluster, not random jumps.
+  const hintWindowOrder = new Set(
+    (opts.windowOrderCols || []).map((c) => String(c).toLowerCase())
+  );
+
   // 25 rows for dim-style tables; 60 for event/fact tables so streak, gap,
   // binge, cohort and sliding-window queries actually fire.
   const isEvent = isEventTable(table);
@@ -138,7 +152,10 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     "team_id","product_id","merchant_id","store_id","company_id","ad_id",
     "session_id","room_id","device_id","isp_id",
   ]);
-  const groupingFkCount = columns.filter((c) => GROUPING_FK_NAMES.has(c)).length;
+  // Hints are additive — any partition column the solution declared becomes
+  // a grouping FK for this table, even if it'd normally be the PK.
+  for (const c of hintPartition) GROUPING_FK_NAMES.add(c);
+  const groupingFkCount = columns.filter((c) => GROUPING_FK_NAMES.has(c.toLowerCase())).length;
   // Three modes:
   //   "binge"  — multi-FK event tables. Cluster shares EVERYTHING (FKs + date)
   //              within a cluster. Demos binge / aggregate-per-cell queries.
@@ -147,7 +164,12 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
   //              consecutive days per user → streak / gap queries fire.
   //   "none"   — dim tables. No clustering.
   let MODE = "none";
-  if (isEvent && groupingFkCount >= 2) MODE = "binge";
+  // Hint-driven partitioning ALWAYS wins — when the solution explicitly
+  // partitions by a column the data has, we must cluster on it regardless
+  // of whether the table looks like a "fact" by name.
+  if (hintPartition.size > 0 && groupingFkCount >= 1) {
+    MODE = groupingFkCount >= 2 ? "binge" : "streak";
+  } else if (isEvent && groupingFkCount >= 2) MODE = "binge";
   else if (isEvent && groupingFkCount === 1) MODE = "streak";
   const CLUSTER_SIZE = (MODE === "binge" || MODE === "streak") ? 5 : 1;
 
@@ -166,17 +188,23 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     table === "customers" ? "cust_id" : null,
     table === "transactions" ? "txn_id" : null,
   ].filter(Boolean);
-  let detectedPk = columns.find((c) => tableAbbrevs.includes(c) || c === "id");
+  let detectedPk = columns.find(
+    (c) => (tableAbbrevs.includes(c) || c === "id") && !hintPartition.has(c.toLowerCase())
+  );
   if (!detectedPk) {
     detectedPk = columns.find(
-      (c) => (/(^|_)id$/.test(c) || /^[a-z]+_id$/.test(c)) && !GROUPING_FK_NAMES.has(c)
+      (c) => (/(^|_)id$/.test(c) || /^[a-z]+_id$/.test(c))
+        && !GROUPING_FK_NAMES.has(c.toLowerCase())
+        && !hintPartition.has(c.toLowerCase())
     );
   }
   const colMeta = columns.map((c) => {
     const role = inferRole(c);
-    const isOwnPk = c === detectedPk;
+    const isHintPartition = hintPartition.has(c.toLowerCase());
+    const isHintWindowOrder = hintWindowOrder.has(c.toLowerCase());
+    const isOwnPk = c === detectedPk && !isHintPartition;
     const fkTo = (role.role === "id" && !isOwnPk) ? findOwningTable(spec, c) : null;
-    return { name: c, ...role, fkTo, isOwnPk };
+    return { name: c, ...role, fkTo, isOwnPk, isHintPartition, isHintWindowOrder };
   });
 
   // Which *_id columns should cluster-share (grouping FKs) vs be unique per row.
@@ -188,6 +216,9 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     "merchant_id", "store_id", "company_id", "ad_id", "session_id",
     "room_id", "device_id", "isp_id",
   ]);
+  // Hint partition columns are also grouping FKs so the per-row generator
+  // shares them across the cluster instead of inventing unique values.
+  for (const c of hintPartition) GROUPING_FK.add(c);
   // Detect interval-style tables (shifts, bookings, streams) so end_*
   // ends up AFTER the corresponding start_*.
   const startCols = colMeta.filter((m) => /^(start|started)_(at|ts|dt|time)$/.test(m.name));
@@ -201,12 +232,15 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     // pool size matching cluster size.
     const clusterStart = Math.floor((i - 1) / CLUSTER_SIZE) + 1;
     for (const m of colMeta) {
-      const isUniqueRow = m.isOwnPk || (m.role === "id" && !GROUPING_FK.has(m.name));
+      const isHintPart = m.isHintPartition;
+      const isUniqueRow = m.isOwnPk
+        || (m.role === "id" && !GROUPING_FK.has(m.name) && !isHintPart);
       const isDate = m.role === "date" || m.role === "datetime";
       // streak mode: FK shared in cluster, date varies row-by-row.
       // binge mode: everything (FK + date) shared in cluster.
+      // Hint-driven: hint partition cols cluster-share regardless of name.
       let seedI;
-      if (MODE === "streak" && isDate) {
+      if (MODE === "streak" && (isDate || m.isHintWindowOrder)) {
         // Date follows i directly so we get 5 consecutive days per user.
         seedI = i;
       } else if ((MODE === "binge" || MODE === "streak") && !isUniqueRow) {
@@ -260,11 +294,15 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
       // new-vs-returning, multi-row patterns) actually have repeated keys to
       // group on. Without this, every row had a unique value and questions
       // like "find customers with multiple orders" returned zero rows.
-      const isOwnPk = meta.isOwnPk || (
+      // Hint-driven exception: when the question's solution PARTITIONs by
+      // this column (e.g. `LEAD(...) OVER (PARTITION BY order_id ...)`),
+      // we DELIBERATELY treat it as repeating, even if it'd normally be the
+      // table's PK. Otherwise window functions have nothing to look at.
+      const isOwnPk = !meta.isHintPartition && (meta.isOwnPk || (
         c === `${tableName.replace(/s$/, "")}_id` ||
         c === `${tableName}_id` ||
         c === "id"
-      );
+      ));
       if (!isOwnPk) {
         // Hierarchy-FK columns (manager_id, supervisor_id, parent_id) need
         // a top-of-hierarchy row with NULL anchor — and must point STRICTLY
@@ -372,7 +410,11 @@ export function planRowsForSpec(spec, opts = {}) {
 
   const out = [];
   for (const t of ordered) {
-    const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, { rows: opts.rowsPerTable || 12 });
+    const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, {
+      rows: opts.rowsPerTable || 12,
+      partitionCols: opts.partitionCols,
+      windowOrderCols: opts.windowOrderCols,
+    });
     out.push({ table: t.table, colMeta, rows });
   }
   return out;

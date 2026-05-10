@@ -450,6 +450,51 @@ async function dropPreviousQuestionTables(nextQid) {
   }
 }
 
+// Extract column names that appear inside `PARTITION BY ...` clauses of the
+// solution SQL. These tell sample-gen which columns should REPEAT across
+// rows so window functions like LAG/LEAD have something to look at — the
+// canonical bug being a `LEAD(date) OVER (PARTITION BY order_id ...)` query
+// against a table where order_id is unique per row, returning all NULLs.
+function extractWindowHints(sql) {
+  const partition = new Set();
+  const orderByInWindow = new Set();
+  if (!sql) return { partition, orderByInWindow };
+  // Strip strings + comments first so SQL inside literals / docstrings can't
+  // pollute the column list.
+  const cleaned = String(sql)
+    .replace(/'(?:''|\\'|[^'])*'/g, "''")
+    .replace(/"(?:""|\\"|[^"])*"/g, '""')
+    .replace(/--.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const partRe = /\bPARTITION\s+BY\s+([\s\S]+?)(?=\bORDER\s+BY\b|\bROWS\b|\bRANGE\b|\)|$)/gi;
+  let m;
+  while ((m = partRe.exec(cleaned)) !== null) {
+    splitColList(m[1]).forEach((c) => partition.add(c));
+  }
+  // ORDER BY inside an OVER() clause — different from a top-level ORDER BY,
+  // so we look only AFTER an OVER ( and stop at the closing paren.
+  const overRe = /\bOVER\s*\(([\s\S]*?)\)/gi;
+  while ((m = overRe.exec(cleaned)) !== null) {
+    const inside = m[1];
+    const ord = /\bORDER\s+BY\s+([\s\S]+?)(?=\bROWS\b|\bRANGE\b|$)/i.exec(inside);
+    if (ord) splitColList(ord[1]).forEach((c) => orderByInWindow.add(c));
+  }
+  return { partition, orderByInWindow };
+}
+
+function splitColList(text) {
+  // "alias.col, schema.table.col DESC, col2 ASC" → ['col','col','col2']
+  return text
+    .split(",")
+    .map((part) => {
+      const tok = part.trim().replace(/\s+(ASC|DESC|NULLS\s+(FIRST|LAST))\b.*$/i, "").trim();
+      // strip table/alias prefix and quote chars
+      const last = tok.split(".").pop().replace(/[`"\[\]]/g, "").trim();
+      return /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(last) ? last.toLowerCase() : null;
+    })
+    .filter(Boolean);
+}
+
 async function loadQuestionTables(qid) {
   const spec = state.schemasByQid[qid];
   const btn = $("#pg-load-q-tables");
@@ -465,8 +510,18 @@ async function loadQuestionTables(qid) {
     btn.textContent = `Reload ${spec.length} table(s) for question`;
   }
   if (!state.engineReady) return;
+  // Pull window-clause hints from the question's reference solution so the
+  // sampler clusters on PARTITION BY columns instead of generating unique
+  // PKs that defeat the window function.
+  const q = state.sqlQuestions.find((x) => x.id === qid);
+  const hints = extractWindowHints(q?.solution || "");
   try {
-    const summary = await state.engine.loadSpec(spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
+    const summary = await state.engine.loadSpec(spec, {
+      seed: seedFromQid(qid),
+      rowsPerTable: 12,
+      partitionCols: [...hints.partition],
+      windowOrderCols: [...hints.orderByInWindow],
+    });
     for (const s of summary) state.questionCreatedTables.add(s.table);
     const names = summary.map((s) => s.table).join(", ");
     setStatus(`Loaded ${summary.length} synthetic table(s): ${names}`, "ok");
@@ -800,6 +855,22 @@ function wire() {
     refreshTableList();
   });
   $("#pg-csv-load").addEventListener("click", loadCustomCSV);
+
+  $("#pg-clear-editor")?.addEventListener("click", () => {
+    $("#pg-editor").value = "";
+    if (state.currentQ) localStorage.removeItem(LS_EDITOR(state.currentQ.id));
+    setStatus("Editor cleared", "ok");
+  });
+
+  $("#pg-clear-output")?.addEventListener("click", () => {
+    const body = $("#pg-results-body");
+    if (body) body.innerHTML = '<div class="pg-empty">Run a query to see results.</div>';
+    const stats = $("#pg-results-stats");
+    if (stats) stats.textContent = "";
+    const csvBtn = $("#pg-export-csv");
+    if (csvBtn) csvBtn.hidden = true;
+    state.lastResult = null;
+  });
 
   $("#pg-reset-db").addEventListener("click", safeAsync(async () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
