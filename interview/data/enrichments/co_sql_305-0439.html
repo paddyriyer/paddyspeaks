@@ -1,0 +1,136 @@
+<p>Given a stream of order-status updates with timestamps, produce one row per <em>actual status period</em> with start and end dates. The catch the question doesn't tell you about: the source table contains "status pings" — repeated rows of the same status that come from periodic system updates, retries, and re-confirmations. They must be collapsed before any periods are computed. Two SQL ideas working together: <strong>LAG to detect change</strong>, then <strong>LEAD to compute the end of each period</strong>.</p>
+
+<h4>1. The source data — <code>orders</code> as a status log</h4>
+<p>One row per status update. The same order_id appears many times across its lifecycle.</p>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>status</th><th>narrative</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jan 1</td><td>Pending</td><td>real start</td></tr>
+    <tr><td>1</td><td>Jan 2</td><td>Pending</td><td>system re-ping — same status, no real change</td></tr>
+    <tr><td>1</td><td>Jan 3</td><td>Shipped</td><td>real change</td></tr>
+    <tr><td>1</td><td>Jan 5</td><td>Shipped</td><td>another ping</td></tr>
+    <tr><td>1</td><td>Jan 7</td><td>Delivered</td><td>real change</td></tr>
+  </tbody>
+</table>
+<p>Order 1 has 5 rows but only <strong>3 real status periods</strong>: Pending, Shipped, Delivered. The naïve query produces 5 period rows; the correct query produces 3.</p>
+
+<h4>2. The two-CTE solution</h4>
+<pre><code>WITH status_changes AS (
+  SELECT order_id, order_date, status,
+    LAG(status) OVER (PARTITION BY order_id ORDER BY order_date) AS prev_status
+  FROM orders
+),
+filtered AS (
+  SELECT order_id, order_date, status
+  FROM status_changes
+  WHERE status != prev_status OR prev_status IS NULL
+)
+SELECT order_id, status,
+  order_date AS start_date,
+  LEAD(order_date) OVER (PARTITION BY order_id ORDER BY order_date) AS end_date
+FROM filtered
+ORDER BY order_id, start_date;</code></pre>
+
+<h4>3. The expected output</h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>start_date</th><th>end_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Pending</td><td>Jan 1</td><td>Jan 3</td></tr>
+    <tr><td>1</td><td>Shipped</td><td>Jan 3</td><td>Jan 7</td></tr>
+    <tr><td>1</td><td>Delivered</td><td>Jan 7</td><td><strong>NULL</strong></td></tr>
+  </tbody>
+</table>
+<p>The last status of any order has <code>end_date = NULL</code> because <code>LEAD</code> has nothing to look forward to. That's the right semantic: the period is still open.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why dedup BEFORE computing end_date — not after</h5>
+<p>If you applied <code>LEAD(order_date)</code> directly to the raw orders table, the Pending(Jan 1) period would end at Jan 2 (the next ping, not the next real change). Then you'd have to <em>collapse</em> consecutive periods with the same status downstream — much harder than dedup first. The trick is to do all the change-detection in one CTE, filter, then run period-computation on the clean stream.</p>
+
+<h5>The <code>OR prev_status IS NULL</code> safety net — easy to forget</h5>
+<p>The very first row of each order has <code>prev_status IS NULL</code> (nothing to look back at). The natural-looking predicate <code>WHERE status != prev_status</code> evaluates to:</p>
+<pre><code>'Pending' != NULL  →  NULL  (NOT TRUE!)</code></pre>
+<p>SQL's three-valued logic means the first row gets silently filtered out. The order's actual start vanishes; the first period appears to begin at the second ping. The <code>OR prev_status IS NULL</code> rescues the start row.</p>
+
+<h5>The cross-dialect NULL-safe alternative</h5>
+<p>Some teams prefer an explicit NULL-safe operator instead of the OR clause:</p>
+<table>
+  <thead><tr><th>Dialect</th><th>NULL-safe inequality</th></tr></thead>
+  <tbody>
+    <tr><td>SQLite / Postgres</td><td><code>status IS DISTINCT FROM prev_status</code></td></tr>
+    <tr><td>MySQL</td><td><code>NOT (status &lt;=&gt; prev_status)</code></td></tr>
+    <tr><td>BigQuery</td><td><code>status IS DISTINCT FROM prev_status</code></td></tr>
+    <tr><td>SQL Server</td><td>No native — use <code>COALESCE(status, '') &lt;&gt; COALESCE(prev_status, '')</code></td></tr>
+  </tbody>
+</table>
+<p>The <code>IS DISTINCT FROM</code> form treats NULLs as ordinary values — <code>'Pending' IS DISTINCT FROM NULL</code> evaluates to TRUE. One-line replacement for the <code>!=</code> + <code>OR IS NULL</code> idiom.</p>
+
+<h5>LAG vs LEAD — a deliberate pairing</h5>
+<table>
+  <thead><tr><th>Direction</th><th>What it answers</th><th>NULL appears at</th></tr></thead>
+  <tbody>
+    <tr><td><code>LAG</code> (look backward)</td><td>"What was the previous value?" — used to detect a change</td><td>FIRST row of each partition</td></tr>
+    <tr><td><code>LEAD</code> (look forward)</td><td>"When does this end?" — used to find the boundary</td><td>LAST row of each partition</td></tr>
+  </tbody>
+</table>
+<p>Status-period detection needs both: LAG for "did this row start a new period?", LEAD for "when does this period end?". Each NULL is correct on its respective boundary — first row legitimately had no predecessor; last row legitimately has no successor.</p>
+
+<h5>The "first vs last NULL" specification trap</h5>
+<p>Many problem statements say <em>"the first status's end_date should be NULL"</em>. This is almost always a misread of the real semantic — the LEAD-based approach gives <strong>the last status NULL end_date</strong>, which is the right interpretation (the period is open-ended; the order is still in that state). If a problem statement insists the FIRST status has NULL end_date, you'd be inverting the model — periods would be defined by where they ENDED, not where they started. Read carefully and clarify.</p>
+
+<h5>Gaps-and-islands — recognize the family</h5>
+<p>This is the <strong>"island start" variant</strong> of gaps-and-islands. The full family of patterns is worth memorizing:</p>
+<table>
+  <thead><tr><th>Variant</th><th>Mechanism</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Island start detection</strong> (this query)</td><td><code>WHERE val != LAG(val)</code></td><td>State changes, status periods, price changes, plan-tier transitions</td></tr>
+    <tr><td><strong>Island id labelling</strong></td><td><code>SUM(new_island_flag) OVER (...)</code></td><td>Session-id assignment from raw events, run-length encoding</td></tr>
+    <tr><td><strong>Consecutive-day streak</strong></td><td><code>date - ROW_NUMBER() = constant within run</code></td><td>Login streaks, consecutive-day buys, snapshot-data continuity checks</td></tr>
+    <tr><td><strong>Tolerant-streak (allow gaps)</strong></td><td><code>SUM(case when gap &gt; threshold then 1 else 0 end) over (order)</code></td><td>"Continuing streak even with one missed day", session-30min-gap rule</td></tr>
+  </tbody>
+</table>
+<p>All four patterns share the same shape: <em>"compare adjacent rows, mark where adjacency breaks, group by the marker"</em>. Once you've internalized one, the others are 10-line variations.</p>
+
+<h5>The three edge cases the canonical query handles silently</h5>
+<table>
+  <thead><tr><th>Edge case</th><th>Result</th></tr></thead>
+  <tbody>
+    <tr><td>Order with one row only (single status)</td><td>One period, end_date NULL — correct</td></tr>
+    <tr><td>Order with all same status (just pings, no real changes)</td><td>Collapses to one period, end_date NULL — correct</td></tr>
+    <tr><td>Order with status flipping back and forth (Pending → Shipped → Pending → Shipped)</td><td>Each transition produces a new period — the model treats "back to Pending" as a real change, which it is</td></tr>
+  </tbody>
+</table>
+
+<h5>The "session boundary" cousin</h5>
+<p>For raw clickstream where you want to assign a session_id based on a 30-minute idle gap, the same shape applies:</p>
+<pre><code>WITH gaps AS (
+  SELECT user_id, event_at,
+    CASE WHEN event_at - LAG(event_at) OVER (PARTITION BY user_id ORDER BY event_at) &gt; INTERVAL '30 min'
+            OR LAG(event_at) OVER (PARTITION BY user_id ORDER BY event_at) IS NULL
+         THEN 1 ELSE 0 END AS new_session
+  FROM clicks
+),
+sessioned AS (
+  SELECT *, SUM(new_session) OVER (PARTITION BY user_id ORDER BY event_at) AS session_id
+  FROM gaps
+)
+SELECT user_id, session_id, MIN(event_at) AS session_start, MAX(event_at) AS session_end, COUNT(*) AS clicks
+FROM sessioned
+GROUP BY user_id, session_id;</code></pre>
+<p>Same LAG-detect-change pattern, plus <code>SUM(...) OVER ()</code> to assign IDs. This is the most-used streaming-analytics SQL pattern outside of plain aggregations.</p>
+
+<h5>Why the data-quality of <code>orders</code> matters</h5>
+<p>If the source orders table has duplicate (order_id, order_date) rows — same order, same exact timestamp, two writes — the LAG ordering is undefined; the dedup may keep the wrong one. Production-grade pipelines either:</p>
+<ul>
+  <li>Add a tiebreaker column to the ORDER BY: <code>ORDER BY order_date, ingest_seq</code></li>
+  <li>Pre-aggregate duplicates: <code>SELECT DISTINCT order_id, order_date, status FROM orders</code> as the first CTE</li>
+  <li>Enforce uniqueness upstream: a producer-side dedup key on (order_id, order_date)</li>
+</ul>
+
+<h5>Performance — when the CTE chain matters</h5>
+<p>For multi-billion-row order logs, the two-CTE approach is fine because both window functions partition by the same key (order_id) and the planner can stream through. The performance trap is when teams add an <code>ORDER BY</code> on a non-partitioned column in either CTE — that triggers a full sort of the dataset. Keep the partition key consistent across CTEs and you stay on the fast path.</p>
+
+<h5>The senior reframe</h5>
+<p>The interviewer isn't testing whether you can write LAG / LEAD. They're testing whether you ask <em>"can the same status appear twice in a row?"</em> when reading the prompt. The pattern recognition that <em>"status history" → gaps-and-islands → LAG-detect-change → dedup → window-on-clean-stream</em> is the senior signal. Junior engineers write the naïve LEAD-only query and ship it; the duplicate-status bug hits production a week later.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognize "status periods" as a gaps-and-islands variant, dedup BEFORE computing periods (not after), pair LAG-for-detection with LEAD-for-end-boundary, never forget <code>OR prev_status IS NULL</code> (or use <code>IS DISTINCT FROM</code>), and clarify the first-vs-last-NULL specification with the interviewer rather than guessing. The "session boundary via cumulative-flag SUM" cousin is the over-the-bar generalization.</div>

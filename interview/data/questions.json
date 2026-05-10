@@ -19521,5 +19521,51 @@
     "language": "sql",
     "runtime": null,
     "slug": "discount-impact--aov-lift-with-vs-without-coupons"
+  },
+  {
+    "id": "co_sql_305-0438",
+    "batch": "co_sql_305",
+    "num": 438,
+    "title": "MoM Department Increase \u2014 Why LAG Returns NULL",
+    "slug": "mom-department-increase-why-lag-returns-null",
+    "company": "Atlassian",
+    "type": "SQL / Window functions",
+    "subtopic": "LAG NULL handling \u00b7 RANK NULLS LAST \u00b7 COALESCE",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "orders(order_id, customer_id, order_date, order_amount, department_id), departments(department_id, department_name), customers(customer_id, first_name, last_name)",
+    "solution": "WITH months AS (\n  SELECT '2024-01' AS order_month UNION ALL SELECT '2024-02'\n),\ndept_months AS (\n  SELECT d.department_id, d.department_name, m.order_month\n  FROM departments d CROSS JOIN months m\n),\nmonthly_totals AS (\n  SELECT dm.department_id, dm.department_name, dm.order_month,\n    COALESCE(SUM(o.order_amount), 0) AS monthly_amount\n  FROM dept_months dm\n  LEFT JOIN orders o\n    ON o.department_id = dm.department_id\n   AND strftime('%Y-%m', o.order_date) = dm.order_month\n  GROUP BY dm.department_id, dm.department_name, dm.order_month\n),\nmom AS (\n  SELECT department_id, department_name, order_month,\n    monthly_amount - LAG(monthly_amount) OVER (\n      PARTITION BY department_id ORDER BY order_month\n    ) AS mom_increase\n  FROM monthly_totals\n)\nSELECT department_id, department_name, mom_increase\nFROM mom\nWHERE order_month = '2024-02'\nORDER BY mom_increase DESC NULLS LAST\nLIMIT 1;",
+    "runtime": null,
+    "tags": [
+      "aggregation",
+      "analytical-functions",
+      "cte",
+      "joins",
+      "left-join",
+      "null-handling",
+      "set-operations",
+      "string-functions",
+      "union"
+    ]
+  },
+  {
+    "id": "co_sql_305-0439",
+    "batch": "co_sql_305",
+    "num": 439,
+    "title": "Order Status Periods \u2014 Deduplicating Consecutive Status Pings",
+    "slug": "order-status-periods-deduplicating-consecutive-status-pings",
+    "company": "Shopify",
+    "type": "SQL / Window functions",
+    "subtopic": "Gaps-and-islands \u00b7 LAG-detect-change + LEAD-end-date \u00b7 NULL-safe equality",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "orders(order_id, order_date, status)",
+    "solution": "WITH status_changes AS (\n  SELECT order_id, order_date, status,\n    LAG(status) OVER (PARTITION BY order_id ORDER BY order_date) AS prev_status\n  FROM orders\n),\nfiltered AS (\n  SELECT order_id, order_date, status\n  FROM status_changes\n  WHERE status != prev_status OR prev_status IS NULL\n)\nSELECT order_id, status,\n  order_date AS start_date,\n  LEAD(order_date) OVER (PARTITION BY order_id ORDER BY order_date) AS end_date\nFROM filtered\nORDER BY order_id, start_date;",
+    "runtime": null,
+    "tags": [
+      "analytical-functions",
+      "cte",
+      "null-handling"
+    ]
   }
 ]
