@@ -48,33 +48,81 @@ const PAGE_POOL = ["home", "search", "product", "cart", "checkout", "account"];
 
 const TYPE_RULES = [
   // [test(colname) -> type], ordered specific → general
-  { test: (c) => /(^|_)id$/.test(c), type: "INTEGER", role: "id" },
+  // ID — *_id, plus camel/no-underscore variants like productid, customerid
+  { test: (c) => /(^|_)id$/.test(c) || /^(product|customer|order|user|store|account|merchant|company|emp|dept|product|invoice|payment|charge|listing|driver|rider|item|cart|review|booking|trip|session|event|filter|message|connection|recipient|sender|recruiter|author|story|filing|warehouse)id$/.test(c), type: "INTEGER", role: "id" },
   { test: (c) => /(^|_)is_/.test(c), type: "INTEGER", role: "boolean" },
-  { test: (c) => /^(start|end|hire|signup|birth|order|purchase|posted|updated|created|delivered|completed|paid|received|effective|expiry|action|metric|due)_(date|on)$/.test(c) || /_date$/.test(c) || c === "ds" || c === "date" || c === "dob" || c === "month" || c === "week_start", type: "TEXT", role: "date" },
+  // Year — integer column (2020-2024 cycle), so YoY / GROUP-BY-year SQL
+  // gets distinct rows. Must beat the date rule so EXTRACT(year FROM …)
+  // isn't applied to a TEXT date.
+  { test: (c) => /^(year|yr|fiscal_year|sale_year|order_year)$/.test(c), type: "INTEGER", role: "year" },
+  // Date — explicit *_date pattern, plus saledate/tradedate/orderdate etc.
+  // Also _month/_week/_day/_quarter suffix variants and single-letter
+  // date cols (`d`) commonly used in calendar / pivot questions.
+  { test: (c) => /^(start|end|hire|signup|birth|order|purchase|posted|updated|created|delivered|completed|paid|received|effective|expiry|action|metric|due|sale|trade|filing|effective|disp|invoice|publish|snapshot|tested|reviewed|approved|launched|released|published|enrolled|joined)_(date|on)$/.test(c)
+      || /_date$/.test(c)
+      || /_(month|week|day|quarter)$/.test(c)
+      || /^(saledate|tradedate|orderdate|filingdate|paymentdate|hiredate|purchasedate|signupdate|completiondate|invoicedate|expirydate|effectivedate|reviewdate|createddate|updateddate|deliverydate|cancellationdate|launchdate|releasedate|postdate|publishdate|snapshotdate)$/.test(c)
+      || c === "ds" || c === "date" || c === "dob"
+      || c === "month"
+      || c === "week_start" || c === "week_end"
+      || c === "yyyymm" || c === "yyyymmdd"
+      || c === "d" || c === "dt",
+    type: "TEXT", role: "date" },
   // watch_time / watch_minutes / watched_seconds etc. are minute/second
   // COUNTS, not timestamps — must beat the generic _time$ datetime rule.
   { test: (c) => /^(watch_time|watch_minutes|watched_seconds|rebuf_seconds|rebuf_count|watch_seconds|duration_sec)$/.test(c), type: "INTEGER", role: "count" },
-  { test: (c) => /(_at|_ts|_time)$/.test(c) || c === "timestamp", type: "TEXT", role: "datetime" },
-  { test: (c) => /(amount|price|total|revenue|salary|bonus|cost|budget|spend|spent|weight|score|rate|value|profit|gmv|gross|net|fee|tax|discount|balance|due_amount|paid_amount|cogs|avg_|target|quota|goal|forecast|commission|payout)/.test(c), type: "REAL", role: "money" },
-  { test: (c) => /(qty|quantity|count|views|likes|comments|clicks|impressions|sessions|wau|dau|mau|days|seconds|minutes|hours|capacity|tickets_sold|delay_minutes|on_hand|new_subs|cancelled_subs|action_count|duration_sec|episodes_watched|user_continued)/.test(c), type: "INTEGER", role: "count" },
+  { test: (c) => /(_at|_ts|_time)$/.test(c) || c === "timestamp" || c === "ts" || c === "last_tested" || c === "last_seen" || c === "first_seen" || c === "first_active" || c === "last_active", type: "TEXT", role: "datetime" },
+  // Money — broadened to catch directional pivot columns (north/south/
+  // east/west used as `region AS amount` in UNION-pivot questions),
+  // amount-spend and investment-amount variants seen in the corpus.
+  // Substring patterns kept to common stems; anchored alternations for
+  // short acronyms (ARR/MRR/LTV/GMV) prevent false-positive matches like
+  // `skills_array` matching `arr`.
+  { test: (c) => /(amount|price|total|revenue|salary|bonus|cost|budget|spend|spent|weight|score|rate|value|profit|gross|net|fee|tax|discount|balance|due_amount|paid_amount|cogs|avg_|max_|min_|sum_|target|quota|goal|forecast|commission|payout|nps|sla|tip|fare|surge|markup|margin|density|marks|stars|rating|gdp_value|gdp|investment|invested|transferred)/.test(c)
+      || /(^|_)(arr|mrr|ltv|gmv|cac|aov|roas|cpa|cpc|cpm|rpu)(_|$)/.test(c)
+      || /^(north|south|east|west|q1|q2|q3|q4|y2024|y2025|y2026|y2|eu|us|apac|emea|latam)$/.test(c),
+    type: "REAL", role: "money" },
+  // Count — anchored alternations to avoid `count` matching inside
+  // "country", `views` matching inside "previews", etc.
+  { test: (c) => /(^|_)(qty|quantity|count|views|likes|comments|clicks|impressions|sessions|wau|dau|mau|days|seconds|minutes|hours|capacity|streak|n_users|n_orders|num|distinct)(_|$)/.test(c)
+      || /^(tickets_sold|delay_minutes|on_hand|new_subs|cancelled_subs|action_count|duration_sec|duration_secs|episodes_watched|user_continued|streak_days|long_calls|short_calls|missed_calls|enrolled|attempts|retries|reorder_qty|stockouts)$/.test(c)
+      || /_count$|_total$|_qty$/.test(c),
+    type: "INTEGER", role: "count" },
   { test: (c) => /^age$/.test(c), type: "INTEGER", role: "age" },
-  { test: (c) => /^email/.test(c), type: "TEXT", role: "email" },
-  { test: (c) => /^phone/.test(c), type: "TEXT", role: "phone" },
+  { test: (c) => /^(email|emailid|email_address|from_user|to_user|sender|recipient|sender_email|recipient_email)$/.test(c), type: "TEXT", role: "email" },
+  { test: (c) => /^(phone|phone_number|source_phone_nbr|dest_phone_nbr|caller_id|callee_id)$/.test(c) || /(_phone_nbr|_phone)$/.test(c), type: "TEXT", role: "phone" },
   { test: (c) => /(^|_)country/.test(c), type: "TEXT", role: "country" },
   { test: (c) => /(^|_)city/.test(c), type: "TEXT", role: "city" },
   { test: (c) => /(^|_)region/.test(c), type: "TEXT", role: "region" },
-  { test: (c) => /(^|_)category|^classification$/.test(c), type: "TEXT", role: "category" },
-  { test: (c) => /(^|_)status/.test(c), type: "TEXT", role: "status" },
+  { test: (c) => /(^|_)category|^classification$|^genre$|^post_type$|^pin_format$|^action_type$|^event_type$|^txn_type$|^model_type$|^property_type$|^content_type$|^message_type$|^cancellation_type$|^attempt_type$|^metric_type$/.test(c), type: "TEXT", role: "category" },
+  { test: (c) => /(^|_)status$|^state$|^outcome$|^stage$|^bucket$|^band$|^tier$|^plan$|^plan_tier$|^subscription_tier$|^exit_status$|^priority$|^step$|^period$|^segment$|^territory$|^route$|^market$|^marketplace$|^product$|^prod$|^quarter$|^week$|^day$|^subject$/.test(c), type: "TEXT", role: "status" },
+  // Subject-grade columns from school/student questions: english, maths,
+  // science etc. are integer marks — interpret them as count/grade.
+  { test: (c) => /^(english|maths|math|science|history|geography|art|music|reading|writing|grade|test_score)$/.test(c), type: "INTEGER", role: "grade" },
+  { test: (c) => /(^|_)device(_type)?$|(^|_)devicetype$/.test(c), type: "TEXT", role: "device" },
+  // Zones: customer_zone, warehouse_zone, origin_zone, dest_zone — used in
+  // matching / fulfillment questions where the SQL compares same-zone vs
+  // cross-zone. Need to be a real string pool, not a `customer_zone_3` ghost.
+  { test: (c) => /(^|_)(zone|area|borough|district)$/.test(c), type: "TEXT", role: "zone" },
   { test: (c) => /(^|_)platform/.test(c), type: "TEXT", role: "platform" },
   { test: (c) => /(^|_)channel/.test(c), type: "TEXT", role: "channel" },
-  { test: (c) => /(^|_)method/.test(c), type: "TEXT", role: "method" },
+  { test: (c) => /(^|_)method|^match_type$|^mode$|^query_type$/.test(c), type: "TEXT", role: "method" },
   { test: (c) => /(^|_)page/.test(c), type: "TEXT", role: "page" },
-  { test: (c) => /(^|_)dept(_name)?$/.test(c) || /(^|_)department/.test(c), type: "TEXT", role: "department" },
-  { test: (c) => /(first_name|last_name|full_name|customer_name|product_name|emp_name|name|title|description|content|gender|currency|sector|level|job_title|manufacturer|tier|plan|action|event_type|txn_type|attribute_json)/.test(c), type: "TEXT", role: "text" },
+  { test: (c) => /(^|_)dept(_name)?$|(^|_)department/.test(c), type: "TEXT", role: "department" },
+  // Skills-array columns (LinkedIn-style) — must be TEXT containing actual
+  // skill substrings so the LIKE '%python%' filter fires.
+  { test: (c) => /^(skills|skills_array|tags|labels|keywords)$/.test(c), type: "TEXT", role: "skills" },
+  // Pure-text columns where we should pick from the NAME_POOL or generate
+  // a content-shaped value. Includes camelCase/no-underscore variants like
+  // studentname, customername, productname seen in the corpus.
+  { test: (c) => /(first_name|last_name|full_name|customer_name|product_name|emp_name|merchant_name|store_name|host_name|recipient_name|driver_name|rider_name|customername|productname|studentname|hostname|recipientname|drivername|ridername|name|title|description|content|gender|currency|sector|level|job_title|manufacturer|action|attribute_json|geohash|asin|sku|device_model|product_code|partition|location|query_text|query_term|topping|from_user|to_user|subject|note|comment|message_text|reply_text|review_text)/.test(c), type: "TEXT", role: "text" },
 ];
 
 function inferRole(col) {
-  for (const r of TYPE_RULES) if (r.test(col)) return r;
+  // Lowercase the column name so role rules don't have to repeat camelCase
+  // variants (StudentName / studentname / student_name all hit one rule).
+  const lc = String(col || "").toLowerCase();
+  for (const r of TYPE_RULES) if (r.test(lc)) return r;
   return { type: "TEXT", role: "text" };
 }
 
@@ -285,8 +333,14 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
   for (const c of hintPartition) GROUPING_FK.add(c);
   // Detect interval-style tables (shifts, bookings, streams) so end_*
   // ends up AFTER the corresponding start_*.
-  const startCols = colMeta.filter((m) => /^(start|started)_(at|ts|dt|time)$/.test(m.name));
-  const endCols   = colMeta.filter((m) => /^(end|ended)_(at|ts|dt|time)$/.test(m.name));
+  // Interval-pair detection: any *_at|_ts|_time pair where the prefix is
+  // a "start-shaped" verb (start/started/online/login/begin/check_in/
+  // signed_in/in/from) and an "end-shaped" twin (end/ended/offline/logout/
+  // finish/check_out/signed_out/out/to). Lowercased so case variants hit.
+  const STARTS = /^(start|started|begin|began|begun|online|login|signed_in|sign_in|in|from|check_in|checkin|opened|sent|requested|ordered|click|clicked|view|viewed|impression|impressed)_(at|ts|dt|time)$/i;
+  const ENDS   = /^(end|ended|finish|finished|offline|logout|signed_out|sign_out|out|to|check_out|checkout|closed|received|delivered|completed|cancelled|fulfilled|paid|charged)_(at|ts|dt|time)$/i;
+  const startCols = colMeta.filter((m) => STARTS.test(m.name));
+  const endCols   = colMeta.filter((m) => ENDS.test(m.name));
   const isInterval = startCols.length > 0 && endCols.length > 0;
   for (let i = 1; i <= N; i++) {
     const row = {};
@@ -331,15 +385,16 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
     }
     // Force end_* > start_* on interval tables: end = start + 1-3 hours.
     if (isInterval) {
-      for (const sm of startCols) {
+      for (let si = 0; si < startCols.length; si++) {
+        const sm = startCols[si];
         const startVal = row[sm.name];
         if (!startVal) continue;
         const startTime = new Date(startVal).getTime();
-        // Pair this start with the same-suffix end column when possible
-        const suffix = sm.name.replace(/^(start|started)_/, "");
-        const endName = "end_" + suffix in row ? "end_" + suffix : (
-          "ended_" + suffix in row ? "ended_" + suffix : (endCols[0] && endCols[0].name)
-        );
+        // Pair this start with the i-th end column (positional) — works
+        // for online/offline, started/ended, in/out etc. without having
+        // to derive a shared suffix.
+        const em = endCols[Math.min(si, endCols.length - 1)];
+        const endName = em && em.name;
         if (endName && endName in row) {
           // Random 30-180 minutes after start; deterministic from i.
           const minutes = 30 + ((i * 47) % 150);
@@ -383,7 +438,10 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
 }
 
 function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
-  const c = meta.name;
+  // Lowercase the name for column-specific lookups so camelCase variants
+  // (StudentName, ProductID, SaleAmount) match the same hardcoded checks
+  // that lowercase ones do.
+  const c = String(meta.name || "").toLowerCase();
   // Solution-derived literal pool wins over the role's default pool — so
   // `WHERE region='North'` queries against a region column actually find
   // a 'North' row instead of the generic 'NA','EMEA' built-ins. We only
@@ -439,7 +497,13 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
     case "date": return dateOffset(baseDate, dateScheduleOffset(i));
     case "datetime": return datetimeOffset(baseDate, dateScheduleOffset(i) * 86400 + (i * 137) % 86400);
     case "money": return moneyBetween(rng, 10, 1000);
-    case "count": return intBetween(rng, 1, 500);
+    case "count":
+      // duration_sec / call durations / latency need bigger ranges to fire
+      // `> 600`-style filters used in long-call / SLA-breach questions.
+      if (/(duration_sec|call_seconds|response_seconds|latency_seconds|wait_seconds|delay_seconds|listened_seconds|watched_seconds|episode_seconds|song_seconds|played_seconds|delay_minutes|wait_minutes|listened_minutes|response_minutes|watch_minutes|delay_hours|wait_hours)/.test(c)) {
+        return intBetween(rng, 30, 1800);  // 0.5 min to 30 min — straddles 600 threshold
+      }
+      return intBetween(rng, 1, 500);
     case "age": return intBetween(rng, 18, 75);
     case "email": {
       // Cycle through a small pool so duplicate-detection / dedup-self-join
@@ -450,43 +514,98 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
       return `${name}${idx}@example.com`;
     }
     case "phone": return `+1-${intBetween(rng, 200, 999)}-${String(intBetween(rng, 1000, 9999)).padStart(4, "0")}`;
-    case "country": return pick(rng, COUNTRY_POOL);
-    case "city": return pick(rng, CITY_POOL);
-    case "region": return pick(rng, REGION_POOL);
-    case "category": return pick(rng, CATEGORY_POOL);
-    case "status": return pick(rng, STATUS_POOL);
+    // Deterministic cycling for geo dimensions so PARTITION BY country
+    // / city / region produces evenly-sized groups (random pick(rng,…)
+    // gave 1-row groups on small N which broke LAG-based YoY queries).
+    case "country": return COUNTRY_POOL[(i - 1) % COUNTRY_POOL.length];
+    case "city": return CITY_POOL[(i - 1) % CITY_POOL.length];
+    case "region": return REGION_POOL[(i - 1) % REGION_POOL.length];
+    case "category":
+      if (c === "genre") return pick(rng, ["pop","rock","hiphop","jazz","classical","electronic","country","indie"]);
+      if (c === "post_type") return pick(rng, ["article","update","video","poll","story"]);
+      if (c === "pin_format") return pick(rng, ["image","video","collection","story"]);
+      if (c === "action_type") return pick(rng, ["listen","save","share","reaction","comment","reshare","view","applied","recruiter_viewed"]);
+      if (c === "event_type") return pick(rng, ["started","ended","login","view","purchase","logout"]);
+      if (c === "txn_type") return pick(rng, ["debit","credit","transfer","refund"]);
+      return pick(rng, CATEGORY_POOL);
+    case "status":
+      // Many "status-shaped" enums map to natural pools so the canonical
+      // CASE WHEN col = 'X' branches in interview SQL fire instead of
+      // returning all-NULL.
+      if (c === "stage") return pick(rng, ["Qualified","Proposal","Negotiation","Closed Won","Closed Lost"]);
+      if (c === "bucket") return pick(rng, ["0-30","31-60","61-90","90+"]);
+      if (c === "tier" || c === "plan_tier" || c === "subscription_tier" || c === "plan") return pick(rng, ["Free","Pro","Team","Enterprise"]);
+      if (c === "priority") return pick(rng, ["P0","P1","P2","P3"]);
+      if (c === "step") return pick(rng, ["impression","click","add_to_cart","checkout","purchase"]);
+      if (c === "period") return pick(rng, ["2024-Q1","2024-Q2","2024-Q3","2024-Q4","2025-Q1"]);
+      if (c === "quarter") return pick(rng, ["Q1","Q2","Q3","Q4"]);
+      if (c === "week") return pick(rng, ["W1","W2","W3","W4","W5"]);
+      if (c === "day") return pick(rng, ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]);
+      if (c === "subject") return pick(rng, ["English","Maths","Science","History"]);
+      if (c === "segment") return pick(rng, ["new","returning","power","churned","at-risk"]);
+      if (c === "territory") return pick(rng, ["NA-East","NA-West","EMEA","APAC","LATAM"]);
+      if (c === "route") return pick(rng, ["JFK-LAX","SFO-NRT","LHR-DXB","BOM-SIN","FRA-ORD"]);
+      if (c === "market" || c === "marketplace") return pick(rng, ["US","UK","DE","JP","IN"]);
+      if (c === "product" || c === "prod") return pick(rng, ["Widget","Gadget","Doohickey","Thingamajig","Whatsit"]);
+      if (c === "exit_status") return pick(rng, ["continuing","resurrected","long_resurrect","churned","open"]);
+      if (c === "state") return pick(rng, ["active","trial","cancelled","past_due","paused"]);
+      if (c === "outcome") return pick(rng, ["won","lost","pending","abandoned"]);
+      if (c === "band") return pick(rng, ["IC1","IC2","IC3","M1","M2"]);
+      return pick(rng, STATUS_POOL);
+    case "zone":
+      return pick(rng, ["NORTH","SOUTH","EAST","WEST","CENTER"]);
+    case "year":
+      // Year increments every 5 rows so when paired with a 5-cycle geo
+      // dimension (country/region) each (country, year) cell is unique
+      // and PARTITION BY country ORDER BY year sees 5 distinct years
+      // per country. Without this, country and year cycled at the same
+      // rate and every country had only one year — LAG always NULL.
+      return 2020 + Math.floor((i - 1) / 5);
+    case "grade":
+      // School-subject score 50-100, biased high so AVG is meaningful.
+      return intBetween(rng, 50, 100);
+    case "device":
+      return pick(rng, ["tv","mobile","web","tablet","game_console"]);
+    case "skills":
+      // Multi-skill comma-separated strings — LIKE '%python%' matches
+      // some rows but not all, so the canonical filter actually filters.
+      return ["python,sql,scala","java,sql,kafka","python,sql,r","golang,k8s,sql","python,sql,kotlin"][(i - 1) % 5];
     case "platform": return pick(rng, PLATFORM_POOL);
     case "channel": return pick(rng, CHANNEL_POOL);
-    case "method": return pick(rng, METHOD_POOL);
+    case "method":
+      if (c === "match_type") return pick(rng, ["exact","phrase","broad","negative"]);
+      if (c === "mode") return pick(rng, ["driving","walking","transit","cycling"]);
+      if (c === "query_type") return pick(rng, ["text","visual","voice"]);
+      return pick(rng, METHOD_POOL);
     case "page": return pick(rng, PAGE_POOL);
     case "department": return pick(rng, DEPT_POOL);
     case "text":
       if (c === "first_name") return pick(rng, NAME_POOL);
       if (c === "last_name") return pick(rng, SURNAME_POOL);
-      if (c.endsWith("_name") || c === "name" || c === "full_name" || c === "customer_name" || c === "product_name") {
+      if (/(_name$|^name$|^full_name$|^customer_name$|^product_name$|^customername$|^productname$|^studentname$|^hostname$|^recipientname$|^drivername$|^ridername$|^merchant_name$|^store_name$)/.test(c)) {
         return `${pick(rng, NAME_POOL)} ${pick(rng, SURNAME_POOL)}`;
       }
-      // Limit `title` cardinality so duplicate-listing detection has matches
-      // without forcing every row to share a title.
       if (c === "title") return `Item ${((i - 1) % 8) + 1}`;
       if (c === "description" || c === "content") return `Sample ${tableName} content #${((i - 1) % 8) + 1}`;
-      // SKU-style columns the playground sees in LIKE pattern questions.
-      if (c === "sku") {
+      if (c === "sku" || c === "product_code") {
         const buckets = [`PROMO-${i}`, `STD-${i}`, `LTD-${i}-2025`, `CLEAR-${i}`, `BUNDLE-${i}-2024`];
         return buckets[(i - 1) % buckets.length];
       }
-      if (c === "ticker") {
-        const tickers = ["META", "AAPL", "AMZN", "NFLX", "GOOG", "MSFT", "TSLA"];
-        return tickers[(i - 1) % tickers.length];
-      }
+      if (c === "ticker") return ["META", "AAPL", "AMZN", "NFLX", "GOOG", "MSFT", "TSLA"][(i - 1) % 7];
+      if (c === "asin") return ["B08N5WRWNW", "B07FZ8S74R", "B09KMVJ2QH", "B0BQXLM4LK", "B0CHX9FKXJ"][(i - 1) % 5];
+      if (c === "geohash") return ["dr5r", "9q5c", "gcpvj", "u4pruyd", "dp3w"][(i - 1) % 5];
+      if (c === "device_model") return ["iPhone 14", "iPhone 15", "iPhone 16 Pro", "Pixel 8", "Galaxy S24"][(i - 1) % 5];
+      if (c === "partition") return `p${((i - 1) % 4) + 1}`;
+      if (c === "location") return pick(rng, CITY_POOL);
+      if (c === "query_text") return pick(rng, ["stranger things", "comedy specials", "korean drama", "documentaries", "scifi"]);
+      if (c === "query_term") return pick(rng, ["weather", "tax filing", "game release", "photos backup", "health insurance"]);
+      if (c === "topping") return pick(rng, ["Mushroom", "Olive", "Pepper", "Sausage", "Tomato", "Onion"]);
       if (c === "gender") return pick(rng, ["F", "M", "X"]);
       if (c === "currency") return pick(rng, ["USD", "EUR", "INR", "JPY", "GBP"]);
       if (c === "sector") return pick(rng, ["Tech", "Retail", "Health", "Finance", "Energy"]);
       if (c === "level") return pick(rng, ["IC", "Manager", "Senior Manager", "Director", "VP"]);
       if (c === "job_title") return pick(rng, ["Engineer", "Manager", "Analyst", "Designer", "PM", "Director"]);
       if (c === "manufacturer") return pick(rng, ["Acme", "Globex", "Initech", "Umbrella", "Wayne"]);
-      if (c === "tier") return pick(rng, ["bronze", "silver", "gold", "platinum"]);
-      if (c === "plan") return pick(rng, ["free", "pro", "team", "enterprise"]);
       if (c === "action") return pick(rng, ["click", "view", "purchase", "share", "comment"]);
       if (c === "event_type") return pick(rng, ["signup", "login", "view", "purchase", "logout"]);
       if (c === "txn_type") return pick(rng, ["debit", "credit", "transfer", "refund"]);
@@ -574,6 +693,7 @@ export function pgTypeFor(meta) {
   if (meta.role === "date") return "DATE";
   if (meta.role === "datetime") return "TIMESTAMP";
   if (meta.role === "money") return "NUMERIC(12,2)";
+  if (meta.role === "year" || meta.role === "grade" || meta.role === "age") return "INTEGER";
   if (meta.type === "INTEGER") return "INTEGER";
   if (meta.type === "REAL") return "DOUBLE PRECISION";
   return "TEXT";
