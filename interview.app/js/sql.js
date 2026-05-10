@@ -177,13 +177,44 @@ async function loadAllCSVs() {
 
 // ─── Engine lifecycle ───
 // Decide which engine should run a given question. Manual override wins; in
-// 'auto' mode we default to SQLite unless the question's runtime tag says
-// otherwise.
+// 'auto' mode looks at the question's runtime tag. The tag was set by the
+// dialect-classifier audit which scans each solution for SQLite-only
+// markers (julianday, strftime, IIF) vs Postgres-only markers (DATE_TRUNC,
+// FILTER WHERE, IS DISTINCT FROM, NULLS LAST, INTERVAL '...', string_agg)
+// — so a question whose reference solution uses julianday() auto-routes
+// to SQLite even when no explicit tag is set.
 function pickEngineKindFor(q) {
   if (state.runtimePref === "sqlite") return "sqlite";
   if (state.runtimePref === "postgres") return "postgres";
   if (q && q.runtime === "postgres") return "postgres";
+  if (q && q.runtime === "sqlite") return "sqlite";
+  // Untagged: peek at the solution as a final safety net.
+  if (q && q.solution) {
+    if (/\b(julianday|strftime)\s*\(/i.test(q.solution)) return "sqlite";
+    if (/\b(DATE_TRUNC|FILTER\s*\(\s*WHERE|IS\s+DISTINCT\s+FROM|generate_series|string_agg)\b/i.test(q.solution)) return "postgres";
+    if (/\bINTERVAL\s+'[^']+'/i.test(q.solution)) return "postgres";
+  }
   return "sqlite";
+}
+
+// SQLite-specific function tokens — used to refuse to run a SQLite-flavored
+// solution on the Postgres engine (and vice versa for the existing Postgres
+// detector below). Without this the user sees a confusing
+// `function julianday(timestamp without time zone) does not exist` from
+// PGlite when they manually picked the wrong engine.
+const SQLITE_ONLY_TOKENS = [
+  /\bjulianday\s*\(/i,
+  /\bstrftime\s*\(/i,
+  /\bIIF\s*\(/i,
+];
+
+function detectSqliteOnly(sql) {
+  const cleaned = stripStringsAndComments(sql);
+  for (const re of SQLITE_ONLY_TOKENS) {
+    const m = re.exec(cleaned);
+    if (m) return m[0];
+  }
+  return null;
 }
 
 async function ensureEngine(kind) {
@@ -650,8 +681,10 @@ async function runQuery() {
   // re-render the canonical reference (banner + code) for the active
   // question so the reader sees what the answer actually looks like —
   // that's the value, even when it can't execute here.
-  // Only run the dialect pre-flight check when the active engine is SQLite.
-  // On Postgres these idioms are native, so we let pglite execute them.
+  // Pre-flight dialect checks. Each engine has functions the OTHER engine
+  // doesn't recognize — surfacing a clear banner is much better than the
+  // cryptic `function julianday(timestamp without time zone) does not exist`
+  // PGlite emits when it sees a SQLite-flavored query.
   if (state.engine?.kind === "sqlite") {
     const incompat = detectNonSqlite(sql);
     if (incompat) {
@@ -667,6 +700,19 @@ async function runQuery() {
         });
       }
       setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
+      return;
+    }
+  } else if (state.engine?.kind === "postgres") {
+    const sqliteOnly = detectSqliteOnly(sql);
+    if (sqliteOnly) {
+      renderError({ message:
+        `This query uses '${sqliteOnly}', a SQLite-specific function ` +
+        `that PostgreSQL doesn't have.\n\n` +
+        `Switch the engine to SQLite (via the dropdown above) to run it ` +
+        `as-written, or rewrite the date math using PostgreSQL syntax ` +
+        `(e.g. \`a - b\` returns an INTERVAL, or \`EXTRACT(EPOCH FROM ...)\`).`
+      });
+      setStatus(`SQLite-only function: ${sqliteOnly} — switch engine to SQLite`, "error");
       return;
     }
   }
