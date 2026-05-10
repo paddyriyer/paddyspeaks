@@ -650,15 +650,20 @@ const NON_SQLITE_TOKENS = [
 // like 'Returning' or 'qualify' never trips the regex (the keyword RETURNING
 // in Postgres is a real clause; the word inside quotes is just data).
 function stripStringsAndComments(sql) {
+  // STRIP COMMENTS FIRST. If we strip strings first, an apostrophe inside
+  // a `-- Customer's history` line comment leaves the string regex
+  // unbalanced and it eats through real code (including SQL keywords like
+  // julianday(...)) until it finds another quote — silently defeating
+  // the dialect detector.
   return sql
-    // single-quoted strings (handle '' escape inside)
-    .replace(/'(?:''|\\'|[^'])*'/g, "''")
-    // double-quoted identifiers / strings
-    .replace(/"(?:""|\\"|[^"])*"/g, '""')
     // line comments
     .replace(/--.*$/gm, '')
     // block comments
-    .replace(/\/\*[\s\S]*?\*\//g, '');
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    // single-quoted strings (handle '' escape inside)
+    .replace(/'(?:''|\\'|[^'])*'/g, "''")
+    // double-quoted identifiers / strings
+    .replace(/"(?:""|\\"|[^"])*"/g, '""');
 }
 
 function detectNonSqlite(sql) {
