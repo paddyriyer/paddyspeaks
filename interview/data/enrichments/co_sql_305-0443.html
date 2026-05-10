@@ -1,0 +1,66 @@
+<p>Salesforce opportunities move through ranked stages (Qualified → Proposal → Negotiation → Closed Won), but real deals don't go forward only. A deal might fall back from Negotiation to Proposal when the prospect requests a redo. The query produces one row per stage period AND labels the direction (forward / backward / lateral / initial) using the stage_rank column.</p>
+
+<h4>1. The source data — <code>opp_stage_history</code></h4>
+<table>
+  <thead><tr><th>opp_id</th><th>stage</th><th>stage_rank</th><th>entered_at</th></tr></thead>
+  <tbody>
+    <tr><td>O_001</td><td>Qualified</td><td>1</td><td>Jan 1</td></tr>
+    <tr><td>O_001</td><td>Proposal</td><td>2</td><td>Feb 1</td></tr>
+    <tr><td>O_001</td><td>Negotiation</td><td>3</td><td>Mar 1</td></tr>
+    <tr><td>O_001</td><td>Proposal</td><td>2</td><td>Mar 15</td></tr>
+    <tr><td>O_001</td><td>Closed Won</td><td>4</td><td>Apr 1</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The SQL — LAG of BOTH stage and rank, then direction CASE</h4>
+<pre><code>WITH changes AS (
+  SELECT opp_id, entered_at, stage, stage_rank,
+    LAG(stage)      OVER (PARTITION BY opp_id ORDER BY entered_at) AS prev_stage,
+    LAG(stage_rank) OVER (PARTITION BY opp_id ORDER BY entered_at) AS prev_rank
+  FROM opp_stage_history
+),
+filtered AS (
+  SELECT opp_id, entered_at, stage, stage_rank, prev_rank
+  FROM changes
+  WHERE stage != prev_stage OR prev_stage IS NULL
+)
+SELECT opp_id, stage,
+  entered_at AS period_start,
+  LEAD(entered_at) OVER (PARTITION BY opp_id ORDER BY entered_at) AS period_end,
+  CASE
+    WHEN prev_rank IS NULL                        THEN 'initial'
+    WHEN stage_rank &gt; prev_rank                   THEN 'forward'
+    WHEN stage_rank &lt; prev_rank                   THEN 'backward'
+    ELSE 'lateral'
+  END AS direction
+FROM filtered
+ORDER BY opp_id, period_start;</code></pre>
+
+<h4>3. Strategic explanations</h4>
+
+<h5>Two LAGs in one query</h5>
+<p>The query needs to know both the previous stage (for change detection) and the previous rank (for direction labelling). Two parallel LAG calls share the same window — the planner computes them together in one sort, no double work.</p>
+
+<h5>Why "lateral" is its own bucket</h5>
+<p>Some Salesforce orgs add custom stages at the same rank (e.g., "Proposal — Technical Review" and "Proposal — Pricing Review" both at rank 2). A transition between them is neither forward nor backward; it's lateral. Distinguishing the three categories matters for funnel-velocity analysis: <em>"how often do deals go backward?"</em> is a different question from <em>"how often do they shuffle laterally?"</em></p>
+
+<h5>The backward-rate KPI</h5>
+<p>Backward-transition rate is the leading indicator of pipeline-health problems. Healthy pipeline: 5-10% of stage transitions are backward. Above 20% means something is broken — sales process unclear, qualification weak, deals re-opened post-loss.</p>
+<pre><code>SELECT
+  100.0 * SUM(CASE WHEN direction = 'backward' THEN 1 ELSE 0 END) / COUNT(*) AS backward_rate_pct
+FROM (/* this query */)
+WHERE direction != 'initial';</code></pre>
+
+<h5>Time-in-stage with direction</h5>
+<p>Two-month negotiation period that ENDS in backward = the negotiation collapsed. Two-month negotiation that ENDS in forward = the deal advanced normally. Same duration, opposite outcomes. Slice:</p>
+<pre><code>... avg_days_in_stage by stage, direction-of-EXIT</code></pre>
+
+<h5>The "skipped stage" detection</h5>
+<p>The query catches stage skips implicitly: a transition from rank 1 to rank 4 still counts as "forward" but skips ranks 2 and 3. Production tracks this with an additional flag:</p>
+<pre><code>CASE WHEN stage_rank - prev_rank &gt; 1 THEN 'skip' ELSE 'normal' END AS skip_flag</code></pre>
+<p>Skipped stages indicate bad data hygiene — usually rep entered the wrong stage and corrected it later.</p>
+
+<h5>Stage-rank as a dim, not a fact column</h5>
+<p>The stage_rank ideally lives in <code>dim_stage</code>, not denormalized on every opportunity row. Salesforce orgs change the stage list quarterly; if rank lives in the fact, every change requires backfill. SCD2 dim with effective_from/_to lets historical periods retain their then-correct rank.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> two parallel LAGs (stage + rank) in one window, four-way direction classification (initial / forward / backward / lateral) for funnel-velocity analysis, backward-rate &gt; 20% as a pipeline-health alarm, and SCD2 dim_stage to keep rank historically correct under stage-list churn.</div>

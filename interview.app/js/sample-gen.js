@@ -350,6 +350,35 @@ function generateCell(meta, i, tableName, baseDate, rng, ownedIdMap) {
 function quoteIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"'; }
 
 /**
+ * Plan rows for a spec without loading them into any engine. Returns the
+ * shared shape both the SQLite (sql.js, sync) and Postgres (pglite, async)
+ * loaders consume.
+ * @param {Array<{table:string, columns:string[]}>} spec
+ * @param {object} opts { seed?: number, rowsPerTable?: number }
+ * @returns {{table:string, colMeta:Array, rows:object[]}[]}
+ */
+export function planRowsForSpec(spec, opts = {}) {
+  const seed = opts.seed ?? 42;
+  const rng = mulberry32(seed);
+  const ownedIdMap = {};
+
+  // First pass: dim-style tables (own PK only) before fact tables, so FKs
+  // resolve cleanly when generateRows reaches the fact table.
+  const ordered = [...spec].sort((a, b) => {
+    const aIsFK = a.columns.some((c) => /(^|_)id$/.test(c) && c !== "id" && c !== `${a.table}_id` && c !== `${a.table.replace(/s$/, "")}_id`);
+    const bIsFK = b.columns.some((c) => /(^|_)id$/.test(c) && c !== "id" && c !== `${b.table}_id` && c !== `${b.table.replace(/s$/, "")}_id`);
+    return Number(aIsFK) - Number(bIsFK);
+  });
+
+  const out = [];
+  for (const t of ordered) {
+    const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, { rows: opts.rowsPerTable || 12 });
+    out.push({ table: t.table, colMeta, rows });
+  }
+  return out;
+}
+
+/**
  * Create SQLite tables for the given spec on the provided sql.js Database.
  * @param {Database} db sql.js Database instance
  * @param {Array<{table:string, columns:string[]}>} spec
@@ -357,25 +386,14 @@ function quoteIdent(name) { return '"' + String(name).replace(/"/g, '""') + '"';
  * @returns {{table:string, rows:number, cols:Array}[]} summary
  */
 export function generateAndLoad(db, spec, opts = {}) {
-  const seed = opts.seed ?? 42;
-  const rng = mulberry32(seed);
-  const ownedIdMap = {};
+  const plan = planRowsForSpec(spec, opts);
   const summary = [];
-
-  // First pass: tables that look like dimensions (have own PK only) before fact tables
-  const ordered = [...spec].sort((a, b) => {
-    const aIsFK = a.columns.some((c) => /(^|_)id$/.test(c) && c !== "id" && c !== `${a.table}_id` && c !== `${a.table.replace(/s$/, "")}_id`);
-    const bIsFK = b.columns.some((c) => /(^|_)id$/.test(c) && c !== "id" && c !== `${b.table}_id` && c !== `${b.table.replace(/s$/, "")}_id`);
-    return Number(aIsFK) - Number(bIsFK);
-  });
-
-  for (const t of ordered) {
-    const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, { rows: opts.rowsPerTable || 12 });
+  for (const { table, colMeta, rows } of plan) {
     const colDefs = colMeta.map((m) => `${quoteIdent(m.name)} ${m.type}`).join(", ");
-    if (opts.drop !== false) db.run(`DROP TABLE IF EXISTS ${quoteIdent(t.table)};`);
-    db.run(`CREATE TABLE IF NOT EXISTS ${quoteIdent(t.table)} (${colDefs});`);
+    if (opts.drop !== false) db.run(`DROP TABLE IF EXISTS ${quoteIdent(table)};`);
+    db.run(`CREATE TABLE IF NOT EXISTS ${quoteIdent(table)} (${colDefs});`);
     const placeholders = colMeta.map(() => "?").join(",");
-    const stmt = db.prepare(`INSERT INTO ${quoteIdent(t.table)} VALUES (${placeholders})`);
+    const stmt = db.prepare(`INSERT INTO ${quoteIdent(table)} VALUES (${placeholders})`);
     db.exec("BEGIN");
     try {
       for (const r of rows) stmt.run(colMeta.map((m) => r[m.name]));
@@ -386,9 +404,21 @@ export function generateAndLoad(db, spec, opts = {}) {
     } finally {
       stmt.free();
     }
-    summary.push({ table: t.table, rows: rows.length, cols: colMeta.map((m) => `${m.name}:${m.type}`) });
+    summary.push({ table, rows: rows.length, cols: colMeta.map((m) => `${m.name}:${m.type}`) });
   }
   return summary;
+}
+
+// Map a sample-gen colMeta entry to a Postgres-friendly type. SQLite gets
+// INTEGER/REAL/TEXT for everything, but Postgres needs DATE/TIMESTAMP for
+// DATE_TRUNC / EXTRACT / interval arithmetic to work on the synthetic data.
+export function pgTypeFor(meta) {
+  if (meta.role === "date") return "DATE";
+  if (meta.role === "datetime") return "TIMESTAMP";
+  if (meta.role === "money") return "NUMERIC(12,2)";
+  if (meta.type === "INTEGER") return "INTEGER";
+  if (meta.type === "REAL") return "DOUBLE PRECISION";
+  return "TEXT";
 }
 
 // Stable seed from a question id like "co_sql_305-0042"
