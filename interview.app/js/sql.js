@@ -180,21 +180,21 @@ async function loadAllCSVs() {
 // 'auto' mode looks at the question's runtime tag. The tag was set by the
 // dialect-classifier audit which scans each solution for SQLite-only
 // markers (julianday, strftime, IIF) vs Postgres-only markers (DATE_TRUNC,
-// FILTER WHERE, IS DISTINCT FROM, NULLS LAST, INTERVAL '...', string_agg)
-// — so a question whose reference solution uses julianday() auto-routes
-// to SQLite even when no explicit tag is set.
+// FILTER WHERE, IS DISTINCT FROM, NULLS LAST, INTERVAL '...', string_agg).
+// PostgreSQL is the priority dialect — auto-mode lands on PGlite for
+// portable queries; SQLite is reserved for solutions that explicitly
+// need julianday/strftime.
 function pickEngineKindFor(q) {
   if (state.runtimePref === "sqlite") return "sqlite";
   if (state.runtimePref === "postgres") return "postgres";
-  if (q && q.runtime === "postgres") return "postgres";
   if (q && q.runtime === "sqlite") return "sqlite";
-  // Untagged: peek at the solution as a final safety net.
+  if (q && q.runtime === "postgres") return "postgres";
+  // Untagged: peek at the solution as a final safety net. SQLite-only
+  // markers force SQLite; everything else defaults to Postgres.
   if (q && q.solution) {
     if (/\b(julianday|strftime)\s*\(/i.test(q.solution)) return "sqlite";
-    if (/\b(DATE_TRUNC|FILTER\s*\(\s*WHERE|IS\s+DISTINCT\s+FROM|generate_series|string_agg)\b/i.test(q.solution)) return "postgres";
-    if (/\bINTERVAL\s+'[^']+'/i.test(q.solution)) return "postgres";
   }
-  return "sqlite";
+  return "postgres";
 }
 
 // SQLite-specific function tokens — used to refuse to run a SQLite-flavored
