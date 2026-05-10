@@ -32,6 +32,14 @@ const COUNTRY_POOL = ["IN", "US", "DE", "BR", "JP", "NG", "GB", "FR", "AU", "SG"
 const DEPT_POOL = ["Engineering", "Marketing", "Sales", "Finance", "HR", "Product", "Data", "Ops", "Design"];
 const CATEGORY_POOL = ["Electronics", "Books", "Apparel", "Home", "Toys", "Sports", "Beauty", "Grocery"];
 const STATUS_POOL = ["pending", "active", "inactive", "completed", "cancelled", "shipped", "failed", "up", "down"];
+// Forward-progression lifecycle for status-log tables. Emits the SAME status
+// twice in a row inside each cluster so the canonical
+//   `WHERE status != prev_status OR prev_status IS NULL` dedup logic
+// has consecutive duplicates to collapse — that's the point of the
+// gaps-and-islands question. Last status of each cluster is the terminal
+// state (Delivered), so the LEAD-based end_date NULL lands on it.
+const LIFECYCLE_POOL = ["Pending", "Shipped", "Delivered", "Cancelled"];
+const LIFECYCLE_PATTERN_5 = [0, 0, 1, 1, 2]; // P, P, S, S, D for 5-row clusters
 const PLATFORM_POOL = ["ios", "android", "web", "macos", "windows"];
 const CHANNEL_POOL = ["organic", "paid", "email", "referral", "social"];
 const METHOD_POOL = ["card", "cash", "wire", "ach", "wallet"];
@@ -278,6 +286,29 @@ function generateRows({ table, columns }, spec, rng, ownedIdMap, opts = {}) {
       }
     }
     rows.push(row);
+  }
+  // Status-log post-process: when the solution PARTITIONs by an id column
+  // on this table AND we have a `status` column without a user-supplied
+  // literal pool, force a forward lifecycle (Pending → Shipped → Delivered)
+  // within each cluster. This is the missing piece that made co_sql_305-0439
+  // produce semantically wrong end_date NULLs — the terminal Delivered
+  // status should be the open-ended row, not whatever status fell last in
+  // a random cycle.
+  if (CLUSTER_SIZE > 1 && hintPartition.size > 0) {
+    const statusCol = colMeta.find(
+      (m) => m.role === "status" && !(m.literalPool && m.literalPool.length)
+    );
+    if (statusCol) {
+      const pattern = (CLUSTER_SIZE === 5)
+        ? LIFECYCLE_PATTERN_5
+        : Array.from({ length: CLUSTER_SIZE }, (_, k) =>
+            Math.min(k * (LIFECYCLE_POOL.length - 1) / (CLUSTER_SIZE - 1) | 0, LIFECYCLE_POOL.length - 2));
+      for (let i = 0; i < rows.length; i++) {
+        const posInCluster = i % CLUSTER_SIZE;
+        const idx = pattern[posInCluster] ?? 0;
+        rows[i][statusCol.name] = LIFECYCLE_POOL[idx];
+      }
+    }
   }
   // Track owned IDs (PK of this table) for FK reuse
   const pkCol = colMeta.find(
