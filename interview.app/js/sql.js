@@ -1,13 +1,16 @@
 // ════════════════════════════════════════════════════════════
-// SQL Playground — sql.js (SQLite-WASM) in-browser
+// SQL Playground — SQLite (sql.js) by default, PostgreSQL (PGlite) on demand
 // ════════════════════════════════════════════════════════════
-import { generateAndLoad, seedFromQid } from "./sample-gen.js";
+import { seedFromQid } from "./sample-gen.js";
+import { SqliteEngine } from "./engines/sqlite-engine.js";
+import { PgliteEngine } from "./engines/pglite-engine.js";
 
 const DATA_BASE = "../interview/data";
 const CSV_BASE = "../interview/sample%20dataset";
 const QUESTIONS_URL = `${DATA_BASE}/questions.json`;
 const SCHEMAS_URL = `${DATA_BASE}/question_schemas.json`;
 const LS_LAST_Q = "pg.sql.lastQ";
+const LS_RUNTIME = "pg.sql.runtime";  // 'auto' | 'sqlite' | 'postgres'
 // Per-question editor key — one slot per question id so switching questions
 // no longer leaks the previous question's solution into the editor.
 const LS_EDITOR = (qid) => `pg.sql.editor.${qid || "default"}`;
@@ -34,8 +37,9 @@ const CSV_FILES = [
 const $ = (sel) => document.querySelector(sel);
 
 const state = {
-  SQL: null,
-  db: null,
+  engine: null,                // active engine (SqliteEngine | PgliteEngine)
+  enginesByKind: {},           // lazily-instantiated cache so switching back is instant
+  runtimePref: "auto",         // 'auto' | 'sqlite' | 'postgres' from the toolbar
   questions: [],
   sqlQuestions: [],
   schemasByQid: {},
@@ -67,6 +71,18 @@ function setStatus(msg, kind = "") {
   if (!el) return;
   el.textContent = msg;
   el.className = "pg-status" + (kind ? " is-" + kind : "");
+}
+
+function updateEngineBadge() {
+  const el = $("#pg-engine-badge");
+  if (!el) return;
+  if (!state.engine) {
+    el.textContent = "—";
+    el.removeAttribute("data-engine");
+    return;
+  }
+  el.textContent = state.engine.kind === "postgres" ? "PostgreSQL" : "SQLite";
+  el.setAttribute("data-engine", state.engine.kind);
 }
 
 // ─── CSV parser (handles quoted commas + escaped quotes) ───
@@ -144,29 +160,10 @@ async function loadCSVAsTable(filename) {
   const data = rows.slice(1);
   const types = inferColumnTypes(headers, data);
   const tableName = filename.replace(/\.csv$/i, "");
-
-  const colDefs = headers.map((h, i) => `${quoteIdent(h)} ${types[i]}`).join(", ");
-  state.db.run(`DROP TABLE IF EXISTS ${quoteIdent(tableName)};`);
-  state.db.run(`CREATE TABLE ${quoteIdent(tableName)} (${colDefs});`);
-
-  const placeholders = headers.map(() => "?").join(",");
-  const stmt = state.db.prepare(
-    `INSERT INTO ${quoteIdent(tableName)} VALUES (${placeholders})`
-  );
-  state.db.exec("BEGIN");
-  try {
-    for (const row of data) {
-      if (row.length === 1 && row[0] === "") continue;
-      const padded = headers.map((_, i) => castValue(row[i], types[i]));
-      stmt.run(padded);
-    }
-    state.db.exec("COMMIT");
-  } catch (e) {
-    state.db.exec("ROLLBACK");
-    throw e;
-  } finally {
-    stmt.free();
-  }
+  const records = data
+    .filter((row) => !(row.length === 1 && row[0] === ""))
+    .map((row) => headers.map((_, i) => castValue(row[i], types[i])));
+  await state.engine.loadCSV(tableName, headers, types, records);
   state.loadedTables.add(tableName);
 }
 
@@ -178,54 +175,74 @@ async function loadAllCSVs() {
   }
 }
 
-// ─── DB lifecycle ───
-async function initEngine() {
-  setStatus("Loading SQLite engine (~1 MB WASM)…");
-  if (typeof window.initSqlJs !== "function") {
-    throw new Error("sql.js failed to load — check your network or ad blocker.");
+// ─── Engine lifecycle ───
+// Decide which engine should run a given question. Manual override wins; in
+// 'auto' mode we default to SQLite unless the question's runtime tag says
+// otherwise.
+function pickEngineKindFor(q) {
+  if (state.runtimePref === "sqlite") return "sqlite";
+  if (state.runtimePref === "postgres") return "postgres";
+  if (q && q.runtime === "postgres") return "postgres";
+  return "sqlite";
+}
+
+async function ensureEngine(kind) {
+  if (state.enginesByKind[kind]) return state.enginesByKind[kind];
+  if (kind === "postgres") {
+    setStatus("Loading PostgreSQL engine (PGlite, ~3 MB)…");
+    const eng = new PgliteEngine();
+    await eng.init();
+    state.enginesByKind[kind] = eng;
+    return eng;
   }
-  const SQL = await window.initSqlJs({
-    locateFile: (file) => `./vendor/sql.js/${file}`,
-  });
-  state.SQL = SQL;
-  await resetDB();
+  setStatus("Loading SQLite engine (~1 MB WASM)…");
+  const eng = new SqliteEngine();
+  await eng.init();
+  state.enginesByKind[kind] = eng;
+  return eng;
+}
+
+async function activateEngine(kind, { reseed = true } = {}) {
+  const eng = await ensureEngine(kind);
+  if (state.engine === eng) return eng;
+  state.engine = eng;
   setEngineReady(true);
+  updateEngineBadge();
+  if (reseed) {
+    state.loadedTables.clear();
+    state.questionCreatedTables.clear();
+    await loadAllCSVs();
+    await refreshTableList();
+  }
+  return eng;
+}
+
+async function initEngine() {
+  // Boot the SQLite engine eagerly (it's the default for ~90% of questions
+  // and the WASM is local), then the Postgres path lights up lazily when a
+  // question or the toolbar asks for it.
+  await activateEngine("sqlite");
   setStatus(`Ready · ${state.loadedTables.size} tables loaded`, "ok");
 }
 
 async function resetDB() {
-  if (state.db) state.db.close();
-  state.db = new state.SQL.Database();
+  if (!state.engine) return;
+  await state.engine.reset();
   state.loadedTables.clear();
   state.questionCreatedTables.clear();
   await loadAllCSVs();
-  refreshTableList();
+  await refreshTableList();
 }
 
 // ─── Schema sidebar ───
-function getTables() {
-  const r = state.db.exec(
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-  );
-  if (!r.length) return [];
-  return r[0].values.map((row) => row[0]);
-}
-
-function getTableInfo(name) {
-  const cols = state.db.exec(`PRAGMA table_info(${quoteIdent(name)})`);
-  const cnt = state.db.exec(`SELECT COUNT(*) FROM ${quoteIdent(name)}`);
-  return {
-    cols: cols.length ? cols[0].values.map((r) => ({ name: r[1], type: r[2] })) : [],
-    count: cnt.length ? cnt[0].values[0][0] : 0,
-  };
-}
-
-function refreshTableList() {
+async function refreshTableList() {
   const ul = $("#pg-table-list");
+  if (!ul) return;
   ul.innerHTML = "";
-  const tables = getTables();
+  if (!state.engine) return;
+  const tables = await state.engine.listTables();
   for (const t of tables) {
-    const info = getTableInfo(t);
+    const info = await state.engine.tableInfo(t);
     const li = document.createElement("li");
     const head = document.createElement("div");
     head.className = "pg-table-name";
@@ -357,14 +374,24 @@ function loadQuestion(qid /* , opts unused */) {
   url.searchParams.set("q", qid);
   history.replaceState(null, "", url);
 
-  // Auto-load this question's tables. Drop any synthetic tables left over
-  // from the previous question first — otherwise stale shapes (e.g. a
-  // leftover sales_2024 with id/name/value) shadow the new question's
-  // expected schema.
-  if (state.autoLoadQuestionTables && state.engineReady) {
-    dropPreviousQuestionTables(qid);
-    loadQuestionTables(qid);
-  }
+  // Switch to the right engine for this question (lazy-loads PGlite the
+  // first time a Postgres question is opened), then auto-load tables.
+  const wantedKind = pickEngineKindFor(q);
+  const switchAndLoad = async () => {
+    if (state.engine && state.engine.kind !== wantedKind) {
+      await activateEngine(wantedKind);
+    } else if (!state.engine) {
+      await activateEngine(wantedKind);
+    }
+    if (state.autoLoadQuestionTables && state.engineReady) {
+      await dropPreviousQuestionTables(qid);
+      await loadQuestionTables(qid);
+    }
+  };
+  switchAndLoad().catch((err) => {
+    console.error(err);
+    setStatus("Engine switch failed: " + err.message, "error");
+  });
 
   // Up-front dialect banner if the reference solution uses
   // Snowflake/PostgreSQL features we can't run. Show the canonical
@@ -406,7 +433,7 @@ function renderDialectReference(q) {
 }
 
 // Track which tables were created by which question so we can clean up.
-function dropPreviousQuestionTables(nextQid) {
+async function dropPreviousQuestionTables(nextQid) {
   const baseCsv = new Set(CSV_FILES.map((f) => f.replace(/\.csv$/i, "")));
   const keepFromNext = new Set(
     (state.schemasByQid[nextQid] || []).map((s) => s.table)
@@ -415,7 +442,7 @@ function dropPreviousQuestionTables(nextQid) {
     if (baseCsv.has(t)) continue;            // never drop CSVs
     if (keepFromNext.has(t)) continue;       // about to be re-created anyway
     try {
-      state.db.run(`DROP TABLE IF EXISTS "${t.replace(/"/g, '""')}"`);
+      await state.engine.dropTable(t);
     } catch (e) {
       console.warn("could not drop", t, e.message);
     }
@@ -423,7 +450,7 @@ function dropPreviousQuestionTables(nextQid) {
   }
 }
 
-function loadQuestionTables(qid) {
+async function loadQuestionTables(qid) {
   const spec = state.schemasByQid[qid];
   const btn = $("#pg-load-q-tables");
   if (!spec || !spec.length) {
@@ -439,11 +466,11 @@ function loadQuestionTables(qid) {
   }
   if (!state.engineReady) return;
   try {
-    const summary = generateAndLoad(state.db, spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
+    const summary = await state.engine.loadSpec(spec, { seed: seedFromQid(qid), rowsPerTable: 12 });
     for (const s of summary) state.questionCreatedTables.add(s.table);
     const names = summary.map((s) => s.table).join(", ");
     setStatus(`Loaded ${summary.length} synthetic table(s): ${names}`, "ok");
-    refreshTableList();
+    await refreshTableList();
   } catch (err) {
     console.error(err);
     setStatus("Could not generate question tables: " + err.message, "error");
@@ -517,7 +544,7 @@ function detectNonSqlite(sql) {
   return null;
 }
 
-function runQuery() {
+async function runQuery() {
   if (!state.engineReady) {
     setStatus("Still loading the SQL engine — try again in a moment.", "error");
     return;
@@ -532,21 +559,25 @@ function runQuery() {
   // re-render the canonical reference (banner + code) for the active
   // question so the reader sees what the answer actually looks like —
   // that's the value, even when it can't execute here.
-  const incompat = detectNonSqlite(sql);
-  if (incompat) {
-    const body = $("#pg-results-body");
-    if (state.currentQ && state.currentQ.runtime === "non-sqlite") {
-      body.innerHTML = renderDialectReference(state.currentQ);
-    } else {
-      renderError({ message:
-        `This query uses '${incompat}', which is part of MySQL / PostgreSQL / ` +
-        `Snowflake but isn't supported by the in-browser SQLite engine.\n\n` +
-        `The query is valid in those dialects — copy it into MySQL, PostgreSQL, ` +
-        `or Snowflake to execute it as written.`
-      });
+  // Only run the dialect pre-flight check when the active engine is SQLite.
+  // On Postgres these idioms are native, so we let pglite execute them.
+  if (state.engine?.kind === "sqlite") {
+    const incompat = detectNonSqlite(sql);
+    if (incompat) {
+      const body = $("#pg-results-body");
+      if (state.currentQ && state.currentQ.runtime === "non-sqlite") {
+        body.innerHTML = renderDialectReference(state.currentQ);
+      } else {
+        renderError({ message:
+          `This query uses '${incompat}', which is part of MySQL / PostgreSQL / ` +
+          `Snowflake but isn't supported by the in-browser SQLite engine.\n\n` +
+          `Switch the runtime above to PostgreSQL (PGlite) to execute it ` +
+          `as-written, or copy it into MySQL / Snowflake.`
+        });
+      }
+      setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
+      return;
     }
-    setStatus(`MySQL / PostgreSQL / Snowflake dialect: ${incompat} (not in SQLite)`, "error");
-    return;
   }
   if (state.currentQ) localStorage.setItem(LS_EDITOR(state.currentQ.id), sql);
   const t0 = performance.now();
@@ -554,16 +585,17 @@ function runQuery() {
   const maxAttempts = 3;
   while (true) {
     try {
-      const results = state.db.exec(sql);
+      const results = await state.engine.exec(sql);
       const ms = (performance.now() - t0).toFixed(1);
       state.lastResult = results;
       renderResults(results, ms);
-      setStatus(`OK · ${ms} ms`, "ok");
+      setStatus(`OK · ${ms} ms · ${state.engine.label}`, "ok");
       break;
     } catch (err) {
       // Auto-create missing tables once or twice if we can guess columns
-      const m = /no such table:\s*(\w+)/i.exec(err.message || "");
-      if (m && attempts < maxAttempts && createTableFromSql(m[1], sql)) {
+      const m = /(?:no such table|relation "?(\w+)"? does not exist):?\s*(\w+)?/i.exec(err.message || "");
+      const missing = m ? (m[1] || m[2]) : null;
+      if (missing && attempts < maxAttempts && (await createTableFromSql(missing, sql))) {
         attempts++;
         continue;
       }
@@ -572,7 +604,7 @@ function runQuery() {
       break;
     }
   }
-  refreshTableList();
+  await refreshTableList();
 }
 
 /**
@@ -580,7 +612,7 @@ function runQuery() {
  * create the table on the fly with those columns. Returns true if anything
  * was created (so we can retry).
  */
-function createTableFromSql(missingTable, sql) {
+async function createTableFromSql(missingTable, sql) {
   // Find aliases in FROM/JOIN clauses
   const fromRe = /(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi;
   const aliasMap = {};
@@ -603,9 +635,8 @@ function createTableFromSql(missingTable, sql) {
     cols.add("value");
   }
   try {
-    // Reuse the synthetic generator for consistent shape
     const spec = [{ table: missingTable, columns: [...cols] }];
-    generateAndLoad(state.db, spec, { seed: seedFromQid(missingTable), rowsPerTable: 12 });
+    await state.engine.loadSpec(spec, { seed: seedFromQid(missingTable), rowsPerTable: 12 });
     setStatus(`Auto-created table "${missingTable}" — re-running…`, "ok");
     return true;
   } catch (e) {
@@ -700,7 +731,7 @@ function loadSolution() {
 }
 
 // ─── Custom CSV loader ───
-function loadCustomCSV() {
+async function loadCustomCSV() {
   const name = ($("#pg-csv-name").value || "").trim();
   const text = $("#pg-csv-text").value;
   if (!name) { alert("Provide a table name"); return; }
@@ -711,21 +742,13 @@ function loadCustomCSV() {
     const headers = rows[0].map((h) => h.trim());
     const data = rows.slice(1);
     const types = inferColumnTypes(headers, data);
-    const colDefs = headers.map((h, i) => `${quoteIdent(h)} ${types[i]}`).join(", ");
-    state.db.run(`DROP TABLE IF EXISTS ${quoteIdent(name)};`);
-    state.db.run(`CREATE TABLE ${quoteIdent(name)} (${colDefs});`);
-    const placeholders = headers.map(() => "?").join(",");
-    const stmt = state.db.prepare(`INSERT INTO ${quoteIdent(name)} VALUES (${placeholders})`);
-    state.db.exec("BEGIN");
-    for (const row of data) {
-      if (row.length === 1 && row[0] === "") continue;
-      stmt.run(headers.map((_, i) => castValue(row[i], types[i])));
-    }
-    state.db.exec("COMMIT");
-    stmt.free();
+    const records = data
+      .filter((row) => !(row.length === 1 && row[0] === ""))
+      .map((row) => headers.map((_, i) => castValue(row[i], types[i])));
+    await state.engine.loadCSV(name, headers, types, records);
     state.loadedTables.add(name);
-    refreshTableList();
-    setStatus(`Loaded "${name}" (${data.length} rows)`, "ok");
+    await refreshTableList();
+    setStatus(`Loaded "${name}" (${records.length} rows)`, "ok");
   } catch (e) {
     setStatus(e.message, "error");
   }
@@ -782,18 +805,38 @@ function wire() {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
     setStatus("Resetting…");
     await resetDB();
-    if (state.autoLoadQuestionTables && state.currentQ) loadQuestionTables(state.currentQ.id);
+    if (state.autoLoadQuestionTables && state.currentQ) await loadQuestionTables(state.currentQ.id);
     setStatus(`Reset · ${state.loadedTables.size} tables loaded`, "ok");
   }));
 
-  $("#pg-load-q-tables")?.addEventListener("click", () => {
+  $("#pg-load-q-tables")?.addEventListener("click", safeAsync(async () => {
     if (!state.engineReady) { setStatus("Engine not ready yet", "error"); return; }
-    if (state.currentQ) loadQuestionTables(state.currentQ.id);
-  });
+    if (state.currentQ) await loadQuestionTables(state.currentQ.id);
+  }));
 
   $("#pg-toggle-autoload")?.addEventListener("change", (e) => {
     state.autoLoadQuestionTables = e.target.checked;
   });
+
+  const runtimeSel = $("#pg-runtime-select");
+  if (runtimeSel) {
+    const saved = localStorage.getItem(LS_RUNTIME) || "auto";
+    state.runtimePref = saved;
+    runtimeSel.value = saved;
+    runtimeSel.addEventListener("change", safeAsync(async (e) => {
+      state.runtimePref = e.target.value;
+      localStorage.setItem(LS_RUNTIME, state.runtimePref);
+      const wantedKind = pickEngineKindFor(state.currentQ);
+      if (state.engine?.kind !== wantedKind) {
+        setStatus(`Switching to ${wantedKind === "postgres" ? "PostgreSQL" : "SQLite"}…`);
+        await activateEngine(wantedKind);
+        if (state.autoLoadQuestionTables && state.currentQ) {
+          await loadQuestionTables(state.currentQ.id);
+        }
+        setStatus(`Ready · ${state.engine.label}`, "ok");
+      }
+    }, "Switching engine…"));
+  }
 
   $("#pg-question-picker").addEventListener("change", (e) => {
     loadQuestion(e.target.value, { prefill: true });
@@ -833,6 +876,7 @@ function stepQuestion(delta) {
 
 // ─── Init ───
 async function init() {
+  state.runtimePref = localStorage.getItem(LS_RUNTIME) || "auto";
   wire();
   setEngineReady(false);            // start with engine-dependent buttons disabled
   setStatus("Loading question data…");
@@ -847,19 +891,19 @@ async function init() {
   state.schemasByQid = schemas;
   populateQuestionPicker();
 
-  // Pick question: ?q= → last → first. Render UI immediately;
-  // tables get auto-loaded once the engine is ready. Editor contents are
-  // restored per-question inside loadQuestion() itself.
+  // Pick question first — engine pick-and-load runs inside loadQuestion()
   const params = new URLSearchParams(window.location.search);
   const qid = params.get("q") || localStorage.getItem(LS_LAST_Q) || state.sqlQuestions[0]?.id;
+
+  // Pick the right engine UPFRONT based on the question's runtime tag plus
+  // the user's saved preference, so we don't double-boot SQLite then jump
+  // to Postgres if the question is Postgres-only.
+  const startQ = state.sqlQuestions.find((q) => q.id === qid);
+  const startKind = pickEngineKindFor(startQ);
+  await activateEngine(startKind);
+  setStatus(`Ready · ${state.engine.label} · ${state.loadedTables.size} tables`, "ok");
+
   if (qid) loadQuestion(qid);
-
-  await initEngine();
-
-  // Now that engine is ready, populate this question's tables.
-  if (state.currentQ && state.autoLoadQuestionTables) {
-    loadQuestionTables(state.currentQ.id);
-  }
 }
 
 init().catch((err) => {
