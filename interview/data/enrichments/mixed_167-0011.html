@@ -1,0 +1,84 @@
+<p>The salary-question's cousin: <em>"find the 3rd-highest order revenue"</em>. Same three approaches — correlated subquery, DENSE_RANK, LIMIT/OFFSET — and the <em>same</em> edge cases the interviewer will probe.</p>
+
+<h4>1. The source data — <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>revenue</th></tr></thead>
+  <tbody>
+    <tr><td>O01</td><td>C1</td><td>$1,200</td></tr>
+    <tr><td>O02</td><td>C1</td><td>$1,200</td></tr>
+    <tr><td>O03</td><td>C2</td><td>$980</td></tr>
+    <tr><td>O04</td><td>C3</td><td>$650</td></tr>
+    <tr><td>O05</td><td>C4</td><td>$650</td></tr>
+    <tr><td>O06</td><td>C5</td><td>$400</td></tr>
+  </tbody>
+</table>
+<p>Three distinct revenue tiers: $1,200 (tied), $980, $650 (tied), $400. The "3rd highest distinct revenue" is $650. The "3rd row when sorted desc" is $980 (because O01 and O02 share rank 1 if you count rows).</p>
+
+<h4>2. The SQL — the three canonical answers</h4>
+<pre><code>-- A. LIMIT / OFFSET with DISTINCT (the one in the solution)
+SELECT DISTINCT revenue FROM orders ORDER BY revenue DESC LIMIT 1 OFFSET 2;
+
+-- B. DENSE_RANK — explicit about distinct semantics
+SELECT revenue FROM (
+  SELECT DISTINCT revenue, DENSE_RANK() OVER (ORDER BY revenue DESC) AS rk
+  FROM orders
+) t WHERE rk = 3;
+
+-- C. Correlated subquery — fine for small N, slow for large N
+SELECT MAX(revenue) FROM orders WHERE revenue NOT IN (
+  SELECT revenue FROM orders ORDER BY revenue DESC LIMIT 2
+);</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>Approach</th><th>Result on data above</th><th>If only 2 distinct revenues exist</th></tr></thead>
+  <tbody>
+    <tr><td>LIMIT / OFFSET with DISTINCT (A)</td><td>$650</td><td><strong>Zero rows</strong></td></tr>
+    <tr><td>DENSE_RANK (B)</td><td>$650</td><td><strong>Zero rows</strong></td></tr>
+    <tr><td>Correlated subquery (C)</td><td>$650</td><td><strong>NULL row</strong></td></tr>
+  </tbody>
+</table>
+
+<h4>4. Strategic explanations — the interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"What if there are fewer than N distinct revenues?"</em></h5>
+<p>Most prompts ask "find the 3rd-highest" assuming the data has at least 3 distinct values. If it doesn't, approaches A and B return zero rows; approach C returns a single NULL row. The consumer of the report cares about the difference. Wrap defensively when the downstream BI tool expects exactly one row:</p>
+<pre><code>SELECT (SELECT revenue FROM (
+  SELECT DISTINCT revenue, DENSE_RANK() OVER (ORDER BY revenue DESC) AS rk
+  FROM orders
+) t WHERE rk = 3) AS third_highest_revenue;
+-- Returns NULL if fewer than 3 distinct revenues; otherwise the value.</code></pre>
+
+<h5>Probe 2 — <em>"What about ties? Are O04 and O05 both at rank 3, or is O04 at 3 and O05 at 4?"</em></h5>
+<p>Depends on the ranking function:</p>
+<table>
+  <thead><tr><th>Function</th><th>Ranks on (1200, 1200, 980, 650, 650, 400)</th><th>Result for rk=3</th></tr></thead>
+  <tbody>
+    <tr><td><code>RANK</code></td><td>1, 1, <strong>3</strong>, 4, 4, 6</td><td>One row ($980)</td></tr>
+    <tr><td><code>DENSE_RANK</code></td><td>1, 1, 2, <strong>3, 3</strong>, 4</td><td>Two rows (both $650)</td></tr>
+    <tr><td><code>ROW_NUMBER</code></td><td>1, 2, 3, 4, 5, 6</td><td>One row (whichever the engine picks)</td></tr>
+  </tbody>
+</table>
+<p><strong>For "Nth-highest distinct value", DENSE_RANK is the right pick.</strong> For "Nth row in sorted order", ROW_NUMBER. For "Nth place ignoring ties at lower positions", RANK.</p>
+
+<h5>Probe 3 — <em>"Now generalise: top 3 highest revenues, not just the 3rd."</em></h5>
+<p>The LIMIT/OFFSET shortcut doesn't extend cleanly. The window-function answer does:</p>
+<pre><code>SELECT revenue FROM (
+  SELECT DISTINCT revenue, DENSE_RANK() OVER (ORDER BY revenue DESC) AS rk
+  FROM orders
+) t WHERE rk &lt;= 3;
+-- Returns $1200, $980, $650 — three distinct tiers, regardless of ties.</code></pre>
+
+<h5>Probe 4 — <em>"What if N is a parameter, not a literal?"</em></h5>
+<p>In production reports, N comes from a config or a URL parameter. LIMIT / OFFSET handles parameterisation natively. DENSE_RANK does too via the <code>WHERE rk = :n</code> binding. The correlated-subquery approach gets ugly fast and should be avoided when N is dynamic.</p>
+
+<h5>The "Nth-highest per group" extension</h5>
+<p>The classic follow-up: <em>"Find the 3rd-highest revenue <strong>per customer</strong>."</em> Add <code>PARTITION BY customer_id</code> to the window:</p>
+<pre><code>SELECT customer_id, revenue FROM (
+  SELECT DISTINCT customer_id, revenue,
+    DENSE_RANK() OVER (PARTITION BY customer_id ORDER BY revenue DESC) AS rk
+  FROM orders
+) t WHERE rk = 3;</code></pre>
+<p>Same edge-case probes apply: customers with fewer than 3 distinct revenues silently disappear from the report unless you LEFT JOIN against the customer list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show all three approaches, name DENSE_RANK as the safe default for "distinct Nth-highest", surface the "fewer than N distinct values" edge case before being asked, and pre-empt the partition-by-group generalisation. The interviewer wants to see you naming edge cases, not just writing the obvious SQL.</div>

@@ -21,7 +21,7 @@
 .netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
 .netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
 .netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; }
-.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; padding-left: 14px; border-left: 4px solid #c44b2b; }
 .netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
 .netflix-prep p { margin: 0 0 16px; }
 .netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
@@ -39,9 +39,9 @@
 .netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
 .netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
 .netflix-prep .trap-box strong { color: #991b1b; }
-.netflix-prep .deal-card { background:#0f172a; color:#e6e9f0; border-radius:8px; padding:18px 22px; margin:18px 0; border-left:4px solid #ffb09a; }
-.netflix-prep .deal-card h4 { color:#ffb09a; font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; margin:0 0 10px; }
-.netflix-prep .deal-card h5 { color:#fff; font-family:'Playfair Display', serif; font-size:22px; margin:0 0 12px; }
+.netflix-prep .deal-card { background:#0f172a; color:#e6e9f0; border-radius:8px; padding:22px 26px; margin:24px 0; border-left:5px solid #ffb09a; box-shadow:0 2px 8px rgba(15,23,42,0.08); }
+.netflix-prep .deal-card h4 { color:#ffb09a; font-family:'JetBrains Mono', monospace; font-size:13px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; margin:0 0 8px; padding:0 0 8px; border-bottom:1px solid rgba(255,176,154,0.25); }
+.netflix-prep .deal-card h5 { color:#fff; font-family:'Playfair Display', serif; font-size:26px; font-weight:700; margin:0 0 16px; line-height:1.2; }
 .netflix-prep .deal-card p, .netflix-prep .deal-card li { color:#cbd5e0; font-size:15px; line-height:1.6; }
 .netflix-prep .deal-card strong { color:#fff; }
 .netflix-prep .deal-card code { background:#1f2937; color:#fbbf24; border:1px solid #334155; }
@@ -89,6 +89,24 @@
 </ol>
 </div>
 
+<!-- =============== KEY TERMS (PLAIN ENGLISH) =============== -->
+<div class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:18px 22px;margin:18px 0 32px;border-radius:4px;">
+<strong style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#8a6d10;display:block;margin-bottom:10px;">▸ Key terms — plain English first</strong>
+<table style="margin:0;">
+  <thead><tr><th>Term</th><th>What it actually means</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Golden record</strong></td><td>The one canonical row for an entity (one Acme Corp), built by combining the rows that came from both companies' systems.</td></tr>
+    <tr><td><strong>Crosswalk / xref</strong></td><td>A lookup table that says "this customer_id in their CRM and this customer_id in our CRM are the same golden record." Every downstream join goes through it.</td></tr>
+    <tr><td><strong>Matching playbook</strong></td><td>The ordered list of <em>rules</em> for deciding two rows refer to the same entity. Strict rules run first (exact domain + DUNS match → auto-merge). Fuzzy rules run later (similar names + same country → human reviews). Same idea as airport security: passport check first, then bag scan, then pat-down.</td></tr>
+    <tr><td><strong>Strangler pattern</strong></td><td>Both apps keep running. You build the new unified system <em>alongside</em> the old ones, slowly route traffic to it, and only sunset the old systems once nothing reads from them. Named after the strangler fig vine that grows around a tree before replacing it.</td></tr>
+    <tr><td><strong>Dual-write</strong></td><td>For a transition period, every change writes to BOTH the old database AND the new unified one. A reconciliation job compares them daily.</td></tr>
+    <tr><td><strong>CDC (Change Data Capture)</strong></td><td>A pipe that emits one event per row INSERT / UPDATE / DELETE on the source database. Debezium and Fivetran are the common implementations.</td></tr>
+    <tr><td><strong>Un-merge</strong></td><td>Reversing a merge that turned out to be wrong (e.g. parent and subsidiary were collapsed when they shouldn't have been). The schema must support this from day one.</td></tr>
+    <tr><td><strong>Share-and-bridge</strong></td><td>Instead of consolidating warehouses, you give each side read-only access to selected datasets in the other (Snowflake Share, Delta Sharing, BigQuery Authorized Views). The day-90 reporting unblock.</td></tr>
+  </tbody>
+</table>
+</div>
+
 <!-- =============== PART 01 =============== -->
 <section id="part-01">
 <div class="part-eyebrow">§ 01 — The framework</div>
@@ -129,19 +147,20 @@
 
 <p>The day-one question after any acquisition: <em>"how many overlapping customers do we have?"</em>. Marketing thinks 30%. Sales thinks 60%. Nobody can prove either number until you build an identity graph that resolves <strong>their Acme Corp</strong> and <strong>your Acme Corp</strong> into one entity — across two CRMs with different field names, formats, and hierarchies.</p>
 
-<h3 class="section-head">The match-key cascade</h3>
-<p>You never match on one key. You match on a <em>cascade</em> — deterministic keys first (high precision, low recall), probabilistic keys second (high recall, lower precision), and human-in-the-loop for the ambiguous middle.</p>
+<h3 class="section-head">The matching playbook — strict rules first, fuzzy rules second</h3>
+<p>You never decide "these two rows are the same customer" using one rule. You run an <em>ordered list of rules</em> from strict to permissive. The first rule that fires wins. Same idea as airport security: passport check first (definite ID), then bag scan, then pat-down. The strict rules auto-merge with high confidence; the fuzzy rules send candidates to a human analyst.</p>
 
 <table>
-  <thead><tr><th>Tier</th><th>Match key</th><th>Confidence</th><th>Action</th></tr></thead>
+  <thead><tr><th>Rule #</th><th>Type</th><th>What it checks</th><th>Confidence</th><th>What happens</th></tr></thead>
   <tbody>
-    <tr><td>1 · deterministic</td><td>Same domain (acme.com) + same DUNS number</td><td>0.99+</td><td>Auto-merge</td></tr>
-    <tr><td>2 · deterministic</td><td>Same domain + normalized company name</td><td>0.95+</td><td>Auto-merge, flag for sample QA</td></tr>
-    <tr><td>3 · probabilistic</td><td>Fuzzy name (Levenshtein) + same country + same industry</td><td>0.80+</td><td>Stage in <code>match_candidates</code>, route to MDM analyst</td></tr>
-    <tr><td>4 · probabilistic</td><td>Shared employee email pattern (3+ employees with @acme.com on both sides)</td><td>0.70+</td><td>Stage in <code>match_candidates</code>, escalate</td></tr>
-    <tr><td>5 · no match</td><td>None of the above fire</td><td>—</td><td>Treat as distinct entity in golden record</td></tr>
+    <tr><td>1</td><td>Strict</td><td>Same email domain (acme.com) AND same DUNS number</td><td>0.99+</td><td>Auto-merge into one golden record</td></tr>
+    <tr><td>2</td><td>Strict</td><td>Same domain AND normalized company name</td><td>0.95+</td><td>Auto-merge, sample for human QA</td></tr>
+    <tr><td>3</td><td>Fuzzy</td><td>Similar name (typo-tolerant) AND same country AND same industry</td><td>0.80+</td><td>Stage in <code>match_candidates</code>; human reviews</td></tr>
+    <tr><td>4</td><td>Fuzzy</td><td>3+ employee emails shared on both sides (e.g. @acme.com)</td><td>0.70+</td><td>Stage in <code>match_candidates</code>; escalate</td></tr>
+    <tr><td>5</td><td>No match</td><td>Nothing above fires</td><td>—</td><td>Treat as a distinct golden record</td></tr>
   </tbody>
 </table>
+<p style="font-size:13px;color:#64748b;margin-top:-4px;"><em>Some industry references call this the "match-key cascade" or "match-tier cascade" — same thing, just academic-sounding names for an ordered rule list.</em></p>
 
 <h3 class="section-head">The golden record schema</h3>
 <p>The <code>golden_customer</code> table is the unified entity. Source systems keep their own customer tables; the golden record references both via a crosswalk:</p>
@@ -165,7 +184,7 @@ CREATE TABLE customer_xref (
     source_system       TEXT NOT NULL,    -- 'acquirer_crm' | 'target_crm' | …
     source_customer_id  TEXT NOT NULL,
     golden_customer_id  UUID NOT NULL REFERENCES golden_customer,
-    match_tier          INT  NOT NULL,    -- 1-5 (see cascade above)
+    match_rule          INT  NOT NULL,    -- 1-5, which playbook rule fired
     match_confidence    NUMERIC NOT NULL, -- 0.0 - 1.0
     matched_at          TIMESTAMP NOT NULL,
     matched_by          TEXT NOT NULL,    -- 'auto-rule-tier-1' | 'mdm-analyst-alice'
@@ -475,7 +494,7 @@ SELECT * FROM from_acquirer.combined_metrics.fct_revenue_daily WHERE biz_date &g
 
 <ol>
   <li><strong>Name the four problems first (15 sec).</strong> "Every M&amp;A has four orthogonal data problems: entity resolution, schema unification, warehouse consolidation, multi-org metrics. They have different owners and different failure modes. Let me ask which one matters most for day 90 before I pick where to start."</li>
-  <li><strong>Pick entity resolution as the foundation (15 sec).</strong> "If I had to start somewhere, it's entity resolution — because every other layer reads from the golden record. Tier 1-2 deterministic on domain + DUNS, tier 3-4 probabilistic with MDM-analyst review, tier 5 stays unmatched. Append-only crosswalk with <code>superseded_by</code> for un-merge."</li>
+  <li><strong>Pick entity resolution as the foundation (15 sec).</strong> "If I had to start somewhere, it's entity resolution — because every other layer reads from the golden record. Strict rules first (same domain + DUNS → auto-merge), fuzzy rules second (similar name + same country → human reviews), unmatched rows stay distinct. Append-only crosswalk with <code>superseded_by</code> for un-merge."</li>
   <li><strong>Address schema unification (20 sec).</strong> "Strangler pattern: both apps keep writing to their source DBs, CDC streams to a unified schema via a translation layer, daily drift reconciliation between source counts and unified counts. Cutover one entity at a time. Plan for 6-18 months."</li>
   <li><strong>Address warehouse consolidation (20 sec).</strong> "Three options: big-bang migration if stacks are strategically incompatible, federated query if they complement, share-and-bridge as the day-90 unblocker before you commit. Tag-based cost attribution so the CFO can see the bill split."</li>
   <li><strong>Address multi-org metrics (15 sec).</strong> "Don't bake definitions into SQL. Materialize <code>dim_metric_definition</code> with org_scope, window, dedup_grain, fiscal calendar, currency policy as versioned rows. Every dashboard cites a (metric_id, definition_version)."</li>
