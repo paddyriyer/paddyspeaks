@@ -5290,7 +5290,7 @@ fct_qoe_summary      — derived nightly, rebuf-time / total-time per session
 <h4 class="sub-head">Why this is hard — four data problems pretending to be one deal</h4>
 <p>Every acquisition press release says "stronger together." Every acquirer's data team knows that means two incompatible CRMs, two warehouses, two ID systems, two fiscal calendars, and an executive expecting unified KPIs on day 90. The interview question: <em>"your company just bought a $20B SaaS — walk me through the data integration"</em>. The senior signal is naming all four problems first, then sequencing them:</p>
 <ul>
-  <li><strong>Entity resolution</strong> — is <em>their</em> Acme Corp the same as <em>our</em> Acme Corp? Golden record + crosswalk + match-tier cascade.</li>
+  <li><strong>Entity resolution</strong> — is <em>their</em> Acme Corp the same as <em>our</em> Acme Corp? Golden record + crosswalk + an ordered rule playbook (strict-then-fuzzy).</li>
   <li><strong>Schema unification</strong> — both apps keep shipping; can't freeze either DB. Strangler pattern with dual-write + CDC + reconciliation.</li>
   <li><strong>Warehouse consolidation</strong> — Snowflake vs Databricks vs BigQuery. Three strategies: big-bang, federated query, or share-and-bridge.</li>
   <li><strong>Multi-org metrics</strong> — their DAU isn't your DAU. Fiscal calendars, FX policy, consolidation rules, overlapping ARR. Versioned <code>dim_metric_definition</code>.</li>
@@ -5385,7 +5385,7 @@ fct_qoe_summary      — derived nightly, rebuf-time / total-time per session
     <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ customer_xref · CROSSWALK</text>
     <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ (source_system, source_customer_id)</text>
     <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ golden_customer_id (FK)</text>
-    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">match_tier 1-5 · match_confidence 0-1</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">match_rule 1-5 · match_confidence 0-1</text>
     <text x="20" y="100" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">matched_at · matched_by</text>
     <text x="20" y="115" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⚠ superseded_by · un-merge support</text>
     <text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only · reversible · audit-trailed</text>
@@ -5462,16 +5462,16 @@ fct_qoe_summary      — derived nightly, rebuf-time / total-time per session
   <line x1="310" y1="640" x2="1015" y2="665" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
 </svg>
 
-<h4 class="sub-head">Section 2 — The match-key cascade (entity resolution)</h4>
-<p>You never match on one key. You match on a <em>cascade</em> — deterministic keys first (high precision, low recall), probabilistic keys second (high recall, lower precision), and human-in-the-loop for the ambiguous middle.</p>
+<h4 class="sub-head">Section 2 — The matching playbook (strict rules first, fuzzy rules second)</h4>
+<p>You never decide "these two rows are the same customer" using one rule. You run an <em>ordered list of rules</em> from strict to permissive. The first rule that fires wins — same idea as airport security: passport check first (definite ID), then bag scan, then pat-down. Strict rules auto-merge; fuzzy rules send candidates to a human analyst. <em>(Industry jargon: this is sometimes called the "match-key cascade" — same thing, fancier name.)</em></p>
 <table>
-  <thead><tr><th>Tier</th><th>Match key</th><th>Confidence</th><th>Action</th></tr></thead>
+  <thead><tr><th>Rule #</th><th>Type</th><th>What it checks</th><th>Confidence</th><th>What happens</th></tr></thead>
   <tbody>
-    <tr><td>1 · deterministic</td><td>Same domain (acme.com) + same DUNS number</td><td>0.99+</td><td>Auto-merge</td></tr>
-    <tr><td>2 · deterministic</td><td>Same domain + normalized company name</td><td>0.95+</td><td>Auto-merge, sample QA</td></tr>
-    <tr><td>3 · probabilistic</td><td>Fuzzy name (Levenshtein) + same country + industry</td><td>0.80+</td><td>Stage in <code>match_candidates</code>, MDM review</td></tr>
-    <tr><td>4 · probabilistic</td><td>3+ shared employee emails (@acme.com on both)</td><td>0.70+</td><td>Stage, escalate</td></tr>
-    <tr><td>5 · no match</td><td>None fire</td><td>—</td><td>Distinct golden entity</td></tr>
+    <tr><td>1</td><td>Strict</td><td>Same email domain AND same DUNS number</td><td>0.99+</td><td>Auto-merge into one golden record</td></tr>
+    <tr><td>2</td><td>Strict</td><td>Same domain AND normalized company name</td><td>0.95+</td><td>Auto-merge, sample for QA</td></tr>
+    <tr><td>3</td><td>Fuzzy</td><td>Similar name (typo-tolerant) + same country + industry</td><td>0.80+</td><td>Human reviews via <code>match_candidates</code></td></tr>
+    <tr><td>4</td><td>Fuzzy</td><td>3+ employee emails shared (@acme.com on both)</td><td>0.70+</td><td>Human reviews; escalate</td></tr>
+    <tr><td>5</td><td>No match</td><td>Nothing fires</td><td>—</td><td>Distinct golden record</td></tr>
   </tbody>
 </table>
 
@@ -5542,7 +5542,7 @@ FROM source_counts s LEFT JOIN unified_counts u USING (src);</code></pre>
 
 <h4 class="sub-head">Section 8 — Senior framing</h4>
 <div class="senior-signal">
-<strong>Senior framing.</strong> "M&amp;A integration is four orthogonal data problems — entity resolution, schema unification, warehouse consolidation, multi-org metrics — and the senior-IC mistake is shipping a single 'integration plan' that conflates them. Entity resolution gives you the golden record via a match-tier cascade + append-only crosswalk with <code>superseded_by</code> for un-merge. The strangler pattern lets both apps keep shipping while CDC dual-writes through a translation layer; daily reconciliation gates the cutover. Warehouse consolidation can wait behind cross-account shares for 6 months. Metric definitions become versioned dim rows the board deck can audit. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack all hit the same four; the only difference is which one was hardest in their context."
+<strong>Senior framing.</strong> "M&amp;A integration is four orthogonal data problems — entity resolution, schema unification, warehouse consolidation, multi-org metrics — and the senior-IC mistake is shipping a single 'integration plan' that conflates them. Entity resolution gives you the golden record via an ordered rule playbook (strict-then-fuzzy) + append-only crosswalk with <code>superseded_by</code> for un-merge. The strangler pattern lets both apps keep shipping while CDC dual-writes through a translation layer; daily reconciliation gates the cutover. Warehouse consolidation can wait behind cross-account shares for 6 months. Metric definitions become versioned dim rows the board deck can audit. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack all hit the same four; the only difference is which one was hardest in their context."
 </div>
 </div>
 </section>

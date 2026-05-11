@@ -66,4 +66,48 @@ QUALIFY rk = 1;</code></pre>
 <h5>What HR actually does next: pay-band overlap detection</h5>
 <p>The grievance-risk question is: <em>"Is anyone in dept A earning less than the lowest-paid person at the same level in dept B?"</em> That's a JOIN on dept-level aggregates, not a single ranking — but the ranking output above is the input. Once the rank column exists, HR can compare <code>WHERE rk = N</code> across departments to find pay parity issues.</p>
 
-<div class="takeaway"><strong>Senior signal:</strong> show all three ranking functions in one breath, name the tie-handling difference, and mention <code>QUALIFY</code>. The interviewer is checking whether you've internalised the <em>why</em> of each function, not just the syntax of <code>OVER</code>.</div>
+<h4>5. Interviewer follow-up probes — the edge cases that separate seniors from juniors</h4>
+
+<p>Whatever rank-and-filter solution you write, the interviewer will start poking at it. These are the four probes you should preempt before being asked:</p>
+
+<h5>Probe 1 — <em>"What if a department has only one employee? Will your query still return them as 'second-highest'?"</em></h5>
+<p>The trap: <code>WHERE rk = 2</code> returns <strong>zero rows</strong> for that department. The hiring manager opens the report and sees "no second-highest in Marketing" without realising Marketing has only one person. Defensive options:</p>
+<pre><code>-- Option A: explicit COUNT-aware report — surfaces the "N/A" case
+SELECT d.dept_id,
+  COUNT(*) AS headcount,
+  MAX(CASE WHEN rk = 1 THEN salary END) AS top_salary,
+  MAX(CASE WHEN rk = 2 THEN salary END) AS second_salary  -- NULL if headcount &lt; 2
+FROM ranked
+GROUP BY d.dept_id;
+
+-- Option B: LEFT JOIN dept list to ranked so even 1-person depts appear
+SELECT d.dept_id, r.salary AS second_highest
+FROM departments d
+LEFT JOIN (SELECT dept_id, salary, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) rk FROM employees) r
+  ON r.dept_id = d.dept_id AND r.rk = 2;</code></pre>
+
+<h5>Probe 2 — <em>"Two people are tied for second. Do you want both, or just one?"</em></h5>
+<p>This is the question the user always intends to ask but rarely does — and the SQL answer depends entirely on which ranking function you picked:</p>
+<table>
+  <thead><tr><th>Tie semantics</th><th>Pick</th><th>For "second-highest"</th></tr></thead>
+  <tbody>
+    <tr><td>Return every tied employee</td><td><code>DENSE_RANK = 2</code></td><td>Returns all tied at the second distinct salary</td></tr>
+    <tr><td>Return exactly one row, deterministic</td><td><code>ROW_NUMBER = 2</code> with <code>ORDER BY salary DESC, emp_id ASC</code></td><td>Returns the one row whose tie-break is "lowest emp_id"</td></tr>
+    <tr><td>Return exactly one row but show the rank "skipped"</td><td><code>RANK = 2</code></td><td>Returns nothing if first place is tied (ranks jump 1, 1, 3)</td></tr>
+  </tbody>
+</table>
+<p><strong>Always confirm tie semantics with the interviewer before writing the query.</strong> "Do you want all tied employees, or one representative?" is the senior-signal question.</p>
+
+<h5>Probe 3 — <em>"What if there's a tie at the top? Does your 'second-highest' return the next distinct salary, or somebody at the top salary?"</em></h5>
+<p>Consider <code>{$320K, $320K, $280K, $240K}</code>. With <code>RANK</code>: ranks are <code>1, 1, 3, 4</code> → <code>rk = 2</code> returns NOTHING. With <code>DENSE_RANK</code>: ranks are <code>1, 1, 2, 3</code> → <code>rk = 2</code> returns the $280K row. The user almost always means the latter. <strong>DENSE_RANK is the safe default for Nth-highest.</strong></p>
+
+<h5>Probe 4 — <em>"Now generalise it to Nth-highest. Does your approach work for N = 17?"</em></h5>
+<p>The cute one-liner approaches (correlated subquery, OFFSET tricks) all break or get slow at large N. The window-function approach scales O(n log n) regardless of N:</p>
+<pre><code>-- Works for any N, no rewrite needed:
+SELECT salary FROM (
+  SELECT salary, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk = :n;</code></pre>
+<p>If the interviewer asks for "the top 3 in each dept", change <code>rk = :n</code> to <code>rk &lt;= 3</code> — same query shape.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show all three ranking functions in one breath, name the tie-handling difference, mention <code>QUALIFY</code>, and <em>preempt the four edge-case probes</em>: empty-department case, "all ties or just one", tie-at-top semantics, and the generalisation to Nth. The interviewer is checking whether you've internalised the <em>why</em> of each function, not just the syntax of <code>OVER</code>.</div>

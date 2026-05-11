@@ -1,0 +1,129 @@
+<p>The LeetCode classic. The exact prompt: <em>"Find the second-highest salary."</em> Sounds trivial. It isn't. The reason it's been asked in literally tens of thousands of interviews is that the <em>three obvious answers</em> all behave differently on edge cases — and the interviewer's real test is whether you surface those edge cases before writing SQL.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>E01</td><td>Alex</td><td>ENG</td><td>$320,000</td></tr>
+    <tr><td>E02</td><td>Bailey</td><td>ENG</td><td>$320,000</td></tr>
+    <tr><td>E03</td><td>Casey</td><td>SALES</td><td>$280,000</td></tr>
+    <tr><td>E04</td><td>Drew</td><td>SALES</td><td>$240,000</td></tr>
+    <tr><td>E05</td><td>Ellis</td><td>MKTG</td><td>$200,000</td></tr>
+  </tbody>
+</table>
+<p>Alex and Bailey are <strong>tied at the top ($320K)</strong>. Casey is alone in second place at $280K. Ellis is the only person in Marketing — which becomes important the moment someone asks for "second highest <em>per department</em>".</p>
+
+<h4>2. The SQL — the three canonical answers</h4>
+<pre><code>-- A. Correlated subquery (the LeetCode-blessed one)
+SELECT MAX(salary) AS second_highest
+FROM employees
+WHERE salary &lt; (SELECT MAX(salary) FROM employees);
+
+-- B. DENSE_RANK — handles ties at the top correctly
+SELECT salary AS second_highest
+FROM (SELECT DISTINCT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rk
+      FROM employees) t
+WHERE rk = 2;
+
+-- C. LIMIT / OFFSET with DISTINCT
+SELECT DISTINCT salary AS second_highest
+FROM employees
+ORDER BY salary DESC
+LIMIT 1 OFFSET 1;</code></pre>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>Approach</th><th>Result on the data above</th><th>Result if NO second salary exists</th></tr></thead>
+  <tbody>
+    <tr><td>Correlated subquery (A)</td><td>$280,000</td><td><strong>NULL</strong> (one row, NULL value)</td></tr>
+    <tr><td>DENSE_RANK (B)</td><td>$280,000</td><td><strong>Zero rows</strong></td></tr>
+    <tr><td>LIMIT / OFFSET (C)</td><td>$280,000</td><td><strong>Zero rows</strong></td></tr>
+  </tbody>
+</table>
+<p>All three return the right answer on the happy path. They diverge on the "what if there's no second salary?" edge case — and that's exactly what the interviewer will ask next.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The user's prompt has two unstated assumptions — surface them before writing SQL</h5>
+<p>"Find the second-highest salary" hides:</p>
+<ol>
+  <li><strong>Tie semantics:</strong> if Alex and Bailey are both at $320K, is the "second highest" $320K (one of them) or $280K (the next distinct value)? Almost always the latter — but ask.</li>
+  <li><strong>Empty-result semantics:</strong> if everybody earns the same salary, or only one row exists, what should the query return? NULL? Zero rows? An error? Each approach above behaves differently.</li>
+</ol>
+
+<h5>The "only one salary in the department" probe — the user's classic follow-up</h5>
+<p>Generalising to "second-highest salary in Engineering" with the user-supplied CTE pattern:</p>
+<pre><code>WITH emp AS (
+  SELECT name, salary, d.department_name,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY salary DESC) AS rnk
+  FROM employees e JOIN departments d ON e.dept_id = d.dept_id
+)
+SELECT * FROM emp WHERE rnk = 2;</code></pre>
+<p>What does this return for <strong>Marketing</strong>, which has only Ellis at $200K?</p>
+<p><strong>Nothing.</strong> Ellis gets <code>rnk = 1</code> and there's no <code>rnk = 2</code> — so Marketing silently disappears from the report. The hiring manager opens the dashboard and sees no entry for Marketing without realising it's a "headcount = 1" problem, not a data-quality issue.</p>
+<p>The defensive rewrite — keep every department on the report, surface "N/A" explicitly:</p>
+<pre><code>SELECT d.department_name,
+  COUNT(*) AS headcount,
+  MAX(CASE WHEN rnk = 1 THEN salary END) AS top_salary,
+  MAX(CASE WHEN rnk = 2 THEN salary END) AS second_salary  -- NULL if headcount &lt; 2
+FROM (
+  SELECT e.salary, e.dept_id,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rnk
+  FROM employees e
+) r
+JOIN departments d ON d.dept_id = r.dept_id
+GROUP BY d.department_name;</code></pre>
+<p>Now Marketing appears with <code>headcount=1, top=200K, second=NULL</code> — the consumer of the report can spot the issue immediately.</p>
+
+<h5>The "do you want all employees tied for second?" probe</h5>
+<p>Imagine the data was <code>{$320K, $320K, $280K, $280K, $240K}</code>. "Second-highest" by DENSE_RANK is $280K — but <strong>two people</strong> are tied at that salary. Which ones come back?</p>
+<table>
+  <thead><tr><th>If the query is…</th><th>It returns…</th><th>When to pick</th></tr></thead>
+  <tbody>
+    <tr><td><code>WHERE rnk = 2</code> from <code>DENSE_RANK</code> over <em>employees</em></td><td><strong>Both</strong> tied employees</td><td>Pay-equity audits, "everyone in tier 2"</td></tr>
+    <tr><td><code>WHERE rnk = 2</code> from <code>DENSE_RANK</code> over <em>DISTINCT salary</em></td><td>One row — just the salary, not the employees</td><td>"What's the salary at tier 2?" (no people)</td></tr>
+    <tr><td><code>WHERE rnk = 2</code> from <code>ROW_NUMBER</code> with tie-break</td><td><strong>One</strong> employee, deterministically chosen</td><td>Top-N leaderboards, page-2 of results</td></tr>
+    <tr><td><code>WHERE rnk = 2</code> from <code>RANK</code></td><td><strong>Nothing</strong> if the top is tied (ranks 1, 1, 3 — skips 2)</td><td>Never — almost always a bug</td></tr>
+  </tbody>
+</table>
+
+<h5>The <code>RANK</code> vs <code>DENSE_RANK</code> trap, drawn explicit</h5>
+<table>
+  <thead><tr><th>employee</th><th>salary</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>Alex</td><td>$320K</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>Bailey</td><td>$320K</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>Casey</td><td>$280K</td><td><strong>3 (skips 2!)</strong></td><td>2</td><td>3</td></tr>
+    <tr><td>Drew</td><td>$240K</td><td>4</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>With <code>RANK</code>, <code>WHERE rk = 2</code> returns NOTHING because rank 2 was skipped. With <code>DENSE_RANK</code>, <code>WHERE rk = 2</code> returns Casey. <strong>For "Nth-highest" semantics, DENSE_RANK is almost always the right pick.</strong></p>
+
+<h5>What if the dept genuinely has duplicates that should both count?</h5>
+<p>Suppose ENG has <code>{$320K, $320K, $280K}</code>. Should the "second-highest in ENG" be $320K (the other person at the top) or $280K (the next distinct salary)? Both interpretations are defensible:</p>
+<ul>
+  <li><strong>Ordinal interpretation:</strong> "the 2nd row when I sort by salary" → ROW_NUMBER = 2 → $320K (whichever person the engine picks).</li>
+  <li><strong>Distinct-value interpretation:</strong> "the 2nd-highest <em>distinct</em> salary band" → DENSE_RANK = 2 over DISTINCT salaries → $280K.</li>
+</ul>
+<p>The interviewer almost always means the distinct-value version (because the prompt is about <em>compensation analysis</em>, not row-ordering). Confirm explicitly.</p>
+
+<h5>Performance — when each approach matters</h5>
+<table>
+  <thead><tr><th>Approach</th><th>Complexity</th><th>Index hit?</th></tr></thead>
+  <tbody>
+    <tr><td>Correlated subquery</td><td>O(n²) without an index on salary, O(n) with one</td><td>Yes — <code>MAX(salary)</code> uses an index range scan</td></tr>
+    <tr><td>DENSE_RANK window</td><td>O(n log n) — full sort over the partition</td><td>Partial — sort can spill to disk on large tables</td></tr>
+    <tr><td>LIMIT / OFFSET with DISTINCT</td><td>O(n log n) for the distinct + sort</td><td>Yes — but DISTINCT can be expensive</td></tr>
+  </tbody>
+</table>
+<p>For 10M-row tables in OLAP warehouses, all three are within ~2× of each other. Pick the approach that <em>communicates intent</em> most clearly. DENSE_RANK wins on readability for the Nth-highest family.</p>
+
+<h5>The empty-result wrapper — when the consumer demands a single NULL row</h5>
+<p>Some downstream consumers (BI tools that expect "one number") break when the query returns zero rows. Wrap the window-function approach to guarantee one row:</p>
+<pre><code>SELECT (SELECT salary FROM (
+  SELECT DISTINCT salary, DENSE_RANK() OVER (ORDER BY salary DESC) AS rk
+  FROM employees
+) t WHERE rk = 2) AS second_highest;
+-- Returns NULL if no second salary exists; otherwise the salary.</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> before writing SQL, surface (1) tie semantics, (2) what to return when there's no second salary, and (3) "all ties or one representative?". Then write the DENSE_RANK answer, contrast it with RANK to show you understand the skip-on-tie trap, and pre-empt the per-department generalisation with the <code>PARTITION BY dept_id</code> + LEFT JOIN defensive pattern.</div>
