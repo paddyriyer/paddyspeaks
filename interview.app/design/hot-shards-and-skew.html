@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hot Shards &amp; Data Skew — Surviving Whales in Production · PaddySpeaks Interview Studio</title>
+<meta name="description" content="The L5+ operational treatment of data skew across the full stack — Kafka partition hotspots, Flink keyed-state RocksDB pressure, Spark skewed joins (salting / broadcast / AQE), database hot-row contention, Cassandra/DynamoDB hot partitions, BI dashboard query-time and visual-axis dominance. Mitigations per layer plus a whale / dolphin / minnow playbook.">
+<meta name="keywords" content="hot shard, data skew, Kafka partition skew, Flink keyed state, RocksDB hotspot, Spark salting, broadcast join, AQE skew join, hot partition, DynamoDB hot key, Cassandra wide row, dashboard query performance, mean median, log scale">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Hot Shards &amp; Data Skew — Surviving Whales in Production">
+<meta property="og:description" content="Kafka · Flink · Spark · DynamoDB / Cassandra · BI dashboards. How skewed data breaks each layer and the mitigations the senior-IC interview expects.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/hot-shards-and-skew.html">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; padding-left: 14px; border-left: 4px solid #c44b2b; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #c44b2b; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .layer-card { background:#0f172a; color:#e6e9f0; border-radius:8px; padding:22px 26px; margin:18px 0; border-left:5px solid #ffb09a; box-shadow:0 2px 8px rgba(15,23,42,0.08); }
+.netflix-prep .layer-card h4 { color:#ffb09a; font-family:'JetBrains Mono', monospace; font-size:12px; font-weight:700; letter-spacing:2.5px; text-transform:uppercase; margin:0 0 6px; }
+.netflix-prep .layer-card h5 { color:#fff; font-family:'Playfair Display', serif; font-size:26px; font-weight:700; margin:0 0 14px; line-height:1.2; }
+.netflix-prep .layer-card p, .netflix-prep .layer-card li { color:#cbd5e0; font-size:15px; line-height:1.6; }
+.netflix-prep .layer-card strong { color:#fff; }
+.netflix-prep .layer-card code { background:#1f2937; color:#fbbf24; border:1px solid #334155; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #b91c1c; border-bottom-color: #b91c1c; }
+.ornament { text-align:center; color:#94a3b8; letter-spacing:.8em; margin:40px 0; font-size:18px; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #b91c1c;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · Hot Shards &amp; Data Skew · surviving whales in production</div>
+<h1 class="hero-title">Hot shards &amp; data skew — every layer breaks differently.</h1>
+<p class="hero-sub">The <a href="./skew-and-distributions.html">vocabulary page</a> tells you what whales, dolphins, and minnows ARE. This page tells you what they <em>do to your infrastructure</em> at every layer of the stack — Kafka partitions, Flink keyed state, Spark shuffles, hot DB rows, hot Cassandra/DynamoDB partitions, BI dashboards that visually lie because one whale dominates the axis. Plus the named mitigation per layer the senior-IC interview expects.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The shape of the problem — one whale, every layer hurts</a></li>
+  <li><a href="#part-02">Streaming · Kafka partition skew &amp; Flink keyed-state hotspots</a></li>
+  <li><a href="#part-03">Distributed compute · Spark salting, broadcast joins, AQE</a></li>
+  <li><a href="#part-04">Databases · hot rows, hot partitions, index hotspots</a></li>
+  <li><a href="#part-05">Reports &amp; dashboards · query performance + visual lies</a></li>
+  <li><a href="#part-06">The whale / dolphin / minnow playbook</a></li>
+  <li><a href="#part-07">Detection — how you SEE skew before it pages you</a></li>
+  <li><a href="#part-08">The 90-second articulation script</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 — the shape =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The shape of the problem</div>
+<h2 class="part-title">One whale, every layer hurts — differently.</h2>
+
+<p>The Pareto curve isn't just a metrics-reporting nuisance. Every layer that <em>partitions by user_id</em> (and that's almost every layer) ends up with one partition that takes 100× the traffic of the others. The shape of the problem is the same everywhere — <em>one shard is hot</em> — but the symptoms and the mitigations are layer-specific.</p>
+
+<svg viewBox="0 0 980 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:980px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <text x="490" y="28" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a">ONE WHALE → EVERY DOWNSTREAM SHARD GETS HIT</text>
+
+  <!-- Whale user -->
+  <g transform="translate(40, 80)">
+    <rect width="140" height="100" fill="#0f172a" rx="6"/>
+    <text x="70" y="40" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="16" font-weight="700" fill="#ffb09a">🐋 Whale</text>
+    <text x="70" y="60" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#cbd5e0">user_id = 42</text>
+    <text x="70" y="78" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#cbd5e0">10K events/sec</text>
+    <text x="70" y="92" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#94a3b8">100× a dolphin</text>
+  </g>
+
+  <!-- Arrow to layers -->
+  <line x1="180" y1="130" x2="240" y2="130" stroke="#c44b2b" stroke-width="2"/>
+  <polygon points="240,130 232,126 232,134" fill="#c44b2b"/>
+
+  <!-- Kafka -->
+  <g transform="translate(250, 60)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">KAFKA</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">partition(42) gets</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">100× the writes</text>
+  </g>
+  <g transform="translate(250, 140)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">FLINK</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">one operator key</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">RocksDB hotspot</text>
+  </g>
+
+  <!-- Spark -->
+  <g transform="translate(430, 60)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">SPARK SHUFFLE</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">one task takes</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">90% of the time</text>
+  </g>
+  <g transform="translate(430, 140)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">DATABASE</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">hot row + index</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">lock contention</text>
+  </g>
+
+  <!-- Cache / KV -->
+  <g transform="translate(610, 60)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">DYNAMO / CASS.</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">hot partition →</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">throttled writes</text>
+  </g>
+  <g transform="translate(610, 140)">
+    <rect width="160" height="60" fill="#fef2f2" stroke="#b91c1c" rx="4"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#991b1b">BI DASHBOARD</text>
+    <text x="80" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">mean misleading</text>
+    <text x="80" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#991b1b">axis dominated</text>
+  </g>
+
+  <!-- Symptom row -->
+  <g transform="translate(790, 100)">
+    <rect width="170" height="60" fill="#fef3c7" stroke="#d4a017" rx="4"/>
+    <text x="85" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="11" font-weight="700" fill="#8a6d10">SHARED SYMPTOM</text>
+    <text x="85" y="38" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#8a6d10">one partition</text>
+    <text x="85" y="50" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#8a6d10">100× the load</text>
+  </g>
+</svg>
+
+<p>Five layers, one root cause, five different mitigations. Naming the layer-specific mitigation in an interview is the senior-IC signal — generic "use a hash key" answers don't survive contact with a load test.</p>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 02 — Streaming =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Streaming</div>
+<h2 class="part-title">Streaming — Kafka partition skew &amp; Flink keyed-state hotspots.</h2>
+
+<div class="layer-card">
+<h4>Symptom — one Kafka partition takes 100× the writes</h4>
+<h5>Kafka partition skew</h5>
+<p>Topic partitioned by <code>user_id</code>. A whale generates 10K events/sec while the median user generates 100. The whale's hash lands on partition 7. <strong>Partition 7's consumer lags 30 minutes behind</strong> while the other partitions are real-time. The downstream consumer is now reading mostly-stale data — and your "real-time" feature is anything but.</p>
+<p><strong>Mitigations (named, in order of operational cost):</strong></p>
+<ul>
+  <li><strong>Composite key</strong> — partition by <code>(user_id, hour_of_day)</code> or <code>(user_id, MOD(event_seq, 16))</code>. Spreads one whale's stream across multiple partitions. Cost: consumers can no longer assume "all events for user X are on one partition" — ordering guarantees drop.</li>
+  <li><strong>Sticky-aware producer with whale escape hatch</strong> — most events use default hashing; producers detect the top-K hot keys and reroute to dedicated whale partitions. Cost: extra producer-side state, periodic recalibration of the hot-key list.</li>
+  <li><strong>Separate whale topic</strong> — top 1% of users get a dedicated topic with higher partition count + dedicated consumer group. Cost: two topics to operate, dual-path consumer logic.</li>
+</ul>
+<p><strong>The trap:</strong> "just add more partitions" doesn't fix it. Kafka hashes by <code>hash(key) % N</code> — adding partitions reshuffles SOME keys but the whale's hash bucket stays whale-heavy. You need to change the <em>key</em>, not the partition count.</p>
+</div>
+
+<div class="layer-card">
+<h4>Symptom — one Flink subtask's RocksDB explodes</h4>
+<h5>Flink keyed-state hotspot</h5>
+<p>Flink's <code>keyBy(user_id)</code> sends all events for one user to one operator subtask. The whale's subtask accumulates 100× the state — its RocksDB instance grows to 50 GB while others are at 500 MB. Checkpoints take 10× longer. Eventually <strong>checkpoint storm</strong>: incremental checkpoints fall behind, full checkpoints exceed the timeout, the job goes into a restore loop.</p>
+<p><strong>Mitigations:</strong></p>
+<ul>
+  <li><strong>Pre-aggregation</strong> — before <code>keyBy(user_id)</code>, do a <code>keyBy(user_id, source_partition)</code> with a session-window aggregation. Reduces 10K events/sec from the whale into one aggregate per source partition; the second keyBy now sees only N aggregates per whale instead of N events. Same shape as Spark's combiner pattern.</li>
+  <li><strong>Two-phase reduce</strong> — explicit two-stage Flink: first stage aggregates by <code>(user_id, salt)</code>, second stage aggregates by <code>user_id</code> with N inputs per whale. Same as Spark salting (next section) but applied at stream time.</li>
+  <li><strong>Async I/O for sink lookups</strong> — if the whale's hotspot is on the SINK side (joining to a dim table), use Flink's async I/O to overlap the lookups; the whale operator stops being CPU-bound on lookups.</li>
+  <li><strong>Custom state backend tuning</strong> — bump RocksDB block cache, enable bloom filters, use FsStateBackend for tiny operators and RocksDBStateBackend for the whale-heavy ones (per-operator config).</li>
+</ul>
+</div>
+
+<div class="callout">
+<strong>The interview moment.</strong> If asked "how do you handle a hot Kafka partition", the L4 answer is "more partitions". The L5 answer is "either change the partition key (composite or salt), or split the hot tenant into a dedicated topic — adding partitions doesn't help because the hash still concentrates."
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 03 — Spark =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — Distributed compute</div>
+<h2 class="part-title">Spark — salting, broadcast joins, AQE.</h2>
+
+<div class="layer-card">
+<h4>Symptom — one task runs for 6 hours while the others finish in 10 seconds</h4>
+<h5>Spark skewed join / aggregation</h5>
+<p>You join a fact table (orders) to a dim table (customers), partitioned by <code>customer_id</code>. The whale customer has 30M orders, the median customer has 30. <strong>The reducer task for the whale customer takes 6 hours; everything else finishes in 10 seconds.</strong> Stage shows 199/200 tasks complete, 1 task stuck. The whole job is bottlenecked on the whale.</p>
+<p><strong>Mitigations, in increasing order of code change:</strong></p>
+</div>
+
+<h3 class="section-head">Mitigation 1 — Spark 3 AQE skew join (free)</h3>
+<p>Adaptive Query Execution (AQE) detects skewed partitions at shuffle time and automatically splits them into sub-partitions. No code change — just turn it on:</p>
+<pre><code>spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.adaptive.skewJoin.enabled", "true")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionFactor", "5")
+spark.conf.set("spark.sql.adaptive.skewJoin.skewedPartitionThresholdInBytes", "256MB")</code></pre>
+<p>AQE looks at the shuffle stats; any partition more than 5× the median AND larger than 256 MB gets split. For the build side it duplicates the matching dim rows. <strong>This handles the 80% case for free.</strong> Reach for it FIRST in any interview answer.</p>
+
+<h3 class="section-head">Mitigation 2 — Broadcast join (when the dim is small)</h3>
+<p>If the dim table fits in memory (typically &lt; 100 MB), broadcast it to every executor. No shuffle at all; the whale's fact rows stay where they are and look up the dim locally:</p>
+<pre><code>SELECT /*+ BROADCAST(customers) */ ...
+-- Or Spark conf:
+spark.conf.set("spark.sql.autoBroadcastJoinThreshold", "100MB")</code></pre>
+<p>Eliminates the join-side skew entirely. <strong>Doesn't help if both sides are large.</strong></p>
+
+<h3 class="section-head">Mitigation 3 — Salting (the manual classic)</h3>
+<p>When AQE can't and broadcast can't, you salt: explode the hot key into N sub-keys on both sides of the join, then aggregate. This is what <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> walks through in SQL form. The Spark pattern:</p>
+<pre><code># 1. Salt the fact side — add a uniform random salt 0..15 to every row
+val SALT_BUCKETS = 16
+val factSalted = fact.withColumn("salt", floor(rand() * SALT_BUCKETS).cast("int"))
+
+# 2. Explode the dim side — one copy of each dim row per salt bucket
+val dimExploded = dim
+  .withColumn("salt", explode(array((0 until SALT_BUCKETS).map(lit): _*)))
+
+# 3. Join on the composite key. The whale's 30M rows now go to 16 reducers
+#    instead of 1. Each reducer handles ~2M rows.
+val joined = factSalted.join(dimExploded,
+  Seq("customer_id", "salt"))</code></pre>
+<p><strong>The tradeoff:</strong> dim side gets N× duplication (16× memory if N=16). Pick N based on (a) how skewed the hot key is, (b) how much memory you can spare on the dim broadcast.</p>
+
+<h3 class="section-head">Mitigation 4 — Isolate the whale (the heavy-hammer)</h3>
+<p>Compute the whale separately. Filter the fact table into <code>whale_orders</code> (just user 42) and <code>rest_orders</code> (everyone else). Run different join strategies on each — broadcast for the whale, hash-join for the rest. UNION at the end:</p>
+<pre><code>val (whales, rest) = facts.partition($"customer_id".isin(hotKeyList: _*))
+val whaleResult = whales.join(broadcast(dim), "customer_id")
+val restResult  = rest.join(dim, "customer_id")  // hash join, fine
+val all = whaleResult.unionByName(restResult)</code></pre>
+<p>Operationally heavy — you maintain a hot-key list, refresh it nightly. Used at FAANG scale where AQE + salting still can't handle the largest accounts.</p>
+
+<table>
+  <thead><tr><th>Strategy</th><th>Code change</th><th>When to pick</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td><strong>AQE skew join</strong></td><td>None — config only</td><td>Always try first; Spark 3.0+</td><td>Free</td></tr>
+    <tr><td><strong>Broadcast</strong></td><td>Add hint or set threshold</td><td>Dim table &lt; 100 MB</td><td>Memory on every executor</td></tr>
+    <tr><td><strong>Salting</strong></td><td>Explicit two-phase join</td><td>Both sides large + skewed</td><td>N× duplication of dim side</td></tr>
+    <tr><td><strong>Whale isolation</strong></td><td>Filter + UNION</td><td>Top-K keys known and stable</td><td>Hot-key list maintenance</td></tr>
+  </tbody>
+</table>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 04 — Databases =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Databases</div>
+<h2 class="part-title">Databases — hot rows, hot partitions, index hotspots.</h2>
+
+<div class="layer-card">
+<h4>Symptom — one row gets all the writes; everyone else waits</h4>
+<h5>Postgres / MySQL hot-row contention</h5>
+<p>An <code>account_balance</code> table where the whale account gets 1000 UPDATEs/sec while others get 10/min. Every UPDATE takes a row lock. The whale's row is locked 99% of the time. Read queries on that row block. <strong>p99 latency for whale-touching queries goes to seconds.</strong></p>
+<p><strong>Mitigations:</strong></p>
+<ul>
+  <li><strong>Counter sharding</strong> — store the balance as N rows (<code>account_balance_shard(account_id, shard_id, delta)</code>); writes pick a random shard, reads SUM across all shards. Eliminates contention but reads cost N× more.</li>
+  <li><strong>Write batching</strong> — buffer N seconds of deltas in a queue, flush as one UPDATE. Trades latency-of-write for throughput-of-write.</li>
+  <li><strong>Optimistic concurrency + retry</strong> — instead of <code>SELECT ... FOR UPDATE</code>, use compare-and-swap with a <code>version</code> column. Whales retry more, but no other transaction blocks waiting.</li>
+  <li><strong>Materialised aggregate</strong> — don't update the balance row directly. Append <code>account_ledger</code> rows; a periodic job rolls up. The hot path becomes append-only (no contention).</li>
+</ul>
+</div>
+
+<div class="layer-card">
+<h4>Symptom — one partition throttled to 1000 RU/s; everyone else sees 0</h4>
+<h5>DynamoDB / Cassandra hot partition</h5>
+<p>DynamoDB partitions by hash(partition_key). The whale's partition handles 50K requests/sec — exceeds the per-partition limit (~3K RU/s) and gets throttled. Adaptive capacity kicks in eventually but the first 30 seconds of every spike see error rates climb. Cassandra has the same problem: a wide row for the whale grows unboundedly and breaks reads on that key.</p>
+<p><strong>Mitigations:</strong></p>
+<ul>
+  <li><strong>Composite partition key</strong> — change <code>PK = user_id</code> to <code>PK = (user_id, date)</code> or <code>(user_id, salt_bucket)</code>. Spreads the whale across multiple physical partitions. Cost: queries that want "all data for user X" now need to scatter across N partitions.</li>
+  <li><strong>Cassandra: bucket the wide row</strong> — partition key includes a time bucket like <code>(user_id, day_of_year)</code>. Bounds the row size so reads stay fast.</li>
+  <li><strong>DynamoDB write sharding via random suffix</strong> — append <code>_0</code> through <code>_15</code> to the partition key on write; on read, query all 16 suffixes in parallel.</li>
+  <li><strong>Read replicas / DAX cache</strong> — for read-heavy whales, the cache hit rate is near 100% (they re-read the same data constantly).</li>
+</ul>
+</div>
+
+<div class="layer-card">
+<h4>Symptom — sequential index slows EVERY query, even non-whale ones</h4>
+<h5>B-tree right-edge contention</h5>
+<p>If the partition key is monotonically increasing (timestamp, auto-incrementing ID), every insert lands on the right edge of the B-tree. Every write contends on the same leaf page lock. <strong>This isn't whale-specific — it's about insert distribution, not user distribution.</strong> But it's the same shape of problem.</p>
+<p><strong>Mitigations:</strong></p>
+<ul>
+  <li><strong>UUID v7 / KSUID</strong> as PK — time-sortable but with random suffix, so inserts hit many leaf pages.</li>
+  <li><strong>Partition by a salt + time</strong> — Postgres / MySQL: <code>PARTITION BY HASH(salt)</code> on top of a time-ordered partition.</li>
+  <li><strong>For Cassandra/Scylla</strong>: never use a monotonic clustering key alone — always lead the partition key with a hash.</li>
+</ul>
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 05 — Reports & dashboards =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Reports &amp; dashboards</div>
+<h2 class="part-title">Dashboards — query performance AND visual lies.</h2>
+
+<p>Skew breaks dashboards twice: once on the <strong>query</strong> (aggregations over a skewed table take 100× longer than the predicted runtime), and once on the <strong>visual</strong> (one whale's bar dominates the chart, the average tile shows a number nobody actually experiences). The L5 interviewer wants you to name both.</p>
+
+<h3 class="section-head">A. Query performance — when the BI tile times out</h3>
+
+<p>A "top-N customers by revenue this month" tile runs <code>GROUP BY customer_id</code> over 100M order rows. With Pareto distribution, the whale's customer_id has 5M rows; the per-customer reducer for that ID takes 30 seconds while others finish in 100 ms. <strong>The dashboard tile times out at 20 seconds.</strong> Same skew, BI surface.</p>
+
+<table>
+  <thead><tr><th>Anti-pattern</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td>BI tile recomputes the GROUP BY on every page-load</td><td>Materialise as <code>fct_customer_daily_revenue</code> nightly; BI reads the rollup, not the raw fact</td></tr>
+    <tr><td>Tile asks for COUNT(DISTINCT user_id) over 90 days</td><td>Use HLL sketches (<code>APPROX_COUNT_DISTINCT</code>); see <a href="/interview.app/sql.html?q=customer_growth-0028">customer_growth-0028</a></td></tr>
+    <tr><td>Top-1000 leaderboard sorts the entire fact table</td><td>Approximate top-K via Count-Min Sketch + heavy-hitter tracking</td></tr>
+    <tr><td>Filter-then-aggregate where filter is non-selective on the hot key</td><td>Pre-bucket and aggregate at ETL time; BI reads pre-computed buckets</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">B. Visual lies — when the chart misleads</h3>
+
+<p>Even when the query is fast, the picture can be wrong. Skewed data breaks dashboards visually in five specific ways:</p>
+
+<div class="trap-box">
+<strong>Trap 1 — The axis is dominated by one bar.</strong> Bar chart of "revenue per customer". The whale's bar is $5M; the next customer is $80K. Every other bar is a 1-pixel sliver. The chart visually says "one customer is the entire business" — even though decile 2-10 collectively are 70% of revenue.<br>
+<strong>Fix:</strong> log-scale Y-axis, or top-N + an "others (aggregated)" bar with the long-tail collapsed into one. Or use the lift-chart shape — cumulative percent on the Y-axis, percentile rank on the X-axis. The whale's contribution shows up as a steep early curve, not a single dominating bar.
+</div>
+
+<div class="trap-box">
+<strong>Trap 2 — The average tile reports a value nobody experiences.</strong> "Average revenue per customer = $202" on the executive dashboard. The median is $30. <strong>Nobody actually pays $202</strong> — that number exists because the whale exists. Reporting just the mean is a senior-IC mistake.<br>
+<strong>Fix:</strong> always show mean AND median side by side. Add the skew_ratio (mean / median) as a small subscript. When skew_ratio &gt; 2 the dashboard is communicating two different stories at once.
+</div>
+
+<div class="trap-box">
+<strong>Trap 3 — A pie chart that should never have been a pie chart.</strong> "Revenue share by customer." If one customer is 60%, the pie is unreadable for everyone else (3°, 2°, 1° slices crammed together). Pie charts assume roughly uniform shares — they fail on long-tail data.<br>
+<strong>Fix:</strong> use a ranked bar chart (cumulative percent) or a treemap, both of which are designed for non-uniform distributions.
+</div>
+
+<div class="trap-box">
+<strong>Trap 4 — Time-series with single-day spikes hides everything else.</strong> Daily revenue chart; one day had a whale's $20M renewal. The Y-axis now goes 0 to $25M. Every other day is a 0.5-pixel line near the bottom. <strong>The whole month looks dead except for one day.</strong><br>
+<strong>Fix:</strong> compute a robust Y-axis (clip at P99), or display the spike as an annotation marker on a normally-scaled axis. Some BI tools call this "outlier suppression".
+</div>
+
+<div class="trap-box">
+<strong>Trap 5 — Cohort retention charts where one cohort dominates the sample.</strong> "Retention by signup month." If one month had a viral launch (5× the usual signups), that cohort's retention curve dominates the visual. The other months' curves overlap into a blur. Conclusions drawn from this chart are mostly about the viral cohort, not the platform.<br>
+<strong>Fix:</strong> show retention as percentage (not absolute), and stack the curves so each can be inspected. Or aggregate non-viral months together to give the visual a baseline.
+</div>
+
+<h3 class="section-head">C. The L5-friendly tile pattern</h3>
+<p>For any tile that aggregates over potentially-skewed data, show <strong>three numbers, not one</strong>:</p>
+<pre><code>┌─────────────────────────────────────────┐
+│  REVENUE PER CUSTOMER (this quarter)    │
+│                                         │
+│    Mean      Median     Skew ratio      │
+│    $202      $30        6.7×            │
+│                                         │
+│    P99 customer: $5,000,000             │
+└─────────────────────────────────────────┘</code></pre>
+<p>The mean alone is the slide for the press release. The full triplet is the slide for the operating review. Senior data folks recognise the difference and build the dashboard for both audiences.</p>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 06 — Cohort playbook =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Cohort playbook</div>
+<h2 class="part-title">The whale / dolphin / minnow playbook — different cohorts, different handling.</h2>
+
+<p>Once you've identified cohorts (see the <a href="./skew-and-distributions.html">vocabulary page</a>), the operational moves diverge by cohort. This is the L5 framing: skew handling isn't one mitigation — it's three different operational regimes running in parallel.</p>
+
+<div class="layer-card">
+<h4>🐋 Whale · top 1-5%</h4>
+<h5>Handle as VIP infrastructure tenants</h5>
+<ul>
+  <li><strong>Streaming:</strong> dedicated topic / partition group; opt-out of default partitioning.</li>
+  <li><strong>Compute:</strong> whale-isolation join pattern (filter + UNION). Pre-compute their aggregates nightly so dashboards don't recompute them at query time.</li>
+  <li><strong>Database:</strong> counter sharding, write batching, optimistic concurrency. Read-replica routing if they're read-heavy.</li>
+  <li><strong>Cache:</strong> aggressive pre-warming. Their working set fits — and is worth — keeping hot.</li>
+  <li><strong>Dashboard:</strong> always reported separately ("top-5 customers" with names; or "non-whale aggregate" if anonymised).</li>
+  <li><strong>SLA:</strong> tighter — they generate the most support volume, can't afford to have a bad experience.</li>
+</ul>
+</div>
+
+<div class="layer-card">
+<h4>🐬 Dolphin · middle 65-75%</h4>
+<h5>Default-path tenants — most of the work goes here</h5>
+<ul>
+  <li><strong>Streaming:</strong> default hash partitioning is fine.</li>
+  <li><strong>Compute:</strong> hash joins, no special handling. AQE skew join will catch the occasional borderline-dolphin that creeps into the whale band.</li>
+  <li><strong>Database:</strong> standard sharding; no per-user tuning needed.</li>
+  <li><strong>Cache:</strong> LRU; their working set is too large to pin, but cache hit rates are still good because they re-read recent content.</li>
+  <li><strong>Dashboard:</strong> the median + decile rollups represent them. Optimise the dashboard for THIS cohort — they're the platform.</li>
+</ul>
+</div>
+
+<div class="layer-card">
+<h4>🐟 Minnow · bottom 20-30%</h4>
+<h5>Optimise for cold-path efficiency, not freshness</h5>
+<ul>
+  <li><strong>Streaming:</strong> default. But they generate so few events that you can consider <em>not partitioning their events at all</em> — pool minnow events into a low-priority topic and process in bigger batches.</li>
+  <li><strong>Compute:</strong> can run on a cheaper schedule (hourly instead of real-time). They're not waiting on the data anyway.</li>
+  <li><strong>Database:</strong> cold-tier storage; archive after N days of inactivity. Reduce the working set so dolphins fit in hot memory.</li>
+  <li><strong>Cache:</strong> don't pre-warm; cache cost outweighs the value (they don't re-read enough).</li>
+  <li><strong>Dashboard:</strong> aggregated as a single "low-engagement" cohort. Per-minnow detail is noise.</li>
+  <li><strong>SLA:</strong> relaxed — a 10-second page load for a user who hasn't logged in in 30 days is acceptable; for a whale it isn't.</li>
+</ul>
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 07 — Detection =============== -->
+<section id="part-07">
+<div class="part-eyebrow">§ 07 — Detection</div>
+<h2 class="part-title">Detection — how you SEE skew before it pages you.</h2>
+
+<p>The strongest signal in the interview isn't naming a mitigation — it's naming the <em>metric</em> you'd watch to detect skew before it breaks production. For each layer:</p>
+
+<table>
+  <thead><tr><th>Layer</th><th>Detection metric</th><th>Threshold that pages on-call</th></tr></thead>
+  <tbody>
+    <tr><td>Kafka</td><td>Per-partition consumer lag (ms or messages)</td><td>P99 partition lag &gt; 5× P50 lag</td></tr>
+    <tr><td>Kafka</td><td>Bytes-in per partition (Prometheus / KMM)</td><td>Max partition &gt; 4× mean partition</td></tr>
+    <tr><td>Flink</td><td>Subtask processing time + state size</td><td>One subtask &gt; 3× median operator</td></tr>
+    <tr><td>Flink</td><td>Checkpoint duration trend</td><td>Drifting up week-over-week &gt; 20%</td></tr>
+    <tr><td>Spark</td><td>Task duration P99 / P50 per stage</td><td>P99 &gt; 10× P50 — Spark UI flags this</td></tr>
+    <tr><td>Spark</td><td>Shuffle bytes per task</td><td>Max task shuffle bytes &gt; 5× median</td></tr>
+    <tr><td>Postgres</td><td>Lock wait time per table (<code>pg_locks</code>)</td><td>Per-row lock wait &gt; 100ms P99</td></tr>
+    <tr><td>DynamoDB</td><td>Per-partition throttled requests (CloudWatch)</td><td>Any 5xx throttle</td></tr>
+    <tr><td>Cassandra</td><td>Wide-row size (<code>nodetool tablestats</code>)</td><td>Max partition size &gt; 100MB</td></tr>
+    <tr><td>BI dashboard</td><td>Tile execution time + skew_ratio per query</td><td>Skew ratio &gt; 3, mean / median &gt; 4</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+<strong>The senior detection move.</strong> Don't wait for the throttle / timeout / lock error. Build a <em>skew dashboard</em> for every layer — one row per metric, green/yellow/red. When yellow turns red, the on-call investigates BEFORE the user complains. The skew metric is the leading indicator; the SLA breach is the lagging one.
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 08 — Script =============== -->
+<section id="part-08">
+<div class="part-eyebrow">§ 08 — The interview script</div>
+<h2 class="part-title">The 90-second articulation script.</h2>
+
+<p>When asked <em>"how do you handle hot shards"</em> or <em>"what happens when a whale joins your platform"</em>:</p>
+
+<div class="senior-signal">
+<p>"Skew is the same root cause everywhere — one shard takes 100× the traffic — but the symptom and mitigation are layer-specific.</p>
+<p><strong>At the streaming layer</strong>, one Kafka partition lags. I change the partition key — composite (user_id + hour) or pre-aggregate before the keyBy. Adding partitions doesn't help because the hash still concentrates.</p>
+<p><strong>At the compute layer</strong>, one Spark task takes 6 hours. AQE skew join is the free first move; broadcast if the dim is small; salting (two-phase aggregation with a uniform random salt 0..15) if both sides are large; whale-isolation (filter + UNION) at FAANG scale.</p>
+<p><strong>At the database layer</strong>, one row gets all the writes. Counter sharding, write batching, or convert to an append-only ledger with periodic rollup. For Dynamo / Cassandra, change the partition key to include a time bucket or a salt.</p>
+<p><strong>At the BI layer</strong>, the dashboard misleads twice: queries time out on the whale's GROUP BY, AND the chart visually lies because one bar dominates the axis. Pre-aggregate at ETL time; report mean AND median AND skew_ratio side-by-side; never use a pie chart on Pareto data.</p>
+<p>And the cohort-aware framing: whales get VIP-tier isolation, dolphins are the default path most of the work optimises for, minnows are cold-tier with relaxed SLAs and pooled processing. The detection metric is layer-specific too — Kafka partition lag, Spark task P99/P50, lock wait time, dashboard skew ratio. Catch it before it pages you."</p>
+</div>
+
+<h3 class="section-head">Related practice questions</h3>
+<ul>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027"><strong>customer_growth-0027</strong></a> — Salting a Skewed Aggregation (the SQL form of the Spark salt pattern)</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0028"><strong>customer_growth-0028</strong></a> — DAU/MAU with HyperLogLog (non-additivity + sketch aggregation for hot-key cardinality)</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0031"><strong>customer_growth-0031</strong></a> — Power-User Skew Analysis (PERCENTILE_CONT + NTILE + LAD-tolerant view)</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032"><strong>customer_growth-0032</strong></a> — Whale / Dolphin / Minnow archetype classification</li>
+  <li><a href="/interview.app/sql.html?q=community_solved-0082"><strong>community_solved-0082</strong></a> — 80/20 Pareto cumulative contribution</li>
+</ul>
+
+<h3 class="section-head">Related design pages</h3>
+<ul>
+  <li><a href="./skew-and-distributions.html"><strong>Skew &amp; Distributions — the senior DE vocabulary</strong></a> — whales / dolphins / minnows / Pareto / long-tail / normal / skewed / mean vs median / LAD gap</li>
+  <li><a href="./streaming-architecture.html"><strong>Streaming Architecture</strong></a> — Flink + Kafka deep dive on event-time, watermarks, exactly-once, backpressure, checkpoint storm</li>
+  <li><a href="./data-modeling.html"><strong>Data Modeling — 18 industry scenarios</strong></a> — includes Scenario 17 Netflix LAD which intersects with skew detection</li>
+</ul>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<footer style="text-align:center;margin:60px 0 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;letter-spacing:.18em;">
+  Five layers · one root cause · five named mitigations · go well.
+</footer>
+
+</article>
+</main>
+</body>
+</html>
