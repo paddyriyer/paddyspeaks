@@ -13267,7 +13267,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "users_web_log(day, page_exit, page_load, pe, pl, second, timestamp, user_id)",
-    "solution": "WITH page_load_cte AS (\n  SELECT user_id, CAST(timestamp AS date) AS day, MAX(timestamp) AS latest_page_load\n  FROM users_web_log\n  WHERE action = 'page_load'\n  GROUP BY user_id, CAST(timestamp AS date)\n), page_exit_cte AS (\n  SELECT user_id, CAST(timestamp AS date) AS day, MIN(timestamp) AS earliest_page_exit\n  FROM users_web_log\n  WHERE action = 'page_exit'\n  GROUP BY user_id, CAST(timestamp AS date)\n)\nSELECT pl.user_id,\n       AVG(EXTRACT(EPOCH FROM (earliest_page_exit - latest_page_load))) AS avg_duration\nFROM page_load_cte pl\nINNER JOIN page_exit_cte pe ON pl.user_id = pe.user_id AND pl.day = pe.day\nGROUP BY pl.user_id;",
+    "solution": "SELECT user_id,\n       AVG(EXTRACT(EPOCH FROM (page_exit::timestamp - page_load::timestamp))) AS avg_duration\nFROM users_web_log\nWHERE page_load IS NOT NULL AND page_exit IS NOT NULL\n  AND page_load::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'\n  AND page_exit::text ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'\nGROUP BY user_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/119_Calculate%20Users%20By%20Average%20Session%20Time%20%28stratascratch%29-solution%202.sql"
@@ -13281,8 +13281,7 @@
       "date-functions",
       "joins",
       "subquery"
-    ],
-    "_skip_reason": "schema lacks 'action' column"
+    ]
   },
   {
     "id": "community_solved-0031",
@@ -13487,21 +13486,20 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "tab_sequence(sequence, flag_query, partition)",
-    "solution": "--Min Max from group and sequence\n\n--select * from tab_sequence;\n\nwith flag_query as(\nselect \"group\",\n    \"sequence\",\n    row_number() over(partition by \"group\" order by \"sequence\" asc) as flag,\n    \"sequence\" - row_number() over(partition by \"group\" order by \"sequence\" asc) as diff\nfrom tab_sequence\n)\nselect distinct \"group\", --diff,\n    min(\"sequence\") over(partition by \"group\",diff) as min_seq,\n    max(\"sequence\") over(partition by \"group\",diff) as max_seq\nfrom flag_query\n--group by \"group\", diff",
+    "solution": "WITH flag_query AS (\n  SELECT \"partition\" AS grp,\n         \"sequence\",\n         ROW_NUMBER() OVER (PARTITION BY \"partition\" ORDER BY \"sequence\" ASC) AS flag,\n         CASE WHEN \"sequence\"::text ~ '^-?[0-9]+$' THEN \"sequence\"::int ELSE 0 END\n           - ROW_NUMBER() OVER (PARTITION BY \"partition\" ORDER BY \"sequence\" ASC) AS diff\n  FROM tab_sequence\n)\nSELECT DISTINCT grp,\n  MIN(\"sequence\") OVER (PARTITION BY grp, diff) AS min_seq,\n  MAX(\"sequence\") OVER (PARTITION BY grp, diff) AS max_seq\nFROM flag_query;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/127_Min_max%20from%20group%20and%20sequence%20%28using%20row_number%20function%29.sql"
     },
     "question": "Min Max from group and sequence",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "analytical-functions",
       "cte",
       "distinct",
       "subquery"
-    ],
-    "_skip_reason": "schema lacks 'group' column needed by query"
+    ]
   },
   {
     "id": "community_solved-0039",
@@ -13567,7 +13565,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "match_result(team_1, team_2, result_won)",
-    "solution": "-- Per-team summary: matches played / won / tied / lost\n-- Technique: UNION ALL to \"unpivot\" the two-team-per-row layout into one\n-- (team, result_won) row per team-match, then GROUP BY team and use\n-- conditional aggregation. result_won = team -> won, result_won IS NULL -> tied,\n-- otherwise -> lost.\n\nWITH team_matches AS (\n    SELECT team_1 AS team, result_won FROM match_result\n    UNION ALL\n    SELECT team_2 AS team, result_won FROM match_result\n)\nSELECT\n    team,\n    COUNT(*)                                                AS matches_played,\n    COUNT(*) FILTER (WHERE team = result_won)               AS matches_won,\n    COUNT(*) FILTER (WHERE result_won IS NULL)              AS matches_tied,\n    COUNT(*) FILTER (WHERE result_won IS NOT NULL\n                       AND team <> result_won)              AS matches_lost\nFROM team_matches\nGROUP BY team\nORDER BY team;\n",
+    "solution": "WITH t1 AS (\n  SELECT team_1 AS team, result_won AS result FROM match_result\n  UNION ALL\n  SELECT team_2 AS team, result_won AS result FROM match_result\n)\nSELECT team,\n       COUNT(1) AS match_count,\n       SUM(CASE WHEN team = result THEN 1 ELSE 0 END) AS match_won,\n       SUM(CASE WHEN result IS NULL THEN 1 ELSE 0 END) AS tied_match,\n       SUM(CASE WHEN team <> result THEN 1 ELSE 0 END) AS lost_match\nFROM t1\nGROUP BY team;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/130_write%20a%20query%20to%20digitize%20a%20result%20table%20%282%20methods%29.sql"
@@ -13582,8 +13580,7 @@
       "null-handling",
       "subquery",
       "union"
-    ],
-    "_skip_reason": "schema has reserved-name column 'isnull' breaking table setup"
+    ]
   },
   {
     "id": "community_solved-0042",
@@ -14186,14 +14183,13 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/154_calculate%20total%20club%20reward%20points%20%282%20methods%20-%20string%20split%20and%20cross%20apply%29.sql"
     },
     "question": "Question:- Club Table has three columns namely Club_ID, Member_id and EDU.\nSame member can be a part of different club. The EDU column has different rewards. The points\nfor these awards are as follows :-\nMM - 0.5, CI - 0.5, CO- 0.5, CD - I, CL-I, CM - I\nWrite a SQL query to find the total points scored by each club.",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "cte",
       "null-handling",
       "subquery"
-    ],
-    "_skip_reason": "schema has reserved-name column 'isnull' breaking table setup"
+    ]
   },
   {
     "id": "community_solved-0065",
@@ -14716,8 +14712,7 @@
       "left-join",
       "subquery"
     ],
-    "runtime": "non-sqlite",
-    "_skip_reason": "schema contains reserved keywords (create, table, int, date, varchar) that break Postgres CREATE TABLE"
+    "runtime": "postgres"
   },
   {
     "id": "community_solved-0084",
@@ -18043,7 +18038,7 @@
     "title": "Cancellation Rate by Stay Length",
     "subtopic": "Bucketed stay-length analysis",
     "schema": "bookings(booking_id, listing_id, nights, cancelled)",
-    "solution": "SELECT\n  CASE\n    WHEN nights <= 2  THEN '1-2 nights'\n    WHEN nights <= 6  THEN '3-6 nights'\n    WHEN nights <= 14 THEN '1-2 weeks'\n    ELSE '15+ nights'\n  END AS stay_band,\n  COUNT(*) AS bookings,\n  SUM(cancelled) AS cancellations,\n  ROUND(100.0 * SUM(cancelled) / NULLIF(COUNT(*), 0), 1) AS cancel_rate_pct\nFROM bookings\nGROUP BY stay_band\nORDER BY cancel_rate_pct DESC;",
+    "solution": "WITH nb AS (\n  SELECT *, CASE WHEN nights::text ~ '^-?[0-9]+$' THEN nights::int ELSE 0 END AS n_int\n  FROM bookings\n)\nSELECT\n  CASE\n    WHEN n_int <= 2  THEN '1-2 nights'\n    WHEN n_int <= 6  THEN '3-6 nights'\n    WHEN n_int <= 14 THEN '1-2 weeks'\n    ELSE '15+ nights'\n  END AS stay_band,\n  COUNT(*) AS bookings,\n  SUM(CASE WHEN cancelled::text ~ '^-?[0-9]+$' THEN cancelled::int ELSE 0 END) AS cancellations,\n  ROUND(100.0 * SUM(CASE WHEN cancelled::text ~ '^-?[0-9]+$' THEN cancelled::int ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS cancel_rate_pct\nFROM nb\nGROUP BY 1\nORDER BY cancel_rate_pct DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -18052,7 +18047,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "cancellation-rate-by-stay-length"
   },
   {
@@ -18084,7 +18079,7 @@
     "title": "Song Skip Rate by Genre",
     "subtopic": "Skip-rate per category",
     "schema": "plays(play_id, user_id, song_id, genre, played_seconds, song_seconds, skipped)",
-    "solution": "SELECT genre,\n  COUNT(*) AS plays,\n  SUM(skipped) AS skips,\n  ROUND(100.0 * SUM(skipped) / NULLIF(COUNT(*), 0), 1) AS skip_rate_pct,\n  ROUND(AVG(played_seconds * 100.0 / NULLIF(song_seconds, 0)), 1) AS avg_completion_pct\nFROM plays\nGROUP BY genre\nHAVING COUNT(*) >= 3\nORDER BY skip_rate_pct DESC;",
+    "solution": "SELECT genre,\n  COUNT(*) AS plays,\n  SUM(CASE WHEN skipped::text ~ '^-?[0-9]+$' THEN skipped::int ELSE 0 END) AS skips,\n  ROUND(100.0 * SUM(CASE WHEN skipped::text ~ '^-?[0-9]+$' THEN skipped::int ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS skip_rate_pct,\n  ROUND(AVG(played_seconds * 100.0 / NULLIF(song_seconds, 0)), 1) AS avg_completion_pct\nFROM plays\nGROUP BY genre\nHAVING COUNT(*) >= 3\nORDER BY skip_rate_pct DESC;",
     "tags": [
       "aggregation",
       "having",
@@ -18093,7 +18088,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "song-skip-rate-by-genre"
   },
   {
@@ -18191,7 +18186,7 @@
     "title": "Royalty Pool Pro-Rata \u2014 Streams \u00d7 Country Rate",
     "subtopic": "Window-aggregate share calculation",
     "schema": "streams(stream_id, artist_id, country, played_at), country_pool(country, monthly_pool_usd)",
-    "solution": "WITH streams_per_artist AS (\n  SELECT s.country, s.artist_id, COUNT(*) AS streams\n  FROM streams s GROUP BY s.country, s.artist_id\n),\ncountry_total AS (\n  SELECT country, SUM(streams) AS total_streams\n  FROM streams_per_artist GROUP BY country\n)\nSELECT spa.country, spa.artist_id, spa.streams,\n  ct.total_streams,\n  ROUND(spa.streams * 1.0 / NULLIF(ct.total_streams, 0) * cp.monthly_pool_usd, 2) AS payout_usd\nFROM streams_per_artist spa\nJOIN country_total ct  ON ct.country = spa.country\nJOIN country_pool cp   ON cp.country = spa.country\nORDER BY payout_usd DESC;",
+    "solution": "WITH streams_per_artist AS (\n  SELECT s.country, s.artist_id, COUNT(*) AS streams\n  FROM streams s GROUP BY s.country, s.artist_id\n),\ncountry_total AS (\n  SELECT country, SUM(streams) AS total_streams\n  FROM streams_per_artist GROUP BY country\n),\npool_clean AS (\n  SELECT country,\n    CASE WHEN monthly_pool_usd::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN monthly_pool_usd::numeric ELSE 0 END AS monthly_pool_usd\n  FROM country_pool\n)\nSELECT spa.country, spa.artist_id, spa.streams, ct.total_streams,\n  ROUND(spa.streams * 1.0 / NULLIF(ct.total_streams, 0) * cp.monthly_pool_usd, 2) AS payout_usd\nFROM streams_per_artist spa\nJOIN country_total ct ON ct.country = spa.country\nJOIN pool_clean cp ON cp.country = spa.country\nORDER BY payout_usd DESC;",
     "tags": [
       "aggregation",
       "cte",
@@ -18201,7 +18196,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "royalty-pool-pro-rata--streams-\u00d7-country-rate"
   },
   {
@@ -18317,7 +18312,7 @@
     "title": "Multi-Order Stacking \u2014 Two Orders Same Dasher Same Hour",
     "subtopic": "Self-join with temporal proximity",
     "schema": "deliveries(delivery_id, dasher_id, started_at, restaurant_id)",
-    "solution": "SELECT a.dasher_id, a.delivery_id AS order_a, b.delivery_id AS order_b,\n  CAST((EXTRACT(EPOCH FROM (b.started_at - a.started_at)) / 86400.0) * 60 AS INTEGER) AS minutes_apart\nFROM deliveries a\nJOIN deliveries b\n  ON b.dasher_id = a.dasher_id\n AND b.delivery_id != a.delivery_id\n AND (b.started_at) > (a.started_at)\n AND (b.started_at - a.started_at) <= INTERVAL '1 days'.0/24\nORDER BY a.dasher_id, a.started_at;",
+    "solution": "SELECT a.dasher_id, a.delivery_id AS order_a, b.delivery_id AS order_b,\n  CAST(EXTRACT(EPOCH FROM (b.started_at - a.started_at))/60 AS INTEGER) AS minutes_apart\nFROM deliveries a\nJOIN deliveries b\n  ON b.dasher_id = a.dasher_id\n AND b.delivery_id != a.delivery_id\n AND b.started_at > a.started_at\n AND (b.started_at - a.started_at) <= INTERVAL '1 hour'\nORDER BY a.dasher_id, a.started_at;",
     "tags": [
       "joins",
       "self-join"
@@ -18325,7 +18320,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "multi-order-stacking--two-orders-same-dasher-same-hour"
   },
   {
@@ -18355,7 +18350,7 @@
     "title": "Customer Cohort LTV \u2014 90-Day Spend per Acquisition Month",
     "subtopic": "Cohort-style cumulative spend",
     "schema": "orders(customer_id, ordered_at, total, order_id, order_date, status, amount)",
-    "solution": "WITH cohorts AS (\n  SELECT customer_id, MIN(ordered_at) AS first_order_at\n  FROM orders GROUP BY customer_id\n),\nspend_in_window AS (\n  SELECT c.customer_id,\n    substr(c.first_order_at, 1, 7) AS cohort_month,\n    SUM(o.total) AS cumulative_spend\n  FROM cohorts c\n  JOIN orders o\n    ON o.customer_id = c.customer_id\n   AND EXTRACT(EPOCH FROM (o.ordered_at - c.first_order_at)) / 86400.0 BETWEEN 0 AND 90\n  GROUP BY c.customer_id, cohort_month\n)\nSELECT cohort_month,\n  COUNT(*) AS new_customers,\n  ROUND(AVG(cumulative_spend), 2) AS avg_90d_ltv,\n  ROUND(SUM(cumulative_spend), 2) AS cohort_total_spend\nFROM spend_in_window\nGROUP BY cohort_month\nORDER BY cohort_month;",
+    "solution": "WITH cohorts AS (\n  SELECT customer_id, MIN(ordered_at) AS first_order_at\n  FROM orders GROUP BY customer_id\n),\nspend_in_window AS (\n  SELECT c.customer_id,\n    TO_CHAR(c.first_order_at::date, 'YYYY-MM') AS cohort_month,\n    SUM(o.total) AS cumulative_spend\n  FROM cohorts c\n  JOIN orders o ON o.customer_id = c.customer_id\n    AND (o.ordered_at::date - c.first_order_at::date) BETWEEN 0 AND 90\n  GROUP BY c.customer_id, TO_CHAR(c.first_order_at::date, 'YYYY-MM')\n)\nSELECT cohort_month,\n  COUNT(*) AS new_customers,\n  ROUND(AVG(cumulative_spend), 2) AS avg_90d_ltv,\n  ROUND(SUM(cumulative_spend), 2) AS cohort_total_spend\nFROM spend_in_window\nGROUP BY cohort_month\nORDER BY cohort_month;",
     "tags": [
       "aggregation",
       "cte",
@@ -18365,7 +18360,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "customer-cohort-ltv--90-day-spend-per-acquisition-month"
   },
   {
@@ -18437,7 +18432,7 @@
     "title": "InMail Response Rate by Recipient Industry",
     "subtopic": "Cross-table response-rate matrix",
     "schema": "inmails(inmail_id, sender_id, recipient_id, sent_at, replied), members(member_id, industry)",
-    "solution": "SELECT m.industry,\n  COUNT(*) AS inmails,\n  SUM(i.replied) AS replies,\n  ROUND(100.0 * SUM(i.replied) / NULLIF(COUNT(*), 0), 1) AS response_rate_pct\nFROM inmails i\nJOIN members m ON m.member_id = i.recipient_id\nGROUP BY m.industry\nHAVING COUNT(*) >= 3\nORDER BY response_rate_pct DESC;",
+    "solution": "SELECT m.industry,\n  COUNT(*) AS inmails,\n  SUM(CASE WHEN i.replied::text ~ '^-?[0-9]+$' THEN i.replied::int ELSE 0 END) AS replies,\n  ROUND(100.0 * SUM(CASE WHEN i.replied::text ~ '^-?[0-9]+$' THEN i.replied::int ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS response_rate_pct\nFROM inmails i\nJOIN members m ON m.member_id = i.recipient_id\nGROUP BY m.industry\nHAVING COUNT(*) >= 3\nORDER BY response_rate_pct DESC;",
     "tags": [
       "aggregation",
       "having",
@@ -18447,7 +18442,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "inmail-response-rate-by-recipient-industry"
   },
   {
@@ -18560,7 +18555,7 @@
     "title": "Post Engagement by Type \u2014 Articles vs Updates vs Videos",
     "subtopic": "Per-post-type rate comparison",
     "schema": "posts(post_id, author_id, post_type, impressions, engagements)",
-    "solution": "SELECT post_type,\n  COUNT(*) AS posts,\n  SUM(impressions) AS total_impressions,\n  SUM(engagements) AS total_engagements,\n  ROUND(100.0 * SUM(engagements) / NULLIF(SUM(impressions), 0), 2) AS engagement_rate_pct,\n  ROUND(SUM(engagements) * 1.0 / NULLIF(COUNT(*), 0), 1) AS avg_engagements_per_post\nFROM posts\nGROUP BY post_type\nORDER BY engagement_rate_pct DESC;",
+    "solution": "WITH p AS (\n  SELECT post_type,\n    CASE WHEN impressions::text ~ '^-?[0-9]+$' THEN impressions::int ELSE 0 END AS impressions,\n    CASE WHEN engagements::text ~ '^-?[0-9]+$' THEN engagements::int ELSE 0 END AS engagements\n  FROM posts\n)\nSELECT post_type,\n  COUNT(*) AS posts,\n  SUM(impressions) AS total_impressions,\n  SUM(engagements) AS total_engagements,\n  ROUND(100.0 * SUM(engagements) / NULLIF(SUM(impressions), 0), 2) AS engagement_rate_pct,\n  ROUND(SUM(engagements) * 1.0 / NULLIF(COUNT(*), 0), 1) AS avg_engagements_per_post\nFROM p\nGROUP BY post_type\nORDER BY engagement_rate_pct DESC;",
     "tags": [
       "aggregation",
       "null-handling"
@@ -18568,7 +18563,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "post-engagement-by-type--articles-vs-updates-vs-videos"
   },
   {
@@ -18579,7 +18574,7 @@
     "title": "Story View Completion per Snap",
     "subtopic": "Per-story completion + reach",
     "schema": "story_snaps(snap_id, story_id, viewed, swiped_through)",
-    "solution": "SELECT story_id,\n  COUNT(*) AS impressions,\n  SUM(viewed) AS views,\n  SUM(swiped_through) AS swiped_away,\n  ROUND(100.0 * SUM(swiped_through) / NULLIF(SUM(viewed), 0), 1) AS swipe_through_pct\nFROM story_snaps\nGROUP BY story_id\nHAVING SUM(viewed) >= 3\nORDER BY swipe_through_pct;",
+    "solution": "SELECT story_id,\n  COUNT(*) AS impressions,\n  SUM(CASE WHEN viewed::text ~ '^-?[0-9]+$' THEN viewed::int ELSE 0 END) AS views,\n  SUM(CASE WHEN swiped_through::text ~ '^-?[0-9]+$' THEN swiped_through::int ELSE 0 END) AS swiped_away,\n  ROUND(100.0 * SUM(CASE WHEN swiped_through::text ~ '^-?[0-9]+$' THEN swiped_through::int ELSE 0 END)\n              / NULLIF(SUM(CASE WHEN viewed::text ~ '^-?[0-9]+$' THEN viewed::int ELSE 0 END), 0), 1) AS swipe_through_pct\nFROM story_snaps\nGROUP BY story_id\nHAVING SUM(CASE WHEN viewed::text ~ '^-?[0-9]+$' THEN viewed::int ELSE 0 END) >= 3\nORDER BY swipe_through_pct;",
     "tags": [
       "aggregation",
       "having",
@@ -18588,7 +18583,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "story-view-completion-per-snap"
   },
   {
@@ -18698,7 +18693,7 @@
     "title": "Search Intent \u2014 Visual Query vs Text Query CTR",
     "subtopic": "CTR by query modality",
     "schema": "searches(search_id, query_type, clicked)",
-    "solution": "SELECT query_type,\n  COUNT(*) AS searches,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM searches\nGROUP BY query_type\nORDER BY ctr_pct DESC;",
+    "solution": "SELECT query_type,\n  COUNT(*) AS searches,\n  SUM(CASE WHEN clicked::text ~ '^-?[0-9]+$' THEN clicked::int ELSE 0 END) AS clicks,\n  ROUND(100.0 * SUM(CASE WHEN clicked::text ~ '^-?[0-9]+$' THEN clicked::int ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM searches\nGROUP BY query_type\nORDER BY ctr_pct DESC;",
     "tags": [
       "aggregation",
       "null-handling"
@@ -18706,7 +18701,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "search-intent--visual-query-vs-text-query-ctr"
   },
   {
@@ -18739,7 +18734,7 @@
     "title": "Promoted Pin CTR by Pin Type",
     "subtopic": "Per-format CTR with sample-size gate",
     "schema": "promoted_pins(impression_id, pin_id, pin_format, clicked)",
-    "solution": "SELECT pin_format,\n  COUNT(*) AS impressions,\n  SUM(clicked) AS clicks,\n  ROUND(100.0 * SUM(clicked) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM promoted_pins\nGROUP BY pin_format\nHAVING COUNT(*) >= 3\nORDER BY ctr_pct DESC;",
+    "solution": "SELECT pin_format,\n  COUNT(*) AS impressions,\n  SUM(CASE WHEN clicked::text ~ '^-?[0-9]+$' THEN clicked::int ELSE 0 END) AS clicks,\n  ROUND(100.0 * SUM(CASE WHEN clicked::text ~ '^-?[0-9]+$' THEN clicked::int ELSE 0 END) / NULLIF(COUNT(*), 0), 2) AS ctr_pct\nFROM promoted_pins\nGROUP BY pin_format\nHAVING COUNT(*) >= 3\nORDER BY ctr_pct DESC;",
     "tags": [
       "aggregation",
       "having",
@@ -18748,7 +18743,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "promoted-pin-ctr-by-pin-type"
   },
   {
@@ -18824,7 +18819,7 @@
     "title": "MQL \u2192 SQL \u2192 Won Funnel Per Quarter",
     "subtopic": "Multi-stage cohort waterfall",
     "schema": "opportunities(opp_id, mql_at, sql_at, won_at, lost_at)",
-    "solution": "SELECT\n  substr(mql_at, 1, 7) AS quarter_proxy,\n  COUNT(*) AS mqls,\n  COUNT(sql_at) AS sqls,\n  COUNT(won_at) AS won,\n  ROUND(100.0 * COUNT(sql_at) / NULLIF(COUNT(*), 0), 1) AS mql_to_sql_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(sql_at), 0), 1) AS sql_to_won_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(*), 0), 1) AS overall_pct\nFROM opportunities\nGROUP BY substr(mql_at, 1, 7)\nORDER BY quarter_proxy;",
+    "solution": "SELECT\n  SUBSTRING(mql_at::text FROM 1 FOR 7) AS quarter_proxy,\n  COUNT(*) AS mqls,\n  COUNT(sql_at) AS sqls,\n  COUNT(won_at) AS won,\n  ROUND(100.0 * COUNT(sql_at) / NULLIF(COUNT(*), 0), 1) AS mql_to_sql_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(sql_at), 0), 1) AS sql_to_won_pct,\n  ROUND(100.0 * COUNT(won_at) / NULLIF(COUNT(*), 0), 1) AS overall_pct\nFROM opportunities\nGROUP BY SUBSTRING(mql_at::text FROM 1 FOR 7)\nORDER BY quarter_proxy;",
     "tags": [
       "aggregation",
       "null-handling",
@@ -18833,7 +18828,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "mql-\u2192-sql-\u2192-won-funnel-per-quarter"
   },
   {
@@ -18856,7 +18851,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "account-hierarchy--recursive-parent-child-rollup"
   },
   {
@@ -18910,14 +18905,14 @@
     "title": "Customer Health Score \u2014 Composite",
     "subtopic": "Multi-input weighted score",
     "schema": "customer_signals(customer_id, login_30d_count, support_tickets_open, nps, last_renewal_pct)",
-    "solution": "SELECT customer_id,\n  login_30d_count, support_tickets_open, nps, last_renewal_pct,\n  ROUND(\n    MIN(login_30d_count * 1.0 / 10, 1.0) * 30\n    + (CASE WHEN support_tickets_open <= 1 THEN 25 WHEN support_tickets_open <= 3 THEN 15 ELSE 0 END)\n    + (nps + 100) / 200.0 * 25\n    + last_renewal_pct * 0.20\n  , 1) AS health_score\nFROM customer_signals\nORDER BY health_score DESC;",
+    "solution": "WITH s AS (\n  SELECT customer_id, login_30d_count, support_tickets_open, nps, last_renewal_pct,\n    CASE WHEN login_30d_count::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN login_30d_count::numeric ELSE 0 END AS l_n,\n    CASE WHEN support_tickets_open::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN support_tickets_open::numeric ELSE 0 END AS s_t,\n    CASE WHEN nps::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN nps::numeric ELSE 0 END AS n_v,\n    CASE WHEN last_renewal_pct::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN last_renewal_pct::numeric ELSE 0 END AS lr\n  FROM customer_signals\n)\nSELECT customer_id, login_30d_count, support_tickets_open, nps, last_renewal_pct,\n  ROUND(\n    LEAST(l_n * 1.0 / 10, 1.0) * 30\n    + (CASE WHEN s_t <= 1 THEN 25 WHEN s_t <= 3 THEN 15 ELSE 0 END)\n    + (n_v + 100) / 200.0 * 25\n    + lr * 0.20\n  , 1) AS health_score\nFROM s\nORDER BY health_score DESC;",
     "tags": [
       "case-when"
     ],
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "customer-health-score--composite"
   },
   {
@@ -18988,7 +18983,7 @@
     "title": "Creator Earnings by Tier \u2014 Creator Fund",
     "subtopic": "Tiered payout per follower band",
     "schema": "creators(creator_id, follower_count, total_views, earnings)",
-    "solution": "SELECT\n  CASE\n    WHEN follower_count >= 1000000 THEN 'mega (1M+)'\n    WHEN follower_count >= 100000  THEN 'macro (100K+)'\n    WHEN follower_count >= 10000   THEN 'mid (10K+)'\n    WHEN follower_count >= 1000    THEN 'micro (1K+)'\n    ELSE 'nano'\n  END AS tier,\n  COUNT(*) AS creators,\n  ROUND(AVG(earnings), 2) AS avg_earnings,\n  ROUND(SUM(earnings), 2) AS total_earnings,\n  ROUND(SUM(earnings) * 1000.0 / NULLIF(SUM(total_views), 0), 3) AS rpm\nFROM creators\nGROUP BY tier\nORDER BY avg_earnings DESC;",
+    "solution": "WITH c AS (\n  SELECT creator_id,\n    CASE WHEN follower_count::text ~ '^-?[0-9]+$' THEN follower_count::int ELSE 0 END AS follower_count,\n    CASE WHEN total_views::text ~ '^-?[0-9]+$' THEN total_views::int ELSE 0 END AS total_views,\n    CASE WHEN earnings::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN earnings::numeric ELSE 0 END AS earnings\n  FROM creators\n)\nSELECT\n  CASE\n    WHEN follower_count >= 1000000 THEN 'mega (1M+)'\n    WHEN follower_count >= 100000 THEN 'macro (100K+)'\n    WHEN follower_count >= 10000 THEN 'mid (10K+)'\n    WHEN follower_count >= 1000 THEN 'micro (1K+)'\n    ELSE 'nano'\n  END AS tier,\n  COUNT(*) AS creators,\n  ROUND(AVG(earnings), 2) AS avg_earnings,\n  ROUND(SUM(earnings), 2) AS total_earnings,\n  ROUND(SUM(earnings) * 1000.0 / NULLIF(SUM(total_views), 0), 3) AS rpm\nFROM c\nGROUP BY 1\nORDER BY avg_earnings DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -18997,7 +18992,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "creator-earnings-by-tier--creator-fund"
   },
   {
@@ -19132,7 +19127,7 @@
     "title": "Subreddit Growth \u2014 Subscriber WoW Velocity",
     "subtopic": "WoW comparison via LAG",
     "schema": "subreddit_subs(subreddit_id, week, subscribers)",
-    "solution": "SELECT subreddit_id, week, subscribers,\n  LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS prev_week,\n  subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS net_new,\n  ROUND(100.0 * (subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week))\n              / NULLIF(LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week), 0), 1) AS wow_growth_pct\nFROM subreddit_subs\nORDER BY subreddit_id, week;",
+    "solution": "WITH s AS (\n  SELECT subreddit_id, week,\n    CASE WHEN subscribers::text ~ '^-?[0-9]+$' THEN subscribers::int ELSE 0 END AS subscribers\n  FROM subreddit_subs\n)\nSELECT subreddit_id, week, subscribers,\n  LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS prev_week,\n  subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week) AS net_new,\n  ROUND(100.0 * (subscribers - LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week))\n              / NULLIF(LAG(subscribers) OVER (PARTITION BY subreddit_id ORDER BY week), 0), 1) AS wow_growth_pct\nFROM s\nORDER BY subreddit_id, week;",
     "tags": [
       "analytical-functions",
       "null-handling"
@@ -19140,7 +19135,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "subreddit-growth--subscriber-wow-velocity"
   },
   {
@@ -19151,7 +19146,7 @@
     "title": "AMA Engagement \u2014 Reply Within 1 Hour Rate",
     "subtopic": "Time-bounded host-response rate",
     "schema": "ama_questions(question_id, ama_id, asked_at, answered_at)",
-    "solution": "SELECT ama_id,\n  COUNT(*) AS questions,\n  COUNT(answered_at) AS answered,\n  SUM(CASE WHEN (answered_at - asked_at) <= INTERVAL '1 days'.0/24 THEN 1 ELSE 0 END) AS answered_within_1h,\n  ROUND(100.0 * SUM(CASE WHEN (answered_at - asked_at) <= INTERVAL '1 days'.0/24 THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS within_1h_pct\nFROM ama_questions\nGROUP BY ama_id\nORDER BY within_1h_pct DESC;",
+    "solution": "SELECT ama_id,\n  COUNT(*) AS questions,\n  COUNT(answered_at) AS answered,\n  SUM(CASE WHEN (answered_at - asked_at) <= INTERVAL '1 hour' THEN 1 ELSE 0 END) AS answered_within_1h,\n  ROUND(100.0 * SUM(CASE WHEN (answered_at - asked_at) <= INTERVAL '1 hour' THEN 1 ELSE 0 END)\n              / NULLIF(COUNT(*), 0), 1) AS within_1h_pct\nFROM ama_questions\nGROUP BY ama_id\nORDER BY within_1h_pct DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -19160,7 +19155,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "ama-engagement--reply-within-1-hour-rate"
   },
   {
@@ -19171,7 +19166,7 @@
     "title": "Moderator Removal Rate by Subreddit",
     "subtopic": "Per-mod aggregation with content-rate context",
     "schema": "submissions(submission_id, subreddit_id, removed)",
-    "solution": "SELECT subreddit_id,\n  COUNT(*) AS submissions,\n  SUM(removed) AS removed,\n  ROUND(100.0 * SUM(removed) / NULLIF(COUNT(*), 0), 1) AS removal_rate_pct,\n  CASE\n    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) >= 30 THEN 'over_moderated'\n    WHEN 100.0 * SUM(removed) / NULLIF(COUNT(*), 0) >= 10 THEN 'active'\n    ELSE 'light_touch'\n  END AS mod_style\nFROM submissions\nGROUP BY subreddit_id\nHAVING COUNT(*) >= 3\nORDER BY removal_rate_pct DESC;",
+    "solution": "SELECT subreddit_id,\n  COUNT(*) AS submissions,\n  SUM(CASE WHEN removed::text ~ '^-?[0-9]+$' THEN removed::int ELSE 0 END) AS removed,\n  ROUND(100.0 * SUM(CASE WHEN removed::text ~ '^-?[0-9]+$' THEN removed::int ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS removal_rate_pct,\n  CASE\n    WHEN 100.0 * SUM(CASE WHEN removed::text ~ '^-?[0-9]+$' THEN removed::int ELSE 0 END) / NULLIF(COUNT(*), 0) >= 30 THEN 'over_moderated'\n    WHEN 100.0 * SUM(CASE WHEN removed::text ~ '^-?[0-9]+$' THEN removed::int ELSE 0 END) / NULLIF(COUNT(*), 0) >= 10 THEN 'active'\n    ELSE 'light_touch'\n  END AS mod_style\nFROM submissions\nGROUP BY subreddit_id\nHAVING COUNT(*) >= 3\nORDER BY removal_rate_pct DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -19181,7 +19176,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "moderator-removal-rate-by-subreddit"
   },
   {
@@ -19192,7 +19187,7 @@
     "title": "Cross-Posting Network \u2014 Same Post in Multiple Subreddits",
     "subtopic": "Self-join on title similarity",
     "schema": "posts(post_id, subreddit_id, title, posted_at)",
-    "solution": "SELECT a.title,\n  COUNT(DISTINCT a.subreddit_id) AS subreddits_count,\n  GROUP_CONCAT(DISTINCT a.subreddit_id) AS subreddits\nFROM posts a\nGROUP BY a.title\nHAVING COUNT(DISTINCT a.subreddit_id) >= 2\nORDER BY subreddits_count DESC;",
+    "solution": "SELECT a.title,\n  COUNT(DISTINCT a.subreddit_id) AS subreddits_count,\n  STRING_AGG(DISTINCT a.subreddit_id::text, ',') AS subreddits\nFROM posts a\nGROUP BY a.title\nHAVING COUNT(DISTINCT a.subreddit_id) >= 2\nORDER BY subreddits_count DESC;",
     "tags": [
       "aggregation",
       "having",
@@ -19201,7 +19196,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "cross-posting-network--same-post-in-multiple-subreddits"
   },
   {
@@ -19252,7 +19247,7 @@
     "title": "Alert Noise Ratio \u2014 Acknowledged vs Auto-Resolved",
     "subtopic": "Conditional aggregation alert quality",
     "schema": "alerts(alert_id, monitor_id, fired_at, acknowledged, auto_resolved)",
-    "solution": "SELECT monitor_id,\n  COUNT(*) AS fires,\n  SUM(acknowledged) AS acknowledged,\n  SUM(auto_resolved) AS auto_resolved,\n  ROUND(100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0), 1) AS noise_ratio_pct,\n  CASE\n    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) >= 70 THEN 'noisy'\n    WHEN 100.0 * SUM(auto_resolved) / NULLIF(COUNT(*), 0) >= 30 THEN 'flaky'\n    ELSE 'actionable'\n  END AS quality\nFROM alerts\nGROUP BY monitor_id\nHAVING COUNT(*) >= 3\nORDER BY noise_ratio_pct DESC;",
+    "solution": "SELECT monitor_id,\n  COUNT(*) AS fires,\n  SUM(CASE WHEN acknowledged::text ~ '^-?[0-9]+$' THEN acknowledged::int ELSE 0 END) AS acknowledged,\n  SUM(CASE WHEN auto_resolved::text ~ '^-?[0-9]+$' THEN auto_resolved::int ELSE 0 END) AS auto_resolved,\n  ROUND(100.0 * SUM(CASE WHEN auto_resolved::text ~ '^-?[0-9]+$' THEN auto_resolved::int ELSE 0 END) / NULLIF(COUNT(*), 0), 1) AS noise_ratio_pct,\n  CASE\n    WHEN 100.0 * SUM(CASE WHEN auto_resolved::text ~ '^-?[0-9]+$' THEN auto_resolved::int ELSE 0 END) / NULLIF(COUNT(*), 0) >= 70 THEN 'noisy'\n    WHEN 100.0 * SUM(CASE WHEN auto_resolved::text ~ '^-?[0-9]+$' THEN auto_resolved::int ELSE 0 END) / NULLIF(COUNT(*), 0) >= 30 THEN 'flaky'\n    ELSE 'actionable'\n  END AS quality\nFROM alerts\nGROUP BY monitor_id\nHAVING COUNT(*) >= 3\nORDER BY noise_ratio_pct DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -19262,7 +19257,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "alert-noise-ratio--acknowledged-vs-auto-resolved"
   },
   {
@@ -19314,7 +19309,7 @@
     "title": "Service Dependency Latency \u2014 Trace Span Aggregation",
     "subtopic": "Per-service span percentile + parent attribution",
     "schema": "spans(span_id, trace_id, service_name, duration_ms, parent_span_id)",
-    "solution": "SELECT service_name,\n  COUNT(*) AS spans,\n  ROUND(AVG(duration_ms), 1) AS avg_ms,\n  MAX(duration_ms) AS max_ms,\n  COUNT(DISTINCT trace_id) AS traces_touched,\n  ROUND(SUM(duration_ms) * 1.0 / NULLIF(COUNT(DISTINCT trace_id), 0), 1) AS avg_total_per_trace_ms\nFROM spans\nGROUP BY service_name\nORDER BY avg_ms DESC;",
+    "solution": "WITH s AS (\n  SELECT span_id, trace_id, service_name,\n    CASE WHEN duration_ms::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN duration_ms::numeric ELSE 0 END AS duration_ms,\n    parent_span_id\n  FROM spans\n)\nSELECT service_name,\n  COUNT(*) AS spans,\n  ROUND(AVG(duration_ms), 1) AS avg_ms,\n  MAX(duration_ms) AS max_ms,\n  COUNT(DISTINCT trace_id) AS traces_touched,\n  ROUND(SUM(duration_ms) * 1.0 / NULLIF(COUNT(DISTINCT trace_id), 0), 1) AS avg_total_per_trace_ms\nFROM s\nGROUP BY service_name\nORDER BY avg_ms DESC;",
     "tags": [
       "aggregation",
       "null-handling"
@@ -19322,7 +19317,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "service-dependency-latency--trace-span-aggregation"
   },
   {
@@ -19333,7 +19328,7 @@
     "title": "Customer Plan Tier \u2014 Usage vs Quota",
     "subtopic": "Quota utilization aggregation",
     "schema": "customer_usage(customer_id, plan_tier, hosts_billed, hosts_quota)",
-    "solution": "SELECT plan_tier,\n  COUNT(*) AS customers,\n  ROUND(AVG(hosts_billed * 1.0 / NULLIF(hosts_quota, 0)), 2) AS avg_utilization_ratio,\n  SUM(CASE WHEN hosts_billed > hosts_quota THEN 1 ELSE 0 END) AS over_quota_customers\nFROM customer_usage\nGROUP BY plan_tier\nORDER BY avg_utilization_ratio DESC;",
+    "solution": "WITH cu AS (\n  SELECT plan_tier,\n    CASE WHEN hosts_billed::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN hosts_billed::numeric ELSE 0 END AS hosts_billed,\n    CASE WHEN hosts_quota::text ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN hosts_quota::numeric ELSE 0 END AS hosts_quota\n  FROM customer_usage\n)\nSELECT plan_tier,\n  COUNT(*) AS customers,\n  ROUND(AVG(hosts_billed * 1.0 / NULLIF(hosts_quota, 0))::numeric, 2) AS avg_utilization_ratio,\n  SUM(CASE WHEN hosts_billed > hosts_quota THEN 1 ELSE 0 END) AS over_quota_customers\nFROM cu\nGROUP BY plan_tier\nORDER BY avg_utilization_ratio DESC;",
     "tags": [
       "aggregation",
       "case-when",
@@ -19342,7 +19337,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "customer-plan-tier--usage-vs-quota"
   },
   {
@@ -19396,7 +19391,7 @@
     "title": "Product Variant Performance \u2014 Best Color/Size by SKU",
     "subtopic": "Per-product variant ranking",
     "schema": "sales(sale_id, product_id, variant_id, color, size, units_sold)",
-    "solution": "WITH ranked AS (\n  SELECT product_id, color, size, SUM(units_sold) AS total_units,\n    RANK() OVER (PARTITION BY product_id ORDER BY SUM(units_sold) DESC) AS variant_rank\n  FROM sales\n  GROUP BY product_id, color, size\n)\nSELECT product_id, color, size, total_units\nFROM ranked\nWHERE variant_rank = 1\nORDER BY total_units DESC;",
+    "solution": "WITH s AS (\n  SELECT sale_id, product_id, variant_id, color, size,\n    CASE WHEN units_sold::text ~ '^-?[0-9]+$' THEN units_sold::int ELSE 0 END AS units_sold\n  FROM sales\n), ranked AS (\n  SELECT product_id, color, size, SUM(units_sold) AS total_units,\n    RANK() OVER (PARTITION BY product_id ORDER BY SUM(units_sold) DESC) AS variant_rank\n  FROM s\n  GROUP BY product_id, color, size\n)\nSELECT product_id, color, size, total_units\nFROM ranked\nWHERE variant_rank = 1\nORDER BY total_units DESC;",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -19405,7 +19400,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "product-variant-performance--best-colorsize-by-sku"
   },
   {
