@@ -200,17 +200,18 @@ SELECT user_id, NTILE(10) OVER (ORDER BY hours ASC) AS decile FROM user_metrics;
   <text x="420" y="174" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">remaining 80% of users</text>
 </svg>
 
-<p><strong>SQL signal:</strong> a running total ordered DESC; the threshold where cumulative percent crosses 80 is your "vital few" cutoff. See the <a href="/interview.app/sql.html?q=community_solved-0082">80/20 Pareto question</a> for the full pattern.</p>
+<p><strong>Netflix context:</strong> 20% of your users (the whales) likely account for 80% of total watch hours. <strong>SQL strategy:</strong> use <strong>cumulative sums</strong> (running totals) to show where the "bulge" is — order users DESC by hours, run the cumulative sum, the threshold where it crosses 80% of the global total is your "vital few" cutoff. See the <a href="/interview.app/sql.html?q=community_solved-0082">80/20 Pareto question</a> for the full pattern.</p>
 
 <h3 class="section-head">Long tail (power law) — Pareto's stretched cousin</h3>
-<p>A power-law distribution: a small region of very high values, falling off rapidly into a long thin tail of low values. The "tail" can stretch to infinity. Visually, like the Pareto curve but the tail is more dramatic — one user watching 400 hours/month at the extreme right while the bulk of users sit at 0-2 hours.</p>
+<p>A distribution where a high frequency of "minnows" trails off into a very long, thin tail of "whales". <strong>Visually:</strong> a huge spike on the left (lots of people watching 0-1 hours) and a line that stretches far to the right (one viewer watching 400 hours). The "tail" can stretch to extremes — one user at 400 hours/month while the bulk of users sit at 0-2 hours.</p>
 <p><strong>Two-word interview test:</strong> if the interviewer says "long tail", you should immediately reach for <code>NTILE(10)</code> + decile rollups rather than <code>AVG</code>. The average is meaningless on a long tail because the extremes pull it sideways.</p>
 
 <h3 class="section-head">Normal distribution (bell curve) — the one tech data rarely has</h3>
-<p>Symmetric around the mean, ~68% within 1σ, ~95% within 2σ, ~99.7% within 3σ. Useful for measurement error, manufacturing tolerances, and IQ scores. <strong>Almost never useful for user engagement.</strong></p>
-<p><strong>The trap:</strong> if you reach for <code>AVG ± STDDEV</code> on user-engagement data, you're assuming a normal distribution. In reality your data is positively skewed — the whales pull the mean way above the median, and σ is dominated by outliers. Standard-deviation-based outlier detection silently flags half your dolphins as anomalies and misses the actual whales.</p>
+<p>This is what most people <em>assume</em> data looks like, but in tech it's rarely true for engagement. <strong>Definition:</strong> most users are in the middle, with very few at the extreme high or low ends. Symmetric around the mean, ~68% within 1σ, ~95% within 2σ, ~99.7% within 3σ. Useful for measurement error, manufacturing tolerances, and IQ scores. <strong>Almost never useful for user engagement.</strong></p>
+<p><strong>Interview tip — the standard-deviation trap.</strong> If an interviewer asks why you aren't using simple <code>STDDEV</code> for outlier detection, the answer is: <em>"because engagement data is skewed, and standard deviation assumes a normal distribution."</em> The whales pull the mean way above the median, σ is dominated by outliers, and STDDEV-based outlier detection silently flags half your dolphins as anomalies while missing the actual whales.</p>
 
 <h3 class="section-head">Skewness — the asymmetry that breaks naive analytics</h3>
+<p><strong>Positive (right) skew</strong> means the "tail" is on the right side. This is the Netflix example — most users are on the low end, but the whales pull the average to the right. <strong>Interview insight:</strong> when data is positively skewed, the <strong>mean</strong> (average) will be much higher than the <strong>median</strong>. <em>Always mention the median to show you aren't being fooled by the whales.</em></p>
 <table>
   <thead><tr><th>Type</th><th>Tail on</th><th>Mean vs median</th><th>Where you see it</th></tr></thead>
   <tbody>
@@ -347,7 +348,14 @@ SELECT * FROM ranked ORDER BY hours DESC;</code></pre>
   </tbody>
 </table>
 
-<h3 class="section-head">The one-sentence L5 script</h3>
+<h3 class="section-head">The Final L5 Tip — the one sentence that proves senior-level thinking</h3>
+<div class="callout" style="background:#fef3c7;border-left:4px solid #d4a017;padding:18px 22px;margin:18px 0 24px;border-radius:4px;">
+<strong style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#8a6d10;display:block;margin-bottom:10px;">▸ The one sentence to memorise</strong>
+<p style="font-style:italic;font-size:17px;line-height:1.6;margin:0;">"Because this distribution is heavily skewed toward whales, I'll use <strong>NTILEs</strong> to ensure our metrics represent the <strong>entire user base</strong>, not just the power users."</p>
+<p style="margin:14px 0 0;font-size:13px;color:#8a6d10;">When you see a skewed distribution in an interview, don't jump straight into the SQL. Say that sentence first. It proves you understand the failure mode of naive aggregations — and that you've shipped consumer-product analytics in production. One sentence; immediate L5 signal.</p>
+</div>
+
+<h3 class="section-head">The 90-second expanded form</h3>
 <div class="senior-signal">
 "Because user-engagement data is positively skewed toward whales, I'll classify users with <strong>NTILE(10)</strong> rather than thresholding on AVG ± σ — the standard-deviation approach assumes a normal distribution, which engagement data never is. I'll report <strong>both mean and median</strong> on the dashboard with the <strong>skew ratio</strong> (mean / median) as a single tell. And the classification job will filter to <strong>is_metadata_complete = TRUE</strong> so a whale watching a freshly-released show doesn't get stamped as a minnow by a LAD-pending join."
 </div>
