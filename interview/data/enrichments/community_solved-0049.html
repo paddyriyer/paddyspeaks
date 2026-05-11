@@ -1,0 +1,113 @@
+<p>The classic gaps-and-islands streak detection, dressed up as an HR comp question. "At least 3 consecutive salary increases" is the same shape as "at least 3 consecutive days of activity", "at least 3 consecutive winning trades", "at least 3 consecutive on-time deliveries". Once you have the pattern, every variant of the prompt drops out. The trap: most candidates reach for <code>LAG</code> + a CASE flag and stop there — but you haven't <em>identified the streak</em>, you've just labelled individual rows. The cumulative-flag trick is what stitches the labelled rows into named streaks.</p>
+
+<h4>1. The source data — <code>salary_logs</code> joined to <code>employees</code></h4>
+<p>Five employees, each with their own salary history. Designed to exercise every branch of the algorithm:</p>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>salary sequence (in log order)</th><th>Expected verdict</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aarav</td><td>$50K → $55K → $60K → $65K → $70K</td><td>✓ <strong>Qualifies</strong> · streak of 4 increases</td></tr>
+    <tr><td>2</td><td>Bhavna</td><td>$50K → $55K → $52K (drop!) → $58K → $62K</td><td>✗ Doesn't qualify · best streak is 2</td></tr>
+    <tr><td>3</td><td>Chetan</td><td>$60K → $65K → $70K → $75K</td><td>✓ <strong>Qualifies</strong> · streak of 3 (boundary case)</td></tr>
+    <tr><td>4</td><td>Deepa</td><td>$50K → $55K</td><td>✗ Doesn't qualify · only 1 increase</td></tr>
+    <tr><td>5</td><td>Esha</td><td>$50K → $50K → $50K</td><td>✗ Doesn't qualify · no increases at all</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The expected output</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>emp_name</th><th>department</th><th>consecutive_increases</th><th>streak_first_log</th><th>streak_last_log</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aarav</td><td>Engineering</td><td><strong>4</strong></td><td>2</td><td>5</td></tr>
+    <tr><td>3</td><td>Chetan</td><td>Sales</td><td><strong>3</strong></td><td>12</td><td>14</td></tr>
+  </tbody>
+</table>
+
+<h4>3. The algorithm — five steps the interviewer wants to hear in order</h4>
+
+<h5>Step 1 — <code>LAG</code> to get each row's previous salary</h5>
+<pre><code>SELECT emp_id, log_id, salary,
+  LAG(salary) OVER (PARTITION BY emp_id ORDER BY log_id) AS prev_salary
+FROM salary_logs;</code></pre>
+<p>For Aarav, this produces: <code>(prev_salary)</code> = NULL, 50K, 55K, 60K, 65K. The first row's prev is NULL because there's no row before it.</p>
+
+<h5>Step 2 — Flag each row as <code>is_increase</code></h5>
+<pre><code>CASE WHEN salary &gt; prev_salary THEN 1 ELSE 0 END AS is_increase</code></pre>
+<p>For Aarav: <code>0, 1, 1, 1, 1</code> (first row is 0 because prev_salary is NULL; <code>NULL &gt; anything = NULL = falsy</code>, which the CASE turns into 0). For Bhavna: <code>0, 1, 0, 1, 1</code> — the drop at log 8 lands as a 0.</p>
+<p><strong>Stopping here is the junior mistake.</strong> You have a per-row label, but you haven't grouped the increase rows into streaks. The next step is the gaps-and-islands trick.</p>
+
+<h5>Step 3 — The cumulative-flag <code>group_id</code></h5>
+<pre><code>SUM(CASE WHEN is_increase = 0 THEN 1 ELSE 0 END)
+  OVER (PARTITION BY emp_id ORDER BY log_id) AS group_id</code></pre>
+<p>This is the trick. <strong>The running SUM of (1 - is_increase) increments by 1 every time we hit a non-increase row, and stays flat through increase rows.</strong> So every consecutive run of increases shares the same <code>group_id</code>, and a non-increase row "starts" a new group.</p>
+<table>
+  <thead><tr><th>emp_id</th><th>log_id</th><th>salary</th><th>is_increase</th><th>group_id</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>6</td><td>50000</td><td>0</td><td><strong>1</strong></td></tr>
+    <tr><td>2</td><td>7</td><td>55000</td><td>1</td><td>1</td></tr>
+    <tr><td>2</td><td>8</td><td>52000</td><td>0</td><td><strong>2</strong></td></tr>
+    <tr><td>2</td><td>9</td><td>58000</td><td>1</td><td>2</td></tr>
+    <tr><td>2</td><td>10</td><td>62000</td><td>1</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Bhavna gets two groups. Within group 1, only one row is an increase. Within group 2, only two rows are increases. Neither reaches 3, so Bhavna is filtered out at the HAVING.</p>
+
+<h5>Step 4 — Filter to increase rows, group, HAVING ≥ 3</h5>
+<pre><code>SELECT emp_id, group_id,
+  COUNT(*)    AS consecutive_increases,
+  MIN(log_id) AS streak_first_log,
+  MAX(log_id) AS streak_last_log
+FROM grouped
+WHERE is_increase = 1
+GROUP BY emp_id, group_id
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>The <code>WHERE is_increase = 1</code> drops the non-increase rows. The <code>GROUP BY emp_id, group_id</code> collapses each streak to one row. <code>HAVING COUNT(*) &gt;= 3</code> keeps only the streaks that meet the threshold.</p>
+
+<h5>Step 5 — Join to <code>employees</code> for the human-readable output</h5>
+<p>The streaks CTE has emp_id; join to get emp_name + department.</p>
+
+<h4>4. Why the shipped "Method 1" and "Method 2" were both wrong</h4>
+
+<h5>Method 1's bug — partition-wide SUM with no group_id</h5>
+<pre><code>-- (the original Method 1)
+SUM(nw_flg) OVER (PARTITION BY emp_id) AS period
+...
+GROUP BY t3.emp_id, period, e.emp_name, e.department</code></pre>
+<p>Two problems:</p>
+<ul>
+  <li><code>SUM(nw_flg) OVER (PARTITION BY emp_id)</code> with no <code>ORDER BY</code> is just the <em>net</em> count of increase rows minus decrease rows for the whole employee — a single number per employee. It doesn't identify <em>which</em> rows form streaks.</li>
+  <li>The GROUP BY then de-duplicates by emp_id + that net number, which means employees with even one increase show up. The HAVING/filter to <code>&gt;= 3</code> is missing too.</li>
+</ul>
+<p>Net effect: returns every employee with at least one log, regardless of whether they had a streak.</p>
+
+<h5>Method 2's bug — partition by salary, not by streak</h5>
+<pre><code>-- (the original Method 2)
+ROW_NUMBER() OVER (PARTITION BY emp_id, salary ORDER BY log_id) AS grp</code></pre>
+<p>This is a well-known gaps-and-islands variant — but it groups rows where <em>the salary is the same</em>, not rows where there's a streak of increases. For Esha (salary stays at $50K for three logs), this would group all three rows together with COUNT=3 → and incorrectly flag Esha as "3 consecutive increases" when her salary never increased at all. <strong>The partition axis was wrong.</strong></p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"Does your query handle ties (salary stays the same)?"</em></h5>
+<p>Yes. <code>CASE WHEN salary &gt; prev_salary THEN 1 ELSE 0 END</code> treats equality as 0 (not an increase). So Esha's <code>$50K → $50K → $50K</code> produces all zeros, no streaks. If the prompt meant "non-decreasing" instead of "strictly increasing", change to <code>salary &gt;= prev_salary</code> and be ready to defend it.</p>
+
+<h5>Probe 2 — <em>"What if log_id isn't sequential per employee — what if there are gaps?"</em></h5>
+<p>The algorithm doesn't care. It only uses <code>ORDER BY log_id</code> to define the sequence; gaps in log_id values are fine. If the question's "consecutive" means "consecutive in log order" (which is how it reads), gaps are irrelevant. If "consecutive" means "consecutive in time" (no missing months), you'd switch to a date-based check with explicit gap tolerance.</p>
+
+<h5>Probe 3 — <em>"What if the first row should count as an 'increase' (e.g. starting salary)?"</em></h5>
+<p>Treat NULL prev_salary as 0:</p>
+<pre><code>CASE WHEN salary &gt; COALESCE(prev_salary, 0) THEN 1 ELSE 0 END AS is_increase</code></pre>
+<p>Surface this in the interview — most users don't intend "starting salary counts as a raise" but it's worth asking.</p>
+
+<h5>Probe 4 — <em>"At Netflix scale (millions of employees, billions of salary log rows), does this query work?"</em></h5>
+<p>The window functions (LAG, SUM OVER ORDER BY) require sorting within each employee partition. With partition pruning on emp_id this is O(n log n) per employee, but the global sort is the bottleneck. Two production optimisations:</p>
+<ul>
+  <li><strong>Incremental computation</strong> — compute the streak length on each new log_id row as it arrives (a streaming job tracks the running streak); only the latest streak per employee needs to live in a hot table.</li>
+  <li><strong>Pre-filter to recent rows</strong> — if the question is "anyone with a 3+ streak in the last year", filter to that window before the window functions.</li>
+</ul>
+
+<h5>Probe 5 — <em>"Generalise to 'any N consecutive increases' — does the query stay the same?"</em></h5>
+<p>Yes. The only change is <code>HAVING COUNT(*) &gt;= N</code>, with N parameterised. Same algorithm scales to "3 increases", "5 increases", "10 increases" without rewriting the CTE chain.</p>
+
+<h5>Probe 6 — <em>"What about employees with MULTIPLE qualifying streaks? Does each one get a row?"</em></h5>
+<p>Yes. <code>GROUP BY emp_id, group_id</code> means one row per streak per employee. If Aarav had increases at logs 2-5 AND again at logs 10-13, you'd see two rows for Aarav with different <code>streak_first_log</code> / <code>streak_last_log</code>. To collapse to "the longest streak per employee", wrap in another <code>GROUP BY emp_id</code> with <code>MAX(consecutive_increases)</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the algorithm out loud — <em>"this is gaps-and-islands; I'll use LAG to flag each row, then a cumulative running-sum of non-flag rows as the group_id, then filter and HAVING."</em> The five steps in that order is the interview answer. Then pre-empt the ties question (Probe 1), the starting-salary question (Probe 3), and the generalise-to-N question (Probe 5). The shipped methods on this question both got the algorithm wrong — Method 1 used a partition-wide SUM with no group_id, Method 2 partitioned on the wrong axis (salary instead of streak). Knowing why those approaches break is what separates a senior answer from a "looks right" answer.</div>
