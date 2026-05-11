@@ -1,0 +1,92 @@
+<p>The Pareto principle stated as SQL: <em>"do 20% of users / products / customers really account for 80% of usage / sales / revenue?"</em> Netflix's infra team asks this constantly because the answer drives caching strategy. If 20% of subscribers drive 80% of bandwidth, you can warm the edge cache for those 20% and the other 80% inherit the win. The SQL pattern is a running total joined to a global total — looks innocent, costs nothing on a tiny table, becomes the most-optimised query in the warehouse at scale.</p>
+
+<h4>1. The source data — <code>walmart</code> (or <code>viewing_activity</code> in a streaming context)</h4>
+<table>
+  <thead><tr><th>productid</th><th>name</th><th>sales</th></tr></thead>
+  <tbody>
+    <tr><td>P01</td><td>Whale Product A</td><td>$500,000</td></tr>
+    <tr><td>P02</td><td>Whale Product B</td><td>$300,000</td></tr>
+    <tr><td>P03</td><td>Heavy Product C</td><td>$100,000</td></tr>
+    <tr><td>P04</td><td>Mid Product D</td><td>$50,000</td></tr>
+    <tr><td>P05</td><td>Mid Product E</td><td>$25,000</td></tr>
+    <tr><td>P06 – P50</td><td>Long-tail products</td><td>~$500 each</td></tr>
+  </tbody>
+</table>
+<p>The top 3 products contribute $900K out of a $1M total — that's 90% of revenue from 6% of products. Pareto-shaped curve.</p>
+
+<h4>2. The SQL — running total ÷ global total</h4>
+<pre><code>WITH percent_sales AS (
+    SELECT *,
+        SUM(sales) OVER (ORDER BY sales DESC, productid ASC)     AS cumulative_sales,
+        SUM(sales) OVER ()                                       AS total_sales
+    FROM walmart
+),
+cum_percent AS (
+    SELECT productid, name, sales,
+        100.0 * cumulative_sales / total_sales                  AS cumulative_pct
+    FROM percent_sales
+)
+SELECT * FROM cum_percent WHERE cumulative_pct &lt;= 80;</code></pre>
+<p>Three moves: order by sales desc, running sum from biggest to smallest, divide by the global total. The rows where <code>cumulative_pct &lt;= 80</code> are the products that collectively make up 80% of revenue — the "vital few" in Pareto's terminology.</p>
+
+<h4>3. Strategic explanations — what the result actually means</h4>
+
+<h5>The senior framing: this isn't a leaderboard, it's a curve diagnostic</h5>
+<p>If 20% of products give you 80%, you have a healthy Pareto curve — concentrate inventory / cache / marketing on the top tier. If 5% of products give you 95%, you have <em>extreme</em> skew — risk of single-product dependency (e.g. one show drives Netflix retention, cancel it and the platform empties). If 60% of products give you 80%, you don't really have a power-law distribution — every product matters, treat them uniformly.</p>
+
+<h4>4. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"Why is the <code>ORDER BY sales DESC, productid ASC</code> tiebreaker there?"</em></h5>
+<p>Without a deterministic tiebreaker, the running sum is non-deterministic on ties. Two products with $500 each could land in either order between query runs — and the cumulative-pct boundary shifts. <strong>Always add a stable tiebreaker</strong> (productid) so the same input data produces the same output.</p>
+
+<h5>Probe 2 — <em>"What if the boundary case falls partly inside 80%?"</em></h5>
+<p>Say the top 19 products give you 78%, and product 20 gives you another 6% — together 84%. Does product 20 belong in the "80%" cohort? Two answers, both defensible:</p>
+<ul>
+  <li><strong>Inclusive boundary</strong>: include product 20 because without it you don't reach 80%. Use <code>cumulative_pct &lt;= 80 OR (LAG(cumulative_pct) OVER (...) &lt;= 80)</code>.</li>
+  <li><strong>Exclusive boundary</strong>: stop at product 19 even though you're at 78%. The classic <code>WHERE cumulative_pct &lt;= 80</code>.</li>
+</ul>
+<p>Surface this in the interview — most users mean "include the row that crosses the threshold".</p>
+
+<h5>Probe 3 — <em>"Translate this from products to Netflix viewers. What's the question?"</em></h5>
+<p><em>"What percentage of Netflix subscribers account for 80% of total watch time?"</em> Same query, swap the table:</p>
+<pre><code>WITH user_totals AS (
+    SELECT user_id, SUM(watch_seconds) / 3600.0 AS total_hours
+    FROM viewing_activity
+    GROUP BY user_id
+),
+ranked AS (
+    SELECT *,
+        SUM(total_hours) OVER (ORDER BY total_hours DESC, user_id ASC) AS cum_hours,
+        SUM(total_hours) OVER ()                                       AS global_hours,
+        PERCENT_RANK() OVER (ORDER BY total_hours DESC)                AS user_pctile
+    FROM user_totals
+)
+SELECT user_id, total_hours,
+       100.0 * cum_hours / global_hours AS pct_of_global_impact,
+       user_pctile
+FROM ranked
+WHERE user_pctile &lt;= 0.20;     -- top 20% of viewers</code></pre>
+<p>If <code>pct_of_global_impact</code> sits at ~85% when <code>user_pctile = 0.20</code>, you've confirmed the 80/20 skew empirically and you have justification for the edge-cache investment.</p>
+
+<h5>Probe 4 — <em>"At billions of rows, does this query still work?"</em></h5>
+<p>The <code>SUM() OVER ()</code> unbounded window forces the engine to materialise the global total once — fine. The running <code>SUM() OVER (ORDER BY sales DESC)</code> sorts the entire partition — at billions of rows this spills to disk on most engines. Production rewrites:</p>
+<ul>
+  <li><strong>Pre-aggregate</strong> — never run this on raw events; pre-roll up to <code>fct_user_total_hours_daily</code> first.</li>
+  <li><strong>Approximate Pareto</strong> — use <code>APPROX_PERCENTILE</code> (Trino, Snowflake) or compute the running total on a <code>SAMPLE</code> of the user base (1% of users gives the curve within ±1pp).</li>
+  <li><strong>Pre-bucket</strong> — assign decile via <code>NTILE(10)</code> at ETL time, then the 80/20 question becomes "what's the cumulative share of deciles 1+2?" — a constant-time query over a 10-row table.</li>
+</ul>
+
+<h5>Probe 5 — <em>"What if the long tail has 10M+ products and you only need the top 20%?"</em></h5>
+<p>Don't run a window function over all 10M. Compute the global total in one pass, then top-N with a cumulative running total only over the top-K candidates:</p>
+<pre><code>WITH g AS (SELECT SUM(sales) AS total FROM walmart),
+top AS (SELECT * FROM walmart ORDER BY sales DESC LIMIT 1000000)   -- top-K guess
+SELECT productid, name,
+       SUM(sales) OVER (ORDER BY sales DESC, productid ASC) AS cum,
+       (SELECT total FROM g)                                AS total
+FROM top
+WHERE SUM(sales) OVER (ORDER BY sales DESC, productid ASC) &lt;= 0.80 * (SELECT total FROM g);</code></pre>
+
+<h5>Probe 6 — <em>"How does this interact with late-arriving dimensions (LAD)?"</em></h5>
+<p>If a power-user's most-watched-show metadata is still propagating, their total hours can be temporarily underestimated — they look like a mid-tier viewer for a few hours. The 80/20 result then drifts. <strong>Lag-tolerant view pattern</strong>: include an <code>is_metadata_complete</code> flag on each user-day row; exclude incomplete rows from power-user reports. False-negatives ("we missed a whale for 6 hours") beat false-positives ("we promoted a non-whale and warmed the wrong cache").</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the deterministic tiebreaker, surface the boundary-inclusion question, contrast inclusive vs exclusive 80%, propose pre-aggregation + decile pre-bucketing as the scale-up answer, and pre-empt the LAD trap with a lag-tolerant view. Bonus: cite Pareto's original observation (1896 Italian land ownership) — interviewers love the history.</div>

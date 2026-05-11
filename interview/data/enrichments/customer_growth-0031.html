@@ -1,0 +1,107 @@
+<p>The three power-user questions every consumer-platform exec asks, every quarter, in three flavours:</p>
+<ol>
+  <li><strong>Marketing:</strong> "give me a single skew number for the board deck — how much more does our top 1% watch than the median?"</li>
+  <li><strong>Infra:</strong> "show me the long-tail distribution so I can size the edge cache."</li>
+  <li><strong>Content Strategy:</strong> "tell me who the whales are, but don't promote anyone whose metadata is still in-flight."</li>
+</ol>
+<p>Three answers in one query family: PERCENTILE_CONT for the skew factor, NTILE(10) for the decile rollup, and an <code>is_metadata_complete</code> guard for the late-arriving-dimension trap.</p>
+
+<h4>1. The source data — <code>viewing_activity</code></h4>
+<p>Pareto-shaped sample: a couple of whales (40h, 20h, 18h), a mid tier (5-10h), a long tail of minnows (&lt;3h), plus one user whose metadata hasn't propagated yet (excluded from the analysis to avoid false-positive decile placement).</p>
+
+<h4>2. The three queries — and why they're related</h4>
+
+<h5>Query A — the skew factor: PERCENTILE_CONT P50 vs P99</h5>
+<pre><code>WITH user_metrics AS (
+    SELECT user_id, SUM(watch_seconds) / 3600.0 AS hours
+    FROM viewing_activity
+    WHERE is_metadata_complete = TRUE
+    GROUP BY user_id
+)
+SELECT
+    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY hours) AS median_hours,
+    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY hours) AS p99_hours,
+    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY hours)
+      / NULLIF(PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY hours), 0) AS skew_factor
+FROM user_metrics;</code></pre>
+<p>A <strong>skew_factor of 25×</strong> means the top 1% watches 25 times more than the median. At Netflix, the real number is ~30-50×, which is why Pareto's principle holds.</p>
+
+<h5>Query B — the decile rollup: NTILE(10) avg-per-bucket</h5>
+<pre><code>WITH user_metrics AS (
+    SELECT user_id, SUM(watch_seconds) / 3600.0 AS hours
+    FROM viewing_activity
+    WHERE is_metadata_complete = TRUE
+    GROUP BY user_id
+),
+ranked AS (
+    SELECT user_id, hours,
+           NTILE(10) OVER (ORDER BY hours DESC) AS decile
+    FROM user_metrics
+)
+SELECT decile,
+       COUNT(*)            AS user_count,
+       ROUND(AVG(hours), 2) AS avg_hours_per_user,
+       ROUND(SUM(hours), 2) AS total_decile_hours
+FROM ranked
+GROUP BY decile
+ORDER BY decile;</code></pre>
+<p>Decile 1 is "the whales" — total_decile_hours is massive. Decile 10 is "the minnows" — nearly zero. The shape of this 10-row table <em>is</em> the long tail.</p>
+
+<h5>Query C — combined: decile rollup + skew_factor as a constant column</h5>
+<p>The runnable solution in this question fuses A and B so one query produces both signals for the dashboard.</p>
+
+<h4>3. Why PERCENTILE_CONT beats AVG for skewed distributions</h4>
+<table>
+  <thead><tr><th>Distribution</th><th>AVG(hours)</th><th>MEDIAN(hours)</th><th>Why median wins</th></tr></thead>
+  <tbody>
+    <tr><td>Uniform (1, 2, 3, 4, 5)</td><td>3</td><td>3</td><td>They agree — neither is misleading</td></tr>
+    <tr><td>Skewed (1, 2, 3, 4, 1000)</td><td>202</td><td>3</td><td>AVG is pulled up by one whale; median ignores them</td></tr>
+  </tbody>
+</table>
+<p>Reporting "average watch hours per user = 202" is technically correct and operationally useless — nobody on the platform watches 202 hours. The median tells you what a typical user actually does.</p>
+
+<h4>4. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"What's the difference between PERCENTILE_CONT and PERCENTILE_DISC?"</em></h5>
+<table>
+  <thead><tr><th>Function</th><th>What it returns</th><th>Use when</th></tr></thead>
+  <tbody>
+    <tr><td><code>PERCENTILE_CONT(0.5)</code></td><td>Interpolated — between two adjacent values if N is even</td><td>Continuous metrics (revenue, hours, latency)</td></tr>
+    <tr><td><code>PERCENTILE_DISC(0.5)</code></td><td>An actual value from the data — the row at or just past the 50% rank</td><td>Discrete metrics (counts), or when the value must be a real observed value</td></tr>
+  </tbody>
+</table>
+
+<h5>Probe 2 — <em>"What if a decile has only one user? Does AVG = that user's hours?"</em></h5>
+<p>Yes — and that's correct but misleading. <code>NTILE(10)</code> tries to put roughly equal counts in each decile, but with very small datasets you can get 1-2 users per bucket. <strong>Senior signal:</strong> caveat the chart when total user count is small (say, &lt; 1000) — decile statistics get noisy fast.</p>
+
+<h5>Probe 3 — <em>"Why exclude is_metadata_complete = FALSE?"</em></h5>
+<p>A user who watched a brand-new show 30 minutes ago might have a row in <code>viewing_activity</code> but the content_name hasn't propagated to the global catalog yet. Their watch_seconds is correct, but during a brief window their hours can be <em>under-counted</em> if downstream consumers join to <code>dim_content</code> and drop rows on the inner join. The <strong>Lag-Tolerant View</strong> pattern: surface an <code>is_metadata_complete</code> flag and exclude incomplete rows from power-user / VIP / cohort reports. False negatives ("missed a whale for 6 hours") are cheaper than false positives ("promoted a non-whale to the campaign list").</p>
+
+<h5>Probe 4 — <em>"AVG vs PERCENTILE_CONT — which one should the board deck show?"</em></h5>
+<p>Both, side-by-side. The board needs to see how skewed the platform is — that's the whole point. Show <code>median_hours</code> (the typical user), <code>avg_hours</code> (the headline number people instinctively look at), and <code>skew_factor</code> (the divergence). When skew_factor is large, the difference between AVG and MEDIAN is the story.</p>
+
+<h5>Probe 5 — <em>"At Netflix scale (250M users), can you afford PERCENTILE_CONT on the raw distribution?"</em></h5>
+<p>No. <code>PERCENTILE_CONT</code> requires a full sort. At 250M rows that's hours. Production answers:</p>
+<ul>
+  <li><strong>APPROX_PERCENTILE</strong> (Trino, Snowflake, Spark) — sketch-based, sub-second on billions of rows, ~1% error.</li>
+  <li><strong>Pre-computed histogram</strong> — bucket users into 100 hour-bins nightly; the dashboard queries the 100-row histogram, not the 250M-row table.</li>
+  <li><strong>Sample + extrapolate</strong> — compute PERCENTILE_CONT on 1% of users, multiply with confidence bands.</li>
+</ul>
+<p>The senior-IC answer mentions both the exact form and the production swap-in.</p>
+
+<h5>Probe 6 — <em>"How does decile 1 from this week compare to decile 1 from last week? Same users?"</em></h5>
+<p>The interesting analysis isn't the static decile rollup — it's the <strong>decile transition matrix</strong>:</p>
+<pre><code>SELECT prev.decile AS last_week_decile,
+       curr.decile AS this_week_decile,
+       COUNT(*)    AS user_count
+FROM weekly_deciles prev
+JOIN weekly_deciles curr ON prev.user_id = curr.user_id
+WHERE prev.week = '2025-04-21' AND curr.week = '2025-04-28'
+GROUP BY 1, 2
+ORDER BY 1, 2;</code></pre>
+<p>Users staying in decile 1 week-over-week are <em>persistent whales</em> (campaign target). Users dropping from decile 1 → 5 are <em>churn-risk whales</em> (intervention target). The static decile rollup hides this — the transition matrix surfaces it.</p>
+
+<h5>Probe 7 — <em>"What does decile 10 look like? Should we even keep them?"</em></h5>
+<p>Decile 10 watches 0-2 hours / week. <strong>Don't conclude they should be churned</strong> — they might be casual sign-ups in a free trial, gift-card recipients, or someone testing the platform for a partner. The skew analysis tells you <em>the platform is healthy because of the top 20%</em>, not that the bottom 80% is worthless. Marketing's job is to <em>move</em> users from decile 10 → 8 → 5, not delete them.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> show PERCENTILE_CONT for the skew factor (P50 vs P99), NTILE(10) for the decile rollup, contrast AVG vs MEDIAN explicitly, pre-empt the LAD-tolerant view with <code>is_metadata_complete</code>, mention APPROX_PERCENTILE as the production swap-in at scale, and propose the decile transition matrix as the actually-interesting follow-up question. The interviewer is testing whether you've shipped this on a real consumer platform or only read about long-tail distributions in a stats textbook.</div>

@@ -19659,5 +19659,31 @@
       "anti-join",
       "null-handling"
     ]
+  },
+  {
+    "id": "customer_growth-0031",
+    "batch": "customer_growth",
+    "num": 31,
+    "title": "Power-User Skew Analysis — P50 vs P99 + NTILE Decile Rollup + LAD-Tolerant View",
+    "slug": "power-user-skew-p50-p99-ntile-decile-lad-tolerant",
+    "company": "Netflix",
+    "type": "SQL / Distribution analysis",
+    "subtopic": "PERCENTILE_CONT · NTILE(10) · skew factor · late-arriving dimensions",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "viewing_activity(activity_id, user_id, content_name, watch_date, watch_seconds, is_metadata_complete)",
+    "scenario": "A small fraction of Netflix subscribers account for a huge share of total watch time — that's the long-tail / power-user distribution. The infra team needs to know HOW skewed the curve is (so they can size the edge cache), Content Strategy needs to know who the top decile is (to time spin-off launches), and Marketing needs the SKEW FACTOR (P99 / P50) as a single number for the board deck. Three answers, one query family: decile rollup, percentile comparison, and a LAD-tolerant flag for users whose metadata hasn't propagated yet.",
+    "question": "Using viewing_activity, produce a per-decile rollup with (a) user_count, (b) average watch hours per user, (c) total watch hours, (d) the global skew_factor = P99 / P50 across all users. EXCLUDE users whose is_metadata_complete = false (LAD-tolerant view: a user whose newly-watched-show metadata hasn't propagated yet would otherwise get a temporarily-low watch count and land in the wrong decile). Sort decile ascending.\n\nThen describe in a comment what the result tells the infra/marketing/content teams.",
+    "solution": "DROP TABLE IF EXISTS viewing_activity;\nCREATE TABLE viewing_activity (\n    activity_id           SERIAL PRIMARY KEY,\n    user_id               INTEGER NOT NULL,\n    content_name          TEXT,\n    watch_date            DATE NOT NULL,\n    watch_seconds         INTEGER NOT NULL,\n    is_metadata_complete  BOOLEAN NOT NULL DEFAULT TRUE\n);\n\n-- Pareto-shaped sample: a handful of whales, a long tail of minnows.\nINSERT INTO viewing_activity (user_id, content_name, watch_date, watch_seconds, is_metadata_complete) VALUES\n    -- Whale: user 1, 40 hours\n    (1, 'Stranger Things', '2025-04-01', 36000, TRUE),\n    (1, 'Black Mirror',    '2025-04-02', 36000, TRUE),\n    (1, 'The Witcher',     '2025-04-03', 36000, TRUE),\n    (1, 'Bridgerton',      '2025-04-04', 36000, TRUE),\n    -- Heavy: user 2, 20 hours\n    (2, 'Stranger Things', '2025-04-01', 36000, TRUE),\n    (2, 'Black Mirror',    '2025-04-02', 36000, TRUE),\n    -- Heavy: user 3, 18 hours\n    (3, 'Stranger Things', '2025-04-01', 32400, TRUE),\n    (3, 'Bridgerton',      '2025-04-03', 32400, TRUE),\n    -- Mid: users 4-8 around 6-10 hours each\n    (4, 'Stranger Things', '2025-04-02', 36000, TRUE),\n    (5, 'Black Mirror',    '2025-04-02', 28800, TRUE),\n    (6, 'The Witcher',     '2025-04-03', 25200, TRUE),\n    (7, 'Bridgerton',      '2025-04-04', 21600, TRUE),\n    (8, 'Stranger Things', '2025-04-05', 21600, TRUE),\n    -- Light: users 9-20 each ~2 hours\n    (9,  'Stranger Things', '2025-04-01', 7200, TRUE),\n    (10, 'Black Mirror',    '2025-04-02', 7200, TRUE),\n    (11, 'The Witcher',     '2025-04-03', 5400, TRUE),\n    (12, 'Bridgerton',      '2025-04-04', 5400, TRUE),\n    (13, 'Stranger Things', '2025-04-05', 3600, TRUE),\n    (14, 'Black Mirror',    '2025-04-01', 3600, TRUE),\n    (15, 'The Witcher',     '2025-04-02', 1800, TRUE),\n    (16, 'Bridgerton',      '2025-04-03', 1800, TRUE),\n    (17, 'Stranger Things', '2025-04-04', 1800, TRUE),\n    (18, 'Black Mirror',    '2025-04-05', 900, TRUE),\n    (19, 'The Witcher',     '2025-04-01', 600, TRUE),\n    (20, 'Bridgerton',      '2025-04-02', 300, TRUE),\n    -- The LAD-incomplete user: would have been a whale, but their\n    -- newly-watched-show metadata hasn't propagated yet. Excluding\n    -- them avoids a false-positive low-decile assignment.\n    (99, NULL,              '2025-04-05', 18000, FALSE);\n\n-- ╭───────────────────────────────────────────────────────────────╮\n-- │  THE FULL POWER-USER ROLLUP                                    │\n-- │   (a) per-decile user_count / avg / total                      │\n-- │   (b) global skew_factor = P99 / P50                           │\n-- │   (c) LAD-tolerant: is_metadata_complete = TRUE only           │\n-- ╰───────────────────────────────────────────────────────────────╯\nWITH user_metrics AS (\n    SELECT user_id, SUM(watch_seconds) / 3600.0 AS hours\n    FROM viewing_activity\n    WHERE is_metadata_complete = TRUE   -- LAD guard\n    GROUP BY user_id\n),\npercentiles AS (\n    SELECT PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY hours)  AS median_hours,\n           PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY hours)  AS p99_hours\n    FROM user_metrics\n),\nranked AS (\n    SELECT user_id, hours,\n           NTILE(10) OVER (ORDER BY hours DESC) AS decile\n    FROM user_metrics\n)\nSELECT\n    decile,\n    COUNT(*)                                                AS user_count,\n    ROUND(AVG(hours)::NUMERIC, 2)                            AS avg_hours_per_user,\n    ROUND(SUM(hours)::NUMERIC, 2)                            AS total_decile_hours,\n    ROUND(((SELECT p99_hours FROM percentiles) /\n           NULLIF((SELECT median_hours FROM percentiles), 0))::NUMERIC, 2)\n                                                            AS skew_factor_p99_over_p50\nFROM ranked\nGROUP BY decile\nORDER BY decile;\n",
+    "source": {
+      "name": "PaddySpeaks · Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "postgres",
+    "tags": [
+      "analytical-functions",
+      "aggregation",
+      "subquery"
+    ]
   }
 ]
