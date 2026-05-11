@@ -872,7 +872,7 @@ function renderResults(results, ms) {
       .map((v) =>
         v === null
           ? `<td class="pg-null">NULL</td>`
-          : `<td>${escapeHtml(String(v))}</td>`
+          : `<td>${escapeHtml(formatCell(v))}</td>`
       )
       .join("");
     tbody.appendChild(tr);
@@ -883,6 +883,36 @@ function renderResults(results, ms) {
   const truncated = values.length > 1000 ? ` (showing first 1000 of ${values.length})` : "";
   stats.textContent = `${values.length} rows${truncated} · ${ms} ms`;
   $("#pg-export-csv").hidden = false;
+}
+
+// Result-cell value → display string. Postgres engines return JSONB / JSON
+// columns as parsed JS objects, arrays as JS arrays, dates as JS Date
+// instances. The naive `String(v)` yields '[object Object]' for objects,
+// '1,2,3' for arrays, and locale-formatted noise for Date — none of which
+// belong in a SQL-result table.
+function formatCell(v) {
+  if (v === null || v === undefined) return "";
+  // Date → ISO string (the form Postgres / SQLite both display)
+  if (v instanceof Date) {
+    const iso = v.toISOString();
+    // Trim trailing 'Z' and milliseconds for cleaner display; keep date for DATE cols
+    return iso.endsWith("T00:00:00.000Z") ? iso.slice(0, 10) : iso.replace(/\.\d{3}Z$/, "Z");
+  }
+  // Buffers / typed arrays → hex preview
+  if (v instanceof Uint8Array || (typeof Buffer !== "undefined" && v instanceof Buffer)) {
+    const a = Array.from(v.slice(0, 16));
+    const hex = a.map((b) => b.toString(16).padStart(2, "0")).join("");
+    return `\\x${hex}${v.length > 16 ? "…" : ""}`;
+  }
+  // Arrays and plain objects → pretty JSON
+  if (Array.isArray(v) || (typeof v === "object")) {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
 }
 
 function renderError(err) {
@@ -914,7 +944,7 @@ function exportCSV() {
 }
 function csvCell(v) {
   if (v == null) return "";
-  const s = String(v);
+  const s = formatCell(v);
   if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
