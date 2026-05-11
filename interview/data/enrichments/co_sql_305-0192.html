@@ -94,7 +94,13 @@ WITH ranked AS (
 SELECT d.dept_id, r.salary AS second_highest
 FROM departments d
 LEFT JOIN ranked r
-  ON r.dept_id = d.dept_id AND r.rk = 2;</code></pre>
+  ON r.dept_id = d.dept_id AND r.rk = 2;
+
+-- ⚠ Option B caveat: when two people are tied at the second-highest
+-- salary, this LEFT JOIN returns ONE ROW PER TIED EMPLOYEE (the join
+-- multiplies). If you want exactly one row per department, fold the
+-- tied salary up with conditional aggregation — that's Probe 1b
+-- below, which uses GROUP BY + MAX(CASE WHEN rk = 2 THEN salary END).</code></pre>
 
 <h5>Probe 1b — <em>"Now list each department with BOTH the highest AND the second-highest salary side by side."</em></h5>
 <p>One row per department, two salary columns. The right shape pivots the ranked output via conditional aggregation, then <code>LEFT JOIN</code>s from <code>departments</code> so single-person and empty departments still appear (with NULL in the second column):</p>
