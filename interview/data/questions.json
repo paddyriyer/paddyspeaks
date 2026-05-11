@@ -439,8 +439,8 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "orders(order_id, order_date, customer_id, status, amount)",
-    "solution": "SELECT order_id, order_date, date(order_date, '+7 days') AS due_date FROM orders;",
-    "runtime": "non-sqlite",
+    "solution": "SELECT order_id, order_date, (order_date + INTERVAL '+7 days') AS due_date FROM orders;",
+    "runtime": "postgres",
     "tags": [
       "date-interval"
     ]
@@ -1231,8 +1231,8 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "sales(sale_date, amount)",
-    "solution": "SELECT\n  SUM(CASE WHEN sale_date >= date(CURRENT_DATE, '-7 days') THEN amount END) AS this_week,\n  SUM(CASE WHEN sale_date BETWEEN date(CURRENT_DATE, '-14 days') AND date(CURRENT_DATE, '-8 days') THEN amount END) AS last_week\nFROM sales;",
-    "runtime": "non-sqlite",
+    "solution": "SELECT\n  SUM(CASE WHEN sale_date >= (CURRENT_DATE + INTERVAL '-7 days') THEN amount END) AS this_week,\n  SUM(CASE WHEN sale_date BETWEEN (CURRENT_DATE + INTERVAL '-14 days') AND (CURRENT_DATE + INTERVAL '-8 days') THEN amount END) AS last_week\nFROM sales;",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "case-when",
@@ -1782,7 +1782,7 @@
     "language": "sql",
     "schema": "reviews(product_id, rating)",
     "solution": "SELECT product_id, AVG(rating) AS avg_rating, COUNT(*) AS review_count\nFROM reviews GROUP BY product_id;",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation"
     ]
@@ -1988,7 +1988,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "customers(customer_id, last_purchase_date, name, email, signup_date, country, city)",
-    "solution": "SELECT customer_id FROM customers\nWHERE last_purchase_date >= date(CURRENT_DATE, '-90 days');",
+    "solution": "SELECT customer_id FROM customers\nWHERE last_purchase_date >= (CURRENT_DATE + INTERVAL '-90 days');",
     "runtime": "non-sqlite",
     "tags": [
       "date-interval"
@@ -3550,8 +3550,8 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "users(user_id, signup_date, name, email, country), activity(user_id, action_date)",
-    "solution": "SELECT 100.0 * COUNT(DISTINCT a.user_id) / COUNT(DISTINCT u.user_id) AS activation_rate\nFROM users u LEFT JOIN activity a\n  ON u.user_id=a.user_id AND a.action_date <= date(u.signup_date, '+7 days');",
-    "runtime": "non-sqlite",
+    "solution": "SELECT 100.0 * COUNT(DISTINCT a.user_id) / COUNT(DISTINCT u.user_id) AS activation_rate\nFROM users u LEFT JOIN activity a\n  ON u.user_id=a.user_id AND a.action_date <= (u.signup_date + INTERVAL '+7 days');",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "date-interval",
@@ -5143,7 +5143,7 @@
     "subtopic": "JSON extraction · category-conditional pivot",
     "difficulty": "Medium",
     "language": "sql",
-    "schema": "products(product_id, category, attribute_json, IF, name, price, sku, manufacturer)",
+    "schema": "products(product_id, category, attribute_json, name, price, sku, manufacturer)",
     "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — products with category-specific JSON attributes │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS products;\nCREATE TABLE products (\n    product_id     INTEGER PRIMARY KEY,\n    category       TEXT NOT NULL,\n    attribute_json TEXT NOT NULL\n);\nINSERT INTO products VALUES\n  -- Phones — screen_size, ram_gb, storage_gb\n  (1, 'phone', '{\"screen_size\": 6.1, \"ram_gb\": 8,  \"storage_gb\": 128}'),\n  (2, 'phone', '{\"screen_size\": 6.7, \"ram_gb\": 12, \"storage_gb\": 256}'),\n  -- Books — author, pages, isbn\n  (3, 'book',  '{\"author\": \"Ursula K. Le Guin\", \"pages\": 254, \"isbn\": \"9780441478125\"}'),\n  (4, 'book',  '{\"author\": \"N.K. Jemisin\",      \"pages\": 449, \"isbn\": \"9780316229296\"}'),\n  -- Shirts — size, color, fabric\n  (5, 'shirt', '{\"size\": \"M\", \"color\": \"navy\",  \"fabric\": \"cotton\"}'),\n  (6, 'shirt', '{\"size\": \"L\", \"color\": \"olive\", \"fabric\": \"cotton-blend\"}');\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  Solution — CASE picks the right JSON path per category │\n-- │                                                          │\n-- │  This simulates 'dynamic SQL' in pure SQL: the column   │\n-- │  selection logic that an app would normally code-       │\n-- │  generate is expressed inline with json_extract() +     │\n-- │  CASE. Works in SQLite (JSON1), Postgres (->>), MySQL   │\n-- │  (->>), Snowflake (:), BigQuery (JSON_VALUE) — same     │\n-- │  pattern, dialect-specific operators.                   │\n-- ╰──────────────────────────────────────────────────────────╯\nSELECT\n    product_id,\n    category,\n    CASE category\n        WHEN 'phone' THEN json_extract(attribute_json, '$.screen_size')\n        WHEN 'book'  THEN json_extract(attribute_json, '$.author')\n        WHEN 'shirt' THEN json_extract(attribute_json, '$.size')\n    END AS primary_attr,\n    CASE category\n        WHEN 'phone' THEN json_extract(attribute_json, '$.ram_gb')\n        WHEN 'book'  THEN json_extract(attribute_json, '$.pages')\n        WHEN 'shirt' THEN json_extract(attribute_json, '$.color')\n    END AS secondary_attr\nFROM products\nORDER BY category, product_id;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  Variant — when you actually want one wide row per      │\n-- │  category with EVERY possible attribute as its own      │\n-- │  column, code-generate a UNION ALL per category in the  │\n-- │  app layer. Conceptual sketch:                          │\n-- ╰──────────────────────────────────────────────────────────╯\n--   SELECT product_id,\n--          json_extract(attribute_json, '$.screen_size')  AS screen_size,\n--          json_extract(attribute_json, '$.ram_gb')       AS ram_gb,\n--          json_extract(attribute_json, '$.storage_gb')   AS storage_gb,\n--          NULL AS author, NULL AS pages, NULL AS isbn,\n--          NULL AS size,   NULL AS color, NULL AS fabric\n--   FROM products WHERE category = 'phone'\n--   UNION ALL\n--   SELECT product_id, NULL, NULL, NULL,\n--          json_extract(attribute_json, '$.author'),\n--          json_extract(attribute_json, '$.pages'),\n--          json_extract(attribute_json, '$.isbn'),\n--          NULL, NULL, NULL\n--   FROM products WHERE category = 'book'\n--   UNION ALL …  -- one branch per category",
     "question": "A products catalog stores category-specific attributes as a JSON blob in `attribute_json`. Different categories have different keys:\n\n  • phones — screen_size, ram_gb, storage_gb\n  • books  — author, pages, isbn\n  • shirts — size, color, fabric\n\nWrite a SQL query that returns each product with its category-relevant primary and secondary attributes EXTRACTED into named columns. This is the 'dynamic SQL simulation' pattern: in a real app you'd code-generate per-category SELECTs; in pure SQL you simulate the same effect with CASE + json_extract().\n\nExpected output (six rows ordered by category, product_id):\n\n  product_id | category | primary_attr      | secondary_attr\n  3          | book     | Ursula K. Le Guin | 254\n  4          | book     | N.K. Jemisin      | 449\n  1          | phone    | 6.1               | 8\n  2          | phone    | 6.7               | 12\n  5          | shirt    | M                 | navy\n  6          | shirt    | L                 | olive",
     "runtime": "non-sqlite",
@@ -5436,7 +5436,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "calls(caller_id, call_at)",
-    "solution": "SELECT DISTINCT a.caller_id FROM calls a JOIN calls b\nON a.caller_id = b.caller_id AND a.call_at < b.call_at\nAND b.call_at <= date(a.call_at, '+7 days');",
+    "solution": "SELECT DISTINCT a.caller_id FROM calls a JOIN calls b\nON a.caller_id = b.caller_id AND a.call_at < b.call_at\nAND b.call_at <= (a.call_at + INTERVAL '+7 days');",
     "runtime": "non-sqlite",
     "tags": [
       "date-interval",
@@ -5671,7 +5671,7 @@
     "language": "sql",
     "schema": "orders(order_id, customer_id, year, amount, order_date, status)",
     "solution": "SELECT customer_id,\n  SUM(CASE WHEN year=2024 THEN amount END) AS y2024,\n  SUM(CASE WHEN year=2025 THEN amount END) AS y2025,\n  SUM(CASE WHEN year=2026 THEN amount END) AS y2026\nFROM orders GROUP BY customer_id;",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "case-when",
@@ -8675,7 +8675,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "users(user_id, email, phone, first_name, last_name, dob, name, signup_date, country)",
-    "solution": "SELECT\n  user_id,\n  SHA2(email, 256)                                            AS email_hash,\n  REGEXP_REPLACE(phone, '\\\\d(?=\\\\d{4})', '*')                 AS phone_masked,\n  LEFT(first_name, 1) || REPEAT('*', LENGTH(first_name) - 1)  AS first_masked,\n  LEFT(last_name, 1)  || REPEAT('*', LENGTH(last_name)  - 1)  AS last_masked,\n  YEAR(dob)                                                   AS birth_year_only\nFROM users;",
+    "solution": "SELECT\n  user_id,\n  SHA2(email, 256)                                            AS email_hash,\n  REGEXP_REPLACE(phone, '\\\\d(?=\\\\d{4})', '*')                 AS phone_masked,\n  LEFT(first_name, 1) || REPEAT('*', LENGTH(first_name) - 1)  AS first_masked,\n  LEFT(last_name, 1)  || REPEAT('*', LENGTH(last_name)  - 1)  AS last_masked,\n  EXTRACT(YEAR FROM dob)                                                   AS birth_year_only\nFROM users;",
     "dialect_token": "SHA2(",
     "tags": [
       "date-functions",
@@ -8982,7 +8982,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "projects(project_id, name, start_date, end_date, status, manager_id), assignments(project_id, emp_id, hours, hourly_rate), equipment_costs(project_id, equipment_id, cost)",
-    "solution": "SELECT p.project_id, p.name,\n       DATEDIFF(day, p.start_date, p.end_date) AS duration_days,\n       COUNT(DISTINCT a.emp_id)                AS employees,\n       COALESCE(SUM(a.hours * a.hourly_rate), 0) AS labor_cost,\n       COALESCE(SUM(DISTINCT e.cost), 0)       AS equipment_cost,\n       COALESCE(SUM(a.hours * a.hourly_rate), 0)\n         + COALESCE(SUM(DISTINCT e.cost), 0)   AS total_cost\nFROM projects p\nLEFT JOIN assignments      a ON p.project_id = a.project_id\nLEFT JOIN equipment_costs  e ON p.project_id = e.project_id\nGROUP BY p.project_id, p.name, p.start_date, p.end_date\nORDER BY total_cost DESC;",
+    "solution": "SELECT p.project_id, p.name,\n       ((day)::date - (p.start_date, p.end_date)::date) AS duration_days,\n       COUNT(DISTINCT a.emp_id)                AS employees,\n       COALESCE(SUM(a.hours * a.hourly_rate), 0) AS labor_cost,\n       COALESCE(SUM(DISTINCT e.cost), 0)       AS equipment_cost,\n       COALESCE(SUM(a.hours * a.hourly_rate), 0)\n         + COALESCE(SUM(DISTINCT e.cost), 0)   AS total_cost\nFROM projects p\nLEFT JOIN assignments      a ON p.project_id = a.project_id\nLEFT JOIN equipment_costs  e ON p.project_id = e.project_id\nGROUP BY p.project_id, p.name, p.start_date, p.end_date\nORDER BY total_cost DESC;",
     "runtime": "non-sqlite",
     "tags": [
       "aggregation",
@@ -9004,7 +9004,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "purchases(purchase_id, customer_id, product_id, purchase_ts, amount, day)",
-    "solution": "SELECT customer_id, product_id, purchase_ts, amount,\n       ROW_NUMBER()   OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts) AS purchase_no,\n       LAG(purchase_ts) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts) AS prev_ts,\n       DATEDIFF(day,\n                LAG(purchase_ts) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts),\n                purchase_ts) AS days_since_last,\n       SUM(amount) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts\n                         ROWS UNBOUNDED PRECEDING) AS cumulative_spend\nFROM purchases;",
+    "solution": "SELECT customer_id, product_id, purchase_ts, amount,\n       ROW_NUMBER()   OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts) AS purchase_no,\n       LAG(purchase_ts) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts) AS prev_ts,\n       ((day)::date - (LAG(purchase_ts)::date) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts),\n                purchase_ts) AS days_since_last,\n       SUM(amount) OVER (PARTITION BY customer_id, product_id ORDER BY purchase_ts\n                         ROWS UNBOUNDED PRECEDING) AS cumulative_spend\nFROM purchases;",
     "runtime": "non-sqlite",
     "tags": [
       "aggregation",
@@ -9045,7 +9045,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "model_predictions(prediction_id, model_type, predicted, actual, latency_ms, predicted_at)",
-    "solution": "SELECT model_type,\n       COUNT(*)                                                       AS calls,\n       AVG(IFF(predicted = actual, 1.0, 0.0))                         AS accuracy,\n       AVG(latency_ms)                                                AS avg_latency_ms,\n       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)       AS p95_latency_ms\nFROM model_predictions\nGROUP BY model_type\nORDER BY calls DESC;",
+    "solution": "SELECT model_type,\n       COUNT(*)                                                       AS calls,\n       AVG(CASE WHEN predicted = actual THEN 1.0 ELSE 0.0 END)                         AS accuracy,\n       AVG(latency_ms)                                                AS avg_latency_ms,\n       PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY latency_ms)       AS p95_latency_ms\nFROM model_predictions\nGROUP BY model_type\nORDER BY calls DESC;",
     "dialect_token": "IFF(",
     "runtime": "non-sqlite",
     "tags": [
@@ -12292,7 +12292,7 @@
       "name": "vishnu-t-r/youtube_channel_resource",
       "url": "https://github.com/vishnu-t-r/youtube_channel_resource/blob/main/domain_specific_sql_interview_question/solution_3.sql"
     },
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "case-when",
@@ -12444,7 +12444,7 @@
     "subtopic": "Conditional aggregation · MAX(CASE WHEN)",
     "difficulty": "Medium",
     "language": "sql",
-    "schema": "emp_attributes(emp_id, attr_name, attr_value, IF)",
+    "schema": "emp_attributes(emp_id, attr_name, attr_value)",
     "scenario": "An HR audit feed lands in the warehouse as a long, key-value table — one row per (employee, attribute) pair, value stored as text. Reporting needs the same data in a wide format with one row per employee and one column per attribute, with the numeric attributes (years of experience, salary) cast back to integers. Missing attributes should appear as NULL, not silently swallowed.",
     "question": "Reshape the `emp_attributes` (long / EAV) table into a WIDE result with one row per employee:\n\n  emp_id | full_name | department | years_exp | salary\n\nRequirements:\n  • One row per emp_id, even if the employee is missing some attributes.\n  • Cast `years_exp` and `salary` from TEXT to INTEGER.\n  • If an attribute is missing for an employee, the corresponding column must be NULL (don't drop the row).\n  • Sort by emp_id ascending.\n\nExpected output for the canonical test data (note the NULL salary for emp 403 — they're a recent hire whose payroll record hasn't synced yet):\n\n  emp_id | full_name      | department  | years_exp | salary\n  401    | Priya Iyer     | Engineering | 5         | 82000\n  402    | Marcus Chen    | Marketing   | 3         | 65000\n  403    | Sana Patel     | Engineering | 8         | NULL\n  404    | Diego Reyes    | Finance     | 2         | 58000",
     "solution": "-- ╭──────────────────────────────────────────────────────────╮\n-- │  Setup — canonical test data baked in.                  │\n-- ╰──────────────────────────────────────────────────────────╯\nDROP TABLE IF EXISTS emp_attributes;\nCREATE TABLE emp_attributes (\n    emp_id     INTEGER NOT NULL,\n    attr_name  TEXT    NOT NULL,\n    attr_value TEXT\n);\nINSERT INTO emp_attributes VALUES\n  -- emp 401 — full record\n  (401, 'full_name',  'Priya Iyer'),\n  (401, 'department', 'Engineering'),\n  (401, 'years_exp',  '5'),\n  (401, 'salary',     '82000'),\n  -- emp 402 — full record\n  (402, 'full_name',  'Marcus Chen'),\n  (402, 'department', 'Marketing'),\n  (402, 'years_exp',  '3'),\n  (402, 'salary',     '65000'),\n  -- emp 403 — recent hire, salary not yet synced\n  (403, 'full_name',  'Sana Patel'),\n  (403, 'department', 'Engineering'),\n  (403, 'years_exp',  '8'),\n  -- emp 404 — full record\n  (404, 'full_name',  'Diego Reyes'),\n  (404, 'department', 'Finance'),\n  (404, 'years_exp',  '2'),\n  (404, 'salary',     '58000');\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 1 — Conditional aggregation (portable)          │\n-- │                                                          │\n-- │  Group by the row identifier (emp_id), then for each    │\n-- │  desired output column do MAX(CASE WHEN ...). MAX is    │\n-- │  the standard pivot aggregator: it skips NULLs from     │\n-- │  the non-matching CASE branches and returns the single  │\n-- │  matching value. Works in SQLite, Postgres, MySQL,      │\n-- │  Snowflake, BigQuery — every dialect.                   │\n-- ╰──────────────────────────────────────────────────────────╯\nSELECT\n  emp_id,\n  MAX(CASE WHEN attr_name = 'full_name'  THEN attr_value END) AS full_name,\n  MAX(CASE WHEN attr_name = 'department' THEN attr_value END) AS department,\n  CAST(MAX(CASE WHEN attr_name = 'years_exp' THEN attr_value END) AS INTEGER)\n      AS years_exp,\n  CAST(MAX(CASE WHEN attr_name = 'salary'    THEN attr_value END) AS INTEGER)\n      AS salary\nFROM emp_attributes\nGROUP BY emp_id\nORDER BY emp_id;\n\n-- ╭──────────────────────────────────────────────────────────╮\n-- │  METHOD 2 — SQL Server / Snowflake PIVOT operator       │\n-- │  (commented; doesn't run in SQLite)                     │\n-- ╰──────────────────────────────────────────────────────────╯\n-- SELECT emp_id, full_name, department, years_exp, salary\n-- FROM emp_attributes\n-- PIVOT (\n--     MAX(attr_value)\n--     FOR attr_name IN (full_name, department, years_exp, salary)\n-- ) AS p\n-- ORDER BY emp_id;",
@@ -12607,7 +12607,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/13_records_of_brands_whose_amount_increase_from_one_year_to_another.sql"
     },
     "question": "Query to fetch the records of brands whose amounts is increasing from one year to another?",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "analytical-functions",
       "cte",
@@ -12940,7 +12940,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "amazon_shipment(shipment_id, sub_id, weight, shipment_date, convert, varchar)",
-    "solution": "--Number of Shipments Per Month\n\nselect * from amazon_shipment\n\n--method 1\n\nselect concat(year(shipment_date),'-',month(shipment_date)) as year_month,\n    count(distinct(concat(shipment_id,sub_id))) as shipment\nfrom amazon_shipment\ngroup by concat(year(shipment_date),'-',month(shipment_date))\n\n--method 2\n\nselect convert(varchar(7),shipment_date,120) as year_month,\n  count(distinct(concat(shipment_id,sub_id))) as shipment\nfrom amazon_shipment\ngroup by convert(varchar(7),shipment_date,120)\n\n--convert function syntax\n  --convert(to what data type, expression, style)",
+    "solution": "--Number of Shipments Per Month\n\nselect * from amazon_shipment\n\n--method 1\n\nselect concat(EXTRACT(YEAR FROM shipment_date),'-',EXTRACT(MONTH FROM shipment_date)) as year_month,\n    count(distinct(concat(shipment_id,sub_id))) as shipment\nfrom amazon_shipment\ngroup by concat(EXTRACT(YEAR FROM shipment_date),'-',EXTRACT(MONTH FROM shipment_date))\n\n--method 2\n\nselect convert(varchar(7),shipment_date,120) as year_month,\n  count(distinct(concat(shipment_id,sub_id))) as shipment\nfrom amazon_shipment\ngroup by convert(varchar(7),shipment_date,120)\n\n--convert function syntax\n  --convert(to what data type, expression, style)",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/107_number%20of%20shipments%20per%20month%20%28stratascratch%29.sql"
@@ -13043,7 +13043,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "playbook_events(device, user_id, isnull, language, t1, t2), playbook_users(language, user_id, device, isnull, t1, t2)",
-    "solution": "--Apple Product Counts\n\n--tables\nselect * from playbook_events\nselect * from playbook_users\n\n--Method 1 (long query)\n\nwith t1 as\n(\nselect pu.language,\n        count(distinct pe.user_id) as n_total_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\ngroup by pu.language\n--order by n_total_users desc\n),\nt2 as\n(\nselect pu.language,\n        count(distinct pe.user_id) as n_apple_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\nwhere pe.device in ('macbook pro', 'iphone 5s', 'ipad air')\ngroup by pu.language\n)\n\nselect t1.language,\n        isnull(t2.n_apple_users,0),\n        t1.n_total_users\nfrom t1 left join t2 on t1.language = t2.language\norder by t1.n_total_users desc\n\n--Method 2 (short query)\n\nselect pu.language,\n    count(distinct case when pe.device in ('macbook pro', 'iphone 5s', 'ipad air')\n        then pe.user_id else null end) as n_apple_users,\n        count(distinct pe.user_id) as n_total_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\ngroup by pu.language\norder by n_total_users desc",
+    "solution": "--Apple Product Counts\n\n--tables\nselect * from playbook_events\nselect * from playbook_users\n\n--Method 1 (long query)\n\nwith t1 as\n(\nselect pu.language,\n        count(distinct pe.user_id) as n_total_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\ngroup by pu.language\n--order by n_total_users desc\n),\nt2 as\n(\nselect pu.language,\n        count(distinct pe.user_id) as n_apple_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\nwhere pe.device in ('macbook pro', 'iphone 5s', 'ipad air')\ngroup by pu.language\n)\n\nselect t1.language,\n        (t2.n_apple_users,0 IS NULL),\n        t1.n_total_users\nfrom t1 left join t2 on t1.language = t2.language\norder by t1.n_total_users desc\n\n--Method 2 (short query)\n\nselect pu.language,\n    count(distinct case when pe.device in ('macbook pro', 'iphone 5s', 'ipad air')\n        then pe.user_id else null end) as n_apple_users,\n        count(distinct pe.user_id) as n_total_users\nfrom\nplaybook_events pe left join playbook_users pu\non pe.user_id = pu.user_id\ngroup by pu.language\norder by n_total_users desc",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/111_Apple%20Product%20Counts%20%28stratascratch%20-%20distinct%20used%20along%20with%20when%29.sql"
@@ -13265,7 +13265,7 @@
     "difficulty": "Medium",
     "language": "sql",
     "schema": "users_web_log(day, page_exit, page_load, pe, pl, second, timestamp, user_id)",
-    "solution": "--Solution 2\n--Users By Average Session Time\n  --Calculate each user's average session time?\n\n--select top 10 * from users_web_log\n\nwith page_load as(\nselect user_id, --timestamp,\n    day(timestamp) as \"day\", max(timestamp) as latest_page_load\nfrom users_web_log\nwhere action = 'page_load'\ngroup by user_id, day(timestamp)\n--order by user_id\n), page_exit as\n(\nselect user_id, --timestamp,\n    day(timestamp) as \"day\", min(timestamp) as earliest_page_exit\nfrom users_web_log\nwhere action = 'page_exit'\ngroup by user_id, day(timestamp)\n--order by user_id\n)\nselect pl.user_id, --pl.day,\n    avg(cast(EXTRACT(DAY FROM ((second) - (latest_page_load, earliest_page_exit)))::INT as decimal(10,2))) as avg_duration\n    --EXTRACT(DAY FROM ((second) - (latest_page_load, earliest_page_exit)))::INT\nfrom page_load pl inner join page_exit pe\non pl.user_id = pe.user_id and pl.day = pe.day\ngroup by pl.user_id",
+    "solution": "--Solution 2\n--Users By Average Session Time\n  --Calculate each user's average session time?\n\n--select top 10 * from users_web_log\n\nwith page_load as(\nselect user_id, --timestamp,\n    EXTRACT(DAY FROM timestamp) as \"day\", max(timestamp) as latest_page_load\nfrom users_web_log\nwhere action = 'page_load'\ngroup by user_id, EXTRACT(DAY FROM timestamp)\n--order by user_id\n), page_exit as\n(\nselect user_id, --timestamp,\n    EXTRACT(DAY FROM timestamp) as \"day\", min(timestamp) as earliest_page_exit\nfrom users_web_log\nwhere action = 'page_exit'\ngroup by user_id, EXTRACT(DAY FROM timestamp)\n--order by user_id\n)\nselect pl.user_id, --pl.day,\n    avg(cast(EXTRACT(DAY FROM ((second) - (latest_page_load, earliest_page_exit)))::INT as decimal(10,2))) as avg_duration\n    --EXTRACT(DAY FROM ((second) - (latest_page_load, earliest_page_exit)))::INT\nfrom page_load pl inner join page_exit pe\non pl.user_id = pe.user_id and pl.day = pe.day\ngroup by pl.user_id",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/119_Calculate%20Users%20By%20Average%20Session%20Time%20%28stratascratch%29-solution%202.sql"
@@ -13334,7 +13334,7 @@
       "string-functions",
       "subquery"
     ],
-    "runtime": "non-sqlite"
+    "runtime": "postgres"
   },
   {
     "id": "community_solved-0033",
@@ -13470,7 +13470,7 @@
       "left-join",
       "subquery"
     ],
-    "runtime": "non-sqlite"
+    "runtime": "postgres"
   },
   {
     "id": "community_solved-0038",
@@ -13563,7 +13563,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "match_result(Team_1, Team_2, Result_won, isnull, result, t1, t3, team, team_1_result, team_2_result)",
-    "solution": "--select * from match_result;\n\n--Method 1\n\nwith t1 as(\nselect team_1,\n    team_2,\n    result_won,\n    case when team_1 = result_won then 1 end as team_1_won,\n    case when team_2 = result_won then 1 end as team_2_won,\n    case when result_won is null then 1 end as tied_match\nfrom match_result\n),\nteam_1_result as(\nselect team_1, sum(team_1_won) as won_match, sum(team_2_won) as lost_match,\n      sum(tied_match) as tied\nfrom t1\ngroup by team_1\n),\nteam_2_result as(\nselect team_2, sum(team_2_won) as won_match, sum(team_1_won) as lost_match,\n      sum(tied_match) as tied\nfrom t1\ngroup by team_2),\nt3 as(\nselect * from team_1_result\nunion all\nselect * from team_2_result\n),result as(\nselect team_1 as team, sum(won_match) as won_match,\n            sum(lost_match) as lost_match,\n            sum(tied) as tied\nfrom t3\ngroup by team_1\n)\nselect *,\n    isnull(won_match,0) + isnull(lost_match,0) + isnull(tied,0) as match_played\nfrom result\n\n--Method 2\n\nwith t1 as(\nselect team_1 as team, result_won as result\nfrom match_result\nunion all\nselect team_2 as team, result_won as result\nfrom match_result\n)\nselect team,\n    count(1) as match_count,\n    sum(case when team = result then 1 end) as match_won,\n    sum(case when result is null then 1 end) as tied_match,\n    sum(case when team != result then 1 end) as lost_match\nfrom t1\ngroup by team",
+    "solution": "--select * from match_result;\n\n--Method 1\n\nwith t1 as(\nselect team_1,\n    team_2,\n    result_won,\n    case when team_1 = result_won then 1 end as team_1_won,\n    case when team_2 = result_won then 1 end as team_2_won,\n    case when result_won is null then 1 end as tied_match\nfrom match_result\n),\nteam_1_result as(\nselect team_1, sum(team_1_won) as won_match, sum(team_2_won) as lost_match,\n      sum(tied_match) as tied\nfrom t1\ngroup by team_1\n),\nteam_2_result as(\nselect team_2, sum(team_2_won) as won_match, sum(team_1_won) as lost_match,\n      sum(tied_match) as tied\nfrom t1\ngroup by team_2),\nt3 as(\nselect * from team_1_result\nunion all\nselect * from team_2_result\n),result as(\nselect team_1 as team, sum(won_match) as won_match,\n            sum(lost_match) as lost_match,\n            sum(tied) as tied\nfrom t3\ngroup by team_1\n)\nselect *,\n    (won_match,0 IS NULL) + (lost_match,0 IS NULL) + (tied,0 IS NULL) as match_played\nfrom result\n\n--Method 2\n\nwith t1 as(\nselect team_1 as team, result_won as result\nfrom match_result\nunion all\nselect team_2 as team, result_won as result\nfrom match_result\n)\nselect team,\n    count(1) as match_count,\n    sum(case when team = result then 1 end) as match_won,\n    sum(case when result is null then 1 end) as tied_match,\n    sum(case when team != result then 1 end) as lost_match\nfrom t1\ngroup by team",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/130_write%20a%20query%20to%20digitize%20a%20result%20table%20%282%20methods%29.sql"
@@ -13745,7 +13745,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "bank_account(amount, date_stamp, partition, t1, t2, t3)",
-    "solution": "--select * from bank_account;\n\nwith t1 as(\nselect amount, date_stamp,\n    row_number() over(partition by amount order by date_stamp asc) as flag\nfrom bank_account\n--order by date_stamp asc\n),\nt2 as(\nselect amount,\n    date_stamp,\n    flag,\n    day(date_stamp) as date_day,\n    (day(date_stamp)-flag) as flag_diff\nfrom t1\n--order by date_stamp asc\n),\nt3 as(\nselect amount,\n    date_stamp,\n    flag,\n    date_day,\n    flag_diff,\n    min(date_stamp) over(partition by amount,flag_diff) as bank_start_date,\n    max(date_stamp) over(partition by amount,flag_diff) as bank_end_date\nfrom t2\n--order by date_stamp asc\n)\nselect distinct amount, bank_start_date, bank_end_date\nfrom t3\norder by bank_start_date asc",
+    "solution": "--select * from bank_account;\n\nwith t1 as(\nselect amount, date_stamp,\n    row_number() over(partition by amount order by date_stamp asc) as flag\nfrom bank_account\n--order by date_stamp asc\n),\nt2 as(\nselect amount,\n    date_stamp,\n    flag,\n    EXTRACT(DAY FROM date_stamp) as date_day,\n    (EXTRACT(DAY FROM date_stamp)-flag) as flag_diff\nfrom t1\n--order by date_stamp asc\n),\nt3 as(\nselect amount,\n    date_stamp,\n    flag,\n    date_day,\n    flag_diff,\n    min(date_stamp) over(partition by amount,flag_diff) as bank_start_date,\n    max(date_stamp) over(partition by amount,flag_diff) as bank_end_date\nfrom t2\n--order by date_stamp asc\n)\nselect distinct amount, bank_start_date, bank_end_date\nfrom t3\norder by bank_start_date asc",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/137_derive%20start_date%20and%20end_date%20column%20when%20there%20is%20continuous%20amount%20in%20bank%20balance%20column.sql"
@@ -14174,7 +14174,7 @@
     "difficulty": "Easy",
     "language": "sql",
     "schema": "club(club_id, member_id, rewards, apply, cte, isnull, point_cte, reward, string_split, value)",
-    "solution": "--select * from club;\n\n--MM - 0.5, CI - 0.5, CO - 0.5, CD - 1, CL - 1, CM - 1\n\nwith cte as(\nselect club_id, member_id, value as reward\nfrom\n  (select club_id,member_id,isnull(rewards,'A') as rewards from club) b\ncross apply string_split(rewards,':')\n),\npoint_cte as(\nselect club_id,\n    member_id,\n    reward,\n    case reward\n      when 'MM' then 0.5\n      when 'CI' then 0.5\n      when 'CO' then 0.5\n      when 'CD' then 1\n      when 'CL' then 1\n      when 'CM' then 1\n      else 0\n      end as points\nfrom cte)\nselect club_id, sum(points) as total_points\nfrom point_cte\ngroup by club_id;",
+    "solution": "--select * from club;\n\n--MM - 0.5, CI - 0.5, CO - 0.5, CD - 1, CL - 1, CM - 1\n\nwith cte as(\nselect club_id, member_id, value as reward\nfrom\n  (select club_id,member_id,(rewards,'A' IS NULL) as rewards from club) b\ncross apply string_split(rewards,':')\n),\npoint_cte as(\nselect club_id,\n    member_id,\n    reward,\n    case reward\n      when 'MM' then 0.5\n      when 'CI' then 0.5\n      when 'CO' then 0.5\n      when 'CD' then 1\n      when 'CL' then 1\n      when 'CM' then 1\n      else 0\n      end as points\nfrom cte)\nselect club_id, sum(points) as total_points\nfrom point_cte\ngroup by club_id;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/154_calculate%20total%20club%20reward%20points%20%282%20methods%20-%20string%20split%20and%20cross%20apply%29.sql"
@@ -14531,7 +14531,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "product_sales(product_id, sale_date, quantity, concat_ws, current_month_sales, datename, month, partition, questions, total_sale, use)",
-    "solution": "﻿use questions;\n\n--Analyzing Product Sales Growth\n\n--select * from product_sales;\n\nwith total_sale as(\nselect product_id, sale_year_month, sale_month, sum(quantity) as total_quantity\nfrom\n(\nselect *,\n    concat_ws('-',datename(month,sale_date),\n    year(sale_date)) as sale_year_month,\n    month(sale_date) as sale_month\nfrom product_sales\nwhere year(sale_date) = 2099) sales\ngroup by product_id, sale_year_month, sale_month\n--order by product_id asc, sale_month asc\n),\nprevious_month_sales as(\nselect product_id,\n    sale_year_month,\n    sale_month,\n    total_quantity as current_month_sales,\n    lag(total_quantity,1,0) over(partition by product_id order by sale_month asc) as previous_month_sales\nfrom total_sale\n)\nselect product_id,\n    sale_year_month,\n    current_month_sales,\n    previous_month_sales,\n    cast(1.0*(current_month_sales-previous_month_sales)/nullif(previous_month_sales,0)*100\n    as decimal(10,2)) as growth_rate\nfrom previous_month_sales;",
+    "solution": "﻿use questions;\n\n--Analyzing Product Sales Growth\n\n--select * from product_sales;\n\nwith total_sale as(\nselect product_id, sale_year_month, sale_month, sum(quantity) as total_quantity\nfrom\n(\nselect *,\n    concat_ws('-',datename(month,sale_date),\n    EXTRACT(YEAR FROM sale_date)) as sale_year_month,\n    EXTRACT(MONTH FROM sale_date) as sale_month\nfrom product_sales\nwhere EXTRACT(YEAR FROM sale_date) = 2099) sales\ngroup by product_id, sale_year_month, sale_month\n--order by product_id asc, sale_month asc\n),\nprevious_month_sales as(\nselect product_id,\n    sale_year_month,\n    sale_month,\n    total_quantity as current_month_sales,\n    lag(total_quantity,1,0) over(partition by product_id order by sale_month asc) as previous_month_sales\nfrom total_sale\n)\nselect product_id,\n    sale_year_month,\n    current_month_sales,\n    previous_month_sales,\n    cast(1.0*(current_month_sales-previous_month_sales)/nullif(previous_month_sales,0)*100\n    as decimal(10,2)) as growth_rate\nfrom previous_month_sales;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/167_analyzing%20product%20sales%20growth%20%28scenario%20based%20interview%20question%29.sql"
@@ -14801,7 +14801,7 @@
     "difficulty": "Hard",
     "language": "sql",
     "schema": "purchases_info(purchase_id, customer_id, purchase_date, amount, base_data, day, partition)",
-    "solution": "--result should contain customer_id, purchase_start_date, purchase_end_date, total_amount\n\nselect * from purchases_info\norder by customer_id asc, purchase_date asc\n\nwith lead_purchase as(\nselect purchase_id,\n    customer_id,\n    purchase_date,\n    amount,\n    lead(purchase_date,1,null) over(partition by customer_id order by purchase_date asc) as lead_purchase_date,\n    lead(amount,1,null) over(partition by customer_id order by purchase_date asc) as lead_purchase_amount,\n    CAST(julianday(day) - julianday(purchase_date,lead(purchase_date,1,null) AS INTEGER) over(partition by customer_id order by purchase_date asc)) as diff_date\nfrom purchases_info\nwhere amount > 100\n), base_data as(\nselect distinct customer_id,\n    min(purchase_date) over(partition by customer_id) as purchase_start_date,\n    first_value(amount) over(partition by customer_id order by purchase_date asc) as purchase_amount,\n    max(lead_purchase_date) over(partition by customer_id) as purchase_end_date,\n    sum(lead_purchase_amount) over(partition by customer_id) as lead_purchase_amount\nfrom lead_purchase\nwhere diff_date = 1\n)\nselect customer_id,\n    purchase_start_date,\n    purchase_end_date,\n    (purchase_amount + lead_purchase_amount) as total_purchase_amount\nfrom base_data;",
+    "solution": "--result should contain customer_id, purchase_start_date, purchase_end_date, total_amount\n\nselect * from purchases_info\norder by customer_id asc, purchase_date asc\n\nwith lead_purchase as(\nselect purchase_id,\n    customer_id,\n    purchase_date,\n    amount,\n    lead(purchase_date,1,null) over(partition by customer_id order by purchase_date asc) as lead_purchase_date,\n    lead(amount,1,null) over(partition by customer_id order by purchase_date asc) as lead_purchase_amount,\n    CAST(EXTRACT(DAY FROM (day)::timestamp - (purchase_date,lead(purchase_date,1,null)::timestamp) AS INTEGER) over(partition by customer_id order by purchase_date asc)) as diff_date\nfrom purchases_info\nwhere amount > 100\n), base_data as(\nselect distinct customer_id,\n    min(purchase_date) over(partition by customer_id) as purchase_start_date,\n    first_value(amount) over(partition by customer_id order by purchase_date asc) as purchase_amount,\n    max(lead_purchase_date) over(partition by customer_id) as purchase_end_date,\n    sum(lead_purchase_amount) over(partition by customer_id) as lead_purchase_amount\nfrom lead_purchase\nwhere diff_date = 1\n)\nselect customer_id,\n    purchase_start_date,\n    purchase_end_date,\n    (purchase_amount + lead_purchase_amount) as total_purchase_amount\nfrom base_data;",
     "source": {
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/179_Find%20Customers%20with%20Consecutive%20Purchases.sql"
@@ -15041,7 +15041,7 @@
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/188_review%20rating%20for%20products.sql"
     },
     "question": "Question:\r\n\r\nPerform a comprehensive analysis of product reviews to generate the following insights:\n\n  > The average review rating for each product.\n  > The total number of reviews for each product.\n  > Number of 5-star reviews for each product.\n  > A ranking of products based on their average rating in descending order.\n\t\t1.If two products have the same average rating, rank them by number of 5-star reviews in descending order.\n\t\t2.If there is still a tie, rank them by the total number of reviews in descending order.",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "case-when",
@@ -15065,7 +15065,7 @@
       "name": "vishnu-t-r/sql_solved_questions",
       "url": "https://github.com/vishnu-t-r/sql_solved_questions/blob/main/189_average%20review%20rating%20and%20top%20performing%20products.sql"
     },
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "analytical-functions",
@@ -15205,7 +15205,7 @@
     "subtopic": "Growth accounting · LAG · self-join",
     "difficulty": "Hard",
     "language": "sql",
-    "schema": "orders(order_id, customer_id, order_date, amount, IF, status)",
+    "schema": "orders(order_id, customer_id, order_date, amount, status)",
     "scenario": "Customer growth accounting (Stripe / Jeff Sauro framework) decomposes every active customer in a given month into one of four buckets so the team can read the health of the business from a single table:\n  • New        — first ever order this month\n  • Resurrected — active this month, active in some prior month, but NOT last month\n  • Existing   — active this month AND active last month\n  • Churned    — NOT active this month, but active last month (counted negatively)\n\nThe Quick Ratio = (New + Resurrected) / Churned. > 1 means the store is growing.",
     "question": "Produce one row per (year_month, bucket) with:\n  year_month  | bucket       | customers\nwhere bucket ∈ ('new', 'resurrected', 'existing', 'churned'). Customers count is positive for new/resurrected/existing, and we report churned as a separate positive number (the consumer can negate it).",
     "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  (1, 1, '2025-01-05', 100), (2, 1, '2025-02-08', 100),\n  (3, 1, '2025-03-12', 100),\n  (4, 2, '2025-01-20',  80), (5, 2, '2025-03-15',  80),\n  (6, 3, '2025-02-18',  50),\n  (7, 4, '2025-03-22', 200);\n\n-- ── PERF rewrite ─────────────────────────────────────────\n--   1. GROUP BY user_id, ym instead of SELECT DISTINCT — early-\n--      aggregation pushdown in MPP optimisers. Critical when orders\n--      has billions of rows and the customer × ym grid is small.\n--   2. Date-range WHERE for partition pruning. The classifier needs\n--      one extra month before the report window so prev_m / next_m\n--      LAG/LEAD aren't NULL inside the report range.\n-- ─────────────────────────────────────────────────────────\nWITH user_activity AS (\n    SELECT customer_id, strftime('%Y-%m', order_date) AS ym\n    FROM orders\n    WHERE order_date >= '2024-12-01'  -- one month buffer for LAG/LEAD\n      AND order_date <  '2025-05-01'\n    GROUP BY customer_id, strftime('%Y-%m', order_date)\n),\nedges AS (\n    SELECT\n        customer_id,\n        ym,\n        date(ym || '-01') AS current_m,\n        LAG (date(ym || '-01')) OVER w AS prev_m,\n        LEAD(date(ym || '-01')) OVER w AS next_m\n    FROM user_activity\n    WINDOW w AS (PARTITION BY customer_id ORDER BY ym)\n),\nclassifications AS (\n    SELECT\n        ym, customer_id,\n        CASE\n            WHEN prev_m IS NULL                       THEN 'new'\n            WHEN prev_m = date(current_m, '-1 month') THEN 'existing'\n            ELSE                                            'resurrected'\n        END AS bucket,\n        CASE\n            WHEN next_m IS NULL OR next_m > date(current_m, '+1 month')\n            THEN strftime('%Y-%m', date(current_m, '+1 month'))\n        END AS churn_ym\n    FROM edges\n)\nSELECT ym AS year_month, bucket, COUNT(DISTINCT customer_id) AS customers\nFROM (\n    SELECT ym, customer_id, bucket FROM classifications\n    UNION ALL\n    SELECT churn_ym, customer_id, 'churned'\n    FROM classifications WHERE churn_ym IS NOT NULL\n)\nGROUP BY ym, bucket\nORDER BY ym,\n    CASE bucket WHEN 'new' THEN 1 WHEN 'resurrected' THEN 2\n                WHEN 'existing' THEN 3 ELSE 4 END;",
@@ -15239,7 +15239,7 @@
     "schema": "orders(order_id, customer_id, order_date, amount, status), params(order_id, customer_id, order_date, amount)",
     "scenario": "Real customers don't churn-and-resurrect once — they yo-yo. We model each customer's order stream as a sequence of 'active phases' (islands) separated by churn gaps (> 90 days). The right marketing call depends on more than 'did they resurrect': a customer on their fifth phase with shrinking phase-AOV is a different bet than a Tier 1 customer on their first 90-day wobble. The report should also show how Y1 (rolling 12 months) compares to Y2 (the 12 months before that) — a rising resurrection rate is a leading indicator that the product is losing stickiness.",
     "question": "Snapshot 2025-04-01. Use the gaps-and-islands pattern: assign each order an island_id that bumps every time the previous-order gap exceeds 90 days. For each customer with at least 2 islands (i.e. at least 1 resurrection cycle), return:\n  customer_id\n  total_islands            — number of distinct active phases\n  resurrection_cycles      — total_islands - 1\n  avg_gap_days             — average idle gap between islands\n  max_gap_days             — longest idle gap\n  avg_pre_churn_aov        — AOV of last order in each closing island\n  avg_comeback_aov         — AOV of first order in each new island\n  aov_uplift               — comeback - pre_churn (positive = healthy)\n  y1_resurrections         — comeback events in the rolling-12 window\n  y2_resurrections         — comeback events in the prior-12 window\n  resurrection_trend       — 'rising','falling','stable','y1_only'\n  most_recent_comeback     — date\n\nSort by resurrection_cycles DESC, aov_uplift DESC.",
-    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  (1,1,'2023-04-10',100),(2,1,'2023-04-25',120),\n  (3,1,'2023-08-27',180),(4,1,'2023-09-10',210),\n  (5,1,'2023-12-24',260),(6,1,'2024-01-07',290),\n  (7,1,'2024-07-05',340),(8,1,'2024-08-20',380),(9,1,'2025-01-12',410),\n  (10,2,'2023-02-15',60),(11,2,'2023-04-22',70),\n  (12,2,'2023-08-30',95),(13,2,'2023-12-15',105),(14,2,'2024-02-20',95),\n  (15,2,'2024-09-15',88),\n  (16,3,'2024-04-04',300),(17,3,'2024-04-18',280),\n  (18,3,'2024-07-27',260),\n  (19,3,'2024-11-04',180),\n  (20,3,'2025-02-22',150),\n  (21,4,'2024-01-05',100),(22,4,'2024-02-15',100),\n  (23,4,'2024-04-10',100),(24,4,'2024-06-22',100),(25,4,'2024-09-08',100),\n  (26,4,'2024-11-22',100),(27,4,'2025-02-15',100);\n\n-- ── PERF rewrite ─────────────────────────────────────────\n--   The original used two correlated subqueries inside SELECT to\n--   fetch the first / last AOV of each island — that runs once PER\n--   ROW of the outer query, ballooning to O(islands × orders).\n--   FIRST_VALUE / LAST_VALUE windows do the same work in a single\n--   pass over the table.\n-- ─────────────────────────────────────────────────────────\nWITH params(snapshot) AS (VALUES ('2025-04-01')),\nflagged AS (\n    SELECT\n        o.customer_id,\n        o.order_date,\n        o.amount,\n        CASE\n          WHEN LAG(o.order_date) OVER w IS NULL                                      THEN 1\n          WHEN julianday(o.order_date) - julianday(LAG(o.order_date) OVER w) > 90    THEN 1\n          ELSE 0\n        END AS opens_island,\n        EXTRACT(DAY FROM (((SELECT snapshot FROM params)) - (o.order_date)))::INT AS days_back\n    FROM orders o\n    WHERE o.order_date >= date((SELECT snapshot FROM params), '-730 days')\n    WINDOW w AS (PARTITION BY o.customer_id ORDER BY o.order_date)\n),\nwith_island AS (\n    -- Cumulative-flag SUM gives every order a stable island_id\n    -- (the canonical gaps-and-islands second flavour).\n    SELECT\n        customer_id, order_date, amount, days_back, opens_island,\n        SUM(opens_island) OVER (\n            PARTITION BY customer_id\n            ORDER BY order_date\n            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n        ) AS island_id\n    FROM flagged\n),\nwindowed AS (\n    -- PERF: compute first / last island AOV in a single windowed pass.\n    -- FIRST_VALUE / LAST_VALUE over the FULL island window return a\n    -- constant per partition; we collapse with GROUP BY in the next CTE.\n    -- This replaces two correlated subqueries that previously ran per\n    -- island, scaling O(islands × orders) → O(orders) total.\n    SELECT\n        customer_id, order_date, amount, days_back, island_id,\n        FIRST_VALUE(amount) OVER w_island AS first_amount,\n        LAST_VALUE(amount)  OVER w_island AS last_amount\n    FROM with_island\n    WINDOW w_island AS (\n        PARTITION BY customer_id, island_id\n        ORDER BY order_date\n        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING\n    )\n),\nislands AS (\n    -- Pure aggregate step. MAX of a per-partition constant returns\n    -- that constant — cheaper than re-running FIRST_VALUE here.\n    SELECT\n        customer_id, island_id,\n        MIN(order_date)   AS island_start,\n        MAX(order_date)   AS island_end,\n        MAX(first_amount) AS first_amount,\n        MAX(last_amount)  AS last_amount\n    FROM windowed\n    GROUP BY customer_id, island_id\n),\nphase_pairs AS (\n    SELECT\n        customer_id, island_id,\n        island_start  AS comeback_date,\n        first_amount  AS comeback_aov,\n        LAG(island_end)   OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_end,\n        LAG(last_amount)  OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_aov,\n        EXTRACT(DAY FROM (((SELECT snapshot FROM params)) - (island_start)))::INT AS days_back_comeback\n    FROM islands\n),\nresurrections AS (\n    SELECT\n        customer_id, comeback_date, comeback_aov,\n        prev_island_aov AS pre_churn_aov,\n        EXTRACT(DAY FROM (comeback_date - prev_island_end))::INT\n            AS gap_days,\n        days_back_comeback\n    FROM phase_pairs\n    WHERE prev_island_end IS NOT NULL\n      AND (comeback_date - prev_island_end) > INTERVAL '90 days'\n),\ntotal_islands_per_cust AS (\n    SELECT customer_id, MAX(island_id) AS total_islands\n    FROM islands GROUP BY customer_id\n),\nper_customer AS (\n    SELECT\n        r.customer_id,\n        ti.total_islands,\n        COUNT(*)                                              AS resurrection_cycles,\n        ROUND(AVG(gap_days), 0)                               AS avg_gap_days,\n        MAX(gap_days)                                         AS max_gap_days,\n        ROUND(AVG(pre_churn_aov), 2)                          AS avg_pre_churn_aov,\n        ROUND(AVG(comeback_aov), 2)                           AS avg_comeback_aov,\n        SUM(CASE WHEN (days_back_comeback < 365) THEN 1 ELSE 0 END)      AS y1_resurrections,\n        SUM(CASE WHEN (days_back_comeback >= 365\n                           AND days_back_comeback < 730) THEN 1 ELSE 0 END)      AS y2_resurrections,\n        MAX(comeback_date)                                    AS most_recent_comeback\n    FROM resurrections r\n    JOIN total_islands_per_cust ti ON ti.customer_id = r.customer_id\n    GROUP BY r.customer_id, ti.total_islands\n)\nSELECT\n    customer_id,\n    total_islands,\n    resurrection_cycles,\n    avg_gap_days,\n    max_gap_days,\n    avg_pre_churn_aov,\n    avg_comeback_aov,\n    ROUND(avg_comeback_aov - avg_pre_churn_aov, 2) AS aov_uplift,\n    y1_resurrections,\n    y2_resurrections,\n    CASE\n        WHEN y2_resurrections = 0 AND y1_resurrections > 0  THEN 'y1_only'\n        WHEN y1_resurrections > y2_resurrections            THEN 'rising'\n        WHEN y1_resurrections < y2_resurrections            THEN 'falling'\n        ELSE                                                     'stable'\n    END AS resurrection_trend,\n    most_recent_comeback\nFROM per_customer\nORDER BY resurrection_cycles DESC, aov_uplift DESC;",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id    INTEGER PRIMARY KEY,\n    customer_id INTEGER NOT NULL,\n    order_date  TEXT    NOT NULL,\n    amount      REAL    NOT NULL\n);\nINSERT INTO orders VALUES\n  (1,1,'2023-04-10',100),(2,1,'2023-04-25',120),\n  (3,1,'2023-08-27',180),(4,1,'2023-09-10',210),\n  (5,1,'2023-12-24',260),(6,1,'2024-01-07',290),\n  (7,1,'2024-07-05',340),(8,1,'2024-08-20',380),(9,1,'2025-01-12',410),\n  (10,2,'2023-02-15',60),(11,2,'2023-04-22',70),\n  (12,2,'2023-08-30',95),(13,2,'2023-12-15',105),(14,2,'2024-02-20',95),\n  (15,2,'2024-09-15',88),\n  (16,3,'2024-04-04',300),(17,3,'2024-04-18',280),\n  (18,3,'2024-07-27',260),\n  (19,3,'2024-11-04',180),\n  (20,3,'2025-02-22',150),\n  (21,4,'2024-01-05',100),(22,4,'2024-02-15',100),\n  (23,4,'2024-04-10',100),(24,4,'2024-06-22',100),(25,4,'2024-09-08',100),\n  (26,4,'2024-11-22',100),(27,4,'2025-02-15',100);\n\n-- ── PERF rewrite ─────────────────────────────────────────\n--   The original used two correlated subqueries inside SELECT to\n--   fetch the first / last AOV of each island — that runs once PER\n--   ROW of the outer query, ballooning to O(islands × orders).\n--   FIRST_VALUE / LAST_VALUE windows do the same work in a single\n--   pass over the table.\n-- ─────────────────────────────────────────────────────────\nWITH params(snapshot) AS (VALUES ('2025-04-01')),\nflagged AS (\n    SELECT\n        o.customer_id,\n        o.order_date,\n        o.amount,\n        CASE\n          WHEN LAG(o.order_date) OVER w IS NULL                                      THEN 1\n          WHEN EXTRACT(DAY FROM (o.order_date)::timestamp - (LAG(o.order_date)::timestamp) OVER w) > 90    THEN 1\n          ELSE 0\n        END AS opens_island,\n        EXTRACT(DAY FROM (((SELECT snapshot FROM params)) - (o.order_date)))::INT AS days_back\n    FROM orders o\n    WHERE o.order_date >= date((SELECT snapshot FROM params), '-730 days')\n    WINDOW w AS (PARTITION BY o.customer_id ORDER BY o.order_date)\n),\nwith_island AS (\n    -- Cumulative-flag SUM gives every order a stable island_id\n    -- (the canonical gaps-and-islands second flavour).\n    SELECT\n        customer_id, order_date, amount, days_back, opens_island,\n        SUM(opens_island) OVER (\n            PARTITION BY customer_id\n            ORDER BY order_date\n            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n        ) AS island_id\n    FROM flagged\n),\nwindowed AS (\n    -- PERF: compute first / last island AOV in a single windowed pass.\n    -- FIRST_VALUE / LAST_VALUE over the FULL island window return a\n    -- constant per partition; we collapse with GROUP BY in the next CTE.\n    -- This replaces two correlated subqueries that previously ran per\n    -- island, scaling O(islands × orders) → O(orders) total.\n    SELECT\n        customer_id, order_date, amount, days_back, island_id,\n        FIRST_VALUE(amount) OVER w_island AS first_amount,\n        LAST_VALUE(amount)  OVER w_island AS last_amount\n    FROM with_island\n    WINDOW w_island AS (\n        PARTITION BY customer_id, island_id\n        ORDER BY order_date\n        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING\n    )\n),\nislands AS (\n    -- Pure aggregate step. MAX of a per-partition constant returns\n    -- that constant — cheaper than re-running FIRST_VALUE here.\n    SELECT\n        customer_id, island_id,\n        MIN(order_date)   AS island_start,\n        MAX(order_date)   AS island_end,\n        MAX(first_amount) AS first_amount,\n        MAX(last_amount)  AS last_amount\n    FROM windowed\n    GROUP BY customer_id, island_id\n),\nphase_pairs AS (\n    SELECT\n        customer_id, island_id,\n        island_start  AS comeback_date,\n        first_amount  AS comeback_aov,\n        LAG(island_end)   OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_end,\n        LAG(last_amount)  OVER (PARTITION BY customer_id ORDER BY island_id) AS prev_island_aov,\n        EXTRACT(DAY FROM (((SELECT snapshot FROM params)) - (island_start)))::INT AS days_back_comeback\n    FROM islands\n),\nresurrections AS (\n    SELECT\n        customer_id, comeback_date, comeback_aov,\n        prev_island_aov AS pre_churn_aov,\n        EXTRACT(DAY FROM (comeback_date - prev_island_end))::INT\n            AS gap_days,\n        days_back_comeback\n    FROM phase_pairs\n    WHERE prev_island_end IS NOT NULL\n      AND (comeback_date - prev_island_end) > INTERVAL '90 days'\n),\ntotal_islands_per_cust AS (\n    SELECT customer_id, MAX(island_id) AS total_islands\n    FROM islands GROUP BY customer_id\n),\nper_customer AS (\n    SELECT\n        r.customer_id,\n        ti.total_islands,\n        COUNT(*)                                              AS resurrection_cycles,\n        ROUND(AVG(gap_days), 0)                               AS avg_gap_days,\n        MAX(gap_days)                                         AS max_gap_days,\n        ROUND(AVG(pre_churn_aov), 2)                          AS avg_pre_churn_aov,\n        ROUND(AVG(comeback_aov), 2)                           AS avg_comeback_aov,\n        SUM(CASE WHEN (days_back_comeback < 365) THEN 1 ELSE 0 END)      AS y1_resurrections,\n        SUM(CASE WHEN (days_back_comeback >= 365\n                           AND days_back_comeback < 730) THEN 1 ELSE 0 END)      AS y2_resurrections,\n        MAX(comeback_date)                                    AS most_recent_comeback\n    FROM resurrections r\n    JOIN total_islands_per_cust ti ON ti.customer_id = r.customer_id\n    GROUP BY r.customer_id, ti.total_islands\n)\nSELECT\n    customer_id,\n    total_islands,\n    resurrection_cycles,\n    avg_gap_days,\n    max_gap_days,\n    avg_pre_churn_aov,\n    avg_comeback_aov,\n    ROUND(avg_comeback_aov - avg_pre_churn_aov, 2) AS aov_uplift,\n    y1_resurrections,\n    y2_resurrections,\n    CASE\n        WHEN y2_resurrections = 0 AND y1_resurrections > 0  THEN 'y1_only'\n        WHEN y1_resurrections > y2_resurrections            THEN 'rising'\n        WHEN y1_resurrections < y2_resurrections            THEN 'falling'\n        ELSE                                                     'stable'\n    END AS resurrection_trend,\n    most_recent_comeback\nFROM per_customer\nORDER BY resurrection_cycles DESC, aov_uplift DESC;",
     "source": {
       "name": "PaddySpeaks · Customer Growth Accounting",
       "url": ""
@@ -15526,10 +15526,10 @@
     "subtopic": "LAG · per-order classification · MoM growth · QoQ summary",
     "difficulty": "Medium",
     "language": "sql",
-    "schema": "orders(order_id, customer_id, order_date, amount, IF, julianday, labeled, monthly, strftime, trended, year_month, status)",
+    "schema": "orders(order_id, customer_id, order_date, amount, julianday, labeled, monthly, strftime, trended, year_month, status)",
     "scenario": "The classifier alone (NEW / RESURRECTED / RETAINED_REPEAT) is useful, but the executive dashboard needs the trend: how many NEW customers this month vs last? How does Q1 of this year compare to Q4 of last year? The team wants the per-month breakdown plus a single MoM growth column for each bucket so the slide deck practically writes itself.",
     "question": "Build a monthly report for the past 6 months where each row is\n  year_month, growth_status, customers, prev_month_customers, mom_growth_pct\ngrowth_status ∈ {'NEW','RESURRECTED','RETAINED_REPEAT'}.\n\n  • For each order, label its growth_status using the standard\n    rules (no previous order = NEW, gap > 90d = RESURRECTED,\n    else RETAINED_REPEAT).\n  • Aggregate distinct customers per (year_month, status).\n  • Add prev_month_customers via LAG within (status partition).\n  • mom_growth_pct = (cur - prev) / prev × 100; NULL if prev is 0.\n\nSort by year_month DESC, status priority (NEW, RESURRECTED, RETAINED_REPEAT).",
-    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY,\n    customer_id INTEGER, order_date TEXT, amount REAL\n);\nINSERT INTO orders VALUES\n  -- 6 months of activity Nov 2024 → Apr 2025 across 8 customers\n  (1, 1,'2024-08-04', 80),(2, 1,'2024-12-12',100),  -- C1: Aug then Dec → resurrect Dec\n  (3, 1,'2025-01-22',110),(4, 1,'2025-03-08',120),  -- retained Jan, retained Mar\n  (5, 2,'2024-11-04',150),(6, 2,'2024-12-22',180),  -- C2 NEW Nov, retained Dec\n  (7, 2,'2025-02-14',200),                          -- retained Feb (Dec→Feb 54d)\n  (8, 3,'2024-12-09',300),                          -- C3 NEW Dec\n  (9, 3,'2025-04-12',280),                          -- resurrect Apr\n  (10,4,'2025-01-15',120),(11,4,'2025-02-22',90),(12,4,'2025-03-30',110),  -- C4 NEW Jan\n  (13,5,'2025-02-08', 60),                          -- C5 NEW Feb\n  (14,5,'2025-04-25', 80),                          -- resurrect Apr (Feb→Apr 76d)\n  (15,6,'2024-04-01', 50),(16,6,'2025-03-04', 75),  -- C6: Apr-2024 then Mar-2025 → resurrect Mar\n  (17,7,'2025-03-15',200),                          -- C7 NEW Mar\n  (18,7,'2025-04-02',220),                          -- retained Apr\n  (19,8,'2025-04-08',330);                          -- C8 NEW Apr\n\nWITH labeled AS (\n    SELECT\n        customer_id,\n        order_date,\n        TO_CHAR(order_date, 'YYYY-MM') AS ym,\n        CASE\n            WHEN LAG(order_date) OVER w IS NULL                                    THEN 'NEW'\n            WHEN julianday(order_date) - julianday(LAG(order_date) OVER w) > 90    THEN 'RESURRECTED'\n            ELSE                                                                        'RETAINED_REPEAT'\n        END AS growth_status\n    FROM orders\n    WINDOW w AS (PARTITION BY customer_id ORDER BY order_date)\n),\nmonthly AS (\n    SELECT\n        ym AS year_month,\n        growth_status,\n        COUNT(DISTINCT customer_id) AS customers\n    FROM labeled\n    WHERE order_date >= '2024-11-01'  -- 6-month report window\n    GROUP BY ym, growth_status\n),\ntrended AS (\n    SELECT\n        year_month,\n        growth_status,\n        customers,\n        LAG(customers) OVER (PARTITION BY growth_status ORDER BY year_month) AS prev_month_customers\n    FROM monthly\n)\nSELECT\n    year_month,\n    growth_status,\n    customers,\n    prev_month_customers,\n    CASE WHEN prev_month_customers > 0\n         THEN ROUND(100.0 * (customers - prev_month_customers) / prev_month_customers, 1)\n         END AS mom_growth_pct\nFROM trended\nORDER BY year_month DESC,\n    CASE growth_status WHEN 'NEW' THEN 1\n                       WHEN 'RESURRECTED' THEN 2\n                       ELSE 3 END;",
+    "solution": "DROP TABLE IF EXISTS orders;\nCREATE TABLE orders (\n    order_id INTEGER PRIMARY KEY,\n    customer_id INTEGER, order_date TEXT, amount REAL\n);\nINSERT INTO orders VALUES\n  -- 6 months of activity Nov 2024 → Apr 2025 across 8 customers\n  (1, 1,'2024-08-04', 80),(2, 1,'2024-12-12',100),  -- C1: Aug then Dec → resurrect Dec\n  (3, 1,'2025-01-22',110),(4, 1,'2025-03-08',120),  -- retained Jan, retained Mar\n  (5, 2,'2024-11-04',150),(6, 2,'2024-12-22',180),  -- C2 NEW Nov, retained Dec\n  (7, 2,'2025-02-14',200),                          -- retained Feb (Dec→Feb 54d)\n  (8, 3,'2024-12-09',300),                          -- C3 NEW Dec\n  (9, 3,'2025-04-12',280),                          -- resurrect Apr\n  (10,4,'2025-01-15',120),(11,4,'2025-02-22',90),(12,4,'2025-03-30',110),  -- C4 NEW Jan\n  (13,5,'2025-02-08', 60),                          -- C5 NEW Feb\n  (14,5,'2025-04-25', 80),                          -- resurrect Apr (Feb→Apr 76d)\n  (15,6,'2024-04-01', 50),(16,6,'2025-03-04', 75),  -- C6: Apr-2024 then Mar-2025 → resurrect Mar\n  (17,7,'2025-03-15',200),                          -- C7 NEW Mar\n  (18,7,'2025-04-02',220),                          -- retained Apr\n  (19,8,'2025-04-08',330);                          -- C8 NEW Apr\n\nWITH labeled AS (\n    SELECT\n        customer_id,\n        order_date,\n        TO_CHAR(order_date, 'YYYY-MM') AS ym,\n        CASE\n            WHEN LAG(order_date) OVER w IS NULL                                    THEN 'NEW'\n            WHEN EXTRACT(DAY FROM (order_date)::timestamp - (LAG(order_date)::timestamp) OVER w) > 90    THEN 'RESURRECTED'\n            ELSE                                                                        'RETAINED_REPEAT'\n        END AS growth_status\n    FROM orders\n    WINDOW w AS (PARTITION BY customer_id ORDER BY order_date)\n),\nmonthly AS (\n    SELECT\n        ym AS year_month,\n        growth_status,\n        COUNT(DISTINCT customer_id) AS customers\n    FROM labeled\n    WHERE order_date >= '2024-11-01'  -- 6-month report window\n    GROUP BY ym, growth_status\n),\ntrended AS (\n    SELECT\n        year_month,\n        growth_status,\n        customers,\n        LAG(customers) OVER (PARTITION BY growth_status ORDER BY year_month) AS prev_month_customers\n    FROM monthly\n)\nSELECT\n    year_month,\n    growth_status,\n    customers,\n    prev_month_customers,\n    CASE WHEN prev_month_customers > 0\n         THEN ROUND(100.0 * (customers - prev_month_customers) / prev_month_customers, 1)\n         END AS mom_growth_pct\nFROM trended\nORDER BY year_month DESC,\n    CASE growth_status WHEN 'NEW' THEN 1\n                       WHEN 'RESURRECTED' THEN 2\n                       ELSE 3 END;",
     "source": {
       "name": "PaddySpeaks · Customer Growth Accounting",
       "url": ""
@@ -16740,7 +16740,7 @@
     "subtopic": "QUALIFY · top-N per group · window-result filtering",
     "difficulty": "Medium",
     "language": "sql",
-    "schema": "order_items(order_id, customer_id, product_id, qty, unit_price, IF, per_product, ranked)",
+    "schema": "order_items(order_id, customer_id, product_id, qty, unit_price, per_product, ranked)",
     "scenario": "Top-N-per-group is one of the most-asked patterns in real analytics work. The senior shape uses QUALIFY (Snowflake / BigQuery / Databricks SQL / Teradata) — a clause that filters on a window-function result without an extra subquery. Engines that lack QUALIFY (Postgres, MySQL, SQLite) need a wrapping CTE + WHERE on ROW_NUMBER. Both deliver the same answer; QUALIFY is the cleaner read and the planner doesn't have to materialise the intermediate.",
     "question": "Per customer, return their top 3 products by total spend (qty × unit_price summed across orders):\n  customer_id, product_id, total_spend, rk\nwhere rk is the dense rank within the customer's product list. Show the SQLite-runnable form (CTE + WHERE rk ≤ 3) and document the QUALIFY equivalent inline. Sort by customer_id ASC, rk ASC.",
     "solution": "DROP TABLE IF EXISTS order_items;\nCREATE TABLE order_items (\n    order_id    INTEGER,\n    customer_id INTEGER,\n    product_id  INTEGER,\n    qty         INTEGER,\n    unit_price  NUMERIC\n);\nINSERT INTO order_items VALUES\n  -- C1: 5 different products\n  (1,1,101,2,30.0),(2,1,101,1,30.0),\n  (3,1,102,1,80.0),\n  (4,1,103,3,15.0),\n  (5,1,104,5,5.0),\n  (6,1,105,1,40.0),\n  -- C2: 4 products\n  (7,2,201,2,50.0),(8,2,201,1,50.0),\n  (9,2,202,1,100.0),\n  (10,2,203,4,10.0),\n  (11,2,204,2,25.0);\n\n-- ╭───────────────────────────────────────────────────────────╮\n-- │  Top-3 products per customer using DENSE_RANK on the      │\n-- │  total spend per (customer, product). ROUND on NUMERIC    │\n-- │  works in Postgres natively.                              │\n-- ╰───────────────────────────────────────────────────────────╯\nWITH per_product AS (\n    SELECT customer_id, product_id,\n           ROUND(SUM(qty * unit_price), 2) AS total_spend\n    FROM order_items\n    GROUP BY customer_id, product_id\n),\nranked AS (\n    SELECT customer_id, product_id, total_spend,\n           DENSE_RANK() OVER (PARTITION BY customer_id\n                              ORDER BY total_spend DESC) AS rk\n    FROM per_product\n)\nSELECT customer_id, product_id, total_spend, rk\nFROM ranked\nWHERE rk <= 3\nORDER BY customer_id ASC, rk ASC;",
@@ -16893,7 +16893,7 @@
     "language": "sql",
     "schema": "title_plays(title_id, launched_on, played_at, watch_minutes)",
     "solution": "SELECT title_id, launched_on,\n  ROUND(SUM(CASE WHEN (played_at - launched_on) <= INTERVAL '7 days'  THEN watch_minutes END) / 60.0, 1) AS d7_hours,\n  ROUND(SUM(CASE WHEN (played_at - launched_on) <= INTERVAL '28 days' THEN watch_minutes END) / 60.0, 1) AS d28_hours,\n  ROUND(100.0 *\n    SUM(CASE WHEN (played_at - launched_on) <= INTERVAL '7 days'  THEN watch_minutes END) /\n    NULLIF(SUM(CASE WHEN (played_at - launched_on) <= INTERVAL '28 days' THEN watch_minutes END), 0),\n    1) AS first_week_share_pct\nFROM title_plays\nGROUP BY title_id, launched_on\nORDER BY d28_hours DESC;",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "tags": [
       "aggregation",
       "case-when",
@@ -17095,7 +17095,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "surge-multiplier-vs-ride-volume-per-area"
   },
   {
@@ -17190,7 +17190,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "driver-tier-earnings-decile--ntile-distribution"
   },
   {
@@ -17902,7 +17902,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "churn-waterfall--new--existing--churned--resurrected"
   },
   {
@@ -18214,7 +18214,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "family-plan-member-utilization"
   },
   {
@@ -18298,7 +18298,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "restaurant-performance--volume-×-rating-composite"
   },
   {
@@ -18336,7 +18336,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "surge-multiplier-effectiveness--lift-above-normal-volume"
   },
   {
@@ -18398,7 +18398,7 @@
     "batch": "co_sql_305",
     "type": "SQL",
     "language": "sql",
-    "runtime": "non-sqlite",
+    "runtime": "postgres",
     "slug": "tip-pattern-by-order-size-plus-time-of-day"
   },
   {
