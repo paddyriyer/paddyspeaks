@@ -1,0 +1,101 @@
+<p>Netflix's Content Strategy team wants the audience for a Stranger Things spin-off. The brief: <em>"every subscriber who watched Stranger Things at least once but has never started The Witcher."</em> Sounds simple. The bare-metal <code>NOT IN</code> solution looks correct, ships to production, and silently returns zero users — because one row in <code>viewing_activity</code> has <code>NULL</code> in <code>content_name</code> from a 2-year-old data-quality incident. <code>NOT IN</code> with a <code>NULL</code> in the subquery collapses everything to <code>UNKNOWN</code>, and <code>WHERE UNKNOWN</code> filters every row out. This is one of the top three bugs in real-world SQL.</p>
+
+<h4>1. The source data — <code>viewing_activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>content_name</th><th>watch_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Stranger Things</td><td>2025-04-01</td></tr>
+    <tr><td>1</td><td>Black Mirror</td><td>2025-04-04</td></tr>
+    <tr><td>2</td><td>Stranger Things</td><td>2025-04-01</td></tr>
+    <tr><td>2</td><td>The Witcher</td><td>2025-04-03</td></tr>
+    <tr><td>3</td><td>The Witcher</td><td>2025-04-02</td></tr>
+    <tr><td>4</td><td>Stranger Things</td><td>2025-04-05</td></tr>
+    <tr><td>5</td><td>Bridgerton</td><td>2025-04-06</td></tr>
+    <tr><td>6</td><td><strong>NULL</strong></td><td>2024-01-15</td></tr>
+  </tbody>
+</table>
+<p>The right answer is <strong>users 1 and 4</strong> — they watched Stranger Things, never touched The Witcher. User 6's NULL row is invisible to a content-match filter… <em>unless</em> your query construction lets that NULL leak into a NOT IN subquery.</p>
+
+<h4>2. The three solution shapes — pick consciously</h4>
+
+<h5>Shape 1 — <code>NOT IN</code> · the trap</h5>
+<pre><code>-- Looks correct. Runs in dev with no NULLs in the test data.
+-- Ships to prod. Returns ZERO rows.
+SELECT DISTINCT user_id
+FROM viewing_activity
+WHERE content_name = 'Stranger Things'
+  AND user_id NOT IN (
+    SELECT user_id FROM viewing_activity
+    -- Forgot to filter content_name here, so user_id 6 with NULL
+    -- content gets included in the subquery
+  );</code></pre>
+<p>The fatal step: <code>x NOT IN (a, b, NULL)</code> evaluates to <code>UNKNOWN</code> (because <code>x != NULL</code> is unknown, not true), and <code>WHERE UNKNOWN</code> excludes the row. <em>The query silently returns zero rows</em> — no error, no warning. Marketing wonders why the audience is empty for a week.</p>
+
+<h5>Shape 2 — <code>NOT EXISTS</code> · null-safe, usually fastest</h5>
+<pre><code>SELECT DISTINCT v1.user_id
+FROM viewing_activity v1
+WHERE v1.content_name = 'Stranger Things'
+  AND NOT EXISTS (
+    SELECT 1 FROM viewing_activity v2
+    WHERE v2.user_id = v1.user_id
+      AND v2.content_name = 'The Witcher'
+  );</code></pre>
+<p>Correlated anti-join. The inner subquery is a <em>boolean existence test</em>, not a value comparison, so <code>NULL</code>s in the inner table don't propagate. The planner can stop scanning the inner side the moment it finds one match (semi-/anti-join short-circuit). This is the safe production default.</p>
+
+<h5>Shape 3 — <code>LEFT JOIN ... IS NULL</code> · readable, sometimes slower</h5>
+<pre><code>SELECT DISTINCT v1.user_id
+FROM (SELECT DISTINCT user_id FROM viewing_activity
+      WHERE content_name = 'Stranger Things') v1
+LEFT JOIN viewing_activity v2
+  ON v2.user_id = v1.user_id AND v2.content_name = 'The Witcher'
+WHERE v2.user_id IS NULL;</code></pre>
+<p>The "anti-join via outer join" idiom — readable to analysts who haven't internalised <code>NOT EXISTS</code>. The planner usually rewrites this to the same anti-join as Shape 2, but on older engines it can materialise matched rows then discard them (slower at scale).</p>
+
+<h4>3. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"Why does NOT IN behave like that? Walk me through three-valued logic."</em></h5>
+<p>SQL uses three-valued logic: <code>TRUE</code>, <code>FALSE</code>, <code>UNKNOWN</code>. <code>NULL</code> compared to anything returns <code>UNKNOWN</code>. <code>WHERE</code> keeps rows where the predicate is <code>TRUE</code> — <code>UNKNOWN</code> is treated like <code>FALSE</code>. So <code>5 NOT IN (1, 2, NULL)</code> = <code>(5 != 1) AND (5 != 2) AND (5 != NULL)</code> = <code>TRUE AND TRUE AND UNKNOWN</code> = <code>UNKNOWN</code> → row excluded. This is the spec, not a bug — but it's the spec everyone forgets.</p>
+
+<h5>Probe 2 — <em>"How would you defend against this in code review?"</em></h5>
+<ul>
+  <li><strong>Lint rule</strong>: ban <code>NOT IN</code> in production code; require <code>NOT EXISTS</code> or <code>LEFT JOIN IS NULL</code>.</li>
+  <li><strong>If you must use NOT IN</strong>: explicitly filter the subquery: <code>NOT IN (SELECT user_id FROM ... WHERE user_id IS NOT NULL)</code>. Reviewer-readable, NULL-safe.</li>
+  <li><strong>Make NULLs impossible at the source</strong>: <code>content_name TEXT NOT NULL</code> + a backfill of the 2-year-old bad rows. This is the only fix that prevents the next incident.</li>
+</ul>
+
+<h5>Probe 3 — <em>"What if 'never watched The Witcher' should also exclude users who watched 30 seconds and bailed?"</em></h5>
+<pre><code>NOT EXISTS (
+  SELECT 1 FROM viewing_activity v2
+  WHERE v2.user_id = v1.user_id
+    AND v2.content_name = 'The Witcher'
+    AND v2.watch_seconds &gt;= 600    -- 10-minute meaningful watch threshold
+)</code></pre>
+<p>The threshold turns the question from "any view" to "meaningful engagement". This is the kind of definition the interviewer expects you to ask about: a real content team would never call a 30-second sample a "view".</p>
+
+<h5>Probe 4 — <em>"Now generalise: find users who watched any show in genre A but never any show in genre B."</em></h5>
+<p>Same shape, joined to a content-metadata table:</p>
+<pre><code>SELECT DISTINCT v1.user_id
+FROM viewing_activity v1
+JOIN content_metadata c1 ON c1.content_name = v1.content_name
+WHERE c1.genre = 'sci-fi'
+  AND NOT EXISTS (
+    SELECT 1 FROM viewing_activity v2
+    JOIN content_metadata c2 ON c2.content_name = v2.content_name
+    WHERE v2.user_id = v1.user_id AND c2.genre = 'romance'
+  );</code></pre>
+
+<h5>Probe 5 — <em>"At Netflix scale (250M subscribers, 15B events / day), would you still write this as a correlated subquery?"</em></h5>
+<p>No. At that scale you'd materialise two daily-aggregated cohort tables — <code>users_who_watched_X(user_id, last_watch_date)</code> and <code>users_who_watched_Y(user_id, last_watch_date)</code> — and do the anti-join at the cohort grain, not the event grain. The query becomes a single hash-anti-join on ~50M rows instead of a correlated lookup on 15B. The aggregation pipeline runs incrementally on the daily partition, not the full history.</p>
+
+<h5>Performance — when each shape matters</h5>
+<table>
+  <thead><tr><th>Shape</th><th>Null-safe?</th><th>Typical performance</th></tr></thead>
+  <tbody>
+    <tr><td><code>NOT IN</code></td><td>NO — silent bug on NULL</td><td>Fast on small subqueries; bad form regardless</td></tr>
+    <tr><td><code>NOT EXISTS</code></td><td>Yes</td><td>Best — planner short-circuits on first match</td></tr>
+    <tr><td><code>LEFT JOIN IS NULL</code></td><td>Yes</td><td>Same as NOT EXISTS on modern engines; can be slower on legacy</td></tr>
+    <tr><td><code>EXCEPT</code> / <code>MINUS</code></td><td>Yes</td><td>Readable but compares whole row tuples; rarely the right tool here</td></tr>
+  </tbody>
+</table>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the three-valued logic of <code>NOT IN</code> with NULL before being asked, default to <code>NOT EXISTS</code> in production code, propose a NOT NULL constraint + backfill as the only durable fix, and pre-empt the scale-up question with the materialised-cohort answer. Bonus points for proposing the lint rule and a CI check for "no NOT IN on nullable columns".</div>
