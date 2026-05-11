@@ -641,6 +641,35 @@ export function planRowsForSpec(spec, opts = {}) {
 
   const out = [];
   for (const t of ordered) {
+    // ─── Seed-rows override ────────────────────────────────────────
+    // If the schema spec ships explicit rows for this table (via the
+    // `rows` field — an array of column-named objects), use those
+    // verbatim instead of generating random data. This is for
+    // questions where the auto-generated distribution can't produce
+    // the specific edge case the enrichment demos (empty department,
+    // single-person department, ties at the top, etc.). The colMeta
+    // still comes from the role inference so types are correct on
+    // the CREATE TABLE.
+    if (Array.isArray(t.rows) && t.rows.length > 0) {
+      // Build colMeta the same way generateRows would, but skip
+      // generation — just emit the seeded rows.
+      const colMeta = t.columns.map((c) => {
+        const role = inferRole(c);
+        return { name: c, ...role };
+      });
+      out.push({ table: t.table, colMeta, rows: t.rows });
+      // Register own-PK values into ownedIdMap so FK-resolving tables
+      // downstream can reference them.
+      const pkCol = colMeta.find((m) =>
+        m.name === `${t.table}_id` ||
+        m.name === `${t.table.replace(/s$/, "")}_id` ||
+        m.name === "id"
+      );
+      if (pkCol) {
+        ownedIdMap[t.table] = t.rows.map((r) => r[pkCol.name]).filter((v) => v != null);
+      }
+      continue;
+    }
     const { rows, colMeta } = generateRows(t, ordered, rng, ownedIdMap, {
       // Don't default to 12 here — let generateRows pick the right N
       // (25 dim / 60 event) so streak / multi-streak / cohort questions
