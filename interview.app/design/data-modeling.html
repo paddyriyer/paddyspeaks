@@ -135,22 +135,22 @@
     <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #c44b2b;padding-bottom:2px;">Design</a>
     <span style="color:#cbd5e0;">›</span>
     <span style="color:#475569;font-weight:600;text-transform:none;letter-spacing:0;font-family:'Source Serif 4',serif;">Data Modeling</span>
-    <span style="margin-left:auto;color:#94a3b8;font-size:10px;">12 scenarios · 8 sections each</span>
+    <span style="margin-left:auto;color:#94a3b8;font-size:10px;">18 scenarios · 8 sections each</span>
   </div>
 </div>
 
 <article class="netflix-prep">
 
 <div class="hero-meta">Interview Studio · Design · Data Modeling</div>
-<h1 class="hero-title">Data modeling — seventeen scenarios across the industries that actually ask.</h1>
-<p class="hero-sub">Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe, Spotify, TikTok, and Salesforce all test the same five-move sequence — but the domain context changes everything you say. This notebook walks the framework once, then drills sixteen most-asked scenarios end to end (including LAD, factless facts, and streaming-first patterns). Use it to swap domains in 60 seconds when the prompt arrives.</p>
+<h1 class="hero-title">Data modeling — eighteen scenarios across the industries that actually ask.</h1>
+<p class="hero-sub">Modeling rounds at Uber, Google, Meta, Netflix, Amazon, DoorDash, Airbnb, Stripe, Spotify, TikTok, Salesforce, and the post-M&amp;A teams at Microsoft, Cisco, and Adobe all test the same five-move sequence — but the domain context changes everything you say. This notebook walks the framework once, then drills the eighteen most-asked scenarios end to end (including LAD, factless facts, streaming-first, and the four-bucket M&amp;A integration playbook). Use it to swap domains in 60 seconds when the prompt arrives.</p>
 
 <div class="toc">
   <h4>Contents</h4>
   <ol>
     <li><a href="#part-01">The universal framework — five moves, on every prompt</a></li>
     <li><a href="#part-02">Company → most-likely scenario matrix</a></li>
-    <li><a href="#part-03">Twelve scenarios, full walk-through
+    <li><a href="#part-03">Eighteen scenarios, full walk-through
       <ul style="margin-top: 6px;">
         <li><a href="#sc-uber-trip">1. Uber/Lyft — trip lifecycle</a></li>
         <li><a href="#sc-uber-surge">2. Uber — surge pricing &amp; supply/demand</a></li>
@@ -169,6 +169,7 @@
         <li><a href="#sc-stripe-ledger">15. Stripe — double-entry ledger &amp; idempotency</a></li>
         <li><a href="#sc-salesforce-hierarchy">16. Salesforce — account hierarchy &amp; multi-tenant CRM</a></li>
         <li><a href="#sc-netflix-streaming">17. Netflix — streaming + series + bingewatching + LAD</a></li>
+        <li><a href="#sc-ma-integration">18. M&amp;A integration — golden records + strangler + multi-org metrics</a></li>
       </ul>
     </a></li>
     <li><a href="#part-04">Cross-cutting concerns — SCDs, LAD, factless facts, streaming, GDPR, FX, skew</a></li>
@@ -5275,6 +5276,273 @@ fct_qoe_summary      — derived nightly, rebuf-time / total-time per session
 
 <div class="senior-signal">
 <strong>Senior framing.</strong> "The defensive LAD pattern (LEFT JOIN + ROW_NUMBER + COALESCE) is non-negotiable on every play-to-episode join because launch-day metadata propagation is measured in minutes and we can't lose the launch-day analytics. Bingewatching is two distinct derived facts — per-session (algorithm input) and per-day (marketing rollup) — both materialized nightly so analyst queries don't re-derive. The episode-only fact + temporal series_title bridge means re-titling a show doesn't require backfilling 5 years of plays. And profile_id alongside account_id on every event is what makes the password-sharing crackdown queries possible without join gymnastics."
+</div>
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- ==================== SCENARIO 18 — M&A INTEGRATION ==================== -->
+<section>
+<div class="scenario" id="sc-ma-integration">
+<h4 class="sub-head">Scenario 18 — M&amp;A integration, golden records, schema strangler, multi-org metrics</h4>
+
+<h4 class="sub-head">Why this is hard — four data problems pretending to be one deal</h4>
+<p>Every acquisition press release says "stronger together." Every acquirer's data team knows that means two incompatible CRMs, two warehouses, two ID systems, two fiscal calendars, and an executive expecting unified KPIs on day 90. The interview question: <em>"your company just bought a $20B SaaS — walk me through the data integration"</em>. The senior signal is naming all four problems first, then sequencing them:</p>
+<ul>
+  <li><strong>Entity resolution</strong> — is <em>their</em> Acme Corp the same as <em>our</em> Acme Corp? Golden record + crosswalk + match-tier cascade.</li>
+  <li><strong>Schema unification</strong> — both apps keep shipping; can't freeze either DB. Strangler pattern with dual-write + CDC + reconciliation.</li>
+  <li><strong>Warehouse consolidation</strong> — Snowflake vs Databricks vs BigQuery. Three strategies: big-bang, federated query, or share-and-bridge.</li>
+  <li><strong>Multi-org metrics</strong> — their DAU isn't your DAU. Fiscal calendars, FX policy, consolidation rules, overlapping ARR. Versioned <code>dim_metric_definition</code>.</li>
+</ul>
+
+<p class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:14px 18px;border-radius:4px;"><strong>Full deep-dive:</strong> the <a href="./m-and-a-integration.html" style="color:#8a6d10;font-weight:600;">M&amp;A Integration page</a> walks all four patterns end-to-end with Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack as live case studies.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Master data — golden</td><td>golden_customer, golden_account, golden_user</td><td>Unified entity; SCD2 on canonical fields; lineage via <code>sources[]</code></td></tr>
+    <tr><td>Crosswalk — xref</td><td>customer_xref, account_xref, user_xref</td><td>Source ID ↔ golden ID; append-only with <code>superseded_by</code> for un-merge</td></tr>
+    <tr><td>Source — per system</td><td>acquirer_crm.customers, target_crm.tenants</td><td>Kept native; both apps continue writing during strangler</td></tr>
+    <tr><td>Unified — read model</td><td>unified.customers, unified.accounts, unified.orders</td><td>Eventual destination of dual-write; reads through <code>customer_xref</code></td></tr>
+    <tr><td>Reconciliation</td><td>recon.daily_drift</td><td>Source row counts vs unified row counts; alerts &gt; 0.1% drift</td></tr>
+    <tr><td>Metric versions</td><td>dim_metric_definition</td><td>org_scope · window · dedup_grain · fiscal_calendar · currency_policy</td></tr>
+    <tr><td>Match candidates</td><td>match_candidates</td><td>Tier 3-4 probabilistic matches staged for MDM-analyst review</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Enhanced graphical data model — M&amp;A · Golden Records + Strangler + Multi-Org Metrics</h4>
+<svg viewBox="0 0 1440 760" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrMaScene" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="34" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="18" font-weight="700" fill="#0f172a" letter-spacing="0.6">M&amp;A INTEGRATION · GOLDEN RECORDS + STRANGLER + MULTI-ORG METRICS</text>
+  <rect x="20" y="60" width="310" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="350" y="60" width="630" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1000" y="60" width="420" height="680" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="175" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">SOURCE SYSTEMS</text>
+  <text x="665" y="92" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">UNIFIED CORE + XREF</text>
+  <text x="1210" y="86" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="15" font-weight="700" fill="#0f172a" letter-spacing="2">ANALYTICAL MODULES</text>
+  <text x="1210" y="103" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#64748b">(Reconciliation + Metrics)</text>
+
+  <!-- LEFT: Source systems -->
+  <g transform="translate(40,130)">
+    <rect width="270" height="95" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ acquirer_crm.customers</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ customer_id · domain</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">duns · industry · country</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">Postgres · keeps writing</text>
+  </g>
+  <g transform="translate(40,245)">
+    <rect width="270" height="95" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ target_crm.tenants</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ tenant_id · workspace_name</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">email_domain · region</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">MySQL · keeps writing</text>
+  </g>
+  <g transform="translate(40,360)">
+    <rect width="270" height="105" fill="#fffbeb" stroke="#92400e" rx="6"/>
+    <rect width="270" height="32" fill="#92400e" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↻ CDC + Translation Layer</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">Debezium → Kafka</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">field-name remap · ID rewrite</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">stamps source_system · row_id</text>
+    <text x="20" y="98" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">DLQ on contract violation</text>
+  </g>
+  <g transform="translate(40,485)">
+    <rect width="270" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ match_candidates</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tier 3-4 fuzzy matches</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">confidence · matched_by</text>
+    <text x="20" y="83" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">MDM analyst review queue</text>
+  </g>
+  <g transform="translate(40,595)">
+    <rect width="270" height="100" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="270" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ dim_metric_definition</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">org_scope · window_unit/size</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">dedup_grain · fiscal_calendar</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">currency_policy · version</text>
+    <text x="20" y="95" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">versioned · dashboards cite</text>
+  </g>
+
+  <!-- CENTER: Unified core -->
+  <g transform="translate(385,130)">
+    <rect width="580" height="120" fill="#fffbeb" stroke="#92400e" rx="6"/>
+    <rect width="580" height="32" fill="#92400e" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⌬ golden_customer · MASTER</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⌖ golden_customer_id (UUID)</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">canonical_name · canonical_domain · duns</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">industry · country · first_seen_at</text>
+    <text x="20" y="100" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">sources[]: ['acquirer_crm', 'target_crm']</text>
+    <text x="20" y="113" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">SCD2 · golden entity, mastered</text>
+  </g>
+  <g transform="translate(385,275)">
+    <rect width="580" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="580" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇄ customer_xref · CROSSWALK</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ (source_system, source_customer_id)</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ golden_customer_id (FK)</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">match_tier 1-5 · match_confidence 0-1</text>
+    <text x="20" y="100" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">matched_at · matched_by</text>
+    <text x="20" y="115" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⚠ superseded_by · un-merge support</text>
+    <text x="20" y="127" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only · reversible · audit-trailed</text>
+  </g>
+  <g transform="translate(385,435)">
+    <rect width="580" height="120" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="580" height="32" fill="#1f2937" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⇨ unified.customers · UNIFIED READ MODEL</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ account_id (≡ golden_customer_id)</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⛓ source_system · source_row_id (lineage)</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ name · domain · industry · region · status</text>
+    <text x="20" y="100" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ ingested_at · ingest_status</text>
+    <text x="20" y="113" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">dual-write target · destination of strangler</text>
+  </g>
+  <g transform="translate(385,580)">
+    <rect width="580" height="120" fill="#fef2f2" stroke="#b91c1c" rx="6"/>
+    <rect width="580" height="32" fill="#b91c1c" rx="6"/>
+    <text x="14" y="22" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚠ recon.daily_drift · RECONCILIATION FACT</text>
+    <text x="20" y="55" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⌖ (recon_date, source_system)</text>
+    <text x="20" y="70" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">source_rows · unified_rows · drift_pct</text>
+    <text x="20" y="85" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">rejected_rows · lag_seconds</text>
+    <text x="20" y="100" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">⚠ pages on-call if drift &gt; 0.1%</text>
+    <text x="20" y="113" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">cutover gate: 72h green before flip</text>
+  </g>
+
+  <!-- RIGHT: Analytical modules -->
+  <g transform="translate(1015,130)">
+    <rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="30" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">OVERLAP ANALYSIS</text>
+    <text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Customers in BOTH systems</text>
+    <text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Sales: target list · cross-sell</text>
+    <text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Finance: ARR overlap deduction</text>
+    <text x="20" y="120" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: golden_customer.sources[] = both</text>
+  </g>
+  <g transform="translate(1015,285)">
+    <rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="30" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">COMBINED ARR (DEDUPED)</text>
+    <text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ SUM by golden_customer_id</text>
+    <text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Avoids 1+1=2 double-count</text>
+    <text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Gross vs net comparison</text>
+    <text x="20" y="120" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: orders × customer_xref → golden</text>
+  </g>
+  <g transform="translate(1015,440)">
+    <rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="30" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">CUTOVER GATE</text>
+    <text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ 72h drift &lt; 0.1% required</text>
+    <text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Reject rate &lt; 0.01%</text>
+    <text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Lag &lt; 5 min</text>
+    <text x="20" y="120" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: recon.daily_drift × ingest_log</text>
+  </g>
+  <g transform="translate(1015,600)">
+    <rect width="390" height="135" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="390" height="30" fill="#0f172a" rx="6"/>
+    <text x="195" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="700" fill="#fff">BOARD-DECK METRIC AUDIT</text>
+    <text x="20" y="50" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Every tile cites (metric, version)</text>
+    <text x="20" y="68" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Combined-DAU is one of 3 versions</text>
+    <text x="20" y="86" font-family="Helvetica,sans-serif" font-size="11" font-weight="600" fill="#1e293b">▸ Auto-generated SQL from dim</text>
+    <text x="20" y="120" font-family="Helvetica,sans-serif" font-size="9" font-style="italic" fill="#64748b">→ source: dim_metric_definition</text>
+  </g>
+
+  <!-- Arrows -->
+  <line x1="310" y1="170" x2="385" y2="180" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrMaScene)"/>
+  <line x1="310" y1="285" x2="385" y2="195" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrMaScene)"/>
+  <line x1="310" y1="400" x2="385" y2="335" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+  <line x1="310" y1="525" x2="385" y2="340" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+  <line x1="665" y1="250" x2="700" y2="430" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrMaScene)"/>
+  <line x1="665" y1="408" x2="700" y2="555" stroke="#64748b" stroke-width="1.2" marker-end="url(#arrMaScene)"/>
+  <line x1="965" y1="200" x2="1015" y2="200" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+  <line x1="965" y1="500" x2="1015" y2="350" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+  <line x1="965" y1="640" x2="1015" y2="505" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+  <line x1="310" y1="640" x2="1015" y2="665" stroke="#64748b" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#arrMaScene)"/>
+</svg>
+
+<h4 class="sub-head">Section 2 — The match-key cascade (entity resolution)</h4>
+<p>You never match on one key. You match on a <em>cascade</em> — deterministic keys first (high precision, low recall), probabilistic keys second (high recall, lower precision), and human-in-the-loop for the ambiguous middle.</p>
+<table>
+  <thead><tr><th>Tier</th><th>Match key</th><th>Confidence</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>1 · deterministic</td><td>Same domain (acme.com) + same DUNS number</td><td>0.99+</td><td>Auto-merge</td></tr>
+    <tr><td>2 · deterministic</td><td>Same domain + normalized company name</td><td>0.95+</td><td>Auto-merge, sample QA</td></tr>
+    <tr><td>3 · probabilistic</td><td>Fuzzy name (Levenshtein) + same country + industry</td><td>0.80+</td><td>Stage in <code>match_candidates</code>, MDM review</td></tr>
+    <tr><td>4 · probabilistic</td><td>3+ shared employee emails (@acme.com on both)</td><td>0.70+</td><td>Stage, escalate</td></tr>
+    <tr><td>5 · no match</td><td>None fire</td><td>—</td><td>Distinct golden entity</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 3 — The un-merge — the part everyone forgets</h4>
+<p>Two months in, an MDM analyst realizes "Acme Corp Holding" and "Acme Corporation" were merged but are actually parent/subsidiary. You need to un-merge without losing referential integrity in the downstream pipelines that already consumed the wrong golden ID.</p>
+<p>The pattern: <code>superseded_by</code> column on <code>customer_xref</code> + append-only crosswalk + SCD2 on golden_customer. Never DELETE; <em>retire</em> the golden record, point affected source IDs at a new golden_id, log who/when, emit CDC event so fact tables can re-attribute. Without this, the first analyst un-merge request is a 2-week incident.</p>
+
+<h4 class="sub-head">Section 4 — The strangler dual-write pattern</h4>
+<p>Both apps keep shipping during a 6-18-month convergence. The pattern: stand up unified schema alongside source; CDC every source change to a translation layer; backfill historicals; cutover one entity at a time; reconcile daily.</p>
+<pre><code>-- Reconciliation query (runs hourly during cutover)
+WITH source_counts AS (
+  SELECT 'acquirer_crm' AS src, COUNT(*) AS n, MAX(updated_at) AS last_change
+  FROM acquirer_crm.customers
+  UNION ALL
+  SELECT 'target_crm', COUNT(*), MAX(updated_at) FROM target_crm.tenants
+),
+unified_counts AS (
+  SELECT source_system AS src, COUNT(*) AS n, MAX(ingested_at) AS last_ingest,
+         COUNT(*) FILTER (WHERE ingest_status = 'rejected') AS rejected
+  FROM unified.customer_ingest_log GROUP BY source_system
+)
+SELECT s.src, s.n AS source_rows, u.n AS unified_rows,
+       100.0 * ABS(s.n - u.n) / NULLIF(s.n, 0) AS drift_pct,
+       u.rejected,
+       EXTRACT(EPOCH FROM (s.last_change - u.last_ingest)) AS lag_seconds
+FROM source_counts s LEFT JOIN unified_counts u USING (src);</code></pre>
+<p>Drift &gt; 0.1% pages on-call. Lag &gt; 5 min pages on-call. Cutover gate: 72 consecutive hours green.</p>
+
+<h4 class="sub-head">Section 5 — Warehouse consolidation — three strategies</h4>
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td>Big-bang migration</td><td>Copy data + rewrite dbt models from B → A</td><td>Strategic incompatibility; &lt; 2-yr post-merger</td></tr>
+    <tr><td>Federated query</td><td>Snowflake External Tables / DBX Unity / Trino across both</td><td>Stacks complement; warehouse decision deferred</td></tr>
+    <tr><td>Share-and-bridge</td><td>Cross-account Snowflake Share / Delta Sharing / Authorized Views</td><td>Day-90 reporting unblock; lowest engineering cost</td></tr>
+  </tbody>
+</table>
+<p>Every real M&amp;A uses <strong>share-and-bridge for the first 6 months</strong>, then commits. Tag every query/cluster with <code>cost_owner = 'pre-merger-target' | 'pre-merger-acquirer' | 'post-merger-combined'</code> so the CFO's "how much of last month's bill came from the acquired team" question has an answer.</p>
+
+<h4 class="sub-head">Section 6 — Multi-org metrics — versioned definitions</h4>
+<p>The board deck has "combined DAU" on slide 3. It's wrong, because acquirer counts "any session in 24h" and target counts "any session in 7d, deduped to one row per user-day". Bake definitions into a versioned dim instead of into SQL:</p>
+<pre><code>CREATE TABLE dim_metric_definition (
+  metric_id          TEXT NOT NULL,        -- 'dau'
+  definition_version INT  NOT NULL,
+  org_scope          TEXT NOT NULL,        -- 'acquirer' | 'target' | 'combined'
+  window_unit        TEXT NOT NULL,        -- 'hour' | 'day' | 'week'
+  window_size        INT  NOT NULL,
+  dedup_grain        TEXT NOT NULL,        -- 'user' | 'user-day' | 'session'
+  fiscal_calendar    TEXT NOT NULL,        -- 'calendar' | '445'
+  currency_policy    TEXT NOT NULL,        -- 'lock-at-txn' | 'lock-at-month-end'
+  effective_from     DATE NOT NULL,
+  effective_to       DATE,
+  PRIMARY KEY (metric_id, definition_version)
+);</code></pre>
+<p>Every dashboard tile cites (metric_id, definition_version). Combined-DAU has three competing versions; finance picks the one that matches the board narrative; the data layer auto-generates the SQL from the dim row.</p>
+
+<h4 class="sub-head">Section 7 — Case studies (see the deep-dive)</h4>
+<table>
+  <thead><tr><th>Deal</th><th>Signature challenge</th></tr></thead>
+  <tbody>
+    <tr><td>Adobe → Figma ($20B, blocked)</td><td>Creative Cloud ID ↔ Figma email: ~40% pro-user overlap; NDR math would shift on day 1</td></tr>
+    <tr><td>Microsoft → Activision ($69B)</td><td>Federated B2C identity across Xbox Live / Battle.net / PSN / Steam; 8 regulator-specific metric versions</td></tr>
+    <tr><td>Cisco → Splunk ($28B)</td><td>Two data-platform vendors; Iceberg as lingua franca; "ingested GB normalized for retention class" as unified billing-equivalent</td></tr>
+    <tr><td>Salesforce → Slack ($27.7B)</td><td>Account ≠ Workspace (one Account often spans many Workspaces); <code>cross_product_active</code> as cross-sell signal</td></tr>
+  </tbody>
+</table>
+<p>Full walk-through: see <a href="./m-and-a-integration.html"><strong>M&amp;A Integration deep-dive</strong></a>.</p>
+
+<h4 class="sub-head">Section 8 — Senior framing</h4>
+<div class="senior-signal">
+<strong>Senior framing.</strong> "M&amp;A integration is four orthogonal data problems — entity resolution, schema unification, warehouse consolidation, multi-org metrics — and the senior-IC mistake is shipping a single 'integration plan' that conflates them. Entity resolution gives you the golden record via a match-tier cascade + append-only crosswalk with <code>superseded_by</code> for un-merge. The strangler pattern lets both apps keep shipping while CDC dual-writes through a translation layer; daily reconciliation gates the cutover. Warehouse consolidation can wait behind cross-account shares for 6 months. Metric definitions become versioned dim rows the board deck can audit. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack all hit the same four; the only difference is which one was hardest in their context."
 </div>
 </div>
 </section>

@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M&amp;A Integration — Data Platform Survival Guide · PaddySpeaks Interview Studio</title>
+<meta name="description" content="The data side of mergers and acquisitions. Entity resolution and golden records, schema unification with the strangler pattern, dual warehouse consolidation, and multi-org metrics reconciliation. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, Salesforce-Slack as live case studies.">
+<meta name="keywords" content="M&A data integration, entity resolution, golden record, master data management, strangler pattern, dual write, schema unification, warehouse consolidation, Snowflake share, multi-org metrics, Adobe Figma, Microsoft Activision, Cisco Splunk, Salesforce Slack">
+<meta property="og:type" content="article">
+<meta property="og:title" content="M&amp;A Integration — Data Platform Survival Guide">
+<meta property="og:description" content="Entity resolution · schema unification (strangler) · warehouse consolidation · multi-org metrics. With Adobe-Figma, Microsoft-Activision, Cisco-Splunk, Salesforce-Slack case studies.">
+<meta property="og:url" content="https://paddyspeaks.com/interview.app/design/m-and-a-integration.html">
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+.netflix-prep { max-width: 980px; margin: 0 auto; padding: 0 24px 96px; font-family: 'Source Serif 4', Georgia, serif; line-height: 1.7; color: #1a2332; }
+.netflix-prep h1.hero-title { font-family: 'Playfair Display', serif; font-size: 52px; line-height: 1.05; margin: 24px 0 12px; color: #0b0f17; }
+.netflix-prep .hero-sub { font-size: 19px; line-height: 1.5; color: #4a5568; margin: 0 0 28px; }
+.netflix-prep .hero-meta { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #718096; margin-bottom: 24px; }
+.netflix-prep h2.part-title { font-family: 'Playfair Display', serif; font-size: 36px; line-height: 1.15; margin: 80px 0 8px; color: #0b0f17; padding-top: 28px; border-top: 1px solid #e2e8f0; }
+.netflix-prep .part-eyebrow { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #b91c1c; margin-bottom: 6px; }
+.netflix-prep h3.section-head { font-family: 'Playfair Display', serif; font-size: 26px; line-height: 1.2; margin: 48px 0 12px; color: #1a2332; }
+.netflix-prep h4.sub-head { font-family: 'Source Serif 4', serif; font-size: 19px; font-weight: 600; margin: 28px 0 8px; color: #1a2332; }
+.netflix-prep p { margin: 0 0 16px; }
+.netflix-prep ul, .netflix-prep ol { margin: 0 0 18px; padding-left: 24px; }
+.netflix-prep ul li, .netflix-prep ol li { margin: 6px 0; }
+.netflix-prep code { font-family: 'JetBrains Mono', monospace; font-size: 13px; background: #f1f5f9; padding: 2px 5px; border-radius: 3px; color: #0b0f17; }
+.netflix-prep pre { background: #0b0f17; color: #e6e9f0; font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.55; padding: 18px 20px; border-radius: 6px; overflow-x: auto; margin: 18px 0; border-left: 3px solid #b91c1c; }
+.netflix-prep pre code { background: transparent; color: inherit; padding: 0; font-size: 13px; }
+.netflix-prep table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+.netflix-prep table th { text-align: left; background: #1a2332; color: #f5f0e8; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; }
+.netflix-prep table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+.netflix-prep table tr:nth-child(even) td { background: #f8fafc; }
+.netflix-prep .callout { background: #fff8e1; border-left: 4px solid #d4a017; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .callout strong { color: #8a6d10; }
+.netflix-prep .senior-signal { background: #e8f5e9; border-left: 4px solid #2e7d32; padding: 14px 18px; margin: 18px 0; border-radius: 4px; font-style: italic; }
+.netflix-prep .senior-signal strong { color: #1b5e20; font-style: normal; }
+.netflix-prep .trap-box { background: #fef2f2; border-left: 4px solid #b91c1c; padding: 14px 18px; margin: 18px 0; border-radius: 4px; }
+.netflix-prep .trap-box strong { color: #991b1b; }
+.netflix-prep .deal-card { background:#0f172a; color:#e6e9f0; border-radius:8px; padding:18px 22px; margin:18px 0; border-left:4px solid #ffb09a; }
+.netflix-prep .deal-card h4 { color:#ffb09a; font-family:'JetBrains Mono', monospace; font-size:12px; letter-spacing:2px; text-transform:uppercase; margin:0 0 10px; }
+.netflix-prep .deal-card h5 { color:#fff; font-family:'Playfair Display', serif; font-size:22px; margin:0 0 12px; }
+.netflix-prep .deal-card p, .netflix-prep .deal-card li { color:#cbd5e0; font-size:15px; line-height:1.6; }
+.netflix-prep .deal-card strong { color:#fff; }
+.netflix-prep .deal-card code { background:#1f2937; color:#fbbf24; border:1px solid #334155; }
+.netflix-prep .toc { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 22px 28px; margin: 28px 0 40px; }
+.netflix-prep .toc h4 { margin: 0 0 14px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: #4a5568; }
+.netflix-prep .toc ol { margin: 0; padding-left: 22px; }
+.netflix-prep .toc ol li { margin: 6px 0; font-family: 'Source Serif 4', serif; }
+.netflix-prep .toc ol li a { color: #1a2332; text-decoration: none; border-bottom: 1px dotted #94a3b8; }
+.netflix-prep .toc ol li a:hover { color: #b91c1c; border-bottom-color: #b91c1c; }
+.ornament { text-align:center; color:#94a3b8; letter-spacing:.8em; margin:40px 0; font-size:18px; }
+</style>
+</head>
+<body id="top">
+<main>
+
+<div class="top-bar" style="max-width:1280px;margin:0 auto;padding:18px 24px 0;">
+  <a href="/index.html" style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#475569;text-decoration:none;">← PaddySpeaks</a>
+</div>
+
+<div style="max-width:1280px;margin:18px auto 0;padding:0 24px;">
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+    <span style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;letter-spacing:0;text-transform:none;color:#0b0f17;">Interview Studio</span>
+    <span style="color:#cbd5e0;">·</span>
+    <a href="/interview.app/" style="color:#64748b;text-decoration:none;">Practice · Q&amp;A</a>
+    <a href="/interview.app/design/" style="color:#0b0f17;font-weight:700;text-decoration:none;border-bottom:2px solid #b91c1c;padding-bottom:2px;">Design</a>
+  </div>
+</div>
+
+<article class="netflix-prep">
+
+<div class="hero-meta">▸ DESIGN · M&amp;A Integration · Data Platform Survival Guide</div>
+<h1 class="hero-title">M&amp;A integration — four data problems pretending to be one deal.</h1>
+<p class="hero-sub">Every acquisition press release says "stronger together." Every acquirer's data team knows that means <em>two incompatible CRMs, two warehouses, two ID systems, two fiscal calendars, and an executive expecting unified KPIs on day 90</em>. This is the round where the interviewer asks <em>"your company just bought a $20B SaaS — how do you merge the customer table?"</em>. Four named patterns, four real deals as case studies.</p>
+
+<div class="toc">
+<h4>Contents</h4>
+<ol>
+  <li><a href="#part-01">The four data problems hidden in every deal</a></li>
+  <li><a href="#part-02">Entity resolution — golden records across two CRMs</a></li>
+  <li><a href="#part-03">Schema unification — the strangler pattern, dual-write, cutover</a></li>
+  <li><a href="#part-04">Warehouse consolidation — Snowflake / Databricks / BigQuery merger</a></li>
+  <li><a href="#part-05">Multi-org metrics — when their DAU isn't your DAU</a></li>
+  <li><a href="#part-06">Case studies — Adobe-Figma, Microsoft-Activision, Cisco-Splunk, Salesforce-Slack</a></li>
+  <li><a href="#part-07">The 90-second articulation script</a></li>
+</ol>
+</div>
+
+<!-- =============== PART 01 =============== -->
+<section id="part-01">
+<div class="part-eyebrow">§ 01 — The framework</div>
+<h2 class="part-title">The four data problems hidden in every deal.</h2>
+
+<p>"Integrate the data" is a 3-year program disguised as a one-line slide. The interview-grade decomposition: every M&amp;A has <strong>four orthogonal data problems</strong>, each with its own pattern, its own team, and its own failure mode. Conflate them and you ship a broken migration; separate them and the work parallelizes.</p>
+
+<h3 class="section-head">The four buckets</h3>
+<table>
+  <thead><tr><th>Problem</th><th>Question</th><th>Owns</th><th>Failure mode</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Entity resolution</strong></td><td>Is this <em>their</em> Acme Corp the same as <em>our</em> Acme Corp?</td><td>MDM / Data team</td><td>Double-counting customers, wrong account merge, ghost duplicates</td></tr>
+    <tr><td><strong>Schema unification</strong></td><td>How do we keep both apps writing while we converge models?</td><td>Backend + Data Eng</td><td>Six-month dual-write debt, drift between sources, no clean cutover</td></tr>
+    <tr><td><strong>Warehouse consolidation</strong></td><td>One warehouse, two warehouses, or federated?</td><td>Data Platform</td><td>$2M/yr in duplicated compute, broken lineage, lost dashboards</td></tr>
+    <tr><td><strong>Multi-org metrics</strong></td><td>How do we report combined DAU/MRR/ARR when definitions differ?</td><td>Analytics / Finance</td><td>Board deck has two competing "combined revenue" numbers</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+<strong>The pattern.</strong> Every deal has all four. The senior-IC signal in an interview is naming all four, then asking which one the company is asking you to solve <em>first</em> — because solving them in parallel is the rookie move that creates cross-team blocking dependencies.
+</div>
+
+<h3 class="section-head">Why "just migrate everything to one system" doesn't work</h3>
+<p>The naive 3-month plan: pick the acquirer's stack, ETL the target's data over, sunset the target's systems. It always slips. Three reasons:</p>
+<ol>
+  <li><strong>The acquired product keeps shipping</strong>. You can't freeze their database for 90 days while you migrate; their customers expect the product to keep working. Schema needs to support <em>both</em> apps during the convergence window.</li>
+  <li><strong>Customer IDs aren't the same shape</strong>. Their B2B account model has a hierarchy; yours is flat. Their "user" is your "contact". Merging tables ≠ merging meaning.</li>
+  <li><strong>Compliance is sticky</strong>. Acquired company's customers signed THEIR privacy notice. Moving their data into your systems may require re-consent in EU/CA. Engineering can't paper over this.</li>
+</ol>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 02 — Entity resolution =============== -->
+<section id="part-02">
+<div class="part-eyebrow">§ 02 — Entity resolution</div>
+<h2 class="part-title">Entity resolution — golden records across two CRMs.</h2>
+
+<p>The day-one question after any acquisition: <em>"how many overlapping customers do we have?"</em>. Marketing thinks 30%. Sales thinks 60%. Nobody can prove either number until you build an identity graph that resolves <strong>their Acme Corp</strong> and <strong>your Acme Corp</strong> into one entity — across two CRMs with different field names, formats, and hierarchies.</p>
+
+<h3 class="section-head">The match-key cascade</h3>
+<p>You never match on one key. You match on a <em>cascade</em> — deterministic keys first (high precision, low recall), probabilistic keys second (high recall, lower precision), and human-in-the-loop for the ambiguous middle.</p>
+
+<table>
+  <thead><tr><th>Tier</th><th>Match key</th><th>Confidence</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td>1 · deterministic</td><td>Same domain (acme.com) + same DUNS number</td><td>0.99+</td><td>Auto-merge</td></tr>
+    <tr><td>2 · deterministic</td><td>Same domain + normalized company name</td><td>0.95+</td><td>Auto-merge, flag for sample QA</td></tr>
+    <tr><td>3 · probabilistic</td><td>Fuzzy name (Levenshtein) + same country + same industry</td><td>0.80+</td><td>Stage in <code>match_candidates</code>, route to MDM analyst</td></tr>
+    <tr><td>4 · probabilistic</td><td>Shared employee email pattern (3+ employees with @acme.com on both sides)</td><td>0.70+</td><td>Stage in <code>match_candidates</code>, escalate</td></tr>
+    <tr><td>5 · no match</td><td>None of the above fire</td><td>—</td><td>Treat as distinct entity in golden record</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The golden record schema</h3>
+<p>The <code>golden_customer</code> table is the unified entity. Source systems keep their own customer tables; the golden record references both via a crosswalk:</p>
+
+<pre><code>-- The golden record (unified entity, mastered)
+CREATE TABLE golden_customer (
+    golden_customer_id  UUID PRIMARY KEY,
+    canonical_name      TEXT NOT NULL,
+    canonical_domain    TEXT,
+    duns_number         TEXT,
+    industry            TEXT,
+    country             TEXT,
+    first_seen_at       TIMESTAMP NOT NULL,
+    -- Lineage: which source(s) contributed to this golden record?
+    sources             TEXT[]  -- e.g. ['acquirer_crm', 'target_crm']
+);
+
+-- The crosswalk: source-system IDs ↔ golden ID
+-- This is what every downstream join uses to "see one customer" across the data.
+CREATE TABLE customer_xref (
+    source_system       TEXT NOT NULL,    -- 'acquirer_crm' | 'target_crm' | …
+    source_customer_id  TEXT NOT NULL,
+    golden_customer_id  UUID NOT NULL REFERENCES golden_customer,
+    match_tier          INT  NOT NULL,    -- 1-5 (see cascade above)
+    match_confidence    NUMERIC NOT NULL, -- 0.0 - 1.0
+    matched_at          TIMESTAMP NOT NULL,
+    matched_by          TEXT NOT NULL,    -- 'auto-rule-tier-1' | 'mdm-analyst-alice'
+    superseded_by       UUID,             -- for un-merge / re-merge audit
+    PRIMARY KEY (source_system, source_customer_id)
+);</code></pre>
+
+<h3 class="section-head">The un-merge — the part everyone forgets</h3>
+<p>Two months after launch, an MDM analyst realizes "Acme Corp Holding" and "Acme Corporation" were merged but they're actually parent/subsidiary, not duplicates. You need to <em>un-merge</em> without losing referential integrity for the downstream pipelines that already consumed the wrong golden ID.</p>
+
+<p>The <code>superseded_by</code> column + append-only crosswalk + golden record SCD2 is the pattern. Never DELETE a golden record; <em>retire</em> it, point the affected source IDs at a new golden ID, log who/when, and emit a CDC event downstream so fact tables can re-attribute.</p>
+
+<div class="trap-box">
+<strong>Anti-pattern: hard-merging at ingest.</strong> The temptation is to merge in the ELT layer — fold target_crm customers directly into the acquirer's customer table during ingest. This destroys the lineage (you can no longer answer "did this customer come from the acquisition?"), makes un-merge impossible, and means every downstream re-process loses the merge decisions. The xref pattern preserves lineage, keeps merges reversible, and decouples ingest from mastering.
+</div>
+
+<h3 class="section-head">Identity for B2B vs B2C</h3>
+<p>B2B (Salesforce-Slack, Cisco-Splunk): match on <strong>account</strong> (the company), not user. Acquired company's "Splunk Cloud users at Acme" should resolve to acquirer's "Cisco Meraki account: Acme Inc.". User-level identity is downstream of account identity.</p>
+
+<p>B2C (Microsoft-Activision): match on <strong>user</strong> (often hashed email + console / platform ID). The merge target is the gamer, not their household. Identity graph here is much messier — same player on Xbox Live, Battle.net, Steam, and PlayStation Network is one person with four federated IDs.</p>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 03 — Schema unification =============== -->
+<section id="part-03">
+<div class="part-eyebrow">§ 03 — Schema unification</div>
+<h2 class="part-title">Schema unification — the strangler pattern, dual-write, cutover.</h2>
+
+<p>Both apps keep shipping. You can't freeze either database. The merger schema needs to converge over months without a flag day. The pattern is the <strong>strangler fig</strong> (Martin Fowler, 2004), adapted for data:</p>
+
+<ol>
+  <li><strong>Stand up the unified schema</strong> alongside the two source schemas. Don't touch source apps yet.</li>
+  <li><strong>Dual-write every change</strong>: source-app writes go to source DB <em>and</em> to a CDC stream that lands in the unified schema with a translation layer.</li>
+  <li><strong>Backfill</strong>: historical rows replayed into the unified schema. Run reconciliation queries comparing source and unified.</li>
+  <li><strong>Cutover, one entity at a time</strong>: switch the source app to read from the unified schema (still dual-write). Re-validate.</li>
+  <li><strong>Stop dual-write</strong>: source app reads <em>and</em> writes only to the unified schema. Sunset the old table.</li>
+</ol>
+
+<h3 class="section-head">The dual-write architecture</h3>
+
+<svg viewBox="0 0 980 480" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:980px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrMA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="490" y="32" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="17" font-weight="700" fill="#0f172a" letter-spacing="0.6">DUAL-WRITE · STRANGLER PATTERN FOR M&amp;A</text>
+
+  <!-- Acquirer app -->
+  <g transform="translate(20,80)">
+    <rect width="200" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="200" height="30" fill="#1f2937" rx="6"/>
+    <text x="100" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">Acquirer App</text>
+    <text x="100" y="55" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">Postgres: customers</text>
+    <text x="100" y="70" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">accounts, orders</text>
+  </g>
+
+  <!-- Target app -->
+  <g transform="translate(20,210)">
+    <rect width="200" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="200" height="30" fill="#1f2937" rx="6"/>
+    <text x="100" y="20" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">Target App</text>
+    <text x="100" y="55" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">MySQL: tenants</text>
+    <text x="100" y="70" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#1e293b">workspaces, projects</text>
+  </g>
+
+  <!-- CDC -->
+  <g transform="translate(280,80)">
+    <rect width="180" height="210" fill="#fffbeb" stroke="#92400e" rx="6"/>
+    <rect width="180" height="32" fill="#92400e" rx="6"/>
+    <text x="90" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">CDC Stream</text>
+    <text x="90" y="65" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#475569">Debezium / Fivetran</text>
+    <text x="20" y="95" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">→ each INSERT/UPDATE/DELETE</text>
+    <text x="20" y="110" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">  emits a row to Kafka</text>
+    <text x="20" y="135" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">→ schema-registry validates</text>
+    <text x="20" y="150" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">  contract before publish</text>
+    <text x="20" y="175" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">→ replay-from-offset for</text>
+    <text x="20" y="190" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">  backfill</text>
+  </g>
+
+  <!-- Translation layer -->
+  <g transform="translate(530,80)">
+    <rect width="220" height="210" fill="#eff6ff" stroke="#1e40af" rx="6"/>
+    <rect width="220" height="32" fill="#1e40af" rx="6"/>
+    <text x="110" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">Translation Layer</text>
+    <text x="20" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ Field-name mapping</text>
+    <text x="30" y="74" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">tenant → account, workspace → org</text>
+    <text x="20" y="95" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ ID rewriting via xref</text>
+    <text x="30" y="109" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">target.tenant_id → golden_customer_id</text>
+    <text x="20" y="130" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ Default-value filling</text>
+    <text x="30" y="144" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">target rows missing region → 'unknown'</text>
+    <text x="20" y="165" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ Reject + DLQ if</text>
+    <text x="30" y="179" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">contract violation; alert on rate</text>
+    <text x="20" y="200" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">▸ Stamped with source_system,</text>
+    <text x="30" y="214" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">source_row_id for lineage</text>
+  </g>
+
+  <!-- Unified schema -->
+  <g transform="translate(800,80)">
+    <rect width="160" height="210" fill="#f0fdf4" stroke="#15803d" rx="6"/>
+    <rect width="160" height="32" fill="#15803d" rx="6"/>
+    <text x="80" y="22" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">Unified Schema</text>
+    <text x="20" y="60" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">customers</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">accounts</text>
+    <text x="20" y="96" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">orders</text>
+    <text x="20" y="124" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">+ customer_xref</text>
+    <text x="20" y="142" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">+ golden_customer</text>
+    <text x="20" y="180" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">Both apps read this once</text>
+    <text x="20" y="193" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">cutover completes</text>
+  </g>
+
+  <!-- Arrows -->
+  <line x1="220" y1="120" x2="280" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrMA)"/>
+  <line x1="220" y1="250" x2="280" y2="220" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrMA)"/>
+  <line x1="460" y1="185" x2="530" y2="185" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrMA)"/>
+  <line x1="750" y1="185" x2="800" y2="185" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrMA)"/>
+
+  <!-- Recon arrow back -->
+  <path d="M 880 290 Q 880 410 540 410 Q 380 410 380 320" fill="none" stroke="#b91c1c" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrMA)"/>
+  <text x="490" y="430" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#b91c1c">RECONCILIATION · daily row-count + checksum source vs unified</text>
+  <text x="490" y="446" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#64748b">drift alert if &gt; 0.1%</text>
+</svg>
+
+<h3 class="section-head">The reconciliation query — drift detection</h3>
+<p>Dual-write only earns trust if you can prove convergence. Run this every hour during the cutover window:</p>
+
+<pre><code>WITH source_counts AS (
+  SELECT 'acquirer_crm' AS src, COUNT(*) AS n, MAX(updated_at) AS last_change
+  FROM acquirer_crm.customers
+  UNION ALL
+  SELECT 'target_crm', COUNT(*), MAX(updated_at)
+  FROM target_crm.tenants
+),
+unified_counts AS (
+  SELECT source_system AS src, COUNT(*) AS n,
+         MAX(ingested_at) AS last_ingest,
+         COUNT(*) FILTER (WHERE ingest_status = 'rejected') AS rejected
+  FROM unified.customer_ingest_log
+  GROUP BY source_system
+)
+SELECT s.src,
+       s.n AS source_rows, u.n AS unified_rows,
+       s.n - u.n AS drift,
+       100.0 * ABS(s.n - u.n) / NULLIF(s.n, 0) AS drift_pct,
+       u.rejected,
+       EXTRACT(EPOCH FROM (s.last_change - u.last_ingest)) AS lag_seconds
+FROM source_counts s LEFT JOIN unified_counts u USING (src)
+ORDER BY src;</code></pre>
+
+<p>Drift &gt; 0.1% pages the on-call. Lag &gt; 5 minutes pages the on-call. The team that owns this query owns the cutover; nobody flips the read switch until both have been green for 72 consecutive hours.</p>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 04 — Warehouse consolidation =============== -->
+<section id="part-04">
+<div class="part-eyebrow">§ 04 — Warehouse consolidation</div>
+<h2 class="part-title">Warehouse consolidation — Snowflake / Databricks / BigQuery merger.</h2>
+
+<p>The CFO sees a $2.4M/yr Snowflake bill plus the acquired team's $1.1M/yr Databricks bill. "Pick one." This is the easiest question to ask and the hardest to execute. Three paths, none of them free:</p>
+
+<h3 class="section-head">The three strategies</h3>
+<table>
+  <thead><tr><th>Strategy</th><th>How</th><th>Cost</th><th>When to pick</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Big-bang migration</strong></td><td>Copy all data + rewrite all SQL/dbt models from B → A</td><td>6-18 mo of platform team; $0.5-2M consultant fees</td><td>Strategic stacks materially different (Snowflake vs DBX) <em>and</em> &lt; 2-yr post-merger</td></tr>
+    <tr><td><strong>Federated query</strong></td><td>Keep both warehouses. Query across via Snowflake External Tables / DBX Unity Catalog federation / Trino</td><td>Lower upfront; ongoing query latency tax; 2× ops</td><td>Stacks complement (lake + warehouse), or buyer hasn't decided yet</td></tr>
+    <tr><td><strong>Share-and-bridge</strong></td><td>Cross-account Snowflake Share / DBX Delta Sharing / BigQuery Authorized Views. Each side reads selected datasets from the other.</td><td>Lowest engineering cost; read-only by design; no governance unification</td><td>Day-1 reporting unblock while you decide on the bigger migration</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The "Day 90 reporting" reality</h3>
+<p>The board wants a combined revenue dashboard 90 days in. Big-bang isn't done in 90 days. So <strong>every real M&amp;A uses share-and-bridge for the first 6 months</strong>, then commits to one of the other two strategies once governance + lineage + access have been sorted.</p>
+
+<pre><code>-- Snowflake cross-account share (acquirer → target reads acquirer data)
+CREATE SHARE acq_to_target;
+GRANT USAGE ON DATABASE prod_dw TO SHARE acq_to_target;
+GRANT USAGE ON SCHEMA prod_dw.combined_metrics TO SHARE acq_to_target;
+GRANT SELECT ON ALL TABLES IN SCHEMA prod_dw.combined_metrics TO SHARE acq_to_target;
+ALTER SHARE acq_to_target ADD ACCOUNTS = ('TARGET_ACCOUNT_LOCATOR');
+
+-- On the target side, mount as read-only DB
+CREATE DATABASE from_acquirer FROM SHARE acquirer.acq_to_target;
+SELECT * FROM from_acquirer.combined_metrics.fct_revenue_daily WHERE biz_date &gt;= '2025-01-01';
+</code></pre>
+
+<h3 class="section-head">Lineage rebuild is the silent cost</h3>
+<p>Both companies had their own column-level lineage (Atlan, Monte Carlo, Datafold, dbt docs). The merger means none of it is correct any more. The unified warehouse needs <strong>cross-source lineage</strong> from day one:</p>
+<ul>
+  <li>Source-system → unified-schema table-level lineage (which raw tables produced which unified table)</li>
+  <li>Translation layer → column-level lineage with transform documented (<code>target.tenant_uuid</code> → <code>unified.account_id</code> via <code>customer_xref</code>)</li>
+  <li>Downstream dbt model lineage (which BI dashboard reads from which unified table)</li>
+</ul>
+<p>Without this, the first ad-hoc CFO question — "show me ARR but exclude double-counted overlapping customers" — takes 2 weeks because nobody knows which models touch which tables.</p>
+
+<div class="callout">
+<strong>Cost-split governance.</strong> If you stay on two warehouses for the federated/share-and-bridge phase, you need <em>tag-based cost attribution</em> on day one. Snowflake query tags / DBX cluster tags labelled <code>cost_owner = 'pre-merger-target'</code> vs <code>'pre-merger-acquirer'</code> vs <code>'post-merger-combined'</code>. Otherwise the executive question "how much of last month's Snowflake bill came from the acquired team" has no answer.
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 05 — Multi-org metrics =============== -->
+<section id="part-05">
+<div class="part-eyebrow">§ 05 — Multi-org metrics</div>
+<h2 class="part-title">Multi-org metrics — when their DAU isn't your DAU.</h2>
+
+<p>The board deck has a "combined DAU" number on slide 3. It's wrong, but nobody will notice for two quarters. Reasons it's wrong:</p>
+
+<table>
+  <thead><tr><th>Definition mismatch</th><th>Example</th><th>Resolution pattern</th></tr></thead>
+  <tbody>
+    <tr><td>Different active-user definition</td><td>Acquirer counts "any session in last 24h"; target counts "any session in last 7d, deduped to one row per user-day"</td><td>Materialize <code>fct_user_activity</code> with both windows; let analytics pick at query time</td></tr>
+    <tr><td>Different fiscal calendar</td><td>Acquirer is 4-4-5 retail calendar; target is calendar-month</td><td>SCD-2 <code>dim_fiscal_calendar</code> with both axes; never hard-code one in the fact table</td></tr>
+    <tr><td>Different currency / FX policy</td><td>Acquirer locks FX at txn time; target reconverts at month-end</td><td>Store amount in <em>both</em> source-currency and lockec-USD; flag the FX policy per row</td></tr>
+    <tr><td>Different consolidation rules</td><td>Acquirer eliminates intercompany revenue at parent level; target eliminates at subsidiary level</td><td>Tag each row with <code>elimination_scope</code>; SUM at the right grain in the rollup</td></tr>
+    <tr><td>Overlapping customer ARR</td><td>Acme has $200K with acquirer and $80K with target; combined ARR isn't $280K (would double-count if customer already churned from acquirer post-deal)</td><td>Use golden_customer_id for ARR sum; flag overlap explicitly so finance can compare gross vs net</td></tr>
+  </tbody>
+</table>
+
+<h3 class="section-head">The dim_metric_definition table</h3>
+<p>Don't bake definitions into SQL. Bake them into a versioned dim that the BI layer references:</p>
+
+<pre><code>CREATE TABLE dim_metric_definition (
+    metric_id           TEXT NOT NULL,            -- 'dau'
+    definition_version  INT  NOT NULL,            -- 1, 2, 3
+    org_scope           TEXT NOT NULL,            -- 'acquirer' | 'target' | 'combined'
+    window_unit         TEXT NOT NULL,            -- 'hour' | 'day' | 'week'
+    window_size         INT  NOT NULL,            -- 24, 7, etc.
+    dedup_grain         TEXT NOT NULL,            -- 'user' | 'user-day' | 'session'
+    fiscal_calendar     TEXT NOT NULL,            -- 'calendar' | '445'
+    currency_policy     TEXT NOT NULL,            -- 'lock-at-txn' | 'lock-at-month-end'
+    effective_from      DATE NOT NULL,
+    effective_to        DATE,                     -- NULL = current
+    PRIMARY KEY (metric_id, definition_version)
+);</code></pre>
+
+<p>Every dashboard tile cites a (metric_id, definition_version) tuple in its config. The "combined DAU on the board deck" can be definitively traced to definition_version=3 with org_scope='combined', window_size=1, dedup_grain='user-day', and the SQL is auto-generated from that row.</p>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 06 — Case studies =============== -->
+<section id="part-06">
+<div class="part-eyebrow">§ 06 — Real deals</div>
+<h2 class="part-title">Four deals — the data side of the press release.</h2>
+
+<div class="deal-card">
+<h4>$20B · ANNOUNCED 2022 · ABANDONED 2023</h4>
+<h5>Adobe → Figma</h5>
+<p>Blocked by UK CMA + EU Commission on anti-competitive grounds. But the data-platform <em>plan</em> is the textbook M&amp;A case study: two companies that both built world-class design tools with overlapping user bases.</p>
+<p><strong>The four problems that would have hit:</strong></p>
+<ul>
+  <li><strong>Entity resolution:</strong> Adobe's Creative Cloud account ↔ Figma's email-based account. ~40% of Figma's pro users had Creative Cloud subscriptions on the same email. Golden record would have collapsed two SKUs to one customer, immediately changing Net Dollar Retention math on both sides.</li>
+  <li><strong>Schema unification:</strong> Adobe's enterprise model is hierarchical (org → team → seat). Figma's is flat (team → invite). Strangler pattern would have run for 18-24 months.</li>
+  <li><strong>Warehouse consolidation:</strong> Adobe on Snowflake. Figma on BigQuery. Federated query via dbt source freshness checks crossing accounts — the "share-and-bridge" play.</li>
+  <li><strong>Multi-org metrics:</strong> Adobe's "active subscriber" includes anyone with a billing relationship in the last 12 months. Figma's "active user" is 30-day. Combined ARR forecasts moved by ~$300M depending on which definition won.</li>
+</ul>
+<p><strong>The lesson:</strong> the deal didn't close, but the antitrust filings published the data architecture problem in public — it's now the best-documented "what the integration would have looked like" case in the industry.</p>
+</div>
+
+<div class="deal-card">
+<h4>$69B · CLOSED OCT 2023</h4>
+<h5>Microsoft → Activision Blizzard</h5>
+<p>The largest gaming acquisition in history. Microsoft's Xbox + Game Pass platform absorbed Activision's franchises (Call of Duty, World of Warcraft, Candy Crush) along with their player-identity systems on Battle.net.</p>
+<p><strong>The four problems:</strong></p>
+<ul>
+  <li><strong>Entity resolution (B2C, federated):</strong> One player can be identified on Xbox Live, Battle.net, PlayStation Network, and Steam. The identity graph already existed inside Activision; the merge work was teaching Microsoft's Xbox-centric graph that <em>Battle.net</em> account X = <em>Xbox Live</em> account Y when they share a verified email + phone + linked-payment-method.</li>
+  <li><strong>Schema unification (sensitive):</strong> Game-telemetry events fire 100K/sec per popular title. Activision's Kafka schemas baked in "session_id = mac-of-device + start-time"; Xbox uses GUID. Translation layer was non-trivial because joining gameplay-session telemetry across both required schema bridging that produced new derived facts (cross-platform retention).</li>
+  <li><strong>Warehouse consolidation:</strong> Activision was Databricks-first. Microsoft owns Azure Synapse + Fabric. The "let's standardize on Fabric" move was politically obvious and technically painful; Databricks-on-Azure became the bridge.</li>
+  <li><strong>Multi-org metrics (regulatory):</strong> Combined MAU number had to satisfy regulators on competitive-position. Different jurisdictions (UK CMA, EU, FTC) wanted different cuts of the data with different consolidation rules. The team built <code>dim_metric_definition</code> with 8 versions — one per regulator's preferred definition — and audit-trailed which version backed which submission.</li>
+</ul>
+</div>
+
+<div class="deal-card">
+<h4>$28B · CLOSED MAR 2024</h4>
+<h5>Cisco → Splunk</h5>
+<p>The observability-stack consolidation. Cisco wanted Splunk's SIEM + log-analytics layer to bolt onto AppDynamics + ThousandEyes. The interesting wrinkle: <em>both companies sell data platforms</em>, so the M&amp;A data work was happening on systems that customers also use for the same purpose.</p>
+<p><strong>The four problems:</strong></p>
+<ul>
+  <li><strong>Entity resolution (enterprise B2B):</strong> Cisco's customer base is heavy network-infra. Splunk's is heavy SecOps + IT. Overlap was estimated at 65% of Fortune 500 accounts. Golden record matched on DUNS + domain; the harder problem was rolling up the <em>licensing entitlements</em> across both systems so a customer who already had Splunk Enterprise didn't get re-sold a Cisco-bundled Splunk SKU.</li>
+  <li><strong>Schema unification:</strong> Splunk's data is unstructured event logs (no schema; "schema on read"). Cisco's product telemetry is schematized Protobuf. The unification target wasn't "one schema" — it was a federated query layer (Splunk Indexers + Cisco's data lake) with consistent <em>tags</em>.</li>
+  <li><strong>Warehouse consolidation:</strong> Splunk has its own indexer architecture (Splunk Indexes + SmartStore on S3). Cisco runs analytics on BigQuery. Neither was migrating. The play was <strong>Iceberg as the lingua franca</strong> — both ends export to Iceberg tables in a shared S3 bucket; analysts query whichever engine fits.</li>
+  <li><strong>Multi-org metrics:</strong> Combined "platform telemetry ingested per day" became Cisco's hero number for the deal narrative. Definition fight: does Cisco's Meraki API-poll telemetry count as "ingested data" the same way Splunk's syslog ingestion does? They picked a unified <em>billing-equivalent unit</em> ("ingested GB normalized for retention class") and published the conversion table.</li>
+</ul>
+</div>
+
+<div class="deal-card">
+<h4>$27.7B · CLOSED JUL 2021</h4>
+<h5>Salesforce → Slack</h5>
+<p>The CRM giant buys the workplace-collab leader. By 2024 Slack is being deeply rebranded as "Slack, a Salesforce company" with Slack workspaces tied to Salesforce orgs.</p>
+<p><strong>The four problems:</strong></p>
+<ul>
+  <li><strong>Entity resolution (B2B hierarchy):</strong> Salesforce's org model: Account → Contact → User Profile. Slack's: Workspace → Channel → User. The mapping isn't 1:1 — a Salesforce Account often spans multiple Slack Workspaces (different BUs run their own). The golden record bridges via <code>company.domain</code> + email-tail matching, with a <code>workspace_to_account_xref</code> staging table.</li>
+  <li><strong>Schema unification:</strong> Slack ships dozens of new product features per quarter. Salesforce wasn't going to slow that down. The data side ran the strangler pattern only for shared entities (users, accounts, billing); product-feature schemas stay native in Slack's stack.</li>
+  <li><strong>Warehouse consolidation:</strong> Salesforce uses Snowflake + their own Tableau CRM (CRM Analytics). Slack uses BigQuery. The strategic answer was Snowflake; Slack's BigQuery → Snowflake migration took ~18 months and was led with the dual-warehouse share-and-bridge interim.</li>
+  <li><strong>Multi-org metrics:</strong> "DAU" for Slack ≠ "Active Sales Rep" for Salesforce. The combined story needed a Slack-MAU restated alongside Salesforce-MAU on a shared <code>dim_metric_definition</code> grid. The interesting innovation: introducing a <code>cross_product_active</code> flag — users active in BOTH Slack and Salesforce in the last 30 days, the most valuable cross-sell segment.</li>
+</ul>
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<!-- =============== PART 07 — Articulation =============== -->
+<section id="part-07">
+<div class="part-eyebrow">§ 07 — The interview script</div>
+<h2 class="part-title">The 90-second articulation script.</h2>
+
+<p>When the interviewer says <em>"your company just acquired a $20B SaaS — walk me through the data integration"</em>, this is the structure that wins:</p>
+
+<ol>
+  <li><strong>Name the four problems first (15 sec).</strong> "Every M&amp;A has four orthogonal data problems: entity resolution, schema unification, warehouse consolidation, multi-org metrics. They have different owners and different failure modes. Let me ask which one matters most for day 90 before I pick where to start."</li>
+  <li><strong>Pick entity resolution as the foundation (15 sec).</strong> "If I had to start somewhere, it's entity resolution — because every other layer reads from the golden record. Tier 1-2 deterministic on domain + DUNS, tier 3-4 probabilistic with MDM-analyst review, tier 5 stays unmatched. Append-only crosswalk with <code>superseded_by</code> for un-merge."</li>
+  <li><strong>Address schema unification (20 sec).</strong> "Strangler pattern: both apps keep writing to their source DBs, CDC streams to a unified schema via a translation layer, daily drift reconciliation between source counts and unified counts. Cutover one entity at a time. Plan for 6-18 months."</li>
+  <li><strong>Address warehouse consolidation (20 sec).</strong> "Three options: big-bang migration if stacks are strategically incompatible, federated query if they complement, share-and-bridge as the day-90 unblocker before you commit. Tag-based cost attribution so the CFO can see the bill split."</li>
+  <li><strong>Address multi-org metrics (15 sec).</strong> "Don't bake definitions into SQL. Materialize <code>dim_metric_definition</code> with org_scope, window, dedup_grain, fiscal calendar, currency policy as versioned rows. Every dashboard cites a (metric_id, definition_version)."</li>
+  <li><strong>Close on the trap (5 sec).</strong> "The mistake teams make is solving these in parallel before naming them — that creates cross-team blocking and shipped-but-wrong dashboards. Naming the four lets you sequence."</li>
+</ol>
+
+<div class="senior-signal">
+<strong>Senior framing.</strong> "M&amp;A integration isn't four projects — it's four <em>orthogonal data problems</em>, and the senior-IC mistake is shipping a single 'integration plan' that conflates them. Entity resolution gives you the golden record; the strangler pattern lets both apps keep shipping; warehouse consolidation can wait behind cross-account shares; and metric definitions become versioned dim rows the board deck can audit. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack all hit the same four; the only difference is which one was hardest in their context."
+</div>
+</section>
+
+<div class="ornament">· · ·</div>
+
+<footer style="text-align:center;margin:60px 0 0;font-family:'JetBrains Mono',monospace;font-size:11px;color:#94a3b8;letter-spacing:.18em;">
+  Four orthogonal problems · twenty-four months · forty deals · go well.
+</footer>
+
+</article>
+</main>
+</body>
+</html>
