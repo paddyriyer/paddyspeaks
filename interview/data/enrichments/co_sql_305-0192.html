@@ -71,20 +71,58 @@ QUALIFY rk = 1;</code></pre>
 <p>Whatever rank-and-filter solution you write, the interviewer will start poking at it. These are the four probes you should preempt before being asked:</p>
 
 <h5>Probe 1 — <em>"What if a department has only one employee? Will your query still return them as 'second-highest'?"</em></h5>
-<p>The trap: <code>WHERE rk = 2</code> returns <strong>zero rows</strong> for that department. The hiring manager opens the report and sees "no second-highest in Marketing" without realising Marketing has only one person. Defensive options:</p>
+<p>The trap: <code>WHERE rk = 2</code> returns <strong>zero rows</strong> for that department. The hiring manager opens the report and sees "no second-highest in Marketing" without realising Marketing has only one person. Three defensive options — note the CTE is named and aliased properly so the query actually runs:</p>
 <pre><code>-- Option A: explicit COUNT-aware report — surfaces the "N/A" case
-SELECT d.dept_id,
-  COUNT(*) AS headcount,
-  MAX(CASE WHEN rk = 1 THEN salary END) AS top_salary,
-  MAX(CASE WHEN rk = 2 THEN salary END) AS second_salary  -- NULL if headcount &lt; 2
-FROM ranked
-GROUP BY d.dept_id;
+WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
+SELECT r.dept_id,
+  COUNT(*)                                    AS headcount,
+  MAX(CASE WHEN r.rk = 1 THEN r.salary END)   AS top_salary,
+  MAX(CASE WHEN r.rk = 2 THEN r.salary END)   AS second_salary  -- NULL if headcount &lt; 2
+FROM ranked r
+GROUP BY r.dept_id;
 
--- Option B: LEFT JOIN dept list to ranked so even 1-person depts appear
+-- Option B: LEFT JOIN dept list to ranked so 1-person depts still appear
+WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
 SELECT d.dept_id, r.salary AS second_highest
 FROM departments d
-LEFT JOIN (SELECT dept_id, salary, DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) rk FROM employees) r
+LEFT JOIN ranked r
   ON r.dept_id = d.dept_id AND r.rk = 2;</code></pre>
+
+<h5>Probe 1b — <em>"Now list each department with BOTH the highest AND the second-highest salary side by side."</em></h5>
+<p>One row per department, two salary columns. The right shape pivots the ranked output via conditional aggregation, then <code>LEFT JOIN</code>s from <code>departments</code> so single-person and empty departments still appear (with NULL in the second column):</p>
+<pre><code>WITH ranked AS (
+  SELECT e.dept_id, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+)
+SELECT
+  d.dept_id,
+  d.department_name,
+  MAX(CASE WHEN r.rk = 1 THEN r.salary END) AS highest_salary,
+  MAX(CASE WHEN r.rk = 2 THEN r.salary END) AS second_highest_salary
+FROM departments d
+LEFT JOIN ranked r ON r.dept_id = d.dept_id
+GROUP BY d.dept_id, d.department_name
+ORDER BY d.dept_id;</code></pre>
+<p>Sample output:</p>
+<table>
+  <thead><tr><th>dept_id</th><th>department_name</th><th>highest_salary</th><th>second_highest_salary</th></tr></thead>
+  <tbody>
+    <tr><td>ENG</td><td>Engineering</td><td>$210,000</td><td>$180,000</td></tr>
+    <tr><td>SALES</td><td>Sales</td><td>$240,000</td><td>$190,000</td></tr>
+    <tr><td>MKTG</td><td>Marketing</td><td>$155,000</td><td><strong>NULL</strong> <em>(only 1 employee)</em></td></tr>
+    <tr><td>HR</td><td>Human Resources</td><td>NULL</td><td>NULL</td><td><em>(empty dept)</em></td></tr>
+  </tbody>
+</table>
+<p><strong>Two senior-signal moves baked in:</strong> (1) <code>LEFT JOIN</code> from <code>departments</code> guarantees every department appears even with 0 or 1 employee — no silent disappearance; (2) the conditional <code>MAX(CASE WHEN rk = N THEN salary END)</code> pivot avoids two separate queries with a UNION. Note we use <code>DENSE_RANK</code> so that if two people are tied at the top, the "second-highest" still surfaces the next <em>distinct</em> salary (not NULL).</p>
 
 <h5>Probe 2 — <em>"Two people are tied for second. Do you want both, or just one?"</em></h5>
 <p>This is the question the user always intends to ask but rarely does — and the SQL answer depends entirely on which ranking function you picked:</p>
