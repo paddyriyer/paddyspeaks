@@ -753,12 +753,67 @@ async function runQuery() {
   await refreshTableList();
 }
 
+// Locked canonical column sets for common entity tables. When a user's
+// custom query references one of these tables and it hasn't been loaded
+// for the current question, the auto-create path uses the FULL canonical
+// list — not just the alias-prefixed columns the SQL happened to mention.
+// This stops the "departments lost department_name" class of confusion
+// when a user types `WHERE department_name = 'Engineering'` without
+// having aliased `d.` in front of it.
+const CANONICAL_TABLES = {
+  employees:     ["emp_id", "name", "email", "hire_date", "salary", "dept_id", "manager_id", "job_title"],
+  employee:      ["emp_id", "name", "email", "hire_date", "salary", "dept_id", "manager_id", "job_title"],
+  departments:   ["dept_id", "department_name", "location", "manager_id"],
+  department:    ["dept_id", "department_name", "location", "manager_id"],
+  customers:     ["customer_id", "name", "email", "signup_date", "country", "city"],
+  customer:      ["customer_id", "name", "email", "signup_date", "country", "city"],
+  users:         ["user_id", "name", "email", "signup_date", "country"],
+  user:          ["user_id", "name", "email", "signup_date", "country"],
+  accounts:      ["account_id", "name", "plan", "signup_date", "country"],
+  products:      ["product_id", "name", "category", "price", "sku", "manufacturer"],
+  product:       ["product_id", "name", "category", "price", "sku", "manufacturer"],
+  orders:        ["order_id", "customer_id", "order_date", "status", "amount"],
+  order:         ["order_id", "customer_id", "order_date", "status", "amount"],
+  cities:        ["city_id", "cityname", "country", "state"],
+  stores:        ["store_id", "name", "location", "city", "region"],
+  merchants:     ["merchant_id", "name", "category", "city"],
+  restaurants:   ["restaurant_id", "name", "cuisine", "city"],
+  listings:      ["listing_id", "title", "city", "price", "host_id"],
+  companies:     ["company_id", "name", "industry", "country", "founded_year"],
+  company:       ["company_id", "name", "industry", "country", "founded_year"],
+  suppliers:     ["supplier_id", "name", "country", "city"],
+  invoices:      ["invoice_id", "customer_id", "invoice_date", "amount", "status"],
+  payments:      ["payment_id", "customer_id", "payment_date", "amount", "method", "status"],
+  transactions:  ["transaction_id", "customer_id", "transaction_time", "amount", "txn_type", "status"],
+  projects:      ["project_id", "name", "start_date", "end_date", "status", "manager_id"],
+  tasks:         ["task_id", "project_id", "name", "assignee_id", "status", "due_date"],
+  subscriptions: ["subscription_id", "customer_id", "plan", "start_date", "end_date", "status"],
+  items:         ["item_id", "name", "category", "price"],
+};
+
 /**
  * If the running query references an alias.column for the missing table,
  * create the table on the fly with those columns. Returns true if anything
  * was created (so we can retry).
+ *
+ * Canonical-table rule: if the missing table's name is a known entity
+ * (employees, departments, customers, ...) we ignore the alias-derived
+ * column set and use the locked canonical column list above. That way
+ * `WHERE department_name = 'X'` references in custom SQL — which never
+ * survive alias.col parsing — still resolve to a populated column.
  */
 async function createTableFromSql(missingTable, sql) {
+  const lcTable = String(missingTable).toLowerCase();
+  let cols;
+  if (CANONICAL_TABLES[lcTable]) {
+    // Locked canonical shape — every canonical entity always loads with
+    // the same column set, regardless of what the user's query mentioned.
+    cols = new Set(CANONICAL_TABLES[lcTable]);
+    // Also union in any extra alias.col cols the user referenced, so a
+    // user-introduced column (e.g. employees.notes) still works.
+  } else {
+    cols = new Set();
+  }
   // Find aliases in FROM/JOIN clauses
   const fromRe = /(?:FROM|JOIN)\s+(\w+)(?:\s+(?:AS\s+)?(\w+))?/gi;
   const aliasMap = {};
@@ -769,12 +824,12 @@ async function createTableFromSql(missingTable, sql) {
     if (a) aliasMap[a.toLowerCase()] = t;
   }
   // Collect alias.col tokens that resolve to the missing table
-  const cols = new Set();
   const aliasColRe = /\b(\w+)\.(\w+)\b/g;
   while ((m = aliasColRe.exec(sql)) !== null) {
     if (aliasMap[m[1].toLowerCase()] === missingTable) cols.add(m[2]);
   }
-  // Or columns referenced bare when the only table in FROM is the missing one
+  // Fallback if we still have nothing AND the table isn't canonical:
+  // create a tiny generic table so the query at least binds.
   if (cols.size === 0) {
     cols.add("id");
     cols.add("name");

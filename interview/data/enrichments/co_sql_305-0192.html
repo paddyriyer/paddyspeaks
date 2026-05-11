@@ -124,6 +124,78 @@ ORDER BY d.dept_id;</code></pre>
 </table>
 <p><strong>Two senior-signal moves baked in:</strong> (1) <code>LEFT JOIN</code> from <code>departments</code> guarantees every department appears even with 0 or 1 employee — no silent disappearance; (2) the conditional <code>MAX(CASE WHEN rk = N THEN salary END)</code> pivot avoids two separate queries with a UNION. Note we use <code>DENSE_RANK</code> so that if two people are tied at the top, the "second-highest" still surfaces the next <em>distinct</em> salary (not NULL).</p>
 
+<h5>Probe 1c — <em>"Now ROTATE it: salaries as rows, departments as columns."</em></h5>
+<p>Same data, transposed. The output has two rows ("1st Highest", "2nd Highest") and one column per department. This is what a finance / HR dashboard wants — a tiny compact pivot they can paste into a slide. Two cleanly-equivalent shapes:</p>
+
+<pre><code>-- Shape A: dimension-table JOIN form (normalised data — production grade)
+WITH ranked AS (
+  SELECT d.department_name, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+  JOIN departments d ON d.dept_id = e.dept_id
+)
+SELECT
+  CASE WHEN rk = 1 THEN '1st Highest'
+       WHEN rk = 2 THEN '2nd Highest' END                            AS salary_position,
+  MAX(CASE WHEN department_name = 'Engineering' THEN salary END)     AS engineering,
+  MAX(CASE WHEN department_name = 'Sales'       THEN salary END)     AS sales,
+  MAX(CASE WHEN department_name = 'Marketing'   THEN salary END)     AS marketing,
+  MAX(CASE WHEN department_name = 'HR'          THEN salary END)     AS hr,
+  MAX(CASE WHEN department_name IS NULL         THEN salary END)     AS unmapped_dept
+FROM ranked
+WHERE rk IN (1, 2)
+GROUP BY rk
+ORDER BY rk;
+
+-- Shape B: FILTER clause (PostgreSQL / SQLite / BigQuery — cleaner syntax)
+WITH ranked AS (
+  SELECT d.department_name, e.salary,
+    DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk
+  FROM employees e
+  JOIN departments d ON d.dept_id = e.dept_id
+)
+SELECT
+  CASE WHEN rk = 1 THEN '1st Highest'
+       WHEN rk = 2 THEN '2nd Highest' END                AS salary_position,
+  MAX(salary) FILTER (WHERE department_name = 'Engineering') AS engineering,
+  MAX(salary) FILTER (WHERE department_name = 'Sales')       AS sales,
+  MAX(salary) FILTER (WHERE department_name = 'Marketing')   AS marketing,
+  MAX(salary) FILTER (WHERE department_name = 'HR')          AS hr,
+  MAX(salary) FILTER (WHERE department_name IS NULL)         AS unmapped_dept
+FROM ranked
+WHERE rk IN (1, 2)
+GROUP BY rk
+ORDER BY rk;</code></pre>
+
+<p>Sample output (your dashboard tile):</p>
+<table>
+  <thead><tr><th>salary_position</th><th>engineering</th><th>sales</th><th>marketing</th><th>hr</th><th>unmapped_dept</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1st Highest</strong></td><td>$185,000</td><td>$140,000</td><td>$135,000</td><td>$95,000</td><td>NULL</td></tr>
+    <tr><td><strong>2nd Highest</strong></td><td>$170,000</td><td>$125,000</td><td>$110,000</td><td>$80,000</td><td>NULL</td></tr>
+  </tbody>
+</table>
+
+<p><strong>The how-it-works in three steps:</strong></p>
+<ol>
+  <li><strong>Rank inside each department</strong> — <code>DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC)</code> stamps every employee with their position within their own dept. Ties get the same rank (5 people tied at the top all contribute to "1st Highest").</li>
+  <li><strong>Rotate row values into columns</strong> — SQL can't pivot natively. The trick: one <code>MAX(CASE WHEN dept = 'X' THEN salary END)</code> column per department. <code>MAX</code> ignores NULLs, so each column picks up only the rows whose dept matches.</li>
+  <li><strong>Collapse to two rows</strong> — <code>GROUP BY rk</code> with <code>WHERE rk IN (1, 2)</code> produces one row per rank tier. Result: two rows, N+1 columns (N depts + the unmapped catch-all).</li>
+</ol>
+
+<p><strong>FILTER vs CASE WHEN:</strong> they produce identical results. <code>FILTER (WHERE …)</code> is ANSI-standard and clearer; <code>CASE WHEN … THEN … END</code> works on every engine including MySQL &lt; 8.0 and SQL Server. Use FILTER where supported; the CASE form is the portable fallback.</p>
+
+<h5>Probe 1d — <em>"What about the LAD catch-all column?"</em></h5>
+<p>If a high earner's <code>dept_id</code> is still propagating (late-arriving dimension), the JOIN to <code>departments</code> produces <code>department_name = NULL</code> for them. Without an explicit catch-all column they vanish from every named-department column AND don't appear anywhere — high earners silently dropped from the finance report. The <code>unmapped_dept</code> column above is the defensive pattern: <code>MAX(salary) FILTER (WHERE department_name IS NULL)</code>. Surface them, then the data-quality team can chase the missing mapping. This is the L5 / senior-IC move the interviewer is testing for.</p>
+
+<h5>Probe 1e — <em>"What if you don't know the department names upfront — generate columns dynamically?"</em></h5>
+<p>SQL is static — columns must be known at parse time. Three answers, none of them <em>"just SQL"</em>:</p>
+<ul>
+  <li><strong>PostgreSQL <code>crosstab()</code></strong> (tablefunc extension) — accepts a row-based query and a column-name query; returns a wide result. Requires installing the extension.</li>
+  <li><strong>Snowflake / Databricks <code>PIVOT</code></strong> — native syntax: <code>PIVOT (MAX(salary) FOR department_name IN ('Engineering', 'Sales', ...))</code>. Still requires listing values, but the engine generates the CASE statements.</li>
+  <li><strong>Two queries in the app layer</strong> — query distinct department names first; build the SQL string with each name as a column; run the second query. The pattern most BI tools use under the hood.</li>
+</ul>
+
 <h5>Probe 2 — <em>"Two people are tied for second. Do you want both, or just one?"</em></h5>
 <p>This is the question the user always intends to ask but rarely does — and the SQL answer depends entirely on which ranking function you picked:</p>
 <table>
