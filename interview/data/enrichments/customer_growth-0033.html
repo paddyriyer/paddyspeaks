@@ -1,0 +1,184 @@
+<p>The L5 trap. The prompt: <em>"List each department's highest and second-highest salary as columns — and if a new department appears tomorrow, the query must auto-add a column."</em> The honest answer is that <strong>standard SQL cannot truly do dynamic pivoting</strong>. SQL's relational model fixes the column list at parse time — a "pivot" turns row values into columns, so adding "Legal" tomorrow means the <em>schema</em> of the result changes. No database can do that in a single static query. What we have are three escape hatches.</p>
+
+<p><strong>The senior signal isn't picking the most clever workaround.</strong> It's recognising that a request for dynamic pivot is usually a request to push presentation logic OUT of SQL.</p>
+
+<h4>1. The source data — <code>employees</code></h4>
+<table>
+  <thead><tr><th>name</th><th>salary</th><th>department</th></tr></thead>
+  <tbody>
+    <tr><td>Alex</td><td>$220,000</td><td>Engineering</td></tr>
+    <tr><td>Bailey</td><td>$195,000</td><td>Engineering</td></tr>
+    <tr><td>Casey</td><td>$180,000</td><td>Engineering</td></tr>
+    <tr><td>Drew</td><td>$170,000</td><td>Sales</td></tr>
+    <tr><td>Ellis</td><td>$150,000</td><td>Sales</td></tr>
+    <tr><td>Finn</td><td>$140,000</td><td>Marketing</td></tr>
+    <tr><td>Gray</td><td>$130,000</td><td>Marketing</td></tr>
+    <tr><td>Harper</td><td>$125,000</td><td>HR</td></tr>
+    <tr><td>Indy</td><td>$115,000</td><td>HR</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The three approaches — name all three, pick consciously</h4>
+
+<h5>Approach 1 — Two-step dynamic SQL (works in every DB)</h5>
+<p>A metadata query discovers the distinct values; a host language (or stored procedure) stitches them into a SQL string; then executes it. <strong>MySQL</strong> uses <code>GROUP_CONCAT</code> + <code>PREPARE</code>/<code>EXECUTE</code>:</p>
+<pre><code>SET @cols = NULL;
+SELECT GROUP_CONCAT(DISTINCT
+    CONCAT('MAX(CASE WHEN department = ''', department,
+           ''' THEN salary END) AS `', department, '`')
+) INTO @cols
+FROM employees;
+
+SET @sql = CONCAT('
+  WITH RankedSalaries AS (
+    SELECT department, salary,
+      DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS rnk
+    FROM employees
+  )
+  SELECT CASE WHEN rnk=1 THEN ''1st Highest''
+              WHEN rnk=2 THEN ''2nd Highest'' END AS salary_position,
+         ', @cols, '
+  FROM RankedSalaries
+  WHERE rnk IN (1,2)
+  GROUP BY rnk
+  ORDER BY rnk');
+
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;</code></pre>
+
+<p><strong>PostgreSQL</strong> has the same pattern with <code>string_agg</code> + <code>EXECUTE</code> inside a <code>DO</code> block or function. There's also the <code>tablefunc</code> extension's <code>crosstab()</code> — but it still requires you to declare the output column list, so it's not actually dynamic. You'd wrap it in PL/pgSQL that builds the column types first.</p>
+
+<p><strong>Snowflake</strong> is the cleanest of the lot — it has native dynamic pivot:</p>
+<pre><code>SELECT *
+FROM (SELECT department, salary, rnk FROM RankedSalaries WHERE rnk IN (1,2))
+PIVOT (MAX(salary) FOR department IN (ANY ORDER BY department));</code></pre>
+<p><code>PIVOT … IN (ANY)</code> resolves the column list at execution time. Databricks SQL has the same. <strong>SQL Server</strong> has <code>PIVOT</code> but the <code>IN</code> list must be literal — same dynamic-SQL workaround needed.</p>
+
+<p><strong>The tradeoffs to name in the interview:</strong></p>
+<ul>
+  <li><strong>SQL injection</strong> if <code>department</code> values come from user input. Always quote-escape (PostgreSQL <code>quote_ident</code>), or use an allowlist join against a trusted dim.</li>
+  <li><strong>Schema-of-result changes between runs</strong>, which breaks downstream consumers that expect a stable contract. A BI tool doing <code>SELECT col_engineering FROM ...</code> dies the day Engineering gets renamed.</li>
+  <li><strong>Not portable</strong> — the dynamic-SQL syntax is dialect-specific.</li>
+</ul>
+
+<h5>Approach 2 — Keep it long-format, pivot in the consumer (the pragmatic answer)</h5>
+<p>Often the right answer at scale:</p>
+<pre><code>SELECT department, salary_position, salary
+FROM (
+  SELECT department, salary,
+    DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS rnk
+  FROM employees
+) r
+WHERE rnk IN (1, 2);</code></pre>
+<p>Return long-format, let pandas (<code>df.pivot</code>), Tableau, Looker, or whatever consumes it handle presentation. This is what most production warehouses actually do, because:</p>
+<ul>
+  <li>The result schema stays stable as new departments appear.</li>
+  <li>You avoid dynamic-SQL injection surface entirely.</li>
+  <li>BI tools are <em>built</em> for the row-to-column reshape.</li>
+</ul>
+<p><strong>The interview signal:</strong> you know when not to push work into SQL. Don't be the engineer who insists every problem must be solved in one query.</p>
+
+<h5>Approach 3 — JSON aggregation (semi-structured pivot) · the runnable answer</h5>
+<p>Every modern DB has a JSON object aggregator. The schema stays one column wide; the keys are dynamic. <strong>This is the canonical solution in this question's runnable SQL block — it executes on PGlite.</strong></p>
+<pre><code>WITH RankedSalaries AS (
+  SELECT department, salary,
+    DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS rnk
+  FROM employees
+)
+SELECT
+  CASE WHEN rnk = 1 THEN '1st Highest'
+       WHEN rnk = 2 THEN '2nd Highest' END                  AS salary_position,
+  jsonb_object_agg(department, salary ORDER BY department)  AS by_department
+FROM RankedSalaries
+WHERE rnk IN (1, 2)
+GROUP BY rnk
+ORDER BY rnk;</code></pre>
+
+<p>Result (the actual PGlite output):</p>
+<table>
+  <thead><tr><th>salary_position</th><th>by_department</th></tr></thead>
+  <tbody>
+    <tr><td><strong>1st Highest</strong></td><td><code>{"HR": 125000, "Sales": 170000, "Marketing": 140000, "Engineering": 220000}</code></td></tr>
+    <tr><td><strong>2nd Highest</strong></td><td><code>{"HR": 115000, "Sales": 150000, "Marketing": 130000, "Engineering": 195000}</code></td></tr>
+  </tbody>
+</table>
+
+<p><strong>Per-engine syntax:</strong></p>
+<table>
+  <thead><tr><th>Engine</th><th>Function</th></tr></thead>
+  <tbody>
+    <tr><td>PostgreSQL</td><td><code>jsonb_object_agg(key, value)</code></td></tr>
+    <tr><td>MySQL 8</td><td><code>JSON_OBJECTAGG(key, value)</code></td></tr>
+    <tr><td>Snowflake</td><td><code>OBJECT_AGG(key, value)</code></td></tr>
+    <tr><td>BigQuery</td><td><code>TO_JSON_STRING(ARRAY_AGG(STRUCT(department, salary)))</code> or <code>JSON_OBJECT</code></td></tr>
+    <tr><td>Redshift</td><td><code>OBJECT_TRANSFORM</code> or <code>JSON_OBJECT</code> + array concat</td></tr>
+    <tr><td>Spark / Databricks</td><td><code>map_from_arrays(collect_list(key), collect_list(value))</code></td></tr>
+  </tbody>
+</table>
+
+<p>Add "Legal" tomorrow — it just shows up as a new key. No DDL, no schema break, no rewrite. Downstream code reads <code>by_department -&gt;&gt; 'Engineering'</code> for the columns it cares about. <strong>This is the pattern Netflix-style event pipelines use most often: stable outer schema, evolving inner payload.</strong></p>
+
+<h4>3. How auto-add actually works in production</h4>
+<p>The "new department appears and the pivot updates itself" requirement is almost never solved at query time. It's solved at pipeline time:</p>
+
+<table>
+  <thead><tr><th>Pattern</th><th>How</th><th>When to pick</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Schema-on-read (JSON column)</strong></td><td>Approach 3 above — nothing to update; consumers read keys they care about</td><td>Frequently-evolving dimensions, downstream is code (not BI)</td></tr>
+    <tr><td><strong>Materialised view + scheduled refresh</strong></td><td>A job re-runs the dynamic-SQL generator nightly. View column list evolves. Downstream must be additive-tolerant (<code>SELECT *</code> breaks, <code>SELECT explicit_cols</code> doesn't)</td><td>BI dashboards that need wide format, slow-evolving dimensions</td></tr>
+    <tr><td><strong>dbt + <code>get_column_values</code> macro</strong></td><td>At compile time, dbt queries the source for distinct values and templates them into the model SQL. The model re-compiles on the next run</td><td>The default in Snowflake / BigQuery / Redshift / Databricks shops</td></tr>
+    <tr><td><strong>Event-time enrichment</strong></td><td>When a new dimension value first appears, an upstream Flink job (or DB trigger) writes it to a <code>dim_departments</code> registry; the pivot generator reads from that registry</td><td>Streaming pipelines, decouples discovery from query execution</td></tr>
+  </tbody>
+</table>
+
+<p>The dbt macro pattern, concretely:</p>
+<pre><code>{# macros/get_column_values.sql — runs at dbt compile time #}
+{% set depts = dbt_utils.get_column_values(
+    table=ref('employees'),
+    column='department'
+) %}
+
+select
+  case when rnk = 1 then '1st Highest' when rnk = 2 then '2nd Highest' end as salary_position,
+  {% for dept in depts %}
+  max(case when department = '{{ dept }}' then salary end) as {{ dept | lower }}
+  {%- if not loop.last %},{% endif %}
+  {% endfor %}
+from {{ ref('ranked_salaries') }}
+where rnk in (1, 2)
+group by rnk
+order by rnk;</code></pre>
+<p>Run <code>dbt run</code>; the SQL is re-templated with the current department list. Next run picks up Legal automatically. <strong>The contract:</strong> additive only — adding a column is safe; renaming or removing one is a breaking change downstream consumers must subscribe to.</p>
+
+<h4>4. The interviewer's edge-case probes</h4>
+
+<h5>Probe 1 — <em>"What's wrong with Approach 1 in production?"</em></h5>
+<p>Three things:</p>
+<ol>
+  <li><strong>SQL injection surface.</strong> If <code>department</code> values come from user input or untrusted upstream, dynamic SQL is a pen-test target. Mitigation: <code>quote_ident</code> / parameterised allowlist join.</li>
+  <li><strong>Result schema is unstable.</strong> Every BI tool consuming this needs to subscribe to schema updates. <code>SELECT *</code> in a dashboard breaks the moment a column is renamed.</li>
+  <li><strong>Dialect-specific.</strong> The dynamic-SQL pattern is different on every engine. You write it once for MySQL, again for Postgres, again for SQL Server — and your dbt models can't easily target multiple warehouses.</li>
+</ol>
+
+<h5>Probe 2 — <em>"Is `PIVOT ... IN (ANY)` on Snowflake the silver bullet?"</em></h5>
+<p>It's the cleanest <em>syntax</em>, but the schema-stability problem doesn't go away — the result still has dynamic columns. Snowflake handles the discovery, but your BI dashboard or pandas reader still has to deal with a result whose shape changes between runs. <strong>For downstream code:</strong> use it. <strong>For BI dashboards expecting stable columns:</strong> still need a contract — either explicit column listing or wrap in a JSON aggregator. Don't sell <code>PIVOT … ANY</code> as a complete answer.</p>
+
+<h5>Probe 3 — <em>"What if the consumer is a Tableau dashboard, not code?"</em></h5>
+<p>Then Approach 2 (long-format) is almost always correct. Tableau, Looker, PowerBI all have native pivot/measure-as-column controls. <strong>Push the pivot out of SQL.</strong> The wide-format answer is for code consumers; for BI tools, long-format + tool-side pivot is the convention because the tool gracefully handles new dimension values.</p>
+
+<h5>Probe 4 — <em>"How do you handle the rename case? 'Engineering' is being renamed to 'Platform Engineering' next quarter."</em></h5>
+<p>This is the failure mode that breaks every dynamic-pivot solution at some point. Three guards:</p>
+<ul>
+  <li><strong>Map renames in a dim table</strong>: <code>dim_department(canonical_name, display_name, valid_from, valid_to)</code> with SCD2. Queries join through the canonical_name; display_name is the BI-facing label.</li>
+  <li><strong>Pin the column list to the canonical names</strong>, not display names. <code>engineering</code> stays <code>engineering</code> even when the display label changes.</li>
+  <li><strong>Emit a deprecation event</strong> when a column is going away. Downstream subscribers get N days to migrate.</li>
+</ul>
+
+<h5>Probe 5 — <em>"What about the column-explosion failure mode? What if there are 10,000 departments?"</em></h5>
+<p>The dynamic-pivot path collapses: SQL engines have per-statement column limits (Postgres 1600, BigQuery 10K, Snowflake 4096). At that grain you've outgrown the wide format. JSON aggregation (Approach 3) still works because the "column count" is just the JSON key count inside one column. Or — more honestly — the question is wrong: nobody reads a 10K-column pivot. The interviewer wants you to surface that and re-frame: "at 10K dims I'd return long-format and let the consumer top-K filter."</p>
+
+<h4>5. The L5 close — what the interviewer is actually testing</h4>
+
+<div class="takeaway"><strong>Senior signal — the 60-second answer:</strong>
+<p style="margin-top:10px;">"True dynamic pivot in standard SQL doesn't exist — columns are fixed at parse time. There are three workarounds: <strong>two-step dynamic SQL</strong> (works everywhere but injection-prone and schema-unstable), <strong>long-format + client pivot</strong> (the pragmatic answer for BI), and <strong>JSON aggregation</strong> (the schema-stable answer for code consumers — <code>jsonb_object_agg</code> in Postgres, <code>OBJECT_AGG</code> in Snowflake). I'd reach for <code>PIVOT … ANY</code> only on Snowflake/Databricks, and only when downstream tools tolerate a changing column list. In production the auto-add requirement is solved at <em>pipeline</em> time — dbt's <code>get_column_values</code> macro re-templates the model on each run, or a Flink job writes new dim values to a registry that the pivot generator reads. The failure mode to name explicitly is schema drift breaking BI."</p></div>
+
+<p>That paragraph signals: (1) you understand the relational-model constraint, (2) you know three named workarounds, (3) you've got the dialect detail (Snowflake's <code>ANY</code>, Postgres's <code>jsonb_object_agg</code>), (4) you know production solves this at pipeline time, not query time, (5) you can articulate the failure mode. Senior-IC bar cleared.</p>

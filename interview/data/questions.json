@@ -19711,5 +19711,31 @@
       "aggregation",
       "subquery"
     ]
+  },
+  {
+    "id": "customer_growth-0033",
+    "batch": "customer_growth",
+    "num": 33,
+    "title": "Dynamic Pivot — The Question That Has No Clean Answer (JSON Aggregation + Three Workarounds)",
+    "slug": "dynamic-pivot-json-aggregation-three-workarounds",
+    "company": "Netflix",
+    "type": "SQL / Pivot",
+    "subtopic": "jsonb_object_agg · OBJECT_AGG · PIVOT ANY · long-format · dbt get_column_values · schema-on-read",
+    "difficulty": "Hard",
+    "language": "sql",
+    "schema": "employees(emp_id, name, salary, department)",
+    "scenario": "A Netflix-style L5 trap. The interviewer asks: \"List each department's highest and second-highest salary as columns — and if a new department appears tomorrow, the query must auto-add a column.\" The honest answer is that standard SQL CANNOT truly do dynamic pivoting, because column names must be known at query-parse time. Every \"dynamic pivot\" is one of three workarounds: (1) two-step dynamic SQL string-building, (2) keep the result long-format and pivot in the consumer, (3) JSON-object aggregation with stable outer schema and evolving inner keys. The senior signal is recognising that a request for dynamic pivot is usually a request to push presentation logic OUT of SQL.",
+    "question": "Using employees(emp_id, name, salary, department), produce a 2-row result with the highest and second-highest salary per department. The catch: the department list isn't known upfront — adding 'Legal' tomorrow must NOT require a query rewrite. Use the schema-stable JSON-aggregation approach (jsonb_object_agg in Postgres / JSON_OBJECTAGG in MySQL 8 / OBJECT_AGG in Snowflake): the outer schema stays at 2 columns (salary_position, by_department), and the inner JSON object's keys evolve with the data.\n\nThen in the enrichment compare with the other two approaches (two-step dynamic SQL, long-format + client pivot) and the production patterns (dbt get_column_values, schema-on-read, event-time dim registry).",
+    "solution": "DROP TABLE IF EXISTS employees;\nCREATE TABLE employees (\n    emp_id      INT PRIMARY KEY,\n    name        TEXT NOT NULL,\n    salary      NUMERIC NOT NULL,\n    department  TEXT NOT NULL\n);\nINSERT INTO employees VALUES\n    (1, 'Alex',   220000, 'Engineering'),\n    (2, 'Bailey', 195000, 'Engineering'),\n    (3, 'Casey',  180000, 'Engineering'),\n    (4, 'Drew',   170000, 'Sales'),\n    (5, 'Ellis',  150000, 'Sales'),\n    (6, 'Finn',   140000, 'Marketing'),\n    (7, 'Gray',   130000, 'Marketing'),\n    (8, 'Harper', 125000, 'HR'),\n    (9, 'Indy',   115000, 'HR');\n\n-- ╭───────────────────────────────────────────────────────────────────╮\n-- │  THE JSON-AGGREGATION ANSWER (the only truly schema-stable form)  │\n-- │   Outer columns:  salary_position, by_department                  │\n-- │   Inner keys:     evolve with the data — no DDL when 'Legal'      │\n-- │                   appears tomorrow                                │\n-- │   Portable:       Postgres jsonb_object_agg                       │\n-- │                   Snowflake OBJECT_AGG                            │\n-- │                   MySQL 8 JSON_OBJECTAGG                          │\n-- │                   BigQuery TO_JSON_STRING(ARRAY_AGG(...))         │\n-- ╰───────────────────────────────────────────────────────────────────╯\nWITH RankedSalaries AS (\n    SELECT department, salary,\n        DENSE_RANK() OVER (PARTITION BY department ORDER BY salary DESC) AS rnk\n    FROM employees\n)\nSELECT\n    CASE WHEN rnk = 1 THEN '1st Highest'\n         WHEN rnk = 2 THEN '2nd Highest' END                    AS salary_position,\n    jsonb_object_agg(department, salary ORDER BY department)    AS by_department\nFROM RankedSalaries\nWHERE rnk IN (1, 2)\nGROUP BY rnk\nORDER BY rnk;\n",
+    "source": {
+      "name": "PaddySpeaks · Customer Growth Accounting",
+      "url": ""
+    },
+    "runtime": "postgres",
+    "tags": [
+      "analytical-functions",
+      "aggregation",
+      "subquery"
+    ]
   }
 ]
