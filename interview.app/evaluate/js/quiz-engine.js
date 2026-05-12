@@ -6,7 +6,7 @@
    - localStorage persistence with version-keyed migrations
    ═══════════════════════════════════════════ */
 
-const ENGINE_VERSION = 3;
+const ENGINE_VERSION = 4;
 const STORAGE_PREFIX = "paddyspeaks.skillcheck.";
 const DEFAULT_QUIZ_LENGTH = 20;
 
