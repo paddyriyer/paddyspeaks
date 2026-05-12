@@ -1,0 +1,243 @@
+{
+  "section": "sql",
+  "title": "SQL Skill Check",
+  "tagline": "Joins, aggregation, window functions, CTEs, and query reasoning",
+  "duration_minutes": 25,
+  "passing_score": 70,
+  "questions": [
+    {
+      "id": "sql-001",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "easy",
+      "prompt": "Which JOIN returns only rows that have a match in BOTH tables?",
+      "options": [
+        "LEFT JOIN",
+        "INNER JOIN",
+        "FULL OUTER JOIN",
+        "CROSS JOIN"
+      ],
+      "answer": 1,
+      "explanation": "INNER JOIN keeps only rows where the join predicate matches on both sides. LEFT/RIGHT keep unmatched rows on one side, FULL OUTER keeps unmatched on both, CROSS JOIN is a Cartesian product."
+    },
+    {
+      "id": "sql-002",
+      "type": "single",
+      "topic": "Filtering",
+      "difficulty": "easy",
+      "prompt": "What is the key difference between WHERE and HAVING?",
+      "options": [
+        "WHERE filters rows before grouping; HAVING filters groups after aggregation",
+        "WHERE works on indexed columns; HAVING does not",
+        "HAVING is faster than WHERE",
+        "They are identical — HAVING is just legacy syntax"
+      ],
+      "answer": 0,
+      "explanation": "WHERE is evaluated row-by-row before GROUP BY. HAVING is evaluated against aggregated groups — so you can use SUM(amount) > 1000 in HAVING but not in WHERE."
+    },
+    {
+      "id": "sql-003",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "easy",
+      "prompt": "What is the result of `NULL = NULL` in standard SQL?",
+      "options": [
+        "TRUE",
+        "FALSE",
+        "NULL (unknown)",
+        "Throws an error"
+      ],
+      "answer": 2,
+      "explanation": "NULL means 'unknown', so any comparison with NULL — including NULL = NULL — yields NULL. Use IS NULL / IS NOT NULL for NULL checks."
+    },
+    {
+      "id": "sql-004",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "easy",
+      "prompt": "How does `COUNT(*)` differ from `COUNT(column_name)`?",
+      "options": [
+        "They are identical",
+        "COUNT(*) counts all rows; COUNT(column) skips NULLs in that column",
+        "COUNT(*) is slower because it scans every column",
+        "COUNT(column) counts distinct values"
+      ],
+      "answer": 1,
+      "explanation": "COUNT(*) counts every row in the result set. COUNT(col) counts non-NULL values of that column. Use COUNT(DISTINCT col) for unique non-NULL values."
+    },
+    {
+      "id": "sql-005",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "easy",
+      "prompt": "What is the difference between UNION and UNION ALL?",
+      "options": [
+        "UNION ALL is deprecated",
+        "UNION removes duplicates (and is usually slower); UNION ALL keeps them",
+        "UNION ALL only works with two tables; UNION supports more",
+        "They are equivalent in modern databases"
+      ],
+      "answer": 1,
+      "explanation": "UNION performs a distinct-sort to deduplicate, which can be expensive. UNION ALL concatenates without dedup — prefer it when you know there are no duplicates or duplicates are desired."
+    },
+    {
+      "id": "sql-006",
+      "type": "multi",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Which of the following are valid SQL window functions? (Select all that apply)",
+      "options": [
+        "ROW_NUMBER()",
+        "RANK()",
+        "LEAD()",
+        "COUNT_DISTINCT() OVER (...)",
+        "FIRST_VALUE()",
+        "NTILE()"
+      ],
+      "answer": [0, 1, 2, 4, 5],
+      "explanation": "ROW_NUMBER, RANK, DENSE_RANK, LEAD, LAG, FIRST_VALUE, LAST_VALUE, NTILE are all standard window functions. COUNT(DISTINCT ...) OVER (...) is NOT supported in most engines — use a workaround with DENSE_RANK or array_agg."
+    },
+    {
+      "id": "sql-007",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Given two rows with identical values, what do ROW_NUMBER, RANK, and DENSE_RANK return?",
+      "options": [
+        "All three return the same numbers",
+        "ROW_NUMBER → 1,2 · RANK → 1,1 (next is 3) · DENSE_RANK → 1,1 (next is 2)",
+        "ROW_NUMBER → 1,1 · RANK → 1,2 · DENSE_RANK → 1,2",
+        "All three return 1,1 with no gaps"
+      ],
+      "answer": 1,
+      "explanation": "ROW_NUMBER is always unique. RANK assigns the same rank to ties and skips (1,1,3). DENSE_RANK assigns the same rank to ties without skipping (1,1,2)."
+    },
+    {
+      "id": "sql-008",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "medium",
+      "prompt": "Which statement about CTEs (WITH clauses) is most accurate?",
+      "options": [
+        "A CTE is always materialized to disk",
+        "A CTE creates a named subquery scoped to the statement; recursion is also supported via WITH RECURSIVE",
+        "CTEs cannot reference other CTEs in the same WITH clause",
+        "CTEs are faster than subqueries because they cache results"
+      ],
+      "answer": 1,
+      "explanation": "A CTE is a named subquery whose scope is the enclosing statement. Engines may inline or materialize it. CTEs can chain (later CTEs can reference earlier ones) and recurse via WITH RECURSIVE for hierarchies."
+    },
+    {
+      "id": "sql-009",
+      "type": "multi",
+      "topic": "Performance",
+      "difficulty": "medium",
+      "prompt": "Which of the following can help speed up a slow analytical query? (Select all that apply)",
+      "options": [
+        "Adding an index on the column used in WHERE / JOIN",
+        "Replacing SELECT * with only needed columns on a wide table",
+        "Partition pruning by adding a date filter on a partitioned column",
+        "Running ANALYZE / UPDATE STATISTICS so the planner has fresh stats",
+        "Wrapping the indexed column in a function (e.g. `LOWER(col) = 'x'`)",
+        "Switching INNER JOIN to LEFT JOIN to skip the match check"
+      ],
+      "answer": [0, 1, 2, 3],
+      "explanation": "Indexes, projection pruning, partition pruning, and fresh stats all help. Wrapping a column in a function defeats the index. LEFT JOIN does MORE work than INNER (returns extra rows), not less."
+    },
+    {
+      "id": "sql-010",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "When is a LEFT JOIN logically equivalent to an INNER JOIN?",
+      "options": [
+        "Never",
+        "When the right-side table has a NOT NULL constraint on the join key",
+        "When every row in the left table has at least one match on the right",
+        "When you use USING() instead of ON"
+      ],
+      "answer": 2,
+      "explanation": "If every left-side row matches, no NULLs are introduced and the result is identical to INNER JOIN. This is also the motivation for the 'LEFT JOIN smell test' — if no NULLs appear, ask whether INNER would have been clearer."
+    },
+    {
+      "id": "sql-011",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Write a query to return the SECOND highest salary per department. Schema: `employee(id, name, dept_id, salary)`. Return columns: `dept_id, second_highest_salary`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "model_answer": "WITH ranked AS (\n  SELECT\n    dept_id,\n    salary,\n    DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk\n  FROM employee\n)\nSELECT dept_id, salary AS second_highest_salary\nFROM ranked\nWHERE rk = 2;",
+      "key_points": [
+        "Uses DENSE_RANK or ROW_NUMBER (DENSE_RANK handles ties correctly)",
+        "PARTITION BY dept_id so ranking resets per department",
+        "ORDER BY salary DESC",
+        "Filters rk = 2 in the outer query (you cannot filter window functions in WHERE)"
+      ]
+    },
+    {
+      "id": "sql-012",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "easy",
+      "prompt": "Schema: `orders(order_id, customer_id, order_date, amount)`. Write a query returning customers who placed MORE than 3 orders in 2025. Columns: `customer_id, order_count`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "model_answer": "SELECT customer_id, COUNT(*) AS order_count\nFROM orders\nWHERE order_date >= '2025-01-01' AND order_date < '2026-01-01'\nGROUP BY customer_id\nHAVING COUNT(*) > 3;",
+      "key_points": [
+        "Filters the year in WHERE (sargable date range, not YEAR(order_date) which defeats indexes)",
+        "GROUP BY customer_id",
+        "HAVING COUNT(*) > 3 — must be HAVING, not WHERE, since it filters an aggregate"
+      ]
+    },
+    {
+      "id": "sql-013",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Schema: `login(user_id, login_date)`. Find users who logged in on AT LEAST 3 consecutive calendar days at any point. Return distinct `user_id`s.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "model_answer": "WITH grouped AS (\n  SELECT\n    user_id,\n    login_date,\n    DATE_SUB(login_date,\n      INTERVAL ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date) DAY\n    ) AS streak_key\n  FROM (SELECT DISTINCT user_id, login_date FROM login) d\n)\nSELECT DISTINCT user_id\nFROM grouped\nGROUP BY user_id, streak_key\nHAVING COUNT(*) >= 3;",
+      "key_points": [
+        "Classic 'gaps and islands' pattern",
+        "Subtract ROW_NUMBER() (ordered by date per user) from the date — consecutive dates collapse to the same value",
+        "GROUP BY the streak key and HAVING COUNT(*) >= 3",
+        "Distinct logins per user first to avoid double-counting same-day events"
+      ]
+    },
+    {
+      "id": "sql-014",
+      "type": "multi",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Which of the following can produce a Cartesian product (row explosion)? (Select all that apply)",
+      "options": [
+        "CROSS JOIN with no WHERE filter",
+        "INNER JOIN where the ON condition is always TRUE (e.g. ON 1=1)",
+        "A JOIN where one side has duplicate join keys",
+        "INNER JOIN with a valid one-to-one ON condition",
+        "Missing the ON clause entirely in some SQL dialects"
+      ],
+      "answer": [0, 1, 2, 4],
+      "explanation": "CROSS JOIN, always-true predicates, and dialects that allow JOIN without ON all yield Cartesian products. Even an INNER JOIN explodes when join keys aren't unique — a many-to-many join multiplies row counts. A true one-to-one INNER JOIN does NOT explode."
+    },
+    {
+      "id": "sql-015",
+      "type": "open",
+      "topic": "Debugging",
+      "difficulty": "hard",
+      "prompt": "A previously-fast query is now taking 10x longer in production. Walk through your debugging methodology in 4-6 steps.",
+      "model_answer": "1. Reproduce — confirm the regression with EXPLAIN ANALYZE on a representative dataset. Compare to a baseline plan if available.\n2. Check data volume — has the underlying table grown, skewed, or had its distribution change? `SELECT COUNT(*), MIN/MAX(partition_col)` to spot data drift.\n3. Read the plan — look for full table scans where an index used to be used, hash joins becoming nested loops (or vice versa), spills to disk, or bad row estimates (estimated vs actual rows).\n4. Stats freshness — run ANALYZE / UPDATE STATISTICS. Stale stats cause bad plans.\n5. Recent changes — did indexes get dropped? Was the query rewritten? Did a column type change? Did partitions get added/removed?\n6. Resource contention — check if there's lock contention, concurrent heavy jobs, or a noisy neighbor (queue depth, CPU/IO saturation).\n\nFix at the lowest level that resolves it: refresh stats → rewrite the query → add/restore an index → repartition.",
+      "key_points": [
+        "Uses EXPLAIN / EXPLAIN ANALYZE to read the actual plan",
+        "Compares estimated vs actual rows to detect bad stats",
+        "Checks data growth / skew / distribution changes",
+        "Considers stale statistics as a top cause",
+        "Considers recent schema or query changes",
+        "Considers concurrency / resource contention",
+        "Picks the lowest-impact fix"
+      ]
+    }
+  ]
+}
