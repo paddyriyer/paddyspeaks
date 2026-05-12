@@ -1,0 +1,131 @@
+<p>The ETL function nobody writes for fun but everyone ships eventually. Datadog's signup pipeline ingests millions of trial-signup rows a year from a marketing landing page; that page is the dirtiest data source in the company because real humans type emails with leading spaces, phone numbers with parentheses and dashes, and "two thousand" in the amount field. <strong>Garbage in, garbage in the warehouse, garbage in the segmentation model</strong> — and the marketing director's quarterly cohort report has to be defensible to the board. This pipeline is where dirty becomes clean.</p>
+
+<h4>1. The data — what "raw" actually looks like</h4>
+<p>Typical landing-page CSV — every column has a failure mode:</p>
+<table>
+  <thead><tr><th>field</th><th>realistic mess</th><th>cleaning rule</th></tr></thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>null on bots that hit the form endpoint without a session cookie</td><td><strong>drop row</strong> — no identity = no record</td></tr>
+    <tr><td><code>email</code></td><td><code>" Alice@Example.com "</code>, <code>"CAROL@GMAIL.COM"</code></td><td>lowercase + strip — emails are case-insensitive per RFC 5321</td></tr>
+    <tr><td><code>phone</code></td><td><code>"(415) 555-1234"</code>, <code>"415.555.5678"</code>, <code>"+1-415-555-2222"</code></td><td>strip non-digits — keep raw for SMS deliverability</td></tr>
+    <tr><td><code>amount</code></td><td><code>"not-a-num"</code>, <code>"49.99"</code>, <code>"$150"</code></td><td>coerce to float, fill failures with 0</td></tr>
+    <tr><td><code>signup_date</code></td><td><code>"2024-01-15"</code>, <code>"not-a-date"</code>, <code>"Jan 15, 2024"</code></td><td>parse, leave failures as NaT then drop</td></tr>
+  </tbody>
+</table>
+<p>The status filter at the end (<code>dropna(subset=['signup_date', 'email_domain'])</code>) is a <strong>quarantine pattern</strong>: rows that failed to enrich go in a side table, not silently into the report. Production at Datadog routes the bad rows to a <code>signups_quarantine</code> table that the DQ team reviews weekly.</p>
+
+<h4>2. The business question — what the consumer of clean data decides on</h4>
+<ul>
+  <li><strong>Email-domain segmentation.</strong> <code>email_domain</code> tells marketing whether the signup is from a corporate account (<code>datadog.com</code> = internal test, drop; <code>shopify.com</code> = enterprise lead; <code>gmail.com</code> = consumer trial). The whole sales playbook bifurcates here.</li>
+  <li><strong>Tier bucketing for activation.</strong> The high-tier signups (amount &gt; $1000) trigger an SDR (sales-development-rep) follow-up within 2 hours. The low-tier signups get a self-serve onboarding email. Misclassifying a $2400 enterprise lead as "low" because the amount field had <code>"not a num"</code> means a missed deal.</li>
+  <li><strong>Cohort analytics.</strong> <code>signup_year</code> is the keystone of every retention curve. If 2023 has 30 % more drop-outs than 2022 at day 30, that's a product-fit alarm — but only if the year extraction worked on every row.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def etl_pipeline(raw):
+    df = raw.copy()
+
+    # ── CLEAN — eliminate or normalise garbage.
+    # Drop rows that fail the existence check. id is the immutable
+    # entity key; without it the row can't be joined to anything
+    # else in the warehouse.
+    df = df.dropna(subset=['id'])
+
+    # Emails: lowercase + strip whitespace. RFC 5321: the local-part
+    # is technically case-sensitive but no major mail provider treats
+    # it that way; the canonical form is lowercase for de-dup.
+    df['email'] = df['email'].str.lower().str.strip()
+
+    # Phones: strip every non-digit char. Keep the digits-only form
+    # so downstream SMS sends pass via Twilio without rejecting
+    # parens / dashes. The regex pattern \D matches "not a digit".
+    # .astype(str) coerces any numeric/null up-front so the regex
+    # doesn't crash on a NaN value.
+    df['phone'] = df['phone'].astype(str).str.replace(r'\D', '', regex=True)
+
+    # Amount: coerce with errors='coerce' → bad values become NaN,
+    # then fillna(0). The 0-fill is a policy decision: missing amount
+    # means "free tier" in Datadog's data model. If the dataset's
+    # semantics treat missing as truly unknown, prefer dropna instead.
+    df['amount'] = pd.to_numeric(df['amount'], errors='coerce').fillna(0)
+
+    # Dates: errors='coerce' → bad values become NaT. We don't fill
+    # because a fake "today's date" would silently corrupt the cohort
+    # analysis. Bad dates ride through, get dropped at the end.
+    df['signup_date'] = pd.to_datetime(df['signup_date'], errors='coerce')
+
+    # ── ENRICH — derive analytical columns.
+    df['signup_year']  = df['signup_date'].dt.year
+    df['email_domain'] = df['email'].str.split('@').str[-1]
+
+    # pd.cut creates a categorical with labelled bins. The bin
+    # boundaries (-1, 100, 1000, ∞) cover negative values too, in
+    # case a refund slips through. labels= names the bins; the
+    # default would be 'left-right interval' strings (unreadable).
+    df['tier'] = pd.cut(df['amount'], bins=[-1, 100, 1000, float('inf')],
+                        labels=['low', 'mid', 'high'])
+
+    # ── QUARANTINE — drop rows where mandatory enrichment failed.
+    # Bad date = no cohort year. Bad email = no domain. These rows
+    # are unusable for downstream segmentation.
+    df = df.dropna(subset=['signup_date', 'email_domain'])
+    return df</code></pre>
+
+<p><strong>Why <code>errors='coerce'</code> and not <code>errors='raise'</code>?</strong> The whole point of an ETL is to survive bad data. <code>raise</code> would halt the pipeline on the first <code>"not-a-num"</code>, requiring manual intervention. <code>coerce</code> turns the bad value into NaN/NaT, which the rest of the pipeline handles uniformly. The <em>quarantine</em> step (the final <code>dropna</code>) is where the bad rows leave the dataset; production routes them to a side table for DQ review rather than dropping silently.</p>
+
+<p><strong>Why <code>pd.cut</code> and not <code>np.select</code> or nested <code>np.where</code>?</strong> <code>pd.cut</code> returns a <em>Categorical</em>, which is memory-efficient (one int per row + a label dictionary) and orderable. <code>np.where</code> returns plain strings, blowing memory on 100 M rows. <code>pd.cut</code> also handles the bin-boundary semantics explicitly (closed-on-the-right by default) so you can defend "exactly $100" deterministically.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>id</th><th>email</th><th>phone</th><th>amount</th><th>tier</th><th>email_domain</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>alice@example.com</td><td>4155551234</td><td>49.99</td><td>low</td><td>example.com</td><td>Clean signup, low-tier — self-serve email path.</td></tr>
+    <tr><td>2</td><td>bob@datadog.com</td><td>4155555678</td><td>150.00</td><td>mid</td><td>datadog.com</td><td><strong>Internal employee test signup</strong> — should be filtered at the next stage (corporate-domain allowlist).</td></tr>
+    <tr><td>3</td><td>carol@gmail.com</td><td>4155559999</td><td>2400.00</td><td>high</td><td>gmail.com</td><td>$2400 amount on a gmail.com is suspicious — possibly a fraud signal or a real consumer enterprise plan; SDR triages.</td></tr>
+    <tr><td>4</td><td>dan@gmail.com</td><td>14155552222</td><td>0.00</td><td>low</td><td>gmail.com</td><td>Amount was "not-a-num" → coerced to 0 → tier=low. <em>This is a policy call</em>: a senior engineer flags it as data-quality, not a real signup.</td></tr>
+    <tr><td>6</td><td>frank@gmail.com</td><td>4155554444</td><td>850.00</td><td>mid</td><td>gmail.com</td><td>Mid-tier, gmail-personal — borderline interesting; the marketing team's main remarket cohort.</td></tr>
+  </tbody>
+</table>
+<p>Dropped rows: id=null (the bot signup) and the row with <code>signup_date="not-a-date"</code>. The DQ dashboard should show <strong>2 of 7 rows dropped (29 %)</strong> — anything above 10 % in production triggers an investigation.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 1 GB before OOM.</strong> Datadog's signup volume (~3 M/year) fits comfortably; the production version writes to BigQuery via a Cloud Run job that processes a daily Parquet partition. The function is identical — just wrapped in <code>read_parquet → etl_pipeline → to_parquet</code>.</li>
+  <li><strong>Idempotency.</strong> The pipeline must be re-runnable on the same input and produce identical output. The function above is idempotent because every step is deterministic. The <em>only</em> non-deterministic risk is the source CSV itself — Datadog uses content-hash deduplication on the input file path to ensure the same file isn't processed twice.</li>
+  <li><strong>Schema evolution.</strong> When marketing adds a new column (say <code>utm_source</code>), the pipeline must not break. Defence: read with explicit dtypes, fall back to <code>object</code> for unknown columns, and log a warning. dbt's <code>on_schema_change='append_new_columns'</code> is the same pattern at the warehouse layer.</li>
+  <li><strong>Hot batch sizes.</strong> If a single CSV is 5 GB (one viral marketing campaign), the function needs chunked reading: <code>pd.read_csv(path, chunksize=100_000)</code> and an apply-per-chunk loop. Or move to Polars (lazy, columnar, multi-core) for the same algorithm at 10× speed.</li>
+  <li><strong>Stripe Atlas, Segment, mParticle</strong> all expose this exact "clean + enrich + bucket" shape as a managed service. The pandas version is what you write before you've outgrown the team's appetite for a managed CDP — and what you write to <em>understand</em> what the CDP is doing for you.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "Amount = 'not-a-num' → 0. Is that correct?"</h5>
+<p>It's a policy choice, not a universally correct one. Three options: (a) coerce to 0 = "free tier" assumption (what we did, OK for trial signups); (b) coerce to NaN, drop the row (strict — kills the lead entirely); (c) coerce to NaN, route to quarantine for manual review (most defensible). Pick (c) for production. The candidate who says "depends on how the consumer uses the data" is showing senior judgement.</p>
+
+<h5>Probe 2 — "International phone numbers — <code>+44 20 7946 0958</code> becomes <code>442079460958</code>. Is that right?"</h5>
+<p>Right for digit-only canonicalisation. Wrong if downstream code assumes US 10-digit phones. The senior fix: keep both columns — <code>phone_raw</code> for display and <code>phone_e164</code> formatted to <strong>E.164</strong> (the international ITU standard: <code>+CCXXXXXXXXX</code>). Libraries like <code>phonenumbers</code> do this properly with country-code inference. Stripping non-digits is the cheap-and-cheerful version; production wants E.164.</p>
+
+<h5>Probe 3 — "What's wrong with <code>.apply()</code> for the cleaning steps?"</h5>
+<p>Standard answer: row-by-row Python is slow. The pipeline uses vectorised string methods (<code>.str.lower</code>, <code>.str.replace</code>) which run in C. A naive <code>df['email'].apply(lambda x: x.lower().strip())</code> would be 20-50× slower on a 10 M-row signup table. The senior candidate names <code>.str</code> accessor methods explicitly as the vectorised path.</p>
+
+<h5>Probe 4 — "Email validation — your function lowercases but doesn't validate. What if email is 'not_an_email'?"</h5>
+<p>Out of scope for cleaning; in scope for downstream validation. A common production pattern: cleaning is <em>format-normalisation</em>, validation is a <em>separate</em> step (often a regex match against RFC 5322 simplified, or a deliverability check via SendGrid). Mixing them tends to under-clean (skip the lower() because validation will run anyway) or over-validate (regex in the ETL chokes on weird-but-valid emails). Keep them separate; the cleaning function above is correct as a single-responsibility unit.</p>
+
+<h5>Probe 5 — "Datadog tier boundaries — $100 and $1000. Where do they come from?"</h5>
+<p>Empirically. Look at the historical distribution of signup amounts; the bin boundaries are where the cohort behaviour bifurcates. If $1001 customers convert at the same rate as $999 customers, the boundary is in the wrong place. <strong>Re-tune quarterly</strong> from the cohort analysis. Hard-coded thresholds without a re-tune schedule are a tech-debt smell.</p>
+
+<h5>Probe 6 — "How would you incrementalise this for daily delta loads?"</h5>
+<p>Process today's partition, append to the cleaned table. Idempotency is paramount: if today's partition is re-processed (e.g. due to a backfill), the previous day's rows must be replaced, not duplicated. The dbt pattern: <code>{{ config(materialized='incremental', unique_key='id') }}</code> — same algorithm, warehouse-native execution, MERGE-based upsert.</p>
+
+<h5>Probe 7 — "How would you observe DQ in production?"</h5>
+<p>Four metrics, emitted as Datadog gauges: (1) <code>etl.rows_in</code> — input size, expected to grow steadily; (2) <code>etl.rows_dropped</code> — drop rate, alert at &gt; 10 %; (3) <code>etl.tier_distribution{tier=high}</code> — proportion of high-tier signups, alert on drift; (4) <code>etl.bad_amount_rate</code> — fraction of <code>"not-a-num"</code> coercions, alert if the landing page form broke and started sending strings.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0100">python_175-0100</a> — multi-source concat &amp; dedup (upstream of this enrichment step).</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0104">python_175-0104</a> — time-series aggregation: the next pipeline stage that this cleaned data feeds.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0019">customer_growth-0019</a> — intent scoring: a downstream consumer of clean signup + clickstream data.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — when one corporate domain dominates the signup volume.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Three pillars of a production ETL: (1) <em>fail-soft on dirty data</em> — <code>errors='coerce'</code> + a deliberate quarantine policy beats <code>errors='raise'</code> in every production scenario; (2) <em>single-responsibility steps</em> — cleaning is normalisation, validation is separate, enrichment is derivation, each step is independently testable; (3) <em>policy decisions are explicit</em> — "missing amount = $0 = free tier" is a documented policy, not a side-effect of fillna. The pandas version is the team's first cut; production replaces <code>pd.read_csv</code> with a chunked Cloud Run job and pushes to BigQuery via dbt.</div>

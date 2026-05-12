@@ -1,0 +1,86 @@
+<p>Hierholzer's algorithm for an Eulerian path. The same shape as DNA fragment assembly (Illumina's de Bruijn graph reconstruction), chip routing through net junctions (Cadence), garbage-collection epoch traversal of root-set edges, and any "use every edge exactly once" workflow. The trap most candidates fall into is greedy lex-DFS: at JFK they go to the lex-smallest neighbour, dead-end, and have no way to back out. Hierholzer's insight is that you must go <em>past</em> the dead end first — descend until you have no edges left to use, append the dead-end node, then unwind. The post-order append, reversed at the end, gives the path. Visa asks this version because their payment-routing graph traversal — visiting every link in a card-issuer-to-acquirer network exactly once during reconciliation — is structurally identical.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Given a list of one-way airline tickets, reconstruct an itinerary that starts at JFK and uses every ticket exactly once. If multiple valid itineraries exist, return the lexicographically smallest. <strong>Insight:</strong> this is finding an Eulerian path in a directed multigraph. Hierholzer's algorithm: from the start node, DFS greedily (using a min-heap to break ties lex-smallest), but only append a node to the route AFTER all its outgoing edges have been consumed. Reverse the post-order list at the end. The greedy walk may dead-end at the wrong node, but the post-order append "undoes" that — the dead-end node becomes the LAST element of the final reversed route.</p>
+
+<h4>2. Worked example — the classic LC trap case</h4>
+<p>Tickets: <code>[[JFK,SFO], [JFK,ATL], [SFO,ATL], [ATL,JFK], [ATL,SFO]]</code>. The greedy "always take lex-smallest first" produces <code>JFK → ATL → JFK → SFO → ATL → SFO</code>. Trace Hierholzer's:</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Adjacency (min-heap per source, all sorted lex):
+  JFK: [ATL, SFO]
+  ATL: [JFK, SFO]
+  SFO: [ATL]
+
+route = []
+dfs(JFK):
+  pop ATL from JFK.heap   -> JFK: [SFO]
+  dfs(ATL):
+    pop JFK from ATL.heap -> ATL: [SFO]
+    dfs(JFK):
+      pop SFO from JFK.heap -> JFK: []
+      dfs(SFO):
+        pop ATL from SFO.heap -> SFO: []
+        dfs(ATL):
+          pop SFO from ATL.heap -> ATL: []
+          dfs(SFO):
+            no edges; route.append(SFO)         route=[SFO]
+          route.append(ATL)                     route=[SFO, ATL]
+        route.append(SFO)                       route=[SFO, ATL, SFO]
+      route.append(JFK)                         route=[SFO, ATL, SFO, JFK]
+    route.append(ATL)                           route=[SFO, ATL, SFO, JFK, ATL]
+  route.append(JFK)                             route=[SFO, ATL, SFO, JFK, ATL, JFK]
+
+return route reversed:  [JFK, ATL, JFK, SFO, ATL, SFO]
+</pre>
+<p>The critical moment is when we're at JFK with one ticket left (JFK→SFO) and ATL still has tickets out. Naive greedy would have gone JFK→ATL first and then dead-ended at SFO with ATL's tickets stranded. Hierholzer's instead recurses into the dead-end branch first, appends, then unwinds — so the dead-end winds up at the END of the route, where it belongs.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>from collections import defaultdict
+import heapq
+
+def findItinerary(tickets):
+    # Adjacency: source -> min-heap of destinations. Min-heap gives O(log d) pop
+    # of the lex-smallest unused edge.
+    g = defaultdict(list)
+    for a, b in sorted(tickets): heapq.heappush(g[a], b)
+
+    route = []  # POST-ORDER append list. Reverse at the end.
+    def dfs(u):
+        # Consume edges greedily, ALWAYS lex-smallest first.
+        while g[u]: dfs(heapq.heappop(g[u]))
+        # Only after no outgoing edges remain do we record this node.
+        route.append(u)
+
+    dfs('JFK')
+    return route[::-1]
+</code></pre>
+<p><strong>Data structures:</strong> <code>defaultdict(list)</code> mapping source → min-heap (via <code>heapq</code>), and a single post-order <code>route</code> list. <strong>Invariant:</strong> when <code>dfs(u)</code> returns, every outgoing edge from u (and transitively every reachable edge) has been consumed. The post-order property guarantees that when reversed, the route uses each ticket exactly once.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(E log E) — each of the E tickets is heappushed and heappopped once. <strong>Space:</strong> O(V + E) for the graph + O(V) recursion depth. The <code>sorted(tickets)</code> + per-source heap construction is itself O(E log E); a small optimisation is to skip the initial sort and let the heap order things, but the constant is the same.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Degenerate input: a single ticket.</strong> <code>[[JFK, A]]</code>. dfs(JFK) pops A, dfs(A) finds empty heap, appends A; back in dfs(JFK), appends JFK. Reverse: [JFK, A]. The base case is just "no outgoing edges → append".</p>
+<p><strong>Probe 2 — Cycle back to JFK.</strong> <code>[[JFK,A],[A,JFK],[JFK,B]]</code>. The algorithm goes JFK→A→JFK→B, which is correct: each edge consumed exactly once, B is the dead end and appears last. This is the case where "lex-smallest greedy" works coincidentally; the post-order is what makes the harder cases correct.</p>
+<p><strong>Probe 3 — Generalisation: what if multiple JFK→ X tickets exist?</strong> The min-heap handles duplicates naturally — two JFK→A tickets mean A is popped twice from JFK's heap. The graph is a multigraph; the heap just stores destinations with repetition.</p>
+<p><strong>Probe 4 — What if no Eulerian path exists?</strong> The problem statement guarantees one does, but the algorithm doesn't detect it. To check: Eulerian path exists iff (a) the graph is connected (restricted to nodes with edges) and (b) exactly zero or two nodes have <code>in_degree ≠ out_degree</code>. Naming this check is a senior detail.</p>
+<p><strong>Probe 5 — Performance trap: recursion depth.</strong> For 10,000 tickets in a single long chain, recursion depth = 10,000, which overflows Python's default limit (1000). Either <code>sys.setrecursionlimit(20000)</code> or convert to an iterative explicit-stack DFS. The iterative version is the textbook Hierholzer.</p>
+<p><strong>Probe 6 — Alternative algorithm: Fleury's algorithm.</strong> Fleury picks edges one-at-a-time, never crossing a "bridge" until forced. O(E²) due to per-step bridge detection. Strictly worse than Hierholzer for this problem, but the comparison shows you know the literature.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>DNA fragment assembly (Illumina sequencers, SPAdes)</strong> — a de Bruijn graph's Eulerian path reconstructs the original genome from k-mer fragments. The dead-end-first walk is identical; the substrate is genomic k-mers instead of airport codes.</li>
+  <li><strong>Chip routing (Cadence Allegro, KiCad's freerouter)</strong> — a router must traverse every net exactly once during a continuity check; Hierholzer's algorithm validates routability.</li>
+  <li><strong>Postal / delivery route planning (Chinese Postman variant)</strong> — visit every street exactly once, return to depot. Pure Eulerian for connected even-degree graphs; Hierholzer is the algorithm.</li>
+  <li><strong>De Bruijn sequence generation (cryptographic key schedules, magnetic-stripe brute force)</strong> — the shortest string containing every length-k sequence exactly once is a Eulerian path on a (k-1)-mer graph; Hierholzer constructs it.</li>
+  <li><strong>Payment network reconciliation (Visa, Mastercard, SWIFT)</strong> — visiting every issuer-to-acquirer link in a daily settlement graph exactly once for audit trail construction; same algorithm, multi-billion-dollar substrate.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0163">python_175-0163 — Alien Dictionary</a> (sibling: topological sort / graph traversal)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0162">python_175-0162 — Swim in Rising Water</a> (sibling: Dijkstra-style heap on a graph)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Graph data modeling</a> — the Eulerian-vs-Hamiltonian distinction matters at the design layer too.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the algorithm out loud — <em>"Hierholzer's algorithm for Eulerian path, with a min-heap per source for lex order."</em> Then explain the post-order trick: dead-end nodes get appended <em>first</em>, so when you reverse the list, they fall at the end where they belong. The naive greedy DFS fails on the canonical LC test case; getting that distinction right is the senior-vs-junior signal. Production analogue: DNA fragment assembly (de Bruijn graphs), chip routing, payment-network reconciliation — every "use every edge exactly once" workflow is a Hierholzer walk.</div>

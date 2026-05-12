@@ -1,0 +1,102 @@
+<p>Largest Rectangle in Histogram is in the L5 canon because it's the monotonic-stack masterclass — three valid solutions (O(n²) brute force, O(n log n) divide-and-conquer, O(n) stack), and only the stack one survives at scale. The reason it appears in <em>so</em> many interviews is the follow-up: the same primitive solves <strong>Maximal Rectangle in a 0/1 Matrix</strong> (LeetCode 85), which runs inside every OCR-table-extraction pipeline (Google Document AI, AWS Textract, Adobe Acrobat's auto-recognise-tables) and every cluster job-packing scheduler that needs to find the biggest contiguous rectangular block of free resources. Vercel uses it inside their serverless cold-start packer to find the largest contiguous block of warm-pool capacity that can host a new isolate.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given an array of non-negative integers representing histogram bar heights (each of unit width), find the area of the largest axis-aligned rectangle that fits entirely inside the histogram. The naive brute force — for each bar, expand left and right while bars are ≥ current height — is O(n²); for n up to 10⁵ it doesn't fit in the time budget. The constraint that rules it out is O(n) amortised. The trick is a monotonic-increasing stack of (start_index, height) pairs: when a shorter bar arrives, all taller bars on the stack get their right boundary fixed at the current index, and the shorter bar "inherits" the leftmost extension of the bars it just popped.</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>bars = <code>[2, 1, 5, 6, 2, 3]</code>. Expected answer: 10 (rectangle of height 5, width 2, over indices 2 and 3).</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+       6 #
+       5 ##
+       4 ##
+       3 ##         #
+       2 ## #     # #
+       1 #####   ###
+         01234   012345
+
+bar heights : 2  1  5  6  2  3
+indices     : 0  1  2  3  4  5
+
+i  bar  before stack            action                              best
+─────────────────────────────────────────────────────────────────────────
+0   2   []                      push (0, 2)                          0
+1   1   [(0,2)]                 pop (0,2): area = 2 * (1-0) = 2      2
+                                push (0, 1) [start inherited]        2
+2   5   [(0,1)]                 push (2, 5) [5 &gt; 1, no pop]          2
+3   6   [(0,1),(2,5)]           push (3, 6) [6 &gt; 5, no pop]          2
+4   2   [(0,1),(2,5),(3,6)]     pop (3,6): area = 6 * (4-3) = 6      6
+                                pop (2,5): area = 5 * (4-2) = 10    10
+                                push (2, 2) [start inherited]       10
+5   3   [(0,1),(2,2)]           push (5, 3)                         10
+─── end of array; drain stack with n=6 as the right edge ───────
+        [(0,1),(2,2),(5,3)]     finalise (5,3): 3 * (6-5) = 3       10
+                                finalise (2,2): 2 * (6-2) = 8       10
+                                finalise (0,1): 1 * (6-0) = 6       10
+
+answer: 10  (rectangle 5×2 spanning indices 2,3)
+</pre>
+<p>The crucial moment is i=4 popping (2,5). When 2 arrives, both 5 and 6 are taller and get evicted — but the start_index of the popped 5 is 2 (it had been on the stack since i=2), and the rectangle stretches from 2 (inclusive) to 4 (exclusive) for a width of 2 and area of 10. The newly-pushed bar (the shorter 2) inherits start=2 because it could have extended left as far as the popped 5 could have. This <strong>start-inheritance</strong> is what lets us account for rectangles whose left boundary is earlier than the bar that started them.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>def largestRectangleArea(h):
+    """Monotonic-increasing stack of (start_index, height). Each bar is
+       pushed and popped at most once, so total work is O(n)."""
+    st, best = [], 0
+    for i, x in enumerate(h):
+        start = i                              # default: this bar starts here
+        # Step 1: pop every taller (or equal-tall) bar -- their right
+        # boundary is fixed at i (the new bar is the first thing shorter).
+        while st and st[-1][1] &gt; x:
+            j, y = st.pop()
+            best = max(best, y * (i - j))      # area of the popped rect
+            start = j                          # the new bar can extend back to here
+        st.append((start, x))                  # carry-over: start may predate i
+    # Step 2: drain the stack -- anything still on it can extend to the right edge.
+    n = len(h)
+    for j, y in st:
+        best = max(best, y * (n - j))
+    return best
+</code></pre>
+<p>The (start_index, height) variant is the cleanest formulation. The alternative — push only indices and compute width as <code>i - stack[-1] - 1</code> after popping — is what most LeetCode solutions show, but the start-inheritance version is easier to reason about under interview pressure and easier to extend to the 2D follow-up (Maximal Rectangle).</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n) amortised. Each index is pushed onto the stack exactly once (in the <code>for</code> loop) and popped at most once (either by the inner <code>while</code> or by the final drain). Total stack operations are bounded by 2n. <strong>Space:</strong> O(n) — the stack can hold at most n entries (worst case: strictly increasing input). <em>The trick that gets you there</em>: the start-index carry-over lets each rectangle be finalised exactly when its right boundary is known, and the monotonic invariant guarantees each bar contributes to exactly one finalised rectangle.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>Single bar</strong> — answer is the bar's height (1 × height).</li>
+  <li><strong>Strictly increasing</strong> — no pops during the loop; the entire stack drains at the end. The widest rectangle wins, then height kicks in.</li>
+  <li><strong>Strictly decreasing</strong> — every new bar pops the previous one. The stack stays size 1 after each step (start_index inherits).</li>
+  <li><strong>All-equal bars</strong> — no pops during the loop (we pop only when strictly taller); drain at the end gives the full width × the height.</li>
+  <li><strong>A zero in the middle</strong> — forces all previous bars to be finalised; nothing on the right side can extend left past the zero. This is exactly how the 2D Maximal Rectangle problem reduces to this one: each row's "histogram" is the column-wise consecutive 1s, and a zero in row R resets that column's height.</li>
+  <li><strong>Empty input</strong> — return 0. The <code>if not h</code> guard isn't strictly necessary; the loop is a no-op and best stays 0.</li>
+  <li><strong>2D extension (Maximal Rectangle, LeetCode 85)</strong> — for each row, compute the column-wise running height of 1s, then run this algorithm on the resulting histogram. Repeat for all rows; max over the m runs. O(m·n) total.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>OCR table extraction — Google Document AI, AWS Textract, Adobe Acrobat</h5>
+<p>The first step of table extraction from a scanned page is binarisation (every pixel is 0 or 1). The second step is finding the largest white rectangle (table cell) inside a region of mostly-white pixels — this is Maximal Rectangle on a 0/1 matrix. Google's Document AI ships a SIMD-vectorised version of the algorithm in their tabular-data extractor; Adobe's "auto-recognise-tables" feature in Acrobat Pro uses it; AWS Textract's <code>TABLE</code> block detection is based on the same primitive.</p>
+
+<h5>Cluster job packing — Kubernetes scheduler, YARN, Slurm</h5>
+<p>When a multi-pod job requests a contiguous block of nodes (e.g., a 64-GPU all-reduce training job that needs locality), the scheduler searches for the largest contiguous rectangle of free capacity in the cluster's resource map. Kubernetes' Volcano scheduler ships a <code>BinPack</code> plugin that uses this primitive. YARN's <code>FairScheduler</code> uses a 2D variant for memory-and-cores joint packing. Slurm's <code>SelectPlugin/cons_tres</code> does the same for HPC clusters.</p>
+
+<h5>Serverless cold-start packing — Vercel, Cloudflare Workers, AWS Lambda</h5>
+<p>Vercel's serverless platform maintains a "warm pool" of pre-initialised V8 isolates. When a new function deploys, the scheduler needs to find the largest contiguous block of warm-pool capacity that matches the function's memory shape, to maximise the chance of a warm hit. The bin-packing inside is largest-rectangle. Cloudflare Workers' Durable Objects placement uses the same primitive across colos.</p>
+
+<h5>GIS / urban planning — ESRI ArcGIS, Mapbox</h5>
+<p>"Find the largest buildable rectangle inside a parcel with non-rectangular boundaries" is the developer-feasibility-study primitive. ESRI's <code>Build Footprints</code> tool and Mapbox's GeoSpatial Studio use a discretised grid form of this algorithm.</p>
+
+<h5>Manufacturing — sheet-metal nesting (PTC Creo, Solidworks)</h5>
+<p>Cutting parts from a sheet of steel — the "nesting" step — uses largest-rectangle as a building block in the heuristic stack. The 2D variant (Maximal Rectangle in a 0/1 matrix of "already-cut" vs "still-available") is what runs in PTC Creo's optimiser.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0066">python_175-0066</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0060">python_175-0060 — Sliding Window Maximum</a> — same monotonic-structure trick but with a deque instead of a stack, and the invariant is decreasing instead of increasing.</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0045">python_175-0045 — Trapping Rain Water</a> — same elevation-profile setup but asking for water capacity instead of max-rectangle area; uses a two-pointer sweep instead of a stack.</li>
+  <li>Follow-up: <strong>Maximal Rectangle in a 0/1 Matrix</strong> (LeetCode 85) — the 2D extension; reduces to running this algorithm on each row's column-height histogram. The L6 escalation.</li>
+  <li>Sister: <strong>Next Greater Element</strong> (LeetCode 496) — the simpler precursor that introduces the monotonic-stack pattern.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the (start_index, height) pair on the stack out loud — most candidates push only the index and recompute the width awkwardly. The phrase that closes the interview: <em>"each bar is pushed once and popped once, so it's O(n) amortised even though the worst-case-per-step is O(n)."</em> Mention the 2D extension (Maximal Rectangle reduces to this per row) and you've signalled you understand the structural generalisation. The production reference to drop is OCR table extraction in Google Document AI / AWS Textract — interviewers love that the algorithm runs inside something they recognise.</div>
