@@ -1644,6 +1644,1670 @@
         "Mentions architectural isolation (tiered topics, dedicated cluster) for hot tenants",
         "Closes with monitoring/SLOs (per-partition lag, per-key write rate) so the problem is detected earlier next time"
       ]
+    },
+    {
+      "id": "ds-101",
+      "type": "single",
+      "topic": "Iceberg Internals",
+      "difficulty": "easy",
+      "prompt": "An Apache Iceberg table commit produces a chain of three metadata file types. From outer-most (table-level) to inner-most (per-file), those are:",
+      "options": [
+        "data file \u2192 manifest \u2192 manifest list \u2192 metadata.json",
+        "metadata.json \u2192 manifest list \u2192 manifest \u2192 data file",
+        "snapshot.json \u2192 manifest \u2192 data file (only three layers)",
+        "_delta_log JSON \u2192 checkpoint \u2192 data file"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg's metadata is a tree: a versioned `metadata.json` points to a snapshot, the snapshot points to a manifest list (avro), the manifest list points to one or more manifests (avro), and manifests list the actual data files with column stats. This indirection is what makes snapshot isolation, time travel, and partition evolution work without rewriting data."
+    },
+    {
+      "id": "ds-102",
+      "type": "single",
+      "topic": "Iceberg Internals",
+      "difficulty": "medium",
+      "prompt": "Iceberg's **hidden partitioning** lets you write `WHERE event_ts >= '2025-01-01'` and still benefit from `PARTITIONED BY days(event_ts)`. The mechanism is:",
+      "options": [
+        "The query engine automatically rewrites the predicate to add a synthetic partition column filter",
+        "Iceberg stores the partition transform in metadata and, during planning, derives the partition value from the source column without requiring an explicit partition column in the query",
+        "Iceberg auto-creates a materialized view per partition",
+        "Iceberg renames the source column to the partition column under the hood"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg records the partition transform (`days(event_ts)`, `bucket(16, user_id)`, `truncate(10, name)`, etc.) in the table metadata. The planner applies that transform to the predicate to skip manifests/files. The user never has to add a derived `event_date` column or remember to filter on it \u2014 a classic Hive trap that hidden partitioning fixes."
+    },
+    {
+      "id": "ds-103",
+      "type": "multi",
+      "topic": "Iceberg Internals",
+      "difficulty": "medium",
+      "prompt": "Which **partition transforms** does Iceberg support natively (i.e. with built-in pruning)? (Select all that apply)",
+      "options": [
+        "`identity(col)` \u2014 partition by the raw column value",
+        "`bucket(N, col)` \u2014 hash-partition into N buckets",
+        "`truncate(W, col)` \u2014 truncate strings/integers to width W",
+        "`year(ts)` / `month(ts)` / `day(ts)` / `hour(ts)`",
+        "`regex(col, pattern)` \u2014 partition by capture groups of a regex"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Iceberg supports identity, bucket, truncate, year/month/day/hour. Regex-based partitioning is not a built-in transform. Choose transforms that are deterministic, reversible-for-pruning, and produce balanced partitions. `bucket(N, key)` is the standard tool for high-cardinality keys that need parallel scans."
+    },
+    {
+      "id": "ds-104",
+      "type": "single",
+      "topic": "Iceberg Internals",
+      "difficulty": "medium",
+      "prompt": "**Partition evolution** in Iceberg means:",
+      "options": [
+        "Rewriting all existing files when you change the partition spec",
+        "Iceberg records partition-spec versions in metadata; new data is written under the new spec while old data keeps the old spec, and queries plan correctly against both",
+        "The partition column type can be changed without notice",
+        "Partitions are recomputed on every read"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg can evolve a partition spec (e.g. `day(ts)` \u2192 `hour(ts)`) without rewriting old data. The manifest stores which spec each file was written under, and planning applies the appropriate transform per spec. Lets you correct early partitioning mistakes without a multi-TB rewrite."
+    },
+    {
+      "id": "ds-105",
+      "type": "single",
+      "topic": "Iceberg Internals",
+      "difficulty": "hard",
+      "prompt": "In Iceberg, the difference between **Copy-on-Write (CoW)** and **Merge-on-Read (MoR)** for row-level updates is:",
+      "options": [
+        "CoW rewrites entire data files containing changed rows; MoR writes delete files (positional or equality) that readers merge with the base data files at query time",
+        "CoW is older and not supported anymore",
+        "MoR uses Avro; CoW uses Parquet",
+        "CoW supports time travel; MoR does not"
+      ],
+      "answer": 0,
+      "explanation": "CoW: rewrite the affected data files \u2014 expensive writes, fast reads, clean files. MoR: append delete files describing changes \u2014 fast writes, slower reads (must apply deletes), and you need periodic compaction to keep read amplification bounded. Choose based on write-vs-read ratio and latency tolerance."
+    },
+    {
+      "id": "ds-106",
+      "type": "multi",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "prompt": "The Delta Lake **`_delta_log`** directory contains: (Select all that apply)",
+      "options": [
+        "Numbered JSON files describing each commit's added/removed files and metadata changes",
+        "Periodic Parquet checkpoint files that snapshot the log state for fast log replay",
+        "The actual data files of the table",
+        "A CRC file alongside each commit JSON for integrity verification",
+        "A separate index file for column statistics"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "`_delta_log` holds the transaction log: per-commit JSONs (`00000000000000000000.json`...), periodic Parquet checkpoints to bound log-replay cost, and `.crc` files for integrity. Data files live alongside under the table root. Column stats are embedded in the JSON `add` actions, not a separate index."
+    },
+    {
+      "id": "ds-107",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "prompt": "Delta Lake creates a **checkpoint** in `_delta_log` roughly every 10 commits because:",
+      "options": [
+        "It enforces a maximum of 10 versions",
+        "Without checkpoints, opening the table requires replaying every JSON commit since creation \u2014 checkpoints let readers start from a recent Parquet snapshot of the log and apply only the JSON commits after it, bounding cold-read latency",
+        "Spark cannot read more than 10 JSON files at once",
+        "It triggers VACUUM"
+      ],
+      "answer": 1,
+      "explanation": "Log replay cost grows linearly with commits. Checkpoints serialize the materialized log state (current set of files + metadata) to Parquet so readers only replay the tail of JSONs since the last checkpoint. For high-commit-rate tables (e.g. streaming sinks) tuning `delta.checkpointInterval` lower keeps cold reads fast."
+    },
+    {
+      "id": "ds-108",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "easy",
+      "prompt": "Running `VACUUM` on a Delta table with the default 7-day retention will:",
+      "options": [
+        "Compact small files into larger ones",
+        "Permanently delete data files no longer referenced by any commit older than the retention threshold \u2014 which breaks time travel beyond that horizon",
+        "Re-cluster the table by Z-ORDER",
+        "Refresh the table statistics"
+      ],
+      "answer": 1,
+      "explanation": "VACUUM removes orphaned/obsolete data files past the retention window. After VACUUM you can no longer query snapshots older than the retention bound. Don't confuse VACUUM with OPTIMIZE (file compaction) or ANALYZE/COMPUTE STATISTICS (stats refresh). Setting retention too short trades storage for losing time-travel and recovery."
+    },
+    {
+      "id": "ds-109",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "prompt": "**Z-ORDER** in Delta is most useful when:",
+      "options": [
+        "A single column drives 95% of predicate filters and you want strict sorted order on it",
+        "Multiple columns are commonly used together in predicates and you want files clustered such that any one of them can prune well \u2014 Z-ORDER multidimensionally interleaves the sort so files have tight min/max ranges on several columns",
+        "You want to migrate from Parquet to ORC",
+        "You want to enforce partition boundaries"
+      ],
+      "answer": 1,
+      "explanation": "Z-ORDER (a space-filling curve / Morton order) interleaves bits of multiple columns so that data files are clustered by all of them simultaneously \u2014 less optimal than a single-column sort for that one column but much better than partitioning when several columns matter. For single-column filtering, a normal sort or partition wins."
+    },
+    {
+      "id": "ds-110",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "medium",
+      "prompt": "**Deletion vectors** in Delta Lake (and Iceberg's positional deletes) avoid the cost of CoW by:",
+      "options": [
+        "Skipping VACUUM",
+        "Recording which row positions in existing data files are 'deleted' as a small auxiliary file; readers apply the bitmap on the fly so the base data file isn't rewritten",
+        "Encrypting deleted rows so readers can't decode them",
+        "Marking the entire file as tombstoned"
+      ],
+      "answer": 1,
+      "explanation": "Deletion vectors store a compact bitmap of deleted row positions per data file. UPDATE/DELETE/MERGE no longer rewrites the whole file \u2014 it writes the vector. Readers skip masked rows. Faster mutations, but compaction must eventually merge vectors back into rewritten data files or query plans pay a growing tax."
+    },
+    {
+      "id": "ds-111",
+      "type": "single",
+      "topic": "Delta Lake",
+      "difficulty": "easy",
+      "prompt": "Delta's **Change Data Feed (CDF)** exposes:",
+      "options": [
+        "Only inserts to the table",
+        "Row-level `_change_type` (insert / update_preimage / update_postimage / delete) plus `_commit_version` and `_commit_timestamp`, so downstream consumers can incrementally process changes without reading the whole table",
+        "Schema changes as DDL events",
+        "Compaction events from OPTIMIZE"
+      ],
+      "answer": 1,
+      "explanation": "CDF turns a Delta table into a CDC source. Enabled at table or write time, it materializes per-row change records readable via `table_changes()`. Consumers can stream incremental diffs into other tables or stores without a full scan or external CDC tool \u2014 useful for SCD2 maintenance, fanout to feature stores, etc."
+    },
+    {
+      "id": "ds-112",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "True **exactly-once** end-to-end in a Flink job that reads from Kafka and writes to S3/HDFS requires:",
+      "options": [
+        "Setting `enable.idempotence=true` on the source consumer",
+        "A combination of Kafka transactional source offsets committed in the same checkpoint as the sink's two-phase-commit, with sink files renamed atomically only after the checkpoint barrier completes",
+        "Replaying every message from offset 0",
+        "Disabling watermarks"
+      ],
+      "answer": 1,
+      "explanation": "Flink achieves end-to-end exactly-once via aligned checkpoints + TwoPhaseCommitSinkFunction (or Kafka transactions). Source offsets, operator state, and sink-side staged outputs all commit atomically per checkpoint; mid-checkpoint sink files are pre-committed but invisible until the global commit. Without a transactional sink you get at-least-once at best."
+    },
+    {
+      "id": "ds-113",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "easy",
+      "prompt": "'**Effectively-once**' is often used (instead of 'exactly-once') in streaming pipelines because:",
+      "options": [
+        "The network can drop packets and that's an unsolvable problem",
+        "Even with at-least-once delivery, an idempotent sink keyed by a deterministic event id produces the same observable end state \u2014 same outcome, lower cost than a transactional pipeline",
+        "Flink does not support exactly-once",
+        "Exactly-once is only available in proprietary systems"
+      ],
+      "answer": 1,
+      "explanation": "Effectively-once: the user-visible state is identical to what exactly-once would produce, achieved cheaply via idempotent writes (upsert by primary key, deterministic event id, dedup state). For many warehouse/sink targets it's a better engineering tradeoff than a fully transactional 2PC path."
+    },
+    {
+      "id": "ds-114",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "A streaming job uses event-time windowing with a watermark of `event_ts - 5 minutes` and `allowedLateness = 2 minutes`. An event with `event_ts = T` arrives at processing-time `T + 9 minutes`. What happens?",
+      "options": [
+        "The event is processed normally \u2014 it's within the allowed lateness",
+        "The event is dropped: the watermark has passed `T+5m`, allowed lateness extends only to `T+7m`, the window for T was finalized at `T+7m` (2 minutes ago), so this event is past lateness",
+        "It triggers a recomputation of every window",
+        "It is sent to the broadcast state"
+      ],
+      "answer": 1,
+      "explanation": "Watermark = `event_ts - 5m` means the engine asserts no event with event_time \u2264 watermark will arrive. Window for `T` closes when watermark passes `T`. Allowed lateness keeps the window state available for an extra 2m of late arrivals. After `T+5m (close) + 2m (lateness) = T+7m` the window is purged; an arrival at `T+9m` is dropped (or sent to a side output if configured)."
+    },
+    {
+      "id": "ds-115",
+      "type": "multi",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "Which **watermark strategies** are commonly used in production stream engines? (Select all that apply)",
+      "options": [
+        "Bounded out-of-orderness \u2014 watermark = max event_ts seen \u2212 fixed delay (e.g. 30s)",
+        "Punctuated watermarks \u2014 emit a watermark only when a specific marker event is seen",
+        "Per-partition watermarks aggregated to a single operator watermark (min across partitions)",
+        "Processing-time watermarks \u2014 watermark = wall clock",
+        "Watermarks set by a future ML model"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Bounded out-of-orderness is the default. Punctuated is useful when you control the source and can inject markers (e.g. end-of-batch sentinels). Per-partition watermarks (Flink) take the min across partitions so one stalled partition doesn't advance the watermark prematurely. Processing-time isn't really a watermark \u2014 it's the absence of event-time semantics."
+    },
+    {
+      "id": "ds-116",
+      "type": "single",
+      "topic": "Streaming State",
+      "difficulty": "hard",
+      "prompt": "A long-running Flink job accumulates **keyed state** that grows unboundedly (one entry per user session, never expired). The right primary remediation is:",
+      "options": [
+        "Increase heap size",
+        "Set a **state TTL** on the keyed-state descriptor so idle entries are evicted, and pair it with the appropriate cleanup strategy (in-background / on-access)",
+        "Disable checkpointing",
+        "Switch to processing-time windows"
+      ],
+      "answer": 1,
+      "explanation": "Unbounded state is a death-spiral: checkpoints get slow, recovery times explode, RocksDB churns. State TTL with `cleanupInBackground()` or `cleanupFullSnapshot()` keeps state bounded. Without TTL, even RocksDB will eventually choke. Pair with metric on `state.size` per operator."
+    },
+    {
+      "id": "ds-117",
+      "type": "single",
+      "topic": "Streaming State",
+      "difficulty": "medium",
+      "prompt": "Using the **RocksDB state backend** in Flink (vs the in-memory heap backend) is appropriate when:",
+      "options": [
+        "State fits comfortably in heap and you want lowest latency",
+        "State exceeds heap (tens of GB to TBs) and you can tolerate ~10\u00d7 higher per-access latency in exchange for incremental checkpointing and bounded memory",
+        "You don't need checkpoints",
+        "The job processes fewer than 1000 keys"
+      ],
+      "answer": 1,
+      "explanation": "RocksDB persists state on local disk with an LSM tree, supporting much larger state than heap and enabling **incremental** checkpoints (only changed SSTs uploaded). Cost: per-access serde + disk I/O \u2014 ~order of magnitude slower than heap. Use it when state size is the bottleneck."
+    },
+    {
+      "id": "ds-118",
+      "type": "single",
+      "topic": "Streaming State",
+      "difficulty": "medium",
+      "prompt": "A **savepoint** differs from a **checkpoint** in Flink primarily because:",
+      "options": [
+        "A savepoint is automatic; a checkpoint is manual",
+        "Savepoints are user-triggered, retained indefinitely by default, and intended for planned operations (upgrade, code change, state migration); checkpoints are engine-managed for failure recovery and may be expired",
+        "Checkpoints support state migration; savepoints do not",
+        "They are the same concept under different names"
+      ],
+      "answer": 1,
+      "explanation": "Both are consistent state snapshots, but their lifecycles and intents differ. Checkpoints are automatic and ephemeral (failure recovery). Savepoints are manual, immutable, format-stable across versions, and used to upgrade code/schema/operators with state intact."
+    },
+    {
+      "id": "ds-119",
+      "type": "single",
+      "topic": "Streaming State",
+      "difficulty": "easy",
+      "prompt": "**Broadcast state** in Flink is designed for:",
+      "options": [
+        "Storing each key's window state in every task",
+        "Distributing a small, slowly-changing reference dataset (e.g. rules, feature flags, lookup tables) to every parallel instance of a keyed operator so it can be joined locally without shuffling",
+        "Replicating Kafka topics across regions",
+        "Building leaderboards"
+      ],
+      "answer": 1,
+      "explanation": "Broadcast state replicates a stream to every operator instance \u2014 ideal for control planes (a stream of rule updates, configuration, models). The keyed stream stays partitioned; the broadcast side is everywhere. Don't broadcast large or fast-changing data \u2014 you'll blow memory and lose the locality benefit."
+    },
+    {
+      "id": "ds-120",
+      "type": "single",
+      "topic": "Kafka Producers",
+      "difficulty": "easy",
+      "prompt": "Increasing Kafka producer **`linger.ms`** from `0` to `10` typically:",
+      "options": [
+        "Reduces throughput because the producer waits before sending",
+        "Improves throughput by letting batches fill up (more records per request) at the cost of a small added end-to-end latency",
+        "Causes message loss",
+        "Has no effect when `acks=all`"
+      ],
+      "answer": 1,
+      "explanation": "`linger.ms` is the producer's allowed wait time to accumulate more records into a batch. Higher = bigger batches = better compression + fewer requests = higher throughput, with a bounded latency penalty. Common sweet spot 5\u201320ms for high-volume pipelines; near zero for low-latency interactive paths."
+    },
+    {
+      "id": "ds-121",
+      "type": "multi",
+      "topic": "Kafka Producers",
+      "difficulty": "medium",
+      "prompt": "Which producer settings are required for **idempotent + ordered** writes to a single partition? (Select all that apply)",
+      "options": [
+        "`enable.idempotence=true`",
+        "`acks=all`",
+        "`max.in.flight.requests.per.connection \u2264 5`",
+        "`retries > 0`",
+        "Disable compression"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Idempotent producer (sequence numbers per partition) requires `acks=all`, `retries>0`, and `max.in.flight.requests.per.connection \u2264 5` (broker validates sequence). Together they prevent duplicates AND preserve order despite retries. Compression is orthogonal \u2014 keep it on (lz4/zstd) for throughput."
+    },
+    {
+      "id": "ds-122",
+      "type": "multi",
+      "topic": "Kafka Compression",
+      "difficulty": "medium",
+      "prompt": "Which statements about Kafka producer compression codecs are correct? (Select all that apply)",
+      "options": [
+        "Snappy and lz4 prioritize CPU speed over compression ratio \u2014 workhorse defaults for most workloads",
+        "zstd typically achieves 20-40% better compression than snappy at the cost of more producer CPU",
+        "Compression is applied per record batch on the producer; brokers store the compressed batch directly when `compression.type=producer`",
+        "zstd is incompatible with Kafka",
+        "Compression always reduces end-to-end latency",
+        "Choosing a codec should be measured on real payloads \u2014 results vary wildly with field distributions"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "explanation": "Snappy/lz4: low CPU, moderate ratio. zstd: better ratio, more CPU \u2014 wins when network/storage dominates. Compression happens at the producer batch level and brokers can store as-is. zstd has been supported for years. Compression can ADD latency (more CPU time) even as it improves throughput \u2014 measure on real payloads."
+    },
+    {
+      "id": "ds-123",
+      "type": "single",
+      "topic": "Kafka Consumers",
+      "difficulty": "medium",
+      "prompt": "A Kafka consumer keeps triggering rebalances because of `max.poll.interval.ms` timeouts. The most appropriate fix is usually:",
+      "options": [
+        "Increase `session.timeout.ms`",
+        "Reduce `max.poll.records` and/or move heavy processing off the poll loop (so each `poll()` call returns promptly), and only after that consider tuning `max.poll.interval.ms` upward",
+        "Disable auto-commit",
+        "Increase replication factor"
+      ],
+      "answer": 1,
+      "explanation": "`max.poll.interval.ms` bounds how long between polls. Long batches or slow processing in-line causes the consumer to miss the deadline and be kicked from the group. Fixes: shrink the batch, pause/resume the consumer while async-processing, or push heavy work to a worker pool. Just raising the timeout masks the problem and slows failure detection."
+    },
+    {
+      "id": "ds-124",
+      "type": "single",
+      "topic": "Schema Registry",
+      "difficulty": "easy",
+      "prompt": "Under the Confluent Schema Registry **`BACKWARD`** compatibility mode, you may:",
+      "options": [
+        "Add a new required field with no default",
+        "Add a new field with a default value, or remove a field that had a default \u2014 i.e. the new schema can read data written with old schemas",
+        "Change a field type freely",
+        "Rename any field"
+      ],
+      "answer": 1,
+      "explanation": "BACKWARD: new schema reads old data. Safe additive changes are 'add an optional field with a default' and 'remove a field that had a default' (new readers know how to fill it). Required-no-default adds and type changes break backward compat. FORWARD inverts the relation; FULL is the conjunction of both."
+    },
+    {
+      "id": "ds-125",
+      "type": "multi",
+      "topic": "Schema Registry",
+      "difficulty": "medium",
+      "prompt": "Which statements about Confluent **subject naming strategies** are correct? (Select all that apply)",
+      "options": [
+        "`TopicNameStrategy` (default) ties one subject to one topic \u2014 simplest, but you can only have one schema per topic",
+        "`RecordNameStrategy` ties the subject to the Avro record's fullname, allowing **multiple event types in the same topic**",
+        "`TopicRecordNameStrategy` combines both \u2014 topic + record name \u2014 useful when the same record type appears in many topics with different evolution rules",
+        "Naming strategy can be changed at runtime without affecting consumers",
+        "The serialized message carries the schema ID; the consumer uses that to fetch the schema from the registry"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "TopicNameStrategy is the most common but limits a topic to one schema. RecordNameStrategy + multi-event topics are essential for transactional outbox style fanout. TopicRecordNameStrategy combines both. Changing strategies mid-flight breaks consumers \u2014 it's a coordinated migration. Wire format: magic byte + 4-byte schema ID + payload."
+    },
+    {
+      "id": "ds-126",
+      "type": "single",
+      "topic": "Schema Registry",
+      "difficulty": "medium",
+      "prompt": "Compared to Avro, **Protobuf** for stream payloads tends to:",
+      "options": [
+        "Be slower and larger",
+        "Be slightly more compact and faster to deserialize in compiled languages, with stricter schema-as-code workflow (.proto files compiled to types) \u2014 at the cost of evolution being trickier for added required fields and oneofs",
+        "Embed the schema in every message",
+        "Require JSON Schema validation"
+      ],
+      "answer": 1,
+      "explanation": "Avro: schema-with-data (or via registry), great for dynamic readers; Protobuf: schema-as-code, often slightly smaller/faster, but evolution rules differ (everything is technically optional in proto3, but field numbers must not be reused). Choice often comes down to team workflow and language ecosystem more than wire-size."
+    },
+    {
+      "id": "ds-127",
+      "type": "single",
+      "topic": "Data Contracts",
+      "difficulty": "medium",
+      "prompt": "Where is the **strictest** place to enforce a data contract in a streaming pipeline?",
+      "options": [
+        "At the consumer \u2014 because they're the ones experiencing pain",
+        "At the **producer** (pre-publish validation) \u2014 it stops bad data from entering the bus, prevents replay-driven outages, and keeps ownership of the contract upstream where the schema is authored",
+        "At the analytics dashboard",
+        "At the storage layer only"
+      ],
+      "answer": 1,
+      "explanation": "Producer-side enforcement (linting in CI, schema-aware client libs, registry compatibility checks before publishing) catches violations before they propagate. Consumer-side validation catches what the producer missed, but it's reactive: by then the bus already holds bad data. Belt and braces in practice, but the producer is where the contract lives."
+    },
+    {
+      "id": "ds-128",
+      "type": "multi",
+      "topic": "Data Quality",
+      "difficulty": "medium",
+      "prompt": "Which checks are **deterministic** data-quality checks (vs anomaly/statistical)? (Select all that apply)",
+      "options": [
+        "`NOT NULL` on a required column",
+        "`UNIQUE` on a natural key",
+        "Row count within \u00b13 standard deviations of the trailing 30-day mean",
+        "FK referential integrity to a parent table",
+        "Z-score anomaly detection on a numeric column",
+        "Regex pattern on an email column"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        5
+      ],
+      "explanation": "Deterministic checks: NOT NULL, UNIQUE, FK, regex/format \u2014 pass/fail on a single row or relationship. Statistical/anomaly checks (rolling z-score, drift detection, distribution KL-divergence) compare to history and tolerate noise. A good DQ framework runs both, with stricter SLOs on deterministic checks."
+    },
+    {
+      "id": "ds-129",
+      "type": "single",
+      "topic": "Data Quality",
+      "difficulty": "easy",
+      "prompt": "Frameworks like **Great Expectations / Soda / dbt tests** typically catch which class of issues earliest?",
+      "options": [
+        "Network partitions",
+        "Schema and content regressions in the transformation layer \u2014 nullability, ranges, uniqueness, referential integrity, freshness \u2014 by running assertions on the data after each pipeline step",
+        "Hardware failures",
+        "User authentication bugs"
+      ],
+      "answer": 1,
+      "explanation": "These tools assert post-condition expectations on tables (row counts, value ranges, freshness, uniqueness, FK integrity). They catch regressions before downstream consumers do. They don't catch infra failures (those are observability/alerting). Pair: dbt tests at every model + Soda monitors on critical tables + Monte Carlo / Anomalo for anomaly detection on outputs."
+    },
+    {
+      "id": "ds-130",
+      "type": "single",
+      "topic": "Modeling Antipatterns",
+      "difficulty": "hard",
+      "prompt": "A fact table is loaded by two concurrent batch jobs that each assign surrogate keys via `MAX(sk)+1`. The likely failure mode is:",
+      "options": [
+        "Slow queries",
+        "Surrogate-key collisions when both jobs read the same MAX value at the same time \u2014 producing duplicate keys that violate the PK or cause silent overwrites in upserts",
+        "Schema drift",
+        "Late-arriving facts"
+      ],
+      "answer": 1,
+      "explanation": "`MAX+1` is not concurrency-safe. Two concurrent loaders both see `MAX=42`, both produce SK=43, and you get a PK collision (or worse, a silent overwrite with MERGE). Fix: use a sequence/identity column (DB-managed monotonic ids), a hash-based surrogate (hash of NK), or serialize loaders via leader election."
+    },
+    {
+      "id": "ds-131",
+      "type": "multi",
+      "topic": "Modeling Antipatterns",
+      "difficulty": "medium",
+      "prompt": "A fact_orders table has columns for both `order_date` and `event_count` where some rows record one order, some record a daily aggregate of N orders. Which problems does this MIXED GRAIN cause? (Select all that apply)",
+      "options": [
+        "SUM(event_count) double-counts because the same orders appear once as a detail row and again rolled into a daily row",
+        "Filters on dimension keys behave inconsistently \u2014 the aggregate row has no specific customer_sk, so customer-scoped queries silently drop those rows",
+        "BI users have to know which rows mean what \u2014 a leakage of pipeline complexity to consumers",
+        "It improves storage efficiency by avoiding duplicate rows",
+        "Joins to other facts (returns, shipments) at the order grain become incorrect",
+        "It improves query latency by pre-aggregating common reports"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Mixed grain is the cardinal sin of fact design: measures stop being additive, semantics depend on which subset you happen to filter to, and downstream users get burned. The right fix is two facts \u2014 fact_order (one row per order) and fact_order_daily (one row per day) \u2014 letting consumers choose explicitly. It does not save storage and the \"performance\" benefit is fake (you would build the daily aggregate as a separate model anyway)."
+    },
+    {
+      "id": "ds-132",
+      "type": "single",
+      "topic": "Modeling Antipatterns",
+      "difficulty": "hard",
+      "prompt": "A dim_customer is joined to fact_sales on `customer_sk`, but ~3% of fact rows have a `NULL` customer_sk. A query `SELECT SUM(amount) FROM fact_sales f JOIN dim_customer d ON f.customer_sk = d.customer_sk WHERE d.country = 'US'` will:",
+      "options": [
+        "Return the correct US total",
+        "**Silently drop** the 3% of fact rows with NULL customer_sk (because `NULL = NULL` is false) \u2014 underreporting totals; the fix is an outer join + an 'Unknown' (-1) sentinel customer row to preserve fact integrity",
+        "Fail with an error",
+        "Return all rows including non-US"
+      ],
+      "answer": 1,
+      "explanation": "INNER JOIN on a NULL key drops the row \u2014 silently. The classic mitigation is the 'Unknown'/'Not Applicable' dimension sentinel row (SK = -1) referenced by every fact that doesn't have a real dim match. Now the inner join works, the country filter cleanly excludes Unknown, and totals reconcile."
+    },
+    {
+      "id": "ds-133",
+      "type": "single",
+      "topic": "Modeling Antipatterns",
+      "difficulty": "hard",
+      "prompt": "A dim_date dimension stores `date_id` as `YYYYMMDD` integer with no timezone column, while facts come from event servers in 30 countries. The most likely defect is:",
+      "options": [
+        "BigInt overflow",
+        "Timezone-bucketing bugs: a single UTC instant maps to different dates in different zones, and reports that mix per-region 'local day' with UTC produce inconsistent daily totals",
+        "Slow joins",
+        "Date dim becomes too small"
+      ],
+      "answer": 1,
+      "explanation": "Without explicit timezone in the fact or a per-region date dim, a transaction at 2025-11-01 23:00 UTC is 'Oct 31' in some regions and 'Nov 1' in others. Pin facts to UTC AND store local_date_id (computed at ingest from event_tz). Without this discipline, daily KPIs across regions never reconcile."
+    },
+    {
+      "id": "ds-134",
+      "type": "single",
+      "topic": "Replication",
+      "difficulty": "medium",
+      "prompt": "In a Dynamo-style **leaderless** replication system with N=3, W=2, R=2, what consistency guarantee do you get?",
+      "options": [
+        "Linearizable reads",
+        "Strong-consistency reads because W + R > N guarantees at least one read replica saw the latest write \u2014 conflicts (e.g. concurrent writes) still need application-level resolution",
+        "Eventual consistency only",
+        "Reads always see the most recent write regardless of W"
+      ],
+      "answer": 1,
+      "explanation": "R + W > N means read and write quorums overlap on at least one replica, so reads see at least one copy of any committed write. This is 'strong consistency' in the Dynamo sense but NOT linearizability \u2014 concurrent writes still produce sibling versions to resolve. Conflict resolution (last-write-wins, vector clocks, CRDTs) is still application-level."
+    },
+    {
+      "id": "ds-135",
+      "type": "multi",
+      "topic": "Replication",
+      "difficulty": "medium",
+      "prompt": "In leaderless / Dynamo-style replication, which of the following help the cluster recover from temporary node failures? (Select all that apply)",
+      "options": [
+        "Hinted handoff \u2014 a coordinator temporarily stores writes for an unavailable replica and forwards them when it returns",
+        "Read repair \u2014 inconsistent values discovered during a read trigger an asynchronous write to bring stale replicas up to date",
+        "Anti-entropy / Merkle-tree-based background reconciliation between replicas",
+        "Sloppy quorum \u2014 if the target replica is down, the coordinator accepts the write on a substitute node (still W replicas total) to maintain availability",
+        "Disabling replication"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Hinted handoff, read repair, anti-entropy, and sloppy quorum are the four pillars of Dynamo-style fault tolerance. Sloppy quorum is the most controversial: it preserves write availability at the cost of sometimes acknowledging a write on a 'temporary' replica that isn't in the preference list \u2014 trading durability semantics for availability."
+    },
+    {
+      "id": "ds-136",
+      "type": "single",
+      "topic": "Replication",
+      "difficulty": "hard",
+      "prompt": "**Vector clocks** vs **version vectors** vs **hybrid logical clocks (HLC)**: the most accurate one-line distinction is:",
+      "options": [
+        "They are interchangeable names for the same thing",
+        "Vector clocks track event ordering per process (size = #processes), version vectors track per-replica versions of a single object (size = #replicas), HLCs combine physical time with a logical counter so they approximate wall clock while still detecting causality",
+        "HLCs use atomic clocks; vector clocks don't",
+        "Version vectors detect concurrency; vector clocks don't"
+      ],
+      "answer": 1,
+      "explanation": "All three capture causality, but they scale and integrate differently. Version vectors are commonly used for object replication (Dynamo). HLCs (Kulkarni et al.) give monotonic, physical-time-close timestamps that detect causality \u2014 used in CockroachDB, YugabyteDB \u2014 and avoid needing TrueTime hardware to get near-linearizable timestamps."
+    },
+    {
+      "id": "ds-137",
+      "type": "single",
+      "topic": "Replication",
+      "difficulty": "hard",
+      "prompt": "**CRDTs (Conflict-Free Replicated Data Types)** are most appropriate when:",
+      "options": [
+        "You need general-purpose distributed transactions",
+        "Your conflicts can be modeled by a mathematical structure (commutative/associative merge) such that any merge order produces the same result \u2014 e.g. counters (G-Counter, PN-Counter), sets (OR-Set, LWW-Set), sequences (RGA, Yjs)",
+        "You want SQL semantics",
+        "You only have one writer"
+      ],
+      "answer": 1,
+      "explanation": "CRDTs let multiple replicas accept writes concurrently and merge automatically without coordination, because the data type's merge operation is commutative, associative, and idempotent. Great for collaborative editing, presence, counters, sets. Bad for anything needing strict ordering (inventory decrement that must not go negative, financial postings)."
+    },
+    {
+      "id": "ds-138",
+      "type": "single",
+      "topic": "Sharding",
+      "difficulty": "medium",
+      "prompt": "With plain consistent hashing on the ring, adding a new shard often causes **uneven** redistribution. The standard mitigation is:",
+      "options": [
+        "Resharding the entire cluster",
+        "**Virtual nodes (vnodes)** \u2014 each physical node owns many tokens spread around the ring, so adding a node steals a small slice from many existing nodes rather than one big slice from a neighbor",
+        "Disabling consistent hashing",
+        "Switching to range partitioning"
+      ],
+      "answer": 1,
+      "explanation": "With one token per node, adding a node pulls keys from a single neighbor \u2014 large move and uneven post-state. With vnodes (e.g. 256 per node), the new node steals a few keys from each of many existing nodes \u2014 small, even, parallelizable. Cassandra, ScyllaDB, and Dynamo all use vnodes."
+    },
+    {
+      "id": "ds-139",
+      "type": "single",
+      "topic": "Sharding",
+      "difficulty": "hard",
+      "prompt": "You shard a multi-tenant SaaS by `tenant_id` (hash). One tenant becomes 100\u00d7 larger than the median. The cleanest fix that minimizes blast radius is:",
+      "options": [
+        "Re-hash everyone with a new function",
+        "**Pin the elephant tenant to its own dedicated shard(s)** and continue using hash sharding for everyone else \u2014 isolating the heavy tenant without disrupting the rest",
+        "Switch to range sharding",
+        "Cache more aggressively"
+      ],
+      "answer": 1,
+      "explanation": "Hybrid sharding: a tenant-isolation list (or explicit shard pinning table) overrides the hash function for known elephants. Doesn't touch the other 99% of tenants and gives you a knob to scale the loud one independently (more capacity, separate maintenance windows, even a separate region)."
+    },
+    {
+      "id": "ds-140",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "easy",
+      "prompt": "A **vectorized** OLAP execution engine (DuckDB, ClickHouse, Velox) achieves much higher throughput than row-at-a-time engines because:",
+      "options": [
+        "It uses GPUs",
+        "It processes columns in fixed-size batches that fit in CPU cache and SIMD lanes \u2014 amortizing per-row interpreter overhead and enabling auto-vectorization of tight loops",
+        "It avoids hash joins",
+        "It runs queries in parallel across threads"
+      ],
+      "answer": 1,
+      "explanation": "Vectorized execution operates on batches (often 1024 or 2048 values at a time) per column. CPU pipelines stay full, branch predictors win, SIMD instructions apply. The Volcano-style row-by-row interpreter dispatches per row \u2014 vastly more overhead. JIT compilation (HyPer-style) is the next step beyond vectorization but isn't strictly required."
+    },
+    {
+      "id": "ds-141",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "medium",
+      "prompt": "**Late materialization** in a columnar engine means:",
+      "options": [
+        "Computing the result lazily after the query returns to the client",
+        "Applying filters and joins on column references / row-ids before reconstructing whole tuples \u2014 columns not needed by the final projection are never read from disk",
+        "Computing aggregates at the end of the plan",
+        "Caching results in the engine"
+      ],
+      "answer": 1,
+      "explanation": "Late materialization keeps execution in the columnar / row-id domain as long as possible. A predicate on column A produces a row-id bitmap; a join produces another. Only at the end (or when needed for a function) does the engine 'materialize' the value columns. Saves I/O, decompression, and memory \u2014 vs early materialization that reconstructs rows up front."
+    },
+    {
+      "id": "ds-142",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "medium",
+      "prompt": "Spark / BigQuery / Snowflake all support a **broadcast join** when one side is small. The defining property:",
+      "options": [
+        "It always uses sort-merge",
+        "The small side is replicated to every executor; the large side is scanned locally with a hash probe \u2014 avoiding a shuffle of the large side, but limited by the small side's size fitting in worker memory",
+        "It produces a Cartesian product",
+        "It requires both sides to be partitioned identically"
+      ],
+      "answer": 1,
+      "explanation": "Broadcast hash join is the go-to when one side is small (\u226410\u2013100 MB typical default, tunable). Shuffles a huge fact table can dominate runtime; replicating a small dim avoids the shuffle entirely. If 'small' is misjudged (skew, stale stats), the broadcast OOMs the cluster \u2014 hence adaptive runtime decisions in AQE / Snowflake's auto-broadcast."
+    },
+    {
+      "id": "ds-143",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "hard",
+      "prompt": "Spark **Adaptive Query Execution (AQE)** can change a plan at runtime by:",
+      "options": [
+        "Re-reading the data each time",
+        "Coalescing shuffle partitions when actual shuffle sizes are smaller than expected, switching sort-merge join to broadcast when one side turned out small after filtering, and splitting skewed partitions",
+        "Disabling the cost-based optimizer",
+        "Compressing intermediate results"
+      ],
+      "answer": 1,
+      "explanation": "AQE collects shuffle statistics mid-query and rewrites the plan: coalesce tiny partitions to reduce task overhead, dynamically pick broadcast join when a side falls under threshold post-filter, and break apart skewed partitions to even out parallelism. Tunable via `spark.sql.adaptive.*` knobs."
+    },
+    {
+      "id": "ds-144",
+      "type": "single",
+      "topic": "Distributed Transactions",
+      "difficulty": "hard",
+      "prompt": "**Two-phase commit (2PC)** is rarely used as the foundation of a modern distributed system because:",
+      "options": [
+        "It is slower than 3PC",
+        "It blocks indefinitely on coordinator failure (participants hold locks awaiting the commit decision), is sensitive to slow participants, and doesn't tolerate network partitions gracefully",
+        "It cannot be implemented over TCP",
+        "It is incompatible with replication"
+      ],
+      "answer": 1,
+      "explanation": "2PC's prepare-then-commit protocol is correct in normal conditions but degenerates badly on failure: a crashed coordinator leaves participants 'in-doubt' holding locks; a slow participant blocks everyone. Modern systems prefer consensus (Raft/Paxos) over fewer transactional participants, or saga-style decentralized coordination, or Spanner-style TrueTime + Paxos shards."
+    },
+    {
+      "id": "ds-145",
+      "type": "single",
+      "topic": "Distributed Transactions",
+      "difficulty": "easy",
+      "prompt": "**Sagas** model a long-running business transaction across services as:",
+      "options": [
+        "One big distributed transaction with 2PC",
+        "A sequence of local transactions, each emitting an event that triggers the next; failures trigger compensating transactions to undo prior steps",
+        "A queue of work for a single consumer",
+        "A snapshot of the entire system state"
+      ],
+      "answer": 1,
+      "explanation": "Saga: T1 \u2192 T2 \u2192 T3 (commit locally each step); on failure at Tk, run C(k-1), C(k-2), \u2026 C(1) compensating transactions in reverse. No 2PC, no global locks. Tradeoffs: compensations are application-level, eventual consistency is exposed to callers, and you must design idempotency into every step."
+    },
+    {
+      "id": "ds-146",
+      "type": "single",
+      "topic": "Distributed Transactions",
+      "difficulty": "medium",
+      "prompt": "**Orchestration** vs **choreography** for sagas: the key tradeoff is:",
+      "options": [
+        "Orchestration is always faster",
+        "Orchestration centralizes the workflow in a saga coordinator (clear flow, easier to reason about, single point of complexity) \u2014 choreography distributes the decisions via events (loosely coupled, harder to trace, no single owner of the flow)",
+        "Choreography requires Kafka",
+        "Orchestration cannot use compensating transactions"
+      ],
+      "answer": 1,
+      "explanation": "Orchestration: a central coordinator (Temporal, Camunda, Cadence) drives the saga. Easier debugging and visibility; coordinator becomes a critical service. Choreography: each service listens for events and decides its next action. Highly decoupled; emergent flow that's hard to discover or change globally. Most production sagas evolve into orchestration once flows get nontrivial."
+    },
+    {
+      "id": "ds-147",
+      "type": "single",
+      "topic": "Outbox Pattern",
+      "difficulty": "medium",
+      "prompt": "The **transactional outbox** pattern solves which problem?",
+      "options": [
+        "Service discovery",
+        "Atomically updating the database AND emitting a corresponding event \u2014 by writing the event into an `outbox` table in the same DB transaction, then letting a CDC reader (or relay) publish it to the message bus exactly once per row",
+        "Encryption at rest",
+        "Schema evolution"
+      ],
+      "answer": 1,
+      "explanation": "Dual writes (DB + Kafka) without 2PC are unsafe \u2014 you can crash between them and lose/duplicate events. Outbox: write the event into an `outbox` table in the same local transaction. A CDC process (Debezium) tails the DB log and publishes outbox rows to Kafka. Atomic with the business write, and idempotent on the replay path via the row id."
+    },
+    {
+      "id": "ds-148",
+      "type": "multi",
+      "topic": "Idempotency",
+      "difficulty": "medium",
+      "prompt": "Which design choices make an HTTP API's idempotency-key implementation robust? (Select all that apply)",
+      "options": [
+        "Accept a client-supplied `Idempotency-Key` header rather than deriving from body hash alone",
+        "Store the (key -> first response code/body/headers) mapping in durable storage with a TTL of 24h-7d",
+        "On replay return the stored response without re-executing the side effect",
+        "Detect \"same key, different body\" via a stored request hash and return 409/422",
+        "Always retry until the call succeeds and let the database UNIQUE constraint reject duplicates",
+        "Coalesce concurrent first-attempts via row-level lock or advisory lock so a retry while the first is in-flight waits for the result"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "Stripe-style idempotency: client supplies key, server caches the response for replay. Pair with body-hash check to catch reuse with different payloads, and concurrency-coalescing locks so two parallel retries do not both run the side effect. \"Retry-until-success + UNIQUE rejection\" wastes throughput and risks dropping legitimate writes."
+    },
+    {
+      "id": "ds-149",
+      "type": "single",
+      "topic": "Spanner / TrueTime",
+      "difficulty": "hard",
+      "prompt": "Google Spanner's **TrueTime** is special because:",
+      "options": [
+        "It is the fastest clock in the world",
+        "It exposes uncertainty: `TT.now()` returns an interval `[earliest, latest]`, and writes wait out the uncertainty so that any later read with `TT.now().earliest > write.latest` is guaranteed to see the write \u2014 enabling external consistency without per-shard coordination on the read path",
+        "It is a software-only clock",
+        "It only works in one region"
+      ],
+      "answer": 1,
+      "explanation": "TrueTime makes the clock's uncertainty a first-class API (`epsilon`). Writes commit with a timestamp and wait the epsilon out (commit wait); subsequent reads with timestamps strictly greater than that see the write. This gives Spanner externally consistent (linearizable) globally-distributed transactions without contacting every shard on read. Yugabyte/CockroachDB approximate this without atomic clocks via HLCs + bounded staleness."
+    },
+    {
+      "id": "ds-150",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "easy",
+      "prompt": "**Write-behind (write-back)** caching:",
+      "options": [
+        "Writes synchronously to the database and then to the cache",
+        "Writes only to the cache; flushes to the database asynchronously \u2014 lowest write latency, but on cache failure unflushed writes are lost; requires durable cache or write-ahead log to be safe",
+        "Bypasses the cache for writes",
+        "Encrypts every write"
+      ],
+      "answer": 1,
+      "explanation": "Write-behind: app writes to cache, cache acks immediately, a background process flushes to the backing store. Excellent latency and write absorption, dangerous durability profile. Mitigation: durable cache (Redis with AOF), WAL on the cache layer, or batched-with-checkpoint flushes. Don't use for systems-of-record without those safety nets."
+    },
+    {
+      "id": "ds-151",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "**Negative caching** (caching the fact that 'no value exists for this key') primarily prevents:",
+      "options": [
+        "Hot-key stampedes on existing data",
+        "Backend overload from repeated lookups of nonexistent keys \u2014 e.g. an attacker probing for usernames, or a buggy client calling missing endpoints in a loop",
+        "Cache eviction",
+        "TLS handshake costs"
+      ],
+      "answer": 1,
+      "explanation": "Without negative caching, every miss hits the database. Bots and bugs can DoS your DB by querying for missing keys forever. Cache a short-TTL 'not found' marker so the second-through-N-th lookup returns from cache. Keep the negative TTL short (seconds-minutes) to avoid masking newly-created data."
+    },
+    {
+      "id": "ds-152",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "**Request coalescing** (single-flight) for a hot cache key:",
+      "options": [
+        "Splits the key across multiple cache nodes",
+        "Ensures only one concurrent backend lookup for a given key while N requests are in flight; the lookup result is fanned out to all waiters \u2014 eliminating stampede on expiry",
+        "Increases the TTL on hot keys",
+        "Logs every cache miss"
+      ],
+      "answer": 1,
+      "explanation": "Even with a perfect cache, the moment a hot key expires, N concurrent requests will all miss. Single-flight (Go's `singleflight`, Caffeine's loading cache) deduplicates: first request fetches, others wait, all receive the same result. Pair with soft TTL / probabilistic early refresh to remove the spike entirely."
+    },
+    {
+      "id": "ds-153",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "hard",
+      "prompt": "A Redis Cluster slot migration (`MOVED`/`ASK` responses) is most likely to cause a latency spike when:",
+      "options": [
+        "The migration runs at night",
+        "Many large keys must be transferred during the resharding window \u2014 the source node blocks on `MIGRATE` for each big key, and clients chase MOVED/ASK redirects, inflating tail latency",
+        "TLS is enabled",
+        "There are too few keys"
+      ],
+      "answer": 1,
+      "explanation": "Redis `MIGRATE` is synchronous and blocks the source instance for the duration of the key transfer. A handful of multi-MB keys (large hashes / lists / streams) is enough to spike p99. Mitigations: pre-split or shrink big keys before migration; use `--cluster reshard --pipeline` with smaller batches; schedule for low-traffic windows."
+    },
+    {
+      "id": "ds-154",
+      "type": "multi",
+      "topic": "Storage Tiering",
+      "difficulty": "medium",
+      "prompt": "When moving 100TB of warm data from S3 Standard to S3 Glacier Deep Archive, which cost surprises commonly bite teams? (Select all that apply)",
+      "options": [
+        "Per-GB retrieval cost on restore can dwarf the per-GB storage savings if the data ends up being accessed",
+        "Lifecycle transitions themselves incur a per-object request cost \u2014 significant when objects are small and numerous",
+        "Minimum storage duration penalties (e.g. 180 days for Deep Archive) \u2014 deleting early triggers a pro-rated charge",
+        "Restore time of 12+ hours violates downstream RTO assumptions",
+        "Glacier Deep Archive does not support encryption",
+        "AWS recomputes ETag for archived files"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Glacier Deep Archive is cheap to keep but expensive to read and to transition into/out of. Minimum-duration billing punishes \"I just wanted to try it\" experiments. Restore SLAs are measured in hours. Encryption works normally. Wrong-tiering active data turns \"cheap storage\" into \"expensive surprise\" \u2014 always confirm access patterns first."
+    },
+    {
+      "id": "ds-155",
+      "type": "single",
+      "topic": "Storage Tiering",
+      "difficulty": "medium",
+      "prompt": "A 50TB lake has 500 million Parquet files because writes are 100KB micro-batches. The **dominant** cost component at S3-scale is often:",
+      "options": [
+        "Per-GB storage \u2014 the files together are big",
+        "Per-request charges (PUT/LIST/GET) and increased metastore catalog cost \u2014 a billion file-listings per query, multiplied by S3's per-request pricing, can dwarf the storage line item",
+        "Egress",
+        "Encryption"
+      ],
+      "answer": 1,
+      "explanation": "Small files punish you on TWO axes: query performance (planning + S3 listings dominate scan time) AND cost (per-request pricing, control-plane operations, increased metastore load). Compact to 128MB-1GB files (sweet spot for Parquet row groups and S3 multipart). It's the cheapest optimization you'll ever do."
+    },
+    {
+      "id": "ds-156",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "hard",
+      "prompt": "**Crypto-shredding** (cryptographic erasure) supports GDPR's right to be forgotten in immutable systems by:",
+      "options": [
+        "Recomputing all data with a new password",
+        "Encrypting each subject's data with a per-subject key; when the subject requests deletion, the key is destroyed, rendering all that data unreadable forever \u2014 even if the encrypted bytes remain in immutable storage (Iceberg snapshots, event logs, backups)",
+        "Compressing the data",
+        "Moving data to cold storage"
+      ],
+      "answer": 1,
+      "explanation": "Physical deletion in immutable systems is expensive or impossible. With per-subject (or per-record) keys held in a KMS, deletion = key destruction. Bytes remain but are unrecoverable ciphertext. Tradeoff: huge key-management blast radius, every read becomes a key lookup, and you must include cryptographic erasure into your threat model (what if the algorithm is broken in 20 years?)."
+    },
+    {
+      "id": "ds-157",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "hard",
+      "prompt": "**k-anonymity** of `k=5` on a dataset means:",
+      "options": [
+        "Only 5 people can access the dataset",
+        "Every record is indistinguishable from at least `k-1` others on the quasi-identifier columns \u2014 mitigating re-identification, but vulnerable to homogeneity and background-knowledge attacks (hence l-diversity, t-closeness as extensions)",
+        "The dataset has at most 5 columns",
+        "Encryption uses a 5-byte key"
+      ],
+      "answer": 1,
+      "explanation": "k-anonymity protects against linkage attacks by ensuring quasi-identifier groups have size \u2265k. But if all 5 records in a group share a sensitive attribute (homogeneity attack) the attacker still learns it. l-diversity ensures sensitive value variety within each group; t-closeness bounds the distance between group and overall distribution."
+    },
+    {
+      "id": "ds-158",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "hard",
+      "prompt": "**Differential privacy** gives a quantitative privacy guarantee by:",
+      "options": [
+        "Encrypting individual rows",
+        "Adding calibrated noise to aggregate queries such that the probability of any output changes by at most a multiplicative factor e^\u03b5 whether or not any single individual is in the dataset \u2014 the smaller \u03b5, the stronger the guarantee and the more noise",
+        "Tokenizing PII",
+        "Anonymizing rare values"
+      ],
+      "answer": 1,
+      "explanation": "DP is a mathematical guarantee, not a heuristic. Choose \u03b5 (privacy budget) and the mechanism (Laplace, Gaussian) is calibrated so the answer's distribution barely changes when any one record is removed. Used by US Census 2020, Apple/Google for telemetry. Tradeoff: smaller \u03b5 = more noise = less accuracy for the same query; a finite budget across many queries."
+    },
+    {
+      "id": "ds-159",
+      "type": "single",
+      "topic": "Multi-Region",
+      "difficulty": "medium",
+      "prompt": "An **active-passive** multi-region database deployment differs from **active-active** primarily because:",
+      "options": [
+        "Active-passive uses async replication; active-active uses sync",
+        "Active-passive serves all writes from one region and a standby promotes on failover (RPO > 0 with async replication); active-active accepts writes in all regions and must reconcile concurrent writes, trading RPO for write-conflict complexity",
+        "Active-active does not require replication",
+        "Active-passive cannot serve reads"
+      ],
+      "answer": 1,
+      "explanation": "Active-passive: simpler, single writer, predictable consistency, but cross-region latency for writers from the standby's region; RPO determined by replication lag. Active-active: lower write latency everywhere, but you inherit multi-leader conflicts (LWW / CRDT / app-merge). Most enterprises start active-passive and only adopt active-active when write geography demands it."
+    },
+    {
+      "id": "ds-160",
+      "type": "single",
+      "topic": "Multi-Region",
+      "difficulty": "medium",
+      "prompt": "Cross-region replication lag of 30 seconds on a critical OLTP database means your **RPO** during a region failure is:",
+      "options": [
+        "Exactly 0 \u2014 no data loss",
+        "Up to ~30 seconds of acknowledged writes are at risk of loss \u2014 because async replication had not shipped the trailing changes when the source region failed",
+        "Exactly 30 minutes",
+        "Unbounded"
+      ],
+      "answer": 1,
+      "explanation": "RPO (Recovery Point Objective) bounds acceptable data loss. With async replication and a 30s typical lag, a region loss could discard ~30s of writes. Synchronous cross-region replication achieves RPO=0 but adds significant write latency. Common compromise: sync within region (RPO=0 in-region), async across regions, with careful failover playbooks."
+    },
+    {
+      "id": "ds-161",
+      "type": "single",
+      "topic": "Multi-Region",
+      "difficulty": "medium",
+      "prompt": "**DNS-based failover** (e.g. Route53 health checks) typically has the drawback that:",
+      "options": [
+        "It requires a CDN",
+        "Client and intermediate DNS resolvers cache the DNS record \u2014 even with low TTLs (60s), legacy clients and resolvers may cache for many minutes, delaying failover beyond your RTO target",
+        "It cannot point to multiple regions",
+        "It does not support HTTPS"
+      ],
+      "answer": 1,
+      "explanation": "DNS caching makes the announced TTL a hopeful lower bound, not a hard ceiling. Misbehaving resolvers, JVMs with infinite DNS caches, and corporate gateways have been observed caching for hours. For sub-minute failover use anycast routing (BGP/Global Load Balancer) or client-side load balancers that detect failure directly."
+    },
+    {
+      "id": "ds-162",
+      "type": "multi",
+      "topic": "FinOps",
+      "difficulty": "medium",
+      "prompt": "Which practices most reliably **attribute warehouse compute cost** to teams/jobs? (Select all that apply)",
+      "options": [
+        "Per-team warehouses / virtual warehouses (Snowflake) with usage tags",
+        "Query tagging via session parameters that flow into the audit log (e.g. `query_tag = team:growth, dag:fact_orders`)",
+        "Cost-attribution dbt models that join warehouse usage views to job metadata",
+        "Allocating cost evenly across all employees",
+        "Disabling auto-suspend"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Real FinOps starts with attribution. Per-team warehouses, query tags propagated through orchestration, and join-back models on warehouse_usage are the building blocks. Even allocation is the absence of attribution. Disabling auto-suspend wastes money \u2014 the opposite of FinOps."
+    },
+    {
+      "id": "ds-163",
+      "type": "single",
+      "topic": "FinOps",
+      "difficulty": "medium",
+      "prompt": "A Snowflake warehouse runs many small ad-hoc queries throughout the day. Lowering `AUTO_SUSPEND` from 600s to 60s usually:",
+      "options": [
+        "Reduces cost by suspending the warehouse during idle gaps so you don't pay for unused compute",
+        "Increases query latency dramatically because every query restarts the warehouse",
+        "Has no effect",
+        "Breaks query result caching"
+      ],
+      "answer": 0,
+      "explanation": "Snowflake bills per second of warehouse runtime (min 60s). A workload of bursty ad-hoc queries with 5\u201310 minute gaps wastes a huge fraction of paid time. Shorter auto-suspend saves money. Tradeoff: warm-cache loss between sessions; can be partially mitigated by query result caching (which lives in metadata, not the warehouse)."
+    },
+    {
+      "id": "ds-164",
+      "type": "single",
+      "topic": "FinOps",
+      "difficulty": "hard",
+      "prompt": "Materializing a daily aggregate as a table (vs running it as a view on the fact) is a FinOps win when:",
+      "options": [
+        "The view is queried more often than the underlying fact is updated, AND the cost of one rebuild < the savings from N consumer queries hitting a pre-aggregated table",
+        "Storage is more expensive than compute",
+        "The fact never changes",
+        "Every consumer wants raw data"
+      ],
+      "answer": 0,
+      "explanation": "Materialization shifts compute from many reads to a few writes. Worth it when reads-per-rebuild is high and the rebuild is cheap. Bad when the fact rebuilds frequently and few consumers query the aggregate. Materialized views with incremental refresh (Snowflake MVs, BigQuery MVs) automate this tradeoff; classic dbt incremental models are the manual analog."
+    },
+    {
+      "id": "ds-165",
+      "type": "multi",
+      "topic": "Observability",
+      "difficulty": "medium",
+      "prompt": "Which signals are essential to monitor for a streaming pipeline? (Select all that apply)",
+      "options": [
+        "End-to-end event-time-to-emission latency (p50, p95, p99)",
+        "Per-source / per-sink consumer lag",
+        "Watermark progression",
+        "Number of late events and side-output volume",
+        "Average JVM heap size of a specific operator",
+        "Internet weather"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "User-facing SLO is end-to-end latency. Consumer lag and watermark progression are the leading indicators (something will stall before latency moves). Late events / side outputs measure correctness. Heap size of one operator is sometimes useful but isn't a universal must-have. 'Internet weather' is folklore."
+    },
+    {
+      "id": "ds-166",
+      "type": "single",
+      "topic": "Observability",
+      "difficulty": "medium",
+      "prompt": "**Tail-based sampling** in a tracing system is preferred over head-based sampling when:",
+      "options": [
+        "You want lowest collector overhead",
+        "You want to keep all traces with errors or high latency by deciding to sample only AFTER the full trace is assembled \u2014 head-based sampling has already discarded most traces before knowing whether they were interesting",
+        "You only have one service",
+        "Traces are short"
+      ],
+      "answer": 1,
+      "explanation": "Head sampling decides at trace start (cheap, but blind to outcome). Tail sampling waits for spans and decides post-hoc, keeping high-latency or error traces at high rate while subsampling boring ones. Cost: collector must buffer in-flight traces, which is expensive at scale \u2014 the typical OpenTelemetry pattern uses a tail-sampling processor running near the services."
+    },
+    {
+      "id": "ds-167",
+      "type": "single",
+      "topic": "Observability",
+      "difficulty": "medium",
+      "prompt": "An SLO of '99% of dashboard queries return in <2s, measured over 28 days' implies an **error budget** of approximately:",
+      "options": [
+        "0 seconds of slow queries per month",
+        "~1% of queries, which over 28 days is ~6.7 hours of cumulative violations if traffic is even \u2014 the team's burn rate against this budget should trigger alerts long before exhaustion (e.g. fast-burn at 2% per hour)",
+        "100% of queries",
+        "Unbounded"
+      ],
+      "answer": 1,
+      "explanation": "Error budget = 1 \u2212 SLO over the window. 1% of 28 days of query-seconds is your tolerable burn. Multi-window multi-burn-rate alerts (Google SRE book) fire at 2%/hr (fast burn) and 5%/6hr (slow burn) so you act before exhausting the budget. Budgets pace risk: lots of budget left = ship; budget depleted = freeze and stabilize."
+    },
+    {
+      "id": "ds-168",
+      "type": "single",
+      "topic": "Bake-offs",
+      "difficulty": "medium",
+      "prompt": "When choosing between **Iceberg, Delta Lake, and Apache Hudi** for a new lakehouse, the strongest reason to pick **Hudi** specifically is usually:",
+      "options": [
+        "It is the only format with ACID",
+        "First-class **upsert/merge-on-read** performance for high-volume mutable workloads (e.g. CDC ingest) with built-in record-level indexes and compaction scheduling",
+        "It is the only one with time travel",
+        "It is the only one usable from Spark"
+      ],
+      "answer": 1,
+      "explanation": "All three have ACID, time travel, schema evolution. Hudi's differentiator is its mutation story \u2014 it was built around CDC upsert workloads with record-level indexes and async compaction. Iceberg leads on engine-agnostic SQL semantics and partition evolution; Delta leads on Databricks integration and CDF. Pick by workload, not religion."
+    },
+    {
+      "id": "ds-169",
+      "type": "single",
+      "topic": "Bake-offs",
+      "difficulty": "medium",
+      "prompt": "Comparing **Kafka, Kinesis, and Pub/Sub** for a new event bus, Pub/Sub differentiates itself most by:",
+      "options": [
+        "Being the cheapest",
+        "Server-managed push subscriptions with no partition/shard concept \u2014 the service hides parallelism entirely; consumers scale automatically, no rebalances to manage, at the cost of weaker ordering guarantees (per-key ordering requires explicit ordering keys)",
+        "Strict per-topic ordering",
+        "Being open source"
+      ],
+      "answer": 1,
+      "explanation": "Kafka and Kinesis expose partitions/shards \u2014 you scale by partition count, manage rebalances, and reason about per-partition order. Pub/Sub hides partitions: consumers receive messages without thinking about distribution. Pay for it with weaker default ordering (must opt into ordering keys per region) and less fine-grained throughput control. Choose by operational comfort + ordering needs."
+    },
+    {
+      "id": "ds-170",
+      "type": "single",
+      "topic": "Bake-offs",
+      "difficulty": "medium",
+      "prompt": "Between **Flink, Spark Structured Streaming, and Kafka Streams**, Flink most clearly wins when:",
+      "options": [
+        "You want SQL only",
+        "You need true low-latency event-by-event processing, complex event-time windowing, and long-running stateful operators with savepoints and managed state migration \u2014 i.e. when you're building a streaming system, not adding streaming to a batch one",
+        "You only consume from Kafka and want minimal infra",
+        "You want serverless"
+      ],
+      "answer": 1,
+      "explanation": "Flink: real streaming engine, event-by-event, mature event-time + watermarks + state. Spark Structured Streaming: micro-batch (Continuous mode is limited), great if you already live in Spark. Kafka Streams: library, no cluster to operate, perfect if 'everything is in Kafka' and you don't need a separate processing tier. None is universally best; the question is the SHAPE of your workload."
+    },
+    {
+      "id": "ds-171",
+      "type": "single",
+      "topic": "Bake-offs",
+      "difficulty": "medium",
+      "prompt": "Between **ClickHouse, Druid, and Pinot** for a real-time OLAP layer, ClickHouse most clearly differentiates by:",
+      "options": [
+        "Being the only one that supports SQL",
+        "General-purpose SQL with broad join support, MergeTree storage with mutations, and strong ad-hoc query flexibility \u2014 vs Druid/Pinot which are tuned for low-latency time-series-dashboard workloads with limited joins",
+        "Native exactly-once semantics",
+        "Being managed-service-only"
+      ],
+      "answer": 1,
+      "explanation": "ClickHouse: closer to a general OLAP DB \u2014 rich SQL, joins, MergeTree mutability. Druid/Pinot: segment-based, near-instant ingest and segment-level pruning for time-bounded queries with simple aggregations; joins are limited or recently added. For 'fast dashboards on streaming data' the latter two are sharper; for 'fast SQL with joins on big tables' ClickHouse leads."
+    },
+    {
+      "id": "ds-172",
+      "type": "single",
+      "topic": "Event Sourcing",
+      "difficulty": "medium",
+      "prompt": "In an **event-sourced** system, snapshots of an aggregate's state are taken because:",
+      "options": [
+        "Events are unreliable",
+        "Replaying every event from the beginning to materialize current state is O(n) in event count \u2014 periodic snapshots let you replay only the events after the snapshot, bounding cold-load and recovery time",
+        "Disk is cheap",
+        "Events lose meaning over time"
+      ],
+      "answer": 1,
+      "explanation": "Pure event sourcing requires replaying the log to rebuild state \u2014 fine for short-lived aggregates, painful for long-running ones (a user account with 10y of events). Snapshots = periodic materialized state checkpoint, plus replay of subsequent events. The snapshot itself is derivable from events, so it's safe to regenerate."
+    },
+    {
+      "id": "ds-173",
+      "type": "single",
+      "topic": "Event Sourcing",
+      "difficulty": "easy",
+      "prompt": "**CQRS** is naturally paired with event sourcing because:",
+      "options": [
+        "Both require Kafka",
+        "Command side mutates the aggregate by appending events; query side maintains derived read-optimized projections from the same event stream \u2014 read and write models can evolve independently and the read model can be rebuilt by replay",
+        "It is required by GDPR",
+        "It eliminates the need for indexes"
+      ],
+      "answer": 1,
+      "explanation": "Command-Query Responsibility Segregation splits the model: writes go through the aggregate root and produce events; reads consume different projections (per-query views) of those events. Event sourcing supplies the source of truth; CQRS supplies the consumer-shaped views \u2014 each rebuildable from the log."
+    },
+    {
+      "id": "ds-174",
+      "type": "single",
+      "topic": "Kafka Topics",
+      "difficulty": "easy",
+      "prompt": "A **compacted topic** in Kafka retains:",
+      "options": [
+        "Only the most recent message per key (older messages with the same key are eventually compacted away), plus all messages in the active head segment",
+        "All messages forever",
+        "Only the first message per key",
+        "Only messages from a specific producer"
+      ],
+      "answer": 0,
+      "explanation": "Log compaction is per-key retention: at any time the topic contains AT LEAST the latest value per key. Older values are GC'd by a background compactor. Used for changelog topics (Kafka Streams state, configuration topics) where downstream consumers need 'final state' replay, not full history. Pair with a `null` value (tombstone) to delete a key."
+    },
+    {
+      "id": "ds-175",
+      "type": "single",
+      "topic": "Kafka Topics",
+      "difficulty": "medium",
+      "prompt": "Deleting a record from a compacted Kafka topic is done by:",
+      "options": [
+        "Calling `DELETE FROM topic`",
+        "Producing a **tombstone** \u2014 a record with the same key and a NULL value; the compactor eventually removes both the tombstone and prior values for that key after `delete.retention.ms`",
+        "Stopping the producer",
+        "Recreating the topic"
+      ],
+      "answer": 1,
+      "explanation": "Compacted topics use tombstones for deletes: produce `(key, null)`. After `delete.retention.ms` the compactor may purge both the tombstone and prior versions. Consumers see the null and treat it as 'key removed'. Tombstones are how Kafka Streams state stores propagate deletes; tuning `delete.retention.ms` low risks consumers missing the tombstone."
+    },
+    {
+      "id": "ds-176",
+      "type": "multi",
+      "topic": "dbt",
+      "difficulty": "medium",
+      "prompt": "Which strategies does dbt offer for `materialized = \"incremental\"` models, and when is each appropriate? (Select all that apply)",
+      "options": [
+        "`append` \u2014 fastest, used when source rows are immutable and uniqueness is irrelevant (event logs)",
+        "`merge` \u2014 default on Snowflake/BigQuery/Databricks with a `unique_key`; upserts by key",
+        "`delete+insert` \u2014 useful where MERGE is expensive or unsupported; deletes matching keys then inserts",
+        "`insert_overwrite` \u2014 overwrites whole partitions; idempotent partition-level reprocessing",
+        "`truncate_reload` \u2014 drops and rebuilds; the only safe option for incremental models",
+        "`stream_only` \u2014 runs only on streaming engines"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Real dbt incremental strategies: append (immutable events), merge (default upsert), delete+insert (where MERGE is poor), insert_overwrite (partition-level). truncate_reload is not an incremental strategy (it is exactly what incremental avoids). stream_only is not a thing. Pick by warehouse cost model, key availability, and partition shape."
+    },
+    {
+      "id": "ds-177",
+      "type": "single",
+      "topic": "Trino / Presto",
+      "difficulty": "medium",
+      "prompt": "A Trino query joining a 5TB fact to a 50MB dim is slow because the planner does a partitioned hash join, shuffling the fact. The fix is typically:",
+      "options": [
+        "Reduce the fact table size",
+        "Hint or rely on auto-selection of a **broadcast** join for the small side (`/*+ broadcast(d) */` or session `join_distribution_type = 'BROADCAST'`) so the dim is replicated to workers and the fact stays put",
+        "Use a different SQL dialect",
+        "Cluster the fact more"
+      ],
+      "answer": 1,
+      "explanation": "Trino defaults can be conservative; explicit broadcast hints or session knobs help when statistics are stale. For multi-fact joins, partitioned join can still win if fact-fact join keys have good locality. Always check the EXPLAIN plan: a 5TB shuffle for a 50MB dim is the classic 'forgot to broadcast' tell."
+    },
+    {
+      "id": "ds-178",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Snowflake's **automatic clustering** vs manually defining a clustering key is best characterized as:",
+      "options": [
+        "They are the same",
+        "Manual clustering keys + automatic clustering = Snowflake background-re-clusters micro-partitions to satisfy your declared key, charging credit-hours for the work; without a clustering key, Snowflake clusters by load order only \u2014 fine for time-series but suboptimal for queries with non-load-order predicates",
+        "Manual clustering disables compression",
+        "Automatic clustering requires a special warehouse type"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake's micro-partitions are clustered by load order out of the box. You define a clustering key (CLUSTER BY) and Snowflake reorganizes micro-partitions asynchronously to maintain it \u2014 invisible to readers but billed. Worth it for very large tables with predictable filter patterns; overkill for tables that auto-cluster well by load order."
+    },
+    {
+      "id": "ds-179",
+      "type": "single",
+      "topic": "BigQuery",
+      "difficulty": "medium",
+      "prompt": "BigQuery **slot-based pricing** vs **on-demand** is most often preferred when:",
+      "options": [
+        "You have unpredictable, ad-hoc workloads with very low monthly TB scanned",
+        "Workloads are large and continuous (you'd otherwise pay TB/scanned every day), and predictable enough that you can size reservations to cap cost \u2014 trading off elasticity for cost predictability",
+        "You only run point queries",
+        "You only run DDL"
+      ],
+      "answer": 1,
+      "explanation": "On-demand: pay per TB scanned \u2014 great for spiky, low-volume workloads. Slots: pay for compute capacity by the hour \u2014 great for heavy steady workloads where TB-scanned costs would exceed reservation costs. Modern BigQuery editions add autoscaling slot reservations to ease that boundary."
+    },
+    {
+      "id": "ds-180",
+      "type": "single",
+      "topic": "Schema Evolution",
+      "difficulty": "medium",
+      "prompt": "Adding a new column with default `NULL` to an Iceberg table is safe, but adding it to a **Parquet-only** Hive table can silently break older queries because:",
+      "options": [
+        "Parquet doesn't support new columns",
+        "Hive's schema-on-read against Parquet doesn't reconcile the table-level schema vs each file's footer schema by default \u2014 readers querying older files see no column or fail, depending on engine and `parquet.column.index.access` settings",
+        "Hive caches schemas forever",
+        "Default values are not allowed in Hive"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg tracks schema-evolution rules per-column with stable IDs in its metadata, so reading an old file with a new column is well-defined (the missing column returns null). Plain Hive/Parquet relies on the engine to match name- or position-based and the behavior across files of different schemas is brittle, especially with `MAP`/`STRUCT` evolution."
+    },
+    {
+      "id": "ds-181",
+      "type": "single",
+      "topic": "Schema Evolution",
+      "difficulty": "medium",
+      "prompt": "Type-widening an `INT32` column to `INT64` in a Parquet/Iceberg table is:",
+      "options": [
+        "Always safe",
+        "Safe under Iceberg's promotion rules (int\u2192long, float\u2192double, decimal precision-up) because old data still reads correctly; narrowing (long\u2192int) is unsafe and rejected by spec-compliant implementations",
+        "Always unsafe",
+        "Requires rewriting all data"
+      ],
+      "answer": 1,
+      "explanation": "Iceberg defines a small whitelist of safe type promotions: int\u2192long, float\u2192double, decimal(P,S)\u2192decimal(P',S) with P'\u2265P. These let old files be read with the new schema without rewriting bytes. Narrowing risks data loss and is forbidden. Cross-family conversions (int\u2192string) are explicitly out of scope."
+    },
+    {
+      "id": "ds-182",
+      "type": "single",
+      "topic": "Lineage",
+      "difficulty": "medium",
+      "prompt": "**OpenLineage** standardizes lineage emission across tools by:",
+      "options": [
+        "Replacing dbt with a different framework",
+        "Defining a vendor-neutral JSON event schema (run / job / dataset, input/output facets) that orchestrators and engines emit during job execution \u2014 collectors (Marquez, DataHub, Atlan, etc.) consume these events to build a graph",
+        "Encrypting lineage data",
+        "Running queries faster"
+      ],
+      "answer": 1,
+      "explanation": "OpenLineage is a spec + client libraries: Airflow, Spark, dbt, Flink, etc. all emit standardized events about jobs and the datasets they read/write. The collector (Marquez is the reference) assembles the cross-tool graph. Killer feature: a single column-level lineage view across orchestrators without each tool reinventing the wheel."
+    },
+    {
+      "id": "ds-183",
+      "type": "multi",
+      "topic": "Performance",
+      "difficulty": "hard",
+      "prompt": "A query that ran in 30s for months suddenly takes 30 minutes after a small data increase. Which root causes are commonly responsible for such PLAN FLIPS? (Select all that apply)",
+      "options": [
+        "A small table crossed the broadcast-join threshold and the planner switched to sort-merge / shuffle",
+        "Statistics became stale and the planner mis-estimated cardinalities, picking a different join order",
+        "A new index that the planner now prefers turns out to be worse for this query",
+        "Adaptive execution recompiled the plan based on actual shuffle sizes",
+        "Cosmic-ray bit flip in the optimizer code",
+        "A skewed key now produces a hot partition that breaks parallelism even on the same plan"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "Plan flips at scale: threshold crossings (broadcast -> sort-merge), stale stats, planner choosing a new (worse) index, AQE re-deciding, and skew-induced hot partitions that look like a plan flip but are really a skew problem. Cosmic rays are not on the diagnostic checklist."
+    },
+    {
+      "id": "ds-184",
+      "type": "single",
+      "topic": "Performance",
+      "difficulty": "hard",
+      "prompt": "Your service's p50 latency is steady at 5ms but p99 has spiked from 50ms to 500ms. The MOST common cause of a tail-only spike is:",
+      "options": [
+        "The server has more queries",
+        "Contention on a shared resource (lock, hot key, GC, single-threaded compactor) that affects only the unlucky requests \u2014 p50 is dominated by the common path, p99 captures the slowest tail",
+        "A bug in p50 measurement",
+        "TLS misconfiguration"
+      ],
+      "answer": 1,
+      "explanation": "Tail latency reveals resource contention invisible at the median: hot-key lock, GC pause, slow compaction stealing IO, head-of-line blocking on a connection pool, a single overloaded shard. Fix the bottleneck, not the median. Useful tools: per-key flame graphs, async-profiler, percentile-aware tracing, and tail-based sampling to surface the slow traces."
+    },
+    {
+      "id": "ds-185",
+      "type": "multi",
+      "topic": "Backfill",
+      "difficulty": "hard",
+      "prompt": "You must backfill 5 years (~50TB) of corrected data into a partitioned Iceberg fact table. Which approaches MINIMIZE consumer disruption? (Select all that apply)",
+      "options": [
+        "Run the backfill into a parallel branch / staging table; once verified, atomically swap via `ALTER TABLE ... RENAME` or Iceberg branch fast-forward",
+        "Backfill partition-by-partition using `INSERT OVERWRITE` with idempotent merge semantics; downstream readers see one corrected partition at a time",
+        "Issue UPDATE statements row by row in production",
+        "Use Iceberg branches: backfill into a branch, validate, then `fast_forward` main to the branch tag",
+        "Truncate the table and rebuild from scratch during business hours"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Safe playbook: write to a parallel destination (shadow table, branch), validate, atomic swap. Partition-by-partition rebuilds work where the downstream is partition-aware. Row-by-row UPDATE on 50TB is operationally hostile. Truncate during business hours violates the 'minimize disruption' premise. Iceberg branches make the swap a metadata-only commit."
+    },
+    {
+      "id": "ds-186",
+      "type": "multi",
+      "topic": "Migration",
+      "difficulty": "medium",
+      "prompt": "Migrating 100TB across cloud providers with minimal downtime. Which steps belong in the playbook? (Select all that apply)",
+      "options": [
+        "Bulk-seed a consistent snapshot via parallel S3<->GCS copy or appliance (Snowball/Transfer Appliance) \u2014 network-bound, dominates initial cost",
+        "Stand up ongoing CDC from source to destination once the snapshot is loaded, to keep them in sync",
+        "Establish a short dual-write window with row-count and key-aggregate reconciliation before cutting writers over",
+        "Plan for egress cost explicitly \u2014 at this scale, egress is the dominant migration line item",
+        "Take the source offline for the duration of the migration to guarantee consistency",
+        "Re-derive all data from upstream sources to avoid migrating at all"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "The durable cross-cloud recipe is snapshot + CDC + reconciled dual-write window + cutover, with explicit egress budgeting. Taking the source offline for days is not realistic at 100TB. Re-deriving from upstream is sometimes the right answer but is not a migration strategy \u2014 it sidesteps the question."
+    },
+    {
+      "id": "ds-187",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design an **outbox** table in Postgres for the transactional-outbox pattern: a service writes a business row + an outbox row in one transaction; a relay reads the outbox and publishes events to Kafka. Include columns needed for ordered, idempotent publishing and for relay observability.",
+      "language": "sql",
+      "starter": "CREATE TABLE outbox (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE outbox (\n  outbox_id          BIGSERIAL    PRIMARY KEY,                -- monotonic id for ordering & relay cursor\n  event_id           UUID         NOT NULL UNIQUE,            -- producer-side idempotency key\n  aggregate_type     VARCHAR(64)  NOT NULL,                   -- e.g. 'order', 'invoice'\n  aggregate_id       VARCHAR(64)  NOT NULL,                   -- business key (used as Kafka key for ordering)\n  event_type         VARCHAR(64)  NOT NULL,                   -- e.g. 'order.placed'\n  payload            JSONB        NOT NULL,                   -- the event body\n  headers            JSONB,                                   -- correlation / trace ids\n  schema_version     SMALLINT     NOT NULL DEFAULT 1,\n  created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  -- relay state (or store this in a separate cursor table)\n  published_at       TIMESTAMPTZ,\n  publish_attempts   INT          NOT NULL DEFAULT 0,\n  last_error         TEXT\n);\n\n-- Relay index: cheapest scan of unpublished events in insertion order.\nCREATE INDEX ix_outbox_unpublished\n  ON outbox (outbox_id)\n  WHERE published_at IS NULL;\n\n-- Useful for partition-by-aggregate ordering when fan-out matters.\nCREATE INDEX ix_outbox_aggregate ON outbox (aggregate_type, aggregate_id, outbox_id);",
+      "key_points": [
+        "Single BIGSERIAL provides monotonic ordering for the relay cursor",
+        "event_id (UUID) is a producer-side idempotency key so re-publish is safe at the consumer / broker",
+        "aggregate_id captured for use as the Kafka message key (preserves per-aggregate order downstream)",
+        "Payload as JSONB (or schema-bound type) plus schema_version to evolve safely",
+        "Relay state columns (published_at, publish_attempts, last_error) for observability and DLQ logic",
+        "Partial index on unpublished rows keeps the relay's hot path cheap as the table grows",
+        "Same DB transaction inserts the business row AND the outbox row \u2014 atomic by construction"
+      ]
+    },
+    {
+      "id": "ds-188",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **point-in-time (PIT) feature store** offline table for an ML feature 'user_7d_purchase_count'. The table must support: (a) point-in-time correct joins for training (no leakage), (b) latest-value reads for serving, (c) backfills that don't break already-trained models.",
+      "language": "sql",
+      "starter": "CREATE TABLE feature_user_7d_purchase_count (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE feature_user_7d_purchase_count (\n  user_id          BIGINT       NOT NULL,                  -- entity key\n  feature_value    DOUBLE       NOT NULL,                  -- the feature value\n  event_ts         TIMESTAMP    NOT NULL,                  -- when this feature value became true\n  ingest_ts        TIMESTAMP    NOT NULL,                  -- when the row was written (audit)\n  source_version   VARCHAR(32)  NOT NULL,                  -- pipeline / code version that produced it\n  feature_set_ver  VARCHAR(32)  NOT NULL,                  -- feature definition version\n  is_backfill      BOOLEAN      NOT NULL DEFAULT FALSE,    -- distinguishes initial backfill from live updates\n  PRIMARY KEY (user_id, event_ts, feature_set_ver)\n)\nPARTITION BY (event_ts);\n\n-- Point-in-time training join (pseudo-SQL):\n-- SELECT label.*, f.feature_value\n-- FROM labels label\n-- LEFT JOIN feature_user_7d_purchase_count f\n--   ON f.user_id = label.user_id\n--  AND f.feature_set_ver = 'v3'\n--  AND f.event_ts <= label.label_ts\n-- QUALIFY ROW_NUMBER() OVER (PARTITION BY label.row_id ORDER BY f.event_ts DESC) = 1;",
+      "key_points": [
+        "Stores (entity, feature_value, event_ts) so PIT joins use `event_ts <= label_ts` to prevent leakage",
+        "Latest-value read for serving = ORDER BY event_ts DESC LIMIT 1 per user_id",
+        "feature_set_ver in the key allows multiple versions of the feature definition to coexist (don't invalidate old models)",
+        "source_version + ingest_ts capture pipeline lineage for debugging",
+        "is_backfill flag distinguishes initial bulk loads from live-published values (handy for excluding from drift monitors)",
+        "Partition by event_ts for time-bounded backfills and retention",
+        "Composite PK ensures idempotent re-publish per (entity, event_ts, version)"
+      ]
+    },
+    {
+      "id": "ds-189",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design an event-sourced **events** table for an order aggregate. Include columns required for: ordered replay per aggregate, optimistic concurrency, snapshot pairing, and idempotent producer-side writes.",
+      "language": "sql",
+      "starter": "CREATE TABLE order_events (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE order_events (\n  aggregate_id      UUID         NOT NULL,\n  sequence_no       BIGINT       NOT NULL,                  -- monotonic per aggregate (1, 2, 3, ...)\n  event_id          UUID         NOT NULL,                  -- idempotency key (one row per event_id)\n  event_type        VARCHAR(64)  NOT NULL,                  -- e.g. 'OrderPlaced', 'ItemAdded'\n  event_version     SMALLINT     NOT NULL DEFAULT 1,        -- event schema version\n  payload           JSONB        NOT NULL,                  -- the event body\n  metadata          JSONB,                                  -- correlation id, causation id, user id\n  occurred_at       TIMESTAMPTZ  NOT NULL,                  -- wall-clock event time\n  recorded_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),    -- ingest time\n  PRIMARY KEY (aggregate_id, sequence_no),\n  UNIQUE (event_id)\n);\n\nCREATE INDEX ix_order_events_by_recorded_at\n  ON order_events (recorded_at);\n\n-- Companion snapshot table\nCREATE TABLE order_snapshots (\n  aggregate_id     UUID        NOT NULL,\n  sequence_no      BIGINT      NOT NULL,                    -- snapshot taken AT this sequence_no\n  state            JSONB       NOT NULL,\n  state_version    SMALLINT    NOT NULL,\n  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),\n  PRIMARY KEY (aggregate_id, sequence_no)\n);",
+      "key_points": [
+        "(aggregate_id, sequence_no) primary key gives strict ordered replay per aggregate",
+        "Sequence_no enables optimistic concurrency: writer asserts 'last seen N' and INSERT fails if another writer already wrote N+1",
+        "UNIQUE on event_id makes idempotent producer retries safe (no duplicate events)",
+        "event_version + payload version pattern supports schema evolution per event type",
+        "Companion snapshot table keyed by (aggregate_id, sequence_no) lets replay start from the snapshot and apply tail events",
+        "metadata column carries correlation/causation ids for distributed tracing across aggregates",
+        "Separates occurred_at (domain time) from recorded_at (ingest time) \u2014 essential for late events and audits"
+      ]
+    },
+    {
+      "id": "ds-190",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **late-arriving dimension** placeholder pattern: a dimension `dim_product` that supports facts referencing products that haven't yet been registered in the source. Include the columns needed to identify, reconcile, and audit such placeholder rows.",
+      "language": "sql",
+      "starter": "CREATE TABLE dim_product (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE dim_product (\n  product_sk        BIGINT       NOT NULL,                  -- surrogate PK\n  product_nk        VARCHAR(64)  NOT NULL,                  -- natural key from source\n  product_name      VARCHAR(200),\n  category          VARCHAR(100),\n  brand             VARCHAR(100),\n  price             DECIMAL(10,2),\n  -- placeholder mechanics\n  is_placeholder    BOOLEAN      NOT NULL DEFAULT FALSE,    -- TRUE when fact arrived before dim\n  placeholder_seen_at TIMESTAMP,                            -- first time a fact referenced this NK\n  reconciled_at     TIMESTAMP,                              -- when real source row backfilled the attributes\n  reconciled_by     VARCHAR(64),                            -- pipeline run id\n  -- audit\n  effective_from    TIMESTAMP NOT NULL,\n  effective_to      TIMESTAMP,                              -- NULL for current\n  is_current        BOOLEAN   NOT NULL DEFAULT TRUE,\n  ingested_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (product_sk),\n  UNIQUE (product_nk, effective_from)\n);\n\n-- A reserved 'Unknown' row for facts whose NK is genuinely absent.\nINSERT INTO dim_product (product_sk, product_nk, product_name, is_placeholder, effective_from, is_current)\nVALUES (-1, '__UNKNOWN__', 'Unknown Product', TRUE, '1970-01-01', TRUE);",
+      "key_points": [
+        "is_placeholder flag distinguishes rows created to hold a fact reference vs fully-attributed source rows",
+        "placeholder_seen_at and reconciled_at capture the time-to-reconcile window for SLOs",
+        "reconciled_by ties the reconciliation back to the pipeline run for audit",
+        "Reserved -1 'Unknown' row absorbs facts whose NK is null or genuinely unknown",
+        "effective_from/effective_to and is_current support SCD2-style versioning so the row evolves from placeholder \u2192 real",
+        "UNIQUE (product_nk, effective_from) prevents double-creating a placeholder for the same key",
+        "Lineage column (ingested_at) for debugging"
+      ]
+    },
+    {
+      "id": "ds-191",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design the **table-format metadata schema** that the question (not Iceberg itself, your own simplified version) would need to support snapshot isolation and time travel over a set of Parquet data files in object storage. Provide CREATE statements for: snapshots, manifest entries, and data file entries. Storage engine is Postgres acting as the metastore.",
+      "language": "sql",
+      "starter": "-- metastore tables backing a simple table format\nCREATE TABLE table_snapshot (\n  -- your design\n);\n\nCREATE TABLE table_manifest_entry (\n  -- your design\n);\n\nCREATE TABLE table_data_file (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE table_snapshot (\n  table_id          BIGINT       NOT NULL,\n  snapshot_id       BIGINT       NOT NULL,                  -- monotonic per table\n  parent_snapshot_id BIGINT,                                -- nullable for the first snapshot\n  committed_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  committed_by      VARCHAR(64)  NOT NULL,\n  summary           JSONB,                                  -- e.g. files-added, rows-added\n  schema_id         INT          NOT NULL,                  -- references a schema-version table\n  partition_spec_id INT          NOT NULL,                  -- references a partition-spec-version table\n  PRIMARY KEY (table_id, snapshot_id),\n  FOREIGN KEY (table_id, parent_snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id)\n);\n\nCREATE TABLE table_manifest_entry (\n  table_id          BIGINT       NOT NULL,\n  snapshot_id       BIGINT       NOT NULL,                  -- which snapshot owns this entry\n  data_file_id      BIGINT       NOT NULL,                  -- references table_data_file\n  status            SMALLINT     NOT NULL,                  -- 0 = EXISTING, 1 = ADDED, 2 = DELETED\n  added_in_snapshot BIGINT       NOT NULL,\n  deleted_in_snapshot BIGINT,\n  PRIMARY KEY (table_id, snapshot_id, data_file_id),\n  FOREIGN KEY (table_id, snapshot_id) REFERENCES table_snapshot (table_id, snapshot_id),\n  FOREIGN KEY (data_file_id) REFERENCES table_data_file (data_file_id)\n);\n\nCREATE TABLE table_data_file (\n  data_file_id      BIGSERIAL    PRIMARY KEY,\n  table_id          BIGINT       NOT NULL,\n  file_path         TEXT         NOT NULL,                  -- s3://... or hdfs://...\n  file_size_bytes   BIGINT       NOT NULL,\n  row_count         BIGINT       NOT NULL,\n  partition_values  JSONB        NOT NULL,                  -- e.g. {\"event_date\":\"2025-05-12\"}\n  column_stats      JSONB        NOT NULL,                  -- per-column min/max/null counts\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\n\nCREATE INDEX ix_manifest_by_table_snapshot ON table_manifest_entry (table_id, snapshot_id);",
+      "key_points": [
+        "Snapshots are chained via parent_snapshot_id, enabling time travel and rollback",
+        "Manifest entry has status (EXISTING/ADDED/DELETED) so deletes are recorded without rewriting files \u2014 essential for transactional semantics over immutable object storage",
+        "Data file rows store partition values (drives partition pruning) and per-column stats (drives predicate pushdown)",
+        "Schema-version and partition-spec-version IDs on the snapshot support schema and partition evolution",
+        "committed_at + committed_by + summary capture audit metadata",
+        "FKs maintain referential integrity across snapshots and data files",
+        "Bonus: explicit index on manifest entries by (table_id, snapshot_id) for fast plan-time enumeration"
+      ]
+    },
+    {
+      "id": "ds-192",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres **idempotency key** table to back an HTTP API that creates payments. The table stores the first response so retries return the same body without re-executing the side effect. Include TTL housekeeping.",
+      "language": "sql",
+      "starter": "CREATE TABLE idempotency_key (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE idempotency_key (\n  api_path           VARCHAR(128) NOT NULL,                  -- scope keys per endpoint\n  idempotency_key    VARCHAR(128) NOT NULL,                  -- client-supplied\n  request_hash       CHAR(64)     NOT NULL,                  -- hash of the request body\n  status             SMALLINT     NOT NULL,                  -- 0 = in-flight, 1 = completed\n  response_code      SMALLINT,                                -- HTTP status of stored response\n  response_body      JSONB,\n  response_headers   JSONB,\n  created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  completed_at       TIMESTAMPTZ,\n  expires_at         TIMESTAMPTZ  NOT NULL,                   -- TTL (e.g. created_at + 24h)\n  PRIMARY KEY (api_path, idempotency_key)\n);\n\nCREATE INDEX ix_idempotency_expires ON idempotency_key (expires_at);\n\n-- Daily housekeeping:\n-- DELETE FROM idempotency_key WHERE expires_at < now();",
+      "key_points": [
+        "Composite PK (api_path, idempotency_key) so the same key is allowed for different endpoints",
+        "request_hash lets the server detect 'same key, different body' \u2014 a 409 / 422 condition",
+        "status flag distinguishes in-flight vs completed so concurrent retries can wait/serve the cached response",
+        "Stored response_code / body / headers let the server return the exact original response on replay",
+        "expires_at + index supports TTL housekeeping; 24h-7d typical",
+        "Created/completed timestamps for audit and to compute upstream latency",
+        "Bonus: explicit advisory lock or row-level lock on the PK during the first execution to coalesce concurrent first-attempts"
+      ]
+    },
+    {
+      "id": "ds-193",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a **time-bucketed metrics** table for storing per-service request counts + latency percentiles at 1-minute granularity, partitioned for retention. Optimized for last-N-minutes dashboard reads and ~30-day retention.",
+      "language": "sql",
+      "starter": "CREATE TABLE metric_request (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE metric_request (\n  service_name      VARCHAR(64)  NOT NULL,\n  endpoint          VARCHAR(128) NOT NULL,\n  bucket_ts         TIMESTAMP    NOT NULL,                  -- floor(event_ts, '1 minute')\n  request_count     BIGINT       NOT NULL,\n  error_count       BIGINT       NOT NULL,\n  p50_ms            DOUBLE,\n  p95_ms            DOUBLE,\n  p99_ms            DOUBLE,\n  -- (optionally a t-digest blob for re-aggregation across buckets)\n  td_digest         BYTEA,\n  ingested_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (service_name, endpoint, bucket_ts)\n)\nPARTITION BY RANGE (bucket_ts);\n\n-- Daily partitions, easy retention via DROP PARTITION.\n-- CREATE TABLE metric_request_20250512 PARTITION OF metric_request\n--   FOR VALUES FROM ('2025-05-12') TO ('2025-05-13');",
+      "key_points": [
+        "Pre-aggregated grain (1 minute per service-endpoint) keeps storage and read cost predictable",
+        "Composite PK ensures idempotent re-aggregation by bucket_ts",
+        "Stores p50/p95/p99 as final values for dashboard reads, plus a t-digest blob so percentile values can be RE-aggregated across buckets (averaging p99s is statistically wrong)",
+        "Range partitioning on bucket_ts enables fast retention drops and partition pruning for last-N-minutes queries",
+        "Daily partitions are a good default at this volume; finer for very high cardinality, coarser for low",
+        "Lineage column (ingested_at)",
+        "Bonus: a clustering or secondary index on service_name for service-scoped dashboard reads"
+      ]
+    },
+    {
+      "id": "ds-194",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a **multi-tenant SaaS** table for customer support tickets. Must support: tenant isolation (row-level), per-tenant retention policies, and efficient queries scoped to a single tenant.",
+      "language": "sql",
+      "starter": "CREATE TABLE support_ticket (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE support_ticket (\n  tenant_id         BIGINT       NOT NULL,                  -- first column on every index for isolation\n  ticket_id         BIGINT       NOT NULL,                  -- unique within tenant\n  created_at        TIMESTAMPTZ  NOT NULL,\n  updated_at        TIMESTAMPTZ  NOT NULL,\n  status            VARCHAR(20)  NOT NULL,                  -- open / pending / resolved / closed\n  priority          SMALLINT     NOT NULL,\n  assigned_user_id  BIGINT,\n  subject           VARCHAR(200) NOT NULL,\n  body              TEXT,\n  retention_until   DATE,                                    -- per-tenant policy result\n  PRIMARY KEY (tenant_id, ticket_id)\n)\nPARTITION BY HASH (tenant_id);  -- spreads tenants across partitions to avoid one giant partition\n\nCREATE INDEX ix_ticket_open ON support_ticket (tenant_id, status, created_at DESC)\n  WHERE status IN ('open', 'pending');\n\n-- Postgres RLS:\nALTER TABLE support_ticket ENABLE ROW LEVEL SECURITY;\nCREATE POLICY tenant_isolation ON support_ticket\n  USING (tenant_id = current_setting('app.tenant_id')::BIGINT);",
+      "key_points": [
+        "tenant_id is the leading column in the PK and every index \u2014 every query plan starts by pruning to one tenant",
+        "Hash partitioning by tenant_id prevents an elephant tenant from monopolizing one partition while still allowing tenant-scoped queries",
+        "Partial index on (tenant_id, status, created_at) for the hot 'my open tickets' UI path",
+        "retention_until column captures the per-tenant retention deadline (driven by tenant's contracted policy)",
+        "RLS policy enforces isolation at the database, not just the application \u2014 defense in depth",
+        "Composite PK (tenant_id, ticket_id) lets ticket_id restart per tenant (vendor flexibility)",
+        "Bonus: a per-tenant retention sweeper that DELETEs (or VACUUMs to cold) rows past retention_until"
+      ]
+    },
+    {
+      "id": "ds-195",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **graph edge** table for a social graph (users follow users) in Postgres, optimized for both directions of traversal (followers of X, followees of X), bulk export to a graph DB, and idempotent upserts under heavy concurrency.",
+      "language": "sql",
+      "starter": "CREATE TABLE follow_edge (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE follow_edge (\n  follower_id     BIGINT       NOT NULL,                    -- the one doing the following\n  followee_id     BIGINT       NOT NULL,                    -- the one being followed\n  created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  source          VARCHAR(20)  NOT NULL DEFAULT 'app',      -- audit: app / import / api\n  PRIMARY KEY (follower_id, followee_id),\n  CHECK (follower_id <> followee_id)                         -- no self-follows\n);\n\n-- Reverse-direction lookup: followers of X.\nCREATE INDEX ix_follow_by_followee\n  ON follow_edge (followee_id, follower_id);\n\n-- Idempotent upsert:\n-- INSERT INTO follow_edge (follower_id, followee_id, source)\n-- VALUES ($1, $2, $3)\n-- ON CONFLICT (follower_id, followee_id) DO NOTHING;",
+      "key_points": [
+        "Composite PK (follower_id, followee_id) covers one direction of traversal and gives natural uniqueness",
+        "Reverse index on (followee_id, follower_id) covers the other direction \u2014 both lookups are index-only",
+        "CHECK constraint forbids self-follows (a common dirty-data source)",
+        "ON CONFLICT DO NOTHING makes follow idempotent under retries / dedup",
+        "created_at + source columns capture audit metadata for compliance / abuse review",
+        "Bonus: a separate `follow_event` append-only log captures unfollows for analytics without storing them in the live edge table",
+        "Bonus: bulk export query is a simple SELECT * with offset/limit pagination by (follower_id, followee_id)"
+      ]
+    },
+    {
+      "id": "ds-196",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **changelog (CDC sink)** table that lands Debezium-style change events into a Postgres staging schema before silver-layer MERGE. Must capture before/after images, source LSN, and op type, with idempotency on replay.",
+      "language": "sql",
+      "starter": "CREATE TABLE staging_orders_cdc (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE staging_orders_cdc (\n  source_db          VARCHAR(64)  NOT NULL,\n  source_table       VARCHAR(64)  NOT NULL,\n  source_lsn         NUMERIC(20)  NOT NULL,                  -- e.g. Postgres LSN or MySQL binlog file+pos as integer\n  source_txid        BIGINT,\n  op                 CHAR(1)      NOT NULL,                  -- c = create, u = update, d = delete, r = read (initial snapshot)\n  source_ts_ms       BIGINT       NOT NULL,                  -- event time at source\n  ingest_ts          TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  primary_key        JSONB        NOT NULL,                  -- e.g. {\"order_id\": 1234}\n  before_image       JSONB,                                  -- null for c, present for u/d\n  after_image        JSONB,                                  -- null for d, present for c/u\n  schema_version     INT          NOT NULL,                  -- Debezium schema id\n  PRIMARY KEY (source_db, source_table, source_lsn, primary_key)\n);\n\nCREATE INDEX ix_staging_orders_cdc_pk\n  ON staging_orders_cdc USING GIN (primary_key);",
+      "key_points": [
+        "PK includes source_lsn so re-publish of the same change is idempotent (INSERT ... ON CONFLICT DO NOTHING)",
+        "Stores both before_image (pre-update / pre-delete) and after_image (post-create / post-update) \u2014 needed to compute deltas and to apply deletes downstream",
+        "op column distinguishes create / update / delete / initial-read so the silver MERGE can branch correctly",
+        "source_ts_ms separates event time from ingest_ts (lag analysis)",
+        "JSONB primary_key supports tables with composite PKs without table-specific staging schemas",
+        "schema_version captures Debezium's schema id so payload shape changes are reconcilable",
+        "GIN index on primary_key supports key-scoped lookups during reconciliation"
+      ]
+    },
+    {
+      "id": "ds-197",
+      "type": "open",
+      "topic": "System Design",
+      "difficulty": "hard",
+      "prompt": "You operate a 30TB Snowflake warehouse with monthly compute spend of $200K and rising. The CFO asks for a 40% reduction in three months without breaking dashboards. Describe the **FinOps playbook** you'd execute, the order of operations, and the tradeoffs of each lever.",
+      "model_answer": "**Phase 1 \u2014 Attribute (week 1\u20132).** You can't cut what you can't see. Stand up cost attribution: per-team virtual warehouses with query tags propagated from orchestration (`query_tag = team:growth, dag:fact_orders, env:prod`). Join Snowflake `query_history` to job metadata in a `fct_warehouse_usage` model. End state: per-team / per-dag / per-mart monthly cost rollups in a dashboard that engineers actually look at.\n\n**Phase 2 \u2014 Quick wins (weeks 2\u20134).** Without changing any models:\n- **AUTO_SUSPEND** to 60s on ad-hoc warehouses (10-30% saving on bursty workloads).\n- **AUTO_RESUME on**, and consolidate one-off warehouses where they don't conflict.\n- **Result caching** \u2014 ensure session-level result reuse is on; identify dashboards rebuilding identical results minute-after-minute and route them through a layer that respects 1\u201310 min result cache TTL.\n- **Right-size warehouses** \u2014 a workload running on XL for 90 seconds may run on L for 110 seconds at half the credit-rate; XS for short ad-hoc.\n- **Identify and kill the top-10 cost queries.** Almost always 80% of cost is 20% of queries; many are scheduled but unused, or scanning a 5TB table when a 30GB aggregate would suffice.\n\n**Phase 3 \u2014 Modeling changes (weeks 4\u20138).**\n- **Materialize hot aggregates** that consumers re-derive on every query: dbt incremental models or Snowflake materialized views for the top-N consumed marts. Compute the rebuild-vs-read ratio first.\n- **Partition + cluster** the largest fact tables on the columns the query history shows are filtered most often \u2014 measure the pruning improvement; if it's <30%, the cluster key is wrong.\n- **Migrate cold partitions** to lower retention or to a Snowflake external table backed by S3 \u2014 trades query latency for storage cost (mostly storage, since compute is the dominant line).\n- **Search optimization service / clustering** on point-lookup tables only if the workload justifies it.\n\n**Phase 4 \u2014 Governance (ongoing).**\n- **Cost budgets per team** with auto-alerts on burn-rate.\n- **CI checks on PRs** that estimate the cost of new dbt models against a sample to avoid PR-time regressions.\n- **Quarterly mart audits** \u2014 deprecate models with zero downstream usage in 30 days.\n- **Reserve discount / committed-use** for the steady-state baseline once the new floor is established (only AFTER cuts \u2014 don't lock in a high baseline).\n\n**Tradeoffs:**\n- Quick wins are low-risk but bounded \u2014 typically 15\u201325% saving without code changes.\n- Modeling changes save the next 15\u201320% but require coordination with consumers; communicate via deprecation windows, not surprise breakage.\n- Cold tiering trades latency for cost \u2014 sell it to consumers with concrete latency numbers, not vague 'archive' talk.\n- Reservation/committed discounts are only safe AFTER the new steady state is measured; locking in early defeats the purpose.\n- Don't disable auto-suspend or merge teams' warehouses if it creates contention \u2014 the savings can be undone by spillage and slowness that drives engineers to ask for bigger warehouses.\n\n**Expected outcome.** A disciplined sequence usually finds 40\u201355% savings within a quarter on a warehouse that hasn't had a cost review in 12+ months. The hardest part is sustaining the new baseline: without governance, costs creep back within two quarters.",
+      "key_points": [
+        "Starts with cost ATTRIBUTION (per-team warehouses, query tags, usage joined to job metadata) \u2014 'measure first' framing",
+        "Sequences quick wins (auto-suspend, result caching, right-sizing, top-10 query elimination) before model changes",
+        "Calls out materializing hot aggregates with explicit rebuild-vs-read math, not gut feel",
+        "Mentions partition / cluster verification by measuring pruning improvement, not assumption",
+        "Discusses cold tiering and its latency tradeoff explicitly",
+        "Mentions governance / budgets / PR-time cost CI to prevent regressions",
+        "Warns against locking in reserved capacity before the new floor is established",
+        "Discusses tradeoffs of each lever (low-risk vs high-coordination, latency vs cost)",
+        "Sets a realistic outcome expectation (40\u201355% is achievable on a stale warehouse)",
+        "Communicates a sustaining mechanism so the savings don't regress"
+      ]
+    },
+    {
+      "id": "ds-198",
+      "type": "open",
+      "topic": "System Design",
+      "difficulty": "hard",
+      "prompt": "A daily dbt run feeding the executive KPI dashboard occasionally **flips a query plan** at scale: most days `fact_sales` is joined to `dim_customer` via broadcast; once a week, post-deduplication, the dim crosses a threshold and the plan switches to sort-merge, blowing the runtime from 5 minutes to 90 minutes and missing the morning SLA. Describe how you'd diagnose, mitigate short-term, and fix root-cause.",
+      "model_answer": "**Diagnose first.**\n1. Confirm: pull `EXPLAIN ANALYZE` (or warehouse equivalent: Snowflake `QUERY_HISTORY` + `EXPLAIN`, BigQuery `INFORMATION_SCHEMA.JOBS_BY_PROJECT`, Spark UI for Databricks). Compare a 5-minute run plan vs a 90-minute run plan side by side. You expect the join operator to differ (BroadcastHashJoin \u2192 SortMergeJoin) along with the input estimates.\n2. Identify the *exact* trigger. Is `dim_customer` actually crossing the broadcast threshold (default ~10MB Spark, configurable; auto in Snowflake), or are stats stale so the planner *thinks* it crossed? Run the EXPLAIN on a small reproduction with the actual dim sizes to confirm.\n3. Check whether the dim's de-dup step has a SKEW: the runs that flip might also produce a hot key that breaks the broadcast hash join even if it had been chosen.\n\n**Short-term mitigation (same week).**\n- **Force the join strategy** via a hint: in Spark / Databricks, `BROADCAST(d)` hint; in BigQuery, write the join shape as a CTE that the planner is more likely to broadcast; in Snowflake, the optimizer typically gets this right \u2014 if it doesn't, pin the warehouse size up one notch for that step.\n- **Stabilize the input size** by writing the dim to a small materialized table BEFORE the join, with explicit `OPTIMIZE` / `ANALYZE TABLE COMPUTE STATISTICS` to refresh stats. Now the planner sees deterministic size.\n- **Add a CI check** on the dim's row count vs a baseline so a 30% week-over-week spike triggers an alert before the morning run.\n- **Move the run earlier** to give more recovery time if the SLA is at risk, while root-cause is being fixed.\n\n**Root-cause fix.**\nThe underlying issue is a brittle threshold-based plan. Three durable fixes:\n1. **Make the dim's size deterministic.** If it's drifting because de-dup grouping changes, the right fix is upstream: stabilize the dedup logic so the dim doesn't accidentally retain duplicates one week and not the next. Use a hash diff and an SCD2 approach so the dim doesn't fluctuate.\n2. **Architect around the threshold.** Either ensure the dim stays comfortably below the broadcast limit forever (split into sub-dims; or build a curated 'broadcastable' projection), or commit to a sort-merge plan and *tune for it* with proper partitioning of the fact by `customer_sk_bucket`. Whichever side of the threshold you choose, you choose deterministically.\n3. **Adopt adaptive execution where possible.** Spark AQE (`spark.sql.adaptive.enabled=true`) re-evaluates the plan at runtime based on actual shuffle sizes, often catching the flip without manual hints. It's not a silver bullet \u2014 it doesn't help if the warehouse engine doesn't expose AQE (older versions, some non-Spark engines) and it adds startup cost \u2014 but it's the modern default for this exact class of bug.\n\n**Tradeoffs.**\n- Hints are precise but brittle: someone refactors the model, the hint goes stale, and the bug returns silently. Document and lint for them.\n- A 'broadcastable' projection (mini-dim of just the join keys + necessary columns) is the cleanest long-term answer if the full dim is genuinely too big.\n- Forcing sort-merge requires you to ALSO repartition / bucket the fact correctly. Doing one without the other is worse than letting the planner choose.\n- AQE is great but adds variance in execution time across runs; make sure your SLA dashboards plot the right metric.\n\n**Preventive measures.**\n- Pin warehouse / cluster size for the SLA-bearing DAG so day-to-day capacity variation doesn't compound the plan flip.\n- Snapshot the chosen plan in CI for the top-N most expensive queries; alert when the plan signature changes.\n- Treat the dim row count, dedup yield, and post-join row count as data SLOs and monitor week-over-week.",
+      "key_points": [
+        "Starts with diagnosis: comparing EXPLAIN plans across 'good' and 'bad' runs",
+        "Identifies the trigger as a threshold crossing (broadcast \u2192 sort-merge) and considers stale stats as a confounder",
+        "Considers skew as a secondary trigger that could break the broadcast plan independently",
+        "Short-term mitigations: explicit join hints, materializing a stabilized dim, refreshing stats, CI alarms on size drift",
+        "Root cause: make the dim size deterministic upstream (dedup logic, SCD2 stability)",
+        "Architectural alternative: commit to one side of the threshold and tune for it (broadcastable projection OR proper partitioning for sort-merge)",
+        "Mentions adaptive execution (AQE) as a modern mitigation and notes its limits",
+        "Discusses hint brittleness and the need for documentation / lint",
+        "Adds preventive measures: pinned capacity, plan-signature CI, data SLOs on the dim",
+        "Demonstrates ownership end-to-end: triage \u2192 patch \u2192 root cause \u2192 prevention"
+      ]
+    },
+    {
+      "id": "ds-199",
+      "type": "open",
+      "topic": "System Design",
+      "difficulty": "hard",
+      "prompt": "You inherit a 3-year-old data platform: nightly batch into a Redshift warehouse, hand-built Airflow DAGs, no schema registry, ad-hoc PII handling, dashboards on stale data. Leadership wants 'a modern data platform' in six months with stricter governance and 1-hour data freshness for the top-20 dashboards. Lay out the **migration strategy** \u2014 sequencing, what to leave alone, what to replace, and how you measure success.",
+      "model_answer": "**Anchor: the strategy is iterative replacement, not a parallel rebuild.** Promise no big-bang migrations \u2014 they fail in this kind of environment because tribal knowledge is concentrated in the existing DAGs.\n\n**Month 0 \u2014 Discovery (2 weeks).**\n- Inventory the top-20 dashboards (the only ones with the 1-hour SLA). Trace each to upstream sources. Most will share a small core of facts and dims \u2014 that core is your migration target.\n- Inventory PII columns and current handling. Tag them, even if the handling is wrong today.\n- Establish an attribution / observability baseline: per-DAG run times, per-table freshness, dashboard load times. Without this you can't prove improvement.\n\n**Month 1 \u2014 Foundations.**\n- **Ingestion.** Introduce CDC for the top 5 source systems (Debezium / DMS) writing to Kafka. Keep the legacy batch ingestion for everything else \u2014 don't fight battles outside the top-20.\n- **Storage.** Stand up an S3 + Iceberg lakehouse alongside Redshift. Don't migrate data yet; just create the bronze landing zone.\n- **Catalog + lineage.** Adopt a catalog (DataHub / Atlan / Unity Catalog) and emit OpenLineage from Airflow. This is the spine of governance; the value compounds with every model added.\n- **Schema registry.** Run a Confluent / equivalent registry. Mandate it for all NEW topics; legacy producers grandfathered.\n\n**Month 2\u20133 \u2014 Migrate the core marts.**\n- For each of the top-20 dashboards:\n  1. Identify the underlying mart (often only 3\u20135 distinct ones).\n  2. Rebuild the mart in dbt against the lakehouse (silver \u2192 gold).\n  3. Add dbt tests (uniqueness, not-null, freshness, accepted_values) for each model.\n  4. Backfill the gold table in the lakehouse to match Redshift; reconcile row counts and key aggregates.\n  5. Cut the dashboard's data source over with a 2-week dual-write/dual-read overlap.\n- The 1-hour SLA is achieved by CDC + streaming silver + scheduled (5-15 min cadence) gold incremental refresh \u2014 not by full streaming everywhere.\n\n**Month 4 \u2014 Governance.**\n- Centralize PII tagging in the catalog and propagate via column-level lineage.\n- Implement column masking / row-level security at the gold layer for sensitive marts. Tokenize at the silver layer for the most sensitive fields.\n- Stand up a DSR (data subject request) workflow that uses the tags + lineage to identify affected tables.\n- Define data contracts for the top 5 source systems with their owners; back them with CI checks on the producer side.\n\n**Month 5 \u2014 Observability + SLAs.**\n- Freshness, completeness, schema-stability, job-success SLOs on every gold table with alerts.\n- End-to-end p99 latency tracking from source-event to dashboard-row-visible.\n- Cost attribution dashboard live; per-team budgets in place.\n- A runbook + on-call rotation for the platform team \u2014 governance only works if someone is paged for SLO breaches.\n\n**Month 6 \u2014 Sunset path.**\n- Decommission migrated dashboards' Redshift dependencies. Don't shut Redshift down \u2014 it still serves the long tail of internal queries.\n- Publish a deprecation timeline for the remaining Redshift marts (6\u201312 months out) with a clear migration template (the same one used for the top-20).\n- Reserve a small budget line for ongoing governance: catalog curation, contract reviews, dbt test coverage targets.\n\n**What to leave alone:**\n- The long tail of low-priority dashboards on Redshift \u2014 they cost little and pay no SLA. They migrate opportunistically.\n- Source-system schemas \u2014 don't ask source teams to refactor for the new platform; the contracts and CDC absorb the impedance.\n- The existing Airflow scheduling layer where it works \u2014 add OpenLineage emission, but don't replace the orchestrator just to replace it.\n\n**Success metrics (measured against the Month 0 baseline):**\n- 1-hour freshness achieved for \u2265 18/20 top dashboards by end of Month 5.\n- 90% of new gold tables have dbt tests; 95% have column-level lineage; 100% have PII tagging.\n- Mean dashboard p99 load time reduced by \u2265 30%.\n- Zero unhandled DSRs older than 30 days.\n- Cost per gold table refresh tracked, and a 20% cost reduction on the top-10 most expensive models.\n\n**Tradeoffs to call out explicitly:**\n- The CDC path costs more in steady-state ($/month) than nightly batch but delivers the SLA leadership asked for. Frame it as 'this is what 1-hour freshness costs'.\n- Two warehouses in parallel for 6 months is overhead. Cap the dual-run window per dashboard at 2\u20134 weeks.\n- Building the catalog/governance before showing dashboard wins makes leadership nervous. Sequence so a small set of migrated dashboards is visible by end of Month 2.",
+      "key_points": [
+        "Frames the migration as iterative replacement, not a big-bang rewrite",
+        "Starts with inventory + observability baseline so improvement is measurable",
+        "Sequences foundations (CDC, lakehouse, catalog, registry) before model migration",
+        "Scopes the 1-hour SLA to the top-20 dashboards rather than promising platform-wide streaming",
+        "Migrates marts in waves, each with reconciliation + dual-read overlap",
+        "Addresses governance (PII tagging, column-level lineage, RLS, DSR workflow) as a distinct phase, not afterthought",
+        "Decides explicitly what to LEAVE ALONE (long tail, source schemas, existing scheduler)",
+        "Defines concrete success metrics tied to the Month 0 baseline (numbers, not adjectives)",
+        "Calls out cost / dual-run / political tradeoffs honestly",
+        "Plans a sustaining phase (deprecation timeline, on-call, governance budget) so the platform doesn't regress in year 2"
+      ]
+    },
+    {
+      "id": "ds-200",
+      "type": "single",
+      "topic": "Architecture",
+      "difficulty": "easy",
+      "prompt": "A team proposes a Lambda architecture (separate batch + streaming pipelines that converge in a serving layer). The strongest argument FOR Kappa (single streaming pipeline, replays for backfill) instead, in 2026, is:",
+      "options": [
+        "Streaming engines are slower than batch",
+        "Modern table formats (Iceberg/Delta) and stream-batch unification in engines (Flink, Spark Structured Streaming, Databricks DLT) make a single pipeline with replay capability achievable \u2014 eliminating the two-code-path maintenance burden of Lambda, with backfills served by replaying the log over the same operators",
+        "Kappa doesn't require any storage",
+        "Lambda was deprecated by the cloud vendors"
+      ],
+      "answer": 1,
+      "explanation": "Lambda's original justification \u2014 batch was the only way to do correct large-scale processing, streaming for low-latency approximations \u2014 has eroded as streaming engines gained windowing, exactly-once, and lakehouse storage gained ACID + replay. Kappa-style pipelines now deliver both freshness and correctness from one codebase. Lambda still wins when your batch toolchain is irreplaceable or replay storage costs are prohibitive; otherwise the maintenance savings of one code path are compelling."
     }
   ]
 }
