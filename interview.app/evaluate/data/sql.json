@@ -4,6 +4,7 @@
   "tagline": "Joins, aggregation, window functions, CTEs, and query reasoning",
   "duration_minutes": 25,
   "passing_score": 70,
+  "quiz_length": 15,
   "questions": [
     {
       "id": "sql-001",
@@ -30,10 +31,10 @@
         "WHERE filters rows before grouping; HAVING filters groups after aggregation",
         "WHERE works on indexed columns; HAVING does not",
         "HAVING is faster than WHERE",
-        "They are identical — HAVING is just legacy syntax"
+        "They are identical \u2014 HAVING is just legacy syntax"
       ],
       "answer": 0,
-      "explanation": "WHERE is evaluated row-by-row before GROUP BY. HAVING is evaluated against aggregated groups — so you can use SUM(amount) > 1000 in HAVING but not in WHERE."
+      "explanation": "WHERE is evaluated row-by-row before GROUP BY. HAVING is evaluated against aggregated groups \u2014 so you can use SUM(amount) > 1000 in HAVING but not in WHERE."
     },
     {
       "id": "sql-003",
@@ -48,7 +49,7 @@
         "Throws an error"
       ],
       "answer": 2,
-      "explanation": "NULL means 'unknown', so any comparison with NULL — including NULL = NULL — yields NULL. Use IS NULL / IS NOT NULL for NULL checks."
+      "explanation": "NULL means 'unknown', so any comparison with NULL \u2014 including NULL = NULL \u2014 yields NULL. Use IS NULL / IS NOT NULL for NULL checks."
     },
     {
       "id": "sql-004",
@@ -78,7 +79,7 @@
         "They are equivalent in modern databases"
       ],
       "answer": 1,
-      "explanation": "UNION performs a distinct-sort to deduplicate, which can be expensive. UNION ALL concatenates without dedup — prefer it when you know there are no duplicates or duplicates are desired."
+      "explanation": "UNION performs a distinct-sort to deduplicate, which can be expensive. UNION ALL concatenates without dedup \u2014 prefer it when you know there are no duplicates or duplicates are desired."
     },
     {
       "id": "sql-006",
@@ -94,8 +95,14 @@
         "FIRST_VALUE()",
         "NTILE()"
       ],
-      "answer": [0, 1, 2, 4, 5],
-      "explanation": "ROW_NUMBER, RANK, DENSE_RANK, LEAD, LAG, FIRST_VALUE, LAST_VALUE, NTILE are all standard window functions. COUNT(DISTINCT ...) OVER (...) is NOT supported in most engines — use a workaround with DENSE_RANK or array_agg."
+      "answer": [
+        0,
+        1,
+        2,
+        4,
+        5
+      ],
+      "explanation": "ROW_NUMBER, RANK, DENSE_RANK, LEAD, LAG, FIRST_VALUE, LAST_VALUE, NTILE are all standard window functions. COUNT(DISTINCT ...) OVER (...) is NOT supported in most engines \u2014 use a workaround with DENSE_RANK or array_agg."
     },
     {
       "id": "sql-007",
@@ -105,8 +112,8 @@
       "prompt": "Given two rows with identical values, what do ROW_NUMBER, RANK, and DENSE_RANK return?",
       "options": [
         "All three return the same numbers",
-        "ROW_NUMBER → 1,2 · RANK → 1,1 (next is 3) · DENSE_RANK → 1,1 (next is 2)",
-        "ROW_NUMBER → 1,1 · RANK → 1,2 · DENSE_RANK → 1,2",
+        "ROW_NUMBER \u2192 1,2 \u00b7 RANK \u2192 1,1 (next is 3) \u00b7 DENSE_RANK \u2192 1,1 (next is 2)",
+        "ROW_NUMBER \u2192 1,1 \u00b7 RANK \u2192 1,2 \u00b7 DENSE_RANK \u2192 1,2",
         "All three return 1,1 with no gaps"
       ],
       "answer": 1,
@@ -141,7 +148,12 @@
         "Wrapping the indexed column in a function (e.g. `LOWER(col) = 'x'`)",
         "Switching INNER JOIN to LEFT JOIN to skip the match check"
       ],
-      "answer": [0, 1, 2, 3],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
       "explanation": "Indexes, projection pruning, partition pruning, and fresh stats all help. Wrapping a column in a function defeats the index. LEFT JOIN does MORE work than INNER (returns extra rows), not less."
     },
     {
@@ -157,17 +169,28 @@
         "When you use USING() instead of ON"
       ],
       "answer": 2,
-      "explanation": "If every left-side row matches, no NULLs are introduced and the result is identical to INNER JOIN. This is also the motivation for the 'LEFT JOIN smell test' — if no NULLs appear, ask whether INNER would have been clearer."
+      "explanation": "If every left-side row matches, no NULLs are introduced and the result is identical to INNER JOIN. This is also the motivation for the 'LEFT JOIN smell test' \u2014 if no NULLs appear, ask whether INNER would have been clearer."
     },
     {
       "id": "sql-011",
       "type": "code",
       "topic": "Window Functions",
       "difficulty": "medium",
-      "prompt": "Write a query to return the SECOND highest salary per department. Schema: `employee(id, name, dept_id, salary)`. Return columns: `dept_id, second_highest_salary`.",
+      "prompt": "Write a query to return the SECOND highest salary per department. Schema: `employee(id, name, dept_id, salary)`. Return columns: `dept_id, second_highest_salary`. Use DENSE_RANK so ties at the top still surface a 2nd-place salary.",
       "language": "sql",
       "starter": "-- Your SQL here\n",
-      "model_answer": "WITH ranked AS (\n  SELECT\n    dept_id,\n    salary,\n    DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk\n  FROM employee\n)\nSELECT dept_id, salary AS second_highest_salary\nFROM ranked\nWHERE rk = 2;",
+      "schema": "CREATE TABLE employee (id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER);\nINSERT INTO employee VALUES\n  (1,'Alice',1,100),(2,'Bob',1,120),(3,'Cara',1,90),\n  (4,'Dan',2,80),(5,'Eve',2,75),(6,'Finn',2,80);",
+      "model_answer": "WITH ranked AS (\n  SELECT\n    dept_id,\n    salary,\n    DENSE_RANK() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS rk\n  FROM employee\n)\nSELECT DISTINCT dept_id, salary AS second_highest_salary\nFROM ranked\nWHERE rk = 2\nORDER BY dept_id;",
+      "expected_rows": [
+        {
+          "dept_id": 1,
+          "second_highest_salary": 100
+        },
+        {
+          "dept_id": 2,
+          "second_highest_salary": 75
+        }
+      ],
       "key_points": [
         "Uses DENSE_RANK or ROW_NUMBER (DENSE_RANK handles ties correctly)",
         "PARTITION BY dept_id so ranking resets per department",
@@ -183,11 +206,26 @@
       "prompt": "Schema: `orders(order_id, customer_id, order_date, amount)`. Write a query returning customers who placed MORE than 3 orders in 2025. Columns: `customer_id, order_count`.",
       "language": "sql",
       "starter": "-- Your SQL here\n",
-      "model_answer": "SELECT customer_id, COUNT(*) AS order_count\nFROM orders\nWHERE order_date >= '2025-01-01' AND order_date < '2026-01-01'\nGROUP BY customer_id\nHAVING COUNT(*) > 3;",
+      "schema": "CREATE TABLE orders (order_id INTEGER, customer_id INTEGER, order_date TEXT, amount NUMERIC);\nINSERT INTO orders VALUES\n  (1,100,'2025-01-15',50),(2,100,'2025-02-20',30),(3,100,'2025-03-01',40),(4,100,'2025-04-10',20),\n  (5,101,'2025-01-01',100),(6,101,'2025-02-02',50),\n  (7,102,'2025-05-05',200),(8,102,'2025-06-06',300),(9,102,'2025-07-07',150),(10,102,'2025-08-08',75),\n  (11,103,'2024-12-31',500),\n  (12,104,'2025-01-01',100),(13,104,'2025-02-02',200),(14,104,'2025-03-03',300),(15,104,'2025-04-04',400),(16,104,'2025-05-05',500);",
+      "model_answer": "SELECT customer_id, COUNT(*) AS order_count\nFROM orders\nWHERE order_date >= '2025-01-01' AND order_date < '2026-01-01'\nGROUP BY customer_id\nHAVING COUNT(*) > 3\nORDER BY customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 100,
+          "order_count": 4
+        },
+        {
+          "customer_id": 102,
+          "order_count": 4
+        },
+        {
+          "customer_id": 104,
+          "order_count": 5
+        }
+      ],
       "key_points": [
         "Filters the year in WHERE (sargable date range, not YEAR(order_date) which defeats indexes)",
         "GROUP BY customer_id",
-        "HAVING COUNT(*) > 3 — must be HAVING, not WHERE, since it filters an aggregate"
+        "HAVING COUNT(*) > 3 \u2014 must be HAVING, not WHERE, since it filters an aggregate"
       ]
     },
     {
@@ -195,13 +233,22 @@
       "type": "code",
       "topic": "Window Functions",
       "difficulty": "hard",
-      "prompt": "Schema: `login(user_id, login_date)`. Find users who logged in on AT LEAST 3 consecutive calendar days at any point. Return distinct `user_id`s.",
+      "prompt": "Schema: `login(user_id, login_date)`. Find users who logged in on AT LEAST 3 consecutive calendar days at any point. Return distinct `user_id`s, ordered ascending.",
       "language": "sql",
       "starter": "-- Your SQL here\n",
-      "model_answer": "WITH grouped AS (\n  SELECT\n    user_id,\n    login_date,\n    DATE_SUB(login_date,\n      INTERVAL ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date) DAY\n    ) AS streak_key\n  FROM (SELECT DISTINCT user_id, login_date FROM login) d\n)\nSELECT DISTINCT user_id\nFROM grouped\nGROUP BY user_id, streak_key\nHAVING COUNT(*) >= 3;",
+      "schema": "CREATE TABLE login (user_id INTEGER, login_date TEXT);\nINSERT INTO login VALUES\n  (1,'2025-01-01'),(1,'2025-01-02'),(1,'2025-01-03'),(1,'2025-01-05'),\n  (2,'2025-02-01'),(2,'2025-02-02'),(2,'2025-02-04'),(2,'2025-02-05'),\n  (3,'2025-03-10'),(3,'2025-03-11'),(3,'2025-03-12'),(3,'2025-03-13'),\n  (4,'2025-04-01');",
+      "model_answer": "WITH dt AS (\n  SELECT DISTINCT user_id, login_date FROM login\n),\ngrouped AS (\n  SELECT user_id, login_date,\n         date(login_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date) || ' days') AS streak_key\n  FROM dt\n),\nstreaks AS (\n  SELECT user_id, streak_key, COUNT(*) AS streak_len\n  FROM grouped\n  GROUP BY user_id, streak_key\n)\nSELECT DISTINCT user_id FROM streaks WHERE streak_len >= 3 ORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1
+        },
+        {
+          "user_id": 3
+        }
+      ],
       "key_points": [
         "Classic 'gaps and islands' pattern",
-        "Subtract ROW_NUMBER() (ordered by date per user) from the date — consecutive dates collapse to the same value",
+        "Subtract ROW_NUMBER() (ordered by date per user) from the date \u2014 consecutive dates collapse to the same value",
         "GROUP BY the streak key and HAVING COUNT(*) >= 3",
         "Distinct logins per user first to avoid double-counting same-day events"
       ]
@@ -219,8 +266,13 @@
         "INNER JOIN with a valid one-to-one ON condition",
         "Missing the ON clause entirely in some SQL dialects"
       ],
-      "answer": [0, 1, 2, 4],
-      "explanation": "CROSS JOIN, always-true predicates, and dialects that allow JOIN without ON all yield Cartesian products. Even an INNER JOIN explodes when join keys aren't unique — a many-to-many join multiplies row counts. A true one-to-one INNER JOIN does NOT explode."
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "CROSS JOIN, always-true predicates, and dialects that allow JOIN without ON all yield Cartesian products. Even an INNER JOIN explodes when join keys aren't unique \u2014 a many-to-many join multiplies row counts. A true one-to-one INNER JOIN does NOT explode."
     },
     {
       "id": "sql-015",
@@ -228,7 +280,7 @@
       "topic": "Debugging",
       "difficulty": "hard",
       "prompt": "A previously-fast query is now taking 10x longer in production. Walk through your debugging methodology in 4-6 steps.",
-      "model_answer": "1. Reproduce — confirm the regression with EXPLAIN ANALYZE on a representative dataset. Compare to a baseline plan if available.\n2. Check data volume — has the underlying table grown, skewed, or had its distribution change? `SELECT COUNT(*), MIN/MAX(partition_col)` to spot data drift.\n3. Read the plan — look for full table scans where an index used to be used, hash joins becoming nested loops (or vice versa), spills to disk, or bad row estimates (estimated vs actual rows).\n4. Stats freshness — run ANALYZE / UPDATE STATISTICS. Stale stats cause bad plans.\n5. Recent changes — did indexes get dropped? Was the query rewritten? Did a column type change? Did partitions get added/removed?\n6. Resource contention — check if there's lock contention, concurrent heavy jobs, or a noisy neighbor (queue depth, CPU/IO saturation).\n\nFix at the lowest level that resolves it: refresh stats → rewrite the query → add/restore an index → repartition.",
+      "model_answer": "1. Reproduce \u2014 confirm the regression with EXPLAIN ANALYZE on a representative dataset. Compare to a baseline plan if available.\n2. Check data volume \u2014 has the underlying table grown, skewed, or had its distribution change? `SELECT COUNT(*), MIN/MAX(partition_col)` to spot data drift.\n3. Read the plan \u2014 look for full table scans where an index used to be used, hash joins becoming nested loops (or vice versa), spills to disk, or bad row estimates (estimated vs actual rows).\n4. Stats freshness \u2014 run ANALYZE / UPDATE STATISTICS. Stale stats cause bad plans.\n5. Recent changes \u2014 did indexes get dropped? Was the query rewritten? Did a column type change? Did partitions get added/removed?\n6. Resource contention \u2014 check if there's lock contention, concurrent heavy jobs, or a noisy neighbor (queue depth, CPU/IO saturation).\n\nFix at the lowest level that resolves it: refresh stats \u2192 rewrite the query \u2192 add/restore an index \u2192 repartition.",
       "key_points": [
         "Uses EXPLAIN / EXPLAIN ANALYZE to read the actual plan",
         "Compares estimated vs actual rows to detect bad stats",
@@ -237,6 +289,1533 @@
         "Considers recent schema or query changes",
         "Considers concurrency / resource contention",
         "Picks the lowest-impact fix"
+      ]
+    },
+    {
+      "id": "sql-016",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "easy",
+      "prompt": "Which JOIN returns all rows from both tables, with NULLs where there is no match on either side?",
+      "options": [
+        "INNER JOIN",
+        "LEFT JOIN",
+        "FULL OUTER JOIN",
+        "CROSS JOIN"
+      ],
+      "answer": 2,
+      "explanation": "FULL OUTER JOIN keeps unmatched rows from BOTH sides, padding the missing side with NULLs. LEFT/RIGHT keep one side's unmatched rows. INNER drops anything without a match. CROSS JOIN is a Cartesian product and has no match concept."
+    },
+    {
+      "id": "sql-017",
+      "type": "multi",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Which statements about `JOIN ... USING(col)` vs `JOIN ... ON a.col = b.col` are correct? (Select all that apply)",
+      "options": [
+        "USING merges the two equal columns into a single column in the SELECT output",
+        "USING requires the column names to be identical on both sides",
+        "ON allows arbitrary join predicates (e.g. inequalities, multi-column functions)",
+        "USING is faster because it bypasses the optimizer",
+        "USING only works with INNER JOINs"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "USING collapses the equal columns into one output column and requires same-named columns. ON supports arbitrary predicates including inequalities. Neither has a performance advantage \u2014 same plan. USING works with all join types (LEFT/RIGHT/FULL/INNER)."
+    },
+    {
+      "id": "sql-018",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "You want all customers who have NEVER placed an order. Which is the most idiomatic anti-join pattern?",
+      "options": [
+        "`SELECT c.* FROM customers c INNER JOIN orders o ON c.id = o.customer_id WHERE o.id IS NULL`",
+        "`SELECT c.* FROM customers c LEFT JOIN orders o ON c.id = o.customer_id WHERE o.id IS NULL`",
+        "`SELECT c.* FROM customers c WHERE c.id IN (SELECT customer_id FROM orders)`",
+        "`SELECT c.* FROM customers c CROSS JOIN orders o WHERE o.customer_id IS NULL`"
+      ],
+      "answer": 1,
+      "explanation": "The classic anti-join: LEFT JOIN the right table, then filter `WHERE right.key IS NULL`. The INNER JOIN option drops everything immediately. The IN-subquery gives the opposite (customers WITH orders). CROSS JOIN is a row explosion."
+    },
+    {
+      "id": "sql-019",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Schema: `employee(id, name, manager_id)`. How do you list each employee alongside their manager's name?",
+      "options": [
+        "Use a CROSS JOIN on the table",
+        "Use a self-join: `FROM employee e LEFT JOIN employee m ON e.manager_id = m.id`",
+        "Use a UNION of the table with itself",
+        "It is not possible without a separate manager table"
+      ],
+      "answer": 1,
+      "explanation": "A self-join aliases the same table twice. LEFT JOIN (not INNER) preserves the CEO, who has no manager. The two aliases (e, m) let you reference different rows of the same physical table."
+    },
+    {
+      "id": "sql-020",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "In a query with three tables `a JOIN b ON ... JOIN c ON ...`, does the textual order of joins determine execution order?",
+      "options": [
+        "Yes \u2014 the optimizer always honors the textual order",
+        "No \u2014 for INNER JOINs the optimizer is free to reorder them; for OUTER JOINs reordering is constrained",
+        "Yes for OUTER JOINs, no for INNER JOINs",
+        "Order matters only when there are indexes involved"
+      ],
+      "answer": 1,
+      "explanation": "INNER JOINs are commutative and associative, so the optimizer can reorder them based on cost. OUTER JOINs are NOT freely reorderable \u2014 reordering changes which side preserves unmatched rows. Hints like /*+ ORDERED */ or STRAIGHT_JOIN can force the textual order."
+    },
+    {
+      "id": "sql-021",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Schema: `sales(day, amount)`. Which window function gives you the previous day's amount on the same row as the current day?",
+      "options": [
+        "`LEAD(amount) OVER (ORDER BY day)`",
+        "`LAG(amount) OVER (ORDER BY day)`",
+        "`FIRST_VALUE(amount) OVER (ORDER BY day)`",
+        "`ROW_NUMBER() OVER (ORDER BY day)`"
+      ],
+      "answer": 1,
+      "explanation": "LAG(col) returns the value from a previous row in the window. LEAD goes forward. FIRST_VALUE returns the first row in the frame. ROW_NUMBER is a position counter, not a value lookup."
+    },
+    {
+      "id": "sql-022",
+      "type": "multi",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Which statements about ROWS vs RANGE window frames are correct? (Select all that apply)",
+      "options": [
+        "ROWS is positional \u2014 it counts a fixed number of physical rows",
+        "RANGE is value-based \u2014 it includes peers (rows tied on the ORDER BY expression)",
+        "When ORDER BY is present and the frame is omitted, the default is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
+        "ROWS and RANGE are exactly equivalent when all ORDER BY values are unique",
+        "RANGE is always faster than ROWS"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "ROWS is positional, RANGE is value-based. With no ties on the ORDER BY column, every group of peers is size 1 \u2014 so ROWS and RANGE produce the same result. Performance is typically identical; the choice is semantic. The implicit default (RANGE ... CURRENT ROW with ties) is a famous gotcha in running totals."
+    },
+    {
+      "id": "sql-023",
+      "type": "multi",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Which statements about the `PARTITION BY` clause in a window function are correct? (Select all that apply)",
+      "options": [
+        "It splits the input into independent groups, and the window function restarts within each group",
+        "It is required for every window function",
+        "Omitting it means the window covers the entire result set",
+        "Multiple columns are allowed: `PARTITION BY region, product`",
+        "It is the same as GROUP BY \u2014 it collapses rows"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "PARTITION BY is optional; without it, the window spans the whole result set. It supports multiple columns. Unlike GROUP BY, it does NOT collapse rows \u2014 each input row still appears in the output."
+    },
+    {
+      "id": "sql-024",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Why is `WHERE rn = 1` invalid when `rn = ROW_NUMBER() OVER (...)` is defined in the same SELECT?",
+      "options": [
+        "ROW_NUMBER is not deterministic",
+        "Window functions are evaluated AFTER WHERE \u2014 so the alias does not exist when WHERE runs",
+        "WHERE requires an indexed column",
+        "It is valid in all engines"
+      ],
+      "answer": 1,
+      "explanation": "SQL logical processing: FROM \u2192 WHERE \u2192 GROUP BY \u2192 HAVING \u2192 SELECT (window functions here) \u2192 ORDER BY. The window function does not exist yet at WHERE time. Use a subquery, CTE, or QUALIFY (Snowflake/BigQuery/Teradata)."
+    },
+    {
+      "id": "sql-025",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "What does the `QUALIFY` clause do (in Snowflake, BigQuery, Teradata)?",
+      "options": [
+        "It filters rows AFTER window functions have been computed, without needing a wrapping subquery",
+        "It marks a query as compatible with ANSI SQL",
+        "It is a synonym for HAVING",
+        "It enforces a uniqueness constraint at query time"
+      ],
+      "answer": 0,
+      "explanation": "QUALIFY is to window functions what HAVING is to aggregates: a filter that runs AFTER the window pass, letting you write `... QUALIFY ROW_NUMBER() OVER (...) = 1` directly. Not standard ANSI, but widely available in modern warehouses."
+    },
+    {
+      "id": "sql-026",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "easy",
+      "prompt": "Schema: `orders(order_id, status, amount)`. How do you compute the total amount of completed orders only, using conditional aggregation?",
+      "options": [
+        "`SUM(amount) WHERE status = 'completed'`",
+        "`SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END)`",
+        "`COUNT(amount) FILTER status = 'completed'`",
+        "`SUM(amount) HAVING status = 'completed'`"
+      ],
+      "answer": 1,
+      "explanation": "Conditional aggregation uses `SUM(CASE WHEN ... THEN x ELSE 0 END)`. The standard-SQL FILTER clause is `SUM(amount) FILTER (WHERE status = 'completed')` (supported in Postgres/SQLite). The other options are invalid syntax."
+    },
+    {
+      "id": "sql-027",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "What does `GROUP BY ROLLUP(region, product)` produce that a plain `GROUP BY region, product` does not?",
+      "options": [
+        "Nothing extra \u2014 it is a synonym",
+        "Subtotal rows for each region (across all products) AND a grand total row",
+        "A pivot of products to columns",
+        "Only the grand total"
+      ],
+      "answer": 1,
+      "explanation": "ROLLUP adds hierarchical subtotals: per (region, product), per region, and a grand total. The subtotal/total rows have NULL in the rolled-up columns (use `GROUPING()` to distinguish 'real NULL' from 'rollup NULL')."
+    },
+    {
+      "id": "sql-028",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Difference between `GROUP BY CUBE(a, b)` and `GROUP BY ROLLUP(a, b)`?",
+      "options": [
+        "They are identical",
+        "CUBE produces every combination of grouping levels (4 levels for two columns); ROLLUP only produces a hierarchical chain (3 levels)",
+        "CUBE only supports two columns; ROLLUP supports any number",
+        "ROLLUP is for time series; CUBE is for cross-tabs"
+      ],
+      "answer": 1,
+      "explanation": "For columns (a, b): ROLLUP gives 3 grouping sets \u2014 (a,b), (a), (). CUBE gives 4 \u2014 (a,b), (a), (b), (). For N columns: ROLLUP = N+1 sets, CUBE = 2^N sets. Use GROUPING SETS for arbitrary combinations."
+    },
+    {
+      "id": "sql-029",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "What does `PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY salary)` compute?",
+      "options": [
+        "The 5th percentile, interpolated",
+        "The median (50th percentile), continuously interpolated between adjacent values",
+        "The mode of the salary column",
+        "The 50 salaries closest to the mean"
+      ],
+      "answer": 1,
+      "explanation": "PERCENTILE_CONT(p) returns the continuous percentile \u2014 interpolated between adjacent values. PERCENTILE_DISC(p) returns the nearest actual value in the data. 0.5 = median."
+    },
+    {
+      "id": "sql-030",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Standard-SQL `SUM(amount) FILTER (WHERE status = 'paid')` is most directly equivalent to which pattern?",
+      "options": [
+        "`SUM(amount) WHERE status = 'paid'`",
+        "`SUM(CASE WHEN status = 'paid' THEN amount END)`",
+        "`COUNT(amount) WHERE status = 'paid'`",
+        "`HAVING status = 'paid'`"
+      ],
+      "answer": 1,
+      "explanation": "The FILTER clause (Postgres, SQLite, others) is sugar for conditional aggregation \u2014 the CASE pattern works in every engine. Both ignore rows where the predicate is FALSE."
+    },
+    {
+      "id": "sql-031",
+      "type": "multi",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Which statements about correlated vs uncorrelated subqueries are correct? (Select all that apply)",
+      "options": [
+        "An uncorrelated subquery does not reference the outer query and is conceptually evaluated once",
+        "A correlated subquery references columns from the outer query and is conceptually re-evaluated per outer row",
+        "Modern optimizers can often 'unnest' correlated subqueries into semi-joins or anti-joins",
+        "Correlated subqueries are always faster",
+        "EXISTS / NOT EXISTS is the canonical way to write a correlated subquery for existence checks"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Uncorrelated subqueries run once; correlated subqueries reference outer columns and conceptually run per outer row. Modern planners typically unnest them into joins. EXISTS is the idiomatic correlated existence check. They are NOT always faster \u2014 naive correlation can be O(N\u00d7M); whether it wins depends on whether the planner unnests."
+    },
+    {
+      "id": "sql-032",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "hard",
+      "prompt": "Why is `WHERE col NOT IN (SELECT x FROM t)` considered dangerous when `t.x` may contain NULL?",
+      "options": [
+        "It throws a syntax error",
+        "If any value in the subquery is NULL, the entire NOT IN expression evaluates to NULL \u2014 and the outer row is dropped",
+        "It is converted to NOT EXISTS automatically",
+        "It only fails on Oracle"
+      ],
+      "answer": 1,
+      "explanation": "`x NOT IN (a, b, NULL)` becomes `x != a AND x != b AND x != NULL` \u2014 the last comparison is NULL, and NULL AND anything = NULL (or FALSE) \u2014 so no row passes. Prefer `NOT EXISTS` or add `WHERE x IS NOT NULL` inside the subquery."
+    },
+    {
+      "id": "sql-033",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "When checking existence, which pattern is generally preferred in modern engines?",
+      "options": [
+        "`WHERE col IN (SELECT col FROM other)`",
+        "`WHERE EXISTS (SELECT 1 FROM other WHERE other.col = outer.col)`",
+        "`WHERE col = ANY (SELECT col FROM other)`",
+        "All three are exactly equivalent in performance and NULL semantics"
+      ],
+      "answer": 1,
+      "explanation": "EXISTS short-circuits on the first match and handles NULLs predictably. IN has the NULL trap (especially as NOT IN). Modern optimizers often rewrite IN/EXISTS to a semi-join \u2014 semantics-wise, prefer EXISTS for safety."
+    },
+    {
+      "id": "sql-034",
+      "type": "multi",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Which of the following are valid uses of subqueries? (Select all that apply)",
+      "options": [
+        "In the SELECT list as a scalar subquery returning one row, one column",
+        "In the FROM clause as a derived table",
+        "In WHERE with EXISTS / IN / comparison operators",
+        "In GROUP BY",
+        "In ORDER BY as a scalar expression"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Subqueries are valid in SELECT (scalar), FROM (derived table), WHERE (filter), and ORDER BY (sort key). GROUP BY needs grouping expressions, not subqueries (you can group by the result column produced by a subquery, but not write a subquery directly there in most engines)."
+    },
+    {
+      "id": "sql-035",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(id, manager_id, name)`. Which approach finds the full management chain above a given employee?",
+      "options": [
+        "A self-join repeated N times for N levels",
+        "A recursive CTE that anchors on the employee and joins back to itself via manager_id",
+        "A window function with LAG",
+        "A UNION of every possible level"
+      ],
+      "answer": 1,
+      "explanation": "Recursive CTE: `WITH RECURSIVE chain AS (SELECT * FROM employee WHERE id = :start UNION ALL SELECT e.* FROM employee e JOIN chain c ON e.id = c.manager_id) SELECT * FROM chain`. Works for unknown depth, unlike a fixed self-join."
+    },
+    {
+      "id": "sql-036",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "medium",
+      "prompt": "In a recursive CTE, what does the `UNION ALL` (vs `UNION`) typically do?",
+      "options": [
+        "UNION ALL is required because recursive CTEs cannot deduplicate",
+        "UNION ALL is preferred for performance; UNION dedups every iteration which is expensive and usually unnecessary",
+        "UNION terminates recursion at the first duplicate",
+        "There is no difference"
+      ],
+      "answer": 1,
+      "explanation": "Recursive CTEs commonly use UNION ALL because the recursive step usually produces fresh rows; UNION would force a sort/dedup on every iteration. Use UNION only when cycle prevention requires it (and prefer a visited-set workaround instead)."
+    },
+    {
+      "id": "sql-037",
+      "type": "single",
+      "topic": "CTEs",
+      "difficulty": "hard",
+      "prompt": "How would you generate a date series of every day in a month using a recursive CTE in standard SQL?",
+      "options": [
+        "Use ROW_NUMBER over an existing table",
+        "Anchor at the first day, recurse adding 1 day until you exceed the last day",
+        "Use GENERATE_SERIES which is universal across all dialects",
+        "Recursive CTEs cannot return dates"
+      ],
+      "answer": 1,
+      "explanation": "`WITH RECURSIVE days AS (SELECT DATE '2025-01-01' AS d UNION ALL SELECT d + INTERVAL '1 day' FROM days WHERE d < DATE '2025-01-31') SELECT * FROM days`. Postgres has `generate_series` as a shortcut, but it is NOT in standard SQL or most engines."
+    },
+    {
+      "id": "sql-038",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "easy",
+      "prompt": "Which set operation returns rows present in the LEFT query but NOT in the right?",
+      "options": [
+        "UNION",
+        "INTERSECT",
+        "EXCEPT (or MINUS in Oracle)",
+        "DIFFERENCE"
+      ],
+      "answer": 2,
+      "explanation": "EXCEPT (ANSI) / MINUS (Oracle) returns LEFT \u2212 RIGHT, deduplicated. INTERSECT returns rows in BOTH. UNION returns either side. DIFFERENCE is not a SQL keyword."
+    },
+    {
+      "id": "sql-039",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "medium",
+      "prompt": "Subtle difference between `EXCEPT` and a `LEFT JOIN ... WHERE right IS NULL` anti-join?",
+      "options": [
+        "EXCEPT compares entire rows (and removes duplicates); the anti-join compares only join keys (and preserves duplicates)",
+        "EXCEPT is faster in every database",
+        "EXCEPT keeps duplicates; anti-join removes them",
+        "They are exactly equivalent"
+      ],
+      "answer": 0,
+      "explanation": "EXCEPT does row-level set difference with implicit DISTINCT (use `EXCEPT ALL` to preserve duplicates). Anti-join is keyed and keeps duplicate left rows. Choose based on whether you mean 'whole-row missing' or 'no matching key'."
+    },
+    {
+      "id": "sql-040",
+      "type": "multi",
+      "topic": "Set Operations",
+      "difficulty": "medium",
+      "prompt": "Which conditions must hold for two queries to be combined with `UNION` / `INTERSECT` / `EXCEPT`? (Select all that apply)",
+      "options": [
+        "Same number of columns",
+        "Compatible (implicitly convertible) data types in matching positions",
+        "Same column names in matching positions",
+        "Same ORDER BY clauses",
+        "Same source table"
+      ],
+      "answer": [
+        0,
+        1
+      ],
+      "explanation": "Set operators require matching column count and compatible types. Column names come from the FIRST query \u2014 the others can differ. ORDER BY applies to the combined result (and is only legal on the final query, not per-leg). Sources can be unrelated tables."
+    },
+    {
+      "id": "sql-041",
+      "type": "single",
+      "topic": "DML",
+      "difficulty": "medium",
+      "prompt": "What does an `UPSERT` (MERGE / INSERT ... ON CONFLICT) do?",
+      "options": [
+        "Inserts a new row if no matching key exists, otherwise updates the existing row",
+        "Inserts and immediately deletes the row",
+        "Updates and inserts in parallel",
+        "Replaces every column with NULL before insert"
+      ],
+      "answer": 0,
+      "explanation": "UPSERT (Postgres: `INSERT ... ON CONFLICT (key) DO UPDATE`; MySQL: `INSERT ... ON DUPLICATE KEY UPDATE`; standard SQL: `MERGE`) is the atomic insert-or-update pattern, essential for idempotent loads."
+    },
+    {
+      "id": "sql-042",
+      "type": "single",
+      "topic": "DML",
+      "difficulty": "medium",
+      "prompt": "Given `UPDATE orders SET status = 'archived' FROM customers c WHERE orders.customer_id = c.id AND c.region = 'EMEA'`, which dialect best supports this `UPDATE ... FROM` syntax?",
+      "options": [
+        "Postgres / SQL Server",
+        "Oracle (which uses `UPDATE (SELECT ...) SET ...`)",
+        "MySQL (which uses `UPDATE a JOIN b ...`)",
+        "All four use this exact syntax"
+      ],
+      "answer": 0,
+      "explanation": "Postgres and SQL Server support `UPDATE ... FROM ... WHERE`. Oracle uses updatable views or correlated subqueries. MySQL uses `UPDATE a JOIN b ON ... SET ...`. Always confirm the dialect before writing cross-table updates."
+    },
+    {
+      "id": "sql-043",
+      "type": "single",
+      "topic": "DML",
+      "difficulty": "easy",
+      "prompt": "What is the safest way to test a `DELETE` statement before running it?",
+      "options": [
+        "Run it inside a transaction and inspect with SELECT before COMMIT/ROLLBACK",
+        "Run DELETE first, check the result, then UNDELETE",
+        "There is no way to test it",
+        "Drop the table first, then redo"
+      ],
+      "answer": 0,
+      "explanation": "Wrap in `BEGIN; DELETE ... ; SELECT to verify ; ROLLBACK;` \u2014 easy and reversible. Many teams also rewrite the DELETE's WHERE clause as a SELECT first to preview the rows. UNDELETE / UNDROP is not a portable SQL feature."
+    },
+    {
+      "id": "sql-044",
+      "type": "multi",
+      "topic": "DML",
+      "difficulty": "hard",
+      "prompt": "Which behaviors are characteristic of standard SQL `MERGE`? (Select all that apply)",
+      "options": [
+        "Combines INSERT, UPDATE, and DELETE in a single statement based on a join with a source",
+        "Has `WHEN MATCHED` and `WHEN NOT MATCHED` branches",
+        "Is guaranteed atomic across the whole operation",
+        "Cannot conflict with concurrent inserts (no race condition possible)",
+        "Has known concurrency / determinism pitfalls in some engines (e.g. SQL Server's MERGE bugs)"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "MERGE combines INSERT/UPDATE/DELETE with WHEN [NOT] MATCHED branches, atomic within a transaction. But it is NOT immune to races without proper isolation \u2014 and SQL Server's MERGE has historically had subtle correctness bugs (many teams prefer separate UPDATE+INSERT or upsert syntax there)."
+    },
+    {
+      "id": "sql-045",
+      "type": "multi",
+      "topic": "Transactions",
+      "difficulty": "easy",
+      "prompt": "Which of these are the four ACID properties? (Select all that apply)",
+      "options": [
+        "Atomicity \u2014 all or nothing",
+        "Consistency \u2014 the DB moves between valid states",
+        "Isolation \u2014 concurrent transactions appear to run independently",
+        "Durability \u2014 committed data survives crashes",
+        "Idempotence \u2014 running twice has the same effect as running once",
+        "Indexing \u2014 every transaction must use an index"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "ACID = Atomicity, Consistency, Isolation, Durability. Idempotence and indexing are unrelated to ACID (though idempotence is useful when retrying failed writes; indexing is a performance concern)."
+    },
+    {
+      "id": "sql-046",
+      "type": "single",
+      "topic": "Transactions",
+      "difficulty": "medium",
+      "prompt": "Which isolation level prevents dirty reads but still allows non-repeatable reads?",
+      "options": [
+        "READ UNCOMMITTED",
+        "READ COMMITTED",
+        "REPEATABLE READ",
+        "SERIALIZABLE"
+      ],
+      "answer": 1,
+      "explanation": "READ COMMITTED only shows committed data (no dirty reads), but re-reading the same row inside one transaction can yield a different value if another transaction committed an update in between (non-repeatable read)."
+    },
+    {
+      "id": "sql-047",
+      "type": "single",
+      "topic": "Transactions",
+      "difficulty": "medium",
+      "prompt": "What is a 'phantom read'?",
+      "options": [
+        "Reading a row that was rolled back",
+        "Re-running the same query and seeing NEW rows that match the predicate, because another transaction inserted them",
+        "Reading a column that has been dropped",
+        "A read that bypasses the cache"
+      ],
+      "answer": 1,
+      "explanation": "Phantom read: same range query returns different SETS of rows across re-execution due to inserts (or deletes) by concurrent transactions. SERIALIZABLE prevents phantoms; REPEATABLE READ prevents non-repeatable reads but classically not phantoms (some engines like Postgres use snapshot isolation which prevents both in practice)."
+    },
+    {
+      "id": "sql-048",
+      "type": "single",
+      "topic": "Transactions",
+      "difficulty": "hard",
+      "prompt": "Two transactions each lock row A then try to lock row B, in opposite order. What is this?",
+      "options": [
+        "A deadlock \u2014 most engines detect it and abort one transaction",
+        "A livelock that resolves itself",
+        "Standard serial execution",
+        "A starvation pattern"
+      ],
+      "answer": 0,
+      "explanation": "Classic AB-BA deadlock. The deadlock detector picks a victim and aborts it (usually with a 'deadlock detected' error); the application retries. Avoid by acquiring locks in a consistent order, by using shorter transactions, or by row-version (MVCC) reads."
+    },
+    {
+      "id": "sql-049",
+      "type": "multi",
+      "topic": "Transactions",
+      "difficulty": "hard",
+      "prompt": "Which strategies reduce deadlock frequency? (Select all that apply)",
+      "options": [
+        "Always lock tables / rows in a consistent global order",
+        "Keep transactions short \u2014 commit ASAP after the writes",
+        "Use lower isolation when consistent reads aren't needed",
+        "Use SELECT ... FOR UPDATE proactively in dependency order",
+        "Increase the deadlock_timeout so deadlocks resolve naturally"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Consistent lock ordering, short transactions, lower isolation, and proactive locking in dependency order all reduce deadlocks. Raising deadlock_timeout does NOT prevent deadlocks \u2014 it just makes the detector wait longer before aborting one, making the system feel slower."
+    },
+    {
+      "id": "sql-050",
+      "type": "single",
+      "topic": "Indexes",
+      "difficulty": "easy",
+      "prompt": "Which is the typical default index structure in most relational databases?",
+      "options": [
+        "Hash index",
+        "B-tree (balanced tree)",
+        "Bitmap",
+        "Skip list"
+      ],
+      "answer": 1,
+      "explanation": "B-tree is the default in Postgres, MySQL/InnoDB, SQL Server, Oracle. It supports equality, range, ORDER BY, and prefix queries. Hash supports only equality. Bitmap is great for low-cardinality columns in warehouses (e.g. Oracle)."
+    },
+    {
+      "id": "sql-051",
+      "type": "single",
+      "topic": "Indexes",
+      "difficulty": "medium",
+      "prompt": "What is a 'covering index'?",
+      "options": [
+        "An index that covers all rows in the table",
+        "An index that contains all columns needed by a query, so the engine can answer it from the index alone without visiting the table heap",
+        "A redundant index, automatically dropped",
+        "An index that covers the WHERE clause but not SELECT"
+      ],
+      "answer": 1,
+      "explanation": "A covering index satisfies the entire query \u2014 WHERE, JOIN, SELECT, ORDER BY \u2014 from the index itself. In Postgres, `CREATE INDEX ... INCLUDE (other_cols)` adds payload columns. SQL Server uses INCLUDE similarly. Saves heap lookups (index-only scan)."
+    },
+    {
+      "id": "sql-052",
+      "type": "single",
+      "topic": "Indexes",
+      "difficulty": "hard",
+      "prompt": "You have a composite index on `(country, city, signup_date)`. Which of these queries can use the index efficiently?",
+      "options": [
+        "`WHERE city = 'Paris'`",
+        "`WHERE country = 'FR' AND city = 'Paris'`",
+        "`WHERE signup_date = '2025-01-01'`",
+        "`WHERE city = 'Paris' AND signup_date = '2025-01-01'`"
+      ],
+      "answer": 1,
+      "explanation": "Composite B-tree indexes are usable left-to-right. `country` is the leading column, so `country = ... AND city = ...` is a perfect prefix match. Without country in the predicate, the index either is unused or requires a full index scan."
+    },
+    {
+      "id": "sql-053",
+      "type": "single",
+      "topic": "Indexes",
+      "difficulty": "medium",
+      "prompt": "Why might adding an index to a low-cardinality column (e.g. `gender` with 2 values) be a poor choice in OLTP?",
+      "options": [
+        "Indexes don't allow boolean columns",
+        "The planner often prefers a sequential scan when the index would return ~50% of the table \u2014 index lookups become slower than scanning, and the index has write overhead",
+        "Low-cardinality columns can't be indexed",
+        "It always speeds up the query"
+      ],
+      "answer": 1,
+      "explanation": "Indexes win when the predicate is selective. A 50/50 column has terrible selectivity \u2014 the engine often prefers a sequential scan. The index also slows every INSERT/UPDATE/DELETE. In warehouses, bitmap indexes can be appropriate for low-cardinality; B-trees in OLTP usually are not."
+    },
+    {
+      "id": "sql-054",
+      "type": "multi",
+      "topic": "Indexes",
+      "difficulty": "medium",
+      "prompt": "Which actions DEFEAT a B-tree index on column `email`? (Select all that apply)",
+      "options": [
+        "`WHERE LOWER(email) = 'a@b.com'` (function on indexed column)",
+        "`WHERE email = 'a@b.com'`",
+        "`WHERE email LIKE '%@example.com'` (leading wildcard)",
+        "`WHERE email LIKE 'alice%'` (trailing wildcard)",
+        "Implicit type conversion (e.g. comparing an indexed VARCHAR column to a number)"
+      ],
+      "answer": [
+        0,
+        2,
+        4
+      ],
+      "explanation": "Functions on the column (unless a functional index exists), leading-wildcard LIKE, and implicit conversions all prevent index use. Equality and prefix-LIKE remain sargable."
+    },
+    {
+      "id": "sql-055",
+      "type": "single",
+      "topic": "Query Plans",
+      "difficulty": "medium",
+      "prompt": "When reading EXPLAIN output, what does a large discrepancy between 'estimated rows' and 'actual rows' typically indicate?",
+      "options": [
+        "The query is broken",
+        "Stale or missing statistics \u2014 leading to a likely suboptimal plan",
+        "An index needs to be rebuilt",
+        "The database is corrupted"
+      ],
+      "answer": 1,
+      "explanation": "Big estimate vs actual gaps mean the optimizer is making decisions on bad data \u2014 it may pick nested loop when hash join was correct, or vice versa. Run ANALYZE / UPDATE STATISTICS, consider extended statistics on correlated columns, and re-check the plan."
+    },
+    {
+      "id": "sql-056",
+      "type": "single",
+      "topic": "Query Plans",
+      "difficulty": "hard",
+      "prompt": "Which join algorithm is generally best when one side is tiny and fits in memory and the other is huge?",
+      "options": [
+        "Nested loop (with no index)",
+        "Hash join \u2014 build a hash on the small side, probe with the large side",
+        "Merge join with no sort",
+        "Cartesian product"
+      ],
+      "answer": 1,
+      "explanation": "Hash join builds an in-memory hash on the small side, then scans the large side once probing the hash. It's O(N+M) and ideal when the build side fits in work_mem / hash_mem. Merge join needs both sides sorted; nested loop is great only when there's a fast index on the inner."
+    },
+    {
+      "id": "sql-057",
+      "type": "single",
+      "topic": "Query Plans",
+      "difficulty": "medium",
+      "prompt": "In Postgres, what does 'Sort: external merge Disk: 1234kB' in EXPLAIN ANALYZE indicate?",
+      "options": [
+        "The sort fit entirely in memory",
+        "The sort spilled to disk because it exceeded work_mem \u2014 a tunable cause of slowness",
+        "The output is being written to disk",
+        "An index was used"
+      ],
+      "answer": 1,
+      "explanation": "A 'disk' sort means work_mem wasn't enough for an in-memory quicksort, so Postgres fell back to an external (multi-pass) merge sort on disk. Raising work_mem (per-session or per-query) often fixes it; so does an index that returns rows pre-sorted."
+    },
+    {
+      "id": "sql-058",
+      "type": "multi",
+      "topic": "NULL Handling",
+      "difficulty": "easy",
+      "prompt": "Which statements about `COALESCE(a, b, c)` are correct? (Select all that apply)",
+      "options": [
+        "Returns the first non-NULL argument from left to right",
+        "Returns NULL if every argument is NULL",
+        "Is equivalent to a nested CASE WHEN expression",
+        "Always evaluates every argument before deciding",
+        "Accepts any number of arguments (not just two)"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "COALESCE returns the first non-NULL argument left-to-right, returns NULL if all are NULL, is the shorthand for a CASE WHEN chain, and accepts variadic arguments. Most engines short-circuit \u2014 they stop evaluating once a non-NULL is found (NVL2-like behavior); this matters when arguments have side effects."
+    },
+    {
+      "id": "sql-059",
+      "type": "single",
+      "topic": "NULL Handling",
+      "difficulty": "medium",
+      "prompt": "What does `NULLIF(a, b)` return?",
+      "options": [
+        "a if a = b, else NULL",
+        "NULL if a = b, else a",
+        "Always NULL",
+        "b if a IS NULL"
+      ],
+      "answer": 1,
+      "explanation": "NULLIF(a, b) returns NULL when a = b, otherwise a. A common use is preventing divide-by-zero: `x / NULLIF(y, 0)` \u2014 if y is 0, division returns NULL instead of erroring."
+    },
+    {
+      "id": "sql-060",
+      "type": "single",
+      "topic": "NULL Handling",
+      "difficulty": "medium",
+      "prompt": "Which expression is TRUE if `a` and `b` are both NULL?",
+      "options": [
+        "`a = b`",
+        "`a IS NOT DISTINCT FROM b`",
+        "`a <> b`",
+        "`a IS NULL OR b IS NULL`"
+      ],
+      "answer": 1,
+      "explanation": "`IS NOT DISTINCT FROM` treats NULL as a comparable value: NULL IS NOT DISTINCT FROM NULL is TRUE. Standard `=` returns NULL for NULL=NULL. The OR option would be true if either is null, not specifically if both are."
+    },
+    {
+      "id": "sql-061",
+      "type": "multi",
+      "topic": "NULL Handling",
+      "difficulty": "medium",
+      "prompt": "Which statements about how NULLs interact with aggregate functions are correct? (Select all that apply)",
+      "options": [
+        "`SUM(col)` skips NULL inputs",
+        "`AVG(col)` excludes NULLs from BOTH the numerator and the denominator",
+        "`COUNT(col)` counts only non-NULL values",
+        "`COUNT(*)` counts every row, including rows where `col` is NULL",
+        "`SUM` over an empty input returns 0",
+        "`MAX(col)` returns NULL if every value is NULL"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "All aggregates silently skip NULLs. AVG = SUM(non-null) / COUNT(non-null) \u2014 not the same as SUM/COUNT(*). COUNT(*) is the row counter. SUM over empty input or all-NULL returns NULL, not 0 (common gotcha \u2014 wrap with COALESCE(..., 0) if you need 0). MAX of all NULL is NULL."
+    },
+    {
+      "id": "sql-062",
+      "type": "single",
+      "topic": "NULL Handling",
+      "difficulty": "medium",
+      "prompt": "Default ORDER BY behavior for NULLs varies across engines. Which clause controls it explicitly?",
+      "options": [
+        "`ORDER BY col NULLS FIRST` or `NULLS LAST`",
+        "`ORDER BY ISNULL(col)`",
+        "There's no portable way",
+        "`ORDER BY COALESCE(col, '')` (string only)"
+      ],
+      "answer": 0,
+      "explanation": "`ORDER BY col NULLS FIRST / NULLS LAST` is standard SQL (Postgres, Oracle support it natively; MySQL does not directly \u2014 use `ORDER BY col IS NULL, col`). By default Postgres sorts NULLs LAST in ASC and FIRST in DESC; MySQL is the opposite \u2014 always be explicit."
+    },
+    {
+      "id": "sql-063",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "easy",
+      "prompt": "What does `DATE_TRUNC('month', order_date)` do?",
+      "options": [
+        "Drops the date entirely",
+        "Returns the first day of the month containing `order_date`, with the time portion zeroed",
+        "Returns just the month name as a string",
+        "Converts the date to UTC"
+      ],
+      "answer": 1,
+      "explanation": "DATE_TRUNC('month', d) returns the timestamp at the start of that month \u2014 perfect for monthly grouping: `GROUP BY DATE_TRUNC('month', order_date)`. Supported truncation units include year, quarter, month, week, day, hour, etc."
+    },
+    {
+      "id": "sql-064",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "In Postgres, what is the difference between `TIMESTAMP` and `TIMESTAMPTZ`?",
+      "options": [
+        "TIMESTAMPTZ stores a timezone offset alongside the value",
+        "TIMESTAMPTZ stores in UTC internally and converts on display based on session timezone; TIMESTAMP is timezone-naive",
+        "TIMESTAMP is faster than TIMESTAMPTZ",
+        "They are identical aliases"
+      ],
+      "answer": 1,
+      "explanation": "Postgres TIMESTAMPTZ stores an instant in UTC; reads convert to the session's `TimeZone` setting. TIMESTAMP (without TZ) is a wall-clock label with no timezone context. For globally distributed data, always prefer TIMESTAMPTZ."
+    },
+    {
+      "id": "sql-065",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Which is the safest, most index-friendly way to filter 'orders placed in March 2025'?",
+      "options": [
+        "`WHERE MONTH(order_date) = 3 AND YEAR(order_date) = 2025`",
+        "`WHERE EXTRACT(MONTH FROM order_date) = 3 AND EXTRACT(YEAR FROM order_date) = 2025`",
+        "`WHERE order_date >= '2025-03-01' AND order_date < '2025-04-01'`",
+        "`WHERE TO_CHAR(order_date, 'YYYY-MM') = '2025-03'`"
+      ],
+      "answer": 2,
+      "explanation": "A half-open interval (`>=` and `<`) is sargable \u2014 the index on `order_date` can be used directly. Functions like MONTH/EXTRACT/TO_CHAR wrap the column and typically defeat the index unless you have a matching expression index."
+    },
+    {
+      "id": "sql-066",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "hard",
+      "prompt": "Postgres-specific: which function generates a row per day for a date range?",
+      "options": [
+        "`generate_series('2025-01-01'::date, '2025-01-31'::date, INTERVAL '1 day')`",
+        "`SEQUENCE_DATE(...)`",
+        "`DATE_RANGE(...)`",
+        "`UNNEST(ARRAY[...])`"
+      ],
+      "answer": 0,
+      "explanation": "`generate_series` is a Postgres set-returning function that's the canonical way to build a date spine. BigQuery uses `GENERATE_DATE_ARRAY(...)`, SQL Server uses recursive CTE or tally tables, Snowflake has `GENERATOR`."
+    },
+    {
+      "id": "sql-067",
+      "type": "single",
+      "topic": "String Functions",
+      "difficulty": "easy",
+      "prompt": "What does `LIKE 'a%'` match?",
+      "options": [
+        "Strings that contain 'a' anywhere",
+        "Strings that start with 'a'",
+        "Strings that end with 'a'",
+        "Exactly the string 'a%'"
+      ],
+      "answer": 1,
+      "explanation": "`%` is the multi-character wildcard. `'a%'` is 'starts with a'. `'%a'` is 'ends with a'. `'%a%'` is 'contains a'. `_` is the single-char wildcard."
+    },
+    {
+      "id": "sql-068",
+      "type": "single",
+      "topic": "String Functions",
+      "difficulty": "medium",
+      "prompt": "What does `STRING_AGG(name, ', ' ORDER BY name)` return per group?",
+      "options": [
+        "The first name in the group",
+        "A comma-separated string of all names in the group, ordered alphabetically",
+        "An array of names",
+        "The count of names"
+      ],
+      "answer": 1,
+      "explanation": "STRING_AGG (Postgres, SQL Server) concatenates a column into a single delimited string per group. MySQL calls it `GROUP_CONCAT`, Oracle `LISTAGG`, BigQuery `STRING_AGG`. The ORDER BY inside controls concatenation order, which is otherwise undefined."
+    },
+    {
+      "id": "sql-069",
+      "type": "single",
+      "topic": "String Functions",
+      "difficulty": "medium",
+      "prompt": "What does `SPLIT_PART('alice@example.com', '@', 2)` return in Postgres?",
+      "options": [
+        "'alice'",
+        "'example.com'",
+        "'@example.com'",
+        "NULL"
+      ],
+      "answer": 1,
+      "explanation": "SPLIT_PART(string, delim, n) returns the nth piece (1-indexed). Position 2 of splitting on `@` is the domain. Postgres-specific; BigQuery has `SPLIT(s, d)[OFFSET(1)]`, Snowflake has `SPLIT_PART`."
+    },
+    {
+      "id": "sql-070",
+      "type": "single",
+      "topic": "String Functions",
+      "difficulty": "hard",
+      "prompt": "Which is a portable way to extract the domain from an email column?",
+      "options": [
+        "`SUBSTRING(email FROM POSITION('@' IN email) + 1)`",
+        "`email - '@*'`",
+        "`REGEXP_EXTRACT(email, 'after @')`",
+        "There is no portable way"
+      ],
+      "answer": 0,
+      "explanation": "POSITION (standard SQL) returns the byte position of `@`; SUBSTRING from that + 1 gives the rest. This pattern works in Postgres, SQL Server, MySQL, and most engines without dialect-specific regex."
+    },
+    {
+      "id": "sql-071",
+      "type": "single",
+      "topic": "CASE & Conditional Logic",
+      "difficulty": "easy",
+      "prompt": "Which is the correct syntax for a searched CASE expression in standard SQL?",
+      "options": [
+        "`CASE col WHEN > 100 THEN 'high' END`",
+        "`CASE WHEN col > 100 THEN 'high' ELSE 'low' END`",
+        "`IF col > 100 'high' ELSE 'low'`",
+        "`CASE col IF > 100 THEN 'high' END`"
+      ],
+      "answer": 1,
+      "explanation": "Searched CASE: `CASE WHEN <condition> THEN ... ELSE ... END`. Simple CASE: `CASE col WHEN value THEN ... END` (equality only). Searched is more flexible because each WHEN is an arbitrary boolean expression."
+    },
+    {
+      "id": "sql-072",
+      "type": "single",
+      "topic": "CASE & Conditional Logic",
+      "difficulty": "medium",
+      "prompt": "What's the practical difference between `COALESCE(a, b)` and `CASE WHEN a IS NOT NULL THEN a ELSE b END`?",
+      "options": [
+        "COALESCE always evaluates every argument",
+        "They are logically equivalent; COALESCE is short-circuiting and more concise",
+        "CASE handles NULLs differently",
+        "Only CASE works with strings"
+      ],
+      "answer": 1,
+      "explanation": "Semantically identical. COALESCE is shorthand for the CASE pattern, and most engines short-circuit (don't evaluate `b` if `a` is non-null). COALESCE chains gracefully for more than two values."
+    },
+    {
+      "id": "sql-073",
+      "type": "single",
+      "topic": "Pivot/Unpivot",
+      "difficulty": "hard",
+      "prompt": "What's the most portable way to pivot rows to columns when you know the categories ahead of time?",
+      "options": [
+        "Conditional aggregation: `SUM(CASE WHEN category = 'A' THEN amount END) AS a_total, SUM(CASE WHEN category = 'B' THEN amount END) AS b_total, ...`",
+        "`PIVOT (SUM(amount) FOR category IN ('A', 'B'))`",
+        "Dynamic SQL only",
+        "It's not possible without a stored procedure"
+      ],
+      "answer": 0,
+      "explanation": "Conditional aggregation with CASE inside SUM/COUNT/etc is the standard-SQL portable pivot. The PIVOT operator is supported only in some dialects (SQL Server, Oracle, Snowflake) and requires knowing categories. For unknown categories, dynamic SQL is needed."
+    },
+    {
+      "id": "sql-074",
+      "type": "single",
+      "topic": "Lateral Joins",
+      "difficulty": "hard",
+      "prompt": "What does `LATERAL` (or `CROSS APPLY` in SQL Server) enable?",
+      "options": [
+        "A subquery in the FROM clause that can reference columns from earlier FROM entries \u2014 useful for 'top N per group' patterns",
+        "Implicit indexing",
+        "A faster CROSS JOIN",
+        "Cross-database joins"
+      ],
+      "answer": 0,
+      "explanation": "LATERAL lets the right side of a join reference columns from the left side \u2014 like a correlated subquery in FROM. Pattern: `FROM users u, LATERAL (SELECT * FROM orders o WHERE o.user_id = u.id ORDER BY o.date DESC LIMIT 3) recent`. SQL Server's CROSS APPLY is the equivalent."
+    },
+    {
+      "id": "sql-075",
+      "type": "single",
+      "topic": "Data Quality",
+      "difficulty": "medium",
+      "prompt": "Which query reliably finds DUPLICATE rows in `users(email)` ignoring case?",
+      "options": [
+        "`SELECT email FROM users GROUP BY email HAVING COUNT(*) > 1`",
+        "`SELECT LOWER(email), COUNT(*) FROM users GROUP BY LOWER(email) HAVING COUNT(*) > 1`",
+        "`SELECT DISTINCT email FROM users`",
+        "`SELECT email FROM users WHERE email = email`"
+      ],
+      "answer": 1,
+      "explanation": "Group on the normalized form (LOWER(email)) so that 'Alice@x.com' and 'alice@x.com' collapse into one group. HAVING COUNT(*) > 1 keeps only duplicates."
+    },
+    {
+      "id": "sql-076",
+      "type": "single",
+      "topic": "Data Quality",
+      "difficulty": "medium",
+      "prompt": "Schema: `orders(id, customer_id)`, `customers(id)`. How do you find orphan orders whose `customer_id` does not exist in `customers`?",
+      "options": [
+        "`SELECT o.* FROM orders o LEFT JOIN customers c ON o.customer_id = c.id WHERE c.id IS NULL`",
+        "`SELECT o.* FROM orders o INNER JOIN customers c ON o.customer_id = c.id`",
+        "`SELECT o.* FROM orders o WHERE customer_id = NULL`",
+        "`SELECT o.* FROM orders o UNION customers c`"
+      ],
+      "answer": 0,
+      "explanation": "Anti-join finds rows with no match in the parent table \u2014 the canonical referential-integrity check on data that lacks a FK constraint (or where the FK was disabled during loads)."
+    },
+    {
+      "id": "sql-077",
+      "type": "single",
+      "topic": "Sessionization",
+      "difficulty": "hard",
+      "prompt": "You have raw event rows `event(user_id, ts)` and want to group events into 'sessions' that end after 30 minutes of inactivity. What is the standard pattern?",
+      "options": [
+        "Compute `gap = ts - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts)`, flag rows where gap > 30 min as session starts, then cumulative-SUM the flag to get a session_id",
+        "GROUP BY date_trunc('hour', ts) \u2014 close enough",
+        "Use a recursive CTE to walk every event",
+        "Just count events"
+      ],
+      "answer": 0,
+      "explanation": "The canonical sessionization recipe: LAG to compute inactivity gaps, flag rows where gap exceeds threshold, then a running SUM of the flag becomes a per-user session counter. This is one of the most common analytics patterns in SQL."
+    },
+    {
+      "id": "sql-078",
+      "type": "single",
+      "topic": "Cohort Analysis",
+      "difficulty": "hard",
+      "prompt": "Schema: `user(id, signup_date)`, `event(user_id, event_date)`. Which approach computes monthly retention (% of signup-month-N users active in month-N+k)?",
+      "options": [
+        "Bucket signup_date into a 'cohort month' per user, JOIN to events, bucket event_date into 'activity month', compute months_since_signup, then COUNT(DISTINCT user_id) per (cohort_month, months_since_signup) \u2014 divided by the cohort size",
+        "Take MAX(event_date) per user",
+        "Average events per user",
+        "Use a self-join on signup_date = event_date"
+      ],
+      "answer": 0,
+      "explanation": "Retention cohorts: define cohort by signup bucket, join to activity, measure DISTINCT users active at each offset, normalize by cohort size. The output is the classic triangular cohort table."
+    },
+    {
+      "id": "sql-079",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "hard",
+      "prompt": "You have a Type-2 SCD dimension `dim_customer(customer_id, region, valid_from, valid_to)`. How do you join a fact `fact_order(order_id, customer_id, order_date)` to get the region AT THE TIME of the order?",
+      "options": [
+        "`JOIN dim_customer dc ON dc.customer_id = f.customer_id AND f.order_date >= dc.valid_from AND f.order_date < dc.valid_to`",
+        "`JOIN dim_customer dc ON dc.customer_id = f.customer_id` (no time predicate)",
+        "Join on `dc.valid_to IS NULL` to get the current row",
+        "Sort by valid_from and take the first row"
+      ],
+      "answer": 0,
+      "explanation": "Point-in-time join: match on the natural key AND require the fact's event time to fall within the dimension row's validity interval. Half-open intervals (`>= from AND < to`) avoid double-counting at the boundary. Always include a time predicate with SCD2."
+    },
+    {
+      "id": "sql-080",
+      "type": "multi",
+      "topic": "Gotchas",
+      "difficulty": "medium",
+      "prompt": "Which techniques safely handle potential divide-by-zero in `total / count`? (Select all that apply)",
+      "options": [
+        "`total / NULLIF(count, 0)` \u2014 converts 0 to NULL so the result is NULL instead of an error",
+        "`CASE WHEN count = 0 THEN NULL ELSE total / count END`",
+        "`total / (count + 0.0001)` to make it tiny but non-zero",
+        "`COALESCE(total / count, 0)` (without other guards)",
+        "Filter out `count = 0` rows in WHERE before dividing"
+      ],
+      "answer": [
+        0,
+        1,
+        4
+      ],
+      "explanation": "NULLIF and CASE are the idiomatic safe patterns. Filtering count=0 out before the division also works. Adding a tiny epsilon distorts results \u2014 never appropriate for financial/operational metrics. COALESCE around the division still errors first (it doesn't catch the runtime exception)."
+    },
+    {
+      "id": "sql-081",
+      "type": "single",
+      "topic": "Gotchas",
+      "difficulty": "easy",
+      "prompt": "Is `WHERE col BETWEEN 1 AND 10` inclusive or exclusive of the endpoints?",
+      "options": [
+        "Exclusive on both ends",
+        "Inclusive on both ends (equivalent to `col >= 1 AND col <= 10`)",
+        "Inclusive on the left, exclusive on the right",
+        "Implementation-defined"
+      ],
+      "answer": 1,
+      "explanation": "BETWEEN is INCLUSIVE on both endpoints. For dates this is a common bug: `BETWEEN '2025-01-01' AND '2025-01-31'` includes 2025-01-31 00:00:00 but misses events later that day. Use a half-open `>= AND <` interval to be safe."
+    },
+    {
+      "id": "sql-082",
+      "type": "single",
+      "topic": "Gotchas",
+      "difficulty": "medium",
+      "prompt": "What does `ORDER BY 2` mean in `SELECT name, salary FROM employee ORDER BY 2`?",
+      "options": [
+        "Sort by the value 2 (no-op)",
+        "Sort by the SECOND column in the SELECT list (here: salary)",
+        "Sort by every other row",
+        "It's a syntax error"
+      ],
+      "answer": 1,
+      "explanation": "Positional ORDER BY references the SELECT-list position. Same applies to GROUP BY in many engines. Brittle if the SELECT list changes; prefer column names or aliases for clarity."
+    },
+    {
+      "id": "sql-083",
+      "type": "multi",
+      "topic": "Gotchas",
+      "difficulty": "medium",
+      "prompt": "Which patterns are known sources of subtle correctness bugs? (Select all that apply)",
+      "options": [
+        "`NOT IN (subquery)` when the subquery can return NULL",
+        "Implicit string-to-number conversions in comparisons",
+        "BETWEEN on timestamp endpoints (missing the last day's events)",
+        "Aggregates over an empty input returning unexpected NULL (e.g., `SUM` of empty)",
+        "Using `=` to compare NULL"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "explanation": "All five are classic gotchas. NOT IN + NULL drops rows; implicit conversion breaks indexes and can change comparison semantics; BETWEEN on timestamps misses end-of-day rows; SUM of empty returns NULL (not 0); NULL = NULL is NULL. Understanding all of these is part of basic SQL hygiene."
+    },
+    {
+      "id": "sql-084",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Schema: `customers(id)`, `orders(customer_id)`. To list customers who have placed AT LEAST ONE order but with no duplication, which is most idiomatic?",
+      "options": [
+        "`SELECT DISTINCT c.* FROM customers c JOIN orders o ON c.id = o.customer_id`",
+        "`SELECT c.* FROM customers c WHERE EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.id)`",
+        "Both are correct; EXISTS often avoids the dedup pass and is preferred when you only need existence",
+        "`SELECT c.* FROM customers c CROSS JOIN orders o WHERE c.id = o.customer_id`"
+      ],
+      "answer": 2,
+      "explanation": "Both produce the same set, but DISTINCT requires a deduplication step; EXISTS short-circuits per outer row. For 'at least one match' queries, EXISTS is usually faster and clearer about intent (a semi-join)."
+    },
+    {
+      "id": "sql-085",
+      "type": "single",
+      "topic": "Performance",
+      "difficulty": "medium",
+      "prompt": "Why is `SELECT *` discouraged in production analytical queries?",
+      "options": [
+        "It returns all rows",
+        "It returns ALL columns, increasing IO and network transfer, breaking covering indexes, and silently changing behavior when the schema evolves",
+        "It is unsupported in modern engines",
+        "It locks the table"
+      ],
+      "answer": 1,
+      "explanation": "SELECT * grabs every column whether you need it or not \u2014 fatter rows, more IO, network bandwidth, and a query that may produce surprising new columns the day a schema migration adds one. Explicit column lists are part of mature data hygiene."
+    },
+    {
+      "id": "sql-086",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "What is a scalar subquery?",
+      "options": [
+        "A subquery that returns multiple rows and columns",
+        "A subquery that returns exactly one row, one column \u2014 usable anywhere a single value is expected",
+        "Any subquery in the WHERE clause",
+        "A subquery without aliases"
+      ],
+      "answer": 1,
+      "explanation": "Scalar subquery returns a single value (1 row \u00d7 1 col) and can be used as if it were a constant \u2014 in SELECT, WHERE, or anywhere a value-expression is allowed. If it returns more than one row, most engines raise a runtime error."
+    },
+    {
+      "id": "sql-087",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "What is the default window frame for `SUM(x) OVER (ORDER BY t)` in ANSI SQL?",
+      "options": [
+        "`ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`",
+        "`RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` (includes peers)",
+        "`ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`",
+        "There is no default \u2014 frame is required"
+      ],
+      "answer": 1,
+      "explanation": "When ORDER BY is present and frame is omitted, the default is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`. This is value-based, so ties produce identical running totals \u2014 a frequent surprise. To get strict row-based running total, write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`."
+    },
+    {
+      "id": "sql-088",
+      "type": "multi",
+      "topic": "Indexes",
+      "difficulty": "hard",
+      "prompt": "When is it a BAD idea to add an index? (Select all that apply)",
+      "options": [
+        "On a write-heavy table where reads rarely use that column",
+        "On a low-cardinality boolean in an OLTP table",
+        "On a column wrapped in a function at query time (unless you create a functional index)",
+        "On a primary key",
+        "On a small table where a sequential scan is already fast"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Indexes cost on every write. They are wasteful on write-heavy / rarely-filtered columns, on low-cardinality columns (planner often scans anyway), when queries hide the column behind a function, and on tiny tables where seq-scan is cheaper than B-tree descent. Primary-key indexes are essentially mandatory."
+    },
+    {
+      "id": "sql-089",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Schema: `orders(order_ts TIMESTAMPTZ)`. Storing in UTC and displaying in a user's local timezone is best done how?",
+      "options": [
+        "Store as TIMESTAMP (no TZ) and rely on convention",
+        "Store as TIMESTAMPTZ, and at query time apply `AT TIME ZONE 'America/New_York'`",
+        "Store the user's timezone redundantly in every row",
+        "Strip the timezone before insert"
+      ],
+      "answer": 1,
+      "explanation": "Best practice: store the instant (UTC) in TIMESTAMPTZ, and convert at display via `AT TIME ZONE 'zone'`. Storing wall-clock with no TZ ('it's 3pm somewhere') is a common source of bugs when servers move across regions."
+    },
+    {
+      "id": "sql-090",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "`COUNT(DISTINCT col)` vs `COUNT(col)` \u2014 when do they differ?",
+      "options": [
+        "Never \u2014 they are equivalent",
+        "DISTINCT counts unique non-NULL values; without DISTINCT counts all non-NULL occurrences",
+        "DISTINCT counts NULLs; non-DISTINCT does not",
+        "Only differ on indexed columns"
+      ],
+      "answer": 1,
+      "explanation": "COUNT(col) counts every non-NULL row's value (with duplicates). COUNT(DISTINCT col) collapses duplicates. Neither counts NULLs (use COUNT(*) for total rows). DISTINCT is more expensive \u2014 it requires hashing or sorting to dedup."
+    },
+    {
+      "id": "sql-091",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Schema: `sales(sale_id, sale_date, amount)`. Write a query returning each row plus a 7-day rolling sum of `amount` ordered by `sale_date`. Columns: `sale_date, amount, rolling_7d`. (Assume one row per day for simplicity, and use a row-based frame.)",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE sales (sale_id INTEGER, sale_date DATE, amount INTEGER);\nINSERT INTO sales VALUES (1, '2025-01-01', 10), (2, '2025-01-02', 20), (3, '2025-01-03', 30), (4, '2025-01-04', 40), (5, '2025-01-05', 50), (6, '2025-01-06', 60), (7, '2025-01-07', 70), (8, '2025-01-08', 80);",
+      "model_answer": "SELECT\n  sale_date,\n  amount,\n  SUM(amount) OVER (\n    ORDER BY sale_date\n    ROWS BETWEEN 6 PRECEDING AND CURRENT ROW\n  ) AS rolling_7d\nFROM sales\nORDER BY sale_date;",
+      "expected_rows": [
+        {
+          "sale_date": "2025-01-01",
+          "amount": 10,
+          "rolling_7d": 10
+        },
+        {
+          "sale_date": "2025-01-02",
+          "amount": 20,
+          "rolling_7d": 30
+        },
+        {
+          "sale_date": "2025-01-03",
+          "amount": 30,
+          "rolling_7d": 60
+        },
+        {
+          "sale_date": "2025-01-04",
+          "amount": 40,
+          "rolling_7d": 100
+        },
+        {
+          "sale_date": "2025-01-05",
+          "amount": 50,
+          "rolling_7d": 150
+        },
+        {
+          "sale_date": "2025-01-06",
+          "amount": 60,
+          "rolling_7d": 210
+        },
+        {
+          "sale_date": "2025-01-07",
+          "amount": 70,
+          "rolling_7d": 280
+        },
+        {
+          "sale_date": "2025-01-08",
+          "amount": 80,
+          "rolling_7d": 350
+        }
+      ],
+      "key_points": [
+        "SUM(...) OVER (ORDER BY sale_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)",
+        "ROWS frame (not RANGE) for a strict count of rows",
+        "6 PRECEDING (not 7) because the current row counts as day 7",
+        "ORDER BY sale_date \u2014 frame is meaningless without ordering"
+      ]
+    },
+    {
+      "id": "sql-092",
+      "type": "code",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Schema: `customer(id, name)`, `orders(order_id, customer_id, amount)`. Return every customer with their total order amount, including customers with zero orders (showing 0, not NULL). Columns: `id, name, total`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (id INTEGER, name TEXT);\nINSERT INTO customer VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Cara');\nCREATE TABLE orders (order_id INTEGER, customer_id INTEGER, amount INTEGER);\nINSERT INTO orders VALUES (101, 1, 50), (102, 1, 30), (103, 2, 100);",
+      "model_answer": "SELECT\n  c.id,\n  c.name,\n  COALESCE(SUM(o.amount), 0) AS total\nFROM customer c\nLEFT JOIN orders o ON o.customer_id = c.id\nGROUP BY c.id, c.name\nORDER BY c.id;",
+      "expected_rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "total": 80
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "total": 100
+        },
+        {
+          "id": 3,
+          "name": "Cara",
+          "total": 0
+        }
+      ],
+      "key_points": [
+        "LEFT JOIN to keep customers with no orders",
+        "GROUP BY c.id (and c.name for SQL standard compliance)",
+        "COALESCE(SUM(...), 0) so customers with no orders show 0, not NULL",
+        "Aggregate over the right-side column so the NULL turns into 0 cleanly"
+      ]
+    },
+    {
+      "id": "sql-093",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Schema: `event(user_id, event_ts)`. For each user, return the top 2 most recent events. Columns: `user_id, event_ts`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE event (user_id INTEGER, event_ts TEXT);\nINSERT INTO event VALUES (1, '2025-01-05 10:00'), (1, '2025-01-04 09:00'), (1, '2025-01-03 08:00'), (2, '2025-01-07 12:00'), (2, '2025-01-06 11:00'), (3, '2025-01-01 07:00');",
+      "model_answer": "WITH ranked AS (\n  SELECT\n    user_id,\n    event_ts,\n    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_ts DESC) AS rn\n  FROM event\n)\nSELECT user_id, event_ts\nFROM ranked\nWHERE rn <= 2\nORDER BY user_id, event_ts DESC;",
+      "expected_rows": [
+        {
+          "user_id": 1,
+          "event_ts": "2025-01-05 10:00"
+        },
+        {
+          "user_id": 1,
+          "event_ts": "2025-01-04 09:00"
+        },
+        {
+          "user_id": 2,
+          "event_ts": "2025-01-07 12:00"
+        },
+        {
+          "user_id": 2,
+          "event_ts": "2025-01-06 11:00"
+        },
+        {
+          "user_id": 3,
+          "event_ts": "2025-01-01 07:00"
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY event_ts DESC)",
+        "Filter rn <= 2 in an outer query (or use QUALIFY in Snowflake/BigQuery)",
+        "PARTITION BY user_id resets the ranking per user",
+        "Users with fewer than 2 events return all their rows"
+      ]
+    },
+    {
+      "id": "sql-094",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Schema: `orders(order_id, status, amount)`. In ONE query, return total revenue across ALL orders and the revenue from orders with `status = 'paid'`. Columns: `total_revenue, paid_revenue`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE orders (order_id INTEGER, status TEXT, amount INTEGER);\nINSERT INTO orders VALUES (1, 'paid', 100), (2, 'pending', 50), (3, 'paid', 75), (4, 'cancelled', 200), (5, 'paid', 25);",
+      "model_answer": "SELECT\n  SUM(amount) AS total_revenue,\n  SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS paid_revenue\nFROM orders;",
+      "expected_rows": [
+        {
+          "total_revenue": 450,
+          "paid_revenue": 200
+        }
+      ],
+      "key_points": [
+        "Conditional aggregation with SUM(CASE WHEN ...)",
+        "Single pass over the table \u2014 efficient",
+        "ELSE 0 vs ELSE NULL: with NULL, SUM still ignores it correctly; 0 is more explicit",
+        "Alternative: standard `FILTER (WHERE status = 'paid')` in Postgres/SQLite"
+      ]
+    },
+    {
+      "id": "sql-095",
+      "type": "code",
+      "topic": "CTEs",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(id, name, manager_id)` where `manager_id` is NULL for the CEO. Using a recursive CTE, return each employee with their depth in the org tree (CEO is depth 0). Columns: `id, name, depth`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (id INTEGER, name TEXT, manager_id INTEGER);\nINSERT INTO employee VALUES (1, 'CEO', NULL), (2, 'VP-A', 1), (3, 'VP-B', 1), (4, 'Mgr-A1', 2), (5, 'Mgr-A2', 2), (6, 'IC-A1a', 4);",
+      "model_answer": "WITH RECURSIVE tree AS (\n  SELECT id, name, 0 AS depth\n  FROM employee\n  WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.id, e.name, t.depth + 1\n  FROM employee e\n  JOIN tree t ON e.manager_id = t.id\n)\nSELECT id, name, depth\nFROM tree\nORDER BY depth, id;",
+      "expected_rows": [
+        {
+          "id": 1,
+          "name": "CEO",
+          "depth": 0
+        },
+        {
+          "id": 2,
+          "name": "VP-A",
+          "depth": 1
+        },
+        {
+          "id": 3,
+          "name": "VP-B",
+          "depth": 1
+        },
+        {
+          "id": 4,
+          "name": "Mgr-A1",
+          "depth": 2
+        },
+        {
+          "id": 5,
+          "name": "Mgr-A2",
+          "depth": 2
+        },
+        {
+          "id": 6,
+          "name": "IC-A1a",
+          "depth": 3
+        }
+      ],
+      "key_points": [
+        "Anchor member: root (manager_id IS NULL) at depth 0",
+        "Recursive member: join children to the parent, increment depth",
+        "UNION ALL (not UNION) \u2014 no dedup needed and faster",
+        "Termination is implicit when no more rows are produced"
+      ]
+    },
+    {
+      "id": "sql-096",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Schema: `signups(user_id, signup_date)`. Return signup counts per month for 2025. Columns: `month_start, signup_count`. Missing months should still appear with 0 (assume the table has signups across the year).",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE signups (user_id INTEGER, signup_date DATE);\nINSERT INTO signups VALUES (1, '2025-01-15'), (2, '2025-01-20'), (3, '2025-03-05'), (4, '2025-03-12'), (5, '2025-03-30'), (6, '2025-06-01');",
+      "model_answer": "-- SQLite-compatible: bucket by first-of-month string\nSELECT\n  substr(signup_date, 1, 7) || '-01' AS month_start,\n  COUNT(*) AS signup_count\nFROM signups\nWHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'\nGROUP BY substr(signup_date, 1, 7)\nORDER BY month_start;\n-- Postgres: DATE_TRUNC('month', signup_date) AS month_start; combined with a generate_series LEFT JOIN to fill missing months with 0",
+      "expected_rows": [
+        {
+          "month_start": "2025-01-01",
+          "signup_count": 2
+        },
+        {
+          "month_start": "2025-03-01",
+          "signup_count": 3
+        },
+        {
+          "month_start": "2025-06-01",
+          "signup_count": 1
+        }
+      ],
+      "key_points": [
+        "Truncate to month (DATE_TRUNC in Postgres, FORMAT/EOMONTH in SQL Server, substr in SQLite)",
+        "Sargable date filter using a half-open range",
+        "GROUP BY the truncated month",
+        "For missing-month gap-fill, LEFT JOIN a generated date series"
+      ]
+    },
+    {
+      "id": "sql-097",
+      "type": "code",
+      "topic": "Data Quality",
+      "difficulty": "easy",
+      "prompt": "Schema: `users(id, email)`. Return any email address that appears more than once (case-insensitive). Columns: `email_lower, occurrences`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE users (id INTEGER, email TEXT);\nINSERT INTO users VALUES (1, 'alice@x.com'), (2, 'BOB@y.com'), (3, 'Alice@X.com'), (4, 'carol@z.com'), (5, 'bob@y.com');",
+      "model_answer": "SELECT\n  LOWER(email) AS email_lower,\n  COUNT(*) AS occurrences\nFROM users\nGROUP BY LOWER(email)\nHAVING COUNT(*) > 1\nORDER BY occurrences DESC, email_lower;",
+      "expected_rows": [
+        {
+          "email_lower": "alice@x.com",
+          "occurrences": 2
+        },
+        {
+          "email_lower": "bob@y.com",
+          "occurrences": 2
+        }
+      ],
+      "key_points": [
+        "Normalize with LOWER(email) before grouping",
+        "GROUP BY the normalized form",
+        "HAVING COUNT(*) > 1 keeps duplicates only",
+        "For large tables, a functional index on LOWER(email) keeps this query fast"
+      ]
+    },
+    {
+      "id": "sql-098",
+      "type": "open",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "You're designing a relational schema for a SaaS app's audit log: every user action across many tenants must be recorded, immutable, and queryable by tenant + time. Discuss the schema, indexing, and partitioning choices you'd make, and the trade-offs.",
+      "model_answer": "**Schema.** A single `audit_event(event_id BIGINT, tenant_id BIGINT, occurred_at TIMESTAMPTZ, actor_user_id BIGINT, action VARCHAR, target_type VARCHAR, target_id BIGINT, metadata JSONB)`. Use BIGINT IDs from a sequence (or a sortable UUIDv7) \u2014 never auto-increment per tenant. Store flexible context in `metadata JSONB` rather than wide nullable columns.\n\n**Immutability.** Disallow UPDATE/DELETE at the application or via revoking those privileges; rely on append-only inserts. Consider a hash chain or signed envelopes if tamper-evidence is required.\n\n**Indexing.** Primary key `(tenant_id, occurred_at, event_id)` \u2014 co-locates a tenant's data on the BTree leaves and supports the dominant access pattern: 'all events for tenant X between t1 and t2'. Secondary indexes are expensive on a write-heavy log, so add only what's justified by traffic (e.g. `(tenant_id, actor_user_id, occurred_at)` for per-actor timelines, or a GIN index on `metadata` if you frequently filter on JSON keys).\n\n**Partitioning.** Range-partition by `occurred_at` (monthly or weekly). Benefits: partition pruning on time predicates, easy retention via DROP PARTITION (much cheaper than DELETE), parallelizable maintenance. If you have very large tenants alongside small ones, consider hash sub-partitioning by `tenant_id` to spread hot tenants.\n\n**Retention.** Old partitions can be detached and moved to cold storage (S3/Parquet). Hot partitions stay in the OLTP DB.\n\n**Trade-offs.** Heavy indexing kills write throughput. JSONB is flexible but harder to validate than columns. Tenant-level row-level security adds correctness but costs planner work. Partitioning adds operational complexity and requires queries to actually use partition-key predicates \u2014 without them you scan every partition.",
+      "key_points": [
+        "Append-only / immutability strategy",
+        "Composite PK with tenant_id + time leading the index",
+        "Time-based range partitioning, retention via DROP PARTITION",
+        "Selective secondary indexes (acknowledges write cost)",
+        "JSONB vs wide table trade-off",
+        "Consideration of multi-tenant data layout (e.g. hash sub-partitioning hot tenants)",
+        "Mentions row-level security or tenant isolation"
+      ]
+    },
+    {
+      "id": "sql-099",
+      "type": "open",
+      "topic": "Performance",
+      "difficulty": "hard",
+      "prompt": "A 5-table JOIN with several WHERE filters and an ORDER BY ... LIMIT is timing out at 60s on a 100M-row fact table. Walk through your diagnostic approach in 5-7 steps, and what you'd try at each step.",
+      "model_answer": "**1. Reproduce and capture the plan.** Run `EXPLAIN (ANALYZE, BUFFERS)` (or equivalent). Look at actual time, rows, and reads per node. Compare estimated vs actual rows \u2014 large mismatches mean stats are wrong and the chosen plan is probably bad.\n\n**2. Validate stats and partitioning.** `ANALYZE` (or `UPDATE STATISTICS`) on the fact and the largest dimensions. If the fact is partitioned on a date column, check the plan actually does partition pruning \u2014 confirm the WHERE clause touches the partition key directly (not wrapped in a function).\n\n**3. Audit the join order and methods.** With 5 tables, the optimizer's search space is non-trivial. Are large tables joined late? Is the smallest filtered table the driver? Look for nested loops over millions of rows (bad) or hash joins building hashes on the wrong side. Consider join hints (`/*+ LEADING ... */`, `STRAIGHT_JOIN`) only after data is good.\n\n**4. Check filter selectivity and indexes.** For each filter column: is there an index? Does the plan use it? Indexes on low-selectivity columns are useless. Composite indexes matching the WHERE columns in the right order matter. Consider covering indexes for the SELECT list.\n\n**5. Sort/LIMIT pushdown.** `ORDER BY x LIMIT N` should ideally be served by an index that returns rows already ordered, avoiding a full sort. If the plan shows a Sort node over millions of rows for a LIMIT 10, that's a clear win to chase.\n\n**6. Materialization and rewrite options.** Pre-aggregate the heavy fact into a smaller summary table (daily rollups, summary materialized view). Move expensive joins into a CTE that filters first. Sometimes the cleanest fix is a star-schema-shaped query with the fact restricted by the most selective dimension keys first.\n\n**7. Resource and configuration.** Check work_mem / sort buffers (avoid spills), parallel query degree, statement timeout. Verify no lock contention, no replication lag pressure, no autovacuum starvation on the fact table. If the query is launched at a known bad time (alongside a heavy ETL), schedule shifts may help.\n\nThroughout: pick the lowest-impact fix that works (stats refresh > query rewrite > index add > schema change > materialization).",
+      "key_points": [
+        "Reads EXPLAIN (ANALYZE) and compares estimated vs actual rows",
+        "Checks statistics freshness",
+        "Validates partition pruning (if partitioned)",
+        "Audits join order/method and selectivity",
+        "Considers indexes (covering, composite, sargability)",
+        "Looks at sort/limit pushdown",
+        "Considers materialization or pre-aggregation",
+        "Considers resource/config (work_mem, parallelism, locks)"
+      ]
+    },
+    {
+      "id": "sql-100",
+      "type": "open",
+      "topic": "Modeling",
+      "difficulty": "hard",
+      "prompt": "Compare Type-1, Type-2, and Type-3 Slowly Changing Dimensions (SCDs). Give a concrete example where each is the right choice, and discuss the SQL implications for the fact-to-dimension join.",
+      "model_answer": "**Type 1 (overwrite).** When the attribute is updated, the old value is lost. Example: customer's preferred language \u2014 historical reporting doesn't care which language a customer used in 2019. SQL: a simple equi-join `fact JOIN dim ON dim.customer_id = fact.customer_id` always returns the *current* attribute. Easy to implement and join; no history.\n\n**Type 2 (history rows).** Every change inserts a new dimension row with `valid_from`, `valid_to`, and an `is_current` flag (or surrogate key per version). Example: customer's region for revenue allocation \u2014 when a customer moves from EMEA to APAC, you need historical orders attributed to the region the customer was in *at the time of the order*. SQL: point-in-time join \u2014 `fact f JOIN dim d ON d.natural_key = f.natural_key AND f.event_ts >= d.valid_from AND f.event_ts < d.valid_to`. Or join on the surrogate key the ETL has already resolved per fact row (best \u2014 push the time-resolution into the load).\n\n**Type 3 (limited history columns).** The dimension stores `current_region` and `previous_region` (and optionally `change_date`). Example: a sales rep's territory where stakeholders only care about 'before vs after' the last reorg. SQL: trivial join \u2014 single dim row per entity \u2014 but only one historical step is recoverable. Cheaper than Type 2 but loses deeper history.\n\n**Practical guidance.** Use Type 2 when historical correctness matters and changes are infrequent enough that the dim doesn't bloat. Use Type 1 when only the current state is meaningful. Use Type 3 sparingly when 'previous value' is enough and you want to avoid Type-2 complexity. A common pitfall with Type 2 is mismatched join semantics \u2014 using INNER JOIN on natural key alone (instead of natural key + interval) silently multiplies fact rows when the dim has multiple versions.\n\nMost real warehouses are hybrid: some dim columns are Type 1 (cosmetic), some are Type 2 (historically meaningful). Tools like dbt's `snapshots` automate the Type-2 mechanics.",
+      "key_points": [
+        "Explains Type 1 (overwrite, no history) with example",
+        "Explains Type 2 (versioned rows with validity interval) with example",
+        "Explains Type 3 (current + previous columns) with example",
+        "Articulates the join consequence: Type 2 needs a point-in-time predicate",
+        "Mentions surrogate keys and how the ETL resolves the version per fact row",
+        "Notes that mixed Type-1/Type-2 per column is common",
+        "Notes pitfalls: row multiplication if join interval is omitted"
       ]
     }
   ]

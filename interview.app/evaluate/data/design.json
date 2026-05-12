@@ -4,6 +4,7 @@
   "tagline": "Dimensional modeling, OLTP vs OLAP, SCDs, partitioning, idempotency, and scale tradeoffs",
   "duration_minutes": 25,
   "passing_score": 70,
+  "quiz_length": 15,
   "questions": [
     {
       "id": "ds-001",
@@ -33,7 +34,7 @@
         "The number of measures per row"
       ],
       "answer": 1,
-      "explanation": "Grain = what a single row means. 'One row per order line item', 'one row per session', 'one row per impression'. Declare the grain BEFORE you design the schema — mixing grains is the most common modeling bug."
+      "explanation": "Grain = what a single row means. 'One row per order line item', 'one row per session', 'one row per impression'. Declare the grain BEFORE you design the schema \u2014 mixing grains is the most common modeling bug."
     },
     {
       "id": "ds-003",
@@ -78,8 +79,12 @@
         "A reporting wide-table consumed by BI tools that struggle with many joins",
         "Whenever you want to make sure data integrity is enforced by the schema"
       ],
-      "answer": [0, 1, 3],
-      "explanation": "Denormalization trades write/update complexity and storage for read speed and simplicity — wins in OLAP / reporting / BI layers. It loses in OLTP where many concurrent writers need integrity. It does NOT improve integrity; it weakens it."
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Denormalization trades write/update complexity and storage for read speed and simplicity \u2014 wins in OLAP / reporting / BI layers. It loses in OLTP where many concurrent writers need integrity. It does NOT improve integrity; it weakens it."
     },
     {
       "id": "ds-006",
@@ -89,12 +94,12 @@
       "prompt": "Why prefer a SURROGATE key (e.g. an auto-increment integer or UUID) over the NATURAL key for a dimension primary key?",
       "options": [
         "Surrogate keys are always faster to join",
-        "Natural keys can change over time (renames, restructures) and may not be unique across source systems — surrogate keys decouple the warehouse from these changes and enable SCD2",
+        "Natural keys can change over time (renames, restructures) and may not be unique across source systems \u2014 surrogate keys decouple the warehouse from these changes and enable SCD2",
         "Natural keys are deprecated in modern databases",
         "Surrogate keys take less storage than any natural key"
       ],
       "answer": 1,
-      "explanation": "Natural keys (email, SKU, employee_id) can change, get reused, or collide between sources. A surrogate key gives the warehouse a stable identity for a dimension row — essential for SCD2 (one natural key, multiple surrogate-keyed versions over time)."
+      "explanation": "Natural keys (email, SKU, employee_id) can change, get reused, or collide between sources. A surrogate key gives the warehouse a stable identity for a dimension row \u2014 essential for SCD2 (one natural key, multiple surrogate-keyed versions over time)."
     },
     {
       "id": "ds-007",
@@ -103,15 +108,20 @@
       "difficulty": "medium",
       "prompt": "Why partition a large fact table by date? (Select all that apply)",
       "options": [
-        "Partition pruning — date-filtered queries skip irrelevant partitions",
-        "Cheaper / faster backfills — you can rewrite a single partition",
+        "Partition pruning \u2014 date-filtered queries skip irrelevant partitions",
+        "Cheaper / faster backfills \u2014 you can rewrite a single partition",
         "It physically deletes old data automatically",
-        "Easier retention policy — drop partitions older than N days",
+        "Easier retention policy \u2014 drop partitions older than N days",
         "Smaller per-partition statistics improve the planner",
         "It eliminates the need for indexes entirely"
       ],
-      "answer": [0, 1, 3, 4],
-      "explanation": "Partitioning helps with pruning, targeted backfills, retention (DROP PARTITION is metadata-only and fast), and per-partition stats. It doesn't auto-delete data and doesn't replace indexes — though it often reduces the need for them."
+      "answer": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "explanation": "Partitioning helps with pruning, targeted backfills, retention (DROP PARTITION is metadata-only and fast), and per-partition stats. It doesn't auto-delete data and doesn't replace indexes \u2014 though it often reduces the need for them."
     },
     {
       "id": "ds-008",
@@ -126,7 +136,7 @@
         "It locks the target table while running"
       ],
       "answer": 1,
-      "explanation": "Idempotent = re-runnable safely. Achieved via MERGE/UPSERT keyed on a natural identity, partition overwrite by date, or staging-then-swap. Critical because pipelines retry on failure — non-idempotent steps cause duplicates."
+      "explanation": "Idempotent = re-runnable safely. Achieved via MERGE/UPSERT keyed on a natural identity, partition overwrite by date, or staging-then-swap. Critical because pipelines retry on failure \u2014 non-idempotent steps cause duplicates."
     },
     {
       "id": "ds-009",
@@ -150,14 +160,19 @@
       "difficulty": "hard",
       "prompt": "A single shard / partition / key is receiving disproportionate load (a 'hot key'). Which mitigations are reasonable? (Select all that apply)",
       "options": [
-        "Salting the key — append a random suffix to spread writes across N sub-keys, then aggregate",
+        "Salting the key \u2014 append a random suffix to spread writes across N sub-keys, then aggregate",
         "Pre-aggregate at the producer so each event isn't a separate write",
         "Move the hot tenant / key to its own dedicated shard",
         "Just add more capacity to the existing shard",
         "Use a CDN / read-through cache for hot-read keys",
         "Switch the entire system to a single-node database"
       ],
-      "answer": [0, 1, 2, 4],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
       "explanation": "Salting, producer-side aggregation, dedicated shard for the heavy hitter, and caching for hot reads are all standard. Vertical scaling of one shard buys time but doesn't fix the skew. Going single-node makes the problem worse."
     },
     {
@@ -173,7 +188,7 @@
         "Whenever the data has more than 5 columns"
       ],
       "answer": 1,
-      "explanation": "Columnar shines when queries touch a few columns out of many — only those columns are read from disk, and per-column compression (run-length, dictionary) is highly effective. For full-row reads or row-level transactions, row stores win."
+      "explanation": "Columnar shines when queries touch a few columns out of many \u2014 only those columns are read from disk, and per-column compression (run-length, dictionary) is highly effective. For full-row reads or row-level transactions, row stores win."
     },
     {
       "id": "ds-012",
@@ -183,27 +198,27 @@
       "prompt": "When do you need a BRIDGE table in a dimensional model?",
       "options": [
         "When two facts need to share a dimension",
-        "When a fact has a many-to-many relationship to a dimension (e.g. a transaction with multiple categories) — the bridge resolves the M:N",
+        "When a fact has a many-to-many relationship to a dimension (e.g. a transaction with multiple categories) \u2014 the bridge resolves the M:N",
         "When a dimension has more than 1M rows",
         "When you want to enforce a foreign key"
       ],
       "answer": 1,
-      "explanation": "Bridges resolve M:N — e.g. one transaction can have many product categories, or one patient can have many diagnoses. The bridge holds (fact_key, dim_key, [optional weight]). Without it, you'd either duplicate rows (inflating measures) or pack values into arrays (hard to filter)."
+      "explanation": "Bridges resolve M:N \u2014 e.g. one transaction can have many product categories, or one patient can have many diagnoses. The bridge holds (fact_key, dim_key, [optional weight]). Without it, you'd either duplicate rows (inflating measures) or pack values into arrays (hard to filter)."
     },
     {
       "id": "ds-013",
       "type": "code",
       "topic": "Schema Design",
       "difficulty": "medium",
-      "prompt": "Design a star-schema FACT table for ride-share trips. Write the CREATE TABLE statement. Include trip-level measures, dimension foreign keys, and a date partition column. Don't define the dimension tables — just the fact.",
+      "prompt": "Design a star-schema FACT table for ride-share trips. Write the CREATE TABLE statement. Include trip-level measures, dimension foreign keys, and a date partition column. Don't define the dimension tables \u2014 just the fact.",
       "language": "sql",
       "starter": "CREATE TABLE fact_trip (\n  -- your design here\n);\n",
       "model_answer": "CREATE TABLE fact_trip (\n  trip_sk             BIGINT      NOT NULL,        -- surrogate PK\n  trip_nk             VARCHAR(64) NOT NULL,        -- natural key from source\n  rider_sk            BIGINT      NOT NULL,        -- FK -> dim_rider\n  driver_sk           BIGINT      NOT NULL,        -- FK -> dim_driver\n  vehicle_sk          BIGINT,                      -- FK -> dim_vehicle\n  pickup_location_sk  BIGINT      NOT NULL,        -- FK -> dim_location\n  dropoff_location_sk BIGINT      NOT NULL,        -- FK -> dim_location\n  payment_method_sk   BIGINT,                      -- FK -> dim_payment\n  request_ts          TIMESTAMP   NOT NULL,        -- degenerate dim / event time\n  pickup_ts           TIMESTAMP,\n  dropoff_ts          TIMESTAMP,\n  -- measures\n  distance_km         DECIMAL(8,3),\n  duration_seconds    INT,\n  fare_amount         DECIMAL(10,2),\n  surge_multiplier    DECIMAL(4,2),\n  tip_amount          DECIMAL(10,2),\n  driver_payout       DECIMAL(10,2),\n  status              VARCHAR(20),                  -- completed / cancelled / no_show\n  -- partition / lineage\n  trip_date           DATE NOT NULL,\n  ingested_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n)\nPARTITION BY (trip_date);",
       "key_points": [
         "Declares the grain implicitly: one row per trip",
-        "Surrogate FKs to dimensions (rider, driver, vehicle, location × 2, payment)",
+        "Surrogate FKs to dimensions (rider, driver, vehicle, location \u00d7 2, payment)",
         "Distinguishes pickup vs dropoff location with separate FKs",
-        "Additive measures (distance, duration, fare, tip, payout) — clearly numeric",
+        "Additive measures (distance, duration, fare, tip, payout) \u2014 clearly numeric",
         "Includes event timestamps (request, pickup, dropoff)",
         "Partition by trip_date for pruning and retention",
         "Includes lineage column (ingested_at)",
@@ -216,7 +231,7 @@
       "topic": "Schema Design",
       "difficulty": "medium",
       "prompt": "Model the many-to-many relationship between USERS and ROLES (a user can have multiple roles; a role can belong to multiple users). Describe the tables and keys you'd create.",
-      "model_answer": "Three tables:\n\n1. **user** — `user_id (PK)`, name, email (UNIQUE), created_at, …\n2. **role** — `role_id (PK)`, role_name (UNIQUE), description, …\n3. **user_role** (junction / associative table) — `user_id (FK→user)`, `role_id (FK→role)`, granted_at, granted_by (FK→user, nullable), PRIMARY KEY (user_id, role_id)\n\nKey points:\n- Composite PK on (user_id, role_id) prevents duplicate grants.\n- Optionally add `valid_from`, `valid_to`, or `revoked_at` to support time-bounded role membership.\n- Indexes on each FK column for efficient lookups in both directions.\n- If roles need a hierarchy (role inherits from role), add a `parent_role_id` self-FK on the role table, or a separate role_hierarchy bridge.\n- For audit, an append-only `user_role_history` table can capture grants/revocations over time.",
+      "model_answer": "Three tables:\n\n1. **user** \u2014 `user_id (PK)`, name, email (UNIQUE), created_at, \u2026\n2. **role** \u2014 `role_id (PK)`, role_name (UNIQUE), description, \u2026\n3. **user_role** (junction / associative table) \u2014 `user_id (FK\u2192user)`, `role_id (FK\u2192role)`, granted_at, granted_by (FK\u2192user, nullable), PRIMARY KEY (user_id, role_id)\n\nKey points:\n- Composite PK on (user_id, role_id) prevents duplicate grants.\n- Optionally add `valid_from`, `valid_to`, or `revoked_at` to support time-bounded role membership.\n- Indexes on each FK column for efficient lookups in both directions.\n- If roles need a hierarchy (role inherits from role), add a `parent_role_id` self-FK on the role table, or a separate role_hierarchy bridge.\n- For audit, an append-only `user_role_history` table can capture grants/revocations over time.",
       "key_points": [
         "Three tables: user, role, and a junction table",
         "Junction table uses composite PK (user_id, role_id)",
@@ -231,18 +246,1403 @@
       "type": "open",
       "topic": "System Design",
       "difficulty": "hard",
-      "prompt": "You're designing the event ingestion path for a product that emits ~50,000 events per second (clickstream, server-side). The downstream needs near-real-time dashboards (≤1 min lag) AND historical analysis over years of data. Sketch the architecture in 4-6 layers.",
-      "model_answer": "1. **Producers** — SDKs / server emit events with a schema (use Avro/Protobuf for typed payloads, not raw JSON). Include event_id (idempotency), event_ts, ingest_ts.\n2. **Ingestion bus** — Kafka (or Kinesis / Pub/Sub). Sized to absorb spikes; retention 7–30 days. Partition by a key that spreads load (e.g. user_id hashed) but tolerates hot keys via salting.\n3. **Stream processor** — Flink / Spark Structured Streaming / ksqlDB for windowed aggregations, enrichment, dedup-by-event_id. Emits two outputs: (a) compact aggregates to a hot store for dashboards, (b) raw enriched events to object storage.\n4. **Hot serving layer** — ClickHouse / Druid / Pinot / Materialize keyed by recent time window — sub-second dashboards, ≤1 min freshness.\n5. **Cold / warehouse layer** — Parquet on S3/GCS, partitioned by event_date and ingestion hour, registered as an Iceberg / Delta table. Queried by Snowflake / BigQuery / Trino for ad-hoc and historical analysis.\n6. **Schema registry + DLQ** — schema registry to enforce contracts; bad-event dead-letter queue to avoid blocking the main pipeline.\n7. **Observability** — lag metrics (consumer lag, end-to-end latency), per-event-type volume, error budget on dropped/late events.\n\nKey tradeoffs: lambda-style (hot + cold) gives both speed and depth at the cost of two code paths. A kappa architecture (one stream pipeline replayed for backfills) is simpler but harder to backfill cold history.",
+      "prompt": "You're designing the event ingestion path for a product that emits ~50,000 events per second (clickstream, server-side). The downstream needs near-real-time dashboards (\u22641 min lag) AND historical analysis over years of data. Sketch the architecture in 4-6 layers.",
+      "model_answer": "1. **Producers** \u2014 SDKs / server emit events with a schema (use Avro/Protobuf for typed payloads, not raw JSON). Include event_id (idempotency), event_ts, ingest_ts.\n2. **Ingestion bus** \u2014 Kafka (or Kinesis / Pub/Sub). Sized to absorb spikes; retention 7\u201330 days. Partition by a key that spreads load (e.g. user_id hashed) but tolerates hot keys via salting.\n3. **Stream processor** \u2014 Flink / Spark Structured Streaming / ksqlDB for windowed aggregations, enrichment, dedup-by-event_id. Emits two outputs: (a) compact aggregates to a hot store for dashboards, (b) raw enriched events to object storage.\n4. **Hot serving layer** \u2014 ClickHouse / Druid / Pinot / Materialize keyed by recent time window \u2014 sub-second dashboards, \u22641 min freshness.\n5. **Cold / warehouse layer** \u2014 Parquet on S3/GCS, partitioned by event_date and ingestion hour, registered as an Iceberg / Delta table. Queried by Snowflake / BigQuery / Trino for ad-hoc and historical analysis.\n6. **Schema registry + DLQ** \u2014 schema registry to enforce contracts; bad-event dead-letter queue to avoid blocking the main pipeline.\n7. **Observability** \u2014 lag metrics (consumer lag, end-to-end latency), per-event-type volume, error budget on dropped/late events.\n\nKey tradeoffs: lambda-style (hot + cold) gives both speed and depth at the cost of two code paths. A kappa architecture (one stream pipeline replayed for backfills) is simpler but harder to backfill cold history.",
       "key_points": [
         "Decouples producers from consumers via a durable bus (Kafka/Kinesis/PubSub)",
         "Separates HOT (real-time dashboards) from COLD (warehouse / historical) paths",
         "Stream processor for windowed aggregates, dedup, enrichment",
-        "Uses object storage (Parquet/Iceberg/Delta) for the cold tier — open format, columnar, partitioned",
+        "Uses object storage (Parquet/Iceberg/Delta) for the cold tier \u2014 open format, columnar, partitioned",
         "Mentions schema enforcement (Avro/Proto + schema registry)",
         "Mentions idempotency / dedup (event_id)",
         "Mentions partitioning strategy in Kafka and in the warehouse",
         "Mentions observability (lag, latency, DLQ)",
         "Discusses a tradeoff (lambda vs kappa, or HOT vs COLD cost)"
+      ]
+    },
+    {
+      "id": "ds-016",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "easy",
+      "prompt": "A **snowflake schema** differs from a star schema in that:",
+      "options": [
+        "It uses a snowflake-shaped data warehouse appliance",
+        "Dimensions are normalized into multiple related tables (e.g. product \u2192 category \u2192 department)",
+        "It eliminates the fact table entirely",
+        "It is exclusively used for streaming workloads"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake schemas normalize dimensions across multiple tables (product joins to category joins to department). They save storage and ease updates of repeated attributes but require more joins per query \u2014 usually a worse tradeoff than star schemas in modern columnar warehouses where storage is cheap and joins are expensive."
+    },
+    {
+      "id": "ds-017",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "easy",
+      "prompt": "A **galaxy schema** (a.k.a. fact constellation) means:",
+      "options": [
+        "Multiple fact tables that share one or more conformed dimensions",
+        "A single fact table with hundreds of measures",
+        "A graph database schema",
+        "A schema deployed across multiple regions"
+      ],
+      "answer": 0,
+      "explanation": "A galaxy/constellation schema has several fact tables (e.g. fact_order, fact_shipment, fact_return) that share conformed dimensions like dim_customer and dim_product. Conformance is what makes cross-process analysis possible \u2014 same customer key means the same thing in every fact."
+    },
+    {
+      "id": "ds-018",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "easy",
+      "prompt": "What is a **conformed dimension**?",
+      "options": [
+        "A dimension that fits within a single partition",
+        "A dimension used identically (same keys, same attribute meanings) across multiple fact tables / business processes",
+        "A dimension that has been normalized into 3NF",
+        "A dimension that conforms to GDPR rules"
+      ],
+      "answer": 1,
+      "explanation": "Conformed dimensions are the backbone of an enterprise data warehouse: dim_date, dim_customer, dim_product mean the same thing whether you join from fact_order, fact_shipment, or fact_return. Without conformance, you can't compare or roll up across processes."
+    },
+    {
+      "id": "ds-019",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "medium",
+      "prompt": "A **role-playing dimension** is:",
+      "options": [
+        "A dimension that takes different meanings (roles) when joined from a fact (e.g. dim_date joined as order_date, ship_date, return_date)",
+        "A dimension used for role-based access control",
+        "A dimension that can be queried only by certain user roles",
+        "A dimension table that has a self-referencing FK"
+      ],
+      "answer": 0,
+      "explanation": "Same physical dimension, multiple logical roles. dim_date can be aliased as order_date, ship_date, due_date in a fact. Often exposed as views (vw_order_date, vw_ship_date) so BI users see clean column names without ambiguity."
+    },
+    {
+      "id": "ds-020",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "medium",
+      "prompt": "A **junk dimension** is:",
+      "options": [
+        "A dimension flagged for deletion",
+        "A dimension that consolidates several low-cardinality flags / indicators (e.g. is_paid, channel, source) into one table to avoid bloating the fact with many small columns",
+        "A staging table for incoming data",
+        "A dimension full of incorrect data"
+      ],
+      "answer": 1,
+      "explanation": "Junk dimensions roll up several low-cardinality, unrelated flags into a single dim with one row per unique combination. The fact carries one junk_sk instead of N boolean / status columns \u2014 cleaner schema, no semantic loss."
+    },
+    {
+      "id": "ds-021",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "medium",
+      "prompt": "A **mini-dimension** is typically used when:",
+      "options": [
+        "You want a dimension with fewer than 100 rows",
+        "A large dimension has a handful of rapidly-changing attributes \u2014 split those into a mini-dim so SCD2 history doesn't explode the main dimension",
+        "You need a temporary dimension for ETL",
+        "You are running on limited storage"
+      ],
+      "answer": 1,
+      "explanation": "If dim_customer is millions of rows and 'preference_segment' changes monthly, full SCD2 explodes row counts. Pull rapidly-changing attributes into a mini-dim (one row per distinct combination), reference both dims from the fact. Main dim stays small; history is captured efficiently."
+    },
+    {
+      "id": "ds-022",
+      "type": "single",
+      "topic": "Dimensional Modeling",
+      "difficulty": "easy",
+      "prompt": "A **degenerate dimension** is:",
+      "options": [
+        "A dimension table with no rows",
+        "A dimension attribute (typically an identifier like order_number or invoice_number) stored directly on the fact with no separate dimension table",
+        "A dimension that has been corrupted",
+        "A dimension being deprecated"
+      ],
+      "answer": 1,
+      "explanation": "Degenerate dimensions live on the fact itself \u2014 order_number, transaction_id, ticket_number. They have no useful attributes to store separately, so a dim table would be pointless. They still enable grouping and drill-down on the fact."
+    },
+    {
+      "id": "ds-023",
+      "type": "single",
+      "topic": "Fact Tables",
+      "difficulty": "medium",
+      "prompt": "A **factless fact table** is appropriate for:",
+      "options": [
+        "Tracking events / occurrences that have no numeric measure (e.g. student attendance, promotion eligibility, page view)",
+        "Tables that need to be very small",
+        "Storing dimensional attributes",
+        "Replacing star schemas with one-big-table"
+      ],
+      "answer": 0,
+      "explanation": "Factless facts record the intersection of dimensions when the event itself is the measure (count). 'Did student S attend class C on date D?' \u2014 no dollar amount, no quantity, just the row's existence. Often used for coverage analysis or many-to-many event tracking."
+    },
+    {
+      "id": "ds-024",
+      "type": "single",
+      "topic": "Fact Tables",
+      "difficulty": "medium",
+      "prompt": "An **accumulating snapshot** fact table is best suited to model:",
+      "options": [
+        "Independent atomic events that never change",
+        "Pipelines with a defined start, intermediate milestones, and end (e.g. order \u2192 shipped \u2192 delivered \u2192 returned), updated in place as milestones complete",
+        "Snapshots of a portfolio at end of day",
+        "Aggregations rolled up to month"
+      ],
+      "answer": 1,
+      "explanation": "Accumulating snapshots have multiple date FKs (order_date_sk, ship_date_sk, deliver_date_sk, \u2026) and lag/duration measures. Rows are UPDATED in place as the workflow progresses. Great for pipelines with predictable milestones; bad for unbounded processes."
+    },
+    {
+      "id": "ds-025",
+      "type": "single",
+      "topic": "Fact Tables",
+      "difficulty": "medium",
+      "prompt": "A **periodic snapshot** fact captures:",
+      "options": [
+        "A row per atomic transaction",
+        "The state of a measurable thing at a regular cadence (e.g. account balance end-of-day, inventory at midnight)",
+        "Changes to a dimension",
+        "Schema diffs between releases"
+      ],
+      "answer": 1,
+      "explanation": "Periodic snapshots are cadenced: one row per entity per period (e.g. balance per account per day). Great for trend analysis and 'state at time T' queries; doesn't capture intra-period activity unless paired with a transaction fact."
+    },
+    {
+      "id": "ds-026",
+      "type": "multi",
+      "topic": "Fact Tables",
+      "difficulty": "medium",
+      "prompt": "Which are properties of a well-designed **transaction fact table**? (Select all that apply)",
+      "options": [
+        "Grain is one atomic event (sale, click, payment)",
+        "Measures are additive across all dimensions whenever possible",
+        "Rows are frequently UPDATED in place",
+        "Rows are append-only and immutable once loaded",
+        "Includes FKs to all relevant dimensions plus event timestamp",
+        "Has a single all-encompassing column called 'data' holding JSON"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "explanation": "Transaction facts are append-only with one row per atomic event, additive measures, and FKs to dimensions. In-place updates and JSON-blob columns are anti-patterns that break columnar pruning and idempotent reloads."
+    },
+    {
+      "id": "ds-027",
+      "type": "single",
+      "topic": "SCDs",
+      "difficulty": "easy",
+      "prompt": "SCD **Type 0** means:",
+      "options": [
+        "Keep the original attribute value forever \u2014 never overwrite, never version",
+        "Overwrite with the new value",
+        "Keep history with effective dates",
+        "Move old rows to an archive"
+      ],
+      "answer": 0,
+      "explanation": "Type 0 = retain original (no change tracked). Useful for fixed attributes like 'date of birth' or 'original signup date' where the source value is the truth and updates should be rejected."
+    },
+    {
+      "id": "ds-028",
+      "type": "single",
+      "topic": "SCDs",
+      "difficulty": "easy",
+      "prompt": "SCD **Type 3** typically uses:",
+      "options": [
+        "An effective_from / effective_to pair",
+        "A separate column for the previous value (e.g. current_tier and previous_tier)",
+        "A separate history table",
+        "Hash diffs"
+      ],
+      "answer": 1,
+      "explanation": "Type 3 keeps limited history via additional columns (current_X, previous_X). It's compact and easy to query but only retains the prior value, not the full timeline. Good when business only ever cares about 'now vs immediately before'."
+    },
+    {
+      "id": "ds-029",
+      "type": "single",
+      "topic": "SCDs",
+      "difficulty": "medium",
+      "prompt": "SCD **Type 4** keeps history by:",
+      "options": [
+        "Versioning rows in place via effective dates",
+        "Maintaining a separate history table while the main dim only stores the current state",
+        "Adding previous-value columns",
+        "Compressing changes into JSON"
+      ],
+      "answer": 1,
+      "explanation": "Type 4 splits responsibilities: a slim main dim_customer (current state, very wide queries fast) and a history table dim_customer_history (all versions, append-only). Good when most queries want 'current' and only a few want history."
+    },
+    {
+      "id": "ds-030",
+      "type": "single",
+      "topic": "SCDs",
+      "difficulty": "hard",
+      "prompt": "SCD **Type 6** (hybrid) combines:",
+      "options": [
+        "Type 0 + Type 2",
+        "Type 1, Type 2, and Type 3 \u2014 current values overwritten on a Type-2 versioned row, with a 'current' column so you can join either 'as-was' or 'as-is'",
+        "Type 4 + Type 5",
+        "Snapshotting plus partitioning"
+      ],
+      "answer": 1,
+      "explanation": "Type 6 = 1+2+3. Each historical row also carries the current value of certain attributes (Type 1 overwrite of those columns on every row), letting you analyze facts under both 'value at the time' and 'current value' lenses without re-joining."
+    },
+    {
+      "id": "ds-031",
+      "type": "multi",
+      "topic": "SCDs",
+      "difficulty": "hard",
+      "prompt": "You must track historical sales by sales-rep territory. The rep's territory occasionally changes. Which design choices correctly preserve 'sales credited to the rep's territory at the time of sale'? (Select all that apply)",
+      "options": [
+        "Use SCD Type 2 on dim_sales_rep with effective_from/effective_to",
+        "Use SCD Type 1 (overwrite territory) on dim_sales_rep",
+        "On every fact insert, look up the rep's CURRENT surrogate key (the version valid at the sale's date)",
+        "Store the territory directly on the fact as a degenerate attribute captured at sale time",
+        "Use SCD Type 0 \u2014 territory never changes"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "SCD2 + 'as-was' join (by effective dates) preserves historical context. Storing the territory snapshot on the fact is also valid and faster to query. SCD1 destroys the history you need. SCD0 contradicts the premise (territory does change)."
+    },
+    {
+      "id": "ds-032",
+      "type": "single",
+      "topic": "Normalization",
+      "difficulty": "easy",
+      "prompt": "First Normal Form (1NF) primarily requires:",
+      "options": [
+        "Every table has a primary key",
+        "Each column holds an atomic value \u2014 no repeating groups, no arrays/lists in a single cell",
+        "No transitive dependencies",
+        "Use of surrogate keys"
+      ],
+      "answer": 1,
+      "explanation": "1NF: atomic values, no multi-valued columns. (A column holding 'red,blue,green' violates 1NF.) Modern systems often relax this with array/JSON types for OLAP \u2014 but 1NF is still a useful design discipline."
+    },
+    {
+      "id": "ds-033",
+      "type": "single",
+      "topic": "Normalization",
+      "difficulty": "easy",
+      "prompt": "Second Normal Form (2NF) violations occur when:",
+      "options": [
+        "A non-key column depends only on PART of a composite primary key",
+        "Two tables share a foreign key",
+        "A table has fewer than 3 columns",
+        "There is no clustered index"
+      ],
+      "answer": 0,
+      "explanation": "2NF assumes 1NF and adds: no partial dependencies on a composite key. If PK is (order_id, line_no) and 'order_date' depends only on order_id, that's a 2NF violation \u2014 order_date belongs in a parent table."
+    },
+    {
+      "id": "ds-034",
+      "type": "single",
+      "topic": "Normalization",
+      "difficulty": "easy",
+      "prompt": "Third Normal Form (3NF) eliminates:",
+      "options": [
+        "Partial dependencies",
+        "Transitive dependencies \u2014 non-key columns depending on other non-key columns",
+        "Multi-valued columns",
+        "Composite keys"
+      ],
+      "answer": 1,
+      "explanation": "3NF: no transitive dependencies. If employee_id \u2192 department_id \u2192 department_name, then department_name shouldn't live on the employee table \u2014 pull it into a dim_department. 3NF is the typical normalization target for OLTP."
+    },
+    {
+      "id": "ds-035",
+      "type": "single",
+      "topic": "Normalization",
+      "difficulty": "medium",
+      "prompt": "BCNF (Boyce\u2013Codd Normal Form) strengthens 3NF by requiring that:",
+      "options": [
+        "Every determinant is a candidate key",
+        "All keys are integers",
+        "Every table has at most one foreign key",
+        "There are no NULL values"
+      ],
+      "answer": 0,
+      "explanation": "BCNF: for every functional dependency X \u2192 Y, X must be a superkey. It catches edge cases 3NF misses \u2014 e.g. overlapping candidate keys with non-trivial dependencies. Rare in practice but the formal correctness target."
+    },
+    {
+      "id": "ds-036",
+      "type": "multi",
+      "topic": "Normalization",
+      "difficulty": "medium",
+      "prompt": "Which are valid reasons to **denormalize** despite the redundancy costs? (Select all that apply)",
+      "options": [
+        "Read paths dominate write paths (analytics, reporting)",
+        "Joins are eliminating the benefit of columnar pruning",
+        "You want to enforce referential integrity",
+        "Schema is stable enough that update anomalies are rare or handled by ETL",
+        "You're storing immutable historical snapshots where source-side updates aren't a concern",
+        "Your OLTP system has lock contention and you want to reduce it"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "explanation": "Denormalize for read-heavy analytics, when joins kill columnar performance, when ETL absorbs update complexity, and for immutable history. It does NOT enforce integrity (it weakens it) and is not the right tool for OLTP lock contention."
+    },
+    {
+      "id": "ds-037",
+      "type": "single",
+      "topic": "Data Vault",
+      "difficulty": "easy",
+      "prompt": "In Data Vault, the three primary entity types are:",
+      "options": [
+        "Dimensions, facts, bridges",
+        "Hubs (business keys), Links (relationships), Satellites (descriptive attributes & history)",
+        "Source, staging, mart",
+        "Bronze, silver, gold"
+      ],
+      "answer": 1,
+      "explanation": "Data Vault separates concerns: Hubs hold immutable business keys (e.g. one hub_customer per unique customer key), Links capture relationships between hubs, and Satellites carry attributes + change history. Designed for auditability and source flexibility, less for direct BI consumption."
+    },
+    {
+      "id": "ds-038",
+      "type": "single",
+      "topic": "Data Vault",
+      "difficulty": "medium",
+      "prompt": "Data Vault tends to beat a pure Kimball star schema when:",
+      "options": [
+        "You have a single, stable source system and BI is the only consumer",
+        "You ingest from many evolving source systems and need auditable lineage with minimal rework when sources change",
+        "Storage cost is the primary constraint",
+        "You need sub-second OLTP point reads"
+      ],
+      "answer": 1,
+      "explanation": "Data Vault shines in volatile, multi-source environments: source changes only touch satellites (not the integration layer), business keys live in hubs, and history is built-in. Cost: more tables, more joins, and you still usually build a Kimball mart on top for BI."
+    },
+    {
+      "id": "ds-039",
+      "type": "single",
+      "topic": "Lakehouse",
+      "difficulty": "easy",
+      "prompt": "The 'data swamp' anti-pattern in data lakes refers to:",
+      "options": [
+        "A lake stored in a region with high latency",
+        "An unmanaged accumulation of files with no schema enforcement, no catalog, and no quality controls \u2014 leading to data that nobody trusts or can find",
+        "Data that has been deleted but is still recoverable",
+        "A lake without a backup"
+      ],
+      "answer": 1,
+      "explanation": "Without a metastore, schema enforcement, lineage, and quality gates, a lake becomes a write-only graveyard. Lakehouses (Iceberg/Delta/Hudi) re-introduce table semantics \u2014 schemas, ACID, time travel \u2014 to address this."
+    },
+    {
+      "id": "ds-040",
+      "type": "multi",
+      "topic": "Lakehouse",
+      "difficulty": "medium",
+      "prompt": "Open table formats (Iceberg, Delta, Hudi) provide which of the following over plain Parquet files? (Select all that apply)",
+      "options": [
+        "ACID transactions on object storage",
+        "Time travel / snapshot isolation",
+        "Schema evolution with backward compatibility",
+        "Hidden partitioning / partition evolution (Iceberg)",
+        "Automatic encryption at rest",
+        "Built-in SQL execution engine"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Open table formats add ACID, snapshots/time travel, and managed schema/partition evolution on top of Parquet. They don't supply an execution engine (Trino/Spark/etc. do) and don't manage encryption (that's the object store / KMS)."
+    },
+    {
+      "id": "ds-041",
+      "type": "single",
+      "topic": "Lakehouse",
+      "difficulty": "medium",
+      "prompt": "**Time travel** in Iceberg/Delta is implemented primarily via:",
+      "options": [
+        "Periodic full snapshots stored as separate copies",
+        "Manifest/metadata files that point to a specific set of immutable data files for each version \u2014 older versions remain queryable until vacuumed",
+        "A transaction log replayed forward",
+        "Multi-version storage tiers in the object store"
+      ],
+      "answer": 1,
+      "explanation": "Each commit produces a new metadata snapshot that references the set of files comprising that version. Old data files aren't deleted until VACUUM/EXPIRE_SNAPSHOTS runs, so queries can target a past version by snapshot id or timestamp."
+    },
+    {
+      "id": "ds-042",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "easy",
+      "prompt": "Which partitioning strategy is best for a 10TB fact table almost always filtered by event_date?",
+      "options": [
+        "Hash-partition by user_id",
+        "Range-partition by event_date (daily or monthly)",
+        "List-partition by country",
+        "No partitioning \u2014 let the planner figure it out"
+      ],
+      "answer": 1,
+      "explanation": "Range partition by event_date enables partition pruning for the common predicate, easy retention (drop old partitions), and targeted backfills. Hash by user_id helps point lookups by user but not date-range scans."
+    },
+    {
+      "id": "ds-043",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "hard",
+      "prompt": "**Partition pruning** in your query plan stops working as soon as:",
+      "options": [
+        "You apply a function to the partition column (e.g. `WHERE DATE(event_ts) = '2025-01-01'`) or compare it to a non-literal expression the optimizer can't fold",
+        "The table exceeds 1B rows",
+        "You use SELECT *",
+        "Statistics are stale"
+      ],
+      "answer": 0,
+      "explanation": "Wrapping the partition column in a function (UPPER, DATE_TRUNC, CAST in many engines) often blocks pruning because the optimizer can't map the function output back to partition bounds. Filter on the raw column or pre-compute the literal."
+    },
+    {
+      "id": "ds-044",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "medium",
+      "prompt": "Snowflake's **micro-partitions** differ from traditional partitions because:",
+      "options": [
+        "They are user-defined per CREATE TABLE",
+        "They are automatically created (~16MB compressed), immutable, and clustered by load order \u2014 with per-column min/max metadata enabling automatic pruning",
+        "They are stored on local disk",
+        "They are limited to date columns"
+      ],
+      "answer": 1,
+      "explanation": "Snowflake auto-partitions on ingest. Users influence the layout via clustering keys (which trigger background re-clustering) rather than defining partitions directly. Pruning uses min/max metadata per micro-partition per column."
+    },
+    {
+      "id": "ds-045",
+      "type": "single",
+      "topic": "Partitioning",
+      "difficulty": "hard",
+      "prompt": "**Bucketing/clustering** (e.g. Hive bucketing, BigQuery clustering, Snowflake clustering keys) is useful when:",
+      "options": [
+        "You want to physically split data into separate files per bucket key only",
+        "You want to co-locate rows that share a key so that filters/joins on that key benefit from data skipping, without creating one partition per distinct value",
+        "You only ever query the whole table",
+        "Cardinality of the key is below 10"
+      ],
+      "answer": 1,
+      "explanation": "Bucketing/clustering groups rows by key within a partition (or globally) so engines can skip data and bucket-join efficiently. Use it for high-cardinality columns commonly filtered/joined, where one-partition-per-value would explode the partition count."
+    },
+    {
+      "id": "ds-046",
+      "type": "multi",
+      "topic": "Indexing",
+      "difficulty": "medium",
+      "prompt": "When does adding a B-tree index typically **hurt** more than help? (Select all that apply)",
+      "options": [
+        "On a column with very low cardinality (e.g. boolean is_active)",
+        "On a write-heavy hot path where every INSERT must update many indexes",
+        "On a column always used in equality predicates that filter to <0.1% of rows",
+        "On a wide composite index when only the trailing columns are queried",
+        "On the primary key"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Low-cardinality B-trees rarely beat a scan; write-heavy tables pay index-maintenance cost on every mutation; trailing-column-only access can't use a leading-prefix B-tree. High-selectivity equality predicates and PKs are exactly where B-trees shine."
+    },
+    {
+      "id": "ds-047",
+      "type": "single",
+      "topic": "Indexing",
+      "difficulty": "medium",
+      "prompt": "A **covering index** is one that:",
+      "options": [
+        "Covers every column in the table",
+        "Contains all columns needed to satisfy a query (selected + filtered + ordered) so the engine can answer from the index alone without touching the heap",
+        "Spans multiple tables",
+        "Is automatically created by the optimizer"
+      ],
+      "answer": 1,
+      "explanation": "Covering indexes let the engine perform an 'index-only scan' \u2014 no heap lookup. Achieved via INCLUDE columns (Postgres/SQL Server) or by adding columns to the key. Cost: bigger index, more write amplification."
+    },
+    {
+      "id": "ds-048",
+      "type": "single",
+      "topic": "Indexing",
+      "difficulty": "hard",
+      "prompt": "For a composite index `(a, b, c)`, which query can the index serve **most efficiently**?",
+      "options": [
+        "`WHERE b = ? AND c = ?`",
+        "`WHERE a = ? AND b = ?`",
+        "`WHERE c = ?`",
+        "`WHERE a IS NULL OR b IS NULL`"
+      ],
+      "answer": 1,
+      "explanation": "B-tree composite indexes are useful only when the query uses a left-prefix of the key. `(a, b)` predicates use the index efficiently; predicates that skip the leading column do not."
+    },
+    {
+      "id": "ds-049",
+      "type": "single",
+      "topic": "Indexing",
+      "difficulty": "medium",
+      "prompt": "A **bitmap index** is most appropriate for:",
+      "options": [
+        "High-cardinality, frequently-updated columns",
+        "Low- to medium-cardinality columns on read-mostly OLAP tables, especially when combining multiple predicates via AND/OR",
+        "Time-series ingestion",
+        "Replacing primary keys"
+      ],
+      "answer": 1,
+      "explanation": "Bitmaps store one bitmap per distinct value; AND/OR across predicates becomes bitwise ops. Great for OLAP filters on categorical columns; terrible for high-cardinality or write-heavy workloads (locking and storage cost)."
+    },
+    {
+      "id": "ds-050",
+      "type": "single",
+      "topic": "Storage Formats",
+      "difficulty": "medium",
+      "prompt": "**Predicate pushdown** in Parquet relies on:",
+      "options": [
+        "Row-group level min/max statistics and (optionally) Bloom filters, allowing engines to skip row groups whose stats don't overlap the filter range",
+        "Compressing the file with the same codec as the predicate",
+        "Storing the data in row order",
+        "Custom UDFs"
+      ],
+      "answer": 0,
+      "explanation": "Parquet row groups carry per-column min/max stats. Engines that read the footer can skip entire row groups when the predicate falls outside the range. Bloom filters extend this to equality predicates on high-cardinality columns."
+    },
+    {
+      "id": "ds-051",
+      "type": "single",
+      "topic": "Storage Formats",
+      "difficulty": "medium",
+      "prompt": "The **small-files problem** in a data lake manifests as:",
+      "options": [
+        "Files smaller than 1KB are rejected by S3",
+        "Many tiny files slow queries because of per-file overhead (open, metadata, list operations) and inflate metastore/catalog cost",
+        "Files get smaller after compression",
+        "Parquet can't read files under 1MB"
+      ],
+      "answer": 1,
+      "explanation": "Each file has overhead: directory listing, footer reads, planning, task startup. A million 100KB files behave far worse than a thousand 100MB files for the same data. Mitigations: compaction jobs, write-side buffering, OPTIMIZE/Z-ORDER in Delta, rewrite_data_files in Iceberg."
+    },
+    {
+      "id": "ds-052",
+      "type": "multi",
+      "topic": "Storage Formats",
+      "difficulty": "hard",
+      "prompt": "Which encodings are commonly used inside Parquet/ORC to shrink columnar storage? (Select all that apply)",
+      "options": [
+        "Dictionary encoding (replace repeated values with small integer codes)",
+        "Run-length encoding (RLE) for runs of identical values",
+        "Bit-packing for small-range integers",
+        "Delta encoding for sorted / monotonically-increasing columns",
+        "MD5 hashing of each row",
+        "Base64 encoding of each cell"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Columnar formats stack lightweight encodings \u2014 dictionary, RLE, bit-packing, delta \u2014 then apply a general-purpose compressor (Snappy/ZSTD). MD5 and Base64 expand data; they're not compression techniques."
+    },
+    {
+      "id": "ds-053",
+      "type": "single",
+      "topic": "Storage Formats",
+      "difficulty": "medium",
+      "prompt": "Compared to Parquet, **Avro** is typically preferred when:",
+      "options": [
+        "You want columnar OLAP scans",
+        "You need a compact row-oriented binary format with embedded schema, well-suited to streaming / message buses and forward/backward-compatible schema evolution",
+        "You need to query the file from BigQuery without any infrastructure",
+        "You want time travel"
+      ],
+      "answer": 1,
+      "explanation": "Avro is row-based, ships its schema with the data (or via registry), and has explicit evolution rules for additive changes \u2014 making it a great fit for Kafka messages, RPC, and write-heavy streaming. Parquet/ORC win for analytical scans."
+    },
+    {
+      "id": "ds-054",
+      "type": "single",
+      "topic": "CDC",
+      "difficulty": "easy",
+      "prompt": "**Log-based CDC** (e.g. Debezium reading MySQL binlog / Postgres WAL) is generally preferred over trigger-based or timestamp-based CDC because:",
+      "options": [
+        "It captures every change including deletes with low overhead on the source database, in commit order, without requiring schema changes",
+        "It is the only method allowed by GDPR",
+        "It compresses the data before sending",
+        "It eliminates the need for a target system"
+      ],
+      "answer": 0,
+      "explanation": "Reading the transaction log captures every change (including deletes) in commit order with minimal source overhead and no schema changes. Trigger-based CDC adds write latency and code; timestamp-based misses deletes and is fragile around clock skew."
+    },
+    {
+      "id": "ds-055",
+      "type": "single",
+      "topic": "CDC",
+      "difficulty": "medium",
+      "prompt": "Your CDC pipeline guarantees **at-least-once** delivery. To produce a correct, deduplicated target table you should:",
+      "options": [
+        "Treat duplicates as acceptable noise",
+        "Idempotently MERGE/UPSERT keyed by (primary_key, source_log_sequence_number) and discard out-of-order older events",
+        "Use SELECT DISTINCT at query time forever",
+        "Add a UNIQUE constraint and let inserts fail"
+      ],
+      "answer": 1,
+      "explanation": "At-least-once + idempotent application = effective exactly-once at the target. Key on PK; use the source LSN/binlog position to ignore stale replays. Letting INSERTs fail wastes throughput and risks dropping legitimate writes."
+    },
+    {
+      "id": "ds-056",
+      "type": "multi",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "Kafka provides which ordering guarantees? (Select all that apply)",
+      "options": [
+        "Total order across all messages in a topic",
+        "Order within a single partition",
+        "Order is preserved if the producer uses the same key (which hashes to the same partition)",
+        "Order across consumer groups",
+        "Global order across topics"
+      ],
+      "answer": [
+        1,
+        2
+      ],
+      "explanation": "Kafka guarantees ordering only within a partition. Same-key messages go to the same partition (default partitioner) so per-key order is preserved. Cross-partition or cross-topic ordering is the application's problem."
+    },
+    {
+      "id": "ds-057",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "Kafka **exactly-once semantics** for stream processing depend on:",
+      "options": [
+        "Disabling retries on the producer",
+        "Idempotent producer (sequence numbers per partition) + transactions across multiple topic-partitions + read-committed consumers",
+        "A single-broker cluster",
+        "Manual deduplication in every consumer"
+      ],
+      "answer": 1,
+      "explanation": "EOS combines: idempotent producer (no duplicate appends across retries), transactions (atomic writes across partitions and offset commits), and read-committed isolation on the consumer side so aborted txns aren't visible."
+    },
+    {
+      "id": "ds-058",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "**Event time** vs **processing time** in a streaming aggregation:",
+      "options": [
+        "Event time = wall clock on the processor; processing time = timestamp in the event",
+        "Event time = timestamp embedded in the event (when it occurred); processing time = wall clock when the engine sees it. Correct aggregations of out-of-order data require event time + watermarks.",
+        "They are the same in well-designed systems",
+        "Event time only matters for batch jobs"
+      ],
+      "answer": 1,
+      "explanation": "Processing-time windows are easy but wrong for out-of-order data. Event-time windows with watermarks let you produce correct aggregates while gracefully handling late arrivals (drop, side-output, or accumulate)."
+    },
+    {
+      "id": "ds-059",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "easy",
+      "prompt": "A **session window** is best described as:",
+      "options": [
+        "A fixed-length window (e.g. every 1 minute)",
+        "A window that closes after a configurable period of inactivity for a key (e.g. 30 minutes of no events from this user)",
+        "A sliding window of size N with step M",
+        "A window that depends on processing time only"
+      ],
+      "answer": 1,
+      "explanation": "Session windows are gap-driven: a session for key K stays open as long as events keep arriving within the inactivity gap. Great for user-behavior analytics where 'session' is event-driven, not clock-driven."
+    },
+    {
+      "id": "ds-060",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "A **watermark** in a stream engine represents:",
+      "options": [
+        "A throttling threshold",
+        "The engine's assertion that 'no events with event_time <= W will arrive (or only acceptably few will)' \u2014 used to decide when windows can be finalized",
+        "The maximum throughput allowed",
+        "A regulatory compliance flag"
+      ],
+      "answer": 1,
+      "explanation": "Watermarks bound the latency you'll tolerate. When the watermark passes the end of a window, that window can be emitted. Events arriving with event_time < watermark are 'late' and handled by an allowed-lateness or side-output policy."
+    },
+    {
+      "id": "ds-061",
+      "type": "single",
+      "topic": "Architecture",
+      "difficulty": "easy",
+      "prompt": "**Kappa architecture** differs from Lambda primarily because:",
+      "options": [
+        "It uses two separate batch and streaming pipelines that converge at a serving layer",
+        "It uses ONE pipeline (the stream) for both real-time and historical processing, with reprocessing achieved by replaying the log",
+        "It only supports SQL",
+        "It eliminates the need for storage"
+      ],
+      "answer": 1,
+      "explanation": "Kappa: one codebase, one pipeline. Backfills/corrections happen by replaying retained log data. Simpler than Lambda's two-path design but only viable when log retention covers your reprocessing horizon and the stream engine can handle full replay."
+    },
+    {
+      "id": "ds-062",
+      "type": "single",
+      "topic": "Consistency",
+      "difficulty": "easy",
+      "prompt": "The **CAP theorem** says that in the presence of a network partition, a distributed system must choose between:",
+      "options": [
+        "Consistency and Availability \u2014 under partition, you can't satisfy both for the same operation",
+        "Consistency and Performance",
+        "Availability and Durability",
+        "Partition tolerance and Throughput"
+      ],
+      "answer": 0,
+      "explanation": "Under a partition (P is non-negotiable in real networks), a system must sacrifice either C (linearizable reads/writes) or A (every request returns a non-error response). CP systems (Spanner, etcd) reject; AP systems (Dynamo, Cassandra default) accept stale reads / divergent writes."
+    },
+    {
+      "id": "ds-063",
+      "type": "single",
+      "topic": "Consistency",
+      "difficulty": "hard",
+      "prompt": "**PACELC** extends CAP by stating that even **without** a partition, a system must trade off between:",
+      "options": [
+        "Cost and Latency",
+        "Latency and Consistency (e.g. wait for quorum acknowledgement vs return locally and reconcile later)",
+        "Throughput and Durability",
+        "Encryption and Performance"
+      ],
+      "answer": 1,
+      "explanation": "PACELC: if Partition, choose A or C; Else, choose L (latency) or C (consistency). Captures the everyday tradeoff \u2014 even on a healthy network, strong consistency requires coordination that adds latency."
+    },
+    {
+      "id": "ds-064",
+      "type": "single",
+      "topic": "Isolation Levels",
+      "difficulty": "hard",
+      "prompt": "Under **READ COMMITTED** isolation, which anomaly is still possible?",
+      "options": [
+        "Dirty reads",
+        "Non-repeatable reads \u2014 the same row queried twice in the same transaction can show different values if another txn commits in between",
+        "Lost updates with row-level locks",
+        "All anomalies are eliminated"
+      ],
+      "answer": 1,
+      "explanation": "READ COMMITTED blocks dirty reads but not non-repeatable reads or phantom reads. REPEATABLE READ blocks non-repeatable reads (usually) but may still allow phantoms. SERIALIZABLE blocks all. Anomaly model is from the SQL standard / Berenson et al."
+    },
+    {
+      "id": "ds-065",
+      "type": "multi",
+      "topic": "Replication",
+      "difficulty": "medium",
+      "prompt": "Trade-offs of **synchronous** primary\u2192replica replication: (Select all that apply)",
+      "options": [
+        "Replicas are guaranteed up-to-date when the write returns",
+        "Write latency increases (must wait for replica acknowledgement)",
+        "A slow / down replica can block all primary writes unless quorum is configured",
+        "Replicas can serve strongly-consistent reads",
+        "It eliminates the need for backups"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Sync replication offers zero RPO and consistent replica reads but increases write latency and is sensitive to replica health (mitigated by quorum or async fall-back). It does not replace backups (logical errors propagate to replicas too)."
+    },
+    {
+      "id": "ds-066",
+      "type": "single",
+      "topic": "Replication",
+      "difficulty": "hard",
+      "prompt": "In **multi-leader replication**, the hardest problem is typically:",
+      "options": [
+        "Storage cost",
+        "Conflict resolution when two leaders accept conflicting writes to the same row concurrently",
+        "Initial bootstrap",
+        "Read-only client routing"
+      ],
+      "answer": 1,
+      "explanation": "Multi-leader buys write locality and availability but inherits the merge problem: same row, two divergent updates. Resolutions include last-write-wins (lossy), CRDTs (constrained semantics), application-level merge, or pushing the decision to the user."
+    },
+    {
+      "id": "ds-067",
+      "type": "single",
+      "topic": "Sharding",
+      "difficulty": "medium",
+      "prompt": "**Consistent hashing** is preferred over plain modulo hashing for sharding because:",
+      "options": [
+        "It's faster to compute",
+        "Adding or removing a shard only remaps ~1/N of the keys instead of nearly all of them, dramatically reducing resharding cost",
+        "It guarantees perfect distribution",
+        "It eliminates hot keys"
+      ],
+      "answer": 1,
+      "explanation": "Mod-N hashing remaps almost every key when N changes. Consistent hashing places nodes and keys on a ring; topology changes only move keys in adjacent arcs. Virtual nodes (vnodes) further smooth distribution but don't fix application-level hot keys."
+    },
+    {
+      "id": "ds-068",
+      "type": "single",
+      "topic": "Sharding",
+      "difficulty": "hard",
+      "prompt": "Range-based sharding by `user_id` (where user_ids are issued sequentially) typically suffers from:",
+      "options": [
+        "Inability to do range scans",
+        "Write hot-spotting on the shard owning the highest range, because new users (and their early activity) cluster there",
+        "Inability to do point lookups",
+        "Excessive storage"
+      ],
+      "answer": 1,
+      "explanation": "Monotonic keys + range sharding = head-of-line shard takes all the new writes. Mitigations: hash the key, use a snowflake/UUIDv7 with time-prefix shuffling, or pre-split the range and route by hashed bucket."
+    },
+    {
+      "id": "ds-069",
+      "type": "multi",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "Trade-offs of the **cache-aside** pattern (application checks cache, falls back to DB, populates cache on miss): (Select all that apply)",
+      "options": [
+        "Simple to implement and reason about",
+        "Application is responsible for cache invalidation on writes \u2014 easy to introduce bugs",
+        "First-request latency on a miss includes the DB read + cache populate",
+        "Cache and DB are guaranteed to be in sync",
+        "Stampedes on a cold/expired hot key can hammer the DB"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Cache-aside is simple but pushes invalidation to the app and admits stampedes on hot expired keys. There is no automatic sync between cache and DB. Mitigate stampedes with request coalescing / single-flight, jittered TTLs, or proactive refresh."
+    },
+    {
+      "id": "ds-070",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "A **cache stampede** (a.k.a. dogpile) occurs when:",
+      "options": [
+        "A cache server crashes and all clients fail open",
+        "A popular cached key expires (or is evicted) and many concurrent requests miss it simultaneously, all firing the same expensive backend query",
+        "Cache writes are slower than cache reads",
+        "Two caches replicate to each other"
+      ],
+      "answer": 1,
+      "explanation": "On expiry of a hot key, every concurrent request races to recompute. Backend goes from 0 to N queries instantly. Mitigations: single-flight (one request fills, others wait), probabilistic early expiration, soft TTL + async refresh, or distributed locks."
+    },
+    {
+      "id": "ds-071",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "**Write-through** caching writes:",
+      "options": [
+        "To the cache only; the DB is updated lazily later",
+        "To the cache AND the database synchronously, keeping them in sync at the cost of write latency",
+        "Bypassing the cache entirely",
+        "Only on read misses"
+      ],
+      "answer": 1,
+      "explanation": "Write-through: write goes to both. Strong consistency for cached entries; writes are slower. Write-back/write-behind buffers writes in cache and flushes asynchronously \u2014 faster writes, risk of data loss on cache failure. Write-around skips cache on writes (good for write-once-read-rarely)."
+    },
+    {
+      "id": "ds-072",
+      "type": "single",
+      "topic": "Data Quality",
+      "difficulty": "easy",
+      "prompt": "The six commonly-cited **data quality dimensions** are:",
+      "options": [
+        "Speed, Cost, Reliability, Security, Auditability, Lineage",
+        "Accuracy, Completeness, Consistency, Timeliness, Validity, Uniqueness",
+        "Volume, Velocity, Variety, Veracity, Value, Visibility",
+        "Source, Stage, Mart, Lake, Lakehouse, Warehouse"
+      ],
+      "answer": 1,
+      "explanation": "ACCTVU is the standard taxonomy: Accuracy (right value), Completeness (no missing), Consistency (cross-system agreement), Timeliness (fresh enough), Validity (conforms to schema/rules), Uniqueness (no unintended duplicates)."
+    },
+    {
+      "id": "ds-073",
+      "type": "single",
+      "topic": "Data Contracts",
+      "difficulty": "medium",
+      "prompt": "The principal value of a **data contract** between producer and consumer is:",
+      "options": [
+        "Faster query performance",
+        "Shifting schema/semantics ownership upstream \u2014 the producer commits to a stable schema, SLOs (freshness, completeness), and breaking-change processes, allowing consumers to build reliably",
+        "Reducing storage cost",
+        "Encrypting data at rest"
+      ],
+      "answer": 1,
+      "explanation": "Contracts make implicit dependencies explicit. Producer owns the schema, freshness, semantics, and breaking-change policy; consumer gets stability + observability. Often enforced via CI checks on the producer side (schema linting, compatibility tests)."
+    },
+    {
+      "id": "ds-074",
+      "type": "multi",
+      "topic": "Lineage",
+      "difficulty": "medium",
+      "prompt": "**Column-level lineage** (vs table-level) helps you to: (Select all that apply)",
+      "options": [
+        "Answer 'if column X breaks, what downstream columns are impacted?'",
+        "Run a PII audit \u2014 find every downstream column derived from a tagged source column",
+        "Speed up queries automatically",
+        "Trace which transformation step caused a specific column's value to drift",
+        "Reduce object-storage cost"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Column lineage answers the questions table lineage can't: per-column blast radius, PII propagation, and root-causing a single column's drift. It doesn't speed up queries or reduce storage by itself."
+    },
+    {
+      "id": "ds-075",
+      "type": "single",
+      "topic": "MDM",
+      "difficulty": "hard",
+      "prompt": "In Master Data Management, a **golden record** is:",
+      "options": [
+        "The most recently updated row",
+        "The single, reconciled representation of an entity (e.g. a customer) merged from multiple source systems via deterministic and probabilistic matching",
+        "The row owned by the highest-priority user",
+        "A row protected from deletion"
+      ],
+      "answer": 1,
+      "explanation": "Golden records are the curated 'source of truth' produced by MDM: cluster duplicate records (deterministic keys + fuzzy matching on names/addresses/etc.), pick attribute survivorship rules per field, and link back to the contributing source records."
+    },
+    {
+      "id": "ds-076",
+      "type": "single",
+      "topic": "Schema Evolution",
+      "difficulty": "medium",
+      "prompt": "An Avro/Protobuf schema change is **backward-compatible** when:",
+      "options": [
+        "Old data can be read with the new schema (typical example: add an optional field with a default)",
+        "New data can be read with the old schema",
+        "It changes the type of an existing field",
+        "It removes a required field"
+      ],
+      "answer": 0,
+      "explanation": "Backward = new schema reads old data. Forward = old schema reads new data. Full = both. Adding optional fields with defaults is backward-compatible. Removing required fields, renaming, or changing types is typically breaking."
+    },
+    {
+      "id": "ds-077",
+      "type": "multi",
+      "topic": "Schema Evolution",
+      "difficulty": "hard",
+      "prompt": "Which Avro changes are typically considered **breaking** under default compatibility rules? (Select all that apply)",
+      "options": [
+        "Renaming a field without an alias",
+        "Changing a field's type from int to string",
+        "Adding a new field with a default value",
+        "Removing a required field with no default",
+        "Adding a new enum symbol (under strict compat)"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "explanation": "Renames without aliases, type changes, and removals of required fields break readers. Adding enum symbols breaks readers using older enum schemas under strict compatibility. Adding an optional field with a default is the canonical safe additive change."
+    },
+    {
+      "id": "ds-078",
+      "type": "single",
+      "topic": "Time Series",
+      "difficulty": "medium",
+      "prompt": "Time-series databases (InfluxDB, TimescaleDB) are preferred over a general OLAP warehouse when:",
+      "options": [
+        "You need columnar OLAP for ad-hoc analytics",
+        "You ingest high-cardinality, timestamped metrics with continuous downsampling, retention by time, and recent-window dashboards as the primary workload",
+        "You don't care about time",
+        "You need ACID for OLTP"
+      ],
+      "answer": 1,
+      "explanation": "TSDBs are tuned for append-mostly timestamped writes, time-bucketed queries, retention policies, and continuous aggregates / downsampling. They're not a replacement for a warehouse on ad-hoc dimensional analysis."
+    },
+    {
+      "id": "ds-079",
+      "type": "single",
+      "topic": "Geospatial",
+      "difficulty": "medium",
+      "prompt": "Uber's **H3** indexing system uses:",
+      "options": [
+        "Rectangular bounding boxes",
+        "Hierarchical hexagonal cells \u2014 each parent has 7 children \u2014 giving uniform neighbor distances and easy multi-resolution analysis",
+        "An R-tree",
+        "Spherical Voronoi tessellation by city"
+      ],
+      "answer": 1,
+      "explanation": "Hexagons have the desirable property that all six neighbors are equidistant (unlike squares where diagonals are longer). H3 supports hierarchical zoom (parent/child) which is great for aggregation. S2 uses square cells on a sphere with similar goals."
+    },
+    {
+      "id": "ds-080",
+      "type": "single",
+      "topic": "Graph Databases",
+      "difficulty": "medium",
+      "prompt": "A graph database beats a relational store most clearly when:",
+      "options": [
+        "You do many small OLTP point reads",
+        "Queries traverse many-hop relationships of variable depth (e.g. 'friends of friends with shared interests') where SQL would require many self-joins",
+        "You need full-text search",
+        "You store time series"
+      ],
+      "answer": 1,
+      "explanation": "Graph DBs make variable-length path queries cheap (index-free adjacency). SQL can express them but pays O(joins) per hop and is hard to optimize. For mostly 1\u20132 hop queries, relational with good indexes is fine; for deep traversals or pattern matching, graphs win."
+    },
+    {
+      "id": "ds-081",
+      "type": "single",
+      "topic": "Feature Stores",
+      "difficulty": "hard",
+      "prompt": "**Training-serving skew** in ML feature stores is mitigated by:",
+      "options": [
+        "Training with a slower model",
+        "Computing features with the same code/logic for both offline (training) and online (serving) paths, and joining features as-of the event time (point-in-time correctness)",
+        "Always retraining on serving data",
+        "Disabling caching on the serving path"
+      ],
+      "answer": 1,
+      "explanation": "Skew comes from features being computed differently online vs offline, or from training joins leaking future information. Feature stores address both: single feature definition, dual materialization (offline lake + online KV), and point-in-time joins that respect event time."
+    },
+    {
+      "id": "ds-082",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "medium",
+      "prompt": "GDPR's **right to be forgotten** is hardest to implement in:",
+      "options": [
+        "OLTP databases with row-level deletes",
+        "Immutable append-only systems (event logs, immutable snapshots, blockchain) where physical deletion violates the system's design assumptions",
+        "Spreadsheets",
+        "Caches with short TTLs"
+      ],
+      "answer": 1,
+      "explanation": "Immutable systems can't simply DELETE. Common approaches: tokenize PII at ingest so deletion = drop the token mapping (crypto-shredding), maintain a deletion request register applied as a filter, or compact-and-rewrite affected files (expensive). Bake this in at design time."
+    },
+    {
+      "id": "ds-083",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "easy",
+      "prompt": "**Tokenization** differs from encryption because:",
+      "options": [
+        "Tokens are reversible only via a separate token vault that maps tokens \u2194 original values, with no mathematical relationship \u2014 eliminating leakage from compromised keys",
+        "Tokens are just shorter ciphertexts",
+        "Tokenization is faster than encryption",
+        "Tokens are public"
+      ],
+      "answer": 0,
+      "explanation": "Encryption is mathematically reversible with the key. Tokenization replaces sensitive values with opaque references; the mapping is held in a separate, locked-down vault. Breach of the data store doesn't expose PII without also breaching the vault."
+    },
+    {
+      "id": "ds-084",
+      "type": "single",
+      "topic": "Access Control",
+      "difficulty": "medium",
+      "prompt": "**Row-level security (RLS)** is most appropriate when:",
+      "options": [
+        "You need full-table encryption",
+        "Different users querying the same table should see different rows based on attributes (e.g. region, tenant_id, account_owner) without maintaining N separate tables/views",
+        "You want to enforce column types",
+        "You need to anonymize data"
+      ],
+      "answer": 1,
+      "explanation": "RLS attaches a predicate to the table that runs for every query against it (`WHERE tenant_id = current_setting('app.tenant_id')`, etc.). Avoids per-tenant table sprawl and centralizes the access rule with the data, not the application."
+    },
+    {
+      "id": "ds-085",
+      "type": "multi",
+      "topic": "Backfill",
+      "difficulty": "hard",
+      "prompt": "You discovered a bug in a transformation 30 days ago. You need to **backfill** the corrected output without disrupting downstream consumers. Which approaches are sound? (Select all that apply)",
+      "options": [
+        "Rerun the fixed pipeline writing to a **shadow table**, validate, then atomically swap via view/rename",
+        "Use idempotent partition overwrite \u2014 re-process each affected date partition and replace it as a unit",
+        "Run UPDATE statements on individual rows in production",
+        "Dual-write to old and new tables during the cutover, compare results, then flip readers",
+        "Delete the affected rows and let consumers rebuild from upstream caches"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Shadow tables, idempotent partition overwrites, and dual-write+compare are standard safe backfill patterns. Ad-hoc UPDATEs are non-idempotent and hard to reason about; relying on consumer caches to rebuild state is fragile."
+    },
+    {
+      "id": "ds-086",
+      "type": "single",
+      "topic": "Cost",
+      "difficulty": "medium",
+      "prompt": "**Storage tiering** (hot/warm/cold) typically saves money because:",
+      "options": [
+        "Cold storage has lower per-GB cost but higher retrieval latency/cost, matching the access pattern of older data",
+        "Cold data is automatically compressed differently",
+        "Hot data is read for free",
+        "Cold storage is faster"
+      ],
+      "answer": 0,
+      "explanation": "Older data is rarely read, so paying premium-tier rent on it is waste. S3 Standard \u2192 IA \u2192 Glacier (or equivalent) trades access latency/cost for storage cost. Tune the lifecycle policy to your real access histogram, not assumed access."
+    },
+    {
+      "id": "ds-087",
+      "type": "multi",
+      "topic": "Monitoring",
+      "difficulty": "medium",
+      "prompt": "Which **data SLOs** are most useful for a production warehouse mart? (Select all that apply)",
+      "options": [
+        "Freshness \u2014 table updated by HH:MM N% of days",
+        "Completeness \u2014 row count within \u00b1X% of expected",
+        "Schema stability \u2014 no unexpected column adds/drops/type changes",
+        "Job success rate \u2014 pipeline runs without retries above threshold",
+        "Number of lines of SQL in the transformation"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "Freshness, completeness, schema stability, and job reliability are concrete, observable SLOs that map to user impact. LoC is a code-style metric, not a data quality signal."
+    },
+    {
+      "id": "ds-088",
+      "type": "single",
+      "topic": "Medallion",
+      "difficulty": "easy",
+      "prompt": "In the **medallion** (bronze / silver / gold) architecture, the **silver** layer is typically:",
+      "options": [
+        "Raw, append-only ingestion of source events with no transformation",
+        "Cleaned, conformed, deduplicated data \u2014 joined to canonical entity keys but not yet shaped for a specific consumer's needs",
+        "Final consumer-facing aggregates and KPIs",
+        "Encrypted backup tier"
+      ],
+      "answer": 1,
+      "explanation": "Bronze = raw landed data, Silver = cleansed/conformed integration layer (typed, deduped, validated), Gold = business-facing aggregates and marts. The layering separates concerns and makes reprocessing tractable."
+    },
+    {
+      "id": "ds-089",
+      "type": "single",
+      "topic": "Wide Tables",
+      "difficulty": "hard",
+      "prompt": "An **OBT (one-big-table)** model is a defensible choice over a star schema when:",
+      "options": [
+        "You have many active OLTP writers",
+        "Your BI tool / users struggle with joins, queries are predictable and read-mostly, and storage cost is acceptable \u2014 flattening dimensions onto the fact eliminates joins and improves end-user experience",
+        "You need point updates to dimension attributes",
+        "You always need strict 3NF"
+      ],
+      "answer": 1,
+      "explanation": "OBT trades storage and update cost for query simplicity and consistent performance \u2014 wins in many modern cloud-warehouse BI scenarios with semantic layers above. Loses when dimensions change frequently or the same dim is referenced from many facts (drift)."
+    },
+    {
+      "id": "ds-090",
+      "type": "single",
+      "topic": "Anti-Patterns",
+      "difficulty": "medium",
+      "prompt": "The **EAV (Entity-Attribute-Value)** anti-pattern is characterized by:",
+      "options": [
+        "Excessive normalization",
+        "Storing attributes as rows in a generic (entity_id, attribute_name, value) triple \u2014 sacrificing typing, integrity, query simplicity, and performance in exchange for arbitrary schema flexibility",
+        "Use of surrogate keys",
+        "Partitioning by date"
+      ],
+      "answer": 1,
+      "explanation": "EAV pushes schema enforcement into application code, makes filtering/joining painful (every attribute needs another join), and destroys typing. Sometimes justified for sparse, truly-dynamic attributes \u2014 but usually a sign that JSON columns or proper modeling would be better."
+    },
+    {
+      "id": "ds-091",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "medium",
+      "prompt": "Real-time OLAP engines like ClickHouse, Druid, and Pinot share which design choice that distinguishes them from cloud warehouses (Snowflake, BigQuery)?",
+      "options": [
+        "They use row-oriented storage",
+        "They favor extremely fast scan-and-aggregate over recent data (often pre-aggregated, with stream ingestion and per-segment indexes), accepting limits on join flexibility and dimensional updates",
+        "They cannot ingest streaming data",
+        "They are limited to a single node"
+      ],
+      "answer": 1,
+      "explanation": "These engines are built for low-latency dashboards on streaming data. They sacrifice general-purpose SQL flexibility (especially complex joins and SCD2-style mutability) for sub-second responses on recent slices. Pair them with a warehouse for ad-hoc / historical work."
+    },
+    {
+      "id": "ds-092",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design an **SCD Type 2** dimension table for `dim_customer`. Include surrogate key, natural key, tracked attributes, validity window, and a current-flag.",
+      "language": "sql",
+      "starter": "CREATE TABLE dim_customer (\n  -- your design here\n);\n",
+      "model_answer": "CREATE TABLE dim_customer (\n  customer_sk     BIGINT      NOT NULL,            -- surrogate PK\n  customer_nk     VARCHAR(64) NOT NULL,            -- natural key from source\n  full_name       VARCHAR(200),\n  email           VARCHAR(200),\n  country         VARCHAR(2),\n  tier            VARCHAR(20),\n  signup_date     DATE,\n  effective_from  TIMESTAMP NOT NULL,\n  effective_to    TIMESTAMP,                       -- NULL or 9999-12-31 for current row\n  is_current      BOOLEAN   NOT NULL DEFAULT TRUE,\n  row_hash        CHAR(64),                        -- to detect attribute change\n  ingested_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (customer_sk)\n);\n\nCREATE UNIQUE INDEX ux_dim_customer_current\n  ON dim_customer (customer_nk)\n  WHERE is_current = TRUE;",
+      "key_points": [
+        "Surrogate key (customer_sk) decouples warehouse identity from source",
+        "Natural key (customer_nk) preserved from source for joins/reconciliation",
+        "Tracked attributes (name, email, country, tier) \u2014 those that should generate a new version when changed",
+        "Validity window via effective_from / effective_to",
+        "is_current flag for fast filtering of the active row",
+        "Optional row_hash for change detection in upserts",
+        "Lineage column (ingested_at)",
+        "Bonus: partial unique index ensuring only one current row per natural key"
+      ]
+    },
+    {
+      "id": "ds-093",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design an **accumulating snapshot** fact for order fulfillment milestones (placed \u2192 paid \u2192 shipped \u2192 delivered \u2192 returned). One row per order, updated in place as milestones complete.",
+      "language": "sql",
+      "starter": "CREATE TABLE fact_order_fulfillment (\n  -- your design here\n);\n",
+      "model_answer": "CREATE TABLE fact_order_fulfillment (\n  order_sk            BIGINT      NOT NULL,         -- surrogate PK\n  order_nk            VARCHAR(64) NOT NULL,         -- natural key (order_id)\n  customer_sk         BIGINT      NOT NULL,\n  product_sk          BIGINT      NOT NULL,\n  -- milestone date FKs (NULL until milestone occurs)\n  placed_date_sk      INT         NOT NULL,\n  paid_date_sk        INT,\n  shipped_date_sk     INT,\n  delivered_date_sk   INT,\n  returned_date_sk    INT,\n  -- milestone timestamps for sub-day analysis\n  placed_ts           TIMESTAMP   NOT NULL,\n  paid_ts             TIMESTAMP,\n  shipped_ts          TIMESTAMP,\n  delivered_ts        TIMESTAMP,\n  returned_ts         TIMESTAMP,\n  -- duration measures (computed, NULL until both endpoints set)\n  hours_to_pay        DECIMAL(10,2),\n  hours_to_ship       DECIMAL(10,2),\n  hours_to_deliver    DECIMAL(10,2),\n  -- additive measures\n  order_amount        DECIMAL(12,2),\n  refunded_amount     DECIMAL(12,2),\n  current_status      VARCHAR(20),                   -- placed / paid / shipped / delivered / returned\n  updated_at          TIMESTAMP   NOT NULL,\n  PRIMARY KEY (order_sk)\n);",
+      "key_points": [
+        "Grain is one row per order (not per milestone)",
+        "Multiple date FKs play different roles (placed, paid, shipped, delivered, returned)",
+        "NULL milestone dates/timestamps until the milestone occurs",
+        "Pre-computed lag measures (hours_to_pay, hours_to_ship, hours_to_deliver) for fast queries",
+        "Current_status reflects the latest milestone reached",
+        "Row is UPDATED in place as milestones complete (not append-only)",
+        "Surrogate key + natural key allow idempotent upserts"
+      ]
+    },
+    {
+      "id": "ds-094",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **bridge table** that resolves the M:N relationship between `fact_clinical_visit` and `dim_diagnosis` (a visit can record multiple diagnoses; a diagnosis applies to many visits). Include an optional weight column so a visit's measures can be apportioned across its diagnoses.",
+      "language": "sql",
+      "starter": "CREATE TABLE bridge_visit_diagnosis (\n  -- your design here\n);\n",
+      "model_answer": "CREATE TABLE bridge_visit_diagnosis (\n  visit_sk         BIGINT       NOT NULL,           -- FK -> fact_clinical_visit\n  diagnosis_sk     BIGINT       NOT NULL,           -- FK -> dim_diagnosis\n  diagnosis_rank   SMALLINT     NOT NULL,           -- 1 = primary, 2 = secondary, ...\n  is_primary       BOOLEAN      NOT NULL DEFAULT FALSE,\n  weight           DECIMAL(6,4) NOT NULL DEFAULT 1.0, -- apportionment factor (sums to 1.0 per visit)\n  coded_by         VARCHAR(64),                       -- ICD coder / system\n  coded_at         TIMESTAMP,\n  ingested_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (visit_sk, diagnosis_sk)\n);\n\nCREATE INDEX ix_bridge_diagnosis ON bridge_visit_diagnosis (diagnosis_sk);",
+      "key_points": [
+        "Composite PK (visit_sk, diagnosis_sk) prevents duplicate pairs",
+        "Weight column lets measures be apportioned without double-counting",
+        "Rank / is_primary flag distinguishes primary vs secondary diagnoses",
+        "Indexes on both FKs support bidirectional queries (visits\u2192diagnoses and diagnoses\u2192visits)",
+        "Lineage columns (coded_by, coded_at, ingested_at)",
+        "Bridge resolves the M:N without inflating either fact or dimension"
+      ]
+    },
+    {
+      "id": "ds-095",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a **junk dimension** that consolidates several low-cardinality order flags (channel, payment_status, is_gift, is_fraud_reviewed) for an e-commerce fact. Provide the CREATE statement plus a comment on how it is referenced.",
+      "language": "sql",
+      "starter": "CREATE TABLE dim_order_junk (\n  -- your design here\n);\n",
+      "model_answer": "CREATE TABLE dim_order_junk (\n  order_junk_sk        BIGINT      NOT NULL,\n  channel              VARCHAR(20) NOT NULL,        -- web / mobile / store / partner\n  payment_status       VARCHAR(20) NOT NULL,        -- pending / paid / refunded / chargeback\n  is_gift              BOOLEAN     NOT NULL,\n  is_fraud_reviewed    BOOLEAN     NOT NULL,\n  PRIMARY KEY (order_junk_sk),\n  UNIQUE (channel, payment_status, is_gift, is_fraud_reviewed)\n);\n\n-- fact_order carries a single FK column: order_junk_sk BIGINT NOT NULL.\n-- One row per distinct combination of the flags (~4 * 4 * 2 * 2 = 64 rows max).\n-- Avoids four extra columns on every fact row; queries filter / group by\n-- attributes on the junk dim instead.",
+      "key_points": [
+        "Single surrogate PK referenced by the fact via one FK",
+        "One row per distinct COMBINATION of the flags (Cartesian, populated lazily as new combos appear)",
+        "UNIQUE constraint on the natural combination guards against duplicates",
+        "Each attribute stays a typed column (not packed JSON)",
+        "Cardinality is small and bounded \u2014 fact only needs one FK column instead of four flags",
+        "Comment explains how the fact references it"
+      ]
+    },
+    {
+      "id": "ds-096",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design the three **Data Vault** core tables for a Customer entity: a hub, a satellite for descriptive attributes (with history), and a link from customer to account. Provide CREATE statements.",
+      "language": "sql",
+      "starter": "-- Hub\nCREATE TABLE hub_customer (\n  -- your design\n);\n\n-- Satellite (descriptive attributes, versioned)\nCREATE TABLE sat_customer (\n  -- your design\n);\n\n-- Link (customer <-> account)\nCREATE TABLE link_customer_account (\n  -- your design\n);\n",
+      "model_answer": "-- Hub: business key + load metadata only\nCREATE TABLE hub_customer (\n  customer_hk        CHAR(32)     NOT NULL,        -- hash of business key\n  customer_bk        VARCHAR(64)  NOT NULL,        -- business / natural key\n  load_ts            TIMESTAMP    NOT NULL,\n  record_source      VARCHAR(50)  NOT NULL,\n  PRIMARY KEY (customer_hk),\n  UNIQUE (customer_bk)\n);\n\n-- Satellite: descriptive attributes, append-only, versioned by load_ts\nCREATE TABLE sat_customer (\n  customer_hk        CHAR(32)     NOT NULL,\n  load_ts            TIMESTAMP    NOT NULL,\n  load_end_ts        TIMESTAMP,                    -- NULL for current version\n  hash_diff          CHAR(32)     NOT NULL,        -- detect attribute changes\n  full_name          VARCHAR(200),\n  email              VARCHAR(200),\n  country            VARCHAR(2),\n  tier               VARCHAR(20),\n  record_source      VARCHAR(50)  NOT NULL,\n  PRIMARY KEY (customer_hk, load_ts),\n  FOREIGN KEY (customer_hk) REFERENCES hub_customer (customer_hk)\n);\n\n-- Link: relationship between hubs (customer <-> account)\nCREATE TABLE link_customer_account (\n  link_hk            CHAR(32)     NOT NULL,        -- hash(customer_hk, account_hk)\n  customer_hk        CHAR(32)     NOT NULL,\n  account_hk         CHAR(32)     NOT NULL,\n  load_ts            TIMESTAMP    NOT NULL,\n  record_source      VARCHAR(50)  NOT NULL,\n  PRIMARY KEY (link_hk),\n  FOREIGN KEY (customer_hk) REFERENCES hub_customer (customer_hk)\n);",
+      "key_points": [
+        "Hub: hash key + business key + load metadata, no descriptive columns",
+        "Satellite: append-only history keyed by (hub_hk, load_ts), with hash_diff to detect changes",
+        "Link: hash key derived from participating hub hashes, FKs back to hubs, no attributes",
+        "Every table carries record_source and load_ts for audit",
+        "Separation makes source schema changes touch only the relevant satellite",
+        "Bonus: load_end_ts (or is_current) on satellite for fast 'current' lookups"
+      ]
+    },
+    {
+      "id": "ds-097",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a **partitioned + clustered** fact table for ad impressions targeting BigQuery (or equivalent). Volume: ~500M rows/day. Common predicates: filter by event_date, advertiser_id; aggregate by campaign_id. Use the syntax most readers will recognize.",
+      "language": "sql",
+      "starter": "CREATE TABLE fact_ad_impression (\n  -- your design\n)\n-- partitioning + clustering directives here\n;\n",
+      "model_answer": "CREATE TABLE fact_ad_impression (\n  impression_id       STRING       NOT NULL,        -- natural key from edge server\n  event_ts            TIMESTAMP    NOT NULL,        -- event time (from client/edge)\n  event_date          DATE         NOT NULL,        -- partition column\n  advertiser_id       INT64        NOT NULL,\n  campaign_id         INT64        NOT NULL,\n  creative_id         INT64,\n  placement_id        INT64,\n  user_pseudo_id      STRING,                       -- privacy-safe pseudonymous id\n  country             STRING,\n  device_type         STRING,\n  bid_price_micros    INT64,\n  win_price_micros    INT64,\n  was_viewable        BOOL,\n  ingested_at         TIMESTAMP\n)\nPARTITION BY event_date\nCLUSTER BY advertiser_id, campaign_id, country\nOPTIONS (\n  partition_expiration_days = 400,\n  description = 'One row per ad impression. Partitioned by event_date, clustered for advertiser/campaign filtering.'\n);",
+      "key_points": [
+        "Partition by event_date \u2014 supports retention (TTL) and date-bounded pruning",
+        "Cluster by advertiser_id (filter) then campaign_id (filter/group) \u2014 leading cluster keys matter most",
+        "Includes typed columns for measures (bid/win price in micros, was_viewable bool)",
+        "Uses pseudo-id for user, not raw PII",
+        "Adds ingested_at lineage column",
+        "Sets partition retention via partition_expiration_days",
+        "Distinguishes event_ts (full timestamp) from event_date (partition column)"
+      ]
+    },
+    {
+      "id": "ds-098",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a **factless fact** table for *daily student attendance* in a school district. The table records which students attended which classes on which dates, with no numeric measure.",
+      "language": "sql",
+      "starter": "CREATE TABLE fact_attendance (\n  -- your design\n);\n",
+      "model_answer": "CREATE TABLE fact_attendance (\n  student_sk        BIGINT      NOT NULL,           -- FK -> dim_student\n  class_sk          BIGINT      NOT NULL,           -- FK -> dim_class\n  teacher_sk        BIGINT      NOT NULL,           -- FK -> dim_teacher\n  school_sk         BIGINT      NOT NULL,           -- FK -> dim_school\n  date_sk           INT         NOT NULL,           -- FK -> dim_date\n  attended_flag     BOOLEAN     NOT NULL DEFAULT TRUE,\n  attendance_type   VARCHAR(20) NOT NULL,           -- present / tardy / excused / unexcused\n  recorded_at       TIMESTAMP,\n  ingested_at       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (student_sk, class_sk, date_sk)\n)\nPARTITION BY (date_sk);",
+      "key_points": [
+        "Grain is one row per (student, class, date) \u2014 declared via composite PK",
+        "FKs to all relevant dimensions (student, class, teacher, school, date)",
+        "No numeric measure \u2014 the row's existence IS the fact (count of rows = attendance count)",
+        "attendance_type allows differentiation without separate tables",
+        "Partitioned by date_sk for retention and time-bounded queries",
+        "Lineage column (ingested_at)",
+        "Often paired with a complementary 'eligibility' factless fact to answer 'attended vs eligible-but-absent'"
+      ]
+    },
+    {
+      "id": "ds-099",
+      "type": "open",
+      "topic": "System Design",
+      "difficulty": "hard",
+      "prompt": "Your company is migrating from a single Postgres OLTP database (~2TB, used by an application AND nightly analytics queries that lock up the system) to a modern data platform. Design the **target architecture** that separates OLTP from analytics, supports near-real-time replicas of OLTP data, and gives analysts a clean modeled warehouse. Cover ingestion, transformation, and serving layers, plus key tradeoffs.",
+      "model_answer": "**Target architecture (5 layers):**\n\n1. **Source OLTP (Postgres)** \u2014 keep as the system of record. Enable logical replication (`wal_level=logical`), publish a replication slot.\n2. **CDC ingestion** \u2014 Debezium (or AWS DMS / Fivetran HVR) reads the WAL and writes change events to Kafka topics keyed by primary key, one topic per table. At-least-once delivery; events carry op (c/u/d), before/after images, source LSN, ingest_ts.\n3. **Bronze landing layer** \u2014 A streaming consumer (Flink / Spark Structured Streaming / Kafka Connect S3 sink) lands raw events as **append-only** Parquet on object storage, partitioned by event_date and table name. This is the immutable replay log.\n4. **Silver integration layer** \u2014 Iceberg/Delta tables built by MERGE-ing bronze events into typed, deduplicated 'current state' tables (`silver.customers`, `silver.orders`, \u2026) keyed by PK. Idempotent on (pk, source_lsn). Optionally also publish SCD2 versions for entities where history matters. ACID + time travel let analysts query 'as-of' easily.\n5. **Gold analytics layer** \u2014 dbt-driven star schema marts (`mart.fact_order`, `dim_customer`, `dim_product` \u2026) modeled per business process, with conformed dimensions and tested freshness/uniqueness/relationships. Materialized in the warehouse (Snowflake / BigQuery / Redshift / Databricks SQL) for BI consumption.\n6. **Serving** \u2014 BI tools and analyst SQL run against gold; ad-hoc historical queries against silver; operational dashboards (sub-minute) against a streaming OLAP layer (ClickHouse / Druid / Pinot) if needed.\n\n**Key tradeoffs:**\n- **Lag vs cost**: CDC replication gives seconds-to-minute lag without straining the OLTP DB. Truly real-time (<5s) usually requires Kafka \u2192 streaming OLAP rather than warehouse.\n- **Schema evolution**: Source DDL changes must propagate through Debezium \u2192 bronze \u2192 silver \u2192 gold. Use a schema registry + automated compat checks + contracts with source-system owners.\n- **Idempotency**: bronze is append-only; silver/gold use MERGE keyed by (pk, source_lsn) so re-running the pipeline is safe.\n- **Backfill strategy**: snapshot-load existing data at cutover (Debezium initial snapshot or one-off bulk export), then switch to incremental CDC; document the boundary LSN.\n- **Governance**: PII tagged at silver; row-level security / masking at gold; lineage via OpenLineage or dbt's exposures.\n- **Observability**: monitor consumer lag, freshness per gold table, dbt test failures, dead-letter queue volume.\n- **Cost**: warehouse storage is cheap; compute is the lever \u2014 use auto-suspend, separate warehouses for ETL vs BI, partition/cluster cold tables.",
+      "key_points": [
+        "Keeps Postgres as system of record; uses CDC (Debezium / DMS) \u2014 does not push analytics load back onto OLTP",
+        "Uses object storage + open table format (Iceberg/Delta) for bronze/silver \u2014 replayable, cheap, ACID",
+        "Three logical layers: raw / integrated / business \u2014 and explains the purpose of each",
+        "Mentions idempotent MERGE keyed by primary key + source LSN",
+        "Discusses schema evolution / data contracts",
+        "Discusses backfill / initial snapshot strategy",
+        "Discusses lag tradeoffs (CDC seconds-to-minutes vs sub-second streaming OLAP)",
+        "Mentions governance (PII, row-level security, lineage) and observability (lag, freshness, DLQ)",
+        "Names a modeling layer (dbt + star schema) as the analyst contract"
+      ]
+    },
+    {
+      "id": "ds-100",
+      "type": "open",
+      "topic": "System Design",
+      "difficulty": "hard",
+      "prompt": "You manage a 500-node Kafka cluster and a downstream warehouse. A single high-volume topic has developed a **hot partition** \u2014 one Kafka partition consistently has 10x the lag of its peers, blocking a critical real-time dashboard. Describe how you would diagnose the issue and the menu of remediations available, including the tradeoffs of each.",
+      "model_answer": "**Diagnose first:**\n1. Confirm the symptom \u2014 Kafka consumer-group lag per partition (kafka-consumer-groups.sh / Burrow / Cruise Control). Identify the offending partition.\n2. Determine the cause:\n   - **Producer-side key skew**: a single key (or small set) hashes to that partition. Inspect a producer sample to see the key distribution.\n   - **Broker-side hot leader**: the broker hosting that partition's leader is overloaded (network/disk).\n   - **Consumer-side hot processing**: messages from that key are expensive to process (large payload, heavy enrichment).\n   - **Partition imbalance** across brokers: too many leaders on one broker.\n\n**Remediations (in increasing order of disruption):**\n\n1. **Producer-side mitigations (least disruptive):**\n   - **Salt the key**: append `_0..N` suffix on writes for the hot key, multiplying its partitions. Consumer must aggregate by base key. Tradeoff: per-key ordering across salts is lost (often acceptable for aggregation; not for sequential operations).\n   - **Pre-aggregate at the producer**: compact bursts of events for the hot key into one summary event. Reduces volume but adds producer-side state.\n   - **Sticky / custom partitioner**: route hot keys to a dedicated partition subset, cooler keys to the rest.\n\n2. **Broker / cluster mitigations:**\n   - **Reassign partitions** (kafka-reassign-partitions or Cruise Control): move the hot partition's leader to a less-loaded broker. Doesn't fix key skew but evens out broker load.\n   - **Increase partition count** for the topic and re-key going forward. Existing data stays on old partitions until aged out. Tradeoff: more partitions = more file handles, controller load, and consumer threads.\n\n3. **Consumer-side mitigations:**\n   - **Dedicated consumer for the hot partition** that subscribes by partition (not group), scaled independently with more CPU/memory.\n   - **Async / parallel processing within a single partition** using key-based work queues (e.g. Confluent's parallel consumer) \u2014 preserves per-key order while parallelizing distinct keys.\n   - **Drop or sample the hot key** at the consumer if business agrees (e.g. health-check spam).\n\n4. **Architecture-level mitigations (most disruptive):**\n   - **Tiered topics**: a 'firehose' topic for hot keys, a 'normal' topic for the rest. Consumer subscribes to both.\n   - **Switch the hot tenant** to its own dedicated topic / cluster (multitenancy by isolation).\n\n**Tradeoffs to weigh:**\n- Salting and pre-aggregation are fast to roll out but require consumer-side logic changes and may sacrifice strict per-key ordering.\n- Increasing partition count is broadly applicable but expensive to undo and affects every consumer group.\n- Dedicated consumer / tiered topics buy isolation at the cost of operational complexity.\n- Always validate with a load-replay before flipping production traffic; instrument lag-per-partition and per-key write rate as ongoing SLOs.",
+      "key_points": [
+        "Starts with diagnosis: per-partition lag, broker load, key distribution, message processing cost",
+        "Distinguishes producer-side (key skew), broker-side (imbalance), and consumer-side (slow processing) causes",
+        "Lists key salting as a primary mitigation, including its ordering tradeoff",
+        "Mentions producer pre-aggregation / compaction",
+        "Mentions partition reassignment / Cruise Control for broker balance",
+        "Mentions increasing partition count and its caveats",
+        "Mentions parallel-consumer / dedicated-consumer patterns",
+        "Mentions architectural isolation (tiered topics, dedicated cluster) for hot tenants",
+        "Closes with monitoring/SLOs (per-partition lag, per-key write rate) so the problem is detected earlier next time"
       ]
     }
   ]
