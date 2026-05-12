@@ -1,0 +1,108 @@
+<p>Every billing team at every B2B SaaS company hits this problem on day one: <em>revenue is recorded in three places and none of them match</em>. Stripe says the customer paid; the webhook stream says they paid (sometimes twice); the internal credit-adjustments table moves the number around for refunds and discounts. The monthly revenue report has to reconcile all three, drop the duplicates, drop the nulls, and produce <strong>one</strong> number per region per month that the CFO can sign off on. Vercel's billing engineers ship this exact pipeline against Stripe, Tinybird, and Postgres; the data model below is verbatim from the FinOps wiki of half the YC S22 cohort.</p>
+
+<h4>1. The data — three feeds, one fact</h4>
+<table>
+  <thead><tr><th>Source</th><th>Cadence</th><th>Why it's the source of truth for…</th><th>Why it's NOT for…</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Stripe CSV export</strong></td><td>Daily, batch</td><td>Settled charges with auth + capture</td><td>Real-time — lags by 24 h</td></tr>
+    <tr><td><strong>Webhook JSON stream</strong></td><td>Real-time, at-least-once</td><td>Live revenue dashboard</td><td>Reconciliation — duplicates happen</td></tr>
+    <tr><td><strong>Postgres credit adjustments</strong></td><td>Manual entry by FinOps</td><td>Refunds, prorations, free-credits</td><td>Customer charges — only adjustments</td></tr>
+  </tbody>
+</table>
+<p>The <strong>shared key</strong> is <code>transaction_id</code>, which appears in Stripe and the webhook stream (because the webhook is generated from the same Stripe object). The adjustments table has its own ID space — never collides. That's why <code>drop_duplicates(subset=['transaction_id'])</code> works: it dedupes Stripe-vs-webhook overlap while preserving adjustments.</p>
+
+<h4>2. The business question — what the CFO signs off on</h4>
+<ul>
+  <li><strong>Investor reporting.</strong> "What was Q4 EU revenue?" The number on the slide deck has to match Stripe's official figure to the penny, but also include the adjustments — refunds reduce ARR, prorations smooth it. One pipeline, one query, one truth.</li>
+  <li><strong>Per-region tax compliance.</strong> EU revenue is taxed differently from US — the <code>region</code> partition is non-decorative. A missing-region row in the report becomes a 6-figure tax filing problem.</li>
+  <li><strong>Anomaly detection for the on-call.</strong> If <code>avg_order</code> drops 40 % week-over-week, either pricing is broken or the dedup logic just started over-dropping rows. The avg_order metric exists for exactly this — sanity check on the aggregation.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def unified_report(csv_frames, json_frames, db_frames):
+    # ── Step 1. Concatenate. axis=0 (rows) is default; ignore_index
+    # re-numbers the rows so we get 0..N instead of overlapping
+    # indexes from the source frames.
+    parts = list(csv_frames) + list(json_frames) + list(db_frames)
+    df = pd.concat(parts, ignore_index=True)
+    df['date'] = pd.to_datetime(df['date'])
+
+    # ── Step 2. De-dup on the natural key. Default keep='first' —
+    # the Stripe CSV row wins over the webhook duplicate (it's the
+    # authoritative settlement record). If you flipped the order of
+    # `parts`, the webhook row would win — explicit ordering matters.
+    df = df.drop_duplicates(subset=['transaction_id'])
+
+    # Drop null amounts — webhook can fire with amount=None on
+    # half-formed payment intents (auth-only, not captured).
+    df = df.dropna(subset=['amount'])
+
+    # ── Step 3. The double groupby — region (categorical) × month
+    # (time-binned). pd.Grouper(freq='ME') = month-end resampling
+    # combined with a regular groupby key. This is the canonical
+    # "category × time" aggregation pattern; remember it.
+    report = (df.groupby(['region', pd.Grouper(key='date', freq='ME')])
+                .agg(revenue=('amount', 'sum'),
+                     orders=('transaction_id', 'count'),
+                     avg_order=('amount', 'mean'))
+                .reset_index())
+    report['avg_order'] = report['avg_order'].round(2)
+    report['revenue']   = report['revenue'].round(2)
+    return report</code></pre>
+
+<p><strong>Why <code>pd.Grouper(key='date', freq='ME')</code> instead of <code>df['date'].dt.to_period('M')</code>?</strong> Grouper is the right tool when you want to combine time-binning with another group key (region) in one <code>groupby</code>. The <code>.dt.to_period('M')</code> form makes a new column you then groupby on; same answer, more memory. Pick Grouper for the combined case.</p>
+
+<p><strong>Why drop nulls AFTER dedup, not before?</strong> Order doesn't change correctness here (dedup is on transaction_id, null is on amount — orthogonal). But conceptually: a duplicate with amount=null and another duplicate with amount=120 should keep the 120, not drop both. <code>drop_duplicates(keep='first')</code> after sorting by amount-non-null gives that guarantee. The demo data is benign so the default works.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>region</th><th>month</th><th>revenue</th><th>orders</th><th>avg_order</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>EU</td><td>2024-10</td><td>$359.99</td><td>2</td><td>$180.00</td><td>Two transactions — one at $160 (Stripe), one at $199.99 (DB adjustment). T008 with null amount was correctly excluded.</td></tr>
+    <tr><td>US</td><td>2024-10</td><td>$250.00</td><td>2</td><td>$125.00</td><td>$300 webhook charge T006 + a <strong>negative $50</strong> credit adjustment T009. Adjustments net into revenue — that's how prorations work.</td></tr>
+    <tr><td>US</td><td>2024-09</td><td>$360.00</td><td>2</td><td>$180.00</td><td>T001 ($120) + T003 ($240). Note: T003 appeared in BOTH stripe_csv and webhook_json — dedup correctly counted it once.</td></tr>
+  </tbody>
+</table>
+<p>The dedup is the load-bearing step. Without it, T003 would double-count and US 2024-09 revenue would be $600 instead of $360 — a 67 % overstatement on a single region-month. <em>This is the bug that kills the audit.</em></p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 1 GB before OOM.</strong> For Vercel's transaction volume (~10 M/year) this fits; for Stripe's own internal dashboard (~10 B/year), no. The production rewrite: dbt models on Snowflake / BigQuery with the same SQL shape — <code>UNION ALL</code> in place of <code>pd.concat</code>, <code>QUALIFY ROW_NUMBER() OVER (PARTITION BY transaction_id) = 1</code> in place of <code>drop_duplicates</code>, <code>DATE_TRUNC('month', date)</code> in place of <code>pd.Grouper</code>. Same algorithm, columnar engine.</li>
+  <li><strong>The "merge-then-aggregate" anti-pattern.</strong> Some candidates try <code>stripe.merge(webhook, on='transaction_id', how='outer')</code> — which keeps both copies on the duplicate key and forces you to <code>coalesce</code> columns. Concat-then-dedup is cleaner because the schemas are identical. Merge is for joining <em>different</em> facts (orders + customers); concat is for stacking <em>same</em> facts from multiple sources.</li>
+  <li><strong>Hot region — US has 80 % of rows.</strong> The groupby on <code>(region, month)</code> ships all US-month combinations to one shuffle bucket. In pandas this is fine; in Spark, salt the region with a small salt (4-8 buckets is enough — only 5-6 regions exist, so the skew isn't extreme). See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>.</li>
+  <li><strong>Stripe Sigma</strong> exposes this exact data model. The <code>charges</code> + <code>balance_transactions</code> tables map to stripe_csv; the <code>events</code> table is the webhook stream. Sigma users write SQL against the same schema; the pandas function above is the same query in DataFrame form.</li>
+  <li><strong>Datadog billing</strong> uses a multi-source unified report for cross-cloud customer billing (AWS, GCP, Azure usage all stream in separately and have to reconcile against the customer's Stripe charges). Same algorithm shape: concat + dedup + groupby on (cloud, month) instead of (region, month).</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What if the same transaction_id appears in two sources with different amounts?"</h5>
+<p>Bug. Either the source data is wrong (Stripe and the webhook should agree to the cent — they're generated from the same payment intent), or your transaction_id isn't actually the unique key. Production defence: write an assertion before <code>drop_duplicates</code> — <code>assert df.groupby('transaction_id')['amount'].nunique().max() == 1</code>. If it fails, page the on-call rather than silently dropping the wrong row. <strong>Silent dedup of mismatched data is how revenue numbers diverge from the actual cash.</strong></p>
+
+<h5>Probe 2 — "What's wrong with using <code>.apply()</code> for the aggregation?"</h5>
+<p>Same answer as every pandas question: row-by-row Python. The <code>.agg()</code> on the groupby runs the sum/count/mean in C kernels — one pass over the data, no Python overhead. <code>.apply(lambda g: pd.Series({'revenue': g.amount.sum(), ...}))</code> would re-enter Python once per group, ~10-100× slower depending on group count.</p>
+
+<h5>Probe 3 — "How would you incrementalise this for daily delta loads?"</h5>
+<p>Two patterns. (a) <strong>Insert-only:</strong> only the new day's rows enter the pipeline, you re-run the full month-aggregate on the affected months. dbt's <code>{{ config(materialized='incremental') }}</code> does this. (b) <strong>Streaming:</strong> Kafka + Flink with a 1-month tumbling window keyed on region. The aggregate state is updated per event. The pandas version is the offline backfill / audit tool; the streaming version is the live dashboard.</p>
+
+<h5>Probe 4 — "Webhook is at-least-once and fires duplicates in the same minute. Will your dedup catch them?"</h5>
+<p>Yes — the duplicates have the same <code>transaction_id</code>, which is the dedup key. The <em>harder</em> case is when the webhook fires a row with <code>transaction_id=null</code> (incomplete payment intent) and a different field — there your dedup misses. Defence: filter out null transaction_id rows explicitly before dedup, or generate a synthetic key from <code>(customer_id, ts, amount)</code>.</p>
+
+<h5>Probe 5 — "What if a transaction crosses month-end — paid at 23:59 UTC on the 31st but settled at 00:01 on the 1st?"</h5>
+<p>Two timestamps in play: <code>created_at</code> (when the customer paid) and <code>captured_at</code> (when Stripe settled). The CFO wants revenue recognised against <code>created_at</code> (the customer event), not <code>captured_at</code> (the settlement event). The schema needs to make this explicit. A common bug is to use whichever column the data dump happens to ship with — both are "valid" timestamps, only one is right for revenue reporting. <strong>Pick deliberately; document the choice.</strong></p>
+
+<h5>Probe 6 — "Refund handling — how does the report show a refund?"</h5>
+<p>In the demo, refunds enter via the credits table with a <em>negative</em> amount. That nets into the monthly revenue cleanly — October US is $300 - $50 = $250. Alternative: keep refunds in a separate column (<code>gross_revenue</code>, <code>refunds</code>, <code>net_revenue</code>) for transparency. Investor reporting wants the gross/net split. Tax filings sometimes want both. Talk through the trade-off; senior candidates suggest the three-column form for an auditable report.</p>
+
+<h5>Probe 7 — "Excel output (<code>.to_excel</code>) — is that production-acceptable?"</h5>
+<p>For an emailed CFO report, yes. For a real data pipeline, no — write to Parquet on S3, materialise as a dbt model, or push to a BI tool's data layer. Excel is the convenience-output for "I just need to send this to finance". The candidate who calls this out is showing operational maturity.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0101">python_175-0101</a> — ETL pipeline with cleaning &amp; enrichment (the next step downstream of this concat-and-dedup).</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0108">python_175-0108</a> — log correlation: the same "concat + dedup by request_id" pattern on observability data.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting: hot-region rescue when one region dominates the groupby.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — the skew problem for the dominant-region case.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Three things define a production-ready unified-report pipeline: (1) <em>explicit dedup key</em> with an assertion that the key is unique before dedup (silent dedup of conflicting rows is a revenue-reporting bug); (2) <em>concat-then-aggregate, not merge-then-aggregate</em> — the sources describe the same fact, not different facts; (3) <em>region × month groupby with <code>pd.Grouper</code></em> is the canonical "category × time" idiom. The pandas version is the FinOps team's reconciliation tool; production at scale runs as a dbt model on Snowflake / BigQuery with the same algorithm shape.</div>

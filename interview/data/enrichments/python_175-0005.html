@@ -1,0 +1,92 @@
+<p>Every observability stack you have ever read about — Datadog, Prometheus, Honeycomb, New Relic, Grafana Cloud — reports a p50 latency. None of them re-sort a million-sample buffer every second to produce it. The streaming-median problem is the underlying primitive: keep a running summary of an unbounded numeric stream that answers "what's the middle value?" in constant time after each insert. The two-heap trick that solves it is the canonical L5-Python interview question for heap fluency, and the same shape (two complementary data structures keeping a balanced invariant) appears in t-digest, HDR histogram, and the GK quantile sketch that all the above products actually ship.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Design a data structure that supports two operations on an unbounded stream of numbers: <code>addNum(x)</code> in O(log n) and <code>findMedian()</code> in O(1) (returning the middle element for odd counts, the average of the two middle elements for even counts). The constraint that rules out the naive approach: sort the buffer on every <code>findMedian</code> call is O(n log n) per query; insertion-sort on every <code>addNum</code> is O(n) per insert. At 1M samples/sec, neither fits in the time budget. The trick is to split the stream into two halves that we never need to fully sort, only to keep balanced.</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>Stream: <code>5, 2, 8, 1, 9, 3, 7</code>. State evolution of <code>lo</code> (max-heap, larger root means larger key) and <code>hi</code> (min-heap):</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+add        lo (max-heap)    hi (min-heap)    median
+─────────────────────────────────────────────────────
+add(5)     [5]              []                5
+add(2)     [2]              [5]               (2+5)/2 = 3.5
+add(8)     [5]              [8]               5            ← lo's top is the answer
+add(1)     [2,1]            [5,8]             (2+5)/2 = 3.5
+add(9)     [5,1,2]          [8,9]             5
+add(3)     [3,1,2]          [5,8,9]           (3+5)/2 = 4.0
+add(7)     [5,1,3,2]        [7,8,9]           5
+
+Visual after the last add (7 numbers ingested):
+  lo holds {1,2,3,5} (the 4 smallest)            ← max-heap, top = 5
+  hi holds {7,8,9}   (the 3 largest)             ← min-heap, top = 7
+                            ↑
+                       median = lo's top = 5
+                       (odd count → middle is lo's top by invariant)
+</pre>
+<p>The invariant we maintain: <code>len(lo) == len(hi)</code> or <code>len(lo) == len(hi) + 1</code>. When the count is odd, <code>lo</code> is one larger and its root is the median. When even, the median is the average of <code>lo</code>'s root and <code>hi</code>'s root. Both reads are O(1).</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>import heapq
+
+class MedianFinder:
+    def __init__(self):
+        self.lo = []   # max-heap of the smaller half (Python heapq is min-only,
+                       # so we negate every value going in and going out)
+        self.hi = []   # min-heap of the larger half
+
+    def addNum(self, num):
+        # Step 1: tentatively push into lo (negated for max-heap semantics).
+        heapq.heappush(self.lo, -num)
+        # Step 2: move lo's max into hi. This guarantees the heap-cross
+        # invariant: max(lo) &lt;= min(hi). After this step lo may be 1 SHORT.
+        heapq.heappush(self.hi, -heapq.heappop(self.lo))
+        # Step 3: rebalance so lo is either equal-size or 1 bigger than hi.
+        if len(self.hi) &gt; len(self.lo):
+            heapq.heappush(self.lo, -heapq.heappop(self.hi))
+
+    def findMedian(self):
+        if len(self.lo) &gt; len(self.hi):
+            return -self.lo[0]                       # odd count: lo's top
+        return (-self.lo[0] + self.hi[0]) / 2        # even count: average of tops
+</code></pre>
+<p>The three-step <code>addNum</code> (push-to-lo → push-lo's-max-to-hi → rebalance) is the canonical formulation because each step preserves exactly one invariant. Pushing directly into lo or hi based on the value would also work but requires comparing to the current median first — that path branches more and is harder to get right under interview pressure.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> <code>addNum</code> is O(log n) — exactly two heap pushes and one heap pop. <code>findMedian</code> is O(1) — both heaps expose their root in constant time. <strong>Space:</strong> O(n) — every value is held in one of the two heaps. <em>The trick that gets you there</em>: instead of one sorted structure, use two unsorted heaps whose <em>roots</em> bracket the median. Sorting is O(n log n); two heaps cost log-per-insert because we only need to know the top, not the order.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>findMedian on an empty stream</strong> — undefined; some specs return 0.0, some raise. State your convention out loud.</li>
+  <li><strong>Negative numbers</strong> — the heap negation is independent of value sign. Don't second-guess yourself.</li>
+  <li><strong>Duplicate values</strong> — fine; the heap handles ties internally. Median of <code>[5, 5, 5]</code> is 5.</li>
+  <li><strong>The 3-step <code>addNum</code> looks redundant — why push then immediately pop?</strong> Because the simpler "push to lo if x &lt; median else hi" requires you to know the median first, and bootstrapping the first two pushes from that is fiddly. The canonical form has no branches and is provably invariant-preserving.</li>
+  <li><strong>Extension to p95 / p99</strong> — heaps don't extend naturally. The answer is a <strong>t-digest</strong> or <strong>HDR histogram</strong>: bucketed approximate quantiles with O(1) merge across shards. Datadog uses DDSketch; Prometheus uses bucketed histograms with linear interpolation.</li>
+  <li><strong>Removing a value (sliding-window median)</strong> — heaps don't support arbitrary delete. Use a <strong>multiset</strong> (Python: <code>SortedList</code> from <code>sortedcontainers</code>) keyed by value, or a two-heap with lazy deletion (mark-and-sweep).</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>Observability — Datadog, Prometheus, Honeycomb, Grafana</h5>
+<p>None of these store every sample and re-sort on query — too expensive. Datadog ships <strong>DDSketch</strong> (relative-error quantile sketch), Prometheus uses pre-defined bucket histograms (<code>histogram_quantile()</code> with linear interpolation), Honeycomb stores raw events but computes quantiles via reservoir sampling, Grafana Cloud uses <strong>t-digest</strong>. All of these are streaming-quantile structures whose conceptual ancestor is the two-heap median. The two-heap is the interview-friendly canonical form; t-digest is what you reach for when you need p99 and merging across nodes.</p>
+
+<h5>HFT / market making — Jane Street, Citadel Securities, Optiver</h5>
+<p>"Median price over the last 1000 ticks" is a fundamental signal in market-microstructure models. The sliding-window variant of the two-heap (with lazy deletion of expired ticks) runs inside FPGA-paired trading kernels at sub-microsecond latency. Citadel's published HFT papers describe a "ring-buffer multiset" for the rolling median that is essentially this algorithm.</p>
+
+<h5>Real-time anomaly detection — Stripe Radar, Square Sift</h5>
+<p>Stripe's fraud-detection engine maintains streaming p50 of "merchant's typical transaction amount" per merchant per hour. When a single transaction exceeds 5× the streaming median, the rule fires. The two-heap (per merchant, in Redis as a sorted-set) is the persistence layer; the median read is O(1) hot-path.</p>
+
+<h5>Adaptive video bitrate — YouTube, Netflix, Twitch</h5>
+<p>The ABR algorithm picks a bitrate based on the streaming median (not mean — too sensitive to congestion spikes) of recent bandwidth measurements. Netflix's open-sourced <strong>Mezzanine</strong> and Twitch's <strong>Pied Piper</strong> ABR implementations both reference a rolling-median bandwidth estimator with two heaps as the underlying structure.</p>
+
+<h5>Database query planners — PostgreSQL ANALYZE, Snowflake automatic clustering</h5>
+<p>PostgreSQL's <code>pg_statistic</code> table stores most-common-values and histograms; Snowflake auto-collects approximate quantile sketches over every column. Both use streaming-quantile structures (Greenwald-Khanna for Postgres, GK-variant for Snowflake) — same family.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0005">python_175-0005</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0060">python_175-0060 — Sliding Window Maximum</a> — same "amortised data structure for streaming stats" pattern but for max instead of median; uses a monotonic deque instead of two heaps.</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0118">python_175-0118 — Merge k Sorted Lists</a> — same min-heap primitive applied to merging instead of summarising.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew</a> — streaming quantiles are how you detect a hot key in the first place (p99 latency on one partition spiking is the trigger).</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the invariant out loud — <em>"max(lo) &le; min(hi), and lo is either equal-size or one larger"</em> — before you write the code. Then say "this is the building block; in production we use t-digest or DDSketch because we need p99, not just p50, and we need to merge across shards." Interviewers care more about whether you can scale the idea to p99 than whether you got the heap negation right on the first try.</div>

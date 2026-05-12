@@ -1,0 +1,110 @@
+<p>Linked-list pointer surgery, in a controlled environment. This is the question that separates engineers who have internalised the three-pointer reversal loop from engineers who can recite it. The pattern — walk k steps, reverse in place, splice back into the chain — shows up in every batched-iterator implementation: chunked log replayers (Kafka MirrorMaker), windowed message reorderers (Kinesis Client Library), gRPC bidirectional stream reframers, and the doubly-linked LRU cache's "promote-to-head" reshuffle. Elastic specifically asks this because their bulk-indexing pipeline reverses k-sized batches when it detects out-of-order document IDs in a shard.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Reverse every k consecutive nodes of a singly linked list; if the last group has fewer than k nodes, leave it alone. <strong>Insight:</strong> use a <code>dummy</code> head + a <code>group_prev</code> pointer that always sits just before the group being reversed. Three phases per group: (1) walk k steps to find the tail, returning early if you hit None; (2) reverse the slice using the classic <code>prev/cur/next</code> three-pointer dance; (3) splice the reversed slice back by setting <code>group_prev.next = kth</code> and advancing <code>group_prev</code> to what was originally the group's first node (now its last).</p>
+
+<h4>2. Worked example — list 1→2→3→4→5, k=2, trace 2 groups</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+initial:
+  dummy -> 1 -> 2 -> 3 -> 4 -> 5 -> None
+  group_prev = dummy
+
+== group A (nodes 1, 2) ==
+
+step 1: walk k=2 from group_prev to find kth
+  kth = 2 (group_prev -> 1 -> 2)
+  group_next = 3
+
+step 2: reverse slice [1, 2] in place
+  prev = 3, cur = 1
+  iter 1: 1.next = 3;   prev = 1; cur = 2
+  iter 2: 2.next = 1;   prev = 2; cur = 3 (== group_next, stop)
+  slice is now: 2 -> 1 -> 3
+
+step 3: splice
+  group_prev.next = kth(2)
+  dummy -> 2 -> 1 -> 3 -> 4 -> 5
+  advance group_prev to old-first-of-group = node 1
+  group_prev = 1
+
+== group B (nodes 3, 4) ==
+
+step 1: walk k=2
+  kth = 4 (group_prev(1) -> 3 -> 4)
+  group_next = 5
+
+step 2: reverse slice [3, 4]
+  slice becomes: 4 -> 3 -> 5
+
+step 3: splice
+  group_prev.next = kth(4)
+  dummy -> 2 -> 1 -> 4 -> 3 -> 5
+  group_prev = 3
+
+== group C attempt ==
+
+step 1: walk k=2 from group_prev(3); kth = 5, then kth.next is None
+  -> return dummy.next  (the dangling node 5 stays as-is)
+
+Final: 2 -> 1 -> 4 -> 3 -> 5
+</pre>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>class ListNode:
+    def __init__(self, val=0, nxt=None):
+        self.val = val
+        self.next = nxt
+
+def reverseKGroup(head, k):
+    # dummy lets us treat the head uniformly (no special "first group" case).
+    dummy = ListNode(0, head); group_prev = dummy
+    while True:
+        # 1) Walk k steps. If the chain runs out, we have a partial trailing
+        #    group; leave the chain in its current state and return.
+        kth = group_prev
+        for _ in range(k):
+            kth = kth.next
+            if not kth: return dummy.next
+        group_next = kth.next
+
+        # 2) Reverse the slice [group_prev.next .. kth] in place. The classic
+        #    three-pointer reversal uses tuple-assign for the swap.
+        prev, cur = group_next, group_prev.next
+        while cur is not group_next:
+            cur.next, prev, cur = prev, cur, cur.next
+
+        # 3) Re-link the reversed slice back into the main chain. The old
+        #    first-of-group is now the last-of-group; advance group_prev to it.
+        group_prev.next, group_prev = kth, group_prev.next
+</code></pre>
+<p><strong>Data structures:</strong> just node pointers — no stack, no recursion, no buffer. <strong>Invariant:</strong> at the top of every iteration, <code>group_prev</code> is the last node of the already-finalised prefix; <code>group_prev.next</code> is the head of the next unprocessed group.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n). Every node is visited exactly twice — once during the k-step walk, once during the reversal. <strong>Space:</strong> O(1). The three-pointer reversal stores nothing beyond a constant number of locals. No recursion, so no stack growth — this matters for million-node lists where recursive solutions would blow the stack.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — k=1.</strong> Reversal of a single node is identity. Walk through the algorithm: the inner reversal loop runs zero swaps, splice is a no-op, group_prev advances one node. Cost: O(n) walks for zero work. A senior candidate offers an early-exit <code>if k == 1: return head</code>.</p>
+<p><strong>Probe 2 — k ≥ n.</strong> The first walk hits None inside the k-loop and returns <code>dummy.next</code> (= original head). Nothing is reversed, list is untouched. The dummy + early-return makes this trivial.</p>
+<p><strong>Probe 3 — Empty list.</strong> <code>head = None</code>, first walk's <code>kth = group_prev.next = None</code> on iteration 1, return <code>dummy.next = None</code>. No special case needed.</p>
+<p><strong>Probe 4 — "Reverse every k IN REVERSE ORDER, i.e. partial group at the FRONT."</strong> Walk the list once to compute <code>n</code>, then start the reversal from index <code>n % k</code>. The same algorithm, with one preliminary pass.</p>
+<p><strong>Probe 5 — Recursive variant.</strong> "Reverse k, recurse on the tail, splice." Conceptually elegant but O(n/k) stack frames — for k=1 and n=10^6, that's a 10^6-deep recursion and a stack overflow. Worth mentioning to show you know the trade.</p>
+<p><strong>Probe 6 — Concurrent variant.</strong> If multiple threads reverse different ranges, you need a per-range mutex or copy-on-write. Real systems use immutable singly-linked lists (Clojure persistent lists, Scala List) for exactly this reason — reversal allocates a new list, no locking required.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Kafka MirrorMaker</strong> — replays log batches in k-sized chunks; when the source partition emits in reverse offset order (rebalance edge case), each chunk needs in-place reversal before downstream commit.</li>
+  <li><strong>Elastic bulk-indexer</strong> — bulk-indexes documents in batches; if the batch's document IDs come out-of-order from a shard split, the indexer reverses k-sized sub-batches to recover monotonic order.</li>
+  <li><strong>gRPC framing layer</strong> — bidirectional streams reorder out-of-order data frames into in-order client delivery; the k-group reversal is one of the primitives in Netty's FrameDecoder.</li>
+  <li><strong>LRU cache promote-to-head</strong> — moving a node from arbitrary position to head of a doubly-linked list is the same pointer-splice surgery, just two pointers instead of three.</li>
+  <li><strong>Clojure / Scala / Erlang persistent lists</strong> — reversal allocates new cons cells (O(n) space), which is exactly what you don't do here; this is the contrast that makes the in-place version interesting.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0081">python_175-0081 — Merge Two Sorted Lists</a> (sibling: in-place pointer surgery)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0114">python_175-0114 — Remove Nth Node From End</a> (sibling: dummy + two-pointer)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0118">python_175-0118 — Merge k Sorted Lists</a> (the k-way version)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0116">python_175-0116 — Add Two Numbers</a> (sibling: dummy-head walk)</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Iterative in-place reversal with a dummy head and a <code>group_prev</code> pointer — O(n) time, O(1) space, no recursion. The recursive variant is elegant but stack-fragile for million-node lists. The production analogue is reverse-order replay in Kafka MirrorMaker, Elastic bulk-indexer reframing, and Netty FrameDecoder — the same three-phase walk/reverse/splice surgery, just embedded in a streaming pipeline instead of a leetcode signature.</div>

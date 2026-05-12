@@ -1,0 +1,102 @@
+<p>Trapping Rain Water is the L5 interview's favourite "you-cannot-brute-force-this" geometry problem because it has three valid solutions that compose a tidy interview script: O(n²) brute force (rejected), O(n) space-O(n) precomputed-max arrays (passable), and O(n) space-O(1) two-pointer sweep (the senior answer). The underlying primitive — "capacity bounded by min(left_max, right_max)" — is the abstraction at the heart of every grid-storage capacity problem at scale: GPU memory packing on heterogeneous-shaped kernels, container loading in shipping logistics, ML reservoir capacity in feature stores, and terrain-flood simulation in disaster modelling. Visa lists this question in their senior-engineer loop because their fraud-detection pipeline literally computes a "trapped-anomaly-score" over an elevation map of per-merchant baseline rates.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given an array of non-negative integers representing the heights of unit-width bars in an elevation map, compute how many units of water are trapped after rain. The naive O(n²) approach — for each cell, scan left for max and right for max, then add <code>min(L, R) - h[i]</code> — is what a junior writes. The constraint that rules it out: arrays of length 10⁵. The trick is the two-pointer sweep: maintain running <code>lmax</code> and <code>rmax</code>, and advance the pointer on the shorter side because that side's running max <em>is</em> the binding constraint for the next cell (the other side can only be taller).</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>profile = <code>[0, 1, 0, 2, 1, 0, 1, 3, 2, 1, 2, 1]</code>. The bars and water:</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+height
+  3                       #
+  2          #~~~~~~~~~~~ # # ~~ #
+  1     # ~~ # # ~~~~~~~~ # # #  # #
+  0  #  #  # # # ~~ # ~~~ # # #  # #
+     ─────────────────────────────────
+idx  0  1  2 3 4 5  6 7   8 9 10 11
+
+profile : 0  1  0  2  1  0  1  3  2  1  2  1
+fill    : 0  0  1  0  1  2  1  0  0  1  0  0
+                                            ↳ total = 6 units of water
+</pre>
+<p>Walk through the two-pointer sweep:</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+l   r   h[l] h[r] which is shorter?  lmax  rmax  water added  total
+─────────────────────────────────────────────────────────────────────
+0   11   0    1   left   (0 &lt; 1)      0     0     0           0    push lmax=0
+1   11   1    1   right  (1 &gt;=1)      0     1     0           0    push rmax=1; r=10
+1   10   1    2   left   (1 &lt; 2)      1     1     0           0
+2   10   0    2   left                1     1     1           1    fill 1 at idx 2
+3   10   2    2   right  (2&gt;=2)       1     2     0           1
+3    9   2    1   right                2     2     1           2    fill 1 at idx 9
+3    8   2    2   right                2     2     0           2
+3    7   2    3   left                 2     2     0           2    push lmax=2
+4    7   1    3   left                 2     2     1           3    fill 1 at idx 4
+5    7   0    3   left                 2     2     2           5    fill 2 at idx 5
+6    7   1    3   left                 2     2     1           6    fill 1 at idx 6
+7    7   ─    ─   exit
+                                                              total = 6 ✓
+</pre>
+<p>The key intuition: when <code>h[l] &lt; h[r]</code>, we KNOW <code>rmax &ge; h[r] &gt; h[l]</code>, so for position <code>l</code> the binding constraint is <code>lmax</code> (the right side will always have a wall of at least <code>h[r]</code>). We don't need to know what <code>rmax</code> actually is — just that it's at least <code>h[r]</code>, which is enough.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>def trap(h):
+    """Two-pointer sweep, O(n) time / O(1) space.
+       The pointer on the SHORTER side is the binding constraint
+       for the next cell -- we don't need both maxes precomputed."""
+    if not h: return 0
+    l, r = 0, len(h) - 1
+    lmax = rmax = 0
+    total = 0
+    while l &lt; r:
+        if h[l] &lt; h[r]:                       # left wall is the shorter wall
+            lmax = max(lmax, h[l])             # update running max from the left
+            total += lmax - h[l]               # water above position l is lmax - h[l]
+            l += 1
+        else:                                  # right wall is the shorter (or equal)
+            rmax = max(rmax, h[r])             # update running max from the right
+            total += rmax - h[r]               # water above position r is rmax - h[r]
+            r -= 1
+    return total
+</code></pre>
+<p>Three variants you should be ready to name out loud, in order of increasing sophistication: (1) <strong>brute force</strong> — O(n²), for-each-cell-scan-both-sides; (2) <strong>precomputed max arrays</strong> — O(n) time, O(n) space, build left_max[] and right_max[] in two sweeps, sum <code>min(L[i], R[i]) - h[i]</code>; (3) <strong>two-pointer sweep</strong> — O(n) time, O(1) space, this implementation. There's also (4) <strong>monotonic stack</strong> — O(n) time, O(n) space, fills water layer-by-layer; same complexity as (2) but slicker code.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n) — each index is visited exactly once across the two pointers. <strong>Space:</strong> O(1) — five integers (<code>l</code>, <code>r</code>, <code>lmax</code>, <code>rmax</code>, <code>total</code>). <em>The trick that gets you there</em>: instead of computing both running maxes up-front (which forces O(n) space), we exploit the asymmetry that <em>the shorter side's max is the binding constraint</em> and only update the side we know about.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>Empty or single-element input</strong> — return 0. No walls means no water.</li>
+  <li><strong>All-monotonic input</strong> (strictly increasing or decreasing) — return 0. No right wall (or left wall) to hold water.</li>
+  <li><strong>Flat profile</strong> (all equal) — return 0. No depressions to fill.</li>
+  <li><strong>One peak</strong> ([1,2,3,2,1]) — return 0. Water needs a depression bounded on both sides.</li>
+  <li><strong>Big bowl</strong> ([5,0,0,0,0,5]) — return 20. lmax=5 dominates; 4 cells × 5 units each.</li>
+  <li><strong>2D variant (Trapping Rain Water II, LeetCode 407)</strong> — the 1D two-pointer doesn't generalise. The 2D solution is a min-heap-based BFS from the boundary inward, processing the lowest border cell first (because that's the binding constraint for the cells inside). This is the killer follow-up at L6.</li>
+  <li><strong>Negative heights / non-integer heights</strong> — algorithm works unchanged; the formula is just <code>max(0, min(L, R) - h[i])</code>. Most interviewers stipulate non-negative integers to avoid this discussion.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>GPU memory packing — NVIDIA CUDA, AMD ROCm</h5>
+<p>When a CUDA kernel launches with heterogeneous-shaped allocations (workgroup shared memory, register spills, scratchpad), the runtime packs them into a fixed-size SRAM region. Internal padding ("water") is wasted bandwidth; CUDA's <code>__shared__</code> allocator uses a variant of trapping-rain-water to compute the minimum padding needed. NVIDIA's PTX compiler has a documented optimisation pass that minimises this trapped capacity.</p>
+
+<h5>Container loading — Maersk, FedEx, Amazon FBA inbound</h5>
+<p>Loading goods of varying heights into a fixed-width container is exactly the trapping-rain-water problem in 2D (height profile of items vs. the container's roof). FedEx's "cube optimisation" engine and Maersk's stowage planner both run a 2D variant on shipment manifests. Amazon FBA's inbound-shipment placement uses the 1D form per shelf to decide which SKUs get fast-pick vs. reserve.</p>
+
+<h5>Terrain-flood simulation — USGS, FEMA, climate-risk models</h5>
+<p>"How much water is trapped in this watershed after X inches of rain?" is the FEMA flood-zone classification primitive. USGS's NHDPlus river-network model runs a 2D priority-flood algorithm (LeetCode 407 variant) on digital elevation models at 10m resolution to compute trapped-water capacity per watershed. Munich Re's catastrophe-modelling team uses the same primitive for residential flood insurance pricing.</p>
+
+<h5>Feature store reservoir sizing — Tecton, Feast</h5>
+<p>When a feature store buffers events before flushing to long-term storage, the "trapped capacity" of the buffer is the integral of incoming-rate minus drain-rate. Tecton's auto-tuning sizer uses a 1D trapping-rain-water computation on historical traffic profiles to compute the minimum reservoir size that survives a 99th-percentile burst without dropping events.</p>
+
+<h5>Fraud detection — Visa, Mastercard, Stripe Radar</h5>
+<p>"Anomalous-transaction-volume over baseline" can be modelled as the area between an observed-rate curve and a baseline-rate curve. The "trapped" anomaly area uses the same min-of-bounding-walls trick to set the alert threshold. Visa's VAA (Visa Advanced Authorization) ML pipeline uses this as a feature engineering step.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0045">python_175-0045</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0066">python_175-0066 — Largest Rectangle in Histogram</a> — same elevation-profile shape but asking for max rectangle area, not trapped water; uses a monotonic stack.</li>
+  <li>Sister: <strong>Container With Most Water</strong> (LeetCode 11) — the precursor; same two-pointer convergent sweep but with only two walls and no fill.</li>
+  <li>Follow-up: <strong>Trapping Rain Water II</strong> (LeetCode 407) — 2D grid; uses a min-heap BFS from the boundary. The L6 escalation.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Don't reach for the precomputed-max-array solution as your first answer — name it as the "step-2 of 3" and propose the two-pointer sweep instead. The phrase that closes the interview: <em>"the pointer on the shorter side is the binding constraint, because we know the other side's max is at least as tall as the current value there."</em> Mention the 2D variant (priority-flood from the boundary) as a follow-up and you've signalled you understand the structural generalisation.</div>

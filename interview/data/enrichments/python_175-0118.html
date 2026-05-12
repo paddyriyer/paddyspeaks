@@ -1,0 +1,101 @@
+<p>Merge k Sorted Lists is the algorithm at the heart of every external sort and every LSM-tree compaction. Cassandra, RocksDB, LevelDB, ScyllaDB, BigTable, ClickHouse — every storage engine that maintains sorted-runs-on-disk runs this primitive every few minutes during compaction. Kafka's consumer-group rebalance state-merge uses it. Snowflake's micro-partition pruning uses it. The reason the question survives in interview loops despite being "an old chestnut" is the constraint: <em>k</em> in the thousands but <em>total nodes</em> in the millions, where the difference between O(Nk) and O(N log k) is the difference between a compaction that takes 30 seconds and one that takes 8 hours.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given <code>k</code> sorted singly-linked lists, merge them into one sorted linked list and return the head. The two naive approaches are both wrong at scale: (1) flatten everything into a list and sort — O(N log N) and ignores the input's existing sortedness; (2) pairwise-merge (merge list 0 with list 1, then with list 2, ...) — O(Nk) because the running merged list grows linearly and each element gets compared k times on average. The constraint that rules them out is a 1000-way merge of a billion total rows (external-sort scenario). The trick is a size-k min-heap of (head_value, tiebreak, head_node): each of the N nodes is pushed once and popped once, giving O(N log k).</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>3 sorted lists: <code>[1, 4, 5]</code>, <code>[1, 3, 4]</code>, <code>[2, 6]</code>.</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Initial heap (one head per list, tagged with list index):
+  [(1, 0, n1a), (1, 1, n2a), (2, 2, n3a)]
+
+step  popped         heap after pop+push                              output so far
+─────────────────────────────────────────────────────────────────────────────
+1     (1, 0, n1a)   [(1,1,n2a),(2,2,n3a),(4,3,n1b)]                  1
+2     (1, 1, n2a)   [(2,2,n3a),(4,3,n1b),(3,4,n2b)]                  1 1
+3     (2, 2, n3a)   [(3,4,n2b),(4,3,n1b),(6,5,n3b)]                  1 1 2
+4     (3, 4, n2b)   [(4,3,n1b),(6,5,n3b),(4,6,n2c)]                  1 1 2 3
+5     (4, 3, n1b)   [(4,6,n2c),(6,5,n3b),(5,7,n1c)]                  1 1 2 3 4
+6     (4, 6, n2c)   [(5,7,n1c),(6,5,n3b)]                            1 1 2 3 4 4
+7     (5, 7, n1c)   [(6,5,n3b)]                                      1 1 2 3 4 4 5
+8     (6, 5, n3b)   []                                               1 1 2 3 4 4 5 6
+exit                                                                 1 1 2 3 4 4 5 6
+</pre>
+<p>The heap is always size ≤ k (three lists, so size ≤ 3). Total heap operations: 2N (one push and one pop per node), each O(log k). Total work: O(N log k) where N is the sum of all list lengths.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>import heapq
+
+class ListNode:
+    def __init__(self, val=0, nxt=None):
+        self.val = val
+        self.next = nxt
+
+def mergeKLists(lists):
+    """Size-k min-heap of (value, tiebreak, node). The tiebreak counter
+       is required because two ListNode objects aren't comparable; without
+       it, when two values tie, heapq.heappush would try ListNode &lt; ListNode
+       and TypeError."""
+    h = []
+    for i, node in enumerate(lists):
+        if node:
+            heapq.heappush(h, (node.val, i, node))
+    dummy = tail = ListNode()                          # sentinel head
+    counter = len(lists)                                # monotonically increasing tiebreaker
+    while h:
+        val, i, node = heapq.heappop(h)
+        tail.next = node                                # splice node in -- preserves identity
+        tail = tail.next
+        if node.next:
+            counter += 1
+            heapq.heappush(h, (node.next.val, counter, node.next))
+    return dummy.next
+</code></pre>
+<p>Three production-critical details. (1) The <strong>tiebreak counter</strong> exists because <code>heapq</code> falls back to comparing the third element when the first two tie; raw <code>ListNode</code> objects don't implement <code>__lt__</code> and Python raises <code>TypeError</code>. The fix is a unique-per-push integer. (2) We <strong>splice</strong> nodes in (re-use the input nodes) rather than allocate new ones — important for memory-constrained environments. (3) The <strong>dummy head</strong> simplifies the empty-input case: <code>dummy.next</code> is <code>None</code> by default, which is the correct return for empty input without any branching.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(N log k) where N is total nodes across all lists and k is the number of lists. Each node is pushed exactly once and popped exactly once; each heap op is O(log k) because the heap is size ≤ k. <strong>Space:</strong> O(k) for the heap (plus O(1) auxiliary for the dummy and counter). <em>The trick that gets you there</em>: instead of scanning all k heads for the current minimum (which is the O(Nk) pairwise-merge cost), we maintain the k heads in a heap so the min is the root.</p>
+
+<p>The other valid solution is <strong>divide-and-conquer pairwise merge</strong>: pair up the k lists, merge each pair, recurse on k/2 merged lists. This is also O(N log k) — same complexity — but with a heavier constant due to recursion and intermediate list allocation. The heap version is what production code ships because it streams output (you can emit the next sorted node as soon as it's popped, without waiting for the full merge), which matters for external sorts where the output is written to disk as it's produced.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>Empty input list</strong> (<code>lists = []</code>) — return None. The initial loop produces an empty heap; the while loop is skipped; <code>dummy.next</code> is None.</li>
+  <li><strong>All lists are None</strong> (<code>lists = [None, None]</code>) — return None. The initial loop's <code>if node</code> guard skips empty lists.</li>
+  <li><strong>One list is much longer than the others</strong> — the heap drains the short lists first, then the long list is essentially copied through with a size-1 heap. Still O(N log k) but the constant is dominated by the linear pass.</li>
+  <li><strong>Many ties</strong> (e.g., k lists of all-zeros) — without the tiebreaker, Python raises <code>TypeError: '&lt;' not supported between instances of 'ListNode'</code>. This is the most common interview bug; mention it before you write the code.</li>
+  <li><strong>k = 1</strong> — return <code>lists[0]</code>. The algorithm works but is wasteful; some implementations short-circuit.</li>
+  <li><strong>Streaming variant</strong> — the lists arrive as iterators (k Kafka partitions). The algorithm is unchanged; substitute <code>node.next</code> with <code>next(iter_i, None)</code>. This is the form that runs in production Kafka/Pulsar consumers doing time-ordered merging across partitions.</li>
+  <li><strong>External-sort scale</strong> (k = 1000 sorted runs on disk, each is GBs) — same algorithm; the "node" is a disk-backed buffered iterator. The heap holds one buffered chunk per run. This is exactly Unix <code>sort -m</code> and Hadoop's reducer merge.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>LSM-tree compaction — RocksDB, LevelDB, Cassandra, ScyllaDB</h5>
+<p>Every LSM-tree storage engine periodically compacts overlapping sorted SSTables (sorted-string-tables) by merging them into one. RocksDB's <code>MergingIterator</code> is literally this algorithm with file-backed iterators; Cassandra's compaction strategy (STCS, LCS, TWCS) all sit on top of a k-way merge. ScyllaDB's seastar-based compaction runs the merge with k in the hundreds during major compactions. The choice between this algorithm and tournament-tree-based "loser-tree" variants is benchmarked in the RocksDB literature and the heap wins for moderate k.</p>
+
+<h5>Kafka / Pulsar consumer-group time-ordered merge</h5>
+<p>When a consumer group reads from k partitions and needs <em>global</em> time order (for change-data-capture into a downstream system that requires monotonic timestamps), the consumer applies a k-way merge across the per-partition iterators. LinkedIn's Brooklin uses this for CDC fan-in. Confluent's <code>ksqlDB</code> uses it for stream-stream joins where timestamps must be aligned.</p>
+
+<h5>External sort — Unix <code>sort -m</code>, Hadoop reducer, Spark <code>ExternalSorter</code></h5>
+<p>Sorting more data than fits in RAM: chunk it into k sorted runs on disk, then merge. Unix <code>sort -m</code> takes pre-sorted files; Hadoop's reduce phase merges k sorted spill files from the map outputs; Spark's <code>ExternalSorter</code> spills sorted runs and merges them with a min-heap. The classic reference is Knuth Vol. 3 §5.4, but every production sort still implements the same algorithm.</p>
+
+<h5>Snowflake / BigQuery / ClickHouse — micro-partition merge</h5>
+<p>Snowflake's micro-partitions are stored sorted by clustering key; queries that scan a clustered table run a k-way merge across the relevant micro-partitions. ClickHouse's <code>MergeTree</code> engine name is literally a reference to this algorithm — the engine continuously merges sorted parts in the background. BigQuery does the same on its capacitor file format.</p>
+
+<h5>Median-of-medians / weighted merge — order matching engines</h5>
+<p>Stock exchanges with multiple order books (e.g., NYSE's order-of-protection rule) merge price-time-priority quotes across venues. The merge is a k-way heap-based merge keyed on (price, timestamp). Refinitiv's TRTH (Tick History) data uses the same primitive offline for cross-venue reconciliation.</p>
+
+<h5>LLM agent state — multi-source memory merge</h5>
+<p>RAG agents that pull from multiple vector stores and rerank by relevance score are doing a k-way merge over (-score, doc_id, snippet) tuples. LangChain's <code>EnsembleRetriever</code> implements this directly.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0118">python_175-0118</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0005">python_175-0005 — Median from Data Stream</a> — same min-heap primitive but for streaming-stats rather than k-way merge.</li>
+  <li>Sister: <strong>Merge Two Sorted Lists</strong> (LeetCode 21) — the k=2 special case; no heap needed, simple two-pointer.</li>
+  <li>Sister: <strong>Find K Pairs with Smallest Sums</strong> (LeetCode 373) — k-way merge over Cartesian product; same heap-of-iterators pattern.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew</a> — a k-way merge is what happens downstream of a salted partition (<a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>) when you need to re-assemble per-key order.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Mention the tiebreak counter <em>before</em> you write the code — <em>"raw ListNode objects aren't comparable, so I'll add a monotonic integer counter as the second tuple element."</em> Then name the complexity: <em>"O(N log k), each node pushed and popped once, heap size bounded by k."</em> The production reference that lands: <em>"this is the algorithm at the heart of RocksDB compaction and every Hadoop reducer merge — anywhere we have k sorted runs that don't fit in RAM, this is what runs."</em></div>

@@ -1,0 +1,89 @@
+<p>Binary-search-on-the-partition is the trick. The naive merge-and-pick is O(m + n); the merge-then-stop-at-half is still O(m + n). To hit O(log(min(m, n))) you have to stop searching for a value and start searching for the <em>partition index</em>. The same pattern shows up wherever you compute a percentile over two pre-sorted streams without merging them: cross-region p50 aggregation in Datadog and Honeycomb, distributed quantile sketches in ClickHouse, federated histogram stitching in Prometheus remote-read. The hard part isn't the binary search — it's keeping the four boundary values straight (a_l, a_r, b_l, b_r) when one partition is at index 0 or m.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Given two sorted arrays, return the median of their union in O(log(min(m, n))). <strong>Insight:</strong> you don't search for the median value — you search for the partition index <code>i</code> in the shorter array such that <code>a[:i] ∪ b[:half-i]</code> is exactly the lower half of the merged array. The boundary condition <code>max(a_l, b_l) ≤ min(a_r, b_r)</code> is the only thing the binary search is checking. Binary-search the index, not the answer.</p>
+
+<h4>2. Worked example — m=4, n=5, trace 3 iterations</h4>
+<p>Let <code>a = [1, 3, 8, 9]</code> (m=4) and <code>b = [7, 11, 18, 19, 21]</code> (n=5). Total length 9 (odd), so <code>half = (9 + 1) // 2 = 5</code> elements on the left. We binary-search <code>i ∈ [0, 4]</code>.</p>
+
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+iter 1:  lo=0, hi=4, i=2, j=half-i=3
+         a = [1, 3 | 8, 9]            <- partition after index 2
+         b = [7, 11, 18 | 19, 21]     <- partition after index 3
+         a_l=3, a_r=8, b_l=18, b_r=19
+         Check: a_l(3)  <= b_r(19)  YES
+                b_l(18) <= a_r(8)   NO    -- b's left is too big
+         => move LEFT in b means move RIGHT in a; lo = i+1 = 3
+
+iter 2:  lo=3, hi=4, i=3, j=half-i=2
+         a = [1, 3, 8 | 9]
+         b = [7, 11 | 18, 19, 21]
+         a_l=8, a_r=9, b_l=11, b_r=18
+         Check: a_l(8)  <= b_r(18) YES
+                b_l(11) <= a_r(9)  NO   -- still b's left too big
+         => lo = i+1 = 4
+
+iter 3:  lo=4, hi=4, i=4, j=half-i=1
+         a = [1, 3, 8, 9 |]           <- i==m, a_r = +inf
+         b = [7 | 11, 18, 19, 21]
+         a_l=9, a_r=+inf, b_l=11, b_r=11
+         Check: a_l(9) <= b_r(11) YES
+                b_l(11) <= a_r(+inf) YES   <- partition found
+         Total length odd -> median = max(a_l, b_l) = max(9, 11) = 11
+</pre>
+
+<p>Three iterations, log2(4) = 2 (plus the final check), zero merge work. The sentinel ±infinity values at the partition edges are what keep the boundary logic identical at i=0 and i=m.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>def findMedianSortedArrays(a, b):
+    # Always binary-search the SHORTER array to keep the search space minimal
+    # and to guarantee j = half - i stays within [0, n].
+    if len(a) &gt; len(b): a, b = b, a
+    m, n = len(a), len(b)
+    half = (m + n + 1) // 2            # size of the left side of the merged array
+    lo, hi = 0, m
+    while lo &lt;= hi:
+        i = (lo + hi) // 2             # partition in a after index i
+        j = half - i                   # partition in b is forced by half
+        # Sentinels make the boundary cases (i=0, i=m) uniform.
+        a_l = a[i - 1] if i &gt; 0 else float('-inf')
+        a_r = a[i]     if i &lt; m else float('inf')
+        b_l = b[j - 1] if j &gt; 0 else float('-inf')
+        b_r = b[j]     if j &lt; n else float('inf')
+        if a_l &lt;= b_r and b_l &lt;= a_r:  # correct partition found
+            if (m + n) % 2: return max(a_l, b_l)
+            return (max(a_l, b_l) + min(a_r, b_r)) / 2
+        if a_l &gt; b_r: hi = i - 1       # a's left is too big, shrink right
+        else:         lo = i + 1       # b's left is too big, grow i
+</code></pre>
+<p><strong>Data structures:</strong> just the two input arrays — no heap, no merge buffer, no auxiliary storage. <strong>Invariant:</strong> at every step, exactly <code>half</code> elements lie strictly to the left of the two partitions combined; the binary search only adjusts <em>where</em> within a that boundary falls.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(log(min(m, n))). Each iteration halves the search space on the shorter array; we never touch the longer one's interior. <strong>Space:</strong> O(1). No merge buffer, no recursion, no sentinel array — the ±inf comparisons are scalar.</p>
+<p>For contrast: the textbook merge-then-pick is O(m + n) time / O(1) space; a 1B + 1B array pair would take ~2 seconds vs ~60 comparisons with this algorithm.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Empty input.</strong> If <code>a = []</code>, the algorithm enters with <code>m=0, lo=0, hi=0, i=0</code>; <code>a_l = -inf, a_r = +inf</code>, so the partition check trivially succeeds with <code>b[half-1]</code> as the answer. The sentinels are doing the work.</p>
+<p><strong>Probe 2 — All duplicates.</strong> <code>a = b = [2, 2, 2]</code>. Every partition is valid in the first iteration; we return 2. The <code>≤</code> in the boundary check (not strict <code>&lt;</code>) is what makes ties work.</p>
+<p><strong>Probe 3 — Generalisation: k-th element of two sorted arrays.</strong> Replace <code>half = (m + n + 1) // 2</code> with <code>half = k</code> and return <code>max(a_l, b_l)</code> unconditionally. Same algorithm, same complexity — useful for top-k queries over federated indexes.</p>
+<p><strong>Probe 4 — Three sorted arrays.</strong> Binary search no longer works because the partition isn't unique. Switch to a heap of size 3 (k-way merge) — O((m+n+p) log 3). Naming this gap is a senior-level move.</p>
+<p><strong>Probe 5 — Stream variant: median of a single growing stream.</strong> Wholly different algorithm — two heaps (max-heap for the lower half, min-heap for the upper half), O(log n) per insert, O(1) per median query. Worth naming.</p>
+<p><strong>Probe 6 — Numerical precision.</strong> Float division on huge integers can round; in Python 3 it's safe because integers are arbitrary precision until the final <code>/ 2</code>. In Java/Go you'd use <code>long</code> arithmetic and only divide at the very end.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Datadog / Honeycomb / New Relic</strong> — federated percentile aggregation: each region computes a local sorted summary; the global median across two regions uses this exact partition-based algorithm to avoid shipping the full data.</li>
+  <li><strong>ClickHouse <code>quantileExact</code></strong> — over sorted column shards, the cross-shard merge of medians uses partition-based selection, not full merge.</li>
+  <li><strong>Prometheus remote-read federation</strong> — histogram quantile stitching between a local and a remote tier; the same "search the partition" idea avoids re-bucketing.</li>
+  <li><strong>BigQuery <code>APPROX_QUANTILES</code> / Druid <code>approxQuantile</code></strong> — t-digest internally, but the merge of two t-digests at query time uses a partition-search variant.</li>
+  <li><strong>Spotify recommender system</strong> — selecting the k-th most relevant item across two pre-ranked candidate pools (e.g. user-collaborative + content-based) uses the k-th-element variant in Probe 3.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0118">python_175-0118 — Merge k Sorted Lists</a> (the heap-based k-way version)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0175">python_175-0175 — Minimum Interval to Include Each Query</a> (offline sweep over sorted intervals, sibling pattern)</li>
+  <li><a href="/interview.app/design/data-modeling.html">Data modeling — sorted indexes &amp; partition strategies</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the algorithm out loud — <em>"binary-search the partition index in the shorter array, not the median value."</em> The interview is won by stating the invariant (<code>|left| = (m+n+1)//2</code>) and by handling the i=0 / i=m edge with ±inf sentinels rather than four branches of <code>if</code>. The production analogue is federated percentile aggregation in observability stacks (Datadog, Honeycomb) — the same algorithm, just over time-series shards instead of arrays.</div>

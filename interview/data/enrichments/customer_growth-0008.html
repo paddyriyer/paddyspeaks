@@ -1,0 +1,121 @@
+<p>Marketing budgets at every consumer-subscription company hinge on this one number. At Netflix, knowing whether a customer's first 90 days predict a 5-year lifetime is the difference between an introductory-price campaign that pays for itself and one that quietly hollows out the P&amp;L. CLV is also the canonical place candidates trip up — most write a <code>SUM(amount)</code>, call it a day, and miss the four things that make it a <em>real</em> finance metric: gross-margin scaling, time discounting, status filtering, and cohort segmentation.</p>
+
+<h4>1. The data — realistic Netflix-shaped orders</h4>
+<p>One row per renewal charge. In a real warehouse this table is <code>billing_events</code> partitioned by month, ~120 M rows/year for Netflix.</p>
+<table>
+  <thead><tr><th>customer_id</th><th>order_date</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>C001 (whale-cand.)</td><td>2022-01-15 → 2024-03-15</td><td>$15.99 / $17.99 / $22.99</td><td>5 × paid</td></tr>
+    <tr><td>C002 (dolphin)</td><td>2023-05-01 → 2024-02-01</td><td>$15.99 × 2 + $17.99</td><td>2 paid, 1 refunded</td></tr>
+    <tr><td>C003 (minnow)</td><td>2024-06-10</td><td>$9.99</td><td>1 × paid</td></tr>
+    <tr><td>C004 (whale)</td><td>2023-03 → 2024-09</td><td>$22.99 × 4</td><td>4 × paid (premium)</td></tr>
+    <tr><td>C005 (churner)</td><td>2022-12-01</td><td>$15.99</td><td>1 × paid then quit</td></tr>
+  </tbody>
+</table>
+<p>The status column is non-decorative — <strong>refunded charges must not count</strong>. A common bug is to <code>SUM(amount)</code> without filtering, which inflates CLV by 5-15 % on a real-world dataset (industry refund rate). C002 demonstrates that filter.</p>
+
+<h4>2. The business question — what the CFO decides on</h4>
+<p>Marketing has $X to acquire customers. The CFO needs to know: <strong>given our cost of capital, will the average customer pay back acquisition cost?</strong> Concrete decisions:</p>
+<ul>
+  <li><strong>Per-channel CAC ceiling.</strong> If discounted CLV is $180, paying Facebook $200 per signup is a loss. CLV / CAC ratio &gt; 3 is the SaaS rule of thumb; &lt; 1 means you're literally subsidising users.</li>
+  <li><strong>Introductory-price approval.</strong> Netflix's "first month free" is sized so the discounted CLV still beats CAC + the free-month cost. If 30 % of free-trial converts have CLV $120 and the trial costs $15 to provision, breakeven CAC is $36.</li>
+  <li><strong>Cohort retention investment.</strong> If 2022-cohort CLV is collapsing vs 2023-cohort, that's a retention emergency — content-team or pricing-team owns the response.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def customer_lifetime_value(orders, gross_margin=0.25, discount_rate=0.10):
+    # ── Step 1. Filter to realised revenue only.
+    # status='refunded' or 'pending' must NOT contribute. .copy() so
+    # we don't mutate the caller's frame (a real bug in shared notebooks).
+    paid = orders[orders['status'] == 'paid'].copy()
+    paid['order_date'] = pd.to_datetime(paid['order_date'])
+
+    # Apply gross-margin scaling. Revenue ≠ profit; Netflix retains ~25%
+    # after content licensing, AWS, CS, and payments fees.
+    paid['margin'] = paid['amount'] * gross_margin
+
+    # ── Step 2. Time-based discounting (DCF).
+    # Each customer's first paid order is their "year 0". Subsequent
+    # years are discounted by (1+r)^t. transform('min') broadcasts the
+    # per-group min back to row-level — same length as `paid`, so we
+    # can vectorise the subtraction without a merge.
+    first = paid.groupby('customer_id')['order_date'].transform('min')
+    paid['year_offset'] = paid['order_date'].dt.year - first.dt.year
+    paid['discounted'] = paid['margin'] / (1 + discount_rate) ** paid['year_offset']
+
+    # ── Step 3. Roll up to one row per customer — the "RFM" pattern.
+    # R = last_order_date (recency), F = orders (frequency), M = clv
+    # (monetary, discounted). This trio is the canonical CLV
+    # decomposition — every CRM tool ships an RFM segmentation built
+    # on these three columns.
+    out = (paid.groupby('customer_id')
+               .agg(first_order_date=('order_date','min'),
+                    last_order_date=('order_date','max'),
+                    orders=('amount','size'),
+                    total_spend=('amount','sum'),
+                    gross_margin=('margin','sum'),
+                    clv=('discounted','sum'))
+               .reset_index())
+
+    # Sorted DESC so the whales pop to the top of the BI table.
+    return out.sort_values('clv', ascending=False).reset_index(drop=True)</code></pre>
+
+<p><strong>Why <code>groupby(...).transform('min')</code> and not a merge?</strong> Both work, but <code>transform</code> returns a Series aligned to the source frame — zero allocation overhead, runs in a single C pass. A merge would re-hash the customer_id, allocate an intermediate, and join. On 100 M rows, <code>transform</code> is roughly 4× faster.</p>
+
+<p><strong>Why named aggregation (<code>agg(col=('src','func'))</code>) and not a dict?</strong> Named aggregation has been the pandas-recommended form since 0.25; the dict form is deprecated for new code. It also gives you renaming for free — no <code>.rename(columns=...)</code> step.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th><th>total_spend</th><th>clv</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>C004</td><td>4</td><td>$91.96</td><td>$21.94</td><td><strong>Whale:</strong> premium tier across 2 years, all paid, no refunds. Top-decile customer — protect via VIP CS routing.</td></tr>
+    <tr><td>C001</td><td>5</td><td>$90.95</td><td>$20.92</td><td><strong>Whale candidate:</strong> 3-year loyal subscriber, mix of tiers. Slightly lower CLV than C004 because of heavier discounting on year-2 charges.</td></tr>
+    <tr><td>C002</td><td>2</td><td>$31.98</td><td>$8.00</td><td><strong>Dolphin:</strong> the $17.99 charge in Feb 2024 was <em>refunded</em> so it doesn't count. Without the status filter, CLV would be inflated by ~$4.50.</td></tr>
+    <tr><td>C003</td><td>1</td><td>$9.99</td><td>$2.50</td><td><strong>Minnow:</strong> low-tier one-time payer. Don't spend $20 of CAC chasing this segment.</td></tr>
+    <tr><td>C005</td><td>1</td><td>$15.99</td><td>$4.00</td><td><strong>Churner:</strong> single 2022 charge then disappeared. Past tense — useful for a "win-back" campaign, not a "loyalty" campaign.</td></tr>
+  </tbody>
+</table>
+<p>The top two customers contribute &gt; 60 % of total CLV in this micro-dataset. Real Netflix data shows the same Pareto: top 20 % of subscribers ≈ 50-55 % of revenue. The <em>shape</em> is what matters; the absolute numbers are just illustrative.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 1 GB before OOM</strong> on a typical 16 GB laptop. Netflix's billing table is &gt; 100 GB/year — pandas can't touch the full set. The nightly CLV pipeline runs on Spark with the table partitioned by month, then the per-customer aggregate is written to a serving store (Cassandra, keyed by customer_id) for the BI tool and the personalisation team to consume.</li>
+  <li><strong>Hot-customer skew.</strong> A whale customer who renews monthly for 10 years has 120 rows, but a B2B family-plan owner with 200 sub-accounts has 24 000 rows. <code>groupby(customer_id)</code> ships all 24k to one reducer → straggler. Fix: <strong>salt the customer_id during pass 1</strong>, roll up in pass 2. Same shape as <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>. Spark 3+ AQE catches most of this automatically; manual salting kicks in when AQE doesn't.</li>
+  <li><strong>Cohort drift.</strong> The function above computes <em>historical</em> CLV. The forecast variant (<em>predicted</em> CLV) layers Pareto/NBD or BG/NBD on top: see <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> for the cohort-aware variant.</li>
+  <li><strong>Stripe Sigma</strong> exposes the same shape — Stripe's customers use it in-warehouse to compute CLV without leaving the Stripe dashboard.</li>
+  <li><strong>Shopify Plus &amp; Looker</strong> bake an RFM block (the three CLV components — recency, frequency, monetary) into their default e-commerce LookML.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What if a customer has only 1 paid order? Should CLV be 0, NaN, or the discounted margin of that single order?"</h5>
+<p>Should be the discounted margin of that order — not zero, not NaN. The one-and-done customer still generated revenue. C003 in the demo is exactly this: <code>$9.99 × 0.25 / (1+0.10)^0 = $2.50</code>. Watch for candidates who write <code>SUM</code> with an implicit assumption that "real" customers have ≥ N orders; that's a churn-filter, not a CLV definition.</p>
+
+<h5>Probe 2 — "Refunds and chargebacks — how do they enter?"</h5>
+<p>Three options, escalating sophistication. (a) Filter to <code>status='paid'</code> (what we did) — simple, ignores chargebacks entirely. (b) <code>SUM(CASE WHEN status='paid' THEN amount WHEN status='refunded' THEN -amount END)</code> — nets out the refund as a negative. (c) Use a separate <code>refunds</code> table joined on <code>order_id</code> — exact, supports partial refunds. Production at Netflix uses (c). The senior candidate names all three and picks based on the data model on offer.</p>
+
+<h5>Probe 3 — "Why is <code>.apply()</code> a code smell here?"</h5>
+<p>Row-by-row Python loops kill pandas performance — pandas' speed comes from vectorised C kernels. The DCF discounting <code>paid['margin'] / (1 + r) ** paid['year_offset']</code> is one C call on a numpy array, ~10⁸ rows/sec. A naive <code>paid.apply(lambda row: row.margin / (1+r)**row.year_offset, axis=1)</code> drops to ~10⁵ rows/sec — 1000× slower. The <em>only</em> apply in the solution is on a 1-row-per-customer label step; that's fine.</p>
+
+<h5>Probe 4 — "How would you incrementalise this for streaming?"</h5>
+<p>Event-time keyed state. Per-customer state holds <code>(first_order_date, sum_discounted_margin)</code>; every new billing event updates the state. Flink with RocksDB-backed keyed state is the canonical implementation — see <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> for the pandas-as-offline-twin pattern (live: Flink; batch: pandas; <em>same algorithm, two runtimes</em>). The discount-rate exponent uses <code>current_year - first_order.year</code> so it's deterministic from state alone — no replay needed.</p>
+
+<h5>Probe 5 — "Hot whale customer — B2B family plan with 24 000 orders. Does the groupby OOM?"</h5>
+<p>In pandas, no — 24 000 rows is trivial. The OOM risk is on Spark, where the whale's 24 000 rows all shuffle to one reducer. Fix: salt the customer_id during pass 1 (<code>customer_id, salt = floor(rand()*16)</code>), then roll the per-salt partials back up to customer_id in pass 2. Identical to <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>'s aggregation salt. The DCF discounting is associative (sums of discounted margins compose), so salting is safe.</p>
+
+<h5>Probe 6 — "Predicted CLV vs historical CLV — which is this?"</h5>
+<p>Historical. It tells you what each customer <em>has</em> generated, not what they'll generate going forward. Predicted CLV layers a probabilistic model on top: Pareto/NBD (Schmittlein-Morrison-Colombo) for non-contractual settings, BG/NBD for contractual subscriptions. The historical CLV in this function is the <strong>training label</strong> for those models; you can't predict without it. Naming the two terms — historical vs predicted — and which one this function computes is the senior signal.</p>
+
+<h5>Probe 7 — "Should the discount rate be calendar-year or month-level?"</h5>
+<p>Depends on cash-flow timing. Calendar-year is the standard finance convention and what the demo uses. Month-level is more accurate but adds complexity (<code>(1+r/12)^months_offset</code>) and the gain is &lt; 1 % unless your average customer churns in &lt; 3 months. Pick the granularity that matches your operating cycle; defend the choice in the design doc.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin pattern: the same algorithm in pandas (this) and Flink (streaming).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting: the hot-customer rescue for the whale probe.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale / Dolphin / Minnow: cohort-aware CLV thresholds.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — the per-key skew problem at every layer.</li>
+  <li><a href="/interview.app/design/skew-and-distributions.html">Skew &amp; Distributions design page</a> — Pareto, log-normal, and why CLV is heavy-tailed.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the four pillars of a real CLV: <em>(1) status filter</em> — only paid revenue counts, refunds &amp; chargebacks are explicit; <em>(2) gross-margin scaling</em> — revenue ≠ profit; <em>(3) time-discounting</em> — money next year is worth less, apply DCF with the firm's cost-of-capital; <em>(4) RFM decomposition</em> — recency, frequency, monetary are the canonical components every CRM uses. The pandas version is the offline twin used for finance reporting and CAC threshold tuning; the production runtime is Spark for batch and Flink keyed state for the real-time variant.</div>

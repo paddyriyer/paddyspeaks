@@ -1,0 +1,89 @@
+<p>Sliding Window Maximum is the canonical monotonic-deque problem and it earns its place in every L5 loop because the obvious solution — O(n·k) — looks fast enough until you remember that real trading and gaming workloads run with k in the hundreds of thousands. The trick is a monotonic-decreasing deque of indices that lets each element enter and leave the structure exactly once: O(n) amortised. This is the algorithm a high-frequency trading engine uses for "max bid in the last N quotes," a gaming leaderboard uses for "top score in the last N events," and a network monitoring system uses for "peak bandwidth in the last 60 seconds."</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given an integer array <code>nums</code> and a window size <code>k</code>, return an array whose i-th element is the max of <code>nums[i:i+k]</code>. The naive nested-loop solution is O(n·k); for n=10⁵ and k=10⁴ that's 10⁹ operations — over a second of CPU even in pure C. The constraint that rules it out is O(n) amortised time and O(k) space. The trick is a monotonic-decreasing deque of indices; the deque tail is "the strongest contender that hasn't been beaten yet"; the deque head is "the current window's max."</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>nums = <code>[1, 3, -1, -3, 5, 3, 6, 7]</code>, k = 3. The deque always stores indices, never values. Values are in <em>strictly decreasing</em> order from front to back. The front index is always inside the current window [i-k+1, i].</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+i  nums[i]  before        action                          after         emit
+─────────────────────────────────────────────────────────────────────────────
+0  1        []            push 0                          [0]           — (warm)
+1  3        [0]           nums[0]=1 &lt;= 3, pop; push 1     [1]           — (warm)
+2 -1        [1]           push 2 (no pops, -1 &lt; 3)        [1, 2]        nums[1]=3
+3 -3        [1, 2]        head 1 still in window;
+                          push 3 (-3 &lt; -1)                [1, 2, 3]     nums[1]=3
+4  5        [1,2,3]       pop tails 3,2,1 (all &lt; 5);
+                          push 4                          [4]           nums[4]=5
+5  3        [4]           push 5 (3 &lt; 5)                  [4, 5]        nums[4]=5
+6  6        [4, 5]        pop tails 5,4 (both &lt; 6);
+                          push 6                          [6]           nums[6]=6
+7  7        [6]           pop tail 6 (6 &lt; 7); push 7      [7]           nums[7]=7
+
+answer: [3, 3, 5, 5, 6, 7]
+</pre>
+<p>The deque after each step is monotonic-decreasing: <code>[4]→[4,5]→[6]→[7]</code>. The head is always the current window's max. When the head slides out of the window on the left (i - dq[0] &ge; k), we popleft. When a new element is bigger than the tail, we pop the tail — that index can never be the answer for any future window because the new index has a larger value AND is more recent.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>from collections import deque
+
+def maxSlidingWindow(nums, k):
+    dq, out = deque(), []                    # dq holds INDICES, not values
+    for i, n in enumerate(nums):
+        # (1) Maintain monotonicity: pop tail indices whose value is &lt; n.
+        # They can never be the answer for any future window because n is
+        # both LARGER and MORE RECENT.
+        while dq and nums[dq[-1]] &lt; n:
+            dq.pop()
+        dq.append(i)
+        # (2) Maintain window invariant: drop the head if it just slid out.
+        # Note: only one head can be out per step (we add exactly one index).
+        if dq[0] &lt;= i - k:
+            dq.popleft()
+        # (3) After the first k-1 warm-up steps, emit the current max.
+        if i &gt;= k - 1:
+            out.append(nums[dq[0]])
+    return out
+</code></pre>
+<p>Two non-obvious things to call out. (1) The deque stores <strong>indices</strong>, not values — without indices you can't tell whether the head has slid out of the window. (2) The tail-pop uses strict <code>&lt;</code> rather than <code>&le;</code> — equal values are kept (both are valid maxes; popping one would just delay the inevitable but not affect correctness; we use <code>&lt;</code> to keep the deque smaller).</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(n) amortised. Each index is pushed onto the deque exactly once (in the <code>for</code> loop) and popped at most once (either by the tail-pop in step 1 or the head-pop in step 2). Total work across the whole sweep is bounded by 2n. <strong>Space:</strong> O(k) — the deque can hold at most k indices (anything older than k would have been popped from the head). <em>The trick that gets you there</em>: the monotonic-decreasing invariant lets each element be "eliminated" by either a larger newer value or by sliding out the window — both are at-most-once events.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>k = 1</strong> — every element is its own window's max; the output is a copy of nums. The deque churns one element per step.</li>
+  <li><strong>k = n</strong> — single window covering the whole array; the output is a one-element list containing max(nums).</li>
+  <li><strong>nums strictly increasing</strong> — every step pops the tail and pushes the new index. The deque is always size 1; the answer is nums[k-1:].</li>
+  <li><strong>nums strictly decreasing</strong> — no tail pops ever; the deque grows to size k, then the head pops on each new element. The head is always the leftmost (largest).</li>
+  <li><strong>Equal values</strong> — strict <code>&lt;</code> in the tail-pop keeps both. Output is correct either way; choice is about deque size.</li>
+  <li><strong>Sliding-window min</strong> — flip the comparison (<code>&gt;</code> instead of <code>&lt;</code>). The deque becomes monotonic-increasing. Same complexity.</li>
+  <li><strong>Streaming variant (nums arrives one at a time, k fixed)</strong> — the algorithm is already streaming-friendly. Each <code>addNum</code> is O(1) amortised; the current max is <code>nums[dq[0]]</code>. This is exactly the production form.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>HFT / market data — Jane Street, IMC, Hudson River Trading</h5>
+<p>"Max bid in the last 1000 ticks" is a microstructure signal that drives stop-loss adjustment and adverse-selection detection. The sliding-window max (with a circular-buffer-backed deque rather than a Python deque, for cache-line efficiency) runs in the per-symbol kernel at sub-microsecond latency. The classic open-source reference is the <code>tick_cache</code> in Lucid Inc.'s FPGA trading platform.</p>
+
+<h5>Gaming leaderboards — Riot Games, Blizzard, Epic</h5>
+<p>"Top score in the last N events" / "highest combo in the last 10 seconds" — gaming telemetry uses this to compute streak bonuses without re-scanning. Riot's <em>Valorant</em> kill-streak detector and Epic's <em>Fortnite</em> challenge tracker both use a monotonic-deque-backed rolling-max.</p>
+
+<h5>Network monitoring — Cloudflare, Datadog, AWS CloudWatch</h5>
+<p>"Peak bandwidth in the last 60 seconds" is rendered on every NOC dashboard. Naive: store 60 per-second buckets and re-scan. Production: a monotonic deque of (timestamp, value) where the head expires when it slides past now-60s. Cloudflare's edge metrics aggregator uses this for per-zone bandwidth peaks; Datadog's agent ships a rolling-max accumulator for the same reason.</p>
+
+<h5>Real-time anomaly detection — Splunk, Sumo Logic</h5>
+<p>"Max error-rate in the last 5 minutes" is the trigger for a P1 alert. Computing it via repeated SQL <code>MAX(...) OVER (PARTITION BY window)</code> is fine for ad-hoc queries but too expensive at alert-evaluation cadence (once per 10s). The streaming form runs in the agent.</p>
+
+<h5>CV — temporal max-pool in video processing</h5>
+<p>Sliding-window-max over a 1D time signal is the building block for temporal max-pooling in video CNNs. Frameworks (PyTorch, TensorFlow) ship a vectorised CUDA kernel for it; the underlying algorithm is the same monotonic deque.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0060">python_175-0060</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0005">python_175-0005 — Median from Data Stream</a> — same "streaming statistic with O(1) read" pattern but using two heaps instead of a deque; max is cheap, median needs the two-heap split.</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0066">python_175-0066 — Largest Rectangle In Histogram</a> — same monotonic-stack trick applied to a different problem; the stack is increasing instead of decreasing.</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0059">python_175-0059 — Minimum Window Substring</a> — same two-pointer sliding-window pattern but with feasibility tracking instead of max tracking.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Three phrases. <em>"The deque holds indices, not values, so I can detect when the head slides out of the window."</em> <em>"Each index is pushed once and popped at most once, so it's O(n) amortised even though the worst-case per-step is O(k)."</em> <em>"Same monotonic-deque pattern shows up in HFT for max-bid-in-last-N-quotes and in Cloudflare's bandwidth peaks."</em> Interviewers care most about the amortised argument — if you can articulate why the inner <code>while</code> loop doesn't blow up the overall complexity, you've signalled L5.</div>
