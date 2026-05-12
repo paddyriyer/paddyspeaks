@@ -6,9 +6,9 @@
    - localStorage persistence with version-keyed migrations
    ═══════════════════════════════════════════ */
 
-const ENGINE_VERSION = 2;
+const ENGINE_VERSION = 3;
 const STORAGE_PREFIX = "paddyspeaks.skillcheck.";
-const DEFAULT_QUIZ_LENGTH = 15;
+const DEFAULT_QUIZ_LENGTH = 20;
 
 const SECTIONS = {
   sql:    { slug: "sql",    label: "SQL",            file: "./data/sql.json" },
