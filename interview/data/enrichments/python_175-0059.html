@@ -1,0 +1,104 @@
+<p>Minimum Window Substring is the canonical "expand-then-contract" sliding-window problem, and it's in the L5 interview rotation because it tests three things at once: (1) can you reason about a sliding window whose two endpoints move at different rates, (2) can you turn a multi-character feasibility check into an O(1) per-step counter, and (3) can you cleanly handle duplicates in the target string. The same pattern is what runs inside Elasticsearch's <code>match_phrase</code> with <code>slop</code> (find the smallest text span that contains every query term), Bloomberg's news-feed term-cluster search, and every "find the shortest snippet containing all these highlights" feature in document viewers.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Given strings <code>s</code> and <code>t</code>, return the minimum-length substring of <code>s</code> that contains every character of <code>t</code> including duplicates (or the empty string if no such substring exists). The naive approach — enumerate every (l, r) pair and Counter-check feasibility — is O(n²·|t|) and times out on the LeetCode hidden tests around n = 10⁵. The constraint that rules it out: each character must be visited a constant number of times across the whole sweep. The trick is a two-pointer sliding window where both pointers only advance, and a "satisfied distinct-character count" makes feasibility O(1).</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>s = <code>"ADOBECODEBANC"</code>, t = <code>"ABC"</code>. need = {A:1, B:1, C:1}, need_cnt = 3.</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+i  s[i]  l   window           have                feasible?   action
+─────────────────────────────────────────────────────────────────────────────
+0  A     0   "A"              {A:1}               1 of 3      expand
+1  D     0   "AD"             {A:1,D:1}           1 of 3      expand
+2  O     0   "ADO"            {A:1,D:1,O:1}       1 of 3      expand
+3  B     0   "ADOB"           {A:1,D:1,O:1,B:1}   2 of 3      expand
+4  E     0   "ADOBE"          {... E:1}           2 of 3      expand
+5  C     0   "ADOBEC"         {... C:1}           3 of 3   ✓  RECORD len=6, contract
+            "DOBEC"           {A:0,...,C:1}       2 of 3      expand (A dropped below need)
+6  O     1   "DOBECO"                             2 of 3      expand
+7  D     1   "DOBECOD"                            2 of 3      expand
+8  E     1   "DOBECODE"                           2 of 3      expand
+9  B     1   "DOBECODEB"                          2 of 3      expand
+10 A     1   "DOBECODEBA"                         3 of 3   ✓  RECORD? len=10 &gt;6 skip
+           "OBECODEBA"        {D dropped...}      3 of 3      contract more
+           "BECODEBA"                             3 of 3      contract more
+           "ECODEBA"          {B at 1=need}       3 of 3      contract more
+           "CODEBA"           {E dropped, C ok}   3 of 3      contract more
+           "ODEBA"            {C dropped}         2 of 3      expand
+11 N     5   "ODEBAN"                             2 of 3      expand
+12 C     5   "ODEBANC"                            3 of 3   ✓  RECORD? len=7 &gt;6 skip
+           "DEBANC"                               3 of 3      contract
+           "EBANC"                                3 of 3      contract
+           "BANC"             {l=9, r=12}         3 of 3   ✓  RECORD len=4 &lt;6 WIN
+           "ANC"              {B dropped}         2 of 3      expand
+end                                                            return "BANC"
+</pre>
+<p>Two invariants make this cheap: <strong>(a)</strong> we never re-examine a character — <code>l</code> and <code>r</code> only move forward; <strong>(b)</strong> the <code>have_cnt</code> counter tracks how many <em>distinct required characters</em> are at-or-above their required count, which is what feasibility means. A full <code>Counter == Counter</code> comparison every step would be O(26) — fine for ASCII but the principle scales: keep aggregate state, don't recompute it.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>from collections import Counter
+
+def minWindow(s, t):
+    if not s or not t: return ""
+    need = Counter(t)         # target multiset
+    have = {}                 # window's current multiset
+    have_cnt, need_cnt = 0, len(need)
+    res, res_len = [-1, -1], float('inf')
+    l = 0
+    for r, c in enumerate(s):                # expand pointer
+        have[c] = have.get(c, 0) + 1
+        # A required char just hit its required count for the first time.
+        # Only the EQUALITY moment increments have_cnt -- subsequent surplus doesn't.
+        if c in need and have[c] == need[c]:
+            have_cnt += 1
+        while have_cnt == need_cnt:          # feasible -> try to shrink
+            if r - l + 1 &lt; res_len:
+                res, res_len = [l, r], r - l + 1
+            have[s[l]] -= 1
+            # Dropping STRICTLY below required count breaks feasibility.
+            if s[l] in need and have[s[l]] &lt; need[s[l]]:
+                have_cnt -= 1
+            l += 1                            # contract pointer
+    return s[res[0]:res[1] + 1] if res_len &lt; float('inf') else ""
+</code></pre>
+<p>The crucial detail is the EQUALITY check on the increment, versus the STRICT-LESS-THAN check on the decrement. If the target needs <code>B:2</code> and the window has <code>B:3</code>, dropping one B keeps the window feasible — <code>have[s[l]] -= 1</code> brings it to 2, which is <em>not</em> less than 2, so <code>have_cnt</code> stays. Get this asymmetry wrong and you'll either over-count satisfied chars (returning windows that aren't feasible) or under-count (skipping windows that are).</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(|s| + |t|). Each character of <code>s</code> is added to the window exactly once (by the <code>for</code> loop) and removed at most once (by the <code>while</code> loop). The <code>t</code> work is the initial Counter build. <strong>Space:</strong> O(|alphabet|) for the two counters; constant for ASCII, O(|t|) for arbitrary inputs. <em>The trick that gets you there</em>: a single integer <code>have_cnt</code> replaces an O(26) Counter-comparison every step, and the asymmetric equality/inequality check is what keeps the increment-decrement balanced under duplicates.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>t is longer than s</strong> — return "". The <code>have_cnt == need_cnt</code> condition will never trigger; the function falls through.</li>
+  <li><strong>t has duplicates</strong> (e.g., t="aab") — the equality/inequality asymmetry above is what handles this. A window must contain at least 2 a's to be feasible. Junior implementations using a <code>set</code>(t) instead of <code>Counter</code>(t) fail this case.</li>
+  <li><strong>s and t share no characters</strong> — return "". <code>have_cnt</code> stays 0 forever; the contract loop never runs.</li>
+  <li><strong>The smallest window is at the very end</strong> — the worked example above. The contract loop must run on each feasible state, not just on the first one.</li>
+  <li><strong>s == t</strong> — return s. The window grows to full length, becomes feasible, shrinks to length |t| = |s|, and exits.</li>
+  <li><strong>Tied minimum windows (multiple windows of the same minimum length)</strong> — the algorithm returns the leftmost. The strict-less-than <code>r - l + 1 &lt; res_len</code> is the tiebreaker. Some interviewers ask for the rightmost — change to <code>&le;</code>.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>Elasticsearch / OpenSearch — <code>match_phrase</code> with <code>slop</code></h5>
+<p>Elasticsearch's <code>span_near</code> query (which backs <code>match_phrase</code>) finds the smallest text span containing all required terms within a slop distance. The underlying Lucene <code>SpanScorer</code> uses a multi-pointer sliding window that is structurally identical to this algorithm — expand pointers until all terms are present, contract from the trailing pointer to minimise span length. Bloomberg's BQuery internal search uses the same primitive for "find me the smallest news-article snippet mentioning all three of {Tesla, earnings, Q3}."</p>
+
+<h5>Document viewers — Adobe Acrobat, Google Docs "snippet" highlights</h5>
+<p>When you search a long PDF for multiple terms, the snippet shown above each result is the minimum window containing all of them. Adobe's <code>PDXSearchHighlight</code> and Google Docs' search-bar highlights both apply this algorithm character-stream-style on the indexed text.</p>
+
+<h5>NLP / RAG retrieval — Anthropic, OpenAI embeddings, LangChain</h5>
+<p>"Span extraction" — given a long document and a set of required keywords, return the shortest contiguous span containing all of them — is a baseline step in retrieval-augmented generation. The minimum-window algorithm is the deterministic fallback when semantic embeddings can't isolate the relevant span. LangChain's <code>parent_document_retriever</code> uses a length-bounded variant.</p>
+
+<h5>Log forensics — Splunk, Datadog Logs, Sumo Logic</h5>
+<p>"Find the smallest timestamp range where all of these events fired" — log forensics uses this primitive to bound an incident. Splunk's <code>transaction</code> command with multiple <code>startswith</code>/<code>endswith</code> patterns is a generalisation: minimum-window over event types instead of characters.</p>
+
+<h5>Genomics — short-read alignment</h5>
+<p>BWA and Bowtie2 use a sliding-window-with-feasibility-check during seed-and-extend alignment. The exact algorithm differs (uses an FM-index for the inner check) but the outer loop is structurally a min-window-with-must-include-all-seeds.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0059">python_175-0059</a> — this question</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0060">python_175-0060 — Sliding Window Maximum</a> — same two-pointer expand/contract pattern but the "interesting summary" is the window's max instead of its content-feasibility; uses a monotonic deque instead of a Counter.</li>
+  <li>Sister: <strong>Longest Substring Without Repeating Characters</strong> (LeetCode 3) — same two-pointer pattern with a <code>set</code> instead of a counter; the simpler precursor.</li>
+  <li>Sister: <strong>Substring with Concatenation of All Words</strong> (LeetCode 30) — minimum window's harder cousin where the alphabet is whole words rather than characters.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Two phrases unlock the interview: <em>"each pointer crosses s exactly once, so it's O(|s| + |t|)"</em> and <em>"the equality-on-increment vs strict-less-than-on-decrement asymmetry is what handles duplicates in t."</em> The trap juniors fall into is comparing full Counter dicts every step (O(26) hidden constant) — say out loud that you're keeping a single integer for the satisfied-distinct-char count and you've signalled you understand amortised analysis. Mention Elasticsearch's <code>span_near</code> as the production reference and you've closed the loop.</div>

@@ -1,0 +1,105 @@
+<p>Trie-pruned DFS. The same shape as autocomplete-on-a-grid, OCR word-matching with a fixed lexicon, and mobile keyboard suggestion. The naive approach — for each word, DFS the board — is O(W × m·n·4^L). The trie inverts that: walk the board ONCE, and the trie tells you which board path is still a viable prefix of ANY word. Atlassian asks this version because their Confluence search-as-you-type uses an in-memory trie of project terms to prune the candidate scan over a document's bigram grid. Same algorithm; same trie; just the substrate (grid vs document) differs.</p>
+
+<h4>1. The problem in one sentence + the key insight</h4>
+<p>Given an m×n board of letters and a list of words, return every word that can be spelled by walking adjacent cells (no cell reuse within a single word). <strong>Insight:</strong> build a trie of the wordlist. DFS each starting cell once, descending both the board AND the trie in lockstep. If the current board letter is not a child of the current trie node, the DFS is pruned — every word in the wordlist that would have used this prefix is eliminated by one comparison. Mark visited cells in-place with a sentinel (<code>'*'</code>) and restore on backtrack to avoid a separate <code>seen</code> set per DFS frame.</p>
+
+<h4>2. Worked example — 2×3 board, trie-pruned DFS</h4>
+<p>Board: <code>[['c','a','t'], ['d','o','g']]</code>. Words: <code>['cat', 'cad', 'cog', 'dog']</code>.</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Step 1 — Build the trie:
+
+  root
+   ├── 'c'
+   │    └── 'a'
+   │         ├── 't' (#='cat')
+   │         └── 'd' (#='cad')
+   │    └── 'o'
+   │         └── 'g' (#='cog')
+   └── 'd'
+        └── 'o'
+             └── 'g' (#='dog')
+
+Step 2 — DFS from cell (0,0)='c':
+  trie['c'] exists -> descend; mark board[0][0]='*'
+    neighbour (0,1)='a': trie['c']['a'] exists -> descend; mark board[0][1]='*'
+      neighbour (0,2)='t': trie[..]['t'] exists, '#' present -> FOUND 'cat'
+                            continue DFS, no further children -> return
+      neighbour (1,1)='o': trie[..]['o'] does NOT exist (only 't','d' under 'a')
+                            -> PRUNED (one comparison saved a whole subtree)
+      restore (0,1)='a', return
+    neighbour (1,0)='d': trie['c']['d'] does NOT exist -> PRUNED
+    restore (0,0)='c', return
+
+Step 3 — DFS from cell (0,2)='t':
+  trie['t'] does NOT exist -> PRUNED in one step
+
+Step 4 — DFS from cell (1,0)='d':
+  trie['d'] exists -> descend; mark board[1][0]='*'
+    neighbour (0,0)='c': trie['d']['c'] does NOT exist -> PRUNED
+    neighbour (1,1)='o': trie['d']['o'] exists -> descend
+      neighbour (0,1)='a': trie[..]['a'] does NOT exist -> PRUNED
+      neighbour (1,2)='g': trie[..]['g'] exists, '#' present -> FOUND 'dog'
+
+Result: {'cat', 'dog'}.  'cad' and 'cog' were valid trie paths
+but the BOARD didn't support them.
+</pre>
+<p>The key win: cell (0,2)='t' as a starting cell is pruned in one trie lookup — without the trie we'd have launched a full 4-direction DFS from it. With a 30-word dictionary, this prune saves ~95% of the work.</p>
+
+<h4>3. The algorithm — code with inline comments</h4>
+<pre><code>def findWords(board, words):
+    # Build trie. Use plain dict; sentinel '#' stores the full word at end-nodes
+    # so we don't have to re-stringify the path.
+    root = {}
+    for w in words:
+        n = root
+        for c in w: n = n.setdefault(c, {})
+        n['#'] = w
+
+    R, C = len(board), len(board[0])
+    found = set()          # set, not list: same word reachable many ways = one hit
+
+    def dfs(r, c, n):
+        ch = board[r][c]
+        if ch not in n: return         # trie prune — the heart of the optimisation
+        n = n[ch]
+        if '#' in n: found.add(n['#']) # word complete, but keep DFSing for longer hits
+        board[r][c] = '*'              # in-place visited mark (saves a set per frame)
+        for dr, dc in [(1,0),(-1,0),(0,1),(0,-1)]:
+            nr, nc = r+dr, c+dc
+            if 0 &lt;= nr &lt; R and 0 &lt;= nc &lt; C: dfs(nr, nc, n)
+        board[r][c] = ch               # backtrack restore
+
+    for r in range(R):
+        for c in range(C): dfs(r, c, root)
+    return list(found)
+</code></pre>
+<p><strong>Data structures:</strong> a nested-dict trie (no third-party Trie class needed) and a <code>set</code> for deduplicated hits. <strong>Invariant:</strong> at every DFS frame, <code>n</code> is the trie node corresponding to the prefix already laid down on the board path; the board cells on the path are temporarily <code>'*'</code> and will be restored on return.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Preprocessing:</strong> O(W · L) where W = number of words and L = max word length — building the trie. <strong>Search:</strong> O(m · n · 4 · 3^(L-1)) — every starting cell launches a DFS bounded by the longest word; each step has 4 neighbours but one is the cell you just came from (so effectively 3 onward branches). <strong>Space:</strong> O(W · L) for the trie + O(L) recursion depth. The trie prune is what keeps the search exponent in L, not in the total word count.</p>
+
+<h4>5. The interviewer's probes</h4>
+<p><strong>Probe 1 — Empty board / empty wordlist.</strong> Empty wordlist → trie has just <code>root = {}</code>, the very first <code>ch not in n</code> check prunes immediately, return <code>[]</code>. Empty board → never enters the loop, return <code>[]</code>. The algorithm handles both with no special casing.</p>
+<p><strong>Probe 2 — Word longer than board area.</strong> The DFS naturally bottoms out because all neighbouring cells will be marked <code>'*'</code> before the word can complete. No explicit check needed; this is one of the elegance points.</p>
+<p><strong>Probe 3 — Generalise: can cells be reused?</strong> If yes (sometimes called "Word Search III" or "Boggle Plus"), drop the <code>'*'</code> marking and add a per-DFS-frame counter to bound recursion. Different complexity: now exponential without bound, must impose max word length.</p>
+<p><strong>Probe 4 — Performance trap: dead trie branches.</strong> After a word is found, that trie leaf is never pruned, so the DFS keeps walking it on every later traversal. Senior optimisation: <em>delete the '#' entry after first hit AND prune empty trie branches on the way back up the recursion</em>. For a 30k-word dictionary on a 12×12 board, this cuts runtime ~3×.</p>
+<p><strong>Probe 5 — Alternative algorithm: per-word DFS.</strong> For each word, DFS the board looking for that exact string. O(W · m · n · 4^L) — strictly worse than the trie approach for any W > 1. Useful to mention as the "obvious" baseline.</p>
+<p><strong>Probe 6 — Concurrent: parallelise across starting cells.</strong> Each starting cell's DFS is independent (after the in-place '*' marker is changed to per-thread <code>visited</code> sets). Embarrassingly parallel — m·n workers, each O(3^L). Used in real OCR scan workers.</p>
+
+<h4>6. Where this pattern appears in production</h4>
+<ul>
+  <li><strong>Mobile keyboard autocomplete (Apple, SwiftKey, Gboard)</strong> — the keyboard maintains a trie of likely words and walks both the touch-event sequence AND the trie to suggest completions; same prune logic.</li>
+  <li><strong>Google Vision OCR / Tesseract</strong> — character recognition emits a lattice of candidate characters per position; a trie of valid dictionary words is walked over the lattice to pick the most likely word path.</li>
+  <li><strong>Atlassian Confluence search-as-you-type</strong> — trie of project terms applied to bigram tiling of the current document; results filtered live as keystrokes arrive.</li>
+  <li><strong>Aho-Corasick automaton (grep, fail2ban, network IDS)</strong> — generalisation of trie DFS to multi-pattern string matching with failure links; same idea, no grid.</li>
+  <li><strong>Crossword / Scrabble solver (Words With Friends server)</strong> — the board is the grid, the trie is the SCRABBLE dictionary (TWL or SOWPODS), and the algorithm is identical with the addition of letter-rack constraints.</li>
+</ul>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0145">python_175-0145 — N-Queens</a> (sibling: backtracking with conflict sets)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0162">python_175-0162 — Swim in Rising Water</a> (sibling: grid DFS / BFS variant)</li>
+  <li><a href="/interview.app/python.html?q=python_175-0163">python_175-0163 — Alien Dictionary</a> (sibling: lexicon-driven traversal, but on a graph not a grid)</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the optimisation out loud — <em>"trie-pruned DFS: walk the board once, descend the trie in lockstep, prune whole subtrees with one dict lookup."</em> Then name the two micro-optimisations: in-place <code>'*'</code> marking (saves a per-frame visited set) and trie-leaf pruning after a hit (saves dead branch traversal). Production analogue: mobile keyboard autocomplete, OCR lattice walking, and Aho-Corasick multi-pattern matching — every fast string-set-over-stream problem is a trie walk in disguise.</div>

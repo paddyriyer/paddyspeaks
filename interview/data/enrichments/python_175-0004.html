@@ -1,0 +1,114 @@
+<p>LFU is the eviction policy that wins when the workload has long-lived hot keys and a noisy cold tail. Redis 4.0+ ships it as <code>maxmemory-policy allkeys-lfu</code> precisely for this case — a session-store hot user gets pinned in RAM while one-off scrapers are flushed out. Cloudflare and Fastly use the same policy inside their CDN edge caches so the most-requested objects stay resident even when a low-traffic crawler hits a million distinct URLs in a minute. The reason it appears in every L5 interview loop: the naive implementation is O(n) per put (scan all keys for the lowest frequency) — getting both <code>get</code> and <code>put</code> to O(1) requires a non-obvious dual-index data structure, and that's the senior signal the interviewer is probing for.</p>
+
+<h4>1. The problem in a sentence</h4>
+<p>Build a fixed-capacity cache where <code>get(key)</code> returns the value (and counts as a hit), <code>put(key, value)</code> inserts or overwrites, and on overflow we evict the <em>least-frequently used</em> key — breaking ties by least-recently used within that frequency. The constraint that rules out the obvious approach: both <code>get</code> and <code>put</code> must be O(1), independent of cache size. That kills any "linear scan for the min-frequency key" implementation the moment your cache holds more than a few thousand entries.</p>
+
+<h4>2. Worked example with the seeded data</h4>
+<p>Capacity-3 cache, the operation trace from the seeded demo:</p>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+op            state after                       min_freq  freq_to_keys
+─────────────────────────────────────────────────────────────────────
+put(1,A)      {1@1}                              1        {1:[1]}
+put(2,B)      {1@1, 2@1}                         1        {1:[1,2]}
+put(3,C)      {1@1, 2@1, 3@1}     [FULL]         1        {1:[1,2,3]}
+get(1)→A      {1@2, 2@1, 3@1}                    1        {1:[2,3],   2:[1]}
+get(1)→A      {1@3, 2@1, 3@1}                    1        {1:[2,3],   3:[1]}
+get(2)→B      {1@3, 2@2, 3@1}                    1        {1:[3], 2:[2], 3:[1]}
+put(4,D)      {1@3, 2@2, 4@1}     evict 3        1        {1:[4], 2:[2], 3:[1]}
+                                  (min_freq=1 LRU)
+get(3)→ −1    (key 3 is gone)
+get(4)→D      {1@3, 2@2, 4@2}                    2        {2:[2,4], 3:[1]}
+                                  (min_freq advances:
+                                   freq=1 bucket emptied)
+put(5,E)      {1@3, 4@2, 5@1}     evict 2        1        {1:[5], 2:[4], 3:[1]}
+                                  (min_freq=2 LRU = 2)
+get(4)→D      {1@3, 4@3, 5@1}                    1        {1:[5], 3:[1,4]}
+get(5)→E      {1@3, 4@3, 5@2}                    2        {2:[5], 3:[1,4]}
+</pre>
+<p>The two crucial transitions to read carefully: (1) the <code>put(4)</code> eviction — <code>min_freq</code> was 1 and the LRU within freq-1 was key 3, so 3 dies; (2) the <code>get(4)</code> right after — that bumps 4 from 1→2, the freq-1 bucket goes empty, and <code>min_freq</code> advances to 2. <strong>This advance is the entire trick.</strong> Without that pointer maintenance, finding the next eviction candidate would require scanning every frequency.</p>
+
+<h4>3. The algorithm — naming the data structure</h4>
+<pre><code>from collections import defaultdict, OrderedDict
+
+class LFUCache:
+    def __init__(self, capacity):
+        self.cap = capacity
+        self.min_freq = 0                         # pointer to smallest live freq
+        self.key_to_val  = {}                     # primary store: key -> value
+        self.key_to_freq = {}                     # secondary index: key -> freq
+        self.freq_to_keys = defaultdict(OrderedDict)
+        # ^ tertiary index: freq -> insertion-ordered keys at that freq.
+        #   OrderedDict gives O(1) move-to-back AND O(1) pop-from-front,
+        #   which is what implements the LRU tie-break within a frequency.
+
+    def _bump(self, key):
+        # Promote key from freq f to freq f+1.
+        f = self.key_to_freq[key]
+        del self.freq_to_keys[f][key]
+        if not self.freq_to_keys[f]:              # bucket emptied
+            del self.freq_to_keys[f]
+            if self.min_freq == f:                # we just emptied the min bucket
+                self.min_freq += 1                # advance the pointer
+        self.key_to_freq[key] = f + 1
+        self.freq_to_keys[f + 1][key] = None      # appended at back (most-recent at freq f+1)
+
+    def get(self, key):
+        if key not in self.key_to_val: return -1
+        self._bump(key)                           # a hit counts as a use
+        return self.key_to_val[key]
+
+    def put(self, key, value):
+        if self.cap &lt;= 0: return
+        if key in self.key_to_val:                # overwrite path
+            self.key_to_val[key] = value
+            self._bump(key)
+            return
+        if len(self.key_to_val) &gt;= self.cap:      # eviction path
+            evict, _ = self.freq_to_keys[self.min_freq].popitem(last=False)
+            del self.key_to_val[evict]; del self.key_to_freq[evict]
+        self.key_to_val[key]  = value             # insert path
+        self.key_to_freq[key] = 1
+        self.freq_to_keys[1][key] = None
+        self.min_freq = 1                         # new key always resets the pointer
+</code></pre>
+<p>Three indexes maintained in lockstep: <strong>key→value</strong> is the cache itself; <strong>key→freq</strong> lets us look up "what bucket is this key in" in O(1); <strong>freq→OrderedDict[key]</strong> gives us both "all keys at freq f" and "LRU within freq f" in O(1). The <code>min_freq</code> pointer is the glue — without it, eviction would require iterating <code>freq_to_keys.keys()</code> to find the smallest, which Python's dict doesn't sort.</p>
+
+<h4>4. Complexity</h4>
+<p><strong>Time:</strong> O(1) amortised for both <code>get</code> and <code>put</code>. Each operation does a constant number of dict lookups, one <code>OrderedDict</code> move (which is O(1) thanks to the underlying doubly-linked list), and at most one increment of <code>min_freq</code>. <strong>Space:</strong> O(capacity) — each live key has exactly one entry in each of the three indexes; the <code>freq_to_keys</code> dict holds at most <em>capacity</em> distinct frequencies. The <em>"trick that gets you there"</em> is the <code>min_freq</code> pointer: it converts an "find argmin over all frequencies" operation into a single integer increment, but only because new keys always reset it to 1 and <code>_bump</code> can only advance it when its own bucket empties.</p>
+
+<h4>5. The interviewer's edge-case probes</h4>
+<ul>
+  <li><strong>capacity = 0</strong> — every <code>put</code> is a no-op, every <code>get</code> returns -1. The <code>if self.cap &lt;= 0: return</code> guard is non-negotiable; without it, the eviction path will <code>KeyError</code> on the empty <code>freq_to_keys[self.min_freq]</code>.</li>
+  <li><strong>Tie-break when two keys share the same freq</strong> — LRU within the bucket. The <code>OrderedDict</code> preserves insertion order; <code>popitem(last=False)</code> pops the front (oldest). When <code>_bump</code> reinserts at freq f+1, it goes to the back (newest at that freq).</li>
+  <li><strong><code>put</code> on a full cache where the key already exists</strong> — must NOT evict. This is the trap: a junior implementation checks "len &gt;= cap" before checking "key in cache" and evicts a different key on every overwrite. The order matters: existence-check first, evict-on-overflow second.</li>
+  <li><strong>get on a non-existent key</strong> — must NOT bump anything. Return -1 immediately.</li>
+  <li><strong><code>min_freq</code> after eviction</strong> — eviction removes one key from the <code>min_freq</code> bucket but the bucket may still be non-empty (other keys at the same low freq). Don't advance <code>min_freq</code> after eviction; only <code>_bump</code> advances it, and only when its own source bucket becomes empty.</li>
+  <li><strong>Repeated <code>put</code> with the same key/value</strong> — still counts as a use. Each call bumps the frequency. This is how the LFU "warms up" hot keys against a flood of cold ones.</li>
+</ul>
+
+<h4>6. Real-world appearance — what runs this in production</h4>
+
+<h5>Redis — <code>allkeys-lfu</code> / <code>volatile-lfu</code> (since 4.0, 2017)</h5>
+<p>Redis's LFU implementation is an approximation — it uses a <strong>logarithmic counter</strong> per key (8 bits in the object header) plus a decay rate, rather than the exact-freq-bucket structure above. The approximation is what lets it fit the counter in the existing object header without growing every entry by a pointer. The semantic is identical: hottest keys stay resident, one-off scans don't pollute. Pinterest's session store and Twitter's home-timeline cache both run this policy.</p>
+
+<h5>CDN edge caches — Cloudflare, Fastly, Akamai</h5>
+<p>Cloudflare's edge cache documents an "LFU-with-aging" policy: a 30-second sliding-window decay on the frequency counter prevents long-dead-popular objects from squatting in cache forever. Fastly's VCL exposes <code>obj.cacheable</code> + frequency hints so origin teams can pin known hot objects. The same approximation idea (counter-with-decay) is what makes it tractable at 100M+ object scales — you can't afford an OrderedDict per frequency at that size.</p>
+
+<h5>Database buffer pool managers — PostgreSQL clock-sweep, MySQL InnoDB</h5>
+<p>InnoDB's buffer pool uses a variant called <strong>LRU-K</strong> (effectively K=2) that approximates LFU by tracking the K-th most recent access timestamp per page. PostgreSQL's <code>shared_buffers</code> uses a clock-sweep that decrements a usage counter each pass — same idea, different mechanism. Both exist because pure LRU got crushed by sequential-scan queries that touched every page once and evicted all the genuinely-hot ones.</p>
+
+<h5>GPU shader cache — NVIDIA, AMD driver-level</h5>
+<p>NVIDIA's PSO (pipeline state object) cache evicts shaders using LFU because game workloads have a steady-state of "always-on" shaders (UI, sky, common materials) and a noisy tail of one-off effects. A pure-LRU shader cache thrashes during cutscenes; an LFU cache keeps the steady-state shaders resident.</p>
+
+<h5>The ML feature store — Tecton, Feast, Uber Michelangelo</h5>
+<p>Feature-store online serving caches use LFU because some features (a user's signup country) are hit on every request while others (last-rare-event timestamp) are hit once. Tecton's docs cite "LFU with bounded TTL" — a blend that prevents stale features from squatting forever even if they're frequently accessed.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0004">python_175-0004</a> — this question</li>
+  <li>Sister: <strong>LRU Cache</strong> — the simpler doubly-linked-list + dict pattern. LFU is LRU with a frequency dimension added on top.</li>
+  <li>Sister: <a href="/interview.app/python.html?q=python_175-0005">python_175-0005 — Median from Data Stream</a> — same "two-index data structure for O(1) bookkeeping" pattern, applied to streaming statistics.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — LFU is the per-node eviction policy; salting (<a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>) is the inter-node spreading policy. They compose.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the three indexes out loud (<em>key→value</em>, <em>key→freq</em>, <em>freq→OrderedDict</em>) and the <code>min_freq</code> pointer. The interviewer is listening for whether you understand that <code>OrderedDict</code> gives you O(1) LRU tie-break <em>inside</em> a frequency bucket, and that <code>min_freq</code> is the trick that makes eviction O(1) — without it, you'd be scanning frequencies on every overflow. Mention Redis 4.0's <code>allkeys-lfu</code> as the production reference and you've signalled L5.</div>
