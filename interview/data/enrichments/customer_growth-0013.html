@@ -1,0 +1,162 @@
+<p>The CEP-flavoured (Complex Event Processing) sibling of the velocity rules. Where <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> and <a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> look for <em>density</em> of one event type, this question looks for an <em>ordered pair</em>: event A (<code>address_change</code>) followed by event B (high-value <code>order</code>) within a deadline. The senior signal is choosing <strong>KeyedProcessFunction + ValueState + event-time timer</strong> over a window primitive — and being able to say <em>why</em>: the two events are sparse, asymmetric, and the time bound is a deadline (a timer), not a window boundary.</p>
+
+<h4>1. The fraud pattern — what we're catching and what we're trying NOT to flag</h4>
+<p>This is the textbook <strong>Account Takeover</strong> (ATO) signature on a crypto-exchange or e-commerce platform. The attacker has obtained the victim's credentials (credential-stuffing, phishing, SIM swap). Step 1: change the shipping/withdrawal address quietly so the victim's normal email alerts go to the attacker's inbox or an email-spoofed lookalike. Step 2: place a large order or initiate a withdrawal before the victim notices.</p>
+<table>
+  <thead><tr><th>Pattern</th><th>Fraud signature</th><th>Legitimate pattern that looks similar</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Address change → $5,000+ order within 1 hour</strong></td><td>Account takeover — attacker rerouting goods to a drop address before the victim revokes session</td><td><strong>Customer moved house, then placed their first big order at the new address</strong> — common with high-value items intentionally delivered to the new home</td></tr>
+    <tr><td><strong>Wallet address whitelist change → 5 BTC withdrawal in 30 min</strong></td><td>Crypto-exchange ATO — attacker bypasses the 24h withdrawal hold by whitelisting a new address and racing the alert</td><td><strong>Customer rotating hot wallets after a security audit</strong> — added a new cold-storage address, then sent funds</td></tr>
+    <tr><td><strong>Phone number change → 2FA reset → password reset within 15 min</strong></td><td>SIM-swap takeover — attacker has hijacked the SMS number and resets credentials</td><td><strong>Customer lost their phone</strong> — legitimately resetting recovery after a device upgrade</td></tr>
+  </tbody>
+</table>
+<p>Coinbase, in particular, enforces a <strong>48-hour withdrawal cooldown after address whitelist changes</strong> precisely because this pattern is so common. The detector in this question is what produces the alert that triggers the cooldown — and the manual-review queue.</p>
+
+<h4>2. The source data — concrete event stream</h4>
+<p>Mixed-event Kafka topic, schema <code>{type, customer_id, ts, ...payload}</code>:</p>
+<table>
+  <thead><tr><th>type</th><th>customer_id</th><th>ts</th><th>payload</th><th>Annotation</th></tr></thead>
+  <tbody>
+    <tr><td>address_change</td><td>101</td><td>14:00:00</td><td>address = "123 Main St"</td><td>First time we see this customer's address — no change yet (no prior)</td></tr>
+    <tr><td>address_change</td><td>101</td><td>14:05:00</td><td>address = "9 Drop Ln, Riga"</td><td><strong>address differs</strong> → <code>changed_at</code> = 14:05</td></tr>
+    <tr><td>order</td><td>101</td><td>14:10:00</td><td>amount = $5,200</td><td><strong>5 min after change, ≥ $1000 → ALERT fires</strong> (gap_minutes = 5.0)</td></tr>
+    <tr><td>order</td><td>102</td><td>14:15:00</td><td>amount = $3,000</td><td>Customer 102 never changed address — no alert</td></tr>
+    <tr><td>address_change</td><td>103</td><td>14:00:00</td><td>address = "55 Oak Ave"</td><td>First sight</td></tr>
+    <tr><td>address_change</td><td>103</td><td>14:30:00</td><td>address = "55 Oak Ave"</td><td><strong>same address re-saved</strong> → <code>changed_at</code> stays NULL, no alert primed</td></tr>
+    <tr><td>order</td><td>103</td><td>14:40:00</td><td>amount = $2,000</td><td>No alert — no real change happened</td></tr>
+    <tr><td>address_change</td><td>104</td><td>10:00:00</td><td>address = "1 New St"</td><td>Real change at 10:00</td></tr>
+    <tr><td>order</td><td>104</td><td>10:45:00</td><td>amount = $800</td><td>Within 30 min but <strong>below $1,000</strong> → no alert (rule is AND)</td></tr>
+    <tr><td>order</td><td>104</td><td>12:00:00</td><td>amount = $5,000</td><td><strong>$5,000 but 2 hours after change</strong> → no alert (timer expired)</td></tr>
+  </tbody>
+</table>
+
+<h5>Expected detector output</h5>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>amount</th><th>gap_minutes</th><th>reason</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>(order at 14:10)</td><td>$5,200</td><td>5.0</td><td>addr_change_then_high_value</td></tr>
+  </tbody>
+</table>
+
+<h4>3. The query — walk through window mechanics</h4>
+<p>This question uses <strong>no window primitive</strong>. Window operators (TUMBLE/HOP/SESSION) assume the events being correlated are <em>homogeneous and dense</em>. Here they're <em>heterogeneous and sparse</em> — a customer might have 1 address change and 1 order in a week, with weeks of silence between them. The right primitive is <strong>keyed state</strong>:</p>
+
+<pre><code>class AddressChangeThenBigOrder(KeyedProcessFunction):
+
+    def open(self, ctx):
+        self.state = ctx.get_state(
+            ValueStateDescriptor('addr_state', Types.PICKLED_BYTE_ARRAY()))
+
+    def process_element(self, ev, ctx):
+        st = self.state.value() or {'last_address': None, 'changed_at': None}
+
+        if ev['type'] == 'address_change':
+            # only mark changed_at when the address ACTUALLY differs
+            if st['last_address'] and ev['address'] != st['last_address']:
+                st['changed_at'] = ev['ts']
+            st['last_address'] = ev['address']
+            self.state.update(st)
+
+        elif ev['type'] == 'order':
+            ca = st.get('changed_at')
+            if ca and (ev['ts'] - ca) &lt;= WINDOW_MS \
+                  and ev['amount'] &gt;= HIGH_VALUE:
+                yield { ... }  # ALERT</code></pre>
+
+<h5>Why KeyedProcessFunction + ValueState — and not CEP, not a window</h5>
+<table>
+  <thead><tr><th>Primitive</th><th>Fits this question?</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TUMBLE / HOP / SESSION</strong></td><td>No</td><td>Windows aggregate <em>homogeneous</em> events. Here we need to <em>correlate</em> a change with a later order. The events don't aggregate, they pair.</td></tr>
+    <tr><td><strong>FlinkCEP (Pattern API)</strong></td><td>Possible but heavy</td><td><code>Pattern.begin("change").next("order").within(Time.minutes(30))</code> works, but adds operator overhead and is harder to debug than explicit state. Reach for CEP when the pattern is &gt; 2 events or has quantifiers like "3 failed logins then a success".</td></tr>
+    <tr><td><strong>KeyedProcessFunction + ValueState</strong></td><td>✓ Right tool</td><td>O(1) state per customer (one dict), explicit control over the time bound, trivial to extend to "3 attributes changed in the last hour" by adding fields to the state. Production teams reach for this 80% of the time over FlinkCEP.</td></tr>
+  </tbody>
+</table>
+
+<h5>The deadline trick — event-time timers (production extension)</h5>
+<p>The shipped solution checks <code>ev['ts'] - changed_at &lt;= 30 min</code> at order time. That works as long as <em>some</em> event eventually arrives for the customer. <strong>Edge case</strong>: if no order arrives within 30 min, the state's <code>changed_at</code> field sits there indefinitely, growing stale until the <em>next</em> event for that customer (could be days later). Cleanly handle it with an event-time timer:</p>
+<pre><code>def process_element(self, ev, ctx):
+    ...
+    if ev['type'] == 'address_change' and ... actually changed ...:
+        st['changed_at'] = ev['ts']
+        self.state.update(st)
+        # Register timer at change_ts + 30 min; on fire, clear the alert state
+        ctx.timer_service().register_event_time_timer(ev['ts'] + WINDOW_MS)
+
+def on_timer(self, timestamp, ctx):
+    st = self.state.value()
+    if st and st['changed_at'] and (timestamp - st['changed_at']) &gt;= WINDOW_MS:
+        st['changed_at'] = None       # window expired → no longer primed
+        self.state.update(st)</code></pre>
+<p>Event-time timers fire deterministically against the watermark, not wall-clock. Combined with checkpointing, the detector is fully reprocess-safe: replay yesterday's stream from offset 0 and you get the same alerts, byte-identical.</p>
+
+<h5>Why pandas isn't the right tool here</h5>
+<p>The pandas equivalent would be a self-join: <code>address_changes</code> table left-join <code>orders</code> table on <code>customer_id</code> with a between-ts predicate. That works for bounded backfill (the offline twin) but cannot run live — you'd need an open join over an unbounded stream, which is exactly what keyed state was invented for. The pandas version is fine for "did this alert fire in Tuesday's backfill?" — see the pattern in <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a>.</p>
+
+<h4>4. Why event-time matters — the L5 trap</h4>
+<p>The 30-minute window is a <em>logical</em> deadline. It has to be measured on event timestamps, not processing time, because the events flow through different paths:</p>
+<table>
+  <thead><tr><th>Scenario</th><th>Event-time answer</th><th>Processing-time answer</th></tr></thead>
+  <tbody>
+    <tr><td>Address change at 14:05, order at 14:10, both arrive on time</td><td>Alert fires, gap = 5 min</td><td>Same</td></tr>
+    <tr><td>Address change at 14:05 arrives at 14:30 (mobile offline); order at 14:10 arrived at 14:11</td><td><strong>Alert fires</strong> when the change event is processed — the order is already in state, and our handler can re-check. Or with timer: doesn't fire because order arrived before the change. <em>Order matters: see Probe 4.</em></td><td>Misses — when the change arrives at 14:30, processing-time says order was 19 min ago, which is fine, but the ordering is wrong relative to event-time</td></tr>
+    <tr><td>Replay yesterday's stream for backfill</td><td>Deterministic — same alerts</td><td>All events have "now" as processing-time; window logic collapses</td></tr>
+    <tr><td>Auditor question: "When did the attacker change the address?"</td><td>14:05 — event-time, defensible in a SAR filing</td><td>14:30 — when our consumer saw the row; useless for forensics</td></tr>
+  </tbody>
+</table>
+<p><strong>Production rule:</strong> for any compliance-grade alert (SAR, OFAC, Travel Rule), the timestamp on the alert <em>must</em> be event-time. Processing time is a red flag in a regulatory exam.</p>
+
+<h4>5. Where this appears in production</h4>
+<ul>
+  <li><strong>Coinbase Trade Compliance</strong> — Coinbase's documented 48-hour withdrawal hold after address whitelist change. The detector is keyed-state-per-customer; the cooldown is enforced by a separate downstream service that consumes the alert topic.</li>
+  <li><strong>Binance / Kraken</strong> — same pattern, different cooldown windows (24h to 7d depending on jurisdiction). All built on Flink + keyed state, with the trigger event being "withdrawal address whitelist change".</li>
+  <li><strong>Stripe Radar — Account Takeover rules</strong> — Radar exposes <code>customer.shipping_changed_recently</code> as a rule attribute; merchants can chain it with <code>amount &gt; X</code> in the rule editor.</li>
+  <li><strong>Shopify Fraud Analysis</strong> — the "high risk" verdict on the order admin page is driven partly by shipping-address-versus-billing-address pattern detection, with a similar deadline structure.</li>
+  <li><strong>Plaid Identity Match</strong> — same primitive (event correlation with a time deadline) used to detect synthetic-identity creation: an SSN-to-bank-link followed by a high-value ACH within 24h.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What if the order arrives before the address change (out-of-order arrival)?"</h5>
+<p>This is the hardest probe and the L5 separator. In the shipped solution, if the order is processed first, <code>changed_at</code> is still NULL and the alert misses. <strong>Production fixes</strong>: (a) buffer recent orders in state too — keep <code>last_order_ts</code> and <code>last_order_amount</code>, then when the change event arrives, look backward as well as forward; (b) use Flink's <em>buffering</em> within the bounded-out-of-orderness watermark so the operator sorts events by event-time within the slack window before processing. (a) handles arbitrary lateness; (b) handles only watermark-bounded lateness. Production crypto exchanges do both.</p>
+
+<h5>Probe 2 — "How do you handle the customer who legitimately moved house?"</h5>
+<p>Two layers. (a) <strong>Cohort-aware threshold</strong>: a long-tenured customer with a stable purchase history gets a higher <code>HIGH_VALUE</code> threshold than a 30-day-old account. Whale-customer baseline from <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a>. (b) <strong>Risk-score augmentation</strong>: the alert isn't an auto-decline — it's a feature that feeds a downstream LightGBM model along with device fingerprint, IP geo-distance from prior address, and amount-vs-baseline-spend. The model decides "review queue" vs "auto-block". <strong>The detector is a feature, not a decision.</strong></p>
+
+<h5>Probe 3 — "Backfill — can you re-run this on yesterday's stream?"</h5>
+<p>Yes, with event-time timers and savepoints. Take a savepoint at 00:00 yesterday, restart against yesterday's Kafka offsets, run forward. The same address-change events fire the same timers at the same event-time, and the alerts emitted are byte-identical. <strong>This is why event-time timers, not processing-time timers — the latter would fire at wall-clock "now" during replay, producing wrong results.</strong></p>
+
+<h5>Probe 4 — "What's the right primitive — KeyedProcessFunction or FlinkCEP?"</h5>
+<p>FlinkCEP's <code>Pattern.begin("A").followedBy("B").within(...)</code> directly expresses this rule. <strong>Trade-offs</strong>: CEP is more declarative but has higher per-event overhead (the NFA state machine), and debugging "why didn't this alert fire" is harder. KeyedProcessFunction is verbose but transparent — you can <code>printf</code> the state, you can add a 3rd attribute (phone change) by adding a dict field. Production teams choose KeyedProcessFunction for &lt; 3-event patterns and CEP for &gt; 3-event patterns or patterns with quantifiers ("3 failures then 1 success").</p>
+
+<h5>Probe 5 — "Hot key — one popular merchant's 'address book' service generates 100K address-change events/sec. What breaks?"</h5>
+<p>The merchant's customer_id (or shared service account) keys onto one task manager. Its RocksDB grows hot, checkpoint duration blows up. Standard fix: <strong>salting</strong> — but address changes need per-customer ordering (we care which address came first), so naive salting breaks correctness. The right fix here is <strong>data-model surgery</strong>: ensure the key is per-end-user customer, not a shared service account. If a single legitimate customer truly does 100K changes/sec, that's not a hot key — that's a bug in upstream and you should drop the duplicate-emit at ingest. See <a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> §03 on ordering-sensitive salting.</p>
+
+<h5>Probe 6 — "How would you express this in CEP for comparison?"</h5>
+<pre><code>Pattern&lt;Event, ?&gt; pattern = Pattern.&lt;Event&gt;begin("change")
+    .where(SimpleCondition.of(e -&gt; e.getType().equals("address_change")
+                                  &amp;&amp; e.actuallyChanged()))
+    .followedBy("order")
+    .where(SimpleCondition.of(e -&gt; e.getType().equals("order")
+                                  &amp;&amp; e.getAmount() &gt;= 1000.0))
+    .within(Time.minutes(30));
+
+CEP.pattern(stream.keyBy(Event::getCustomerId), pattern)
+   .select(matches -&gt; new Alert(matches.get("change"), matches.get("order")));</code></pre>
+<p>One-liner clearer than the KeyedProcessFunction — but you've lost the explicit state, the deterministic "same address re-saved doesn't reset timer" rule (which would need a custom <code>where</code> with side-context), and ease of incremental extension.</p>
+
+<h5>Probe 7 — "What about exactly-once semantics on the alert output?"</h5>
+<p>Flink's keyed-state operator gives exactly-once on the state side. For the alert sink, use a Kafka producer in transactional mode (read-process-write with the same checkpoint), so an alert is committed iff the state update is committed. If the sink is a downstream service, make the consumer idempotent on <code>(customer_id, order_id)</code> — the alert's natural key — and treat duplicate alerts as no-ops.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — keyed-state hotspots, ordering-sensitive salting.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — event-time timers, watermarks, savepoint-based reprocessing.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas velocity rule (offline twin).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> — sister question: PyFlink TUMBLE window for dense-event velocity (contrast: sparse correlation vs dense window).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0018">customer_growth-0018</a> — sister question: HOP window for serial returner (third primitive in the trilogy).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — salting (when ordering doesn't matter).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale/Dolphin/Minnow for cohort-aware thresholds.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name why this is a <em>correlation</em> problem, not a windowing problem — two heterogeneous, sparse events linked by an ordered time bound. Reach for <em>KeyedProcessFunction + ValueState + event-time timer</em>, not TUMBLE or CEP, and explain the trade-off out loud. The four pillars still apply — event-time (auditable), watermark (bounded out-of-orderness, side-output for stragglers), state cleanup (timer-driven), per-key skew (if the data model allows a hot service-account key, the fix is upstream, not salting). Production reference: Coinbase's 48-hour post-address-change withdrawal hold is exactly this detector.</div>

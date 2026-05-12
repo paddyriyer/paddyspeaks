@@ -1,0 +1,169 @@
+<p>The third primitive in the streaming-fraud trilogy: <strong>HOP (sliding) windows</strong>. Where <a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> used TUMBLE for hard-aligned fixed-minute reporting and <a href="/interview.app/sql.html?q=customer_growth-0013">customer_growth-0013</a> used KeyedProcessFunction for sparse correlation, this question demands <em>continuous rolling coverage</em> — any 60-minute span should be evaluated, not just the clock-aligned ones. The L5 signal is naming the <em>boundary-straddle</em> failure mode of TUMBLE before the interviewer probes for it, defending HOP's 12× state cost, and explaining how the sink's PRIMARY KEY collapses overlapping-window dedup at the database layer.</p>
+
+<h4>1. The fraud pattern — what we're catching and what we're trying NOT to flag</h4>
+<p>"Serial returner" or <strong>refund fraud</strong> is one of e-commerce's fastest-growing loss categories — the National Retail Federation puts US 2023 return fraud at <strong>$101B</strong>. The signature is a single account (or a ring sharing an address) submitting an unnatural burst of return requests, typically within minutes of each other, trying to game the return-window policy before the merchant manually reviews.</p>
+<table>
+  <thead><tr><th>Pattern</th><th>Fraud signature</th><th>Legitimate pattern that looks similar</th></tr></thead>
+  <tbody>
+    <tr><td><strong>4+ <code>RETURN_REQUESTED</code> in any rolling 60 min</strong></td><td>Refund-fraud ring submitting bulk returns to game the merchant's auto-approval before review</td><td><strong>Power-buyer post-Christmas cleanup</strong> — household returning 5 mismatched-size apparel items in one Amazon session</td></tr>
+    <tr><td><strong>3+ returns within 2 weeks, same shipping address, different orders</strong></td><td>"Drop-house" return ring — multiple stolen accounts shipping to one fraudster's address, all returned for refund</td><td><strong>Subscription-box customer</strong> — Stitch Fix / Trunk Club where 60% return rate is the business model</td></tr>
+    <tr><td><strong>10+ returns in 24h, all "item not as described"</strong></td><td>Wardrobing fraud — wearing items once and returning, claiming defect</td><td><strong>Returning gift-recipient</strong> — bulk-return after receiving duplicates at a wedding/birthday</td></tr>
+  </tbody>
+</table>
+<p>The false-positive cost is real: <strong>flagging a legitimate Stitch Fix customer cancels their loyalty discount and triggers a churn-save call</strong>. Stripe Radar exposes <code>refund_velocity_*</code> as Radar attributes; the merchant tunes thresholds against their conversion-vs-loss curve. Subscription-box merchants whitelist their customer cohort; fast-fashion merchants set aggressive thresholds.</p>
+
+<h4>2. The source data — concrete event stream</h4>
+<p>A <code>stream_events</code> Kafka topic, schema <code>(event_id, user_id, event_type, event_ts)</code>. Events include orders, returns, refund approvals, address changes — we filter on <code>event_type = 'RETURN_REQUESTED'</code>:</p>
+<table>
+  <thead><tr><th>event_id</th><th>user_id</th><th>event_type</th><th>event_ts</th><th>Annotation</th></tr></thead>
+  <tbody>
+    <tr><td>e1</td><td>501</td><td>ORDER_PLACED</td><td>10:00:00</td><td>noise — filtered out</td></tr>
+    <tr><td>e2</td><td>501</td><td>RETURN_REQUESTED</td><td>12:00:00</td><td>return #1</td></tr>
+    <tr><td>e3</td><td>501</td><td>RETURN_REQUESTED</td><td>12:15:00</td><td>return #2</td></tr>
+    <tr><td>e4</td><td>501</td><td>RETURN_REQUESTED</td><td>12:45:00</td><td>return #3</td></tr>
+    <tr><td>e5</td><td>501</td><td>RETURN_REQUESTED</td><td>12:58:00</td><td><strong>return #4 — 4 returns in 58 min → fires</strong></td></tr>
+    <tr><td>e6</td><td>602</td><td>RETURN_REQUESTED</td><td>12:30:00</td><td>user 602 — return #1</td></tr>
+    <tr><td>e7</td><td>602</td><td>RETURN_REQUESTED</td><td>13:30:00</td><td>user 602 — exactly 60 min later, doesn't fire alone</td></tr>
+    <tr><td>e8</td><td>703</td><td>RETURN_REQUESTED</td><td>11:55:00</td><td>user 703 — return #1</td></tr>
+    <tr><td>e9</td><td>703</td><td>RETURN_REQUESTED</td><td>12:05:00</td><td>return #2 · <em>straddles 12:00 boundary</em></td></tr>
+    <tr><td>e10</td><td>703</td><td>RETURN_REQUESTED</td><td>12:50:00</td><td>return #3</td></tr>
+    <tr><td>e11</td><td>703</td><td>RETURN_REQUESTED</td><td>12:55:00</td><td>return #4 · <strong>4 returns in 60 min — but split by TUMBLE!</strong></td></tr>
+  </tbody>
+</table>
+
+<h5>Expected detector output (HOP)</h5>
+<table>
+  <thead><tr><th>user_id</th><th>window_start</th><th>window_end</th><th>return_count</th></tr></thead>
+  <tbody>
+    <tr><td>501</td><td>12:00:00</td><td>13:00:00</td><td>4</td></tr>
+    <tr><td>501</td><td>12:05:00</td><td>13:05:00</td><td>4</td></tr>
+    <tr><td>501</td><td>12:10:00</td><td>13:10:00</td><td>4</td></tr>
+    <tr><td>501</td><td>...</td><td>...</td><td>4 (until first event ages out)</td></tr>
+    <tr><td>703</td><td>11:55:00</td><td>12:55:00</td><td>4</td></tr>
+    <tr><td>703</td><td>12:00:00</td><td>13:00:00</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>HOP fires <strong>multiple overlapping windows</strong> for each burst. User 703 is the boundary-straddle case: with TUMBLE(1h), e8 lands in [11:00, 12:00) and e9/e10/e11 land in [12:00, 13:00) — counts are 1 and 3, never exceeds 3. HOP catches it cleanly because the [11:55, 12:55) window contains all four.</p>
+
+<h4>3. The query — walk through window mechanics</h4>
+<pre><code>INSERT INTO serial_returner_alerts
+SELECT
+  user_id,
+  HOP_START(proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR) AS window_start,
+  HOP_END  (proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR) AS window_end,
+  COUNT(event_id) AS return_count
+FROM stream_events
+WHERE event_type = 'RETURN_REQUESTED'
+GROUP BY user_id,
+  HOP(proctime, INTERVAL '5' MINUTE, INTERVAL '1' HOUR)
+HAVING COUNT(event_id) &gt; 3</code></pre>
+
+<h5>HOP semantics — slide vs size, the two knobs</h5>
+<ul>
+  <li><strong>size = 1 HOUR</strong> — the lookback width. "How wide is each window I'm evaluating against the threshold?"</li>
+  <li><strong>slide = 5 MINUTES</strong> — how often a fresh window opens. "How granularly do I want to scan the timeline?"</li>
+  <li><strong>Each event lives in <code>size / slide = 12</code> overlapping windows.</strong> A single <code>RETURN_REQUESTED</code> is buffered into 12 different aggregate state slots until its 60 minutes expire.</li>
+  <li><strong>Output cardinality</strong>: for a user with one burst, expect ~12 alert rows (one per overlapping window that contains all the returns). The PRIMARY KEY on the sink collapses repeat fires; without it, your risk DB would see 12× the rows.</li>
+</ul>
+
+<h5>Why HOP, not TUMBLE — the boundary-straddle proof</h5>
+<table>
+  <thead><tr><th>Primitive</th><th>What it does</th><th>Result for user 703 (4 returns at 11:55, 12:05, 12:50, 12:55)</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TUMBLE(1h)</strong></td><td>Hard-aligned at clock hour. Counts reset at :00.</td><td>Window [11:00, 12:00): count = 1. Window [12:00, 13:00): count = 3. <strong>Never fires</strong> (need &gt; 3).</td></tr>
+    <tr><td><strong>HOP(slide=5min, size=1h)</strong></td><td>Continuous rolling. New window every 5 min.</td><td>Window [11:55, 12:55): count = 4 → <strong>fires</strong>. Window [12:00, 13:00): count = 3 (no fire). Window [11:50, 12:50): count = 3 (no fire). The right window catches it.</td></tr>
+    <tr><td><strong>HOP(slide=1min, size=1h)</strong></td><td>60 overlapping windows. Maximum coverage.</td><td>~5 overlapping windows fire, all dedupe at sink PK. Higher cost, same correctness.</td></tr>
+  </tbody>
+</table>
+<p><strong>Rule of thumb:</strong> if the business rule says "any rolling N-period span" — HOP. If it says "in <em>the</em> hour of N" — TUMBLE. The serial-returner business spec is the former; HOP wins. The slide:size ratio is a cost knob — smaller slide = more state but tighter alert timing, larger slide = less state but a burst might wait up to <code>slide</code> minutes before any window catches it.</p>
+
+<h5>Why the PRIMARY KEY on the sink is the L5 detail</h5>
+<pre><code>CREATE TABLE serial_returner_alerts (
+  user_id      BIGINT,
+  window_start TIMESTAMP(3),
+  window_end   TIMESTAMP(3),
+  return_count BIGINT,
+  PRIMARY KEY (user_id, window_start) NOT ENFORCED
+) WITH (
+  'connector' = 'jdbc',
+  ...
+)</code></pre>
+<p>HOP emits ~12 alerts for a single 60-minute burst. <strong>Without the PK</strong>, the risk DB would have 12 rows describing the same incident — the analyst sees noise. <strong>With the PK</strong>, the upsert sink dedupes on <code>(user_id, window_start)</code>, so each overlapping window writes its own row but a single "incident" is still represented as multiple ordered rows (one per anchor minute). Analysts query <code>SELECT user_id, MIN(window_start), MAX(window_end), MAX(return_count) FROM serial_returner_alerts GROUP BY user_id, date_trunc('day', window_start)</code> to roll up to "incidents per day per user". The primary-key + post-hoc rollup is the production pattern.</p>
+
+<h4>4. Why event-time matters — the L5 trap</h4>
+<p>The shipped solution uses <code>PROCTIME()</code> for brevity. <strong>Production must switch to event-time.</strong> Compare:</p>
+<table>
+  <thead><tr><th>Scenario</th><th>Event-time</th><th>Processing-time (PROCTIME)</th></tr></thead>
+  <tbody>
+    <tr><td>4 returns submitted 11:55 – 12:55, all arrived within seconds</td><td>Fires in the [11:55, 12:55) window</td><td>Same</td></tr>
+    <tr><td>Same 4 returns, but the e9 event was buffered in a mobile retry queue and arrived at 13:30</td><td>Still fires — event_ts puts it in the 12:05 slot</td><td>Misses — e9 is processed at 13:30, lands in a window an hour later, count never reaches 4 anywhere</td></tr>
+    <tr><td>Replay yesterday's stream</td><td>Deterministic — same alerts</td><td>All events have "now" as proctime; all collapse into the current rolling hour</td></tr>
+    <tr><td>Auditor: "When were these returns actually submitted?"</td><td>The event_ts column — what the customer saw on their screen</td><td>The processing time — meaningless to the customer</td></tr>
+  </tbody>
+</table>
+<p>The event-time fix:</p>
+<pre><code>CREATE TABLE stream_events (
+  event_id   STRING,
+  user_id    BIGINT,
+  event_type STRING,
+  event_ts   TIMESTAMP(3),
+  WATERMARK FOR event_ts AS event_ts - INTERVAL '30' SECOND
+) WITH (
+  'connector' = 'kafka',
+  ...
+)
+
+-- replace HOP(proctime, ...) with HOP(event_ts, ...)</code></pre>
+<p>The 30-second watermark slack matches typical e-commerce P95 lateness. Mobile-heavy traffic should use 2-5 minutes. Late events past the watermark are dropped by default; production should add <code>side-output</code> via a <code>TUMBLE</code>-emit-late hint or a separate dead-letter ingestion job.</p>
+
+<h4>5. Where this appears in production</h4>
+<ul>
+  <li><strong>Stripe Radar — refund velocity</strong> — <code>refund_velocity_24h</code> is exactly this primitive, exposed as a merchant-configurable attribute. Stripe runs Flink Table API on AWS, exactly this query shape.</li>
+  <li><strong>Shopify Fraud Analysis</strong> — the "refund risk" score on the Shopify admin uses HOP-style sliding refund counts per (shipping_address, customer) cohort.</li>
+  <li><strong>Amazon Return Abuse</strong> — Amazon's account-suspension policy for return abuse uses overlapping windows on RETURN_INITIATED events, with thresholds that vary by tenure and prior-year spend.</li>
+  <li><strong>eBay Money-Back Guarantee</strong> — buyer-side abuse detection (buyer claims item-not-received N times in 90 days) is a HOP detector with a longer window size and 1-day slide.</li>
+  <li><strong>Klarna / Affirm BNPL</strong> — return-window abuse where the buyer returns the item after the BNPL settlement triggers; detected with HOP windows on <code>(settlement_ts, return_ts)</code> overlap.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What happens if events arrive 5 minutes late?"</h5>
+<p>With the 30-second watermark, anything later than 30 s past max_event_ts is dropped by default. <strong>Production answer</strong>: configure <code>'sink.partition-commit.policy.kind' = 'metastore,success-file'</code> on a side-output sink, or use Flink's <code>EmitTriggerTime.LATE</code> on the window to emit retractions/updates when late events arrive. The HOP windows happen to be more forgiving than TUMBLE here — overlapping windows give every late event multiple chances to land in <em>some</em> still-open window.</p>
+
+<h5>Probe 2 — "How do you handle subscription-box merchants where 60% returns is normal?"</h5>
+<p>Per-merchant or per-cohort threshold. Join the <code>stream_events</code> stream against a small <code>merchants</code> table that has <code>expected_return_rate</code>; compute the alert threshold as <code>baseline × 3</code> instead of hard-coding 3. For per-customer cohorts (Whale/Dolphin/Minnow — see <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a>), broadcast-join the cohort table and pick threshold per cohort. The same query shape with a parameterized HAVING.</p>
+
+<h5>Probe 3 — "Backfill — can you re-run on yesterday's stream?"</h5>
+<p>Yes, requires event-time. Take a savepoint at midnight yesterday, start the job against yesterday's Kafka offsets, run forward. The HOP windows fire deterministically against the event timestamps and watermarks — alerts emitted are byte-identical to the live run. The PRIMARY KEY on the sink makes the upsert idempotent: replaying produces the same rows.</p>
+
+<h5>Probe 4 — "What's the difference between TUMBLE and HOP for 'orders in last 5 min'?"</h5>
+<p>TUMBLE = hard-aligned, non-overlapping. HOP = continuous, overlapping. Each event lives in <code>size/slide</code> HOP windows simultaneously, so HOP uses <code>size/slide × </code> the state and emits <code>size/slide × </code> the output rows. <strong>HOP wins when</strong> the business rule says "<em>any rolling</em> N-minute span"; TUMBLE wins for fixed-interval reporting and dashboards. This question (HOP), <a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> (TUMBLE), and <a href="/interview.app/sql.html?q=customer_growth-0013">customer_growth-0013</a> (no window — keyed state) cover the three primitives in the trilogy.</p>
+
+<h5>Probe 5 — "Hot key — one merchant generates 100K return events/sec. What breaks?"</h5>
+<p>Every event of that merchant routes to one task manager's RocksDB. HOP makes it worse than TUMBLE because each event opens 12 overlapping aggregate state slots. Standard remediation: <strong>two-level aggregation with salting</strong> — pass 1 groups by <code>(user_id, salt)</code> with <code>salt = RAND_INTEGER(16)</code>, pass 2 rolls up by <code>user_id</code>. The Table API expresses this as nested queries; the SQL shape is identical to <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>. Flink-specific guidance: <a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> §03.</p>
+
+<h5>Probe 6 — "Why a 5-minute slide instead of 1-minute?"</h5>
+<p>Trade-off: 1-minute slide gives 60 overlapping windows per hour, 5× the state and CPU of 5-minute slide. The benefit is that an alert fires within 1 minute of the threshold breach instead of within 5. For fraud detection, the alert SLA is usually "within a few minutes" — 5-minute slide is the sweet spot. If you need real-time alerting (sub-30s), drop slide to 30s or use a continuous-aggregation approach with a custom <code>ProcessFunction</code>. Don't pick 1-minute slide reflexively — quantify the cost.</p>
+
+<h5>Probe 7 — "Can you express this with the DataStream API instead of Table API?"</h5>
+<p>Yes:</p>
+<pre><code>events
+  .filter(e -&gt; "RETURN_REQUESTED".equals(e.eventType))
+  .keyBy(e -&gt; e.userId)
+  .window(SlidingEventTimeWindows.of(Time.hours(1), Time.minutes(5)))
+  .aggregate(new CountAgg(), new EmitWindowMeta())
+  .filter(r -&gt; r.count &gt; 3);</code></pre>
+<p>Same primitive (<code>SlidingEventTimeWindows</code> = HOP). Trade-off: Table API is declarative and the optimizer can fuse with other stream joins; DataStream gives explicit control over the aggregator (incremental <code>AggregateFunction</code> vs buffering <code>ProcessWindowFunction</code>). For pure count-and-threshold, both are equivalent in performance.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — Flink keyed-state hotspot + the salt remediation for sliding-window aggregates.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — TUMBLE / HOP / SESSION semantics, watermarks, side-output, exactly-once sinks.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas offline twin for velocity rules; same family.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0012">customer_growth-0012</a> — sister question: TUMBLE (non-overlapping fixed-interval windows). Pair with this question to discuss when each wins.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0013">customer_growth-0013</a> — sister question: KeyedProcessFunction for sparse correlation (no window primitive at all).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — salting; the per-key skew rescue if the hot-merchant probe comes up.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale/Dolphin/Minnow for the per-cohort-threshold answer (subscription-box probe).</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> The window-primitive trilogy — TUMBLE for hard-aligned reporting, HOP for any-rolling-N-period coverage (this question), SESSION for journey-bounded events; reach for KeyedProcessFunction when events don't aggregate but correlate. Defend HOP's 12× state cost with the boundary-straddle proof (user 703 in §2). Switch to <em>event-time</em> in production — PROCTIME is for prototypes only. The sink PRIMARY KEY <code>(user_id, window_start)</code> is the production deduper that collapses HOP's overlapping fires. Per-key skew is the hot-merchant probe — answer with two-level aggregation and salting, exactly the shape from <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>.</div>

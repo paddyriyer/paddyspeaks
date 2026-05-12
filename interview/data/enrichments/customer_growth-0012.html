@@ -1,0 +1,128 @@
+<p>The PyFlink twin of the pandas velocity rule from <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — same fraud signature, but now running against an unbounded Kafka stream with <em>event-time semantics</em>, <em>watermarks</em>, and <em>per-customer keyed windows</em>. The L5 signal is choosing the right window primitive (TUMBLE here, HOP / SESSION elsewhere) and defending the choice with one sentence about boundary effects. Most candidates type <code>.window(TumblingEventTimeWindows.of(...))</code> by reflex; the senior candidate <em>explains the boundary-alignment trap</em> before they type a line.</p>
+
+<h4>1. The fraud pattern — what we're catching and what we're trying NOT to flag</h4>
+<p>This is Stripe Radar's textbook <strong>card testing</strong> signature: an attacker has a list of stolen card numbers and needs to know which still work. They batch them through a low-value merchant — usually a digital good or charity — at $1-$5 per charge, 10-50 attempts per minute. The successful charges identify live cards, which then get used for high-value fraud on a different merchant within minutes.</p>
+<table>
+  <thead><tr><th>Pattern</th><th>Fraud signature</th><th>Legitimate pattern that looks similar</th></tr></thead>
+  <tbody>
+    <tr><td><strong>5+ orders in 60s, $1-$5 each</strong></td><td>Card-testing (BIN attack) — running a stolen-card list through low-value charges to identify live cards</td><td><strong>Charity fundraiser checkout</strong> — donor processing five $5 micro-donations as separate transactions for tax-receipt itemisation</td></tr>
+    <tr><td><strong>$2,000+ in 1 minute from one card</strong></td><td>Account drain — attacker has a live card and is buying gift-cards or crypto as fast as the AVS check returns</td><td><strong>Power-seller checkout</strong> — Shopify merchant placing a wholesale inventory order that pre-auths the full cart in one minute</td></tr>
+    <tr><td><strong>10+ orders / 5 min / same IP / different cards</strong></td><td>Card-testing ring rotating cards behind one proxy IP</td><td><strong>Family-share account</strong> — household checking out three different Etsy carts on the same home Wi-Fi at dinnertime</td></tr>
+  </tbody>
+</table>
+<p>The Radar product surfaces these as named rules (<code>velocity_card_count_6h</code>, <code>amount_in_window_5m</code>) the merchant can tune per their conversion-vs-loss curve. <strong>The cost of a false positive is a declined sale on a real customer</strong>; the cost of a false negative is the merchant eating the chargeback. The threshold is a business decision, not an engineering one.</p>
+
+<h4>2. The source data — concrete event stream</h4>
+<p>A sample <code>orders</code> Kafka topic, schema <code>(order_id, customer_id, amount, event_ts_ms)</code>:</p>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th><th>event_ts</th><th>Annotation</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>101</td><td>$600</td><td>12:00:00.000</td><td>Customer 101 — start of window</td></tr>
+    <tr><td>1002</td><td>101</td><td>$700</td><td>12:00:10.000</td><td>$1,300 cumulative</td></tr>
+    <tr><td>1003</td><td>101</td><td>$800</td><td>12:00:20.000</td><td>$2,100 cumulative · 3 orders → fires <code>high_amount</code> at window close 12:01:00</td></tr>
+    <tr><td>1004</td><td>102</td><td>$100</td><td>12:00:30.000</td><td>Customer 102 — single order, no alert</td></tr>
+    <tr><td>1005</td><td>101</td><td>$400</td><td>12:00:50.000</td><td>Arrived late — wall-clock is 12:01:08 (late by 8 s)</td></tr>
+    <tr><td>1006</td><td>103</td><td>$200</td><td>12:00:55.000</td><td>Customer 103 — straddles boundary into next window</td></tr>
+    <tr><td>1007</td><td>103</td><td>$250</td><td>12:01:00.000</td><td><strong>The boundary trap</strong> — same customer, 5-second apart, but Flink TUMBLE puts these in <em>different</em> windows</td></tr>
+  </tbody>
+</table>
+
+<h5>Expected detector output</h5>
+<table>
+  <thead><tr><th>customer_id</th><th>window_start</th><th>orders_in_window</th><th>amount_in_window</th><th>rule</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>12:00:00</td><td>4</td><td>$2,500</td><td>high_amount</td></tr>
+  </tbody>
+</table>
+<p>Note: order 1005 (late by 8 s) <em>does</em> land in the 12:00 window because our watermark allows 5 s out-of-order, and the operator buffers the window until <code>watermark &gt; window_end + 5s</code>. If it had arrived 10 s late, it would be dropped (or routed to side-output if configured).</p>
+
+<h4>3. The query — walk through window mechanics</h4>
+<pre><code># 1. Watermarks: how late can an event be and still count?
+watermarks = (WatermarkStrategy
+              .for_bounded_out_of_orderness(Duration.of_seconds(5))
+              .with_timestamp_assigner(_OrderTimestamp()))
+
+# 2. Key-by + window. Tumbling = non-overlapping, hard-aligned to wall-clock.
+alerts = (source
+    .assign_timestamps_and_watermarks(watermarks)
+    .key_by(lambda r: r[1])                       # customer_id
+    .window(TumblingEventTimeWindows.of(Time.minutes(1)))
+    .process(VelocityAlert()))                    # ProcessWindowFunction</code></pre>
+
+<h5>Why TUMBLE for this question — and why HOP would be wrong</h5>
+<table>
+  <thead><tr><th>Primitive</th><th>Behaviour</th><th>Right for...</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TUMBLE(1 min)</strong></td><td>Hard-aligned to wall-clock minute (00 s – 60 s). Each event in exactly one window. State minimal.</td><td>Per-minute compliance reporting; "how many orders did each customer place in the 12:00 minute?"</td></tr>
+    <tr><td><strong>HOP(slide=10s, size=1min)</strong></td><td>Every 10 s a fresh 1-minute window opens. Each event in 6 windows simultaneously. 6× state, 6× output.</td><td>Continuous "any 1-minute span with &gt; 4 orders" — catches bursts that straddle the minute. <a href="/interview.app/sql.html?q=customer_growth-0018">customer_growth-0018</a> uses this.</td></tr>
+    <tr><td><strong>SESSION(gap=30s)</strong></td><td>Window closes after 30 s of inactivity. Variable length.</td><td>"User checkout journey" — group all events in one shopping session, ignore the boundary.</td></tr>
+  </tbody>
+</table>
+<p>For this question, TUMBLE is the right choice <strong>because the business rule is "more than 4 orders in <em>a</em> minute"</strong> — analyst reports want clean minute boundaries. If the rule were "more than 4 in <em>any</em> rolling minute", HOP is required.</p>
+
+<h5>The boundary trap — say it before the interviewer does</h5>
+<p>Customer 103 places 2 orders at 12:00:55 and 12:01:00. With TUMBLE, these land in <em>different</em> windows ([12:00:00, 12:01:00) and [12:01:00, 12:02:00)). A 6-order burst that straddles 12:00:58 – 12:01:03 splits 3+3 and <strong>never trips the threshold</strong> even though the customer fired 6 orders in 5 wall-clock seconds. <strong>This is the classic TUMBLE failure mode</strong>. Acknowledge it, then offer HOP as the remediation. The L5 interviewer is specifically listening for this.</p>
+
+<h5>Watermarks: the late-event policy</h5>
+<ul>
+  <li><code>for_bounded_out_of_orderness(5s)</code> — the operator's watermark is <code>max_event_ts - 5 s</code>. A window <code>[t, t+60)</code> fires once the watermark crosses <code>t+60</code>, which means <strong>the wall-clock can be 5 s past the window's logical end</strong> before output is emitted.</li>
+  <li>Events later than 5 s are dropped by default. <strong>Production rule</strong>: configure a <code>side-output</code> tag for late events so they go to a Kafka topic the on-call can replay. Never silently drop fraud-relevant events.</li>
+  <li>Mobile-heavy traffic (Robinhood, Coinbase) sees 30 s – 2 min late events. Pick the watermark slack to match your P95 lateness, not P50.</li>
+</ul>
+
+<h4>4. Why event-time matters — the L5 trap</h4>
+<p>Processing-time is "what time was it when Flink saw the row". Event-time is "what time did the order actually happen". They diverge whenever the network has jitter — which is always.</p>
+<table>
+  <thead><tr><th>Scenario</th><th>Event-time answer</th><th>Processing-time answer</th></tr></thead>
+  <tbody>
+    <tr><td>4 orders placed at 12:00:00 – 12:00:30, all arrived within 1 s</td><td>Fires <code>too_many_orders</code> in window 12:00</td><td>Same</td></tr>
+    <tr><td>Same 4 orders, but Flink consumer restarted at 12:00:25, batch arrives at 12:01:15 (40 s late)</td><td>Still fires in window 12:00 — event timestamps put them where they belong</td><td>4 orders land in window 12:01, count = 4, threshold is &gt; 4, alert MISSES</td></tr>
+    <tr><td>Replay yesterday's data for backfill</td><td>Deterministic — same alerts as the live run produced</td><td>Useless — every event has "now" as its processing time, all collapse into one window</td></tr>
+  </tbody>
+</table>
+<p><strong>The auditor question</strong>: "Did the customer actually place 5 orders in the 12:00 minute, or did your servers just see them then?" Only event-time can answer. Processing-time is acceptable for ops dashboards and CPU-level latency metrics. <strong>Every fraud rule must be event-time</strong>, full stop — and reprocessing has to be byte-identical to the live run, which requires deterministic watermarks and savepoints.</p>
+
+<h4>5. Where this appears in production</h4>
+<ul>
+  <li><strong>Stripe Radar</strong> — Radar's velocity attributes (<code>velocity_card_count_6h</code>, <code>velocity_email_amount_24h</code>, <code>velocity_ip_count_1m</code>) are exactly this pattern, one per (entity, window) pair. Stripe runs Flink on AWS Kinesis with bounded-out-of-orderness watermarks and side-output for late events. Radar's <em>Rules</em> editor exposes the thresholds as merchant-tunable knobs.</li>
+  <li><strong>Robinhood Risk Engine</strong> — per-account velocity gates run inline before order acceptance; the velocity rule is one of ~40 features fed into a downstream LightGBM model.</li>
+  <li><strong>Coinbase Trade Compliance</strong> — withdrawal-velocity rules feed Travel Rule and OFAC screening; the same TUMBLE-on-event-time primitive backs SAR generation for high-risk wires.</li>
+  <li><strong>Square / Cash App</strong> — peer-to-peer velocity gates use this primitive to block "money muling" — funds rapidly relayed through a recipient account to obscure origin.</li>
+  <li><strong>Doordash Risk</strong> — driver promotion abuse uses velocity rules ("driver completed 10 'no-show' deliveries in 30 min") on event-time windows.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What happens if events arrive 5 minutes late?"</h5>
+<p>With <code>for_bounded_out_of_orderness(5s)</code>, anything 5 minutes late is past the watermark and gets dropped. Production answer: configure a <strong>side-output</strong> with <code>OutputTag</code> for late events; route them to a dead-letter Kafka topic; the on-call can replay them through an offline backfill (which is when the pandas version from <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> earns its keep). <strong>Never silently drop fraud-relevant events.</strong></p>
+
+<h5>Probe 2 — "How do you handle the whale customer who legitimately fires 10 orders/min?"</h5>
+<p>Cohort-aware threshold. Classify the customer (Whale / Dolphin / Minnow — see <a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a>) and join the cohort into the stream as a broadcast state (small, slowly-changing lookup). The <code>VelocityAlert</code> function reads <code>cohort</code> from broadcast state and picks the threshold per cohort. <strong>Whales get max_orders=20; minnows get max_orders=4.</strong> Same rule, different parameters.</p>
+
+<h5>Probe 3 — "Backfill — can you re-run this on yesterday's stream?"</h5>
+<p>Yes, two ways. (a) <strong>Savepoint replay</strong>: take a savepoint from yesterday morning, restart the job pointing at yesterday's Kafka offsets, run forward. Expensive but exact. (b) <strong>Offline twin</strong>: re-run the algorithm in pandas against the data lake (Parquet snapshot of yesterday). Less infra, perfect for threshold tuning. The whole point of event-time + deterministic watermarks is that both produce identical results.</p>
+
+<h5>Probe 4 — "What's the difference between TUMBLE and HOP for 'orders in last 5 min'?"</h5>
+<p>TUMBLE(5 min) opens windows at :00, :05, :10, :15 — a burst at 04:55 – 05:05 splits and may not trigger. HOP(slide=1 min, size=5 min) opens a fresh window every minute — every rolling 5-minute span is covered. <strong>Cost</strong>: HOP fires the operator 5× more often (each event lives in 5 overlapping windows) and uses 5× state. <strong>Pick</strong>: TUMBLE for fixed-interval reporting; HOP for "any rolling N-minute window". <a href="/interview.app/sql.html?q=customer_growth-0018">customer_growth-0018</a> demonstrates HOP in the Table API.</p>
+
+<h5>Probe 5 — "Hot key — one merchant generates 100K events/sec. What breaks?"</h5>
+<p>That merchant's <code>customer_id</code> key routes 100% of its events to <em>one</em> task manager. RocksDB's keyed state for that subtask grows hot, checkpoint duration spikes, and back-pressure cascades upstream. Standard fix: <strong>salting</strong> — key by <code>(customer_id, salt)</code> where <code>salt = random(0..N)</code>, pre-aggregate per salt bucket, then a second keyed step rolls up by <code>customer_id</code> alone. The two-pass shape is identical to the SQL salting in <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>; the Flink-specific guidance lives in the <a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> §03.</p>
+
+<h5>Probe 6 — "Why use <code>ProcessWindowFunction</code> instead of <code>aggregate()</code>?"</h5>
+<p><code>aggregate()</code> is incremental — it updates one accumulator per event, O(1) state. <code>ProcessWindowFunction</code> buffers all events in the window, O(N) state. For this question with N ≤ ~20 events/window per customer, the difference is negligible and <code>ProcessWindowFunction</code>'s simplicity wins (you see all events at fire-time). For a 6-hour velocity rule with millions of events per customer, switch to <code>AggregateFunction</code> + a final <code>ProcessWindowFunction</code> for the window-metadata enrichment.</p>
+
+<h5>Probe 7 — "What about exactly-once delivery to the alert queue?"</h5>
+<p>Flink gives exactly-once <em>state</em> via checkpointing. For exactly-once <em>output</em>, the sink connector needs to support 2PC (Kafka transactional producer, JDBC with XA). If the alert sink is a plain HTTP webhook, exactly-once is impossible — the receiver must dedupe by <code>(customer_id, window_start)</code>. Always design the alert consumer to be idempotent on <code>(key, window)</code>.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — Flink keyed-state hotspot and the salt remediation.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — watermarks, side-outputs, checkpoint vs savepoint, exactly-once semantics.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas twin for offline backfill and threshold tuning.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0013">customer_growth-0013</a> — sister question: KeyedProcessFunction with ValueState for the address-change pattern (no window primitive — sparse events).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0018">customer_growth-0018</a> — sister question: HOP window for "any rolling 1-hour window with &gt; 3 returns", showing when HOP beats TUMBLE.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — salt pattern for the hot-key probe.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0032">customer_growth-0032</a> — Whale/Dolphin/Minnow cohort detection for the whale-threshold probe.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Name the four pillars before you write code — <em>event-time</em> (auditable), <em>watermark</em> (bounded out-of-orderness, side-output for stragglers), <em>window choice</em> (TUMBLE for fixed reporting, HOP for rolling coverage, SESSION for journeys), <em>per-key skew</em> (whale customers need salting or cohort-aware thresholds). TUMBLE is right <em>for this question</em> because the business rule asks for per-minute counts; the candidate who picks TUMBLE without the boundary-straddle caveat sounds junior. The candidate who acknowledges it and offers HOP as the remediation sounds L5.</div>
