@@ -1,0 +1,119 @@
+<p>IoT sensor streams have gaps. ML models break on NaN. The wrong fill strategy fabricates plausible-but-fake data and pollutes the training set. VMware's vCenter datacenter sensors poll temperature, humidity, fan RPM at 5-minute nominal intervals but the real-world data is full of dropouts — failed pings, sensor reboots, network jitter. Before the data feeds the capacity-planning model or the auto-throttle controller, somebody has to fill the gaps; <strong>choosing time-weighted over straight linear is the difference between a model that respects physics and one that doesn't</strong>.</p>
+
+<h4>1. The data — irregular polling, ~40 % missing</h4>
+<table>
+  <thead><tr><th>ts</th><th>temp_c</th><th>note</th></tr></thead>
+  <tbody>
+    <tr><td>00:00:00</td><td>22.0</td><td>start</td></tr>
+    <tr><td>00:05:00</td><td>22.1</td><td>nominal cadence</td></tr>
+    <tr><td>00:10:00</td><td>NaN</td><td>missed poll (one)</td></tr>
+    <tr><td>00:17:00</td><td>22.4</td><td><strong>late retry — uneven spacing</strong></td></tr>
+    <tr><td>00:25:00</td><td>NaN</td><td>sensor rebooting</td></tr>
+    <tr><td>00:40:00</td><td>NaN</td><td>still rebooting (15 min gap before recovery)</td></tr>
+    <tr><td>00:42:00</td><td>22.9</td><td>recovered</td></tr>
+    <tr><td>00:55:00</td><td>NaN</td><td>another missed poll</td></tr>
+    <tr><td>01:05:00</td><td>23.6</td><td>uneven spacing again</td></tr>
+  </tbody>
+</table>
+<p>9 rows, 4 NaN, 45 % gap rate — pessimistic for production but realistic for a flaky sensor batch. Importantly the spacing is <strong>not uniform</strong>: 5 min / 5 min / 7 min / 8 min / 15 min / 2 min / 13 min / 10 min. That irregularity is what forces "time" over "linear" interpolation.</p>
+
+<h4>2. The business question — what the consumer of clean data decides on</h4>
+<ul>
+  <li><strong>ML model training data quality.</strong> If you feed NaN-containing data to scikit-learn or PyTorch, the model errors out (best case) or trains on a tiny subset of rows that happened to be all-non-null (worst case — silently biased model). Interpolation is the pre-step.</li>
+  <li><strong>Capacity-planning forecasts.</strong> VMware's vROps predicts rack thermal capacity 6 hours ahead. The forecast model needs evenly-spaced inputs; gaps must be filled deterministically so the next training run produces the same model.</li>
+  <li><strong>Auto-throttle control.</strong> If the rack temperature controller misses a reading and the next-best fill is "yesterday's mean", it would massively over-correct. Interpolation between the surrounding two readings gives a plausible point estimate that keeps the controller stable.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def interpolate_irregular(df, ts_col, value_col, method='time'):
+    # Don't mutate the caller. .copy() is cheap; bug-on-shared-frames
+    # is one of the top pandas misuses.
+    out = df.copy()
+    out[ts_col] = pd.to_datetime(out[ts_col])
+
+    # DatetimeIndex is REQUIRED for method='time' — pandas inspects
+    # the index dtype to decide how to weight the gaps. sort_index()
+    # is non-optional: interpolate on unordered data corrupts silently.
+    out = out.set_index(ts_col).sort_index()
+
+    if method == 'time':
+        # Weight each NaN by ACTUAL time elapsed. A 2-minute gap fills
+        # closer to its previous neighbour than a 15-minute gap does.
+        # This is the only correct choice for irregularly-sampled data.
+        out[value_col] = out[value_col].interpolate(method='time')
+    elif method == 'linear':
+        # Equal weight per row — IGNORES the timestamp spacing. Only
+        # correct when the cadence is uniform. Faster, but wrong for
+        # real sensor data.
+        out[value_col] = out[value_col].interpolate(method='linear')
+    elif method == 'spline':
+        # Cubic spline — smooth curve through the points. Good for
+        # physical sensors (smooth signal); BAD for step-shaped signals
+        # like network packets/sec, where it over-shoots between steps.
+        out[value_col] = out[value_col].interpolate(method='spline', order=3)
+
+    # Edge handling — interpolate() can't fill leading or trailing
+    # NaN (no neighbour on one side). ffill().bfill() carries the
+    # nearest non-null value out to the edges. Acceptable for short
+    # edge gaps; for long ones, prefer to truncate instead.
+    out[value_col] = out[value_col].ffill().bfill()
+    return out.reset_index()</code></pre>
+
+<p><strong>The "time" vs "linear" trap.</strong> On evenly-spaced data they produce identical output. On irregular data they diverge — and irregular data is the only kind that needs interpolation in the first place. A candidate who writes <code>method='linear'</code> without qualification has missed the central insight of the problem.</p>
+
+<p><strong>Why <code>ffill().bfill()</code> in that order?</strong> If both leading and trailing NaN exist (sensor came online mid-day, went offline mid-day), <code>ffill</code> first carries the first-known value backward (no-op on the leading edge — there's nothing to forward-fill from), then <code>bfill</code> handles the trailing edge. Swapping the order doesn't change the result in the two-edge case, but the convention is forward-then-back because trailing data is more often the user-facing alert lag.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>ts</th><th>raw temp_c</th><th>time-interp</th><th>linear-interp</th><th>diff</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>00:10:00</td><td>NaN</td><td>22.225</td><td>22.250</td><td>-0.025</td><td>5/7 fraction of way from 22.1 → 22.4. Linear assumes 1/2 of the way regardless.</td></tr>
+    <tr><td>00:25:00</td><td>NaN</td><td>22.560</td><td>22.567</td><td>-0.007</td><td>Tiny diff because the gap is roughly proportional.</td></tr>
+    <tr><td>00:40:00</td><td>NaN</td><td><strong>22.860</strong></td><td><strong>22.733</strong></td><td>+0.127</td><td><strong>The big divergence.</strong> 22.4 → 22.9 across 25 minutes; the NaN at 00:40 is 23/25 of the way. Time-weight gives 22.86, linear says 22.73. <em>0.13 °C error scales — over a year, this builds.</em></td></tr>
+    <tr><td>00:55:00</td><td>NaN</td><td>22.86</td><td>22.86</td><td>~0</td><td>Last NaN; ffill handles the trailing edge identically for both methods.</td></tr>
+  </tbody>
+</table>
+<p>The 00:40 row is the demonstration. Linear interpolation thinks the missing point is "1 step away from the previous and 1 step away from the next" so it averages. Time-weighted knows the missing point is timestamped at 00:40 — 23 minutes after 00:17, only 2 minutes before 00:42 — so the right answer is much closer to 22.9 than to 22.4. Physics agrees: temperature trends are continuous in time, not in row-index.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 1 GB before OOM.</strong> One sensor for one year at 5-min cadence ≈ 100k rows — trivial. The full VMware fleet (~10k racks × 50 sensors × 105k readings/year ≈ 50 B rows/year) is way past pandas. Production splits: Flink for streaming gap-fill (state: last-seen value + timestamp per sensor), Spark for backfill / re-interpolation when the model is re-trained.</li>
+  <li><strong>Kalman filter for high-stakes sensors.</strong> When the sensor is noisy AND has gaps, pandas' deterministic interpolation amplifies noise. A Kalman filter (or Gaussian Process) models the true signal + measurement noise + missing data jointly. Industrial IoT (oil rigs, wind turbines) uses Kalman; consumer telemetry usually uses time-weighted because it's 100× cheaper.</li>
+  <li><strong>Multi-sensor cross-imputation.</strong> When one sensor's reading is missing but a nearby sensor in the same rack measured 22.7, that's a stronger signal than the time-weighted interpolation of the missing sensor's own history. Production at scale uses a per-rack matrix factorisation. The pandas function above only sees one sensor's history.</li>
+  <li><strong>Don't interpolate "long" gaps.</strong> A 6-hour sensor outage shouldn't be interpolated — the values are guesses, not measurements, and feeding them to a controller is dangerous. Production rule: <strong>cap interpolation at 3× nominal cadence</strong>; longer gaps go to a quarantine table for human review. The demo doesn't enforce this; production must.</li>
+  <li><strong>Datadog metric backfill</strong> uses time-weighted interpolation for sparse metric series. AWS CloudWatch and GCP Cloud Monitoring both expose interpolated curves on their dashboards — the API even lets you pick the method (linear, step, spline).</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "What's the difference between <code>method='time'</code> and <code>method='linear'</code>?"</h5>
+<p>This is the gateway probe — if the candidate can't answer it, they don't understand interpolation. <code>linear</code> = equal weight per row index, ignores timestamps. <code>time</code> = weight by timestamp distance, respects the actual elapsed time between known points. On uniformly-spaced data they're identical; on irregular data only <code>time</code> respects physics.</p>
+
+<h5>Probe 2 — "Spline interpolation can produce values OUTSIDE the surrounding two known points. Is that ever a problem?"</h5>
+<p>Yes — for step-shaped signals (network packet count, request rate, integer-valued metrics) cubic spline overshoots and creates impossible values like negative requests/sec. Spline is right for continuously-varying physical signals (temperature, pressure, voltage). The senior candidate names the assumption: <em>spline fits assume smoothness; check the signal supports that</em>.</p>
+
+<h5>Probe 3 — "What's wrong with <code>.fillna(mean)</code>?"</h5>
+<p>It pretends the sensor reading at every gap is the global mean. For time-series, that's almost always wrong — temperature at 3 AM is not the mean of 24h temperature. It also kills the variance: training data with mean-filled rows has artificially low std, which biases downstream models. Only acceptable for pre-EDA quick looks; never for production ML pipelines.</p>
+
+<h5>Probe 4 — "How would you incrementalise this for streaming?"</h5>
+<p>Flink keyed state per sensor: state = <code>(last_value, last_ts)</code>. On a new event, emit <code>(this_event, this_value)</code> and update state. When the next event arrives, you can retroactively fill the in-between gap by emitting a derived "interpolated" event. The trade-off: emitting interpolated events introduces synthetic data into the stream that downstream consumers can't distinguish from real measurements unless tagged. <strong>Always tag interpolated values with an <code>is_interpolated</code> column.</strong></p>
+
+<h5>Probe 5 — "Cap on interpolation length — how do you implement it?"</h5>
+<p><code>.interpolate(method='time', limit=N)</code> where N is the max consecutive NaN run length to fill. Anything beyond <code>limit</code> stays NaN. Then a final <code>.dropna()</code> or routing to quarantine. Common production pattern: cap at 3× the nominal cadence — a sensor offline for 15 min is interpolatable; offline for 3 hours is not.</p>
+
+<h5>Probe 6 — "Edge cases — leading NaN, trailing NaN, all-NaN sensor?"</h5>
+<p>(a) Leading NaN: <code>ffill</code> can't help, <code>bfill</code> carries the first known value backwards — debatable physics but safe default. (b) Trailing NaN: <code>ffill</code> carries the last value forward — fine for short trailing gaps, dangerous for long ones (the dashboard shows "current temperature" stuck at yesterday's). (c) All-NaN sensor: <code>interpolate</code> leaves it NaN, <code>ffill().bfill()</code> can't fix it, the row goes to quarantine. The function above returns the all-NaN frame as-is — caller has to handle.</p>
+
+<h5>Probe 7 — "Hot sensor — one sensor with 10 M readings, 30 % NaN. Will <code>groupby(sensor_id).apply(interpolate_irregular)</code> work at scale?"</h5>
+<p>In pandas, 10 M rows in one group is on the edge of OOM but workable. The bigger issue is the apply-per-group is Python-level — Spark's pandas-UDF (<code>applyInPandas</code>) is the production path: each sensor's group ships to one executor and runs the pandas interpolation locally. The per-group OOM risk is real; cap with <code>repartition(sensor_id)</code> and a salt for the whale sensors. See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0104">python_175-0104</a> — time-windowed aggregation: the next step after gap-fill (resample needs clean data).</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0107">python_175-0107</a> — deseasonalisation: a richer signal-processing step for periodic data.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin pattern (live = Flink, batch = pandas, same algorithm).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting for the hot-sensor skew case.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — late events, watermarks, and the is_interpolated tag.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Four pillars: (1) <em>method='time' for irregular data, never method='linear'</em> — the latter ignores timestamps; (2) <em>cap interpolation length</em> at 3× nominal cadence — long gaps are guesses, not measurements; (3) <em>tag interpolated rows</em> with an <code>is_interpolated</code> column so downstream consumers can filter; (4) <em>spline assumes smoothness</em> — wrong for step-shaped signals. The pandas function is the analyst's gap-fill bench; production runs Flink with keyed state per sensor for streaming, Spark applyInPandas for backfill.</div>

@@ -1,0 +1,114 @@
+<p>Tesla's vehicle telemetry fleet streams a few billion sensor readings a day — battery cell voltages, motor temperatures, brake-pad wear, autopilot disengagement events. Each cell sends a reading every ~30 s with jitter; the fleet dashboard needs hourly summaries so the engineer on call sees one row per hour per metric per vehicle, not 120. <strong>The resample-and-aggregate pattern is how every IoT, observability, and high-frequency-finance company turns raw signal into oversight.</strong> Datadog rolls metrics into 10s, 1m, 5m, 1h buckets the same way; the algorithm is identical, just the cadences differ.</p>
+
+<h4>1. The data — irregular, jittered, occasionally spiky</h4>
+<table>
+  <thead><tr><th>aspect</th><th>realistic shape</th></tr></thead>
+  <tbody>
+    <tr><td>cadence</td><td>~30 s nominal, jitter ±10 s, occasional 5-min gap on cellular dropout</td></tr>
+    <tr><td>row count</td><td>~120 readings per hour per sensor; ~5,760 rows for 48 h in the demo</td></tr>
+    <tr><td>distribution</td><td>Baseline 35 °C with diurnal sinusoid (warmer in driving hours), noise ~1 °C, occasional thermal-runaway spike</td></tr>
+    <tr><td>anomaly</td><td>Injected: +15 °C spike at hour 36 lasting 1 hour — should land in exactly one window</td></tr>
+  </tbody>
+</table>
+<p>The output schema (one row per window, columns count/mean/std/min/max/p50/p95/anomaly) is the Datadog metric-summary shape verbatim. The <code>anomaly</code> column is the on-call alert flag: a 3-sigma deviation from the trailing 24-window baseline.</p>
+
+<h4>2. The business question — what the on-call engineer decides on</h4>
+<ul>
+  <li><strong>Auto-throttle the affected cars.</strong> If hourly mean cell temperature jumps 15 °C, the vehicle firmware should reduce charge rate and notify the owner. The aggregation feeds the fleet-wide alert that triggers the OTA throttle command.</li>
+  <li><strong>Capacity planning.</strong> p95 latency on autopilot stack tells SRE whether the inference cluster is sized for the next 6 months — feeds a quarterly procurement decision.</li>
+  <li><strong>Warranty claims.</strong> The seasonal pattern (summer cars run hotter than winter cars) is normal; the per-hour deviation from that baseline is what triggers a warranty investigation. The trailing-24-window baseline implicitly handles the seasonality.</li>
+</ul>
+
+<h4>3. The pandas implementation — annotated</h4>
+<pre><code>def windowed_aggregates(df, ts_col, value_col, freq='1h'):
+    # ── Step 1. DatetimeIndex with monotonic ordering — required
+    # for resample. .sort_index() costs O(N log N) but is non-negotiable;
+    # resample on an unsorted index either errors or silently corrupts.
+    s = df.set_index(pd.to_datetime(df[ts_col])).sort_index()
+    r = s[value_col].resample(freq)
+
+    # ── Step 2. Resample → DataFrameGroupBy-like object. We pull
+    # each summary stat as its own column. Building the DataFrame
+    # from a dict keeps the column order explicit (versus .agg([...])
+    # which orders alphabetically post-pandas-2.0).
+    agg = pd.DataFrame({
+        'count': r.count(),
+        'mean':  r.mean(),
+        'std':   r.std(),
+        'min':   r.min(),
+        'max':   r.max(),
+        'p50':   r.quantile(0.50),
+        'p95':   r.quantile(0.95),
+    })
+
+    # ── Step 3. Z-score anomaly. Rolling(24) gives a 24-hour
+    # trailing baseline — automatically deseasonalises for the
+    # daily warming/cooling cycle. The first 24 windows have NaN
+    # baseline (insufficient history) and get fillna(False).
+    baseline_mean = agg['mean'].rolling(24).mean()
+    baseline_std  = agg['mean'].rolling(24).std()
+    agg['anomaly'] = (agg['mean'] - baseline_mean).abs() &gt; 3 * baseline_std
+    agg['anomaly'] = agg['anomaly'].fillna(False)
+    return agg.reset_index()</code></pre>
+
+<p><strong>Why <code>resample('1h')</code> and not <code>groupby(df.index.floor('1h'))</code>?</strong> Both produce the same buckets. <code>resample</code> is purpose-built: it handles the timestamp-arithmetic, knows about time-zone boundaries, and emits a clean DatetimeIndex on the result. The <code>groupby(floor)</code> form is a workaround when you can't get a DatetimeIndex — e.g. when grouping by a non-index column with <code>groupby(pd.Grouper(key='ts', freq='1h'))</code>, which is what you'd use for "category × time" double aggregations (see <a href="/interview.app/sql.html?q=python_175-0100">python_175-0100</a>).</p>
+
+<p><strong>Why z-score on <code>mean</code> and not on raw <code>value</code>?</strong> Anomalies in this domain are <em>distributional shifts of the window</em>, not single outlier readings. A spike at one timestamp is noise; a sustained shift across a window is the alarm. The mean is the right level of aggregation; the std gives you the noise floor against which to call "real shift". This is the canonical metric-anomaly pattern; Datadog Watchdog uses exactly this shape.</p>
+
+<h4>4. What the output means</h4>
+<table>
+  <thead><tr><th>window start</th><th>count</th><th>mean</th><th>p95</th><th>anomaly</th><th>Read</th></tr></thead>
+  <tbody>
+    <tr><td>2024-10-01 00:00</td><td>110</td><td>35.5 °C</td><td>37.0</td><td>False</td><td>Baseline hour. ~110 readings per hour ≈ 1 every 33 s — matches the nominal cadence.</td></tr>
+    <tr><td>2024-10-01 05:00</td><td>121</td><td>39.0 °C</td><td>40.4</td><td>False</td><td>Diurnal warm-up. Higher mean than midnight, but trailing-24 baseline absorbs the daily cycle — no alert.</td></tr>
+    <tr><td>2024-10-02 12:00</td><td>~120</td><td><strong>49.4 °C</strong></td><td><strong>50.8</strong></td><td><strong>True</strong></td><td><strong>The injected spike.</strong> 15 °C above where the baseline expects this hour to sit — fires the anomaly flag.</td></tr>
+  </tbody>
+</table>
+<p>Critically, the seasonal warm-up at hour 5 does <em>not</em> trip the alarm — the rolling-24-window baseline already learned that 5 AM is warmer than midnight on this car. Only the unexpected spike fires. This is why metric anomaly detection rolls the baseline rather than comparing to a global mean.</p>
+
+<h4>5. Production patterns — how this scales</h4>
+<ul>
+  <li><strong>pandas → 10 M rows comfortable, 100 M painful.</strong> For one sensor on one car for a year (~10 M rows), pandas is fine. For the full Tesla fleet (~10⁹ rows/day), no. The production rewrite splits two ways:
+    <ul>
+      <li><strong>Streaming live alerting:</strong> Flink with <code>TumblingEventTimeWindows.of(Time.hours(1))</code> keyed by (vehicle_id, sensor_id). Watermark = 5 minutes for late events; events past the watermark go to a side-output for backfill. Same algorithm, unbounded data.</li>
+      <li><strong>Batch backfill / historical analysis:</strong> Spark with <code>window()</code> + <code>groupBy(window, vehicle_id)</code>. The pandas function in this question is the offline-twin / debugging tool — analysts replay yesterday's data with a different threshold and compare alert counts.</li>
+    </ul>
+  </li>
+  <li><strong>Datadog metric pipeline</strong> uses this exact shape for its 1m / 5m / 1h rollups. The 1m rollup runs on Lambda Architecture (Flink for live, Spark for backfill); the pandas pattern is the same algorithm. Cloudflare's request-rate monitoring is identical.</li>
+  <li><strong>Hot key (single vehicle = 1 M readings/hour from an over-instrumented test car).</strong> The resample is fine in pandas (one big group). In Spark, the per-vehicle groupby would skew. Salt the vehicle_id with a salt-bucket for pass 1, roll up by vehicle_id in pass 2. See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>.</li>
+  <li><strong>Watermark / late-arriving events.</strong> The pandas version sees all the data at once, so late events are a non-issue. In streaming, a reading that arrives 5 minutes after its window closed has to go somewhere — Flink's side-output pattern (route late events to a quarantine topic) is the production answer. Don't drop late events silently; <em>known-known unknowns</em> beat unknown unknowns.</li>
+</ul>
+
+<h4>6. Interviewer probes</h4>
+
+<h5>Probe 1 — "How does <code>resample('1h')</code> handle a window with zero readings (sensor offline)?"</h5>
+<p>It emits a row with <code>count=0</code>, <code>mean=NaN</code>, all stats NaN. The downstream anomaly check then evaluates <code>NaN &gt; 3*NaN</code> = False, so no false alert fires — but the NaN row is still in the output, which is exactly what you want: "the sensor was offline this hour" is information. Don't drop those rows. A senior candidate calls out the explicit None-handling here.</p>
+
+<h5>Probe 2 — "What's wrong with using <code>resample('1h').apply(lambda x: x.quantile(0.95))</code>?"</h5>
+<p>Two things. (a) <code>.apply</code> on a resample re-enters Python per group; <code>.quantile(0.95)</code> directly stays in C. (b) The lambda creates a function-call overhead per window. For 8760 windows (one year hourly), the apply form is ~50× slower. Use <code>r.quantile(0.95)</code> directly.</p>
+
+<h5>Probe 3 — "Tumbling vs sliding windows — when do you pick which?"</h5>
+<p>Tumbling (what we used): non-overlapping, each event belongs to exactly one window. Right for hourly summaries — the "5 PM hour" is well-defined. Sliding (e.g. "1h window, 10m stride"): overlapping, smooths out edge effects, gives 6× more rows. Right for "any 1h period with metric &gt; X" alerts — catches spikes that straddle the tumbling-window boundary. The trade-off is row count: sliding produces 6× more rows for the same data, which can OOM the consumer dashboard.</p>
+
+<h5>Probe 4 — "Event-time vs processing-time — which does this use, and does it matter?"</h5>
+<p>The function uses the <code>ts_col</code> the caller passes in. If that's the event-time (timestamp from the sensor), the answer is deterministic and replay-safe. If it's the processing-time (when the row landed in the warehouse), the windows depend on ingestion latency — replay produces different results. <strong>For any audit-able use case, event-time is non-negotiable.</strong> The candidate who calls this out explicitly is showing senior signal — same theme as <a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a>.</p>
+
+<h5>Probe 5 — "The 3-sigma threshold — is it tuned?"</h5>
+<p>Empirically, yes. A normal distribution puts 0.3 % of points beyond 3σ — for hourly windows over a year (~8760 hours per sensor), that's ~26 expected false positives. Across a 1000-sensor fleet, ~26 000/year ≈ 70/day. That's typically too many for on-call. Production raises the threshold to 4σ (~0.006 % = ~4 expected false positives/year/sensor) <em>and</em> requires the anomaly to persist for ≥ 2 consecutive windows. Tunable; document the trade-off.</p>
+
+<h5>Probe 6 — "Hot vehicle — a test car with 100k readings/hour. Does the resample OOM?"</h5>
+<p>In pandas, no — 100k rows per group is comfortable. The OOM risk is downstream (the dashboard showing one row per hour for 100 sensors over a year). In Spark, the resample-equivalent (<code>groupBy(window, vehicle_id)</code>) is fine because the aggregations (count/mean/std/min/max) are all associative and Spark's partial aggregation handles the skew. Quantiles (p50/p95) are the tricky case — not associative. Use <strong>approx_percentile</strong> (HLL/t-digest sketches) for the streaming version.</p>
+
+<h5>Probe 7 — "Why 24 windows for the baseline?"</h5>
+<p>It captures one full diurnal cycle. With hourly windows, 24 means "yesterday's same-hour mean is in the baseline" — so a 5 PM reading is compared to the last 24 5-PM-and-other-hour means, including yesterday's 5 PM. If you wanted same-hour-of-day baseline only, you'd use a <code>shift(24)</code>-based comparison instead of a rolling mean. Production at Datadog uses a weighted exponential moving average (EWMA) — gives more weight to recent windows while still smoothing.</p>
+
+<h4>7. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/sql.html?q=python_175-0106">python_175-0106</a> — interpolating missing readings (the gap-fill step upstream of this aggregation).</li>
+  <li><a href="/interview.app/sql.html?q=python_175-0107">python_175-0107</a> — deseasonalisation: an alternative to the rolling-24 baseline for the "remove seasonal" use case.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0010">customer_growth-0010</a> — pandas-as-offline-twin pattern (Flink for live windows, pandas for backfill).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — Salting: hot-vehicle skew rescue.</li>
+  <li><a href="/interview.app/design/streaming-architecture.html">Streaming Architecture design page</a> — tumbling vs sliding, event-time, watermarks, side-outputs.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> Four things separate a senior answer: (1) <em>event-time, not processing-time</em> — the function takes <code>ts_col</code> from the caller, so document the contract; (2) <em>rolling baseline, not global mean</em> — 24-window trailing absorbs daily seasonality so the alert fires on <em>change</em> not on level; (3) <em>NaN-on-empty-window is information</em> — don't drop sensor-offline rows; (4) <em>quantiles don't combine</em> — for streaming use approx_percentile / t-digest sketches, not exact. The pandas version is the analyst's threshold-tuning bench; production live alerting runs on Flink, backfill on Spark.</div>
