@@ -3308,6 +3308,1267 @@
       ],
       "answer": 1,
       "explanation": "Lambda's original justification \u2014 batch was the only way to do correct large-scale processing, streaming for low-latency approximations \u2014 has eroded as streaming engines gained windowing, exactly-once, and lakehouse storage gained ACID + replay. Kappa-style pipelines now deliver both freshness and correctness from one codebase. Lambda still wins when your batch toolchain is irreplaceable or replay storage costs are prohibitive; otherwise the maintenance savings of one code path are compelling."
+    },
+    {
+      "id": "ds-201",
+      "type": "single",
+      "topic": "Incident Response",
+      "difficulty": "medium",
+      "prompt": "Stripe's checkout team is rolling out a new payment method. Latency tests show the p99 of `create_charge` jumps from 120ms to 800ms whenever they add a single LEFT JOIN to the `disputes` table. EXPLAIN ANALYZE shows the planner switched from a hash join to a nested loop because it estimates the disputes table at 12 rows when it actually has 4M. Which change is MOST LIKELY to fix p99 without changing the query semantics?",
+      "options": [
+        "Rewrite the query as two separate statements and join in application code",
+        "Run ANALYZE / refresh statistics on the disputes table so the planner uses the correct row estimate",
+        "Add a covering index that includes all SELECTed columns from disputes",
+        "Switch the database isolation level from READ COMMITTED to REPEATABLE READ"
+      ],
+      "answer": 1,
+      "explanation": "The planner picked a nested loop because its cardinality estimate (12 rows) is wildly wrong. Stale statistics is the dominant cause of plan flips after a table grows; refreshing them lets the optimizer pick the hash join again. A covering index helps but doesn't address the wrong join algorithm; splitting the query moves logic without fixing the underlying estimate; isolation level is unrelated to plan choice."
+    },
+    {
+      "id": "ds-202",
+      "type": "single",
+      "topic": "Multi-Tenant",
+      "difficulty": "medium",
+      "prompt": "Your B2B SaaS has 4,800 customer tenants. Customer 'Acme Corp' generates 78% of total event volume (1.2B events/day) while every other tenant generates <0.1%. Your Snowflake warehouse hits credit cap every Tuesday around 14:00 UTC because Acme runs heavy ad-hoc queries during their business hours. What design change addresses this LEAST disruptively?",
+      "options": [
+        "Move all 4,800 tenants to their own dedicated warehouses",
+        "Provision a dedicated virtual warehouse for Acme and route their queries to it, leaving the shared warehouse for everyone else",
+        "Force Acme to query only between 02:00 and 06:00 UTC via a query queue with hard rate limits",
+        "Drop event-level grain and persist only hourly aggregates so Acme's queries return faster"
+      ],
+      "answer": 1,
+      "explanation": "Carving Acme onto a dedicated warehouse is the canonical 'noisy neighbor' isolation pattern in Snowflake: zero migration, zero schema change, and the rest of the fleet stops contending for their workload. Per-tenant warehouses for all 4,800 explodes operational cost; rate-limiting an enterprise customer to nights breaks the value prop; dropping grain loses analytical flexibility for everyone."
+    },
+    {
+      "id": "ds-203",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "DoorDash needs to compute dasher pay each Friday based on Mon-Sun delivery events. Late events trickle in for ~36 hours after a delivery (signal upload, in-app tip edits, customer rating finalization). What's the safest pattern to ensure pay is correct AND processed by Friday noon?",
+      "options": [
+        "Run the pay job at Friday 00:01 right after the week ends, accepting whatever events have arrived",
+        "Hold pay calculation until Friday 11:00 (giving 35+ hours of late-event grace), then freeze the window and pay; reconcile any later corrections via a separate retro-pay batch",
+        "Stream pay updates continuously and let the wallet be eventually consistent until Friday noon",
+        "Re-run the pay job hourly until Friday noon, overwriting prior runs"
+      ],
+      "answer": 1,
+      "explanation": "Real payroll pipelines almost always use a cut-off pattern: wait for the watermark / late-data grace period to elapse, freeze the window, pay, and reconcile rare straggler corrections in a follow-up cycle. Paying immediately at 00:01 misses most adjustments; streaming pay creates ledger churn and user confusion; hourly overwrites cause unpredictable amounts on consumers' apps."
+    },
+    {
+      "id": "ds-204",
+      "type": "single",
+      "topic": "FinOps",
+      "difficulty": "easy",
+      "prompt": "Your Snowflake bill doubled overnight. Yesterday it was $1.2K, today it's $2.6K and climbing. Nothing in the dbt repo changed. Where do you look FIRST?",
+      "options": [
+        "Audit recent dbt model changes in the last 30 days",
+        "Open `snowflake.account_usage.query_history` and group by `warehouse_name, user_name, query_tag` for the last 24h to find the new top consumer",
+        "Lower AUTO_SUSPEND on every warehouse to 60s",
+        "Open a Snowflake support ticket"
+      ],
+      "answer": 1,
+      "explanation": "The fastest diagnostic for a sudden cost spike is to surface the new top-cost queries/users in the last 24h via account_usage. Cost spikes almost always trace to a single newly-deployed query, a runaway notebook, or a new BI dashboard hitting a non-clustered table. Auditing dbt models won't catch BI/ad-hoc usage; blindly lowering AUTO_SUSPEND across the board may not target the actual cause."
+    },
+    {
+      "id": "ds-205",
+      "type": "single",
+      "topic": "Idempotency",
+      "difficulty": "easy",
+      "prompt": "A fintech's payment API receives a retry from a merchant 2 seconds after the first request (network blip). The original request is still in-flight (DB write committed, response not yet sent). The merchant uses the same `Idempotency-Key` header. What should the server do?",
+      "options": [
+        "Reject the second request with HTTP 429 and let the client retry later",
+        "Process the second request as new \u2014 the client never got a response",
+        "Detect the in-flight key via a row lock or status flag and either block-and-return-the-eventual-response, or return 409 Conflict so the client backs off",
+        "Return HTTP 200 with an empty body since the original is still processing"
+      ],
+      "answer": 2,
+      "explanation": "Stripe-style idempotency uses an 'in-flight' status: the first request takes a row-level lock on the idempotency key; the second request finds the in-flight marker and either waits for the first to complete (then returns the cached response) or returns 409 to signal the client to back off. Returning 429 wrongly tells the client to retry. Processing as new double-charges. Returning empty 200 silently corrupts the merchant's view."
+    },
+    {
+      "id": "ds-206",
+      "type": "single",
+      "topic": "Incident Response",
+      "difficulty": "hard",
+      "prompt": "Your ingestion lag jumped from 5s to 8h overnight. Kafka producer rates look normal, consumer lag is climbing linearly. CPU on consumer pods is 15%. Network throughput from Kafka is well below cluster cap. What is the MOST likely cause?",
+      "options": [
+        "Kafka broker disk is full",
+        "A downstream sink (the database/warehouse the consumer writes to) is throttling or rate-limiting, causing the consumer loop to block on each write",
+        "Producers are emitting messages with corrupt headers",
+        "Consumer code is in an infinite loop"
+      ],
+      "answer": 1,
+      "explanation": "Linear lag growth with idle consumer CPU and idle Kafka throughput is the classic signature of a slow sink: the consumer polls a batch, blocks on the write, polls another batch, blocks again. The bottleneck is downstream, not Kafka or the consumer itself. Disk-full would surface as producer errors. Corrupt headers would crash the consumer (not look idle). Infinite loop would peg CPU."
+    },
+    {
+      "id": "ds-207",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Airbnb hosts can change their nightly price daily, and the search team needs to reconstruct 'what was the price shown on listing X on 2024-09-15 to a guest in Berlin?' for analytics. The price table has 800M rows with timestamped updates. What modeling pattern is most appropriate?",
+      "options": [
+        "Overwrite the price column on each change (Type 1)",
+        "SCD Type 2 on the listing\u2014price relationship: row per (listing_id, price, valid_from, valid_to, is_current) with a non-overlapping validity window",
+        "Append-only event log only; reconstruct on demand from the raw event stream",
+        "Materialized view that always reflects the current price"
+      ],
+      "answer": 1,
+      "explanation": "Reconstructing historical state-as-of-a-date is the exact use case for SCD Type 2. Searching the raw event log on every analytics query is too expensive at 800M rows. Type 1 erases history. A materialized view of current state can't answer 'what was the price last September'. Many teams pair SCD2 with the event log: raw events feed into a curated SCD2 dimension."
+    },
+    {
+      "id": "ds-208",
+      "type": "single",
+      "topic": "Sharding",
+      "difficulty": "medium",
+      "prompt": "Discord shards messages by `guild_id` (server ID). One guild ('Twitch streamer drop event') suddenly attracts 4M concurrent users and emits 80K messages/sec, while average guilds emit 2/sec. The shard holding that guild is at 95% CPU and the rest of the fleet is at 8%. What is the SAFEST way to mitigate without taking the chat down?",
+      "options": [
+        "Stop accepting new messages to that guild until traffic subsides",
+        "Promote the hot guild to its own dedicated shard / cluster, moving only that guild's data while keeping the rest of the fleet untouched",
+        "Re-hash the entire sharding key space to distribute load evenly across all shards",
+        "Increase the replication factor on the hot shard"
+      ],
+      "answer": 1,
+      "explanation": "The standard 'celebrity tenant' mitigation is to split a single hot key off to its own shard\u2014small blast radius, no global resharding, no downtime. Stopping writes breaks the user experience. Resharding the entire keyspace is expensive, risky, and overkill for one hot guild. Replication factor addresses durability/read load, not write CPU."
+    },
+    {
+      "id": "ds-209",
+      "type": "single",
+      "topic": "AdTech",
+      "difficulty": "hard",
+      "prompt": "A DSP must enrich bid requests with audience-segment data and reply within 100ms p99. The audience segment store has 600M user-segment edges. Currently you do a Postgres lookup per bid (median 8ms, p99 240ms). What change MOST reliably hits the 100ms budget?",
+      "options": [
+        "Add more read replicas to Postgres",
+        "Materialize per-user segment vectors into an in-memory K/V store (e.g., Redis or Aerospike) keyed by user_id, refreshed by a streaming pipeline, and look up by exact key",
+        "Move the bid-handling code to faster instances",
+        "Cache the most recent 10K bids' Postgres responses in process memory"
+      ],
+      "answer": 1,
+      "explanation": "Ad-bid p99 budgets in the 100ms range are won or lost on the lookup-store choice: in-memory, single-key, microsecond-level fetch. Postgres replicas help throughput but won't shave tail latency (p99 dominates). Per-bid LRU in-process cache has very low hit rate at scale. Faster CPU doesn't fix I/O-bound tail spikes from disk-backed reads."
+    },
+    {
+      "id": "ds-210",
+      "type": "single",
+      "topic": "Healthcare",
+      "difficulty": "hard",
+      "prompt": "A hospital system is consolidating patient records from 6 EHR vendors. The same patient might appear as 'JOHN SMITH 1982-04-12 MA001' in one source and 'J. Smith 04/12/1982 Phone 617-555-0102' in another. What master data management approach is most defensible for matching?",
+      "options": [
+        "Trust the external `master_patient_id` field that one vendor provides, and require all others to populate it",
+        "Use deterministic-then-probabilistic matching: exact match on a small set of fields first; for remaining candidates, use a probabilistic scorer over (name similarity, DOB, gender, address, phone) with a human review queue above a threshold",
+        "Append all records with a UUID and never attempt to deduplicate \u2014 keep separate patient views per source",
+        "Merge any two patients whose DOB matches"
+      ],
+      "answer": 1,
+      "explanation": "Patient identity (Master Patient Index) is the canonical MDM problem in healthcare. The standard approach is exact match on strong identifiers (SSN if present, MRN+source) for the easy 90%, then probabilistic matching with a human-in-the-loop for ambiguous cases. Single-source trust fails when vendors don't share IDs. Never deduplicating ruins care continuity. Matching solely on DOB merges huge numbers of distinct people."
+    },
+    {
+      "id": "ds-211",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "medium",
+      "prompt": "A user invokes GDPR right-to-be-forgotten. Their data exists in: Postgres (current), S3 silver layer (parquet, 90-day partitions), and a Kafka topic with 5-year retention used for replay. Which deletion strategy is most practical?",
+      "options": [
+        "Tombstone the user in Postgres; rewrite affected silver-layer parquet files to exclude them; ignore Kafka because the topic is append-only",
+        "Tombstone in Postgres; rewrite silver-layer parquet; in Kafka, use crypto-shredding\u2014encrypt PII per-user with a key kept in a separate KMS, then delete the user's key so the messages become unreadable ciphertext",
+        "Delete the user's records from Postgres only and accept that downstream copies will eventually expire",
+        "Rewrite all 5 years of Kafka messages to remove the user's records"
+      ],
+      "answer": 1,
+      "explanation": "Crypto-shredding is the de-facto pattern for immutable / append-only stores: encrypt per-subject, delete the key. Rewriting 5 years of Kafka topics is prohibitively expensive and breaks ordering guarantees for consumers replaying. Ignoring Kafka is a GDPR violation. Postgres-only deletion leaves discoverable copies elsewhere."
+    },
+    {
+      "id": "ds-212",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "An IoT fleet emits 100K msgs/sec from 2M devices. Each device's firmware version determines the message schema (v1: 8 fields, v2: 12 fields, v3 ships next month). Where should the schema version be carried, and how should the warehouse handle multiple versions?",
+      "options": [
+        "Embed schema version in each message header; land messages versioned in bronze; normalize to a superset schema in silver, with explicit per-version unpack logic and tests",
+        "Enforce a single schema and drop any message that doesn't match",
+        "Auto-detect schema from each message at warehouse load time",
+        "Run separate parallel pipelines per firmware version forever, with no convergence"
+      ],
+      "answer": 0,
+      "explanation": "Versioned bronze + normalizing silver is the canonical IoT pattern: producers stamp schema_version on every message, bronze keeps raw payloads losslessly, silver implements explicit unpack-per-version into a superset schema. Dropping non-matching messages loses device data permanently. Auto-detection at load time is brittle and untestable. Parallel pipelines forever explodes maintenance burden as firmware versions accumulate."
+    },
+    {
+      "id": "ds-213",
+      "type": "single",
+      "topic": "Migration",
+      "difficulty": "medium",
+      "prompt": "You're cutting over from a 4TB Postgres OLTP database to Snowflake for analytics with zero downtime to the application. Today, analytics queries run on the Postgres primary and slow down the app. What's the safest cutover path?",
+      "options": [
+        "Snapshot Postgres at midnight, restore into Snowflake, switch BI dashboards to Snowflake the next day",
+        "Bootstrap Snowflake with an initial Postgres snapshot, then enable Debezium CDC into Snowflake; once lag is stably <5min and row counts reconcile, switch dashboards over with a fallback path",
+        "Dual-write from the application to both Postgres and Snowflake going forward; analytics moves to Snowflake immediately",
+        "Stop nightly analytics for a week while you copy data manually"
+      ],
+      "answer": 1,
+      "explanation": "The CDC-bootstrap-then-cutover pattern is the textbook safe migration: snapshot for initial load, log-based CDC to catch up, reconcile, then cut readers over with rollback in place. Midnight snapshot freezes data and skips deltas during cutover. Dual-write from the app couples the OLTP path to a warehouse and is rarely worth the operational pain. Stopping analytics is dishonest about the business cost."
+    },
+    {
+      "id": "ds-214",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "Your product page caches product details in Redis with TTL 600s. After a sale event drops, 200K users hit the same out-of-stock SKU URL in 30 seconds. Redis hits are 4ms, Postgres fallback is 80ms. You observe Postgres CPU spike to 95% every 600s for 8 seconds. What pattern fixes this?",
+      "options": [
+        "Lower the TTL to 60s so cold misses are smaller",
+        "Implement request coalescing (single-flight): only one request per key fetches from Postgres on miss; concurrent requesters wait for the in-flight result",
+        "Increase Redis memory by 4x",
+        "Switch from cache-aside to write-through caching"
+      ],
+      "answer": 1,
+      "explanation": "This is a classic cache stampede / dogpile: when the key expires, hundreds of concurrent misses all hammer Postgres simultaneously. Single-flight (request coalescing) limits the database to one fetch per key during a window. Lowering TTL makes stampedes more frequent. More Redis memory doesn't help when the key is missing. Write-through doesn't address the read stampede pattern."
+    },
+    {
+      "id": "ds-215",
+      "type": "single",
+      "topic": "Inventory",
+      "difficulty": "hard",
+      "prompt": "An omnichannel retailer (online + 1,200 physical stores) needs to display 'available to ship from nearest store' for BOPIS. Store inventory is updated by point-of-sale + receiving events. Stale inventory means oversold orders (~$3M/yr in cancellations). What architecture best balances freshness and consistency?",
+      "options": [
+        "Periodic batch sync every 6 hours from stores to central inventory",
+        "Event-streamed inventory (CDC from POS + receiving) into a streaming aggregator that maintains per-(store, sku) on-hand counts; the website reads from this view with optimistic-locking soft-holds during checkout, confirmed against store at fulfillment",
+        "Always allow the order, and cancel later if the store can't fulfill",
+        "Lock store inventory globally during every online checkout"
+      ],
+      "answer": 1,
+      "explanation": "Modern omnichannel inventory pairs event-streamed on-hand counts (near real-time) with soft holds at checkout and a final confirmation at fulfillment. Hold-then-confirm reflects the physical reality that the count is approximate until the store associate picks. 6-hour batches cause exactly the $3M/yr oversells. 'Allow and cancel' tanks NPS. Global locking destroys throughput at scale."
+    },
+    {
+      "id": "ds-216",
+      "type": "single",
+      "topic": "Streaming State",
+      "difficulty": "hard",
+      "prompt": "A Flink job tracks per-user session windows with a 30-minute inactivity gap. Most users have a single session per day, but 0.2% are bots with overlapping pseudo-sessions, leading to keyed state for those users growing by 50MB/day each. The job's RocksDB state passed 6TB and checkpoints take 25 minutes. What's the right fix?",
+      "options": [
+        "Allocate more memory to the TaskManagers",
+        "Detect bot keys upstream and route them to a separate, bounded-state pipeline; for legitimate users, add a state TTL aligned with the session window so closed sessions are purged",
+        "Switch from RocksDB back to the in-memory state backend",
+        "Increase checkpoint interval to 1 hour"
+      ],
+      "answer": 1,
+      "explanation": "Unbounded keyed state is the most common Flink scaling failure. The cure has two parts: (1) state TTL purges per-key state once it's no longer useful, and (2) isolating pathological keys upstream so they don't dominate state size. More memory delays the problem. In-memory backend explodes faster. Longer checkpoint intervals worsen recovery time without fixing root cause."
+    },
+    {
+      "id": "ds-217",
+      "type": "single",
+      "topic": "Incident Response",
+      "difficulty": "easy",
+      "prompt": "An executive dashboard says 'last updated 2 minutes ago' but the numbers haven't moved in 6 hours. The dbt run completes successfully every 5 minutes. What's the FIRST thing to check?",
+      "options": [
+        "Whether the dbt model is materialized as a view (always recomputes) or table (only updates on rebuild)",
+        "Whether the source CDC pipeline is delivering new rows, by looking at row counts in the silver layer over the last hour",
+        "Whether the dashboard tool's caching layer (e.g., Looker's BI cache, Tableau's extract refresh) is serving stale results",
+        "Whether the warehouse credit cap was hit"
+      ],
+      "answer": 1,
+      "explanation": "'Pipeline succeeded but data is stale' is almost always upstream: the dbt run completed, but it processed an empty delta because the source feed stalled. Checking silver-layer row counts over time confirms or refutes this in seconds. Materialization type, BI cache, and credit cap are downstream causes that don't explain 'dbt succeeded'. Always isolate where the freshness drops first."
+    },
+    {
+      "id": "ds-218",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "An e-commerce team is designing a referral program. A user can refer friends; each successful signup gives them a credit; later, when the referee makes their first purchase, both parties get a credit; the campaign manager wants ROI metrics on a per-channel basis. What's the cleanest schema shape?",
+      "options": [
+        "One denormalized 'referrals' table with referrer_id, referee_id, signup_at, first_purchase_at, credits_paid_referrer, credits_paid_referee, channel",
+        "Two tables: `referral` (referrer_id, referee_id, channel, status, created_at) and `referral_event` (referral_id, event_type, amount, occurred_at) \u2014 modeling state as a series of events",
+        "One mega-table that copies fields from users, orders, and channels",
+        "Store the program rules in code and don't persist anything"
+      ],
+      "answer": 1,
+      "explanation": "Referral programs have a sequence of milestones (signup, first-purchase, credit-paid) that can occur over weeks. Modeling as a parent referral row plus an event/state child table cleanly supports adding new milestone types, replaying, computing per-stage funnel, and changing reward rules without schema churn. A single denormalized row makes adding milestones a destructive change. Mega-tables couple unrelated domains. Code-only loses auditability."
+    },
+    {
+      "id": "ds-219",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "An order-events Kafka topic has 30 partitions keyed by `order_id`. The team wants to repartition to `customer_id` so all of a customer's events land in the same partition for customer-360 stream aggregations. They cannot break the existing order_id consumers. What's the lowest-risk approach?",
+      "options": [
+        "Change the producer's partition key from order_id to customer_id and let existing consumers continue, accepting reordering within order_id streams",
+        "Create a NEW topic keyed by customer_id, build a stateless stream that re-keys events from the original topic into the new topic; existing consumers continue on the original topic",
+        "Repartition the existing topic in place by running a maintenance script",
+        "Add more partitions to the existing topic so each customer's events land deterministically"
+      ],
+      "answer": 1,
+      "explanation": "The standard 'change keying without breaking consumers' pattern is to land events into a NEW topic re-keyed by the new field, while the original topic continues unchanged. Changing the producer key in place breaks ordering for existing order_id consumers (related events scatter). Repartitioning a topic in place isn't a thing in Kafka. Adding partitions doesn't change the key strategy."
+    },
+    {
+      "id": "ds-220",
+      "type": "single",
+      "topic": "Fraud Detection",
+      "difficulty": "hard",
+      "prompt": "A buy-now-pay-later (BNPL) lender sees a sudden spike in approvals followed 60-90 days later by defaults from a specific IP range and device-fingerprint cluster. They suspect a fraud ring using stolen identities. What real-time detection pattern is most appropriate?",
+      "options": [
+        "Train a daily batch model and use it for next-day scoring",
+        "Stream feature signals (velocity, device-graph linkage, address-graph linkage) into a feature store; score each application against a real-time model; for high-risk scores, route to manual review and link the application's graph for cluster detection",
+        "Block all applications from the suspect IP range manually",
+        "Wait until defaults occur, then deny new credit to that cluster"
+      ],
+      "answer": 1,
+      "explanation": "Fraud rings exploit batch-only systems by churning through identities faster than nightly retraining. Real-time scoring with graph signals (shared device, address, phone, even browser entropy) catches rings at application time. IP blocks are easy to evade. Waiting for defaults means the loss is already realized."
+    },
+    {
+      "id": "ds-221",
+      "type": "single",
+      "topic": "Cost",
+      "difficulty": "medium",
+      "prompt": "A startup runs Kafka at 23% average broker CPU but spends $48K/month. The cluster has 12 brokers, 3-replica topics, average message size 800 bytes, throughput ~80MB/s. What is the LIKELY root cause of the bill being high?",
+      "options": [
+        "CPU is the bottleneck",
+        "Cross-AZ replication and consumer traffic egress fees \u2014 each message is replicated to 2 other AZs and consumed by multiple consumer groups in different AZs, multiplying network costs",
+        "Brokers are oversized for the throughput",
+        "Consumer lag is driving extra compute"
+      ],
+      "answer": 1,
+      "explanation": "AWS Kafka clusters bill heavily on cross-AZ network: replication fanout (1->3 AZs) plus each consumer group fetching across AZs can multiply traffic 6-10x. CPU is low because brokers are I/O-bound. Right-sizing CPU saves modest amounts. Lag doesn't add cost. The cure is fewer AZs (with availability tradeoffs), rack-awareness, or follower-fetch."
+    },
+    {
+      "id": "ds-222",
+      "type": "single",
+      "topic": "Storage Tiering",
+      "difficulty": "medium",
+      "prompt": "Your security team retains audit logs for 7 years for SOX. 90 days of recent logs are queried often (incident response), the next 18 months occasionally (audits), and years 2-7 only on subpoena. Current setup: all logs in S3 Standard at $23/TB/month. 500TB total. What tiering strategy maximizes savings without breaking audit retrieval?",
+      "options": [
+        "Move everything older than 90 days to Glacier Deep Archive immediately",
+        "Tier: <90 days S3 Standard, 90 days\u20132 years S3 Glacier Instant Retrieval (milliseconds, $4/TB/mo), 2\u20137 years Glacier Deep Archive ($1/TB/mo, 12-48h retrieval); use S3 Lifecycle policies",
+        "Delete logs after 90 days and rely on backups",
+        "Keep everything in S3 Standard \u2014 storage is the small part of the bill"
+      ],
+      "answer": 1,
+      "explanation": "Three-tier maps cleanly onto access frequency: hot tier for incident response, instant-retrieval for periodic audits (~5x cheaper but still milliseconds), deep archive for the long-tail rarely accessed compliance window (~20x cheaper, hours to retrieve). Jumping straight to Deep Archive penalizes the 18-month audit-frequency tier. Deletion violates SOX. 'Storage is small' is rarely true at 500TB."
+    },
+    {
+      "id": "ds-223",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "Spotify's stream-count aggregator must increment counts as users listen, deduplicate based on `(user_id, track_id, listened_at_minute_bucket)`, and emit hourly aggregates. The pipeline runs Flink. Late events arrive up to 6 hours late from offline-cached listens. What's the cleanest watermark + windowing strategy?",
+      "options": [
+        "1-hour tumbling windows, watermark = max(event_ts) - 5 seconds, no allowed lateness",
+        "1-hour tumbling windows, watermark = max(event_ts) - 30 minutes, allowedLateness = 6 hours, emit a 'final' result after the lateness expires while emitting incremental updates earlier",
+        "Processing-time 1-hour windows that ignore event timestamp entirely",
+        "1-hour windows with no watermark; rely on consumers to deduplicate"
+      ],
+      "answer": 1,
+      "explanation": "Spotify-scale music streaming has known straggler windows (offline listens sync hours later). Watermark = -30min handles normal jitter; allowedLateness = 6h plus incremental + final emits gives consumers fast approximate counts AND a final correct number after the cutoff. Zero lateness drops valid listens. Processing-time loses the offline-listen window. No watermark abdicates correctness to consumers."
+    },
+    {
+      "id": "ds-224",
+      "type": "single",
+      "topic": "Logistics",
+      "difficulty": "medium",
+      "prompt": "A logistics platform tracks package events: 'picked_up', 'in_sortation', 'on_truck', 'delivered', 'exception'. Status updates arrive out of order (sortation centers batch-upload nightly; trucks send real-time). The dashboard often shows 'on_truck' AFTER 'delivered'. What pattern fixes the display?",
+      "options": [
+        "Always trust the most recently received event",
+        "Maintain a status state machine per package: each event has a known position in the funnel; advancing requires a forward transition. Out-of-order events that would regress state are stored but don't overwrite the current status",
+        "Discard events that arrive out of order",
+        "Display all received events as a verbatim timeline with no status field"
+      ],
+      "answer": 1,
+      "explanation": "Package events have a known forward order (picked_up < in_sortation < on_truck < delivered). A state machine that only allows forward transitions on the public 'status' field, while still storing every event for audit, gives consistent UX even when events arrive out of order. 'Most recent wins' produces exactly the 'on_truck after delivered' UI bug. Discarding loses audit data."
+    },
+    {
+      "id": "ds-225",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "A feature-flag platform serves 4B evaluations/day. Each flag can have rules: 'enabled for tenant A, OR users in cohort X, OR random 20% rollout in EU'. The CTO wants per-tenant overrides without forking the rule for each tenant. What schema shape is appropriate?",
+      "options": [
+        "One row per (flag, tenant) with the full rule duplicated per tenant",
+        "Three tables: `flag` (id, name, default_state), `flag_rule` (flag_id, rule_type, payload, priority), `flag_override` (flag_id, tenant_id, override_state, override_rule_id NULL) \u2014 evaluators check tenant_override first, then global rules in priority order",
+        "Store rules as a single JSON blob with embedded tenant logic",
+        "Recompute rules per request from a Postgres query joining flags to users to tenants"
+      ],
+      "answer": 1,
+      "explanation": "LaunchDarkly-style flag stores separate the default state, the global rule chain, and the per-tenant overrides. Evaluators apply tenant override first, then fall back to global rules. Duplicating the rule per tenant explodes the row count and creates drift bugs. A single JSON blob makes targeted overrides impossible to query. Joining users-to-tenants at evaluation time misses the 4B/day latency budget."
+    },
+    {
+      "id": "ds-226",
+      "type": "single",
+      "topic": "Incident Response",
+      "difficulty": "medium",
+      "prompt": "A dbt incremental model that processed 5M rows/day for months suddenly fails OOM. The data team confirms volume is unchanged. The model's `unique_key` is `order_id`, materialization is `incremental` with strategy `merge`. What's the LIKELY cause?",
+      "options": [
+        "Snowflake credits exhausted",
+        "The `is_incremental()` filter guard was removed in a recent PR, causing the model to MERGE the entire history rather than only the new day",
+        "The warehouse was downsized",
+        "Network instability between dbt and Snowflake"
+      ],
+      "answer": 1,
+      "explanation": "The most common cause of 'incremental model uses too much memory after volume is stable' is a missing or broken `is_incremental()` guard, so the model processes the full history every run. Credit exhaustion would surface as a different error. Warehouse downsizing would slow it without OOM. Network errors don't cause OOM. Always grep the diff for the `is_incremental()` macro after such regressions."
+    },
+    {
+      "id": "ds-227",
+      "type": "single",
+      "topic": "Privacy",
+      "difficulty": "medium",
+      "prompt": "Your B2B SaaS sells to EU and US customers. EU customers' data must reside in EU (GDPR). You currently run a single Postgres cluster in us-east. A large EU customer signs a contract requiring data residency. What's the LEAST invasive design change?",
+      "options": [
+        "Move all customers to EU",
+        "Run a second cluster in EU, replicate schemas/migrations through your CI, and route EU customers' queries via a tenant-routing layer that selects the cluster by region attribute on the tenant",
+        "Encrypt EU customer data with a tenant-specific key in the US cluster",
+        "Ask the EU customer to accept US residency"
+      ],
+      "answer": 1,
+      "explanation": "Multi-region per-tenant routing is the standard data-residency pattern for SaaS: one shared schema, deployed per region, with tenants routed by a region attribute. Moving all to EU breaks US customers' latency and regulatory profile. Encryption-in-place doesn't satisfy residency requirements\u2014the data still physically resides in the wrong region. Asking the customer to drop the requirement loses the deal."
+    },
+    {
+      "id": "ds-228",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "A subscription-billing SaaS supports proration: if a user upgrades from Basic ($10/mo) to Pro ($30/mo) mid-cycle on day 10 of a 30-day cycle, they pay $20 \u00d7 (20/30) = $13.33 for the remainder. You need to bill, refund, and audit. What modeling pattern is right?",
+      "options": [
+        "Mutate the subscription row to the new plan and adjust the next invoice",
+        "Append a `subscription_event` per change (upgrade, downgrade, pause, cancel) with `effective_at`; compute invoice line items by walking the events that occurred within the billing cycle and emit per-segment line items",
+        "Store only the current plan; do prorations in the BI layer",
+        "Issue a full refund and re-bill at the new rate"
+      ],
+      "answer": 1,
+      "explanation": "Subscription state is inherently time-windowed; modeling each change as an event with `effective_at` lets invoices accurately reflect mixed-plan periods, supports historical audits ('what did they pay last June?'), and gives finance the line-item breakdown that customers expect on receipts. Mutating the current row destroys history. BI-layer math doesn't bill. Refund-and-rebill is operationally messy and surprises customers."
+    },
+    {
+      "id": "ds-229",
+      "type": "single",
+      "topic": "OLAP Engines",
+      "difficulty": "hard",
+      "prompt": "Your team uses ClickHouse for a customer-facing analytics dashboard. Each tenant sees only their data. p95 query latency is 250ms today. A new tenant onboards with 10x the data of any other and their queries take 8 seconds while affecting everyone else's tail. What is the LEAST disruptive mitigation?",
+      "options": [
+        "Migrate the entire fleet off ClickHouse",
+        "Use ClickHouse's resource isolation features (workload manager, query queues, per-user resource limits) and shard the heavy tenant's data onto dedicated nodes/replicas while keeping the rest of the cluster shared",
+        "Force the heavy tenant to a 60-second query timeout",
+        "Aggregate the heavy tenant's data to higher granularity and accept loss of detail"
+      ],
+      "answer": 1,
+      "explanation": "ClickHouse has explicit isolation primitives (workload manager, user-level resource quotas, sharding by tenant) that mirror Snowflake's 'noisy neighbor' pattern. Hard timeouts make their dashboard fail rather than slow. Aggregating away their grain breaks the product promise. Replacing the engine is months of work and doesn't address the underlying multi-tenant isolation question."
+    },
+    {
+      "id": "ds-230",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "Your stream-processing job duplicates records ~0.2% of the time. The Kafka consumer is at-least-once. The downstream is a Postgres OLTP table that funds-transfers should idempotently update. Where is the cheapest place to deduplicate?",
+      "options": [
+        "Enable Kafka exactly-once on the producer and consumer",
+        "Use idempotent upserts keyed by the event's natural ID (or a hashed surrogate) in the Postgres write path; tolerate the at-least-once Kafka delivery",
+        "Move to a different message bus",
+        "Add a deduplication stage in the consumer using a Bloom filter over the last hour"
+      ],
+      "answer": 1,
+      "explanation": "Effectively-once at the SINK via idempotent upserts (keyed by the event's natural ID) is the standard production pattern. End-to-end exactly-once is achievable but operationally heavy and not required when the sink can be made idempotent. A Bloom filter has false positives and bounded memory. Switching buses is overkill."
+    },
+    {
+      "id": "ds-231",
+      "type": "single",
+      "topic": "Indexing",
+      "difficulty": "medium",
+      "prompt": "A SaaS support ticket queue is indexed on `(tenant_id, created_at)`. The main query is 'show me OPEN tickets for tenant X sorted by oldest first'. Status is `open` for ~20% of rows. Query performance has degraded as tickets pile up; pg_stat_user_indexes shows the index is used but the heap-fetch is heavy. What is the BEST mitigation?",
+      "options": [
+        "Drop the index and let Postgres pick another plan",
+        "Replace with a partial index: `(tenant_id, created_at) WHERE status = 'open'` so the index contains only the rows that matter for the hot query",
+        "Increase work_mem",
+        "Switch to a hash index"
+      ],
+      "answer": 1,
+      "explanation": "A partial index keyed on `(tenant_id, created_at) WHERE status='open'` is dramatically smaller, has better cache locality, and lets the planner skip status filtering. Heap-fetch costs come from the index returning many rows that are then filtered. Increasing work_mem helps sorts/joins, not this. Hash indexes don't support range scans on `created_at`."
+    },
+    {
+      "id": "ds-232",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "OpenTable-style restaurant booking. Tables hold capacities, parties hold sizes and arrival windows, and you must prevent double-booking the same physical table during overlapping reservations. What schema feature is essential?",
+      "options": [
+        "A `restaurants` table with a `seats_available` integer that's decremented per booking",
+        "A `reservation` table with a Postgres `EXCLUDE USING gist (table_id WITH =, tsrange(start_ts, end_ts) WITH &&)` exclusion constraint to prevent overlapping bookings on the same table",
+        "Application-level locking",
+        "Always allow the booking and resolve conflicts at arrival"
+      ],
+      "answer": 1,
+      "explanation": "Postgres EXCLUDE constraints with GiST are purpose-built for non-overlapping range semantics on (key, range) pairs. The database refuses to insert a row that overlaps an existing one for the same table_id\u2014correct by construction. A decrementing seat counter ignores time. Application-level locks fail under retries and concurrent processes. Resolving at arrival kills hospitality."
+    },
+    {
+      "id": "ds-233",
+      "type": "single",
+      "topic": "Replication",
+      "difficulty": "hard",
+      "prompt": "Your Postgres primary in us-east-1 streams asynchronously to a replica in us-west-2 for DR. RPO target is 5 minutes. Average replication lag is 2s, p99 is 1.5min. During a network partition that lasts 8 minutes, the primary continues accepting writes and the replica falls 8 minutes behind. The primary then fails. What is the data exposure?",
+      "options": [
+        "Zero \u2014 the replica has all data",
+        "Up to 8 minutes of writes can be lost when promoting the replica, exceeding the 5-minute RPO target",
+        "5 minutes of data loss regardless",
+        "The primary will block writes during the partition"
+      ],
+      "answer": 1,
+      "explanation": "Async replication means the primary commits without waiting for the replica. During the partition, the primary kept committing while the replica saw nothing. Promotion loses everything that didn't replicate\u2014here, up to 8 minutes\u2014which exceeds the 5-minute RPO. This is exactly the trade-off: async = low latency but RPO floor = max-possible lag. Synchronous replication would have made the primary block; semi-sync would have allowed degraded mode."
+    },
+    {
+      "id": "ds-234",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "A content-publishing platform has articles that move through states: draft -> in_review -> approved -> published -> retracted. Editors need to see 'who approved what when' and revert to prior versions. What's the right model?",
+      "options": [
+        "An `article` table with a `status` column overwritten on each transition",
+        "An `article` table for current state plus an immutable `article_state_transition` log: (article_id, from_state, to_state, actor_id, occurred_at, comment) AND an `article_revision` table for content snapshots keyed by (article_id, revision_no)",
+        "Store everything in a single denormalized table with one row per status change",
+        "Use a graph database for the workflow"
+      ],
+      "answer": 1,
+      "explanation": "Workflows benefit from separating current state (for fast reads) from an append-only transition log (for audit + analytics) and from a content revision table (for revert). Status-overwrite loses 'who and when'. A single denormalized table mixes content and workflow concerns. A graph DB doesn't add value over a relational pattern here."
+    },
+    {
+      "id": "ds-235",
+      "type": "single",
+      "topic": "Gaming",
+      "difficulty": "easy",
+      "prompt": "A mobile game has a global leaderboard with 40M monthly active players. Players' scores change with every match (~50M matches/day). Players want to see their rank and the top 100. What is the most scalable store for this?",
+      "options": [
+        "Postgres with a B-tree index on score, ORDER BY score DESC LIMIT 100 every time",
+        "A Redis sorted set per leaderboard (ZADD on update, ZREVRANGE for top-N, ZREVRANK for individual rank), with periodic checkpointing to a durable store",
+        "A relational table re-sorted nightly",
+        "A graph database keyed on player_id"
+      ],
+      "answer": 1,
+      "explanation": "Redis sorted sets are O(log N) for inserts/updates and O(log N + M) for range reads, with cheap rank lookups\u2014ideal for high-write leaderboards. Postgres with global ORDER BY won't survive 50M updates/day plus per-player rank queries. Nightly re-sorting is stale. Graph databases don't natively expose rank operations."
+    },
+    {
+      "id": "ds-236",
+      "type": "single",
+      "topic": "AdTech",
+      "difficulty": "hard",
+      "prompt": "An attribution platform credits conversions to ads viewed within the last 30 days (click) or 1 day (view-through). A user converts at time T. The event stream of impressions/clicks has ~80B events/day. What design lets you compute attribution per conversion at scale?",
+      "options": [
+        "Scan all impressions/clicks for the converting user from the warehouse at conversion time",
+        "Maintain a per-user state store (e.g., Pinot/ClickHouse keyed by user_id with a time-bounded window of recent ad events); on conversion, look up the user's recent ad history and apply the attribution model",
+        "Pre-compute attribution at impression time before the conversion arrives",
+        "Always credit the last ad shown"
+      ],
+      "answer": 1,
+      "explanation": "Attribution requires the user's recent ad history at conversion time\u2014a key-value lookup pattern with a time-windowed payload. Real-time OLAP engines or specialized stores excel at 'recent N events for key K'. Scanning the warehouse at conversion time is impossibly slow at 80B events/day. Pre-computing attribution before the conversion is impossible because the conversion hasn't happened yet. Last-ad-only is a degraded heuristic, not an attribution platform."
+    },
+    {
+      "id": "ds-237",
+      "type": "single",
+      "topic": "Backfill",
+      "difficulty": "hard",
+      "prompt": "Pinterest needs to backfill 7 years of pin-impression events from cold storage (Glacier) into a new attribution model. Today's pipeline ingests 12B events/day from live Kafka into Iceberg. The backfill is ~2 trillion events. What's the safest topology?",
+      "options": [
+        "Replay all 7 years through the existing live pipeline at maximum speed",
+        "Build a parallel backfill pipeline that writes to a SEPARATE Iceberg table with the same schema, throttled to not impact live; once complete and validated, swap the attribution model to query a UNION of the historical and live tables (or merge via a one-time MERGE)",
+        "Restore Glacier to S3 Standard for all 7 years at once",
+        "Skip the backfill and start the new model from 'now'"
+      ],
+      "answer": 1,
+      "explanation": "The standard 'isolated backfill, swap on success' pattern keeps the live system untouched. A separate target table lets you throttle, validate, and either merge or union without risk to production reads. Replaying through live tooling congests it and risks reordering against current writes. Restoring all of Glacier at once is an instant six-figure surprise. Starting from 'now' abandons history needed to train the new model."
+    },
+    {
+      "id": "ds-238",
+      "type": "single",
+      "topic": "Data Quality",
+      "difficulty": "easy",
+      "prompt": "Your finance mart's `revenue_recognized_usd` for yesterday is $4.2M, while the trailing 28-day median is $4.1M. The dashboard greens. An hour later, a controller flags that `revenue_recognized_eur` is half of yesterday's normal. What kind of DQ check would have caught this?",
+      "options": [
+        "Schema validation (column types, not nulls)",
+        "Anomaly/statistical checks at the SLICE level (per-currency, per-region, per-product), not just at the aggregated mart level",
+        "Row count thresholds on the source table",
+        "Foreign key integrity checks"
+      ],
+      "answer": 1,
+      "explanation": "Top-line aggregates often look fine while a slice tanks\u2014classic Simpson-style cancellation. Per-currency / per-region / per-tenant SLO checks catch slice-level regressions. Schema, row count, and FK checks would all pass in this scenario. Build DQ at the most actionable grain you can afford."
+    },
+    {
+      "id": "ds-239",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "An IoT system has 800K devices on cellular. Connectivity drops at random; a device may go offline for hours and then upload a backlog of 2,000 buffered events at once. What ingestion behavior is essential?",
+      "options": [
+        "Reject any backlog with a timestamp older than 5 minutes",
+        "Accept the backlog ordered by event_ts, dedupe by (device_id, event_seq) at ingest, and allow downstream stream jobs to handle late events via watermarks with allowed-lateness",
+        "Throttle each device to 1 event/second",
+        "Always trust the most recent event timestamp"
+      ],
+      "answer": 1,
+      "explanation": "Buffered uploads are a fact of life in cellular IoT. The ingestion path must accept the burst, dedupe by per-device sequence numbers (devices emit `event_seq` for exactly this reason), and trust event_ts for downstream windowing. Rejecting old timestamps loses telemetry. Throttling per-device drops legitimate backlog. 'Most recent' loses the rest of the buffer."
+    },
+    {
+      "id": "ds-240",
+      "type": "single",
+      "topic": "Healthcare",
+      "difficulty": "medium",
+      "prompt": "A wearable streams vitals (HR, SpO2) at 1 Hz from 200K users. Cardiologists need real-time alerts on abnormal patterns AND long-term trend analysis. What architecture splits these well?",
+      "options": [
+        "Run both queries against a single OLTP database",
+        "Stream raw signals into Kafka; one consumer runs anomaly-detection rules on a rolling window for alerts; a second writes downsampled per-minute aggregates to a long-term time-series store (e.g., Timescale/InfluxDB) for trends; raw 1Hz retained 30 days for re-analysis",
+        "Persist every 1 Hz sample in a relational table forever",
+        "Drop the data after generating alerts"
+      ],
+      "answer": 1,
+      "explanation": "Real-time alerting and long-term trend analysis have different latency, retention, and granularity needs. Splitting them at the streaming layer\u2014alert consumer + downsample consumer + bounded raw retention\u2014serves both. OLTP can't ingest 200K Hz. Permanent 1Hz retention bloats cost without proportional value. Dropping forfeits future re-analysis."
+    },
+    {
+      "id": "ds-241",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Your hotel-inventory platform supports overbooking (sell 102 rooms for 100 physical rooms because cancellations average 4%). The current schema decrements `available_rooms` on each booking; over-bookings rely on application logic. Audits show race conditions cause both over- and under-bookings. What schema change fixes it deterministically?",
+      "options": [
+        "Add an application-level mutex around bookings",
+        "Model inventory as `(room_type_id, stay_night) -> total_capacity, overbook_allowance`; bookings INSERT a row keyed by (room_type_id, stay_night, booking_id); a check constraint or trigger enforces SUM(bookings.qty) <= total_capacity + overbook_allowance on commit",
+        "Trust eventual consistency and call agents the morning of",
+        "Increase the overbook allowance to 20%"
+      ],
+      "answer": 1,
+      "explanation": "Deterministic inventory math is best enforced by the database, with capacity and overbook stored as data and bookings as rows that compete for limited capacity. Triggers or constraints make the rule provable, not best-effort. App mutexes fail under multi-process / multi-region deployment. Manual reconciliation is the failure mode you're escaping. More overbooking treats the symptom, not the bug."
+    },
+    {
+      "id": "ds-242",
+      "type": "single",
+      "topic": "Incident Response",
+      "difficulty": "hard",
+      "prompt": "After a Postgres minor-version upgrade, a previously fast query (5s) now takes 4 minutes. EXPLAIN shows the new plan uses a sequential scan where it used to use an index. `pg_stats` confirms statistics are fresh. What's the LIKELY explanation?",
+      "options": [
+        "The index was dropped during the upgrade",
+        "A regression in the cost model or a new GUC default in the new minor version changed the planner's preference; tweaking `random_page_cost` / `effective_cache_size` / `enable_seqscan = off` for the query (or pinning the plan with `pg_hint_plan`) restores prior behavior",
+        "The data has changed",
+        "Disk is failing"
+      ],
+      "answer": 1,
+      "explanation": "Plan flips after a minor upgrade with healthy statistics often trace to subtle cost-model changes between versions. The pragmatic fixes are to tune session GUCs (random_page_cost lowered when SSDs are present, effective_cache_size right-sized, etc.) or use plan-hinting tools. An upgrade does not silently drop indexes. Data unchanged. Disk would cause errors, not slowness."
+    },
+    {
+      "id": "ds-243",
+      "type": "single",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Calendly's scheduling backend must prevent two people booking the same 30-minute slot on the same calendar. Two requests arrive at 09:00:00.000 and 09:00:00.020 for the same slot. What design GUARANTEES one wins without polling?",
+      "options": [
+        "First-write-wins via a UNIQUE constraint on (calendar_id, start_ts, duration) so the second INSERT fails with a unique violation, mapped to a 409 Conflict for the loser",
+        "Read availability then INSERT \u2014 check-then-act",
+        "Cache the calendar and check the cache",
+        "Round-robin between two replicas"
+      ],
+      "answer": 0,
+      "explanation": "Calendar booking is a textbook 'unique slot' problem. A UNIQUE constraint on (calendar_id, start_ts, duration) lets the database adjudicate the race deterministically; the loser sees a unique violation and gets a 409. Check-then-act has a TOCTOU race. Cache-then-check is the same race plus stale cache. Replica round-robin makes it worse."
+    },
+    {
+      "id": "ds-244",
+      "type": "single",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "A bookmark service caches user-profile data in Redis. After a major release that added a new field to the profile, users see stale profiles missing the new field. The cache TTL is 24 hours. The product team wants the new field visible NOW without bumping deploys. What's the safest invalidation strategy?",
+      "options": [
+        "Wait 24 hours for natural TTL expiry",
+        "Bump a cache-key namespace (e.g., include `v=2` in the cache key) so new code reads new keys; old keys naturally expire. Old code paths continue to read old keys until rollout completes.",
+        "FLUSHDB to clear Redis entirely",
+        "Issue a SCAN + DEL for the user-profile key pattern"
+      ],
+      "answer": 1,
+      "explanation": "Cache versioning via key namespace is the canonical 'safe invalidation' pattern: new code writes/reads new keys, old code continues unaffected, and old keys age out. FLUSHDB hammers every cached value (including unrelated). SCAN+DEL is slow at scale and creates inconsistent windows. Waiting accepts 24h of staleness. Versioning is reversible and survives partial rollouts."
+    },
+    {
+      "id": "ds-245",
+      "type": "single",
+      "topic": "Fraud Detection",
+      "difficulty": "medium",
+      "prompt": "A B2C marketplace sees promo-code abuse: bot accounts redeem 'WELCOME10' across hundreds of synthetic accounts, costing $80K/month. The promo logic checks 'has this account used the code before'. What is the minimum schema/logic change to mitigate?",
+      "options": [
+        "Disable all promo codes",
+        "Track redemption keyed by (code, redemption_fingerprint) where fingerprint combines account_id, payment_method_hash, device_id, and shipping_address_hash; cap redemptions per fingerprint; queue cases above threshold for review",
+        "Increase the code expiration to 30 days",
+        "Make the codes shorter so they're easier to type"
+      ],
+      "answer": 1,
+      "explanation": "Promo abuse is rarely solved by account-only deduplication\u2014abusers spin up accounts trivially. Linking redemptions across stable signals (payment, device, shipping) catches rings. Disabling promos costs growth. Expiration is unrelated. Code length is unrelated. The pattern is 'fingerprint per attempt, cap per fingerprint, review above threshold'."
+    },
+    {
+      "id": "ds-246",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "easy",
+      "prompt": "Your Kafka topic has 60 partitions. Two consumer groups read it: 'fraud-scorer' (24 consumers) and 'warehouse-loader' (12 consumers). A new requirement says 'fraud-scorer' must scale to 80 consumers. What happens when you scale 'fraud-scorer' beyond 60?",
+      "options": [
+        "Kafka auto-increases partitions to match consumers",
+        "20 consumers will sit idle because Kafka assigns at most one partition to one consumer per group; the cap is the partition count",
+        "Throughput doubles",
+        "Consumers crash"
+      ],
+      "answer": 1,
+      "explanation": "Within a single consumer group, at most one consumer is assigned to a given partition; consumers beyond the partition count sit idle. To scale beyond 60, you must increase partitions (and accept that historical ordering by key remains preserved only within partitions). This is one of the most-asked Kafka scaling questions in production."
+    },
+    {
+      "id": "ds-247",
+      "type": "single",
+      "topic": "Social Feed",
+      "difficulty": "easy",
+      "prompt": "Twitter-style feed fanout: a celebrity with 60M followers tweets. Pre-computing the tweet into every follower's home timeline (push/fanout-on-write) would cost 60M writes per tweet. What is the standard hybrid mitigation?",
+      "options": [
+        "Always pull on read",
+        "Hybrid fanout: pull-on-read for celebrities (lookup at feed render time), push-on-write for normal accounts; mix the two sources in the timeline merger",
+        "Force celebrities to send DMs",
+        "Cap follower counts"
+      ],
+      "answer": 1,
+      "explanation": "Twitter, Instagram, and similar social services use a hybrid: fanout-on-write is cheap for ordinary accounts and unbearable for celebrities; fanout-on-read flips the math (one fetch per follower at read time). The merger combines pre-built timeline + recent celebrity tweets at render time. Pure pull is too expensive at the read path for non-celebs."
+    },
+    {
+      "id": "ds-248",
+      "type": "single",
+      "topic": "Iceberg",
+      "difficulty": "hard",
+      "prompt": "An Iceberg fact table has 14 days of data partitioned by `day(event_ts)`. A query `WHERE event_ts BETWEEN '2025-06-01' AND '2025-06-03'` is suddenly scanning the entire table after a recent migration. EXPLAIN shows no partition pruning. What is the MOST likely cause?",
+      "options": [
+        "Iceberg metadata is corrupt",
+        "The query is filtering on a column that ISN'T the partition column \u2014 e.g., the source table was rewritten with a different timestamp column (`created_at`) and the partition transform was lost or remapped",
+        "The query engine doesn't support Iceberg",
+        "The table was vacuumed too aggressively"
+      ],
+      "answer": 1,
+      "explanation": "Partition pruning is silently lost when the filter column doesn't match the partition expression (or when the partition spec evolves and the new spec doesn't cover the column being filtered). Iceberg's hidden partitioning hides the transform, but only if the right column is used. Corruption would cause errors. Vacuum prunes old snapshots, not pruning capability."
+    },
+    {
+      "id": "ds-249",
+      "type": "single",
+      "topic": "Lakehouse",
+      "difficulty": "easy",
+      "prompt": "Your data lake has 80K Parquet files averaging 8MB each (640GB total). Query engines complain of 'small-files problem' and queries are unexpectedly slow despite low total data volume. What's the right remediation?",
+      "options": [
+        "Re-ingest the data daily as a single huge file",
+        "Run a compaction job (e.g., Iceberg `rewriteDataFiles` or Delta `OPTIMIZE`) to coalesce files into ~256MB-1GB targets aligned with engine read-block size; schedule it weekly going forward",
+        "Switch from Parquet to CSV",
+        "Disable compression"
+      ],
+      "answer": 1,
+      "explanation": "Small files multiply listing, planning, and per-file overhead in distributed engines. Compaction to the 256MB-1GB sweet spot is the textbook fix, and modern table formats provide first-class compaction. Single huge files lose pruning. CSV is worse on every axis. Compression isn't the bottleneck."
+    },
+    {
+      "id": "ds-250",
+      "type": "single",
+      "topic": "Compliance",
+      "difficulty": "medium",
+      "prompt": "SOC 2 auditors ask you to prove that no engineer has read raw PII (SSN, DOB) from your customer database outside of an approved support workflow. Today, everyone has SELECT access. What's the right ACCESS-control change to make the audit trivially defensible?",
+      "options": [
+        "Email all engineers asking them not to query PII",
+        "Restrict the PII columns via column-level grants or views; create an auditable 'support workflow' service account that requires a ticket-bound role grant; emit access logs to an immutable store",
+        "Encrypt the database",
+        "Disable SELECT for everyone"
+      ],
+      "answer": 1,
+      "explanation": "Audit-defensible access control combines column/row-level grants, role bindings backed by tickets, and immutable logging. The principle is least-privilege-by-construction, not by exhortation. Encryption at rest doesn't prevent authorized SELECT. Disabling SELECT breaks the business. Email is unauditable."
+    },
+    {
+      "id": "ds-251",
+      "type": "multi",
+      "topic": "Incident Response",
+      "difficulty": "medium",
+      "prompt": "Your ingestion pipeline silently produced ~3% duplicate rows for the last 4 hours after a Kafka rebalance. The downstream warehouse table is append-only. Which mitigations apply? (Select all that apply)",
+      "options": [
+        "Identify the 4-hour window in the warehouse and run a deduplication MERGE / DELETE keyed by the event's natural ID and ingest_ts range",
+        "Drop the entire table and re-ingest from the start of Kafka retention",
+        "Add a UNIQUE index on the natural ID going forward to prevent future duplicates at write time",
+        "Configure consumer to commit offsets BEFORE writing, eliminating duplicates",
+        "Add an idempotency-key / upsert path so retries are naturally deduplicated even if the consumer rebalances"
+      ],
+      "answer": [
+        0,
+        2,
+        4
+      ],
+      "explanation": "Correct mitigations: dedupe the bad window with a keyed MERGE; add a UNIQUE / idempotent-write path so retries can't double-insert. Dropping and re-ingesting is unnecessarily destructive and risks losing data outside the bad window. Committing offsets before writing produces DATA LOSS instead of duplicates\u2014the opposite anti-pattern. Idempotency at the SINK (upsert) is the cleanest way to absorb at-least-once delivery."
+    },
+    {
+      "id": "ds-252",
+      "type": "multi",
+      "topic": "Multi-Tenant",
+      "difficulty": "hard",
+      "prompt": "Your SaaS has noisy-neighbor problems: a few tenants overwhelm shared resources. Which DESIGN choices reliably isolate tenants? (Select all that apply)",
+      "options": [
+        "Per-tenant dedicated virtual warehouses for the largest tenants",
+        "Per-tenant resource quotas / workload management in the engine",
+        "Sharding the database by tenant_id and routing queries based on tenant attributes",
+        "Storing all tenants' data in a single denormalized wide table without any tenant column",
+        "Soft caps + queue-based throttling per tenant at the API layer"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Dedicated warehouses, engine-level quotas, tenant-aware sharding, and API-layer queueing all isolate blast radius. Storing data without a tenant column makes tenant-aware filtering, RLS, audit, and isolation impossible. (Per-tenant sharding may overshoot for small tenants\u2014often a hybrid 'jumbo tenants get dedicated shards, small tenants share' design works best in practice.)"
+    },
+    {
+      "id": "ds-253",
+      "type": "multi",
+      "topic": "FinOps",
+      "difficulty": "medium",
+      "prompt": "Your monthly BigQuery bill rose 60% in two months. Which investigation steps belong on day one? (Select all that apply)",
+      "options": [
+        "Query INFORMATION_SCHEMA.JOBS_BY_PROJECT for top jobs by bytes scanned in the last 60 days",
+        "Identify which tables are being scanned full because of missing partition filters or wrong clustering",
+        "Move all data to a different cloud immediately",
+        "Audit whether on-demand pricing is being used when slot reservations would be cheaper for the steady-state workload",
+        "Drop all materialized views to reduce storage"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "BigQuery cost regressions almost always trace to a small number of newly-deployed big-scan queries. Step 1: surface them via JOBS_BY_PROJECT. Step 2: check partition/cluster effectiveness. Step 3: consider slot reservations once steady-state volume justifies them. Cloud migration is months of work for an unrelated symptom. Dropping MVs may INCREASE cost when downstream queries recompute repeatedly."
+    },
+    {
+      "id": "ds-254",
+      "type": "multi",
+      "topic": "Privacy",
+      "difficulty": "hard",
+      "prompt": "Implementing GDPR right-to-be-forgotten across a 5-year-retained event topic and a downstream lakehouse. Which approaches are reasonable? (Select all that apply)",
+      "options": [
+        "Crypto-shred: encrypt PII per-subject with a key in a separate KMS; delete the key on request, rendering historical ciphertext unreadable",
+        "Maintain a delete-list table that downstream pipelines join against on every read to filter out forgotten subjects",
+        "Rewrite all historical Parquet files in the lakehouse to remove the subject's rows, using Iceberg/Delta MERGE / DELETE",
+        "Rewrite the entire 5-year Kafka topic to physically remove the records",
+        "Pseudonymize PII at ingest with a reversible mapping that can be destroyed per-subject"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Crypto-shredding, delete-lists for read-path filtering, lakehouse MERGE/DELETE, and pseudonymization-with-destroyable-mapping are all used in practice. Rewriting an entire 5-year Kafka topic is operationally impractical and breaks consumer offsets and ordering. Most teams crypto-shred in the topic while properly DELETEing in queryable systems."
+    },
+    {
+      "id": "ds-255",
+      "type": "multi",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "You're designing a streaming pipeline for ad impressions with 12B events/day, must dedupe and have effectively-once semantics into Snowflake. Which choices belong in the design? (Select all that apply)",
+      "options": [
+        "Idempotent natural keys on each event so re-delivery produces the same row",
+        "Kafka producer with `enable.idempotence=true` and `acks=all`",
+        "MERGE (upsert) into the Snowflake target keyed by the event's natural ID",
+        "At-most-once consumer settings to avoid duplicates",
+        "Per-event auto-generated UUIDs assigned at the consumer, included in the deduplication key"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Effectively-once sinks rely on idempotent producers, stable natural keys, and upsert (MERGE) into the warehouse. At-most-once trades duplicates for data loss, which is rarely acceptable. Consumer-generated UUIDs change on each retry and cannot serve as a deduplication key\u2014the UUID must come from the producer (or a deterministic derivation of event content)."
+    },
+    {
+      "id": "ds-256",
+      "type": "multi",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "A multi-tenant warehouse mart serves analytics for 800 tenants. Which design choices help BI dashboards remain fast AND tenant-scoped? (Select all that apply)",
+      "options": [
+        "Cluster / partition the marts by tenant_id where the engine supports it",
+        "Apply row-level security policies tied to user attributes so queries auto-filter by tenant",
+        "Maintain per-tenant pre-aggregations for the highest-traffic dashboards",
+        "Store each tenant's data in a separate database with its own credentials managed manually",
+        "Skip the tenant_id column to save storage"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Cluster/partition by tenant_id, enforce filters via RLS, and pre-aggregate the heaviest dashboards. Per-tenant separate databases scales operationally to maybe a few dozen tenants, not 800. Dropping tenant_id makes correct filtering impossible. The combination of these three handles 95% of multi-tenant BI workloads."
+    },
+    {
+      "id": "ds-257",
+      "type": "multi",
+      "topic": "Migration",
+      "difficulty": "hard",
+      "prompt": "Migrating a 400TB on-prem Hadoop / Hive cluster to a cloud lakehouse (e.g., S3 + Iceberg + Trino). Which practices belong in the playbook? (Select all that apply)",
+      "options": [
+        "Start with a non-critical, read-only fact table to validate the engine, file format, and partitioning choices end-to-end",
+        "Migrate every table at once on a single weekend",
+        "Convert ORC/Parquet to Iceberg in place using Iceberg's `migrate` / `snapshot` procedures, preserving partitioning",
+        "Run both systems in parallel for at least one full pipeline cycle (often a quarter), reconciling row counts and key aggregates",
+        "Adopt the new query engine before validating the storage layer"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Cloud migrations succeed when run incrementally with reconciliation. Iceberg has explicit migration procedures for Parquet/ORC. A parallel-run window catches semantic differences before cutover. Migrating everything at once is the recipe for missed deadlines and silent data drift. Engine-first / storage-last inverts the dependency: storage choices constrain engines."
+    },
+    {
+      "id": "ds-258",
+      "type": "multi",
+      "topic": "Observability",
+      "difficulty": "medium",
+      "prompt": "Your stream pipeline runs Flink-on-Kubernetes. Which signals are essential to alert on? (Select all that apply)",
+      "options": [
+        "Consumer lag (per topic, per partition)",
+        "Checkpoint duration and failure rate",
+        "Job restart count",
+        "Number of Kubernetes pods in the cluster total",
+        "Watermark progression (e.g., max watermark age behind processing time)"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Lag, checkpoint health, restart count, and watermark advance are the canonical streaming health signals. Total pod count in the cluster is operations-team noise, not a job-level signal. Alerting on watermark progression specifically catches cases where the pipeline looks healthy by other metrics but is silently making no event-time progress."
+    },
+    {
+      "id": "ds-259",
+      "type": "multi",
+      "topic": "Fraud Detection",
+      "difficulty": "hard",
+      "prompt": "Marketplace fraud-ring detection (collusion between buyers and sellers to launder funds). Which signals belong in the feature pipeline? (Select all that apply)",
+      "options": [
+        "Graph features: shared device, IP, payment instrument, or shipping address between buyer/seller",
+        "Velocity: number of transactions per pair in last 1h/24h/7d",
+        "Anomalous return rates per pair compared to the marketplace baseline",
+        "User's astrological sign",
+        "Time-of-day pattern matching across pairs (e.g., suspiciously synchronized activity)"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Graph linkage, pair velocity, return-rate anomalies, and synchronized activity are all proven collusion signals. Astrological signs aren't predictive. Fraud ring detection often treats the graph itself as the entity (cluster of related accounts), not individual transactions. Real systems combine these with manual-review queues and labeled chargeback data for supervised model training."
+    },
+    {
+      "id": "ds-260",
+      "type": "multi",
+      "topic": "Backfill",
+      "difficulty": "medium",
+      "prompt": "You discover a 90-day bug in a transformation and must backfill 90 days of corrected data into a warehouse fact table consumed by live BI dashboards. Which approaches LIMIT consumer disruption? (Select all that apply)",
+      "options": [
+        "Backfill into a SEPARATE table and atomically swap pointers (view rename, dbt `ref` swap, or table rename) after validation",
+        "DELETE 90 days of data from the live table during business hours and INSERT the corrected rows",
+        "Backfill day-by-day into the live table using a partition-level overwrite, allowing readers to see partial progress",
+        "Communicate the freeze window and reconciliation plan to BI consumers in advance",
+        "Validate fixed-vs-broken row counts and key aggregates before swap"
+      ],
+      "answer": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "explanation": "Atomic-swap, partition-by-partition overwrite, advance communication, and pre-swap validation are all standard. The destructive in-place DELETE+INSERT during business hours is the textbook anti-pattern: dashboards show partial data while it runs. (Note: 'one of the two' between atomic swap and partition overwrite is typical; both can coexist for different table types.)"
+    },
+    {
+      "id": "ds-261",
+      "type": "multi",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "A real-estate marketplace lists property addresses worldwide. Which design decisions help analytics + search? (Select all that apply)",
+      "options": [
+        "Normalize structured address components (country, region, city, postal_code, street, unit) into a dedicated `address` table referenced by FK",
+        "Geocode addresses to lat/long and store them alongside an H3 / S2 hex index for efficient geo queries",
+        "Store full unstructured raw text in a single field and parse on every read",
+        "Store country / region codes using ISO standards (e.g., ISO 3166-1 alpha-2) rather than free-text country names",
+        "Use the postal code as the primary key"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Structured components + ISO codes + a hex index is the canonical real-estate model. Parsing unstructured text on every read is brittle and slow. Postal codes are not globally unique and not primary key material. (Many warehouses keep BOTH the parsed components AND the original raw text for audit, but rely on parsed columns for queries.)"
+    },
+    {
+      "id": "ds-262",
+      "type": "multi",
+      "topic": "Compliance",
+      "difficulty": "medium",
+      "prompt": "A SOC2-audited fintech audits 'who accessed what data when'. Which design choices make audit-log integrity defensible? (Select all that apply)",
+      "options": [
+        "Write audit logs to an append-only store with object-lock / WORM retention so no one (including admins) can modify them",
+        "Include a hash chain or signature so any tampering is detectable",
+        "Centralize logs across services into a tamper-evident pipeline with a separate access boundary from the systems being audited",
+        "Allow application code to delete its own audit entries when records become noisy",
+        "Periodically reconcile audit logs against authentication / IAM events for cross-validation"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "WORM storage, hash chains, separation of duties, and cross-source reconciliation are the standard audit-log integrity controls. Allowing app code to delete its own entries is the audit-fail anti-pattern. Auditors will explicitly ask 'who can modify these logs?' and 'show me proof none were modified'."
+    },
+    {
+      "id": "ds-263",
+      "type": "multi",
+      "topic": "AdTech",
+      "difficulty": "hard",
+      "prompt": "An impression-deduplication system must handle replays where the same impression event ID may be re-emitted hours later. Which design choices ensure correct counts? (Select all that apply)",
+      "options": [
+        "Stable producer-assigned event_id used as the dedup key end-to-end",
+        "Deduplication state per event_id with a TTL (e.g., 48h) so memory doesn't grow forever",
+        "Idempotent MERGE into the impressions aggregate so re-emit is a no-op",
+        "Random UUIDs assigned by each downstream consumer",
+        "Aggregations that depend on processing-time so duplicates near boundaries are absorbed without notice"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Producer-assigned event_id + bounded dedup window + idempotent MERGE is the proven path. Consumer-assigned UUIDs vary across replays and cannot dedupe. Processing-time aggregations don't dedupe\u2014they just hide the problem in arbitrary bucketing."
+    },
+    {
+      "id": "ds-264",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres schema for a SaaS feature-flag service with per-tenant overrides. Tables needed: `flag`, `flag_rule`, `flag_tenant_override`. Each flag has a name, default_state, and an ordered list of rules (e.g., 'enable for cohort X'). Each tenant may override a flag's state and/or rule. Provide CREATE TABLE statements with appropriate PKs/FKs/indexes.",
+      "language": "sql",
+      "starter": "CREATE TABLE flag (\n  -- design here\n);\n\nCREATE TABLE flag_rule (\n  -- design here\n);\n\nCREATE TABLE flag_tenant_override (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE flag (\n  flag_id          BIGSERIAL    PRIMARY KEY,\n  name             VARCHAR(128) NOT NULL UNIQUE,\n  description      TEXT,\n  default_state    BOOLEAN      NOT NULL DEFAULT FALSE,\n  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  is_archived      BOOLEAN      NOT NULL DEFAULT FALSE\n);\n\nCREATE TABLE flag_rule (\n  rule_id          BIGSERIAL    PRIMARY KEY,\n  flag_id          BIGINT       NOT NULL REFERENCES flag(flag_id) ON DELETE CASCADE,\n  priority         INT          NOT NULL,                   -- evaluation order, lower = first\n  rule_type        VARCHAR(32)  NOT NULL,                   -- 'cohort', 'percentage', 'attribute_match'\n  payload          JSONB        NOT NULL,                   -- rule-specific parameters\n  result_state     BOOLEAN      NOT NULL,                   -- state when this rule matches\n  is_active        BOOLEAN      NOT NULL DEFAULT TRUE,\n  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  UNIQUE (flag_id, priority)\n);\nCREATE INDEX ix_flag_rule_flag_active ON flag_rule (flag_id) WHERE is_active;\n\nCREATE TABLE flag_tenant_override (\n  flag_id          BIGINT       NOT NULL REFERENCES flag(flag_id) ON DELETE CASCADE,\n  tenant_id        BIGINT       NOT NULL,\n  override_state   BOOLEAN,                                 -- NULL means 'inherit, but override the rule set'\n  override_rule_id BIGINT       REFERENCES flag_rule(rule_id),\n  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  PRIMARY KEY (flag_id, tenant_id),\n  CHECK (override_state IS NOT NULL OR override_rule_id IS NOT NULL)\n);\nCREATE INDEX ix_flag_tenant_override_tenant ON flag_tenant_override (tenant_id);",
+      "key_points": [
+        "Three normalized tables: `flag`, `flag_rule`, `flag_tenant_override`",
+        "`flag.default_state` provides a safe default if no rules match",
+        "`flag_rule.priority` with UNIQUE (flag_id, priority) defines evaluation order deterministically",
+        "`flag_rule.payload` JSONB allows different rule types without proliferating columns",
+        "`flag_tenant_override` PK (flag_id, tenant_id) gives O(1) lookup per evaluation",
+        "Override can set either a state OR a rule reference (CHECK constraint enforces at least one)",
+        "Partial index on active rules avoids loading retired rules during evaluation",
+        "tenant_id index supports 'show me all overrides for tenant X' admin queries",
+        "CASCADE on flag deletion cleans up orphan rules/overrides"
+      ]
+    },
+    {
+      "id": "ds-265",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres `subscription` schema supporting proration. Tables: `plan`, `subscription`, `subscription_event` (events log: created, upgraded, downgraded, paused, resumed, canceled), and `invoice_line_item` (per billing-cycle line items computed from events). Show CREATE TABLEs with PKs/FKs and a comment on how proration is computed.",
+      "language": "sql",
+      "starter": "CREATE TABLE plan (\n  -- design here\n);\n\nCREATE TABLE subscription (\n  -- design here\n);\n\nCREATE TABLE subscription_event (\n  -- design here\n);\n\nCREATE TABLE invoice_line_item (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE plan (\n  plan_id           BIGSERIAL    PRIMARY KEY,\n  plan_code         VARCHAR(64)  NOT NULL UNIQUE,\n  name              VARCHAR(128) NOT NULL,\n  cycle_days        INT          NOT NULL,                    -- 30 = monthly, 365 = annual\n  unit_price_cents  INT          NOT NULL,\n  currency          CHAR(3)      NOT NULL,                    -- ISO 4217\n  is_active         BOOLEAN      NOT NULL DEFAULT TRUE,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\n\nCREATE TABLE subscription (\n  subscription_id   BIGSERIAL    PRIMARY KEY,\n  customer_id       BIGINT       NOT NULL,\n  current_plan_id   BIGINT       NOT NULL REFERENCES plan(plan_id),\n  current_state     VARCHAR(16)  NOT NULL,                    -- 'active','paused','canceled'\n  current_cycle_start TIMESTAMPTZ NOT NULL,\n  current_cycle_end   TIMESTAMPTZ NOT NULL,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\nCREATE INDEX ix_subscription_customer ON subscription (customer_id);\n\nCREATE TABLE subscription_event (\n  event_id          BIGSERIAL    PRIMARY KEY,\n  subscription_id   BIGINT       NOT NULL REFERENCES subscription(subscription_id) ON DELETE CASCADE,\n  event_type        VARCHAR(32)  NOT NULL,                    -- 'created','upgraded','downgraded','paused','resumed','canceled'\n  from_plan_id      BIGINT       REFERENCES plan(plan_id),\n  to_plan_id        BIGINT       REFERENCES plan(plan_id),\n  effective_at      TIMESTAMPTZ  NOT NULL,                    -- when the change takes effect\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  reason            TEXT\n);\nCREATE INDEX ix_subscription_event_sub_effective ON subscription_event (subscription_id, effective_at);\n\nCREATE TABLE invoice_line_item (\n  line_item_id      BIGSERIAL    PRIMARY KEY,\n  subscription_id   BIGINT       NOT NULL REFERENCES subscription(subscription_id),\n  invoice_id        BIGINT       NOT NULL,\n  cycle_start       TIMESTAMPTZ  NOT NULL,                    -- the cycle this line item belongs to\n  cycle_end         TIMESTAMPTZ  NOT NULL,\n  segment_start     TIMESTAMPTZ  NOT NULL,                    -- the sub-period within the cycle\n  segment_end       TIMESTAMPTZ  NOT NULL,                    -- segment_end > segment_start\n  plan_id           BIGINT       NOT NULL REFERENCES plan(plan_id),\n  amount_cents      INT          NOT NULL,                    -- prorated: plan_price * (segment_days / cycle_days)\n  currency          CHAR(3)      NOT NULL,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\nCREATE INDEX ix_invoice_line_item_invoice ON invoice_line_item (invoice_id);\n\n-- Proration: when a customer upgrades on day D of a 30-day cycle starting S,\n-- close the existing line item at D (amount = old_price * (D-S)/30),\n-- open a new line item from D to S+30 (amount = new_price * (30-(D-S))/30).\n-- All proration logic operates over `subscription_event` between (cycle_start, cycle_end).",
+      "key_points": [
+        "Plan stores cycle_days + unit_price + currency for proration math",
+        "Subscription tracks CURRENT state (denormalized for read speed) plus cycle boundaries",
+        "subscription_event is APPEND-ONLY \u2014 every change is auditable",
+        "invoice_line_item models the SEGMENTS within a cycle: each upgrade/downgrade closes one and opens another",
+        "amount_cents stores the prorated amount (price * segment_days / cycle_days)",
+        "Indexes on (subscription_id, effective_at) make 'events within this cycle' queries fast",
+        "Cycle boundaries belong on subscription so renewal/billing scheduler doesn't need to recompute",
+        "Comment block in the schema makes the proration rule discoverable to readers",
+        "currency / cycle_days come from the plan, but copied into line items to survive plan-price changes"
+      ]
+    },
+    {
+      "id": "ds-266",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a Postgres schema for an OpenTable-style restaurant reservation system. Must prevent two parties from booking the same physical table over the same time range. Tables: `restaurant`, `table_resource`, `reservation`. Use exclusion constraints (NOT just app-level locking) to enforce non-overlap.",
+      "language": "sql",
+      "starter": "CREATE TABLE restaurant (\n  -- design here\n);\n\nCREATE TABLE table_resource (\n  -- design here\n);\n\nCREATE TABLE reservation (\n  -- design here\n);\n",
+      "model_answer": "CREATE EXTENSION IF NOT EXISTS btree_gist;\n\nCREATE TABLE restaurant (\n  restaurant_id    BIGSERIAL    PRIMARY KEY,\n  name             VARCHAR(256) NOT NULL,\n  timezone         VARCHAR(64)  NOT NULL,                  -- IANA tz, e.g., 'America/New_York'\n  city             VARCHAR(128),\n  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\n\nCREATE TABLE table_resource (\n  table_id         BIGSERIAL    PRIMARY KEY,\n  restaurant_id    BIGINT       NOT NULL REFERENCES restaurant(restaurant_id) ON DELETE CASCADE,\n  label            VARCHAR(32)  NOT NULL,                  -- '4-top by window'\n  seats            SMALLINT     NOT NULL CHECK (seats > 0),\n  is_active        BOOLEAN      NOT NULL DEFAULT TRUE,\n  UNIQUE (restaurant_id, label)\n);\nCREATE INDEX ix_table_resource_restaurant ON table_resource (restaurant_id);\n\nCREATE TABLE reservation (\n  reservation_id   BIGSERIAL    PRIMARY KEY,\n  table_id         BIGINT       NOT NULL REFERENCES table_resource(table_id),\n  party_id         BIGINT       NOT NULL,                  -- FK to guest/party table omitted\n  party_size       SMALLINT     NOT NULL CHECK (party_size > 0),\n  reservation_range TSTZRANGE   NOT NULL,                  -- [start_ts, end_ts) inclusive-exclusive\n  status           VARCHAR(16)  NOT NULL DEFAULT 'confirmed',  -- 'confirmed','seated','canceled','no_show'\n  created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  canceled_at      TIMESTAMPTZ,\n  -- Prevent overlapping confirmed reservations on the same physical table:\n  EXCLUDE USING gist (\n    table_id WITH =,\n    reservation_range WITH &&\n  ) WHERE (status IN ('confirmed','seated'))\n);\nCREATE INDEX ix_reservation_table_range ON reservation USING gist (table_id, reservation_range);\nCREATE INDEX ix_reservation_party ON reservation (party_id);\n\n-- Insertion path: the database refuses any reservation whose range overlaps an existing\n-- confirmed/seated reservation on the same table; the loser gets a unique-violation that the\n-- application maps to HTTP 409 Conflict.",
+      "key_points": [
+        "btree_gist extension required to combine equality (table_id) with overlap (range) in a GiST index",
+        "TSTZRANGE on (start_ts, end_ts) is the correct type for non-overlapping time intervals",
+        "EXCLUDE USING gist with the WHERE clause means only ACTIVE reservations participate in non-overlap",
+        "Canceled / no-show reservations are kept for history but don't block new bookings",
+        "GiST index on (table_id, reservation_range) makes the constraint check fast",
+        "Timezone on restaurant, not on reservation \u2014 reservation_range is timestamptz which is UTC under the hood",
+        "Insertion losers get a clean DB-level error, mapped to a 409 in the API",
+        "party_id indexed for 'all reservations for this guest'",
+        "Status enum supports the seat / no-show lifecycle"
+      ]
+    },
+    {
+      "id": "ds-267",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a Postgres double-entry ledger for a fintech wallet. Every transaction MUST balance to zero across debits and credits. Tables: `account`, `ledger_entry`, `transaction`. Provide schema and a check or trigger that enforces the zero-sum invariant per transaction.",
+      "language": "sql",
+      "starter": "CREATE TABLE account (\n  -- design here\n);\n\nCREATE TABLE transaction (\n  -- design here\n);\n\nCREATE TABLE ledger_entry (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE account (\n  account_id        BIGSERIAL    PRIMARY KEY,\n  external_ref      VARCHAR(64)  NOT NULL UNIQUE,             -- e.g., user-wallet ID or system-account name\n  account_type      VARCHAR(16)  NOT NULL,                    -- 'asset','liability','revenue','expense','equity'\n  currency          CHAR(3)      NOT NULL,\n  is_active         BOOLEAN      NOT NULL DEFAULT TRUE,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\n\nCREATE TABLE transaction (\n  transaction_id    BIGSERIAL    PRIMARY KEY,\n  external_ref      VARCHAR(64)  NOT NULL UNIQUE,             -- idempotency key from upstream\n  description       TEXT,\n  occurred_at       TIMESTAMPTZ  NOT NULL,                    -- business time\n  recorded_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),      -- system time\n  status            VARCHAR(16)  NOT NULL DEFAULT 'posted',   -- 'posted','reversed'\n  reversed_by_txn_id BIGINT      REFERENCES transaction(transaction_id)\n);\n\nCREATE TABLE ledger_entry (\n  entry_id          BIGSERIAL    PRIMARY KEY,\n  transaction_id    BIGINT       NOT NULL REFERENCES transaction(transaction_id) ON DELETE RESTRICT,\n  account_id        BIGINT       NOT NULL REFERENCES account(account_id),\n  direction         CHAR(1)      NOT NULL CHECK (direction IN ('D','C')),\n  amount_cents      BIGINT       NOT NULL CHECK (amount_cents > 0),\n  currency          CHAR(3)      NOT NULL,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\nCREATE INDEX ix_ledger_entry_txn ON ledger_entry (transaction_id);\nCREATE INDEX ix_ledger_entry_account_time ON ledger_entry (account_id, created_at);\n\n-- Enforce zero-sum per transaction using a deferred constraint trigger.\nCREATE OR REPLACE FUNCTION assert_ledger_balanced() RETURNS trigger AS $$\nDECLARE\n  imbalance NUMERIC;\nBEGIN\n  SELECT\n    SUM(CASE WHEN direction = 'D' THEN amount_cents ELSE -amount_cents END)\n    INTO imbalance\n  FROM ledger_entry\n  WHERE transaction_id = NEW.transaction_id;\n  IF imbalance IS NULL OR imbalance <> 0 THEN\n    RAISE EXCEPTION 'Ledger entries for transaction % do not balance: %', NEW.transaction_id, imbalance;\n  END IF;\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\n\nCREATE CONSTRAINT TRIGGER trg_ledger_balanced\n  AFTER INSERT OR UPDATE OR DELETE ON ledger_entry\n  DEFERRABLE INITIALLY DEFERRED\n  FOR EACH ROW EXECUTE FUNCTION assert_ledger_balanced();\n\n-- Reversal pattern: insert a NEW transaction (status='posted') whose entries are the inverse of the\n-- original (debits become credits and vice versa), and set the original.status = 'reversed' and\n-- original.reversed_by_txn_id = new_txn_id.",
+      "key_points": [
+        "Three tables: account, transaction, ledger_entry \u2014 entries reference both account and transaction",
+        "Direction column ('D'/'C') + positive amount avoids negative-number sign confusion",
+        "Currency column on both account and ledger_entry; in a multi-currency system, NEVER mix currencies within a single transaction (or model FX as an explicit conversion-account transaction)",
+        "DEFERRED constraint trigger lets the application insert all entries within a transaction and validate at COMMIT, not per-row",
+        "Zero-sum invariant: sum of debits = sum of credits per transaction",
+        "Reversal is modeled as a NEW transaction, not a DELETE \u2014 the ledger is append-only for auditability",
+        "external_ref on transaction provides idempotency for upstream retries",
+        "Indexes on (account_id, created_at) support 'balance as of T' and statement queries",
+        "occurred_at vs recorded_at preserves business time vs system time"
+      ]
+    },
+    {
+      "id": "ds-268",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "hard",
+      "prompt": "Design a partitioned + clustered Iceberg fact table for ride-share TRIPS. Volume: ~80M rows/day, retained 36 months. Common predicates: filter by `trip_date`, by `driver_id`, by H3 cell of pickup. Provide the CREATE TABLE statement (Iceberg dialect or generic columns + partition spec + clustering hint).",
+      "language": "sql",
+      "starter": "CREATE TABLE fact_trip (\n  -- design here\n)\nPARTITIONED BY (\n  -- partition spec here\n);\n",
+      "model_answer": "CREATE TABLE fact_trip (\n  trip_id            STRING        NOT NULL,                   -- natural key (UUID from app)\n  rider_id           BIGINT        NOT NULL,\n  driver_id          BIGINT        NOT NULL,\n  vehicle_id         BIGINT,\n  product_type       STRING,                                    -- 'standard','xl','black','pool'\n  request_ts         TIMESTAMP     NOT NULL,                    -- when rider requested\n  pickup_ts          TIMESTAMP,\n  dropoff_ts         TIMESTAMP,\n  pickup_h3_r9       STRING        NOT NULL,                    -- H3 resolution 9 (\u224874K cells/sq km)\n  dropoff_h3_r9      STRING,\n  pickup_lat         DOUBLE        NOT NULL,\n  pickup_lng         DOUBLE        NOT NULL,\n  distance_km        DECIMAL(8,3),\n  duration_sec       INT,\n  base_fare_cents    BIGINT,\n  surge_multiplier   DECIMAL(4,2),\n  tip_cents          BIGINT,\n  total_paid_cents   BIGINT,\n  driver_payout_cents BIGINT,\n  status             STRING        NOT NULL,                    -- 'completed','canceled','no_show'\n  cancel_reason      STRING,\n  trip_date          DATE          NOT NULL,                    -- truncated request_ts in driver-local tz\n  ingested_at        TIMESTAMP     NOT NULL\n)\nUSING iceberg\nPARTITIONED BY (\n  days(trip_date),\n  bucket(16, driver_id)\n)\nTBLPROPERTIES (\n  'write.target-file-size-bytes' = '536870912',          -- 512 MB target\n  'write.parquet.compression-codec' = 'zstd',\n  'write.distribution-mode' = 'hash',\n  'sort-order' = 'pickup_h3_r9'                          -- file-level sort for geo predicates\n);\n\n-- Optional secondary cluster (engine-dependent): cluster by (driver_id, pickup_h3_r9)\n-- for queries filtering by driver and pickup neighborhood.",
+      "key_points": [
+        "Partition by days(trip_date) for pruning by date filters (most common analytics filter)",
+        "Bucket by driver_id (16 buckets) to avoid skew when a few drivers do many trips, while supporting driver-level filtering",
+        "H3 r9 column for geo joins / hex-aggregations (Uber's published pattern)",
+        "Sort order on pickup_h3_r9 makes geographic queries skip irrelevant files",
+        "Target file size ~512MB avoids small-files problem at this scale",
+        "ZSTD compression is the modern default for analytics workloads (better ratio than snappy, faster than gzip)",
+        "Distribution mode 'hash' on partition columns reduces shuffle on writes",
+        "trip_date computed in driver-local tz so the date pruning matches business expectations (a 23:30 trip in NY belongs to that NY day, not UTC the next day)",
+        "Status + cancel_reason support the 'cancelled trip' analytics without separate tables"
+      ]
+    },
+    {
+      "id": "ds-269",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres `webhook_delivery` schema. The service receives outbound webhook send-requests and must retry with exponential backoff on failure, give up after N attempts, and let consumers query 'all failed deliveries for endpoint X in the last day'. Include retry math and dead-letter handling.",
+      "language": "sql",
+      "starter": "CREATE TABLE webhook_delivery (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE webhook_delivery (\n  delivery_id       BIGSERIAL    PRIMARY KEY,\n  endpoint_id       BIGINT       NOT NULL,                       -- FK to webhook_endpoint(s) elsewhere\n  event_id          VARCHAR(128) NOT NULL,                       -- the upstream business event being notified\n  event_type        VARCHAR(64)  NOT NULL,\n  payload_jsonb     JSONB        NOT NULL,\n  attempt_count     INT          NOT NULL DEFAULT 0,\n  max_attempts      INT          NOT NULL DEFAULT 8,             -- 2^8 minutes \u2248 4 hours max backoff\n  status            VARCHAR(16)  NOT NULL DEFAULT 'pending',     -- 'pending','succeeded','failed','dead'\n  last_attempt_at   TIMESTAMPTZ,\n  next_attempt_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),         -- scheduler picks rows where next_attempt_at <= now\n  last_http_status  SMALLINT,\n  last_error        TEXT,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  completed_at      TIMESTAMPTZ,                                  -- terminal state timestamp\n  UNIQUE (endpoint_id, event_id)                                  -- idempotency: don't re-deliver same event to same endpoint\n);\n\nCREATE INDEX ix_webhook_pending ON webhook_delivery (next_attempt_at)\n  WHERE status = 'pending';\nCREATE INDEX ix_webhook_endpoint_status_time ON webhook_delivery (endpoint_id, status, last_attempt_at DESC);\n\n-- Backoff schedule (computed by worker after each failed attempt):\n--   next_attempt_at = now() + INTERVAL '1 minute' * power(2, attempt_count) + random_jitter(0..30s)\n-- After max_attempts, status -> 'dead' (the row is the dead-letter record itself).\n--\n-- Worker query (each tick):\n-- SELECT * FROM webhook_delivery\n-- WHERE status='pending' AND next_attempt_at <= now()\n-- ORDER BY next_attempt_at LIMIT 100\n-- FOR UPDATE SKIP LOCKED;",
+      "key_points": [
+        "Status enum: pending / succeeded / failed (retryable) / dead (terminal)",
+        "next_attempt_at + partial index makes the scheduler query a single index range scan, even at billions of rows",
+        "UNIQUE (endpoint_id, event_id) ensures we don't enqueue duplicates if the same upstream event fires twice",
+        "Exponential backoff math documented in the schema for maintainers",
+        "Jitter on backoff avoids thundering-herd retry storms after an endpoint outage",
+        "FOR UPDATE SKIP LOCKED is the canonical 'job queue on Postgres' pattern: many workers can pull non-overlapping batches",
+        "(endpoint_id, status, last_attempt_at) index supports 'failed deliveries for endpoint X' admin queries",
+        "Dead row is its own dead-letter \u2014 no separate DLQ table is required for most scales",
+        "attempt_count + max_attempts let endpoints configure their own retry budget"
+      ]
+    },
+    {
+      "id": "ds-270",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres `comment_thread` schema for a Reddit-style nested comments system. Must support: fast retrieval of all comments under a post, traversal of replies, and ordering by score. Consider materialized-path or closure-table approaches.",
+      "language": "sql",
+      "starter": "CREATE TABLE comment (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE comment (\n  comment_id        BIGSERIAL    PRIMARY KEY,\n  post_id           BIGINT       NOT NULL,\n  parent_comment_id BIGINT       REFERENCES comment(comment_id),\n  author_id         BIGINT       NOT NULL,\n  body              TEXT         NOT NULL,\n  score             INT          NOT NULL DEFAULT 0,             -- upvotes - downvotes (denormalized for ordering)\n  depth             SMALLINT     NOT NULL DEFAULT 0,             -- 0 = top-level\n  path              LTREE        NOT NULL,                       -- materialized-path: e.g., '1.13.42'\n  is_deleted        BOOLEAN      NOT NULL DEFAULT FALSE,\n  created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  updated_at        TIMESTAMPTZ  NOT NULL DEFAULT now()\n);\n\n-- Required extension for ltree-based path indexing:\nCREATE EXTENSION IF NOT EXISTS ltree;\n\nCREATE INDEX ix_comment_post_score ON comment (post_id, score DESC);\nCREATE INDEX ix_comment_post_created ON comment (post_id, created_at);\nCREATE INDEX ix_comment_path_gist ON comment USING gist (path);\nCREATE INDEX ix_comment_parent ON comment (parent_comment_id) WHERE parent_comment_id IS NOT NULL;\n\n-- Common queries:\n-- All comments under a post, ordered by score:\n--   SELECT * FROM comment WHERE post_id = ? ORDER BY score DESC, created_at;\n-- All descendants of a specific comment (its subtree):\n--   SELECT * FROM comment WHERE path <@ '1.13'::ltree;     -- ltree descendant operator\n-- Direct children:\n--   SELECT * FROM comment WHERE parent_comment_id = ?;",
+      "key_points": [
+        "Hybrid model: parent_comment_id (for direct walks) + ltree path (for subtree queries) + depth (for indent rendering without recursion)",
+        "ltree GiST index makes 'all descendants of comment X' a single index range scan, not a recursive CTE",
+        "Score column is denormalized (sum from a vote table) and indexed to support 'top comments first' ordering",
+        "post_id is indexed first in composite indexes so all queries are post-scoped first \u2014 critical at scale",
+        "is_deleted flag (not row delete) preserves thread continuity when a parent comment is removed",
+        "depth field stored at insert time avoids recomputing it on every render",
+        "Partial index on parent_comment_id WHERE NOT NULL skips top-level comments and speeds reply walks",
+        "Trade-off vs closure-table: ltree is simpler in Postgres, no extra junction table; closure-table is portable across DBMSes"
+      ]
+    },
+    {
+      "id": "ds-271",
+      "type": "code",
+      "topic": "Schema Design",
+      "difficulty": "medium",
+      "prompt": "Design a Postgres `audit_log` table for SOC2-style change auditing across many entity types. Must support: which entity changed, who changed it, what fields changed, immutable retention. Provide schema with appropriate indexes and a comment on how to enforce immutability.",
+      "language": "sql",
+      "starter": "CREATE TABLE audit_log (\n  -- design here\n);\n",
+      "model_answer": "CREATE TABLE audit_log (\n  log_id           BIGSERIAL    PRIMARY KEY,\n  occurred_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),\n  actor_type       VARCHAR(16)  NOT NULL,                      -- 'user','service','system'\n  actor_id         VARCHAR(128) NOT NULL,                      -- user_id, service principal, etc.\n  actor_ip         INET,\n  actor_user_agent TEXT,\n  entity_type      VARCHAR(64)  NOT NULL,                      -- 'customer','order','config'\n  entity_id        VARCHAR(128) NOT NULL,                      -- entity PK as string to keep it polymorphic\n  action           VARCHAR(16)  NOT NULL,                      -- 'create','update','delete','read'\n  field_diffs      JSONB,                                       -- e.g., {\"email\":{\"old\":\"a@x\",\"new\":\"b@x\"}}\n  request_id       VARCHAR(64),                                 -- trace correlation\n  tenant_id        BIGINT,                                      -- multi-tenant scope\n  prev_log_hash    CHAR(64),                                    -- SHA-256 of preceding row \u2014 hash chain\n  this_log_hash    CHAR(64)     NOT NULL                        -- SHA-256(prev_log_hash || serialized(this row))\n);\n\nCREATE INDEX ix_audit_log_entity ON audit_log (entity_type, entity_id, occurred_at DESC);\nCREATE INDEX ix_audit_log_actor ON audit_log (actor_type, actor_id, occurred_at DESC);\nCREATE INDEX ix_audit_log_tenant_time ON audit_log (tenant_id, occurred_at DESC);\nCREATE INDEX ix_audit_log_action_time ON audit_log (action, occurred_at DESC);\n\n-- Enforcing immutability:\n-- 1. Revoke UPDATE / DELETE privileges on audit_log to the application role; only INSERT allowed.\n--    GRANT INSERT ON audit_log TO app_role;\n--    REVOKE UPDATE, DELETE ON audit_log FROM app_role;\n-- 2. Either keep audit_log in a separate schema/database with its own access boundary,\n--    or stream rows to an append-only, WORM-protected store (e.g., S3 Object Lock) on commit.\n-- 3. prev_log_hash + this_log_hash form a hash chain: tampering with any historical row breaks\n--    the chain, which can be verified periodically.\n-- 4. Partition by month to manage retention without DELETEing live partitions:\n--    CREATE TABLE audit_log (...) PARTITION BY RANGE (occurred_at);",
+      "key_points": [
+        "Polymorphic (entity_type, entity_id) columns rather than per-entity audit tables \u2014 simpler operational model",
+        "field_diffs as JSONB captures the before/after of each changed field without column-level audit",
+        "Hash-chain columns (prev_log_hash, this_log_hash) make tampering detectable",
+        "Immutability is enforced by REVOKING UPDATE/DELETE, not by application convention",
+        "Multiple composite indexes match the three primary audit queries: 'what happened to entity X?', 'what did user Y do?', 'all writes in tenant Z'",
+        "tenant_id partitioning column for multi-tenant scoping in RLS or per-tenant retention",
+        "Partition by occurred_at month enables retention pruning without rewriting active data",
+        "Separate schema/database recommendation enforces SEPARATION OF DUTIES \u2014 auditors look at a system the audited app can't write to twice",
+        "request_id ties audit events back to a single trace / request for cross-system reconstruction"
+      ]
+    },
+    {
+      "id": "ds-272",
+      "type": "open",
+      "topic": "Incident Response",
+      "difficulty": "hard",
+      "prompt": "You're the on-call lead. Your fraud-detection pipeline went from 2-minute lag to 6-hour lag overnight. No deploys in 48h. The pipeline reads Kafka -> Flink -> writes to Postgres + scores via an internal model service. Walk through your incident response in 6-8 steps. End with a runbook decision: when do you escalate vs continue solo?",
+      "model_answer": "**Step 1 \u2014 Acknowledge + page status.** Take primary on-call ack within minutes. Set a status update channel (incident-specific Slack, page incident commander if 6h lag is beyond your team's solo bar). Communicate to the fraud-ops user channel that lag is elevated and what you currently know.\n\n**Step 2 \u2014 Isolate the bottleneck via fundamental signals.** Look at four numbers in parallel: Kafka consumer lag per partition, Flink job restart count + checkpoint duration, Postgres write rate + replica lag, model-service p95/p99 latency. Lag growing linearly with idle consumer CPU = downstream-bound (Postgres or model service). Lag bursty + restarts = upstream or job-level problem. Lag growing with high consumer CPU = pipeline CPU-bound (rare without a deploy).\n\n**Step 3 \u2014 Check the obvious externals.** Has a cloud provider issued an advisory for your region? Did a dependent service have an incident overnight? Did infra autoscale (or fail to autoscale) overnight? Often the answer to a 'no deploys' regression is a silent capacity event (a node lost, autoscaling group cap hit, IAM role rotation expiring).\n\n**Step 4 \u2014 Probe the slowest hop.** If model-service p99 is up 10x, you've found the bottleneck. Hit `/debug/profile` or equivalent, check GC, check whether the model was reloaded with a slower variant. If Postgres write rate is down, check connection pool exhaustion, lock waits, autovacuum running on the destination table, or replica failover that promoted a slower replica.\n\n**Step 5 \u2014 Make the smallest reversible change first.** If model-service is slow and was the latest variant deployed yesterday (even if you said 'no deploys', sometimes a model artifact is hot-swapped without code deploy), roll back to the previous variant. If Postgres is locked by a long autovacuum, raise vacuum cost limit or pin the work. Do NOT scale up Flink unless you've confirmed the bottleneck is in Flink.\n\n**Step 6 \u2014 Mitigate to user impact, then fix root cause.** If lag is the user-visible problem and you cannot find the cause in 30 minutes, mitigate: switch fraud scoring to a fallback rules-only path so cards stop being blocked by stale risk; or buy time by spinning up a parallel pipeline on fresh offsets and abandoning the backlog (only if leadership signs off on losing history). Fixing root cause without mitigation is heroic but not the right priority order.\n\n**Step 7 \u2014 Reconcile and validate.** Once lag is back down, verify three things: (1) row counts in the destination from the bad window match expectations, (2) no events were lost (compare Kafka offsets read vs rows written), (3) downstream alerts have cleared. Backfill any computed-state windows that were processed under bad conditions if they're used in operating decisions.\n\n**Step 8 \u2014 Postmortem.** Within 48h, document: what was the customer impact (transactions delayed or under-scored), what the trigger was, what the detection delay was, why monitoring didn't fire earlier (often watermark progression isn't alerted on while lag is, and these can diverge), and what changes prevent recurrence. Track action items in a tracked queue with owners.\n\n**Runbook decision \u2014 when to escalate.** Escalate to incident commander + page additional engineers if: (a) lag exceeds 4h with no identified cause within 30 minutes, (b) customer impact is dollar-quantifiable and growing, (c) you've made the smallest mitigation and lag still grows, or (d) the suspected cause is in a system owned by another team. Solo on-call is correct when the cause is identified within 30 minutes and reversible.",
+      "key_points": [
+        "Starts with acknowledgement + comms BEFORE diving into root-cause (status discipline)",
+        "Uses fundamental signals (lag, CPU, restart count, downstream latency) to isolate the bottleneck rather than guessing",
+        "Considers 'no deploys' might still mean 'model artifact swap' or 'config rotation' \u2014 explicit external-cause check",
+        "Picks the SMALLEST REVERSIBLE CHANGE first (rollback model, not scale Flink) before bigger interventions",
+        "Mitigates user impact (fallback rules path, parallel pipeline on fresh offsets) before completing root-cause analysis",
+        "Reconciliation step: counts match, no data lost, dependent alerts cleared",
+        "Postmortem within 48h with concrete prevention action items, not vague learnings",
+        "Explicit escalation criteria \u2014 when to call for help vs continue solo",
+        "Mentions watermark vs lag distinction \u2014 a subtle stream-engineer-only signal that often goes unmonitored"
+      ]
+    },
+    {
+      "id": "ds-273",
+      "type": "open",
+      "topic": "Architecture",
+      "difficulty": "hard",
+      "prompt": "Your Series-B startup needs an MLOps platform for 4 data scientists who work on tabular models (churn, LTV, fraud) and one team training small LLMs for product features. Budget is $5K/month all-in for the platform (compute, tools, storage). Sketch the architecture, the build-vs-buy choices, and how you'd phase it over 6 months.",
+      "model_answer": "**Constraints first.** $5K/month means you cannot afford a turnkey commercial MLOps suite (Databricks ML, SageMaker w/ heavy GPUs, etc.) running 24/7. Four data scientists also means the platform must be lean enough that you don't need a dedicated platform engineer. Spend on COMPUTE for training, save on tools by adopting open-source where mature.\n\n**Architecture sketch.**\n\n*Storage layer.* S3 (or GCS) as the data lake. ~$23/TB/mo standard. Land both raw training data and model artifacts here. No fancy lakehouse needed yet \u2014 use Parquet with explicit folder conventions and dbt for any transforms. Budget allocation: ~$200/mo for 5\u201310TB.\n\n*Feature / training data layer.* dbt-managed marts in a small Snowflake account (or Postgres + materialized views if Snowflake is too expensive). Feature lookups for offline training read from the marts; for online inference, replicate the small features into Redis or DynamoDB. Skip a full feature store (Feast, Tecton) until at least two models are in production with shared features. Budget: ~$1,200\u20131,500/mo for Snowflake at this volume.\n\n*Training compute.* Two tiers: (1) for tabular models, ephemeral EC2/GCP spot instances launched per training job via a thin orchestrator (Prefect or Dagster or just GitHub Actions self-hosted runners on spot). Tabular models train in minutes-to-hours on CPU; don't pay for GPU on these. (2) For small LLMs (under 7B params), a single A10 or L4 GPU in a spot pool, scheduled via the same orchestrator. Budget: ~$800\u20131,200/mo elastic.\n\n*Experiment tracking + model registry.* MLflow open-source, self-hosted on a small EC2 + Postgres + S3 artifact store. Free except the small EC2 (~$50/mo) and Postgres ($30/mo RDS micro). Tracks experiments, parameters, metrics, and registered model versions. Open-source matches commercial here for one-team use.\n\n*Serving.* Two patterns: (a) Batch scoring as a daily/hourly job that writes scores to the warehouse \u2014 covers churn + LTV. Cheap and simple, no separate infra. (b) Real-time scoring for fraud + LLM features: a lightweight FastAPI service on EC2 or Cloud Run that loads the registered model. ~$200\u2013400/mo. Skip a full model server (BentoML, Seldon, KServe) until you have at least three concurrent real-time models with versioning needs.\n\n*Monitoring.* Datadog or Grafana Cloud free tier for service metrics; a small daily job emits model-input drift and prediction-distribution metrics to the same warehouse as training data, so the data team can write dbt tests on the model side. Skip a dedicated ML monitoring SaaS until there's evidence of real drift causing real losses.\n\n*CI / orchestration.* GitHub Actions for CI; orchestrator (Prefect Cloud free tier or self-hosted) for scheduled training/scoring jobs. ~$0\u2013200/mo.\n\n**Build vs buy summary.** BUY: warehouse (Snowflake) because building it eats engineer-months; observability (Datadog/Grafana) because rolling your own is a tax forever. BUILD on open source: MLflow tracker/registry, lightweight model server, drift monitoring as dbt tests. SKIP for now: full feature store, model gateway/A-B testing platform, dedicated experiment-tracking SaaS.\n\n**Phasing over 6 months.**\n- *Month 1.* Stand up S3 + Snowflake + dbt + MLflow + GitHub Actions. One reference pipeline (churn) end-to-end: data ingest -> features -> train -> register -> batch-score -> dashboard.\n- *Month 2.* Replicate the pattern for LTV. Standardize a project template so new models follow the same shape. Add basic drift checks on inputs.\n- *Month 3.* Fraud real-time path: FastAPI service, Redis feature replication, latency SLO. Wire prediction logging back to the warehouse for monitoring.\n- *Month 4.* LLM training pipeline: spot GPU pool, MLflow LLM-suitable logging, eval harness. Single LLM in product (a feature like text classification or summarization).\n- *Month 5.* Productionize the LLM-serving path: model gateway between product and the model so version swaps don't require product redeploys. Add cost guardrails per-job.\n- *Month 6.* Maturity work: shared feature definitions across models, deprecate one-off scripts, write the runbooks. Re-evaluate whether the volume justifies graduating to a feature store or a commercial MLOps suite.\n\n**What goes wrong if you skip phasing.** Most startups in this size class try to build the 'full platform' first (feature store, model gateway, A/B platform) before they have a single model in production. The result is six months of platform building and zero models earning value. Always: model #1 end-to-end on the simplest stack first, then platform the patterns.",
+      "key_points": [
+        "Starts from the BUDGET CONSTRAINT and explicitly names what it forces (no turnkey suite, no dedicated platform engineer)",
+        "Concrete budget allocation per layer that sums to ~$5K/mo",
+        "Splits storage, feature layer, training, registry, serving, monitoring, CI as distinct layers with specific tools",
+        "Names explicit BUY (warehouse, observability) vs BUILD on OSS (MLflow, model server) vs SKIP-FOR-NOW (feature store, gateway)",
+        "Differentiates batch scoring (most tabular use cases) from real-time (fraud, LLM) and uses simpler infra for batch",
+        "Two-tier training compute: CPU spot for tabular, GPU spot for small LLM \u2014 doesn't pay for GPU on tabular",
+        "6-month phasing starts with ONE end-to-end model, then templates, then expand to real-time, then LLM, then platform maturity",
+        "Calls out the anti-pattern of building the full platform before having a model in production",
+        "Pragmatic recommendations to use OSS for tools where commercial doesn't offer enough value at this scale"
+      ]
+    },
+    {
+      "id": "ds-274",
+      "type": "open",
+      "topic": "Architecture",
+      "difficulty": "hard",
+      "prompt": "Pinterest needs to backfill 7 years of pin-impression events (~2 trillion events) from cold storage into a new attribution model. Current production: 12B events/day live ingestion into Iceberg via Flink + Kafka. The new attribution model lives in a separate dbt project. Sketch how to backfill without disrupting current production AND while keeping the cloud bill bounded. Walk through the design in 6\u20138 stages.",
+      "model_answer": "**Stage 1 \u2014 Quantify and scope.** 2 trillion events at, say, 600 bytes after compression = ~1.2PB. Cold storage egress + compute at full speed could easily exceed seven figures if done naively. Get a written cost ceiling from finance before doing anything irreversible. Decide: do we need ALL 7 years, or does the attribution model demand only the last 24 months? Pruning at the front halves the bill.\n\n**Stage 2 \u2014 Build an ISOLATED backfill stack.** Stand up: (a) a separate Iceberg table `pin_impression_backfill` with the same schema and partitioning as production (`days(event_date), bucket(N, user_id)` or equivalent); (b) a SEPARATE Spark or Flink batch job (not the live streaming job) that reads from cold storage S3 + writes to the backfill table; (c) its own warehouse / cluster / namespace so it cannot starve the live pipeline. The goal is hard isolation: nothing the backfill does can degrade live ingestion.\n\n**Stage 3 \u2014 Stage cold data to warm tier first.** Glacier Deep Archive retrieval is hours and per-byte expensive. Bulk-restore historical partitions to S3 Standard or Glacier Instant Retrieval in MONTH-sized batches, process them, then expire back to cold. Don't restore all 7 years at once or you'll be paying S3 Standard rates for petabytes for the duration of the backfill.\n\n**Stage 4 \u2014 Process in time-ordered chunks with explicit checkpointing.** Backfill OLDEST to NEWEST one month at a time. After each month, validate row counts vs the source archive's manifest, sample-check a small partition, and CHECKPOINT progress (e.g., write a partition-level high-water mark to a state table). On failure, you resume from the last completed month, not the start. Reverse order is also defensible (newest first means the attribution model can start incremental work earlier), but newest-first means you commit to either backfilling everything or accepting an awkward gap.\n\n**Stage 5 \u2014 Use cheap compute aggressively.** Spot/preemptible instances are 70% cheaper. Backfills are idempotent and re-runnable, so spot reclamation only costs you the running task, not the data. Pick a cluster size that finishes a month in 3\u20136 hours so you're sensitive to cost-per-month and can tune. Use ZSTD compression on the output to keep the warm copy small.\n\n**Stage 6 \u2014 Reconcile against the live pipeline at the overlap.** Backfill writes to a separate table. Where the backfill window overlaps with live production (say, the most recent 30 days), reconcile counts per partition + sample-validate a small set of pin_ids. The overlap PROVES the backfill pipeline produces the same answer as live for the same input \u2014 if it doesn't, the rest of the 7 years is suspect.\n\n**Stage 7 \u2014 Atomically swap or union.** Two paths to make the data visible to the new attribution model: (a) a one-time MERGE INTO the production table for old partitions where production has no data \u2014 simple but risks accidentally touching live partitions; (b) keep the backfill table separate and have the dbt attribution model UNION the historical table with the live one in its source layer. Pinterest-scale teams typically prefer (b) because it keeps the backfill reversible: if a defect is found, you drop the historical table and re-run, with zero risk to live data.\n\n**Stage 8 \u2014 Decommission cleanly.** Once the attribution model is validated end-to-end on backfilled + live data, you can either: (1) keep the historical table as a permanent source (cheapest, no further migration); (2) merge into a single production table during a planned maintenance window if downstream tooling can't handle the union. Update the data catalog, document the backfill in a runbook, and define the retention policy for the warm-tier copy created during processing.\n\n**Cost-control levers throughout.** Process in month-sized batches so you can stop and renegotiate after each batch. Always restore-process-expire rather than restore-all. Default to spot. Compress to ZSTD. Reconcile incrementally so a defect doesn't waste a full re-run.\n\n**What goes wrong if you skip the isolated stack.** The most common failure mode is teams sharing the live Kafka/Flink cluster between backfill and production, then production degrades or fails when the backfill spikes. Hard isolation at the cluster level is non-negotiable.",
+      "key_points": [
+        "Quantifies the scope (~1.2PB, billions of dollars potential if naive) and demands a cost ceiling before starting",
+        "Asks whether ALL 7 years are needed or whether the model only needs a shorter window \u2014 pruning at the front saves more than any optimization",
+        "Isolated backfill stack: separate table, separate cluster, separate warehouse so backfill cannot disrupt production",
+        "Staged cold-warm-cold restoration pattern to avoid paying for petabytes of warm storage for months",
+        "Processes oldest-first in month-sized batches with explicit per-batch checkpointing for restartability",
+        "Uses spot / preemptible compute aggressively because backfills are idempotent",
+        "Reconciles against the live pipeline at the overlap window \u2014 the overlap proves correctness",
+        "Prefers UNION over MERGE for the cutover because it keeps the backfill reversible and isolates blast radius",
+        "Plans for the decommission step, not just the active backfill phase",
+        "Calls out the anti-pattern of sharing infrastructure between backfill and production (the #1 source of incidents on this kind of project)"
+      ]
+    },
+    {
+      "id": "ds-275",
+      "type": "open",
+      "topic": "Architecture",
+      "difficulty": "hard",
+      "prompt": "You inherit a 2-year-old data platform: Airflow on a single EC2, Postgres data warehouse (8TB and growing), ~400 dbt models, Looker, no schema registry, no data contracts, no PII tagging, 4 outages in the last quarter (mostly Airflow OOM, two from a dbt model that grew unbounded). Engineering leadership asks for a 6-month modernization plan that survives a $300K/yr budget and a team of 3 engineers. Sketch the plan in phases.",
+      "model_answer": "**Frame first.** Budget $300K/yr and 3 engineers means roughly one platform engineer's salary equivalent for vendor tools and roughly two engineers' time for migrations. You cannot replatform everything in 6 months; pick targets where the pain-to-effort ratio is highest. The four outages in a quarter tell you the immediate goal is RELIABILITY, not feature parity with a state-of-the-art platform.\n\n**Phase 0 (week 1) \u2014 Triage and stabilize.** Don't start a migration with the platform actively on fire. Move Airflow to a larger instance (or two with high availability) immediately. Add per-DAG resource caps so a runaway dbt model can't OOM the orchestrator. Add disk monitoring on Postgres. Triage the dbt model that grew unbounded \u2014 most likely a missing `is_incremental()` guard. These are days of work, not months, and they bring the operational MTBF up while you plan.\n\n**Phase 1 (months 1\u20132) \u2014 Reliability infrastructure.** Three workstreams in parallel: (1) migrate Airflow to a managed offering (MWAA, Cloud Composer, or Astronomer) or to a modern orchestrator (Dagster, Prefect) on managed infrastructure. Self-hosting Airflow with a 3-person team is a poor use of time. (2) Tighten dbt with model-level checks: required-tests on every model, freshness sources, partition checks via dbt-utils. (3) Stand up basic observability: a `dbt run` log table, alert on any model running >2x its baseline duration, alert on data-freshness SLO breaches.\n\n**Phase 2 (months 2\u20134) \u2014 Plan the warehouse migration, don't execute it yet.** 8TB Postgres for analytics is fine today but won't be at 30TB. Run a bake-off between Snowflake and BigQuery on the heaviest 5 dashboards: load a sample, replicate the dbt models, measure cost and latency, then pick. The migration itself is Phase 3; in Phase 2 you're building the decision evidence and proving the platform team can stand up the new warehouse on a parallel track without touching production.\n\n**Phase 3 (months 4\u20136) \u2014 Migrate the warehouse incrementally.** CDC from Postgres into the chosen warehouse (Debezium, Fivetran, or the native connector for whatever you picked). Move dbt models in groups: starting with the marts that have the WORST cost or latency in Postgres, since those benefit most. Run BOTH warehouses in parallel for at least one full reporting cycle, reconciling key aggregates. Cut Looker over per-mart as confidence builds, not in a single switch.\n\n**Phase 4 (months 4\u20136, in parallel with Phase 3) \u2014 PII / governance baseline.** Stand up: (a) a tag-based PII registry (column-level tags in dbt's schema.yml or a real catalog like DataHub if budget allows the OSS self-host effort). (b) Row-level / column-level masking policies in the new warehouse, applied via roles. (c) Access reviews for the top-50 sensitive tables. Schema registry can wait beyond 6 months if you don't have streams \u2014 don't add what you don't need.\n\n**What NOT to do.**\n- Don't introduce a streaming layer just because it's modern. There's no evidence the business needs sub-hour latency, and the operational cost is real.\n- Don't introduce a data lakehouse (Iceberg/Delta) alongside the warehouse migration. That's a doubled cognitive load on a 3-person team. Land in the warehouse first; consider lakehouse when warehouse storage cost forces the question.\n- Don't pick a 'data mesh' decentralization model. With a 3-person platform team, centralization is the right control structure for the next 2 years.\n- Don't try to retire Looker mid-migration. Tooling changes during platform migrations cause double the change-management work and double the risk.\n\n**Cost rough budget.**\n- Managed Airflow / orchestrator: ~$30K/yr.\n- Warehouse (Snowflake/BigQuery) at 8TB + dbt-heavy workload: ~$120K/yr at this volume with discipline; can balloon to $300K+ without it.\n- Data catalog / observability tools if commercial: ~$60K/yr.\n- Remaining ~$90K/yr buffer for surprises, training, and a quarter of contractor help on the migration peak.\n\n**Success criteria at month 6.**\n- Zero Airflow OOM outages in the last 60 days.\n- Top-10 dashboards loading from the new warehouse, others migrated or scheduled.\n- Column-level PII tagging on at least the top 100 tables and access reviews completed quarterly.\n- A documented runbook for adding a new mart that any of the 3 engineers can follow.\n- Total platform spend within the $300K envelope.\n\n**What's deliberately deferred to year 2.** Schema registry (only when streams arrive); lineage tool (only when the catalog content is stable); ML feature platform (only when there are 3+ models); cost attribution at team level (only after the spend baseline stabilizes in the new warehouse).",
+      "key_points": [
+        "Frames the plan against the CONSTRAINTS ($300K, 3 engineers) and explicitly de-scopes work that won't fit",
+        "Phase 0 is days-of-work stabilization to stop fires before starting migration \u2014 do not migrate from a burning building",
+        "Phase 1 moves Airflow OFF self-hosted (3-person team shouldn't run Airflow) and adds tightening / observability on existing stack",
+        "Phase 2 runs a deliberate warehouse bake-off rather than picking a vendor based on hype",
+        "Phase 3 migrates incrementally with parallel-run reconciliation, not big-bang cutover",
+        "Phase 4 adds governance basics (PII tagging, column-level masking, access reviews) on the new warehouse",
+        "Explicitly names WHAT NOT TO DO \u2014 streaming, lakehouse, mesh, Looker replacement \u2014 because that's where 6-month plans typically derail",
+        "Provides a realistic cost decomposition that sums within budget",
+        "Sets success criteria with measurable outcomes (zero OOMs, top-10 dashboards migrated, PII tagging on top 100 tables)",
+        "Explicitly defers year-2 items (schema registry, lineage tool, ML platform, cost attribution) to keep scope honest"
+      ]
     }
   ]
 }
