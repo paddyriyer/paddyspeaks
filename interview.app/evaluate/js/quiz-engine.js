@@ -1,10 +1,14 @@
 /* ═══════════════════════════════════════════
-   Skill Check — Quiz Engine
-   Renders a single-section quiz, persists progress in localStorage,
-   auto-grades objective questions, self-rates open/code answers.
+   Skill Check — Quiz Engine v2
+   - Pool randomization (each attempt pulls N from the bank)
+   - Option order shuffling (single/multi)
+   - In-browser code execution (sql.js for SQL, Pyodide for Python)
+   - localStorage persistence with version-keyed migrations
    ═══════════════════════════════════════════ */
 
+const ENGINE_VERSION = 2;
 const STORAGE_PREFIX = "paddyspeaks.skillcheck.";
+const DEFAULT_QUIZ_LENGTH = 15;
 
 const SECTIONS = {
   sql:    { slug: "sql",    label: "SQL",            file: "./data/sql.json" },
@@ -17,11 +21,22 @@ const sectionSlug = params.get("section");
 
 const state = {
   section: null,
-  questions: [],
+  bank: [],           // full question pool from JSON
+  questions: [],      // selected subset for this attempt (in display order)
+  attempt: null,      // { questionIds: [...], optionOrder: { qid: [perm] }, startedAt, version }
   current: 0,
-  answers: {},        // question_id -> single index | multi indices | code string | open string
-  selfRatings: {},    // question_id -> 0 | 1 | 2 (only used for code/open after submission)
+  answers: {},        // qid -> canonical option index (single) | array of canonical indices (multi) | string (code/open)
+  selfRatings: {},    // qid -> 0 | 1 | 2
   submitted: false,
+  runOutputs: {},     // qid -> { kind: 'ok'|'error'|'pass'|'fail', html: '...' } (NOT persisted)
+};
+
+// Lazy runtime singletons
+const runtimes = {
+  sqlite: null,        // sql.js Database
+  pyodide: null,       // Pyodide instance
+  loadingSqlite: null, // pending promise
+  loadingPyodide: null,
 };
 
 // ──────────────────────────────────────────
@@ -37,8 +52,11 @@ async function init() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.section = data;
-    state.questions = data.questions;
-    restore();
+    state.bank = data.questions;
+    if (!Array.isArray(state.bank) || state.bank.length === 0) {
+      throw new Error("Question bank is empty.");
+    }
+    prepareAttempt();
     if (state.submitted) {
       renderResults();
     } else {
@@ -50,12 +68,71 @@ async function init() {
 }
 
 // ──────────────────────────────────────────
+// Attempt lifecycle — generate, restore, materialize
+// ──────────────────────────────────────────
+function prepareAttempt() {
+  restore();
+  if (!state.attempt || state.attempt.version !== ENGINE_VERSION) {
+    newAttempt();
+  }
+  // Materialize state.questions = bank items in attempt order, only those still in bank
+  const byId = Object.fromEntries(state.bank.map(q => [q.id, q]));
+  const selected = state.attempt.questionIds.map(id => byId[id]).filter(Boolean);
+  if (selected.length === 0) {
+    // Banked questions changed since last attempt — start fresh
+    clearProgress();
+    newAttempt();
+    state.questions = state.attempt.questionIds.map(id => byId[id]).filter(Boolean);
+  } else {
+    state.questions = selected;
+  }
+}
+
+function newAttempt() {
+  const length = Math.min(state.section.quiz_length || DEFAULT_QUIZ_LENGTH, state.bank.length);
+  const shuffled = shuffleArray(state.bank.map(q => q.id));
+  const questionIds = shuffled.slice(0, length);
+
+  const optionOrder = {};
+  for (const id of questionIds) {
+    const q = state.bank.find(b => b.id === id);
+    if (q && (q.type === "single" || q.type === "multi") && Array.isArray(q.options)) {
+      optionOrder[id] = shuffleArray(q.options.map((_, i) => i));
+    }
+  }
+
+  state.attempt = {
+    version: ENGINE_VERSION,
+    startedAt: Date.now(),
+    questionIds,
+    optionOrder,
+  };
+  state.current = 0;
+  state.answers = {};
+  state.selfRatings = {};
+  state.submitted = false;
+  state.runOutputs = {};
+  persist();
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ──────────────────────────────────────────
 // localStorage persistence
 // ──────────────────────────────────────────
 function storageKey() { return STORAGE_PREFIX + sectionSlug; }
 
 function persist() {
   const payload = {
+    version: ENGINE_VERSION,
+    attempt: state.attempt,
     answers: state.answers,
     selfRatings: state.selfRatings,
     current: state.current,
@@ -70,6 +147,8 @@ function restore() {
     const raw = localStorage.getItem(storageKey());
     if (!raw) return;
     const payload = JSON.parse(raw);
+    if (!payload || payload.version !== ENGINE_VERSION) return; // schema mismatch → fresh attempt
+    state.attempt = payload.attempt || null;
     state.answers = payload.answers || {};
     state.selfRatings = payload.selfRatings || {};
     state.current = payload.current || 0;
@@ -79,10 +158,12 @@ function restore() {
 
 function clearProgress() {
   try { localStorage.removeItem(storageKey()); } catch (e) {}
+  state.attempt = null;
   state.answers = {};
   state.selfRatings = {};
   state.current = 0;
   state.submitted = false;
+  state.runOutputs = {};
 }
 
 // ──────────────────────────────────────────
@@ -90,15 +171,16 @@ function clearProgress() {
 // ──────────────────────────────────────────
 function renderQuiz() {
   const root = document.getElementById("eval-root");
-  const q = state.questions[state.current];
   const total = state.questions.length;
-  const answeredCount = Object.keys(state.answers).filter(k => isAnswered(state.answers[k])).length;
+  const q = state.questions[state.current];
+  const answeredCount = countAnswered();
+  const poolSize = state.bank.length;
 
   root.innerHTML = `
     <div class="quiz-topbar">
       <div>
         <div class="quiz-section-label">${escapeHTML(state.section.title)}</div>
-        <div class="quiz-meta">${escapeHTML(state.section.tagline)}</div>
+        <div class="quiz-meta">${escapeHTML(state.section.tagline)} · randomized from a pool of <strong>${poolSize}</strong></div>
       </div>
       <div class="quiz-meta">
         Question <strong>${state.current + 1}</strong> of <strong>${total}</strong> ·
@@ -117,7 +199,7 @@ function renderQuiz() {
         <button class="q-btn" id="q-prev" ${state.current === 0 ? "disabled" : ""}>← Previous</button>
       </div>
       <div class="q-nav-side">
-        <button class="q-btn q-btn-danger" id="q-reset">Reset progress</button>
+        <button class="q-btn q-btn-danger" id="q-reset">Reset (new attempt)</button>
         <button class="q-btn q-btn-primary" id="q-submit">Submit &amp; Score</button>
         <button class="q-btn" id="q-next" ${state.current === total - 1 ? "disabled" : ""}>Next →</button>
       </div>
@@ -166,13 +248,14 @@ function renderQuestion(q) {
 }
 
 function renderSingleChoice(q) {
+  const order = state.attempt.optionOrder[q.id] || q.options.map((_, i) => i);
   const selected = state.answers[q.id];
   return `
     <div class="q-options">
-      ${q.options.map((opt, i) => `
-        <label class="q-option ${selected === i ? "selected" : ""}" data-idx="${i}">
-          <input type="radio" name="opt-${q.id}" value="${i}" ${selected === i ? "checked" : ""} />
-          <span class="q-option-text">${formatInline(opt)}</span>
+      ${order.map((origIdx) => `
+        <label class="q-option ${selected === origIdx ? "selected" : ""}" data-idx="${origIdx}">
+          <input type="radio" name="opt-${q.id}" value="${origIdx}" ${selected === origIdx ? "checked" : ""} />
+          <span class="q-option-text">${formatInline(q.options[origIdx])}</span>
         </label>
       `).join("")}
     </div>
@@ -180,13 +263,14 @@ function renderSingleChoice(q) {
 }
 
 function renderMultiChoice(q) {
+  const order = state.attempt.optionOrder[q.id] || q.options.map((_, i) => i);
   const selected = Array.isArray(state.answers[q.id]) ? state.answers[q.id] : [];
   return `
     <div class="q-options">
-      ${q.options.map((opt, i) => `
-        <label class="q-option ${selected.includes(i) ? "selected" : ""}" data-idx="${i}">
-          <input type="checkbox" name="opt-${q.id}" value="${i}" ${selected.includes(i) ? "checked" : ""} />
-          <span class="q-option-text">${formatInline(opt)}</span>
+      ${order.map((origIdx) => `
+        <label class="q-option ${selected.includes(origIdx) ? "selected" : ""}" data-idx="${origIdx}">
+          <input type="checkbox" name="opt-${q.id}" value="${origIdx}" ${selected.includes(origIdx) ? "checked" : ""} />
+          <span class="q-option-text">${formatInline(q.options[origIdx])}</span>
         </label>
       `).join("")}
     </div>
@@ -196,8 +280,27 @@ function renderMultiChoice(q) {
 function renderCode(q) {
   const stored = state.answers[q.id];
   const value = typeof stored === "string" ? stored : (q.starter || "");
+  const schemaPanel = q.schema ? `
+    <details class="q-code-schema">
+      <summary>Schema &amp; sample data (preloaded into SQLite)</summary>
+      <pre><code>${escapeHTML(q.schema)}</code></pre>
+    </details>
+  ` : "";
+  const canRun = (q.language === "sql" && q.schema) || (q.language === "python");
+  const output = state.runOutputs[q.id];
   return `
+    ${schemaPanel}
     <textarea class="q-code-area" id="q-code-${q.id}" spellcheck="false" placeholder="Write your ${q.language || "code"} here…">${escapeHTML(value)}</textarea>
+    ${canRun ? `
+      <div class="q-run-row">
+        <button class="q-btn q-btn-run" id="q-run-${q.id}">▶ Run ${q.language === "sql" ? "SQL" : "Python"}</button>
+        <button class="q-btn" id="q-reset-code-${q.id}">↺ Reset to starter</button>
+        <span class="q-run-status" id="q-run-status-${q.id}"></span>
+      </div>
+      <div class="q-run-output ${output ? "has-output q-output-" + output.kind : ""}" id="q-run-output-${q.id}">
+        ${output ? output.html : ""}
+      </div>
+    ` : ""}
   `;
 }
 
@@ -226,7 +329,8 @@ function attachQuestionHandlers(q) {
       input.addEventListener("change", () => {
         const inputs = document.querySelectorAll(`input[name="opt-${q.id}"]`);
         const current = [];
-        inputs.forEach((inp, i) => { if (inp.checked) current.push(i); });
+        inputs.forEach(inp => { if (inp.checked) current.push(parseInt(inp.value, 10)); });
+        current.sort((a,b) => a - b);
         state.answers[q.id] = current;
         persist();
         labels.forEach(l => {
@@ -243,7 +347,6 @@ function attachQuestionHandlers(q) {
       persist();
       updateJumpStatus();
     });
-    // Tab inserts two spaces instead of moving focus
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Tab") {
         e.preventDefault();
@@ -253,6 +356,15 @@ function attachQuestionHandlers(q) {
         state.answers[q.id] = ta.value;
         persist();
       }
+    });
+    const runBtn = document.getElementById(`q-run-${q.id}`);
+    if (runBtn) runBtn.addEventListener("click", () => runCode(q));
+    const resetBtn = document.getElementById(`q-reset-code-${q.id}`);
+    if (resetBtn) resetBtn.addEventListener("click", () => {
+      ta.value = q.starter || "";
+      state.answers[q.id] = ta.value;
+      persist();
+      updateJumpStatus();
     });
   } else if (q.type === "open") {
     const ta = document.getElementById(`q-open-${q.id}`);
@@ -277,12 +389,11 @@ function renderJump() {
 }
 
 function updateJumpStatus() {
-  // Cheap refresh of the jump strip + the answered counter without re-rendering the whole question
   const jump = document.getElementById("q-jump");
   if (jump) renderJump();
   const meta = document.querySelector(".quiz-topbar .quiz-meta:last-child");
   if (meta) {
-    const answeredCount = Object.keys(state.answers).filter(k => isAnswered(state.answers[k])).length;
+    const answeredCount = countAnswered();
     meta.innerHTML = `Question <strong>${state.current + 1}</strong> of <strong>${state.questions.length}</strong> · <strong>${answeredCount}</strong> answered`;
   }
 }
@@ -296,7 +407,7 @@ function navigate(idx) {
 }
 
 function confirmSubmit() {
-  const answeredCount = Object.keys(state.answers).filter(k => isAnswered(state.answers[k])).length;
+  const answeredCount = countAnswered();
   const total = state.questions.length;
   const skipped = total - answeredCount;
   let msg = "Submit and see your score?";
@@ -309,9 +420,237 @@ function confirmSubmit() {
 }
 
 function confirmReset() {
-  if (!confirm("Clear all answers for this section?")) return;
+  if (!confirm("Start a fresh attempt? Your current answers will be cleared and a new random set of questions will be drawn.")) return;
   clearProgress();
+  prepareAttempt();
   renderQuiz();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function countAnswered() {
+  return Object.keys(state.answers).filter(k => isAnswered(state.answers[k])).length;
+}
+
+// ──────────────────────────────────────────
+// Code execution — sql.js for SQL, Pyodide for Python
+// ──────────────────────────────────────────
+async function runCode(q) {
+  const ta = document.getElementById(`q-code-${q.id}`);
+  const src = ta ? ta.value : (state.answers[q.id] || "");
+  state.answers[q.id] = src; // ensure persisted before run
+  persist();
+
+  const statusEl = document.getElementById(`q-run-status-${q.id}`);
+  const outputEl = document.getElementById(`q-run-output-${q.id}`);
+
+  if (q.language === "sql") {
+    if (!q.schema) { renderRunOutput(q, "error", "<em>No schema attached to this question — can't run.</em>"); return; }
+    setRunStatus(statusEl, "Loading SQLite…");
+    try {
+      await ensureSqlite();
+      setRunStatus(statusEl, "Running…");
+      const result = await runSQL(q.schema, src);
+      const html = renderSqlResult(result, q.expected_rows);
+      const kind = inferSqlKind(result, q.expected_rows);
+      renderRunOutput(q, kind, html);
+      setRunStatus(statusEl, kind === "pass" ? "✓ Output matches expected" : kind === "fail" ? "✗ Output differs from expected" : "Done", kind);
+    } catch (err) {
+      renderRunOutput(q, "error", `<pre class="q-error">${escapeHTML(String(err.message || err))}</pre>`);
+      setRunStatus(statusEl, "Error", "error");
+    }
+  } else if (q.language === "python") {
+    setRunStatus(statusEl, "Loading Python (~6 MB on first run)…");
+    try {
+      await ensurePyodide();
+      setRunStatus(statusEl, "Running…");
+      const result = await runPython(src, q.tests);
+      renderRunOutput(q, result.kind, result.html);
+      setRunStatus(statusEl,
+        result.kind === "pass" ? "✓ All tests passed" :
+        result.kind === "fail" ? "✗ Tests failed" :
+        result.kind === "error" ? "Error" : "Done",
+        result.kind
+      );
+    } catch (err) {
+      renderRunOutput(q, "error", `<pre class="q-error">${escapeHTML(String(err.message || err))}</pre>`);
+      setRunStatus(statusEl, "Error", "error");
+    }
+  }
+}
+
+function renderRunOutput(q, kind, html) {
+  state.runOutputs[q.id] = { kind, html };
+  const el = document.getElementById(`q-run-output-${q.id}`);
+  if (el) {
+    el.className = `q-run-output has-output q-output-${kind}`;
+    el.innerHTML = html;
+  }
+}
+
+function setRunStatus(el, text, kind) {
+  if (!el) return;
+  el.textContent = text;
+  el.className = `q-run-status${kind ? " q-status-" + kind : ""}`;
+}
+
+// ── sql.js ──
+async function ensureSqlite() {
+  if (runtimes.sqlite) return runtimes.sqlite;
+  if (runtimes.loadingSqlite) return runtimes.loadingSqlite;
+  runtimes.loadingSqlite = (async () => {
+    if (typeof window.initSqlJs !== "function") {
+      throw new Error("sql.js failed to load — check your network or ad blocker.");
+    }
+    const SQL = await window.initSqlJs({ locateFile: (file) => `../vendor/sql.js/${file}` });
+    runtimes.sqlite = { SQL };
+    return runtimes.sqlite;
+  })();
+  return runtimes.loadingSqlite;
+}
+
+async function runSQL(schema, userSql) {
+  const { SQL } = await ensureSqlite();
+  const db = new SQL.Database();
+  try {
+    db.exec(schema);
+  } catch (e) {
+    throw new Error("Schema setup failed: " + e.message);
+  }
+  let results;
+  try {
+    results = db.exec(userSql);
+  } catch (e) {
+    db.close();
+    throw e;
+  }
+  db.close();
+  return results;
+}
+
+function renderSqlResult(results, expected) {
+  if (!results || results.length === 0) {
+    return `<div class="q-output-empty">Query ran successfully but returned no rows.</div>`;
+  }
+  // Use the LAST result set (in case schema setup mixed in)
+  const r = results[results.length - 1];
+  const headerRow = `<tr>${r.columns.map(c => `<th>${escapeHTML(String(c))}</th>`).join("")}</tr>`;
+  const bodyRows = r.values.map(row =>
+    `<tr>${row.map(v => `<td>${v === null ? '<em>NULL</em>' : escapeHTML(String(v))}</td>`).join("")}</tr>`
+  ).join("");
+  let extra = "";
+  if (Array.isArray(expected)) {
+    const match = compareSqlResultToExpected(r, expected);
+    extra = match
+      ? `<div class="q-output-banner q-banner-pass">✓ ${r.values.length} row${r.values.length === 1 ? "" : "s"} — matches expected output.</div>`
+      : `<div class="q-output-banner q-banner-fail">✗ Output does not match expected. Compare your result to the model answer in the review screen. ${renderExpectedTable(expected)}</div>`;
+  } else {
+    extra = `<div class="q-output-banner">Returned ${r.values.length} row${r.values.length === 1 ? "" : "s"} × ${r.columns.length} column${r.columns.length === 1 ? "" : "s"}.</div>`;
+  }
+  return `${extra}<div class="q-output-table-wrap"><table class="q-output-table">${headerRow}${bodyRows}</table></div>`;
+}
+
+function renderExpectedTable(expected) {
+  if (!expected.length) return "";
+  const cols = Object.keys(expected[0]);
+  const header = `<tr>${cols.map(c => `<th>${escapeHTML(c)}</th>`).join("")}</tr>`;
+  const rows = expected.map(r =>
+    `<tr>${cols.map(c => `<td>${r[c] === null || r[c] === undefined ? '<em>NULL</em>' : escapeHTML(String(r[c]))}</td>`).join("")}</tr>`
+  ).join("");
+  return `<details class="q-expected"><summary>Show expected output</summary><table class="q-output-table">${header}${rows}</table></details>`;
+}
+
+function compareSqlResultToExpected(result, expected) {
+  if (!Array.isArray(expected)) return null;
+  if (expected.length !== result.values.length) return false;
+  if (expected.length === 0) return true;
+  const cols = Object.keys(expected[0]);
+  // Map result columns case-insensitively
+  const colIdx = {};
+  for (const c of cols) {
+    const idx = result.columns.findIndex(rc => String(rc).toLowerCase() === c.toLowerCase());
+    if (idx < 0) return false;
+    colIdx[c] = idx;
+  }
+  // Order-insensitive comparison: sort both sides by JSON-string of the row
+  const norm = (val) => val === null || val === undefined ? null : (typeof val === "number" ? val : String(val).trim());
+  const userRows = result.values.map(row => cols.map(c => norm(row[colIdx[c]])));
+  const expRows = expected.map(r => cols.map(c => norm(r[c])));
+  const keyer = (row) => JSON.stringify(row);
+  userRows.sort((a,b) => keyer(a).localeCompare(keyer(b)));
+  expRows.sort((a,b) => keyer(a).localeCompare(keyer(b)));
+  for (let i = 0; i < userRows.length; i++) {
+    for (let j = 0; j < cols.length; j++) {
+      const u = userRows[i][j], e = expRows[i][j];
+      // Numeric-tolerant compare
+      if (u === e) continue;
+      const un = typeof u === "string" && /^-?\d+(\.\d+)?$/.test(u) ? parseFloat(u) : u;
+      const en = typeof e === "string" && /^-?\d+(\.\d+)?$/.test(e) ? parseFloat(e) : e;
+      if (un === en) continue;
+      if (typeof un === "number" && typeof en === "number" && Math.abs(un - en) < 1e-9) continue;
+      return false;
+    }
+  }
+  return true;
+}
+
+function inferSqlKind(results, expected) {
+  if (!Array.isArray(expected)) return "ok";
+  if (!results || results.length === 0) return expected.length === 0 ? "pass" : "fail";
+  const r = results[results.length - 1];
+  return compareSqlResultToExpected(r, expected) ? "pass" : "fail";
+}
+
+// ── Pyodide ──
+async function ensurePyodide() {
+  if (runtimes.pyodide) return runtimes.pyodide;
+  if (runtimes.loadingPyodide) return runtimes.loadingPyodide;
+  runtimes.loadingPyodide = (async () => {
+    if (typeof window.loadPyodide !== "function") {
+      throw new Error("Pyodide failed to load — check your network or ad blocker.");
+    }
+    runtimes.pyodide = await window.loadPyodide({
+      indexURL: "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/",
+    });
+    return runtimes.pyodide;
+  })();
+  return runtimes.loadingPyodide;
+}
+
+async function runPython(userCode, tests) {
+  const py = await ensurePyodide();
+  let stdoutBuf = "", stderrBuf = "";
+  py.setStdout({ batched: (s) => { stdoutBuf += s + "\n"; } });
+  py.setStderr({ batched: (s) => { stderrBuf += s + "\n"; } });
+  try {
+    await py.runPythonAsync(userCode);
+  } catch (e) {
+    return {
+      kind: "error",
+      html: `${stdoutBuf ? `<pre class="q-stdout">${escapeHTML(stdoutBuf)}</pre>` : ""}<pre class="q-error">${escapeHTML(String(e.message || e))}</pre>`,
+    };
+  }
+  if (!tests || !tests.trim()) {
+    return {
+      kind: stdoutBuf ? "ok" : "ok",
+      html: stdoutBuf ? `<pre class="q-stdout">${escapeHTML(stdoutBuf)}</pre>` : `<div class="q-output-empty">Code ran successfully (no output).</div>`,
+    };
+  }
+  // Run tests against the user-defined names
+  let testStdout = "", testErr = null;
+  py.setStdout({ batched: (s) => { testStdout += s + "\n"; } });
+  py.setStderr({ batched: (s) => { testStdout += s + "\n"; } });
+  try {
+    await py.runPythonAsync(tests);
+  } catch (e) {
+    testErr = e;
+  }
+  const combined = (stdoutBuf ? `<pre class="q-stdout">${escapeHTML(stdoutBuf)}</pre>` : "") +
+                   (testStdout ? `<pre class="q-stdout q-test-out">${escapeHTML(testStdout)}</pre>` : "");
+  if (testErr) {
+    return { kind: "fail", html: `${combined}<pre class="q-error">${escapeHTML(String(testErr.message || testErr))}</pre>` };
+  }
+  const passed = /\bPASS\b/.test(testStdout);
+  return { kind: passed ? "pass" : "ok", html: combined };
 }
 
 // ──────────────────────────────────────────
@@ -358,7 +697,7 @@ function renderResults() {
 
     <div class="results-actions">
       <a href="./" class="q-btn">← Pick another section</a>
-      <button class="q-btn q-btn-primary" id="results-retake">Retake this section</button>
+      <button class="q-btn q-btn-primary" id="results-retake">Retake with new questions</button>
     </div>
   `;
 
@@ -368,8 +707,9 @@ function renderResults() {
   });
 
   document.getElementById("results-retake").addEventListener("click", () => {
-    if (!confirm("Clear your answers and start this section over?")) return;
+    if (!confirm("Start a fresh attempt with a new random set of questions?")) return;
     clearProgress();
+    prepareAttempt();
     renderQuiz();
     window.scrollTo({ top: 0, behavior: "smooth" });
   });
@@ -398,7 +738,7 @@ function renderReviewItem(q, idx) {
       if (val === undefined || val === null) return "<em>No answer</em>";
       const arr = Array.isArray(val) ? val : [val];
       if (arr.length === 0) return "<em>No answer</em>";
-      return arr.map(i => formatInline(q.options[i])).join("<br>");
+      return arr.map(i => q.options[i] !== undefined ? formatInline(q.options[i]) : "").filter(Boolean).join("<br>");
     };
     const correctArr = Array.isArray(q.answer) ? q.answer : [q.answer];
 
@@ -416,7 +756,7 @@ function renderReviewItem(q, idx) {
       <div class="review-answer-label">Your answer</div>
       <div class="review-your-answer ${q.type === "code" ? "code" : ""}">${userVal ? escapeHTML(userVal) : "<em>No answer</em>"}</div>
       <div class="review-answer-label">Model answer</div>
-      <div class="review-model-answer ${q.type === "code" ? "code" : ""}">${escapeHTML(q.model_answer)}</div>
+      <div class="review-model-answer ${q.type === "code" ? "code" : ""}">${escapeHTML(q.model_answer || "")}</div>
       ${q.key_points && q.key_points.length ? `
         <div class="review-answer-label">Key points to look for</div>
         <ul class="review-keypoints">${q.key_points.map(kp => `<li>${formatInline(kp)}</li>`).join("")}</ul>
@@ -435,16 +775,13 @@ function renderReviewItem(q, idx) {
   item.className = cls;
   item.innerHTML = body;
 
-  // Wire self-rate buttons
   item.querySelectorAll(".review-self-rate button").forEach(btn => {
     btn.addEventListener("click", () => {
       const qid = btn.parentElement.getAttribute("data-qid");
       const rate = parseInt(btn.getAttribute("data-rate"), 10);
       state.selfRatings[qid] = rate;
       persist();
-      // Re-render results to update score
       renderResults();
-      window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
     });
   });
 
@@ -469,10 +806,6 @@ function gradeObjective(q, userAns) {
 }
 
 function computeScore() {
-  // Each question is worth 1 point.
-  // - single/multi: 1 if fully correct, 0 otherwise.
-  // - code/open: self-rating 0/1/2 -> 0 / 0.5 / 1.0 points.
-  // Final score is sum of points; max is questions.length.
   let autoCorrect = 0, autoTotal = 0;
   let selfPoints = 0, selfTotal = 0;
   let total = 0;
@@ -492,14 +825,7 @@ function computeScore() {
     }
   });
 
-  return {
-    score: total,
-    max: state.questions.length,
-    autoCorrect,
-    autoTotal,
-    selfCorrect: selfPoints,
-    selfTotal,
-  };
+  return { score: total, max: state.questions.length, autoCorrect, autoTotal, selfCorrect: selfPoints, selfTotal };
 }
 
 // ──────────────────────────────────────────
@@ -522,17 +848,14 @@ function escapeHTML(str) {
     .replace(/'/g, "&#39;");
 }
 
-// Inline formatter — handles `code` only (for option text, explanations, key points)
 function formatInline(str) {
   const esc = escapeHTML(str);
   return esc.replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 
-// Prompt formatter — handles ```fenced``` code blocks AND inline `code`
 function formatPrompt(str) {
   if (!str) return "";
   const parts = [];
-  let remaining = str;
   const fence = /```(\w*)\n([\s\S]*?)```/g;
   let lastIdx = 0;
   let m;
@@ -552,9 +875,6 @@ function formatPrompt(str) {
   }).join("");
 }
 
-// ──────────────────────────────────────────
-// Errors
-// ──────────────────────────────────────────
 function renderError(msg) {
   const root = document.getElementById("eval-root");
   root.innerHTML = `

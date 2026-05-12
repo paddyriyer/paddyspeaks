@@ -4,6 +4,7 @@
   "tagline": "Idioms, data model, comprehensions, generators, decorators, and the Python data stack",
   "duration_minutes": 25,
   "passing_score": 70,
+  "quiz_length": 15,
   "questions": [
     {
       "id": "py-001",
@@ -18,7 +19,7 @@
         "[0, 4, 16]"
       ],
       "answer": 1,
-      "explanation": "`x % 2` is truthy only for odd x. From range(5) = 0,1,2,3,4 the odds are 1, 3 → squared → [1, 9]."
+      "explanation": "`x % 2` is truthy only for odd x. From range(5) = 0,1,2,3,4 the odds are 1, 3 \u2192 squared \u2192 [1, 9]."
     },
     {
       "id": "py-002",
@@ -50,8 +51,13 @@
         "frozenset",
         "tuple containing a list"
       ],
-      "answer": [0, 1, 2, 5],
-      "explanation": "Immutable built-ins are hashable. list and dict are mutable → unhashable. A tuple containing a list is NOT hashable because hashability is recursive — any unhashable element poisons the container."
+      "answer": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "explanation": "Immutable built-ins are hashable. list and dict are mutable \u2192 unhashable. A tuple containing a list is NOT hashable because hashability is recursive \u2014 any unhashable element poisons the container."
     },
     {
       "id": "py-004",
@@ -62,11 +68,11 @@
       "options": [
         "The generator is faster but uses more memory",
         "The list materializes all results in memory; the generator yields lazily and uses O(1) memory",
-        "They are identical — Python optimizes them the same way",
+        "They are identical \u2014 Python optimizes them the same way",
         "Generators can only be iterated once, lists cannot be iterated at all"
       ],
       "answer": 1,
-      "explanation": "Generators are lazy and one-shot — O(1) memory regardless of size. Lists allocate space for every element. For large pipelines, generators avoid loading everything at once."
+      "explanation": "Generators are lazy and one-shot \u2014 O(1) memory regardless of size. Lists allocate space for every element. For large pipelines, generators avoid loading everything at once."
     },
     {
       "id": "py-005",
@@ -81,7 +87,7 @@
         "`is` works only on numbers; `==` works on everything"
       ],
       "answer": 1,
-      "explanation": "`is` returns True only when both names point to the SAME object in memory. `==` calls `__eq__`. Reserve `is` for sentinels like `None`, `True`, `False`. Do NOT use `is` for value comparison — small-int caching makes it occasionally appear to work, which is a footgun."
+      "explanation": "`is` returns True only when both names point to the SAME object in memory. `==` calls `__eq__`. Reserve `is` for sentinels like `None`, `True`, `False`. Do NOT use `is` for value comparison \u2014 small-int caching makes it occasionally appear to work, which is a footgun."
     },
     {
       "id": "py-006",
@@ -112,7 +118,12 @@
         "zip",
         "lambda"
       ],
-      "answer": [0, 1, 3, 4],
+      "answer": [
+        0,
+        1,
+        3,
+        4
+      ],
       "explanation": "map, filter, sorted, zip are built-ins. `reduce` was moved to `functools` in Python 3. `lambda` is a language keyword, not a function."
     },
     {
@@ -128,7 +139,7 @@
         "`@staticmethod` is only usable from instances"
       ],
       "answer": 1,
-      "explanation": "`@staticmethod` is just a plain function namespaced inside a class — no implicit `self` or `cls`. `@classmethod` receives the class itself, which is useful for alternative constructors (`cls.from_json(...)`) and for behavior that varies by subclass."
+      "explanation": "`@staticmethod` is just a plain function namespaced inside a class \u2014 no implicit `self` or `cls`. `@classmethod` receives the class itself, which is useful for alternative constructors (`cls.from_json(...)`) and for behavior that varies by subclass."
     },
     {
       "id": "py-009",
@@ -143,7 +154,7 @@
         "`__new__` is only used for metaclasses"
       ],
       "answer": 1,
-      "explanation": "`__new__(cls, ...)` is the constructor — it returns the new instance. `__init__(self, ...)` is the initializer — it sets attributes on the already-created instance. You rarely override `__new__`; common cases are singletons, immutable subclasses, and metaclass tricks."
+      "explanation": "`__new__(cls, ...)` is the constructor \u2014 it returns the new instance. `__init__(self, ...)` is the initializer \u2014 it sets attributes on the already-created instance. You rarely override `__new__`; common cases are singletons, immutable subclasses, and metaclass tricks."
     },
     {
       "id": "py-010",
@@ -155,7 +166,7 @@
         "A Series",
         "A DataFrame indexed by `k` with columns `a` (summed) and `b` (averaged)",
         "A dict",
-        "An error — you can only aggregate one column at a time"
+        "An error \u2014 you can only aggregate one column at a time"
       ],
       "answer": 1,
       "explanation": "groupby + agg with a dict applies different aggregations per column and returns a DataFrame indexed by the group key. Use `.reset_index()` if you want `k` as a column instead of an index."
@@ -169,6 +180,7 @@
       "language": "python",
       "starter": "import time\nfrom functools import wraps\n\ndef timed(fn):\n    # your code here\n    pass\n",
       "model_answer": "import time\nfrom functools import wraps\n\ndef timed(fn):\n    @wraps(fn)\n    def wrapper(*args, **kwargs):\n        start = time.perf_counter()\n        try:\n            return fn(*args, **kwargs)\n        finally:\n            elapsed_ms = (time.perf_counter() - start) * 1000\n            print(f'{fn.__name__} took {elapsed_ms:.2f} ms')\n    return wrapper",
+      "tests": "import io, sys, time as _time\n_captured = io.StringIO()\n_old = sys.stdout\nsys.stdout = _captured\n\n@timed\ndef slow():\n    _time.sleep(0.005)\n    return 42\n\n_result = slow()\nsys.stdout = _old\n_out = _captured.getvalue()\nassert _result == 42, f'Expected return value 42, got {_result!r}'\nassert 'slow' in _out, f'Expected the decorator to log the function name; got: {_out!r}'\nassert 'ms' in _out.lower() or 'sec' in _out.lower() or 'took' in _out.lower(), f'Expected timing info; got: {_out!r}'\n\n@timed\ndef add(a, b):\n    return a + b\n_captured2 = io.StringIO(); sys.stdout = _captured2\nassert add(2, 3) == 5\nsys.stdout = _old\nprint('PASS')",
       "key_points": [
         "Uses `functools.wraps` so the decorated function keeps its name / docstring",
         "Forwards *args and **kwargs so any signature works",
@@ -186,10 +198,11 @@
       "language": "python",
       "starter": "from contextlib import contextmanager\n\n@contextmanager\ndef suppress_errors(*exc_types):\n    # your code here\n    pass\n",
       "model_answer": "from contextlib import contextmanager\n\n@contextmanager\ndef suppress_errors(*exc_types):\n    try:\n        yield\n    except exc_types:\n        pass  # swallow listed types; everything else propagates",
+      "tests": "# Listed type IS suppressed\nwith suppress_errors(ValueError, KeyError):\n    raise ValueError('ignored')\n\n# A different listed type IS suppressed\nwith suppress_errors(ValueError, KeyError):\n    raise KeyError('ignored')\n\n# Non-listed type PROPAGATES\n_propagated = False\ntry:\n    with suppress_errors(ValueError):\n        raise TypeError('should escape')\nexcept TypeError:\n    _propagated = True\nassert _propagated, 'Non-listed exception types must propagate'\n\n# Body that does not raise is fine\nwith suppress_errors(ValueError):\n    _x = 1 + 1\nassert _x == 2\n\nprint('PASS')",
       "key_points": [
         "Uses @contextmanager + yield (or a class with __enter__/__exit__)",
-        "Wraps the yield in try/except with the tuple of types — `except exc_types:` works because exc_types is a tuple",
-        "Swallows ONLY the listed types — other exceptions propagate",
+        "Wraps the yield in try/except with the tuple of types \u2014 `except exc_types:` works because exc_types is a tuple",
+        "Swallows ONLY the listed types \u2014 other exceptions propagate",
         "Bonus: `contextlib.suppress` already does this in the stdlib"
       ]
     },
@@ -207,22 +220,28 @@
         "Any function can be called with `await`",
         "`asyncio.to_thread(fn, ...)` offloads a blocking call to a worker thread"
       ],
-      "answer": [0, 1, 3, 5],
-      "explanation": "Asyncio is single-threaded cooperative concurrency. It excels at I/O-bound workloads, NOT CPU parallelism. Only awaitables (coroutines, Tasks, Futures) can be awaited. Blocking calls inside coroutines freeze the loop — use `asyncio.to_thread` or `run_in_executor`."
+      "answer": [
+        0,
+        1,
+        3,
+        5
+      ],
+      "explanation": "Asyncio is single-threaded cooperative concurrency. It excels at I/O-bound workloads, NOT CPU parallelism. Only awaitables (coroutines, Tasks, Futures) can be awaited. Blocking calls inside coroutines freeze the loop \u2014 use `asyncio.to_thread` or `run_in_executor`."
     },
     {
       "id": "py-014",
       "type": "code",
       "topic": "Idioms",
       "difficulty": "easy",
-      "prompt": "Given `records = [{'dept': 'eng', 'salary': 100}, {'dept': 'eng', 'salary': 120}, {'dept': 'ops', 'salary': 80}]`, write a function `total_by_dept(records)` that returns a dict mapping department → total salary. Use only the standard library.",
+      "prompt": "Given `records = [{'dept': 'eng', 'salary': 100}, {'dept': 'eng', 'salary': 120}, {'dept': 'ops', 'salary': 80}]`, write a function `total_by_dept(records)` that returns a dict mapping department \u2192 total salary. Use only the standard library.",
       "language": "python",
       "starter": "from collections import defaultdict\n\ndef total_by_dept(records):\n    # your code here\n    pass\n",
       "model_answer": "from collections import defaultdict\n\ndef total_by_dept(records):\n    totals = defaultdict(int)\n    for r in records:\n        totals[r['dept']] += r['salary']\n    return dict(totals)",
+      "tests": "_recs = [\n    {'dept': 'eng', 'salary': 100},\n    {'dept': 'eng', 'salary': 120},\n    {'dept': 'ops', 'salary': 80},\n]\n_r = total_by_dept(_recs)\nassert dict(_r) == {'eng': 220, 'ops': 80}, f'Expected {{\"eng\": 220, \"ops\": 80}}, got {dict(_r)!r}'\nassert dict(total_by_dept([])) == {}, 'Empty input must return an empty mapping'\nassert dict(total_by_dept([{'dept': 'a', 'salary': 5}])) == {'a': 5}\n# Mixed depts, many rows\n_big = [{'dept': d, 'salary': s} for d, s in [('x',1),('y',2),('x',3),('y',4),('z',5),('x',6)]]\nassert dict(total_by_dept(_big)) == {'x': 10, 'y': 6, 'z': 5}\nprint('PASS')",
       "key_points": [
         "Uses `collections.defaultdict(int)` (or `dict.setdefault`, or `dict.get(k, 0)`)",
-        "Iterates once — O(n)",
-        "Returns a plain dict (or defaultdict — both acceptable)",
+        "Iterates once \u2014 O(n)",
+        "Returns a plain dict (or defaultdict \u2014 both acceptable)",
         "Bonus: `Counter` works for simple summing; `itertools.groupby` requires pre-sorting"
       ]
     },
@@ -232,13 +251,1416 @@
       "topic": "Design",
       "difficulty": "medium",
       "prompt": "When would you reach for `@dataclass` versus `typing.NamedTuple` versus a plain `dict` versus a Pydantic model? Give a one-sentence guideline for each.",
-      "model_answer": "- **dict**: short-lived, schema-fluid data — config blobs, JSON payloads you're just passing through, things that don't deserve a class.\n- **typing.NamedTuple**: small, IMMUTABLE record with a few typed fields where tuple-like behavior (positional access, unpacking, hashable) is useful — e.g. a Point(x, y) returned from a function.\n- **@dataclass**: most general default for value-style classes — mutable by default, supports defaults, post-init logic, slots, frozen, and integrates with type checkers. Reach for it when you'd be tempted to write `__init__` + `__repr__` + `__eq__` by hand.\n- **Pydantic BaseModel**: when data crosses a trust boundary (API input, config file, message queue) and needs runtime validation, coercion, and serialization — the cost of the dependency is worth it.",
+      "model_answer": "- **dict**: short-lived, schema-fluid data \u2014 config blobs, JSON payloads you're just passing through, things that don't deserve a class.\n- **typing.NamedTuple**: small, IMMUTABLE record with a few typed fields where tuple-like behavior (positional access, unpacking, hashable) is useful \u2014 e.g. a Point(x, y) returned from a function.\n- **@dataclass**: most general default for value-style classes \u2014 mutable by default, supports defaults, post-init logic, slots, frozen, and integrates with type checkers. Reach for it when you'd be tempted to write `__init__` + `__repr__` + `__eq__` by hand.\n- **Pydantic BaseModel**: when data crosses a trust boundary (API input, config file, message queue) and needs runtime validation, coercion, and serialization \u2014 the cost of the dependency is worth it.",
       "key_points": [
-        "dict — fast, dynamic, no schema, OK for transient data",
-        "NamedTuple — immutable, hashable, typed, lightweight",
-        "dataclass — mutable, ergonomic, modern default for value classes",
-        "Pydantic — runtime validation at trust boundaries (API, config, IO)",
+        "dict \u2014 fast, dynamic, no schema, OK for transient data",
+        "NamedTuple \u2014 immutable, hashable, typed, lightweight",
+        "dataclass \u2014 mutable, ergonomic, modern default for value classes",
+        "Pydantic \u2014 runtime validation at trust boundaries (API, config, IO)",
         "Mentions a tradeoff axis: validation, mutability, performance, dependency cost"
+      ]
+    },
+    {
+      "id": "py-016",
+      "type": "single",
+      "topic": "Data Model",
+      "difficulty": "easy",
+      "prompt": "Which dunder method does `len(obj)` call?",
+      "options": [
+        "`__size__`",
+        "`__len__`",
+        "`__length__`",
+        "`__count__`"
+      ],
+      "answer": 1,
+      "explanation": "`len(obj)` dispatches to `obj.__len__()`. The method must return a non-negative integer. Containers like list, dict, str, set all implement it."
+    },
+    {
+      "id": "py-017",
+      "type": "single",
+      "topic": "Data Model",
+      "difficulty": "medium",
+      "prompt": "If you define `__eq__` on a class but not `__hash__`, what happens to instances?",
+      "options": [
+        "They use the default identity-based hash",
+        "Python auto-generates a hash from `__eq__`",
+        "They become unhashable \u2014 `__hash__` is set to `None`",
+        "TypeError is raised at class definition time"
+      ],
+      "answer": 2,
+      "explanation": "Defining `__eq__` implicitly sets `__hash__ = None`, making instances unhashable. This is intentional: equal objects must have equal hashes, so Python forces you to either define `__hash__` explicitly or accept unhashability."
+    },
+    {
+      "id": "py-018",
+      "type": "multi",
+      "topic": "Data Model",
+      "difficulty": "medium",
+      "prompt": "Which statements about `__slots__` are TRUE? (Select all that apply)",
+      "options": [
+        "Restricts which attributes instances can have to the named ones",
+        "Avoids the per-instance `__dict__`, reducing memory per instance",
+        "Speeds up attribute access slightly",
+        "Plays nicely with multiple inheritance \u2014 combining two slotted parents is trivial",
+        "Allows dynamic attribute addition like `obj.new_attr = ...` outside the slot list",
+        "Combines with `@dataclass(slots=True)` to auto-generate the slot list"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "explanation": "`__slots__` reserves fixed storage for the listed names, skips `__dict__`, and accelerates attribute access. Tradeoffs: no dynamic attributes (4 and 5 below are false), and multiple inheritance with multiple slotted bases is fiddly (you must declare empty `__slots__` on the children correctly). `@dataclass(slots=True)` is the modern convenience for this."
+    },
+    {
+      "id": "py-019",
+      "type": "single",
+      "topic": "Data Model",
+      "difficulty": "easy",
+      "prompt": "What does `__repr__` ideally return?",
+      "options": [
+        "A user-friendly description",
+        "An unambiguous representation, ideally one that could be `eval`'d back into an equal object",
+        "An HTML rendering",
+        "The class name only"
+      ],
+      "answer": 1,
+      "explanation": "`__repr__` is aimed at developers/debuggers \u2014 should be unambiguous and ideally round-trippable, e.g. `Point(x=1, y=2)`. `__str__` is the human-facing form. If only `__repr__` is defined, it's used as the fallback for `str()` too."
+    },
+    {
+      "id": "py-020",
+      "type": "single",
+      "topic": "Types",
+      "difficulty": "easy",
+      "prompt": "Why is `0.1 + 0.2 == 0.3` False in Python?",
+      "options": [
+        "Python has a bug in float arithmetic",
+        "Floats are IEEE-754 binary; 0.1 and 0.2 cannot be represented exactly, so their sum is slightly off",
+        "Python uses fixed-point and rounds differently",
+        "`==` requires explicit type coercion for floats"
+      ],
+      "answer": 1,
+      "explanation": "IEEE-754 doubles can't represent decimal 0.1 exactly. The actual sum is roughly 0.30000000000000004. For exact decimal arithmetic use `decimal.Decimal`; for ratios use `fractions.Fraction`; for approximate float comparison use `math.isclose`."
+    },
+    {
+      "id": "py-021",
+      "type": "single",
+      "topic": "Types",
+      "difficulty": "medium",
+      "prompt": "Which expression yields exactly `Decimal('0.30')` (without lossy float intermediates)?",
+      "options": [
+        "`Decimal(0.1) + Decimal(0.2)`",
+        "`Decimal('0.1') + Decimal('0.2')`",
+        "`Decimal(0.1 + 0.2)`",
+        "`Decimal(str(0.3))`"
+      ],
+      "answer": 1,
+      "explanation": "Constructing Decimal from a float captures the float's imprecision. Use strings: `Decimal('0.1') + Decimal('0.2') == Decimal('0.3')`. This is the canonical rule when using `decimal` for money."
+    },
+    {
+      "id": "py-022",
+      "type": "multi",
+      "topic": "Types",
+      "difficulty": "easy",
+      "prompt": "Which statements about `bytes` and `bytearray` are TRUE? (Select all that apply)",
+      "options": [
+        "Both are sequences of integers in the 0-255 range",
+        "`bytes` is immutable; `bytearray` is mutable",
+        "Indexing either with `b[0]` returns an int, not a single-byte object",
+        "`bytes` is the same type as `str` in Python 3",
+        "`bytearray` is hashable and can be used as a dict key",
+        "You can mutate a `bytearray` in place: `ba[0] = 65`"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "explanation": "Both are sequences of 8-bit ints. `bytes` is immutable (and hashable); `bytearray` is mutable (and unhashable \u2014 so option 4 is false). Indexing returns an int, not a one-byte slice. `str` (text) and `bytes` (binary) are distinct types in Python 3 \u2014 option 3 is false."
+    },
+    {
+      "id": "py-023",
+      "type": "single",
+      "topic": "Types",
+      "difficulty": "easy",
+      "prompt": "What is the result of `'caf\u00e9'.encode('utf-8')`?",
+      "options": [
+        "`b'caf\\xc3\\xa9'` \u2014 UTF-8 encodes `\u00e9` as two bytes",
+        "`b'caf\\xe9'` \u2014 single-byte Latin-1",
+        "`'caf\u00e9'` (no change)",
+        "Raises UnicodeEncodeError"
+      ],
+      "answer": 0,
+      "explanation": "`str` is Unicode text. `.encode('utf-8')` returns `bytes`. The character U+00E9 (\u00e9) encodes to two bytes 0xC3 0xA9 in UTF-8. Encoding is text\u2192bytes; decoding is bytes\u2192text."
+    },
+    {
+      "id": "py-024",
+      "type": "single",
+      "topic": "Sequences",
+      "difficulty": "easy",
+      "prompt": "What does `[1, 2, 3, 4, 5][::-1]` return?",
+      "options": [
+        "`[5, 4, 3, 2, 1]`",
+        "`[1, 2, 3, 4, 5]`",
+        "`[1, 3, 5]`",
+        "`SyntaxError`"
+      ],
+      "answer": 0,
+      "explanation": "`[::-1]` is the standard reverse slice \u2014 step of -1 means walk backward. It returns a new list (not in-place). For in-place: `list.reverse()`. For iteration: `reversed(list)`."
+    },
+    {
+      "id": "py-025",
+      "type": "single",
+      "topic": "Sequences",
+      "difficulty": "medium",
+      "prompt": "What does the following print?\n\n```python\na, *b, c = [1, 2, 3, 4, 5]\nprint(b)\n```",
+      "options": [
+        "`[1, 2, 3, 4]`",
+        "`[2, 3, 4]`",
+        "`[2, 3]`",
+        "`[3, 4, 5]`"
+      ],
+      "answer": 1,
+      "explanation": "Starred unpacking: `a` binds the first element (1), `c` binds the last (5), and `*b` collects everything in between as a list ([2, 3, 4])."
+    },
+    {
+      "id": "py-026",
+      "type": "multi",
+      "topic": "Sequences",
+      "difficulty": "medium",
+      "prompt": "Which statements about `zip` and friends in Python 3.10+ are TRUE? (Select all that apply)",
+      "options": [
+        "`zip(a, b)` stops at the shortest iterable by default \u2014 silently truncating",
+        "`zip(a, b, strict=True)` raises `ValueError` if the iterables differ in length",
+        "`itertools.zip_longest(a, b, fillvalue=0)` pads the shorter iterable",
+        "`zip` returns a list",
+        "`zip(*matrix)` is the idiomatic way to transpose a list-of-lists",
+        "`zip` consumes its inputs lazily"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4,
+        5
+      ],
+      "explanation": "Default `zip` truncates silently \u2014 the common silent-data-loss footgun that `strict=True` (PEP 618) addresses. `itertools.zip_longest` pads. `zip` returns a lazy iterator (NOT a list \u2014 option 3 is false). The `zip(*rows)` transposition idiom is standard."
+    },
+    {
+      "id": "py-027",
+      "type": "single",
+      "topic": "Sequences",
+      "difficulty": "easy",
+      "prompt": "What is the idiomatic way to iterate with index?",
+      "options": [
+        "`for i in range(len(seq)): x = seq[i]`",
+        "`for i, x in enumerate(seq):`",
+        "`for x, i in seq.items():`",
+        "`for x in seq.index():`"
+      ],
+      "answer": 1,
+      "explanation": "`enumerate(seq)` yields `(index, value)` pairs and is the Pythonic idiom. `enumerate(seq, start=1)` is handy when you want 1-based indexing. Avoid `range(len(seq))` \u2014 it's a code smell."
+    },
+    {
+      "id": "py-028",
+      "type": "single",
+      "topic": "Comprehensions",
+      "difficulty": "medium",
+      "prompt": "What does `{x: x**2 for x in range(4)}` return?",
+      "options": [
+        "`{0, 1, 4, 9}`",
+        "`{0: 0, 1: 1, 2: 4, 3: 9}`",
+        "`[(0, 0), (1, 1), (2, 4), (3, 9)]`",
+        "`{0: 0, 1: 2, 4: 4, 9: 6}`"
+      ],
+      "answer": 1,
+      "explanation": "Dict comprehension: `{key_expr: value_expr for ...}`. The key is `x` and the value is `x**2`, producing a dict mapping each int to its square."
+    },
+    {
+      "id": "py-029",
+      "type": "single",
+      "topic": "Comprehensions",
+      "difficulty": "hard",
+      "prompt": "What does this print?\n\n```python\ndata = ['a', 'bb', 'ccc', 'dddd']\nresult = [n for s in data if (n := len(s)) > 2]\nprint(result)\n```",
+      "options": [
+        "`[3, 4]`",
+        "`['ccc', 'dddd']`",
+        "`[2, 3, 4]`",
+        "`SyntaxError`"
+      ],
+      "answer": 0,
+      "explanation": "The walrus operator `:=` (PEP 572) lets you bind `n = len(s)` once and reuse it in both the filter and the output expression. Here only strings of length > 2 pass, and their lengths (3 and 4) are collected."
+    },
+    {
+      "id": "py-030",
+      "type": "single",
+      "topic": "Comprehensions",
+      "difficulty": "medium",
+      "prompt": "Given `matrix = [[1, 2], [3, 4], [5, 6]]`, which expression produces `[1, 2, 3, 4, 5, 6]`?",
+      "options": [
+        "`[row for row in matrix]`",
+        "`[x for row in matrix for x in row]`",
+        "`[[x for x in row] for row in matrix]`",
+        "`[x for x in row for row in matrix]`"
+      ],
+      "answer": 1,
+      "explanation": "Nested comprehensions read left-to-right like nested for-loops: `for row in matrix` (outer), `for x in row` (inner). Option D reverses the order and would raise NameError because `row` is referenced before being bound."
+    },
+    {
+      "id": "py-031",
+      "type": "single",
+      "topic": "Functions",
+      "difficulty": "hard",
+      "prompt": "In `def f(a, b, /, c, *, d):`, which call is valid?",
+      "options": [
+        "`f(1, 2, 3, 4)`",
+        "`f(a=1, b=2, c=3, d=4)`",
+        "`f(1, 2, c=3, d=4)`",
+        "`f(1, b=2, c=3, d=4)`"
+      ],
+      "answer": 2,
+      "explanation": "`/` marks the end of positional-only parameters (a, b must be positional). `*` marks the start of keyword-only parameters (d must be by name). `c` can be either. So only option C satisfies both constraints."
+    },
+    {
+      "id": "py-032",
+      "type": "single",
+      "topic": "Functions",
+      "difficulty": "hard",
+      "prompt": "What does this code print?\n\n```python\nfuncs = [lambda: i for i in range(3)]\nprint([f() for f in funcs])\n```",
+      "options": [
+        "`[0, 1, 2]`",
+        "`[2, 2, 2]`",
+        "`[None, None, None]`",
+        "`[0, 0, 0]`"
+      ],
+      "answer": 1,
+      "explanation": "The late-binding closure trap. Each lambda captures the *variable* `i` (by reference), not its value at creation. By the time the lambdas run, `i` has its final value (2). Fix: `lambda i=i: i` or `functools.partial(lambda x: x, i)`."
+    },
+    {
+      "id": "py-033",
+      "type": "single",
+      "topic": "Functions",
+      "difficulty": "medium",
+      "prompt": "What does `functools.partial(f, 1, key='x')` produce?",
+      "options": [
+        "A new function with `1` and `key='x'` pre-applied; remaining args are supplied at call time",
+        "An immediate call of `f(1, key='x')`",
+        "A coroutine",
+        "An error \u2014 partial doesn't accept keyword arguments"
+      ],
+      "answer": 0,
+      "explanation": "`partial` returns a new callable with some arguments pre-bound (positional and/or keyword). The caller can still supply additional args/kwargs. Common use: adapting a function to a callback signature."
+    },
+    {
+      "id": "py-034",
+      "type": "single",
+      "topic": "Functions",
+      "difficulty": "easy",
+      "prompt": "What does `functools.reduce(lambda a, b: a + b, [1, 2, 3, 4], 10)` return?",
+      "options": [
+        "`10`",
+        "`20`",
+        "`24`",
+        "`30`"
+      ],
+      "answer": 1,
+      "explanation": "`reduce(fn, iter, initial)` folds left: `((((10 + 1) + 2) + 3) + 4) = 20`. For summing, prefer the built-in `sum(iter, start)` \u2014 clearer and faster."
+    },
+    {
+      "id": "py-035",
+      "type": "multi",
+      "topic": "Functions",
+      "difficulty": "hard",
+      "prompt": "Which statements about `@functools.cache` and `@functools.lru_cache` are TRUE? (Select all that apply)",
+      "options": [
+        "Memoizes results keyed by the function's arguments",
+        "All arguments must be hashable",
+        "`@cache` is unbounded; `@lru_cache(maxsize=128)` evicts least-recently-used entries when full",
+        "The cache is per-function, not per-instance \u2014 methods on different instances share cache entries by `self`",
+        "Cached return values that are mutable lists are safe to mutate without affecting future cache hits",
+        "Clearing the cache uses `fn.cache_clear()`"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "Memoization caches by argument tuple \u2014 args must be hashable. `cache` (3.9+) is unbounded; `lru_cache(maxsize=N)` evicts LRU. The cache lives on the function, so for methods, `self` is part of the key (cross-instance sharing happens only because `self` is part of the key). Returned mutables ARE shared \u2014 mutating them DOES affect future hits (option 5 is false)."
+    },
+    {
+      "id": "py-036",
+      "type": "single",
+      "topic": "Generators",
+      "difficulty": "medium",
+      "prompt": "What does `yield from` do inside a generator?",
+      "options": [
+        "Returns from the generator with a value",
+        "Delegates iteration to a sub-iterable, also forwarding `send`/`throw`/`close`",
+        "Imports another generator",
+        "Synchronous version of `await`"
+      ],
+      "answer": 1,
+      "explanation": "`yield from sub_iter` is equivalent to `for x in sub_iter: yield x` but additionally forwards `send`, `throw`, and `close` to the sub-generator and captures its return value via `StopIteration.value`. Essential for composing generators."
+    },
+    {
+      "id": "py-037",
+      "type": "single",
+      "topic": "Generators",
+      "difficulty": "easy",
+      "prompt": "What does calling `next(g)` on an exhausted generator do?",
+      "options": [
+        "Returns `None`",
+        "Returns the last value again",
+        "Raises `StopIteration`",
+        "Returns `-1`"
+      ],
+      "answer": 2,
+      "explanation": "Once a generator is exhausted, every further `next()` call raises `StopIteration`. The `for` statement catches this implicitly. Use the default form `next(g, sentinel)` to avoid the exception."
+    },
+    {
+      "id": "py-038",
+      "type": "single",
+      "topic": "Generators",
+      "difficulty": "hard",
+      "prompt": "What does this print?\n\n```python\ndef gen():\n    x = yield 1\n    yield x + 10\n\ng = gen()\nprint(next(g))\nprint(g.send(5))\n```",
+      "options": [
+        "`1` then `11`",
+        "`1` then `15`",
+        "`None` then `15`",
+        "`1` then `10`"
+      ],
+      "answer": 1,
+      "explanation": "`next(g)` advances to the first yield, producing 1. `g.send(5)` resumes \u2014 the `yield 1` expression evaluates to 5 (the sent value), so `x = 5`, then yields `5 + 10 = 15`."
+    },
+    {
+      "id": "py-039",
+      "type": "single",
+      "topic": "Classes",
+      "difficulty": "medium",
+      "prompt": "Given `class C(A, B): pass` with diamond inheritance, what determines the method lookup order?",
+      "options": [
+        "Left-to-right depth-first",
+        "The C3 linearization algorithm, exposed as `C.__mro__`",
+        "Definition order in source",
+        "Alphabetical order"
+      ],
+      "answer": 1,
+      "explanation": "Python uses C3 linearization (introduced in 2.3) for MRO. It guarantees a monotonic, consistent ordering across the inheritance hierarchy. `super()` walks this MRO \u2014 that's why cooperative multiple inheritance works."
+    },
+    {
+      "id": "py-040",
+      "type": "single",
+      "topic": "Classes",
+      "difficulty": "hard",
+      "prompt": "What does `super().__init__(...)` do?",
+      "options": [
+        "Calls the parent class' `__init__` \u2014 but the resolution is via MRO, not just the direct parent",
+        "Calls `object.__init__`",
+        "Allocates the instance",
+        "Resets the instance to default values"
+      ],
+      "answer": 0,
+      "explanation": "`super()` walks the MRO from the current class. In single inheritance this is just the parent; in multiple inheritance it can route to a *sibling* class. That's why all classes in a cooperative hierarchy should call `super().__init__(...)`."
+    },
+    {
+      "id": "py-041",
+      "type": "multi",
+      "topic": "Classes",
+      "difficulty": "medium",
+      "prompt": "Which statements about `typing.Protocol` are TRUE? (Select all that apply)",
+      "options": [
+        "Enables structural subtyping \u2014 any class with matching attributes/methods satisfies the Protocol without inheriting from it",
+        "Requires the class to explicitly inherit from the Protocol",
+        "By default, `isinstance(obj, MyProto)` raises `TypeError`; decorate with `@runtime_checkable` to enable it",
+        "Type checkers like mypy use Protocols to validate duck-typing statically",
+        "Protocols can only contain methods, not class attributes",
+        "Protocols are unrelated to network protocols"
+      ],
+      "answer": [
+        0,
+        2,
+        3,
+        5
+      ],
+      "explanation": "Protocols (PEP 544) provide static duck-typing \u2014 no inheritance required (option 2 is false). For `isinstance` checks, decorate with `@runtime_checkable`. They can declare attributes and methods (option 5 is false). And yes \u2014 the name overlap with network protocols is unfortunate."
+    },
+    {
+      "id": "py-042",
+      "type": "single",
+      "topic": "Classes",
+      "difficulty": "medium",
+      "prompt": "What does `@property` enable?",
+      "options": [
+        "Read-only class variables",
+        "Computed attributes \u2014 method call syntax that looks like attribute access (`obj.x` instead of `obj.x()`)",
+        "Faster attribute access",
+        "Auto-serialization to JSON"
+      ],
+      "answer": 1,
+      "explanation": "`@property` turns a method into a getter accessed as `obj.x`. Add `@x.setter` for assignment and `@x.deleter` for `del`. Use it for computed/derived values or to add validation without changing the public API."
+    },
+    {
+      "id": "py-043",
+      "type": "multi",
+      "topic": "Classes",
+      "difficulty": "hard",
+      "prompt": "Which statements about Abstract Base Classes (`abc.ABC` / `@abstractmethod`) are true? (Select all that apply)",
+      "options": [
+        "Instantiating a class that has unimplemented abstract methods raises `TypeError`",
+        "Subclasses must implement all `@abstractmethod`s before they can be instantiated",
+        "ABCs support `isinstance` checks even for classes that are merely *registered* via `ABC.register(cls)`",
+        "An ABC cannot have any concrete methods",
+        "`@abstractmethod` enforces the method signature at runtime",
+        "An abstract method can have a default implementation that subclasses extend via `super()`"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        5
+      ],
+      "explanation": "ABCs prevent instantiation until all abstract methods are overridden. They can contain concrete helpers. `register` enables virtual subclasses. `@abstractmethod` doesn't validate signatures \u2014 that's static-type-checker territory. Abstract methods CAN have bodies that subclasses call via `super()`."
+    },
+    {
+      "id": "py-044",
+      "type": "single",
+      "topic": "Decorators",
+      "difficulty": "medium",
+      "prompt": "Given:\n\n```python\n@A\n@B\ndef f(): ...\n```\n\nWhich is equivalent?",
+      "options": [
+        "`f = A(B(f))`",
+        "`f = B(A(f))`",
+        "`f = A(f) + B(f)`",
+        "`f = f(A, B)`"
+      ],
+      "answer": 0,
+      "explanation": "Decorators are applied bottom-up: `B` wraps `f` first, then `A` wraps the result. So the assignment is `f = A(B(f))`. Order matters when decorators have side effects or alter behavior."
+    },
+    {
+      "id": "py-045",
+      "type": "single",
+      "topic": "Decorators",
+      "difficulty": "medium",
+      "prompt": "Why use `@functools.wraps(fn)` inside a decorator?",
+      "options": [
+        "It makes the wrapped function thread-safe",
+        "It copies `__name__`, `__doc__`, `__module__`, etc. from the original to the wrapper, preserving introspection",
+        "It caches the result",
+        "It catches exceptions"
+      ],
+      "answer": 1,
+      "explanation": "Without `@wraps`, your wrapper shows up as `wrapper` in tracebacks/help/IDE hints, hiding the real function. `functools.wraps` (built on `update_wrapper`) restores those metadata attributes plus `__wrapped__`."
+    },
+    {
+      "id": "py-046",
+      "type": "multi",
+      "topic": "Context Managers",
+      "difficulty": "medium",
+      "prompt": "Which are valid use cases or true statements about `contextlib.ExitStack`? (Select all that apply)",
+      "options": [
+        "Opening a variable number of files in a loop and guaranteeing they all close",
+        "Stacking context managers conditionally based on runtime flags",
+        "Registering arbitrary cleanup callbacks via `stack.callback(fn)`",
+        "Replacing `try/finally` for resource cleanup with multiple resources",
+        "Preventing deadlocks in threaded code",
+        "Transferring registered context managers to another stack via `stack.pop_all()`"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "`ExitStack` is the Swiss-army knife of context management \u2014 it lets you enter contexts dynamically, register callbacks, and even transfer ownership via `pop_all()` (commonly used to delay cleanup). It is NOT a threading primitive \u2014 option 4 is false."
+    },
+    {
+      "id": "py-047",
+      "type": "single",
+      "topic": "Context Managers",
+      "difficulty": "easy",
+      "prompt": "What's the right way to open a file so it's always closed, even on exception?",
+      "options": [
+        "`f = open('x'); f.close()`",
+        "`with open('x') as f: ...`",
+        "`open('x', auto_close=True)`",
+        "`try: f = open('x') finally: del f`"
+      ],
+      "answer": 1,
+      "explanation": "The `with` statement guarantees `__exit__` (which closes the file) runs even on exception. Relying on garbage collection / refcounting to close files is unsafe under PyPy and bad practice in CPython."
+    },
+    {
+      "id": "py-048",
+      "type": "single",
+      "topic": "Exceptions",
+      "difficulty": "medium",
+      "prompt": "What runs in this code, and in what order?\n\n```python\ntry:\n    print('A')\nexcept Exception:\n    print('B')\nelse:\n    print('C')\nfinally:\n    print('D')\n```",
+      "options": [
+        "A B D",
+        "A C D",
+        "A D",
+        "A B C D"
+      ],
+      "answer": 1,
+      "explanation": "`else` runs only when `try` completes without an exception; `finally` always runs. So: A (try succeeds), C (else), D (finally). Use `else` for code that should run only on success without being protected by the same except."
+    },
+    {
+      "id": "py-049",
+      "type": "single",
+      "topic": "Exceptions",
+      "difficulty": "medium",
+      "prompt": "What does `raise NewError('boom') from original` do?",
+      "options": [
+        "Replaces the original exception silently",
+        "Sets `__cause__` on the new exception, so the traceback shows both with a clear chain",
+        "Reraises the original exception",
+        "Suppresses the original traceback"
+      ],
+      "answer": 1,
+      "explanation": "Explicit exception chaining via `from`. The traceback shows 'The above exception was the direct cause of the following exception'. Use `from None` to suppress the implicit context when you want a clean replacement."
+    },
+    {
+      "id": "py-050",
+      "type": "single",
+      "topic": "Exceptions",
+      "difficulty": "hard",
+      "prompt": "In Python 3.11+, what is `except*` (the star) used for?",
+      "options": [
+        "Catching any exception type",
+        "Handling `ExceptionGroup`s \u2014 splits the group, runs the handler on matching members, and re-raises the rest",
+        "Catching multiple distinct types in one clause",
+        "An alias for `except BaseException`"
+      ],
+      "answer": 1,
+      "explanation": "`ExceptionGroup` (PEP 654) lets concurrent code raise multiple exceptions at once (e.g. asyncio.TaskGroup). `except*` filters by type, executes the handler for matching exceptions, and propagates non-matching ones \u2014 preserving structure."
+    },
+    {
+      "id": "py-051",
+      "type": "open",
+      "topic": "Design",
+      "difficulty": "medium",
+      "prompt": "You're designing the exception hierarchy for a payments library. Explain how you'd structure it. Cover: which base class to subclass, granularity (one class vs many), what data to attach to exceptions, what to do with library-internal-only failures, and how callers should handle errors.",
+      "model_answer": "**Subclass `Exception`, not `BaseException`.** `BaseException` is reserved for system signals (`KeyboardInterrupt`, `SystemExit`, `GeneratorExit`); subclassing it would let `except Exception:` callers miss your error AND make `except BaseException:` swallow Ctrl+C. Bad on both axes.\n\n**Define a single library-root class.** `class PaymentsError(Exception): pass`. Every other library exception inherits from it. Callers can write `except PaymentsError:` to catch anything from us \u2014 a clean API contract.\n\n**Then granularize by recovery strategy, not by source.** Group exceptions by how the caller will react:\n- `PaymentValidationError` (caller-fixable: bad amount, bad currency, malformed request) \u2014 usually a 4xx-equivalent.\n- `PaymentDeclinedError` (the customer's card was declined) \u2014 different remediation: surface to end user.\n- `PaymentNetworkError` (transient, retryable) \u2014 caller can back off and retry.\n- `PaymentConfigError` (API key wrong, env misconfigured) \u2014 fail fast at boot.\n\n**Attach structured data, not just strings.** Use `__init__` to store fields: `self.transaction_id`, `self.upstream_code`, `self.retryable`. Override `__str__` for human messages; keep raw fields for programmatic handling. Don't shove everything into the message string.\n\n**Chain, don't swallow.** When wrapping a lower-level error, `raise PaymentNetworkError('...') from original_requests_error` so the traceback shows the chain.\n\n**Internal-only failures shouldn't escape.** Use private exceptions (e.g. `_InternalRetryNeeded`) that the public API catches and either handles or re-raises as a public class. The public surface should be predictable.\n\n**Document the contract.** The library's docstrings should list which public exceptions each function can raise. Treat it like a return type.",
+      "key_points": [
+        "Subclass `Exception`, NOT `BaseException` (and explains why)",
+        "Single library-root base class to enable `except LibError:`",
+        "Granularizes by recovery strategy / caller reaction, not source",
+        "Attaches structured fields (codes, IDs, retryable flag), not just message strings",
+        "Uses `raise ... from ...` for chaining when wrapping",
+        "Distinguishes internal/private exceptions from the public surface",
+        "Documents the contract \u2014 exceptions are part of the API"
+      ]
+    },
+    {
+      "id": "py-052",
+      "type": "single",
+      "topic": "Async",
+      "difficulty": "medium",
+      "prompt": "What's the difference between `asyncio.create_task(coro)` and just `await coro`?",
+      "options": [
+        "`create_task` schedules the coroutine to run concurrently on the loop and returns a Task; `await coro` runs it sequentially",
+        "They are equivalent",
+        "`create_task` requires Python 3.12+",
+        "`await coro` is non-blocking; `create_task` blocks"
+      ],
+      "answer": 0,
+      "explanation": "`create_task` schedules the coroutine *now* and returns a Task you can await later, gather, or cancel. Plain `await coro` blocks the current coroutine until that one finishes \u2014 no concurrency. Use `create_task` (or `TaskGroup`) for fan-out."
+    },
+    {
+      "id": "py-053",
+      "type": "multi",
+      "topic": "Async",
+      "difficulty": "medium",
+      "prompt": "Which statements about `asyncio.to_thread(fn, ...)` are TRUE? (Select all that apply)",
+      "options": [
+        "Runs the blocking call on a worker thread so the event loop stays responsive",
+        "Returns a coroutine that you `await` to get the function's result",
+        "Bypasses the GIL \u2014 good for CPU-bound pure-Python work",
+        "Internally uses `loop.run_in_executor` with the default executor",
+        "Is safe to use inside any synchronous function without an event loop",
+        "Forwards exceptions raised in `fn` to the awaiter"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        5
+      ],
+      "explanation": "`to_thread` offloads blocking I/O so the loop keeps spinning. It returns an awaitable. It does NOT bypass the GIL \u2014 CPU-bound pure-Python work won't parallelize across threads (use processes). It requires an active event loop (option 5 is false). Exceptions in the function propagate to the awaiter."
+    },
+    {
+      "id": "py-054",
+      "type": "single",
+      "topic": "Async",
+      "difficulty": "hard",
+      "prompt": "If one coroutine in `asyncio.gather(c1, c2, c3)` raises, what is the default behavior?",
+      "options": [
+        "All exceptions are returned as a list",
+        "The exception propagates from `gather`; other tasks keep running but their results are discarded",
+        "All tasks are silently cancelled and `gather` returns `None`",
+        "Only the first task's result is returned"
+      ],
+      "answer": 1,
+      "explanation": "By default, `gather` re-raises the first exception. Other tasks continue executing \u2014 they are NOT auto-cancelled. Pass `return_exceptions=True` to collect all results/exceptions side-by-side, or use `asyncio.TaskGroup` (3.11+) for structured concurrency."
+    },
+    {
+      "id": "py-055",
+      "type": "single",
+      "topic": "Async",
+      "difficulty": "medium",
+      "prompt": "What does this code most likely do?\n\n```python\nimport asyncio\n\nasync def main():\n    print('a')\n    await asyncio.sleep(1)\n    print('b')\n\nmain()\n```",
+      "options": [
+        "Prints `a`, waits 1s, prints `b`",
+        "Returns a coroutine object \u2014 `main()` is never actually run; nothing is printed",
+        "Raises a SyntaxError",
+        "Blocks the entire process forever"
+      ],
+      "answer": 1,
+      "explanation": "Calling an async function returns a coroutine without running it. You need `asyncio.run(main())` to start the event loop. This is a very common newbie bug \u2014 `RuntimeWarning: coroutine ... was never awaited`."
+    },
+    {
+      "id": "py-056",
+      "type": "multi",
+      "topic": "Concurrency",
+      "difficulty": "medium",
+      "prompt": "Which workloads benefit from `multiprocessing` (rather than threading or asyncio) in CPython? (Select all that apply)",
+      "options": [
+        "Pure-Python CPU-bound number crunching",
+        "Reading thousands of small HTTP responses",
+        "Tight loops over Python objects with no C extension help",
+        "Awaiting database query results",
+        "Image transforms in pure Python over a large batch"
+      ],
+      "answer": [
+        0,
+        2,
+        4
+      ],
+      "explanation": "Multiprocessing sidesteps the GIL by running separate interpreters in separate processes \u2014 good for CPU-bound, pure-Python work. Threading (or asyncio) is preferred for I/O-bound workloads because the GIL releases during blocking I/O."
+    },
+    {
+      "id": "py-057",
+      "type": "single",
+      "topic": "Concurrency",
+      "difficulty": "medium",
+      "prompt": "What does `concurrent.futures.ThreadPoolExecutor` give you?",
+      "options": [
+        "A pool of OS threads that you submit callables to; returns `Future` objects",
+        "A pool of processes",
+        "Async/await syntactic sugar",
+        "A C extension that bypasses the GIL"
+      ],
+      "answer": 0,
+      "explanation": "`ThreadPoolExecutor.submit(fn, *args)` returns a `Future`. Use `.result()` to wait, or `as_completed(futures)` to iterate as they finish. Great for I/O-bound fan-out without writing manual threading code."
+    },
+    {
+      "id": "py-058",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "easy",
+      "prompt": "What does `Counter('mississippi').most_common(2)` return?",
+      "options": [
+        "`['i', 's']`",
+        "`[('i', 4), ('s', 4)]`",
+        "`{'i': 4, 's': 4}`",
+        "`[('s', 4), ('i', 4)]`"
+      ],
+      "answer": 1,
+      "explanation": "`Counter.most_common(n)` returns a list of `(element, count)` tuples, sorted by count descending. In 'mississippi' both i and s have count 4 (ties broken by insertion order in CPython 3.7+)."
+    },
+    {
+      "id": "py-059",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "medium",
+      "prompt": "What does `collections.deque` provide that a `list` does not?",
+      "options": [
+        "Faster random access by index",
+        "O(1) appends and pops at BOTH ends",
+        "Sorted iteration",
+        "Thread-local storage"
+      ],
+      "answer": 1,
+      "explanation": "`deque` is a doubly-linked-list-like structure with O(1) `append`/`appendleft`/`pop`/`popleft`. `list.pop(0)` is O(n). Use `deque` for queues and sliding-window algorithms. Random indexing is O(n) on deque."
+    },
+    {
+      "id": "py-060",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "medium",
+      "prompt": "What does `itertools.groupby(data, key=...)` require to give meaningful groups?",
+      "options": [
+        "Nothing \u2014 it groups all equal keys globally",
+        "The input must be SORTED by the key first; it only groups consecutive equal-keyed items",
+        "The data must be hashable",
+        "The keys must be integers"
+      ],
+      "answer": 1,
+      "explanation": "Unlike SQL GROUP BY, `itertools.groupby` is a streaming operator that groups *consecutive* equal-keyed items. If you want SQL-style grouping over the whole iterable, sort first or use a `defaultdict`/`Counter`."
+    },
+    {
+      "id": "py-061",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "easy",
+      "prompt": "Which expression yields all 2-element combinations of `[1, 2, 3]`?",
+      "options": [
+        "`itertools.permutations([1,2,3], 2)`",
+        "`itertools.combinations([1,2,3], 2)`",
+        "`itertools.product([1,2,3], repeat=2)`",
+        "`itertools.chain([1,2,3], 2)`"
+      ],
+      "answer": 1,
+      "explanation": "`combinations` yields order-insensitive selections: (1,2),(1,3),(2,3). `permutations` yields ordered selections (6 items). `product` yields the Cartesian product (9 items including duplicates and self-pairs)."
+    },
+    {
+      "id": "py-062",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "easy",
+      "prompt": "What is the recommended modern API for filesystem paths?",
+      "options": [
+        "`os.path`",
+        "`pathlib.Path`",
+        "`sys.path`",
+        "`shutil`"
+      ],
+      "answer": 1,
+      "explanation": "`pathlib` (PEP 428) provides an OO API: `Path('a') / 'b' / 'c.txt'`, `.exists()`, `.read_text()`, `.glob('*.py')`, `.with_suffix(...)`. Cleaner than string-juggling with `os.path.join`."
+    },
+    {
+      "id": "py-063",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "medium",
+      "prompt": "What's the difference between a naive and an aware `datetime` object?",
+      "options": [
+        "Naive ones are slower",
+        "Aware datetimes carry a `tzinfo`; naive ones don't \u2014 mixing them in comparisons raises `TypeError`",
+        "Naive datetimes are read-only",
+        "Aware datetimes use UTC; naive use local"
+      ],
+      "answer": 1,
+      "explanation": "Naive: no timezone \u2014 ambiguous about wall-clock vs UTC. Aware: has `.tzinfo` set. Best practice: store and compute in aware UTC, convert to local only for display. `zoneinfo.ZoneInfo('Europe/London')` is the modern way to get a tz."
+    },
+    {
+      "id": "py-064",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "medium",
+      "prompt": "Which regex matches a 4-digit year in a string?",
+      "options": [
+        "`re.match(r'\\d{4}', '2024')`",
+        "`re.search(r'\\b\\d{4}\\b', 'born in 2024 here')`",
+        "`re.findall(r'.4', 'year2024')`",
+        "`re.compile(r'4d').search('2024')`"
+      ],
+      "answer": 1,
+      "explanation": "`re.search` scans for a match anywhere; `re.match` anchors at the start. `\\b` is a word boundary, preventing partial matches inside longer numbers. Use raw strings (`r'...'`) for regex to avoid backslash escaping."
+    },
+    {
+      "id": "py-065",
+      "type": "single",
+      "topic": "Standard Library",
+      "difficulty": "easy",
+      "prompt": "What does `json.dumps({'x': set([1,2])})` do?",
+      "options": [
+        "Returns `'{\"x\": [1, 2]}'`",
+        "Returns `'{\"x\": {1, 2}}'`",
+        "Raises `TypeError` \u2014 set is not JSON serializable",
+        "Returns `'{\"x\": null}'`"
+      ],
+      "answer": 2,
+      "explanation": "JSON has no `set` type, so `json.dumps` raises. Workarounds: convert to list first, or pass `default=list` (or a custom `default=` function that handles your types)."
+    },
+    {
+      "id": "py-066",
+      "type": "multi",
+      "topic": "Dataclasses",
+      "difficulty": "hard",
+      "prompt": "Which statements about `@dataclass` field defaults are TRUE? (Select all that apply)",
+      "options": [
+        "`x: list = []` works fine and gives every instance a fresh empty list",
+        "`x: list = field(default_factory=list)` is the correct way to give each instance its own empty list",
+        "Using `field(default=[])` raises an error because the default would be shared across instances",
+        "`x: int = field(default=0)` is equivalent to `x: int = 0`",
+        "Fields without defaults must come BEFORE fields with defaults in the class body",
+        "`field(init=False)` excludes the field from the generated `__init__`"
+      ],
+      "answer": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "explanation": "`x: list = []` raises `ValueError` at class definition time \u2014 dataclass detects the mutable-default trap. Use `field(default_factory=list)`. Ordering rule: defaulted fields must come last (same rule as regular function arguments). `init=False` is a useful escape hatch for derived/computed fields."
+    },
+    {
+      "id": "py-067",
+      "type": "single",
+      "topic": "Dataclasses",
+      "difficulty": "easy",
+      "prompt": "What does `@dataclass(frozen=True)` do?",
+      "options": [
+        "Makes instances immutable (attribute assignment raises `FrozenInstanceError`) and adds `__hash__`",
+        "Auto-pickles every instance",
+        "Disables `__init__`",
+        "Caches every instance"
+      ],
+      "answer": 0,
+      "explanation": "Frozen dataclasses raise on `obj.x = ...` and are hashable by default. Useful for value-object semantics \u2014 safe to use as dict keys, easier to reason about. Combine with `slots=True` for memory + immutability."
+    },
+    {
+      "id": "py-068",
+      "type": "single",
+      "topic": "Typing",
+      "difficulty": "easy",
+      "prompt": "In modern Python 3.10+, what is the recommended way to spell 'int or None'?",
+      "options": [
+        "`Union[int, None]`",
+        "`Optional[int]` or `int | None`",
+        "`Maybe[int]`",
+        "`int?`"
+      ],
+      "answer": 1,
+      "explanation": "Both `Optional[int]` (from typing) and the new `int | None` (PEP 604 union syntax, 3.10+) are equivalent. The pipe form is shorter and is the trend in modern codebases; no `typing` import needed."
+    },
+    {
+      "id": "py-069",
+      "type": "single",
+      "topic": "Typing",
+      "difficulty": "medium",
+      "prompt": "What does `Literal['draft', 'published']` express?",
+      "options": [
+        "A regex",
+        "A type that admits only those exact string values \u2014 useful for closed-set enums without `Enum`",
+        "An optional string",
+        "Any string"
+      ],
+      "answer": 1,
+      "explanation": "`Literal` (PEP 586) narrows a type to specific values. Static checkers will flag invalid literals. Good for status flags, mode parameters, and discriminated unions (`TypedDict` with `Literal` tag)."
+    },
+    {
+      "id": "py-070",
+      "type": "single",
+      "topic": "Typing",
+      "difficulty": "medium",
+      "prompt": "What is `TypeVar` used for?",
+      "options": [
+        "Renaming a class",
+        "Declaring a generic type parameter so functions/classes can be polymorphic but still typed",
+        "Runtime type checking",
+        "Forward declarations"
+      ],
+      "answer": 1,
+      "explanation": "`T = TypeVar('T')` lets you write `def first(xs: list[T]) -> T:` \u2014 the return type tracks the input element type. Constrain with `TypeVar('T', int, str)` or bound with `bound=Number` for bounded polymorphism."
+    },
+    {
+      "id": "py-071",
+      "type": "single",
+      "topic": "Memory",
+      "difficulty": "medium",
+      "prompt": "How does CPython reclaim memory for objects involved in reference cycles?",
+      "options": [
+        "Reference counting alone suffices for everything",
+        "A generational cyclic garbage collector periodically scans for unreachable cycles",
+        "The OS handles it",
+        "Memory is never reclaimed for cycles"
+      ],
+      "answer": 1,
+      "explanation": "CPython's primary memory mechanism is reference counting \u2014 refcount drops to 0 means free. But cycles (a\u2192b\u2192a) keep refcounts non-zero. A generational tracing GC (gc module) finds and breaks unreachable cycles. Use `weakref` to avoid cycles preemptively."
+    },
+    {
+      "id": "py-072",
+      "type": "single",
+      "topic": "Memory",
+      "difficulty": "medium",
+      "prompt": "What is `weakref.WeakValueDictionary` useful for?",
+      "options": [
+        "A dict where deleting an entry is non-blocking",
+        "A cache/registry where holding a value does NOT prevent it from being garbage-collected",
+        "Thread-safe dict",
+        "Faster lookups"
+      ],
+      "answer": 1,
+      "explanation": "Weak references let objects be GC'd even while referenced. `WeakValueDictionary` automatically drops entries when their values are collected \u2014 used for object registries, caches that shouldn't extend lifetimes, observer patterns without leaks."
+    },
+    {
+      "id": "py-073",
+      "type": "single",
+      "topic": "Gotchas",
+      "difficulty": "easy",
+      "prompt": "What does `1 == True` evaluate to in Python?",
+      "options": [
+        "`True` \u2014 `bool` is a subclass of `int` and `True == 1`",
+        "`False`",
+        "`TypeError`",
+        "`None`"
+      ],
+      "answer": 0,
+      "explanation": "`bool` inherits from `int`: `True == 1` and `False == 0`. Even worse: `{True: 'a', 1: 'b'}` collapses to a single key. Use `is True` if you specifically want to check identity with the boolean singleton."
+    },
+    {
+      "id": "py-074",
+      "type": "multi",
+      "topic": "Gotchas",
+      "difficulty": "hard",
+      "prompt": "Which statements about `copy.copy` vs `copy.deepcopy` are TRUE? (Select all that apply)",
+      "options": [
+        "`copy.copy(x)` makes a new outer container but shares references to the inner objects",
+        "`copy.deepcopy(x)` recursively copies all nested objects",
+        "`a[:]` (slicing) is equivalent to `copy.copy(a)` for a list",
+        "Deep-copying is always safe \u2014 no edge cases",
+        "`deepcopy` correctly handles reference cycles (e.g. `a.append(a)`)",
+        "Classes can customize copying by defining `__copy__` and `__deepcopy__`"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4,
+        5
+      ],
+      "explanation": "Shallow vs deep is the inner-reference distinction. `a[:]`, `list(a)`, and `copy.copy(a)` are all shallow. `deepcopy` uses a memo dict to handle cycles correctly. But it has edge cases: file handles, open sockets, threading primitives may break on deepcopy \u2014 option 3 is false. Classes can hook in via `__copy__`/`__deepcopy__`."
+    },
+    {
+      "id": "py-075",
+      "type": "single",
+      "topic": "Gotchas",
+      "difficulty": "easy",
+      "prompt": "Since Python 3.7, what is guaranteed about `dict` iteration order?",
+      "options": [
+        "It is undefined and implementation-specific",
+        "Insertion order is preserved as part of the language spec",
+        "Keys are iterated in sorted order",
+        "Iteration order is randomized for hash collision security"
+      ],
+      "answer": 1,
+      "explanation": "In CPython 3.6 it was an implementation detail; from 3.7 it is a language guarantee that `dict` preserves insertion order. Hence `OrderedDict` is rarely needed (still useful for `move_to_end`/equality-by-order)."
+    },
+    {
+      "id": "py-076",
+      "type": "single",
+      "topic": "Pandas",
+      "difficulty": "easy",
+      "prompt": "What's the difference between `df.loc[i]` and `df.iloc[i]`?",
+      "options": [
+        "They are identical",
+        "`.loc` is label-based; `.iloc` is integer-position-based",
+        "`.loc` is faster",
+        "`.iloc` works on Series only"
+      ],
+      "answer": 1,
+      "explanation": "`.loc[label]` selects by index label (could be a string, date, etc.). `.iloc[i]` selects by integer position regardless of label. Confusing these is a common bug when the index isn't a clean 0..n-1 range."
+    },
+    {
+      "id": "py-077",
+      "type": "single",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "Which is generally the FASTEST way to apply `x * 2 + 1` to every value in a numeric column?",
+      "options": [
+        "`df['col'].apply(lambda x: x * 2 + 1)`",
+        "A `for` loop over `df.itertuples()` and reassignment",
+        "Vectorized: `df['col'] * 2 + 1`",
+        "`df['col'].map(lambda x: x * 2 + 1)`"
+      ],
+      "answer": 2,
+      "explanation": "Vectorized arithmetic dispatches to NumPy/C and is orders of magnitude faster than `.apply`/`.map` (which loop in Python). General rule: if there's a vectorized form, use it; reach for `.apply` only when no native operation exists."
+    },
+    {
+      "id": "py-078",
+      "type": "single",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "In pandas, which join behavior does `pd.merge(a, b, how='left', on='k')` produce?",
+      "options": [
+        "Only rows where `k` matches in both",
+        "All rows from `a`, with matched rows from `b` (or NaN for unmatched)",
+        "All rows from `b`, with matched rows from `a`",
+        "Union of all rows from both"
+      ],
+      "answer": 1,
+      "explanation": "Left join: preserve all rows from `a`; pull in matching rows from `b`, fill NaN where no match. SQL semantics: `inner` (intersect), `left`/`right` (preserve one side), `outer` (union). For 1-to-many merges, `a` rows may be duplicated."
+    },
+    {
+      "id": "py-079",
+      "type": "multi",
+      "topic": "NumPy",
+      "difficulty": "hard",
+      "prompt": "Which statements about NumPy broadcasting are TRUE? (Select all that apply)",
+      "options": [
+        "Allows operations between arrays of compatible (not identical) shapes",
+        "Dimensions are aligned starting from the RIGHT (trailing) when comparing shapes",
+        "A dimension of size 1 can be 'stretched' to match a larger dimension",
+        "Broadcasting physically duplicates data in memory before the operation",
+        "Two shapes are broadcast-compatible if, for each aligned dim, sizes are equal OR one of them is 1",
+        "Broadcasting always parallelizes across CPU cores automatically"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "Broadcasting is a shape-alignment rule with the size-1 stretching trick. It does NOT copy data \u2014 that's the whole memory win (option 3 is false). It is implemented with strided iteration, not automatic threading (option 5 is false; for parallelism use numexpr, NumPy's threaded ops, or external libraries)."
+    },
+    {
+      "id": "py-080",
+      "type": "single",
+      "topic": "NumPy",
+      "difficulty": "easy",
+      "prompt": "Why are NumPy arrays much faster than Python lists for numeric work?",
+      "options": [
+        "They are written in Rust",
+        "They store homogeneous, contiguous unboxed values and operate via vectorized C loops",
+        "They cache results",
+        "They use the GPU automatically"
+      ],
+      "answer": 1,
+      "explanation": "A Python `list` of ints is a list of PyObject pointers \u2014 each operation crosses the interpreter. A NumPy array is a contiguous block of C ints/floats; loops happen in compiled C with SIMD-friendly memory layouts."
+    },
+    {
+      "id": "py-081",
+      "type": "multi",
+      "topic": "Testing",
+      "difficulty": "medium",
+      "prompt": "Which statements about `pytest` are TRUE? (Select all that apply)",
+      "options": [
+        "Tests are functions whose names start with `test_`",
+        "`@pytest.fixture` defines a reusable setup; tests request it by parameter name",
+        "`@pytest.mark.parametrize` runs the test multiple times with different inputs",
+        "You must inherit from `unittest.TestCase` to use pytest",
+        "Plain `assert` is supported \u2014 pytest rewrites it to produce rich failure messages",
+        "Fixtures can have `scope='session'` to be created once per test session"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4,
+        5
+      ],
+      "explanation": "Pytest auto-discovers `test_*` functions, supports plain `assert` with assertion rewriting, fixtures, and parametrization. You CAN use `unittest.TestCase` but it's optional. Common fixture scopes: function (default), class, module, session."
+    },
+    {
+      "id": "py-082",
+      "type": "single",
+      "topic": "Testing",
+      "difficulty": "medium",
+      "prompt": "What does `unittest.mock.patch('module.path.fn')` do as a decorator?",
+      "options": [
+        "Statically rewrites the file",
+        "During the test, replaces `module.path.fn` with a `MagicMock` and restores it on exit",
+        "Imports the function eagerly",
+        "Wraps the function with retry logic"
+      ],
+      "answer": 1,
+      "explanation": "`patch` temporarily swaps the named attribute on its module for a `MagicMock`. Critical rule: patch where the function is LOOKED UP, not where it's defined. So if module `b` does `from a import f`, patch `b.f`, not `a.f`."
+    },
+    {
+      "id": "py-083",
+      "type": "single",
+      "topic": "Packaging",
+      "difficulty": "medium",
+      "prompt": "What is the modern, PEP-recommended file for declaring project metadata and dependencies?",
+      "options": [
+        "`setup.py`",
+        "`requirements.txt`",
+        "`pyproject.toml`",
+        "`Pipfile`"
+      ],
+      "answer": 2,
+      "explanation": "PEP 518/621 standardized `pyproject.toml`. Build backends (setuptools, hatch, poetry, pdm, flit) all consume it. `setup.py` is legacy. `requirements.txt` is for pinning install lists, not project metadata."
+    },
+    {
+      "id": "py-084",
+      "type": "single",
+      "topic": "Packaging",
+      "difficulty": "easy",
+      "prompt": "What does `pip install -e .` do?",
+      "options": [
+        "Installs in 'editable' mode \u2014 your local source is linked, so edits take effect without reinstall",
+        "Encrypts the package",
+        "Installs only the entry points",
+        "Exports the package to a wheel"
+      ],
+      "answer": 0,
+      "explanation": "Editable installs (`pip install -e .` or `pip install --editable .`) point the import system at your working directory. Re-importing picks up changes. Essential for local development of libraries you're authoring."
+    },
+    {
+      "id": "py-085",
+      "type": "single",
+      "topic": "Performance",
+      "difficulty": "medium",
+      "prompt": "What is the time complexity of `x in s` when `s` is a `set`?",
+      "options": [
+        "O(n)",
+        "O(log n)",
+        "Amortized O(1)",
+        "O(n log n)"
+      ],
+      "answer": 2,
+      "explanation": "Set (and dict) membership is hash-table lookup \u2014 average O(1), worst case O(n) with hash collisions. Compare to `list`/`tuple` where `in` is O(n) linear scan. Converting a list to a set for repeated membership tests is a common speedup."
+    },
+    {
+      "id": "py-086",
+      "type": "single",
+      "topic": "Performance",
+      "difficulty": "medium",
+      "prompt": "Which is the right tool for measuring where a script spends its time?",
+      "options": [
+        "`time.time()` calls scattered through the code",
+        "`cProfile` \u2014 captures per-call and cumulative time across the call graph",
+        "`gc.collect()`",
+        "`sys.settrace`"
+      ],
+      "answer": 1,
+      "explanation": "`cProfile` gives a function-level profile cheaply. Run via `python -m cProfile -o out.prof script.py` and inspect with `pstats` or visualize with `snakeviz`. For line-level detail, install `line_profiler`."
+    },
+    {
+      "id": "py-087",
+      "type": "single",
+      "topic": "I/O",
+      "difficulty": "easy",
+      "prompt": "What's the default text encoding when you do `open('x.txt', 'r')` in Python 3.10+ on Linux/macOS?",
+      "options": [
+        "Always ASCII",
+        "Platform-dependent locale (often UTF-8 on modern systems) \u2014 pass `encoding='utf-8'` explicitly for portability",
+        "Always UTF-16",
+        "Always Latin-1"
+      ],
+      "answer": 1,
+      "explanation": "Without an explicit `encoding=`, Python uses `locale.getpreferredencoding(False)` which varies by OS and locale. Always specify `encoding='utf-8'` for reliable cross-platform behavior. PEP 597 in 3.10 added an opt-in warning when encoding is omitted."
+    },
+    {
+      "id": "py-088",
+      "type": "single",
+      "topic": "I/O",
+      "difficulty": "easy",
+      "prompt": "Which expression reads a text file into a single string with `pathlib`?",
+      "options": [
+        "`Path('x.txt').open().read_all()`",
+        "`Path('x.txt').read_text(encoding='utf-8')`",
+        "`Path.load('x.txt')`",
+        "`Path('x.txt').contents`"
+      ],
+      "answer": 1,
+      "explanation": "`Path.read_text` is a one-liner that opens, reads, and closes the file. Mirror methods: `read_bytes`, `write_text`, `write_bytes`. Cleaner than manual `with open(...)` for small files."
+    },
+    {
+      "id": "py-089",
+      "type": "single",
+      "topic": "Gotchas",
+      "difficulty": "hard",
+      "prompt": "What does this print?\n\n```python\na = 257\nb = 257\nprint(a is b)\nx = 5\ny = 5\nprint(x is y)\n```",
+      "options": [
+        "`True\\nTrue`",
+        "`False\\nTrue`",
+        "`False\\nFalse`",
+        "`True\\nFalse`"
+      ],
+      "answer": 1,
+      "explanation": "CPython caches small integers (-5 to 256) as singletons, so `x is y` for 5 is True. 257 is outside the cache, so `a` and `b` are distinct objects and `is` is False. NEVER use `is` for value comparison \u2014 this is exactly the trap."
+    },
+    {
+      "id": "py-090",
+      "type": "code",
+      "topic": "Standard Library",
+      "difficulty": "medium",
+      "prompt": "Use `functools.singledispatch` to implement a generic function `describe(x)` that returns:\n- For `int`: `'int: <n>'`\n- For `str`: `'str: <s>'`\n- For `list`: `'list of <len>'`\n- For anything else: `'unknown'`",
+      "language": "python",
+      "starter": "from functools import singledispatch\n\n@singledispatch\ndef describe(x):\n    # default implementation\n    pass\n",
+      "model_answer": "from functools import singledispatch\n\n@singledispatch\ndef describe(x):\n    return 'unknown'\n\n@describe.register(int)\ndef _(x):\n    return f'int: {x}'\n\n@describe.register(str)\ndef _(x):\n    return f'str: {x}'\n\n@describe.register(list)\ndef _(x):\n    return f'list of {len(x)}'",
+      "tests": "assert describe(42) == 'int: 42'\nassert describe('hi') == 'str: hi'\nassert describe([1, 2, 3]) == 'list of 3'\nassert describe([]) == 'list of 0'\nassert describe(3.14) == 'unknown'\nassert describe({'a': 1}) == 'unknown'\nassert describe(None) == 'unknown'\nprint('PASS')",
+      "key_points": [
+        "Uses `@singledispatch` on the default implementation",
+        "Registers per-type variants with `@describe.register(int)` (or annotation form)",
+        "Default branch handles unknown types \u2014 returns `'unknown'`",
+        "Dispatch is on the FIRST argument's runtime type",
+        "Bonus: in 3.7+ you can use type annotations: `@describe.register` + `def _(x: int): ...`"
+      ]
+    },
+    {
+      "id": "py-091",
+      "type": "multi",
+      "topic": "Iterators",
+      "difficulty": "medium",
+      "prompt": "Which objects are iterators (i.e. they implement BOTH `__iter__` AND `__next__`)? (Select all that apply)",
+      "options": [
+        "A `list`",
+        "A generator function's return value",
+        "`iter([1,2,3])`",
+        "A `dict`",
+        "An open file object",
+        "A `range` object"
+      ],
+      "answer": [
+        1,
+        2,
+        4
+      ],
+      "explanation": "Iterables vs iterators: `list`, `dict`, `range` are iterables but NOT iterators \u2014 they don't have `__next__`. Calling `iter()` on them returns an iterator. Generators and files ARE iterators \u2014 `__next__` directly works."
+    },
+    {
+      "id": "py-092",
+      "type": "single",
+      "topic": "Data Model",
+      "difficulty": "hard",
+      "prompt": "What does `__init_subclass__` do?",
+      "options": [
+        "Initializes the subclass' instance",
+        "A class method called automatically when a class is subclassed \u2014 useful for plugin registration or enforcing API contracts without a metaclass",
+        "An alias for `__init__`",
+        "Runs once per import"
+      ],
+      "answer": 1,
+      "explanation": "Defined on a parent class, `__init_subclass__(cls, **kwargs)` runs each time a subclass is created. Cleaner than writing a metaclass for common cases: auto-registering subclasses in a dict, validating that subclasses define certain attributes, etc."
+    },
+    {
+      "id": "py-093",
+      "type": "code",
+      "topic": "Dataclasses",
+      "difficulty": "medium",
+      "prompt": "Define a frozen dataclass `Point` with `x: float` and `y: float`. Add a method `distance_to(self, other: 'Point') -> float` that returns the Euclidean distance. Use `math.hypot`.",
+      "language": "python",
+      "starter": "from dataclasses import dataclass\nimport math\n\n# define Point here\n",
+      "model_answer": "from dataclasses import dataclass\nimport math\n\n@dataclass(frozen=True)\nclass Point:\n    x: float\n    y: float\n\n    def distance_to(self, other: 'Point') -> float:\n        return math.hypot(self.x - other.x, self.y - other.y)",
+      "tests": "p1 = Point(0.0, 0.0)\np2 = Point(3.0, 4.0)\nassert p1.distance_to(p2) == 5.0\nassert p2.distance_to(p1) == 5.0\nassert p1.distance_to(p1) == 0.0\n# frozen check\ntry:\n    p1.x = 9.0\n    raise AssertionError('expected FrozenInstanceError')\nexcept Exception as e:\n    assert type(e).__name__ == 'FrozenInstanceError', f'wrong exception: {type(e).__name__}'\n# equality + hashability check\nassert Point(1, 2) == Point(1, 2)\nassert hash(Point(1, 2)) == hash(Point(1, 2))\nprint('PASS')",
+      "key_points": [
+        "Decorated with `@dataclass(frozen=True)`",
+        "Two float fields with type annotations",
+        "`distance_to` uses `math.hypot` (or equivalent `sqrt((dx)**2 + (dy)**2)`)",
+        "Frozen \u2192 instances are immutable AND hashable",
+        "Bonus: `frozen=True` auto-implements `__eq__` and `__hash__`"
+      ]
+    },
+    {
+      "id": "py-094",
+      "type": "code",
+      "topic": "Generators",
+      "difficulty": "medium",
+      "prompt": "Write a generator `chunked(iterable, size)` that yields successive lists of length `size` from `iterable`. The last chunk may be shorter. Do not load the whole input into memory.",
+      "language": "python",
+      "starter": "def chunked(iterable, size):\n    # your code here\n    pass\n",
+      "model_answer": "def chunked(iterable, size):\n    if size <= 0:\n        raise ValueError('size must be positive')\n    chunk = []\n    for item in iterable:\n        chunk.append(item)\n        if len(chunk) == size:\n            yield chunk\n            chunk = []\n    if chunk:\n        yield chunk",
+      "tests": "assert list(chunked([1,2,3,4,5], 2)) == [[1,2],[3,4],[5]]\nassert list(chunked([], 3)) == []\nassert list(chunked(range(6), 3)) == [[0,1,2],[3,4,5]]\nassert list(chunked('abcde', 1)) == [['a'],['b'],['c'],['d'],['e']]\n# Verify laziness: should not exhaust an infinite-ish iterator before being asked\ndef gen():\n    for i in range(10**6):\n        yield i\ng = chunked(gen(), 4)\nassert next(g) == [0,1,2,3]\nassert next(g) == [4,5,6,7]\nprint('PASS')",
+      "key_points": [
+        "Uses `yield` \u2014 it's a generator, not a list-returning function",
+        "Streams the input \u2014 does not materialize it",
+        "Final partial chunk is emitted (don't drop it)",
+        "Handles empty input gracefully",
+        "Bonus: `itertools.islice` or `more_itertools.chunked` are stdlib/3rd-party equivalents"
+      ]
+    },
+    {
+      "id": "py-095",
+      "type": "code",
+      "topic": "Idioms",
+      "difficulty": "medium",
+      "prompt": "Write `parse_csv_line(line)` that takes a single CSV row like `'\"Smith, John\",42,\"NY\"'` and returns a list of fields: `['Smith, John', '42', 'NY']`. Use the standard library `csv` module \u2014 do NOT roll your own quoting logic.",
+      "language": "python",
+      "starter": "import csv\nimport io\n\ndef parse_csv_line(line):\n    # your code here\n    pass\n",
+      "model_answer": "import csv\nimport io\n\ndef parse_csv_line(line):\n    reader = csv.reader(io.StringIO(line))\n    return next(reader, [])",
+      "tests": "assert parse_csv_line('a,b,c') == ['a', 'b', 'c']\nassert parse_csv_line('\\\"Smith, John\\\",42,\\\"NY\\\"') == ['Smith, John', '42', 'NY']\nassert parse_csv_line('') == []\nassert parse_csv_line('\\\"he said \\\"\\\"hi\\\"\\\"\\\",ok') == ['he said \"hi\"', 'ok']\nprint('PASS')",
+      "key_points": [
+        "Uses `csv.reader` with an `io.StringIO` wrapper (or `csv.reader([line])`)",
+        "Does NOT split on commas manually \u2014 that would mishandle quoted fields with embedded commas",
+        "Returns a list of strings",
+        "Handles the empty-line edge case",
+        "Handles escaped double-quotes within quoted fields"
+      ]
+    },
+    {
+      "id": "py-096",
+      "type": "code",
+      "topic": "Classes",
+      "difficulty": "medium",
+      "prompt": "Implement a class `LRUCache(capacity)` with `get(key) -> value | None` and `put(key, value) -> None`. When over capacity, evict the LEAST-recently-used entry. All operations should be O(1) on average. Hint: `collections.OrderedDict` makes this easy.",
+      "language": "python",
+      "starter": "from collections import OrderedDict\n\nclass LRUCache:\n    def __init__(self, capacity):\n        # your code here\n        pass\n\n    def get(self, key):\n        # your code here\n        pass\n\n    def put(self, key, value):\n        # your code here\n        pass\n",
+      "model_answer": "from collections import OrderedDict\n\nclass LRUCache:\n    def __init__(self, capacity):\n        self.capacity = capacity\n        self.data = OrderedDict()\n\n    def get(self, key):\n        if key not in self.data:\n            return None\n        self.data.move_to_end(key)\n        return self.data[key]\n\n    def put(self, key, value):\n        if key in self.data:\n            self.data.move_to_end(key)\n        self.data[key] = value\n        if len(self.data) > self.capacity:\n            self.data.popitem(last=False)",
+      "tests": "c = LRUCache(2)\nc.put('a', 1)\nc.put('b', 2)\nassert c.get('a') == 1            # a is now MRU; b is LRU\nc.put('c', 3)                     # evicts b\nassert c.get('b') is None\nassert c.get('a') == 1            # a -> MRU; c is LRU\nassert c.get('c') == 3            # c -> MRU; a is LRU\nc.put('a', 99)                    # update a, a -> MRU; c is LRU\nassert c.get('a') == 99\nc.put('d', 4)                     # evicts c (LRU)\nassert c.get('c') is None\nassert c.get('a') == 99\nassert c.get('d') == 4\n# Capacity stays at 2\nc.put('e', 5)                     # should evict a (a was LRU after the gets above)\nassert c.get('d') == 4\nassert c.get('e') == 5\nprint('PASS')",
+      "key_points": [
+        "Uses `OrderedDict` (or two structures: dict + doubly-linked list) for O(1) ops",
+        "`get` moves the key to the most-recent end",
+        "`put` updates existing key in-place and moves to most-recent",
+        "Eviction uses `popitem(last=False)` to drop the OLDEST",
+        "Returns `None` (or sentinel) for missing keys instead of raising"
+      ]
+    },
+    {
+      "id": "py-097",
+      "type": "code",
+      "topic": "Decorators",
+      "difficulty": "hard",
+      "prompt": "Write a decorator `@retry(times=3, exceptions=(Exception,))` that calls the wrapped function up to `times` times. If it raises one of `exceptions`, retry. After the final failure, re-raise the last exception. Otherwise return the value.",
+      "language": "python",
+      "starter": "from functools import wraps\n\ndef retry(times=3, exceptions=(Exception,)):\n    # your code here\n    pass\n",
+      "model_answer": "from functools import wraps\n\ndef retry(times=3, exceptions=(Exception,)):\n    def decorator(fn):\n        @wraps(fn)\n        def wrapper(*args, **kwargs):\n            last_exc = None\n            for _ in range(times):\n                try:\n                    return fn(*args, **kwargs)\n                except exceptions as e:\n                    last_exc = e\n            raise last_exc\n        return wrapper\n    return decorator",
+      "tests": "attempts = {'n': 0}\n\n@retry(times=3, exceptions=(ValueError,))\ndef flaky():\n    attempts['n'] += 1\n    if attempts['n'] < 3:\n        raise ValueError('not yet')\n    return 'ok'\n\nassert flaky() == 'ok'\nassert attempts['n'] == 3\n\n# Different exception \u2192 should NOT be retried\nattempts['n'] = 0\n@retry(times=3, exceptions=(ValueError,))\ndef wrong_exc():\n    attempts['n'] += 1\n    raise KeyError('no retry for me')\n\ntry:\n    wrong_exc()\n    raise AssertionError('expected KeyError')\nexcept KeyError:\n    pass\nassert attempts['n'] == 1\n\n# Always-failing case \u2192 re-raises last exception\n@retry(times=2, exceptions=(RuntimeError,))\ndef always_fails():\n    raise RuntimeError('boom')\n\ntry:\n    always_fails()\n    raise AssertionError('expected RuntimeError')\nexcept RuntimeError as e:\n    assert str(e) == 'boom'\n\nprint('PASS')",
+      "key_points": [
+        "Decorator factory: outer `retry(...)` returns the actual decorator",
+        "Uses `functools.wraps` to preserve metadata",
+        "Retries only on listed exception types \u2014 others propagate immediately",
+        "Re-raises the LAST exception after `times` attempts (does not swallow)",
+        "Returns immediately on first success \u2014 does not over-call"
+      ]
+    },
+    {
+      "id": "py-098",
+      "type": "code",
+      "topic": "Idioms",
+      "difficulty": "medium",
+      "prompt": "Write `word_frequencies(text)` that returns a dict mapping each lowercase word to its count. Strip punctuation, treat words case-insensitively, and split on whitespace. Use only the standard library.",
+      "language": "python",
+      "starter": "import re\nfrom collections import Counter\n\ndef word_frequencies(text):\n    # your code here\n    pass\n",
+      "model_answer": "import re\nfrom collections import Counter\n\ndef word_frequencies(text):\n    words = re.findall(r\"[a-zA-Z']+\", text.lower())\n    return dict(Counter(words))",
+      "tests": "r = word_frequencies('The quick brown fox. The quick fox!')\nassert r == {'the': 2, 'quick': 2, 'brown': 1, 'fox': 2}, r\nassert word_frequencies('') == {}\nr2 = word_frequencies('Hello, hello, HELLO.')\nassert r2 == {'hello': 3}, r2\nr3 = word_frequencies(\"It's it's IT'S\")\nassert r3 == {\"it's\": 3}, r3\nprint('PASS')",
+      "key_points": [
+        "Lowercases input before counting (case-insensitive)",
+        "Splits on word characters \u2014 strips punctuation cleanly (regex or `str.translate`)",
+        "Uses `Counter` (or `defaultdict(int)`) for the count",
+        "Handles empty input",
+        "Returns a plain dict (or Counter \u2014 both acceptable)"
+      ]
+    },
+    {
+      "id": "py-099",
+      "type": "open",
+      "topic": "Design",
+      "difficulty": "medium",
+      "prompt": "You need to fan out 1,000 HTTPS calls to a third-party API as quickly as possible from a Python service. Walk through how you'd choose between `threading.Thread` (manual), `concurrent.futures.ThreadPoolExecutor`, `asyncio` + `aiohttp`, and `multiprocessing`. Mention the GIL, I/O vs CPU, and any rate-limit / backpressure considerations.",
+      "model_answer": "**Diagnose the workload first.** 1,000 HTTPS calls is I/O-bound \u2014 most time is spent waiting for the network, not burning CPU. The GIL releases during blocking I/O (and is irrelevant under asyncio's single-threaded model), so multiprocessing is overkill and adds serialization overhead.\n\n**Threading vs asyncio:**\n- `ThreadPoolExecutor(max_workers=50)` with `requests` is the lowest-effort solution. Submit 1,000 tasks, iterate `as_completed`. Threads scale to maybe ~hundreds; beyond that, context-switch overhead and per-thread memory hurt.\n- `asyncio` + `aiohttp` scales to thousands of in-flight requests cheaply because each is a coroutine, not an OS thread. Worth the rewrite if you'll do this regularly or need very high fan-out.\n- Manual `threading.Thread` per call is the worst option \u2014 no pooling, no result-collection plumbing, easy to leak.\n- `multiprocessing` is wrong here \u2014 wastes RAM duplicating the interpreter, adds pickle overhead, and gives no concurrency advantage for I/O.\n\n**Backpressure and rate limits:** Whichever model, cap concurrency (`max_workers`, `asyncio.Semaphore(N)`). Honor `Retry-After` / 429s with exponential backoff and jitter. Use a connection pool (`requests.Session` / `aiohttp.ClientSession`) so TCP/TLS sessions are reused. Set sane timeouts (connect + read) \u2014 a hanging API call without a timeout blocks a worker forever.\n\n**My default:** start with `ThreadPoolExecutor(max_workers=20-50)` for simplicity; move to asyncio if profiling shows thread overhead or you need >1k concurrent calls.",
+      "key_points": [
+        "Diagnoses I/O-bound \u2014 rules out multiprocessing",
+        "Notes the GIL releases during blocking I/O, so threads ARE useful here",
+        "Compares thread pool vs asyncio tradeoffs (effort vs scale)",
+        "Bounds concurrency (semaphore / max_workers) \u2014 does not naively fire 1,000 in parallel",
+        "Mentions retries with backoff and per-request timeouts",
+        "Reuses connections (Session / ClientSession)",
+        "Has a clear default recommendation"
+      ]
+    },
+    {
+      "id": "py-100",
+      "type": "open",
+      "topic": "Design",
+      "difficulty": "hard",
+      "prompt": "Your team's data pipeline does `df.apply(parse_row, axis=1)` over a 5M-row pandas DataFrame and takes 40 minutes. Walk through a diagnosis-and-fix plan: how do you profile it, what alternatives would you try, and how do you know when 'fast enough' has been reached?",
+      "model_answer": "**Step 1 \u2014 measure before changing.** Profile with `cProfile` or `line_profiler` on a 100k-row sample. `df.apply(..., axis=1)` is notorious because it boxes each row into a Series, calling Python per row. The profile usually shows >90% time inside `parse_row` plus pandas overhead.\n\n**Step 2 \u2014 eliminate row-wise apply.** Options in increasing effort:\n1. **Vectorize.** If `parse_row` is a sequence of arithmetic/string ops, rewrite as vectorized column expressions (`df['out'] = df['a'] + df['b'].str.upper()`). Often a 100-1000x speedup.\n2. **`Series.map` over a single column** instead of `DataFrame.apply` over rows \u2014 cheaper because no Series-per-row boxing.\n3. **NumPy or `df.to_numpy()` for numeric work** \u2014 drops pandas overhead entirely.\n4. **`itertuples()` loop** \u2014 still Python per row but ~10x faster than `apply(axis=1)` because rows are namedtuples, not Series.\n5. **Numba `@njit` or Cython** for hot numeric loops.\n6. **Parallelize across cores** with `multiprocessing.Pool`, `joblib`, or `dask.dataframe` if rows are independent. Bear in mind serialization cost \u2014 only worth it for non-trivial per-row work.\n7. **PyArrow / Polars** if migrating off pandas is acceptable \u2014 often 5-50x on this kind of workload.\n\n**Step 3 \u2014 change the I/O too.** If the slow path is `parse_row` doing per-row regex/JSON parsing, it might be better to fix the upstream format (Parquet with the columns already split) than to optimize parsing.\n\n**Step 4 \u2014 define 'fast enough'.** Tie it to a business constraint (SLA, scheduling window, cost per run). Stop optimizing when the next improvement won't pay back the engineering time. Document the chosen approach and the benchmark so future regressions are catchable.",
+      "key_points": [
+        "Profiles BEFORE optimizing \u2014 names cProfile / line_profiler",
+        "Identifies row-wise apply as the canonical pandas anti-pattern",
+        "Lists multiple alternatives in increasing effort (vectorize \u2192 itertuples \u2192 Numba \u2192 multiprocessing \u2192 Polars/Arrow)",
+        "Considers upstream / data-format fixes, not just code-level",
+        "Notes that parallelism has serialization overhead and isn't always a win",
+        "Defines a stopping criterion tied to business value, not aesthetics",
+        "Mentions benchmarking to lock in gains and detect regressions"
       ]
     }
   ]
