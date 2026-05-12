@@ -1,15 +1,28 @@
 <p>The canonical hot-reducer rescue. <em>The same pattern</em> shows up at every layer of a distributed stack — Spark shuffle, Flink keyed state, DynamoDB write throttling, even a Postgres aggregation against a single partition. SQL is the cleanest place to internalise it because you can SEE every partial in a result table. Once you have the pattern in your head, the Spark / Flink / sharding versions become the same shape with different syntax.</p>
 
+<h4>0. Why salting exists — the whale / dolphin / minnow problem</h4>
+<p>At <strong>Uber, Netflix, Stripe, Meta</strong> scale, customer / merchant / content data is heavily Pareto-shaped (see the <a href="/interview.app/design/skew-and-distributions.html">vocabulary page</a>):</p>
+<ul>
+  <li><strong>🐋 Whales (top 1-5%)</strong> — one corporate Stripe account with 50M charges, one Netflix Original with 200M plays in launch week, one Uber market with 10M trips/day. <em>This single key</em> is the hot reducer.</li>
+  <li><strong>🐬 Dolphins (middle 65-75%)</strong> — normal accounts with 10K-100K rows. They land in roughly-balanced reducers under default hash partitioning.</li>
+  <li><strong>🐟 Minnows (bottom 20-30%)</strong> — long-tail accounts with 1-10 rows. So small that <em>any</em> reducer can swallow them in microseconds.</li>
+</ul>
+<p>The default <code>GROUP BY customer_id</code> sends the whale's 50M rows to ONE reducer (because <code>hash(whale) % N</code> picks a single bucket). That reducer runs for hours while the others finish in seconds. <strong>Adding more reducers doesn't help</strong> — the hash still concentrates. Salting fixes it by spreading the whale's rows across N reducers via a small random suffix, then folding the partials back up.</p>
+
+<div class="callout">
+<strong>The interview framing:</strong> "Salting is the standard rescue for the hot-key problem at any company that has a Pareto-shaped customer base. Naive aggregations break because one whale lands in one reducer. The fix is two-stage: GROUP BY (key, salt) first, GROUP BY key second."
+</div>
+
 <h4>1. The source data — Pareto-shaped <code>orders</code></h4>
 <table>
-  <thead><tr><th>customer_id</th><th>row count</th><th>share of total</th></tr></thead>
+  <thead><tr><th>customer_id</th><th>row count</th><th>share of total</th><th>archetype</th></tr></thead>
   <tbody>
-    <tr><td><strong>1 (the whale)</strong></td><td><strong>30</strong></td><td><strong>~77%</strong></td></tr>
-    <tr><td>2</td><td>2</td><td>5%</td></tr>
-    <tr><td>3</td><td>1</td><td>3%</td></tr>
-    <tr><td>4</td><td>3</td><td>8%</td></tr>
-    <tr><td>5</td><td>1</td><td>3%</td></tr>
-    <tr><td>6</td><td>2</td><td>5%</td></tr>
+    <tr><td><strong>1</strong></td><td><strong>30</strong></td><td><strong>~77%</strong></td><td>🐋 <strong>Whale</strong> — one corporate account or viral creator</td></tr>
+    <tr><td>2</td><td>2</td><td>5%</td><td>🐬 Dolphin</td></tr>
+    <tr><td>3</td><td>1</td><td>3%</td><td>🐟 Minnow</td></tr>
+    <tr><td>4</td><td>3</td><td>8%</td><td>🐬 Dolphin</td></tr>
+    <tr><td>5</td><td>1</td><td>3%</td><td>🐟 Minnow</td></tr>
+    <tr><td>6</td><td>2</td><td>5%</td><td>🐬 Dolphin</td></tr>
   </tbody>
 </table>
 <p>One customer owns 77% of the rows. Naive <code>GROUP BY customer_id</code> ships all 30 of customer 1's rows to a single reducer; the other reducers each get 1-3 rows and finish instantly. The job's wall-clock time = the whale's reducer time + scheduling overhead. <strong>Adding more reducers doesn't help</strong> — the hash <code>hash(1) % N</code> still picks one bucket regardless of N.</p>
@@ -81,7 +94,136 @@ GROUP BY customer_id;</code></pre>
   </tbody>
 </table>
 
-<h4>5. The same pattern at every layer</h4>
+<h4>5. The four salting strategies — pick consciously</h4>
+
+<p>The runnable solution above uses <strong>random salting</strong>. That's the demo form. Production has four named variants — each with a different idempotency / cost / scope trade-off. Knowing which to reach for in a given context is the L5 signal.</p>
+
+<h5>Strategy A — Random salting (the demo form)</h5>
+<pre><code>SELECT customer_id,
+       FLOOR(RANDOM() * 16)::INT AS salt,    -- non-deterministic
+       amount
+FROM orders;</code></pre>
+<p><strong>Use when:</strong> One-shot ad-hoc query; no need to reproduce the same partial breakdown twice. <strong>Trap:</strong> re-running the query produces different per-bucket partials, so any debugging or downstream verification gets confused. The total is identical (SUM is associative) but per-row provenance is not.</p>
+
+<h5>Strategy B — Hash-based / deterministic salting (the production form)</h5>
+<pre><code>WITH salted AS (
+    SELECT customer_id,
+           ABS(HASHTEXT(order_id::text)) % 16  AS salt,   -- Postgres
+           -- ABS(HASH(order_id))           % 16          -- Snowflake
+           -- MD5(CAST(order_id AS STRING))  % 16         -- BigQuery (after CRC32)
+           amount
+    FROM orders
+),
+partial_agg AS (
+    SELECT customer_id, salt, SUM(amount) AS partial_sum
+    FROM salted GROUP BY customer_id, salt
+)
+SELECT customer_id, ROUND(SUM(partial_sum), 2) AS total_spend
+FROM partial_agg GROUP BY customer_id ORDER BY total_spend DESC;</code></pre>
+<p><strong>Use when:</strong> Production ETL pipeline, dbt model, anything that re-runs nightly. The hash of <code>order_id</code> always produces the same bucket assignment, so partial breakdowns are reproducible across runs. <strong>Idempotency is the win</strong> — if you debug a bad partial, you can re-run and see the exact same bucket pattern.</p>
+
+<h5>Strategy C — Filtered / skew-only salting (the cost-aware form)</h5>
+<p>Salting EVERY key — including the 10K minnows — adds overhead. For 10K small customers you force the database to manage 160K partial-aggregation groups (10K × 16 buckets) when 10K would suffice. The fix: only salt the keys you <em>know</em> are hot.</p>
+<pre><code>WITH heavy_hitters AS (
+    -- Identify hot keys via threshold OR a pre-computed top-K table
+    SELECT customer_id FROM orders
+    GROUP BY customer_id
+    HAVING COUNT(*) &gt; 1000
+),
+salted AS (
+    SELECT o.customer_id,
+           CASE
+             WHEN h.customer_id IS NOT NULL
+                THEN ABS(HASHTEXT(o.order_id::text)) % 16   -- whales: spread across 16
+             ELSE 0                                          -- minnows: untouched
+           END AS salt,
+           o.amount
+    FROM orders o
+    LEFT JOIN heavy_hitters h ON h.customer_id = o.customer_id
+),
+partial_agg AS (
+    SELECT customer_id, salt, SUM(amount) AS partial_sum
+    FROM salted GROUP BY customer_id, salt
+)
+SELECT customer_id, ROUND(SUM(partial_sum), 2) AS total_spend
+FROM partial_agg GROUP BY customer_id ORDER BY total_spend DESC;</code></pre>
+<p><strong>Use when:</strong> Pareto distribution with very few hot keys + large cold tail (the most common real-world shape). <strong>The cold tail's pass 1 is a no-op</strong> — every minnow row goes to <code>salt=0</code>, so the per-customer group count is unchanged for them. Only the whale's groups multiply by 16. <strong>This is the pattern most production Spark jobs use.</strong></p>
+
+<h5>Strategy D — Logarithmic / MOD salting (the streaming form)</h5>
+<p>If you don't have <code>RANDOM()</code> available (some SQL engines, most streaming engines), or want zero CPU overhead per row, use the modulo of a sequential ID:</p>
+<pre><code>SELECT customer_id,
+       (order_id % 16) AS salt,    -- distributes rows sequentially across buckets
+       amount
+FROM orders;</code></pre>
+<p><strong>Use when:</strong> High-throughput streaming systems (Kafka producer key prefix, Flink keyed-state assignment). <strong>Trap:</strong> if <code>order_id</code> is monotonic AND batches arrive in chunks of 16, you get perfectly uniform distribution; if batches arrive in chunks of 17, bucket 0 gets all the extras. Hash-based (Strategy B) is more robust against this; MOD wins on raw cycle cost.</p>
+
+<h4>6. Salting a JOIN — the "Final Boss" of skew problems</h4>
+
+<p>Salting an aggregation is easy: spread → partial → roll up. Salting a JOIN is harder because the salted side has 16 versions of the key, and the unsalted side only has 1. <strong>You must explode the dim side</strong> so all 16 salt values find their match.</p>
+
+<p><strong>Scenario:</strong> Joining a billion-row <code>orders</code> fact (whale-skewed by <code>customer_id</code>) to a 1M-row <code>customers</code> dim. Default sort-merge join shuffles the entire fact table by hash(customer_id) — the whale's billion rows land on one reducer. <strong>4-hour stage; everything else finishes in seconds.</strong></p>
+
+<pre><code>-- Three-step rescue. Result is identical to the naive JOIN — only the
+-- shuffle distribution differs.
+
+-- Step 1: Salt the BIG side (orders). Each row gets a salt 0..15.
+WITH orders_salted AS (
+    SELECT order_id, customer_id, amount,
+           ABS(HASHTEXT(order_id::text)) % 16 AS salt
+    FROM orders
+),
+
+-- Step 2: EXPLODE the SMALL side (customers). Replicate each customer
+-- row 16 times — once per possible salt value. Now every salted order
+-- has a matching dim row available within its salt bucket.
+salts AS (
+    SELECT generate_series(0, 15) AS salt          -- Postgres
+    -- SELECT EXPLODE(SEQUENCE(0, 15)) AS salt    -- Snowflake/Databricks
+),
+customers_exploded AS (
+    SELECT c.customer_id, c.name, c.segment, s.salt
+    FROM customers c
+    CROSS JOIN salts s
+)
+
+-- Step 3: JOIN on (customer_id, salt). The whale's billion rows now
+-- spread across 16 reducers, each with the matching customer row available.
+SELECT o.customer_id, c.name, c.segment,
+       SUM(o.amount) AS total
+FROM orders_salted o
+JOIN customers_exploded c
+  ON o.customer_id = c.customer_id AND o.salt = c.salt
+GROUP BY o.customer_id, c.name, c.segment;</code></pre>
+
+<p><strong>The cost:</strong> the dim side gets 16× duplicated. For a 1M-row customers table, that's 16M rows in the join — still tiny vs. the fact-table shuffle savings. Pick salt count N such that <code>N × dim_table_rows</code> still fits in cluster memory.</p>
+
+<p><strong>Modern alternative:</strong> Spark 3+'s <strong>Adaptive Query Execution (AQE)</strong> auto-detects skewed join partitions and splits them. <code>spark.sql.adaptive.skewJoin.enabled = true</code> handles the 80% case for free. Reach for manual salt-and-explode only when AQE can't handle the case (very high skew, custom UDF aggregates, non-Spark engines).</p>
+
+<h4>7. Summary — strategy comparison</h4>
+
+<table>
+  <thead><tr><th>Method</th><th>Best use case</th><th>Idempotent?</th><th>Cost overhead</th><th>Interview signal</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Random</strong> (Strategy A)</td><td>One-shot ad-hoc</td><td>No</td><td>RNG per row</td><td>Shows you know the 2-stage pattern</td></tr>
+    <tr><td><strong>Hash-based</strong> (B)</td><td>Production ETL / dbt models</td><td>✓ Yes</td><td>Hash per row</td><td>Shows you care about reproducibility</td></tr>
+    <tr><td><strong>Filtered</strong> (C)</td><td>Pareto distribution + few hot keys</td><td>✓ (if hash) / No (if random)</td><td>Lowest — only hot keys multiplied</td><td>Shows you care about resource efficiency for the long tail</td></tr>
+    <tr><td><strong>MOD</strong> (D)</td><td>Streaming systems, no RANDOM available</td><td>✓ Yes (if order_id stable)</td><td>Cheapest CPU</td><td>Shows you know the streaming-shaped variant</td></tr>
+    <tr><td><strong>Salt + Explode JOIN</strong></td><td>Skewed Large × Small joins</td><td>✓ Yes</td><td>16× dim duplication</td><td>Solves the "Shuffle Hash Join" bottleneck at Uber/Netflix scale</td></tr>
+  </tbody>
+</table>
+
+<h4>8. Edge cases the interviewer will probe</h4>
+
+<h5>Probe — <em>"What if the customer_id is NULL?"</em></h5>
+<p><code>hash(NULL) = NULL</code> in standard SQL. <code>NULL % 16 = NULL</code>. All NULL-customer rows land in the "NULL salt" bucket — which is itself a hot bucket. Two fixes: either filter NULLs before salting (if business semantics allow), or coalesce: <code>ABS(HASHTEXT(COALESCE(order_id::text, RANDOM()::text))) % 16</code>. The first is cleaner; surface the NULL rows separately.</p>
+
+<h5>Probe — <em>"What if the order_id used as the hash basis isn't unique?"</em></h5>
+<p>Then identical order_ids land in the same salt bucket — the whale concentrates again, but in 1 bucket of 16 instead of 1 of 1. Better to use a guaranteed-unique row identifier (PK, sequence, ROW_NUMBER) for the hash input. If no unique field exists in the source, materialise a <code>row_id</code> column upstream.</p>
+
+<h5>Probe — <em>"What if you have 10M unique customer_ids and only 5 are whales?"</em></h5>
+<p>Use Strategy C (filtered). Salting all 10M wastes ~150M groups in pass 1 and slows the cold tail by ~16×. Identify the 5 whales via a heavy-hitter query (the <code>HAVING COUNT(*) &gt; threshold</code> in the Strategy C example) and apply the salt only to them.</p>
+
+<h4>9. The same pattern at every layer</h4>
 
 <h5>Spark — salting the join / aggregate</h5>
 <pre><code># SQL-style two-stage Spark — same shape as the runnable SQL above
@@ -127,7 +269,7 @@ producer.send(new ProducerRecord(topic, `${user_id}_${salt}`, event));
 // Downstream consumer must NOT assume "all events for user X are on one partition"</code></pre>
 <p><strong>Ordering guarantee trade-off:</strong> per-key ordering across the whale's events is now broken. If you need it (e.g. for event-sourcing-style state), salt is the wrong tool — split the whale into a dedicated topic instead.</p>
 
-<h4>6. The interviewer's edge-case probes</h4>
+<h4>10. More interviewer edge-case probes</h4>
 
 <h5>Probe 1 — <em>"Why 16 buckets? Could you use 4? 256?"</em></h5>
 <p>Three forces in tension: <strong>(a) more buckets = better balance for the whale</strong>; <strong>(b) more buckets = more rows in pass 2</strong> (each customer contributes N buckets); <strong>(c) more buckets = more state in keyed-state systems</strong>. Rule of thumb: <code>N ≈ workers × 2</code>, or <code>N = next_power_of_two(max_keys_per_worker)</code>. 16 fits a typical 8-core worker; FAANG-scale shops use 128 or 1024.</p>
@@ -170,7 +312,7 @@ salted AS (
 </ul>
 <p>Don't pre-emptively salt every aggregation. Salting has costs (two passes, more state, broken ordering) — apply it when detection metrics flag the hot key.</p>
 
-<h4>7. Production checklist for the salt pattern</h4>
+<h4>11. Production checklist for the salt pattern</h4>
 <ul>
   <li>✓ Identify the hot key with a heavy-hitter detection job</li>
   <li>✓ Pick N salt buckets ≈ 2× cluster worker count, power of two for hash uniformity</li>
