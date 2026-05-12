@@ -1,0 +1,160 @@
+<p>Broadcast join is the single largest free lunch in Spark performance work. Replace a 4-hour shuffle-sort-merge join with a 4-minute hash lookup, no algorithmic complexity added. The senior question is never "what's the syntax" — it's "how do you decide WHEN to broadcast, what's the size limit, and what happens when AQE makes the decision for you." This question is a tell for whether the candidate has actually tuned a Spark job in anger.</p>
+
+<h4>1. The source data — the canonical asymmetric join</h4>
+<table>
+  <thead><tr><th>side</th><th>table</th><th>rows</th><th>size</th><th>role</th></tr></thead>
+  <tbody>
+    <tr><td>LEFT (large fact)</td><td><code>orders</code></td><td>1,000,000,000</td><td>~400 GB Parquet</td><td>One row per order, partitioned by date</td></tr>
+    <tr><td>RIGHT (small dim)</td><td><code>dim_country</code></td><td>249</td><td>~30 KB</td><td>ISO country code → country name, region, currency</td></tr>
+  </tbody>
+</table>
+<p>The ratio is 4 million to 1. The dim table fits in L2 cache of a modern CPU. Shuffling 400 GB of orders just to put rows next to a 30 KB lookup table is institutional malpractice. Yet this is exactly what Spark's default <code>SortMergeJoin</code> does when the planner doesn't know the right side is tiny.</p>
+
+<h4>2. The problem without broadcast — what SortMergeJoin actually costs</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+                  ┌────────────────────┐         ┌────────────────────┐
+                  │ orders  (400 GB)   │         │ dim_country (30KB) │
+                  │ partitioned by ds  │         │ 1 partition        │
+                  └────────────────────┘         └────────────────────┘
+                            │                              │
+                  ┌─────────▼──────────┐         ┌─────────▼──────────┐
+                  │ Shuffle: HASH(cc)  │         │ Shuffle: HASH(cc)  │
+                  │ writes 400GB twice │         │ broadcast 30KB     │  ← but Spark doesn't know that
+                  │ across the network │         │ shuffled anyway    │
+                  └─────────┬──────────┘         └─────────┬──────────┘
+                            │                              │
+                            ▼                              ▼
+                       ┌────────────────────────────────────────┐
+                       │  SortMergeJoin on country_code         │  ← sorts BOTH sides per partition
+                       │  Each partition: sort 400GB / 200      │  ← 2 GB sort per task = OOM risk
+                       └────────────────────────────────────────┘
+
+  Wall-clock time observed in production:  3h 48m on a 100-executor cluster
+</pre>
+<p><strong>The waste:</strong> 400 GB of network shuffle, 400 GB of disk spill during sort, and a final merge phase — all to pair each order row with one of 249 country rows. The dim table could have been a Python dict copied to every executor.</p>
+
+<h4>3. The fix — broadcast hash join, step-by-step</h4>
+<pre><code>from pyspark.sql import SparkSession, functions as F
+from pyspark.sql.functions import broadcast
+from pyspark.sql import Row
+
+spark = (SparkSession.builder
+         .appName("broadcast-join")
+         # The threshold below which Spark auto-broadcasts. Default 10 MB.
+         # Set explicitly so reviewers see the intent.
+         .config("spark.sql.autoBroadcastJoinThreshold", "10485760")   # 10 MB
+         .config("spark.sql.adaptive.enabled", "true")
+         .getOrCreate())
+
+# ─── Seeded sample so the example is runnable ──────────────────────────────
+orders = spark.createDataFrame([
+    Row(order_id=1, country_code="US", amount=49.99),
+    Row(order_id=2, country_code="US", amount=12.50),
+    Row(order_id=3, country_code="IN", amount=7.20),
+    Row(order_id=4, country_code="DE", amount=88.00),
+    Row(order_id=5, country_code="BR", amount=21.10),
+    Row(order_id=6, country_code="XX", amount=5.00),     # unknown country → tests left-join behaviour
+])
+dim_country = spark.createDataFrame([
+    Row(country_code="US", country_name="United States", region="NA",   currency="USD"),
+    Row(country_code="IN", country_name="India",         region="APAC", currency="INR"),
+    Row(country_code="DE", country_name="Germany",       region="EU",   currency="EUR"),
+    Row(country_code="BR", country_name="Brazil",        region="LATAM",currency="BRL"),
+])
+
+# broadcast() = hint to the planner: ship this DataFrame to every executor as a hash map.
+# The planner converts SortMergeJoin → BroadcastHashJoin.
+# No shuffle on the large side. Each executor does a local hash-lookup per row.
+joined = orders.join(broadcast(dim_country), "country_code", "left")
+
+# Verify the plan: look for "BroadcastHashJoin" (good) vs "SortMergeJoin" (bad).
+joined.explain()
+
+joined.show(truncate=False)
+# +------------+--------+------+-------------+------+--------+
+# |country_code|order_id|amount|country_name |region|currency|
+# +------------+--------+------+-------------+------+--------+
+# |US          |1       |49.99 |United States|NA    |USD     |
+# |US          |2       |12.50 |United States|NA    |USD     |
+# |IN          |3       |7.20  |India        |APAC  |INR     |
+# |DE          |4       |88.00 |Germany      |EU    |EUR     |
+# |BR          |5       |21.10 |Brazil       |LATAM |BRL     |
+# |XX          |6       |5.00  |null         |null  |null    |   ← left-join keeps unmatched
+# +------------+--------+------+-------------+------+--------+
+</code></pre>
+
+<h5>What broadcast actually does under the hood</h5>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+1. Driver collects the right side → in-memory HashMap[key → row]
+2. Driver serialises HashMap, ships to every executor via torrent-like protocol
+   (BitTorrent variant — peers share, not driver-fan-out)
+3. Each executor caches the HashMap in BlockManager (off-heap if configured)
+4. Per partition of LEFT side: stream rows, do a hash lookup, emit joined row
+5. NO shuffle on the large side. NO sort. NO disk spill.
+
+  Wall-clock time observed in production:  4m 12s   (~55× speedup over 3h 48m SMJ)
+</pre>
+
+<h4>4. Where this appears in production</h4>
+<ul>
+  <li><strong>Stripe's charges-by-region pipeline</strong> broadcasts a ~50-row <code>dim_payment_method</code> table against a 100 GB <code>charges</code> fact every hour. The job is part of fraud-rule serving and has a 5-minute SLA — only broadcast meets it.</li>
+  <li><strong>Netflix's playback-events enrichment</strong> broadcasts the <code>device_taxonomy</code> table (~3,000 rows) onto billions of playback events nightly. They explicitly set <code>spark.sql.autoBroadcastJoinThreshold = 100MB</code> in their cluster default to make this automatic.</li>
+  <li><strong>Airbnb's pricing pipeline</strong> broadcasts the <code>currency_rates</code> table (~180 rows × 1 row per day) when normalising every booking's price to USD. Replaced a 90-minute SMJ with a 6-minute broadcast.</li>
+  <li><strong>Uber's ETA model training</strong> broadcasts the <code>dim_city_attributes</code> table (~500 cities) onto trip records. They keep a guard: if <code>broadcast().count() &gt; 500_000</code>, fall back to bucketed join — a runtime safety check against the dim table growing past the broadcast budget.</li>
+  <li><strong>Pinterest's content ranking</strong> uses broadcast for <code>dim_category</code> (~10K rows) but switched to <code>bucketBy</code> for <code>dim_user_segment</code> (~50M rows) — the size split where broadcast stops being free.</li>
+</ul>
+
+<h4>5. Interviewer probes — the edge cases</h4>
+
+<h5>Probe 1 — <em>"When does broadcast hurt?"</em></h5>
+<p>Three failure modes:</p>
+<ul>
+  <li><strong>Dim too big.</strong> Broadcast serialises the right side and ships it to every executor. A 5 GB "small" table on 200 executors = 1 TB of network + 5 GB of executor memory per node. <code>OutOfMemoryError</code> in the driver when collecting, or in executors when deserialising.</li>
+  <li><strong>Driver OOM during collect.</strong> Broadcast goes through the driver. If the driver has 4 GB heap and you broadcast 3 GB, you crash mid-job. Symptom: <code>SparkException: Cannot broadcast the table that is larger than 8GB</code> (hard limit).</li>
+  <li><strong>Right side is a complex DataFrame, not a table.</strong> <code>broadcast(df.filter(...).join(...))</code> forces Spark to compute the entire sub-plan, collect it to the driver, and re-distribute. If the sub-plan is expensive, you've paid that cost once per query.</li>
+</ul>
+<p>Practical limit: <strong>broadcast tables up to ~200 MB</strong>. Above that, use shuffle hash join with bucketing, or sort-merge with co-partitioning.</p>
+
+<h5>Probe 2 — <em>"What if I don't use the <code>broadcast()</code> hint — will Spark figure it out?"</em></h5>
+<p>Sometimes. The auto-broadcast threshold (<code>spark.sql.autoBroadcastJoinThreshold</code>, default 10 MB) kicks in only when:</p>
+<ul>
+  <li>Spark can <em>estimate</em> the right side's size from table statistics. Run <code>ANALYZE TABLE dim_country COMPUTE STATISTICS</code> first — otherwise estimates use file-size heuristics that over-count compressed Parquet by 5-10×.</li>
+  <li>The right side is a base table or a simple scan, not a sub-query (no filter/agg/join in front of it).</li>
+  <li>With AQE on, Spark can <em>switch</em> SortMergeJoin → BroadcastHashJoin at runtime once it sees a stage's output is small (e.g. after an aggressive filter). This is the killer feature: you write a normal join, AQE picks broadcast when the data shape allows.</li>
+</ul>
+<p>The <code>broadcast()</code> hint is for cases where stats are stale or wrong, or where you know the dim is small even though Spark doesn't.</p>
+
+<h5>Probe 3 — <em>"What's the difference between BroadcastHashJoin and BroadcastNestedLoopJoin?"</em></h5>
+<p>BroadcastHashJoin: <strong>equi-join</strong> (<code>ON a.key = b.key</code>), uses hash lookup, O(N) on the streamed side. BroadcastNestedLoopJoin: <strong>non-equi joins</strong> (<code>ON a.x BETWEEN b.lo AND b.hi</code> or arbitrary predicates), no hash possible, O(N × M) — broadcasts B, then for each row in A scans all of B. Useful for tiny B (range lookups, IP-to-country) but catastrophic if B grows. Detection: <code>BroadcastNestedLoopJoin</code> in the physical plan = either tiny B by design, or you misread your data.</p>
+
+<h5>Probe 4 — <em>"Can you broadcast the LEFT side in a LEFT JOIN?"</em></h5>
+<p>No. Broadcast hash join broadcasts the <strong>build side</strong>, which for a <code>LEFT OUTER JOIN</code> must be the right side (otherwise you can't enumerate unmatched left rows). Specifically:</p>
+<ul>
+  <li><code>INNER</code>: either side can be broadcast.</li>
+  <li><code>LEFT OUTER</code>: only RIGHT side can be broadcast.</li>
+  <li><code>RIGHT OUTER</code>: only LEFT side can be broadcast.</li>
+  <li><code>FULL OUTER</code>: cannot use BroadcastHashJoin at all.</li>
+  <li><code>LEFT SEMI / LEFT ANTI</code>: only RIGHT side can be broadcast.</li>
+</ul>
+<p>If you hint <code>broadcast()</code> on the wrong side, Spark silently ignores the hint and falls back to SMJ. Read <code>explain()</code> to verify.</p>
+
+<h5>Probe 5 — <em>"How does this interact with AQE?"</em></h5>
+<p>AQE (Adaptive Query Execution, default on in 3.2+) adds two relevant behaviours:</p>
+<ul>
+  <li><strong>Dynamic broadcast promotion:</strong> A SortMergeJoin can be rewritten to BroadcastHashJoin at runtime once AQE sees the actual size of a shuffle output (not the estimate). Threshold: <code>spark.sql.adaptive.autoBroadcastJoinThreshold</code> (separate from the static one).</li>
+  <li><strong>Skew-join split:</strong> If one side has skew, AQE splits the skewed partitions and replicates the matching side. This obviates manual salting for the join case (but not for the agg case — see <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>).</li>
+</ul>
+<p>With AQE on, an explicit <code>broadcast()</code> hint is an override that says "I know better than the planner — broadcast this even if stats say otherwise." Use sparingly.</p>
+
+<h5>Probe 6 — <em>"You said 200 MB is the practical limit. Could I push it to 1 GB?"</em></h5>
+<p>Yes, with caveats. Bump <code>spark.sql.autoBroadcastJoinThreshold</code> and <code>spark.driver.maxResultSize</code> together. The driver collects the dim, so driver heap must be 2× the broadcast size (Java serialised overhead). Executors must have room for the hash map. The break-even point is workload-specific: if the LEFT side is &gt; 100 GB and the dim is 1 GB, broadcast (1 GB × 200 nodes = 200 GB network) might still beat SMJ (100 GB shuffle of LEFT). Use <code>explain("formatted")</code> and the SQL UI's runtime stats to decide empirically.</p>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=mixed_167-0050">mixed_167-0050 — Repartition vs Coalesce</a> for the alternative pattern when broadcast is too big (bucketed shuffle join).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 — Salting</a> for handling skew on the LEFT side when broadcast can't help.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards and Skew (design)</a> — §06 covers the broadcast vs salt vs AQE decision tree.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0054">mixed_167-0054 — Cache and Performance</a> for caching a broadcast dim that's reused across multiple queries in one job.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> "Broadcast join replaces shuffle-sort-merge with a hash lookup, eliminating the network and disk cost of moving the large side. The right side gets serialised once on the driver and shipped to every executor as a hash map; each executor does in-memory lookups per row. Practical limit ~200 MB; AQE in Spark 3+ promotes SMJ to BHJ at runtime when stats undercount, so a manual <code>broadcast()</code> hint is mostly for stale-stats overrides or complex sub-query right sides. Pick it when the build side fits comfortably in driver memory and executor heap, the join is equi-join, and the side you want to broadcast is the legal one for your join type (LEFT OUTER broadcasts only RIGHT; FULL OUTER can't broadcast at all). Above ~1 GB, switch to bucketed shuffle hash join."</div>

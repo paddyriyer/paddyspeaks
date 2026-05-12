@@ -1,0 +1,136 @@
+<p>This question masquerades as a one-liner CSV-to-Parquet conversion, but every clause is loaded. <code>repartition(8, "region")</code> controls <em>file count per region</em> at write time; <code>partitionBy("region")</code> controls <em>directory layout</em> on disk. Get either wrong and downstream readers either drown in 100,000 tiny files or scan 2 TB to answer a one-region query. This is the file-layout question every data-platform team asks on the senior screen.</p>
+
+<h4>1. The source data — a real Friday-night CSV drop</h4>
+<table>
+  <thead><tr><th>property</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>file</td><td><code>/data/in.csv</code> — one fat CSV from an upstream RDBMS export</td></tr>
+    <tr><td>rows</td><td>800,000,000</td></tr>
+    <tr><td>size on disk</td><td>~120 GB gzipped</td></tr>
+    <tr><td>columns</td><td><code>order_id, region, customer_id, amount, order_ts</code></td></tr>
+    <tr><td>region cardinality</td><td>8 values — <code>US-E, US-W, EU, UK, IN, APAC, LATAM, MEA</code></td></tr>
+    <tr><td>distribution</td><td>skewed: <code>US-E</code> = 38%, <code>US-W</code> = 22%, others split the remaining 40%</td></tr>
+    <tr><td>downstream query pattern</td><td>analysts filter by <code>region = 'EU'</code> or <code>region IN ('US-E','US-W')</code> 90% of the time</td></tr>
+  </tbody>
+</table>
+<p>The numbers force the design. 120 GB / 128 MB target block ≈ 1,000 ideal Parquet files. Eight regions × ~125 files per region. Per-region queries should touch only one directory, never scan the whole 120 GB.</p>
+
+<h4>2. The problem without this technique</h4>
+
+<h5>Failure mode A — naive <code>read.csv().write.parquet()</code></h5>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Input CSV (1 file, gzip)
+        │
+        ▼  Spark reads with ONE task (gzip is not splittable)
+  ┌─────────────┐
+  │  Task 0     │  ← reads ALL 120 GB on one executor
+  └─────────────┘
+        │
+        ▼  No repartition, default 1 output partition
+  /data/out/part-00000-xxx.parquet   ← single 120 GB Parquet file ✗
+</pre>
+<p>One executor reads the whole gzip. The write produces one giant Parquet file that no downstream reader can split sensibly. A query like <code>WHERE region = 'EU'</code> reads the full 120 GB — no pruning.</p>
+
+<h5>Failure mode B — <code>partitionBy("region")</code> alone, no repartition</h5>
+<p>You add <code>partitionBy</code> for directory pruning. Now every Spark task that holds rows from multiple regions opens N file handles (one per region in that task) and writes a tiny file to each. With default 200 shuffle partitions and 8 regions, you get up to <strong>200 × 8 = 1,600 files</strong>, most under 1 MB. The Parquet small-file problem: metadata reads dominate, query planning balloons, S3 LIST throttles you.</p>
+
+<h5>Failure mode C — <code>partitionBy("region")</code> + <code>repartition(200)</code> on no column</h5>
+<p>Still 1,600 files. Random repartition doesn't co-locate rows of the same region on the same task. Every task still writes to every region directory.</p>
+
+<h4>3. The fix — step-by-step with WHY for each line</h4>
+<pre><code>from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+spark = (SparkSession.builder
+         .appName("csv-to-partitioned-parquet")
+         .config("spark.sql.files.maxPartitionBytes", "134217728")  # 128 MB read splits
+         .getOrCreate())
+
+# 1) Read CSV. header=True + inferSchema=False to avoid a 2nd pass over 120GB.
+#    Provide an explicit schema in production; inference doubles read cost.
+df = (spark.read
+      .option("header", True)
+      .option("inferSchema", False)
+      .schema("order_id BIGINT, region STRING, customer_id BIGINT, amount DECIMAL(12,2), order_ts TIMESTAMP")
+      .csv("/data/in.csv"))
+
+# 2) repartition(8, "region") = hash-partition rows by region into exactly 8 shuffle partitions.
+#    WHY 8? It matches region cardinality. Every task ends up writing ONE region's rows only,
+#    so partitionBy("region") at write produces ~1 file per task per region = clean file count.
+df_r = df.repartition(8, col("region"))
+
+# 3) partitionBy("region") = Hive-style directory layout on disk.
+#    Output: /data/out/region=US-E/part-xxx.parquet, /data/out/region=EU/part-xxx.parquet, ...
+#    Downstream readers prune at the directory level: WHERE region='EU' reads ONE folder.
+(df_r.write
+     .mode("overwrite")
+     .partitionBy("region")
+     .parquet("/data/out"))
+</code></pre>
+
+<p><strong>The two knobs are doing different jobs:</strong></p>
+<table>
+  <thead><tr><th>Knob</th><th>What it controls</th><th>Visible where?</th></tr></thead>
+  <tbody>
+    <tr><td><code>repartition(N, col)</code></td><td>In-memory shuffle: how many tasks write the output, and which rows go to which task</td><td>Number of <code>part-*</code> files inside each region directory</td></tr>
+    <tr><td><code>partitionBy("region")</code></td><td>On-disk directory layout for partition pruning at read time</td><td>The <code>region=XXX/</code> folders</td></tr>
+  </tbody>
+</table>
+
+<h5>Resulting layout</h5>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+/data/out/
+├── region=US-E/   part-00000.parquet   (~45 GB → split across multiple files by row-group size)
+├── region=US-W/   part-00001.parquet   (~26 GB)
+├── region=EU/     part-00002.parquet   (~14 GB)
+├── region=UK/     part-00003.parquet   (~9 GB)
+├── region=IN/     part-00004.parquet   (~9 GB)
+├── region=APAC/   part-00005.parquet   (~7 GB)
+├── region=LATAM/  part-00006.parquet   (~6 GB)
+└── region=MEA/    part-00007.parquet   (~4 GB)
+</pre>
+<p>A query <code>SELECT SUM(amount) FROM out WHERE region='EU'</code> now reads 14 GB, not 120 GB. <strong>~88% I/O reduction</strong> — that's the entire reason this pattern exists.</p>
+
+<h4>4. Where this appears in production</h4>
+<ul>
+  <li><strong>Airbnb</strong> partitions its <code>fact_bookings</code> table by <code>(ds, country)</code> — the <code>ds</code> (date string) prunes by day, <code>country</code> prunes by market. Their internal style guide forbids more than two <code>partitionBy</code> columns to keep file count bounded.</li>
+  <li><strong>Netflix</strong> partitions raw playback events by <code>(date, region, content_type)</code> with target file sizes of 256 MB. Their Iceberg migration was driven explicitly by Hive's small-file problem when partition cardinality exploded past ~10,000 directories.</li>
+  <li><strong>Uber's Hudi lake</strong> hash-buckets trip records by <code>(city_id, hour)</code> using exactly this <code>repartition + partitionBy</code> shape; the bucket count is set to <code>2 × executor_count</code> for write-time parallelism.</li>
+  <li><strong>Stripe</strong> writes the <code>charges</code> ledger partitioned by <code>(ds, livemode)</code>: separating <code>livemode=true</code> from <code>livemode=false</code> at directory level avoids ever mixing test and production data in a query plan.</li>
+</ul>
+
+<h4>5. Interviewer probes — the edge cases</h4>
+
+<h5>Probe 1 — <em>"Why <code>repartition(8, "region")</code> and not just <code>partitionBy("region")</code>?"</em></h5>
+<p>Tests whether you know what each does. <code>partitionBy</code> is a <em>write-side</em> hint about directory layout, applied per task. Without an upstream <code>repartition</code> by the same column, every task ends up holding rows from many regions and writes a small fragment to each directory — the classic small-file problem. <code>repartition(8, "region")</code> guarantees that each task holds exactly one region's rows, so each task writes one file per region directory.</p>
+
+<h5>Probe 2 — <em>"What if <code>region</code> has 50,000 distinct values, not 8?"</em></h5>
+<p>Don't <code>partitionBy</code> it. Hive partition pruning is metadata-driven — the metastore has to list every partition. At 50,000 partitions per table, query planning takes minutes. Rule of thumb: <strong>partition columns should have low-to-medium cardinality (≤ 10,000)</strong>. For high-cardinality columns, use <strong>bucketing</strong> (<code>.bucketBy(N, "col").sortBy("col")</code>) or Iceberg/Delta hidden partitioning with <code>truncate</code>/<code>bucket</code> transforms.</p>
+
+<h5>Probe 3 — <em>"<code>US-E</code> is 38% of data — won't task 0 finish 10× slower than task 7 (MEA)?"</em></h5>
+<p>Yes — that's <strong>data skew at write time</strong>. Three fixes:</p>
+<ul>
+  <li><strong>Salt the hot region:</strong> <code>withColumn("region_salt", when(col("region")=="US-E", concat(col("region"), lit("_"), floor(rand()*4))).otherwise(col("region")))</code> then repartition by <code>region_salt</code>. Trade-off: 4 sub-directories for US-E, downstream queries need to union them.</li>
+  <li><strong>Enable AQE:</strong> <code>spark.sql.adaptive.enabled = true</code> and <code>spark.sql.adaptive.skewJoin.enabled = true</code>. Splits skewed shuffle partitions automatically since Spark 3.0.</li>
+  <li><strong>Use <code>repartitionByRange("amount")</code> instead</strong> if you're co-partitioning for a downstream join. Range partitioning samples the data and picks balanced split points.</li>
+</ul>
+<p>See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 (salting)</a> for the full pattern.</p>
+
+<h5>Probe 4 — <em>"What's the relationship to <code>spark.sql.files.maxPartitionBytes</code>?"</em></h5>
+<p>That config controls <em>read-side</em> input splits — how many tasks Spark spawns to read the CSV. Default 128 MB. Irrelevant for our gzipped CSV (gzip is not splittable, you get one task regardless), but critical for splittable formats like Parquet, ORC, or bzip2. The <strong>write-side</strong> file count is controlled by the number of shuffle partitions feeding the write, which is what <code>repartition(8)</code> sets.</p>
+
+<h5>Probe 5 — <em>"How do you avoid re-reading 120 GB if the job fails midway?"</em></h5>
+<p>Two complementary techniques. <strong>(a)</strong> Switch to Delta Lake or Iceberg — atomic commits via a transaction log mean a failed write leaves no orphan files. <strong>(b)</strong> Split the job: first checkpoint the parsed DataFrame to a temporary Parquet (cheap to re-read), then repartition and write the final layout. The checkpoint converts the 120 GB gzip to ~30 GB splittable Parquet, which any retry can re-read in parallel.</p>
+
+<h5>Probe 6 — <em>"<code>mode("overwrite")</code> with <code>partitionBy</code> — what's the gotcha?"</em></h5>
+<p>By default, <code>mode("overwrite")</code> deletes the <em>entire</em> output directory before writing — including partitions that aren't in this batch. If today's job only has <code>US-E, EU</code> data, yesterday's <code>APAC, LATAM</code> directories disappear. The fix: <code>spark.conf.set("spark.sql.sources.partitionOverwriteMode", "dynamic")</code>. Now only the partitions present in the new DataFrame get overwritten; the rest are untouched. This is the single most common production bug with this pattern.</p>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards and Skew (design)</a> — the deeper treatment of skew at write time, §04 covers <code>repartitionByRange</code>.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 — Salting</a> for handling the <code>US-E</code> hot-region case.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0050">mixed_167-0050 — Repartition vs Coalesce</a> for the partition-count tuning question.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0051">mixed_167-0051 — Broadcast Join</a> for the join-side small-table pattern that pairs with partitioned reads.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> "<code>repartition(N, col)</code> sets the in-memory shuffle layout — which task holds which rows. <code>partitionBy(col)</code> sets the on-disk directory layout — which folder each file lands in. You need BOTH, on the same column, with N matching the column's cardinality, to get exactly one file per region directory and clean partition pruning at read time. The two failure modes I check for in production: (a) <code>partitionBy</code> with no upstream repartition produces a small-file blizzard; (b) <code>mode('overwrite')</code> without <code>partitionOverwriteMode='dynamic'</code> silently wipes partitions outside the current batch."</div>
