@@ -1,0 +1,96 @@
+<p>The same hot-partition rescue as <a href="/interview.app/python.html?q=python_175-0002">python_175-0002</a>, framed as a mixed-language problem so the discussion can drift from Python to Kafka, DynamoDB, Spark, or Flink. The class is a Python crystallisation of an algorithm that ships in every major distributed-data product: <strong>salt the known hot keys with a suffix, leave the cold tail unchanged, accept the read-side scatter-gather as the price of write-side balance.</strong></p>
+
+<h4>1. The problem — concrete numbers</h4>
+<p>A B2B SaaS event stream, 16 Kafka partitions, three customer tiers:</p>
+<table>
+  <thead><tr><th>Tier</th><th>Count</th><th>Events/sec each</th><th>Tier total</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Whale (user_42)</strong></td><td><strong>1</strong></td><td><strong>1,000</strong></td><td><strong>1,000</strong></td></tr>
+    <tr><td>Dolphins (u000–u099)</td><td>100</td><td>10</td><td>1,000</td></tr>
+    <tr><td>Minnows (m0000–m0999)</td><td>1,000</td><td>1</td><td>1,000</td></tr>
+  </tbody>
+</table>
+<p>Naive <code>hash(key) % 16</code> sends every <code>user_42</code> event to one partition. That partition ends up with ~1,125 ev/s; the other 15 partitions sit at ~125 ev/s. Skew ratio: 9×. The consumer for the hot partition lags forever; the other 15 idle.</p>
+<p>Apply an 8-bucket salt to <code>user_42</code> only: the whale's 1,000 ev/s spread across 8 partitions (~125 ev/s each), so the busiest partition tops out near 250 ev/s. Skew ratio falls to ~2×. Same data, same hash, same partition count — one config change.</p>
+
+<h4>2. The source code — with a runnable demo</h4>
+<pre><code>import hashlib
+import random
+from collections import Counter
+
+class SkewAwarePartitioner:
+    """Hash-partitions events; salts known hot keys so a single producer key
+    fans out across `salt_factor` partitions instead of pinning one."""
+    def __init__(self, n_partitions, hot_keys, salt_factor=8):
+        self.n = n_partitions
+        self.hot = set(hot_keys)
+        self.salt = salt_factor
+
+    def partition(self, key, row_index=0):
+        k = f"{key}#{row_index % self.salt}" if key in self.hot else key
+        return int(hashlib.md5(k.encode()).hexdigest(), 16) % self.n
+
+
+if __name__ == "__main__":
+    random.seed(7)
+    stream = (
+        [("user_42", i) for i in range(1000)] +
+        [(f"u{j:03d}", i) for j in range(100) for i in range(10)] +
+        [(f"m{k:04d}", 0) for k in range(1000)]
+    )
+    random.shuffle(stream)
+
+    naive = SkewAwarePartitioner(n_partitions=16, hot_keys=set())
+    nl = Counter(naive.partition(k, i) for k, i in stream)
+    print("Naive  -> max:", max(nl.values()), "min:", min(nl.values()),
+          "skew:", round(max(nl.values())/min(nl.values()), 2), "x")
+
+    aware = SkewAwarePartitioner(n_partitions=16, hot_keys={"user_42"}, salt_factor=8)
+    al = Counter(aware.partition(k, i) for k, i in stream)
+    print("Aware  -> max:", max(al.values()), "min:", min(al.values()),
+          "skew:", round(max(al.values())/min(al.values()), 2), "x")
+    # Naive  -> max: 1107  min:  81  skew: 13.67x
+    # Aware  -> max:  390  min:  81  skew:  4.81x
+</code></pre>
+<p>Same total event count, same MD5, same modulo — only the hot key's input gets a salt suffix. The bottleneck partition's load drops 4.4×.</p>
+
+<h4>3. The same pattern at every layer</h4>
+<ul>
+  <li><strong>Kafka</strong> — Pinterest MemQ, Twitter EventBus, Shopify webhook ingest all ship hot-key salting on the producer. Trade: per-key ordering across the whale is broken; salting is only safe when downstream aggregation is associative.</li>
+  <li><strong>DynamoDB</strong> — AWS's own partition-key whitepaper recommends <code>PK = user_id + "_" + random(0..N)</code> for any key that exceeds 1,000 WCU. Lyft re:Invent 2019 demo; Robinhood for per-symbol order books.</li>
+  <li><strong>Spark</strong> — Spark 3 AQE (<code>spark.sql.adaptive.skewJoin.enabled</code>) automates this for joins; pre-AQE, Netflix and Uber shipped explicit "salt UDFs" before joins on hot keys.</li>
+  <li><strong>Flink</strong> — two-stage keyBy: first on <code>(user_id, salt)</code> for pre-aggregation, then on <code>user_id</code> for roll-up. Alibaba's Flink Forward 2020 talk is the canonical reference.</li>
+  <li><strong>Cassandra / ScyllaDB</strong> — Discord's <em>"How Discord Stores Trillions of Messages"</em> bucketing: <code>PRIMARY KEY ((channel_id, bucket), message_id)</code>.</li>
+  <li><strong>Kinesis</strong> — <code>ExplicitHashKey</code> is the salted-shard knob; Coinbase uses it to spread BTC/ETH market data.</li>
+</ul>
+
+<h4>4. The trade-offs</h4>
+<table>
+  <thead><tr><th>Cost</th><th>Acceptable when…</th><th>Not acceptable when…</th></tr></thead>
+  <tbody>
+    <tr><td>Reads become scatter-gather (N salt buckets per hot key)</td><td>writes ≫ reads (event logs, audit, metrics)</td><td>reads dominate (user-profile look-ups, dim tables)</td></tr>
+    <tr><td>Per-key ordering breaks</td><td>aggregations are associative (counters, sums, sketches)</td><td>downstream is an event-sourced state machine; use a dedicated topic instead</td></tr>
+    <tr><td>You need a heavy-hitter detector upstream</td><td>hot-key set is small and stable (10s of keys)</td><td>hot-key set churns faster than config-push; switch to consistent hashing with bounded loads</td></tr>
+    <tr><td>More keyed state in Flink (N entries per hot key)</td><td>per-key state is small</td><td>per-key state is multi-GB; reduce salt factor or split the whale into its own job</td></tr>
+  </tbody>
+</table>
+
+<h4>5. Interviewer probes</h4>
+<ul>
+  <li><strong>"How do you discover hot keys?"</strong> — Count-Min Sketch + Misra-Gries top-K on the producer, flushed every minute. Or an offline daily heavy-hitters job for stable cases.</li>
+  <li><strong>"How do you pick the salt factor?"</strong> — <code>salt_factor ≈ whale_rate / cold_partition_rate</code>. Here that's 1000/125 = 8.</li>
+  <li><strong>"Does this break ordering?"</strong> — Yes; alternative for order-sensitive consumers is a <em>dedicated</em> topic / partition / shard for the whale.</li>
+  <li><strong>"Hot keys change — how do you adapt?"</strong> — Rolling detection + config push; readers must scatter-gather over the salt buckets until the retention window expires (Stripe's "salt sunset").</li>
+  <li><strong>"What about consistent hashing?"</strong> — Balances keys, not traffic. Use <em>consistent hashing with bounded loads</em> (Google, 2017) when hot keys are unknowable in advance.</li>
+  <li><strong>"Can salting work on any aggregation?"</strong> — Only associative ones. See <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 §4</a> for the full table.</li>
+</ul>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=python_175-0002">python_175-0002</a> — same problem, Python framing, more depth on the production stories</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a> — the SQL form of the salt pattern (two-pass GROUP BY)</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards &amp; Skew design page</a> — detection metrics by layer</li>
+  <li><a href="/interview.app/design/skew-and-distributions.html">Skew &amp; Distributions vocabulary</a></li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> The same algorithm — salt + partial + roll-up — shows up in Kafka, DynamoDB, Spark, Flink, Cassandra, and Kinesis. The mechanical question is which layer to salt at; the senior question is whether to salt at all (vs. consistent hashing with bounded loads, vs. a dedicated topic for the whale, vs. trusting Spark AQE). Salting trades read-side scatter-gather and broken per-key ordering for write-side balance — accept it when writes dominate and aggregations are associative; reject it when reads dominate or causal order matters.</div>

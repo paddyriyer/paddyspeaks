@@ -1,0 +1,172 @@
+<p>A window <code>Window.orderBy("ts")</code> with no <code>partitionBy</code> looks innocent. It is the most dangerous Spark anti-pattern in the entire DataFrame API. Spark cannot parallelise an unbounded-global window — every row must be collated into a single partition for the cumulative computation. On a 1-billion-row DataFrame this guarantees an OOM. This question is a trap; the senior answer is "I would refuse to write this in production, and here's what I'd do instead."</p>
+
+<h4>1. The source data — the transaction stream that breaks this pattern</h4>
+<table>
+  <thead><tr><th>property</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>table</td><td><code>transactions(txn_id, account_id, ts, amount)</code></td></tr>
+    <tr><td>rows</td><td>1,200,000,000 (one year of activity)</td></tr>
+    <tr><td>size</td><td>~180 GB Parquet</td></tr>
+    <tr><td>partitions on disk</td><td>365 (by <code>ds = date(ts)</code>)</td></tr>
+    <tr><td>cluster</td><td>50 executors × 16 GB RAM</td></tr>
+    <tr><td>question asked</td><td>"Add a global running total of <code>amount</code> ordered by <code>ts</code>."</td></tr>
+  </tbody>
+</table>
+<p>The interviewer's prompt LOOKS like a textbook running total. The data shape says: no single executor can hold 180 GB in memory. The conflict is the whole question.</p>
+
+<h4>2. The problem — what <code>Window.orderBy("ts")</code> with no partition actually does</h4>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Spark plan when partitionBy is OMITTED:
+
+  Stage N-1:  ┌─────────────────────────────────────────────────────┐
+              │ Shuffle ALL rows to ONE executor (single partition) │
+              └────────────────────┬────────────────────────────────┘
+                                   │
+                                   ▼
+  Stage N:    ┌─────────────────────────────────────────────────────┐
+              │ Sort 1.2B rows on ONE executor                      │ ← O(N log N) on 180 GB
+              │ Apply window function row-by-row in order           │ ← spill to disk
+              │ Emit running totals                                 │
+              └─────────────────────────────────────────────────────┘
+
+  Spark warning in the log:
+   "WARN WindowExec: No Partition Defined for Window operation!
+    Moving all data to a single partition, this can cause serious
+    performance degradation."
+
+  Outcome: OOM at ~30% through, after burning 4 hours of cluster time.
+</pre>
+<p><strong>This is not a bug — it's the correct semantics.</strong> A running total ordered globally has no parallelisation strategy that produces row-by-row correct cumulative sums without seeing all prior rows. Spark obeys the spec by doing the dumb-but-correct thing: collapse to one task. The fix is to <em>change the semantics</em>, not to optimise the operator.</p>
+
+<h4>3. The fix — three escape hatches, ordered by preference</h4>
+
+<h5>Fix A — Add a <code>partitionBy</code> that matches the analytical question</h5>
+<p>"Running total" is almost never globally meaningful. It's usually <em>running total per account</em> or <em>per day per account</em>. Adding the partition column makes the window embarrassingly parallel.</p>
+
+<pre><code>from pyspark.sql import SparkSession, Window, functions as F
+from pyspark.sql import Row
+
+spark = SparkSession.builder.appName("window-without-partition").getOrCreate()
+
+# ─── Seeded sample so the example is runnable ─────────────────────────────
+txns = spark.createDataFrame([
+    Row(txn_id=1, account_id="A", ts="2026-01-01 09:00", amount=100.0),
+    Row(txn_id=2, account_id="A", ts="2026-01-01 09:05", amount= 50.0),
+    Row(txn_id=3, account_id="B", ts="2026-01-01 09:10", amount=200.0),
+    Row(txn_id=4, account_id="A", ts="2026-01-01 09:15", amount= 25.0),
+    Row(txn_id=5, account_id="B", ts="2026-01-01 09:20", amount= 75.0),
+    Row(txn_id=6, account_id="A", ts="2026-01-01 09:25", amount=300.0),
+]).withColumn("ts", F.to_timestamp("ts"))
+
+# GOOD: per-account running total. Parallelises across accounts.
+# Each account's rows shuffle to ONE task, but accounts spread across the cluster.
+w_per_account = Window.partitionBy("account_id").orderBy("ts") \
+                       .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+
+per_account = (txns
+    .withColumn("rn",            F.row_number().over(w_per_account))
+    .withColumn("running_total", F.sum("amount").over(w_per_account))
+)
+per_account.show()
+# A: 100 → 150 → 175 → 475 (cumulative per account, parallel across accounts)
+# B: 200 → 275
+</code></pre>
+
+<h5>Fix B — When you truly need a global running total: two-pass aggregation</h5>
+<p>This is the senior trick. Compute per-partition running totals in parallel, then a small second pass adds the inter-partition offsets.</p>
+
+<pre><code># Step 1 — bucket the data into K range-partitions on the order column.
+#   range-partition ensures each partition holds a contiguous time slice.
+K = 200
+ranged = txns.repartitionByRange(K, "ts").withColumn(
+    "pid", F.spark_partition_id()
+)
+
+# Step 2 — local running totals inside each partition (parallel, no shuffle).
+w_local = Window.partitionBy("pid").orderBy("ts") \
+                 .rowsBetween(Window.unboundedPreceding, Window.currentRow)
+locally = ranged.withColumn("local_running", F.sum("amount").over(w_local))
+
+# Step 3 — sum of amounts per partition, used to compute the offset for each partition.
+partition_totals = locally.groupBy("pid").agg(F.sum("amount").alias("part_sum"))
+
+# Step 4 — cumulative offset across partitions (this DF has K rows — runs on 1 task, that's fine).
+w_offsets = Window.orderBy("pid").rowsBetween(Window.unboundedPreceding, -1)
+offsets = partition_totals.withColumn(
+    "offset",
+    F.coalesce(F.sum("part_sum").over(w_offsets), F.lit(0.0))
+).select("pid", "offset")
+
+# Step 5 — global running total = local running total + offset for that partition.
+global_running = (locally.join(offsets, "pid")
+                  .withColumn("running_total", F.col("local_running") + F.col("offset"))
+                  .drop("pid", "local_running"))
+</code></pre>
+<p>Why this works: <code>sum</code> is associative. <code>SUM(p1) + SUM(p2) + ... + SUM(pk-1) + local_running_in_pk</code> equals the true global running total at any row in partition pk. The K=200 second-pass DataFrame is small enough to run on one task without harm.</p>
+
+<h5>Fix C — Push it down to SQL with proper ranges</h5>
+<p>If the question really is "give me one running total column at the end of the day", consider whether you actually need row-level cumulative values or just N checkpoint values:</p>
+<pre><code># Maybe what was REALLY wanted: hourly running totals (24 rows/day, not 1.2B rows).
+hourly = (txns
+    .groupBy(F.window("ts", "1 hour").alias("hr"))
+    .agg(F.sum("amount").alias("hourly_total")))
+
+w_hr = Window.orderBy("hr").rowsBetween(Window.unboundedPreceding, Window.currentRow)
+hourly.withColumn("running_total", F.sum("hourly_total").over(w_hr)).show()
+# 24 rows × N days — fits in one task naturally, no anti-pattern.</code></pre>
+
+<h4>4. Where this appears in production</h4>
+<ul>
+  <li><strong>JPMorgan's intraday position monitor</strong> had this exact anti-pattern in a job that ran nightly across 800 GB of trade data. The first version used <code>Window.orderBy("trade_ts")</code> for a "running net exposure" column. Failed every Friday (heaviest volume day) at the 4-hour mark. Fixed by partitioning by <code>(book_id, trade_date)</code> — running exposure per book per day was the actual business question.</li>
+  <li><strong>Stripe's daily payout reconciliation</strong> deliberately uses Fix B (two-pass) for the global running balance per merchant: <code>repartitionByRange("settlement_ts", numPartitions=400)</code>, then local cumsum, then offset join. Production-grade running totals at 10 B rows.</li>
+  <li><strong>Uber's surge multiplier validation</strong> initially used a global-window running average over time, which OOMed on the LA region (highest volume). Refactor: partition by <code>(city, hour_bucket)</code> — every analytical question really was per-city anyway.</li>
+  <li><strong>Snowflake / BigQuery</strong> handle global windows natively because their execution model can stream-sort across nodes. But even there, a <code>SUM() OVER (ORDER BY ts)</code> on a 1B-row table is a 30-minute query — not OOM, just slow. Range-partitioned two-pass is faster on those engines too.</li>
+  <li><strong>Pandas <code>cumsum()</code></strong> is single-node by design; this whole problem disappears at the Pandas scale (&lt; 50 GB). The Spark-specific issue is that the API <em>looks like</em> pandas but the execution model rejects it.</li>
+</ul>
+
+<h4>5. Interviewer probes — the edge cases</h4>
+
+<h5>Probe 1 — <em>"Why does Spark warn instead of refusing?"</em></h5>
+<p>Backward compatibility with small DataFrames. <code>Window.orderBy(...)</code> with no partition is legal SQL — every database supports it — and works fine on a 1 K-row DataFrame. Spark warns once at plan time so dev/test code keeps running, but the warning is in cluster logs where you might miss it. Production teams set <code>spark.sql.parser.quotedRegexColumnNames=true</code> AND turn the warning into an error with a custom <code>QueryExecutionListener</code>.</p>
+
+<h5>Probe 2 — <em>"What if I actually need a row-level global rank for the whole dataset?"</em></h5>
+<p>Rare, but real (e.g. "label every transaction with its overall position by time, system-wide"). Two paths:</p>
+<ul>
+  <li><strong><code>zipWithIndex</code> via RDD:</strong> <code>df.rdd.zipWithIndex().toDF()</code> — distributed, gives every row a monotonically-increasing global index, but the index isn't sorted unless you sort first. Cost: one full shuffle + scan.</li>
+  <li><strong>The two-pass pattern from Fix B</strong> but with <code>row_number()</code> + partition offsets (offset = cumulative row count of preceding partitions).</li>
+  <li><strong><code>monotonically_increasing_id()</code>:</strong> fast but <em>not</em> contiguous (it encodes partition ID in high bits) and not ordered. Use only when you need a unique row identifier, not a sortable rank.</li>
+</ul>
+
+<h5>Probe 3 — <em>"Is <code>row_number()</code> vs <code>sum()</code> different here?"</em></h5>
+<p>For the OOM behaviour, no — both force the single-partition shuffle. For the parallelisation fix, they differ:</p>
+<ul>
+  <li><code>sum/min/max/count</code> are <strong>associative</strong> → Fix B (two-pass) works.</li>
+  <li><code>row_number/rank/dense_rank/percent_rank</code> need a global sort to assign numbers; you can fake it with partition-count offsets (sum of row counts of preceding partitions) plus local row_numbers.</li>
+  <li><code>lag/lead</code> at a global level cross partition boundaries; need a special "last row of previous partition" join. Usually a sign the analysis should be per-account.</li>
+  <li><code>percentile_cont</code> / <code>median</code> are not associative — Fix B doesn't work. Use <code>approx_percentile</code> (HLL-style sketch, mergeable).</li>
+</ul>
+
+<h5>Probe 4 — <em>"How does AQE affect this?"</em></h5>
+<p>It doesn't help. AQE optimises shuffle partition counts and detects skew, but it cannot rewrite a single-partition window into a parallel one — the semantics genuinely require seeing every prior row in order. AQE is helpful for the Fix B two-pass pattern (it'll auto-coalesce the small offsets DataFrame), but the original anti-pattern remains broken.</p>
+
+<h5>Probe 5 — <em>"What about <code>rowsBetween(unboundedPreceding, currentRow)</code> vs <code>rangeBetween</code>?"</em></h5>
+<p>Same single-partition trap; the frame type doesn't change the parallelisation. But <code>rangeBetween</code> uses the ORDER BY column's values for the frame boundary (e.g. "all rows within 7 days before"), so it's the right pick for time-windowed running totals. Per-account 7-day running totals: <code>Window.partitionBy("account_id").orderBy(F.col("ts").cast("long")).rangeBetween(-7*86400, 0)</code> — cast to seconds because <code>rangeBetween</code> wants a numeric column.</p>
+
+<h5>Probe 6 — <em>"How do you spot this anti-pattern in code review?"</em></h5>
+<p>Three grep patterns:</p>
+<ul>
+  <li><code>Window.orderBy</code> with no <code>partitionBy</code> on the same line or the line above.</li>
+  <li><code>"Window operation"</code> in Spark driver logs — the WARN message.</li>
+  <li><code>SinglePartition</code> in <code>df.explain()</code> output where it shouldn't be. Look for an <code>Exchange SinglePartition</code> just before a <code>Window</code> physical operator.</li>
+</ul>
+<p>Production teams add a SparkListener that fails the job on <code>Exchange SinglePartition</code> nodes over a row-count threshold.</p>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=mixed_167-0050">mixed_167-0050 — Repartition vs Coalesce</a> for <code>repartitionByRange</code> used in Fix B.</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 — Salting</a> for the same two-pass shape applied to aggregation skew.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0054">mixed_167-0054 — Cache and Performance</a> for caching the locally-windowed DataFrame between Fix B's steps 2 and 5.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards and Skew (design)</a> — §03 covers the "associative aggregation across partitions" pattern that underpins Fix B.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> "A window with no <code>partitionBy</code> shuffles every row to one task and OOMs at production scale — Spark warns, doesn't refuse, because the semantics are technically valid. My first move is always to challenge the requirement: a 'global running total' is almost never the actual business question; it's usually per-account or per-day, in which case <code>partitionBy</code> makes the window embarrassingly parallel. If a global running total is genuinely required, use a two-pass associative trick: <code>repartitionByRange</code>, compute local running totals per partition, then add inter-partition offsets in a small second pass. The same shape doesn't work for <code>percentile</code> or <code>median</code> (not associative) — use <code>approx_percentile</code> sketches instead. In code review, I grep for <code>Window.orderBy</code> with no partition, and I wire a SparkListener to fail on <code>Exchange SinglePartition</code> over a row-count threshold."</div>

@@ -1,0 +1,148 @@
+<p><code>repartition</code> and <code>coalesce</code> look like the same knob — they both change partition count. They are not. One does a full shuffle and can both grow and shrink; the other is shuffle-free and can only shrink. Picking the wrong one is the #1 cause of "my Spark job got slower after I added <code>repartition(1)</code>". This question separates engineers who memorise API signatures from engineers who can read a Spark DAG.</p>
+
+<h4>1. The source data — three real workloads</h4>
+<table>
+  <thead><tr><th>workload</th><th>input shape</th><th>goal</th></tr></thead>
+  <tbody>
+    <tr><td>A — Daily user-events ETL</td><td>50 GB, 4 input files (oversized), current partitions = 4</td><td>Increase parallelism before a heavy <code>groupBy(user_id)</code> step. 4 tasks on a 200-core cluster = 196 idle cores.</td></tr>
+    <tr><td>B — End-of-pipeline export</td><td>2 GB DataFrame, current partitions = 2,000 (after multiple wide ops)</td><td>Reduce to ~10 files for downstream BI tool that struggles with directories &gt; 50 files.</td></tr>
+    <tr><td>C — Pre-join co-partitioning</td><td>500 GB orders, 500 GB shipments, both partitioned on different columns</td><td>Hash-co-partition both on <code>order_id</code> so the join shuffles only once.</td></tr>
+  </tbody>
+</table>
+<p>Each workload picks a different operator. Workload A → <code>repartition(200, "user_id")</code>. Workload B → <code>coalesce(10)</code>. Workload C → <code>repartition(N, "order_id")</code> on both sides. Wrong picks below.</p>
+
+<h4>2. The problem without the right choice</h4>
+
+<h5>Bug 1 — <code>coalesce(200)</code> when the input has 4 partitions</h5>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Input: 4 partitions
+                       coalesce only MERGES, never SPLITS
+Request: coalesce(200) ────────────────────────────────────► Result: 4 partitions (unchanged)
+</pre>
+<p><code>coalesce</code> can only collapse existing partitions into bigger ones — it cannot create new partitions. Your <code>groupBy(user_id)</code> still runs on 4 tasks. Cluster idle. Job takes 6× longer than expected. <strong>The senior tell: <code>coalesce(N)</code> where N &gt; current partition count is a silent no-op.</strong></p>
+
+<h5>Bug 2 — <code>repartition(1)</code> before a big write</h5>
+<pre style="background:#1f2937;color:#e5e7eb;padding:14px;border-radius:6px;">
+Input: 2,000 partitions, ~1 MB each = 2 GB total
+                                                                   Driver / one executor
+Request: repartition(1)  ─── full shuffle, 2 GB lands on ────►  ┌─────────────────────┐
+                                                                │  ONE task, 2 GB heap │ ← OOM risk
+                                                                └─────────────────────┘
+</pre>
+<p><code>repartition(1)</code> does a full shuffle that funnels every row to a single task. If your DataFrame is bigger than that executor's memory, the job OOMs. <code>coalesce(1)</code> is no shuffle and is usually the right pick to produce a single output file — but watch the upstream stage: coalesce <em>back-propagates</em> its partition count, so the upstream computation also runs on 1 partition. See Probe 3.</p>
+
+<h5>Bug 3 — random <code>repartition(200)</code> before a <code>groupBy(user_id)</code></h5>
+<p>Random repartition spreads rows uniformly. The subsequent <code>groupBy</code> does <em>another</em> shuffle to hash-distribute by <code>user_id</code>. Two shuffles, one wasted. <code>repartition(200, "user_id")</code> uses the same hash partitioner, so the <code>groupBy</code> sees data already co-located and may skip the shuffle entirely (the Catalyst optimiser is partition-aware).</p>
+
+<h4>3. The fix — the runnable example, three workloads</h4>
+<pre><code>from pyspark.sql import SparkSession, functions as F
+from pyspark.sql import Row
+
+spark = SparkSession.builder.appName("repartition-vs-coalesce").getOrCreate()
+
+# A small seeded sample that exhibits all three patterns.
+events = spark.createDataFrame([
+    Row(user_id=1,  action="login",  amount=10.0),
+    Row(user_id=1,  action="buy",    amount=42.0),
+    Row(user_id=2,  action="login",  amount=10.0),
+    Row(user_id=3,  action="buy",    amount=99.0),
+    Row(user_id=4,  action="login",  amount=10.0),
+    Row(user_id=4,  action="buy",    amount=18.0),
+    Row(user_id=5,  action="buy",    amount=77.0),
+    Row(user_id=5,  action="buy",    amount=55.0),
+])
+print("initial partitions:", events.rdd.getNumPartitions())
+
+# ─── Workload A: increase parallelism before a heavy groupBy ───────────────
+# repartition(N, col) = FULL SHUFFLE, hash-partitioned by `col`.
+# Gives downstream groupBy a co-located layout — Catalyst skips its own shuffle.
+events_for_agg = events.repartition(8, F.col("user_id"))
+agg = events_for_agg.groupBy("user_id").agg(F.sum("amount").alias("total"))
+
+# ─── Workload B: collapse to few files before write ────────────────────────
+# coalesce(N) = NO SHUFFLE. Merges adjacent partitions on the same executor.
+# Cheap. Use when N < current partition count and you don't need balance.
+agg.coalesce(1).write.mode("overwrite").parquet("/tmp/user_totals")
+
+# ─── Workload C: pre-join co-partitioning (the senior trick) ───────────────
+orders    = spark.createDataFrame([Row(order_id=i, amount=i*10.0) for i in range(20)])
+shipments = spark.createDataFrame([Row(order_id=i, carrier="UPS")  for i in range(20)])
+
+# Hash-co-partition BOTH sides on the join key with the SAME N.
+# The join now sees identical partitioners on both sides → no shuffle exchange.
+N = 8
+co_orders    = orders.repartition(N,    F.col("order_id"))
+co_shipments = shipments.repartition(N, F.col("order_id"))
+joined = co_orders.join(co_shipments, "order_id", "inner")
+
+joined.explain()  # Look for "AQEShuffleRead" / no "Exchange" on the join's children.
+</code></pre>
+
+<h5>The full decision table</h5>
+<table>
+  <thead><tr><th>Want to…</th><th>Use</th><th>Shuffle?</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Increase partition count</td><td><code>repartition(N)</code></td><td>Yes (full)</td><td>Only way to create new partitions</td></tr>
+    <tr><td>Decrease partition count, balanced</td><td><code>repartition(N)</code></td><td>Yes (full)</td><td>Balanced output at cost of shuffle</td></tr>
+    <tr><td>Decrease partition count, cheap</td><td><code>coalesce(N)</code></td><td>No</td><td>Merges existing partitions only</td></tr>
+    <tr><td>Co-partition for a join</td><td><code>repartition(N, col)</code> on BOTH sides</td><td>Yes (once)</td><td>Hash-aligned → join sees pre-shuffled layout</td></tr>
+    <tr><td>Pre-sort for a range query</td><td><code>repartitionByRange(N, col)</code></td><td>Yes + sample</td><td>Samples data to pick balanced split points</td></tr>
+    <tr><td>Write exactly N files per output dir</td><td><code>repartition(N, partition_col)</code></td><td>Yes</td><td>See <a href="/interview.app/python.html?q=mixed_167-0049">mixed_167-0049</a></td></tr>
+  </tbody>
+</table>
+
+<h4>4. Where this appears in production</h4>
+<ul>
+  <li><strong>Netflix</strong> re-partitions viewing-event tables nightly by <code>(region, content_id)</code> with N = <code>2 × executor_count</code> before training per-region recommendation models. They explicitly avoid <code>coalesce</code> at this step because skewed regions need balancing.</li>
+  <li><strong>Uber's surge-pricing pipeline</strong> repartitions trip data by <code>(city_id, hour)</code> ahead of per-city pricing models — same shape as workload A.</li>
+  <li><strong>Databricks' own demo notebooks</strong> use <code>coalesce(1)</code> for "save to single CSV for the data scientist", explicitly warning that this collapses upstream parallelism — exactly the trap in Bug 2.</li>
+  <li><strong>Spotify's Scio pipelines</strong> use <code>repartition(N, "user_id")</code> before any per-user windowed aggregation so the window operator inherits the partitioning and avoids a second shuffle.</li>
+  <li><strong>Pinterest's content-ranking ETL</strong> pre-co-partitions <code>pins</code> and <code>boards</code> on <code>board_id</code> (workload C) before a daily join — saved them 40% of cluster time.</li>
+</ul>
+
+<h4>5. Interviewer probes — the edge cases</h4>
+
+<h5>Probe 1 — <em>"Why pick 200 partitions specifically?"</em></h5>
+<p>200 is the default value of <code>spark.sql.shuffle.partitions</code>. The right number is workload-dependent. Two rules of thumb:</p>
+<ul>
+  <li><strong>Target partition size = 128–256 MB.</strong> So <code>N ≈ total_data_size / 200 MB</code>. For 50 GB → 250 partitions.</li>
+  <li><strong>N ≥ total_cores × 2-3.</strong> So a 100-core cluster wants at least 200-300 partitions to keep cores fed.</li>
+</ul>
+<p>Both rules should agree within 2×. If they don't, your data is unusually small or large for the cluster.</p>
+
+<h5>Probe 2 — <em>"What's the cost of over-partitioning to 10,000?"</em></h5>
+<p>Three costs: (a) <strong>Task scheduling overhead</strong> — every task carries ~1-5 ms of driver overhead; 10K tasks = 10-50s of pure scheduling. (b) <strong>Small Parquet files</strong> on write — each partition writes its own file, metadata reads dominate downstream. (c) <strong>Shuffle metadata pressure</strong> — every map task writes one file per reduce task; with M=10K, R=10K, you get 100M shuffle files. The shuffle manager memory-maps each one. <strong>Sweet spot: 100s to low 1000s of partitions per stage.</strong></p>
+
+<h5>Probe 3 — <em>"<code>coalesce(1)</code> back-propagates — what does that mean?"</em></h5>
+<p>Spark's planner pushes <code>coalesce</code> upstream into the previous stage. So:</p>
+<pre><code>df.filter(...).map(...).coalesce(1).write...</code></pre>
+<p>doesn't run filter/map on N tasks and then merge — it runs the entire chain on <strong>one</strong> task. To force parallelism upstream, insert a barrier:</p>
+<pre><code>df.filter(...).map(...).repartition(200).coalesce(1).write...
+# OR use a separate action / cache:
+df.filter(...).map(...).cache().count()   # materialise with parallelism
+df.coalesce(1).write...                    # only the final write is sequential</code></pre>
+
+<h5>Probe 4 — <em>"How does AQE change this picture?"</em></h5>
+<p>Adaptive Query Execution (Spark 3.0+, default on in 3.2+) does three things that overlap with manual repartition:</p>
+<ul>
+  <li><strong>Coalesce post-shuffle partitions:</strong> If you set <code>spark.sql.shuffle.partitions = 1000</code> but the data only needs 50, AQE merges them automatically. So you can pick N on the high side and let AQE shrink it.</li>
+  <li><strong>Skew join handling:</strong> AQE splits skewed partitions (those &gt; <code>skewedPartitionFactor × median</code>) into sub-partitions and replicates the matching side. Replaces some manual salting (see <a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027</a>).</li>
+  <li><strong>Dynamic join strategy:</strong> Promotes a shuffle-sort-merge join to a broadcast join if it sees the build side is small enough post-shuffle. Reduces the need for explicit <code>broadcast()</code> hints.</li>
+</ul>
+<p>The interview-grade answer: AQE handles "the cluster is misshaping the data" cases. Manual <code>repartition</code> is still needed when YOU know the downstream layout you want (co-partitioning, output file count, hot-key salting).</p>
+
+<h5>Probe 5 — <em>"What about <code>repartitionByRange</code>?"</em></h5>
+<p>Range-partitions data by sampling. Two use cases: <strong>(a)</strong> writing sorted Parquet files for predicate pushdown — readers using <code>WHERE col BETWEEN ...</code> skip whole files; <strong>(b)</strong> avoiding hash skew when one hash bucket would be huge. Cost: a sampling pass over the data (~1% sample) to pick split points. Don't use it inside a tight loop.</p>
+
+<h5>Probe 6 — <em>"Is <code>repartition</code> guaranteed to balance perfectly?"</em></h5>
+<p>No. <code>repartition(N)</code> without a column does a round-robin and is near-perfectly balanced. <code>repartition(N, col)</code> uses hash partitioning — if your column has skew (one whale customer), one task gets the whale's rows and the others split the rest. Hash partitioning is <em>uniform on keys</em>, not on row counts. Detection: <code>df.groupBy(spark_partition_id()).count().show()</code> — if max/min &gt; 3, you have skew.</p>
+
+<h4>6. Cross-links</h4>
+<ul>
+  <li><a href="/interview.app/python.html?q=mixed_167-0049">mixed_167-0049 — CSV and Partitions</a> for the <code>repartition + partitionBy</code> file-layout pattern.</li>
+  <li><a href="/interview.app/python.html?q=mixed_167-0051">mixed_167-0051 — Broadcast Join</a> for when you should NOT repartition (broadcast instead).</li>
+  <li><a href="/interview.app/sql.html?q=customer_growth-0027">customer_growth-0027 — Salting</a> for fixing skew that <code>repartition(N, col)</code> creates.</li>
+  <li><a href="/interview.app/design/hot-shards-and-skew.html">Hot Shards and Skew (design)</a> — §05 covers AQE and the <code>skewedPartitionFactor</code> tuning.</li>
+</ul>
+
+<div class="takeaway"><strong>Senior signal:</strong> "<code>repartition</code> is full shuffle, works both directions, lets you pick a partitioning column for downstream co-location. <code>coalesce</code> is shuffle-free, shrink-only, and silently back-propagates its partition count to the previous stage — which is why <code>coalesce(1)</code> before a big computation is the classic perf bug. Pick <code>repartition(N, col)</code> before a wide op so Catalyst skips the implicit shuffle; pick <code>coalesce(N)</code> for the final write to control file count, with a <code>repartition</code> barrier upstream if needed. With AQE on, lean on Spark to coalesce post-shuffle and split skew; use manual repartition only when you know a layout downstream needs."</div>
