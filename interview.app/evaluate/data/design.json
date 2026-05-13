@@ -3397,7 +3397,7 @@
         "Consumer code is in an infinite loop"
       ],
       "answer": 1,
-      "explanation": "Linear lag growth with idle consumer CPU and idle Kafka throughput is the classic signature of a slow sink: the consumer polls a batch, blocks on the write, polls another batch, blocks again. The bottleneck is downstream, not Kafka or the consumer itself. Disk-full would surface as producer errors. Corrupt headers would crash the consumer (not look idle). Infinite loop would peg CPU."
+      "explanation": "Linear lag growth with **idle consumer CPU** and **idle Kafka throughput** is the classic signature of a **slow sink**: the consumer polls a batch, blocks on the downstream write, polls another batch, blocks again. The bottleneck is downstream, not Kafka or the consumer itself.\n\n- Disk-full would surface as producer-side errors and producer back-off, not consumer lag with idle pods.\n- Corrupt headers would *crash* the consumer or stall it on bad messages \u2014 CPU spikes and partitions stop advancing, not \"linear lag with 15% CPU.\"\n- Infinite loop would peg consumer CPU near 100%.\n\n**Why this pattern is so common at scale**\n\n*Uber \u2014 driver earnings reconciliation.* A streaming job consumes Trip-Completed events from Kafka and updates `driver_earnings` in MySQL/Postgres. During a surge (NYE 23:55\u201300:05) the table hits row-lock contention. Consumer threads spend 90% of wall-clock waiting for COMMIT to return. CPU stays low \u2014 the consumer is in `wait(2)`, not running code. Meanwhile producers don't slow down: trips keep completing, so the lag grows linearly until surge subsides or the write path is widened.\n\n*Netflix \u2014 Keystone playback ingestion.* A consumer of the playback-events Keystone pipeline writes to a Cassandra cluster keyed by `user_id`. One Cassandra node enters a Stop-The-World G1 GC pause (or hits compaction threshold). The synchronous write to a quorum of replicas slows to the speed of the slowest node. Lag jumps from seconds to hours. The consumer is just passing data through \u2014 no heavy compute \u2014 so CPU stays idle.\n\n**Architectural mitigations (in order of typical adoption)**\n\n| Pattern | How it works | What it buys you |\n| --- | --- | --- |\n| **Async / batched writes** | Consumer fires writes without waiting per-record; commits Kafka offsets only after a batch confirms. | Decouples consumer throughput from sink p99. |\n| **Bounded write queue + back-pressure** | Internal queue between consumer and sink with a max depth; when full, consumer pauses Kafka polling. | Prevents OOM and gives Kafka clear back-pressure signal. |\n| **Dead-Letter Queue (DLQ)** | Records that repeatedly fail or whose key is \"hot\" are diverted to a side topic for offline handling. | Eliminates head-of-line blocking by one bad key. |\n| **Per-key partitioning + parallel writers** | Within one consumer, fan out writes across worker threads keyed by something other than the Kafka partition key. | Lets one stalled key stop only its own lane. |\n| **Sidecar / service-mesh throttling + circuit breaker** | The proxy in front of the sink trips when sink p99 crosses a threshold; consumer sees fast failures instead of slow waits. | Prevents the \"death spiral\" where a struggling sink gets hammered by retries and stays slow. |\n\n**The circuit-breaker trade-off**\n\nCircuit breakers don't make the lag disappear \u2014 they relocate it. When the breaker trips, the consumer fast-fails or buffers; Kafka lag continues to grow but the consumer stays responsive and the sink gets a chance to recover. The right design is usually:\n\n1. Circuit-break the sink so the consumer is honest about the constraint\n2. Send \"tripped\" records to a retry queue or DLQ (don't drop on the floor)\n3. Auto-scale consumers AND surface lag-on-source as the SLO \u2014 accepting that \"the lag was visible at the source\" is a feature, not a bug.\n\nThe wrong design is to retry-with-exponential-backoff inside the consumer with no breaker: a slow sink gets DDoSed by its own clients, and lag continues to grow."
     },
     {
       "id": "ds-207",
@@ -4569,6 +4569,74 @@
         "Sets success criteria with measurable outcomes (zero OOMs, top-10 dashboards migrated, PII tagging on top 100 tables)",
         "Explicitly defers year-2 items (schema registry, lineage tool, ML platform, cost attribution) to keep scope honest"
       ]
+    },
+    {
+      "id": "ds-276",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "A Kafka consumer writes synchronously to a Postgres OLTP table; the table is the bottleneck. Which design change MOST decouples the consumer's throughput from the database's per-write latency?",
+      "options": [
+        "Increase the number of Kafka partitions",
+        "Switch the consumer to ASYNC batched writes \u2014 consume a batch from Kafka, fire all inserts without waiting per-row, commit the Kafka offset only after the batch's ACK returns",
+        "Reduce the Kafka consumer's `max.poll.records`",
+        "Move the consumer pods to faster nodes (more CPU)"
+      ],
+      "answer": 1,
+      "explanation": "**Async batched writes** are the canonical pattern. The consumer reads N records, dispatches them all to the DB in parallel (or as a batch INSERT), and only commits the Kafka offset once the DB confirms. While those writes are in flight, the consumer can already be polling the next batch.\n\n- More partitions adds *parallelism* but each consumer thread still blocks on each write \u2014 doesn't help if the DB itself is the bottleneck.\n- Smaller `max.poll.records` makes the problem *worse* \u2014 you commit and poll more often, paying the per-batch overhead more times.\n- Faster CPUs are irrelevant: the consumer is in `wait()`, not burning CPU.\n\nThe corollary: async writes mean you must handle partial-batch failures explicitly. The Kafka offset can only advance once you know which records made it. Implementations: an in-memory queue with bounded depth + ACK callbacks, or a transactional outbox if you need exactly-once semantics across the consumer and sink."
+    },
+    {
+      "id": "ds-277",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "A Kafka topic is keyed by `user_id`. One user \u2014 call them 'big tenant A' \u2014 produces 40% of the volume. Their writes to the downstream sink are slow (their target rows are heavily locked). This is causing the ENTIRE partition that holds A's records to lag, blocking OTHER users in the same partition. What is this called and what fixes it?",
+      "options": [
+        "Cross-partition contention \u2014 fix by adding more brokers",
+        "Head-of-line blocking \u2014 A's slow writes hold up other users' records that share A's partition. Fix: re-key by a finer-grained value (e.g., `hash(user_id, session_id)`), or shunt A's records to a dedicated DLQ/lane processed separately",
+        "Consumer rebalance storm \u2014 fix by tuning `session.timeout.ms`",
+        "Producer back-pressure \u2014 fix by enabling idempotent producers"
+      ],
+      "answer": 1,
+      "explanation": "**Head-of-line blocking** is the standard term: in a partition (or any FIFO queue), one slow record at the head of the queue stalls everything behind it, even though the other records are healthy. Kafka guarantees in-partition order, so within a partition you can't skip A's records to process B's.\n\nFixes, in order of operational complexity:\n\n1. **Re-key to a finer grain** so A's volume spreads across many partitions instead of one. Trade-off: you lose strict per-user ordering \u2014 accept this if the use case can tolerate it (analytics usually can; financial ledgers usually can't).\n2. **Isolate the hot key** into its own dedicated consumer group / topic / pipeline. Big tenants get their own lane. Common at Snowflake, Databricks, Uber.\n3. **DLQ on slow-write threshold**: records that don't drain within N seconds get shunted to a retry topic with a slower SLA, so the main pipeline keeps moving.\n4. **Per-key worker pool inside the consumer**: dispatch records to N parallel writer threads keyed by something downstream of the Kafka partition. Within one consumer, A's writes don't block B's. (You lose strict partition order; same trade-off as #1.)\n\nMore brokers (option 0), rebalance tuning (option 2), and idempotent producers (option 3) are all unrelated: they don't address the fact that one key's slow downstream is blocking other keys in the SAME partition."
+    },
+    {
+      "id": "ds-278",
+      "type": "single",
+      "topic": "Streaming",
+      "difficulty": "hard",
+      "prompt": "You add a circuit breaker on the consumer: when the sink's p99 write latency exceeds 5s for 30s, the breaker trips and the consumer fast-fails inserts (which then get retried later from a DLQ). The breaker activates during an incident. What happens to the lag?",
+      "options": [
+        "Lag drops to near-zero because the consumer is no longer blocked",
+        "Lag continues to grow \u2014 the breaker doesn't make data process faster; it just shifts the queue from 'in-flight DB writes' to 'Kafka offset + DLQ depth' so the consumer stays responsive and the sink gets a chance to recover",
+        "Lag is unaffected \u2014 the breaker only changes error rates, not throughput",
+        "Lag spikes higher because retries are now serialized through the DLQ"
+      ],
+      "answer": 1,
+      "explanation": "A circuit breaker is **not** a performance optimization. It's a containment pattern: it stops the consumer from making a struggling sink worse (the 'death spiral' where retries DDoS a slow DB). The lag doesn't disappear \u2014 it relocates to a place where you can see it:\n\n- **Before the breaker**: lag lives as 'in-flight DB writes' + 'Kafka consumer waiting on COMMIT'. Hard to alert on; looks like 'slow consumer.'\n- **After the breaker trips**: lag lives as 'Kafka consumer offset' + 'DLQ depth'. Both are first-class metrics you can chart and SLO on.\n\nThe right way to design around this:\n\n1. Circuit-break the sink so the consumer is *honest* about the constraint instead of silently piling up.\n2. Failed records land in a retry queue / DLQ \u2014 never drop on the floor.\n3. Auto-scale consumers AND the sink based on lag-on-source SLO.\n4. Accept that 'the lag was visible at the source' is the goal \u2014 not 'the lag disappeared.'\n\nOption 0 misunderstands what a breaker does; option 2 is wrong because errors \u2192 DLQ \u2192 backlog ARE throughput changes; option 3 conflates serialized retries with the breaker's main effect."
+    },
+    {
+      "id": "ds-279",
+      "type": "multi",
+      "topic": "Streaming",
+      "difficulty": "medium",
+      "prompt": "You're designing a Kafka \u2192 downstream-sink consumer that must degrade gracefully when the sink slows down. Which patterns are reasonable parts of the design? (Select all that apply.)",
+      "options": [
+        "Async / batched writes so the consumer doesn't block per-record",
+        "Bounded in-memory queue between consumer and sink, with the consumer pausing Kafka polling when the queue is full",
+        "Naked exponential-backoff retries with no upper bound and no breaker",
+        "A sidecar circuit breaker that fast-fails writes when the sink's p99 crosses a threshold; failed records go to a DLQ",
+        "A separate per-tenant 'big-customer' lane / topic so one heavy tenant can't head-of-line-block the shared pipeline",
+        "Lag-on-source SLO + auto-scaling consumers so backlog drains once the sink recovers"
+      ],
+      "answer": [
+        0,
+        1,
+        3,
+        4,
+        5
+      ],
+      "explanation": "All five selected patterns are standard parts of a production-grade Kafka-to-slow-sink pipeline:\n\n- **Async batched writes** decouple per-record sink latency from consumer throughput.\n- **Bounded internal queue + pause polling** gives Kafka clean back-pressure and prevents OOM.\n- **Circuit breaker + DLQ** stops the death spiral where retries DDoS a struggling sink.\n- **Per-tenant lanes** prevent head-of-line blocking from one heavy customer.\n- **Lag SLO + auto-scaling** treats lag as the durable signal \u2014 accepted, alerted, drained \u2014 rather than something to hide.\n\nThe **wrong** pattern is option 2 (naked exponential backoff with no breaker / no upper bound). At scale this is the canonical anti-pattern: when the sink is struggling, the consumer hammers it with retries that take *longer* per attempt; the sink slows further; retries pile up; eventually the consumer OOMs or the sink falls over. Always pair retries with a breaker, a budget, and a DLQ."
     }
   ]
 }
