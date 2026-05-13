@@ -2,7 +2,7 @@
    Skill Check — Quiz Engine v2
    - Pool randomization (each attempt pulls N from the bank)
    - Option order shuffling (single/multi)
-   - In-browser code execution (sql.js for SQL, Pyodide for Python)
+   - In-browser code execution (PGlite Postgres-WASM for SQL, Pyodide for Python)
    - localStorage persistence with version-keyed migrations
    ═══════════════════════════════════════════ */
 
@@ -33,9 +33,9 @@ const state = {
 
 // Lazy runtime singletons
 const runtimes = {
-  sqlite: null,        // sql.js Database
+  pglite: null,        // PGlite Postgres-WASM instance
   pyodide: null,       // Pyodide instance
-  loadingSqlite: null, // pending promise
+  loadingPglite: null, // pending promise
   loadingPyodide: null,
 };
 
@@ -282,7 +282,7 @@ function renderCode(q) {
   const value = typeof stored === "string" ? stored : (q.starter || "");
   const schemaPanel = q.schema ? `
     <details class="q-code-schema">
-      <summary>Schema &amp; sample data (preloaded into SQLite)</summary>
+      <summary>Schema &amp; sample data (preloaded into PostgreSQL · PGlite)</summary>
       <pre><code>${escapeHTML(q.schema)}</code></pre>
     </details>
   ` : "";
@@ -432,7 +432,7 @@ function countAnswered() {
 }
 
 // ──────────────────────────────────────────
-// Code execution — sql.js for SQL, Pyodide for Python
+// Code execution — PGlite (Postgres-WASM) for SQL, Pyodide for Python
 // ──────────────────────────────────────────
 async function runCode(q) {
   const ta = document.getElementById(`q-code-${q.id}`);
@@ -445,9 +445,9 @@ async function runCode(q) {
 
   if (q.language === "sql") {
     if (!q.schema) { renderRunOutput(q, "error", "<em>No schema attached to this question — can't run.</em>"); return; }
-    setRunStatus(statusEl, "Loading SQLite…");
+    setRunStatus(statusEl, "Loading PostgreSQL (PGlite, ~14 MB on first run, cached afterwards)…");
     try {
-      await ensureSqlite();
+      await ensurePglite();
       setRunStatus(statusEl, "Running…");
       const result = await runSQL(q.schema, src);
       const html = renderSqlResult(result, q.expected_rows);
@@ -493,37 +493,87 @@ function setRunStatus(el, text, kind) {
   el.className = `q-run-status${kind ? " q-status-" + kind : ""}`;
 }
 
-// ── sql.js ──
-async function ensureSqlite() {
-  if (runtimes.sqlite) return runtimes.sqlite;
-  if (runtimes.loadingSqlite) return runtimes.loadingSqlite;
-  runtimes.loadingSqlite = (async () => {
-    if (typeof window.initSqlJs !== "function") {
-      throw new Error("sql.js failed to load — check your network or ad blocker.");
-    }
-    const SQL = await window.initSqlJs({ locateFile: (file) => `../vendor/sql.js/${file}` });
-    runtimes.sqlite = { SQL };
-    return runtimes.sqlite;
+// ── PGlite (Postgres-WASM) ──
+async function ensurePglite() {
+  if (runtimes.pglite) return runtimes.pglite;
+  if (runtimes.loadingPglite) return runtimes.loadingPglite;
+  runtimes.loadingPglite = (async () => {
+    // Dynamic import of the vendored PGlite ES module. Path resolved against
+    // the page URL (quiz.html at /interview.app/evaluate/), so we go up one
+    // level to reach the shared /interview.app/vendor/pglite/ directory.
+    const mod = await import("../vendor/pglite/index.js");
+    const PGlite = mod.PGlite || mod.default?.PGlite || mod.default;
+    if (!PGlite) throw new Error("PGlite module did not expose a PGlite class");
+    runtimes.pglite = await PGlite.create();
+    return runtimes.pglite;
   })();
-  return runtimes.loadingSqlite;
+  return runtimes.loadingPglite;
+}
+
+// Best-effort SQL statement splitter. Skips ;'s inside quoted strings,
+// line comments, block comments, and parens. Adapted from the existing
+// /interview.app/js/engines/pglite-engine.js — same shape, no PL/pgSQL.
+function splitStatements(sql) {
+  const out = [];
+  let depth = 0;
+  let cur = [];
+  let inSingle = false, inDouble = false, inLine = false, inBlock = false;
+  for (let i = 0; i < sql.length; i++) {
+    const c = sql[i], n = sql[i + 1];
+    if (inLine) { cur.push(c); if (c === "\n") inLine = false; continue; }
+    if (inBlock) { cur.push(c); if (c === "*" && n === "/") { cur.push(n); i++; inBlock = false; } continue; }
+    if (inSingle) { cur.push(c); if (c === "'" && n === "'") { cur.push(n); i++; } else if (c === "'") inSingle = false; continue; }
+    if (inDouble) { cur.push(c); if (c === '"' && n === '"') { cur.push(n); i++; } else if (c === '"') inDouble = false; continue; }
+    if (c === "-" && n === "-") { cur.push(c); inLine = true; continue; }
+    if (c === "/" && n === "*") { cur.push(c); inBlock = true; continue; }
+    if (c === "'") { cur.push(c); inSingle = true; continue; }
+    if (c === '"') { cur.push(c); inDouble = true; continue; }
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    if (c === ";" && depth === 0) { out.push(cur.join("")); cur = []; continue; }
+    cur.push(c);
+  }
+  if (cur.length) out.push(cur.join(""));
+  return out;
+}
+
+// PGlite returns JS Date objects for DATE / TIMESTAMP columns; render them
+// as ISO strings to match how the renderer treats the rest of the values.
+function pgliteNormalize(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) {
+    // Drop the trailing 'Z' and microseconds for a stable string form.
+    return v.toISOString().replace("T", " ").replace(/\.\d+Z$/, "");
+  }
+  return v;
 }
 
 async function runSQL(schema, userSql) {
-  const { SQL } = await ensureSqlite();
-  const db = new SQL.Database();
+  const db = await ensurePglite();
+  // Each Run is isolated: drop and recreate the public schema, then load
+  // the question's CREATE/INSERT, then execute the user's query.
+  await db.exec("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;");
   try {
-    db.exec(schema);
+    await db.exec(schema);
   } catch (e) {
     throw new Error("Schema setup failed: " + e.message);
   }
-  let results;
-  try {
-    results = db.exec(userSql);
-  } catch (e) {
-    db.close();
-    throw e;
+  // Split user SQL into statements and execute one-by-one; collect result
+  // sets in the same {columns, values} shape that sql.js returned, so the
+  // existing renderer keeps working unchanged.
+  const stmts = splitStatements(userSql);
+  const results = [];
+  for (const s of stmts) {
+    const trimmed = s.trim();
+    if (!trimmed) continue;
+    const res = await db.query(trimmed);
+    if (res.fields && res.fields.length && res.rows && res.rows.length !== undefined) {
+      results.push({
+        columns: res.fields.map(f => f.name),
+        values: res.rows.map(row => res.fields.map(f => pgliteNormalize(row[f.name]))),
+      });
+    }
   }
-  db.close();
   return results;
 }
 

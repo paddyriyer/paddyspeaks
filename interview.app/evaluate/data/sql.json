@@ -237,7 +237,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE login (user_id INTEGER, login_date TEXT);\nINSERT INTO login VALUES\n  (1,'2025-01-01'),(1,'2025-01-02'),(1,'2025-01-03'),(1,'2025-01-05'),\n  (2,'2025-02-01'),(2,'2025-02-02'),(2,'2025-02-04'),(2,'2025-02-05'),\n  (3,'2025-03-10'),(3,'2025-03-11'),(3,'2025-03-12'),(3,'2025-03-13'),\n  (4,'2025-04-01');",
-      "model_answer": "WITH dt AS (\n  SELECT DISTINCT user_id, login_date FROM login\n),\ngrouped AS (\n  SELECT user_id, login_date,\n         date(login_date, '-' || ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY login_date) || ' days') AS streak_key\n  FROM dt\n),\nstreaks AS (\n  SELECT user_id, streak_key, COUNT(*) AS streak_len\n  FROM grouped\n  GROUP BY user_id, streak_key\n)\nSELECT DISTINCT user_id FROM streaks WHERE streak_len >= 3 ORDER BY user_id;",
+      "model_answer": "WITH dt AS (\n  SELECT DISTINCT user_id, login_date::date AS d FROM login\n),\ngrouped AS (\n  SELECT user_id, d,\n         d - (ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY d))::integer AS streak_key\n  FROM dt\n),\nstreaks AS (\n  SELECT user_id, streak_key, COUNT(*) AS streak_len\n  FROM grouped\n  GROUP BY user_id, streak_key\n)\nSELECT DISTINCT user_id FROM streaks WHERE streak_len >= 3 ORDER BY user_id;",
       "expected_rows": [
         {
           "user_id": 1
@@ -1717,7 +1717,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE signups (user_id INTEGER, signup_date DATE);\nINSERT INTO signups VALUES (1, '2025-01-15'), (2, '2025-01-20'), (3, '2025-03-05'), (4, '2025-03-12'), (5, '2025-03-30'), (6, '2025-06-01');",
-      "model_answer": "-- SQLite-compatible: bucket by first-of-month string\nSELECT\n  substr(signup_date, 1, 7) || '-01' AS month_start,\n  COUNT(*) AS signup_count\nFROM signups\nWHERE signup_date >= '2025-01-01' AND signup_date < '2026-01-01'\nGROUP BY substr(signup_date, 1, 7)\nORDER BY month_start;\n-- Postgres: DATE_TRUNC('month', signup_date) AS month_start; combined with a generate_series LEFT JOIN to fill missing months with 0",
+      "model_answer": "SELECT\n  to_char(date_trunc('month', signup_date::date), 'YYYY-MM-DD') AS month_start,\n  COUNT(*)::int AS signup_count\nFROM signups\nWHERE signup_date::date >= '2025-01-01' AND signup_date::date < '2026-01-01'\nGROUP BY date_trunc('month', signup_date::date)\nORDER BY month_start;",
       "expected_rows": [
         {
           "month_start": "2025-01-01",
@@ -2006,7 +2006,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE dates_with_gaps (d TEXT);\nINSERT INTO dates_with_gaps VALUES ('2025-01-01'),('2025-01-03'),('2025-01-04'),('2025-01-07');",
-      "model_answer": "WITH RECURSIVE spine AS (\n  SELECT (SELECT MIN(d) FROM dates_with_gaps) AS d\n  UNION ALL\n  SELECT date(d, '+1 day') FROM spine\n  WHERE d < (SELECT MAX(d) FROM dates_with_gaps)\n)\nSELECT\n  s.d,\n  CASE WHEN g.d IS NOT NULL THEN 1 ELSE 0 END AS present\nFROM spine s\nLEFT JOIN dates_with_gaps g ON g.d = s.d\nORDER BY s.d;",
+      "model_answer": "WITH RECURSIVE spine AS (\n  SELECT (SELECT MIN(d::date) FROM dates_with_gaps) AS d,\n         (SELECT MAX(d::date) FROM dates_with_gaps) AS max_d\n  UNION ALL\n  SELECT d + 1, max_d FROM spine WHERE d < max_d\n)\nSELECT\n  to_char(s.d, 'YYYY-MM-DD') AS d,\n  CASE WHEN g.d IS NOT NULL THEN 1 ELSE 0 END AS present\nFROM spine s\nLEFT JOIN dates_with_gaps g ON g.d::date = s.d\nORDER BY s.d;",
       "expected_rows": [
         {
           "d": "2025-01-01",
@@ -2134,7 +2134,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE daily (d TEXT, v INTEGER);\nINSERT INTO daily VALUES ('2025-01-01',10),('2025-01-02',20),('2025-01-03',30),('2025-01-04',40),('2025-01-05',50);",
-      "model_answer": "SELECT\n  d,\n  v,\n  ROUND(AVG(v) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING), 2) AS ma\nFROM daily\nORDER BY d;",
+      "model_answer": "SELECT\n  d,\n  v,\n  ROUND(AVG(v) OVER (ORDER BY d ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)::numeric, 2)::float AS ma\nFROM daily\nORDER BY d;",
       "expected_rows": [
         {
           "d": "2025-01-01",
@@ -2671,7 +2671,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE event (user_id INTEGER, ts TEXT);\nINSERT INTO event VALUES\n  (1,'2025-01-01 09:00:00'),(1,'2025-01-01 09:10:00'),(1,'2025-01-01 09:20:00'),\n  (1,'2025-01-01 11:00:00'),(1,'2025-01-01 11:05:00'),\n  (2,'2025-01-01 10:00:00'),(2,'2025-01-01 12:00:00');",
-      "model_answer": "WITH flagged AS (\n  SELECT\n    user_id,\n    ts,\n    CASE\n      WHEN LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL THEN 1\n      WHEN (julianday(ts) - julianday(LAG(ts) OVER (PARTITION BY user_id ORDER BY ts))) * 24 * 60 > 30 THEN 1\n      ELSE 0\n    END AS is_new_session\n  FROM event\n)\nSELECT\n  user_id,\n  ts,\n  SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS session_id\nFROM flagged\nORDER BY user_id, ts;",
+      "model_answer": "WITH flagged AS (\n  SELECT\n    user_id,\n    ts,\n    CASE\n      WHEN LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL THEN 1\n      WHEN EXTRACT(EPOCH FROM (ts::timestamp - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts)::timestamp))/60 > 30 THEN 1\n      ELSE 0\n    END AS is_new_session\n  FROM event\n)\nSELECT\n  user_id,\n  ts,\n  SUM(is_new_session) OVER (PARTITION BY user_id ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::int AS session_id\nFROM flagged\nORDER BY user_id, ts;",
       "expected_rows": [
         {
           "user_id": 1,
@@ -2725,7 +2725,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE event (user_id INTEGER, step TEXT, ts TEXT);\nINSERT INTO event VALUES\n  (1,'view','2025-01-01 09:00'),(1,'cart','2025-01-01 09:05'),(1,'purchase','2025-01-01 09:10'),\n  (2,'view','2025-01-01 09:00'),(2,'cart','2025-01-01 09:01'),\n  (3,'view','2025-01-01 09:00'),\n  (4,'cart','2025-01-01 09:00'),(4,'view','2025-01-01 09:05'),\n  (5,'view','2025-01-01 09:00'),(5,'purchase','2025-01-01 09:05');",
-      "model_answer": "WITH firsts AS (\n  SELECT user_id,\n         MIN(CASE WHEN step='view' THEN ts END) AS view_ts,\n         MIN(CASE WHEN step='cart' THEN ts END) AS cart_ts,\n         MIN(CASE WHEN step='purchase' THEN ts END) AS purchase_ts\n  FROM event\n  GROUP BY user_id\n),\nflags AS (\n  SELECT\n    user_id,\n    view_ts IS NOT NULL AS reached_view,\n    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND cart_ts >= view_ts) AS reached_cart,\n    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND purchase_ts IS NOT NULL\n      AND cart_ts >= view_ts AND purchase_ts >= cart_ts) AS reached_purchase\n  FROM firsts\n)\nSELECT 'view' AS step, SUM(reached_view) AS users FROM flags\nUNION ALL\nSELECT 'cart', SUM(reached_cart) FROM flags\nUNION ALL\nSELECT 'purchase', SUM(reached_purchase) FROM flags;",
+      "model_answer": "WITH firsts AS (\n  SELECT user_id,\n         MIN(CASE WHEN step='view' THEN ts END) AS view_ts,\n         MIN(CASE WHEN step='cart' THEN ts END) AS cart_ts,\n         MIN(CASE WHEN step='purchase' THEN ts END) AS purchase_ts\n  FROM event\n  GROUP BY user_id\n),\nflags AS (\n  SELECT\n    user_id,\n    (view_ts IS NOT NULL)::int AS reached_view,\n    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND cart_ts >= view_ts)::int AS reached_cart,\n    (view_ts IS NOT NULL AND cart_ts IS NOT NULL AND purchase_ts IS NOT NULL\n      AND cart_ts >= view_ts AND purchase_ts >= cart_ts)::int AS reached_purchase\n  FROM firsts\n)\nSELECT 'view' AS step, SUM(reached_view) AS users FROM flags\nUNION ALL\nSELECT 'cart', SUM(reached_cart) FROM flags\nUNION ALL\nSELECT 'purchase', SUM(reached_purchase) FROM flags;",
       "expected_rows": [
         {
           "step": "view",
@@ -2787,7 +2787,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE daily (d TEXT, v REAL);\nINSERT INTO daily VALUES\n  ('2025-01-01',10),('2025-01-02',12),('2025-01-03',11),('2025-01-04',13),\n  ('2025-01-05',12),('2025-01-06',14),('2025-01-07',11),('2025-01-08',50);",
-      "model_answer": "WITH stats AS (\n  SELECT\n    d,\n    v,\n    AVG(v)  OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS mu,\n    -- population variance: E[v^2] - (E[v])^2\n    AVG(v*v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)\n      - AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)\n      * AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS var_pop\n  FROM daily\n)\nSELECT\n  d,\n  v,\n  CASE WHEN var_pop = 0 THEN NULL\n       ELSE ROUND((v - mu) / sqrt(var_pop), 3) END AS z\nFROM stats\nORDER BY d;",
+      "model_answer": "WITH stats AS (\n  SELECT\n    d,\n    v,\n    AVG(v)  OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS mu,\n    AVG(v*v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)\n      - AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)\n      * AVG(v) OVER (ORDER BY d ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS var_pop\n  FROM daily\n)\nSELECT\n  d,\n  v,\n  CASE WHEN var_pop = 0 THEN NULL\n       ELSE ROUND(((v - mu) / sqrt(var_pop))::numeric, 3)::float END AS z\nFROM stats\nORDER BY d;",
       "expected_rows": [
         {
           "d": "2025-01-01",
@@ -2847,7 +2847,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE sparse (d TEXT, v INTEGER);\nINSERT INTO sparse VALUES ('2025-03-01',5),('2025-03-04',8),('2025-03-05',2);",
-      "model_answer": "WITH RECURSIVE spine(d) AS (\n  SELECT MIN(d) FROM sparse\n  UNION ALL\n  SELECT date(d, '+1 day') FROM spine\n  WHERE d < (SELECT MAX(d) FROM sparse)\n)\nSELECT s.d, COALESCE(p.v, 0) AS v\nFROM spine s\nLEFT JOIN sparse p ON p.d = s.d\nORDER BY s.d;",
+      "model_answer": "WITH RECURSIVE spine(d, max_d) AS (\n  SELECT (SELECT MIN(d::date) FROM sparse), (SELECT MAX(d::date) FROM sparse)\n  UNION ALL\n  SELECT d + 1, max_d FROM spine WHERE d < max_d\n)\nSELECT to_char(s.d, 'YYYY-MM-DD') AS d, COALESCE(p.v, 0) AS v\nFROM spine s\nLEFT JOIN sparse p ON p.d::date = s.d\nORDER BY s.d;",
       "expected_rows": [
         {
           "d": "2025-03-01",
@@ -3409,7 +3409,7 @@
       "language": "sql",
       "starter": "-- Your SQL here\n",
       "schema": "CREATE TABLE event (id INTEGER, user_id INTEGER, event_type TEXT, ts TEXT);\nINSERT INTO event VALUES\n  (1,1,'signup','2025-01-01 10:00'),(2,1,'view','2025-01-01 11:00'),\n  (3,2,'view','2025-01-01 10:00'),(4,2,'signup','2025-01-01 11:00'),\n  (5,3,'signup','2025-01-01 10:00'),(6,3,'view','2025-01-03 11:00'),\n  (7,4,'signup','2025-01-01 10:00'),(8,4,'cart','2025-01-01 12:00'),(9,4,'purchase','2025-01-01 13:00');",
-      "model_answer": "WITH ordered AS (\n  SELECT\n    user_id,\n    event_type,\n    ts,\n    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) AS rn\n  FROM event\n),\nfirst_two AS (\n  SELECT\n    user_id,\n    MAX(CASE WHEN rn=1 THEN event_type END) AS first_type,\n    MAX(CASE WHEN rn=1 THEN ts END) AS first_ts,\n    MAX(CASE WHEN rn=2 THEN ts END) AS second_ts\n  FROM ordered\n  WHERE rn <= 2\n  GROUP BY user_id\n)\nSELECT user_id\nFROM first_two\nWHERE first_type = 'signup'\n  AND second_ts IS NOT NULL\n  AND (julianday(second_ts) - julianday(first_ts)) * 24 <= 24\nORDER BY user_id;",
+      "model_answer": "WITH ordered AS (\n  SELECT\n    user_id,\n    event_type,\n    ts,\n    ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts) AS rn\n  FROM event\n),\nfirst_two AS (\n  SELECT\n    user_id,\n    MAX(CASE WHEN rn=1 THEN event_type END) AS first_type,\n    MAX(CASE WHEN rn=1 THEN ts END) AS first_ts,\n    MAX(CASE WHEN rn=2 THEN ts END) AS second_ts\n  FROM ordered\n  WHERE rn <= 2\n  GROUP BY user_id\n)\nSELECT user_id\nFROM first_two\nWHERE first_type = 'signup'\n  AND second_ts IS NOT NULL\n  AND EXTRACT(EPOCH FROM (second_ts::timestamp - first_ts::timestamp))/3600 <= 24\nORDER BY user_id;",
       "expected_rows": [
         {
           "user_id": 1
@@ -4687,7 +4687,7 @@
       "type": "code",
       "topic": "Window Functions",
       "difficulty": "hard",
-      "prompt": "Emulate an ASOF JOIN in SQLite (no native ASOF, no `IGNORE NULLS`). Schema:\n\n- `quotes(ts, symbol, bid)` \u2014 bid updates per symbol\n- `trades(ts, symbol, qty)` \u2014 trades per symbol\n\nFor each trade, return the most recent bid AT-OR-BEFORE the trade time, per symbol. Use the window-function-fill pattern. Return columns: `trade_ts, symbol, qty, active_bid`. Order by `symbol, trade_ts`.\n\nHint: interleave both tables with UNION ALL, then use `COUNT(bid) OVER (... ROWS UNBOUNDED PRECEDING)` to define fill-forward groups, then `MAX(bid) OVER (PARTITION BY symbol, grp)`. Compute the MAX BEFORE filtering to trade rows \u2014 otherwise WHERE strips the quote rows first and MAX has no bids to find.",
+      "prompt": "Emulate an ASOF JOIN in Postgres without using `IGNORE NULLS` (so this technique works in any SQL with window functions \u2014 Postgres < 14, older BigQuery, MySQL 8). Schema:\n\n- `quotes(ts, symbol, bid)` \u2014 bid updates per symbol\n- `trades(ts, symbol, qty)` \u2014 trades per symbol\n\nFor each trade, return the most recent bid AT-OR-BEFORE the trade time, per symbol. Use the window-function-fill pattern with the gap-fill trick. Return columns: `trade_ts, symbol, qty, active_bid`. Order by `symbol, trade_ts`.\n\nHint: interleave both tables with UNION ALL, then use `COUNT(bid) OVER (... ROWS UNBOUNDED PRECEDING)` to define fill-forward groups, then `MAX(bid) OVER (PARTITION BY symbol, grp)`. Compute the MAX BEFORE filtering to trade rows \u2014 otherwise WHERE strips the quote rows first and MAX has no bids to find.",
       "language": "sql",
       "starter": "-- Your SQL here\n-- Pattern:\n--   timeline CTE (UNION ALL of quotes + trades)\n--   fill CTE (group via COUNT)\n--   with_active CTE (MAX over group \u2014 DO THIS BEFORE WHERE)\n--   final SELECT (filter to trade rows)\n",
       "schema": "CREATE TABLE quotes (ts TEXT, symbol TEXT, bid INTEGER);\nINSERT INTO quotes VALUES\n  ('10:00:00','BTC',60000),\n  ('10:05:00','BTC',60500),\n  ('10:10:00','BTC',61000),\n  ('10:01:00','ETH',3000),\n  ('10:06:00','ETH',3100);\n\nCREATE TABLE trades (ts TEXT, symbol TEXT, qty REAL);\nINSERT INTO trades VALUES\n  ('10:02:00','BTC',0.5),\n  ('10:07:00','BTC',1.2),\n  ('10:03:00','ETH',2.0);",
