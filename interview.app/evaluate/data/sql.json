@@ -3829,6 +3829,843 @@
         "Mentions audit / compliance differences",
         "Gives a practical recommendation with hybrid possibilities"
       ]
+    },
+    {
+      "id": "sql-201",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE users (id INT, status TEXT);\nINSERT INTO users VALUES (1,'active'),(2,'banned'),(3,NULL);\n\nSELECT id FROM users WHERE status != 'banned';\n```\nWhich rows are returned?",
+      "options": [
+        "id = 1 and id = 3 (everyone who is not 'banned')",
+        "id = 1 only",
+        "id = 1, 2, and 3",
+        "An error \u2014 cannot compare NULL with !="
+      ],
+      "answer": 1,
+      "explanation": "`status != 'banned'` evaluates to TRUE for row 1, FALSE for row 2, and NULL (unknown) for row 3 \u2014 because NULL != 'banned' is NULL, not TRUE. WHERE keeps only rows where the predicate is TRUE; NULL is treated like FALSE. To include NULLs you must say `status != 'banned' OR status IS NULL`. This is one of the most common production filtering bugs."
+    },
+    {
+      "id": "sql-202",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE customers (id INT);\nINSERT INTO customers VALUES (1),(2),(3),(4);\n\nCREATE TABLE banned (cid INT);\nINSERT INTO banned VALUES (2), (NULL);\n\nSELECT id FROM customers WHERE id NOT IN (SELECT cid FROM banned);\n```\nWhat does the query return?",
+      "options": [
+        "id = 1, 3, 4 (everyone except the banned customer)",
+        "id = 1, 2, 3, 4",
+        "An empty result set",
+        "An error because the subquery contains NULL"
+      ],
+      "answer": 2,
+      "explanation": "`id NOT IN (2, NULL)` expands to `id != 2 AND id != NULL`. The second comparison is always NULL (unknown). NULL AND anything is NULL or FALSE, so no row is kept \u2014 the entire result is empty. The fix is `NOT EXISTS (SELECT 1 FROM banned b WHERE b.cid = customers.id)`, which is NULL-safe. This single bug has wiped real dashboards."
+    },
+    {
+      "id": "sql-203",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE events (id INT, label TEXT);\nINSERT INTO events VALUES (1,'A'),(2,NULL),(3,'B');\n\nSELECT id,\n  CASE label\n    WHEN 'A' THEN 'alpha'\n    WHEN NULL THEN 'missing'\n    ELSE 'other'\n  END AS bucket\nFROM events;\n```\nWhat does row id=2 return for `bucket`?",
+      "options": [
+        "'missing' \u2014 the WHEN NULL branch matches",
+        "'other' \u2014 because `label = NULL` is NULL, not TRUE, so it falls through to ELSE",
+        "NULL \u2014 because label is NULL",
+        "'alpha' \u2014 NULL is compared as equal to NULL"
+      ],
+      "answer": 1,
+      "explanation": "The simple-CASE form `CASE label WHEN x THEN ...` is rewritten as `label = x`. So `WHEN NULL` becomes `label = NULL` \u2014 which is NULL (unknown), never TRUE. Every NULL row falls through to ELSE. To match NULLs in CASE you must use the searched form: `CASE WHEN label IS NULL THEN 'missing' WHEN label = 'A' THEN ... END`."
+    },
+    {
+      "id": "sql-204",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE scores (student TEXT, points INT);\nINSERT INTO scores VALUES ('Ann',80),('Bob',NULL),('Cara',100);\n\nSELECT SUM(points) AS s, COUNT(points) AS c, AVG(points) AS a FROM scores;\n```\nWhat does this return?",
+      "options": [
+        "s=180, c=3, a=60.0",
+        "s=180, c=2, a=90.0",
+        "s=180, c=3, a=90.0",
+        "s=NULL, c=2, a=NULL"
+      ],
+      "answer": 1,
+      "explanation": "All aggregates silently skip NULL inputs. SUM = 80+100 = 180. COUNT(points) = 2 (NULL excluded). AVG = SUM/COUNT(points) = 180/2 = 90.0 \u2014 NOT 180/3 = 60. The classic AVG trap: a NULL is treated as a missing measurement, so it shrinks the denominator too. If you want NULLs to count as zero, write `AVG(COALESCE(points, 0))`."
+    },
+    {
+      "id": "sql-205",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE refunds (order_id INT, refund_amt NUMERIC);\n-- (table is empty: no refunds today)\n\nSELECT SUM(refund_amt) AS total FROM refunds;\n```\nWhat does the query return?",
+      "options": [
+        "0",
+        "NULL",
+        "An error (SUM requires at least one row)",
+        "Empty result set (zero rows returned)"
+      ],
+      "answer": 1,
+      "explanation": "A SUM over zero rows returns NULL, not 0 \u2014 because there are no values to add. The query still returns ONE row (it is an ungrouped aggregate over the whole table). This bites dashboards that display `total` directly: NULL formats as 'null' or breaks arithmetic. Always wrap with `COALESCE(SUM(refund_amt), 0)` when you need a numeric zero for an empty input."
+    },
+    {
+      "id": "sql-206",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Given (SQLite/Postgres):\n```sql\nCREATE TABLE tags (item_id INT, tag TEXT);\nINSERT INTO tags VALUES (1,'red'),(1,NULL),(1,'blue'),(2,'green'),(2,NULL);\n\nSELECT item_id, GROUP_CONCAT(tag) AS tags FROM tags GROUP BY item_id;\n-- (use STRING_AGG / LISTAGG on engines without GROUP_CONCAT)\n```\nWhat does this return?",
+      "options": [
+        "1: 'red,,blue' \u00b7 2: 'green,'",
+        "1: 'red,blue' \u00b7 2: 'green' (NULLs are silently skipped)",
+        "1: NULL \u00b7 2: NULL (any NULL poisons the aggregate)",
+        "Throws an error because of the NULL"
+      ],
+      "answer": 1,
+      "explanation": "Like all aggregates, GROUP_CONCAT / STRING_AGG / LISTAGG silently SKIP NULL inputs. There is no empty-string placeholder and no error. This is dangerous when the concatenated list is used as a checksum or 'all values' identity \u2014 NULL members vanish and two semantically different groups can hash to the same string. Use `GROUP_CONCAT(COALESCE(tag,'<null>'))` to make NULLs visible."
+    },
+    {
+      "id": "sql-207",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "medium",
+      "prompt": "Given (PostgreSQL):\n```sql\nCREATE TABLE t (id INT, name TEXT, suffix TEXT);\nINSERT INTO t VALUES (1,'Alice','Jr.'),(2,'Bob',NULL),(3,'Cara','Sr.');\n\nSELECT id, name || ' ' || suffix AS full_name FROM t;\n```\nWhat is `full_name` for id=2 in PostgreSQL?",
+      "options": [
+        "'Bob ' (trailing space, suffix treated as empty)",
+        "'Bob' (NULL skipped, no space)",
+        "NULL \u2014 any NULL in a concatenation poisons the whole expression",
+        "'Bob NULL' (literal)"
+      ],
+      "answer": 2,
+      "explanation": "In ANSI / PostgreSQL, the `||` operator returns NULL if any operand is NULL \u2014 NULL propagates through string concatenation. Oracle is the famous exception (treats NULL as ''), and some engines provide `CONCAT(...)` which is NULL-tolerant. Defensive code uses `COALESCE(suffix,'')` for each potentially-NULL piece, or the `CONCAT_WS` separator-based variant where supported."
+    },
+    {
+      "id": "sql-208",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres / SQLite, both support `IS DISTINCT FROM`):\n```sql\nCREATE TABLE t (a INT, b INT);\nINSERT INTO t VALUES (1,1), (1,NULL), (NULL,NULL);\n```\nFor which rows does `a IS DISTINCT FROM b` evaluate to TRUE?",
+      "options": [
+        "Only (1, NULL)",
+        "Only (1, NULL) and (NULL, NULL)",
+        "All three rows",
+        "None of the rows"
+      ],
+      "answer": 0,
+      "explanation": "`IS DISTINCT FROM` is the NULL-safe inequality. It treats two NULLs as equal (so (NULL, NULL) is NOT distinct \u2014 returns FALSE) and treats NULL vs any value as distinct (so (1, NULL) IS distinct \u2014 returns TRUE). Same-value rows like (1,1) are not distinct. Unlike `<>`, IS DISTINCT FROM never returns NULL \u2014 it always yields TRUE or FALSE, which is exactly why you use it."
+    },
+    {
+      "id": "sql-209",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres):\n```sql\nCREATE TABLE t (a INT, b INT);\nINSERT INTO t VALUES (1,1), (NULL,1), (2,2);\n\nSELECT a, b FROM t WHERE (a, b) IN ((NULL, 1));\n```\nHow many rows does this return?",
+      "options": [
+        "1 row: (NULL, 1) \u2014 NULL matches NULL in row constructors",
+        "2 rows: (1,1) and (NULL,1)",
+        "0 rows",
+        "An error \u2014 row constructors disallow NULL"
+      ],
+      "answer": 2,
+      "explanation": "Row-constructor IN does NOT special-case NULL. `(NULL, 1) IN ((NULL, 1))` is computed component-wise as `NULL = NULL AND 1 = 1`, which is `NULL AND TRUE` = NULL \u2014 not TRUE. WHERE keeps only rows where the predicate is TRUE, so the row is dropped. Same trap as scalar `NOT IN` with NULL: the algebra is consistent, but the surface looks like 'tuple equality.' Use `IS NOT DISTINCT FROM` per column to compare NULL-safely."
+    },
+    {
+      "id": "sql-210",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE customers (id INT, name TEXT);\nINSERT INTO customers VALUES (1,'A'),(2,'B'),(3,'C');\n\nCREATE TABLE orders (id INT, customer_id INT, status TEXT);\nINSERT INTO orders VALUES (10,1,'paid'),(11,2,'pending');\n\nSELECT c.id, c.name\nFROM customers c\nLEFT JOIN orders o ON c.id = o.customer_id\nWHERE o.status = 'paid';\n```\nWhat is the result?",
+      "options": [
+        "id 1 only \u2014 the LEFT JOIN was silently converted to an INNER JOIN by the WHERE predicate on the right side",
+        "All three customers, with NULLs for non-paid",
+        "id 1 and id 3 (LEFT JOIN preserves left rows)",
+        "id 1 and id 2"
+      ],
+      "answer": 0,
+      "explanation": "The classic 'LEFT JOIN collapse.' For customer 3, there is no matching row in orders, so `o.status` is NULL on the joined row. `NULL = 'paid'` is NULL (not TRUE), so the WHERE clause drops it. The same logic drops customer 2. Result: only customer 1. To preserve unmatched left rows, move the predicate INTO the ON clause: `LEFT JOIN orders o ON c.id = o.customer_id AND o.status = 'paid'`."
+    },
+    {
+      "id": "sql-211",
+      "type": "code",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Schema: `users(id, name)` and `logins(user_id, login_ts)` (one user may have many login rows). Your colleague has written this query to report 'logins per user' but the numbers look strange compared to a separate count.\n\n```sql\nSELECT u.id, u.name,\n       COUNT(*)              AS logins,\n       COUNT(DISTINCT s.id)  AS sessions\nFROM users u\nLEFT JOIN logins   l ON u.id = l.user_id\nLEFT JOIN sessions s ON u.id = s.user_id\nGROUP BY u.id, u.name;\n```\n\nRun it once \u2014 for user 1 (who has 2 logins and 3 sessions), you'll see `logins = 6`, not 2. Explain (in your head) the row-multiplication, then write the CORRECT query that returns `id, name, logins, sessions` with the genuine counts (no double-counting from the join). Order by id.",
+      "language": "sql",
+      "starter": "-- Return id, name, logins, sessions with genuine (non-inflated) counts.\n-- Use COUNT(DISTINCT ...) on the right unique keys, or pre-aggregate.\n",
+      "schema": "CREATE TABLE users (id INT, name TEXT);\nINSERT INTO users VALUES (1,'Alice'),(2,'Bob');\nCREATE TABLE logins (id INT, user_id INT, login_ts TEXT);\nINSERT INTO logins VALUES (100,1,'2025-01-01'),(101,1,'2025-01-02'),(102,2,'2025-01-03');\nCREATE TABLE sessions (id INT, user_id INT);\nINSERT INTO sessions VALUES (500,1),(501,1),(502,1),(503,2);",
+      "model_answer": "SELECT u.id, u.name,\n       COUNT(DISTINCT l.id) AS logins,\n       COUNT(DISTINCT s.id) AS sessions\nFROM users u\nLEFT JOIN logins   l ON u.id = l.user_id\nLEFT JOIN sessions s ON u.id = s.user_id\nGROUP BY u.id, u.name\nORDER BY u.id;",
+      "expected_rows": [
+        {
+          "id": 1,
+          "name": "Alice",
+          "logins": 2,
+          "sessions": 3
+        },
+        {
+          "id": 2,
+          "name": "Bob",
+          "logins": 1,
+          "sessions": 1
+        }
+      ],
+      "key_points": [
+        "Two LEFT JOINs on the same key (u.id) Cartesian-multiply: Alice's 2 logins \u00d7 3 sessions = 6 join rows",
+        "COUNT(*) and COUNT(DISTINCT non-unique-col) get inflated; COUNT(DISTINCT primary_key) on each side does not",
+        "Alternative fix: pre-aggregate each table to one row per user in a CTE, then join the totals \u2014 generally clearer than DISTINCT counts"
+      ]
+    },
+    {
+      "id": "sql-212",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE customers (id INT);\nINSERT INTO customers VALUES (1),(2),(3);\n\nCREATE TABLE orders (customer_id INT);\nINSERT INTO orders VALUES (1),(2);\n\nSELECT c.id\nFROM customers c\nLEFT JOIN orders o ON c.id = o.customer_id\nWHERE o.customer_id IS NULL;\n```\nWhat does this return and what is the pattern called?",
+      "options": [
+        "id 3 \u2014 this is the LEFT JOIN anti-join idiom for 'rows on the left with no match on the right'",
+        "id 1 and 2 \u2014 customers who DO have orders",
+        "All three rows \u2014 the WHERE is a no-op for a LEFT JOIN",
+        "Empty result"
+      ],
+      "answer": 0,
+      "explanation": "This is the 'anti-join' pattern. The LEFT JOIN produces (1, 1), (2, 2), (3, NULL). The WHERE `o.customer_id IS NULL` keeps ONLY the unmatched rows (i.e. customers with no order). Equivalent to `WHERE NOT EXISTS (SELECT 1 FROM orders WHERE customer_id = c.id)`. Important not to confuse with `WHERE o.customer_id = X`, which performs the opposite collapse described in sql-210."
+    },
+    {
+      "id": "sql-213",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Given:\n```sql\nCREATE TABLE a (id INT);\nINSERT INTO a VALUES (1),(2),(3);\n\nCREATE TABLE b (a_id INT, c_id INT);\nINSERT INTO b VALUES (1,10),(2,20);\n\nCREATE TABLE c (id INT, name TEXT);\nINSERT INTO c VALUES (10,'x'),(20,'y');\n\nSELECT a.id, c.name\nFROM a\nLEFT JOIN b ON a.id = b.a_id\nLEFT JOIN c ON b.c_id = c.id;\n```\nWhat does row a.id = 3 look like in the output?",
+      "options": [
+        "It is dropped \u2014 because b.c_id is NULL, the second LEFT JOIN finds no match and the row is filtered",
+        "(3, NULL) \u2014 LEFT JOINs preserve a's rows; both b and c are NULL",
+        "(3, 'x')",
+        "An error \u2014 NULL cannot participate in a join condition"
+      ],
+      "answer": 1,
+      "explanation": "Each LEFT JOIN preserves the left side. After the first LEFT JOIN, row a=3 has b.a_id and b.c_id NULL. The second LEFT JOIN's ON clause `b.c_id = c.id` becomes `NULL = c.id`, which is NULL for every c-row (never TRUE), so no match \u2014 but because it is a LEFT JOIN, a's row survives with all c columns NULL. Result: (3, NULL). LEFT JOINs only DROP rows when you later filter the right side in WHERE."
+    },
+    {
+      "id": "sql-214",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Given:\n```sql\nSELECT u.id, COUNT(*) AS interactions\nFROM users u\nLEFT JOIN orders o ON u.id = o.user_id\nLEFT JOIN sessions s ON u.id = s.user_id\nGROUP BY u.id;\n```\nAssume one user has 2 orders and 3 sessions. What does `COUNT(*)` return for that user?",
+      "options": [
+        "5 (the orders plus the sessions)",
+        "3 (the larger of the two)",
+        "6 (the CROSS PRODUCT of orders and sessions \u2014 2 * 3)",
+        "1 (one row per user)"
+      ],
+      "answer": 2,
+      "explanation": "Both LEFT JOINs are on the same key (u.id). The first produces 2 rows (one per order). The second then matches each of those rows against ALL 3 sessions, giving 2 \u00d7 3 = 6 rows. COUNT(*) reports 6. This is the 'Cartesian explosion through chained one-to-many joins' bug. Aggregate the orders and sessions separately first, then join the totals together, or use `COUNT(DISTINCT o.id)` and `COUNT(DISTINCT s.id)` in the same SELECT."
+    },
+    {
+      "id": "sql-215",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Given:\n```sql\nCREATE TABLE sales (d TEXT, amt INT);\nINSERT INTO sales VALUES\n  ('2025-01-01', 50), ('2025-01-01', 100), ('2025-01-02', 30);\n\nSELECT d, amt,\n       SUM(amt) OVER (ORDER BY d) AS running_total\nFROM sales\nORDER BY d, amt;\n```\nWhat does `running_total` look like for the two rows with d = '2025-01-01'?",
+      "options": [
+        "50 and 150 \u2014 a strict row-by-row running total",
+        "150 for BOTH rows \u2014 the default frame is RANGE, which lumps tied rows together",
+        "150 and 50 \u2014 ordering is reversed",
+        "NULL for both \u2014 ties make the result undefined"
+      ],
+      "answer": 1,
+      "explanation": "THE classic window-function gotcha. When you write `SUM() OVER (ORDER BY x)` and omit the frame, ANSI's default is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`. RANGE is value-based: 'CURRENT ROW' means 'all rows whose ORDER BY value equals mine' \u2014 i.e. all peers. So both Jan-01 rows are 'tied,' and both report the SAME running total: 50+100 = 150. To get a strict per-row running total, write `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` AND add a tie-breaker to ORDER BY."
+    },
+    {
+      "id": "sql-216",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE events (id INT, ts TEXT);\nINSERT INTO events VALUES (1,'2025-01-01'),(2,'2025-01-02'),(3,'2025-01-03');\n\nSELECT id, ts, LAG(ts) OVER (ORDER BY ts) AS prev_ts FROM events;\n```\nWhat is `prev_ts` for the FIRST row (id=1)?",
+      "options": [
+        "'2025-01-01' \u2014 same as the current row when there is no previous",
+        "'1970-01-01' \u2014 the engine substitutes the epoch",
+        "NULL \u2014 there is no previous row; LAG returns NULL by default",
+        "An error \u2014 LAG cannot be called on the first row"
+      ],
+      "answer": 2,
+      "explanation": "LAG returns NULL for any row that has no predecessor in the window/partition. Most engineers forget to handle this and get NULL polluting downstream subtraction (e.g. `ts - LAG(ts) OVER (...)` returns NULL for the first row, then the team complains the chart 'starts blank'). Use the optional second/third arguments: `LAG(ts, 1, ts) OVER (...)` substitutes the current value as a default; or COALESCE the result."
+    },
+    {
+      "id": "sql-217",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Given:\n```sql\nCREATE TABLE prices (d INT, p INT);\nINSERT INTO prices VALUES (1,10),(2,20),(3,30),(4,40);\n\nSELECT d, p,\n  FIRST_VALUE(p) OVER (ORDER BY d) AS first_p,\n  LAST_VALUE(p)  OVER (ORDER BY d) AS last_p\nFROM prices;\n```\nWhat does `last_p` return for d = 2?",
+      "options": [
+        "40 \u2014 the last value in the partition",
+        "20 \u2014 because the default frame is `RANGE UNBOUNDED PRECEDING AND CURRENT ROW`, so `LAST_VALUE` sees only rows up to the current one",
+        "30 \u2014 one row ahead",
+        "NULL \u2014 LAST_VALUE is undefined without an explicit frame"
+      ],
+      "answer": 1,
+      "explanation": "FIRST_VALUE looks right; LAST_VALUE almost never does. When you write `OVER (ORDER BY d)` and omit the frame, the default is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` \u2014 so the frame slides and `LAST_VALUE` returns the value of the CURRENT row, not the partition's actual last row. To get the partition's last value you must write `OVER (ORDER BY d ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)` (or use MAX/LAG-with-IGNORE-NULLS depending on intent)."
+    },
+    {
+      "id": "sql-218",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Given (PostgreSQL):\n```sql\nCREATE TABLE t (v INT);\nINSERT INTO t VALUES (NULL), (1), (2), (NULL), (3);\n\nSELECT COUNT(*) OVER ()  AS total_rows,\n       COUNT(v) OVER ()  AS total_non_null\nFROM t;\n```\nWhat does the FIRST row's `(total_rows, total_non_null)` look like?",
+      "options": [
+        "(5, 5)",
+        "(5, 3) \u2014 COUNT(v) ignores NULLs even as a window aggregate",
+        "(3, 3) \u2014 COUNT(*) over the window excludes NULLs in the partition expression",
+        "(5, NULL)"
+      ],
+      "answer": 1,
+      "explanation": "Aggregates-as-window-functions have the SAME NULL behavior as their ordinary form: `COUNT(*)` counts every row in the window (5), and `COUNT(col)` skips NULLs (3). Many engineers assume the windowed form 'just counts what's there' \u2014 it doesn't, NULL handling is unchanged. Mirror trap for SUM/AVG: `SUM(v) OVER ()` skips NULLs; `AVG(v) OVER ()` shrinks both numerator and denominator."
+    },
+    {
+      "id": "sql-219",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Given (Snowflake / Postgres):\n```sql\nSELECT user_id, ROW_NUMBER() OVER (PARTITION BY user_id) AS rn\nFROM events;\n```\nWhat is true about this query?",
+      "options": [
+        "It assigns rn=1 to all rows in each partition",
+        "Because there is no ORDER BY inside OVER(), the row numbering within each partition is non-deterministic across runs",
+        "It errors \u2014 ROW_NUMBER requires ORDER BY",
+        "It assigns globally unique numbers ignoring the PARTITION BY"
+      ],
+      "answer": 1,
+      "explanation": "ROW_NUMBER without an ORDER BY inside OVER() is legal in most engines, but the order in which rows receive numbers is implementation-defined and can change between runs (parallel scans, plan changes, storage layout). This is a silent correctness bug: 'give me the latest event per user' written as `ROW_NUMBER() OVER (PARTITION BY user_id) = 1` will sometimes return the right row and sometimes not. Always specify ORDER BY (and a tie-breaker if values can tie)."
+    },
+    {
+      "id": "sql-220",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nSELECT v FROM (VALUES (1),(1),(2)) a(v)\nUNION\nSELECT v FROM (VALUES (1),(3)) b(v);\n```\n(Or two physical tables with the same data.) How many rows does UNION return?",
+      "options": [
+        "5 \u2014 UNION concatenates and keeps all rows",
+        "4 \u2014 UNION dedupes only within each side, not across the combined result",
+        "3 \u2014 UNION dedupes the FULL combined result (1, 2, 3 distinct)",
+        "1 \u2014 UNION returns only common rows"
+      ],
+      "answer": 2,
+      "explanation": "UNION applies DISTINCT to the ENTIRE combined output \u2014 both within-side duplicates AND across-side duplicates collapse. Many engineers think UNION = 'UNION ALL plus dedup of just the second side' \u2014 it doesn't, it dedupes the whole result. So {1,1,2} \u222a {1,3} -> {1, 2, 3} = 3 rows. UNION ALL would have returned all 5 rows. If you want 'add the second source without disturbing duplicates already in the first,' you have to write it explicitly."
+    },
+    {
+      "id": "sql-221",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres / SQLite):\n```sql\nWITH a(v) AS (VALUES (1),(1),(1),(2)),\n     b(v) AS (VALUES (1))\nSELECT v FROM a EXCEPT SELECT v FROM b ORDER BY v;\n```\nWhat does this return?",
+      "options": [
+        "1, 2 (the duplicates of 1 remain on the left)",
+        "Just 2 \u2014 EXCEPT is set-based: any v=1 in b removes ALL v=1 from a, regardless of multiplicity",
+        "1, 1, 2 (two of the three 1's on the left are removed, leaving one)",
+        "Empty"
+      ],
+      "answer": 1,
+      "explanation": "Standard SQL's EXCEPT is set semantics (dedup): if ANY occurrence of v exists in b, ALL occurrences in a are removed. So {1,1,1,2} EXCEPT {1} = {2}. If you want multiset semantics (remove one occurrence per match), use `EXCEPT ALL` (supported by Postgres). MySQL and SQL Server have their own quirks here. The naive expectation that EXCEPT 'subtracts row by row' is wrong."
+    },
+    {
+      "id": "sql-222",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE orders (region TEXT, amt INT);\nINSERT INTO orders VALUES ('NA',100),('EU',200);\n\nSELECT region, COUNT(*)\nFROM orders\nGROUP BY region\nHAVING COUNT(*) > 0;\n```\nWhat is the practical effect of `HAVING COUNT(*) > 0`?",
+      "options": [
+        "It filters out 'phantom' empty groups",
+        "It is a no-op \u2014 every group that exists by definition has at least one row, so COUNT(*) > 0 is always TRUE",
+        "It changes the optimizer's plan from grouping to streaming",
+        "It errors because HAVING requires a column reference"
+      ],
+      "answer": 1,
+      "explanation": "GROUP BY only emits a group when at least one row exists for that key \u2014 there are no 'empty groups' in SQL. So `HAVING COUNT(*) > 0` is always TRUE and filters nothing. People often write this thinking it eliminates groups with all-NULL aggregates, but that requires `HAVING COUNT(col) > 0` (note the column, not *). Recognising no-op predicates is part of reading legacy SQL fluently."
+    },
+    {
+      "id": "sql-223",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE orders (id INT, status TEXT, amt INT);\nINSERT INTO orders VALUES\n  (1,'paid',100),(2,'refund',50),(3,'paid',30),(4,'pending',20);\n\nSELECT SUM(CASE WHEN status = 'paid' THEN amt END) AS paid_total\nFROM orders;\n```\n(Note: there is NO `ELSE 0`.) What is `paid_total`?",
+      "options": [
+        "0 \u2014 missing ELSE breaks the sum",
+        "130 \u2014 the non-paid rows produce NULL, which SUM silently skips, so it works",
+        "200 \u2014 sums every row's amt",
+        "NULL \u2014 a single NULL in SUM poisons the result"
+      ],
+      "answer": 1,
+      "explanation": "CASE without an ELSE returns NULL for unmatched rows. SUM ignores NULLs, so the result is the sum over the matching rows only: 100 + 30 = 130. This pattern is idiomatic and correct \u2014 BUT it depends on aggregate-NULL semantics, which is why some engineers reflexively add `ELSE 0`. The Postgres-style alternative is even cleaner: `SUM(amt) FILTER (WHERE status = 'paid')`."
+    },
+    {
+      "id": "sql-224",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres):\n```sql\nCREATE TABLE events (id INT, kind TEXT);\nINSERT INTO events VALUES (1,NULL),(2,'click'),(3,NULL),(4,'view');\n\nSELECT\n  COUNT(*) FILTER (WHERE kind IS NULL)            AS f_null,\n  SUM(CASE WHEN kind IS NULL THEN 1 END)          AS s_no_else,\n  SUM(CASE WHEN kind IS NULL THEN 1 ELSE 0 END)   AS s_with_else\nFROM events;\n```\nWhich pair of values is correct?",
+      "options": [
+        "f_null=2, s_no_else=2, s_with_else=2",
+        "f_null=0, s_no_else=NULL, s_with_else=0 (FILTER ignores NULL inputs)",
+        "f_null=4, s_no_else=2, s_with_else=2",
+        "f_null=NULL, s_no_else=NULL, s_with_else=NULL"
+      ],
+      "answer": 0,
+      "explanation": "The FILTER clause is just a per-row predicate \u2014 it doesn't itself reject NULL inputs; it just keeps rows where the WHERE-style predicate is TRUE. The IS NULL predicate is itself NULL-safe and TRUE for two rows. So all three expressions correctly return 2. (Contrast: `COUNT(kind) FILTER (...)` would skip NULL kinds because of the column COUNT, not because of FILTER.) Knowing this distinction matters when migrating SUM(CASE) to FILTER."
+    },
+    {
+      "id": "sql-225",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "hard",
+      "prompt": "Given (PostgreSQL):\n```sql\nCREATE TABLE outer_t (v INT);\nINSERT INTO outer_t VALUES (1),(2),(3);\n\nCREATE TABLE inner_t (v INT);\nINSERT INTO inner_t VALUES (2),(NULL);\n\nSELECT v FROM outer_t WHERE v IN (SELECT v FROM inner_t);\n```\nWhat does this return?",
+      "options": [
+        "1, 2, 3 (NULLs are ignored in IN)",
+        "2 only \u2014 the NULL in the subquery makes the IN test return NULL (not TRUE) for non-matching outer rows, so they are filtered",
+        "Empty result (NULL poisons IN entirely)",
+        "Error \u2014 NULL is not allowed in IN list"
+      ],
+      "answer": 1,
+      "explanation": "Subtle asymmetry between IN and NOT IN. For IN, a TRUE match still wins: `2 IN (2, NULL)` is TRUE because 2=2 returns TRUE and `TRUE OR NULL = TRUE`. But for non-matching outer rows, e.g. `1 IN (2, NULL)`, the expression evaluates to `FALSE OR NULL = NULL` \u2014 not TRUE \u2014 so the row is dropped. Net effect with no matches: just 2. Same shape as in production: IN behaves correctly for matches, but loses non-matches that should have been kept by other predicates. NOT IN (sql-202) is the more catastrophic version."
+    },
+    {
+      "id": "sql-226",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE customers (id INT, region TEXT);\nINSERT INTO customers VALUES (1,'NA'),(2,'EU'),(3,'APAC');\n\nCREATE TABLE orders (customer_id INT);\nINSERT INTO orders VALUES (10,1),(20,1); -- only customer 1 has orders\n\nSELECT id FROM customers\nWHERE EXISTS (SELECT 1 FROM orders WHERE 1=1);\n```\nWhat does this return?",
+      "options": [
+        "Only id=1 (the one customer with orders)",
+        "All three customers \u2014 EXISTS is true if the subquery returns ANY row, regardless of correlation",
+        "Empty result \u2014 EXISTS requires a correlated predicate",
+        "An error \u2014 missing join condition"
+      ],
+      "answer": 1,
+      "explanation": "EXISTS just checks whether the subquery returns at least one row. There is no correlation here (no `WHERE orders.customer_id = customers.id`), so the subquery is evaluated once, returns 2 rows, and the predicate is TRUE for every outer row. Beginners assume EXISTS automatically correlates by foreign-key proximity \u2014 it doesn't. You must spell the correlation out explicitly."
+    },
+    {
+      "id": "sql-227",
+      "type": "single",
+      "topic": "Type Coercion",
+      "difficulty": "medium",
+      "prompt": "Which of the following correctly describes integer division behavior in SQL Server / PostgreSQL / SQLite for `SELECT 3 / 2`?",
+      "options": [
+        "Returns 1.5 because SQL automatically promotes integer division to floating point",
+        "Returns 1 \u2014 both operands are integers, so the result is truncated to an integer. Use 3.0 / 2 or CAST to get 1.5",
+        "Returns 2 (rounded)",
+        "Errors with a 'precision lost' warning"
+      ],
+      "answer": 1,
+      "explanation": "When both operands of `/` are integers, most major engines (Postgres, SQL Server, SQLite, Oracle in many configurations) perform integer division and truncate toward zero. So `3 / 2 = 1`, not 1.5. Force floating-point by writing one operand as a decimal (`3.0/2`) or by casting (`CAST(3 AS NUMERIC)/2`). MySQL is the exception: it always returns a decimal for `/`. This bites computed columns like `total_paid * 100 / total_orders` returning 0% or 100%."
+    },
+    {
+      "id": "sql-228",
+      "type": "single",
+      "topic": "Type Coercion",
+      "difficulty": "medium",
+      "prompt": "Given (MySQL with default settings):\n```sql\nSELECT 'abc' = 0;\n```\nWhat does this return in MySQL?",
+      "options": [
+        "0 (FALSE) \u2014 string and number are incomparable",
+        "1 (TRUE) \u2014 MySQL silently coerces 'abc' to numeric, which becomes 0",
+        "NULL \u2014 type mismatch yields unknown",
+        "An error \u2014 invalid comparison"
+      ],
+      "answer": 1,
+      "explanation": "MySQL silently coerces strings to numbers in numeric comparisons. Any string that doesn't start with a digit converts to 0, so `'abc' = 0` is TRUE. Production nightmare: a query like `WHERE user_id = some_text_value` will match every row where user_id = 0. PostgreSQL would have errored on the type mismatch. Strict SQL modes in MySQL can prevent this, but they are not default in all versions / configs."
+    },
+    {
+      "id": "sql-229",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Given (PostgreSQL \u2014 `occurred_at` is TIMESTAMP):\n```sql\nCREATE TABLE events (id INT, occurred_at TIMESTAMP);\nINSERT INTO events VALUES\n  (1, '2025-01-15 09:00:00'),\n  (2, '2025-01-31 09:00:00'),\n  (3, '2025-01-31 23:45:00');\n\nSELECT id FROM events\nWHERE occurred_at BETWEEN '2025-01-01' AND '2025-01-31';\n```\nWhich rows are returned?",
+      "options": [
+        "All three \u2014 they all fall in January",
+        "1 only \u2014 rows 2 and 3 are excluded because the upper bound '2025-01-31' coerces to '2025-01-31 00:00:00', and any later time on Jan 31 exceeds that bound",
+        "1 and 2 only",
+        "Nothing \u2014 BETWEEN is exclusive on the right endpoint"
+      ],
+      "answer": 1,
+      "explanation": "BETWEEN is inclusive on both endpoints \u2014 but a DATE literal coerces to a TIMESTAMP at midnight. So `BETWEEN '2025-01-01' AND '2025-01-31'` becomes `>= 2025-01-01 00:00:00 AND <= 2025-01-31 00:00:00`. Row 1 (Jan 15 09:00) passes. Rows 2 and 3 (Jan 31 with non-zero time component) are EXCLUDED because their times are strictly greater than midnight. Classic 'lost the last day of the month' bug. Fix: half-open `WHERE occurred_at >= '2025-01-01' AND occurred_at < '2025-02-01'`."
+    },
+    {
+      "id": "sql-230",
+      "type": "single",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nCREATE TABLE events (occurred_at TIMESTAMP);\nINSERT INTO events VALUES ('2025-03-15 14:30:00');\n\nSELECT COUNT(*) FROM events\nWHERE occurred_at = '2025-03-15';\n```\nWhat does this return?",
+      "options": [
+        "1 \u2014 dates compare equal if same calendar day",
+        "0 \u2014 '2025-03-15' coerces to '2025-03-15 00:00:00', which is not equal to '2025-03-15 14:30:00'",
+        "NULL \u2014 the comparison is undefined",
+        "Errors because of type mismatch"
+      ],
+      "answer": 1,
+      "explanation": "Equality comparison promotes the DATE literal to a TIMESTAMP at midnight. `'2025-03-15 14:30:00' = '2025-03-15 00:00:00'` is FALSE. People expect 'WHERE date_column = date_literal' to mean 'same calendar day' \u2014 it doesn't on a TIMESTAMP column. Fix: `WHERE DATE(occurred_at) = '2025-03-15'` (but that defeats an index on occurred_at), or the half-open range pattern."
+    },
+    {
+      "id": "sql-231",
+      "type": "single",
+      "topic": "Indexes",
+      "difficulty": "medium",
+      "prompt": "Given a B-tree index on `users(email)`. Which of the following predicates can the engine use the index to satisfy efficiently?",
+      "options": [
+        "`WHERE LOWER(email) = 'alice@example.com'`",
+        "`WHERE email LIKE '%example.com'`",
+        "`WHERE email = 'alice@example.com'` (no function applied to the column)",
+        "`WHERE email || '' = 'alice@example.com'`"
+      ],
+      "answer": 2,
+      "explanation": "An index on a column is usable only when the column appears 'bare' on one side of the predicate, the operator is sargable, and the right-hand side is a constant or another indexed expression. Wrapping in LOWER, leading `%` wildcards, or concatenating defeats the index because the optimizer cannot translate the predicate into a B-tree range scan. Fixes: store a normalized lowercase column, create an EXPRESSION INDEX on `LOWER(email)`, or use a TRIGRAM index for the leading-wildcard case."
+    },
+    {
+      "id": "sql-232",
+      "type": "single",
+      "topic": "ORDER BY",
+      "difficulty": "medium",
+      "prompt": "Given:\n```sql\nSELECT *\nFROM (\n  SELECT id FROM users ORDER BY created_at DESC\n) sub;\n```\nWhich statement is most accurate?",
+      "options": [
+        "The outer query is guaranteed to return rows in created_at DESC order",
+        "The ORDER BY inside the subquery is often IGNORED by the optimizer; only a top-level ORDER BY guarantees ordering of the final result",
+        "It throws a syntax error in standard SQL",
+        "The outer query inherits the inner ORDER BY only if there is a LIMIT"
+      ],
+      "answer": 1,
+      "explanation": "SQL is a set-oriented language; intermediate relations have no inherent order. An ORDER BY in a subquery / CTE is allowed but is only used internally (e.g. to feed a TOP/LIMIT, or to feed a window function). The optimizer may drop the sort altogether if it isn't needed. Many engineers rely on the inner ordering 'bubbling up' and watch it break the day the planner changes. Always put ORDER BY at the OUTER level when ordering of the result matters."
+    },
+    {
+      "id": "sql-233",
+      "type": "single",
+      "topic": "ORDER BY",
+      "difficulty": "medium",
+      "prompt": "You query a table and want the 10 most recent records: `SELECT * FROM events LIMIT 10;`. What is the bug?",
+      "options": [
+        "LIMIT cannot be used without OFFSET",
+        "Without ORDER BY, the database returns ANY 10 rows \u2014 the result is non-deterministic and may change between runs",
+        "LIMIT 10 always returns the oldest 10, not the newest",
+        "The query is correct \u2014 LIMIT implicitly orders by insertion"
+      ],
+      "answer": 1,
+      "explanation": "LIMIT without ORDER BY returns 10 arbitrary rows; the engine is free to return whatever it finds first. With a small table the same rows often come back, lulling you into thinking it works. After the table grows, parallelism changes, or a new index is added, the 'recent 10' silently becomes 'whatever 10 the scan picked first.' Always add `ORDER BY <col> DESC` to make 'top N' deterministic."
+    },
+    {
+      "id": "sql-234",
+      "type": "single",
+      "topic": "DML",
+      "difficulty": "medium",
+      "prompt": "An engineer runs `DELETE FROM orders;` (no WHERE clause). What happens in a standard ANSI/Postgres/MySQL setup with no extra safety hooks?",
+      "options": [
+        "An error: 'DELETE without WHERE is not allowed'",
+        "All rows in `orders` are deleted; the statement returns the count of affected rows and commits if there is no transaction",
+        "Only the most recently inserted row is deleted",
+        "A warning is printed but nothing happens"
+      ],
+      "answer": 1,
+      "explanation": "Plain SQL has no 'WHERE-required' safety. `DELETE FROM orders;` deletes every row. Same trap with `UPDATE orders SET status='X';` \u2014 no WHERE, every row changes. Some clients (MySQL Workbench, DataGrip) and tools have 'safe mode' switches; production runbooks usually require an explicit transaction so you can `ROLLBACK` if the row count surprises you. This is why senior engineers wrap destructive DML in a transaction even when they 'know' the WHERE is correct."
+    },
+    {
+      "id": "sql-235",
+      "type": "single",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Given (PostgreSQL):\n```sql\nSELECT *\nFROM orders\nWHERE amt > ALL (SELECT amt FROM refunds WHERE status = 'rejected');\n```\nThe `refunds` table currently has NO rows with `status = 'rejected'`. What does the outer query return?",
+      "options": [
+        "Empty set \u2014 ALL over no rows is undefined",
+        "Every row in orders \u2014 ALL is vacuously TRUE when the subquery returns no rows",
+        "An error \u2014 cannot use ALL with an empty subquery",
+        "Only rows with amt = 0"
+      ],
+      "answer": 1,
+      "explanation": "`x > ALL (empty)` is vacuously TRUE \u2014 there are no values to fail against, so by definition every x is 'greater than all of them.' Symmetric trap: `x > ANY (empty)` is vacuously FALSE. These quantifiers are mathematically consistent but counter-intuitive when the inner table happens to be empty (e.g. an unexpectedly filtered subquery). When NOT IN's subquery is empty you get a similar 'everything matches' surprise."
+    },
+    {
+      "id": "sql-236",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Given (PostgreSQL / standard SQL):\n```sql\nSELECT user_id,\n       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ts DESC) AS rn\nFROM events\nWHERE rn = 1;\n```\nWhy does this fail?",
+      "options": [
+        "rn is reserved",
+        "Window functions are evaluated AFTER the WHERE clause, so the alias `rn` does not yet exist when WHERE runs",
+        "PARTITION BY cannot be used with ROW_NUMBER",
+        "It does NOT fail \u2014 modern engines auto-correct"
+      ],
+      "answer": 1,
+      "explanation": "SQL's logical evaluation order is FROM \u2192 WHERE \u2192 GROUP BY \u2192 HAVING \u2192 SELECT (including window functions) \u2192 ORDER BY. Window functions live in the SELECT phase, so neither WHERE nor the alias exist yet. Wrap in a subquery / CTE and filter outside, or use `QUALIFY` (Snowflake, BigQuery, Teradata, Databricks). This rule applies symmetrically to aggregates and aliases too."
+    },
+    {
+      "id": "sql-237",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "You want the 'first signup event per user.' You write:\n```sql\nSELECT DISTINCT ON (user_id) user_id, event_type, ts\nFROM events\nORDER BY user_id;\n```\nWhich statement is correct?",
+      "options": [
+        "It returns the chronologically first event per user \u2014 DISTINCT ON automatically picks the earliest row",
+        "It returns ONE row per user but the choice of which row is implementation-defined because `ts` is not in the ORDER BY",
+        "It errors \u2014 DISTINCT ON requires an aggregate",
+        "It is identical to GROUP BY user_id"
+      ],
+      "answer": 1,
+      "explanation": "Postgres-specific gotcha: `DISTINCT ON (cols)` keeps the FIRST row per group as defined by ORDER BY. If ORDER BY does not include `ts` (or whatever you intend to break ties on), the row chosen is arbitrary \u2014 you may get any event per user, not the earliest. Correct form: `... ORDER BY user_id, ts ASC` to get the earliest, or `... ts DESC` for the latest. Same rule applies to ROW_NUMBER() + PARTITION BY without an ORDER BY tie-breaker."
+    },
+    {
+      "id": "sql-238",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Given:\n```sql\nCREATE TABLE events (user_id INT, kind TEXT);\nINSERT INTO events VALUES\n  (1,'click'),(1,'click'),(1,NULL),\n  (2,NULL),(2,NULL);\n\nSELECT user_id,\n       COUNT(DISTINCT kind)                            AS d_naive,\n       COUNT(DISTINCT COALESCE(kind, '<unset>'))       AS d_coalesce\nFROM events\nGROUP BY user_id\nORDER BY user_id;\n```\nWhat does each user's `(d_naive, d_coalesce)` look like?",
+      "options": [
+        "User 1: (1, 1) \u00b7 User 2: (0, 0)",
+        "User 1: (1, 2) \u00b7 User 2: (0, 1) \u2014 COUNT(DISTINCT kind) silently drops NULL; wrapping with COALESCE turns NULL into a real distinct value",
+        "User 1: (2, 2) \u00b7 User 2: (1, 1) \u2014 NULL counts as a distinct kind by default",
+        "User 1: (1, 2) \u00b7 User 2: (1, 1) \u2014 NULL is counted only when there are other values"
+      ],
+      "answer": 1,
+      "explanation": "COUNT(DISTINCT expr) ignores rows where expr is NULL. User 1 has kinds {'click', 'click', NULL}; the NULL is skipped and only 'click' remains, giving 1 distinct. Wrapping with `COALESCE(kind, '<unset>')` turns NULL into the literal string '<unset>', which IS counted as a distinct value (so 'click' + '<unset>' = 2). User 2 is all NULL: d_naive = 0 (every row skipped); d_coalesce = 1 ('<unset>' is one distinct value). Critical for 'number of distinct event types per user' KPIs where NULL means a real-but-unlabeled event."
+    },
+    {
+      "id": "sql-239",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres):\n```sql\nCREATE TABLE a (k1 INT, k2 INT);\nINSERT INTO a VALUES (1,1),(2,NULL);\n\nCREATE TABLE b (k1 INT, k2 INT, name TEXT);\nINSERT INTO b VALUES (1,1,'X'),(2,NULL,'Y');\n\nSELECT a.k1, a.k2, b.name\nFROM a LEFT JOIN b ON a.k1 = b.k1 AND a.k2 = b.k2;\n```\nWhat is `b.name` for the row a.k1=2 (a.k2 is NULL)?",
+      "options": [
+        "'Y' \u2014 NULL equals NULL inside an ON clause",
+        "NULL \u2014 `a.k2 = b.k2` becomes `NULL = NULL` which is NULL, never TRUE, so the join fails and the LEFT side row is preserved with NULL on the right",
+        "Errors because NULL is not allowed in join keys",
+        "Empty result"
+      ],
+      "answer": 1,
+      "explanation": "Even inside ON clauses, NULL = NULL is NULL, not TRUE. So when one of the join keys is NULL on both sides, the rows still don't match. The LEFT JOIN preserves the a-row with all b-columns NULL. This silently breaks 'composite key' joins in data warehouses where NULL is used as 'unknown.' Fixes: `a.k2 IS NOT DISTINCT FROM b.k2` (Postgres/SQLite), or COALESCE to a sentinel: `COALESCE(a.k2,-1) = COALESCE(b.k2,-1)`."
+    },
+    {
+      "id": "sql-240",
+      "type": "single",
+      "topic": "Common Bugs",
+      "difficulty": "medium",
+      "prompt": "Given (SQLite/Postgres):\n```sql\nSELECT NULLIF(0, 0) AS a,\n       1 / NULLIF(0, 0) AS b;\n```\nWhat does this return and why is the idiom useful?",
+      "options": [
+        "a=0, b=0 \u2014 NULLIF returns 0 when the arguments match",
+        "a=NULL, b=NULL \u2014 NULLIF(x, x) returns NULL, which makes the division return NULL instead of raising a 'division by zero' error",
+        "a=1, b=1 \u2014 NULLIF acts like IS NULL",
+        "Throws 'division by zero' on the second column"
+      ],
+      "answer": 1,
+      "explanation": "`NULLIF(x, y)` returns NULL when x = y and returns x otherwise. The standard 'safe division' idiom is `numerator / NULLIF(denominator, 0)` \u2014 the denominator becomes NULL when it would have been zero, and any arithmetic with NULL yields NULL instead of an error. Most engines treat division by NULL as NULL, not as an error. This avoids both crashes and ugly CASE wrappers."
+    },
+    {
+      "id": "sql-241",
+      "type": "single",
+      "topic": "Common Bugs",
+      "difficulty": "hard",
+      "prompt": "Given (Postgres):\n```sql\nWITH cte AS (\n  SELECT id, RANDOM() AS r FROM big_table\n)\nSELECT * FROM cte WHERE r < 0.5\nUNION ALL\nSELECT * FROM cte WHERE r >= 0.5;\n```\nIs the UNION ALL guaranteed to reproduce EXACTLY the rows in `big_table`?",
+      "options": [
+        "Yes \u2014 the CTE is materialized once and the two halves partition the rows deterministically",
+        "Not necessarily \u2014 unless the CTE is materialized (and many planners now inline it by default), RANDOM() is evaluated independently in each reference, and some rows may land in BOTH halves or NEITHER",
+        "Yes \u2014 RANDOM() is deterministic within a transaction",
+        "No \u2014 UNION ALL always deduplicates"
+      ],
+      "answer": 1,
+      "explanation": "Since Postgres 12, simple CTEs may be inlined into each reference, which means a non-deterministic function like RANDOM() is re-evaluated per reference \u2014 a row may have r=0.3 in the first reference and r=0.7 in the second (in both halves), or land in neither. The safe pattern is to force materialization (`WITH cte AS MATERIALIZED (...)` in Postgres 12+), or to compute the random value once into a real temp table. The same trap applies to NOW(), uuid_generate_v4(), and other volatile functions."
+    },
+    {
+      "id": "sql-242",
+      "type": "multi",
+      "topic": "NULL Semantics",
+      "difficulty": "hard",
+      "prompt": "Which of the following statements about NULL behavior in standard SQL are TRUE? (Select all that apply.)",
+      "options": [
+        "`WHERE col != 'X'` excludes rows where col IS NULL",
+        "`SUM(col)` over an all-NULL or empty input returns NULL, not 0",
+        "`AVG(col)` divides by COUNT(col) (non-NULL), not COUNT(*)",
+        "`STRING_AGG(col, ',')` returns NULL for groups where every value is NULL",
+        "`MAX(col)` over an empty input returns 0",
+        "`COUNT(*)` counts NULL rows; `COUNT(col)` skips NULL values"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3,
+        5
+      ],
+      "explanation": "All five are correct except 'MAX over empty returns 0' \u2014 MAX over an empty (or all-NULL) input returns NULL. The others are the canonical NULL-handling rules: != filters drop NULLs (unless you OR `IS NULL`); SUM/AVG/STRING_AGG ignore NULLs; STRING_AGG over an all-NULL group returns NULL (not '' \u2014 you get NO output string, just NULL); COUNT(*) vs COUNT(col) differ by NULL handling. Master these and 80% of NULL bugs vanish."
+    },
+    {
+      "id": "sql-243",
+      "type": "multi",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Which of the following silently converts a `LEFT JOIN` into an effective `INNER JOIN` (i.e. drops the unmatched left-side rows)? (Select all that apply.)",
+      "options": [
+        "Adding `WHERE right.col = 'X'` after the LEFT JOIN",
+        "Adding `AND right.col = 'X'` inside the ON clause instead of WHERE",
+        "Adding `WHERE right.col IS NOT NULL` after the LEFT JOIN",
+        "Adding `WHERE right.col IS NULL` after the LEFT JOIN (this is the anti-join idiom)",
+        "Casting the left-side join key to a different type",
+        "Adding `GROUP BY left.id` to the outer query"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "(0) Filtering on the right side in WHERE drops rows where right.col is NULL (because NULL = 'X' is NULL). Same with (2): explicitly requiring NOT NULL drops the unmatched rows. (1) is the CORRECT fix \u2014 a predicate in ON does not cause the collapse. (3) is the inverse \u2014 an anti-join, returns rows with NO match. (4) and (5) don't change LEFT vs INNER semantics."
+    },
+    {
+      "id": "sql-244",
+      "type": "multi",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Which of the following are TRUE about default window-frame behavior in ANSI SQL when you write `func() OVER (ORDER BY x)` and OMIT an explicit frame clause? (Select all that apply.)",
+      "options": [
+        "The default frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`",
+        "The default frame is `ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`",
+        "With RANGE, rows tied on the ORDER BY value are treated as a single 'peer group' \u2014 they all see the same running aggregate",
+        "`LAST_VALUE()` with the default frame returns the value of the CURRENT row, not the partition's true last value",
+        "`LAG()` and `LEAD()` are affected by the default frame and may return tied peer values",
+        "If ORDER BY is omitted entirely, the default frame is `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`"
+      ],
+      "answer": [
+        0,
+        2,
+        3,
+        5
+      ],
+      "explanation": "ANSI's defaults: with ORDER BY, the frame is RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW; without ORDER BY (and for aggregate window functions), the frame becomes UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING. RANGE treats tied ORDER BY values as peers (this is THE running-total gotcha). LAST_VALUE with the default sliding frame returns the current row's value, not the true last \u2014 you must say `ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING`. LAG/LEAD are positional and IGNORE the frame clause entirely \u2014 they're not affected by RANGE vs ROWS."
+    },
+    {
+      "id": "sql-245",
+      "type": "multi",
+      "topic": "Common Bugs",
+      "difficulty": "hard",
+      "prompt": "Which of the following are realistic production bugs caused by integer / type-coercion quirks? (Select all that apply.)",
+      "options": [
+        "`paid_count * 100 / total_count` returning 0 when both are integers and paid_count < total_count",
+        "`WHERE int_id = '42'` (string literal on integer column) defeating an index in some engines",
+        "`WHERE col = 0` matching rows where `col` is the string 'abc' in MySQL (default config)",
+        "`SUM(NULL + 1)` returning 1 because NULL is treated as 0",
+        "`SELECT CAST('2025-13-01' AS DATE)` silently returning NULL in some SQLite configurations",
+        "`'a' || NULL` returning 'a' in PostgreSQL"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "explanation": "(0) Integer division truncates: `5 * 100 / 10 = 50` but `5 / 10 * 100 = 0`. Force decimals: `paid_count * 100.0 / total_count`. (1) Implicit conversion on the column side can defeat an index. (2) MySQL coerces strings to numbers; 'abc' \u2192 0. (4) SQLite's CAST is permissive and can return NULL for invalid dates rather than erroring. (3) is FALSE: NULL + 1 = NULL, and SUM of NULL inputs returns NULL (or 0 only when there's at least one non-NULL). (5) is FALSE: in Postgres, `'a' || NULL` returns NULL; Oracle is the engine that treats NULL as ''."
+    },
+    {
+      "id": "sql-246",
+      "type": "single",
+      "topic": "Concurrency",
+      "difficulty": "hard",
+      "prompt": "In PostgreSQL, you write:\n```sql\nUPDATE counters SET value = value + 1 WHERE id = 1;\n```\nTwo concurrent transactions execute this on the same row at the same time, under the default READ COMMITTED isolation. What happens?",
+      "options": [
+        "One transaction blocks waiting on the row lock; both succeed in sequence; final value is +2",
+        "Both transactions read `value` simultaneously and the second overwrites the first \u2014 the final value is only +1 (lost update)",
+        "PostgreSQL throws a serialization error because two writers touched the same row",
+        "Both transactions silently apply the +1, but the row is read-locked so the result is non-deterministic"
+      ],
+      "answer": 0,
+      "explanation": "`UPDATE ... SET col = col + 1` is NOT a lost-update bug in Postgres because the UPDATE itself takes a row-level write lock and re-reads the current value INSIDE the lock. The second transaction blocks until the first commits, then reads the new value of `value` and adds 1. Final result: +2. The lost-update problem appears when you SELECT a value into the application, then UPDATE based on that stale read \u2014 not when the increment is done inside a single SQL statement. (Under REPEATABLE READ or SERIALIZABLE, behavior differs: Postgres will throw a serialization error or apply MVCC rules.)"
+    },
+    {
+      "id": "sql-247",
+      "type": "single",
+      "topic": "DML",
+      "difficulty": "hard",
+      "prompt": "Given (PostgreSQL):\n```sql\nUPDATE accounts a\nSET balance = balance + d.amount\nFROM deposits d\nWHERE d.account_id = a.id;\n```\nAccount 1 has TWO matching rows in `deposits`: amounts 100 and 50. After running, by how much has account 1's balance increased?",
+      "options": [
+        "150 \u2014 Postgres applies one update per matching row, summing both deposits",
+        "EITHER 100 OR 50 \u2014 when the FROM clause produces multiple matching rows per target row, Postgres applies the update only ONCE using ONE of the source rows, and which one is implementation-defined",
+        "0 \u2014 Postgres refuses to update on ambiguity",
+        "The query errors with 'multiple rows matched'"
+      ],
+      "answer": 1,
+      "explanation": "Per the Postgres docs: 'When using FROM you should ensure that the join produces at most one output row for each row to be modified. If it does, then only ONE of the join rows will be used to update the target row, but which one will be used is not readily predictable.' Naive engineers expect `SET balance = balance + d.amount` to sum BOTH deposits (150) \u2014 it does NOT. Postgres applies a SINGLE update with ONE of the source rows; the other is silently discarded. The fix is to pre-aggregate: `FROM (SELECT account_id, SUM(amount) AS amt FROM deposits GROUP BY account_id) d`. SQL Server's `UPDATE ... FROM` behaves the same way (the 'Halloween' / multi-match update gotcha)."
+    },
+    {
+      "id": "sql-248",
+      "type": "code",
+      "topic": "NULL Semantics",
+      "difficulty": "hard",
+      "prompt": "Schema: `users(id, country, opt_in)` where `opt_in` is one of 'yes', 'no', or NULL (never answered). Predict the output of the query below, then click Run to verify. Hint: think carefully about WHERE evaluating NULL.\n\n```sql\nSELECT country, COUNT(*) AS c\nFROM users\nWHERE opt_in != 'yes'\nGROUP BY country\nORDER BY country;\n```\n\nYour task: rewrite the query so the result INCLUDES users who never answered (opt_in IS NULL) alongside those who said 'no'. Same output columns `country, c` ordered by country.",
+      "language": "sql",
+      "starter": "-- Rewrite to include NULL opt_in users alongside 'no' answers.\n-- Output columns: country, c (count). Order by country.\n",
+      "schema": "CREATE TABLE users (id INT, country TEXT, opt_in TEXT);\nINSERT INTO users VALUES\n  (1,'CA','yes'),(2,'CA','no'),(3,'CA',NULL),\n  (4,'FR','yes'),(5,'FR',NULL),\n  (6,'JP','no'),(7,'JP','no');",
+      "model_answer": "SELECT country, COUNT(*) AS c\nFROM users\nWHERE opt_in IS DISTINCT FROM 'yes'\nGROUP BY country\nORDER BY country;",
+      "expected_rows": [
+        {
+          "country": "CA",
+          "c": 2
+        },
+        {
+          "country": "FR",
+          "c": 1
+        },
+        {
+          "country": "JP",
+          "c": 2
+        }
+      ],
+      "key_points": [
+        "Plain `opt_in != 'yes'` excludes NULLs (because NULL != 'yes' is NULL, not TRUE)",
+        "Fix is either `opt_in IS DISTINCT FROM 'yes'` (Postgres/SQLite) or `(opt_in != 'yes' OR opt_in IS NULL)`",
+        "Result must include the NULL responders \u2014 CA gets 2 (one 'no' + one NULL), FR gets 1 (NULL only), JP gets 2 (both 'no')"
+      ]
+    },
+    {
+      "id": "sql-249",
+      "type": "code",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Schema: `orders(id, amt)` and `refunds(order_id, refund_amt)` (one order may have MANY refunds). A naive query `SELECT SUM(o.amt) FROM orders o LEFT JOIN refunds r ON o.id = r.order_id` inflates the total because order rows are duplicated by the join. Run it once to confirm the inflated number, then write the CORRECT query that returns:\n\n- `total_orders` \u2014 the genuine sum of `orders.amt`\n- `total_refunds` \u2014 the genuine sum of `refunds.refund_amt`\n\nBOTH columns in ONE row, with NO double-counting.",
+      "language": "sql",
+      "starter": "-- Return one row: total_orders, total_refunds\n-- Both numbers must NOT be inflated by the one-to-many join.\n",
+      "schema": "CREATE TABLE orders (id INT, amt INT);\nINSERT INTO orders VALUES (1, 100), (2, 200), (3, 50);\nCREATE TABLE refunds (order_id INT, refund_amt INT);\nINSERT INTO refunds VALUES (1, 10), (1, 20), (2, 5);",
+      "model_answer": "SELECT\n  (SELECT SUM(amt) FROM orders) AS total_orders,\n  (SELECT SUM(refund_amt) FROM refunds) AS total_refunds;",
+      "expected_rows": [
+        {
+          "total_orders": 350,
+          "total_refunds": 35
+        }
+      ],
+      "key_points": [
+        "Aggregate each table separately \u2014 do NOT join then SUM",
+        "Equivalent approaches: scalar subqueries (shown), two CTEs cross-joined, or pre-aggregating the many-side before joining",
+        "The naive LEFT JOIN + SUM(o.amt) overcounts: order 1 fans out to 2 refund rows so its amt of 100 is counted twice (total 450 instead of 350)"
+      ]
+    },
+    {
+      "id": "sql-250",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Schema: `sales(d TEXT, amt INT)` where d is a date string. Multiple rows can share the same day. The query `SELECT d, amt, SUM(amt) OVER (ORDER BY d) FROM sales` gives a SURPRISING result because the default window frame is RANGE \u2014 tied rows on the same `d` are all assigned the same running total (the lump).\n\nWrite the CORRECT query that produces a strict, deterministic per-row running total. Return columns `d, amt, running_total` ordered by (d, amt).",
+      "language": "sql",
+      "starter": "-- Return d, amt, running_total\n-- running_total must accumulate row by row (no lumping on tied days)\n",
+      "schema": "CREATE TABLE sales (d TEXT, amt INT);\nINSERT INTO sales VALUES\n  ('2025-01-01', 100),\n  ('2025-01-01', 50),\n  ('2025-01-02', 30),\n  ('2025-01-03', 70);",
+      "model_answer": "SELECT d, amt,\n       SUM(amt) OVER (ORDER BY d, amt ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total\nFROM sales\nORDER BY d, amt;",
+      "expected_rows": [
+        {
+          "d": "2025-01-01",
+          "amt": 50,
+          "running_total": 50
+        },
+        {
+          "d": "2025-01-01",
+          "amt": 100,
+          "running_total": 150
+        },
+        {
+          "d": "2025-01-02",
+          "amt": 30,
+          "running_total": 180
+        },
+        {
+          "d": "2025-01-03",
+          "amt": 70,
+          "running_total": 250
+        }
+      ],
+      "key_points": [
+        "Use ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW \u2014 not the default RANGE",
+        "Add a tie-breaker to ORDER BY (e.g. amt) so the row order is deterministic",
+        "Without the explicit ROWS frame, both Jan-01 rows would share running_total = 150"
+      ]
     }
   ]
 }
