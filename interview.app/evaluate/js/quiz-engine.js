@@ -747,7 +747,7 @@ function renderReviewItem(q, idx) {
       <div class="review-your-answer">${fmtIndices(userAns)}</div>
       <div class="review-answer-label">Correct answer</div>
       <div class="review-your-answer">${correctArr.map(i => formatInline(q.options[i])).join("<br>")}</div>
-      ${q.explanation ? `<div class="review-explanation">${formatInline(q.explanation)}</div>` : ""}
+      ${q.explanation ? `<div class="review-explanation">${formatPrompt(q.explanation)}</div>` : ""}
     `;
   } else if (q.type === "code" || q.type === "open") {
     cls += " self-rated";

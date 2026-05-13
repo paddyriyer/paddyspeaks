@@ -2935,7 +2935,7 @@
         "Is equivalent to a CROSS JOIN with LIMIT"
       ],
       "answer": 0,
-      "explanation": "ASOF JOIN: for each row on the left, find the row in the right table with the closest preceding (or following) value on the matching column \u2014 typically a timestamp. Common in finance to align quotes to trades. In engines without ASOF you simulate it with a LATERAL + ORDER BY ts DESC LIMIT 1."
+      "explanation": "ASOF JOIN: for each row on the left, find the row in the right table with the **closest preceding** (or following) value on the matching column \u2014 typically a timestamp. Classic use cases: attaching the active bid quote to each trade, the active surge multiplier to each ride request, the active A/B experiment bucket to each playback event.\n\n**Why standard SQL is painful.** Engines without native ASOF (Postgres, BigQuery, SQLite, MySQL) need one of three emulation patterns:\n\n**1. Correlated subquery** \u2014 readable, slow at scale (O(N \u00b7 log M)):\n```sql\nSELECT t.*, (\n  SELECT q.bid FROM quotes q\n  WHERE q.symbol = t.symbol AND q.ts <= t.ts\n  ORDER BY q.ts DESC LIMIT 1\n) AS bid\nFROM trades t;\n```\n\n**2. Window-function fill** \u2014 best for large batches (single O(N log N) sort). Interleave both tables on a unified timestamp; carry forward the last non-null quote:\n```sql\nWITH timeline AS (\n  SELECT ts, symbol, NULL AS qty, bid FROM quotes\n  UNION ALL\n  SELECT ts, symbol, qty, NULL AS bid FROM trades\n)\nSELECT *, LAST_VALUE(bid) IGNORE NULLS OVER (\n  PARTITION BY symbol ORDER BY ts\n  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n) AS active_bid\nFROM timeline\nWHERE qty IS NOT NULL;\n```\nRequires `IGNORE NULLS` (Postgres 14+, BigQuery, Snowflake, SQLite 3.40+). On older engines, substitute the gap-fill trick: `COUNT(bid) OVER (...)` to define groups, then `MAX(bid) OVER (PARTITION BY symbol, grp)`.\n\n**3. LATERAL join** (Postgres / Snowflake) \u2014 one preceding quote per trade, idiomatic but per-row evaluation:\n```sql\nSELECT t.*, q.bid FROM trades t,\nLATERAL (\n  SELECT bid FROM quotes\n  WHERE symbol = t.symbol AND ts <= t.ts\n  ORDER BY ts DESC LIMIT 1\n) q;\n```\n\n**At Uber / Netflix scale**, the emulation moves OUT of the warehouse:\n- **Flink temporal joins** keep only the latest state per key in RocksDB \u2014 sub-second freshness for surge / experiment-bucket lookups\n- **Redis lookaside cache** \u2014 the stream consumer GETs current state per key; no SQL involved\n- **Native ASOF** in ClickHouse / DuckDB / kdb+ for analytics over landed data\n\nThe 'right' answer depends on freshness (streaming) vs correctness across late-arriving state (batch warehouse)."
     },
     {
       "id": "sql-149",
@@ -4666,6 +4666,89 @@
         "Add a tie-breaker to ORDER BY (e.g. amt) so the row order is deterministic",
         "Without the explicit ROWS frame, both Jan-01 rows would share running_total = 150"
       ]
+    },
+    {
+      "id": "sql-251",
+      "type": "single",
+      "topic": "Advanced Joins",
+      "difficulty": "medium",
+      "prompt": "You're emulating an ASOF JOIN in standard SQL (no native ASOF) on a 1-billion-row `trades` table joined to a 10-million-row `quotes` table. All four options below are functionally correct. Which is the MOST efficient at this scale?",
+      "options": [
+        "Correlated subquery \u2014 `(SELECT bid FROM quotes WHERE symbol = t.symbol AND ts <= t.ts ORDER BY ts DESC LIMIT 1)` for each trade row",
+        "LATERAL JOIN with `ORDER BY ts DESC LIMIT 1` \u2014 runs the inner query once per trade",
+        "Window-function fill \u2014 UNION ALL trades + quotes on a unified timestamp, then `LAST_VALUE(bid) IGNORE NULLS` over the interleaved timeline",
+        "Inequality JOIN + GROUP BY MAX(quote_ts), then JOIN back to quotes to retrieve the bid"
+      ],
+      "answer": 2,
+      "explanation": "All four are functionally correct, but the cost models diverge sharply at scale.\n\n- **Correlated subquery / LATERAL** \u2014 O(N \u00b7 log M). One index probe per left row. Fine at 100K rows, fatal at 1B (a billion index lookups dominates the wall clock).\n- **Inequality JOIN + GROUP BY MAX** \u2014 materializes a near-Cartesian intermediate before MAX-collapses it. Spills to disk; memory blows up.\n- **Window-function fill** \u2014 single linear pass after one sort. O(N log N) total, no per-row probing. The interleaved-timeline pattern is essentially what ClickHouse / DuckDB do internally for ASOF JOIN.\n\nThis is also why ClickHouse / DuckDB / kdb+ bothered to add native ASOF: at finance / telemetry scale, the SQL emulations either die (correlated) or require careful rewriting (window fill). The native operator hides the complexity and adds specialized index structures (sort-merge, B-tree on (key, ts)) that beat O(N log N)."
+    },
+    {
+      "id": "sql-252",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Emulate an ASOF JOIN in SQLite (no native ASOF, no `IGNORE NULLS`). Schema:\n\n- `quotes(ts, symbol, bid)` \u2014 bid updates per symbol\n- `trades(ts, symbol, qty)` \u2014 trades per symbol\n\nFor each trade, return the most recent bid AT-OR-BEFORE the trade time, per symbol. Use the window-function-fill pattern. Return columns: `trade_ts, symbol, qty, active_bid`. Order by `symbol, trade_ts`.\n\nHint: interleave both tables with UNION ALL, then use `COUNT(bid) OVER (... ROWS UNBOUNDED PRECEDING)` to define fill-forward groups, then `MAX(bid) OVER (PARTITION BY symbol, grp)`. Compute the MAX BEFORE filtering to trade rows \u2014 otherwise WHERE strips the quote rows first and MAX has no bids to find.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n-- Pattern:\n--   timeline CTE (UNION ALL of quotes + trades)\n--   fill CTE (group via COUNT)\n--   with_active CTE (MAX over group \u2014 DO THIS BEFORE WHERE)\n--   final SELECT (filter to trade rows)\n",
+      "schema": "CREATE TABLE quotes (ts TEXT, symbol TEXT, bid INTEGER);\nINSERT INTO quotes VALUES\n  ('10:00:00','BTC',60000),\n  ('10:05:00','BTC',60500),\n  ('10:10:00','BTC',61000),\n  ('10:01:00','ETH',3000),\n  ('10:06:00','ETH',3100);\n\nCREATE TABLE trades (ts TEXT, symbol TEXT, qty REAL);\nINSERT INTO trades VALUES\n  ('10:02:00','BTC',0.5),\n  ('10:07:00','BTC',1.2),\n  ('10:03:00','ETH',2.0);",
+      "model_answer": "WITH timeline AS (\n  SELECT ts, symbol, CAST(NULL AS REAL) AS qty, bid FROM quotes\n  UNION ALL\n  SELECT ts, symbol, qty, CAST(NULL AS INTEGER) AS bid FROM trades\n),\nfill AS (\n  SELECT ts, symbol, qty, bid,\n         COUNT(bid) OVER (\n           PARTITION BY symbol ORDER BY ts\n           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW\n         ) AS grp\n  FROM timeline\n),\nwith_active AS (\n  SELECT ts, symbol, qty,\n         MAX(bid) OVER (PARTITION BY symbol, grp) AS active_bid\n  FROM fill\n)\nSELECT ts AS trade_ts, symbol, qty, active_bid\nFROM with_active\nWHERE qty IS NOT NULL\nORDER BY symbol, trade_ts;",
+      "expected_rows": [
+        {
+          "trade_ts": "10:02:00",
+          "symbol": "BTC",
+          "qty": 0.5,
+          "active_bid": 60000
+        },
+        {
+          "trade_ts": "10:07:00",
+          "symbol": "BTC",
+          "qty": 1.2,
+          "active_bid": 60500
+        },
+        {
+          "trade_ts": "10:03:00",
+          "symbol": "ETH",
+          "qty": 2.0,
+          "active_bid": 3000
+        }
+      ],
+      "key_points": [
+        "Interleaves the two tables on a unified timestamp via UNION ALL",
+        "Uses COUNT(bid) OVER (ROWS UNBOUNDED PRECEDING) to define gap-fill groups \u2014 increments only when a non-null bid is seen",
+        "Computes MAX(bid) OVER (PARTITION BY symbol, grp) in a SEPARATE CTE before the WHERE filter \u2014 otherwise WHERE removes the quote rows first and MAX has no bids in-scope",
+        "Filters to trade rows (`WHERE qty IS NOT NULL`) at the end",
+        "PARTITION BY symbol so symbols don't bleed into each other"
+      ]
+    },
+    {
+      "id": "sql-253",
+      "type": "single",
+      "topic": "Real-time Systems",
+      "difficulty": "medium",
+      "prompt": "Uber needs to attach the active surge multiplier to each ride request. Surge updates every minute via a `surge(ts, city_id, multiplier)` stream; ride requests arrive continuously. A user requests at 12:05:10; the most recent surge was at 12:04:00 (1.5x). Which approach is most appropriate for the REAL-TIME pricing path (sub-second latency)?",
+      "options": [
+        "Run a correlated subquery against the warehouse for each request",
+        "Run the window-function-fill SQL pattern on every request as it arrives",
+        "Maintain the latest surge per city in Redis (or a Flink `MapState` keyed by city_id); each request does a single GET",
+        "Wait for the next batch ETL job to align requests with surge offline"
+      ],
+      "answer": 2,
+      "explanation": "For sub-second pricing, neither warehouse-style SQL pattern fits \u2014 they're milliseconds-to-seconds, not microseconds. The real-time pattern is:\n\n1. **Keyed state lookup**: surge updates are written to Redis (or a Flink `MapState` keyed by `city_id`). Each request does ONE `GET city_id` and gets the current multiplier. Latency: sub-millisecond.\n2. **Flink temporal table join** does the same declaratively \u2014 surge is registered as a versioned table, the request stream joins against the version active at request time, and Flink keeps only the latest version per key in RocksDB.\n\nThe SQL patterns (correlated subquery, window-fill) become correct for the BATCH path later \u2014 analytics, payouts, fraud review \u2014 when latency tolerance is minutes, not milliseconds. The batch path uses the LANDED surge history and an ASOF JOIN (or the emulation). Option 4 fails the freshness SLA for in-the-moment pricing.\n\nThe pattern: **state lives in fast key-value when freshness matters; in the warehouse for correctness over history.**"
+    },
+    {
+      "id": "sql-254",
+      "type": "single",
+      "topic": "Range Joins",
+      "difficulty": "medium",
+      "prompt": "Netflix joins `playback_events(user_id, ts, video_id)` to `experiment_history(user_id, bucket, valid_from, valid_to)` to determine which A/B bucket a user was in WHEN they played a video. A user can move between buckets over time, so each user has multiple history rows. `valid_to` is `NULL` if the bucket is still active. Which join correctly attaches the bucket that was active at play time?",
+      "options": [
+        "`JOIN experiment_history e ON p.user_id = e.user_id` \u2014 pick any matching row",
+        "`JOIN experiment_history e ON p.user_id = e.user_id AND e.valid_to IS NULL`",
+        "`JOIN experiment_history e ON p.user_id = e.user_id AND p.ts >= e.valid_from AND (p.ts < e.valid_to OR e.valid_to IS NULL)`",
+        "`LEFT JOIN experiment_history e ON p.user_id = e.user_id WHERE p.ts BETWEEN e.valid_from AND e.valid_to`"
+      ],
+      "answer": 2,
+      "explanation": "The correct approach is a **range join**: anchor on `user_id`, then bound the play time within the history row's validity interval, treating `valid_to IS NULL` as 'open-ended / currently active'.\n\n- **Option 1** fans out: every play gets every history row the user ever had \u2014 analytics gets multiplied by bucket-history length.\n- **Option 2** is the 'current bucket' join \u2014 wrong for historical playbacks that happened BEFORE the current bucket started. Backfill / model training needs the bucket that was active *at the play moment*, not now.\n- **Option 3** is correct. Note the **half-open interval** (`<`, not `<=`) on `valid_to` so the bucket-change boundary belongs to exactly one row.\n- **Option 4** uses `BETWEEN`, which is closed on both ends AND fails on `valid_to IS NULL` (BETWEEN against NULL is NULL \u2014 the row silently drops from the result).\n\nThis is exactly the case ASOF JOIN exists to handle. In ClickHouse you'd write `ASOF JOIN experiment_history ON user_id AND ts >= valid_from`. In standard SQL, the range join with the NULL-aware upper bound is the answer."
     }
   ]
 }
