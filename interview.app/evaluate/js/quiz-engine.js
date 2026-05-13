@@ -498,10 +498,12 @@ async function ensurePglite() {
   if (runtimes.pglite) return runtimes.pglite;
   if (runtimes.loadingPglite) return runtimes.loadingPglite;
   runtimes.loadingPglite = (async () => {
-    // Dynamic import of the vendored PGlite ES module. Path resolved against
-    // the page URL (quiz.html at /interview.app/evaluate/), so we go up one
-    // level to reach the shared /interview.app/vendor/pglite/ directory.
-    const mod = await import("../vendor/pglite/index.js");
+    // Dynamic import of the vendored PGlite ES module. quiz-engine.js is
+    // loaded as a classic script, so its dynamic import() resolves the
+    // specifier relative to the SCRIPT's URL (/interview.app/evaluate/js/
+    // quiz-engine.js) — NOT the document URL. So we need ../../ to climb
+    // out of evaluate/js/ to reach /interview.app/vendor/pglite/.
+    const mod = await import("../../vendor/pglite/index.js");
     const PGlite = mod.PGlite || mod.default?.PGlite || mod.default;
     if (!PGlite) throw new Error("PGlite module did not expose a PGlite class");
     runtimes.pglite = await PGlite.create();
