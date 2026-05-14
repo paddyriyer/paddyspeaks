@@ -249,7 +249,7 @@
 <!-- ==================== PART 03 ==================== -->
 <section id="part-03">
 <div class="part-eyebrow">§ 03 — Twelve Scenarios</div>
-<h2 class="part-title">The seventeen most-asked modeling prompts — full walk-throughs.</h2>
+<h2 class="part-title">The nineteen most-asked modeling prompts — full walk-throughs.</h2>
 
 <!-- Scenario 1: Uber trip -->
 <div class="scenario" id="sc-uber-trip">
@@ -5543,6 +5543,319 @@ FROM source_counts s LEFT JOIN unified_counts u USING (src);</code></pre>
 <h4 class="sub-head">Section 8 — Senior framing</h4>
 <div class="senior-signal">
 <strong>Senior framing.</strong> "M&amp;A integration is four orthogonal data problems — entity resolution, schema unification, warehouse consolidation, multi-org metrics — and the senior-IC mistake is shipping a single 'integration plan' that conflates them. Entity resolution gives you the golden record via an ordered rule playbook (strict-then-fuzzy) + append-only crosswalk with <code>superseded_by</code> for un-merge. The strangler pattern lets both apps keep shipping while CDC dual-writes through a translation layer; daily reconciliation gates the cutover. Warehouse consolidation can wait behind cross-account shares for 6 months. Metric definitions become versioned dim rows the board deck can audit. Adobe-Figma, Microsoft-Activision, Cisco-Splunk, and Salesforce-Slack all hit the same four; the only difference is which one was hardest in their context."
+</div>
+</div>
+
+<div class="scenario" id="sc-fraud-detection">
+<h4 class="sub-head">Scenario 19 — Fraud detection · identity graph, impossible travel, account sharing, model replay</h4>
+
+<h4 class="sub-head">Why this is hard — five problems pretending to be one model</h4>
+<p>Every interview asks the same question: <em>"design the data model for a fraud system at a fintech / marketplace / streaming product."</em> Junior answers stop at <em>"a transaction table with a risk_score column."</em> The senior signal is naming the five orthogonal sub-problems first:</p>
+<ul>
+  <li><strong>Identity resolution</strong> — the SAME user appears across 3 emails, 2 phones, 4 devices, 5 IPs. Build a <strong>graph</strong>, not a row. Strong edges (same payment instrument) vs weak edges (same IP within 1h).</li>
+  <li><strong>Impossible travel / multi-geo</strong> — login from Lagos, transaction from Berlin 18 min later. Velocity of physical position vs known device/SIM.</li>
+  <li><strong>Account sharing detection</strong> — one user, many simultaneous-session devices/geos (Netflix family-plan abuse, Spotify subscription sharing). Inverse of multi-account fraud: <em>one identity using many accounts</em> looks like sharing; <em>many identities sharing one account</em> looks like ATO.</li>
+  <li><strong>Decision replay</strong> — at audit time you must reproduce <em>why</em> you blocked the September 14 transaction. Means: freeze the model version, ruleset version, and feature snapshot at decision time. SCD2 everywhere.</li>
+  <li><strong>Feedback loop</strong> — chargebacks come back 30-180 days later; analyst verdicts hours later. Both must flow back as labels to retrain the next model — without the loop, the model degrades silently.</li>
+</ul>
+
+<p class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:14px 18px;border-radius:4px;"><strong>Common interview pitfall:</strong> conflating <em>multi-account fraud</em> (one bad actor opens 50 accounts to abuse signup bonuses) with <em>account sharing</em> (one legit user shares Netflix with their parents) with <em>account takeover</em> (one bad actor uses one legit user's compromised account). All three look like <em>"identity ↔ account doesn't match 1:1"</em> in the data — the schema must distinguish them, or every detection rule produces the wrong false-positive class.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Subject dimensions</td><td>dim_user, dim_account, dim_device, dim_payment_instrument</td><td>SCD2 on the risk-bearing attributes: <code>kyc_status</code>, <code>account_state</code>, <code>device_trust_score</code>, <code>bin_country</code></td></tr>
+    <tr><td>Location dimensions</td><td>dim_ip, dim_geo</td><td>Joined per request. <code>is_proxy</code>, <code>is_vpn</code>, <code>is_datacenter</code>, <code>asn</code>, <code>asn_risk_class</code> from third-party feed (SCD2)</td></tr>
+    <tr><td>Identity graph (bridge)</td><td>brg_user_device, brg_user_ip, brg_user_payment, identity_cluster</td><td>Append-only edges with <code>edge_strength</code> (1=strong: shared payment instrument; 0.3=weak: shared IP &gt; 24h apart). <code>identity_cluster.cluster_id</code> rolls up edges into a connected component</td></tr>
+    <tr><td>Decision-context dimensions (frozen)</td><td>dim_ruleset, dim_risk_model, dim_feature_snapshot</td><td>SCD2 ESSENTIAL — the only way to replay a 6-month-old decision. <code>ruleset_id</code> + <code>model_id</code> live on every fact row. Feature snapshot is a frozen subset of computed values used by the model at decision time</td></tr>
+    <tr><td>Decision facts</td><td>fact_login_attempt, fact_transaction, fact_session_event</td><td>One row per attempt. Includes <code>risk_score_at_decision</code>, <code>decision</code> (allow/step_up/block), <code>ruleset_id</code>, <code>model_id</code>, <code>feature_snapshot_id</code></td></tr>
+    <tr><td>Signal facts (append-only)</td><td>fact_rule_firing, fact_model_score</td><td>One row per rule firing or model evaluation. Lets you trace <em>which signals contributed to a decision</em>. Volume is high — partition by day, keep 90-day hot tier</td></tr>
+    <tr><td>Review &amp; labels</td><td>fact_case, fact_analyst_label, fact_chargeback</td><td>Cases opened on threshold cross. Analyst verdicts (<code>fraud</code> / <code>clean</code> / <code>inconclusive</code>) and chargebacks (30-180 day delayed) feed back as labels for the next training cycle</td></tr>
+    <tr><td>Outcome facts (delayed)</td><td>fact_outcome_label</td><td>Materialized union of analyst labels + chargebacks; the <em>training-set</em> source of truth. Reconciles disagreements (analyst said clean, chargeback came back 90d later → final label = fraud)</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — Enhanced graphical data model — Fraud · Identity Graph + Decision Replay + Feedback Loop</h4>
+<svg viewBox="0 0 1440 720" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrFraud" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="30" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="17" font-weight="700" fill="#0f172a" letter-spacing="0.6">FRAUD · IDENTITY GRAPH + DECISION REPLAY + FEEDBACK LABELS</text>
+
+  <rect x="20" y="56" width="340" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="380" y="56" width="640" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1040" y="56" width="380" height="640" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+
+  <text x="190" y="84" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">DIMENSIONS · IDENTITY GRAPH</text>
+  <text x="700" y="84" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">DECISION FACTS + FROZEN CONTEXT</text>
+  <text x="1230" y="80" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">FEEDBACK + LABELS</text>
+  <text x="1230" y="96" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="10" font-style="italic" fill="#64748b">(analyst + chargebacks → retraining)</text>
+
+  <!-- LEFT: Dimensions -->
+  <g transform="translate(40,115)">
+    <rect width="300" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="300" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_user (SCD2)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">⌖ user_id · email · phone</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">kyc_status · risk_tier · state</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">SCD2 — frozen at decision time</text>
+  </g>
+  <g transform="translate(40,220)">
+    <rect width="300" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="300" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_device · dim_payment_instrument</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">device_fp · trust_score · last_seen</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">bin · issuer_country · was_disputed</text>
+  </g>
+  <g transform="translate(40,315)">
+    <rect width="300" height="75" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="300" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_ip · dim_geo</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">city · country · asn · is_vpn</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">is_proxy · is_datacenter · risk_class</text>
+  </g>
+  <g transform="translate(40,405)">
+    <rect width="300" height="105" fill="#fef3c7" stroke="#92400e" rx="6"/>
+    <rect width="300" height="30" fill="#92400e" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ Identity-graph bridges</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">brg_user_device · brg_user_ip</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">brg_user_payment</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">edge_strength · first_seen · last_seen</text>
+    <text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">append-only edges</text>
+  </g>
+  <g transform="translate(40,525)">
+    <rect width="300" height="90" fill="#fef3c7" stroke="#92400e" rx="6"/>
+    <rect width="300" height="30" fill="#92400e" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⊞ identity_cluster (graph rollup)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">cluster_id · members[] · score</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">connected_component on strong edges</text>
+    <text x="20" y="77" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">batch + incremental</text>
+  </g>
+
+  <!-- CENTER: Decision facts + frozen context -->
+  <g transform="translate(400,115)">
+    <rect width="600" height="100" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="600" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="14" font-weight="600" fill="#fff">★ fact_transaction</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">txn_id · user_id · payment_id · amount · currency</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">merchant · ts · ip_id · device_id</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">risk_score · decision · ruleset_id · model_id</text>
+    <text x="20" y="89" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">feature_snapshot_id · response_action</text>
+  </g>
+  <g transform="translate(400,235)">
+    <rect width="600" height="85" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="600" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="14" font-weight="600" fill="#fff">★ fact_login_attempt</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · ip_id · device_id · ts · success</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">step_up_method · risk_score · decision</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">ruleset_id · model_id · feature_snapshot_id</text>
+  </g>
+  <g transform="translate(400,340)">
+    <rect width="600" height="85" fill="#fde68a" stroke="#854d0e" rx="6"/>
+    <rect width="600" height="30" fill="#854d0e" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="14" font-weight="600" fill="#fff">▣ dim_ruleset · dim_risk_model · dim_feature_snapshot (SCD2 — FROZEN)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">ruleset_id · rules_json · effective_from · effective_to</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">model_id · sha · training_cutoff · feature_set_hash</text>
+    <text x="20" y="76" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">feature_snapshot_id · feature_vector_json · computed_at</text>
+  </g>
+  <g transform="translate(400,445)">
+    <rect width="290" height="75" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="290" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">✚ fact_rule_firing</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">decision_id · rule_id · score_delta</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">90-day hot tier, partition by day</text>
+  </g>
+  <g transform="translate(710,445)">
+    <rect width="290" height="75" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="290" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">✚ fact_model_score</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">decision_id · model_id · raw_score</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">also keeps shadow-model scores</text>
+  </g>
+  <g transform="translate(400,540)">
+    <rect width="600" height="75" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="600" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▦ fact_session_event (multi-geo / impossible-travel signal)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">session_id · user_id · ts · geo · device_id · event_type</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">windowed per-user — feeds the velocity + sharing detectors</text>
+  </g>
+
+  <!-- RIGHT: Feedback / labels -->
+  <g transform="translate(1060,115)">
+    <rect width="340" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="340" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◐ fact_case (review queue)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">case_id · txn_id · opened_ts · sla_h</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">analyst_id · closed_ts · verdict</text>
+    <text x="20" y="77" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">opens on threshold cross</text>
+  </g>
+  <g transform="translate(1060,220)">
+    <rect width="340" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="340" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◐ fact_analyst_label</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">case_id · label · confidence</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">fraud / clean / inconclusive</text>
+  </g>
+  <g transform="translate(1060,315)">
+    <rect width="340" height="90" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="340" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">◐ fact_chargeback (30-180d delayed)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">txn_id · network · reason_code</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">disputed_amount · arrived_ts</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">late-arriving fact — needs idempotent merge</text>
+  </g>
+  <g transform="translate(1060,420)">
+    <rect width="340" height="100" fill="#dcfce7" stroke="#166534" rx="6"/>
+    <rect width="340" height="30" fill="#166534" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚙ fact_outcome_label (union)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">txn_id · final_label · source</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">{analyst, chargeback, agreed}</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">training-set source of truth</text>
+  </g>
+  <g transform="translate(1060,540)">
+    <rect width="340" height="75" fill="#dcfce7" stroke="#166534" rx="6"/>
+    <rect width="340" height="30" fill="#166534" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↻ retrain pipeline (weekly)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">joins outcomes ↔ feature snapshots</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">writes new model_id → SCD2 dim</text>
+  </g>
+
+  <!-- Arrows: facts → labels → retrain -->
+  <line x1="1000" y1="165" x2="1056" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <line x1="1230" y1="205" x2="1230" y2="216" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <line x1="1230" y1="300" x2="1230" y2="311" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <line x1="1230" y1="405" x2="1230" y2="416" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <line x1="1230" y1="520" x2="1230" y2="536" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <!-- Dims feed into facts -->
+  <line x1="340" y1="160" x2="396" y2="165" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+  <line x1="340" y1="350" x2="396" y2="382" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrFraud)"/>
+</svg>
+
+<h4 class="sub-head">Section 3 — The Identity Graph (the part everyone gets wrong)</h4>
+<p>The graph turns "is this account fraudulent?" into "what's the connected component of strong edges this account participates in?" Edges have a <strong>strength</strong>:</p>
+<ul>
+  <li><strong>Strong (1.0)</strong>: same payment instrument used by two accounts; same KYC document hash; same SIM</li>
+  <li><strong>Medium (0.5)</strong>: same device fingerprint observed within 24h on both accounts</li>
+  <li><strong>Weak (0.2)</strong>: same IP observed within 1h; same residential ASN within a week</li>
+</ul>
+<p>Compute the <code>identity_cluster</code> via connected components on edges with <code>edge_strength &gt;= 0.5</code> (run nightly; incremental for new edges). Strong-only clusters are the action graph; weak-edge graphs feed the analyst as <em>"these may be related but require human judgement."</em></p>
+
+<h4 class="sub-head">Section 4 — Stakeholder SQL · grouped by who asks</h4>
+
+<p><strong>Fraud analyst — case queue ordered by SLA risk</strong></p>
+<pre><code>SELECT c.case_id, c.opened_ts, c.sla_hours,
+       EXTRACT(EPOCH FROM (NOW() - c.opened_ts))/3600 AS hours_open,
+       t.amount, t.merchant, u.email, u.risk_tier
+FROM fact_case c
+JOIN fact_transaction t ON c.txn_id = t.txn_id
+JOIN dim_user u ON t.user_id = u.user_id AND u.is_current
+WHERE c.closed_ts IS NULL
+ORDER BY (c.sla_hours - EXTRACT(EPOCH FROM (NOW() - c.opened_ts))/3600);
+</code></pre>
+
+<p><strong>Risk PM — false-positive rate by ruleset version (last 30d)</strong></p>
+<pre><code>SELECT t.ruleset_id, r.rules_json-&gt;'name' AS ruleset_name,
+       COUNT(*) FILTER (WHERE t.decision = 'block') AS blocked,
+       COUNT(*) FILTER (WHERE t.decision = 'block' AND ol.final_label = 'clean') AS fp,
+       ROUND(100.0 * COUNT(*) FILTER (WHERE t.decision = 'block' AND ol.final_label = 'clean')
+             / NULLIF(COUNT(*) FILTER (WHERE t.decision = 'block'), 0), 2) AS fp_pct
+FROM fact_transaction t
+JOIN dim_ruleset r ON t.ruleset_id = r.ruleset_id
+LEFT JOIN fact_outcome_label ol ON t.txn_id = ol.txn_id
+WHERE t.ts &gt;= NOW() - INTERVAL '30 days'
+GROUP BY t.ruleset_id, r.rules_json-&gt;'name'
+ORDER BY fp_pct DESC;
+</code></pre>
+
+<p><strong>Detection engineer — impossible-travel signal (same user, two geos &lt; possible flight time apart)</strong></p>
+<pre><code>WITH paired AS (
+  SELECT s.user_id, s.ts AS ts_a, s.geo AS geo_a,
+         LEAD(s.ts) OVER (PARTITION BY s.user_id ORDER BY s.ts) AS ts_b,
+         LEAD(s.geo) OVER (PARTITION BY s.user_id ORDER BY s.ts) AS geo_b
+  FROM fact_session_event s
+)
+SELECT user_id, ts_a, geo_a, ts_b, geo_b,
+       EXTRACT(EPOCH FROM (ts_b - ts_a))/60 AS gap_minutes,
+       great_circle_km(geo_a, geo_b)         AS distance_km
+FROM paired
+WHERE ts_b IS NOT NULL
+  AND geo_a &lt;&gt; geo_b
+  AND great_circle_km(geo_a, geo_b) / NULLIF(EXTRACT(EPOCH FROM (ts_b - ts_a))/3600, 0) &gt; 900  -- &gt; 900 km/h ⇒ faster than any plane
+ORDER BY gap_minutes;
+</code></pre>
+
+<p><strong>Detection engineer — account-sharing detector (one user, simultaneous sessions in distant geos)</strong></p>
+<pre><code>SELECT user_id, COUNT(DISTINCT geo) AS distinct_geos_24h,
+       COUNT(DISTINCT device_id)   AS distinct_devices_24h,
+       MAX(great_circle_km_between_pairs) AS max_pair_km
+FROM (
+  SELECT s.user_id, s.geo, s.device_id, s.ts,
+         great_circle_km(s.geo, LAG(s.geo) OVER (PARTITION BY s.user_id ORDER BY s.ts)) AS great_circle_km_between_pairs
+  FROM fact_session_event s
+  WHERE s.ts &gt;= NOW() - INTERVAL '24 hours'
+) p
+GROUP BY user_id
+HAVING COUNT(DISTINCT geo) &gt;= 3 AND COUNT(DISTINCT device_id) &gt;= 3;
+-- 3+ geos AND 3+ devices in 24h = candidate for shared-account review,
+-- separate from impossible-travel (which is about velocity, not parallelism).
+</code></pre>
+
+<p><strong>Data scientist — feature-audit for replay (what did model v7.2 see for txn X?)</strong></p>
+<pre><code>SELECT t.txn_id, t.risk_score, t.decision,
+       t.model_id, m.sha, m.training_cutoff,
+       fs.feature_vector_json
+FROM fact_transaction t
+JOIN dim_risk_model m       ON t.model_id = m.model_id
+JOIN dim_feature_snapshot fs ON t.feature_snapshot_id = fs.feature_snapshot_id
+WHERE t.txn_id = $1;
+-- Reproduces the EXACT inputs the model used 6 months ago. Without this, every
+-- "why did you block this customer?" audit becomes "we don't know."
+</code></pre>
+
+<p><strong>Fraud ops — cluster expansion (the moment you find one mule, find the other 47)</strong></p>
+<pre><code>WITH RECURSIVE walk AS (
+  SELECT user_id, 0 AS hop
+  FROM fact_analyst_label
+  WHERE case_id = $1 AND label = 'fraud'
+  UNION
+  SELECT CASE WHEN e.user_a = w.user_id THEN e.user_b ELSE e.user_a END,
+         w.hop + 1
+  FROM walk w
+  JOIN brg_user_device e ON w.user_id IN (e.user_a, e.user_b)
+  WHERE e.edge_strength &gt;= 0.5 AND w.hop &lt; 4
+)
+SELECT DISTINCT user_id, MIN(hop) AS hops_from_seed
+FROM walk
+GROUP BY user_id
+ORDER BY hops_from_seed;
+-- Expands outward 4 hops on strong edges. Surfaces accounts the analyst
+-- didn't know were related — typical haul: 30-200x the seed account count
+-- for mule rings, 2-5x for friendly fraud.
+</code></pre>
+
+<h4 class="sub-head">Section 5 — Worked numerical example · the Lagos-Berlin transaction</h4>
+<p>22:47 UTC. A user account in good standing for 18 months attempts a €4,200 transaction.</p>
+<table>
+  <thead><tr><th>Step</th><th>Signal</th><th>Score delta</th><th>Running</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Base score (model v7.2 prior probability)</td><td>+12</td><td>12</td></tr>
+    <tr><td>2</td><td>Login from Lagos 22:29 (last known geo: Berlin 18 min earlier)</td><td>+38 (impossible travel rule)</td><td>50</td></tr>
+    <tr><td>3</td><td>IP is residential proxy (asn_risk_class = 'high')</td><td>+15</td><td>65</td></tr>
+    <tr><td>4</td><td>Device fingerprint NEW for this user — first seen 4 min before login</td><td>+12</td><td>77</td></tr>
+    <tr><td>5</td><td>Payment instrument: NEW card, BIN issued in a different country than user KYC</td><td>+8</td><td>85</td></tr>
+    <tr><td>6</td><td>Cluster lookup: this device fingerprint linked to 3 prior chargeback users (strong edge)</td><td>+25</td><td>110</td></tr>
+    <tr><td>—</td><td><strong>Threshold for block:</strong> 100</td><td></td><td><strong>BLOCK</strong></td></tr>
+  </tbody>
+</table>
+
+<p>Decision is written to <code>fact_transaction</code> with <code>decision='block'</code>, <code>risk_score=110</code>, plus the <strong>frozen context</strong>: <code>ruleset_id=42</code>, <code>model_id='v7.2'</code>, <code>feature_snapshot_id=$decision_id</code>. The 6 contributing rules each get a row in <code>fact_rule_firing</code>.</p>
+
+<p>A case opens, analyst reviews in 4 hours, confirms <code>fraud</code> → label written to <code>fact_analyst_label</code>. The graph-expansion query above runs on the cluster the device fingerprint belongs to; <strong>17 additional accounts are surfaced</strong>, of which 12 have transactions in the last week. Fraud ops freezes them all pending review. None had crossed the per-account threshold individually; only the cluster lookup tied them together.</p>
+
+<p>180 days later: a chargeback arrives on one of the 17 (txn from before the analyst freeze). <code>fact_chargeback</code> records it idempotently (network deduplicates retries). <code>fact_outcome_label</code> updates: where the analyst said 'fraud' AND the chargeback agreed → <code>final_label='fraud', source='agreed'</code>. The retrain pipeline picks this up Friday and the new model_id v7.3 ships Monday with this case in its training set.</p>
+
+<h4 class="sub-head">Section 6 — Senior framing</h4>
+<div class="senior-signal">
+<strong>Senior framing.</strong> "Fraud is five orthogonal problems pretending to be a model. Identity resolution is a <em>graph</em> with typed edges of varying strength — strong edges form the action cluster, weak edges feed the analyst. Decision replay forces SCD2 on ruleset + model + feature snapshot, with all three IDs stamped on every fact row — otherwise you cannot defend a block to a regulator six months later. Account sharing and account takeover and multi-account fraud look identical in raw transactions (identity ↔ account not 1:1) and the schema must disambiguate them, because each has a different false-positive class. The feedback loop matters more than the model — analyst verdicts come back in hours, chargebacks in 30-180 days, and the <code>fact_outcome_label</code> union is the training set of record. The interview red flag is <em>"we add a risk_score column to transactions"</em> without graph, frozen decision context, or feedback fact. Real systems at Stripe, Wise, Coinbase, PayPal all land on this shape; the differences are which graph backend (Neo4j vs JanusGraph vs a Postgres recursive CTE), whether the cluster job is real-time or batch, and how aggressively the feature store separates online from offline."
 </div>
 </div>
 </section>
