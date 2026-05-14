@@ -156,8 +156,8 @@
       <li><strong>SQL code</strong> runs against a preloaded PostgreSQL schema in your browser (PGlite, ~14 MB on first run — cached afterwards); result table is checked against an expected output.</li>
       <li><strong>Python code</strong> runs in Pyodide (CPython 3.12 / WASM); a hidden test harness reports pass/fail. First load is ~6 MB.</li>
       <li><strong>Open-ended</strong> answers reveal a model solution and key-points checklist — you self-rate <em>Missed it / Partial / Got it</em>.</li>
-      <li><strong>Progress saves automatically</strong> to localStorage; resume where you left off.</li>
-      <li><strong>Retake any time</strong> — Reset draws a new random set from the pool.</li>
+      <li><strong>Every visit is a clean slate</strong> — submitted attempts don't persist; landing here always starts a new draw.</li>
+      <li><strong>Mid-quiz reload-safe</strong> — accidental refresh while answering keeps your in-progress answers, but a finished attempt won't follow you back.</li>
     </ul>
   </section>
 </main>
@@ -183,35 +183,9 @@
     });
   })();
 
-  // Mark a card as 'resumable' if there is in-progress state in localStorage.
-  // Must match the engine's current version (see ENGINE_VERSION in quiz-engine.js).
-  (function markResumable() {
-    const prefix = "paddyspeaks.skillcheck.";
-    const ENGINE_VERSION = 4;
-    document.querySelectorAll(".eval-card[data-section]").forEach(card => {
-      try {
-        const raw = localStorage.getItem(prefix + card.getAttribute("data-section"));
-        if (!raw) return;
-        const data = JSON.parse(raw);
-        if (!data || data.version !== ENGINE_VERSION) return;
-        const answered = Object.keys(data.answers || {}).filter(k => {
-          const v = data.answers[k];
-          if (v === undefined || v === null) return false;
-          if (Array.isArray(v)) return v.length > 0;
-          if (typeof v === "string") return v.trim().length > 0;
-          return true;
-        }).length;
-        if (answered > 0 || data.submitted) {
-          card.classList.add("resumable");
-          const tag = card.querySelector(".eval-card-tag");
-          if (tag) {
-            const status = data.submitted ? "Submitted" : `${answered} in progress`;
-            tag.innerHTML = `${tag.textContent} · <span style="color:var(--color-gold-dark);">${status}</span>`;
-          }
-        }
-      } catch (e) { /* ignore */ }
-    });
-  })();
+  // Resume is intentionally NOT advertised. Every visit starts a fresh
+  // attempt (engine clears localStorage of any submitted state on load).
+  // We deliberately don't show "Submitted" or "in-progress" badges here.
 </script>
 </body>
 </html>

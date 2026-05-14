@@ -80,14 +80,19 @@ async function init() {
 // ──────────────────────────────────────────
 function prepareAttempt() {
   restore();
+  // A previously-submitted attempt does NOT follow the user back. Every
+  // landing-to-quiz navigation that finds a submitted attempt in storage
+  // discards it and starts fresh. Mid-quiz reloads (state.submitted = false)
+  // still restore for accidental-refresh safety.
+  if (state.submitted) {
+    clearProgress();
+  }
   if (!state.attempt || state.attempt.version !== ENGINE_VERSION) {
     newAttempt();
   }
-  // Materialize state.questions = bank items in attempt order, only those still in bank
   const byId = Object.fromEntries(state.bank.map(q => [q.id, q]));
   const selected = state.attempt.questionIds.map(id => byId[id]).filter(Boolean);
   if (selected.length === 0) {
-    // Banked questions changed since last attempt — start fresh
     clearProgress();
     newAttempt();
     state.questions = state.attempt.questionIds.map(id => byId[id]).filter(Boolean);
@@ -186,13 +191,16 @@ function renderQuiz() {
 
   root.innerHTML = `
     <div class="quiz-topbar">
-      <div>
+      <div class="quiz-topbar-left">
         <div class="quiz-section-label">${escapeHTML(state.section.title)}</div>
         <div class="quiz-meta">${escapeHTML(state.section.tagline)} · randomized from a pool of <strong>${poolSize}</strong></div>
       </div>
-      <div class="quiz-meta">
-        Question <strong>${state.current + 1}</strong> of <strong>${total}</strong> ·
-        <strong>${answeredCount}</strong> answered
+      <div class="quiz-topbar-right">
+        <div class="quiz-meta">
+          Question <strong>${state.current + 1}</strong> of <strong>${total}</strong> ·
+          <strong>${answeredCount}</strong> answered
+        </div>
+        <button class="q-btn q-btn-newsession" id="q-new-top" title="Discard this attempt and draw a fresh set of questions">↺ Start new session</button>
       </div>
     </div>
 
@@ -207,7 +215,7 @@ function renderQuiz() {
         <button class="q-btn" id="q-prev" ${state.current === 0 ? "disabled" : ""}>← Previous</button>
       </div>
       <div class="q-nav-side">
-        <button class="q-btn q-btn-danger" id="q-reset">Reset (new attempt)</button>
+        <button class="q-btn q-btn-danger" id="q-reset">Start new session</button>
         <button class="q-btn q-btn-primary" id="q-submit">Submit &amp; Score</button>
         <button class="q-btn" id="q-next" ${state.current === total - 1 ? "disabled" : ""}>Next →</button>
       </div>
@@ -223,6 +231,9 @@ function renderQuiz() {
   document.getElementById("q-next").addEventListener("click", () => navigate(state.current + 1));
   document.getElementById("q-submit").addEventListener("click", confirmSubmit);
   document.getElementById("q-reset").addEventListener("click", confirmReset);
+  // Top-bar "Start new session" button (also renders inside .quiz-topbar)
+  const topNew = document.getElementById("q-new-top");
+  if (topNew) topNew.addEventListener("click", confirmReset);
 }
 
 function renderQuestion(q) {
@@ -755,6 +766,11 @@ function renderResults() {
     : `Below the ${passing}% bar — review the questions you missed and the open-ended model answers, then retake.`;
 
   root.innerHTML = `
+    <div class="results-topbar">
+      <a href="./" class="q-btn">← Pick another section</a>
+      <button class="q-btn q-btn-primary" id="results-retake-top">↺ Start new session</button>
+    </div>
+
     <div class="results-hero">
       <div class="results-eyebrow">Skill Check · ${escapeHTML(state.section.title)}</div>
       <div class="results-score">${pct}<span>%</span></div>
@@ -786,8 +802,11 @@ function renderResults() {
 
     <div class="results-actions">
       <a href="./" class="q-btn">← Pick another section</a>
-      <button class="q-btn q-btn-primary" id="results-retake">Retake with new questions</button>
+      <button class="q-btn q-btn-primary" id="results-retake">↺ Start new session</button>
     </div>
+
+    <button class="scroll-fab scroll-fab-top" id="scroll-to-top" title="Jump to top" aria-label="Jump to top">↑</button>
+    <button class="scroll-fab scroll-fab-bottom" id="scroll-to-bottom" title="Jump to bottom" aria-label="Jump to bottom">↓</button>
   `;
 
   const list = document.getElementById("review-list");
@@ -795,12 +814,21 @@ function renderResults() {
     list.appendChild(renderReviewItem(q, idx));
   });
 
-  document.getElementById("results-retake").addEventListener("click", () => {
+  const retake = () => {
     if (!confirm("Start a fresh attempt with a new random set of questions?")) return;
     clearProgress();
     prepareAttempt();
     renderQuiz();
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  document.getElementById("results-retake").addEventListener("click", retake);
+  document.getElementById("results-retake-top").addEventListener("click", retake);
+
+  document.getElementById("scroll-to-top").addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  document.getElementById("scroll-to-bottom").addEventListener("click", () => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
   });
 }
 
