@@ -9231,6 +9231,2448 @@
       ],
       "answer": 2,
       "explanation": "`FILTER (WHERE ...)` per aggregate is the Postgres-idiomatic, clean way to write conditional aggregation. The HAVING-with-SUM(CASE) form is equivalent but more verbose. Option A is wrong because IN/NOT IN apply per row, not per customer-group. Option D is impossible (the same row can't have product='A' AND product='B')."
+    },
+    {
+      "id": "sql-384",
+      "type": "code",
+      "topic": "Outstanding Balance Reconciliation",
+      "difficulty": "hard",
+      "prompt": "Schema: `customer(cust_code, recorded_outstanding)` (the snapshot value stored on the customer row), `orders(ord_num, cust_code, ord_amount)`, `payment(pay_id, cust_code, paid_amount)`. Reconcile by computing `calculated_balance = SUM(ord_amount) - SUM(paid_amount)` and `discrepancy = recorded_outstanding - calculated_balance`. Return only customers whose `discrepancy` is non-zero (i.e. their stored value disagrees with the derived value). Return `cust_code, recorded_outstanding, total_orders, total_payments, calculated_balance, discrepancy`. NULLs from missing orders/payments treated as 0. Order by `ABS(discrepancy)` DESC, then `cust_code`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, recorded_outstanding NUMERIC);\nINSERT INTO customer VALUES\n  ('C01',9000),('C02',12000),('C03',5000),('C04',0),('C05',8000),('C06',2500);\nCREATE TABLE orders (ord_num INT, cust_code TEXT, ord_amount NUMERIC);\nINSERT INTO orders VALUES\n  (1,'C01',5000),(2,'C01',5500),\n  (3,'C02',5200),\n  (4,'C03',5500),\n  (5,'C05',5000),\n  (6,'C06',2500);\nCREATE TABLE payment (pay_id INT, cust_code TEXT, paid_amount NUMERIC);\nINSERT INTO payment VALUES\n  (10,'C01',1500),\n  (11,'C02',1000),\n  (12,'C03',1200);",
+      "model_answer": "WITH o AS (\n  SELECT cust_code, SUM(ord_amount) AS total_orders FROM orders GROUP BY cust_code\n),\np AS (\n  SELECT cust_code, SUM(paid_amount) AS total_payments FROM payment GROUP BY cust_code\n)\nSELECT c.cust_code,\n       c.recorded_outstanding,\n       COALESCE(o.total_orders,0)   AS total_orders,\n       COALESCE(p.total_payments,0) AS total_payments,\n       COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0) AS calculated_balance,\n       c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0)) AS discrepancy\nFROM customer c\nLEFT JOIN o ON o.cust_code = c.cust_code\nLEFT JOIN p ON p.cust_code = c.cust_code\nWHERE c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0)) <> 0\nORDER BY ABS(c.recorded_outstanding - (COALESCE(o.total_orders,0) - COALESCE(p.total_payments,0))) DESC, c.cust_code;",
+      "expected_rows": [
+        {
+          "cust_code": "C02",
+          "recorded_outstanding": 12000,
+          "total_orders": 5200,
+          "total_payments": 1000,
+          "calculated_balance": 4200,
+          "discrepancy": 7800
+        },
+        {
+          "cust_code": "C05",
+          "recorded_outstanding": 8000,
+          "total_orders": 5000,
+          "total_payments": 0,
+          "calculated_balance": 5000,
+          "discrepancy": 3000
+        },
+        {
+          "cust_code": "C03",
+          "recorded_outstanding": 5000,
+          "total_orders": 5500,
+          "total_payments": 1200,
+          "calculated_balance": 4300,
+          "discrepancy": 700
+        }
+      ],
+      "key_points": [
+        "Pre-aggregate orders and payments in separate CTEs (otherwise the join multiplies rows)",
+        "LEFT JOIN so customers with zero orders or payments still surface",
+        "Filter to non-zero discrepancy in WHERE \u2014 same expression repeated (or wrap in a subquery)",
+        "ABS() for ordering by magnitude of discrepancy"
+      ]
+    },
+    {
+      "id": "sql-385",
+      "type": "code",
+      "topic": "Relational Division",
+      "difficulty": "hard",
+      "prompt": "Schema: `product(product_id, name)` is the FULL product catalog. `purchase(customer_id, product_id)` records who bought what (duplicates allowed). Find customers who have bought EVERY product in the catalog at least once (classic relational division). Return `customer_id`, ordered ascending. Edge case: if the catalog is empty, every customer trivially qualifies.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE product (product_id INT, name TEXT);\nINSERT INTO product VALUES (1,'Apple'),(2,'Banana'),(3,'Cherry');\nCREATE TABLE purchase (customer_id INT, product_id INT);\nINSERT INTO purchase VALUES\n  (1,1),(1,2),(1,3),(1,1),\n  (2,1),(2,2),\n  (3,1),(3,2),(3,3),\n  (4,2),(4,3);",
+      "model_answer": "SELECT customer_id\nFROM purchase\nGROUP BY customer_id\nHAVING COUNT(DISTINCT product_id) = (SELECT COUNT(*) FROM product)\nORDER BY customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 1
+        },
+        {
+          "customer_id": 3
+        }
+      ],
+      "key_points": [
+        "Classic relational-division pattern: COUNT(DISTINCT bought) = COUNT(catalog)",
+        "DISTINCT is essential \u2014 repeated purchases of the same product must not inflate the count",
+        "Edge case: if catalog count = 0, ANY customer with at least one purchase would NOT qualify (because they'd have COUNT > 0); to truly handle 'every customer qualifies', you'd need a different formulation (e.g. NOT EXISTS-of-the-difference)",
+        "Alternative formulation: NOT EXISTS (SELECT 1 FROM product p WHERE NOT EXISTS (SELECT 1 FROM purchase WHERE customer_id = c.customer_id AND product_id = p.product_id))"
+      ]
+    },
+    {
+      "id": "sql-386",
+      "type": "code",
+      "topic": "Relational Division Variant",
+      "difficulty": "hard",
+      "prompt": "Schema: `course(course_id, name)` lists all required courses. `enrollment(student_id, course_id, grade)` records enrollments where `grade` is a letter ('A','B','C','D','F') or NULL (in progress). Find students who have COMPLETED (i.e. grade IS NOT NULL AND grade <> 'F') every required course. A student who has merely enrolled in but not passed a course does not qualify. Return `student_id`, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE course (course_id INT, name TEXT);\nINSERT INTO course VALUES (101,'Math'),(102,'Physics'),(103,'Chemistry');\nCREATE TABLE enrollment (student_id INT, course_id INT, grade TEXT);\nINSERT INTO enrollment VALUES\n  (1,101,'A'),(1,102,'B'),(1,103,'C'),\n  (2,101,'A'),(2,102,'F'),(2,103,'B'),\n  (3,101,'A'),(3,102,NULL),(3,103,'A'),\n  (4,101,'A'),(4,102,'A'),(4,103,'A'),\n  (5,101,'A');",
+      "model_answer": "SELECT student_id\nFROM enrollment\nWHERE grade IS NOT NULL AND grade <> 'F'\nGROUP BY student_id\nHAVING COUNT(DISTINCT course_id) = (SELECT COUNT(*) FROM course)\nORDER BY student_id;",
+      "expected_rows": [
+        {
+          "student_id": 1
+        },
+        {
+          "student_id": 4
+        }
+      ],
+      "key_points": [
+        "Filter to PASSED enrollments BEFORE aggregating (WHERE grade IS NOT NULL AND <> 'F')",
+        "Student 2 fails because they got 'F' in Physics; student 3 fails because Physics is NULL (in progress); student 5 fails because they only completed 1 course",
+        "COUNT(DISTINCT course_id) protects against any accidental duplicate enrollment rows",
+        "Compare to the total course count from the master `course` table"
+      ]
+    },
+    {
+      "id": "sql-387",
+      "type": "code",
+      "topic": "Set Difference",
+      "difficulty": "medium",
+      "prompt": "Schema: `customer(cust_code, cust_name, cust_country)` and `orders(ord_num, cust_code)`. Return customers who have NEVER placed an order. Use the LEFT JOIN / IS NULL anti-join pattern (NOT IN is unsafe with NULLs and NOT EXISTS is fine but not what we want to test here). Return `cust_code, cust_name, cust_country`, ordered by `cust_code`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, cust_name TEXT, cust_country TEXT);\nINSERT INTO customer VALUES\n  ('C01','Alpha','India'),\n  ('C02','Beta','USA'),\n  ('C03','Gamma','UK'),\n  ('C04','Delta','India'),\n  ('C05','Epsilon','Canada');\nCREATE TABLE orders (ord_num INT, cust_code TEXT);\nINSERT INTO orders VALUES (1,'C01'),(2,'C01'),(3,'C03'),(4,'C04');",
+      "model_answer": "SELECT c.cust_code, c.cust_name, c.cust_country\nFROM customer c\nLEFT JOIN orders o ON o.cust_code = c.cust_code\nWHERE o.cust_code IS NULL\nORDER BY c.cust_code;",
+      "expected_rows": [
+        {
+          "cust_code": "C02",
+          "cust_name": "Beta",
+          "cust_country": "USA"
+        },
+        {
+          "cust_code": "C05",
+          "cust_name": "Epsilon",
+          "cust_country": "Canada"
+        }
+      ],
+      "key_points": [
+        "LEFT JOIN orders, then filter WHERE orders.<key> IS NULL",
+        "Equivalent to NOT EXISTS but uses join semantics",
+        "Avoid NOT IN \u2014 if any row in orders.cust_code were NULL, the outer query would return zero rows",
+        "Test the IS NULL on a non-nullable column from the right side (the FK, not a nullable attribute)"
+      ]
+    },
+    {
+      "id": "sql-388",
+      "type": "code",
+      "topic": "Fractional Pivot",
+      "difficulty": "hard",
+      "prompt": "Schema: `agent(agent_code, working_area, commission)`. For each working area, compute `num_agents`, `avg_commission` (rounded to 4 decimals), `min_commission`, `max_commission`, and `commission_spread` = max-min. Then RANK areas by avg_commission DESC (ties get the same rank, no gaps \u2014 use DENSE_RANK). Return only areas where `num_agents >= 1` (i.e. all of them) with columns `working_area, num_agents, avg_commission, min_commission, max_commission, commission_spread, rk`, ordered by rk then working_area.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE agent (agent_code TEXT, working_area TEXT, commission NUMERIC);\nINSERT INTO agent VALUES\n  ('A001','Bangalore',0.14),\n  ('A002','Mumbai',0.11),\n  ('A003','Bangalore',0.13),\n  ('A004','Toronto',0.15),\n  ('A005','London',0.13),\n  ('A006','London',0.15),\n  ('A007','Bangalore',0.15),\n  ('A008','New York',0.12),\n  ('A009','Hampshair',0.11),\n  ('A010','Chennai',0.14),\n  ('A011','Brisban',0.13),\n  ('A012','San Jose',0.12);",
+      "model_answer": "WITH g AS (\n  SELECT working_area,\n         COUNT(*) AS num_agents,\n         ROUND(AVG(commission)::numeric, 4) AS avg_commission,\n         MIN(commission) AS min_commission,\n         MAX(commission) AS max_commission,\n         MAX(commission) - MIN(commission) AS commission_spread\n  FROM agent\n  GROUP BY working_area\n)\nSELECT working_area, num_agents, avg_commission, min_commission, max_commission, commission_spread,\n       DENSE_RANK() OVER (ORDER BY avg_commission DESC) AS rk\nFROM g\nORDER BY rk, working_area;",
+      "expected_rows": [
+        {
+          "working_area": "Toronto",
+          "num_agents": 1,
+          "avg_commission": "0.1500",
+          "min_commission": "0.15",
+          "max_commission": "0.15",
+          "commission_spread": "0.00",
+          "rk": 1
+        },
+        {
+          "working_area": "Bangalore",
+          "num_agents": 3,
+          "avg_commission": "0.1400",
+          "min_commission": "0.13",
+          "max_commission": "0.15",
+          "commission_spread": "0.02",
+          "rk": 2
+        },
+        {
+          "working_area": "Chennai",
+          "num_agents": 1,
+          "avg_commission": "0.1400",
+          "min_commission": "0.14",
+          "max_commission": "0.14",
+          "commission_spread": "0.00",
+          "rk": 2
+        },
+        {
+          "working_area": "London",
+          "num_agents": 2,
+          "avg_commission": "0.1400",
+          "min_commission": "0.13",
+          "max_commission": "0.15",
+          "commission_spread": "0.02",
+          "rk": 2
+        },
+        {
+          "working_area": "Brisban",
+          "num_agents": 1,
+          "avg_commission": "0.1300",
+          "min_commission": "0.13",
+          "max_commission": "0.13",
+          "commission_spread": "0.00",
+          "rk": 3
+        },
+        {
+          "working_area": "New York",
+          "num_agents": 1,
+          "avg_commission": "0.1200",
+          "min_commission": "0.12",
+          "max_commission": "0.12",
+          "commission_spread": "0.00",
+          "rk": 4
+        },
+        {
+          "working_area": "San Jose",
+          "num_agents": 1,
+          "avg_commission": "0.1200",
+          "min_commission": "0.12",
+          "max_commission": "0.12",
+          "commission_spread": "0.00",
+          "rk": 4
+        },
+        {
+          "working_area": "Hampshair",
+          "num_agents": 1,
+          "avg_commission": "0.1100",
+          "min_commission": "0.11",
+          "max_commission": "0.11",
+          "commission_spread": "0.00",
+          "rk": 5
+        },
+        {
+          "working_area": "Mumbai",
+          "num_agents": 1,
+          "avg_commission": "0.1100",
+          "min_commission": "0.11",
+          "max_commission": "0.11",
+          "commission_spread": "0.00",
+          "rk": 5
+        }
+      ],
+      "key_points": [
+        "Aggregate first in a CTE, then apply a window function over the aggregated rows",
+        "DENSE_RANK groups ties together with no gaps (1, 2, 2, 2, 3 \u2014 not 1, 2, 2, 2, 5)",
+        "Postgres: AVG(numeric) returns numeric, but cast explicitly before ROUND for safety",
+        "Spread = MAX \u2212 MIN summarizes within-area variance without needing variance/stddev"
+      ]
+    },
+    {
+      "id": "sql-389",
+      "type": "code",
+      "topic": "Top-N Per Group with Multi-key Tie-break",
+      "difficulty": "hard",
+      "prompt": "Schema: `orders(ord_num, agent_code, ord_amount, ord_date)`. For each agent, return the TOP 2 orders by amount DESC. Tie-break: earlier `ord_date` wins; further ties broken by lower `ord_num`. If an agent has only one order, return that one row. Return `agent_code, ord_num, ord_date, ord_amount, rk`, ordered by `agent_code, rk`. Use ROW_NUMBER (no ties surface a duplicate rank).",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE orders (ord_num INT, agent_code TEXT, ord_amount NUMERIC, ord_date DATE);\nINSERT INTO orders VALUES\n  (1,'A001',800,'2025-01-01'),\n  (2,'A002',5000,'2025-01-02'),(3,'A002',7000,'2025-02-15'),(4,'A002',7000,'2025-02-10'),(5,'A002',3000,'2025-03-01'),\n  (6,'A004',2500,'2025-01-10'),(7,'A004',2500,'2025-01-10'),(8,'A004',1000,'2025-02-01'),\n  (9,'A010',9000,'2025-03-01'),(10,'A010',5000,'2025-04-01'),(11,'A010',3000,'2025-05-01');",
+      "model_answer": "WITH ranked AS (\n  SELECT agent_code, ord_num, ord_date, ord_amount,\n         ROW_NUMBER() OVER (PARTITION BY agent_code ORDER BY ord_amount DESC, ord_date ASC, ord_num ASC) AS rk\n  FROM orders\n)\nSELECT agent_code, ord_num, ord_date, ord_amount, rk\nFROM ranked\nWHERE rk <= 2\nORDER BY agent_code, rk;",
+      "expected_rows": [
+        {
+          "agent_code": "A001",
+          "ord_num": 1,
+          "ord_date": "2025-01-01",
+          "ord_amount": 800,
+          "rk": 1
+        },
+        {
+          "agent_code": "A002",
+          "ord_num": 4,
+          "ord_date": "2025-02-10",
+          "ord_amount": 7000,
+          "rk": 1
+        },
+        {
+          "agent_code": "A002",
+          "ord_num": 3,
+          "ord_date": "2025-02-15",
+          "ord_amount": 7000,
+          "rk": 2
+        },
+        {
+          "agent_code": "A004",
+          "ord_num": 6,
+          "ord_date": "2025-01-10",
+          "ord_amount": 2500,
+          "rk": 1
+        },
+        {
+          "agent_code": "A004",
+          "ord_num": 7,
+          "ord_date": "2025-01-10",
+          "ord_amount": 2500,
+          "rk": 2
+        },
+        {
+          "agent_code": "A010",
+          "ord_num": 9,
+          "ord_date": "2025-03-01",
+          "ord_amount": 9000,
+          "rk": 1
+        },
+        {
+          "agent_code": "A010",
+          "ord_num": 10,
+          "ord_date": "2025-04-01",
+          "ord_amount": 5000,
+          "rk": 2
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER (not RANK/DENSE_RANK) \u2014 we want EXACTLY two rows per agent",
+        "Multi-key ORDER BY in the OVER() clause: amount DESC, then date ASC, then ord_num ASC",
+        "Filter rk <= 2 in OUTER query \u2014 you cannot reference window aliases in WHERE",
+        "Agents with only one order surface a single row (rk = 1)"
+      ]
+    },
+    {
+      "id": "sql-390",
+      "type": "code",
+      "topic": "Hierarchical Total",
+      "difficulty": "hard",
+      "prompt": "Schema: `category(category_id, name, parent_id)` forms a tree (parent_id is NULL at the root). `product(product_id, category_id, sales)` links products to LEAF categories only. For every category in the tree (leaf AND internal), compute the SUM of sales of all products in its subtree (itself + every descendant). Return `category_id, name, total_sales`, ordered by `category_id`. Categories with no products in their subtree get 0.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE category (category_id INT, name TEXT, parent_id INT);\nINSERT INTO category VALUES\n  (1,'All',NULL),\n  (2,'Electronics',1),\n  (3,'Phones',2),\n  (4,'Laptops',2),\n  (5,'Apparel',1),\n  (6,'Shoes',5),\n  (7,'Shirts',5);\nCREATE TABLE product (product_id INT, category_id INT, sales NUMERIC);\nINSERT INTO product VALUES\n  (101,3,500),(102,3,300),\n  (103,4,1000),\n  (104,6,200),\n  (105,7,400),(106,7,100);",
+      "model_answer": "WITH RECURSIVE descendants(ancestor_id, descendant_id) AS (\n  SELECT category_id, category_id FROM category\n  UNION ALL\n  SELECT d.ancestor_id, c.category_id\n  FROM descendants d JOIN category c ON c.parent_id = d.descendant_id\n)\nSELECT c.category_id, c.name,\n       COALESCE(SUM(p.sales), 0) AS total_sales\nFROM category c\nLEFT JOIN descendants d ON d.ancestor_id = c.category_id\nLEFT JOIN product p ON p.category_id = d.descendant_id\nGROUP BY c.category_id, c.name\nORDER BY c.category_id;",
+      "expected_rows": [
+        {
+          "category_id": 1,
+          "name": "All",
+          "total_sales": 2500
+        },
+        {
+          "category_id": 2,
+          "name": "Electronics",
+          "total_sales": 1800
+        },
+        {
+          "category_id": 3,
+          "name": "Phones",
+          "total_sales": 800
+        },
+        {
+          "category_id": 4,
+          "name": "Laptops",
+          "total_sales": 1000
+        },
+        {
+          "category_id": 5,
+          "name": "Apparel",
+          "total_sales": 700
+        },
+        {
+          "category_id": 6,
+          "name": "Shoes",
+          "total_sales": 200
+        },
+        {
+          "category_id": 7,
+          "name": "Shirts",
+          "total_sales": 500
+        }
+      ],
+      "key_points": [
+        "Recursive CTE materializes the transitive (ancestor, descendant) closure including the trivial self-pair",
+        "Anchor: each category is its own descendant (so SUM picks up products in the category itself)",
+        "LEFT JOIN to product ensures internal categories with NO direct products still get descendants' sales",
+        "Group by the ancestor; SUM rolls up the entire subtree"
+      ]
+    },
+    {
+      "id": "sql-391",
+      "type": "code",
+      "topic": "Hierarchical Path",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id, name, manager_id)` where the CEO has manager_id = NULL. For every employee, return the FULL path from the CEO down to them as a `>`-separated string of names, plus their `depth` (CEO is 0). Return `emp_id, name, depth, path`, ordered by `depth` then `emp_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, name TEXT, manager_id INT);\nINSERT INTO employee VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),(3,'Cara',1),\n  (4,'Dan',2),(5,'Eve',2),(6,'Finn',3),\n  (7,'Grace',5);",
+      "model_answer": "WITH RECURSIVE tree AS (\n  SELECT emp_id, name, manager_id, 0 AS depth, name AS path\n  FROM employee WHERE manager_id IS NULL\n  UNION ALL\n  SELECT e.emp_id, e.name, e.manager_id, t.depth + 1, t.path || ' > ' || e.name\n  FROM employee e JOIN tree t ON e.manager_id = t.emp_id\n)\nSELECT emp_id, name, depth, path FROM tree ORDER BY depth, emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 1,
+          "name": "Alice",
+          "depth": 0,
+          "path": "Alice"
+        },
+        {
+          "emp_id": 2,
+          "name": "Bob",
+          "depth": 1,
+          "path": "Alice > Bob"
+        },
+        {
+          "emp_id": 3,
+          "name": "Cara",
+          "depth": 1,
+          "path": "Alice > Cara"
+        },
+        {
+          "emp_id": 4,
+          "name": "Dan",
+          "depth": 2,
+          "path": "Alice > Bob > Dan"
+        },
+        {
+          "emp_id": 5,
+          "name": "Eve",
+          "depth": 2,
+          "path": "Alice > Bob > Eve"
+        },
+        {
+          "emp_id": 6,
+          "name": "Finn",
+          "depth": 2,
+          "path": "Alice > Cara > Finn"
+        },
+        {
+          "emp_id": 7,
+          "name": "Grace",
+          "depth": 3,
+          "path": "Alice > Bob > Eve > Grace"
+        }
+      ],
+      "key_points": [
+        "Recursive CTE: anchor is the CEO (manager_id IS NULL) at depth 0",
+        "Recursive step: append current employee's name to parent's path with ' > '",
+        "Increment depth by 1 on each step",
+        "ORDER BY depth lists employees breadth-first; secondary sort by emp_id is deterministic"
+      ]
+    },
+    {
+      "id": "sql-392",
+      "type": "code",
+      "topic": "Cycle-safe Graph Traversal",
+      "difficulty": "hard",
+      "prompt": "Schema: `edge(src, dst)` is a DIRECTED graph that MAY contain cycles. From node 1, return every node reachable via any directed path (excluding node 1 itself), with the MINIMUM hop count to reach it. The traversal must terminate even if the graph has cycles \u2014 track the visited path. Return `node, min_hops`, ordered by `node`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE edge (src INT, dst INT);\nINSERT INTO edge VALUES\n  (1,2),(1,3),(2,4),(3,4),(4,5),(5,2),(5,6),(6,7),(7,3);",
+      "model_answer": "WITH RECURSIVE walk(node, hops, path) AS (\n  SELECT 1, 0, ARRAY[1]\n  UNION ALL\n  SELECT e.dst, w.hops + 1, w.path || e.dst\n  FROM walk w JOIN edge e ON e.src = w.node\n  WHERE NOT (e.dst = ANY(w.path))\n)\nSELECT node, MIN(hops) AS min_hops\nFROM walk\nWHERE node <> 1\nGROUP BY node\nORDER BY node;",
+      "expected_rows": [
+        {
+          "node": 2,
+          "min_hops": 1
+        },
+        {
+          "node": 3,
+          "min_hops": 1
+        },
+        {
+          "node": 4,
+          "min_hops": 2
+        },
+        {
+          "node": 5,
+          "min_hops": 3
+        },
+        {
+          "node": 6,
+          "min_hops": 4
+        },
+        {
+          "node": 7,
+          "min_hops": 5
+        }
+      ],
+      "key_points": [
+        "Recursive CTE: maintain an array of visited nodes as `path`",
+        "Guard the recursive step with NOT (e.dst = ANY(path)) \u2014 prevents infinite cycles",
+        "Aggregate at the end with MIN(hops) to collapse multiple paths to the same node",
+        "Postgres ARRAY operators: ARRAY[1] initializer, || to append, = ANY() to test membership"
+      ]
+    },
+    {
+      "id": "sql-393",
+      "type": "code",
+      "topic": "Bill of Materials",
+      "difficulty": "hard",
+      "prompt": "Schema: `bom(parent, child, qty)` describes how each parent assembly is composed of child parts (with quantities). The graph is a DAG (no cycles), rooted at 'Bike'. For ONE bike, recursively compute the total quantity of EACH leaf material required. A leaf is any `child` that never appears as a `parent`. Return `leaf_material, total_qty`, ordered by `leaf_material`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE bom (parent TEXT, child TEXT, qty NUMERIC);\nINSERT INTO bom VALUES\n  ('Bike','Frame',1),\n  ('Bike','Wheel',2),\n  ('Bike','Handlebar',1),\n  ('Frame','SteelTube',5),\n  ('Frame','Bolt',12),\n  ('Wheel','Tire',1),\n  ('Wheel','Spoke',32),\n  ('Wheel','Bolt',6),\n  ('Handlebar','Grip',2),\n  ('Handlebar','SteelTube',1);",
+      "model_answer": "WITH RECURSIVE explode(part, qty) AS (\n  SELECT child, qty FROM bom WHERE parent = 'Bike'\n  UNION ALL\n  SELECT b.child, e.qty * b.qty\n  FROM explode e JOIN bom b ON b.parent = e.part\n),\nleaves AS (\n  SELECT DISTINCT child FROM bom\n  EXCEPT\n  SELECT DISTINCT parent FROM bom\n)\nSELECT e.part AS leaf_material, SUM(e.qty) AS total_qty\nFROM explode e JOIN leaves l ON l.child = e.part\nGROUP BY e.part\nORDER BY e.part;",
+      "expected_rows": [
+        {
+          "leaf_material": "Bolt",
+          "total_qty": 24
+        },
+        {
+          "leaf_material": "Grip",
+          "total_qty": 2
+        },
+        {
+          "leaf_material": "Spoke",
+          "total_qty": 64
+        },
+        {
+          "leaf_material": "SteelTube",
+          "total_qty": 6
+        },
+        {
+          "leaf_material": "Tire",
+          "total_qty": 2
+        }
+      ],
+      "key_points": [
+        "Recursive CTE multiplies quantities at each level (e.qty * b.qty)",
+        "Identify leaves as `child set EXCEPT parent set`",
+        "Sum across all paths reaching each leaf \u2014 a leaf can be reached via multiple parents (Bolt is in both Frame and Wheel; SteelTube is in both Frame and Handlebar)",
+        "Spokes: 2 wheels * 32 spokes each = 64; Bolts: 1*12 (Frame) + 2*6 (Wheels) = 24"
+      ]
+    },
+    {
+      "id": "sql-394",
+      "type": "code",
+      "topic": "Fiscal Calendar",
+      "difficulty": "hard",
+      "prompt": "Schema: `revenue(d, amount)` \u2014 daily revenue. Aggregate revenue by FISCAL QUARTER, where the fiscal year STARTS ON APRIL 1 (common UK/India/Japan calendar). FQ1 = Apr\u2013Jun, FQ2 = Jul\u2013Sep, FQ3 = Oct\u2013Dec, FQ4 = Jan\u2013Mar of the FOLLOWING calendar year. `fiscal_year` is the calendar year in which the fiscal year STARTS (so revenue in March 2026 belongs to fiscal_year 2025, FQ4). Return `fiscal_year, fiscal_quarter, total_amount`, ordered by `fiscal_year, fiscal_quarter`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE revenue (d DATE, amount NUMERIC);\nINSERT INTO revenue VALUES\n  ('2025-02-15',100),\n  ('2025-04-10',200),\n  ('2025-06-30',300),\n  ('2025-07-15',400),\n  ('2025-09-29',500),\n  ('2025-10-01',600),\n  ('2025-12-31',700),\n  ('2026-01-15',800),\n  ('2026-03-30',900),\n  ('2026-04-01',1000);",
+      "model_answer": "SELECT\n  CASE WHEN EXTRACT(MONTH FROM d) >= 4 THEN EXTRACT(YEAR FROM d)::INT\n       ELSE EXTRACT(YEAR FROM d)::INT - 1\n  END AS fiscal_year,\n  CASE\n    WHEN EXTRACT(MONTH FROM d) BETWEEN 4 AND 6  THEN 1\n    WHEN EXTRACT(MONTH FROM d) BETWEEN 7 AND 9  THEN 2\n    WHEN EXTRACT(MONTH FROM d) BETWEEN 10 AND 12 THEN 3\n    ELSE 4\n  END AS fiscal_quarter,\n  SUM(amount) AS total_amount\nFROM revenue\nGROUP BY 1, 2\nORDER BY fiscal_year, fiscal_quarter;",
+      "expected_rows": [
+        {
+          "fiscal_year": 2024,
+          "fiscal_quarter": 4,
+          "total_amount": 100
+        },
+        {
+          "fiscal_year": 2025,
+          "fiscal_quarter": 1,
+          "total_amount": 500
+        },
+        {
+          "fiscal_year": 2025,
+          "fiscal_quarter": 2,
+          "total_amount": 900
+        },
+        {
+          "fiscal_year": 2025,
+          "fiscal_quarter": 3,
+          "total_amount": 1300
+        },
+        {
+          "fiscal_year": 2025,
+          "fiscal_quarter": 4,
+          "total_amount": 1700
+        },
+        {
+          "fiscal_year": 2026,
+          "fiscal_quarter": 1,
+          "total_amount": 1000
+        }
+      ],
+      "key_points": [
+        "fiscal_year = calendar_year if month >= April; else calendar_year - 1 (so January 2026 belongs to FY 2025)",
+        "fiscal_quarter mapping: Apr-Jun=1, Jul-Sep=2, Oct-Dec=3, Jan-Mar=4",
+        "EXTRACT(MONTH/YEAR FROM d) is portable Postgres",
+        "Watch the integer cast: EXTRACT returns numeric in Postgres"
+      ]
+    },
+    {
+      "id": "sql-395",
+      "type": "code",
+      "topic": "Dynamic Pivot",
+      "difficulty": "hard",
+      "prompt": "Schema: `survey(question_id, respondent_id, answer)`. Pivot to one row per respondent, with one column per question containing that respondent's answer. The set of questions is small and known: q1, q2, q3. Use conditional aggregation. If a respondent didn't answer a question, the cell should be NULL. Return `respondent_id, q1, q2, q3` ordered by respondent_id.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE survey (question_id TEXT, respondent_id INT, answer TEXT);\nINSERT INTO survey VALUES\n  ('q1',1,'yes'),('q2',1,'no'),('q3',1,'maybe'),\n  ('q1',2,'no'),('q2',2,'yes'),\n  ('q1',3,'maybe'),('q3',3,'no'),\n  ('q2',4,'no');",
+      "model_answer": "SELECT respondent_id,\n       MAX(CASE WHEN question_id = 'q1' THEN answer END) AS q1,\n       MAX(CASE WHEN question_id = 'q2' THEN answer END) AS q2,\n       MAX(CASE WHEN question_id = 'q3' THEN answer END) AS q3\nFROM survey\nGROUP BY respondent_id\nORDER BY respondent_id;",
+      "expected_rows": [
+        {
+          "respondent_id": 1,
+          "q1": "yes",
+          "q2": "no",
+          "q3": "maybe"
+        },
+        {
+          "respondent_id": 2,
+          "q1": "no",
+          "q2": "yes",
+          "q3": null
+        },
+        {
+          "respondent_id": 3,
+          "q1": "maybe",
+          "q2": null,
+          "q3": "no"
+        },
+        {
+          "respondent_id": 4,
+          "q1": null,
+          "q2": "no",
+          "q3": null
+        }
+      ],
+      "key_points": [
+        "Conditional aggregation pattern: MAX(CASE WHEN ...) per pivoted column",
+        "MAX works because CASE returns NULL for non-matching rows; MAX(NULL, value) = value",
+        "Missing answers naturally become NULL (the CASE returns NULL for every row when no answer exists)",
+        "Portable across all engines \u2014 does not rely on PIVOT operator"
+      ]
+    },
+    {
+      "id": "sql-396",
+      "type": "code",
+      "topic": "Aggregation Spanning 3 Tables",
+      "difficulty": "hard",
+      "prompt": "Schema: `agent(agent_code, commission)`, `customer(cust_code, agent_code)`, `orders(ord_num, cust_code, ord_amount)`. For each agent, compute the TOTAL order amount placed by THEIR customers, the agent's commission earned (total * commission rate), and the AVERAGE order size across those customers (rounded to 2 dp). Return `agent_code, num_orders, total_amount, commission_earned, avg_order`, ordered by `total_amount` DESC then `agent_code`. Exclude agents with zero orders.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE agent (agent_code TEXT, commission NUMERIC);\nINSERT INTO agent VALUES ('A001',0.14),('A002',0.11),('A004',0.15),('A010',0.14);\nCREATE TABLE customer (cust_code TEXT, agent_code TEXT);\nINSERT INTO customer VALUES\n  ('C01','A001'),('C02','A001'),\n  ('C03','A002'),('C04','A002'),\n  ('C05','A004'),\n  ('C06','A010'),('C07','A010');\nCREATE TABLE orders (ord_num INT, cust_code TEXT, ord_amount NUMERIC);\nINSERT INTO orders VALUES\n  (1,'C01',800),\n  (2,'C03',5000),(3,'C03',2700),(4,'C04',5000),\n  (5,'C05',9500),\n  (6,'C06',7000),(7,'C06',5000),(8,'C07',5000);",
+      "model_answer": "SELECT a.agent_code,\n       COUNT(o.ord_num) AS num_orders,\n       SUM(o.ord_amount) AS total_amount,\n       ROUND((SUM(o.ord_amount) * a.commission)::numeric, 2) AS commission_earned,\n       ROUND(AVG(o.ord_amount)::numeric, 2) AS avg_order\nFROM agent a\nJOIN customer c ON c.agent_code = a.agent_code\nJOIN orders o ON o.cust_code = c.cust_code\nGROUP BY a.agent_code, a.commission\nORDER BY total_amount DESC, a.agent_code;",
+      "expected_rows": [
+        {
+          "agent_code": "A010",
+          "num_orders": 3,
+          "total_amount": 17000,
+          "commission_earned": "2380.00",
+          "avg_order": "5666.67"
+        },
+        {
+          "agent_code": "A002",
+          "num_orders": 3,
+          "total_amount": 12700,
+          "commission_earned": "1397.00",
+          "avg_order": "4233.33"
+        },
+        {
+          "agent_code": "A004",
+          "num_orders": 1,
+          "total_amount": 9500,
+          "commission_earned": "1425.00",
+          "avg_order": "9500.00"
+        },
+        {
+          "agent_code": "A001",
+          "num_orders": 1,
+          "total_amount": 800,
+          "commission_earned": "112.00",
+          "avg_order": "800.00"
+        }
+      ],
+      "key_points": [
+        "Three-table join: agent \u2192 customer \u2192 orders",
+        "Group by agent_code AND commission (commission is functionally dependent but Postgres requires it in GROUP BY unless using a derived table)",
+        "Inner joins drop agents with no orders (intentional per problem)",
+        "Cast to numeric before ROUND with a scale argument"
+      ]
+    },
+    {
+      "id": "sql-397",
+      "type": "code",
+      "topic": "Self-comparison Group Filter",
+      "difficulty": "medium",
+      "prompt": "Schema: `salary(emp_id, dept, amount)`. Find employees who earn MORE than the AVERAGE salary OF THEIR OWN DEPARTMENT. Return `emp_id, dept, amount, dept_avg`, ordered by `dept` then `emp_id`. Round `dept_avg` to 2 decimals.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE salary (emp_id INT, dept TEXT, amount NUMERIC);\nINSERT INTO salary VALUES\n  (1,'Eng',100),(2,'Eng',120),(3,'Eng',90),(4,'Eng',150),\n  (5,'Sales',80),(6,'Sales',60),(7,'Sales',100),\n  (8,'HR',70),(9,'HR',70);",
+      "model_answer": "WITH d AS (\n  SELECT dept, AVG(amount) AS dept_avg FROM salary GROUP BY dept\n)\nSELECT s.emp_id, s.dept, s.amount, ROUND(d.dept_avg::numeric, 2) AS dept_avg\nFROM salary s JOIN d ON d.dept = s.dept\nWHERE s.amount > d.dept_avg\nORDER BY s.dept, s.emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 2,
+          "dept": "Eng",
+          "amount": 120,
+          "dept_avg": "115.00"
+        },
+        {
+          "emp_id": 4,
+          "dept": "Eng",
+          "amount": 150,
+          "dept_avg": "115.00"
+        },
+        {
+          "emp_id": 7,
+          "dept": "Sales",
+          "amount": 100,
+          "dept_avg": "80.00"
+        }
+      ],
+      "key_points": [
+        "Window-function alternative: AVG(amount) OVER (PARTITION BY dept) on each row, then filter",
+        "Equivalent CTE/join approach: compute averages once, then join back",
+        "Using AVG OVER avoids the need for GROUP BY but cannot be used in WHERE \u2014 must wrap in subquery",
+        "HR is excluded: 70 is exactly the average, NOT strictly greater"
+      ]
+    },
+    {
+      "id": "sql-398",
+      "type": "code",
+      "topic": "Cumulative Self-join",
+      "difficulty": "hard",
+      "prompt": "Schema: `metric(d, v)` is a daily metric (one row per day). For each row, return `d, v, sum_to_date, count_to_date, avg_to_date_2dp` where each metric is computed over all rows with `d <= current d` INCLUDING the current row. Round `avg_to_date_2dp` to 2 decimals. Use window functions (the modern, correct approach), NOT a self-join (which the old SQL pre-2003 approach would have used).",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE metric (d DATE, v NUMERIC);\nINSERT INTO metric VALUES\n  ('2025-01-01',10),\n  ('2025-01-02',20),\n  ('2025-01-03',15),\n  ('2025-01-04',25),\n  ('2025-01-05',30);",
+      "model_answer": "SELECT d, v,\n       SUM(v)   OVER (ORDER BY d ROWS UNBOUNDED PRECEDING) AS sum_to_date,\n       COUNT(*) OVER (ORDER BY d ROWS UNBOUNDED PRECEDING) AS count_to_date,\n       ROUND(AVG(v) OVER (ORDER BY d ROWS UNBOUNDED PRECEDING)::numeric, 2) AS avg_to_date_2dp\nFROM metric\nORDER BY d;",
+      "expected_rows": [
+        {
+          "d": "2025-01-01",
+          "v": 10,
+          "sum_to_date": 10,
+          "count_to_date": 1,
+          "avg_to_date_2dp": "10.00"
+        },
+        {
+          "d": "2025-01-02",
+          "v": 20,
+          "sum_to_date": 30,
+          "count_to_date": 2,
+          "avg_to_date_2dp": "15.00"
+        },
+        {
+          "d": "2025-01-03",
+          "v": 15,
+          "sum_to_date": 45,
+          "count_to_date": 3,
+          "avg_to_date_2dp": "15.00"
+        },
+        {
+          "d": "2025-01-04",
+          "v": 25,
+          "sum_to_date": 70,
+          "count_to_date": 4,
+          "avg_to_date_2dp": "17.50"
+        },
+        {
+          "d": "2025-01-05",
+          "v": 30,
+          "sum_to_date": 100,
+          "count_to_date": 5,
+          "avg_to_date_2dp": "20.00"
+        }
+      ],
+      "key_points": [
+        "ROWS UNBOUNDED PRECEDING is critical \u2014 explicitly defines a row-based frame from the start to the current row",
+        "Without an explicit frame, the default RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW lumps tied ORDER BY values together. Since `d` is unique here, either works, but ROWS is the safer idiom",
+        "AVG() OVER returns a float-like type \u2014 cast to numeric before ROUND",
+        "COUNT(*) over the same frame gives the running count"
+      ]
+    },
+    {
+      "id": "sql-399",
+      "type": "code",
+      "topic": "Top N Per Group with Outer Join",
+      "difficulty": "hard",
+      "prompt": "Schema: `customer(cust_code, cust_name)` and `orders(ord_num, cust_code, ord_amount, ord_date)`. For each customer, return their LARGEST order (by amount, ties broken by earliest date, then ord_num). For customers with no orders, return them with NULL ord fields. Return `cust_code, cust_name, ord_num, ord_amount, ord_date`, ordered by `cust_code`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, cust_name TEXT);\nINSERT INTO customer VALUES\n  ('C01','Alpha'),('C02','Beta'),('C03','Gamma'),('C04','Delta');\nCREATE TABLE orders (ord_num INT, cust_code TEXT, ord_amount NUMERIC, ord_date DATE);\nINSERT INTO orders VALUES\n  (1,'C01',500,'2025-01-01'),(2,'C01',800,'2025-02-01'),(3,'C01',800,'2025-01-15'),\n  (4,'C02',300,'2025-03-01'),\n  (5,'C03',900,'2025-04-01'),(6,'C03',900,'2025-04-15');",
+      "model_answer": "WITH ranked AS (\n  SELECT cust_code, ord_num, ord_amount, ord_date,\n         ROW_NUMBER() OVER (PARTITION BY cust_code ORDER BY ord_amount DESC, ord_date ASC, ord_num ASC) AS rk\n  FROM orders\n)\nSELECT c.cust_code, c.cust_name, r.ord_num, r.ord_amount, r.ord_date\nFROM customer c\nLEFT JOIN ranked r ON r.cust_code = c.cust_code AND r.rk = 1\nORDER BY c.cust_code;",
+      "expected_rows": [
+        {
+          "cust_code": "C01",
+          "cust_name": "Alpha",
+          "ord_num": 3,
+          "ord_amount": 800,
+          "ord_date": "2025-01-15"
+        },
+        {
+          "cust_code": "C02",
+          "cust_name": "Beta",
+          "ord_num": 4,
+          "ord_amount": 300,
+          "ord_date": "2025-03-01"
+        },
+        {
+          "cust_code": "C03",
+          "cust_name": "Gamma",
+          "ord_num": 5,
+          "ord_amount": 900,
+          "ord_date": "2025-04-01"
+        },
+        {
+          "cust_code": "C04",
+          "cust_name": "Delta",
+          "ord_num": null,
+          "ord_amount": null,
+          "ord_date": null
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER with multi-key ORDER BY in the OVER() to deterministically pick one",
+        "LEFT JOIN from customer keeps customers with zero orders (NULLs on the order side)",
+        "Filter rk = 1 in the JOIN condition (not WHERE) \u2014 putting it in WHERE would convert LEFT JOIN to INNER JOIN",
+        "Without ord_date and ord_num tie-breakers, C01's choice between ord_num 2 and 3 would be non-deterministic"
+      ]
+    },
+    {
+      "id": "sql-400",
+      "type": "code",
+      "topic": "First and Last Per Group",
+      "difficulty": "hard",
+      "prompt": "Schema: `event(user_id, ts, action)`. For each user, return their FIRST and LAST event (by ts) in ONE row. Return `user_id, first_ts, first_action, last_ts, last_action`, ordered by `user_id`. Use `FIRST_VALUE` / `LAST_VALUE` correctly with explicit frames (the default RANGE frame trap).",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE event (user_id INT, ts TIMESTAMP, action TEXT);\nINSERT INTO event VALUES\n  (1,'2025-01-01 10:00','signup'),\n  (1,'2025-01-02 11:00','view'),\n  (1,'2025-01-05 12:00','purchase'),\n  (2,'2025-02-01 09:00','signup'),\n  (2,'2025-02-10 14:00','churn');",
+      "model_answer": "SELECT DISTINCT\n  user_id,\n  FIRST_VALUE(ts)     OVER w AS first_ts,\n  FIRST_VALUE(action) OVER w AS first_action,\n  LAST_VALUE(ts)      OVER w AS last_ts,\n  LAST_VALUE(action)  OVER w AS last_action\nFROM event\nWINDOW w AS (PARTITION BY user_id ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)\nORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1,
+          "first_ts": "2025-01-01T10:00:00",
+          "first_action": "signup",
+          "last_ts": "2025-01-05T12:00:00",
+          "last_action": "purchase"
+        },
+        {
+          "user_id": 2,
+          "first_ts": "2025-02-01T09:00:00",
+          "first_action": "signup",
+          "last_ts": "2025-02-10T14:00:00",
+          "last_action": "churn"
+        }
+      ],
+      "key_points": [
+        "LAST_VALUE trap: default frame (RANGE UNBOUNDED PRECEDING ... CURRENT ROW) makes LAST_VALUE = current row",
+        "Explicit frame ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING gives the partition-wide last",
+        "Named WINDOW clause keeps the SELECT clean when multiple columns share the same frame",
+        "DISTINCT collapses the per-row window result down to one row per partition"
+      ]
+    },
+    {
+      "id": "sql-401",
+      "type": "code",
+      "topic": "Business-hour Sessionization",
+      "difficulty": "hard",
+      "prompt": "Schema: `event(user_id, ts)`. Group events into sessions where a NEW session begins after a gap of MORE THAN 60 minutes from the previous event of the same user. Return `user_id, session_id, session_start, session_end, event_count` where `session_id` is the 1-based ordinal within each user. Order by `user_id, session_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE event (user_id INT, ts TIMESTAMP);\nINSERT INTO event VALUES\n  (1,'2025-01-01 10:00'),(1,'2025-01-01 10:30'),(1,'2025-01-01 10:45'),\n  (1,'2025-01-01 12:00'),(1,'2025-01-01 12:15'),\n  (2,'2025-02-01 09:00'),(2,'2025-02-01 11:00'),(2,'2025-02-01 11:45');",
+      "model_answer": "WITH flagged AS (\n  SELECT user_id, ts,\n         CASE WHEN ts - LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) > INTERVAL '60 minutes'\n              OR LAG(ts) OVER (PARTITION BY user_id ORDER BY ts) IS NULL\n              THEN 1 ELSE 0 END AS is_new\n  FROM event\n),\nnumbered AS (\n  SELECT user_id, ts,\n         SUM(is_new) OVER (PARTITION BY user_id ORDER BY ts) AS session_id\n  FROM flagged\n)\nSELECT user_id, session_id,\n       MIN(ts) AS session_start,\n       MAX(ts) AS session_end,\n       COUNT(*) AS event_count\nFROM numbered\nGROUP BY user_id, session_id\nORDER BY user_id, session_id;",
+      "expected_rows": [
+        {
+          "user_id": 1,
+          "session_id": 1,
+          "session_start": "2025-01-01T10:00:00",
+          "session_end": "2025-01-01T10:45:00",
+          "event_count": 3
+        },
+        {
+          "user_id": 1,
+          "session_id": 2,
+          "session_start": "2025-01-01T12:00:00",
+          "session_end": "2025-01-01T12:15:00",
+          "event_count": 2
+        },
+        {
+          "user_id": 2,
+          "session_id": 1,
+          "session_start": "2025-02-01T09:00:00",
+          "session_end": "2025-02-01T09:00:00",
+          "event_count": 1
+        },
+        {
+          "user_id": 2,
+          "session_id": 2,
+          "session_start": "2025-02-01T11:00:00",
+          "session_end": "2025-02-01T11:45:00",
+          "event_count": 2
+        }
+      ],
+      "key_points": [
+        "LAG to get the previous event's timestamp per user",
+        "Mark is_new = 1 when gap > 60 min OR no prior row (LAG returns NULL)",
+        "SUM(is_new) OVER (...) gives a stable session_id ordinal within each user",
+        "Aggregate to MIN/MAX/COUNT per (user_id, session_id)",
+        "Interval comparison: ts - ts yields INTERVAL; compare directly with INTERVAL '60 minutes'"
+      ]
+    },
+    {
+      "id": "sql-402",
+      "type": "code",
+      "topic": "Date Range Generation",
+      "difficulty": "medium",
+      "prompt": "Generate one row per CALENDAR DAY from `2025-01-01` through `2025-01-10` inclusive, then LEFT JOIN to `signup(user_id, signup_date)` and return `d, signups` (count of signups on that date, 0 if none). Order by `d`. Use Postgres `generate_series`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE signup (user_id INT, signup_date DATE);\nINSERT INTO signup VALUES\n  (1,'2025-01-01'),\n  (2,'2025-01-01'),\n  (3,'2025-01-03'),\n  (4,'2025-01-05'),\n  (5,'2025-01-05'),\n  (6,'2025-01-05');",
+      "model_answer": "SELECT g.d::date AS d,\n       COUNT(s.user_id) AS signups\nFROM generate_series('2025-01-01'::date, '2025-01-10'::date, INTERVAL '1 day') AS g(d)\nLEFT JOIN signup s ON s.signup_date = g.d\nGROUP BY g.d\nORDER BY g.d;",
+      "expected_rows": [
+        {
+          "d": "2025-01-01",
+          "signups": 2
+        },
+        {
+          "d": "2025-01-02",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-03",
+          "signups": 1
+        },
+        {
+          "d": "2025-01-04",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-05",
+          "signups": 3
+        },
+        {
+          "d": "2025-01-06",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-07",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-08",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-09",
+          "signups": 0
+        },
+        {
+          "d": "2025-01-10",
+          "signups": 0
+        }
+      ],
+      "key_points": [
+        "generate_series produces the calendar spine (every day, no gaps)",
+        "LEFT JOIN preserves zero-signup days",
+        "COUNT(s.user_id) returns 0 for unmatched rows (NULL-skipping COUNT)",
+        "Cast generate_series output to ::date to match signup_date type"
+      ]
+    },
+    {
+      "id": "sql-403",
+      "type": "code",
+      "topic": "Median via Percentile",
+      "difficulty": "medium",
+      "prompt": "Schema: `score(category, value)`. Compute the MEDIAN value per category using PERCENTILE_CONT (interpolated median for even-count groups). Return `category, median` rounded to 2 decimals, ordered by `category`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE score (category TEXT, value NUMERIC);\nINSERT INTO score VALUES\n  ('A',10),('A',20),('A',30),\n  ('B',5),('B',15),('B',25),('B',35),\n  ('C',100);",
+      "model_answer": "SELECT category,\n       ROUND(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)::numeric, 2) AS median\nFROM score\nGROUP BY category\nORDER BY category;",
+      "expected_rows": [
+        {
+          "category": "A",
+          "median": "20.00"
+        },
+        {
+          "category": "B",
+          "median": "20.00"
+        },
+        {
+          "category": "C",
+          "median": "100.00"
+        }
+      ],
+      "key_points": [
+        "PERCENTILE_CONT is an ordered-set aggregate: uses WITHIN GROUP (ORDER BY ...) syntax",
+        "PERCENTILE_CONT INTERPOLATES between values (so the even-count median of {5,15,25,35} = (15+25)/2 = 20)",
+        "Use PERCENTILE_DISC if you want a value present in the data (no interpolation)",
+        "Postgres returns DOUBLE PRECISION \u2014 cast to numeric before ROUND with scale"
+      ]
+    },
+    {
+      "id": "sql-404",
+      "type": "code",
+      "topic": "Lateral Top-N",
+      "difficulty": "hard",
+      "prompt": "Schema: `customer(cust_code, cust_name)` and `orders(ord_num, cust_code, ord_amount, ord_date)`. Return each customer's 2 most-recent orders using a Postgres LATERAL subquery (not a window function). Return `cust_code, cust_name, ord_num, ord_amount, ord_date`, ordered by `cust_code, ord_date DESC, ord_num`. Customers with no orders are omitted.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, cust_name TEXT);\nINSERT INTO customer VALUES ('C01','Alpha'),('C02','Beta'),('C03','Gamma');\nCREATE TABLE orders (ord_num INT, cust_code TEXT, ord_amount NUMERIC, ord_date DATE);\nINSERT INTO orders VALUES\n  (1,'C01',500,'2025-01-01'),(2,'C01',800,'2025-02-01'),(3,'C01',300,'2025-03-01'),\n  (4,'C02',700,'2025-04-01'),\n  (5,'C03',100,'2025-01-15'),(6,'C03',150,'2025-02-15'),(7,'C03',200,'2025-03-15');",
+      "model_answer": "SELECT c.cust_code, c.cust_name, o.ord_num, o.ord_amount, o.ord_date\nFROM customer c\nJOIN LATERAL (\n  SELECT ord_num, ord_amount, ord_date\n  FROM orders\n  WHERE cust_code = c.cust_code\n  ORDER BY ord_date DESC, ord_num DESC\n  LIMIT 2\n) o ON TRUE\nORDER BY c.cust_code, o.ord_date DESC, o.ord_num;",
+      "expected_rows": [
+        {
+          "cust_code": "C01",
+          "cust_name": "Alpha",
+          "ord_num": 3,
+          "ord_amount": 300,
+          "ord_date": "2025-03-01"
+        },
+        {
+          "cust_code": "C01",
+          "cust_name": "Alpha",
+          "ord_num": 2,
+          "ord_amount": 800,
+          "ord_date": "2025-02-01"
+        },
+        {
+          "cust_code": "C02",
+          "cust_name": "Beta",
+          "ord_num": 4,
+          "ord_amount": 700,
+          "ord_date": "2025-04-01"
+        },
+        {
+          "cust_code": "C03",
+          "cust_name": "Gamma",
+          "ord_num": 7,
+          "ord_amount": 200,
+          "ord_date": "2025-03-15"
+        },
+        {
+          "cust_code": "C03",
+          "cust_name": "Gamma",
+          "ord_num": 6,
+          "ord_amount": 150,
+          "ord_date": "2025-02-15"
+        }
+      ],
+      "key_points": [
+        "LATERAL allows the inner subquery to reference outer columns (c.cust_code) \u2014 like a correlated subquery in FROM",
+        "ON TRUE because the inner is self-correlated; no join key needed at JOIN level",
+        "Inner LIMIT 2 enforces top-N per customer per row",
+        "Customers with no orders are dropped because JOIN LATERAL ... ON TRUE has nothing to match (use LEFT JOIN LATERAL to keep them)"
+      ]
+    },
+    {
+      "id": "sql-405",
+      "type": "code",
+      "topic": "Period-Over-Period Comparison",
+      "difficulty": "hard",
+      "prompt": "Schema: `monthly(region, month_start, revenue)` (one row per region per first-of-month). For each row, attach the SAME-MONTH-LAST-YEAR revenue and compute YoY growth percent (this/last - 1) * 100, rounded to 2 dp. If there is no same-month-last-year row, both `prev_year_revenue` and `yoy_pct` are NULL. Return `region, month_start, revenue, prev_year_revenue, yoy_pct`, ordered by `region, month_start`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE monthly (region TEXT, month_start DATE, revenue NUMERIC);\nINSERT INTO monthly VALUES\n  ('NA','2024-01-01',100),('NA','2024-02-01',150),\n  ('NA','2025-01-01',120),('NA','2025-02-01',180),\n  ('EU','2024-06-01',200),\n  ('EU','2025-06-01',300),('EU','2025-07-01',400);",
+      "model_answer": "SELECT m.region, m.month_start, m.revenue,\n       p.revenue AS prev_year_revenue,\n       CASE WHEN p.revenue IS NULL OR p.revenue = 0 THEN NULL\n            ELSE ROUND(((m.revenue / p.revenue - 1) * 100)::numeric, 2)\n       END AS yoy_pct\nFROM monthly m\nLEFT JOIN monthly p\n  ON p.region = m.region\n AND p.month_start = (m.month_start - INTERVAL '1 year')::date\nORDER BY m.region, m.month_start;",
+      "expected_rows": [
+        {
+          "region": "EU",
+          "month_start": "2024-06-01",
+          "revenue": 200,
+          "prev_year_revenue": null,
+          "yoy_pct": null
+        },
+        {
+          "region": "EU",
+          "month_start": "2025-06-01",
+          "revenue": 300,
+          "prev_year_revenue": 200,
+          "yoy_pct": "50.00"
+        },
+        {
+          "region": "EU",
+          "month_start": "2025-07-01",
+          "revenue": 400,
+          "prev_year_revenue": null,
+          "yoy_pct": null
+        },
+        {
+          "region": "NA",
+          "month_start": "2024-01-01",
+          "revenue": 100,
+          "prev_year_revenue": null,
+          "yoy_pct": null
+        },
+        {
+          "region": "NA",
+          "month_start": "2024-02-01",
+          "revenue": 150,
+          "prev_year_revenue": null,
+          "yoy_pct": null
+        },
+        {
+          "region": "NA",
+          "month_start": "2025-01-01",
+          "revenue": 120,
+          "prev_year_revenue": 100,
+          "yoy_pct": "20.00"
+        },
+        {
+          "region": "NA",
+          "month_start": "2025-02-01",
+          "revenue": 180,
+          "prev_year_revenue": 150,
+          "yoy_pct": "20.00"
+        }
+      ],
+      "key_points": [
+        "Self-LEFT-JOIN on (region, month_start - 1 year)",
+        "INTERVAL '1 year' is a portable Postgres construct (NOT DATE_SUB which is MySQL)",
+        "Cast back to ::date because INTERVAL arithmetic on date produces timestamp",
+        "Guard against division by zero / NULL with CASE before ROUND"
+      ]
+    },
+    {
+      "id": "sql-406",
+      "type": "code",
+      "topic": "Conditional Aggregation Pivot",
+      "difficulty": "medium",
+      "prompt": "Schema: `orders(order_id, status, region, amount)`. In ONE row per region, return total revenue split by status. Statuses are 'paid', 'pending', 'refunded'. Return `region, paid, pending, refunded, total`. Each status column is the SUM of amounts of orders in that status; missing combinations get 0 (not NULL). Order by `region`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE orders (order_id INT, status TEXT, region TEXT, amount NUMERIC);\nINSERT INTO orders VALUES\n  (1,'paid','NA',100),(2,'pending','NA',50),\n  (3,'refunded','EU',30),(4,'paid','EU',200),\n  (5,'paid','APAC',150),(6,'paid','APAC',250),(7,'pending','APAC',40);",
+      "model_answer": "SELECT region,\n       COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0) AS paid,\n       COALESCE(SUM(amount) FILTER (WHERE status = 'pending'), 0) AS pending,\n       COALESCE(SUM(amount) FILTER (WHERE status = 'refunded'), 0) AS refunded,\n       SUM(amount) AS total\nFROM orders\nGROUP BY region\nORDER BY region;",
+      "expected_rows": [
+        {
+          "region": "APAC",
+          "paid": 400,
+          "pending": 40,
+          "refunded": 0,
+          "total": 440
+        },
+        {
+          "region": "EU",
+          "paid": 200,
+          "pending": 0,
+          "refunded": 30,
+          "total": 230
+        },
+        {
+          "region": "NA",
+          "paid": 100,
+          "pending": 50,
+          "refunded": 0,
+          "total": 150
+        }
+      ],
+      "key_points": [
+        "Postgres FILTER (WHERE ...) clause is cleaner than SUM(CASE WHEN ...)",
+        "COALESCE NULL aggregates to 0 (a region missing a status will produce NULL otherwise)",
+        "SUM(amount) without FILTER gives the unconditional total",
+        "Equivalent in pure SQL: SUM(CASE WHEN status='paid' THEN amount ELSE 0 END)"
+      ]
+    },
+    {
+      "id": "sql-407",
+      "type": "code",
+      "topic": "Anti-join Variants",
+      "difficulty": "hard",
+      "prompt": "Schema: `users(user_id)` and `banned(user_id)` where `banned.user_id` MAY contain NULLs (a known data-quality issue). Write a query that correctly returns users who are NOT banned. Demonstrate the NOT-IN NULL pitfall by ALSO returning a count column `naive_count` from the broken query alongside the correct count `safe_count`. Return ONE row with `safe_count, naive_count`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE users (user_id INT);\nINSERT INTO users VALUES (1),(2),(3),(4),(5);\nCREATE TABLE banned (user_id INT);\nINSERT INTO banned VALUES (2),(NULL),(4);",
+      "model_answer": "SELECT\n  (SELECT COUNT(*) FROM users u WHERE NOT EXISTS (SELECT 1 FROM banned b WHERE b.user_id = u.user_id)) AS safe_count,\n  (SELECT COUNT(*) FROM users u WHERE u.user_id NOT IN (SELECT user_id FROM banned)) AS naive_count;",
+      "expected_rows": [
+        {
+          "safe_count": 3,
+          "naive_count": 0
+        }
+      ],
+      "key_points": [
+        "NOT IN (subquery with NULL) returns no rows because `x = NULL` is UNKNOWN, and NOT UNKNOWN is UNKNOWN",
+        "NOT EXISTS handles NULLs correctly \u2014 it tests the negation of EXISTS (a row-by-row predicate)",
+        "Alternative safe rewrite: NOT IN (SELECT user_id FROM banned WHERE user_id IS NOT NULL)",
+        "This is a classic interview gotcha \u2014 production NOT IN bugs are common when the inner column allows NULL"
+      ]
+    },
+    {
+      "id": "sql-408",
+      "type": "code",
+      "topic": "Group-Concat with Ordering",
+      "difficulty": "medium",
+      "prompt": "Schema: `tag(item_id, tag, weight)`. For each item, return the comma-separated list of tags ORDERED BY weight DESC (so the most-important tag appears first), with NULL tags skipped. Return `item_id, tag_list`, ordered by `item_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE tag (item_id INT, tag TEXT, weight INT);\nINSERT INTO tag VALUES\n  (1,'red',3),(1,'blue',1),(1,'green',5),\n  (2,'big',10),(2,NULL,2),(2,'fast',7),\n  (3,NULL,5);",
+      "model_answer": "SELECT item_id,\n       STRING_AGG(tag, ', ' ORDER BY weight DESC) AS tag_list\nFROM tag\nWHERE tag IS NOT NULL\nGROUP BY item_id\nORDER BY item_id;",
+      "expected_rows": [
+        {
+          "item_id": 1,
+          "tag_list": "green, red, blue"
+        },
+        {
+          "item_id": 2,
+          "tag_list": "big, fast"
+        }
+      ],
+      "key_points": [
+        "Postgres STRING_AGG(col, sep ORDER BY ...) takes ORDER BY inside the aggregate (not in the surrounding query)",
+        "WHERE filter strips NULL tags before aggregation (STRING_AGG would silently skip them anyway, but explicit is better)",
+        "Item 3 vanishes because it has no non-NULL tags \u2014 the GROUP BY collapses, but with all tags filtered the group disappears",
+        "MySQL equivalent: GROUP_CONCAT(tag ORDER BY weight DESC SEPARATOR ', ')"
+      ]
+    },
+    {
+      "id": "sql-409",
+      "type": "code",
+      "topic": "Customer Cohort",
+      "difficulty": "hard",
+      "prompt": "Schema: `customer(cust_code, signup_month)` (signup_month is a DATE first-of-month) and `orders(ord_num, cust_code, ord_month)` (ord_month also first-of-month). Compute monthly cohort retention: for each cohort (= signup_month), and for each subsequent month, how many customers from that cohort placed at least one order. Return `cohort, ord_month, retained_users`, sorted by cohort then ord_month. Only emit (cohort, ord_month) cells with retained_users >= 1.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, signup_month DATE);\nINSERT INTO customer VALUES\n  ('C01','2025-01-01'),('C02','2025-01-01'),('C03','2025-01-01'),\n  ('C04','2025-02-01'),('C05','2025-02-01');\nCREATE TABLE orders (ord_num INT, cust_code TEXT, ord_month DATE);\nINSERT INTO orders VALUES\n  (1,'C01','2025-01-01'),(2,'C01','2025-02-01'),(3,'C01','2025-03-01'),\n  (4,'C02','2025-01-01'),(5,'C02','2025-03-01'),\n  (6,'C03','2025-02-01'),\n  (7,'C04','2025-02-01'),(8,'C04','2025-03-01'),\n  (9,'C05','2025-04-01');",
+      "model_answer": "SELECT c.signup_month AS cohort,\n       o.ord_month,\n       COUNT(DISTINCT c.cust_code) AS retained_users\nFROM customer c\nJOIN orders o ON o.cust_code = c.cust_code\nGROUP BY c.signup_month, o.ord_month\nORDER BY cohort, o.ord_month;",
+      "expected_rows": [
+        {
+          "cohort": "2025-01-01",
+          "ord_month": "2025-01-01",
+          "retained_users": 2
+        },
+        {
+          "cohort": "2025-01-01",
+          "ord_month": "2025-02-01",
+          "retained_users": 2
+        },
+        {
+          "cohort": "2025-01-01",
+          "ord_month": "2025-03-01",
+          "retained_users": 2
+        },
+        {
+          "cohort": "2025-02-01",
+          "ord_month": "2025-02-01",
+          "retained_users": 1
+        },
+        {
+          "cohort": "2025-02-01",
+          "ord_month": "2025-03-01",
+          "retained_users": 1
+        },
+        {
+          "cohort": "2025-02-01",
+          "ord_month": "2025-04-01",
+          "retained_users": 1
+        }
+      ],
+      "key_points": [
+        "Join the cohort dimension (customer.signup_month) onto the fact (orders.ord_month) by customer key",
+        "COUNT(DISTINCT cust_code) \u2014 a customer with multiple orders in the same month should count once",
+        "GROUP BY (cohort, ord_month) gives the retention matrix in long format",
+        "Reframe to wide format with a pivot if needed for reporting"
+      ]
+    },
+    {
+      "id": "sql-410",
+      "type": "code",
+      "topic": "Gaps and Islands Calendar",
+      "difficulty": "hard",
+      "prompt": "Schema: `attendance(emp_id, work_date)`. For each employee, return their LONGEST streak of consecutive workdays (where 'consecutive' means calendar-adjacent dates). Ties: just return the longest length. Return `emp_id, longest_streak`, ordered by `emp_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE attendance (emp_id INT, work_date DATE);\nINSERT INTO attendance VALUES\n  (1,'2025-01-01'),(1,'2025-01-02'),(1,'2025-01-03'),(1,'2025-01-05'),(1,'2025-01-06'),\n  (2,'2025-02-10'),(2,'2025-02-12'),(2,'2025-02-13'),(2,'2025-02-14'),(2,'2025-02-15'),\n  (3,'2025-03-01'),\n  (4,'2025-04-01'),(4,'2025-04-02');",
+      "model_answer": "WITH dt AS (\n  SELECT DISTINCT emp_id, work_date FROM attendance\n),\ngrouped AS (\n  SELECT emp_id, work_date,\n         work_date - (ROW_NUMBER() OVER (PARTITION BY emp_id ORDER BY work_date))::int AS streak_key\n  FROM dt\n),\nstreaks AS (\n  SELECT emp_id, streak_key, COUNT(*) AS streak_len\n  FROM grouped\n  GROUP BY emp_id, streak_key\n)\nSELECT emp_id, MAX(streak_len) AS longest_streak\nFROM streaks\nGROUP BY emp_id\nORDER BY emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 1,
+          "longest_streak": 3
+        },
+        {
+          "emp_id": 2,
+          "longest_streak": 4
+        },
+        {
+          "emp_id": 3,
+          "longest_streak": 1
+        },
+        {
+          "emp_id": 4,
+          "longest_streak": 2
+        }
+      ],
+      "key_points": [
+        "Classic gaps-and-islands: subtract ROW_NUMBER (ordered by date per employee) from the date itself",
+        "Consecutive dates produce the same `streak_key` value; gaps reset it",
+        "DISTINCT first guards against accidental duplicate rows in attendance",
+        "MAX(streak_len) per employee is the longest island"
+      ]
+    },
+    {
+      "id": "sql-411",
+      "type": "code",
+      "topic": "Running Percent of Total",
+      "difficulty": "hard",
+      "prompt": "Schema: `product(product_id, name, sales)`. Compute the Pareto running percentage: order products by sales DESC, and for each row return `cumulative_pct` (running sum / overall total * 100) rounded to 2 dp. Also include a boolean `in_pareto_80` = TRUE for rows that belong to the 'top 80%' set, defined as: every row whose previous cumulative_pct was strictly less than 80 (i.e. the row that takes the curve INTO the 80% zone or further is included, but no row beyond it). Return `product_id, name, sales, cumulative_pct, in_pareto_80`. Order by sales DESC then product_id.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE product (product_id INT, name TEXT, sales NUMERIC);\nINSERT INTO product VALUES\n  (1,'A',500),\n  (2,'B',300),\n  (3,'C',100),\n  (4,'D',50),\n  (5,'E',30),\n  (6,'F',20);",
+      "model_answer": "WITH cum AS (\n  SELECT product_id, name, sales,\n         SUM(sales) OVER () AS grand_total,\n         SUM(sales) OVER (ORDER BY sales DESC, product_id ROWS UNBOUNDED PRECEDING) AS running\n  FROM product\n),\nwith_pct AS (\n  SELECT product_id, name, sales, grand_total, running,\n         ROUND((running / grand_total * 100)::numeric, 2) AS cumulative_pct,\n         LAG(running, 1, 0) OVER (ORDER BY sales DESC, product_id) AS prev_running\n  FROM cum\n)\nSELECT product_id, name, sales, cumulative_pct,\n       (prev_running / grand_total * 100 < 80) AS in_pareto_80\nFROM with_pct\nORDER BY sales DESC, product_id;",
+      "expected_rows": [
+        {
+          "product_id": 1,
+          "name": "A",
+          "sales": 500,
+          "cumulative_pct": "50.00",
+          "in_pareto_80": true
+        },
+        {
+          "product_id": 2,
+          "name": "B",
+          "sales": 300,
+          "cumulative_pct": "80.00",
+          "in_pareto_80": true
+        },
+        {
+          "product_id": 3,
+          "name": "C",
+          "sales": 100,
+          "cumulative_pct": "90.00",
+          "in_pareto_80": false
+        },
+        {
+          "product_id": 4,
+          "name": "D",
+          "sales": 50,
+          "cumulative_pct": "95.00",
+          "in_pareto_80": false
+        },
+        {
+          "product_id": 5,
+          "name": "E",
+          "sales": 30,
+          "cumulative_pct": "98.00",
+          "in_pareto_80": false
+        },
+        {
+          "product_id": 6,
+          "name": "F",
+          "sales": 20,
+          "cumulative_pct": "100.00",
+          "in_pareto_80": false
+        }
+      ],
+      "key_points": [
+        "Window SUM with explicit ROWS UNBOUNDED PRECEDING for the running total",
+        "Window SUM with OVER () (no ORDER BY, no PARTITION BY) for the grand total \u2014 every row gets the same value",
+        "LAG(running, 1, 0) gives the previous row's running total (0 for the first row, via the third LAG argument)",
+        "in_pareto_80 = (prev_running / grand_total * 100 < 80) \u2014 TRUE while the predecessor was still strictly below 80%, FALSE once we reach or exceed",
+        "Row 2 has prev=500 (50%) so in_pareto_80=TRUE; Row 3 has prev=800 (80%), NOT strictly less, so FALSE"
+      ]
+    },
+    {
+      "id": "sql-412",
+      "type": "code",
+      "topic": "Conditional Hierarchical Filter",
+      "difficulty": "hard",
+      "prompt": "Schema: `category(category_id, parent_id, name)` (a tree). `product(product_id, category_id, name)`. Find all products that belong DIRECTLY OR INDIRECTLY (via descendant category) to the category named 'Electronics'. Return `product_id, name`, ordered by `product_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE category (category_id INT, parent_id INT, name TEXT);\nINSERT INTO category VALUES\n  (1,NULL,'All'),\n  (2,1,'Electronics'),\n  (3,2,'Phones'),\n  (4,2,'Laptops'),\n  (5,1,'Apparel'),\n  (6,5,'Shoes');\nCREATE TABLE product (product_id INT, category_id INT, name TEXT);\nINSERT INTO product VALUES\n  (101,3,'iPhone'),\n  (102,3,'Pixel'),\n  (103,4,'MacBook'),\n  (104,2,'Charger'),\n  (105,6,'Sneaker'),\n  (106,5,'Tee');",
+      "model_answer": "WITH RECURSIVE elec AS (\n  SELECT category_id FROM category WHERE name = 'Electronics'\n  UNION ALL\n  SELECT c.category_id FROM category c JOIN elec e ON c.parent_id = e.category_id\n)\nSELECT p.product_id, p.name\nFROM product p\nJOIN elec e ON e.category_id = p.category_id\nORDER BY p.product_id;",
+      "expected_rows": [
+        {
+          "product_id": 101,
+          "name": "iPhone"
+        },
+        {
+          "product_id": 102,
+          "name": "Pixel"
+        },
+        {
+          "product_id": 103,
+          "name": "MacBook"
+        },
+        {
+          "product_id": 104,
+          "name": "Charger"
+        }
+      ],
+      "key_points": [
+        "Recursive CTE: anchor = the 'Electronics' node; recurse down via parent_id chain",
+        "JOIN product to the descendant set",
+        "Filters out Apparel/Shoes and Tee/Sneaker even though they share the same root parent",
+        "If 'Electronics' name is ambiguous, anchor by category_id instead"
+      ]
+    },
+    {
+      "id": "sql-413",
+      "type": "code",
+      "topic": "EVERY-product Set Comparison",
+      "difficulty": "hard",
+      "prompt": "Schema: `target_products(product_id)` (a curated short list of must-have products) and `cart(user_id, product_id)`. Find users whose cart contains EVERY product in `target_products`. Use the double-NOT-EXISTS formulation (classic SQL relational division). Return `user_id`, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE target_products (product_id INT);\nINSERT INTO target_products VALUES (1),(2),(3);\nCREATE TABLE cart (user_id INT, product_id INT);\nINSERT INTO cart VALUES\n  (1,1),(1,2),(1,3),(1,4),\n  (2,1),(2,2),\n  (3,1),(3,3),(3,2),\n  (4,3),(4,4),\n  (5,1),(5,2),(5,3),(5,1);",
+      "model_answer": "SELECT DISTINCT u.user_id\nFROM cart u\nWHERE NOT EXISTS (\n  SELECT 1 FROM target_products t\n  WHERE NOT EXISTS (\n    SELECT 1 FROM cart c\n    WHERE c.user_id = u.user_id AND c.product_id = t.product_id\n  )\n)\nORDER BY u.user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1
+        },
+        {
+          "user_id": 3
+        },
+        {
+          "user_id": 5
+        }
+      ],
+      "key_points": [
+        "Classic double-NOT-EXISTS = 'there does not exist any target product that this user is missing'",
+        "Equivalent to: GROUP BY user_id HAVING COUNT(DISTINCT product_id WHERE product_id IN target_products) = (SELECT COUNT(*) FROM target_products)",
+        "Outer DISTINCT collapses the user_id repetitions",
+        "Edge: if target_products is empty, the inner NOT EXISTS is vacuously true and EVERY user qualifies"
+      ]
+    },
+    {
+      "id": "sql-414",
+      "type": "code",
+      "topic": "Interval Overlap",
+      "difficulty": "hard",
+      "prompt": "Schema: `booking(id, room_id, start_ts, end_ts)`. Two bookings overlap if their half-open intervals [start_ts, end_ts) intersect. Find pairs of OVERLAPPING bookings for the SAME room. Return each pair only ONCE (with id_a < id_b). Return `room_id, id_a, id_b`, ordered by `room_id, id_a, id_b`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE booking (id INT, room_id INT, start_ts TIMESTAMP, end_ts TIMESTAMP);\nINSERT INTO booking VALUES\n  (1,10,'2025-01-01 09:00','2025-01-01 11:00'),\n  (2,10,'2025-01-01 10:00','2025-01-01 12:00'),\n  (3,10,'2025-01-01 11:00','2025-01-01 13:00'),\n  (4,10,'2025-01-01 15:00','2025-01-01 16:00'),\n  (5,20,'2025-01-01 09:00','2025-01-01 12:00'),\n  (6,20,'2025-01-01 11:00','2025-01-01 13:00');",
+      "model_answer": "SELECT a.room_id, a.id AS id_a, b.id AS id_b\nFROM booking a JOIN booking b\n  ON a.room_id = b.room_id\n AND a.id < b.id\n AND a.start_ts < b.end_ts\n AND b.start_ts < a.end_ts\nORDER BY a.room_id, a.id, b.id;",
+      "expected_rows": [
+        {
+          "room_id": 10,
+          "id_a": 1,
+          "id_b": 2
+        },
+        {
+          "room_id": 10,
+          "id_a": 2,
+          "id_b": 3
+        },
+        {
+          "room_id": 20,
+          "id_a": 5,
+          "id_b": 6
+        }
+      ],
+      "key_points": [
+        "Self-join with id_a < id_b avoids reporting (a,b) and (b,a) separately",
+        "Half-open overlap formula: a.start < b.end AND b.start < a.end \u2014 equivalent to NOT(a.end <= b.start OR b.end <= a.start)",
+        "Booking 1 vs 3 NOT counted: 1.end (11:00) is NOT < 3.start (11:00) \u2014 half-open boundary",
+        "Booking 4 doesn't overlap because it starts at 15:00 and the others all end by 13:00"
+      ]
+    },
+    {
+      "id": "sql-415",
+      "type": "code",
+      "topic": "Concurrent Users Over Time",
+      "difficulty": "hard",
+      "prompt": "Schema: `session(id, login_ts, logout_ts)`. For each given INSTANT in `probe_ts(ts)`, count how many sessions were ACTIVE at that instant (i.e. login_ts <= probe AND logout_ts > probe). Return `ts, active_users`, ordered by `ts`. Include probe rows with zero active users.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE session (id INT, login_ts TIMESTAMP, logout_ts TIMESTAMP);\nINSERT INTO session VALUES\n  (1,'2025-01-01 09:00','2025-01-01 10:00'),\n  (2,'2025-01-01 09:30','2025-01-01 11:00'),\n  (3,'2025-01-01 10:30','2025-01-01 12:00'),\n  (4,'2025-01-01 14:00','2025-01-01 15:00');\nCREATE TABLE probe_ts (ts TIMESTAMP);\nINSERT INTO probe_ts VALUES\n  ('2025-01-01 09:00'),\n  ('2025-01-01 09:45'),\n  ('2025-01-01 10:30'),\n  ('2025-01-01 11:30'),\n  ('2025-01-01 13:00'),\n  ('2025-01-01 14:30');",
+      "model_answer": "SELECT p.ts, COUNT(s.id) AS active_users\nFROM probe_ts p\nLEFT JOIN session s\n  ON s.login_ts <= p.ts AND s.logout_ts > p.ts\nGROUP BY p.ts\nORDER BY p.ts;",
+      "expected_rows": [
+        {
+          "ts": "2025-01-01T09:00:00",
+          "active_users": 1
+        },
+        {
+          "ts": "2025-01-01T09:45:00",
+          "active_users": 2
+        },
+        {
+          "ts": "2025-01-01T10:30:00",
+          "active_users": 2
+        },
+        {
+          "ts": "2025-01-01T11:30:00",
+          "active_users": 1
+        },
+        {
+          "ts": "2025-01-01T13:00:00",
+          "active_users": 0
+        },
+        {
+          "ts": "2025-01-01T14:30:00",
+          "active_users": 1
+        }
+      ],
+      "key_points": [
+        "Range join (non-equality join) \u2014 Postgres handles this with a nested-loop or merge join on the date columns",
+        "LEFT JOIN preserves probe rows with zero matches",
+        "COUNT(s.id) skips NULLs from the unmatched LEFT JOIN side, naturally returning 0",
+        "Be careful with logout boundary semantics: <= vs < at the endpoints determines if a session counts at the moment of logout"
+      ]
+    },
+    {
+      "id": "sql-416",
+      "type": "code",
+      "topic": "Frequent-pair Mining",
+      "difficulty": "hard",
+      "prompt": "Schema: `basket_item(basket_id, item)`. Find the TOP 3 most-frequent unordered pairs of distinct items that appear together in the same basket. The pair (A, B) where A < B is the same as (B, A). Return `item_a, item_b, frequency`, ordered by `frequency` DESC then `item_a, item_b`. LIMIT 3.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE basket_item (basket_id INT, item TEXT);\nINSERT INTO basket_item VALUES\n  (1,'bread'),(1,'milk'),(1,'eggs'),\n  (2,'bread'),(2,'milk'),\n  (3,'bread'),(3,'butter'),\n  (4,'milk'),(4,'cookies'),\n  (5,'bread'),(5,'milk'),(5,'butter'),\n  (6,'bread'),(6,'jam'),\n  (7,'bread'),(7,'milk');",
+      "model_answer": "SELECT a.item AS item_a, b.item AS item_b, COUNT(*) AS frequency\nFROM basket_item a JOIN basket_item b\n  ON a.basket_id = b.basket_id AND a.item < b.item\nGROUP BY a.item, b.item\nORDER BY frequency DESC, a.item, b.item\nLIMIT 3;",
+      "expected_rows": [
+        {
+          "item_a": "bread",
+          "item_b": "milk",
+          "frequency": 4
+        },
+        {
+          "item_a": "bread",
+          "item_b": "butter",
+          "frequency": 2
+        },
+        {
+          "item_a": "bread",
+          "item_b": "eggs",
+          "frequency": 1
+        }
+      ],
+      "key_points": [
+        "Self-join on basket_id with a.item < b.item to ensure each unordered pair is counted once",
+        "Without the a.item < b.item filter, you'd double-count and include trivial (X, X) pairs",
+        "Pure SQL approach \u2014 most engines handle this without specialized association-rule extensions",
+        "For high-cardinality baskets, this is O(n^2) per basket; consider window-function alternatives or pre-filtering"
+      ]
+    },
+    {
+      "id": "sql-417",
+      "type": "code",
+      "topic": "Funnel Strict Order",
+      "difficulty": "hard",
+      "prompt": "Schema: `event(user_id, event_type, ts)` where event_type is 'view', 'cart', or 'purchase'. A user 'completed the funnel' if they did each step IN STRICT CHRONOLOGICAL ORDER \u2014 i.e. their earliest 'view' came BEFORE their earliest 'cart', which came BEFORE their earliest 'purchase'. Return `user_id` of users who completed the funnel, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE event (user_id INT, event_type TEXT, ts TIMESTAMP);\nINSERT INTO event VALUES\n  (1,'view','2025-01-01 09:00'),(1,'cart','2025-01-01 10:00'),(1,'purchase','2025-01-01 11:00'),\n  (2,'cart','2025-01-01 09:00'),(2,'view','2025-01-01 10:00'),(2,'purchase','2025-01-01 11:00'),\n  (3,'view','2025-01-01 09:00'),(3,'purchase','2025-01-01 10:00'),(3,'cart','2025-01-01 11:00'),\n  (4,'view','2025-01-02 09:00'),(4,'cart','2025-01-02 10:00'),\n  (5,'view','2025-01-03 09:00'),(5,'view','2025-01-03 09:30'),(5,'cart','2025-01-03 10:00'),(5,'purchase','2025-01-03 11:00');",
+      "model_answer": "WITH firsts AS (\n  SELECT user_id,\n         MIN(ts) FILTER (WHERE event_type = 'view')     AS first_view,\n         MIN(ts) FILTER (WHERE event_type = 'cart')     AS first_cart,\n         MIN(ts) FILTER (WHERE event_type = 'purchase') AS first_purchase\n  FROM event\n  GROUP BY user_id\n)\nSELECT user_id FROM firsts\nWHERE first_view IS NOT NULL\n  AND first_cart IS NOT NULL\n  AND first_purchase IS NOT NULL\n  AND first_view < first_cart\n  AND first_cart < first_purchase\nORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1
+        },
+        {
+          "user_id": 5
+        }
+      ],
+      "key_points": [
+        "FILTER (WHERE event_type = '...') with MIN gives the per-step earliest timestamp",
+        "All three timestamps must be non-NULL AND in strict order",
+        "User 2 fails: first_cart (09:00) is BEFORE first_view (10:00)",
+        "User 3 fails: first_purchase (10:00) is BEFORE first_cart (11:00)",
+        "User 4 fails: no purchase at all",
+        "User 5 succeeds: even with multiple views, only the EARLIEST matters"
+      ]
+    },
+    {
+      "id": "sql-418",
+      "type": "code",
+      "topic": "Customer LTV Decile",
+      "difficulty": "hard",
+      "prompt": "Schema: `customer(cust_code, ltv)`. Bucket customers into DECILES (10 quantile buckets) by LTV \u2014 bucket 1 = lowest 10% LTV, bucket 10 = highest 10% LTV. Return `cust_code, ltv, decile`, ordered by `decile` DESC then `ltv` DESC then `cust_code`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer (cust_code TEXT, ltv NUMERIC);\nINSERT INTO customer VALUES\n  ('C01',100),('C02',200),('C03',300),('C04',400),('C05',500),\n  ('C06',600),('C07',700),('C08',800),('C09',900),('C10',1000);",
+      "model_answer": "SELECT cust_code, ltv,\n       NTILE(10) OVER (ORDER BY ltv) AS decile\nFROM customer\nORDER BY decile DESC, ltv DESC, cust_code;",
+      "expected_rows": [
+        {
+          "cust_code": "C10",
+          "ltv": 1000,
+          "decile": 10
+        },
+        {
+          "cust_code": "C09",
+          "ltv": 900,
+          "decile": 9
+        },
+        {
+          "cust_code": "C08",
+          "ltv": 800,
+          "decile": 8
+        },
+        {
+          "cust_code": "C07",
+          "ltv": 700,
+          "decile": 7
+        },
+        {
+          "cust_code": "C06",
+          "ltv": 600,
+          "decile": 6
+        },
+        {
+          "cust_code": "C05",
+          "ltv": 500,
+          "decile": 5
+        },
+        {
+          "cust_code": "C04",
+          "ltv": 400,
+          "decile": 4
+        },
+        {
+          "cust_code": "C03",
+          "ltv": 300,
+          "decile": 3
+        },
+        {
+          "cust_code": "C02",
+          "ltv": 200,
+          "decile": 2
+        },
+        {
+          "cust_code": "C01",
+          "ltv": 100,
+          "decile": 1
+        }
+      ],
+      "key_points": [
+        "NTILE(N) splits the partition into N approximately-equal buckets ordered by the OVER's ORDER BY",
+        "When the row count is not evenly divisible by N, the EARLIER buckets get one more row",
+        "Lowest values get bucket 1 (with ASC ORDER BY); use ORDER BY DESC to invert",
+        "For VERY skewed distributions consider PERCENT_RANK instead \u2014 NTILE doesn't respect value gaps"
+      ]
+    },
+    {
+      "id": "sql-419",
+      "type": "code",
+      "topic": "Latest Status Per Entity",
+      "difficulty": "medium",
+      "prompt": "Schema: `status_log(entity_id, ts, status)` is an append-only log of state changes. For each entity, return its CURRENT (latest by ts) status. Tie-break: later `status` alphabetically wins (unlikely in practice but deterministic). Use Postgres `DISTINCT ON`. Return `entity_id, ts, status`, ordered by `entity_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE status_log (entity_id INT, ts TIMESTAMP, status TEXT);\nINSERT INTO status_log VALUES\n  (1,'2025-01-01 09:00','open'),\n  (1,'2025-01-02 10:00','active'),\n  (1,'2025-01-05 11:00','closed'),\n  (2,'2025-02-01 09:00','open'),\n  (2,'2025-02-10 09:00','pending'),\n  (3,'2025-03-01 09:00','open'),\n  (3,'2025-03-01 09:00','reopened');",
+      "model_answer": "SELECT DISTINCT ON (entity_id) entity_id, ts, status\nFROM status_log\nORDER BY entity_id, ts DESC, status DESC;",
+      "expected_rows": [
+        {
+          "entity_id": 1,
+          "ts": "2025-01-05T11:00:00",
+          "status": "closed"
+        },
+        {
+          "entity_id": 2,
+          "ts": "2025-02-10T09:00:00",
+          "status": "pending"
+        },
+        {
+          "entity_id": 3,
+          "ts": "2025-03-01T09:00:00",
+          "status": "reopened"
+        }
+      ],
+      "key_points": [
+        "DISTINCT ON (col) keeps the FIRST row per group, where 'first' is determined by ORDER BY",
+        "ORDER BY MUST start with the DISTINCT ON columns",
+        "For entity 3 with two ties at the same ts, the secondary ORDER BY status DESC picks 'reopened' over 'open'",
+        "Portable equivalent: window-then-filter with ROW_NUMBER OVER (PARTITION BY entity_id ORDER BY ts DESC, status DESC) = 1"
+      ]
+    },
+    {
+      "id": "sql-420",
+      "type": "single",
+      "topic": "Set Difference Pitfall",
+      "difficulty": "hard",
+      "prompt": "You want all customers who have NEVER placed an order. You write:\n\n```sql\nSELECT cust_code FROM customer\nWHERE cust_code NOT IN (SELECT cust_code FROM orders);\n```\n\nThe orders table has a row with `cust_code = NULL` (a data-quality artifact). What is the most likely outcome?",
+      "options": [
+        "Returns customers who have never placed an order \u2014 the NULL is ignored",
+        "Returns ZERO rows because `x NOT IN (..., NULL, ...)` evaluates to UNKNOWN for every customer",
+        "Returns ALL customers because Postgres ignores NULL in subqueries",
+        "Throws a runtime error because of the NULL in the subquery"
+      ],
+      "answer": 1,
+      "explanation": "Classic NOT IN + NULL bug. `x NOT IN (subquery)` is rewritten as `x != v1 AND x != v2 AND ... AND x != NULL`. The last term is UNKNOWN. AND with UNKNOWN propagates, so the predicate is never TRUE for any row, and the query returns ZERO rows. Two safe fixes: (a) NOT EXISTS, which uses row-by-row semantics and is NULL-safe; (b) NOT IN (SELECT cust_code FROM orders WHERE cust_code IS NOT NULL)."
+    },
+    {
+      "id": "sql-422",
+      "type": "code",
+      "topic": "Window Functions / Salary Gap",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. For EACH department, compute the gap between the HIGHEST and SECOND-HIGHEST distinct salary. Departments where only one distinct salary exists (i.e. no genuine second-place value) must surface a NULL gap rather than 0 or being dropped. Return columns `dept, top_salary, second_salary, gap`, ordered by `dept`. Use DENSE_RANK so ties at #1 still allow the next distinct salary to be #2.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng',200),(2,'Eng',200),(3,'Eng',170),(4,'Eng',150),\n  (5,'Sales',300),(6,'Sales',280),(7,'Sales',250),\n  (8,'Ops',120),(9,'Ops',120),(10,'Ops',120),\n  (11,'HR',95);",
+      "model_answer": "WITH d AS (\n  SELECT dept, salary,\n         DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk\n  FROM employee\n  GROUP BY dept, salary\n)\nSELECT dept,\n       MAX(salary) FILTER (WHERE rk = 1) AS top_salary,\n       MAX(salary) FILTER (WHERE rk = 2) AS second_salary,\n       (MAX(salary) FILTER (WHERE rk = 1) - MAX(salary) FILTER (WHERE rk = 2)) AS gap\nFROM d\nWHERE rk <= 2\nGROUP BY dept\nORDER BY dept;",
+      "expected_rows": [
+        {
+          "dept": "Eng",
+          "top_salary": 200,
+          "second_salary": 170,
+          "gap": 30
+        },
+        {
+          "dept": "HR",
+          "top_salary": 95,
+          "second_salary": null,
+          "gap": null
+        },
+        {
+          "dept": "Ops",
+          "top_salary": 120,
+          "second_salary": null,
+          "gap": null
+        },
+        {
+          "dept": "Sales",
+          "top_salary": 300,
+          "second_salary": 280,
+          "gap": 20
+        }
+      ],
+      "key_points": [
+        "DENSE_RANK on DISTINCT salaries so ties at #1 share rank, second-place is the next distinct value",
+        "FILTER (WHERE rk = N) is the Postgres-native conditional aggregate",
+        "Departments with a single distinct salary must keep the row but with NULL second_salary/gap",
+        "Arithmetic with NULL naturally produces NULL gap \u2014 no special-casing needed"
+      ]
+    },
+    {
+      "id": "sql-423",
+      "type": "code",
+      "topic": "Window Functions / Strict Sequence Detection",
+      "difficulty": "hard",
+      "prompt": "Schema: `orders(customer_id INT, order_date DATE, amount NUMERIC)`. Find customers who have at least one run of THREE OR MORE STRICTLY INCREASING consecutive orders (ordered by `order_date`). That means there exists some position N for the customer such that amount[N] < amount[N+1] < amount[N+2]. Return distinct `customer_id` ordered ascending. Two-LAG comparison only \u2014 do not use recursive CTE or self-join.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE orders (customer_id INT, order_date DATE, amount NUMERIC);\nINSERT INTO orders VALUES\n  (1,'2025-01-01',10),(1,'2025-01-02',20),(1,'2025-01-03',30),\n  (2,'2025-01-01',50),(2,'2025-01-02',40),(2,'2025-01-03',60),(2,'2025-01-04',80),\n  (3,'2025-01-01',10),(3,'2025-01-02',10),(3,'2025-01-03',20),\n  (4,'2025-01-01',5),(4,'2025-01-02',15),(4,'2025-01-03',25),(4,'2025-01-04',35),\n  (5,'2025-01-01',100);",
+      "model_answer": "WITH w AS (\n  SELECT customer_id,\n         amount,\n         LAG(amount, 1) OVER (PARTITION BY customer_id ORDER BY order_date) AS prev1,\n         LAG(amount, 2) OVER (PARTITION BY customer_id ORDER BY order_date) AS prev2\n  FROM orders\n)\nSELECT DISTINCT customer_id\nFROM w\nWHERE prev2 IS NOT NULL\n  AND prev2 < prev1\n  AND prev1 < amount\nORDER BY customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 1
+        },
+        {
+          "customer_id": 2
+        },
+        {
+          "customer_id": 4
+        }
+      ],
+      "key_points": [
+        "LAG(amount, 1) and LAG(amount, 2) give you the two prior amounts \u2014 sufficient to detect a 3-row strict increase",
+        "Customer 2 has values 50,40,60,80 \u2014 at row 4 prev2=40, prev1=60, amount=80, so 40<60<80 is a valid 3-row strict increase even though row 2 was a dip",
+        "Customer 3 has 10\u219210\u219220 \u2014 first step is equal, NOT strictly increasing, so excluded",
+        "STRICT inequality (<, not <=) \u2014 equal values break the run"
+      ]
+    },
+    {
+      "id": "sql-424",
+      "type": "code",
+      "topic": "Recursive CTE / Lowest Common Manager",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT PRIMARY KEY, name TEXT, manager_id INT)` \u2014 CEO has manager_id NULL. Given two specific employees with `emp_id` = 6 and `emp_id` = 7, return the LOWEST COMMON MANAGER (the deepest node that is an ancestor of BOTH). Use a recursive CTE to compute each employee's full ancestor chain (including themselves), then intersect. Return columns `lca_emp_id, lca_name`. If one of the employees is itself the ancestor of the other, return that employee.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT PRIMARY KEY, name TEXT, manager_id INT);\nINSERT INTO employee VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),\n  (3,'Carla',1),\n  (4,'Dan',2),\n  (5,'Erin',2),\n  (6,'Finn',4),\n  (7,'Gita',5),\n  (8,'Hugo',3);",
+      "model_answer": "WITH RECURSIVE ancestors AS (\n  SELECT emp_id AS start_id, emp_id AS anc_id, 0 AS depth\n  FROM employee\n  UNION ALL\n  SELECT a.start_id, e.manager_id, a.depth + 1\n  FROM ancestors a\n  JOIN employee e ON e.emp_id = a.anc_id\n  WHERE e.manager_id IS NOT NULL\n)\nSELECT a1.anc_id AS lca_emp_id, e.name AS lca_name\nFROM ancestors a1\nJOIN ancestors a2 ON a1.anc_id = a2.anc_id\nJOIN employee e ON e.emp_id = a1.anc_id\nWHERE a1.start_id = 6 AND a2.start_id = 7\nORDER BY a1.depth ASC\nLIMIT 1;",
+      "expected_rows": [
+        {
+          "lca_emp_id": 2,
+          "lca_name": "Bob"
+        }
+      ],
+      "key_points": [
+        "Recursive CTE walks UPWARD via manager_id from each employee, recording depth",
+        "Include the employee itself at depth 0 (an employee is its own ancestor for LCA purposes)",
+        "Intersect both ancestor sets and pick the one with SMALLEST depth from emp 6 (which equals deepest in the tree)",
+        "LIMIT 1 after sorting by depth ASC gives the lowest (closest) common ancestor"
+      ]
+    },
+    {
+      "id": "sql-425",
+      "type": "code",
+      "topic": "Window Functions / Tier Transitions",
+      "difficulty": "hard",
+      "prompt": "Schema: `salary_history(emp_id INT, effective_date DATE, salary INT)` records salary changes over time. For each employee, NTILE-bucket their CHRONOLOGICAL salary points into 3 'compensation tiers' (1=lowest third, 3=highest third). Return only the rows where the tier STRICTLY INCREASED from the previous chronological row for that employee (a tier transition upward). Output columns: `emp_id, effective_date, salary, prev_tier, new_tier`. Order by `emp_id, effective_date`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE salary_history (emp_id INT, effective_date DATE, salary INT);\nINSERT INTO salary_history VALUES\n  (1,'2024-01-01',100),(1,'2024-04-01',110),(1,'2024-07-01',180),(1,'2024-10-01',200),\n  (2,'2024-01-01',60),(2,'2024-04-01',55),(2,'2024-07-01',90),\n  (3,'2024-01-01',300),(3,'2024-04-01',310),(3,'2024-07-01',320);",
+      "model_answer": "WITH t AS (\n  SELECT emp_id, effective_date, salary,\n         NTILE(3) OVER (PARTITION BY emp_id ORDER BY salary) AS tier\n  FROM salary_history\n),\nlag_t AS (\n  SELECT emp_id, effective_date, salary, tier,\n         LAG(tier) OVER (PARTITION BY emp_id ORDER BY effective_date) AS prev_tier\n  FROM t\n)\nSELECT emp_id, effective_date, salary, prev_tier, tier AS new_tier\nFROM lag_t\nWHERE prev_tier IS NOT NULL AND tier > prev_tier\nORDER BY emp_id, effective_date;",
+      "expected_rows": [
+        {
+          "emp_id": 1,
+          "effective_date": "2024-07-01",
+          "salary": 180,
+          "prev_tier": 1,
+          "new_tier": 2
+        },
+        {
+          "emp_id": 1,
+          "effective_date": "2024-10-01",
+          "salary": 200,
+          "prev_tier": 2,
+          "new_tier": 3
+        },
+        {
+          "emp_id": 2,
+          "effective_date": "2024-07-01",
+          "salary": 90,
+          "prev_tier": 1,
+          "new_tier": 3
+        },
+        {
+          "emp_id": 3,
+          "effective_date": "2024-04-01",
+          "salary": 310,
+          "prev_tier": 1,
+          "new_tier": 2
+        },
+        {
+          "emp_id": 3,
+          "effective_date": "2024-07-01",
+          "salary": 320,
+          "prev_tier": 2,
+          "new_tier": 3
+        }
+      ],
+      "key_points": [
+        "NTILE(3) is ordered by SALARY (so tier numbers reflect compensation rank), NOT by date",
+        "LAG(tier) over chronological order gives the previous tier \u2014 second window pass",
+        "Filter prev_tier IS NOT NULL (drop first row) AND new_tier > prev_tier (strict upward transition)",
+        "Gotcha: doing NTILE over date and then comparing tier would be a no-op (tiers would always increase)"
+      ]
+    },
+    {
+      "id": "sql-426",
+      "type": "code",
+      "topic": "MoM Growth / First-Time Threshold",
+      "difficulty": "hard",
+      "prompt": "Schema: `monthly_revenue(month_start DATE, revenue NUMERIC)` \u2014 one row per first-of-month. Find the FIRST month (chronologically) at which MoM growth EXCEEDED 20% AND the PRIOR month also had positive growth (i.e. two consecutive months of growth, with the second crossing the 20% threshold). Return columns `month_start, prev_revenue, revenue, mom_growth_pct` for that single row. mom_growth_pct rounded to 2 decimals. If no such month exists, return zero rows.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE monthly_revenue (month_start DATE, revenue NUMERIC);\nINSERT INTO monthly_revenue VALUES\n  ('2024-01-01',1000),\n  ('2024-02-01',1050),\n  ('2024-03-01', 900),\n  ('2024-04-01', 950),\n  ('2024-05-01',1100),\n  ('2024-06-01',1400),\n  ('2024-07-01',1500),\n  ('2024-08-01',2100);",
+      "model_answer": "WITH g AS (\n  SELECT month_start, revenue,\n         LAG(revenue) OVER (ORDER BY month_start) AS prev_revenue,\n         LAG(revenue, 2) OVER (ORDER BY month_start) AS prev2_revenue\n  FROM monthly_revenue\n)\nSELECT month_start,\n       prev_revenue,\n       revenue,\n       ROUND(((revenue - prev_revenue) / NULLIF(prev_revenue, 0) * 100)::numeric, 2) AS mom_growth_pct\nFROM g\nWHERE prev_revenue IS NOT NULL AND prev2_revenue IS NOT NULL\n  AND prev_revenue > prev2_revenue\n  AND (revenue - prev_revenue) / NULLIF(prev_revenue, 0) > 0.20\nORDER BY month_start\nLIMIT 1;",
+      "expected_rows": [
+        {
+          "month_start": "2024-06-01",
+          "prev_revenue": "1100",
+          "revenue": "1400",
+          "mom_growth_pct": "27.27"
+        }
+      ],
+      "key_points": [
+        "Two LAG offsets (1 and 2 months) capture the immediate prior and one-before-that months",
+        "Need BOTH conditions: (a) prev_revenue > prev2_revenue (prior month also grew); (b) current/prev - 1 > 0.20",
+        "ORDER BY month_start LIMIT 1 returns just the first qualifying month",
+        "NULLIF guards divide-by-zero; rows with insufficient history (prev2_revenue NULL) are excluded"
+      ]
+    },
+    {
+      "id": "sql-427",
+      "type": "code",
+      "topic": "Window Functions / Dual-Boundary Percentile",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. Find 'underperformers in elite departments': employees who are in the TOP HALF of company-wide salary (CUME_DIST > 0.50) BUT in the BOTTOM 30% of their own department (CUME_DIST <= 0.30 within dept). Return `emp_id, dept, salary, company_pct, dept_pct` where the two percentiles are rounded to 2 decimals. Order by `emp_id`. (This catches people who are well-paid by global standards but lagging within an elite team.)",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'A',180),(2,'A',200),(3,'A',300),(4,'A',310),(5,'A',320),(6,'A',330),(7,'A',340),(8,'A',350),(9,'A',360),(10,'A',370),\n  (11,'B',60),(12,'B',70),(13,'B',80),(14,'B',90),(15,'B',100),\n  (16,'C',40),(17,'C',50),(18,'C',55),(19,'C',58),(20,'C',62);",
+      "model_answer": "WITH r AS (\n  SELECT emp_id, dept, salary,\n         CUME_DIST() OVER (ORDER BY salary) AS company_pct,\n         CUME_DIST() OVER (PARTITION BY dept ORDER BY salary) AS dept_pct\n  FROM employee\n)\nSELECT emp_id, dept, salary,\n       ROUND(company_pct::numeric, 2) AS company_pct,\n       ROUND(dept_pct::numeric, 2) AS dept_pct\nFROM r\nWHERE company_pct > 0.50 AND dept_pct <= 0.30\nORDER BY emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 1,
+          "dept": "A",
+          "salary": 180,
+          "company_pct": "0.55",
+          "dept_pct": "0.10"
+        },
+        {
+          "emp_id": 2,
+          "dept": "A",
+          "salary": 200,
+          "company_pct": "0.60",
+          "dept_pct": "0.20"
+        },
+        {
+          "emp_id": 3,
+          "dept": "A",
+          "salary": 300,
+          "company_pct": "0.65",
+          "dept_pct": "0.30"
+        }
+      ],
+      "key_points": [
+        "CUME_DIST returns fraction of rows AT OR BELOW the current value \u2014 appropriate for 'within top/bottom percentile' framing",
+        "Two CUME_DIST window passes: company-wide (no PARTITION) and dept-scoped",
+        "Strict > 0.70 for company top-30% (matches 'top of upper third' framing)",
+        "<= 0.30 for dept bottom-30% (inclusive of the 30th percentile boundary)"
+      ]
+    },
+    {
+      "id": "sql-428",
+      "type": "code",
+      "topic": "Recursive CTE / Skip-Level Reports",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, name TEXT, manager_id INT)`. For each manager, return the count of their 'skip-level reports' \u2014 employees who report to someone who reports to them (i.e. EXACTLY 2 levels below them in the tree, NOT direct reports, NOT 3+ levels down). Return `manager_id, manager_name, skip_level_count`, ordered by `manager_id`. Only include managers who have at least one skip-level report.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, name TEXT, manager_id INT);\nINSERT INTO employee VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),\n  (3,'Carla',1),\n  (4,'Dan',2),\n  (5,'Erin',2),\n  (6,'Finn',3),\n  (7,'Gita',4),\n  (8,'Hugo',5),\n  (9,'Iris',7);",
+      "model_answer": "SELECT m.emp_id AS manager_id,\n       m.name AS manager_name,\n       COUNT(skip.emp_id)::int AS skip_level_count\nFROM employee m\nJOIN employee mid ON mid.manager_id = m.emp_id\nJOIN employee skip ON skip.manager_id = mid.emp_id\nGROUP BY m.emp_id, m.name\nORDER BY m.emp_id;",
+      "expected_rows": [
+        {
+          "manager_id": 1,
+          "manager_name": "Alice",
+          "skip_level_count": 3
+        },
+        {
+          "manager_id": 2,
+          "manager_name": "Bob",
+          "skip_level_count": 2
+        },
+        {
+          "manager_id": 4,
+          "manager_name": "Dan",
+          "skip_level_count": 1
+        }
+      ],
+      "key_points": [
+        "Skip-level = exactly 2 hops down. Two consecutive INNER JOINs on manager_id give the 2-hop set directly",
+        "Counts only managers with \u2265 1 skip-level report (GROUP BY drops empty managers because INNER JOIN filtered them)",
+        "Does NOT require recursion \u2014 fixed depth lookup. A recursive CTE would over-engineer this and risk including 3+ level descendants",
+        "Alice's skip-levels: Dan, Erin (under Bob), Finn (under Carla) = 3"
+      ]
+    },
+    {
+      "id": "sql-429",
+      "type": "code",
+      "topic": "Group Share / Proportional Allocation",
+      "difficulty": "hard",
+      "prompt": "Schema: `sale(sale_id INT, salesperson_id INT, team_id INT, amount NUMERIC)`. A `team_id` may have a 10000 commission pool to split among its salespeople, proportional to each salesperson's TOTAL sales within the team. Compute each salesperson's share of the 10000 pool, rounded to 2 decimals. Output columns `team_id, salesperson_id, total_sales, commission_share`. Order by `team_id, salesperson_id`. A salesperson may appear in multiple teams \u2014 keep them as separate rows per team.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE sale (sale_id INT, salesperson_id INT, team_id INT, amount NUMERIC);\nINSERT INTO sale VALUES\n  (1,101,1,500),(2,101,1,300),(3,102,1,200),\n  (4,103,2,1000),(5,104,2,4000),\n  (6,101,2,500),\n  (7,105,3,800),(8,105,3,200);",
+      "model_answer": "WITH per_person AS (\n  SELECT team_id, salesperson_id, SUM(amount) AS total_sales\n  FROM sale\n  GROUP BY team_id, salesperson_id\n)\nSELECT team_id,\n       salesperson_id,\n       total_sales,\n       ROUND((10000.0 * total_sales / SUM(total_sales) OVER (PARTITION BY team_id))::numeric, 2) AS commission_share\nFROM per_person\nORDER BY team_id, salesperson_id;",
+      "expected_rows": [
+        {
+          "team_id": 1,
+          "salesperson_id": 101,
+          "total_sales": "800",
+          "commission_share": "8000.00"
+        },
+        {
+          "team_id": 1,
+          "salesperson_id": 102,
+          "total_sales": "200",
+          "commission_share": "2000.00"
+        },
+        {
+          "team_id": 2,
+          "salesperson_id": 103,
+          "total_sales": "1000",
+          "commission_share": "1818.18"
+        },
+        {
+          "team_id": 2,
+          "salesperson_id": 104,
+          "total_sales": "4000",
+          "commission_share": "7272.73"
+        },
+        {
+          "team_id": 2,
+          "salesperson_id": 101,
+          "total_sales": "500",
+          "commission_share": "909.09"
+        },
+        {
+          "team_id": 3,
+          "salesperson_id": 105,
+          "total_sales": "1000",
+          "commission_share": "10000.00"
+        }
+      ],
+      "key_points": [
+        "Two-stage: first pre-aggregate per (team, salesperson) to one row each, THEN apply the window",
+        "SUM(total_sales) OVER (PARTITION BY team_id) gives the team total without a second join",
+        "Salesperson 101 appears in both team 1 and team 2 with different shares \u2014 that's intentional, two rows",
+        "Single-person team (105) takes the full 10000 pool"
+      ]
+    },
+    {
+      "id": "sql-430",
+      "type": "code",
+      "topic": "Cohort Retention / Triangular Output",
+      "difficulty": "hard",
+      "prompt": "Schema: `event(user_id INT, event_date DATE)`. Build a cohort retention table: each user's COHORT MONTH is their first-ever event month. For each (cohort_month, months_since_cohort) pair where months_since_cohort is 0, 1, 2, or 3, return the count of cohort users who had ANY event in the calendar month exactly that many months after their cohort month. Output columns: `cohort_month, months_since, active_users`. Include zero counts for in-range cells. Order by `cohort_month, months_since`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE event (user_id INT, event_date DATE);\nINSERT INTO event VALUES\n  (1,'2024-01-05'),(1,'2024-02-10'),(1,'2024-03-15'),(1,'2024-04-20'),\n  (2,'2024-01-15'),(2,'2024-03-01'),\n  (3,'2024-02-05'),(3,'2024-02-25'),(3,'2024-03-10'),\n  (4,'2024-02-12'),\n  (5,'2024-03-01'),(5,'2024-03-15'),(5,'2024-04-02');",
+      "model_answer": "WITH first_event AS (\n  SELECT user_id,\n         DATE_TRUNC('month', MIN(event_date))::date AS cohort_month\n  FROM event\n  GROUP BY user_id\n),\nactive AS (\n  SELECT DISTINCT user_id,\n         DATE_TRUNC('month', event_date)::date AS active_month\n  FROM event\n),\ngrid AS (\n  SELECT DISTINCT f.cohort_month, m.months_since\n  FROM first_event f\n  CROSS JOIN (VALUES (0),(1),(2),(3)) AS m(months_since)\n)\nSELECT g.cohort_month,\n       g.months_since,\n       COUNT(DISTINCT a.user_id)::int AS active_users\nFROM grid g\nLEFT JOIN first_event f ON f.cohort_month = g.cohort_month\nLEFT JOIN active a\n  ON a.user_id = f.user_id\n  AND a.active_month = (g.cohort_month + (g.months_since || ' months')::interval)::date\nGROUP BY g.cohort_month, g.months_since\nORDER BY g.cohort_month, g.months_since;",
+      "expected_rows": [
+        {
+          "cohort_month": "2024-01-01",
+          "months_since": 0,
+          "active_users": 2
+        },
+        {
+          "cohort_month": "2024-01-01",
+          "months_since": 1,
+          "active_users": 1
+        },
+        {
+          "cohort_month": "2024-01-01",
+          "months_since": 2,
+          "active_users": 2
+        },
+        {
+          "cohort_month": "2024-01-01",
+          "months_since": 3,
+          "active_users": 1
+        },
+        {
+          "cohort_month": "2024-02-01",
+          "months_since": 0,
+          "active_users": 2
+        },
+        {
+          "cohort_month": "2024-02-01",
+          "months_since": 1,
+          "active_users": 1
+        },
+        {
+          "cohort_month": "2024-02-01",
+          "months_since": 2,
+          "active_users": 0
+        },
+        {
+          "cohort_month": "2024-02-01",
+          "months_since": 3,
+          "active_users": 0
+        },
+        {
+          "cohort_month": "2024-03-01",
+          "months_since": 0,
+          "active_users": 1
+        },
+        {
+          "cohort_month": "2024-03-01",
+          "months_since": 1,
+          "active_users": 1
+        },
+        {
+          "cohort_month": "2024-03-01",
+          "months_since": 2,
+          "active_users": 0
+        },
+        {
+          "cohort_month": "2024-03-01",
+          "months_since": 3,
+          "active_users": 0
+        }
+      ],
+      "key_points": [
+        "Three-stage CTE: first_event (cohort assignment), active (per-user-month presence), grid (Cartesian of cohorts \u00d7 offsets)",
+        "LEFT JOIN the grid to ensure (cohort, months_since) cells with zero retention still appear",
+        "Offset arithmetic: `cohort_month + (n || ' months')::interval` jumps to the target month-start cleanly",
+        "COUNT(DISTINCT user_id) \u2014 users may have multiple events in the same calendar month"
+      ]
+    },
+    {
+      "id": "sql-431",
+      "type": "code",
+      "topic": "Window Functions / Running vs Static Aggregate",
+      "difficulty": "hard",
+      "prompt": "Schema: `sale(sale_id INT, sale_date DATE, amount NUMERIC)`. For each sale, compute its RUNNING average up to and including that row, AND the GLOBAL average across the whole table. Then return ONLY the sales where the running average is FOR THE FIRST TIME (chronologically) at or above the global average. There is at most one such row by definition of 'first time'. Columns: `sale_date, amount, running_avg, global_avg`. running_avg and global_avg rounded to 2 decimals.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE sale (sale_id INT, sale_date DATE, amount NUMERIC);\nINSERT INTO sale VALUES\n  (1,'2025-01-01',10),\n  (2,'2025-01-02',20),\n  (3,'2025-01-03',15),\n  (4,'2025-01-04',80),\n  (5,'2025-01-05',60),\n  (6,'2025-01-06',45),\n  (7,'2025-01-07',30);",
+      "model_answer": "WITH base AS (\n  SELECT sale_date, amount,\n         AVG(amount) OVER (ORDER BY sale_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_avg,\n         AVG(amount) OVER () AS global_avg\n  FROM sale\n),\nflagged AS (\n  SELECT sale_date, amount, running_avg, global_avg,\n         ROW_NUMBER() OVER (PARTITION BY (running_avg >= global_avg) ORDER BY sale_date) AS first_above_rn\n  FROM base\n  WHERE running_avg >= global_avg\n)\nSELECT sale_date,\n       amount,\n       ROUND(running_avg::numeric, 2) AS running_avg,\n       ROUND(global_avg::numeric, 2) AS global_avg\nFROM flagged\nWHERE first_above_rn = 1\nORDER BY sale_date;",
+      "expected_rows": [
+        {
+          "sale_date": "2025-01-06",
+          "amount": "45",
+          "running_avg": "38.33",
+          "global_avg": "37.14"
+        }
+      ],
+      "key_points": [
+        "Two window passes in one SELECT: a running AVG (ROWS frame, not the default RANGE) and a global AVG (empty OVER)",
+        "Explicit ROWS frame is required \u2014 default RANGE with ORDER BY produces the same result here only because dates are unique, but ROWS makes intent explicit",
+        "Filter rows where running_avg >= global_avg, then ROW_NUMBER ordered by sale_date to keep only the FIRST such crossing",
+        "Running avg trajectory: 10, 15, 15, 31.25, 37 (still below 37.14), 38.33 (FIRST crossing), 37.14"
+      ]
+    },
+    {
+      "id": "sql-432",
+      "type": "code",
+      "topic": "Window Functions / Ranked Top-1 With Department Tie",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. Find the department(s) that contain the LARGEST number of employees whose salary equals the highest salary in their own department. (For each dept, count how many people TIE for the dept's max salary \u2014 return the dept(s) with the largest such count; tie at the dept level keeps all winners.) Return columns: `dept, top_earner_count`, ordered by `dept`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng',200),(2,'Eng',200),(3,'Eng',200),(4,'Eng',150),\n  (5,'Sales',300),(6,'Sales',300),(7,'Sales',250),\n  (8,'Ops',120),(9,'Ops',110),\n  (10,'HR',90),(11,'HR',90),(12,'HR',90);",
+      "model_answer": "WITH ranked AS (\n  SELECT dept, salary,\n         RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk\n  FROM employee\n),\nper_dept AS (\n  SELECT dept, COUNT(*) AS top_earner_count\n  FROM ranked\n  WHERE rk = 1\n  GROUP BY dept\n)\nSELECT dept, top_earner_count\nFROM per_dept\nWHERE top_earner_count = (SELECT MAX(top_earner_count) FROM per_dept)\nORDER BY dept;",
+      "expected_rows": [
+        {
+          "dept": "Eng",
+          "top_earner_count": 3
+        },
+        {
+          "dept": "HR",
+          "top_earner_count": 3
+        }
+      ],
+      "key_points": [
+        "RANK() = 1 selects ALL employees tied at the dept's maximum salary",
+        "COUNT(*) per dept after the rk=1 filter gives the size of each dept's top group",
+        "Final filter to MAX(top_earner_count) returns ALL tied departments (Eng and HR both have 3)",
+        "DENSE_RANK would yield the same here since only rank=1 is needed \u2014 but RANK is canonical for top-earner-with-ties"
+      ]
+    },
+    {
+      "id": "sql-433",
+      "type": "code",
+      "topic": "PERCENT_RANK / Composite Filter",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. For each employee, compute their PERCENT_RANK within their department (PARTITION BY dept ORDER BY salary). Return employees whose PERCENT_RANK is EXACTLY 0 (the lowest-paid in their dept) \u2014 but ONLY IF their department has more than 2 employees (so PERCENT_RANK is meaningful). For single-member or two-member departments, exclude the rows entirely. Output `emp_id, dept, salary`, ordered by `dept, emp_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng',200),(2,'Eng',150),(3,'Eng',100),(4,'Eng',180),\n  (5,'Sales',300),(6,'Sales',280),\n  (7,'Ops',120),(8,'Ops',110),(9,'Ops',100),(10,'Ops',90),\n  (11,'HR',95);",
+      "model_answer": "WITH r AS (\n  SELECT emp_id, dept, salary,\n         PERCENT_RANK() OVER (PARTITION BY dept ORDER BY salary) AS pr,\n         COUNT(*) OVER (PARTITION BY dept) AS dept_size\n  FROM employee\n)\nSELECT emp_id, dept, salary\nFROM r\nWHERE pr = 0 AND dept_size > 2\nORDER BY dept, emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 3,
+          "dept": "Eng",
+          "salary": 100
+        },
+        {
+          "emp_id": 10,
+          "dept": "Ops",
+          "salary": 90
+        }
+      ],
+      "key_points": [
+        "PERCENT_RANK is always 0 for the first (lowest) row in a partition by definition",
+        "Combine with COUNT(*) OVER (PARTITION BY dept) in the same SELECT to filter on dept size without a separate aggregate",
+        "Two-member dept (Sales) is excluded even though its lowest-paid has pr=0 \u2014 dept_size = 2 fails the >2 filter",
+        "Single-member dept (HR) is excluded \u2014 pr=0 by definition but dept_size = 1 fails the filter"
+      ]
+    },
+    {
+      "id": "sql-434",
+      "type": "code",
+      "topic": "Window Functions / Second-Time Buyer Latency",
+      "difficulty": "hard",
+      "prompt": "Schema: `purchase(customer_id INT, purchased_at TIMESTAMP)`. For customers who have made AT LEAST 2 purchases, return the customer_id, their first purchase timestamp, their second purchase timestamp, and the latency in DAYS between them (as INTEGER, truncated toward zero). Return only customers whose latency is BELOW the median latency across all qualifying customers. Output columns: `customer_id, first_at, second_at, latency_days`, ordered by `customer_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE purchase (customer_id INT, purchased_at TIMESTAMP);\nINSERT INTO purchase VALUES\n  (1,'2025-01-01 10:00'),(1,'2025-01-08 10:00'),(1,'2025-02-01 10:00'),\n  (2,'2025-01-10 10:00'),(2,'2025-01-12 10:00'),\n  (3,'2025-01-05 10:00'),(3,'2025-03-10 10:00'),\n  (4,'2025-02-01 10:00'),(4,'2025-02-15 10:00'),\n  (5,'2025-02-20 10:00');",
+      "model_answer": "WITH numbered AS (\n  SELECT customer_id, purchased_at,\n         ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY purchased_at) AS rn\n  FROM purchase\n),\npaired AS (\n  SELECT n1.customer_id,\n         n1.purchased_at AS first_at,\n         n2.purchased_at AS second_at,\n         FLOOR(EXTRACT(EPOCH FROM (n2.purchased_at - n1.purchased_at)) / 86400)::int AS latency_days\n  FROM numbered n1\n  JOIN numbered n2\n    ON n1.customer_id = n2.customer_id\n    AND n1.rn = 1 AND n2.rn = 2\n),\nm AS (\n  SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY latency_days) AS med FROM paired\n)\nSELECT customer_id, first_at, second_at, latency_days\nFROM paired, m\nWHERE latency_days < m.med\nORDER BY customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 2,
+          "first_at": "2025-01-10T10:00:00",
+          "second_at": "2025-01-12T10:00:00",
+          "latency_days": 2
+        },
+        {
+          "customer_id": 1,
+          "first_at": "2025-01-01T10:00:00",
+          "second_at": "2025-01-08T10:00:00",
+          "latency_days": 7
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER + self-join on rn=1 and rn=2 grabs the first two purchases without ASOF",
+        "Customers with only one purchase (cust 5) drop out via the INNER JOIN to rn=2",
+        "Latency in days from timestamp diff: extract epoch seconds, divide by 86400, floor",
+        "PERCENTILE_CONT(0.5) gives the median across qualifying customers; STRICTLY-less keeps the under-median half"
+      ]
+    },
+    {
+      "id": "sql-435",
+      "type": "code",
+      "topic": "Department Re-Ranking Excluding Outliers",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. Rank departments by their AVERAGE salary, but FIRST exclude the highest-paid and lowest-paid employee in each department (trimmed dept average). Departments with fewer than 3 employees produce a NULL trimmed_avg and rank \u2014 keep them in the output. Return columns: `dept, headcount, trimmed_avg, dept_rank`. trimmed_avg rounded to 2 decimals. Order by `dept`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng',200),(2,'Eng',180),(3,'Eng',170),(4,'Eng',160),(5,'Eng',120),\n  (6,'Sales',300),(7,'Sales',250),(8,'Sales',240),(9,'Sales',150),\n  (10,'Ops',120),(11,'Ops',110),(12,'Ops',100),\n  (13,'HR',95),(14,'HR',80);",
+      "model_answer": "WITH r AS (\n  SELECT emp_id, dept, salary,\n         ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary DESC) AS rn_desc,\n         ROW_NUMBER() OVER (PARTITION BY dept ORDER BY salary ASC)  AS rn_asc,\n         COUNT(*) OVER (PARTITION BY dept) AS headcount\n  FROM employee\n),\ntrimmed AS (\n  SELECT dept, headcount,\n         CASE WHEN headcount >= 3\n              THEN ROUND(AVG(CASE WHEN rn_desc <> 1 AND rn_asc <> 1 THEN salary END)::numeric, 2)\n              ELSE NULL\n         END AS trimmed_avg\n  FROM r\n  GROUP BY dept, headcount\n)\nSELECT dept, headcount, trimmed_avg,\n       CASE WHEN trimmed_avg IS NULL THEN NULL\n            ELSE RANK() OVER (ORDER BY trimmed_avg DESC NULLS LAST)\n       END AS dept_rank\nFROM trimmed\nORDER BY dept;",
+      "expected_rows": [
+        {
+          "dept": "Eng",
+          "headcount": 5,
+          "trimmed_avg": "170.00",
+          "dept_rank": 2
+        },
+        {
+          "dept": "HR",
+          "headcount": 2,
+          "trimmed_avg": null,
+          "dept_rank": null
+        },
+        {
+          "dept": "Ops",
+          "headcount": 3,
+          "trimmed_avg": "110.00",
+          "dept_rank": 3
+        },
+        {
+          "dept": "Sales",
+          "headcount": 4,
+          "trimmed_avg": "245.00",
+          "dept_rank": 1
+        }
+      ],
+      "key_points": [
+        "TWO ROW_NUMBER passes (DESC and ASC) identify min and max within each dept",
+        "AVG with a filtering CASE: only rows that aren't the top or bottom get included \u2014 Postgres's AVG ignores NULLs",
+        "Departments with < 3 members can't have a meaningful trimmed avg \u2014 special-cased to NULL",
+        "RANK applied AFTER the trimming; Sales=245 rank 1, Eng=170 rank 2, Ops=110 rank 3, HR=NULL rank NULL"
+      ]
+    },
+    {
+      "id": "sql-436",
+      "type": "single",
+      "topic": "Window Functions / PERCENT_RANK Semantics",
+      "difficulty": "medium",
+      "prompt": "Given `salary` values 100, 100, 200 with `PERCENT_RANK() OVER (ORDER BY salary)`, what does each row receive?",
+      "options": [
+        "0.0, 0.5, 1.0",
+        "0.0, 0.0, 1.0",
+        "0.0, 0.0, 0.5",
+        "0.33, 0.33, 1.0"
+      ],
+      "answer": 1,
+      "explanation": "PERCENT_RANK = (RANK - 1) / (N - 1). For 100, 100, 200 the RANKs are 1, 1, 3. PERCENT_RANK = (1-1)/2 = 0, (1-1)/2 = 0, (3-1)/2 = 1.0. Tied rows share the SAME PERCENT_RANK (both 0 here) because RANK skips. CUME_DIST would behave differently \u2014 both 100s would get 2/3 (the fraction of rows \u2264 the value)."
+    },
+    {
+      "id": "sql-437",
+      "type": "code",
+      "topic": "Window Functions / Rolling Window Per Group",
+      "difficulty": "hard",
+      "prompt": "Schema: `daily_sales(store_id INT, sale_date DATE, revenue NUMERIC)` \u2014 one row per (store, day) on days where the store sold anything (sparse). For each row, compute the 7-DAY trailing AVERAGE REVENUE for that store (including the current day, looking back EXACTLY 6 prior calendar days, regardless of whether the store had sales on those days \u2014 missing days count as 0). Use a RANGE-based date frame, NOT a ROWS frame. Output `store_id, sale_date, revenue, rolling_7d_avg` rounded to 2 decimals, ordered by `store_id, sale_date`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE daily_sales (store_id INT, sale_date DATE, revenue NUMERIC);\nINSERT INTO daily_sales VALUES\n  (1,'2025-01-01',100),\n  (1,'2025-01-05',200),\n  (1,'2025-01-07',300),\n  (1,'2025-01-08',400),\n  (2,'2025-01-01',50),\n  (2,'2025-01-02',60),\n  (2,'2025-01-03',70);",
+      "model_answer": "SELECT store_id,\n       sale_date,\n       revenue,\n       ROUND((SUM(revenue) OVER (\n          PARTITION BY store_id\n          ORDER BY sale_date\n          RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW\n       ) / 7.0)::numeric, 2) AS rolling_7d_avg\nFROM daily_sales\nORDER BY store_id, sale_date;",
+      "expected_rows": [
+        {
+          "store_id": 1,
+          "sale_date": "2025-01-01",
+          "revenue": "100",
+          "rolling_7d_avg": "14.29"
+        },
+        {
+          "store_id": 1,
+          "sale_date": "2025-01-05",
+          "revenue": "200",
+          "rolling_7d_avg": "42.86"
+        },
+        {
+          "store_id": 1,
+          "sale_date": "2025-01-07",
+          "revenue": "300",
+          "rolling_7d_avg": "85.71"
+        },
+        {
+          "store_id": 1,
+          "sale_date": "2025-01-08",
+          "revenue": "400",
+          "rolling_7d_avg": "128.57"
+        },
+        {
+          "store_id": 2,
+          "sale_date": "2025-01-01",
+          "revenue": "50",
+          "rolling_7d_avg": "7.14"
+        },
+        {
+          "store_id": 2,
+          "sale_date": "2025-01-02",
+          "revenue": "60",
+          "rolling_7d_avg": "15.71"
+        },
+        {
+          "store_id": 2,
+          "sale_date": "2025-01-03",
+          "revenue": "70",
+          "rolling_7d_avg": "25.71"
+        }
+      ],
+      "key_points": [
+        "RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW is date-based, not row-count-based",
+        "Divide the SUM by 7 (calendar days in the window), NOT by COUNT(*) (rows in the frame) \u2014 missing days count as 0",
+        "Store 1 on 2025-01-07: window covers [01-01, 01-07] (exactly 6 days back) \u2192 includes 100+200+300 = 600, avg = 85.71",
+        "Trap: ROWS-based frame would mis-aggregate because gap days have no rows; RANGE-on-date is the correct frame type"
+      ]
+    },
+    {
+      "id": "sql-438",
+      "type": "code",
+      "topic": "Conditional Aggregation / Cohort Retention Rate",
+      "difficulty": "hard",
+      "prompt": "Schema: `signup(user_id INT, signup_month DATE)` where signup_month is always first-of-month. `activity(user_id INT, activity_month DATE)` where activity_month is first-of-month and one row per (user, month-with-activity). For each `signup_month`, return: cohort_size (users in that cohort), retained_m1 (users active exactly 1 month after signup), and retention_pct_m1 (retained_m1 / cohort_size * 100, 2 dp). Output `signup_month, cohort_size, retained_m1, retention_pct_m1` ordered by signup_month. Months with zero retention still appear.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE signup (user_id INT, signup_month DATE);\nINSERT INTO signup VALUES\n  (1,'2024-01-01'),(2,'2024-01-01'),(3,'2024-01-01'),(4,'2024-01-01'),\n  (5,'2024-02-01'),(6,'2024-02-01'),(7,'2024-02-01'),\n  (8,'2024-03-01'),(9,'2024-03-01');\nCREATE TABLE activity (user_id INT, activity_month DATE);\nINSERT INTO activity VALUES\n  (1,'2024-02-01'),(2,'2024-02-01'),(3,'2024-03-01'),\n  (5,'2024-03-01'),\n  (8,'2024-04-01');",
+      "model_answer": "WITH cohort AS (\n  SELECT signup_month, COUNT(*) AS cohort_size FROM signup GROUP BY signup_month\n),\nretained AS (\n  SELECT s.signup_month,\n         COUNT(DISTINCT a.user_id) AS retained_m1\n  FROM signup s\n  LEFT JOIN activity a\n    ON a.user_id = s.user_id\n    AND a.activity_month = (s.signup_month + INTERVAL '1 month')::date\n  GROUP BY s.signup_month\n)\nSELECT c.signup_month,\n       c.cohort_size,\n       r.retained_m1,\n       ROUND((100.0 * r.retained_m1 / c.cohort_size)::numeric, 2) AS retention_pct_m1\nFROM cohort c\nJOIN retained r USING (signup_month)\nORDER BY c.signup_month;",
+      "expected_rows": [
+        {
+          "signup_month": "2024-01-01",
+          "cohort_size": 4,
+          "retained_m1": 2,
+          "retention_pct_m1": "50.00"
+        },
+        {
+          "signup_month": "2024-02-01",
+          "cohort_size": 3,
+          "retained_m1": 1,
+          "retention_pct_m1": "33.33"
+        },
+        {
+          "signup_month": "2024-03-01",
+          "cohort_size": 2,
+          "retained_m1": 1,
+          "retention_pct_m1": "50.00"
+        }
+      ],
+      "key_points": [
+        "Two CTEs: cohort size from signup, retained count via LEFT JOIN to activity at month + 1",
+        "LEFT JOIN preserves cohorts with zero retention",
+        "COUNT(DISTINCT user_id) \u2014 guards against multiple activity rows per user-month",
+        "Date arithmetic with `+ INTERVAL '1 month'` then cast back to date"
+      ]
+    },
+    {
+      "id": "sql-439",
+      "type": "code",
+      "topic": "Window Functions / Distinct Salary Ranking",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, salary INT)`. For each dept, return only the THIRD-HIGHEST DISTINCT salary value. Departments with fewer than 3 distinct salaries should NOT appear in the result. Output columns: `dept, third_highest_distinct_salary`, ordered by `dept`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng',300),(2,'Eng',300),(3,'Eng',250),(4,'Eng',200),(5,'Eng',150),\n  (6,'Sales',400),(7,'Sales',350),\n  (8,'Ops',120),(9,'Ops',120),(10,'Ops',100),(11,'Ops',90),(12,'Ops',90);",
+      "model_answer": "WITH d AS (\n  SELECT DISTINCT dept, salary FROM employee\n),\nr AS (\n  SELECT dept, salary,\n         DENSE_RANK() OVER (PARTITION BY dept ORDER BY salary DESC) AS rk\n  FROM d\n)\nSELECT dept, salary AS third_highest_distinct_salary\nFROM r\nWHERE rk = 3\nORDER BY dept;",
+      "expected_rows": [
+        {
+          "dept": "Eng",
+          "third_highest_distinct_salary": 200
+        },
+        {
+          "dept": "Ops",
+          "third_highest_distinct_salary": 90
+        }
+      ],
+      "key_points": [
+        "Eliminate duplicate salaries FIRST with DISTINCT \u2014 DENSE_RANK on raw rows would over-count",
+        "DENSE_RANK = 3 on the distinct-salary set returns the 3rd distinct value",
+        "Sales has only 2 distinct salaries \u2014 naturally filtered out by the rk=3 predicate",
+        "Ops: distinct salaries {120, 100, 90}; rank 3 = 90"
+      ]
+    },
+    {
+      "id": "sql-440",
+      "type": "single",
+      "topic": "Window Functions / Aggregation Inside WHERE",
+      "difficulty": "medium",
+      "prompt": "Why does `SELECT * FROM employee WHERE salary > AVG(salary) OVER (PARTITION BY dept)` fail in standard SQL?",
+      "options": [
+        "Window functions cannot be used in any SELECT statement",
+        "AVG() OVER (PARTITION BY ...) requires a HAVING clause",
+        "Window functions are computed AFTER the WHERE clause runs, so a row's window value isn't yet known when WHERE evaluates",
+        "PARTITION BY can only appear with ROW_NUMBER, not aggregates"
+      ],
+      "answer": 2,
+      "explanation": "SQL's logical processing order puts WHERE before the SELECT list, but window functions are evaluated in/after the SELECT phase. So WHERE cannot reference a window result. Workaround: wrap the window in a subquery/CTE and filter in the outer query, OR use `QUALIFY` in dialects that support it (Snowflake, BigQuery, Teradata, DuckDB). The naive bank attempt would error with 'window functions are not allowed in WHERE'."
+    },
+    {
+      "id": "sql-441",
+      "type": "code",
+      "topic": "Recursive CTE / Reporting Distance",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, name TEXT, manager_id INT)`. For each pair of employees (A, B) where A is an ANCESTOR (in the org tree) of B, return the chain length \u2014 number of `manager_id` hops needed to go from B up to A. Output columns: `ancestor_id, descendant_id, hops`, ordered by `ancestor_id, descendant_id`. Include immediate (hops=1) up to deepest chains. Don't include (X, X) self-pairs.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, name TEXT, manager_id INT);\nINSERT INTO employee VALUES\n  (1,'Alice',NULL),\n  (2,'Bob',1),\n  (3,'Carla',1),\n  (4,'Dan',2),\n  (5,'Erin',4);",
+      "model_answer": "WITH RECURSIVE chains AS (\n  SELECT manager_id AS ancestor_id, emp_id AS descendant_id, 1 AS hops\n  FROM employee\n  WHERE manager_id IS NOT NULL\n  UNION ALL\n  SELECT e.manager_id, c.descendant_id, c.hops + 1\n  FROM chains c\n  JOIN employee e ON e.emp_id = c.ancestor_id\n  WHERE e.manager_id IS NOT NULL\n)\nSELECT ancestor_id, descendant_id, hops\nFROM chains\nORDER BY ancestor_id, descendant_id;",
+      "expected_rows": [
+        {
+          "ancestor_id": 1,
+          "descendant_id": 2,
+          "hops": 1
+        },
+        {
+          "ancestor_id": 1,
+          "descendant_id": 3,
+          "hops": 1
+        },
+        {
+          "ancestor_id": 1,
+          "descendant_id": 4,
+          "hops": 2
+        },
+        {
+          "ancestor_id": 1,
+          "descendant_id": 5,
+          "hops": 3
+        },
+        {
+          "ancestor_id": 2,
+          "descendant_id": 4,
+          "hops": 1
+        },
+        {
+          "ancestor_id": 2,
+          "descendant_id": 5,
+          "hops": 2
+        },
+        {
+          "ancestor_id": 4,
+          "descendant_id": 5,
+          "hops": 1
+        }
+      ],
+      "key_points": [
+        "Anchor: every (manager_id, emp_id) pair is a hops=1 chain",
+        "Recursive step: walk the manager_id of the current ancestor UP one more level, keeping the same descendant; hops + 1",
+        "Builds the TRANSITIVE CLOSURE of the org tree, weighted by depth difference",
+        "Doesn't include (X, X) \u2014 the anchor uses manager_id IS NOT NULL so root self-pairs never appear"
+      ]
+    },
+    {
+      "id": "sql-442",
+      "type": "code",
+      "topic": "Window Functions / Salary Compression Detection",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, level TEXT, salary INT)` where level is one of 'L1', 'L2', 'L3' (junior to senior). 'Salary compression' = a junior level's MAX salary >= a senior level's MIN salary within the same dept. Return department-level rows where compression exists between L1 and L2, OR between L2 and L3. Columns: `dept, junior_level, junior_max, senior_level, senior_min`. Sort by `dept, junior_level`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, level TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng','L1',80),(2,'Eng','L1',90),\n  (3,'Eng','L2',95),(4,'Eng','L2',110),\n  (5,'Eng','L3',150),(6,'Eng','L3',170),\n  (7,'Sales','L1',60),(8,'Sales','L1',75),\n  (9,'Sales','L2',70),(10,'Sales','L2',95),\n  (11,'Sales','L3',100),(12,'Sales','L3',105),\n  (13,'Ops','L1',50),(14,'Ops','L2',80),(15,'Ops','L3',120);",
+      "model_answer": "WITH agg AS (\n  SELECT dept, level, MIN(salary) AS min_s, MAX(salary) AS max_s\n  FROM employee\n  GROUP BY dept, level\n),\npairs AS (\n  SELECT j.dept, j.level AS junior_level, j.max_s AS junior_max,\n         s.level AS senior_level, s.min_s AS senior_min\n  FROM agg j JOIN agg s\n    ON j.dept = s.dept\n   AND ((j.level = 'L1' AND s.level = 'L2') OR (j.level = 'L2' AND s.level = 'L3'))\n)\nSELECT dept, junior_level, junior_max, senior_level, senior_min\nFROM pairs\nWHERE junior_max >= senior_min\nORDER BY dept, junior_level;",
+      "expected_rows": [
+        {
+          "dept": "Sales",
+          "junior_level": "L1",
+          "junior_max": 75,
+          "senior_level": "L2",
+          "senior_min": 70
+        }
+      ],
+      "key_points": [
+        "Pre-aggregate to one row per (dept, level) with MIN and MAX of salary",
+        "Self-join the aggregate to itself on dept and the L1\u2192L2 or L2\u2192L3 adjacency",
+        "Compression condition: junior_max >= senior_min (overlap on the salary axis)",
+        "Sales has L1 max = 75, L2 min = 70 \u2014 clear compression. Eng/Ops are clean."
+      ]
+    },
+    {
+      "id": "sql-443",
+      "type": "code",
+      "topic": "Conditional Aggregation / Demographic Compositions",
+      "difficulty": "hard",
+      "prompt": "Schema: `employee(emp_id INT, dept TEXT, gender TEXT, salary INT)`. For each dept, return: total_headcount, num_female, num_male, female_share_pct (rounded 2dp), female_avg_salary, male_avg_salary, salary_gap_pct = ((male_avg - female_avg) / male_avg) * 100 rounded to 2 dp. If a dept has zero of one gender, the corresponding avg should be NULL and salary_gap_pct should be NULL. Output ordered by `dept`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INT, dept TEXT, gender TEXT, salary INT);\nINSERT INTO employee VALUES\n  (1,'Eng','F',100),(2,'Eng','F',110),(3,'Eng','M',150),(4,'Eng','M',160),\n  (5,'Sales','F',80),(6,'Sales','M',90),(7,'Sales','M',100),\n  (8,'Ops','M',70),(9,'Ops','M',75),\n  (10,'HR','F',95),(11,'HR','F',105);",
+      "model_answer": "SELECT dept,\n       COUNT(*) AS total_headcount,\n       COUNT(*) FILTER (WHERE gender = 'F') AS num_female,\n       COUNT(*) FILTER (WHERE gender = 'M') AS num_male,\n       ROUND((100.0 * COUNT(*) FILTER (WHERE gender = 'F') / COUNT(*))::numeric, 2) AS female_share_pct,\n       AVG(salary) FILTER (WHERE gender = 'F')::numeric(10,2) AS female_avg_salary,\n       AVG(salary) FILTER (WHERE gender = 'M')::numeric(10,2) AS male_avg_salary,\n       CASE\n         WHEN AVG(salary) FILTER (WHERE gender = 'M') IS NULL\n           OR AVG(salary) FILTER (WHERE gender = 'F') IS NULL\n         THEN NULL\n         ELSE ROUND(((AVG(salary) FILTER (WHERE gender = 'M') - AVG(salary) FILTER (WHERE gender = 'F'))\n               / AVG(salary) FILTER (WHERE gender = 'M') * 100)::numeric, 2)\n       END AS salary_gap_pct\nFROM employee\nGROUP BY dept\nORDER BY dept;",
+      "expected_rows": [
+        {
+          "dept": "Eng",
+          "total_headcount": 4,
+          "num_female": 2,
+          "num_male": 2,
+          "female_share_pct": "50.00",
+          "female_avg_salary": "105.00",
+          "male_avg_salary": "155.00",
+          "salary_gap_pct": "32.26"
+        },
+        {
+          "dept": "HR",
+          "total_headcount": 2,
+          "num_female": 2,
+          "num_male": 0,
+          "female_share_pct": "100.00",
+          "female_avg_salary": "100.00",
+          "male_avg_salary": null,
+          "salary_gap_pct": null
+        },
+        {
+          "dept": "Ops",
+          "total_headcount": 2,
+          "num_female": 0,
+          "num_male": 2,
+          "female_share_pct": "0.00",
+          "female_avg_salary": null,
+          "male_avg_salary": "72.50",
+          "salary_gap_pct": null
+        },
+        {
+          "dept": "Sales",
+          "total_headcount": 3,
+          "num_female": 1,
+          "num_male": 2,
+          "female_share_pct": "33.33",
+          "female_avg_salary": "80.00",
+          "male_avg_salary": "95.00",
+          "salary_gap_pct": "15.79"
+        }
+      ],
+      "key_points": [
+        "FILTER (WHERE ...) gives a per-aggregate predicate without CASE inside the aggregate",
+        "When a gender is absent, FILTER returns NULL automatically \u2014 AVG over zero rows = NULL",
+        "Guard the gap calculation against NULL inputs: explicit CASE wrapper so the gap stays NULL when either side missing",
+        "Casting via ::numeric(10,2) is a convenient way to format inline"
+      ]
     }
   ]
 }
