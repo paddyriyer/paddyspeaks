@@ -2269,7 +2269,7 @@
         "GROUPS only works on integer columns"
       ],
       "answer": 1,
-      "explanation": "GROUPS frames are positional by peer GROUP. If your ORDER BY column has duplicates, a single 'group' is all rows sharing that value. So `1 PRECEDING` includes the entire previous peer group (which might be multiple rows). ROWS would only step back exactly one row regardless of ties."
+      "explanation": "**GROUPS** frames are positional by **peer group** (a set of rows sharing the same ORDER BY value). **ROWS** frames are positional by **physical row**, ignoring whether neighbors are ties.\n\n`1 PRECEDING` means:\n- **ROWS**: exactly one physical row back, regardless of its value.\n- **GROUPS**: the entire previous peer group (could be one row, could be many).\n\nAnd \u2014 this is the subtle bit most people miss \u2014 **`CURRENT ROW` ALSO means different things**:\n- In `ROWS`, it's the current physical row.\n- In `GROUPS` (and `RANGE`), it's the **end of the current peer group** \u2014 every tied row gets the SAME frame.\n\n**Concrete walkthrough** (run it yourself in the next question):\n\n```sql\nCREATE TABLE price_logs (event_time TIMESTAMP, price INT);\nINSERT INTO price_logs VALUES\n  ('2023-10-01 12:00:00', 10),\n  ('2023-10-01 12:05:00', 20),   -- two rows share this timestamp\n  ('2023-10-01 12:05:00', 20),\n  ('2023-10-01 12:10:00', 50);\n\nSELECT event_time, price,\n  SUM(price) OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_sum,\n  SUM(price) OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_sum\nFROM price_logs ORDER BY event_time, price;\n```\n\nOutput:\n\n| event_time | price | rows_sum | groups_sum | what got summed                                |\n|------------|------:|---------:|-----------:|------------------------------------------------|\n| 12:00:00   |    10 |       10 |         10 | ROWS: `[10]`             \u00b7 GROUPS: `[10]`      |\n| 12:05:00   |    20 |       30 |    **50**  | ROWS: `[10, 20]`         \u00b7 GROUPS: `[10,20,20]` |\n| 12:05:00   |    20 |       40 |    **50**  | ROWS: `[20, 20]`         \u00b7 GROUPS: `[10,20,20]` |\n| 12:10:00   |    50 |       70 |         90 | ROWS: `[20, 50]`         \u00b7 GROUPS: `[20,20,50]` |\n\nThe two `groups_sum=50` rows are identical \u2014 that's the giveaway. GROUPS treats both 12:05 rows as a single unit, so the frame `[1 PRECEDING peer group \u2026 end of current peer group]` is the same for both. ROWS doesn't: each 12:05 row sees its own physical neighbor as `1 PRECEDING`, so they diverge (30 vs 40).\n\n**Visualizing the formula with STRING_AGG**\n\nWindow aggregates aren't limited to SUM \u2014 any aggregate works, including `STRING_AGG`. Use it to *see* what's being summed:\n\n```sql\nSELECT event_time, price,\n  STRING_AGG(price::text, ' + ') OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_formula,\n  STRING_AGG(price::text, ' + ') OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_formula\nFROM price_logs ORDER BY event_time, price;\n```\n\nReturns columns like `rows_formula = '10 + 20'`, `groups_formula = '10 + 20 + 20'` \u2014 the literal addition. (Postgres uses `STRING_AGG`; Snowflake/Oracle use `LISTAGG`; MySQL uses `GROUP_CONCAT`. The pattern is the same.)\n\n**Three frame modes side by side**\n\n| Frame | Unit | \"1 PRECEDING\" means | \"CURRENT ROW\" means | Best for |\n|-------|------|---------------------|---------------------|----------|\n| `ROWS`   | physical rows | one row back | current physical row | Strict row-by-row running totals; moving averages over N rows |\n| `GROUPS` | peer groups | start of previous peer group | end of current peer group | Time-series where multiple events share a timestamp and you want logical \"step back one tick\" |\n| `RANGE`  | value offsets | rows where `ORDER BY < current \u2212 offset` (e.g. timestamps within 5 min) | end of current peer group | Time-series with an interval window (\"last 24 hours\", \"last 5 minutes\") |\n\n**Common gotcha \u2014 what doesn't accept a frame**\n\n`ROW_NUMBER`, `RANK`, `DENSE_RANK`, `NTILE`, `LAG`, `LEAD` all REJECT a frame clause. They're not frame-based; they're position/offset functions. `SELECT ROW_NUMBER() OVER (ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)` errors out. Use `COUNT(*) OVER (... frame)` if you want a sliding count.\n\n**Related gotcha** \u2014 see the next cluster on the `LAST_VALUE` trap: omitting a frame on `LAST_VALUE` does NOT return the partition's last value."
     },
     {
       "id": "sql-118",
@@ -4749,6 +4749,103 @@
       ],
       "answer": 2,
       "explanation": "The correct approach is a **range join**: anchor on `user_id`, then bound the play time within the history row's validity interval, treating `valid_to IS NULL` as 'open-ended / currently active'.\n\n- **Option 1** fans out: every play gets every history row the user ever had \u2014 analytics gets multiplied by bucket-history length.\n- **Option 2** is the 'current bucket' join \u2014 wrong for historical playbacks that happened BEFORE the current bucket started. Backfill / model training needs the bucket that was active *at the play moment*, not now.\n- **Option 3** is correct. Note the **half-open interval** (`<`, not `<=`) on `valid_to` so the bucket-change boundary belongs to exactly one row.\n- **Option 4** uses `BETWEEN`, which is closed on both ends AND fails on `valid_to IS NULL` (BETWEEN against NULL is NULL \u2014 the row silently drops from the result).\n\nThis is exactly the case ASOF JOIN exists to handle. In ClickHouse you'd write `ASOF JOIN experiment_history ON user_id AND ts >= valid_from`. In standard SQL, the range join with the NULL-aware upper bound is the answer."
+    },
+    {
+      "id": "sql-255",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Schema preloaded: `price_logs(event_time, price)` with two rows sharing `12:05:00`. Write a SELECT that \u2014 for each row \u2014 returns the `SUM` and the `STRING_AGG` **formula** (e.g. `'10 + 20'`) for BOTH `ROWS BETWEEN 1 PRECEDING AND CURRENT ROW` and `GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW`, so you can SEE exactly which prices each frame is adding.\n\nReturn columns: `event_time, price, rows_sum, rows_formula, groups_sum, groups_formula` ordered by `event_time, price`. Cast `price` to `text` for STRING_AGG (Postgres requires explicit types).",
+      "language": "sql",
+      "starter": "-- Two SUMs and two STRING_AGGs with the same frames\n",
+      "schema": "CREATE TABLE price_logs (event_time TIMESTAMP, price INT);\nINSERT INTO price_logs VALUES\n  ('2023-10-01 12:00:00', 10),\n  ('2023-10-01 12:05:00', 20),\n  ('2023-10-01 12:05:00', 20),\n  ('2023-10-01 12:10:00', 50);",
+      "model_answer": "SELECT event_time, price,\n  SUM(price)                        OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_sum,\n  STRING_AGG(price::text, ' + ')    OVER (ORDER BY event_time ROWS   BETWEEN 1 PRECEDING AND CURRENT ROW) AS rows_formula,\n  SUM(price)                        OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_sum,\n  STRING_AGG(price::text, ' + ')    OVER (ORDER BY event_time GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW) AS groups_formula\nFROM price_logs\nORDER BY event_time, price;",
+      "expected_rows": [
+        {
+          "event_time": "2023-10-01 12:00:00",
+          "price": 10,
+          "rows_sum": 10,
+          "rows_formula": "10",
+          "groups_sum": 10,
+          "groups_formula": "10"
+        },
+        {
+          "event_time": "2023-10-01 12:05:00",
+          "price": 20,
+          "rows_sum": 30,
+          "rows_formula": "10 + 20",
+          "groups_sum": 50,
+          "groups_formula": "10 + 20 + 20"
+        },
+        {
+          "event_time": "2023-10-01 12:05:00",
+          "price": 20,
+          "rows_sum": 40,
+          "rows_formula": "20 + 20",
+          "groups_sum": 50,
+          "groups_formula": "10 + 20 + 20"
+        },
+        {
+          "event_time": "2023-10-01 12:10:00",
+          "price": 50,
+          "rows_sum": 70,
+          "rows_formula": "20 + 50",
+          "groups_sum": 90,
+          "groups_formula": "20 + 20 + 50"
+        }
+      ],
+      "key_points": [
+        "Uses STRING_AGG as a WINDOW function \u2014 most engineers only learn it as a GROUP BY aggregate",
+        "Same frame clause repeated for SUM and STRING_AGG so the formula matches the math",
+        "Cast `price::text` because STRING_AGG expects text input in Postgres",
+        "ORDER BY event_time inside the OVER() \u2014 the frame requires a sort order to be defined",
+        "Reveals that both 12:05 rows have IDENTICAL groups_sum (50) \u2014 proof that GROUPS treats peers as one unit; their rows_sum (30 vs 40) diverges because ROWS counts physical rows"
+      ]
+    },
+    {
+      "id": "sql-256",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "You write the following expecting `final_status` to be the user's LAST-ever status for each user:\n\n```sql\nSELECT user_id, ts, status,\n  LAST_VALUE(status) OVER (PARTITION BY user_id ORDER BY ts) AS final_status\nFROM events;\n```\n\nWhat do you actually get, and why?",
+      "options": [
+        "The user's last-ever status \u2014 `LAST_VALUE` is designed to do exactly that.",
+        "NULL for every row, because `LAST_VALUE` requires a frame to be explicit.",
+        "Each row's `final_status` equals its OWN `status` (or the status of the last row in its peer group). Reason: when you include `ORDER BY` without an explicit frame, the ANSI default frame is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` \u2014 and 'CURRENT ROW' in `RANGE`/`GROUPS` means 'end of current peer group'. So `LAST_VALUE` returns the last value WITHIN that bounded frame, not the partition's true last value.",
+        "An error, because `LAST_VALUE` and `PARTITION BY` are mutually exclusive."
+      ],
+      "answer": 2,
+      "explanation": "This is **the #1 production bug** in window-function code \u2014 engineers expect `LAST_VALUE` to 'just work' like `FIRST_VALUE` appears to.\n\nThe ANSI default frame when `ORDER BY` is present is `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW`. `LAST_VALUE` evaluates the last value INSIDE that frame, which is the current row (or, for tied rows, the last row of their peer group) \u2014 almost never what the engineer wanted.\n\n**The two correct fixes:**\n\n1. **Explicit unbounded frame:**\n```sql\nLAST_VALUE(status) OVER (\n  PARTITION BY user_id ORDER BY ts\n  ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING\n) AS final_status\n```\n\n2. **Flip to FIRST_VALUE with reverse order** (often clearer):\n```sql\nFIRST_VALUE(status) OVER (\n  PARTITION BY user_id ORDER BY ts DESC\n) AS final_status\n```\n\nThe FIRST_VALUE flip works because the default frame's 'last row of CURRENT ROW peer group' includes the partition's *first* row when there's no preceding data \u2014 so `FIRST_VALUE` happens to return what you want; `LAST_VALUE` does not.\n\n**Why this misconception persists**: every textbook example shows `FIRST_VALUE` and `LAST_VALUE` together as if they're symmetric. They are NOT symmetric under the default frame. Always set the frame explicitly when using `LAST_VALUE`."
+    },
+    {
+      "id": "sql-257",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Why does this SQL throw a syntax / semantic error?\n\n```sql\nSELECT user_id, ts,\n  ROW_NUMBER() OVER (\n    ORDER BY ts\n    ROWS BETWEEN 1 PRECEDING AND CURRENT ROW\n  ) AS rn\nFROM events;\n```",
+      "options": [
+        "`ROW_NUMBER` is a reserved keyword in some dialects",
+        "**Window functions come in two classes, and only one accepts a frame clause.** Ranking functions \u2014 `ROW_NUMBER`, `RANK`, `DENSE_RANK`, `NTILE`, `PERCENT_RANK`, `CUME_DIST` \u2014 and offset functions `LAG`/`LEAD` are position-based: by definition they look at the entire partition, so a frame is meaningless and the parser rejects it. Only AGGREGATE-as-window functions (`SUM`, `COUNT`, `AVG`, `MIN`, `MAX`, `FIRST_VALUE`, `LAST_VALUE`, `NTH_VALUE`, `ARRAY_AGG`, `STRING_AGG`, \u2026) accept `ROWS` / `GROUPS` / `RANGE` frames.",
+        "The frame should be `RANGE` instead of `ROWS`",
+        "You need `PARTITION BY` for window functions to compile"
+      ],
+      "answer": 1,
+      "explanation": "Two classes of window functions:\n\n**Class 1 \u2014 Ranking & offset (NO frame allowed):**\n- `ROW_NUMBER()`, `RANK()`, `DENSE_RANK()`, `NTILE(n)`, `PERCENT_RANK()`, `CUME_DIST()` \u2014 assign a positional label to every row in the partition\n- `LAG(col [, n [, default]])`, `LEAD(col [, n [, default]])` \u2014 look at a row at a fixed offset; the offset is the argument, not a frame\n\n**Class 2 \u2014 Aggregate-as-window (frame REQUIRED for correct semantics, default = RANGE UNBOUNDED PRECEDING to CURRENT ROW):**\n- `SUM`, `COUNT`, `AVG`, `MIN`, `MAX`\n- `FIRST_VALUE`, `LAST_VALUE`, `NTH_VALUE`\n- `STRING_AGG` / `LISTAGG` / `GROUP_CONCAT`, `ARRAY_AGG`\n\n**What you probably meant:**\n- 'count rows in a sliding 2-row window' \u2192 `COUNT(*) OVER (ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)`\n- 'get position-in-partition with no sliding window' \u2192 `ROW_NUMBER() OVER (ORDER BY ts)` (no frame)\n- 'previous row's value' \u2192 `LAG(col) OVER (ORDER BY ts)`\n\nDistractor option 3 (PARTITION BY) is a red herring: `OVER (ORDER BY ts)` without `PARTITION BY` is valid \u2014 the partition is the entire query."
+    },
+    {
+      "id": "sql-258",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Schema: `quotes(ts TIMESTAMP, bid INT)`. You want a 5-minute-trailing average of `bid` \u2014 for each quote, the average of all bids whose timestamp is within the previous 5 minutes (inclusive). Which window frame correctly expresses this?",
+      "options": [
+        "`ORDER BY ts ROWS BETWEEN 5 PRECEDING AND CURRENT ROW`",
+        "`ORDER BY ts GROUPS BETWEEN 5 PRECEDING AND CURRENT ROW`",
+        "`ORDER BY ts RANGE BETWEEN INTERVAL '5 minutes' PRECEDING AND CURRENT ROW`",
+        "`ORDER BY ts RANGE BETWEEN 5 PRECEDING AND CURRENT ROW`"
+      ],
+      "answer": 2,
+      "explanation": "Three frame modes, three different ways of counting `5 PRECEDING`:\n\n- **`ROWS BETWEEN 5 PRECEDING \u2026`** \u2014 five physical rows back. If quotes arrive 1 per second, this is the last 5 seconds. If they arrive 1 per hour, this is the last 5 hours. Wrong unit.\n- **`GROUPS BETWEEN 5 PRECEDING \u2026`** \u2014 five distinct timestamp values back. If timestamps are unique (no ties), this also walks 5 rows back \u2014 but the unit is 'distinct value', not 'minute'. Still wrong.\n- **`RANGE BETWEEN INTERVAL '5 minutes' PRECEDING AND CURRENT ROW`** \u2014 correct: RANGE measures using the ORDER BY column's TYPE-AWARE arithmetic. With a timestamp ORDER BY, the offset is a time interval. The frame is 'all rows whose `ts >= current_ts \u2212 5 minutes`'.\n- **`RANGE BETWEEN 5 PRECEDING \u2026`** without an interval \u2014 works only when the ORDER BY column is numeric. For a TIMESTAMP column, this is a type error.\n\n**This is the killer feature of RANGE**: it understands the TYPE of the ORDER BY column. For numeric columns you can say `RANGE BETWEEN 100 PRECEDING AND CURRENT ROW`. For timestamps, `INTERVAL '5 minutes'`. For dates, `INTERVAL '7 days'`. The semantics are 'value-aware', not 'position-aware'.\n\nProduction usage:\n- Streaming dashboards (last-N-minute moving averages)\n- Anomaly detection (z-score against trailing 30-day window)\n- Cohort retention (signups within 7 days of campaign launch)\n\nSupported: Postgres, Oracle, Snowflake, BigQuery (with caveats), DuckDB. NOT in SQLite, NOT in MySQL \u2264 8.0."
     }
   ]
 }
