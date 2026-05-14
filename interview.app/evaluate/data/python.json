@@ -3326,6 +3326,1352 @@
         "Considers algorithmic and upstream fixes, not just per-line speed",
         "Has a clear decision heuristic and ties it to maintenance cost"
       ]
+    },
+    {
+      "id": "py-201",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "medium",
+      "prompt": "Parse a multi-line web access log into structured records. Each log line looks like:\n`192.168.1.5 - - [10/Oct/2023:13:55:36 +0000] \"GET /api/users HTTP/1.1\" 200 1234`\n\nWrite `parse_access_log(text)` that returns a list of dicts with keys: `ip`, `method`, `path`, `status` (int), `bytes` (int). Skip blank lines. Use `re` from stdlib.",
+      "language": "python",
+      "starter": "import re\n\ndef parse_access_log(text):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\n_LOG_RE = re.compile(\n    r'^(?P<ip>\\S+)\\s+\\S+\\s+\\S+\\s+\\[[^\\]]+\\]\\s+'\n    r'\"(?P<method>[A-Z]+)\\s+(?P<path>\\S+)\\s+HTTP/[\\d.]+\"\\s+'\n    r'(?P<status>\\d+)\\s+(?P<bytes>\\d+)'\n)\n\ndef parse_access_log(text):\n    out = []\n    for line in text.splitlines():\n        if not line.strip():\n            continue\n        m = _LOG_RE.match(line)\n        if m:\n            out.append({\n                'ip': m.group('ip'),\n                'method': m.group('method'),\n                'path': m.group('path'),\n                'status': int(m.group('status')),\n                'bytes': int(m.group('bytes')),\n            })\n    return out",
+      "tests": "_log = '''192.168.1.5 - - [10/Oct/2023:13:55:36 +0000] \"GET /api/users HTTP/1.1\" 200 1234\n10.0.0.1 - - [10/Oct/2023:13:55:37 +0000] \"POST /api/login HTTP/1.1\" 401 87\n\n172.16.0.5 - - [10/Oct/2023:13:55:38 +0000] \"DELETE /api/users/42 HTTP/1.1\" 204 0'''\n_recs = parse_access_log(_log)\nassert len(_recs) == 3, f'expected 3 records, got {len(_recs)}'\nassert _recs[0]['ip'] == '192.168.1.5'\nassert _recs[0]['method'] == 'GET'\nassert _recs[0]['path'] == '/api/users'\nassert _recs[0]['status'] == 200 and isinstance(_recs[0]['status'], int)\nassert _recs[0]['bytes'] == 1234 and isinstance(_recs[0]['bytes'], int)\nassert _recs[1]['status'] == 401\nassert _recs[2]['method'] == 'DELETE'\nassert _recs[2]['bytes'] == 0\nassert parse_access_log('') == [], 'empty input must give empty list'\nassert parse_access_log('garbage line not matching\\n') == [], 'unmatched lines must be skipped'\nprint('PASS')",
+      "key_points": [
+        "Uses `re.compile` once at module level \u2014 not inside the loop",
+        "Named groups (`(?P<ip>...)`) make the parser self-documenting",
+        "Casts numeric fields (`status`, `bytes`) to int",
+        "Skips blank lines and silently drops lines that don't match the format",
+        "Does NOT use `.split()` for the whole line (the bracketed date and quoted request break naive splitting)"
+      ]
+    },
+    {
+      "id": "py-202",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "easy",
+      "prompt": "Given a CSV string with a header row and quoted fields that may contain commas, write `parse_csv(text)` that returns a list of dicts keyed by the header. Use the stdlib `csv` module \u2014 do NOT split on commas yourself.\n\nExample input:\n`name,city,score\\n\"Smith, J\",NYC,9\\n\"Wong\",\"San Francisco, CA\",7`",
+      "language": "python",
+      "starter": "import csv, io\n\ndef parse_csv(text):\n    # your code here\n    pass\n",
+      "model_answer": "import csv, io\n\ndef parse_csv(text):\n    reader = csv.DictReader(io.StringIO(text))\n    return list(reader)",
+      "tests": "_text = 'name,city,score\\n\"Smith, J\",NYC,9\\n\"Wong\",\"San Francisco, CA\",7'\n_r = parse_csv(_text)\nassert len(_r) == 2\nassert _r[0]['name'] == 'Smith, J', f'comma-inside-quotes failed: {_r[0]!r}'\nassert _r[0]['city'] == 'NYC'\nassert _r[0]['score'] == '9'\nassert _r[1]['city'] == 'San Francisco, CA', f'quoted city failed: {_r[1]!r}'\nassert _r[1]['name'] == 'Wong'\nassert parse_csv('a,b\\n') == [], 'header-only input gives empty list'\nprint('PASS')",
+      "key_points": [
+        "Uses `csv.DictReader` \u2014 handles quotes, escapes, embedded commas",
+        "Wraps the string with `io.StringIO` to give the reader a file-like object",
+        "Does NOT use `str.split(',')` \u2014 that breaks on quoted commas",
+        "Returns a list (materializing the generator) so the caller can iterate twice if needed"
+      ]
+    },
+    {
+      "id": "py-203",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "medium",
+      "prompt": "Write `to_e164(phone, default_country='1')` that normalizes a phone number to E.164 format (`+<country><digits>`, no spaces or punctuation). Rules:\n- Strip every non-digit character except a leading `+`.\n- If the input already starts with `+`, keep the country code as-is.\n- Otherwise prepend `+<default_country>`.\n- If the resulting digit count (after the `+`) is not between 7 and 15, raise `ValueError`.\n\nExamples: `to_e164('(415) 555-1234')` -> `'+14155551234'`. `to_e164('+44 20 7946 0958')` -> `'+442079460958'`.",
+      "language": "python",
+      "starter": "def to_e164(phone, default_country='1'):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\ndef to_e164(phone, default_country='1'):\n    s = phone.strip()\n    has_plus = s.startswith('+')\n    digits = re.sub(r'\\D', '', s)\n    if not has_plus:\n        digits = default_country + digits\n    if not (7 <= len(digits) <= 15):\n        raise ValueError(f'invalid phone length: {len(digits)}')\n    return '+' + digits",
+      "tests": "assert to_e164('(415) 555-1234') == '+14155551234'\nassert to_e164('415-555-1234') == '+14155551234'\nassert to_e164('+44 20 7946 0958') == '+442079460958'\nassert to_e164('+1 (415) 555-1234') == '+14155551234'\nassert to_e164('555 1234', default_country='44') == '+445551234'\nassert to_e164(' 4155551234 ') == '+14155551234', 'should strip outer whitespace'\n_err = False\ntry:\n    to_e164('12')  # too short\nexcept ValueError:\n    _err = True\nassert _err, 'too short should raise ValueError'\n_err = False\ntry:\n    to_e164('1234567890123456')  # too long\nexcept ValueError:\n    _err = True\nassert _err, 'too long should raise ValueError'\nprint('PASS')",
+      "key_points": [
+        "Uses `re.sub(r'\\D', '', s)` to strip non-digits \u2014 concise and correct",
+        "Preserves the leading `+` as a country-code marker",
+        "Applies `default_country` only when input does not already have a `+`",
+        "Validates digit-length against the E.164 range (7-15)",
+        "Raises `ValueError` (not silent failure) for bad input"
+      ]
+    },
+    {
+      "id": "py-204",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "medium",
+      "prompt": "Write `flatten_dict(d, sep='.')` that takes an arbitrarily nested dict (values may themselves be dicts) and returns a flat dict with dotted-key paths. Lists / tuples are treated as scalar leaves (do not recurse into them).\n\nExample: `flatten_dict({'a': 1, 'b': {'c': 2, 'd': {'e': 3}}})` -> `{'a': 1, 'b.c': 2, 'b.d.e': 3}`.\n\nEmpty dicts at a leaf should be dropped (return nothing for that branch).",
+      "language": "python",
+      "starter": "def flatten_dict(d, sep='.'):\n    # your code here\n    pass\n",
+      "model_answer": "def flatten_dict(d, sep='.'):\n    out = {}\n    def _walk(node, prefix):\n        if isinstance(node, dict):\n            if not node:\n                return  # drop empty dicts\n            for k, v in node.items():\n                key = f'{prefix}{sep}{k}' if prefix else k\n                _walk(v, key)\n        else:\n            out[prefix] = node\n    _walk(d, '')\n    return out",
+      "tests": "assert flatten_dict({'a': 1, 'b': {'c': 2, 'd': {'e': 3}}}) == {'a': 1, 'b.c': 2, 'b.d.e': 3}\nassert flatten_dict({}) == {}\nassert flatten_dict({'x': 1}) == {'x': 1}\nassert flatten_dict({'a': {'b': {'c': {'d': 42}}}}) == {'a.b.c.d': 42}\n# Lists are leaves\nassert flatten_dict({'tags': ['a','b'], 'meta': {'count': 2}}) == {'tags': ['a','b'], 'meta.count': 2}\n# Empty dicts dropped\nassert flatten_dict({'a': 1, 'b': {}}) == {'a': 1}\n# Custom separator\nassert flatten_dict({'a': {'b': 1}}, sep='/') == {'a/b': 1}\n# None as leaf\nassert flatten_dict({'a': None}) == {'a': None}\nprint('PASS')",
+      "key_points": [
+        "Uses recursion with a prefix accumulator",
+        "Treats lists/tuples as scalar leaves \u2014 does not recurse into them",
+        "Empty nested dicts contribute nothing (no key in output)",
+        "Custom `sep` is parameterized, not hard-coded",
+        "Handles None / 0 / '' leaves correctly (does not confuse them with 'no value')"
+      ]
+    },
+    {
+      "id": "py-205",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "medium",
+      "prompt": "Write `unflatten_dict(d, sep='.')` that takes a flat dict with dotted-key paths and returns a nested dict. Reverse of `flatten_dict`.\n\nExample: `unflatten_dict({'a': 1, 'b.c': 2, 'b.d.e': 3})` -> `{'a': 1, 'b': {'c': 2, 'd': {'e': 3}}}`.\n\nAssume keys do not contain the separator and that no key is a prefix of another (no conflicts).",
+      "language": "python",
+      "starter": "def unflatten_dict(d, sep='.'):\n    # your code here\n    pass\n",
+      "model_answer": "def unflatten_dict(d, sep='.'):\n    out = {}\n    for k, v in d.items():\n        parts = k.split(sep)\n        cur = out\n        for p in parts[:-1]:\n            cur = cur.setdefault(p, {})\n        cur[parts[-1]] = v\n    return out",
+      "tests": "assert unflatten_dict({'a': 1, 'b.c': 2, 'b.d.e': 3}) == {'a': 1, 'b': {'c': 2, 'd': {'e': 3}}}\nassert unflatten_dict({}) == {}\nassert unflatten_dict({'x': 1}) == {'x': 1}\nassert unflatten_dict({'a.b.c.d': 42}) == {'a': {'b': {'c': {'d': 42}}}}\n# Custom separator\nassert unflatten_dict({'a/b': 1, 'a/c': 2}, sep='/') == {'a': {'b': 1, 'c': 2}}\n# Multiple top-level keys\n_r = unflatten_dict({'user.name': 'Ada', 'user.age': 36, 'active': True})\nassert _r == {'user': {'name': 'Ada', 'age': 36}, 'active': True}\nprint('PASS')",
+      "key_points": [
+        "Splits each key by `sep` and walks the path",
+        "Uses `dict.setdefault(p, {})` to create intermediate dicts only when needed",
+        "Final segment is the leaf assignment \u2014 not another setdefault",
+        "Custom separator passed through to `.split()`",
+        "Handles single-segment keys (no dot) correctly"
+      ]
+    },
+    {
+      "id": "py-206",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "easy",
+      "prompt": "Write `to_camel_case(s)` that converts a `snake_case` string to `camelCase`. First word stays lowercase; subsequent words are title-cased and joined. Multiple consecutive underscores are treated as one separator; leading/trailing underscores are stripped. Empty input returns ''.\n\nExamples: `'user_full_name'` -> `'userFullName'`. `'__hello__world__'` -> `'helloWorld'`. `'already'` -> `'already'`.",
+      "language": "python",
+      "starter": "def to_camel_case(s):\n    # your code here\n    pass\n",
+      "model_answer": "def to_camel_case(s):\n    parts = [p for p in s.split('_') if p]\n    if not parts:\n        return ''\n    return parts[0].lower() + ''.join(p.capitalize() for p in parts[1:])",
+      "tests": "assert to_camel_case('user_full_name') == 'userFullName'\nassert to_camel_case('already') == 'already'\nassert to_camel_case('') == ''\nassert to_camel_case('__hello__world__') == 'helloWorld'\nassert to_camel_case('a_b_c_d') == 'aBCD'\nassert to_camel_case('_') == ''\nassert to_camel_case('HTTP_status_code') == 'httpStatusCode', 'first word must lowercase even if originally upper'\nprint('PASS')",
+      "key_points": [
+        "Filters out empty strings from `split('_')` to handle leading/trailing/multiple underscores",
+        "First word lowercased, subsequent words `.capitalize()` (Title case)",
+        "Uses `''.join(...)` to assemble \u2014 not repeated string concatenation",
+        "Handles empty input and underscore-only input as empty string",
+        "Bonus: `re.sub` with a callback also works"
+      ]
+    },
+    {
+      "id": "py-207",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "medium",
+      "prompt": "Write `to_snake_case(s)` that converts a `camelCase` or `PascalCase` string to `snake_case`. Acronyms run together (e.g. `HTTPResponse` -> `http_response`, `getHTTPStatus` -> `get_http_status`). Already-snake input stays unchanged.",
+      "language": "python",
+      "starter": "import re\n\ndef to_snake_case(s):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\n_PASS1 = re.compile(r'(.)([A-Z][a-z]+)')\n_PASS2 = re.compile(r'([a-z0-9])([A-Z])')\n\ndef to_snake_case(s):\n    s = _PASS1.sub(r'\\1_\\2', s)\n    s = _PASS2.sub(r'\\1_\\2', s)\n    return s.lower()",
+      "tests": "assert to_snake_case('userFullName') == 'user_full_name'\nassert to_snake_case('UserFullName') == 'user_full_name'\nassert to_snake_case('HTTPResponse') == 'http_response'\nassert to_snake_case('getHTTPStatus') == 'get_http_status'\nassert to_snake_case('already_snake') == 'already_snake'\nassert to_snake_case('A') == 'a'\nassert to_snake_case('') == ''\nassert to_snake_case('parseURL2Text') == 'parse_url2_text'\nprint('PASS')",
+      "key_points": [
+        "Uses the classic two-pass regex: first separates acronyms-followed-by-words, then any lower/digit-to-upper boundary",
+        "Lowercases the final result",
+        "Handles acronyms correctly (`HTTPResponse` -> `http_response`, not `h_t_t_p_response`)",
+        "Already-snake input is idempotent",
+        "Compiles regexes once at module load"
+      ]
+    },
+    {
+      "id": "py-208",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "medium",
+      "prompt": "Given a list of records like `[{'date': '2024-01-01', 'metric': 'cpu', 'value': 0.5}, ...]`, write `pivot(records)` that returns a nested dict `{metric: {date: value}}`. If the same (metric, date) appears twice, the LAST value wins.",
+      "language": "python",
+      "starter": "from collections import defaultdict\n\ndef pivot(records):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import defaultdict\n\ndef pivot(records):\n    out = defaultdict(dict)\n    for r in records:\n        out[r['metric']][r['date']] = r['value']\n    return dict(out)",
+      "tests": "_recs = [\n    {'date': '2024-01-01', 'metric': 'cpu', 'value': 0.5},\n    {'date': '2024-01-01', 'metric': 'mem', 'value': 0.6},\n    {'date': '2024-01-02', 'metric': 'cpu', 'value': 0.7},\n]\n_r = pivot(_recs)\nassert _r['cpu']['2024-01-01'] == 0.5\nassert _r['cpu']['2024-01-02'] == 0.7\nassert _r['mem']['2024-01-01'] == 0.6\nassert set(_r.keys()) == {'cpu', 'mem'}\nassert pivot([]) == {}\n# Last-write-wins on duplicate (metric, date)\n_dup = [{'date': 'd', 'metric': 'm', 'value': 1}, {'date': 'd', 'metric': 'm', 'value': 99}]\nassert pivot(_dup)['m']['d'] == 99\nprint('PASS')",
+      "key_points": [
+        "Uses `defaultdict(dict)` to avoid manual key-existence checks",
+        "Last-write-wins is a natural consequence of dict assignment",
+        "Returns a plain `dict` (not the defaultdict) so callers don't accidentally get auto-creation",
+        "O(n) single pass"
+      ]
+    },
+    {
+      "id": "py-209",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "medium",
+      "prompt": "Write `diff_dicts(old, new)` that returns a dict with three keys:\n- `'added'`: keys present in `new` but not `old`, mapped to their new values\n- `'removed'`: keys present in `old` but not `new`, mapped to their old values\n- `'changed'`: keys present in both with different values, mapped to a `(old_value, new_value)` tuple\n\nKeys with identical values are omitted entirely.",
+      "language": "python",
+      "starter": "def diff_dicts(old, new):\n    # your code here\n    pass\n",
+      "model_answer": "def diff_dicts(old, new):\n    old_keys = set(old)\n    new_keys = set(new)\n    return {\n        'added': {k: new[k] for k in new_keys - old_keys},\n        'removed': {k: old[k] for k in old_keys - new_keys},\n        'changed': {k: (old[k], new[k]) for k in old_keys & new_keys if old[k] != new[k]},\n    }",
+      "tests": "_old = {'a': 1, 'b': 2, 'c': 3}\n_new = {'b': 2, 'c': 30, 'd': 4}\n_r = diff_dicts(_old, _new)\nassert _r['added'] == {'d': 4}\nassert _r['removed'] == {'a': 1}\nassert _r['changed'] == {'c': (3, 30)}\n# Identical dicts\n_r2 = diff_dicts({'a': 1}, {'a': 1})\nassert _r2 == {'added': {}, 'removed': {}, 'changed': {}}\n# Empty\nassert diff_dicts({}, {'x': 1}) == {'added': {'x': 1}, 'removed': {}, 'changed': {}}\nassert diff_dicts({'x': 1}, {}) == {'added': {}, 'removed': {'x': 1}, 'changed': {}}\n# Falsy-but-different values\nassert diff_dicts({'a': 0}, {'a': False})['changed'] in ({'a': (0, False)}, {})  # 0 == False in python\nprint('PASS')",
+      "key_points": [
+        "Uses set operations (`-`, `&`) on the key sets \u2014 concise and correct",
+        "Three categories are mutually exclusive \u2014 keys appear in at most one",
+        "Equal values are silently dropped from `changed`",
+        "Dict comprehensions for each category",
+        "Returns the (old, new) ordering in the `changed` tuple \u2014 caller can see both sides"
+      ]
+    },
+    {
+      "id": "py-210",
+      "type": "code",
+      "topic": "Transformation",
+      "difficulty": "easy",
+      "prompt": "Given a list of records like `[{'id': 1, 'name': 'A'}, {'id': 2, 'name': 'B'}, {'id': 1, 'name': 'A2', 'extra': 9}]`, write `merge_by_id(records, key='id')` that returns a single dict mapping `key` -> merged record (last value of each field wins). Order of input matters \u2014 later records override earlier ones.",
+      "language": "python",
+      "starter": "def merge_by_id(records, key='id'):\n    # your code here\n    pass\n",
+      "model_answer": "def merge_by_id(records, key='id'):\n    out = {}\n    for r in records:\n        k = r[key]\n        if k in out:\n            out[k].update(r)\n        else:\n            out[k] = dict(r)\n    return out",
+      "tests": "_recs = [\n    {'id': 1, 'name': 'A'},\n    {'id': 2, 'name': 'B'},\n    {'id': 1, 'name': 'A2', 'extra': 9},\n]\n_r = merge_by_id(_recs)\nassert _r[1] == {'id': 1, 'name': 'A2', 'extra': 9}, f'merged record wrong: {_r[1]}'\nassert _r[2] == {'id': 2, 'name': 'B'}\nassert set(_r.keys()) == {1, 2}\nassert merge_by_id([]) == {}\n# Verify it does NOT mutate input\n_recs_in = [{'id': 1, 'x': 1}, {'id': 1, 'y': 2}]\n_ = merge_by_id(_recs_in)\nassert _recs_in == [{'id': 1, 'x': 1}, {'id': 1, 'y': 2}], 'must not mutate input records'\n# Custom key\n_r3 = merge_by_id([{'sku': 'A', 'qty': 1}, {'sku': 'A', 'qty': 5}], key='sku')\nassert _r3['A']['qty'] == 5\nprint('PASS')",
+      "key_points": [
+        "Uses `dict.update` for merge \u2014 last write wins per field",
+        "Copies the first occurrence with `dict(r)` so caller's records are not mutated",
+        "Configurable key field",
+        "Single pass O(n) over the input"
+      ]
+    },
+    {
+      "id": "py-211",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "easy",
+      "prompt": "Write `top_n_frequent(items, n)` that returns the `n` most frequent items as a list of `(item, count)` tuples sorted by count descending. Ties broken alphabetically by the item value. If `n` exceeds the number of distinct items, return all of them.",
+      "language": "python",
+      "starter": "from collections import Counter\n\ndef top_n_frequent(items, n):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import Counter\n\ndef top_n_frequent(items, n):\n    c = Counter(items)\n    # sort by (-count, item) \u2014 descending count, ascending item for ties\n    pairs = sorted(c.items(), key=lambda kv: (-kv[1], kv[0]))\n    return pairs[:n]",
+      "tests": "assert top_n_frequent(['a','b','a','c','b','a'], 2) == [('a', 3), ('b', 2)]\nassert top_n_frequent(['a','b','c'], 5) == [('a', 1), ('b', 1), ('c', 1)], 'tie broken alphabetically; n>distinct returns all'\nassert top_n_frequent([], 3) == []\nassert top_n_frequent(['x','x','x'], 1) == [('x', 3)]\n# Stable alphabetical tiebreak\nassert top_n_frequent(['z','a','a','z'], 1) in ([('a', 2)], [('z', 2)])\n# Actually verify alphabetical\nassert top_n_frequent(['z','a','a','z','q','q'], 3) == [('a', 2), ('q', 2), ('z', 2)]\nprint('PASS')",
+      "key_points": [
+        "Uses `collections.Counter` for the count step",
+        "Sort key is `(-count, item)` \u2014 negative count for descending, item for ascending alpha tiebreak",
+        "Slice `[:n]` is safe when n > len (Python doesn't raise)",
+        "Note that `Counter.most_common(n)` does NOT alphabetically tiebreak \u2014 custom sort is needed",
+        "O(n log n) overall, dominated by the sort"
+      ]
+    },
+    {
+      "id": "py-212",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Implement a class `MovingAverage(window)` that supports `add(x)` and `value()`. `add(x)` appends a number to the stream; `value()` returns the mean of the most recent `window` numbers (or all numbers, if fewer than `window` have been added). Aim for O(1) per `add` and O(1) per `value()`. Empty stream `value()` returns `0.0`.",
+      "language": "python",
+      "starter": "from collections import deque\n\nclass MovingAverage:\n    def __init__(self, window):\n        # your code here\n        pass\n    def add(self, x):\n        pass\n    def value(self):\n        pass\n",
+      "model_answer": "from collections import deque\n\nclass MovingAverage:\n    def __init__(self, window):\n        if window <= 0:\n            raise ValueError('window must be positive')\n        self.window = window\n        self.q = deque()\n        self.total = 0.0\n    def add(self, x):\n        self.q.append(x)\n        self.total += x\n        if len(self.q) > self.window:\n            self.total -= self.q.popleft()\n    def value(self):\n        if not self.q:\n            return 0.0\n        return self.total / len(self.q)",
+      "tests": "_ma = MovingAverage(3)\nassert _ma.value() == 0.0\n_ma.add(10); assert _ma.value() == 10.0\n_ma.add(20); assert _ma.value() == 15.0\n_ma.add(30); assert _ma.value() == 20.0\n_ma.add(40); assert _ma.value() == 30.0  # window slid: (20+30+40)/3\n_ma.add(50); assert _ma.value() == 40.0  # (30+40+50)/3\n# Edge: window=1\n_m1 = MovingAverage(1)\n_m1.add(5); _m1.add(7)\nassert _m1.value() == 7.0\n# Floats\n_mf = MovingAverage(2)\n_mf.add(1.5); _mf.add(2.5); _mf.add(3.5)\nassert abs(_mf.value() - 3.0) < 1e-9\nprint('PASS')",
+      "key_points": [
+        "Uses `collections.deque` for O(1) append/popleft",
+        "Maintains running total \u2014 avoids re-summing the window on every `value()` call",
+        "Subtracts the evicted element when sliding",
+        "Returns 0.0 for empty stream \u2014 not raise, not None (caller-friendly default)",
+        "O(1) per `add` and O(1) per `value`"
+      ]
+    },
+    {
+      "id": "py-213",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Write `percentile(values, p)` that returns the `p`-th percentile (0 <= p <= 100) of a list of numbers using linear interpolation between adjacent ranks. Do NOT use numpy. Mirror the behavior of `statistics.quantiles` / numpy.percentile linear method:\n- index = (len-1) * p/100\n- if index is integer, return values[index] (sorted)\n- else linearly interpolate between values[floor] and values[ceil]\n\nRaise `ValueError` on empty input. Do not assume the input is sorted.",
+      "language": "python",
+      "starter": "def percentile(values, p):\n    # your code here\n    pass\n",
+      "model_answer": "def percentile(values, p):\n    if not values:\n        raise ValueError('empty input')\n    if not (0 <= p <= 100):\n        raise ValueError('p must be in [0, 100]')\n    s = sorted(values)\n    n = len(s)\n    idx = (n - 1) * p / 100.0\n    lo = int(idx)\n    hi = lo + 1\n    if hi >= n:\n        return float(s[lo])\n    frac = idx - lo\n    return s[lo] + (s[hi] - s[lo]) * frac",
+      "tests": "assert percentile([1,2,3,4,5], 50) == 3\nassert percentile([1,2,3,4,5], 0) == 1\nassert percentile([1,2,3,4,5], 100) == 5\n# Linear interp: between values 2 and 3 at 25th percentile (idx=1.0 -> exactly value 2)\nassert percentile([1,2,3,4,5], 25) == 2.0\n# Even-length list, median is interpolated\nassert percentile([1,2,3,4], 50) == 2.5\n# Unsorted input \u2014 must sort first\nassert percentile([5,1,3,2,4], 50) == 3\n# Empty raises\n_err = False\ntry:\n    percentile([], 50)\nexcept ValueError:\n    _err = True\nassert _err\nprint('PASS')",
+      "key_points": [
+        "Sorts the input \u2014 caller's order is not assumed",
+        "Linear interpolation between adjacent ranks (the standard numpy/quantiles default)",
+        "Validates `p` range and raises on empty",
+        "Handles edge cases: p=0, p=100, integer index, fractional index",
+        "Reference: `statistics.quantiles` and numpy's linear method"
+      ]
+    },
+    {
+      "id": "py-214",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Write `top_k_largest(stream, k)` that returns the `k` largest items from an iterable `stream`, sorted descending. Use `heapq` to keep memory at O(k) \u2014 assume the stream can be much larger than k. If the stream has fewer than k items, return all of them sorted descending.",
+      "language": "python",
+      "starter": "import heapq\n\ndef top_k_largest(stream, k):\n    # your code here\n    pass\n",
+      "model_answer": "import heapq\n\ndef top_k_largest(stream, k):\n    if k <= 0:\n        return []\n    heap = []\n    for x in stream:\n        if len(heap) < k:\n            heapq.heappush(heap, x)\n        elif x > heap[0]:\n            heapq.heapreplace(heap, x)\n    return sorted(heap, reverse=True)",
+      "tests": "assert top_k_largest([3,1,4,1,5,9,2,6,5,3], 3) == [9, 6, 5]\nassert top_k_largest([1,2,3], 5) == [3, 2, 1]\nassert top_k_largest([], 3) == []\nassert top_k_largest([5], 1) == [5]\nassert top_k_largest([1,2,3,4,5], 0) == []\n# Streaming generator\ndef _gen():\n    for i in range(1000):\n        yield i\nassert top_k_largest(_gen(), 3) == [999, 998, 997]\n# Duplicates handled\nassert top_k_largest([5,5,5,5], 2) == [5, 5]\nprint('PASS')",
+      "key_points": [
+        "Maintains a min-heap of size k \u2014 root is the smallest of the current top-k",
+        "Each new item compares against the root in O(log k)",
+        "Uses `heapreplace` (single sift) instead of pop-then-push (two sifts)",
+        "Final sort is O(k log k), small relative to the stream",
+        "O(k) memory regardless of stream length"
+      ]
+    },
+    {
+      "id": "py-215",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write a generator `merge_sorted(*iters)` that takes any number of pre-sorted (ascending) iterables and yields all items in ascending order. Lazy \u2014 do not materialize all inputs upfront. Each input may be a list, tuple, generator, etc. Equal items can come out in any order. Equivalent to `heapq.merge`, but implement it yourself using `heapq`.",
+      "language": "python",
+      "starter": "import heapq\n\ndef merge_sorted(*iters):\n    # your code here\n    pass\n",
+      "model_answer": "import heapq\n\ndef merge_sorted(*iters):\n    # heap entries: (value, source_index, iterator) \u2014 source_index breaks ties without comparing iterators\n    heap = []\n    for i, it in enumerate(iters):\n        it = iter(it)\n        try:\n            first = next(it)\n        except StopIteration:\n            continue\n        heap.append((first, i, it))\n    heapq.heapify(heap)\n    while heap:\n        val, i, it = heapq.heappop(heap)\n        yield val\n        try:\n            nxt = next(it)\n            heapq.heappush(heap, (nxt, i, it))\n        except StopIteration:\n            pass",
+      "tests": "assert list(merge_sorted([1,4,7], [2,5,8], [3,6,9])) == [1,2,3,4,5,6,7,8,9]\nassert list(merge_sorted([], [1,2], [])) == [1,2]\nassert list(merge_sorted()) == []\nassert list(merge_sorted([1,1,1], [1,1])) == [1,1,1,1,1]\n# Generator inputs\ndef _g(start, stop):\n    yield from range(start, stop)\nassert list(merge_sorted(_g(0,3), _g(3,6))) == [0,1,2,3,4,5]\n# One huge, one tiny\n_r = list(merge_sorted(range(0, 1000, 2), [-1, 999, 10000]))\nassert _r[0] == -1\nassert _r[-1] == 10000\nassert _r == sorted(_r)\nprint('PASS')",
+      "key_points": [
+        "Uses `heapq` with a heap of size K (one entry per active iterator) \u2014 O(N log K) for total N items",
+        "Heap tuple `(value, source_index, iterator)` \u2014 the index acts as a deterministic tiebreaker so heapq never tries to compare iterator objects",
+        "Generator \u2014 yields lazily",
+        "Drops exhausted iterators",
+        "Equivalent of `heapq.merge`, which is the canonical stdlib answer"
+      ]
+    },
+    {
+      "id": "py-216",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "easy",
+      "prompt": "Write `is_valid_email(s)` that returns True if `s` looks like a valid email address, False otherwise. Reasonable rules (NOT full RFC 5322):\n- Exactly one `@`\n- Non-empty local part containing only letters, digits, `.`, `_`, `+`, `-`\n- Domain has at least one `.`, each label is letters/digits/hyphens, no leading/trailing hyphen, TLD is at least 2 letters.\n\nUse a single compiled regex.",
+      "language": "python",
+      "starter": "import re\n\ndef is_valid_email(s):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\n_EMAIL_RE = re.compile(\n    r'^[A-Za-z0-9._+\\-]+'  # local\n    r'@'\n    r'(?:[A-Za-z0-9](?:[A-Za-z0-9\\-]*[A-Za-z0-9])?\\.)+'  # one or more labels\n    r'[A-Za-z]{2,}$'  # TLD\n)\n\ndef is_valid_email(s):\n    if not isinstance(s, str):\n        return False\n    return _EMAIL_RE.match(s) is not None",
+      "tests": "assert is_valid_email('alice@example.com') is True\nassert is_valid_email('a.b+tag@sub.example.co.uk') is True\nassert is_valid_email('x_y-z@a-b.io') is True\nassert is_valid_email('') is False\nassert is_valid_email('no-at-sign.com') is False\nassert is_valid_email('two@@signs.com') is False\nassert is_valid_email('trailing@domain.') is False\nassert is_valid_email('@nolocal.com') is False\nassert is_valid_email('no-tld@domain') is False\nassert is_valid_email('short@x.c') is False  # TLD too short\nassert is_valid_email('hyphen-@domain.com') is True  # trailing hyphen in local is OK per rules\nassert is_valid_email('a@-bad.com') is False  # leading hyphen in label\nassert is_valid_email('a@bad-.com') is False  # trailing hyphen in label\nassert is_valid_email(None) is False\nprint('PASS')",
+      "key_points": [
+        "Uses a single compiled regex \u2014 the lazy `\\S+@\\S+\\.\\S+` accepts garbage",
+        "Anchors with `^` and `$` so partial matches don't pass",
+        "Domain labels reject leading/trailing hyphens with the bookend character classes",
+        "TLD min 2 letters via `{2,}`",
+        "Type-checks the input \u2014 non-strings return False without raising"
+      ]
+    },
+    {
+      "id": "py-217",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "medium",
+      "prompt": "Write `is_valid_card(number)` that validates a credit-card number using the Luhn algorithm. Accept the input as a string (with optional spaces or dashes) or an int. Steps:\n1. Strip non-digits.\n2. From the rightmost digit, double every SECOND digit; if the doubled value is >= 10, sum its digits (or equivalently subtract 9).\n3. Sum everything. Number is valid iff the total is divisible by 10.\n\nReject inputs whose stripped digit count is not in [13, 19].",
+      "language": "python",
+      "starter": "def is_valid_card(number):\n    # your code here\n    pass\n",
+      "model_answer": "def is_valid_card(number):\n    s = str(number)\n    digits = [int(c) for c in s if c.isdigit()]\n    if not (13 <= len(digits) <= 19):\n        return False\n    total = 0\n    # Walk right-to-left; double every 2nd digit (i.e., positions 1,3,5 from the right)\n    for i, d in enumerate(reversed(digits)):\n        if i % 2 == 1:\n            d *= 2\n            if d >= 10:\n                d -= 9\n        total += d\n    return total % 10 == 0",
+      "tests": "# Real Luhn-valid test card numbers (Visa, MC, Amex test ranges)\nassert is_valid_card('4532015112830366') is True\nassert is_valid_card('4532-0151-1283-0366') is True, 'dashes should be stripped'\nassert is_valid_card('4532 0151 1283 0366') is True, 'spaces should be stripped'\nassert is_valid_card(4532015112830366) is True, 'int input accepted'\nassert is_valid_card('5500 0000 0000 0004') is True  # MasterCard test\nassert is_valid_card('340000000000009') is True  # Amex test (15 digits)\n# Invalid: off by one digit\nassert is_valid_card('4532015112830367') is False\nassert is_valid_card('') is False\nassert is_valid_card('12345') is False  # too short\nassert is_valid_card('1' * 20) is False  # too long\nprint('PASS')",
+      "key_points": [
+        "Strips non-digits before processing (handles spaces / dashes)",
+        "Walks the digits right-to-left and doubles every other one",
+        "`d - 9` is the clever shortcut for 'sum of digits if > 9' (since max doubled is 18, sum is 1+8=9; for 10 it's 1, etc.)",
+        "Rejects implausible lengths up front",
+        "Pure stdlib, no external libraries"
+      ]
+    },
+    {
+      "id": "py-218",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "medium",
+      "prompt": "Write `sanitize_filename(name)` that returns a cross-platform-safe filename. Rules:\n- Strip leading/trailing whitespace and dots from the input.\n- Replace any character in `< > : \" / \\\\ | ? *` and ASCII control chars (0-31) with `_`.\n- Collapse runs of internal whitespace to a single underscore.\n- Reject (return `'_'`) Windows reserved names: `CON, PRN, AUX, NUL, COM1..COM9, LPT1..LPT9` (case-insensitive, with or without an extension).\n- Truncate to 255 characters.\n- If result is empty after cleaning, return `'_'`.",
+      "language": "python",
+      "starter": "import re\n\ndef sanitize_filename(name):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\n_BAD = re.compile(r'[<>:\"/\\\\|?*\\x00-\\x1f]')\n_WS = re.compile(r'\\s+')\n_RESERVED = {'CON','PRN','AUX','NUL'} | {f'COM{i}' for i in range(1,10)} | {f'LPT{i}' for i in range(1,10)}\n\ndef sanitize_filename(name):\n    s = name.strip(' .\\t\\n\\r')\n    s = _BAD.sub('_', s)\n    s = _WS.sub('_', s)\n    if not s:\n        return '_'\n    base = s.split('.', 1)[0].upper()\n    if base in _RESERVED:\n        return '_'\n    return s[:255]",
+      "tests": "assert sanitize_filename('hello world.txt') == 'hello_world.txt'\nassert sanitize_filename('a/b:c*d?.csv') == 'a_b_c_d_.csv'\nassert sanitize_filename('  ..weird..  ') == 'weird'\nassert sanitize_filename('CON') == '_'\nassert sanitize_filename('con.txt') == '_', 'reserved name with extension'\nassert sanitize_filename('COM3.log') == '_'\nassert sanitize_filename('NOTcon.txt') == 'NOTcon.txt'  # not exactly reserved\nassert sanitize_filename('') == '_'\nassert sanitize_filename('.') == '_'\nassert sanitize_filename('hello\\x00world') == 'hello_world'\nassert len(sanitize_filename('a' * 300)) == 255\nprint('PASS')",
+      "key_points": [
+        "Single regex covers the Windows-forbidden character set",
+        "Strips leading/trailing dots \u2014 Windows doesn't like trailing dots",
+        "Checks BASE name (before first dot) against the reserved list \u2014 `CON.txt` is still forbidden",
+        "Case-insensitive comparison via `.upper()`",
+        "Truncates to 255 (POSIX limit, also Windows default)",
+        "Returns a placeholder rather than empty"
+      ]
+    },
+    {
+      "id": "py-219",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "medium",
+      "prompt": "Write `canonical_url(url)` that returns a canonical form of the URL:\n- Lowercase the scheme and host.\n- Strip default port (`:80` for http, `:443` for https).\n- Remove URL fragment (`#...`).\n- Sort query parameters by key (stable on duplicate keys \u2014 preserve original relative order among duplicates).\n- If path is empty, use `/`.\n\nUse `urllib.parse` from the stdlib.",
+      "language": "python",
+      "starter": "from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode\n\ndef canonical_url(url):\n    # your code here\n    pass\n",
+      "model_answer": "from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode\n\ndef canonical_url(url):\n    parts = urlsplit(url)\n    scheme = parts.scheme.lower()\n    host = parts.hostname or ''\n    port = parts.port\n    # Strip default port\n    if (scheme == 'http' and port == 80) or (scheme == 'https' and port == 443):\n        port = None\n    netloc = host\n    if port is not None:\n        netloc = f'{host}:{port}'\n    path = parts.path or '/'\n    # Sort query params by key (stable on dup keys)\n    pairs = parse_qsl(parts.query, keep_blank_values=True)\n    pairs = sorted(pairs, key=lambda kv: kv[0])\n    query = urlencode(pairs)\n    return urlunsplit((scheme, netloc, path, query, ''))",
+      "tests": "assert canonical_url('HTTPS://Example.COM:443/Path?b=2&a=1#frag') == 'https://example.com/Path?a=1&b=2'\nassert canonical_url('http://example.com:80/') == 'http://example.com/'\nassert canonical_url('http://example.com') == 'http://example.com/', 'empty path becomes /'\nassert canonical_url('https://example.com:8443/') == 'https://example.com:8443/', 'non-default port kept'\nassert canonical_url('https://example.com/?z=1&a=2&m=3') == 'https://example.com/?a=2&m=3&z=1'\nassert canonical_url('https://example.com/#section') == 'https://example.com/'\n# Duplicate query keys: preserve order among dups, sort by key otherwise\n_r = canonical_url('https://example.com/?b=2&a=2&a=1')\nassert _r == 'https://example.com/?a=2&a=1&b=2', f'duplicate-key stable sort failed: {_r}'\nprint('PASS')",
+      "key_points": [
+        "Uses `urlsplit` / `urlunsplit` \u2014 handles authority, query, fragment correctly",
+        "`parse_qsl(keep_blank_values=True)` preserves params like `?x=` (vs `parse_qs` which drops them)",
+        "`sorted` with a key is a stable sort \u2014 so dup keys retain their input order",
+        "Lowercases scheme and host but NOT path (paths can be case-sensitive)",
+        "Drops the URL fragment (servers never see it; useless for dedup keys)"
+      ]
+    },
+    {
+      "id": "py-220",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Given a list of events `[{'user': str, 'ts': int (unix seconds), 'event': str}, ...]`, write `sessionize(events, idle_gap_s=1800)` that groups each user's events into sessions. A new session starts whenever the gap between consecutive events for the same user exceeds `idle_gap_s`.\n\nReturn a list of sessions, each as a dict: `{'user': str, 'start': int, 'end': int, 'events': list}` (events list in original order). Output sessions sorted by `(user, start)`.\n\nThe input may be in any order.",
+      "language": "python",
+      "starter": "from collections import defaultdict\n\ndef sessionize(events, idle_gap_s=1800):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import defaultdict\n\ndef sessionize(events, idle_gap_s=1800):\n    by_user = defaultdict(list)\n    for e in events:\n        by_user[e['user']].append(e)\n    sessions = []\n    for user, evs in by_user.items():\n        evs.sort(key=lambda e: e['ts'])\n        cur = None\n        for e in evs:\n            if cur is None or e['ts'] - cur['end'] > idle_gap_s:\n                if cur is not None:\n                    sessions.append(cur)\n                cur = {'user': user, 'start': e['ts'], 'end': e['ts'], 'events': [e]}\n            else:\n                cur['end'] = e['ts']\n                cur['events'].append(e)\n        if cur is not None:\n            sessions.append(cur)\n    sessions.sort(key=lambda s: (s['user'], s['start']))\n    return sessions",
+      "tests": "_events = [\n    {'user': 'u1', 'ts': 100, 'event': 'login'},\n    {'user': 'u1', 'ts': 200, 'event': 'view'},\n    {'user': 'u1', 'ts': 2200, 'event': 'view'},  # 2000s gap > 1800 -> new session\n    {'user': 'u2', 'ts': 150, 'event': 'login'},\n    {'user': 'u1', 'ts': 150, 'event': 'click'},  # out of order, falls into first u1 session\n]\n_s = sessionize(_events, idle_gap_s=1800)\nassert len(_s) == 3, f'expected 3 sessions, got {len(_s)}'\n_u1 = [s for s in _s if s['user'] == 'u1']\nassert len(_u1) == 2, 'u1 has two sessions'\nassert _u1[0]['start'] == 100\nassert _u1[0]['end'] == 200\nassert len(_u1[0]['events']) == 3, f'first u1 session should have 3 events, got {len(_u1[0][\"events\"])}'\nassert _u1[1]['start'] == 2200\nassert _u1[1]['end'] == 2200\nassert len(_u1[1]['events']) == 1\n_u2 = [s for s in _s if s['user'] == 'u2']\nassert len(_u2) == 1\nassert _u2[0]['start'] == 150 and _u2[0]['end'] == 150\nassert sessionize([]) == []\n# Exact-boundary gap: gap == idle_gap_s should NOT start a new session (gap must EXCEED)\n_boundary = [{'user': 'u', 'ts': 0, 'event': 'a'}, {'user': 'u', 'ts': 1800, 'event': 'b'}]\nassert len(sessionize(_boundary, idle_gap_s=1800)) == 1\nprint('PASS')",
+      "key_points": [
+        "Groups events by user first (defaultdict) \u2014 sessions never cross users",
+        "Sorts each user's events by timestamp (input order isn't guaranteed)",
+        "New session iff gap STRICTLY exceeds threshold (>, not >=)",
+        "Tracks current session 'end' as the last seen ts, not the start",
+        "Returns sessions sorted by (user, start) for deterministic output"
+      ]
+    },
+    {
+      "id": "py-221",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Given an event stream `[{'user': str, 'ts': int, 'event': str}, ...]` and an ordered list of `steps` like `['signup', 'verify', 'purchase']`, write `funnel(events, steps)` that returns a list of counts \u2014 how many users reached step 0, step 1, step 2, etc., IN ORDER. A user must hit the steps in the specified sequence (timestamps must be non-decreasing per step); intermediate other events don't count as failure.\n\nReturn `[count_step0, count_step1, ...]`. Input may not be sorted; sort by ts per user before evaluation.",
+      "language": "python",
+      "starter": "from collections import defaultdict\n\ndef funnel(events, steps):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import defaultdict\n\ndef funnel(events, steps):\n    if not steps:\n        return []\n    by_user = defaultdict(list)\n    for e in events:\n        by_user[e['user']].append(e)\n    counts = [0] * len(steps)\n    for evs in by_user.values():\n        evs.sort(key=lambda e: e['ts'])\n        step_idx = 0\n        for e in evs:\n            if step_idx >= len(steps):\n                break\n            if e['event'] == steps[step_idx]:\n                counts[step_idx] += 1\n                step_idx += 1\n    return counts",
+      "tests": "_events = [\n    {'user': 'a', 'ts': 1, 'event': 'signup'},\n    {'user': 'a', 'ts': 2, 'event': 'verify'},\n    {'user': 'a', 'ts': 3, 'event': 'purchase'},\n    {'user': 'b', 'ts': 1, 'event': 'signup'},\n    {'user': 'b', 'ts': 2, 'event': 'verify'},\n    {'user': 'c', 'ts': 1, 'event': 'signup'},\n    {'user': 'd', 'ts': 1, 'event': 'purchase'},  # out of order \u2014 doesn't count without signup first\n]\nassert funnel(_events, ['signup','verify','purchase']) == [3, 2, 1]\n# Empty inputs\nassert funnel([], ['a','b']) == [0, 0]\nassert funnel(_events, []) == []\n# Out-of-order input must still work (sorted internally)\n_shuf = list(reversed(_events))\nassert funnel(_shuf, ['signup','verify','purchase']) == [3, 2, 1]\n# Extra events between steps are tolerated\n_e2 = [\n    {'user': 'a', 'ts': 1, 'event': 'signup'},\n    {'user': 'a', 'ts': 2, 'event': 'browse'},\n    {'user': 'a', 'ts': 3, 'event': 'verify'},\n]\nassert funnel(_e2, ['signup','verify']) == [1, 1]\nprint('PASS')",
+      "key_points": [
+        "Groups by user, sorts per-user events by timestamp",
+        "Walks each user once with a step-pointer that only advances on match",
+        "Intermediate non-step events are simply skipped (do not abort the funnel)",
+        "Once user reaches the last step, can break out early",
+        "Returns counts as a list \u2014 index aligns with `steps`"
+      ]
+    },
+    {
+      "id": "py-222",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "easy",
+      "prompt": "Given a list of unix-second timestamps and a `bucket_seconds` value (e.g. 3600 for hourly), write `bucket_counts(timestamps, bucket_seconds)` that returns a dict mapping the bucket START timestamp (unix seconds, floored) to the count of timestamps in that bucket.\n\nExample: timestamps `[10, 50, 3700]` with `bucket_seconds=3600` -> `{0: 2, 3600: 1}`.",
+      "language": "python",
+      "starter": "from collections import Counter\n\ndef bucket_counts(timestamps, bucket_seconds):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import Counter\n\ndef bucket_counts(timestamps, bucket_seconds):\n    if bucket_seconds <= 0:\n        raise ValueError('bucket_seconds must be positive')\n    return dict(Counter((t // bucket_seconds) * bucket_seconds for t in timestamps))",
+      "tests": "assert bucket_counts([10, 50, 3700], 3600) == {0: 2, 3600: 1}\nassert bucket_counts([], 60) == {}\nassert bucket_counts([0, 0, 0], 60) == {0: 3}\n# Daily buckets (86400 seconds)\n_r = bucket_counts([0, 86399, 86400, 86401], 86400)\nassert _r == {0: 2, 86400: 2}\n# bucket boundary inclusive on the left, exclusive on the right\nassert bucket_counts([3599, 3600], 3600) == {0: 1, 3600: 1}\n_err = False\ntry:\n    bucket_counts([1], 0)\nexcept ValueError:\n    _err = True\nassert _err, 'zero bucket should raise'\nprint('PASS')",
+      "key_points": [
+        "Floor division `t // bucket_seconds` gives the bucket index; multiply back for the start",
+        "Counter does the aggregation in one pass",
+        "Returns a plain `dict` (not Counter) so callers don't accidentally get auto-zero on missing keys",
+        "Validates that bucket size is positive",
+        "Bucket is `[start, start+size)` \u2014 boundary belongs to the next bucket"
+      ]
+    },
+    {
+      "id": "py-223",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Given a list of ISO date strings (`'YYYY-MM-DD'`), write `missing_dates(dates)` that returns the dates missing between the earliest and latest in the input, also as ISO strings, in chronological order. Duplicates in the input are ignored. Empty input returns `[]`.\n\nExample: `['2024-01-01', '2024-01-04', '2024-01-02']` -> `['2024-01-03']`.",
+      "language": "python",
+      "starter": "from datetime import date, timedelta\n\ndef missing_dates(dates):\n    # your code here\n    pass\n",
+      "model_answer": "from datetime import date, timedelta\n\ndef missing_dates(dates):\n    if not dates:\n        return []\n    seen = {date.fromisoformat(d) for d in dates}\n    lo, hi = min(seen), max(seen)\n    out = []\n    d = lo + timedelta(days=1)\n    while d < hi:\n        if d not in seen:\n            out.append(d.isoformat())\n        d += timedelta(days=1)\n    return out",
+      "tests": "assert missing_dates(['2024-01-01', '2024-01-04', '2024-01-02']) == ['2024-01-03']\nassert missing_dates(['2024-01-01', '2024-01-05']) == ['2024-01-02', '2024-01-03', '2024-01-04']\nassert missing_dates([]) == []\nassert missing_dates(['2024-01-01']) == []\nassert missing_dates(['2024-01-01', '2024-01-02']) == []\n# Duplicates ignored\nassert missing_dates(['2024-01-01', '2024-01-01', '2024-01-03']) == ['2024-01-02']\n# Cross-month\nassert missing_dates(['2024-01-30', '2024-02-02']) == ['2024-01-31', '2024-02-01']\nprint('PASS')",
+      "key_points": [
+        "Uses `date.fromisoformat` for parsing and `.isoformat()` for output",
+        "Set membership check for O(1) per-day 'missing' test",
+        "Walks day by day between min and max (exclusive)",
+        "`timedelta(days=1)` advances the date correctly across month / year boundaries",
+        "Empty input handled without raising"
+      ]
+    },
+    {
+      "id": "py-224",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Write `business_days(start, end, holidays=None)` that returns the number of business days (Mon-Fri, excluding holidays) between `start` and `end` (both `datetime.date`), counting `start` but NOT `end` (half-open interval). `holidays` is an optional iterable of `date` objects.\n\nIf `end <= start`, return 0. If `end == start`, return 0.",
+      "language": "python",
+      "starter": "from datetime import date, timedelta\n\ndef business_days(start, end, holidays=None):\n    # your code here\n    pass\n",
+      "model_answer": "from datetime import date, timedelta\n\ndef business_days(start, end, holidays=None):\n    if end <= start:\n        return 0\n    holiday_set = set(holidays) if holidays else set()\n    count = 0\n    d = start\n    while d < end:\n        if d.weekday() < 5 and d not in holiday_set:\n            count += 1\n        d += timedelta(days=1)\n    return count",
+      "tests": "from datetime import date\n# Mon 2024-01-01 .. Sat 2024-01-06 = Mon, Tue, Wed, Thu, Fri = 5 business days (but end exclusive)\nassert business_days(date(2024,1,1), date(2024,1,6)) == 5\n# Same day\nassert business_days(date(2024,1,1), date(2024,1,1)) == 0\n# Just a weekend\nassert business_days(date(2024,1,6), date(2024,1,8)) == 0  # Sat,Sun\n# With holidays\nassert business_days(date(2024,1,1), date(2024,1,6), holidays=[date(2024,1,3)]) == 4\n# end < start\nassert business_days(date(2024,1,10), date(2024,1,1)) == 0\n# Full week incl weekend\nassert business_days(date(2024,1,1), date(2024,1,8)) == 5  # Mon-Sun, 5 weekdays\n# Holiday on a weekend doesn't double-count\nassert business_days(date(2024,1,1), date(2024,1,8), holidays=[date(2024,1,6)]) == 5\nprint('PASS')",
+      "key_points": [
+        "Uses `date.weekday()` (Monday=0, Sunday=6) \u2014 `< 5` is the workday check",
+        "Half-open interval `[start, end)` \u2014 counts `start`, not `end`",
+        "`holidays` stored as a `set` for O(1) lookup",
+        "Holiday on a weekend doesn't subtract (it wasn't counted to begin with)",
+        "Early-return on degenerate ranges"
+      ]
+    },
+    {
+      "id": "py-225",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Write `humanize_ago(seconds_ago)` that returns a human-friendly relative time string:\n- < 60 -> `'just now'`\n- < 3600 (1 hour) -> `'N minute(s) ago'`\n- < 86400 (1 day) -> `'N hour(s) ago'`\n- < 2592000 (30 days) -> `'N day(s) ago'`\n- < 31536000 (365 days) -> `'N month(s) ago'` (using 30-day month)\n- else `'N year(s) ago'` (using 365-day year)\n\nUse singular for N=1, plural otherwise. Floor (integer) the count.",
+      "language": "python",
+      "starter": "def humanize_ago(seconds_ago):\n    # your code here\n    pass\n",
+      "model_answer": "def humanize_ago(seconds_ago):\n    s = int(seconds_ago)\n    if s < 60:\n        return 'just now'\n    if s < 3600:\n        n = s // 60\n        return f'{n} minute{\"s\" if n != 1 else \"\"} ago'\n    if s < 86400:\n        n = s // 3600\n        return f'{n} hour{\"s\" if n != 1 else \"\"} ago'\n    if s < 2592000:\n        n = s // 86400\n        return f'{n} day{\"s\" if n != 1 else \"\"} ago'\n    if s < 31536000:\n        n = s // 2592000\n        return f'{n} month{\"s\" if n != 1 else \"\"} ago'\n    n = s // 31536000\n    return f'{n} year{\"s\" if n != 1 else \"\"} ago'",
+      "tests": "assert humanize_ago(0) == 'just now'\nassert humanize_ago(59) == 'just now'\nassert humanize_ago(60) == '1 minute ago'\nassert humanize_ago(120) == '2 minutes ago'\nassert humanize_ago(3599) == '59 minutes ago'\nassert humanize_ago(3600) == '1 hour ago'\nassert humanize_ago(7200) == '2 hours ago'\nassert humanize_ago(86400) == '1 day ago'\nassert humanize_ago(86400 * 2) == '2 days ago'\nassert humanize_ago(86400 * 30) == '1 month ago'\nassert humanize_ago(86400 * 60) == '2 months ago'\nassert humanize_ago(86400 * 365) == '1 year ago'\nassert humanize_ago(86400 * 365 * 5) == '5 years ago'\nprint('PASS')",
+      "key_points": [
+        "Cascading if-chain with descending thresholds",
+        "Singular vs plural based on N==1 check (not `n != 1` reversed)",
+        "Floor division `//` matches the spec ('ago' values feel right when rounded down)",
+        "Casts input to int up front so float seconds work",
+        "Reasonable boundary constants (avoid magic-number repetition where possible)"
+      ]
+    },
+    {
+      "id": "py-226",
+      "type": "code",
+      "topic": "Decorators",
+      "difficulty": "hard",
+      "prompt": "Write a decorator `@with_retry(attempts=3, initial_delay=0.01, factor=2, exceptions=(Exception,), sleeper=time.sleep)`. It calls the decorated function up to `attempts` times. After a failure with one of `exceptions`, sleep `initial_delay * factor**i` seconds (i is 0-based attempt index of the FAILED attempt), then retry. After the final attempt, re-raise. Inject `sleeper` so tests can pass a fake.",
+      "language": "python",
+      "starter": "import time\nfrom functools import wraps\n\ndef with_retry(attempts=3, initial_delay=0.01, factor=2, exceptions=(Exception,), sleeper=time.sleep):\n    # your code here\n    pass\n",
+      "model_answer": "import time\nfrom functools import wraps\n\ndef with_retry(attempts=3, initial_delay=0.01, factor=2, exceptions=(Exception,), sleeper=time.sleep):\n    def deco(fn):\n        @wraps(fn)\n        def wrapper(*args, **kwargs):\n            delay = initial_delay\n            for i in range(attempts):\n                try:\n                    return fn(*args, **kwargs)\n                except exceptions:\n                    if i == attempts - 1:\n                        raise\n                    sleeper(delay)\n                    delay *= factor\n        return wrapper\n    return deco",
+      "tests": "_sleeps = []\ndef _fake_sleep(s):\n    _sleeps.append(s)\n\n_calls = {'n': 0}\n@with_retry(attempts=4, initial_delay=0.1, factor=3, exceptions=(ValueError,), sleeper=_fake_sleep)\ndef _flaky():\n    _calls['n'] += 1\n    if _calls['n'] < 3:\n        raise ValueError('try again')\n    return 'ok'\n\nassert _flaky() == 'ok'\nassert _calls['n'] == 3, f'expected 3 calls, got {_calls[\"n\"]}'\n# Slept twice (after attempt 1 and attempt 2)\nassert len(_sleeps) == 2 and abs(_sleeps[0] - 0.1) < 1e-9 and abs(_sleeps[1] - 0.3) < 1e-9, f'expected exponential delays [0.1, 0.3], got {_sleeps}'\n\n# Final failure re-raises\n_calls['n'] = 0\n_sleeps.clear()\n@with_retry(attempts=2, initial_delay=0.05, factor=2, exceptions=(KeyError,), sleeper=_fake_sleep)\ndef _always_fail():\n    _calls['n'] += 1\n    raise KeyError('nope')\n_err = None\ntry:\n    _always_fail()\nexcept KeyError as e:\n    _err = e\nassert _err is not None\nassert _calls['n'] == 2, f'expected 2 attempts, got {_calls[\"n\"]}'\nassert len(_sleeps) == 1 and abs(_sleeps[0] - 0.05) < 1e-9, f'expected one sleep of 0.05, got {_sleeps}'\n\n# Non-listed exception propagates immediately\n_calls['n'] = 0\n_sleeps.clear()\n@with_retry(attempts=5, exceptions=(ValueError,), sleeper=_fake_sleep)\ndef _wrong_kind():\n    _calls['n'] += 1\n    raise TypeError('different')\n_err = None\ntry:\n    _wrong_kind()\nexcept TypeError:\n    _err = True\nassert _err is True\nassert _calls['n'] == 1, 'unlisted exception should NOT retry'\nprint('PASS')",
+      "key_points": [
+        "Uses `functools.wraps` to preserve identity",
+        "On final attempt, re-raise (don't sleep after last failure)",
+        "Multiplies delay by `factor` each iteration \u2014 exponential backoff",
+        "Unlisted exception types propagate without retry",
+        "`sleeper` is injected so tests can capture delays without actually waiting"
+      ]
+    },
+    {
+      "id": "py-227",
+      "type": "code",
+      "topic": "Decorators",
+      "difficulty": "medium",
+      "prompt": "Write `memoize(maxsize)` \u2014 a decorator factory that caches a function's return values, keyed on positional args. When the cache exceeds `maxsize`, evict the OLDEST entry (FIFO, not LRU). Re-implement using `collections.OrderedDict` \u2014 do NOT delegate to `functools.lru_cache`. The wrapped function should expose `.cache_info()` returning a dict with `hits`, `misses`, `currsize`.\n\nAssume args are hashable; raise the natural TypeError otherwise.",
+      "language": "python",
+      "starter": "from collections import OrderedDict\nfrom functools import wraps\n\ndef memoize(maxsize):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import OrderedDict\nfrom functools import wraps\n\ndef memoize(maxsize):\n    def deco(fn):\n        cache = OrderedDict()\n        stats = {'hits': 0, 'misses': 0}\n        @wraps(fn)\n        def wrapper(*args):\n            if args in cache:\n                stats['hits'] += 1\n                return cache[args]\n            stats['misses'] += 1\n            val = fn(*args)\n            cache[args] = val\n            if len(cache) > maxsize:\n                cache.popitem(last=False)  # FIFO: evict the oldest\n            return val\n        wrapper.cache_info = lambda: {'hits': stats['hits'], 'misses': stats['misses'], 'currsize': len(cache)}\n        return wrapper\n    return deco",
+      "tests": "_calls = []\n@memoize(maxsize=3)\ndef sq(n):\n    _calls.append(n)\n    return n * n\n\nassert sq(2) == 4\nassert sq(2) == 4\nassert sq(3) == 9\nassert _calls == [2, 3], f'second sq(2) should hit cache: calls={_calls}'\n_info = sq.cache_info()\nassert _info == {'hits': 1, 'misses': 2, 'currsize': 2}, _info\n# Fill the cache and force eviction\nsq(4); sq(5)  # cache now {2,3,4,5} \u2014 exceeds maxsize=3, oldest (2) evicted\n_info = sq.cache_info()\nassert _info['currsize'] == 3, _info\nassert _info['misses'] == 4\n# 2 was evicted, so calling it again is a miss\nassert sq(2) == 4\nassert sq.cache_info()['misses'] == 5\nprint('PASS')",
+      "key_points": [
+        "Uses `OrderedDict` for predictable insertion order",
+        "`popitem(last=False)` removes the oldest entry \u2014 FIFO semantics",
+        "Tracks `hits`, `misses`, `currsize` in a closed-over dict",
+        "Exposes `.cache_info()` attribute on the wrapped function (mirrors `lru_cache`)",
+        "Keyed on positional args tuple \u2014 relies on natural hashability"
+      ]
+    },
+    {
+      "id": "py-228",
+      "type": "code",
+      "topic": "Caching",
+      "difficulty": "medium",
+      "prompt": "Implement a class `TTLCache(ttl_seconds, clock=time.time)`. `set(key, value)` stores `value` with the current timestamp; `get(key)` returns the value if it's still within TTL, else `None`. Use lazy expiration \u2014 only purge on read access for that key.\n\nInject `clock` so tests can advance time manually. Provide a `__contains__` (so `key in cache` works, also TTL-aware).",
+      "language": "python",
+      "starter": "import time\n\nclass TTLCache:\n    def __init__(self, ttl_seconds, clock=time.time):\n        # your code here\n        pass\n",
+      "model_answer": "import time\n\nclass TTLCache:\n    def __init__(self, ttl_seconds, clock=time.time):\n        self.ttl = ttl_seconds\n        self.clock = clock\n        self._store = {}\n    def set(self, key, value):\n        self._store[key] = (value, self.clock())\n    def get(self, key):\n        if key not in self._store:\n            return None\n        value, ts = self._store[key]\n        if self.clock() - ts > self.ttl:\n            del self._store[key]\n            return None\n        return value\n    def __contains__(self, key):\n        return self.get(key) is not None",
+      "tests": "_now = [1000.0]\ndef _clock():\n    return _now[0]\n_c = TTLCache(ttl_seconds=10, clock=_clock)\n_c.set('a', 1)\nassert _c.get('a') == 1\nassert 'a' in _c\n# Within TTL\n_now[0] = 1009\nassert _c.get('a') == 1\n# Right at the boundary (exactly ttl elapsed) \u2014 spec says expired iff elapsed > ttl, so still valid\n_now[0] = 1010\nassert _c.get('a') == 1\n# Past TTL\n_now[0] = 1011\nassert _c.get('a') is None\nassert 'a' not in _c\n# Set again resets TTL\n_now[0] = 2000\n_c.set('a', 99)\nassert _c.get('a') == 99\n_now[0] = 2005\nassert _c.get('a') == 99\n# Missing key\nassert _c.get('missing') is None\nprint('PASS')",
+      "key_points": [
+        "Stores `(value, set_time)` tuples \u2014 both pieces of info needed at read time",
+        "Lazy expiration: only purges on the `get` for that specific key",
+        "Injectable `clock` makes the class fully testable without `time.sleep`",
+        "`__contains__` delegates to `get` so it shares the expiration logic",
+        "Returns `None` (not raises) on expired/missing \u2014 common Python idiom"
+      ]
+    },
+    {
+      "id": "py-229",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Implement a class `TokenBucket(rate, capacity, clock=time.monotonic)` for rate limiting:\n- `rate` = tokens refilled per second\n- `capacity` = max tokens it can hold\n- `try_acquire(n=1)` returns True if `n` tokens are available (deducts them) else False.\n- Bucket starts full.\n- Refills continuously based on the clock \u2014 compute available tokens lazily when `try_acquire` is called.\n\nInject `clock` for testability.",
+      "language": "python",
+      "starter": "import time\n\nclass TokenBucket:\n    def __init__(self, rate, capacity, clock=time.monotonic):\n        # your code here\n        pass\n",
+      "model_answer": "import time\n\nclass TokenBucket:\n    def __init__(self, rate, capacity, clock=time.monotonic):\n        self.rate = rate\n        self.capacity = capacity\n        self.clock = clock\n        self.tokens = float(capacity)\n        self.last = clock()\n    def _refill(self):\n        now = self.clock()\n        elapsed = now - self.last\n        if elapsed > 0:\n            self.tokens = min(self.capacity, self.tokens + elapsed * self.rate)\n            self.last = now\n    def try_acquire(self, n=1):\n        self._refill()\n        if self.tokens >= n:\n            self.tokens -= n\n            return True\n        return False",
+      "tests": "_now = [0.0]\ndef _clock():\n    return _now[0]\n_b = TokenBucket(rate=2, capacity=5, clock=_clock)\n# Starts full -> 5 acquires available\nfor _ in range(5):\n    assert _b.try_acquire() is True\nassert _b.try_acquire() is False, '6th acquire on a 5-cap bucket with no refill should fail'\n# Advance 1 second -> +2 tokens\n_now[0] = 1.0\nassert _b.try_acquire() is True\nassert _b.try_acquire() is True\nassert _b.try_acquire() is False\n# Bulk acquire\n_now[0] = 100  # plenty of refill, capped at capacity=5\nassert _b.try_acquire(5) is True\nassert _b.try_acquire(1) is False\n# Bulk exceeds capacity\nassert TokenBucket(rate=1, capacity=3, clock=_clock).try_acquire(10) is False\nprint('PASS')",
+      "key_points": [
+        "Lazy refill \u2014 compute tokens at acquire time based on elapsed seconds",
+        "Caps tokens at `capacity` so refill doesn't accumulate indefinitely",
+        "Uses `time.monotonic` (not `time.time`) to avoid wall-clock jumps",
+        "Injectable clock makes the test deterministic",
+        "Atomicity isn't required for a single-thread token bucket; for threading, wrap in a `Lock`"
+      ]
+    },
+    {
+      "id": "py-230",
+      "type": "code",
+      "topic": "Concurrency",
+      "difficulty": "hard",
+      "prompt": "Write `process_items(items, worker_fn, num_workers=4)` that processes `items` using `num_workers` threads, calling `worker_fn(item)` on each, and returns the list of results in the SAME ORDER as the input items. Use `queue.Queue` and `threading.Thread`. The function should join all workers before returning. Assume `worker_fn` is thread-safe.",
+      "language": "python",
+      "starter": "import queue\nimport threading\n\ndef process_items(items, worker_fn, num_workers=4):\n    # your code here\n    pass\n",
+      "model_answer": "import queue\nimport threading\n\ndef process_items(items, worker_fn, num_workers=4):\n    if not items:\n        return []\n    q = queue.Queue()\n    results = [None] * len(items)\n    for i, item in enumerate(items):\n        q.put((i, item))\n    SENTINEL = object()\n    for _ in range(num_workers):\n        q.put(SENTINEL)\n    def worker():\n        while True:\n            task = q.get()\n            if task is SENTINEL:\n                q.task_done()\n                return\n            i, item = task\n            results[i] = worker_fn(item)\n            q.task_done()\n    threads = [threading.Thread(target=worker) for _ in range(num_workers)]\n    for t in threads:\n        t.start()\n    for t in threads:\n        t.join()\n    return results",
+      "tests": "import time\n\n_results = process_items([1, 2, 3, 4, 5], lambda x: x * 2, num_workers=2)\nassert _results == [2, 4, 6, 8, 10], f'expected [2,4,6,8,10], got {_results}'\nassert process_items([], lambda x: x, num_workers=4) == []\n# Single worker still works\nassert process_items([10, 20, 30], lambda x: x + 1, num_workers=1) == [11, 21, 31]\n# Workers > items\nassert process_items([1, 2], lambda x: x * 10, num_workers=8) == [10, 20]\n# Order preservation under variable latency\ndef _slow(x):\n    time.sleep(0.01 * ((5 - x) % 3 + 1))\n    return x\nassert process_items([1, 2, 3, 4, 5], _slow, num_workers=3) == [1, 2, 3, 4, 5]\nprint('PASS')",
+      "key_points": [
+        "Uses `queue.Queue` for thread-safe work distribution",
+        "Stores results at the input index so order is preserved despite parallel execution",
+        "Sentinel value tells workers to exit \u2014 alternative to `q.task_done()` + `q.join()`",
+        "Calls `t.join()` for every thread before returning",
+        "Empty input short-circuits \u2014 no workers needed"
+      ]
+    },
+    {
+      "id": "py-231",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Implement a simple Bloom filter `class BloomFilter(size, hashes)`. Use Python's built-in `hash()` plus a per-position salt to derive `hashes` distinct hash values (don't worry about cryptographic quality). Methods: `add(item)`, `__contains__(item)`. False positives are allowed; false negatives must NOT occur.",
+      "language": "python",
+      "starter": "class BloomFilter:\n    def __init__(self, size, hashes):\n        # your code here\n        pass\n    def add(self, item):\n        pass\n    def __contains__(self, item):\n        pass\n",
+      "model_answer": "class BloomFilter:\n    def __init__(self, size, hashes):\n        self.size = size\n        self.k = hashes\n        self.bits = bytearray(size)  # bit-per-byte for simplicity\n    def _positions(self, item):\n        # Mix a salt into the hash so we get k distinct positions deterministically\n        for i in range(self.k):\n            h = hash((i, item)) % self.size\n            yield h\n    def add(self, item):\n        for p in self._positions(item):\n            self.bits[p] = 1\n    def __contains__(self, item):\n        return all(self.bits[p] for p in self._positions(item))",
+      "tests": "_bf = BloomFilter(size=1024, hashes=4)\nfor _w in ['apple', 'banana', 'cherry']:\n    _bf.add(_w)\nassert 'apple' in _bf\nassert 'banana' in _bf\nassert 'cherry' in _bf\n# No false negatives\nfor _w in ['apple', 'banana', 'cherry']:\n    assert _w in _bf\n# Most non-added items should NOT be present (false positive rate is non-zero but low)\n_missing_count = sum(1 for _w in ['xxx','yyy','zzz','q1','q2','q3','q4','q5'] if _w not in _bf)\nassert _missing_count >= 6, f'too many false positives: {_missing_count}/8 absent'\n# Different items can land in non-overlapping bits\n_bf2 = BloomFilter(size=10000, hashes=3)\n_bf2.add('only_one')\nassert 'only_one' in _bf2\nassert 'never_added' not in _bf2 or True  # may be FP, but adding more would help\nprint('PASS')",
+      "key_points": [
+        "Backing storage is a `bytearray` (or `bitarray`) sized to `size`",
+        "Multiple hash positions derived from `hash((i, item))` \u2014 salt the index",
+        "`add` flips bits; `__contains__` checks all are set",
+        "False positives possible (all bits coincidentally set); false negatives impossible",
+        "Production: use `mmh3` or `xxhash` for better distribution; this is the educational version"
+      ]
+    },
+    {
+      "id": "py-232",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "easy",
+      "prompt": "Given a multi-line fixed-width text and a `fields` spec like `[('name', 0, 10), ('age', 10, 13), ('city', 13, 30)]` (name, start_inclusive, end_exclusive), write `parse_fixed_width(text, fields)` that returns a list of dicts with stripped values. Skip blank lines.",
+      "language": "python",
+      "starter": "def parse_fixed_width(text, fields):\n    # your code here\n    pass\n",
+      "model_answer": "def parse_fixed_width(text, fields):\n    out = []\n    for line in text.splitlines():\n        if not line.strip():\n            continue\n        record = {name: line[start:end].strip() for name, start, end in fields}\n        out.append(record)\n    return out",
+      "tests": "_text = 'Alice     025NYC              \\nBob       030San Francisco     \\n\\nCarol     042London            '\n_fields = [('name', 0, 10), ('age', 10, 13), ('city', 13, 30)]\n_r = parse_fixed_width(_text, _fields)\nassert len(_r) == 3\nassert _r[0] == {'name': 'Alice', 'age': '025', 'city': 'NYC'}\nassert _r[1] == {'name': 'Bob', 'age': '030', 'city': 'San Francisco'}\nassert _r[2] == {'name': 'Carol', 'age': '042', 'city': 'London'}\nassert parse_fixed_width('', _fields) == []\nassert parse_fixed_width('   \\n', _fields) == []  # blank lines skipped\nprint('PASS')",
+      "key_points": [
+        "Uses simple slicing `line[start:end]` \u2014 no regex needed",
+        "Strips each extracted field of trailing/leading whitespace",
+        "Skips blank lines via `line.strip()` test",
+        "Dict comprehension yields readable code",
+        "Field spec is `(name, start, end)` tuples \u2014 common COBOL/legacy convention"
+      ]
+    },
+    {
+      "id": "py-233",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "easy",
+      "prompt": "Write `strip_bom(text)` that removes a leading UTF-8 BOM (`\\ufeff`) from a string if present. Other characters are returned unchanged. Multiple BOMs at the start should also be stripped (keep stripping until the first non-BOM char).",
+      "language": "python",
+      "starter": "def strip_bom(text):\n    # your code here\n    pass\n",
+      "model_answer": "def strip_bom(text):\n    return text.lstrip('\\ufeff')",
+      "tests": "assert strip_bom('\\ufeffhello') == 'hello'\nassert strip_bom('hello') == 'hello'\nassert strip_bom('') == ''\nassert strip_bom('\\ufeff\\ufeffabc') == 'abc'\nassert strip_bom('a\\ufeffb') == 'a\\ufeffb', 'only the LEADING BOM should be stripped'\nassert strip_bom('\\ufeff') == ''\nprint('PASS')",
+      "key_points": [
+        "`str.lstrip('\\ufeff')` is the one-liner \u2014 handles 0, 1, or many leading BOMs",
+        "Does NOT strip BOMs in the middle of the string (an interior BOM is treated as a regular char)",
+        "Returns the input unchanged if no BOM present",
+        "Production: open files with `encoding='utf-8-sig'` to have Python strip the BOM automatically"
+      ]
+    },
+    {
+      "id": "py-234",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "medium",
+      "prompt": "Write `parse_ini(text)` that parses a simplified INI config file and returns a nested dict `{section: {key: value}}`.\n\nFormat:\n- `[section]` lines start a new section.\n- `key = value` (whitespace tolerated around `=`).\n- Lines starting with `;` or `#` are comments \u2014 ignore.\n- Blank lines are ignored.\n- Lines outside any section go into a `'DEFAULT'` section.\n- Values are returned as strings (no type coercion).",
+      "language": "python",
+      "starter": "def parse_ini(text):\n    # your code here\n    pass\n",
+      "model_answer": "def parse_ini(text):\n    sections = {'DEFAULT': {}}\n    current = 'DEFAULT'\n    for line in text.splitlines():\n        line = line.strip()\n        if not line or line.startswith(';') or line.startswith('#'):\n            continue\n        if line.startswith('[') and line.endswith(']'):\n            current = line[1:-1].strip()\n            sections.setdefault(current, {})\n            continue\n        if '=' in line:\n            k, _, v = line.partition('=')\n            sections[current][k.strip()] = v.strip()\n    return sections",
+      "tests": "_cfg = '''\n; this is a comment\n# this too\nglobal_key = global_value\n\n[database]\nhost = localhost\nport = 5432\n\n[server]\n  name=web1\n  debug = true\n'''\n_r = parse_ini(_cfg)\nassert _r['DEFAULT']['global_key'] == 'global_value'\nassert _r['database']['host'] == 'localhost'\nassert _r['database']['port'] == '5432'  # NOT 5432 \u2014 values are strings\nassert _r['server']['name'] == 'web1'\nassert _r['server']['debug'] == 'true'\n# Empty input\nassert parse_ini('') == {'DEFAULT': {}}\n# Comments only\nassert parse_ini('; just a comment\\n# another') == {'DEFAULT': {}}\nprint('PASS')",
+      "key_points": [
+        "Handles three line types: section headers, comments, key=value",
+        "Uses `str.partition('=')` rather than `split('=', 1)` \u2014 partition is unambiguous on no-match",
+        "Strips keys and values of surrounding whitespace",
+        "Pre-creates `DEFAULT` section so keys before any `[section]` have a home",
+        "Returns plain strings \u2014 type coercion is the caller's responsibility"
+      ]
+    },
+    {
+      "id": "py-235",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "medium",
+      "prompt": "Given a list of dicts representing rows, write `dedupe_ignore(records, ignore_keys)` that returns the deduplicated list. Two records are duplicates iff they agree on every key EXCEPT those in `ignore_keys`. Keep the FIRST occurrence (preserve input order).",
+      "language": "python",
+      "starter": "def dedupe_ignore(records, ignore_keys):\n    # your code here\n    pass\n",
+      "model_answer": "def dedupe_ignore(records, ignore_keys):\n    ignore = set(ignore_keys)\n    seen = set()\n    out = []\n    for r in records:\n        # Build a hashable signature of non-ignored fields\n        sig = tuple(sorted((k, v) for k, v in r.items() if k not in ignore))\n        if sig not in seen:\n            seen.add(sig)\n            out.append(r)\n    return out",
+      "tests": "_recs = [\n    {'id': 1, 'name': 'A', 'ts': 100},\n    {'id': 1, 'name': 'A', 'ts': 200},  # dup of first, ignoring ts\n    {'id': 2, 'name': 'B', 'ts': 150},\n    {'id': 1, 'name': 'C', 'ts': 200},  # different name -> not a dup\n]\n_r = dedupe_ignore(_recs, ['ts'])\nassert len(_r) == 3\nassert _r[0] == {'id': 1, 'name': 'A', 'ts': 100}, 'first occurrence kept'\nassert _r[1] == {'id': 2, 'name': 'B', 'ts': 150}\nassert _r[2] == {'id': 1, 'name': 'C', 'ts': 200}\nassert dedupe_ignore([], ['x']) == []\n# Ignore multiple\n_r2 = dedupe_ignore([{'a':1,'b':2,'c':9},{'a':1,'b':2,'c':10}], ['c'])\nassert len(_r2) == 1\n# Empty ignore \u2014 behaves like exact dedup\n_r3 = dedupe_ignore([{'x':1},{'x':1},{'x':2}], [])\nassert _r3 == [{'x':1},{'x':2}]\nprint('PASS')",
+      "key_points": [
+        "Builds a hashable 'signature' tuple by sorting the non-ignored items",
+        "`set` tracks seen signatures \u2014 O(1) membership",
+        "Preserves first occurrence (FIFO uniqueness)",
+        "Doesn't mutate the input records",
+        "Works for any hashable value types in the records"
+      ]
+    },
+    {
+      "id": "py-236",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "medium",
+      "prompt": "Write `anonymize(record, pii_fields, salt='')` that returns a new dict with the same shape, but replaces each value in `pii_fields` with a SHA-256 hex digest of `salt + str(value)`. Non-PII fields are passed through unchanged. Missing PII fields are simply absent in the output. Do NOT mutate the input.",
+      "language": "python",
+      "starter": "import hashlib\n\ndef anonymize(record, pii_fields, salt=''):\n    # your code here\n    pass\n",
+      "model_answer": "import hashlib\n\ndef anonymize(record, pii_fields, salt=''):\n    pii = set(pii_fields)\n    out = {}\n    for k, v in record.items():\n        if k in pii:\n            out[k] = hashlib.sha256((salt + str(v)).encode('utf-8')).hexdigest()\n        else:\n            out[k] = v\n    return out",
+      "tests": "import hashlib\n_rec = {'id': 1, 'email': 'alice@example.com', 'name': 'Alice'}\n_r = anonymize(_rec, ['email', 'name'], salt='s1')\nassert _r['id'] == 1\nassert _r['email'] != 'alice@example.com'\nassert _r['name'] != 'Alice'\n# Deterministic for the same salt+value\nexpected_email = hashlib.sha256(b's1alice@example.com').hexdigest()\nassert _r['email'] == expected_email\n# Salt changes the hash\n_r2 = anonymize(_rec, ['email'], salt='s2')\nassert _r2['email'] != _r['email']\n# Hex digest is 64 chars\nassert len(_r['email']) == 64\nassert all(c in '0123456789abcdef' for c in _r['email'])\n# Input not mutated\nassert _rec == {'id': 1, 'email': 'alice@example.com', 'name': 'Alice'}\n# Missing PII field \u2014 just absent (not error)\n_r3 = anonymize({'id': 1}, ['email'])\nassert _r3 == {'id': 1}\nprint('PASS')",
+      "key_points": [
+        "Uses `hashlib.sha256` \u2014 deterministic, hex-encoded",
+        "Salt is prepended to value before hashing \u2014 same value with different salt -> different hash",
+        "Encodes to bytes via UTF-8 before hashing",
+        "Returns a new dict \u2014 does NOT mutate the input record",
+        "Missing PII fields are silently skipped \u2014 defensive default"
+      ]
+    },
+    {
+      "id": "py-237",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "hard",
+      "prompt": "Given two lists of records (each a list of dicts), write `schema_diff(old, new)` that returns a dict with keys `added`, `removed`, `type_changed`:\n- `added`: set of column names in `new` but not `old`\n- `removed`: set in `old` but not `new`\n- `type_changed`: dict `{col: (old_type, new_type)}` for columns whose Python type (taken from the FIRST non-None value seen) changed.\n\nIgnore None for type detection. If a column has only Nones in one side, treat its type as `NoneType`.",
+      "language": "python",
+      "starter": "def schema_diff(old, new):\n    # your code here\n    pass\n",
+      "model_answer": "def schema_diff(old, new):\n    def schema(records):\n        types = {}\n        for r in records:\n            for k, v in r.items():\n                if k not in types and v is not None:\n                    types[k] = type(v).__name__\n            for k in r:\n                types.setdefault(k, type(None).__name__)\n        return types\n    old_s = schema(old)\n    new_s = schema(new)\n    added = set(new_s) - set(old_s)\n    removed = set(old_s) - set(new_s)\n    common = set(old_s) & set(new_s)\n    type_changed = {c: (old_s[c], new_s[c]) for c in common if old_s[c] != new_s[c]}\n    return {'added': added, 'removed': removed, 'type_changed': type_changed}",
+      "tests": "_old = [{'id': 1, 'name': 'A', 'score': 10}, {'id': 2, 'name': 'B', 'score': 20}]\n_new = [{'id': 1, 'name': 'A', 'score': '10', 'email': 'a@x.com'}]\n_r = schema_diff(_old, _new)\nassert _r['added'] == {'email'}\nassert _r['removed'] == set()\nassert _r['type_changed'] == {'score': ('int', 'str')}\n# All None in old\n_r2 = schema_diff([{'x': None}], [{'x': 1}])\nassert _r2['type_changed'] == {'x': ('NoneType', 'int')}\n# Empty inputs\nassert schema_diff([], [])['added'] == set()\nassert schema_diff([], [{'x': 1}])['added'] == {'x'}\nassert schema_diff([{'x': 1}], [])['removed'] == {'x'}\nprint('PASS')",
+      "key_points": [
+        "Builds a column-to-type-name dict for each side; first non-None value wins",
+        "Falls back to NoneType only if no non-None ever seen",
+        "Uses set operations on the column names \u2014 concise added/removed",
+        "type-changed only looks at columns common to both sides",
+        "Stores type NAMES (`'int'`, `'str'`) \u2014 easier to assert and serialize than type objects"
+      ]
+    },
+    {
+      "id": "py-238",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "easy",
+      "prompt": "Implement `class IdempotencyStore` with two methods:\n- `try_execute(key, fn) -> result` \u2014 if `key` has been seen before, return the stored result without calling `fn`. Otherwise call `fn()`, store the result, and return it.\n\nEach unique key calls `fn` AT MOST once across the lifetime of the store.",
+      "language": "python",
+      "starter": "class IdempotencyStore:\n    def __init__(self):\n        # your code here\n        pass\n    def try_execute(self, key, fn):\n        pass\n",
+      "model_answer": "class IdempotencyStore:\n    def __init__(self):\n        self._results = {}\n    def try_execute(self, key, fn):\n        if key not in self._results:\n            self._results[key] = fn()\n        return self._results[key]",
+      "tests": "_calls = []\ndef _make_user(name):\n    _calls.append(name)\n    return f'user-{name}'\n\n_s = IdempotencyStore()\nassert _s.try_execute('req-1', lambda: _make_user('alice')) == 'user-alice'\nassert _s.try_execute('req-1', lambda: _make_user('alice')) == 'user-alice'\nassert _s.try_execute('req-1', lambda: _make_user('alice')) == 'user-alice'\nassert _calls == ['alice'], f'should only call fn once per key: {_calls}'\n# Different key still calls\nassert _s.try_execute('req-2', lambda: _make_user('bob')) == 'user-bob'\nassert _calls == ['alice', 'bob']\n# Result is whatever fn returns \u2014 None, dict, list all OK\n_r = _s.try_execute('req-3', lambda: {'x': 1})\nassert _r == {'x': 1}\n# fn not called if key already present, even if fn would raise\n_s.try_execute('req-4', lambda: 42)\nassert _s.try_execute('req-4', lambda: (_ for _ in ()).throw(RuntimeError('nope'))) == 42\nprint('PASS')",
+      "key_points": [
+        "Stores results keyed by the idempotency key",
+        "Only invokes `fn()` on cache miss \u2014 the key insight of idempotency",
+        "Returns the cached result on subsequent calls \u2014 fn is NEVER called twice for the same key",
+        "Simple in-memory dict \u2014 production would use Redis / DB with TTL",
+        "Doesn't try to handle fn raising; up to the caller to retry on failure"
+      ]
+    },
+    {
+      "id": "py-239",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "medium",
+      "prompt": "Write `under_budget(attempts, max_per_hour, now)` where `attempts` is a list of unix-second timestamps of past retry attempts, `max_per_hour` is the budget, and `now` is the current unix-second timestamp. Return True if a new attempt at `now` would still keep the count in `[now-3600, now]` at most `max_per_hour`.",
+      "language": "python",
+      "starter": "def under_budget(attempts, max_per_hour, now):\n    # your code here\n    pass\n",
+      "model_answer": "def under_budget(attempts, max_per_hour, now):\n    cutoff = now - 3600\n    recent = sum(1 for t in attempts if cutoff <= t <= now)\n    return (recent + 1) <= max_per_hour",
+      "tests": "# 0 attempts, budget 3 -> a new one is fine\nassert under_budget([], 3, 1000) is True\n# 3 attempts in the last hour, budget 3 -> NEW attempt would be 4th, over budget\nassert under_budget([100, 200, 300], 3, 500) is False\n# But same attempts with budget 4 -> fine\nassert under_budget([100, 200, 300], 4, 500) is True\n# Old attempts outside the 1-hour window don't count\nassert under_budget([100, 200], 2, 5000) is True\n# Boundary: attempt exactly 3600s old IS counted (inclusive)\nassert under_budget([1000], 1, 4600) is False  # 4600-3600 = 1000 included\nassert under_budget([1000], 1, 4601) is True   # 1000 just outside the window\n# Future-dated attempts excluded\nassert under_budget([2000], 1, 1000) is True\nprint('PASS')",
+      "key_points": [
+        "Window is `[now-3600, now]` inclusive on both ends \u2014 explicit cutoff",
+        "Counts only attempts in window \u2014 old attempts age out automatically",
+        "Adds 1 for the hypothetical new attempt",
+        "Returns boolean \u2014 not raise, not None",
+        "O(n) scan; for huge histories, use a sorted deque + bisect to maintain a rolling count"
+      ]
+    },
+    {
+      "id": "py-240",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "easy",
+      "prompt": "Given a list of messages `[{'id': str, 'ts': int, ...other fields}, ...]`, write `dedupe_latest(messages)` that returns a list of unique-by-id messages, keeping the one with the HIGHEST `ts`. Ties: keep the LAST one seen in input order. Output order is the order of first appearance of each id in the input.",
+      "language": "python",
+      "starter": "def dedupe_latest(messages):\n    # your code here\n    pass\n",
+      "model_answer": "def dedupe_latest(messages):\n    # First pass: find the winning record per id\n    winners = {}\n    for m in messages:\n        mid = m['id']\n        if mid not in winners or m['ts'] >= winners[mid]['ts']:\n            winners[mid] = m\n    # Second pass: emit in first-appearance order\n    order = []\n    seen = set()\n    for m in messages:\n        if m['id'] not in seen:\n            seen.add(m['id'])\n            order.append(m['id'])\n    return [winners[k] for k in order]",
+      "tests": "_msgs = [\n    {'id': 'a', 'ts': 1, 'body': 'v1'},\n    {'id': 'b', 'ts': 1, 'body': 'b1'},\n    {'id': 'a', 'ts': 5, 'body': 'v2'},\n    {'id': 'a', 'ts': 3, 'body': 'v3'},  # older than v2 \u2014 discarded\n]\n_r = dedupe_latest(_msgs)\nassert len(_r) == 2\nassert _r[0]['id'] == 'a' and _r[0]['body'] == 'v2', f'should keep highest-ts version: {_r[0]}'\nassert _r[1]['id'] == 'b' and _r[1]['body'] == 'b1'\nassert dedupe_latest([]) == []\n# Ties on ts -> last-seen wins\n_tie = [{'id': 'x', 'ts': 5, 'body': 'first'}, {'id': 'x', 'ts': 5, 'body': 'second'}]\nassert dedupe_latest(_tie)[0]['body'] == 'second'\n# Single message\nassert dedupe_latest([{'id': 'q', 'ts': 100}]) == [{'id': 'q', 'ts': 100}]\nprint('PASS')",
+      "key_points": [
+        "Two-pass approach: first determine the winning record per id, then emit in first-appearance order",
+        "Uses `>=` so ties on `ts` keep the later one (matches the spec)",
+        "Preserves stable output ordering deterministically",
+        "Single-pass alternative: track order + winner in one walk (slightly trickier)",
+        "Real-world: Kafka 'compaction' has the same semantics \u2014 same key, latest value wins"
+      ]
+    },
+    {
+      "id": "py-241",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Write `compress_runs(items)` that takes a sequence of items and returns a list of `(item, count)` tuples for each RUN of consecutive equal items. Example: `compress_runs(['a','a','b','a','a','a','c'])` -> `[('a',2),('b',1),('a',3),('c',1)]`.",
+      "language": "python",
+      "starter": "from itertools import groupby\n\ndef compress_runs(items):\n    # your code here\n    pass\n",
+      "model_answer": "from itertools import groupby\n\ndef compress_runs(items):\n    return [(k, sum(1 for _ in g)) for k, g in groupby(items)]",
+      "tests": "assert compress_runs(['a','a','b','a','a','a','c']) == [('a',2),('b',1),('a',3),('c',1)]\nassert compress_runs([]) == []\nassert compress_runs(['x']) == [('x',1)]\nassert compress_runs([1,1,1,1]) == [(1,4)]\nassert compress_runs([1,2,3]) == [(1,1),(2,1),(3,1)]\nassert compress_runs([True, True, False, True]) == [(True,2),(False,1),(True,1)]\nprint('PASS')",
+      "key_points": [
+        "`itertools.groupby` groups CONSECUTIVE equal items \u2014 exactly the run-length encoding semantics",
+        "Each `g` is an iterator over the run \u2014 use `sum(1 for _ in g)` to count without materializing",
+        "Without `key=`, groupby uses identity (the items themselves) as the key",
+        "Result is a fresh list \u2014 generator g would be exhausted after counting",
+        "Classic run-length encoding"
+      ]
+    },
+    {
+      "id": "py-242",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "medium",
+      "prompt": "Write `validate(doc, schema)` that validates `doc` (a dict) against a tiny schema dict.\n\nSchema format: `{field_name: {'type': <python type>, 'required': bool}}`. For each field:\n- If `required` and missing, append `'missing: <field>'` to errors.\n- If present but wrong type, append `'type: <field>'`.\n- Extra fields not in schema are allowed (do not flag).\n\nReturn the list of error strings (empty if valid).",
+      "language": "python",
+      "starter": "def validate(doc, schema):\n    # your code here\n    pass\n",
+      "model_answer": "def validate(doc, schema):\n    errors = []\n    for field, spec in schema.items():\n        if field not in doc:\n            if spec.get('required'):\n                errors.append(f'missing: {field}')\n        elif not isinstance(doc[field], spec['type']):\n            errors.append(f'type: {field}')\n    return errors",
+      "tests": "_schema = {\n    'name': {'type': str, 'required': True},\n    'age':  {'type': int, 'required': True},\n    'tags': {'type': list, 'required': False},\n}\nassert validate({'name': 'A', 'age': 30}, _schema) == []\nassert validate({'name': 'A', 'age': 30, 'tags': ['x']}, _schema) == []\nassert validate({'name': 'A', 'age': 30, 'extra': 'ok'}, _schema) == [], 'extra fields are allowed'\n# Missing required\nassert validate({'name': 'A'}, _schema) == ['missing: age']\n# Wrong type\n_r = validate({'name': 'A', 'age': '30'}, _schema)\nassert _r == ['type: age'], f'got {_r}'\n# Optional field with wrong type -> still flag\nassert validate({'name': 'A', 'age': 1, 'tags': 'oops'}, _schema) == ['type: tags']\n# Missing optional -> no error\nassert validate({'name': 'A', 'age': 1}, _schema) == []\nprint('PASS')",
+      "key_points": [
+        "Iterates SCHEMA keys (not doc keys) \u2014 extra fields are tolerated",
+        "Distinguishes 'missing' (required + absent) from 'wrong type' (present + bad)",
+        "Uses `isinstance` for type check (not `type(x) == T`) \u2014 accepts subclasses",
+        "Returns list of error messages \u2014 empty list means valid",
+        "Caveat: `bool` is a subclass of `int`, so `isinstance(True, int)` is True \u2014 spec doesn't address this here"
+      ]
+    },
+    {
+      "id": "py-243",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "easy",
+      "prompt": "Without using `collections.Counter.most_common`, write `most_common_manual(items, n=None)` that returns a list of `(item, count)` tuples sorted by count descending. Ties broken by first-seen order (NOT alphabetically). If `n` is None, return all; else return top n.",
+      "language": "python",
+      "starter": "def most_common_manual(items, n=None):\n    # your code here\n    pass\n",
+      "model_answer": "def most_common_manual(items, n=None):\n    counts = {}\n    order = {}\n    for i, x in enumerate(items):\n        if x not in counts:\n            counts[x] = 0\n            order[x] = i\n        counts[x] += 1\n    # Sort by (-count, first_seen_index)\n    sorted_items = sorted(counts.items(), key=lambda kv: (-kv[1], order[kv[0]]))\n    return sorted_items if n is None else sorted_items[:n]",
+      "tests": "assert most_common_manual(['a','b','a','c','b','a']) == [('a',3),('b',2),('c',1)]\nassert most_common_manual(['a','b','a','c','b','a'], 2) == [('a',3),('b',2)]\nassert most_common_manual([]) == []\nassert most_common_manual(['x'], 5) == [('x',1)]\n# First-seen-order tiebreak (not alphabetical)\nassert most_common_manual(['z','a','q','a','z']) == [('z',2),('a',2),('q',1)]\n# All unique\nassert most_common_manual([3,1,2]) == [(3,1),(1,1),(2,1)]\nprint('PASS')",
+      "key_points": [
+        "Tracks counts AND first-seen index in two parallel dicts",
+        "Sort key is `(-count, first_seen_index)` \u2014 descending count, ascending index (= first-seen wins ties)",
+        "`n=None` returns everything; explicit slice if `n` given",
+        "Single pass for counting, plus the sort \u2014 O(n log n) total",
+        "Critically: ties are broken by FIRST APPEARANCE, not alphabetically \u2014 that's what makes this not a one-liner with Counter"
+      ]
+    },
+    {
+      "id": "py-244",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write a generator `first_duplicates(stream)` that yields each item the SECOND time it appears in the stream. Subsequent appearances yield nothing. Yield in the order the duplicates are detected.\n\nExample: `list(first_duplicates(['a','b','c','b','a','b']))` -> `['b','a']`.",
+      "language": "python",
+      "starter": "def first_duplicates(stream):\n    # your code here\n    pass\n",
+      "model_answer": "def first_duplicates(stream):\n    seen_once = set()\n    seen_twice = set()\n    for x in stream:\n        if x in seen_twice:\n            continue\n        if x in seen_once:\n            seen_twice.add(x)\n            yield x\n        else:\n            seen_once.add(x)",
+      "tests": "assert list(first_duplicates(['a','b','c','b','a','b'])) == ['b','a']\nassert list(first_duplicates([])) == []\nassert list(first_duplicates(['x','y','z'])) == []  # all unique\nassert list(first_duplicates(['x','x','x','x'])) == ['x']  # only emitted once\n# Generator laziness \u2014 should not exhaust input\ndef _gen():\n    for i in range(10**6):\n        yield i % 100\n_g = first_duplicates(_gen())\n# First 100 unique, then 0 appears again at index 100\nassert next(_g) == 0\nassert next(_g) == 1\n# Order is order-of-detection\nassert list(first_duplicates([1,2,3,2,1])) == [2,1]\nprint('PASS')",
+      "key_points": [
+        "Two sets: `seen_once` (items we've seen exactly once) and `seen_twice` (already emitted)",
+        "Promote to `seen_twice` and yield on the SECOND sighting",
+        "Suppress subsequent sightings (`if x in seen_twice: continue`)",
+        "Generator \u2014 memory grows with the number of distinct items, but only emits each dup once",
+        "For truly unbounded streams, swap `set` for a Bloom filter to bound memory at the cost of false positives"
+      ]
+    },
+    {
+      "id": "py-245",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "easy",
+      "prompt": "Write `looks_like_sql_injection(s)` \u2014 an EDUCATIONAL heuristic (not a real defense) that returns True if `s` contains any of these classic patterns (case-insensitive):\n- `' OR '` or `\" OR \"`\n- `--` (SQL line comment)\n- `;` followed by `DROP` / `DELETE` / `UPDATE` / `INSERT` (with optional whitespace)\n- `UNION SELECT` (with whitespace tolerance)\n\nReturn False otherwise. NOTE: this is a teaching exercise \u2014 production code should use parameterized queries.",
+      "language": "python",
+      "starter": "import re\n\ndef looks_like_sql_injection(s):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\n_PATTERNS = [\n    re.compile(r\"['\\\"]\\s+OR\\s+\", re.IGNORECASE),\n    re.compile(r'--'),\n    re.compile(r';\\s*(DROP|DELETE|UPDATE|INSERT)\\b', re.IGNORECASE),\n    re.compile(r'\\bUNION\\s+SELECT\\b', re.IGNORECASE),\n]\n\ndef looks_like_sql_injection(s):\n    if not isinstance(s, str):\n        return False\n    return any(p.search(s) for p in _PATTERNS)",
+      "tests": "assert looks_like_sql_injection(\"' OR '1'='1\") is True\nassert looks_like_sql_injection('admin\\' or \\'1\\'=\\'1') is True\nassert looks_like_sql_injection('foo -- bar') is True\nassert looks_like_sql_injection('1; DROP TABLE users') is True\nassert looks_like_sql_injection('1;drop table users') is True  # case-insensitive\nassert looks_like_sql_injection('SELECT a UNION SELECT b') is True\n# Innocent inputs\nassert looks_like_sql_injection('alice@example.com') is False\nassert looks_like_sql_injection('Some normal sentence.') is False\nassert looks_like_sql_injection('') is False\nassert looks_like_sql_injection(None) is False\n# Edge: 'or' alone is not enough \u2014 must have quote-OR-space\nassert looks_like_sql_injection('orange juice') is False\nprint('PASS')",
+      "key_points": [
+        "Compiles patterns once at module load with `re.IGNORECASE` where appropriate",
+        "Uses `re.search` (not `match`) \u2014 patterns can appear anywhere in the string",
+        "Multiple distinct patterns covering common attack vectors",
+        "Disclaimer: heuristics like this MISS attacks (encoded payloads, unicode tricks) and produce false positives \u2014 only ever-real defense is parameterized queries",
+        "Type-checks input \u2014 returns False for non-string defensively"
+      ]
+    },
+    {
+      "id": "py-246",
+      "type": "code",
+      "topic": "Async",
+      "difficulty": "hard",
+      "prompt": "Write an async function `batch_collect(items_q, batch_size, max_wait_s)`. `items_q` is an `asyncio.Queue`. Yield lists of items, flushing when EITHER:\n- the batch reaches `batch_size` items, OR\n- `max_wait_s` seconds elapsed since the FIRST item in the current batch.\n\nThe producer signals end-of-stream by putting a special `END` sentinel on the queue. Flush the final partial batch (if any) before returning. Use only `asyncio`.",
+      "language": "python",
+      "starter": "import asyncio\n\nEND = object()\n\nasync def batch_collect(items_q, batch_size, max_wait_s):\n    # your code here\n    pass\n",
+      "model_answer": "import asyncio\n\nEND = object()\n\nasync def batch_collect(items_q, batch_size, max_wait_s):\n    loop = asyncio.get_event_loop()\n    batch = []\n    deadline = None\n    while True:\n        if not batch:\n            item = await items_q.get()\n            if item is END:\n                return\n            batch.append(item)\n            deadline = loop.time() + max_wait_s\n        else:\n            remaining = deadline - loop.time()\n            if remaining <= 0:\n                yield batch\n                batch = []\n                deadline = None\n                continue\n            try:\n                item = await asyncio.wait_for(items_q.get(), timeout=remaining)\n            except asyncio.TimeoutError:\n                yield batch\n                batch = []\n                deadline = None\n                continue\n            if item is END:\n                if batch:\n                    yield batch\n                return\n            batch.append(item)\n        if len(batch) >= batch_size:\n            yield batch\n            batch = []\n            deadline = None",
+      "tests": "import asyncio\n\nasync def _drain(coros, q, items_with_delays, terminator):\n    for item, delay in items_with_delays:\n        if delay > 0:\n            await asyncio.sleep(delay)\n        await q.put(item)\n    await q.put(terminator)\n\nasync def _main():\n    # Batch fills before time elapses\n    _q = asyncio.Queue()\n    for x in [1, 2, 3, 4, 5, 6]:\n        await _q.put(x)\n    await _q.put(END)\n    _out = []\n    async for batch in batch_collect(_q, batch_size=3, max_wait_s=1.0):\n        _out.append(batch)\n    assert _out == [[1, 2, 3], [4, 5, 6]], f'simple batches: {_out}'\n\n    # Final partial batch flushed at end\n    _q = asyncio.Queue()\n    for x in [1, 2, 3, 4, 5]:\n        await _q.put(x)\n    await _q.put(END)\n    _out = []\n    async for batch in batch_collect(_q, batch_size=3, max_wait_s=1.0):\n        _out.append(batch)\n    assert _out == [[1, 2, 3], [4, 5]], f'partial flush: {_out}'\n\n    # Empty stream\n    _q = asyncio.Queue()\n    await _q.put(END)\n    _out = []\n    async for batch in batch_collect(_q, batch_size=3, max_wait_s=1.0):\n        _out.append(batch)\n    assert _out == []\n\n    # Time-based flush: 2 items arrive fast, then long pause, then item 3 + END\n    _q = asyncio.Queue()\n    _producer = asyncio.create_task(_drain(None, _q, [(1, 0), (2, 0.005), (3, 0.12)], END))\n    _out = []\n    async for batch in batch_collect(_q, batch_size=10, max_wait_s=0.05):\n        _out.append(batch)\n    await _producer\n    _flat = [x for b in _out for x in b]\n    assert _flat == [1, 2, 3], f'flatten mismatch: {_out}'\n    assert len(_out) >= 2, f'expected time-flush split: {_out}'\n    assert _out[0] == [1, 2], f'first batch should be [1,2]: {_out}'\n\nasyncio.run(_main())\nprint('PASS')",
+      "key_points": [
+        "Tracks a deadline based on the FIRST item in the current batch",
+        "Uses `asyncio.wait_for` to bound the wait to `remaining` seconds",
+        "On timeout, yields the partial batch and resets",
+        "On StopAsyncIteration, yields any remaining partial batch",
+        "Trickiest part: distinguishing 'no items yet' (block indefinitely) from 'have items' (bounded wait)"
+      ]
+    },
+    {
+      "id": "py-247",
+      "type": "code",
+      "topic": "Generators",
+      "difficulty": "medium",
+      "prompt": "Write three generators that compose into a streaming pipeline:\n- `parse_lines(lines)` \u2014 yields dicts from CSV-like lines `'k1=v1,k2=v2'` -> `{'k1':'v1','k2':'v2'}`. Skip blank lines.\n- `filter_status(records, status)` \u2014 yields records where `r['status'] == status`.\n- `count_by(records, key)` \u2014 consumes the iterator and returns a Counter of `r[key]` values.\n\nDemonstrate composition: `count_by(filter_status(parse_lines(lines), 'ok'), 'host')`.",
+      "language": "python",
+      "starter": "from collections import Counter\n\ndef parse_lines(lines):\n    # your code here\n    pass\n\ndef filter_status(records, status):\n    pass\n\ndef count_by(records, key):\n    pass\n",
+      "model_answer": "from collections import Counter\n\ndef parse_lines(lines):\n    for line in lines:\n        line = line.strip()\n        if not line:\n            continue\n        pairs = line.split(',')\n        rec = {}\n        for p in pairs:\n            if '=' in p:\n                k, _, v = p.partition('=')\n                rec[k.strip()] = v.strip()\n        yield rec\n\ndef filter_status(records, status):\n    for r in records:\n        if r.get('status') == status:\n            yield r\n\ndef count_by(records, key):\n    return Counter(r[key] for r in records if key in r)",
+      "tests": "_lines = [\n    'host=a,status=ok',\n    'host=b,status=fail',\n    '',\n    'host=a,status=ok',\n    'host=c,status=ok',\n    'host=a,status=fail',\n]\n_recs = list(parse_lines(_lines))\nassert len(_recs) == 5\nassert _recs[0] == {'host': 'a', 'status': 'ok'}\n\n_ok = list(filter_status(_recs, 'ok'))\nassert len(_ok) == 3\nassert all(r['status'] == 'ok' for r in _ok)\n\n_counts = count_by(_ok, 'host')\nassert _counts == {'a': 2, 'c': 1}\n\n# Composed pipeline (generators are LAZY \u2014 no intermediate list)\n_result = count_by(filter_status(parse_lines(_lines), 'ok'), 'host')\nassert _result == {'a': 2, 'c': 1}\n\n# Empty input through the pipeline\nassert count_by(filter_status(parse_lines([]), 'ok'), 'host') == Counter()\nprint('PASS')",
+      "key_points": [
+        "Three small `yield`-based generators that compose without materialization",
+        "Each stage handles its own malformed/missing data defensively (`get`, `if 'k' in r`)",
+        "The final stage is a CONSUMER \u2014 returns a Counter rather than yielding",
+        "Composition is a single expression \u2014 no intermediate lists allocated",
+        "Counter handles aggregation in one pass"
+      ]
+    },
+    {
+      "id": "py-248",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `sliding_max(values, k)` that returns a list of the maximum values in each k-sized window over `values`. Output has length `len(values) - k + 1`. If `len(values) < k`, return `[]`. Use a `collections.deque` for amortized O(n) total (not O(n*k)).",
+      "language": "python",
+      "starter": "from collections import deque\n\ndef sliding_max(values, k):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import deque\n\ndef sliding_max(values, k):\n    if k <= 0 or len(values) < k:\n        return []\n    out = []\n    dq = deque()  # holds indices, values[dq[0]] is current window max\n    for i, v in enumerate(values):\n        # Drop indices outside the window\n        while dq and dq[0] <= i - k:\n            dq.popleft()\n        # Maintain monotone decreasing: drop smaller-or-equal from the back\n        while dq and values[dq[-1]] <= v:\n            dq.pop()\n        dq.append(i)\n        if i >= k - 1:\n            out.append(values[dq[0]])\n    return out",
+      "tests": "assert sliding_max([1,3,-1,-3,5,3,6,7], 3) == [3,3,5,5,6,7]\nassert sliding_max([1,2,3,4,5], 1) == [1,2,3,4,5]\nassert sliding_max([5,5,5,5], 2) == [5,5,5]\nassert sliding_max([1,2,3], 5) == [], 'window > input -> empty'\nassert sliding_max([], 3) == []\nassert sliding_max([4,3,2,1], 2) == [4,3,2]\n# Single window\nassert sliding_max([7,2,9,1], 4) == [9]\n# Strictly decreasing\nassert sliding_max([9,8,7,6,5], 2) == [9,8,7,6]\nprint('PASS')",
+      "key_points": [
+        "Deque stores INDICES, not values \u2014 so we know when an entry falls out of the window",
+        "Monotone decreasing \u2014 the front of the deque is always the max",
+        "Each index is pushed and popped at most once -> amortized O(n)",
+        "Off-by-one: only start emitting output when `i >= k - 1`",
+        "Without deque the naive solution is O(n*k); deque is a classic competitive-programming trick"
+      ]
+    },
+    {
+      "id": "py-249",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Implement a class `RecentDistinct(window_s)` for a sliding-time window of distinct items:\n- `add(item, ts)` records an item at timestamp `ts` (unix seconds)\n- `count()` returns the number of DISTINCT items seen in the last `window_s` seconds RELATIVE TO the latest ts seen\n- `add` is called with non-decreasing `ts`. Old items expire automatically.",
+      "language": "python",
+      "starter": "from collections import deque\n\nclass RecentDistinct:\n    def __init__(self, window_s):\n        # your code here\n        pass\n    def add(self, item, ts):\n        pass\n    def count(self):\n        pass\n",
+      "model_answer": "from collections import deque\n\nclass RecentDistinct:\n    def __init__(self, window_s):\n        self.window_s = window_s\n        self.events = deque()  # (item, ts)\n        self.counts = {}       # item -> count in current window\n        self.now = None\n    def _expire(self):\n        cutoff = self.now - self.window_s\n        while self.events and self.events[0][1] <= cutoff:\n            item, _ = self.events.popleft()\n            self.counts[item] -= 1\n            if self.counts[item] == 0:\n                del self.counts[item]\n    def add(self, item, ts):\n        self.now = ts\n        self.events.append((item, ts))\n        self.counts[item] = self.counts.get(item, 0) + 1\n        self._expire()\n    def count(self):\n        if self.now is None:\n            return 0\n        self._expire()\n        return len(self.counts)",
+      "tests": "_r = RecentDistinct(window_s=10)\nassert _r.count() == 0\n_r.add('a', 100)\nassert _r.count() == 1\n_r.add('b', 102)\nassert _r.count() == 2\n_r.add('a', 105)  # 'a' again -> still 2 distinct\nassert _r.count() == 2\n_r.add('c', 115)  # now=115, cutoff=105; events at ts<=105 expire: ('a',100)+('b',102)+('a',105) all gone -> only 'c' alive\nassert _r.count() == 1, f'expected 1 after expiration; counts={_r.counts}'\n# Add more within window\n_r.add('d', 120)\nassert _r.count() == 2  # c at 115, d at 120, both within (120-10, 120] = (110, 120]\n# Same item twice in window \u2014 still 1 distinct\n_r2 = RecentDistinct(window_s=5)\n_r2.add('x', 1)\n_r2.add('x', 2)\nassert _r2.count() == 1\nprint('PASS')",
+      "key_points": [
+        "Deque of `(item, ts)` for FIFO expiration",
+        "Parallel dict counting occurrences per item, so `count()` is O(1)",
+        "When count drops to 0, delete the key \u2014 distinct count = `len(self.counts)`",
+        "Expires items where `ts <= now - window_s` (strict 'older than' semantics)",
+        "Assumes monotonic `ts` input \u2014 common for log streams"
+      ]
+    },
+    {
+      "id": "py-250",
+      "type": "code",
+      "topic": "Data Parsing",
+      "difficulty": "medium",
+      "prompt": "Write `parse_loose_json(text)` that pre-cleans the input then passes it to `json.loads`:\n- Strip `//` single-line comments (to end of line) \u2014 they must NOT appear inside strings.\n- Strip trailing commas before `}` or `]`.\n\nReturn the parsed Python object. Don't handle every edge case \u2014 assume comments and trailing commas appear in 'sensible' places.",
+      "language": "python",
+      "starter": "import json, re\n\ndef parse_loose_json(text):\n    # your code here\n    pass\n",
+      "model_answer": "import json, re\n\n_LINE_COMMENT = re.compile(r'(?m)//[^\\n]*')\n_TRAILING_COMMA = re.compile(r',(\\s*[}\\]])')\n\ndef parse_loose_json(text):\n    text = _LINE_COMMENT.sub('', text)\n    text = _TRAILING_COMMA.sub(r'\\1', text)\n    return json.loads(text)",
+      "tests": "_t = '''{\n    \"name\": \"alice\",  // a comment\n    \"tags\": [\"a\", \"b\",],\n    \"age\": 30,\n}'''\n_r = parse_loose_json(_t)\nassert _r == {'name': 'alice', 'tags': ['a','b'], 'age': 30}, _r\n# Plain JSON still works\nassert parse_loose_json('{\"x\": 1}') == {'x': 1}\nassert parse_loose_json('[1,2,3]') == [1,2,3]\n# Multiple trailing commas\nassert parse_loose_json('[1,2,3,]') == [1,2,3]\n# Just a comment\nassert parse_loose_json('// hello\\n{}') == {}\nprint('PASS')",
+      "key_points": [
+        "`re.MULTILINE` flag (or `(?m)` inline) so `^/$` work per line",
+        "Trailing-comma regex captures the closing bracket so we can put it back",
+        "Two passes \u2014 comments first, then trailing commas",
+        "Naive \u2014 doesn't handle `//` inside strings (real loose-JSON parsers do)",
+        "json5 / jsonc libraries are the production answer; this is the quick fix"
+      ]
+    },
+    {
+      "id": "py-251",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "easy",
+      "prompt": "Write `parse_date(s)` that tries multiple date formats in order and returns the first matching `datetime.date`. Try, in order:\n1. `'%Y-%m-%d'` (`2024-01-15`)\n2. `'%d/%m/%Y'` (`15/01/2024`)\n3. `'%m/%d/%Y'` (`01/15/2024`)\n4. `'%d %B %Y'` (`15 January 2024`)\n5. `'%Y%m%d'` (`20240115`)\n\nIf nothing matches, raise `ValueError`.",
+      "language": "python",
+      "starter": "from datetime import datetime\n\ndef parse_date(s):\n    # your code here\n    pass\n",
+      "model_answer": "from datetime import datetime\n\n_FORMATS = ['%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%d %B %Y', '%Y%m%d']\n\ndef parse_date(s):\n    s = s.strip()\n    for fmt in _FORMATS:\n        try:\n            return datetime.strptime(s, fmt).date()\n        except ValueError:\n            continue\n    raise ValueError(f'no matching format for: {s!r}')",
+      "tests": "from datetime import date\nassert parse_date('2024-01-15') == date(2024, 1, 15)\nassert parse_date('15/01/2024') == date(2024, 1, 15)\nassert parse_date('15 January 2024') == date(2024, 1, 15)\nassert parse_date('20240115') == date(2024, 1, 15)\n# Whitespace tolerated\nassert parse_date('  2024-01-15  ') == date(2024, 1, 15)\n# Ambiguous (could be DMY or MDY) \u2014 DMY wins because earlier in the list\nassert parse_date('01/02/2024') == date(2024, 2, 1)  # DMY: day 1, month 2\n_err = False\ntry:\n    parse_date('not a date')\nexcept ValueError:\n    _err = True\nassert _err\nprint('PASS')",
+      "key_points": [
+        "Tries each format until one parses \u2014 `try/except ValueError continue`",
+        "Returns `date`, not `datetime` (drops the time component)",
+        "Order matters when formats overlap (e.g., `01/02/2024` is both DMY and MDY) \u2014 caller chooses precedence by ordering",
+        "Strips whitespace up front \u2014 common input gotcha",
+        "Raises with a helpful message including the failing input"
+      ]
+    },
+    {
+      "id": "py-252",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Build an autocomplete index. Implement `class Autocomplete` with:\n- `add(word, weight=1)` \u2014 index a word with a frequency weight.\n- `suggest(prefix, k=5)` \u2014 return up to `k` words starting with `prefix`, sorted by weight DESCENDING, ties broken alphabetically.\n\nDuplicates of `add(word)` should SUM the weights. Use a trie internally so suggest is fast on long prefix lists.",
+      "language": "python",
+      "starter": "class Autocomplete:\n    def __init__(self):\n        # your code here\n        pass\n    def add(self, word, weight=1):\n        pass\n    def suggest(self, prefix, k=5):\n        pass\n",
+      "model_answer": "class _Node:\n    __slots__ = ('children', 'weight')\n    def __init__(self):\n        self.children = {}\n        self.weight = 0  # 0 means not a word-end\n\nclass Autocomplete:\n    def __init__(self):\n        self.root = _Node()\n    def add(self, word, weight=1):\n        node = self.root\n        for ch in word:\n            node = node.children.setdefault(ch, _Node())\n        node.weight += weight\n    def _collect(self, node, prefix, out):\n        if node.weight > 0:\n            out.append((prefix, node.weight))\n        for ch, child in node.children.items():\n            self._collect(child, prefix + ch, out)\n    def suggest(self, prefix, k=5):\n        node = self.root\n        for ch in prefix:\n            if ch not in node.children:\n                return []\n            node = node.children[ch]\n        candidates = []\n        self._collect(node, prefix, candidates)\n        candidates.sort(key=lambda wp: (-wp[1], wp[0]))\n        return [w for w, _ in candidates[:k]]",
+      "tests": "_a = Autocomplete()\n_a.add('apple', 3)\n_a.add('app', 5)\n_a.add('apricot', 2)\n_a.add('banana', 1)\n_a.add('apple', 2)  # accumulates: apple now weight 5\n# 'app' prefix matches 'app' and 'apple' only ('apricot' starts with 'apr')\nassert _a.suggest('app') == ['app', 'apple'], _a.suggest('app')\n# Reorder: 'app' weight 5, 'apple' weight 5 \u2014 tie, alphabetical so 'app' first\nassert _a.suggest('app', k=1) == ['app']\nassert _a.suggest('a') == ['app', 'apple', 'apricot']\nassert _a.suggest('ban') == ['banana']\nassert _a.suggest('z') == []\nassert _a.suggest('') == ['app', 'apple', 'apricot', 'banana']\n# Capped k\nassert _a.suggest('', k=2) == ['app', 'apple']\nprint('PASS')",
+      "key_points": [
+        "Trie node stores both children AND a `weight` (0 means not a word end)",
+        "`add` accumulates weight \u2014 duplicate inserts sum, not overwrite",
+        "Walks prefix; if any char missing, return immediately",
+        "Then DFS from the prefix node to collect all words",
+        "Sort by `(-weight, word)` for desc-weight, asc-word tiebreak"
+      ]
+    },
+    {
+      "id": "py-253",
+      "type": "code",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "**Requires pandas \u2014 loads ~10 MB on first Run.**\n\nGiven a DataFrame with columns `['dept', 'salary', 'tenure']`, write `summary(df)` that returns a DataFrame indexed by `dept` with columns `head_count`, `avg_salary`, `min_tenure`, `max_tenure`. Use `groupby(...).agg(...)` with named aggregations.",
+      "language": "python",
+      "starter": "import pandas as pd\n\ndef summary(df):\n    # your code here\n    pass\n",
+      "model_answer": "import pandas as pd\n\ndef summary(df):\n    return df.groupby('dept').agg(\n        head_count=('salary', 'size'),\n        avg_salary=('salary', 'mean'),\n        min_tenure=('tenure', 'min'),\n        max_tenure=('tenure', 'max'),\n    )",
+      "tests": "import pandas as pd\n_df = pd.DataFrame([\n    {'dept':'eng','salary':100,'tenure':3},\n    {'dept':'eng','salary':120,'tenure':1},\n    {'dept':'eng','salary':140,'tenure':5},\n    {'dept':'ops','salary':80, 'tenure':2},\n    {'dept':'ops','salary':90, 'tenure':4},\n])\n_r = summary(_df)\nassert list(_r.columns) == ['head_count','avg_salary','min_tenure','max_tenure'], list(_r.columns)\nassert _r.loc['eng','head_count'] == 3\nassert _r.loc['eng','avg_salary'] == 120.0\nassert _r.loc['eng','min_tenure'] == 1\nassert _r.loc['eng','max_tenure'] == 5\nassert _r.loc['ops','head_count'] == 2\nassert _r.loc['ops','avg_salary'] == 85.0\nassert _r.index.name == 'dept'\nprint('PASS')",
+      "key_points": [
+        "Named-aggregation syntax `agg(name=(col, fn))` produces named output columns",
+        "`'size'` counts rows (including NaN); `'count'` excludes NaN",
+        "Returns a DataFrame indexed by the groupby key \u2014 no `.reset_index()` here",
+        "Multi-column aggregation in a single pass over the grouped data",
+        "Prefer this to chaining multiple aggregations and joining"
+      ]
+    },
+    {
+      "id": "py-254",
+      "type": "code",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "**Requires pandas \u2014 loads ~10 MB on first Run.**\n\nGiven a long-format DataFrame with columns `['date', 'metric', 'value']`, write `to_wide(df)` that returns a wide DataFrame where each `metric` is its own column, indexed by `date` (NOT reset to a column). Missing (date, metric) cells should be `0` (not NaN).",
+      "language": "python",
+      "starter": "import pandas as pd\n\ndef to_wide(df):\n    # your code here\n    pass\n",
+      "model_answer": "import pandas as pd\n\ndef to_wide(df):\n    return df.pivot_table(index='date', columns='metric', values='value', aggfunc='sum', fill_value=0)",
+      "tests": "import pandas as pd\n_df = pd.DataFrame([\n    {'date':'2024-01-01','metric':'cpu','value':0.5},\n    {'date':'2024-01-01','metric':'mem','value':0.6},\n    {'date':'2024-01-02','metric':'cpu','value':0.7},\n])\n_w = to_wide(_df)\nassert _w.loc['2024-01-01','cpu'] == 0.5\nassert _w.loc['2024-01-01','mem'] == 0.6\nassert _w.loc['2024-01-02','cpu'] == 0.7\n# Missing cell filled with 0 (not NaN)\nassert _w.loc['2024-01-02','mem'] == 0\nassert _w.index.name == 'date'\n# Aggregation on duplicate (date, metric)\n_dup = pd.DataFrame([\n    {'date':'d','metric':'m','value':1},\n    {'date':'d','metric':'m','value':2},\n])\nassert to_wide(_dup).loc['d','m'] == 3\nprint('PASS')",
+      "key_points": [
+        "`pivot_table` (not `pivot`) handles duplicate (index, column) pairs gracefully via `aggfunc`",
+        "`fill_value=0` is cleaner than `.fillna(0)` after the fact (no NaN intermediate, no dtype upcast)",
+        "Default `aggfunc` is `'mean'` \u2014 be explicit if you want `sum` or `first`",
+        "Index stays `date` \u2014 no `reset_index()`",
+        "`pivot` would raise on duplicates; `pivot_table` aggregates"
+      ]
+    },
+    {
+      "id": "py-255",
+      "type": "code",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "**Requires pandas \u2014 loads ~10 MB on first Run.**\n\nGiven `users_df` with `user_id` (int) and `events_df` with `user_id` (string), write `enrich(users_df, events_df)` that returns the events left-joined with the user data on `user_id`. Coerce types as needed so the merge actually finds matches.",
+      "language": "python",
+      "starter": "import pandas as pd\n\ndef enrich(users_df, events_df):\n    # your code here\n    pass\n",
+      "model_answer": "import pandas as pd\n\ndef enrich(users_df, events_df):\n    events = events_df.copy()\n    events['user_id'] = events['user_id'].astype(int)\n    return events.merge(users_df, on='user_id', how='left')",
+      "tests": "import pandas as pd\n_users = pd.DataFrame([{'user_id': 1, 'name': 'Alice'}, {'user_id': 2, 'name': 'Bob'}])\n_events = pd.DataFrame([\n    {'user_id': '1', 'event': 'login'},\n    {'user_id': '2', 'event': 'click'},\n    {'user_id': '99', 'event': 'unknown'},\n])\n_r = enrich(_users, _events)\nassert len(_r) == 3\n_by_event = _r.set_index('event')\nassert _by_event.loc['login','name'] == 'Alice'\nassert _by_event.loc['click','name'] == 'Bob'\n# Unmatched left row -> NaN for joined columns\nimport math\nassert isinstance(_by_event.loc['unknown','name'], float) and math.isnan(_by_event.loc['unknown','name'])\nprint('PASS')",
+      "key_points": [
+        "Coerces the string user_id to int BEFORE the merge \u2014 otherwise no matches",
+        "`.copy()` to avoid mutating the caller's DataFrame",
+        "`how='left'` preserves all events; unmatched rows get NaN for user fields",
+        "Real-world: data warehouses often have type drift between sources \u2014 explicit casts beat silent misses",
+        "Bonus: could cast users to str instead \u2014 direction depends on which is canonical"
+      ]
+    },
+    {
+      "id": "py-256",
+      "type": "code",
+      "topic": "Numpy",
+      "difficulty": "easy",
+      "prompt": "**Requires numpy \u2014 loads on first Run.**\n\nWrite `zscore(arr)` that returns the z-score of each element of a 1-D numpy array: `(x - mean) / std`. Use the population std (ddof=0). Raise `ValueError` on empty arrays or zero-variance arrays.",
+      "language": "python",
+      "starter": "import numpy as np\n\ndef zscore(arr):\n    # your code here\n    pass\n",
+      "model_answer": "import numpy as np\n\ndef zscore(arr):\n    a = np.asarray(arr, dtype=float)\n    if a.size == 0:\n        raise ValueError('empty array')\n    mean = a.mean()\n    std = a.std(ddof=0)\n    if std == 0:\n        raise ValueError('zero variance')\n    return (a - mean) / std",
+      "tests": "import numpy as np\n_r = zscore([1, 2, 3, 4, 5])\nassert _r.shape == (5,)\nassert abs(_r.mean()) < 1e-9, 'z-scored mean should be ~0'\nassert abs(_r.std() - 1) < 1e-9, 'z-scored std should be ~1'\n# Negative values\nassert (zscore([-1, 0, 1]) == np.array([-1.224744871391589, 0, 1.224744871391589])).all() or \\\n       np.allclose(zscore([-1, 0, 1]), [-1.224744871391589, 0, 1.224744871391589])\n# Errors\n_err = False\ntry:\n    zscore([])\nexcept ValueError:\n    _err = True\nassert _err\n_err = False\ntry:\n    zscore([5, 5, 5, 5])  # zero variance\nexcept ValueError:\n    _err = True\nassert _err\nprint('PASS')",
+      "key_points": [
+        "`np.asarray(..., dtype=float)` \u2014 accepts list / tuple inputs and promotes int -> float",
+        "Vectorized \u2014 no Python loop",
+        "ddof=0 is the POPULATION std (matches scipy.stats.zscore default); use ddof=1 for sample",
+        "Explicit error on zero-variance \u2014 `(x - mean) / 0` would silently produce inf/nan",
+        "Returns a fresh array \u2014 does not mutate the input"
+      ]
+    },
+    {
+      "id": "py-257",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `reservoir_sample(stream, k, rng)` that returns a list of `k` items uniformly sampled from `stream` (without replacement). The stream is an iterable of unknown length \u2014 you cannot len() it. `rng` is a `random.Random` instance (so tests can seed it).\n\nIf the stream has fewer than k items, return all of them in input order. Otherwise the result order doesn't matter.",
+      "language": "python",
+      "starter": "def reservoir_sample(stream, k, rng):\n    # your code here\n    pass\n",
+      "model_answer": "def reservoir_sample(stream, k, rng):\n    reservoir = []\n    for i, x in enumerate(stream):\n        if i < k:\n            reservoir.append(x)\n        else:\n            j = rng.randint(0, i)  # inclusive\n            if j < k:\n                reservoir[j] = x\n    return reservoir",
+      "tests": "import random\n_rng = random.Random(42)\n# Fewer items than k\nassert reservoir_sample([1, 2, 3], 5, _rng) == [1, 2, 3]\n# Exactly k\nassert sorted(reservoir_sample([1, 2, 3, 4, 5], 5, _rng)) == [1, 2, 3, 4, 5]\n# k from a longer stream\n_rng = random.Random(0)\n_sample = reservoir_sample(range(1000), 10, _rng)\nassert len(_sample) == 10\nassert all(0 <= x < 1000 for x in _sample)\nassert len(set(_sample)) == 10, 'no duplicates'\n# Empirical uniformity check (loose) \u2014 over many trials each item should appear roughly k/N\n_counts = {}\nfor seed in range(2000):\n    _rng = random.Random(seed)\n    for x in reservoir_sample(range(20), 2, _rng):\n        _counts[x] = _counts.get(x, 0) + 1\n# Each of 20 items should appear roughly 2000 * (2/20) = 200 times. Allow wide margin.\nfor x in range(20):\n    assert 100 < _counts.get(x, 0) < 400, f'item {x} appeared {_counts.get(x,0)} times'\nprint('PASS')",
+      "key_points": [
+        "Algorithm R: fill reservoir for first k; for each subsequent item, draw j in [0, i] and overwrite if j < k",
+        "Single pass, O(n) time, O(k) memory \u2014 works on any iterable",
+        "Uniform \u2014 every item in a length-N stream has probability k/N of being in the final sample",
+        "Injectable `rng` makes the function deterministic in tests",
+        "Returns fewer than k if stream is shorter \u2014 matches the natural `random.sample` behavior"
+      ]
+    },
+    {
+      "id": "py-258",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "easy",
+      "prompt": "Write `is_valid_isbn10(s)` that validates an ISBN-10 string. Rules:\n- Ignore hyphens / spaces.\n- Result must be exactly 10 characters: first 9 are digits, the 10th is a digit OR `'X'` (representing 10).\n- Weighted sum: `sum(digit_i * (10 - i) for i in 0..9)` must be divisible by 11.\n\nReturn True / False.",
+      "language": "python",
+      "starter": "def is_valid_isbn10(s):\n    # your code here\n    pass\n",
+      "model_answer": "def is_valid_isbn10(s):\n    if not isinstance(s, str):\n        return False\n    cleaned = s.replace('-', '').replace(' ', '').upper()\n    if len(cleaned) != 10:\n        return False\n    if not (cleaned[:9].isdigit() and (cleaned[9].isdigit() or cleaned[9] == 'X')):\n        return False\n    total = 0\n    for i, c in enumerate(cleaned):\n        digit = 10 if c == 'X' else int(c)\n        total += digit * (10 - i)\n    return total % 11 == 0",
+      "tests": "assert is_valid_isbn10('0306406152') is True\nassert is_valid_isbn10('0-306-40615-2') is True\nassert is_valid_isbn10('0 306 40615 2') is True\nassert is_valid_isbn10('123456789X') is True  # classic example of X check digit\nassert is_valid_isbn10('123456789x') is True, 'lowercase x accepted'\nassert is_valid_isbn10('1234567890') is False  # wrong check\nassert is_valid_isbn10('') is False\nassert is_valid_isbn10('abc') is False\nassert is_valid_isbn10('12345') is False\nassert is_valid_isbn10('A234567890') is False  # first char not a digit\nassert is_valid_isbn10(None) is False\nprint('PASS')",
+      "key_points": [
+        "Strips formatting (hyphens, spaces) before validation",
+        "Uppercases so `x` is accepted as `X`",
+        "Validates the structural form before the math (cheap rejection)",
+        "Check digit `'X'` represents the value 10 \u2014 handled in the digit conversion",
+        "Mod-11 is the ISBN-10 invariant (mod-10 is for ISBN-13)"
+      ]
+    },
+    {
+      "id": "py-259",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Given a list of `(start_date, end_date)` tuples (both `datetime.date`), write `merge_periods(periods)` that merges overlapping or touching periods (touching = consecutive days, end+1 == next_start). Return the merged list sorted by start. Periods are inclusive on both ends.",
+      "language": "python",
+      "starter": "from datetime import date, timedelta\n\ndef merge_periods(periods):\n    # your code here\n    pass\n",
+      "model_answer": "from datetime import date, timedelta\n\ndef merge_periods(periods):\n    if not periods:\n        return []\n    sorted_p = sorted(periods, key=lambda p: p[0])\n    merged = [sorted_p[0]]\n    for s, e in sorted_p[1:]:\n        last_s, last_e = merged[-1]\n        if s <= last_e + timedelta(days=1):\n            merged[-1] = (last_s, max(last_e, e))\n        else:\n            merged.append((s, e))\n    return merged",
+      "tests": "from datetime import date\n_p = [\n    (date(2024,1,1), date(2024,1,3)),\n    (date(2024,1,2), date(2024,1,5)),  # overlaps\n    (date(2024,1,6), date(2024,1,8)),  # touches (Jan 5 then Jan 6)\n    (date(2024,2,1), date(2024,2,3)),  # gap\n]\n_r = merge_periods(_p)\nassert _r == [(date(2024,1,1), date(2024,1,8)), (date(2024,2,1), date(2024,2,3))], _r\nassert merge_periods([]) == []\n_single = [(date(2024,1,1), date(2024,1,1))]\nassert merge_periods(_single) == _single\n# Already disjoint\n_dis = [(date(2024,1,1),date(2024,1,2)),(date(2024,1,10),date(2024,1,11))]\nassert merge_periods(_dis) == _dis\n# Unsorted input\n_unsorted = [(date(2024,1,5),date(2024,1,7)),(date(2024,1,1),date(2024,1,3))]\nassert merge_periods(_unsorted) == [(date(2024,1,1),date(2024,1,3)),(date(2024,1,5),date(2024,1,7))]\n# Touching (gap of 1 day) -> merged\n_touch = [(date(2024,1,1),date(2024,1,3)),(date(2024,1,4),date(2024,1,5))]\nassert merge_periods(_touch) == [(date(2024,1,1),date(2024,1,5))]\nprint('PASS')",
+      "key_points": [
+        "Sort first \u2014 single pass after sort",
+        "Merge condition is `s <= last_e + 1` (touching counts as adjacent)",
+        "Updates the last merged interval in-place rather than re-appending",
+        "Handles empty input, single intervals, already-disjoint intervals",
+        "`max(last_e, e)` because the new end might be earlier (engulfed interval)"
+      ]
+    },
+    {
+      "id": "py-260",
+      "type": "code",
+      "topic": "Data Engineering",
+      "difficulty": "medium",
+      "prompt": "Write `dump_json(obj)` that serializes a Python object to a JSON string, with support for `datetime.date` and `datetime.datetime` (serialized as ISO 8601 strings). All other types behave as `json.dumps` would. Use a `json.JSONEncoder` subclass.",
+      "language": "python",
+      "starter": "import json\nfrom datetime import date, datetime\n\ndef dump_json(obj):\n    # your code here\n    pass\n",
+      "model_answer": "import json\nfrom datetime import date, datetime\n\nclass _DateAwareEncoder(json.JSONEncoder):\n    def default(self, o):\n        if isinstance(o, datetime):\n            return o.isoformat()\n        if isinstance(o, date):\n            return o.isoformat()\n        return super().default(o)\n\ndef dump_json(obj):\n    return json.dumps(obj, cls=_DateAwareEncoder)",
+      "tests": "import json\nfrom datetime import date, datetime\nassert dump_json({'a': 1, 'b': 'x'}) == '{\"a\": 1, \"b\": \"x\"}'\nassert dump_json([1, 2, 3]) == '[1, 2, 3]'\n_r = dump_json({'when': date(2024, 1, 15)})\nassert json.loads(_r) == {'when': '2024-01-15'}\n_r = dump_json({'at': datetime(2024, 1, 15, 13, 30, 0)})\nassert json.loads(_r) == {'at': '2024-01-15T13:30:00'}\n# Nested\n_r = dump_json({'items': [{'date': date(2024,1,1)}, {'date': date(2024,1,2)}]})\nassert json.loads(_r) == {'items': [{'date': '2024-01-01'}, {'date': '2024-01-02'}]}\n# Unsupported type still raises\n_err = False\ntry:\n    dump_json({'oops': object()})\nexcept TypeError:\n    _err = True\nassert _err\nprint('PASS')",
+      "key_points": [
+        "Subclasses `json.JSONEncoder` and overrides `default`",
+        "`default` is only invoked for types JSON doesn't natively know \u2014 built-ins (dict, list, int, str, bool, None) bypass it",
+        "Check `isinstance(o, datetime)` BEFORE `date`, since datetime is a subclass of date (or check date and let it cover both)",
+        "Falls back to `super().default(o)` for unknown types \u2014 raises a clear TypeError",
+        "Plug into `json.dumps(obj, cls=MyEncoder)` \u2014 composable"
+      ]
+    },
+    {
+      "id": "py-261",
+      "type": "code",
+      "topic": "Numpy",
+      "difficulty": "hard",
+      "prompt": "**Requires numpy \u2014 loads on first Run.**\n\nGiven two 1-D numpy arrays `x` and `y` of equal length, write `rolling_corr(x, y, window)` that returns an array of Pearson correlations computed over each window of `window` consecutive points. Output length is `len(x) - window + 1`. If `len(x) < window`, return an empty array. Use numpy operations (no Python loop over each window).",
+      "language": "python",
+      "starter": "import numpy as np\n\ndef rolling_corr(x, y, window):\n    # your code here\n    pass\n",
+      "model_answer": "import numpy as np\n\ndef rolling_corr(x, y, window):\n    x = np.asarray(x, dtype=float)\n    y = np.asarray(y, dtype=float)\n    n = len(x)\n    if n < window or window <= 1:\n        return np.array([])\n    # Cumulative sums for O(n) window stats\n    cx = np.concatenate([[0.0], np.cumsum(x)])\n    cy = np.concatenate([[0.0], np.cumsum(y)])\n    cxx = np.concatenate([[0.0], np.cumsum(x * x)])\n    cyy = np.concatenate([[0.0], np.cumsum(y * y)])\n    cxy = np.concatenate([[0.0], np.cumsum(x * y)])\n    starts = np.arange(0, n - window + 1)\n    ends = starts + window\n    sum_x = cx[ends] - cx[starts]\n    sum_y = cy[ends] - cy[starts]\n    sum_xx = cxx[ends] - cxx[starts]\n    sum_yy = cyy[ends] - cyy[starts]\n    sum_xy = cxy[ends] - cxy[starts]\n    mean_x = sum_x / window\n    mean_y = sum_y / window\n    cov = (sum_xy / window) - mean_x * mean_y\n    var_x = (sum_xx / window) - mean_x ** 2\n    var_y = (sum_yy / window) - mean_y ** 2\n    denom = np.sqrt(var_x * var_y)\n    with np.errstate(divide='ignore', invalid='ignore'):\n        out = np.where(denom > 0, cov / denom, 0.0)\n    return out",
+      "tests": "import numpy as np\n# Perfectly correlated -> 1.0 everywhere\n_x = np.arange(10, dtype=float)\n_y = 2 * _x + 3\n_r = rolling_corr(_x, _y, window=4)\nassert _r.shape == (7,)\nassert np.allclose(_r, 1.0), _r\n# Perfectly anti-correlated -> -1.0\n_r = rolling_corr(_x, -_y, window=4)\nassert np.allclose(_r, -1.0), _r\n# Window too big -> empty\nassert rolling_corr(_x, _y, window=20).shape == (0,)\nassert rolling_corr(np.array([]), np.array([]), window=3).shape == (0,)\n# Compare to a single full-window correlation\n_a = np.array([1.0, 2.5, 3.1, 4.7, 5.0, 6.2, 7.9])\n_b = np.array([2.0, 1.0, 4.0, 3.5, 5.5, 6.0, 7.1])\n_full = np.corrcoef(_a, _b)[0, 1]\n_r = rolling_corr(_a, _b, window=len(_a))\nassert abs(_r[0] - _full) < 1e-9, f'mismatch with np.corrcoef: {_r[0]} vs {_full}'\nprint('PASS')",
+      "key_points": [
+        "Cumulative sums let you compute window sums in O(1) per window \u2014 total O(n) vectorized",
+        "Correlation = covariance / sqrt(var_x * var_y); precompute sums of x, y, x*y, x*x, y*y",
+        "Concatenate a zero-prefix so `c[end] - c[start]` works at start=0",
+        "`np.errstate` suppresses divide-by-zero warnings when a window has zero variance",
+        "Sliding window via array slicing \u2014 no Python-level loop"
+      ]
+    },
+    {
+      "id": "py-262",
+      "type": "code",
+      "topic": "Concurrency",
+      "difficulty": "medium",
+      "prompt": "Write `bounded_pipeline(items, transform, max_inflight=4)` that runs `transform(item)` on every item but bounds the number of CONCURRENT in-flight calls at `max_inflight`. Use `threading` + a bounded `queue.Queue(maxsize=max_inflight)`. Return results in input order. Assume `transform` is thread-safe.",
+      "language": "python",
+      "starter": "import queue\nimport threading\n\ndef bounded_pipeline(items, transform, max_inflight=4):\n    # your code here\n    pass\n",
+      "model_answer": "import queue\nimport threading\n\ndef bounded_pipeline(items, transform, max_inflight=4):\n    items = list(items)\n    n = len(items)\n    if n == 0:\n        return []\n    results = [None] * n\n    work = queue.Queue(maxsize=max_inflight)\n    SENTINEL = object()\n    def worker():\n        while True:\n            task = work.get()\n            if task is SENTINEL:\n                work.task_done()\n                return\n            i, item = task\n            results[i] = transform(item)\n            work.task_done()\n    threads = [threading.Thread(target=worker) for _ in range(max_inflight)]\n    for t in threads:\n        t.start()\n    for i, item in enumerate(items):\n        work.put((i, item))  # blocks if queue is full -> bounds in-flight work\n    for _ in range(max_inflight):\n        work.put(SENTINEL)\n    for t in threads:\n        t.join()\n    return results",
+      "tests": "import time, threading\n_in_flight = 0\n_peak = 0\n_lock = threading.Lock()\ndef _measured(x):\n    global _in_flight, _peak\n    with _lock:\n        _in_flight += 1\n        if _in_flight > _peak:\n            _peak = _in_flight\n    time.sleep(0.01)\n    with _lock:\n        _in_flight -= 1\n    return x * 10\n\n_r = bounded_pipeline(list(range(20)), _measured, max_inflight=4)\nassert _r == [i * 10 for i in range(20)], 'order preserved'\nassert _peak <= 4, f'concurrency cap violated: peak={_peak}'\nassert _peak >= 2, f'expected real parallelism but peak={_peak}'\n# Empty input\nassert bounded_pipeline([], _measured, max_inflight=2) == []\n# Single item\n_in_flight = 0; _peak = 0\nassert bounded_pipeline([5], _measured, max_inflight=4) == [50]\nprint('PASS')",
+      "key_points": [
+        "Bounded `queue.Queue(maxsize=N)` is the back-pressure mechanism \u2014 producer blocks when queue is full",
+        "Workers consume the queue concurrently",
+        "Sentinel signals end-of-work; each worker gets one",
+        "Results stored at the input index for stable ordering",
+        "No Python `Semaphore` needed \u2014 the bounded queue IS the semaphore"
+      ]
+    },
+    {
+      "id": "py-263",
+      "type": "code",
+      "topic": "Pandas",
+      "difficulty": "hard",
+      "prompt": "**Requires pandas \u2014 loads ~10 MB on first Run.**\n\nGiven a `trades` DataFrame with `[ts, price]` and a `quotes` DataFrame with `[ts, bid, ask]`, write `enrich_trades(trades, quotes)` that joins each trade with the MOST RECENT quote at-or-before its `ts`. Both DataFrames are sorted by `ts`. Use `pd.merge_asof` to do this in O(n+m) time.",
+      "language": "python",
+      "starter": "import pandas as pd\n\ndef enrich_trades(trades, quotes):\n    # your code here\n    pass\n",
+      "model_answer": "import pandas as pd\n\ndef enrich_trades(trades, quotes):\n    return pd.merge_asof(trades, quotes, on='ts', direction='backward')",
+      "tests": "import pandas as pd\n_trades = pd.DataFrame([\n    {'ts': 10, 'price': 100.0},\n    {'ts': 20, 'price': 102.5},\n    {'ts': 35, 'price': 99.0},\n])\n_quotes = pd.DataFrame([\n    {'ts': 5,  'bid': 99.0,  'ask': 101.0},\n    {'ts': 15, 'bid': 100.5, 'ask': 102.5},\n    {'ts': 25, 'bid': 98.0,  'ask': 100.0},\n    {'ts': 40, 'bid': 97.0,  'ask': 99.5},  # AFTER all trades -> never matched\n])\n_r = enrich_trades(_trades, _quotes)\nassert len(_r) == 3\n# Trade at ts=10 -> quote at ts=5 (most recent <=10)\nassert _r.iloc[0]['bid'] == 99.0 and _r.iloc[0]['ask'] == 101.0\n# Trade at ts=20 -> quote at ts=15\nassert _r.iloc[1]['bid'] == 100.5 and _r.iloc[1]['ask'] == 102.5\n# Trade at ts=35 -> quote at ts=25\nassert _r.iloc[2]['bid'] == 98.0 and _r.iloc[2]['ask'] == 100.0\nprint('PASS')",
+      "key_points": [
+        "`pd.merge_asof` is the right tool for nearest-time / nearest-key joins",
+        "`direction='backward'` means 'most recent at or before' \u2014 `'forward'` is the opposite, `'nearest'` is either side",
+        "Both inputs must be sorted on the join key \u2014 merge_asof DOES NOT sort for you",
+        "O(n + m) \u2014 much faster than a cross join + filter",
+        "Classic finance use case: enriching trades with quote book state at execution time"
+      ]
+    },
+    {
+      "id": "py-264",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Given a DAG as `{node: [dependencies]}` (each node depends on the listed nodes), write `topo_sort(graph)` returning a list of nodes such that each node comes AFTER all its dependencies. If a cycle exists, raise `ValueError`. For deterministic output, when multiple nodes are ready, pick them in sorted (alphabetical) order.",
+      "language": "python",
+      "starter": "import heapq\nfrom collections import defaultdict\n\ndef topo_sort(graph):\n    # your code here\n    pass\n",
+      "model_answer": "import heapq\nfrom collections import defaultdict\n\ndef topo_sort(graph):\n    # Build reverse graph: dep -> dependents, plus in-degree (= # unsatisfied deps)\n    dependents = defaultdict(list)\n    in_degree = {}\n    nodes = set(graph.keys())\n    for node, deps in graph.items():\n        in_degree.setdefault(node, 0)\n        for d in deps:\n            dependents[d].append(node)\n            in_degree[node] = in_degree.get(node, 0) + 1\n            nodes.add(d)\n            in_degree.setdefault(d, 0)\n    # Recompute in_degree cleanly so deps not in graph keys are 0\n    in_degree = {n: 0 for n in nodes}\n    for node, deps in graph.items():\n        in_degree[node] = len(set(deps))\n    ready = [n for n in nodes if in_degree[n] == 0]\n    heapq.heapify(ready)\n    out = []\n    while ready:\n        n = heapq.heappop(ready)\n        out.append(n)\n        for m in dependents[n]:\n            in_degree[m] -= 1\n            if in_degree[m] == 0:\n                heapq.heappush(ready, m)\n    if len(out) != len(nodes):\n        raise ValueError('cycle detected')\n    return out",
+      "tests": "_g = {'a': [], 'b': ['a'], 'c': ['a'], 'd': ['b', 'c']}\n_r = topo_sort(_g)\nassert _r == ['a', 'b', 'c', 'd'], _r\n# Independent nodes alphabetical\nassert topo_sort({'b': [], 'a': [], 'c': []}) == ['a','b','c']\n# Cycle detection\n_cyc = {'a': ['b'], 'b': ['a']}\n_err = False\ntry:\n    topo_sort(_cyc)\nexcept ValueError:\n    _err = True\nassert _err\n# Empty graph\nassert topo_sort({}) == []\n# Single node\nassert topo_sort({'x': []}) == ['x']\n# Implicit nodes (deps not in graph keys)\n_r = topo_sort({'b': ['a']})\nassert _r == ['a', 'b']\nprint('PASS')",
+      "key_points": [
+        "Kahn's algorithm: BFS over nodes with zero in-degree",
+        "Uses a heap (priority queue) for deterministic alphabetical tiebreaks among ready nodes",
+        "Builds the REVERSE adjacency (dep -> dependent) so we can decrement neighbors when a node completes",
+        "Cycle detected when not all nodes get emitted",
+        "Handles 'implicit' nodes \u2014 deps that aren't graph keys are inferred"
+      ]
+    },
+    {
+      "id": "py-265",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "easy",
+      "prompt": "Write `rle_decode(s)` that decodes a run-length-encoded string. Format: digit-sequence followed by ONE character. Example: `'3a2b1c'` -> `'aaabbc'`. Counts can be multi-digit (`'10x'` -> 10 x's). A run with count 0 contributes nothing. Empty input returns ''. Assume the input is well-formed.",
+      "language": "python",
+      "starter": "def rle_decode(s):\n    # your code here\n    pass\n",
+      "model_answer": "def rle_decode(s):\n    out = []\n    i = 0\n    n = len(s)\n    while i < n:\n        j = i\n        while j < n and s[j].isdigit():\n            j += 1\n        if j == i or j == n:\n            raise ValueError(f'malformed RLE at position {i}')\n        count = int(s[i:j])\n        out.append(s[j] * count)\n        i = j + 1\n    return ''.join(out)",
+      "tests": "assert rle_decode('3a2b1c') == 'aaabbc'\nassert rle_decode('10x') == 'x' * 10\nassert rle_decode('') == ''\nassert rle_decode('1a1b1c') == 'abc'\nassert rle_decode('0a3b') == 'bbb', 'zero count contributes nothing'\nassert rle_decode('100z') == 'z' * 100\nprint('PASS')",
+      "key_points": [
+        "Two-pointer scan \u2014 find the digit run, then take the next char",
+        "Uses string `*` repetition for the run expansion",
+        "`''.join(out)` instead of repeated `+=` (avoids O(n\u00b2) string allocations)",
+        "Handles multi-digit counts naturally \u2014 the digit-scan loop is the right primitive",
+        "Raises on malformed input (no digits, or digits with no following char)"
+      ]
+    },
+    {
+      "id": "py-266",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write `round_robin(*iters)` \u2014 a generator that yields one item from each iterable in rotation. When an iterable is exhausted, skip it on subsequent rounds. Stop when all are exhausted.\n\nExample: `list(round_robin([1,2,3], 'ab', [10]))` -> `[1, 'a', 10, 2, 'b', 3]`.\n\nDo NOT pre-materialize the iterables \u2014 they can be infinite if used carefully.",
+      "language": "python",
+      "starter": "from collections import deque\n\ndef round_robin(*iters):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import deque\n\ndef round_robin(*iters):\n    active = deque(iter(it) for it in iters)\n    while active:\n        it = active.popleft()\n        try:\n            yield next(it)\n        except StopIteration:\n            continue  # don't re-append, this iterator is done\n        active.append(it)",
+      "tests": "assert list(round_robin([1,2,3], 'ab', [10])) == [1, 'a', 10, 2, 'b', 3]\nassert list(round_robin()) == []\nassert list(round_robin([])) == []\nassert list(round_robin([1])) == [1]\nassert list(round_robin([1,2], [], [3,4,5])) == [1, 3, 2, 4, 5]\n# Generator inputs\ndef _gen(start):\n    yield from range(start, start + 3)\nassert list(round_robin(_gen(0), _gen(10), _gen(100))) == [0,10,100,1,11,101,2,12,102]\n# Single long iter\nassert list(round_robin([1,2,3,4])) == [1,2,3,4]\nprint('PASS')",
+      "key_points": [
+        "Deque of active iterators \u2014 popleft / append for FIFO rotation",
+        "When an iterator raises StopIteration, drop it (don't re-append)",
+        "Loop exits when the deque is empty",
+        "Lazy \u2014 only consumes as many items as the caller requests",
+        "Equivalent of `itertools` recipe `roundrobin`"
+      ]
+    },
+    {
+      "id": "py-267",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "easy",
+      "prompt": "Write `anagram_groups(words)` that groups words that are anagrams of each other. Return a list of lists, each sublist sorted alphabetically; outer list sorted by the first element of each sublist. Singleton groups (no anagram pair) ARE included.",
+      "language": "python",
+      "starter": "from collections import defaultdict\n\ndef anagram_groups(words):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import defaultdict\n\ndef anagram_groups(words):\n    groups = defaultdict(list)\n    for w in words:\n        key = ''.join(sorted(w))\n        groups[key].append(w)\n    out = [sorted(v) for v in groups.values()]\n    out.sort(key=lambda g: g[0])\n    return out",
+      "tests": "_r = anagram_groups(['eat','tea','tan','ate','nat','bat'])\nassert _r == [['ate','eat','tea'], ['bat'], ['nat','tan']], _r\nassert anagram_groups([]) == []\nassert anagram_groups(['x']) == [['x']]\n# All anagrams of each other\nassert anagram_groups(['abc','bca','cab','cba']) == [['abc','bca','cab','cba']]\n# Case-sensitive\nassert anagram_groups(['Ab','bA']) == [['Ab', 'bA']], 'case-preserved, sorted-chars same -> grouped'\nprint('PASS')",
+      "key_points": [
+        "Canonical key: sort the chars of the word \u2014 anagrams share the same key",
+        "`defaultdict(list)` for one-pass grouping",
+        "Inner sort: alphabetize each group; outer sort: by first element of each group",
+        "Includes singleton groups \u2014 caller can filter if they want only true anagram pairs",
+        "O(n * m log m) for n words of length m"
+      ]
+    },
+    {
+      "id": "py-268",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "easy",
+      "prompt": "Write `is_balanced(s)` that returns True if all `()`, `[]`, `{}` brackets in `s` are properly opened, closed, and nested. Non-bracket characters are ignored. Empty string returns True.",
+      "language": "python",
+      "starter": "def is_balanced(s):\n    # your code here\n    pass\n",
+      "model_answer": "def is_balanced(s):\n    pairs = {')': '(', ']': '[', '}': '{'}\n    openers = set('([{')\n    stack = []\n    for c in s:\n        if c in openers:\n            stack.append(c)\n        elif c in pairs:\n            if not stack or stack.pop() != pairs[c]:\n                return False\n    return not stack",
+      "tests": "assert is_balanced('') is True\nassert is_balanced('()') is True\nassert is_balanced('([])') is True\nassert is_balanced('{[()]}') is True\nassert is_balanced('hello (world) {x:1}') is True\nassert is_balanced('(') is False\nassert is_balanced(')') is False\nassert is_balanced('([)]') is False  # crossed\nassert is_balanced('(((') is False\nassert is_balanced(')))') is False\nassert is_balanced('foo bar') is True  # no brackets at all\nassert is_balanced('([{}])') is True\nprint('PASS')",
+      "key_points": [
+        "Classic stack-based bracket-matching",
+        "Dict `pairs` maps closer -> opener",
+        "On opener, push; on closer, pop and compare; non-bracket chars are skipped",
+        "Final check: stack must be empty (no unclosed openers)",
+        "Returns False on unexpected closer (stack empty) OR mismatched pair"
+      ]
+    },
+    {
+      "id": "py-269",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Given two lists `old` and `new`, write `list_diff(old, new)` that returns a dict with:\n- `'added'`: items in `new` but not `old` (preserve order of `new`)\n- `'removed'`: items in `old` but not `new` (preserve order of `old`)\n- `'unchanged'`: items present in both (preserve order of `new`)\n\nElements are unique within each list. Treat lists as sets for membership but preserve order for output.",
+      "language": "python",
+      "starter": "def list_diff(old, new):\n    # your code here\n    pass\n",
+      "model_answer": "def list_diff(old, new):\n    old_set = set(old)\n    new_set = set(new)\n    return {\n        'added': [x for x in new if x not in old_set],\n        'removed': [x for x in old if x not in new_set],\n        'unchanged': [x for x in new if x in old_set],\n    }",
+      "tests": "_r = list_diff(['a','b','c'], ['b','c','d','e'])\nassert _r == {'added': ['d','e'], 'removed': ['a'], 'unchanged': ['b','c']}\nassert list_diff([], []) == {'added': [], 'removed': [], 'unchanged': []}\nassert list_diff(['x'], []) == {'added': [], 'removed': ['x'], 'unchanged': []}\nassert list_diff([], ['x']) == {'added': ['x'], 'removed': [], 'unchanged': []}\n# Identical lists\nassert list_diff([1,2,3], [1,2,3]) == {'added': [], 'removed': [], 'unchanged': [1,2,3]}\n# Different order in 'new' for unchanged\nassert list_diff([1,2,3], [3,2,1]) == {'added': [], 'removed': [], 'unchanged': [3,2,1]}\nprint('PASS')",
+      "key_points": [
+        "Convert each list to a set for O(1) membership; then iterate the source list to preserve order",
+        "`added` is ordered by `new`; `removed` is ordered by `old`",
+        "Three list comprehensions \u2014 concise and readable",
+        "Assumes elements are hashable; for non-hashable items use `__eq__` membership check (slower)"
+      ]
+    },
+    {
+      "id": "py-270",
+      "type": "code",
+      "topic": "Idioms",
+      "difficulty": "easy",
+      "prompt": "Write `remove_stopwords(text, stopwords)` that removes any whole-word occurrence of a stopword from `text` (case-insensitive comparison, but preserve original casing of kept words). A 'word' is a maximal run of alphabetic characters. Collapse the resulting multiple spaces back to single spaces and strip leading/trailing whitespace.",
+      "language": "python",
+      "starter": "import re\n\ndef remove_stopwords(text, stopwords):\n    # your code here\n    pass\n",
+      "model_answer": "import re\n\ndef remove_stopwords(text, stopwords):\n    stop = {w.lower() for w in stopwords}\n    def repl(m):\n        return '' if m.group(0).lower() in stop else m.group(0)\n    s = re.sub(r'[A-Za-z]+', repl, text)\n    # Collapse whitespace\n    s = re.sub(r'\\s+', ' ', s)\n    return s.strip()",
+      "tests": "assert remove_stopwords('The quick brown fox', ['the','a']) == 'quick brown fox'\nassert remove_stopwords('A FOX is the best!', ['a','the']) == 'FOX is best!'\nassert remove_stopwords('', ['x']) == ''\nassert remove_stopwords('nothing to remove', []) == 'nothing to remove'\n# Substring NOT a whole word -> kept\nassert remove_stopwords('teapot', ['tea']) == 'teapot'\nassert remove_stopwords('the the the', ['the']) == ''\n# Punctuation preserved\nassert remove_stopwords('Hello, world!', ['hello']) == ', world!'\nprint('PASS')",
+      "key_points": [
+        "Word definition `[A-Za-z]+` \u2014 boundary handled by the regex naturally",
+        "Case-insensitive match via lowering both sides; keep original casing on non-stop words",
+        "Replace stop-words with `''`, then collapse runs of whitespace",
+        "Punctuation is left in place (it's not in `[A-Za-z]+`)",
+        "Stopwords stored as a set for O(1) membership"
+      ]
+    },
+    {
+      "id": "py-271",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Given an undirected graph as `{node: [neighbors]}`, write `shortest_path(graph, start, end)` that returns the shortest path from `start` to `end` as a list of nodes. If no path exists, return `[]`. If start == end, return `[start]`.\n\nUse BFS (since edges are unweighted).",
+      "language": "python",
+      "starter": "from collections import deque\n\ndef shortest_path(graph, start, end):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import deque\n\ndef shortest_path(graph, start, end):\n    if start == end:\n        return [start]\n    if start not in graph:\n        return []\n    visited = {start}\n    parent = {start: None}\n    q = deque([start])\n    while q:\n        node = q.popleft()\n        for nb in graph.get(node, []):\n            if nb in visited:\n                continue\n            visited.add(nb)\n            parent[nb] = node\n            if nb == end:\n                # Reconstruct path\n                path = [end]\n                while parent[path[-1]] is not None:\n                    path.append(parent[path[-1]])\n                return list(reversed(path))\n            q.append(nb)\n    return []",
+      "tests": "_g = {'a': ['b','c'], 'b': ['a','d'], 'c': ['a','d'], 'd': ['b','c','e'], 'e': ['d']}\n_p = shortest_path(_g, 'a', 'e')\nassert _p == ['a','b','d','e'] or _p == ['a','c','d','e'], _p\nassert len(_p) == 4\n# Same node\nassert shortest_path(_g, 'a', 'a') == ['a']\n# Unreachable\n_g2 = {'a': ['b'], 'b': ['a'], 'c': []}\nassert shortest_path(_g2, 'a', 'c') == []\n# Direct edge\nassert shortest_path({'x':['y'],'y':['x']}, 'x', 'y') == ['x','y']\n# Empty graph\nassert shortest_path({}, 'a', 'b') == []\n# Start not in graph\nassert shortest_path({'a':[]}, 'z', 'a') == []\nprint('PASS')",
+      "key_points": [
+        "BFS guarantees shortest path in an unweighted graph",
+        "Tracks `parent` dict for path reconstruction (alternative: store full paths in the queue \u2014 wasteful)",
+        "Early exit when neighbor IS the target",
+        "Handles start == end as a special case (return `[start]`)",
+        "Returns `[]` (not None) for unreachable \u2014 caller's truthy check works"
+      ]
+    },
+    {
+      "id": "py-272",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Implement `cron_matches(cron, dt)` that takes a simplified 5-field cron string `'minute hour day month dow'` and a `datetime.datetime`. Return True if the datetime matches the cron expression.\n\nEach field is either:\n- `*` (any)\n- a comma-separated list of integers (e.g. `'0,15,30,45'`)\n- a single integer\n\nDay-of-week uses Monday=0..Sunday=6 (Python convention).",
+      "language": "python",
+      "starter": "def cron_matches(cron, dt):\n    # your code here\n    pass\n",
+      "model_answer": "def cron_matches(cron, dt):\n    fields = cron.split()\n    if len(fields) != 5:\n        raise ValueError('cron must have 5 fields')\n    def match(field, value):\n        if field == '*':\n            return True\n        return value in {int(x) for x in field.split(',')}\n    minute, hour, day, month, dow = fields\n    return (match(minute, dt.minute) and match(hour, dt.hour) and\n            match(day, dt.day) and match(month, dt.month) and\n            match(dow, dt.weekday()))",
+      "tests": "from datetime import datetime\n_dt = datetime(2024, 6, 15, 9, 30, 0)  # Saturday\nassert cron_matches('* * * * *', _dt) is True\nassert cron_matches('30 9 15 6 5', _dt) is True  # Saturday weekday=5\nassert cron_matches('30 9 * * *', _dt) is True\nassert cron_matches('0,15,30,45 * * * *', _dt) is True\nassert cron_matches('31 * * * *', _dt) is False\nassert cron_matches('* * * * 0', _dt) is False  # not Monday\n# Edge\n_mid = datetime(2024, 1, 1, 0, 0, 0)  # Monday\nassert cron_matches('0 0 1 1 0', _mid) is True\nassert cron_matches('0 0 1 1 1', _mid) is False\n# Malformed\n_err = False\ntry:\n    cron_matches('* * *', datetime.now())\nexcept ValueError:\n    _err = True\nassert _err\nprint('PASS')",
+      "key_points": [
+        "Splits on whitespace; expects exactly 5 fields",
+        "`'*'` is the wildcard; otherwise parse comma list to a set of ints",
+        "Sets enable O(1) membership and naturally handle duplicates",
+        "Tests every field as an AND",
+        "Day-of-week semantics matter: Python uses Monday=0; classical cron uses Sunday=0 \u2014 clarify in the prompt"
+      ]
+    },
+    {
+      "id": "py-273",
+      "type": "code",
+      "topic": "Validation",
+      "difficulty": "easy",
+      "prompt": "Write `classify_ip(s)` that returns `'ipv4'`, `'ipv6'`, or `'invalid'`. Use the stdlib `ipaddress` module rather than rolling your own regex.",
+      "language": "python",
+      "starter": "import ipaddress\n\ndef classify_ip(s):\n    # your code here\n    pass\n",
+      "model_answer": "import ipaddress\n\ndef classify_ip(s):\n    try:\n        addr = ipaddress.ip_address(s)\n    except (ValueError, TypeError):\n        return 'invalid'\n    return 'ipv4' if isinstance(addr, ipaddress.IPv4Address) else 'ipv6'",
+      "tests": "assert classify_ip('192.168.1.1') == 'ipv4'\nassert classify_ip('0.0.0.0') == 'ipv4'\nassert classify_ip('255.255.255.255') == 'ipv4'\nassert classify_ip('::1') == 'ipv6'\nassert classify_ip('2001:db8::1') == 'ipv6'\nassert classify_ip('fe80::1ff:fe23:4567:890a') == 'ipv6'\nassert classify_ip('not an ip') == 'invalid'\nassert classify_ip('256.0.0.1') == 'invalid'  # octet out of range\nassert classify_ip('192.168.1') == 'invalid'  # missing octet\nassert classify_ip('') == 'invalid'\nassert classify_ip(None) == 'invalid'\nprint('PASS')",
+      "key_points": [
+        "Uses `ipaddress.ip_address` \u2014 handles both v4 and v6, raises ValueError for invalid",
+        "Catches `TypeError` too \u2014 defensive against non-string input (None, int, etc.)",
+        "Distinguishes the two protocols via `isinstance` check on the returned object",
+        "Rolling your own regex is error-prone \u2014 the stdlib handles compression, zone IDs, mapped addresses",
+        "Single-purpose, easily testable"
+      ]
+    },
+    {
+      "id": "py-274",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Given a DAG `{job: [deps]}`, write `parallel_batches(graph)` that returns a list of BATCHES \u2014 each batch is a sorted list of jobs that can run in parallel (their deps are satisfied by previous batches). Raise `ValueError` on cycles.\n\nExample: `{'a':[],'b':[],'c':['a'],'d':['a','b'],'e':['c','d']}` -> `[['a','b'],['c','d'],['e']]`.",
+      "language": "python",
+      "starter": "def parallel_batches(graph):\n    # your code here\n    pass\n",
+      "model_answer": "def parallel_batches(graph):\n    # Make sure every node mentioned (even as a dep) is a key\n    all_nodes = set(graph.keys())\n    for deps in graph.values():\n        all_nodes.update(deps)\n    in_deg = {n: 0 for n in all_nodes}\n    children = {n: set() for n in all_nodes}\n    for node, deps in graph.items():\n        unique_deps = set(deps)\n        in_deg[node] = len(unique_deps)\n        for d in unique_deps:\n            children[d].add(node)\n    batches = []\n    remaining = set(all_nodes)\n    while remaining:\n        ready = sorted([n for n in remaining if in_deg[n] == 0])\n        if not ready:\n            raise ValueError('cycle detected')\n        batches.append(ready)\n        for n in ready:\n            for c in children[n]:\n                in_deg[c] -= 1\n            remaining.discard(n)\n    return batches",
+      "tests": "_g = {'a':[],'b':[],'c':['a'],'d':['a','b'],'e':['c','d']}\nassert parallel_batches(_g) == [['a','b'],['c','d'],['e']]\nassert parallel_batches({}) == []\n# Single node\nassert parallel_batches({'x': []}) == [['x']]\n# Linear chain\nassert parallel_batches({'a':[],'b':['a'],'c':['b']}) == [['a'],['b'],['c']]\n# All parallel\nassert parallel_batches({'a':[],'b':[],'c':[]}) == [['a','b','c']]\n# Cycle\n_err = False\ntry:\n    parallel_batches({'a':['b'],'b':['a']})\nexcept ValueError:\n    _err = True\nassert _err\n# Implicit nodes (dep not in graph keys)\nassert parallel_batches({'b': ['a']}) == [['a'],['b']]\nprint('PASS')",
+      "key_points": [
+        "Layered topological sort \u2014 each batch is one 'depth' in the DAG",
+        "Tracks in-degree; nodes with in_deg=0 form the next batch",
+        "Sorts within a batch for deterministic output",
+        "Raises ValueError when remaining > 0 but no node has in_deg=0 \u2014 that's a cycle",
+        "Handles implicit nodes (deps that aren't explicit keys) by adding them on the fly"
+      ]
+    },
+    {
+      "id": "py-275",
+      "type": "code",
+      "topic": "Pandas",
+      "difficulty": "medium",
+      "prompt": "**Requires pandas \u2014 loads ~10 MB on first Run.**\n\nGiven a DataFrame `df` and a numeric column name `col`, write `outliers(df, col, k=1.5)` that returns the rows where `col` is below `Q1 - k*IQR` or above `Q3 + k*IQR`, where IQR = Q3 - Q1. Preserve the original index.",
+      "language": "python",
+      "starter": "import pandas as pd\n\ndef outliers(df, col, k=1.5):\n    # your code here\n    pass\n",
+      "model_answer": "import pandas as pd\n\ndef outliers(df, col, k=1.5):\n    q1 = df[col].quantile(0.25)\n    q3 = df[col].quantile(0.75)\n    iqr = q3 - q1\n    lo = q1 - k * iqr\n    hi = q3 + k * iqr\n    mask = (df[col] < lo) | (df[col] > hi)\n    return df[mask]",
+      "tests": "import pandas as pd\n_df = pd.DataFrame({'x': [1,2,3,4,5,6,7,8,9, 1000]})\n_r = outliers(_df, 'x')\nassert len(_r) == 1\nassert _r.iloc[0]['x'] == 1000\n# All within range\n_clean = pd.DataFrame({'x': [10,11,12,13,14]})\nassert len(outliers(_clean, 'x')) == 0\n# Adjust k -> fewer flagged\n_r_strict = outliers(_df, 'x', k=10)\nassert len(_r_strict) <= len(_r)\n# Negative outlier\n_df2 = pd.DataFrame({'x': [10,11,12,13,14,15,16, -1000]})\nassert (outliers(_df2, 'x')['x'] == -1000).any()\nprint('PASS')",
+      "key_points": [
+        "Uses `.quantile(0.25)` / `.quantile(0.75)` for Q1 / Q3",
+        "Classic Tukey fence: 1.5*IQR is the default 'mild outlier' boundary",
+        "Boolean masking with `|` (not `or` \u2014 that doesn't broadcast)",
+        "Returns a DataFrame slice \u2014 original index preserved",
+        "k is parameterized so you can switch to 3 (extreme outliers) or larger"
+      ]
     }
   ]
 }
