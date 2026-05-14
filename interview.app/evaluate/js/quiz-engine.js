@@ -37,7 +37,15 @@ const runtimes = {
   pyodide: null,       // Pyodide instance
   loadingPglite: null, // pending promise
   loadingPyodide: null,
+  pyodidePandasLoaded: false,
+  loadingPandas: null, // pending promise for numpy+pandas load
 };
+
+// Detect whether a Python snippet imports pandas or numpy — same regex the
+// existing playground uses. We use this to lazy-load the pandas+numpy
+// Pyodide packages on the first pandas-flagged question; Pyodide ships
+// without them by default.
+const PANDAS_IMPORT_RX = /(?:^|\W)(?:import|from)\s+[^\n#]*\b(?:pandas|numpy)\b/m;
 
 // ──────────────────────────────────────────
 // Init
@@ -462,6 +470,14 @@ async function runCode(q) {
     setRunStatus(statusEl, "Loading Python (~6 MB on first run)…");
     try {
       await ensurePyodide();
+      // If the user's code OR the hidden test harness imports pandas/numpy,
+      // load those packages before running. Pyodide doesn't ship them by
+      // default — without this the user sees ModuleNotFoundError on import.
+      const needsPandas = PANDAS_IMPORT_RX.test(src) || PANDAS_IMPORT_RX.test(q.tests || "");
+      if (needsPandas && !runtimes.pyodidePandasLoaded) {
+        setRunStatus(statusEl, "Loading pandas + numpy (~12 MB on first run, cached)…");
+        await ensurePandas();
+      }
       setRunStatus(statusEl, "Running…");
       const result = await runPython(src, q.tests);
       renderRunOutput(q, result.kind, result.html);
@@ -666,6 +682,27 @@ async function ensurePyodide() {
     return runtimes.pyodide;
   })();
   return runtimes.loadingPyodide;
+}
+
+// Lazy-load numpy + pandas into Pyodide. Pyodide ships without them; user
+// code that imports pandas/numpy throws ModuleNotFoundError unless we call
+// loadPackage first. ~12 MB combined, cached by the browser after first load.
+async function ensurePandas() {
+  if (runtimes.pyodidePandasLoaded) return;
+  if (runtimes.loadingPandas) return runtimes.loadingPandas;
+  runtimes.loadingPandas = (async () => {
+    const py = await ensurePyodide();
+    await py.loadPackage(["numpy", "pandas"]);
+    // Silence pandas's pyarrow-deprecation and various FutureWarnings so they
+    // don't pollute the test output panel with red stderr lines.
+    await py.runPythonAsync(
+      "import warnings\n" +
+      "warnings.filterwarnings('ignore', category=DeprecationWarning)\n" +
+      "warnings.filterwarnings('ignore', category=FutureWarning)\n"
+    );
+    runtimes.pyodidePandasLoaded = true;
+  })();
+  return runtimes.loadingPandas;
 }
 
 async function runPython(userCode, tests) {
