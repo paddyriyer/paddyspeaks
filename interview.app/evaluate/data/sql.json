@@ -7853,6 +7853,1384 @@
       ],
       "answer": 1,
       "explanation": "This is relational division. Filter purchase to relevant items, GROUP BY user, then require the user's distinct-item count to equal the size of the divisor set. Option D is correct for known-small static sets but doesn't scale. Option A doesn't check 'every' \u2014 it just checks 'at least one'."
+    },
+    {
+      "id": "sql-342",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "You run a tennis-stats system. Table `championships(year, wimbledon, fr_open, us_open, au_open)` stores the player_id who won each of the four Grand Slams that year (one row per year). Table `players(player_id, player_name)` is a lookup. Return every player who has won at least one Grand Slam title with columns `player_id, player_name, grand_slam_count` representing the TOTAL number of titles (across all years and all four tournaments). Order by `grand_slam_count` DESC, then `player_id` ASC. Players with zero wins must NOT appear.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE players (player_id INTEGER, player_name TEXT);\nINSERT INTO players VALUES (1,'Federer'),(2,'Nadal'),(3,'Djokovic'),(4,'Murray'),(5,'Wawrinka');\nCREATE TABLE championships (yr INTEGER, wimbledon INTEGER, fr_open INTEGER, us_open INTEGER, au_open INTEGER);\nINSERT INTO championships VALUES\n  (2018, 3, 2, 3, 3),\n  (2019, 3, 2, 2, 3),\n  (2020, 3, 2, 3, 3),\n  (2021, 3, 2, 3, 3),\n  (2022, 3, 2, 5, 3);",
+      "model_answer": "WITH wins AS (\n  SELECT wimbledon AS player_id FROM championships\n  UNION ALL SELECT fr_open  FROM championships\n  UNION ALL SELECT us_open  FROM championships\n  UNION ALL SELECT au_open  FROM championships\n)\nSELECT p.player_id, p.player_name, COUNT(*)::int AS grand_slam_count\nFROM players p\nJOIN wins w ON w.player_id = p.player_id\nGROUP BY p.player_id, p.player_name\nORDER BY grand_slam_count DESC, p.player_id;",
+      "expected_rows": [
+        {
+          "player_id": 3,
+          "player_name": "Djokovic",
+          "grand_slam_count": 13
+        },
+        {
+          "player_id": 2,
+          "player_name": "Nadal",
+          "grand_slam_count": 6
+        },
+        {
+          "player_id": 5,
+          "player_name": "Wawrinka",
+          "grand_slam_count": 1
+        }
+      ],
+      "key_points": [
+        "UNION ALL stacks all four winner columns into a single column",
+        "INNER JOIN to players (not LEFT) so zero-win players are excluded",
+        "Aggregate with COUNT(*) over the unioned result, GROUP BY player",
+        "Alternative: cross join + SUM(CASE WHEN any-of-4 = player_id THEN 1 ELSE 0 END) and HAVING > 0"
+      ]
+    },
+    {
+      "id": "sql-343",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Given `employee(emp_id, name, dept_id, salary)` and `department(dept_id, dept_name)`, return the THREE highest distinct salaries in each department -- INCLUDING ties (so if four people share the top salary, all four appear). Output columns: `dept_name, name, salary`, ordered by `dept_name` ASC, then `salary` DESC, then `name` ASC. Hint: this is the case where `DENSE_RANK <= 3` behaves correctly but `ROW_NUMBER <= 3` does not.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE department (dept_id INTEGER, dept_name TEXT);\nINSERT INTO department VALUES (1,'Eng'),(2,'Sales');\nCREATE TABLE employee (emp_id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER);\nINSERT INTO employee VALUES\n  (1,'Ann',1,200),(2,'Bo',1,200),(3,'Cy',1,180),(4,'Di',1,160),(5,'Ed',1,150),\n  (6,'Fi',2,300),(7,'Gi',2,250),(8,'Hu',2,250),(9,'Iv',2,200),(10,'Jo',2,180);",
+      "model_answer": "WITH ranked AS (\n  SELECT e.dept_id, e.name, e.salary,\n         DENSE_RANK() OVER (PARTITION BY e.dept_id ORDER BY e.salary DESC) AS rk\n  FROM employee e\n)\nSELECT d.dept_name, r.name, r.salary\nFROM ranked r\nJOIN department d ON d.dept_id = r.dept_id\nWHERE r.rk <= 3\nORDER BY d.dept_name, r.salary DESC, r.name;",
+      "expected_rows": [
+        {
+          "dept_name": "Eng",
+          "name": "Ann",
+          "salary": 200
+        },
+        {
+          "dept_name": "Eng",
+          "name": "Bo",
+          "salary": 200
+        },
+        {
+          "dept_name": "Eng",
+          "name": "Cy",
+          "salary": 180
+        },
+        {
+          "dept_name": "Eng",
+          "name": "Di",
+          "salary": 160
+        },
+        {
+          "dept_name": "Sales",
+          "name": "Fi",
+          "salary": 300
+        },
+        {
+          "dept_name": "Sales",
+          "name": "Gi",
+          "salary": 250
+        },
+        {
+          "dept_name": "Sales",
+          "name": "Hu",
+          "salary": 250
+        },
+        {
+          "dept_name": "Sales",
+          "name": "Iv",
+          "salary": 200
+        }
+      ],
+      "key_points": [
+        "DENSE_RANK ranks distinct salary values without gaps -- ties share a rank",
+        "WHERE rk <= 3 picks the top three distinct pay levels including all tied rows",
+        "ROW_NUMBER would only return three rows total per department, dropping tied co-leaders",
+        "RANK would skip ranks after a tie and miss the third tier"
+      ]
+    },
+    {
+      "id": "sql-344",
+      "type": "code",
+      "topic": "Self-Joins",
+      "difficulty": "hard",
+      "prompt": "You moderate streaming sessions. Table `log_info(account_id, ip_addr, login_ts, logout_ts)` stores each session. An account is BANNED if it has two sessions whose intervals overlap (i.e. were active simultaneously) AND those sessions used DIFFERENT IP addresses (concurrent access from two locations). Return the distinct `account_id`s flagged for banning, ordered ascending. Hint: a window-function approach that only inspects the previous row will fail when three sessions for the same IP are interleaved -- use a self-join over all pairs.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE log_info (account_id INTEGER, ip_addr TEXT, login_ts TIMESTAMP, logout_ts TIMESTAMP);\nINSERT INTO log_info VALUES\n  (1,'10.0.0.1','2025-01-01 10:00','2025-01-01 12:00'),\n  (1,'10.0.0.1','2025-01-01 11:00','2025-01-01 13:00'),\n  (1,'10.0.0.2','2025-01-01 11:30','2025-01-01 12:30'),\n  (2,'10.0.0.3','2025-01-02 10:00','2025-01-02 11:00'),\n  (2,'10.0.0.4','2025-01-02 11:30','2025-01-02 12:00'),\n  (3,'10.0.0.5','2025-01-03 08:00','2025-01-03 09:00'),\n  (3,'10.0.0.5','2025-01-03 08:30','2025-01-03 09:30'),\n  (4,'10.0.0.6','2025-01-04 09:00','2025-01-04 10:00'),\n  (4,'10.0.0.7','2025-01-04 09:30','2025-01-04 10:30');",
+      "model_answer": "SELECT DISTINCT l1.account_id\nFROM log_info l1\nJOIN log_info l2\n  ON l1.account_id = l2.account_id\n AND l1.ip_addr <> l2.ip_addr\n AND l1.login_ts BETWEEN l2.login_ts AND l2.logout_ts\nORDER BY l1.account_id;",
+      "expected_rows": [
+        {
+          "account_id": 1
+        },
+        {
+          "account_id": 4
+        }
+      ],
+      "key_points": [
+        "Self-join over all session pairs of the same account",
+        "Predicate: different IP AND l1.login falls inside l2's interval (overlap test)",
+        "DISTINCT to dedupe symmetric matches",
+        "LEAD/LAG-only approaches fail when intervening rows belong to a third session of the same IP",
+        "Account 2 isn't flagged because the two sessions don't overlap; account 3 has same IP"
+      ]
+    },
+    {
+      "id": "sql-345",
+      "type": "code",
+      "topic": "Gaps and Islands",
+      "difficulty": "hard",
+      "prompt": "Table `logs(log_id INTEGER)` contains a set of log identifiers, each unique, but with gaps. Return all contiguous ranges of integer ids as `start_id, end_id`, ordered by `start_id` ASC. A single isolated id forms a range where start = end.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE logs (log_id INTEGER);\nINSERT INTO logs VALUES (1),(2),(3),(7),(8),(10),(15),(16),(17),(18);",
+      "model_answer": "WITH numbered AS (\n  SELECT log_id, log_id - ROW_NUMBER() OVER (ORDER BY log_id) AS grp\n  FROM logs\n)\nSELECT MIN(log_id) AS start_id, MAX(log_id) AS end_id\nFROM numbered\nGROUP BY grp\nORDER BY start_id;",
+      "expected_rows": [
+        {
+          "start_id": 1,
+          "end_id": 3
+        },
+        {
+          "start_id": 7,
+          "end_id": 8
+        },
+        {
+          "start_id": 10,
+          "end_id": 10
+        },
+        {
+          "start_id": 15,
+          "end_id": 18
+        }
+      ],
+      "key_points": [
+        "Classic gaps-and-islands: subtract ROW_NUMBER ordered by id from the id itself",
+        "Within a contiguous run, the difference is constant -- group by that difference",
+        "MIN/MAX inside each group recover the range boundaries",
+        "Singleton rows naturally fall out as start = end"
+      ]
+    },
+    {
+      "id": "sql-346",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `user_visits(user_id INT, visit_date DATE)` records every visit a user makes. For each user, return the largest number of days between TWO CONSECUTIVE visits, or between their last visit and a fixed `'2025-04-01'` cap date if no later visit exists. Columns: `user_id, biggest_window`. Order by `user_id` ASC. Each (user, date) row is unique.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE user_visits (user_id INTEGER, visit_date DATE);\nINSERT INTO user_visits VALUES\n  (1,'2025-01-01'),(1,'2025-01-05'),(1,'2025-01-20'),\n  (2,'2025-02-01'),(2,'2025-02-02'),\n  (3,'2025-03-01');",
+      "model_answer": "WITH paired AS (\n  SELECT user_id, visit_date,\n         LEAD(visit_date, 1, DATE '2025-04-01') OVER (PARTITION BY user_id ORDER BY visit_date) AS next_date\n  FROM user_visits\n)\nSELECT user_id, MAX(next_date - visit_date)::int AS biggest_window\nFROM paired\nGROUP BY user_id\nORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1,
+          "biggest_window": 71
+        },
+        {
+          "user_id": 2,
+          "biggest_window": 58
+        },
+        {
+          "user_id": 3,
+          "biggest_window": 31
+        }
+      ],
+      "key_points": [
+        "LEAD with a default value handles the last visit-to-cap gap in one expression",
+        "PARTITION BY user_id and ORDER BY visit_date to align consecutive visits per user",
+        "Subtract DATE values -- Postgres returns integer days directly",
+        "MAX over (date difference) per user, then GROUP BY"
+      ]
+    },
+    {
+      "id": "sql-347",
+      "type": "code",
+      "topic": "Conditional Aggregation",
+      "difficulty": "medium",
+      "prompt": "Table `customer_purchases(customer_id INT, product CHAR(1))` lists items each customer bought (product is 'A','B', or 'C'). Return customers who bought BOTH 'A' AND 'B' but NEVER bought 'C'. Output `customer_id` only, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customer_purchases (customer_id INTEGER, product CHAR(1));\nINSERT INTO customer_purchases VALUES\n  (1,'A'),(1,'B'),(1,'C'),\n  (2,'A'),(2,'B'),\n  (3,'A'),(3,'B'),(3,'A'),\n  (4,'A'),(4,'C'),\n  (5,'B'),(5,'B'),\n  (6,'A'),(6,'B'),(6,'A'),(6,'B');",
+      "model_answer": "SELECT customer_id\nFROM customer_purchases\nGROUP BY customer_id\nHAVING COUNT(*) FILTER (WHERE product = 'A') >= 1\n   AND COUNT(*) FILTER (WHERE product = 'B') >= 1\n   AND COUNT(*) FILTER (WHERE product = 'C') = 0\nORDER BY customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 2
+        },
+        {
+          "customer_id": 3
+        },
+        {
+          "customer_id": 6
+        }
+      ],
+      "key_points": [
+        "FILTER (WHERE ...) is the Postgres-clean way to do conditional aggregation",
+        "Three predicates on the same group: A >= 1, B >= 1, C = 0",
+        "GROUP BY customer_id + HAVING composes all three checks",
+        "Alternative: SUM(CASE WHEN product='A' THEN 1 ELSE 0 END) >= 1 (more verbose)"
+      ]
+    },
+    {
+      "id": "sql-348",
+      "type": "code",
+      "topic": "Tree / Hierarchies",
+      "difficulty": "medium",
+      "prompt": "Table `tree_node(id INT, p_id INT)` represents a tree where `p_id` is the parent of `id`, NULL for the root. Classify each node as 'Root' (no parent), 'Inner' (has both a parent and at least one child), or 'Leaf' (has a parent but no children). Return columns `id, node_type` ordered by `id` ASC. Use a single query.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE tree_node (id INTEGER, p_id INTEGER);\nINSERT INTO tree_node VALUES (1,NULL),(2,1),(3,1),(4,2),(5,2);",
+      "model_answer": "SELECT id,\n  CASE\n    WHEN p_id IS NULL THEN 'Root'\n    WHEN id IN (SELECT p_id FROM tree_node WHERE p_id IS NOT NULL) THEN 'Inner'\n    ELSE 'Leaf'\n  END AS node_type\nFROM tree_node\nORDER BY id;",
+      "expected_rows": [
+        {
+          "id": 1,
+          "node_type": "Root"
+        },
+        {
+          "id": 2,
+          "node_type": "Inner"
+        },
+        {
+          "id": 3,
+          "node_type": "Leaf"
+        },
+        {
+          "id": 4,
+          "node_type": "Leaf"
+        },
+        {
+          "id": 5,
+          "node_type": "Leaf"
+        }
+      ],
+      "key_points": [
+        "CASE WHEN with three mutually-exclusive branches",
+        "Root identified by p_id IS NULL",
+        "Inner = node id appears as a parent of some other row",
+        "Leaf = fallthrough (has parent, never a parent)",
+        "Subquery filters NULL p_ids so IN doesn't get tripped up by NULL semantics"
+      ]
+    },
+    {
+      "id": "sql-349",
+      "type": "code",
+      "topic": "Triangle / Inequality Join",
+      "difficulty": "hard",
+      "prompt": "Table `point(x INT)` stores positions on a number line (rows are unordered, all x are distinct). Return the SHORTEST distance between any two distinct points as a single row with column `shortest`. Naive solutions cross-join in O(n^2); aim for the O(n log n) approach using a window function on the sorted list.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE point (x INTEGER);\nINSERT INTO point VALUES (-1),(0),(2),(5),(10),(11),(20);",
+      "model_answer": "SELECT MIN(x - prev_x)::int AS shortest\nFROM (\n  SELECT x, LAG(x) OVER (ORDER BY x) AS prev_x\n  FROM point\n) t\nWHERE prev_x IS NOT NULL;",
+      "expected_rows": [
+        {
+          "shortest": 1
+        }
+      ],
+      "key_points": [
+        "After sorting by x, only adjacent pairs can be the minimum distance -- no need to check non-adjacent pairs",
+        "LAG(x) OVER (ORDER BY x) gives the previous x; subtract and take MIN",
+        "Filter out the first row where LAG is NULL (or it would propagate NULL into MIN harmlessly, but be explicit)",
+        "Cross-join (self-join with x1 < x2) also works but is O(n^2)"
+      ]
+    },
+    {
+      "id": "sql-350",
+      "type": "code",
+      "topic": "String Functions",
+      "difficulty": "medium",
+      "prompt": "Table `person(name TEXT, phone_number TEXT)` stores international phone numbers where each number begins with a country code: 1, 86, 91, or 880. Table `calls(caller TEXT, callee TEXT, duration_sec INT)` logs calls. Return, for each country code that ever appeared in a call (caller OR callee), the average call duration in seconds rounded to 2 decimals. Columns: `country_code, avg_duration`, ordered by `country_code` ASC. Note: each call contributes ONCE to the caller's country and ONCE to the callee's country (so the same call may bump two country averages).",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE person (name TEXT, phone_number TEXT);\nINSERT INTO person VALUES\n  ('Alice','1-555-1111'),\n  ('Bob','86-1234'),\n  ('Cara','91-9876'),\n  ('Dan','880-7777'),\n  ('Eve','1-555-2222');\nCREATE TABLE calls (caller TEXT, callee TEXT, duration_sec INTEGER);\nINSERT INTO calls VALUES\n  ('Alice','Bob',60),\n  ('Bob','Cara',120),\n  ('Cara','Dan',30),\n  ('Eve','Alice',90);",
+      "model_answer": "WITH legs AS (\n  SELECT caller AS who, duration_sec FROM calls\n  UNION ALL\n  SELECT callee, duration_sec FROM calls\n)\nSELECT split_part(p.phone_number, '-', 1) AS country_code,\n       ROUND(AVG(l.duration_sec)::numeric, 2) AS avg_duration\nFROM legs l\nJOIN person p ON p.name = l.who\nGROUP BY split_part(p.phone_number, '-', 1)\nORDER BY country_code;",
+      "expected_rows": [
+        {
+          "country_code": "1",
+          "avg_duration": "80.00"
+        },
+        {
+          "country_code": "86",
+          "avg_duration": "90.00"
+        },
+        {
+          "country_code": "880",
+          "avg_duration": "30.00"
+        },
+        {
+          "country_code": "91",
+          "avg_duration": "75.00"
+        }
+      ],
+      "key_points": [
+        "UNION ALL doubles every call -- once for caller, once for callee",
+        "split_part(phone, '-', 1) extracts the country code prefix in Postgres",
+        "Average is per-country, computed over all legs touching that country",
+        "ROUND on numeric (cast required when averaging integers since AVG returns numeric already, but ROUND(double,2) does not exist in Postgres)"
+      ]
+    },
+    {
+      "id": "sql-351",
+      "type": "code",
+      "topic": "Quantiles",
+      "difficulty": "hard",
+      "prompt": "Compute the MEDIAN salary per department WITHOUT using `PERCENTILE_CONT` or `PERCENTILE_DISC`. Schema: `employee(emp_id, dept_id, salary INTEGER)`. For odd group size, median is the middle value; for even group size, median is the average of the two middle values. Output columns: `dept_id, median_salary` (numeric with 1 decimal). Order by `dept_id`. Use window functions.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INTEGER, dept_id INTEGER, salary INTEGER);\nINSERT INTO employee VALUES\n  (1,1,100),(2,1,200),(3,1,300),\n  (4,2,50),(5,2,60),(6,2,70),(7,2,80),\n  (8,3,500);",
+      "model_answer": "WITH ranked AS (\n  SELECT dept_id, salary,\n         ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary) AS rn_asc,\n         COUNT(*)   OVER (PARTITION BY dept_id) AS cnt\n  FROM employee\n)\nSELECT dept_id,\n       ROUND(AVG(salary)::numeric, 1) AS median_salary\nFROM ranked\nWHERE rn_asc IN (FLOOR((cnt + 1) / 2.0)::int, CEIL((cnt + 1) / 2.0)::int)\nGROUP BY dept_id\nORDER BY dept_id;",
+      "expected_rows": [
+        {
+          "dept_id": 1,
+          "median_salary": 200.0
+        },
+        {
+          "dept_id": 2,
+          "median_salary": 65.0
+        },
+        {
+          "dept_id": 3,
+          "median_salary": 500.0
+        }
+      ],
+      "key_points": [
+        "Per partition, rank rows ascending and capture total count",
+        "FLOOR((n+1)/2) and CEIL((n+1)/2) identify the one or two middle indices",
+        "Average those rows -- collapses both odd (single middle) and even (two middle) cases",
+        "Cast to numeric before ROUND because AVG over INTEGER yields numeric, but explicit cast avoids ambiguity"
+      ]
+    },
+    {
+      "id": "sql-352",
+      "type": "code",
+      "topic": "Time Series",
+      "difficulty": "hard",
+      "prompt": "Table `transactions(transaction_id INT, ts TIMESTAMP, amount NUMERIC)` records purchases. For each calendar day, return the `transaction_id` of the row with the largest amount that day. Ties are broken by the EARLIER timestamp (and then by the smaller `transaction_id`). Columns: `day, transaction_id, amount` ordered by `day` ASC.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE transactions (transaction_id INTEGER, ts TIMESTAMP, amount NUMERIC);\nINSERT INTO transactions VALUES\n  (1,'2025-05-01 09:00',100),\n  (2,'2025-05-01 11:30',250),\n  (3,'2025-05-01 14:00',250),\n  (4,'2025-05-02 08:00',75),\n  (5,'2025-05-02 17:00',75),\n  (6,'2025-05-03 12:00',500);",
+      "model_answer": "WITH ranked AS (\n  SELECT transaction_id, ts::date AS day, amount, ts,\n         ROW_NUMBER() OVER (PARTITION BY ts::date ORDER BY amount DESC, ts, transaction_id) AS rn\n  FROM transactions\n)\nSELECT day, transaction_id, amount\nFROM ranked\nWHERE rn = 1\nORDER BY day;",
+      "expected_rows": [
+        {
+          "day": "2025-05-01",
+          "transaction_id": 2,
+          "amount": 250
+        },
+        {
+          "day": "2025-05-02",
+          "transaction_id": 4,
+          "amount": 75
+        },
+        {
+          "day": "2025-05-03",
+          "transaction_id": 6,
+          "amount": 500
+        }
+      ],
+      "key_points": [
+        "PARTITION BY date(ts) so ranking resets per day",
+        "ORDER BY amount DESC for the magnitude, then ts ASC for tie-break, then id for full determinism",
+        "ROW_NUMBER not DENSE_RANK -- we want exactly one row per day",
+        "Cast ts::date to discard time"
+      ]
+    },
+    {
+      "id": "sql-353",
+      "type": "code",
+      "topic": "Top-N per Group",
+      "difficulty": "medium",
+      "prompt": "Table `orders(order_id INT, customer_id INT, order_date DATE, total NUMERIC)` and `customers(customer_id INT, name TEXT)`. Return EACH customer's THREE most recent orders (by date). If a customer has fewer than three orders, return all of them. Columns: `name, order_id, order_date, total`. Order by `name` ASC, then `order_date` DESC, then `order_id` ASC.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customers (customer_id INTEGER, name TEXT);\nINSERT INTO customers VALUES (1,'Aanya'),(2,'Bilal'),(3,'Chitra');\nCREATE TABLE orders (order_id INTEGER, customer_id INTEGER, order_date DATE, total NUMERIC);\nINSERT INTO orders VALUES\n  (101,1,'2025-01-01',50),(102,1,'2025-02-01',60),(103,1,'2025-03-01',70),(104,1,'2025-04-01',80),\n  (201,2,'2025-01-15',100),(202,2,'2025-02-15',200),\n  (301,3,'2025-03-10',30);",
+      "model_answer": "WITH ranked AS (\n  SELECT o.order_id, o.customer_id, o.order_date, o.total,\n         ROW_NUMBER() OVER (PARTITION BY o.customer_id ORDER BY o.order_date DESC, o.order_id DESC) AS rn\n  FROM orders o\n)\nSELECT c.name, r.order_id, r.order_date, r.total\nFROM ranked r\nJOIN customers c ON c.customer_id = r.customer_id\nWHERE r.rn <= 3\nORDER BY c.name, r.order_date DESC, r.order_id;",
+      "expected_rows": [
+        {
+          "name": "Aanya",
+          "order_id": 104,
+          "order_date": "2025-04-01",
+          "total": 80
+        },
+        {
+          "name": "Aanya",
+          "order_id": 103,
+          "order_date": "2025-03-01",
+          "total": 70
+        },
+        {
+          "name": "Aanya",
+          "order_id": 102,
+          "order_date": "2025-02-01",
+          "total": 60
+        },
+        {
+          "name": "Bilal",
+          "order_id": 202,
+          "order_date": "2025-02-15",
+          "total": 200
+        },
+        {
+          "name": "Bilal",
+          "order_id": 201,
+          "order_date": "2025-01-15",
+          "total": 100
+        },
+        {
+          "name": "Chitra",
+          "order_id": 301,
+          "order_date": "2025-03-10",
+          "total": 30
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER over (partition customer, order date desc) for strict top-3 (NOT DENSE_RANK; we want at most 3 rows per customer)",
+        "Tie-break ORDER BY order_id DESC inside the window for determinism",
+        "Filter rn <= 3 in outer query (cannot put window funcs in WHERE directly)",
+        "Customers with fewer than 3 orders naturally surface fewer rows"
+      ]
+    },
+    {
+      "id": "sql-354",
+      "type": "code",
+      "topic": "Pivoting",
+      "difficulty": "medium",
+      "prompt": "Table `daily_sales(date_id DATE, product TEXT, qty INTEGER)` has multiple rows per date. Reshape it into a wide pivot so each date is ONE row with columns `date_id, apples, bananas, cherries` (lower-case). Missing combinations become 0. Order by `date_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE daily_sales (date_id DATE, product TEXT, qty INTEGER);\nINSERT INTO daily_sales VALUES\n  ('2025-06-01','apples',10),\n  ('2025-06-01','bananas',3),\n  ('2025-06-02','apples',7),\n  ('2025-06-02','cherries',5),\n  ('2025-06-03','bananas',8);",
+      "model_answer": "SELECT date_id,\n       COALESCE(SUM(qty) FILTER (WHERE product = 'apples'),0)::int   AS apples,\n       COALESCE(SUM(qty) FILTER (WHERE product = 'bananas'),0)::int  AS bananas,\n       COALESCE(SUM(qty) FILTER (WHERE product = 'cherries'),0)::int AS cherries\nFROM daily_sales\nGROUP BY date_id\nORDER BY date_id;",
+      "expected_rows": [
+        {
+          "date_id": "2025-06-01",
+          "apples": 10,
+          "bananas": 3,
+          "cherries": 0
+        },
+        {
+          "date_id": "2025-06-02",
+          "apples": 7,
+          "bananas": 0,
+          "cherries": 5
+        },
+        {
+          "date_id": "2025-06-03",
+          "apples": 0,
+          "bananas": 8,
+          "cherries": 0
+        }
+      ],
+      "key_points": [
+        "Conditional aggregation via FILTER (WHERE ...) clauses",
+        "COALESCE -> 0 for missing categories rather than NULL",
+        "GROUP BY date_id to collapse rows",
+        "Cleaner than CASE WHEN inside SUM and easier to read"
+      ]
+    },
+    {
+      "id": "sql-355",
+      "type": "code",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "prompt": "Table `tasks(task_id INT, subtask_count INT)` declares that task X has subtasks numbered 1..subtask_count. Table `executed(task_id INT, subtask_id INT)` records which subtasks have run. Return the (task_id, subtask_id) pairs that have NOT been executed, ordered by task_id, subtask_id. Generate the universe of expected subtasks using a recursive CTE -- do NOT use generate_series.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE tasks (task_id INTEGER, subtask_count INTEGER);\nINSERT INTO tasks VALUES (1,3),(2,2),(3,4);\nCREATE TABLE executed (task_id INTEGER, subtask_id INTEGER);\nINSERT INTO executed VALUES (1,1),(1,2),(2,1),(3,1),(3,3);",
+      "model_answer": "WITH RECURSIVE expand AS (\n  SELECT task_id, subtask_count AS subtask_id FROM tasks\n  UNION ALL\n  SELECT task_id, subtask_id - 1 FROM expand WHERE subtask_id > 1\n)\nSELECT e.task_id, e.subtask_id\nFROM expand e\nLEFT JOIN executed x\n  ON x.task_id = e.task_id AND x.subtask_id = e.subtask_id\nWHERE x.task_id IS NULL\nORDER BY e.task_id, e.subtask_id;",
+      "expected_rows": [
+        {
+          "task_id": 1,
+          "subtask_id": 3
+        },
+        {
+          "task_id": 2,
+          "subtask_id": 2
+        },
+        {
+          "task_id": 3,
+          "subtask_id": 2
+        },
+        {
+          "task_id": 3,
+          "subtask_id": 4
+        }
+      ],
+      "key_points": [
+        "Recursive CTE walks subtask_id from subtask_count down to 1 per task",
+        "LEFT JOIN + IS NULL is the canonical 'find missing rows' pattern",
+        "NOT IN would be unsafe if any executed.subtask_id were NULL",
+        "Postgres requires WITH RECURSIVE keyword explicitly"
+      ]
+    },
+    {
+      "id": "sql-356",
+      "type": "code",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "prompt": "Table `employees(employee_id INT, employee_name TEXT, manager_id INT)` is a manager hierarchy where `manager_id` is the employee's direct manager. Return EVERY employee (excluding employee 1 themself) who reports DIRECTLY OR TRANSITIVELY to employee_id 1. Output `employee_id, employee_name` ordered by `employee_id`. Use a recursive CTE -- the hierarchy depth is unknown in advance.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employees (employee_id INTEGER, employee_name TEXT, manager_id INTEGER);\nINSERT INTO employees VALUES\n  (1,'Boss',NULL),\n  (2,'V1',1),\n  (3,'V2',1),\n  (4,'M1',2),\n  (5,'M2',2),\n  (6,'M3',3),\n  (7,'IC1',4),\n  (8,'IC2',5),\n  (9,'Outsider',NULL),\n  (10,'OutsiderReport',9);",
+      "model_answer": "WITH RECURSIVE downstream AS (\n  SELECT employee_id, employee_name FROM employees WHERE manager_id = 1\n  UNION ALL\n  SELECT e.employee_id, e.employee_name\n  FROM employees e\n  JOIN downstream d ON e.manager_id = d.employee_id\n)\nSELECT employee_id, employee_name\nFROM downstream\nORDER BY employee_id;",
+      "expected_rows": [
+        {
+          "employee_id": 2,
+          "employee_name": "V1"
+        },
+        {
+          "employee_id": 3,
+          "employee_name": "V2"
+        },
+        {
+          "employee_id": 4,
+          "employee_name": "M1"
+        },
+        {
+          "employee_id": 5,
+          "employee_name": "M2"
+        },
+        {
+          "employee_id": 6,
+          "employee_name": "M3"
+        },
+        {
+          "employee_id": 7,
+          "employee_name": "IC1"
+        },
+        {
+          "employee_id": 8,
+          "employee_name": "IC2"
+        }
+      ],
+      "key_points": [
+        "Anchor = direct reports of employee 1",
+        "Recursive step joins employees to the running set on manager_id = downstream.employee_id",
+        "Excludes the boss themself because the anchor starts one level down",
+        "Outsider subtree (id 9, 10) never connects, so doesn't appear",
+        "WITH RECURSIVE required in Postgres"
+      ]
+    },
+    {
+      "id": "sql-357",
+      "type": "code",
+      "topic": "Recursive CTEs",
+      "difficulty": "hard",
+      "prompt": "Two tables, `failed(fail_date DATE)` and `succeeded(success_date DATE)`, record per-day outcomes. Dates may appear in only one table. Build a 'state-changes' report: every maximal contiguous run of days that share the same status. Output columns `period_state ('failed' or 'succeeded'), start_date, end_date`. Restrict to dates in calendar year 2025. Order by `start_date`. Each date appears in at most one of the two tables.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE failed (fail_date DATE);\nINSERT INTO failed VALUES ('2025-01-01'),('2025-01-02'),('2025-01-05'),('2025-01-06');\nCREATE TABLE succeeded (success_date DATE);\nINSERT INTO succeeded VALUES ('2025-01-03'),('2025-01-04'),('2025-01-07'),('2024-12-31');",
+      "model_answer": "WITH unioned AS (\n  SELECT fail_date AS d, 'failed' AS state FROM failed\n  UNION ALL\n  SELECT success_date, 'succeeded' FROM succeeded\n),\nfiltered AS (\n  SELECT d, state FROM unioned WHERE d BETWEEN DATE '2025-01-01' AND DATE '2025-12-31'\n),\ngrouped AS (\n  SELECT d, state,\n         ROW_NUMBER() OVER (ORDER BY d)\n           - ROW_NUMBER() OVER (PARTITION BY state ORDER BY d) AS grp\n  FROM filtered\n)\nSELECT state AS period_state, MIN(d) AS start_date, MAX(d) AS end_date\nFROM grouped\nGROUP BY state, grp\nORDER BY start_date;",
+      "expected_rows": [
+        {
+          "period_state": "failed",
+          "start_date": "2025-01-01",
+          "end_date": "2025-01-02"
+        },
+        {
+          "period_state": "succeeded",
+          "start_date": "2025-01-03",
+          "end_date": "2025-01-04"
+        },
+        {
+          "period_state": "failed",
+          "start_date": "2025-01-05",
+          "end_date": "2025-01-06"
+        },
+        {
+          "period_state": "succeeded",
+          "start_date": "2025-01-07",
+          "end_date": "2025-01-07"
+        }
+      ],
+      "key_points": [
+        "Stack failed and succeeded rows together with a status label",
+        "Filter to 2025 BEFORE the gaps-and-islands math",
+        "Two ROW_NUMBERs: one global, one per state. Their difference is constant for a contiguous run of one state",
+        "GROUP BY (state, grp) collapses each run; MIN/MAX give the boundaries"
+      ]
+    },
+    {
+      "id": "sql-358",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Table `activity(player_id INT, event_date DATE, games_played INT)` has one row per player per day. Return a running total of games played by each player up to and including that date. Columns: `player_id, event_date, games_played_so_far`. Order by `player_id, event_date`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE activity (player_id INTEGER, event_date DATE, games_played INTEGER);\nINSERT INTO activity VALUES\n  (1,'2025-01-01',5),\n  (1,'2025-01-02',3),\n  (1,'2025-01-04',2),\n  (2,'2025-01-01',10),\n  (2,'2025-01-03',4);",
+      "model_answer": "SELECT player_id, event_date,\n       SUM(games_played) OVER (PARTITION BY player_id ORDER BY event_date\n                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)::int AS games_played_so_far\nFROM activity\nORDER BY player_id, event_date;",
+      "expected_rows": [
+        {
+          "player_id": 1,
+          "event_date": "2025-01-01",
+          "games_played_so_far": 5
+        },
+        {
+          "player_id": 1,
+          "event_date": "2025-01-02",
+          "games_played_so_far": 8
+        },
+        {
+          "player_id": 1,
+          "event_date": "2025-01-04",
+          "games_played_so_far": 10
+        },
+        {
+          "player_id": 2,
+          "event_date": "2025-01-01",
+          "games_played_so_far": 10
+        },
+        {
+          "player_id": 2,
+          "event_date": "2025-01-03",
+          "games_played_so_far": 14
+        }
+      ],
+      "key_points": [
+        "SUM() OVER (PARTITION BY ... ORDER BY ... ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)",
+        "PARTITION BY player_id so totals reset per player",
+        "Explicit ROWS frame prevents the default RANGE frame from lumping ties (here, irrelevant but defensive)",
+        "Alternative: a self-join with sum(games_played) WHERE date <= each row -- O(n^2)"
+      ]
+    },
+    {
+      "id": "sql-359",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Table `employees(emp_id INT, event_day DATE, in_time INT, out_time INT)` records minutes-since-midnight for clock-in and clock-out. An employee may clock in/out multiple times per day. Return total minutes worked per (day, employee). Columns: `event_day, emp_id, total_time`. Order by `event_day, emp_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employees (emp_id INTEGER, event_day DATE, in_time INTEGER, out_time INTEGER);\nINSERT INTO employees VALUES\n  (1,'2025-07-01',60,120),\n  (1,'2025-07-01',180,240),\n  (2,'2025-07-01',60,300),\n  (1,'2025-07-02',0,60);",
+      "model_answer": "SELECT event_day, emp_id, SUM(out_time - in_time)::int AS total_time\nFROM employees\nGROUP BY event_day, emp_id\nORDER BY event_day, emp_id;",
+      "expected_rows": [
+        {
+          "event_day": "2025-07-01",
+          "emp_id": 1,
+          "total_time": 120
+        },
+        {
+          "event_day": "2025-07-01",
+          "emp_id": 2,
+          "total_time": 240
+        },
+        {
+          "event_day": "2025-07-02",
+          "emp_id": 1,
+          "total_time": 60
+        }
+      ],
+      "key_points": [
+        "Sum the per-session duration (out - in) inside the aggregate",
+        "GROUP BY (event_day, emp_id) handles multiple sessions per day",
+        "Casting to int is optional but keeps the column type tidy"
+      ]
+    },
+    {
+      "id": "sql-360",
+      "type": "code",
+      "topic": "Anti-Joins",
+      "difficulty": "medium",
+      "prompt": "Tables `seller(seller_id INT, seller_name TEXT)` and `orders(order_id INT, seller_id INT, sale_date DATE)`. Return seller_names that had NO orders during calendar year 2025. Sort by `seller_name`. Note: a seller might have orders in OTHER years -- those are still considered 'no 2025 sales'.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE seller (seller_id INTEGER, seller_name TEXT);\nINSERT INTO seller VALUES (1,'Acme'),(2,'BetaCorp'),(3,'CelStar'),(4,'Delta');\nCREATE TABLE orders (order_id INTEGER, seller_id INTEGER, sale_date DATE);\nINSERT INTO orders VALUES\n  (100,1,'2025-03-01'),\n  (101,2,'2024-12-31'),\n  (102,3,'2025-06-15'),\n  (103,3,'2026-01-01');",
+      "model_answer": "SELECT s.seller_name\nFROM seller s\nLEFT JOIN orders o\n  ON o.seller_id = s.seller_id\n AND o.sale_date >= DATE '2025-01-01'\n AND o.sale_date <  DATE '2026-01-01'\nWHERE o.seller_id IS NULL\nORDER BY s.seller_name;",
+      "expected_rows": [
+        {
+          "seller_name": "BetaCorp"
+        },
+        {
+          "seller_name": "Delta"
+        }
+      ],
+      "key_points": [
+        "Put the year filter inside the ON clause -- moving it to WHERE would silently turn the LEFT JOIN into an INNER JOIN",
+        "WHERE o.seller_id IS NULL is the anti-join idiom that surfaces unmatched left rows",
+        "Sargable date range (>= and <) rather than YEAR(sale_date) to keep indexes usable",
+        "NOT IN would be unsafe if orders.seller_id could be NULL"
+      ]
+    },
+    {
+      "id": "sql-361",
+      "type": "code",
+      "topic": "FULL OUTER JOIN",
+      "difficulty": "medium",
+      "prompt": "Tables `enrolled_employee(emp_id INT, name TEXT)` and `paid_salary(emp_id INT, paid NUMERIC)`. The two tables should normally be in sync. Find employee IDs that appear in exactly ONE of the two tables (employees missing from one side). Return one column `emp_id` ordered ascending. Use a FULL OUTER JOIN.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE enrolled_employee (emp_id INTEGER, name TEXT);\nINSERT INTO enrolled_employee VALUES (1,'Alice'),(2,'Bob'),(3,'Cara'),(5,'Eve');\nCREATE TABLE paid_salary (emp_id INTEGER, paid NUMERIC);\nINSERT INTO paid_salary VALUES (1,50000),(2,60000),(4,70000),(5,80000);",
+      "model_answer": "SELECT COALESCE(e.emp_id, p.emp_id) AS emp_id\nFROM enrolled_employee e\nFULL OUTER JOIN paid_salary p ON e.emp_id = p.emp_id\nWHERE e.emp_id IS NULL OR p.emp_id IS NULL\nORDER BY emp_id;",
+      "expected_rows": [
+        {
+          "emp_id": 3
+        },
+        {
+          "emp_id": 4
+        }
+      ],
+      "key_points": [
+        "FULL OUTER JOIN keeps rows from both sides even when there's no match",
+        "WHERE (left IS NULL OR right IS NULL) isolates the asymmetric rows",
+        "COALESCE merges the two emp_id columns into one output column",
+        "Common interview pattern -- usually solved instead with two UNION'd anti-joins"
+      ]
+    },
+    {
+      "id": "sql-362",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Tables `actor_director(actor_id INT, director_id INT, movie_id INT)`. Return pairs of (actor_id, director_id) who have worked together on AT LEAST 3 distinct movies. Columns: `actor_id, director_id`, ordered by both ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE actor_director (actor_id INTEGER, director_id INTEGER, movie_id INTEGER);\nINSERT INTO actor_director VALUES\n  (1,1,10),(1,1,11),(1,1,12),\n  (1,2,20),(1,2,21),\n  (2,1,30),(2,1,31),(2,1,32),(2,1,33),\n  (3,3,40),(3,3,41),(3,3,42),\n  (3,3,42);",
+      "model_answer": "SELECT actor_id, director_id\nFROM actor_director\nGROUP BY actor_id, director_id\nHAVING COUNT(DISTINCT movie_id) >= 3\nORDER BY actor_id, director_id;",
+      "expected_rows": [
+        {
+          "actor_id": 1,
+          "director_id": 1
+        },
+        {
+          "actor_id": 2,
+          "director_id": 1
+        },
+        {
+          "actor_id": 3,
+          "director_id": 3
+        }
+      ],
+      "key_points": [
+        "GROUP BY two columns simultaneously",
+        "HAVING COUNT(DISTINCT movie_id) handles the duplicate (3,3,42) row correctly",
+        "COUNT(*) would incorrectly inflate that pair's count by counting the duplicate row",
+        "Filter is on aggregate -> HAVING (not WHERE)"
+      ]
+    },
+    {
+      "id": "sql-363",
+      "type": "code",
+      "topic": "Self-Joins",
+      "difficulty": "medium",
+      "prompt": "Table `cinema(seat_id INT, free CHAR(1))` lists every seat in a row with a 'Y'/'N' availability flag. Seat IDs are consecutive integers but not necessarily starting at 1. Return all `seat_id`s that are FREE AND have at least one ADJACENT free seat (immediately before or after). Order by `seat_id`. No duplicate output.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE cinema (seat_id INTEGER, free CHAR(1));\nINSERT INTO cinema VALUES\n  (1,'Y'),(2,'Y'),(3,'N'),(4,'Y'),(5,'N'),(6,'Y'),(7,'Y'),(8,'Y'),(9,'N');",
+      "model_answer": "SELECT DISTINCT a.seat_id\nFROM cinema a\nJOIN cinema b\n  ON ABS(a.seat_id - b.seat_id) = 1\n AND a.free = 'Y' AND b.free = 'Y'\nORDER BY a.seat_id;",
+      "expected_rows": [
+        {
+          "seat_id": 1
+        },
+        {
+          "seat_id": 2
+        },
+        {
+          "seat_id": 6
+        },
+        {
+          "seat_id": 7
+        },
+        {
+          "seat_id": 8
+        }
+      ],
+      "key_points": [
+        "Self-join with ABS(diff) = 1 captures both neighbors (left or right)",
+        "Filter both rows to free = 'Y'",
+        "DISTINCT to avoid double-counting seats with two free neighbors (e.g. seat 7)",
+        "Alternative with LAG/LEAD must OR the two predicates"
+      ]
+    },
+    {
+      "id": "sql-364",
+      "type": "code",
+      "topic": "Hierarchies",
+      "difficulty": "hard",
+      "prompt": "Tables `friendship(user1_id INT, user2_id INT)` (mutual; stored only one direction) and `likes(user_id INT, page_id INT)`. Recommend pages to user 1: every page that any of user 1's FRIENDS has liked, EXCLUDING pages user 1 already likes. Output one column `recommended_page` of DISTINCT page ids, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE friendship (user1_id INTEGER, user2_id INTEGER);\nINSERT INTO friendship VALUES (1,2),(1,3),(2,4),(3,5);\nCREATE TABLE likes (user_id INTEGER, page_id INTEGER);\nINSERT INTO likes VALUES\n  (1,100),(1,101),\n  (2,101),(2,102),(2,103),\n  (3,200),(3,201),\n  (4,300),(4,301),\n  (5,500);",
+      "model_answer": "WITH friends AS (\n  SELECT user2_id AS friend FROM friendship WHERE user1_id = 1\n  UNION\n  SELECT user1_id        FROM friendship WHERE user2_id = 1\n)\nSELECT DISTINCT l.page_id AS recommended_page\nFROM friends f\nJOIN likes l ON l.user_id = f.friend\nWHERE l.page_id NOT IN (SELECT page_id FROM likes WHERE user_id = 1)\nORDER BY recommended_page;",
+      "expected_rows": [
+        {
+          "recommended_page": 102
+        },
+        {
+          "recommended_page": 103
+        },
+        {
+          "recommended_page": 200
+        },
+        {
+          "recommended_page": 201
+        }
+      ],
+      "key_points": [
+        "Symmetrize the friendship by UNIONing both directions",
+        "UNION (not UNION ALL) implicitly dedupes -- DISTINCT not needed inside friends",
+        "JOIN to likes for the friends' liked pages",
+        "NOT IN safe here because user 1's likes never contain NULL page_id",
+        "Final DISTINCT collapses pages liked by multiple friends"
+      ]
+    },
+    {
+      "id": "sql-365",
+      "type": "code",
+      "topic": "ASOF / First Value",
+      "difficulty": "medium",
+      "prompt": "Table `activity(player_id INT, device_id INT, event_date DATE)` records every game session. For each player, return the device_id they used on their EARLIEST event_date. If a player used multiple devices on that earliest date, return the SMALLEST device_id. Columns: `player_id, device_id`, ordered by `player_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE activity (player_id INTEGER, device_id INTEGER, event_date DATE);\nINSERT INTO activity VALUES\n  (1,10,'2025-01-01'),\n  (1,20,'2025-01-02'),\n  (2,30,'2025-02-01'),\n  (2,40,'2025-02-01'),\n  (3,50,'2025-03-05');",
+      "model_answer": "WITH ranked AS (\n  SELECT player_id, device_id, event_date,\n         ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY event_date, device_id) AS rn\n  FROM activity\n)\nSELECT player_id, device_id\nFROM ranked\nWHERE rn = 1\nORDER BY player_id;",
+      "expected_rows": [
+        {
+          "player_id": 1,
+          "device_id": 10
+        },
+        {
+          "player_id": 2,
+          "device_id": 30
+        },
+        {
+          "player_id": 3,
+          "device_id": 50
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER over (PARTITION BY player ORDER BY date, device) ensures deterministic tie-break",
+        "WHERE rn = 1 picks the earliest event",
+        "Tuple-match alternative: (player_id, event_date) IN (SELECT player_id, MIN(event_date)...) -- needs an extra step to break ties"
+      ]
+    },
+    {
+      "id": "sql-366",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `match(match_id INT, host_team INT, guest_team INT, host_goals INT, guest_goals INT)`. Scoring: a win = 3 pts, a draw = 1 pt, a loss = 0 pts (a team gets points for each match it played, whether as host or guest). Compute total points per team. Output columns: `team_id, points`, ordered by `points` DESC then `team_id` ASC. Include teams that never won (zero/draw-only) but EXCLUDE team ids that never played.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE match (match_id INTEGER, host_team INTEGER, guest_team INTEGER, host_goals INTEGER, guest_goals INTEGER);\nINSERT INTO match VALUES\n  (1,10,20,3,1),\n  (2,10,30,2,2),\n  (3,20,30,0,4),\n  (4,40,10,1,1),\n  (5,30,20,1,0);",
+      "model_answer": "WITH legs AS (\n  SELECT host_team AS team,\n         CASE WHEN host_goals > guest_goals THEN 3\n              WHEN host_goals = guest_goals THEN 1\n              ELSE 0 END AS pts\n  FROM match\n  UNION ALL\n  SELECT guest_team,\n         CASE WHEN guest_goals > host_goals THEN 3\n              WHEN host_goals = guest_goals THEN 1\n              ELSE 0 END\n  FROM match\n)\nSELECT team AS team_id, SUM(pts)::int AS points\nFROM legs\nGROUP BY team\nORDER BY points DESC, team_id;",
+      "expected_rows": [
+        {
+          "team_id": 30,
+          "points": 7
+        },
+        {
+          "team_id": 10,
+          "points": 5
+        },
+        {
+          "team_id": 40,
+          "points": 1
+        },
+        {
+          "team_id": 20,
+          "points": 0
+        }
+      ],
+      "key_points": [
+        "UNION ALL stacks each team's host- and guest-side experience as separate rows",
+        "CASE distinguishes win / draw / loss for each side",
+        "GROUP BY team gives total points",
+        "Teams that never played simply don't appear (no rows)",
+        "Alternative: a single SELECT with a CASE that aggregates over both sides simultaneously"
+      ]
+    },
+    {
+      "id": "sql-367",
+      "type": "code",
+      "topic": "Recursive CTEs / Pivoting",
+      "difficulty": "hard",
+      "prompt": "Table `products(product_id INT, store1 NUMERIC, store2 NUMERIC, store3 NUMERIC)` stores prices for the SAME product in three stores. Some store prices can be NULL (the product isn't sold there). UNPIVOT into long format: columns `product_id, store, price`. Skip rows where price IS NULL. Order by `product_id, store`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE products (product_id INTEGER, store1 NUMERIC, store2 NUMERIC, store3 NUMERIC);\nINSERT INTO products VALUES\n  (1,10,20,NULL),\n  (2,NULL,NULL,30),\n  (3,5,NULL,5),\n  (4,NULL,NULL,NULL);",
+      "model_answer": "SELECT product_id, 'store1' AS store, store1 AS price FROM products WHERE store1 IS NOT NULL\nUNION ALL\nSELECT product_id, 'store2',        store2        FROM products WHERE store2 IS NOT NULL\nUNION ALL\nSELECT product_id, 'store3',        store3        FROM products WHERE store3 IS NOT NULL\nORDER BY product_id, store;",
+      "expected_rows": [
+        {
+          "product_id": 1,
+          "store": "store1",
+          "price": "10"
+        },
+        {
+          "product_id": 1,
+          "store": "store2",
+          "price": "20"
+        },
+        {
+          "product_id": 2,
+          "store": "store3",
+          "price": "30"
+        },
+        {
+          "product_id": 3,
+          "store": "store1",
+          "price": "5"
+        },
+        {
+          "product_id": 3,
+          "store": "store3",
+          "price": "5"
+        }
+      ],
+      "key_points": [
+        "Pivot-LONG via UNION ALL of one SELECT per source column",
+        "Filter NULL within each branch to drop missing prices",
+        "Single ORDER BY at the bottom of the UNION ALL applies to the whole result",
+        "Product 4 (all NULL) is correctly excluded entirely"
+      ]
+    },
+    {
+      "id": "sql-368",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `exam(exam_id INT, student_id INT, score INT)` and `student(student_id INT, student_name TEXT)`. A 'quiet' student is one who is NEVER the maximum scorer and NEVER the minimum scorer in any exam they took -- AND has taken at least one exam. Return `student_id, student_name`, ordered by `student_id`. If two students tie for top in an exam, they BOTH disqualify.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE student (student_id INTEGER, student_name TEXT);\nINSERT INTO student VALUES (1,'Aki'),(2,'Bea'),(3,'Cy'),(4,'Dee'),(5,'Em');\nCREATE TABLE exam (exam_id INTEGER, student_id INTEGER, score INTEGER);\nINSERT INTO exam VALUES\n  (1,1,90),(1,2,85),(1,3,80),(1,4,70),(1,5,60),\n  (2,1,70),(2,2,75),(2,3,72),(2,4,68),(2,5,80),\n  (3,1,60),(3,2,90),(3,3,80),(3,4,40),(3,5,75);",
+      "model_answer": "WITH ranked AS (\n  SELECT exam_id, student_id,\n         DENSE_RANK() OVER (PARTITION BY exam_id ORDER BY score DESC) AS rk_high,\n         DENSE_RANK() OVER (PARTITION BY exam_id ORDER BY score ASC)  AS rk_low\n  FROM exam\n),\nloud AS (\n  SELECT DISTINCT student_id FROM ranked WHERE rk_high = 1 OR rk_low = 1\n)\nSELECT s.student_id, s.student_name\nFROM student s\nJOIN exam e ON e.student_id = s.student_id\nWHERE s.student_id NOT IN (SELECT student_id FROM loud)\nGROUP BY s.student_id, s.student_name\nORDER BY s.student_id;",
+      "expected_rows": [
+        {
+          "student_id": 3,
+          "student_name": "Cy"
+        }
+      ],
+      "key_points": [
+        "DENSE_RANK in BOTH directions per exam -- ties at the top/bottom both register as rank 1",
+        "Collect the union of 'top' and 'bottom' students into a 'loud' set",
+        "Inner-join to exam first so students with zero exams are excluded",
+        "Final filter: NOT IN loud AND HAS exam participation"
+      ]
+    },
+    {
+      "id": "sql-369",
+      "type": "code",
+      "topic": "Conditional Aggregation",
+      "difficulty": "hard",
+      "prompt": "Tables `country(country_id INT, country_name TEXT, country_code TEXT)`, `person(person_id INT, phone_number TEXT)` -- phone numbers begin with the country_code followed by '-'. `calls(caller_id INT, callee_id INT, duration INT)`. Return country names where the AVERAGE call duration of calls touching that country (either caller or callee in that country) STRICTLY exceeds the GLOBAL average across all call legs. Output one column `country_name` ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE country (country_id INTEGER, country_name TEXT, country_code TEXT);\nINSERT INTO country VALUES (1,'USA','1'),(2,'China','86'),(3,'India','91');\nCREATE TABLE person (person_id INTEGER, phone_number TEXT);\nINSERT INTO person VALUES (10,'1-555'),(11,'1-666'),(20,'86-12'),(30,'91-99');\nCREATE TABLE calls (caller_id INTEGER, callee_id INTEGER, duration INTEGER);\nINSERT INTO calls VALUES\n  (10,11,30),\n  (10,20,300),\n  (11,30,60),\n  (20,30,10);",
+      "model_answer": "WITH legs AS (\n  SELECT caller_id AS pid, duration FROM calls\n  UNION ALL\n  SELECT callee_id, duration FROM calls\n),\ntagged AS (\n  SELECT c.country_name, l.duration\n  FROM legs l\n  JOIN person p ON p.person_id = l.pid\n  JOIN country c ON split_part(p.phone_number, '-', 1) = c.country_code\n)\nSELECT country_name\nFROM tagged\nGROUP BY country_name\nHAVING AVG(duration) > (SELECT AVG(duration) FROM legs)\nORDER BY country_name;",
+      "expected_rows": [
+        {
+          "country_name": "China"
+        },
+        {
+          "country_name": "USA"
+        }
+      ],
+      "key_points": [
+        "Build a 'legs' set that doubles each call (once for caller, once for callee)",
+        "Extract country prefix using split_part and join through person to country",
+        "Subquery in HAVING computes the GLOBAL average across all legs -- same denominator as group averages",
+        "Use STRICT inequality (>) so a country exactly at the global mean is not flagged"
+      ]
+    },
+    {
+      "id": "sql-370",
+      "type": "code",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Table `employee(emp_id INT, name TEXT, dept_id INT, salary INT)`. For each department, return the row(s) where the salary equals the department's MAX salary. Use a tuple-match subquery (no window functions). Output columns: `dept_id, name, salary`. Multiple winners per department all appear. Order by `dept_id`, then `name`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employee (emp_id INTEGER, name TEXT, dept_id INTEGER, salary INTEGER);\nINSERT INTO employee VALUES\n  (1,'Alice',1,100),(2,'Bob',1,120),(3,'Cara',1,120),\n  (4,'Dan',2,80),(5,'Eve',2,75),\n  (6,'Finn',3,500);",
+      "model_answer": "SELECT dept_id, name, salary\nFROM employee\nWHERE (dept_id, salary) IN (\n  SELECT dept_id, MAX(salary) FROM employee GROUP BY dept_id\n)\nORDER BY dept_id, name;",
+      "expected_rows": [
+        {
+          "dept_id": 1,
+          "name": "Bob",
+          "salary": 120
+        },
+        {
+          "dept_id": 1,
+          "name": "Cara",
+          "salary": 120
+        },
+        {
+          "dept_id": 2,
+          "name": "Dan",
+          "salary": 80
+        },
+        {
+          "dept_id": 3,
+          "name": "Finn",
+          "salary": 500
+        }
+      ],
+      "key_points": [
+        "Tuple matching (dept_id, salary) IN (...) is a clean idiom that naturally returns ALL tied winners",
+        "MAX(salary) is computed per department in the subquery",
+        "Window-function alternative: DENSE_RANK = 1 per partition -- same result, different mechanism",
+        "ROW_NUMBER = 1 would lose ties; DENSE_RANK = 1 retains them"
+      ]
+    },
+    {
+      "id": "sql-371",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "Table `customers(customer_id INT, name TEXT)` and `orders(order_id INT, customer_id INT, order_date DATE)`. Return the customer (or customers, if tied) with the LARGEST number of orders. Columns: `customer_id, name, order_count`. Order by `customer_id`. Use a window function so ties surface naturally.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE customers (customer_id INTEGER, name TEXT);\nINSERT INTO customers VALUES (1,'Adobe'),(2,'Google'),(3,'Apple'),(4,'Twitter');\nCREATE TABLE orders (order_id INTEGER, customer_id INTEGER, order_date DATE);\nINSERT INTO orders VALUES\n  (100,1,'2025-01-01'),(101,1,'2025-01-02'),(102,1,'2025-01-03'),\n  (103,2,'2025-02-01'),(104,2,'2025-02-02'),(105,2,'2025-02-03'),\n  (106,3,'2025-03-01'),(107,3,'2025-03-02'),\n  (108,4,'2025-04-01');",
+      "model_answer": "WITH counts AS (\n  SELECT customer_id, COUNT(*) AS order_count\n  FROM orders\n  GROUP BY customer_id\n),\nranked AS (\n  SELECT customer_id, order_count,\n         RANK() OVER (ORDER BY order_count DESC) AS rk\n  FROM counts\n)\nSELECT r.customer_id, c.name, r.order_count::int AS order_count\nFROM ranked r\nJOIN customers c ON c.customer_id = r.customer_id\nWHERE rk = 1\nORDER BY r.customer_id;",
+      "expected_rows": [
+        {
+          "customer_id": 1,
+          "name": "Adobe",
+          "order_count": 3
+        },
+        {
+          "customer_id": 2,
+          "name": "Google",
+          "order_count": 3
+        }
+      ],
+      "key_points": [
+        "Compute per-customer counts first, then rank them",
+        "RANK = 1 returns every customer tied for the lead (LIMIT 1 would drop ties)",
+        "DENSE_RANK works equivalently here since rk=1 only ever has one tier",
+        "LIMIT 1 ORDER BY count DESC is the naive solution -- explicitly broken on ties"
+      ]
+    },
+    {
+      "id": "sql-372",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `student_courses(student_id INT, course_id INT, grade INT)`. For each student, return the course where they got the HIGHEST grade. Ties: prefer the SMALLEST course_id. Columns: `student_id, course_id, grade`, ordered by `student_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE student_courses (student_id INTEGER, course_id INTEGER, grade INTEGER);\nINSERT INTO student_courses VALUES\n  (1,101,90),(1,102,95),(1,103,95),\n  (2,201,80),(2,202,80),(2,203,70),\n  (3,301,100);",
+      "model_answer": "WITH ranked AS (\n  SELECT student_id, course_id, grade,\n         ROW_NUMBER() OVER (PARTITION BY student_id ORDER BY grade DESC, course_id ASC) AS rn\n  FROM student_courses\n)\nSELECT student_id, course_id, grade\nFROM ranked\nWHERE rn = 1\nORDER BY student_id;",
+      "expected_rows": [
+        {
+          "student_id": 1,
+          "course_id": 102,
+          "grade": 95
+        },
+        {
+          "student_id": 2,
+          "course_id": 201,
+          "grade": 80
+        },
+        {
+          "student_id": 3,
+          "course_id": 301,
+          "grade": 100
+        }
+      ],
+      "key_points": [
+        "ROW_NUMBER not DENSE_RANK -- we want EXACTLY ONE row per student (tie-broken)",
+        "ORDER BY grade DESC, course_id ASC inside the window encodes the tie-break rule",
+        "Without the course_id tie-break, the engine is free to return any of the tied rows non-deterministically",
+        "Filter rn=1 in the outer query"
+      ]
+    },
+    {
+      "id": "sql-373",
+      "type": "code",
+      "topic": "String Functions",
+      "difficulty": "medium",
+      "prompt": "Table `users(user_id INT, email TEXT)`. Return DUPLICATE email addresses (emails that appear two or more times) -- compare case-INSENSITIVELY (so 'A@x.com' and 'a@x.com' are the same). Columns: `email_lower, occurrences`. Order by `email_lower`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE users (user_id INTEGER, email TEXT);\nINSERT INTO users VALUES\n  (1,'a@x.com'),\n  (2,'A@X.com'),\n  (3,'b@x.com'),\n  (4,'c@x.com'),\n  (5,'C@X.COM'),\n  (6,'C@x.com');",
+      "model_answer": "SELECT LOWER(email) AS email_lower, COUNT(*)::int AS occurrences\nFROM users\nGROUP BY LOWER(email)\nHAVING COUNT(*) > 1\nORDER BY email_lower;",
+      "expected_rows": [
+        {
+          "email_lower": "a@x.com",
+          "occurrences": 2
+        },
+        {
+          "email_lower": "c@x.com",
+          "occurrences": 3
+        }
+      ],
+      "key_points": [
+        "GROUP BY LOWER(email) collapses case-equivalent rows",
+        "HAVING COUNT(*) > 1 keeps only duplicates",
+        "Same expression must appear in SELECT and GROUP BY (no column-alias reuse in GROUP BY in standard SQL)",
+        "Wrapping in a function defeats indexes -- in production, use a functional index on LOWER(email)"
+      ]
+    },
+    {
+      "id": "sql-374",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "hard",
+      "prompt": "Table `events(event_id INT, ts TIMESTAMP)` logs user events. Bucket each event into a 15-minute window starting at the top of the hour. For each bucket, return the event count. Format the bucket as the START timestamp of the 15-minute window. Columns: `bucket_start, event_count`. Order by `bucket_start`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE events (event_id INTEGER, ts TIMESTAMP);\nINSERT INTO events VALUES\n  (1,'2025-08-01 09:02:30'),\n  (2,'2025-08-01 09:10:00'),\n  (3,'2025-08-01 09:14:59'),\n  (4,'2025-08-01 09:15:00'),\n  (5,'2025-08-01 09:30:01'),\n  (6,'2025-08-01 09:44:59'),\n  (7,'2025-08-01 10:00:00');",
+      "model_answer": "SELECT date_trunc('hour', ts)\n       + (EXTRACT(MINUTE FROM ts)::int / 15) * INTERVAL '15 minutes' AS bucket_start,\n       COUNT(*)::int AS event_count\nFROM events\nGROUP BY 1\nORDER BY 1;",
+      "expected_rows": [
+        {
+          "bucket_start": "2025-08-01T09:00:00",
+          "event_count": 3
+        },
+        {
+          "bucket_start": "2025-08-01T09:15:00",
+          "event_count": 1
+        },
+        {
+          "bucket_start": "2025-08-01T09:30:00",
+          "event_count": 2
+        },
+        {
+          "bucket_start": "2025-08-01T10:00:00",
+          "event_count": 1
+        }
+      ],
+      "key_points": [
+        "date_trunc('hour', ts) gives the floor of the hour",
+        "(MINUTE / 15) * 15 minutes adds the appropriate quarter offset",
+        "Alternative: date_bin('15 minutes', ts, '...epoch...') in Postgres 14+",
+        "GROUP BY 1 references the computed bucket -- works in Postgres"
+      ]
+    },
+    {
+      "id": "sql-375",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Table `daily_leads(date_id DATE, make_name TEXT, lead_id INT, partner_id INT)`. For each (date, make), return the number of DISTINCT leads and the number of DISTINCT partners. Columns: `date_id, make_name, unique_leads, unique_partners`, ordered by `date_id, make_name`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE daily_leads (date_id DATE, make_name TEXT, lead_id INTEGER, partner_id INTEGER);\nINSERT INTO daily_leads VALUES\n  ('2025-01-01','Toyota',1,10),\n  ('2025-01-01','Toyota',1,10),\n  ('2025-01-01','Toyota',2,11),\n  ('2025-01-01','Honda',5,20),\n  ('2025-01-02','Toyota',1,12);",
+      "model_answer": "SELECT date_id, make_name,\n       COUNT(DISTINCT lead_id)::int    AS unique_leads,\n       COUNT(DISTINCT partner_id)::int AS unique_partners\nFROM daily_leads\nGROUP BY date_id, make_name\nORDER BY date_id, make_name;",
+      "expected_rows": [
+        {
+          "date_id": "2025-01-01",
+          "make_name": "Honda",
+          "unique_leads": 1,
+          "unique_partners": 1
+        },
+        {
+          "date_id": "2025-01-01",
+          "make_name": "Toyota",
+          "unique_leads": 2,
+          "unique_partners": 2
+        },
+        {
+          "date_id": "2025-01-02",
+          "make_name": "Toyota",
+          "unique_leads": 1,
+          "unique_partners": 1
+        }
+      ],
+      "key_points": [
+        "COUNT(DISTINCT col) removes duplicate values inside the group",
+        "GROUP BY (date_id, make_name) -- both grouping columns",
+        "COUNT(DISTINCT) cannot use multiple columns directly -- you'd need (col1, col2) or concat for that"
+      ]
+    },
+    {
+      "id": "sql-376",
+      "type": "code",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `login(user_id INT, login_date DATE)` records distinct daily logins. Find users who have logged in on 3 OR MORE CONSECUTIVE calendar days. Use a LAG-BASED 3-row pattern: check whether (this_date - 1) and (this_date - 2) both appear as preceding logins for the same user. Return distinct `user_id`s, ordered ascending.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE login (user_id INTEGER, login_date DATE);\nINSERT INTO login VALUES\n  (1,'2025-01-01'),(1,'2025-01-02'),(1,'2025-01-03'),\n  (2,'2025-02-01'),(2,'2025-02-03'),(2,'2025-02-04'),\n  (3,'2025-03-10'),(3,'2025-03-11'),(3,'2025-03-12'),(3,'2025-03-13'),\n  (4,'2025-04-01'),(4,'2025-04-02');",
+      "model_answer": "WITH dt AS (\n  SELECT DISTINCT user_id, login_date FROM login\n),\nshifted AS (\n  SELECT user_id, login_date,\n         LAG(login_date, 1) OVER (PARTITION BY user_id ORDER BY login_date) AS d1,\n         LAG(login_date, 2) OVER (PARTITION BY user_id ORDER BY login_date) AS d2\n  FROM dt\n)\nSELECT DISTINCT user_id\nFROM shifted\nWHERE login_date - d1 = 1 AND login_date - d2 = 2\nORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1
+        },
+        {
+          "user_id": 3
+        }
+      ],
+      "key_points": [
+        "Two LAGs by offsets 1 and 2 over the per-user-ordered date stream",
+        "Equality checks: today - 1 = yesterday AND today - 2 = day-before",
+        "Postgres date subtraction yields integer days directly",
+        "DISTINCT user_id at the outermost level dedupes when a user has multiple qualifying triples",
+        "Different style from gaps-and-islands -- this is a 'sliding 3-row check'"
+      ]
+    },
+    {
+      "id": "sql-377",
+      "type": "code",
+      "topic": "ASOF / Window Functions",
+      "difficulty": "hard",
+      "prompt": "Table `orders(order_id INT, customer_id INT, product_id INT, order_date DATE)`. For each customer, return the product they ORDERED MOST OFTEN. If a customer has multiple products tied for most-ordered, return ALL tied products. Columns: `customer_id, product_id, times`, ordered by `customer_id, product_id`. The same customer-product combo can appear on different dates.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE orders (order_id INTEGER, customer_id INTEGER, product_id INTEGER, order_date DATE);\nINSERT INTO orders VALUES\n  (1,1,100,'2025-01-01'),(2,1,100,'2025-01-02'),(3,1,200,'2025-01-03'),\n  (4,2,300,'2025-02-01'),(5,2,400,'2025-02-02'),(6,2,300,'2025-02-03'),(7,2,400,'2025-02-04'),\n  (8,3,500,'2025-03-01');",
+      "model_answer": "WITH counts AS (\n  SELECT customer_id, product_id, COUNT(*) AS times\n  FROM orders\n  GROUP BY customer_id, product_id\n),\nranked AS (\n  SELECT customer_id, product_id, times,\n         RANK() OVER (PARTITION BY customer_id ORDER BY times DESC) AS rk\n  FROM counts\n)\nSELECT customer_id, product_id, times::int AS times\nFROM ranked\nWHERE rk = 1\nORDER BY customer_id, product_id;",
+      "expected_rows": [
+        {
+          "customer_id": 1,
+          "product_id": 100,
+          "times": 2
+        },
+        {
+          "customer_id": 2,
+          "product_id": 300,
+          "times": 2
+        },
+        {
+          "customer_id": 2,
+          "product_id": 400,
+          "times": 2
+        },
+        {
+          "customer_id": 3,
+          "product_id": 500,
+          "times": 1
+        }
+      ],
+      "key_points": [
+        "Two-step: count per (customer, product), then RANK per customer",
+        "RANK() so ties at rank 1 are all returned (DENSE_RANK works the same here)",
+        "ROW_NUMBER would drop tied products non-deterministically",
+        "PARTITION BY customer_id so each customer is ranked independently"
+      ]
+    },
+    {
+      "id": "sql-378",
+      "type": "code",
+      "topic": "Subqueries",
+      "difficulty": "medium",
+      "prompt": "Table `logins(user_id INT, time_stamp TIMESTAMP)`. Return the LATEST login timestamp for each user that occurred during the year 2025. Columns: `user_id, last_stamp`. Users with no 2025 logins must NOT appear. Order by `user_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE logins (user_id INTEGER, time_stamp TIMESTAMP);\nINSERT INTO logins VALUES\n  (1,'2024-12-31 22:00'),\n  (1,'2025-01-15 10:00'),\n  (1,'2025-09-01 18:00'),\n  (2,'2025-06-06 06:06'),\n  (3,'2024-11-11 11:11');",
+      "model_answer": "SELECT user_id, MAX(time_stamp) AS last_stamp\nFROM logins\nWHERE time_stamp >= TIMESTAMP '2025-01-01' AND time_stamp < TIMESTAMP '2026-01-01'\nGROUP BY user_id\nORDER BY user_id;",
+      "expected_rows": [
+        {
+          "user_id": 1,
+          "last_stamp": "2025-09-01T18:00:00"
+        },
+        {
+          "user_id": 2,
+          "last_stamp": "2025-06-06T06:06:00"
+        }
+      ],
+      "key_points": [
+        "Sargable range filter (>=, <) on the timestamp column -- keeps indexes usable",
+        "AVOID EXTRACT(YEAR FROM ts) = 2025 which can't use an index",
+        "MAX(time_stamp) per user inside the filtered set",
+        "Users with no 2025 logins (user 3) are dropped because they have zero rows after WHERE"
+      ]
+    },
+    {
+      "id": "sql-379",
+      "type": "code",
+      "topic": "Conditional Logic",
+      "difficulty": "medium",
+      "prompt": "Table `employees(employee_id INT, name TEXT, salary NUMERIC)`. Pay a 'special bonus' equal to the employee's salary IF AND ONLY IF: (a) employee_id is ODD AND (b) name does not start with letter 'M' (case-sensitive). Everyone else gets bonus = 0. Return columns: `employee_id, bonus`, ordered by `employee_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE employees (employee_id INTEGER, name TEXT, salary NUMERIC);\nINSERT INTO employees VALUES\n  (1,'Alice',100),\n  (2,'Bob',200),\n  (3,'Maria',300),\n  (4,'Mike',400),\n  (5,'Cara',500),\n  (6,'Diana',600),\n  (7,'Mira',700),\n  (9,'mike',900);",
+      "model_answer": "SELECT employee_id,\n       CASE WHEN employee_id % 2 = 1 AND name NOT LIKE 'M%' THEN salary ELSE 0 END AS bonus\nFROM employees\nORDER BY employee_id;",
+      "expected_rows": [
+        {
+          "employee_id": 1,
+          "bonus": "100"
+        },
+        {
+          "employee_id": 2,
+          "bonus": "0"
+        },
+        {
+          "employee_id": 3,
+          "bonus": "0"
+        },
+        {
+          "employee_id": 4,
+          "bonus": "0"
+        },
+        {
+          "employee_id": 5,
+          "bonus": "500"
+        },
+        {
+          "employee_id": 6,
+          "bonus": "0"
+        },
+        {
+          "employee_id": 7,
+          "bonus": "0"
+        },
+        {
+          "employee_id": 9,
+          "bonus": "900"
+        }
+      ],
+      "key_points": [
+        "% (modulo) for odd check; NOT LIKE 'M%' for case-sensitive name prefix",
+        "LIKE in Postgres is case-sensitive (ILIKE is case-insensitive)",
+        "'mike' (lowercase m) DOES get a bonus because the prefix check is case-sensitive -- intentional gotcha",
+        "Single CASE WHEN handles all cases inline"
+      ]
+    },
+    {
+      "id": "sql-380",
+      "type": "single",
+      "topic": "Top-N per Group",
+      "difficulty": "medium",
+      "prompt": "You need the top 3 salaries per department but want EVERY row that ties at the third level (so a 4-way tie at salary #3 returns 6 rows total: rank 1, rank 2, four ranked at the tied 3rd). Which window function should you use as the predicate?",
+      "options": [
+        "ROW_NUMBER() <= 3",
+        "RANK() <= 3",
+        "DENSE_RANK() <= 3",
+        "NTILE(3) = 1"
+      ],
+      "answer": 2,
+      "explanation": "DENSE_RANK assigns sequential ranks (1,2,3,3,3,4) without skipping, so 'rank <= 3' keeps every salary tier up to the third distinct salary -- including all ties at any tier. ROW_NUMBER would cap the total at exactly 3 rows. RANK skips after a tie (1,1,3 then 4...) and could MISS the third tier entirely if there's a tie at rank 2 (e.g. 1,2,2,4 -- rank 3 is absent). NTILE(3) buckets rows into thirds by count, not by value level."
+    },
+    {
+      "id": "sql-381",
+      "type": "single",
+      "topic": "Anti-Joins",
+      "difficulty": "medium",
+      "prompt": "You want sellers who had NO orders in 2025. You write:\n\n```sql\nSELECT s.seller_name FROM seller s\nLEFT JOIN orders o ON o.seller_id = s.seller_id\nWHERE o.sale_date NOT BETWEEN '2025-01-01' AND '2025-12-31'\n  AND o.seller_id IS NULL;\n```\n\nWhy is this query broken?",
+      "options": [
+        "BETWEEN is inclusive on both endpoints, so it misses December 31",
+        "The WHERE on `o.sale_date` is evaluated AFTER the LEFT JOIN's NULL rows are introduced, but `NOT BETWEEN` against NULL returns NULL (not TRUE), filtering those rows out -- so sellers with no orders at all disappear",
+        "LEFT JOIN doesn't preserve unmatched left rows in Postgres",
+        "Sellers with orders in other years would be incorrectly INCLUDED in the result"
+      ],
+      "answer": 1,
+      "explanation": "Three-valued logic strikes: when a seller has zero orders, the LEFT JOIN produces a row where every `o.*` column is NULL. `NULL NOT BETWEEN x AND y` is NULL, not TRUE, so the WHERE clause drops the row -- defeating the entire point of the anti-join. The fix is to move the year predicate into the ON clause: `ON o.seller_id = s.seller_id AND o.sale_date >= '2025-01-01' AND o.sale_date < '2026-01-01'`, then keep only `WHERE o.seller_id IS NULL`."
+    },
+    {
+      "id": "sql-382",
+      "type": "multi",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "You need to find ALL pairs of overlapping sessions for the same account (different IPs). Which approaches CORRECTLY identify overlap, regardless of how many sessions exist between the two overlappers? (Select all that apply)",
+      "options": [
+        "Self-join on (account_id, l1.login BETWEEN l2.login AND l2.logout, l1.ip <> l2.ip)",
+        "LAG over (PARTITION BY account_id ORDER BY login_ts) and check overlap between consecutive rows only",
+        "Self-join + tsrange `&&` overlap operator (Postgres): `l1.account_id = l2.account_id AND l1.ip <> l2.ip AND tsrange(l1.login_ts, l1.logout_ts) && tsrange(l2.login_ts, l2.logout_ts)`",
+        "MAX(logout_ts) running window vs current login_ts -- check if current login < max-of-previous-logouts"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "Self-join across all pairs (option A) handles arbitrarily-distant overlaps. Range types with `&&` (option C) are the cleanest Postgres-native solution. The running-MAX(logout) trick (option D) extends the LAG idea to handle the 'tail overlap' case across non-consecutive rows. The plain LAG-only approach (B) is the canonical TRAP: it only compares the immediate predecessor, so if session 1 (IP A) overlaps with session 3 (IP B) but session 2 (IP A) lies between them chronologically, the overlap escapes detection."
+    },
+    {
+      "id": "sql-383",
+      "type": "single",
+      "topic": "Conditional Aggregation",
+      "difficulty": "medium",
+      "prompt": "You want to find customers who bought BOTH product A AND product B but NEVER product C. Which clause is the cleanest, most correct Postgres expression?",
+      "options": [
+        "WHERE product IN ('A','B') AND product NOT IN ('C')",
+        "HAVING SUM(CASE WHEN product='A' THEN 1 ELSE 0 END) > 0 AND ...",
+        "HAVING COUNT(*) FILTER (WHERE product='A') > 0 AND COUNT(*) FILTER (WHERE product='B') > 0 AND COUNT(*) FILTER (WHERE product='C') = 0",
+        "WHERE product='A' AND product='B' AND product<>'C'"
+      ],
+      "answer": 2,
+      "explanation": "`FILTER (WHERE ...)` per aggregate is the Postgres-idiomatic, clean way to write conditional aggregation. The HAVING-with-SUM(CASE) form is equivalent but more verbose. Option A is wrong because IN/NOT IN apply per row, not per customer-group. Option D is impossible (the same row can't have product='A' AND product='B')."
     }
   ]
 }
