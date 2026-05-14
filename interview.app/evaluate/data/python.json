@@ -4772,6 +4772,330 @@
         "`.sort_values(ascending=False)` for the 'top counties' ordering",
         "Common trap: candidates use `count()` and get the row count per county (16 for County 1 with duplicate Pad A reports) instead of the distinct facility count (3)"
       ]
+    },
+    {
+      "id": "py-340",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `product_except_self(nums)` that, given a list of integers, returns a list where each position `i` contains the product of every element EXCEPT `nums[i]`. Constraints: do NOT use division (so the obvious `total // nums[i]` trick is banned), and run in O(n) time with O(1) auxiliary space beyond the output list. Input domain: a list of ints with len >= 1. For a single-element input the answer is `[1]` (empty product). For an empty list return `[]`.",
+      "language": "python",
+      "starter": "def product_except_self(nums):\n    # your code here\n    pass\n",
+      "model_answer": "def product_except_self(nums):\n    n = len(nums)\n    if n == 0:\n        return []\n    out = [1] * n\n    # First pass: out[i] = product of nums[0..i-1] (prefix)\n    prefix = 1\n    for i in range(n):\n        out[i] = prefix\n        prefix *= nums[i]\n    # Second pass: multiply by product of nums[i+1..n-1] (suffix)\n    suffix = 1\n    for i in range(n - 1, -1, -1):\n        out[i] *= suffix\n        suffix *= nums[i]\n    return out",
+      "tests": "assert product_except_self([1, 2, 3, 4, 5]) == [120, 60, 40, 30, 24]\nassert product_except_self([2, 3, 4]) == [12, 8, 6]\nassert product_except_self([]) == []\nassert product_except_self([7]) == [1]\n# Zeros \u2014 single zero: only that slot gets the product of others\nassert product_except_self([1, 2, 0, 4]) == [0, 0, 8, 0]\n# Two zeros => everything is zero\nassert product_except_self([0, 2, 0, 4]) == [0, 0, 0, 0]\n# Negatives preserved\nassert product_except_self([-1, 2, -3, 4]) == [-24, 12, -8, 6]\nprint('PASS')",
+      "key_points": [
+        "Two-pass prefix/suffix product technique \u2014 no division allowed",
+        "Reuses the output array for the prefix pass, then multiplies by suffix in-place",
+        "Correctly handles zeros (where the division trick blows up)",
+        "Empty / single-element edge cases return [] and [1]",
+        "O(n) time, O(1) extra space (output array doesn't count as auxiliary)"
+      ]
+    },
+    {
+      "id": "py-341",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `first_missing_positive(nums)` that, given an unsorted list of integers (positive, negative, zero, possibly duplicates), returns the SMALLEST positive integer (>= 1) that is NOT present. Run in O(n) time and O(1) auxiliary space (you may mutate the input list). Examples: `[3, 4, -1, 1]` returns `2`; `[1, 2, 0]` returns `3`; `[7, 8, 9]` returns `1`. Empty input returns `1`. Non-list input is out of scope \u2014 the input is always a list of ints.",
+      "language": "python",
+      "starter": "def first_missing_positive(nums):\n    # your code here\n    pass\n",
+      "model_answer": "def first_missing_positive(nums):\n    n = len(nums)\n    if n == 0:\n        return 1\n    # Place each value v (1 <= v <= n) at index v-1 via cyclic swaps.\n    i = 0\n    while i < n:\n        v = nums[i]\n        if 1 <= v <= n and nums[v - 1] != v:\n            nums[i], nums[v - 1] = nums[v - 1], nums[i]\n        else:\n            i += 1\n    # First index where nums[i] != i+1 is the answer.\n    for i in range(n):\n        if nums[i] != i + 1:\n            return i + 1\n    return n + 1",
+      "tests": "assert first_missing_positive([3, 4, -1, 1]) == 2\nassert first_missing_positive([1, 2, 0]) == 3\nassert first_missing_positive([7, 8, 9, 11, 12]) == 1\nassert first_missing_positive([]) == 1\nassert first_missing_positive([1]) == 2\nassert first_missing_positive([2]) == 1\nassert first_missing_positive([1, 1, 1, 1]) == 2\nassert first_missing_positive([1, 2, 3, 4, 5]) == 6\nprint('PASS')",
+      "key_points": [
+        "Cyclic placement: put value v at index v-1 so the array becomes self-indexing",
+        "O(n) amortized \u2014 every swap fixes at least one element into place",
+        "O(1) extra space \u2014 mutates the input list",
+        "Handles negatives, zeros, duplicates, values > n by skipping (they can't be the answer slot)",
+        "Final answer is the first index i where nums[i] != i+1, else n+1"
+      ]
+    },
+    {
+      "id": "py-342",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write `first_unique(items)` that returns the first element in `items` whose value occurs exactly once in the whole sequence, or `None` if every element repeats. Preserve original order. Examples: `[2, 3, 2, 4, 3]` returns `4`; `[1, 1, 2, 2]` returns `None`; `['a', 'b', 'a']` returns `'b'`. Single pass over a counter is fine \u2014 but the function must work on any iterable (not just lists), so don't index. Empty input returns `None`.",
+      "language": "python",
+      "starter": "def first_unique(items):\n    # your code here\n    pass\n",
+      "model_answer": "from collections import Counter\n\ndef first_unique(items):\n    items = list(items)\n    counts = Counter(items)\n    for x in items:\n        if counts[x] == 1:\n            return x\n    return None",
+      "tests": "assert first_unique([2, 3, 2, 4, 3]) == 4\nassert first_unique([1, 1, 2, 2]) is None\nassert first_unique(['a', 'b', 'a']) == 'b'\nassert first_unique([]) is None\nassert first_unique([7]) == 7\n# Works on generators / arbitrary iterables\ndef _gen():\n    for x in [9, 9, 5, 9, 5, 8]:\n        yield x\nassert first_unique(_gen()) == 8\n# Preserves original order even when multiple unique candidates exist\nassert first_unique([3, 1, 2, 1, 3]) == 2\nprint('PASS')",
+      "key_points": [
+        "Two-pass: count then scan \u2014 O(n) time, O(n) space",
+        "Materializes the iterable once because we need both a count and an ordered traversal",
+        "Returns None (not False) when no unique value exists",
+        "Works on any iterable, not just lists",
+        "Bonus: an OrderedDict approach can do it in one logical pass"
+      ]
+    },
+    {
+      "id": "py-343",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write `reverse_int_safe(x)` that reverses the digits of a signed 32-bit integer. If the reversed result overflows the signed 32-bit range (less than -2**31 or greater than 2**31 - 1), return `0` instead. Sign is preserved. Examples: `123 -> 321`, `-123 -> -321`, `120 -> 21`, `1534236469 -> 0` (overflows). Input is always an int.",
+      "language": "python",
+      "starter": "def reverse_int_safe(x):\n    # your code here\n    pass\n",
+      "model_answer": "def reverse_int_safe(x):\n    INT_MIN, INT_MAX = -(2 ** 31), 2 ** 31 - 1\n    sign = -1 if x < 0 else 1\n    rev = int(str(abs(x))[::-1]) * sign\n    if rev < INT_MIN or rev > INT_MAX:\n        return 0\n    return rev",
+      "tests": "assert reverse_int_safe(123) == 321\nassert reverse_int_safe(-123) == -321\nassert reverse_int_safe(120) == 21\nassert reverse_int_safe(0) == 0\nassert reverse_int_safe(7) == 7\nassert reverse_int_safe(-7) == -7\n# Overflow cases\nassert reverse_int_safe(1534236469) == 0   # reversed = 9646324351 > 2**31-1\nassert reverse_int_safe(-2147483648) == 0  # reversed overflows negative side\nprint('PASS')",
+      "key_points": [
+        "Separates sign, reverses absolute value, reapplies sign",
+        "Compares against signed 32-bit bounds explicitly",
+        "Returns 0 on overflow (not None, not raising) \u2014 common LeetCode contract",
+        "Trailing zeros disappear naturally when int() drops the leading-zero string",
+        "Single-digit and zero edge cases handled"
+      ]
+    },
+    {
+      "id": "py-344",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `median_two_sorted(a, b)` that returns the median of two pre-sorted lists of numbers, considering them as a single sorted sequence. Aim for O(m + n) time using a merge-style two-pointer walk (do NOT just concatenate-and-sort; that would be O((m+n) log (m+n))). For an even total length return the average of the two middle elements as a float; for odd return the single middle element. Both inputs are non-empty lists of numbers and individually sorted in ascending order.",
+      "language": "python",
+      "starter": "def median_two_sorted(a, b):\n    # your code here\n    pass\n",
+      "model_answer": "def median_two_sorted(a, b):\n    m, n = len(a), len(b)\n    total = m + n\n    # We only need to walk until index total // 2 in the merged stream.\n    target = total // 2\n    i = j = 0\n    prev = curr = 0\n    for _ in range(target + 1):\n        prev = curr\n        if i < m and (j >= n or a[i] <= b[j]):\n            curr = a[i]\n            i += 1\n        else:\n            curr = b[j]\n            j += 1\n    if total % 2 == 1:\n        return float(curr)\n    return (prev + curr) / 2",
+      "tests": "assert median_two_sorted([1, 3], [2]) == 2.0\nassert median_two_sorted([1, 2], [3, 4]) == 2.5\nassert median_two_sorted([1, 2, 3, 4, 5], [6, 7, 8, 9]) == 5.0\nassert median_two_sorted([0, 0], [0, 0]) == 0.0\nassert median_two_sorted([1], [1]) == 1.0\n# All elements in one list smaller than all in the other\nassert median_two_sorted([1, 2, 3], [10, 20, 30]) == 6.5\n# Larger asymmetric case\nassert median_two_sorted([1, 3, 5, 7, 9, 11, 13], [2, 4]) == 5.0\nprint('PASS')",
+      "key_points": [
+        "Two-pointer merge walk \u2014 O(m + n), not O((m+n) log (m+n))",
+        "Only advances to the middle index \u2014 no need to fully merge",
+        "Tracks `prev` and `curr` to support the even-length average case",
+        "Returns a float consistently (so 2 stays 2.0 in even-length case but the contract here is to always return float-ish)",
+        "Handles empty edge by virtue of always picking from the non-exhausted list (note: prompt restricts to non-empty inputs)"
+      ]
+    },
+    {
+      "id": "py-345",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `daily_temperatures(temps)` that, given a list of daily temperatures (ints), returns a list `answer` of the same length where `answer[i]` is the number of days you must wait AFTER day `i` to see a strictly warmer temperature. If no future day is warmer, `answer[i]` is `0`. Run in O(n) using a monotonic decreasing stack of indices. Example: `[73, 74, 75, 71, 69, 72, 76, 73]` returns `[1, 1, 4, 2, 1, 1, 0, 0]`. Empty input returns `[]`.",
+      "language": "python",
+      "starter": "def daily_temperatures(temps):\n    # your code here\n    pass\n",
+      "model_answer": "def daily_temperatures(temps):\n    n = len(temps)\n    out = [0] * n\n    stack = []  # holds indices with strictly decreasing temps\n    for i, t in enumerate(temps):\n        while stack and temps[stack[-1]] < t:\n            j = stack.pop()\n            out[j] = i - j\n        stack.append(i)\n    return out",
+      "tests": "assert daily_temperatures([73, 74, 75, 71, 69, 72, 76, 73]) == [1, 1, 4, 2, 1, 1, 0, 0]\nassert daily_temperatures([30, 40, 50, 60]) == [1, 1, 1, 0]\nassert daily_temperatures([60, 50, 40, 30]) == [0, 0, 0, 0]\nassert daily_temperatures([]) == []\nassert daily_temperatures([42]) == [0]\nassert daily_temperatures([5, 5, 5, 5]) == [0, 0, 0, 0]  # strictly warmer required\nassert daily_temperatures([1, 2, 1, 2, 1, 2]) == [1, 0, 1, 0, 1, 0]\nprint('PASS')",
+      "key_points": [
+        "Monotonic decreasing stack \u2014 each index is pushed and popped at most once",
+        "O(n) total time despite the inner while loop (amortized analysis)",
+        "Stack holds INDICES so we can compute the day delta",
+        "Strictly greater comparison \u2014 equal temperatures keep waiting",
+        "Default of 0 covers the never-warmer-again case"
+      ]
+    },
+    {
+      "id": "py-346",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `largest_rectangle_histogram(heights)` that, given a list of non-negative integer bar heights, returns the area of the largest axis-aligned rectangle that can be inscribed in the histogram (each bar has width 1, bars sit on a common baseline). Run in O(n) using a monotonic stack. Examples: `[2, 1, 5, 6, 2, 3]` returns `10` (the 5,6 pair gives a 2-wide rectangle of height 5 = 10). Empty input returns `0`. Single bar `[h]` returns `h`.",
+      "language": "python",
+      "starter": "def largest_rectangle_histogram(heights):\n    # your code here\n    pass\n",
+      "model_answer": "def largest_rectangle_histogram(heights):\n    stack = []  # indices of bars with strictly increasing heights\n    best = 0\n    # Append a sentinel zero to flush the stack at the end.\n    for i, h in enumerate(heights + [0]):\n        while stack and heights[stack[-1]] > h:\n            top = stack.pop()\n            left = stack[-1] if stack else -1\n            width = i - left - 1\n            best = max(best, heights[top] * width)\n        stack.append(i)\n    return best",
+      "tests": "assert largest_rectangle_histogram([2, 1, 5, 6, 2, 3]) == 10\nassert largest_rectangle_histogram([]) == 0\nassert largest_rectangle_histogram([5]) == 5\nassert largest_rectangle_histogram([0]) == 0\nassert largest_rectangle_histogram([2, 4]) == 4\nassert largest_rectangle_histogram([4, 2]) == 4\nassert largest_rectangle_histogram([1, 1, 1, 1]) == 4   # flat run\nassert largest_rectangle_histogram([6, 7, 5, 2, 4, 5, 9, 3]) == 16\nprint('PASS')",
+      "key_points": [
+        "Monotonic increasing stack of indices \u2014 pop when a shorter bar arrives",
+        "Sentinel 0 at the end flushes the stack so all bars get measured",
+        "Width is `i - left - 1` where `left` is the new stack top (the previous-smaller index)",
+        "O(n) time, O(n) stack space",
+        "Edge cases: empty, single bar, monotone increasing/decreasing input"
+      ]
+    },
+    {
+      "id": "py-347",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `subset_sum_exists(nums, target)` that returns True if some SUBSET of `nums` (a list of non-negative integers, possibly empty) sums to exactly `target` (a non-negative integer). Use dynamic programming with a boolean reachable-set so it runs in O(n * target) time and O(target) space. The empty subset sums to 0, so `target=0` is always reachable. Examples: `[3, 34, 4, 12, 5, 2], target=9` -> True (4+5); `[3, 34, 4, 12, 5, 2], target=30` -> False.",
+      "language": "python",
+      "starter": "def subset_sum_exists(nums, target):\n    # your code here\n    pass\n",
+      "model_answer": "def subset_sum_exists(nums, target):\n    if target < 0:\n        return False\n    reachable = {0}\n    for n in nums:\n        if n < 0:\n            continue  # outside the stated domain; ignore\n        new_reach = set(reachable)\n        for r in reachable:\n            s = r + n\n            if s == target:\n                return True\n            if s < target:\n                new_reach.add(s)\n        reachable = new_reach\n    return target in reachable",
+      "tests": "assert subset_sum_exists([3, 34, 4, 12, 5, 2], 9) is True\nassert subset_sum_exists([3, 34, 4, 12, 5, 2], 30) is False\nassert subset_sum_exists([], 0) is True\nassert subset_sum_exists([], 5) is False\nassert subset_sum_exists([5], 5) is True\nassert subset_sum_exists([5], 4) is False\n# Multiple ways \u2014 only existence matters\nassert subset_sum_exists([1, 2, 3, 4, 5], 10) is True   # 1+2+3+4 or 5+4+1 etc\nassert subset_sum_exists([2, 4, 6, 8], 7) is False      # all even, target odd\nassert subset_sum_exists([0, 0, 0], 0) is True\nprint('PASS')",
+      "key_points": [
+        "Classic 0/1 subset-sum DP \u2014 boolean reachable set keyed by partial sum",
+        "Early exit when the target is hit",
+        "Prunes anything that overshoots `target` so the set stays bounded",
+        "O(n * target) time, O(target) extra space",
+        "Empty subset is always valid (target=0 is True)"
+      ]
+    },
+    {
+      "id": "py-348",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `coin_change_min(coins, amount)` that returns the FEWEST number of coins from `coins` (a list of distinct positive denominations) needed to make `amount` (a non-negative int). Coins may be reused any number of times. If `amount` cannot be made, return `-1`. `amount=0` always returns `0`. Use bottom-up DP, O(amount * len(coins)) time, O(amount) space. Examples: `coins=[1, 2, 5], amount=11` -> `3` (5+5+1). `coins=[2], amount=3` -> `-1`.",
+      "language": "python",
+      "starter": "def coin_change_min(coins, amount):\n    # your code here\n    pass\n",
+      "model_answer": "def coin_change_min(coins, amount):\n    if amount == 0:\n        return 0\n    INF = amount + 1\n    dp = [INF] * (amount + 1)\n    dp[0] = 0\n    for x in range(1, amount + 1):\n        for c in coins:\n            if c <= x and dp[x - c] + 1 < dp[x]:\n                dp[x] = dp[x - c] + 1\n    return dp[amount] if dp[amount] != INF else -1",
+      "tests": "assert coin_change_min([1, 2, 5], 11) == 3\nassert coin_change_min([2], 3) == -1\nassert coin_change_min([1], 0) == 0\nassert coin_change_min([], 0) == 0\nassert coin_change_min([], 5) == -1\nassert coin_change_min([1], 7) == 7\nassert coin_change_min([2, 5, 10, 1], 27) == 4   # 10+10+5+2\nassert coin_change_min([186, 419, 83, 408], 6249) == 20\nprint('PASS')",
+      "key_points": [
+        "Bottom-up DP \u2014 dp[x] = min coins to make exactly x",
+        "Sentinel INF = amount + 1 (a value no real solution can reach) \u2014 simpler than None handling",
+        "Returns -1 when unreachable (canonical contract)",
+        "Greedy does NOT work for arbitrary denominations (e.g. [1,3,4] for amount 6) \u2014 DP is required",
+        "Edge cases: amount=0, empty coin list, single coin"
+      ]
+    },
+    {
+      "id": "py-349",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write `int_to_roman(n)` that converts an integer in the range 1..3999 inclusive into its Roman-numeral string. Use the standard subtractive forms `IV, IX, XL, XC, CD, CM`. Example: `1994` -> `'MCMXCIV'`, `58` -> `'LVIII'`, `3` -> `'III'`. Out-of-range input should raise `ValueError`. Non-integers are out of scope \u2014 assume the caller passes an `int`.",
+      "language": "python",
+      "starter": "def int_to_roman(n):\n    # your code here\n    pass\n",
+      "model_answer": "def int_to_roman(n):\n    if not (1 <= n <= 3999):\n        raise ValueError(f'out of range: {n!r}')\n    pairs = [\n        (1000, 'M'), (900, 'CM'),\n        (500, 'D'),  (400, 'CD'),\n        (100, 'C'),  (90, 'XC'),\n        (50, 'L'),   (40, 'XL'),\n        (10, 'X'),   (9, 'IX'),\n        (5, 'V'),    (4, 'IV'),\n        (1, 'I'),\n    ]\n    out = []\n    for val, sym in pairs:\n        while n >= val:\n            out.append(sym)\n            n -= val\n    return ''.join(out)",
+      "tests": "assert int_to_roman(1) == 'I'\nassert int_to_roman(3) == 'III'\nassert int_to_roman(4) == 'IV'\nassert int_to_roman(9) == 'IX'\nassert int_to_roman(58) == 'LVIII'\nassert int_to_roman(1994) == 'MCMXCIV'\nassert int_to_roman(3999) == 'MMMCMXCIX'\nassert int_to_roman(40) == 'XL'\nassert int_to_roman(90) == 'XC'\nassert int_to_roman(400) == 'CD'\n# Out-of-range raises\ntry:\n    int_to_roman(0)\n    raise AssertionError('expected ValueError')\nexcept ValueError:\n    pass\ntry:\n    int_to_roman(4000)\n    raise AssertionError('expected ValueError')\nexcept ValueError:\n    pass\nprint('PASS')",
+      "key_points": [
+        "Greedy subtractive table \u2014 descend through values, emitting symbols",
+        "Includes the six subtractive pairs (IV, IX, XL, XC, CD, CM)",
+        "Range check raises ValueError outside 1..3999",
+        "While-loop per row handles multiplicity (e.g. 3000 -> 'MMM')",
+        "List + ''.join is faster than repeated string concatenation"
+      ]
+    },
+    {
+      "id": "py-350",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "medium",
+      "prompt": "Write `roman_to_int(s)` that parses a Roman-numeral string into its integer value. Support the standard subtractive notation (`IV`, `IX`, `XL`, `XC`, `CD`, `CM`). The input is a valid uppercase Roman string. Examples: `'III'` -> `3`, `'LVIII'` -> `58`, `'MCMXCIV'` -> `1994`. An empty string returns `0`.",
+      "language": "python",
+      "starter": "def roman_to_int(s):\n    # your code here\n    pass\n",
+      "model_answer": "def roman_to_int(s):\n    values = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}\n    total = 0\n    prev = 0\n    # Walk right-to-left: if current symbol is smaller than the one to its right, subtract it.\n    for ch in reversed(s):\n        v = values[ch]\n        if v < prev:\n            total -= v\n        else:\n            total += v\n        prev = v\n    return total",
+      "tests": "assert roman_to_int('') == 0\nassert roman_to_int('I') == 1\nassert roman_to_int('III') == 3\nassert roman_to_int('IV') == 4\nassert roman_to_int('IX') == 9\nassert roman_to_int('LVIII') == 58\nassert roman_to_int('MCMXCIV') == 1994\nassert roman_to_int('MMMCMXCIX') == 3999\nassert roman_to_int('CD') == 400\nprint('PASS')",
+      "key_points": [
+        "Right-to-left scan with a 'previous larger' rule \u2014 avoids look-ahead",
+        "Lookup table maps each symbol to its value",
+        "Subtractive forms are handled implicitly: smaller-before-larger becomes a subtraction",
+        "Empty string returns 0 cleanly",
+        "Pairs nicely with int_to_roman as a round-trip"
+      ]
+    },
+    {
+      "id": "py-351",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `eval_basic_expr(expr)` that evaluates a string arithmetic expression containing non-negative integers and the operators `+`, `-`, `*`, `/` (integer division truncating toward zero), with no parentheses. Standard precedence applies \u2014 `*` and `/` bind tighter than `+` and `-`. Whitespace inside the expression is ignored. Use a single pass with a stack (no `eval` / no `compile`). Examples: `'3+2*2'` -> `7`, `' 3/2 '` -> `1`, `'14-3/2'` -> `13`. Empty / whitespace-only input returns `0`.",
+      "language": "python",
+      "starter": "def eval_basic_expr(expr):\n    # your code here\n    pass\n",
+      "model_answer": "def eval_basic_expr(expr):\n    s = expr.replace(' ', '')\n    if not s:\n        return 0\n    stack = []\n    num = 0\n    op = '+'\n    i = 0\n    n = len(s)\n    while i < n:\n        ch = s[i]\n        if ch.isdigit():\n            num = num * 10 + int(ch)\n        if (not ch.isdigit()) or i == n - 1:\n            if op == '+':\n                stack.append(num)\n            elif op == '-':\n                stack.append(-num)\n            elif op == '*':\n                stack.append(stack.pop() * num)\n            elif op == '/':\n                top = stack.pop()\n                # Truncate toward zero (not Python's floor for negatives)\n                stack.append(int(top / num))\n            op = ch\n            num = 0\n        i += 1\n    return sum(stack)",
+      "tests": "assert eval_basic_expr('3+2*2') == 7\nassert eval_basic_expr('3/2') == 1\nassert eval_basic_expr(' 3+5 / 2 ') == 5\nassert eval_basic_expr('14-3/2') == 13\nassert eval_basic_expr('1') == 1\nassert eval_basic_expr('') == 0\nassert eval_basic_expr('   ') == 0\nassert eval_basic_expr('2*3+4*5') == 26\nassert eval_basic_expr('100/3') == 33   # truncating division\nprint('PASS')",
+      "key_points": [
+        "Single-pass stack technique \u2014 defer + / - by pushing, apply * / immediately",
+        "Tracks the PREVIOUS operator (`op`) and accumulates the current number until a non-digit",
+        "Truncating division via int(a/b), not //, so negative intermediates truncate toward zero",
+        "Handles end-of-string by checking i == n - 1 in the same branch",
+        "Whitespace and empty input handled up-front"
+      ]
+    },
+    {
+      "id": "py-352",
+      "type": "code",
+      "topic": "OOP",
+      "difficulty": "medium",
+      "prompt": "Implement a simple observer pattern. Define `class EventBus` with: `subscribe(event, handler)` registers a callable for a named event; `unsubscribe(event, handler)` removes it; `publish(event, *args, **kwargs)` calls every registered handler for that event in subscription order, passing the args through. Unknown events on publish are a no-op. Unsubscribing an unknown handler is a no-op (don't raise). Handlers that raise should NOT prevent later handlers from running \u2014 collect any exceptions and re-raise the FIRST one after the rest have run.",
+      "language": "python",
+      "starter": "class EventBus:\n    def __init__(self):\n        # your code here\n        pass\n\n    def subscribe(self, event, handler):\n        pass\n\n    def unsubscribe(self, event, handler):\n        pass\n\n    def publish(self, event, *args, **kwargs):\n        pass\n",
+      "model_answer": "from collections import defaultdict\n\nclass EventBus:\n    def __init__(self):\n        self._subs = defaultdict(list)\n\n    def subscribe(self, event, handler):\n        self._subs[event].append(handler)\n\n    def unsubscribe(self, event, handler):\n        if event in self._subs:\n            try:\n                self._subs[event].remove(handler)\n            except ValueError:\n                pass  # handler wasn't registered \u2014 no-op\n\n    def publish(self, event, *args, **kwargs):\n        first_exc = None\n        for h in list(self._subs.get(event, [])):  # snapshot in case a handler mutates subs\n            try:\n                h(*args, **kwargs)\n            except Exception as e:\n                if first_exc is None:\n                    first_exc = e\n        if first_exc is not None:\n            raise first_exc",
+      "tests": "_log = []\nbus = EventBus()\n\ndef _h1(x):\n    _log.append(('h1', x))\n\ndef _h2(x):\n    _log.append(('h2', x))\n\nbus.subscribe('tick', _h1)\nbus.subscribe('tick', _h2)\nbus.publish('tick', 42)\nassert _log == [('h1', 42), ('h2', 42)]\n\n# Unsubscribe one \u2014 order of remaining preserved\nbus.unsubscribe('tick', _h1)\n_log.clear()\nbus.publish('tick', 99)\nassert _log == [('h2', 99)]\n\n# Unsubscribing an unknown handler is a no-op\nbus.unsubscribe('tick', _h1)\nbus.unsubscribe('nope', _h2)\n\n# Unknown event on publish is a no-op\nbus.publish('nothing-listens', 1, 2)\n\n# Exception in a handler doesn't prevent the rest, but is re-raised after\n_log.clear()\nbus2 = EventBus()\ndef _bad(x):\n    _log.append(('bad', x))\n    raise ValueError('boom')\ndef _good(x):\n    _log.append(('good', x))\nbus2.subscribe('e', _bad)\nbus2.subscribe('e', _good)\ntry:\n    bus2.publish('e', 'data')\n    raise AssertionError('expected ValueError')\nexcept ValueError as e:\n    assert str(e) == 'boom'\nassert _log == [('bad', 'data'), ('good', 'data')]\nprint('PASS')",
+      "key_points": [
+        "Per-event subscriber list keyed by event name (`defaultdict(list)` is idiomatic)",
+        "Iterates over a SNAPSHOT (`list(...)`) so a handler can safely subscribe/unsubscribe during dispatch",
+        "Best-effort delivery: one bad handler doesn't break the rest",
+        "Captures the first exception and re-raises after the broadcast completes",
+        "Unknown event / unknown handler are silent no-ops \u2014 common observer ergonomics"
+      ]
+    },
+    {
+      "id": "py-353",
+      "type": "code",
+      "topic": "OOP",
+      "difficulty": "hard",
+      "prompt": "Implement a deterministic finite-state machine. Define `class StateMachine(initial, transitions)` where `transitions` is a dict mapping `(state, event) -> (new_state, action_callable_or_None)`. Methods: `state` is a read-only property; `send(event, *args, **kwargs)` looks up the transition for the current state + event, calls the action (if any) with the args/kwargs, then updates state, returning the action's result (or `None`). If no transition is defined for the current `(state, event)` pair, raise `ValueError(f'no transition from {state!r} on {event!r}')`. The state must not change when the transition is invalid.",
+      "language": "python",
+      "starter": "class StateMachine:\n    def __init__(self, initial, transitions):\n        # your code here\n        pass\n\n    @property\n    def state(self):\n        pass\n\n    def send(self, event, *args, **kwargs):\n        pass\n",
+      "model_answer": "class StateMachine:\n    def __init__(self, initial, transitions):\n        self._state = initial\n        self._transitions = dict(transitions)\n\n    @property\n    def state(self):\n        return self._state\n\n    def send(self, event, *args, **kwargs):\n        key = (self._state, event)\n        if key not in self._transitions:\n            raise ValueError(f'no transition from {self._state!r} on {event!r}')\n        new_state, action = self._transitions[key]\n        result = action(*args, **kwargs) if action is not None else None\n        self._state = new_state\n        return result",
+      "tests": "# Simple turnstile: locked --coin--> unlocked --push--> locked\n_log = []\ndef _on_coin(amount):\n    _log.append(('paid', amount))\n    return amount\ndef _on_push():\n    _log.append(('passed',))\n    return 'thanks'\n\nsm = StateMachine('locked', {\n    ('locked', 'coin'): ('unlocked', _on_coin),\n    ('unlocked', 'push'): ('locked', _on_push),\n})\nassert sm.state == 'locked'\nassert sm.send('coin', 5) == 5\nassert sm.state == 'unlocked'\nassert sm.send('push') == 'thanks'\nassert sm.state == 'locked'\nassert _log == [('paid', 5), ('passed',)]\n\n# Invalid transition \u2014 must raise, state unchanged\ntry:\n    sm.send('push')\n    raise AssertionError('expected ValueError')\nexcept ValueError as e:\n    assert 'locked' in str(e) and 'push' in str(e)\nassert sm.state == 'locked'\n\n# Transition with no action returns None\nsm2 = StateMachine('a', {('a', 'go'): ('b', None)})\nassert sm2.send('go') is None\nassert sm2.state == 'b'\nprint('PASS')",
+      "key_points": [
+        "Transitions table keyed by `(state, event)` tuples",
+        "Read-only `state` property \u2014 external code cannot reassign state directly",
+        "Action runs BEFORE the state flips; if the action itself raises, the state stays unchanged",
+        "Unknown transition raises ValueError with both state and event in the message",
+        "Idiomatic and easy to extend with on-enter / on-exit hooks"
+      ]
+    },
+    {
+      "id": "py-354",
+      "type": "code",
+      "topic": "OOP",
+      "difficulty": "medium",
+      "prompt": "Implement a lazy pipeline class `Pipe(iterable)` that supports method chaining for `map(fn)`, `filter(predicate)`, and `take(n)`, then a terminal `to_list()` that materializes the result. Each non-terminal call returns a NEW `Pipe` wrapping a generator (so nothing is consumed until `to_list` is called). The class must work on any iterable \u2014 including infinite generators \u2014 without exhausting them prematurely. Example: `Pipe(range(1_000_000_000)).map(lambda x: x * x).filter(lambda x: x % 2).take(3).to_list()` returns `[1, 9, 25]`.",
+      "language": "python",
+      "starter": "class Pipe:\n    def __init__(self, iterable):\n        # your code here\n        pass\n\n    def map(self, fn):\n        pass\n\n    def filter(self, predicate):\n        pass\n\n    def take(self, n):\n        pass\n\n    def to_list(self):\n        pass\n",
+      "model_answer": "class Pipe:\n    def __init__(self, iterable):\n        self._it = iter(iterable)\n\n    def map(self, fn):\n        return Pipe(fn(x) for x in self._it)\n\n    def filter(self, predicate):\n        return Pipe(x for x in self._it if predicate(x))\n\n    def take(self, n):\n        def _take():\n            for i, x in enumerate(self._it):\n                if i >= n:\n                    break\n                yield x\n        return Pipe(_take())\n\n    def to_list(self):\n        return list(self._it)",
+      "tests": "assert Pipe([1, 2, 3, 4, 5]).map(lambda x: x * 10).to_list() == [10, 20, 30, 40, 50]\nassert Pipe([1, 2, 3, 4, 5]).filter(lambda x: x % 2 == 0).to_list() == [2, 4]\nassert Pipe([1, 2, 3, 4, 5]).take(3).to_list() == [1, 2, 3]\nassert Pipe([1, 2, 3, 4, 5]).map(lambda x: x * x).filter(lambda x: x % 2).to_list() == [1, 9, 25]\nassert Pipe([]).map(lambda x: x).to_list() == []\nassert Pipe([1, 2]).take(99).to_list() == [1, 2]   # take more than available\n\n# Critical: laziness \u2014 must not consume from an effectively-infinite iterable\ndef _inf():\n    i = 0\n    while True:\n        yield i\n        i += 1\nassert Pipe(_inf()).map(lambda x: x * x).filter(lambda x: x % 2).take(3).to_list() == [1, 9, 25]\nprint('PASS')",
+      "key_points": [
+        "Each method returns a NEW Pipe wrapping a generator expression \u2014 fully lazy",
+        "Stores `iter(iterable)` so it works on lists, generators, and any iterable",
+        "`take` short-circuits after n items \u2014 essential for infinite-stream support",
+        "Only `to_list` (terminal) materializes \u2014 composes cleanly without intermediate lists",
+        "A one-shot pipe: the underlying iterator is consumed on terminal call"
+      ]
+    },
+    {
+      "id": "py-355",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `range_sum_query(nums)` that returns a function `query(left, right)` answering the sum of `nums[left:right+1]` (inclusive on both ends) in O(1) per query, using a precomputed prefix-sum array. The closure captures the prefix array \u2014 `query` does NOT re-scan `nums`. `left` and `right` are zero-based and `0 <= left <= right < len(nums)`. Out-of-bounds indices are out of scope; the harness only passes valid ones. Example: `q = range_sum_query([1, 3, 5, 7, 9]); q(1, 3)` returns `15` (3+5+7).",
+      "language": "python",
+      "starter": "def range_sum_query(nums):\n    # your code here\n    pass\n",
+      "model_answer": "def range_sum_query(nums):\n    # prefix[i] = sum of nums[:i] -> O(n) build, O(1) per query\n    prefix = [0]\n    for x in nums:\n        prefix.append(prefix[-1] + x)\n    def query(left, right):\n        return prefix[right + 1] - prefix[left]\n    return query",
+      "tests": "q = range_sum_query([1, 3, 5, 7, 9])\nassert q(0, 0) == 1\nassert q(0, 4) == 25\nassert q(1, 3) == 15\nassert q(2, 2) == 5\nassert q(3, 4) == 16\n\n# Negative numbers\nq2 = range_sum_query([-2, 0, 3, -5, 2, -1])\nassert q2(0, 5) == -3\nassert q2(0, 2) == 1\nassert q2(2, 5) == -1\n\n# Single-element list\nq3 = range_sum_query([42])\nassert q3(0, 0) == 42\nprint('PASS')",
+      "key_points": [
+        "Precomputed prefix-sum array of length n+1, where prefix[0] = 0",
+        "Each query is `prefix[right+1] - prefix[left]` \u2014 O(1) regardless of range size",
+        "Closure captures `prefix` so the returned `query` doesn't see `nums` directly",
+        "Build is O(n) once, then answers unlimited queries cheaply \u2014 classic precompute-amortize tradeoff",
+        "Works with negative numbers naturally"
+      ]
+    },
+    {
+      "id": "py-356",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `length_of_longest_substring(s)` that returns the length of the longest substring of `s` with no repeating characters. Use a two-pointer / sliding-window approach with a dict tracking the last seen index of each char \u2014 O(n) time, single pass. Examples: `'abcabcbb'` -> `3` (`'abc'`), `'bbbbb'` -> `1`, `'pwwkew'` -> `3` (`'wke'`), `''` -> `0`. Input is always a string.",
+      "language": "python",
+      "starter": "def length_of_longest_substring(s):\n    # your code here\n    pass\n",
+      "model_answer": "def length_of_longest_substring(s):\n    last = {}      # char -> most recent index\n    left = 0       # left edge of the current window\n    best = 0\n    for right, ch in enumerate(s):\n        if ch in last and last[ch] >= left:\n            left = last[ch] + 1\n        last[ch] = right\n        best = max(best, right - left + 1)\n    return best",
+      "tests": "assert length_of_longest_substring('abcabcbb') == 3\nassert length_of_longest_substring('bbbbb') == 1\nassert length_of_longest_substring('pwwkew') == 3\nassert length_of_longest_substring('') == 0\nassert length_of_longest_substring('a') == 1\nassert length_of_longest_substring('au') == 2\nassert length_of_longest_substring('dvdf') == 3   # 'vdf'\nassert length_of_longest_substring('abba') == 2   # left must not jump backwards\nassert length_of_longest_substring(' ') == 1      # whitespace counts as a char\nprint('PASS')",
+      "key_points": [
+        "Sliding window with `left` and `right` pointers \u2014 O(n) single pass",
+        "Dict stores most recent index of each char for O(1) lookup",
+        "Critical edge: when a repeat is OUTSIDE the current window (`last[ch] < left`), do NOT move left backward \u2014 the 'abba' case",
+        "Window length is always `right - left + 1`",
+        "Empty string returns 0 naturally"
+      ]
+    },
+    {
+      "id": "py-357",
+      "type": "code",
+      "topic": "Algorithms",
+      "difficulty": "hard",
+      "prompt": "Write `longest_palindrome(s)` that returns the longest palindromic substring of `s`. If multiple palindromes share the maximum length, return any one of them (the tests check length + the palindrome property, not a specific tie-break). Use the 'expand around center' approach \u2014 O(n^2) time, O(1) extra space, considering both odd-length and even-length centers. Examples: `'babad'` -> `'bab'` or `'aba'`; `'cbbd'` -> `'bb'`; `''` -> `''`; `'a'` -> `'a'`.",
+      "language": "python",
+      "starter": "def longest_palindrome(s):\n    # your code here\n    pass\n",
+      "model_answer": "def longest_palindrome(s):\n    if not s:\n        return ''\n    def expand(lo, hi):\n        while lo >= 0 and hi < len(s) and s[lo] == s[hi]:\n            lo -= 1\n            hi += 1\n        return lo + 1, hi  # half-open [lo+1, hi)\n    best_lo, best_hi = 0, 1\n    for i in range(len(s)):\n        lo1, hi1 = expand(i, i)        # odd-length center\n        lo2, hi2 = expand(i, i + 1)    # even-length center\n        if hi1 - lo1 > best_hi - best_lo:\n            best_lo, best_hi = lo1, hi1\n        if hi2 - lo2 > best_hi - best_lo:\n            best_lo, best_hi = lo2, hi2\n    return s[best_lo:best_hi]",
+      "tests": "def _is_palindrome(x):\n    return x == x[::-1]\n\n_r = longest_palindrome('babad')\nassert len(_r) == 3 and _is_palindrome(_r) and _r in 'babad'\nassert longest_palindrome('cbbd') == 'bb'\nassert longest_palindrome('') == ''\nassert longest_palindrome('a') == 'a'\nassert longest_palindrome('ac') in ('a', 'c')\nassert longest_palindrome('aaaa') == 'aaaa'\nassert longest_palindrome('forgeeksskeegfor') == 'geeksskeeg'\n_r2 = longest_palindrome('xabay')\nassert _is_palindrome(_r2) and len(_r2) == 3\nprint('PASS')",
+      "key_points": [
+        "Expand-around-center: O(n^2) time, O(1) extra space \u2014 beats brute force O(n^3)",
+        "Considers BOTH odd-length (one center) and even-length (two centers) palindromes",
+        "Returns the substring directly via slice indices \u2014 no string concatenation in the hot loop",
+        "Tie-break is implementation-defined; tests verify length + palindromicity, not a specific string",
+        "Empty / single-char edge cases handled at the top"
+      ]
     }
   ]
 }
