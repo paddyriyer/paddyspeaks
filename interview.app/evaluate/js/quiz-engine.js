@@ -974,9 +974,16 @@ function renderError(msg) {
   `;
 }
 
-// Boot
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", init);
-} else {
+// Boot. The `js-ready` class on <html> hides the static prerender block in
+// quiz.html that exists for crawlers / no-JS visitors. Once the engine takes
+// over the screen there is no point showing the static preview underneath it.
+function boot() {
+  document.documentElement.classList.add("js-ready");
   init();
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
 }
