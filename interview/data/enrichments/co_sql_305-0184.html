@@ -1,0 +1,63 @@
+<p>TikTok Shop's quality team wants an early-warning list: products whose cancellation rate runs above 5&percnt;. A high cancel rate signals a listing problem &mdash; wrong sizing, bad photos, stockouts. The query is a ratio inside a <code>GROUP BY</code> with a <code>HAVING</code> filter, and the interviewer is watching for the two classic ratio bugs: integer division, and repeating the whole expression in <code>HAVING</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>status</th><th>order_id</th><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>completed</td><td>1</td><td>10</td></tr>
+    <tr><td>1</td><td>cancelled</td><td>2</td><td>11</td></tr>
+    <tr><td>1</td><td>completed</td><td>3</td><td>12</td></tr>
+    <tr><td>1</td><td>completed</td><td>4</td><td>13</td></tr>
+    <tr><td>2</td><td>cancelled</td><td>5</td><td>14</td></tr>
+    <tr><td>2</td><td>cancelled</td><td>6</td><td>15</td></tr>
+    <tr><td>3</td><td>completed</td><td>7</td><td>16</td></tr>
+  </tbody>
+</table>
+<p>Product 1 has 1 cancelled of 4 &rarr; 25&percnt;. Product 2 is 2 of 2 &rarr; 100&percnt;. Product 3 has a <strong>single order</strong>, not cancelled &rarr; 0&percnt;. Product 3 is the trap: with only one order it can never produce a fractional rate, and a 5&percnt; threshold on a one-order sample is statistically meaningless.</p>
+
+<h4>2. The SQL &mdash; <code>ratio + HAVING</code></h4>
+<pre><code>SELECT product_id,
+  100.0*SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END)/COUNT(*) AS cancel_rate
+FROM orders GROUP BY product_id HAVING 100.0*SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END)/COUNT(*) &gt; 5;</code></pre>
+<p>Cancelled orders are counted with a conditional <code>SUM</code>, divided by the total order count, scaled to a percentage. The <code>HAVING</code> clause repeats that whole expression to keep only products above 5&percnt;.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>cancel_rate</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>100.0000000000000000</td></tr>
+    <tr><td>1</td><td>25.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Products 1 (25&percnt;) and 2 (100&percnt;) clear the bar; product 3 (0&percnt;) is filtered out. Two things to flag: the row order is not guaranteed (no <code>ORDER BY</code>), and product 2's 100&percnt; comes from a 2-order sample &mdash; technically "above 5&percnt;" but not a trustworthy signal.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>100.0</code> is load-bearing &mdash; the integer-division trap</h5>
+<p><code>SUM(CASE&hellip;)</code> and <code>COUNT(*)</code> are both integers. In Postgres, integer &divide; integer does <em>integer</em> division and truncates: <code>1 / 4</code> is 0, not 0.25. Leading with the literal <code>100.0</code> (a numeric) forces the whole expression into numeric arithmetic, so the division keeps its fractional part. Drop the <code>.0</code> &mdash; write <code>100 * SUM(&hellip;) / COUNT(*)</code> &mdash; and product 1 reports <code>25</code> only by luck of operator order; <code>SUM(&hellip;) / COUNT(*) * 100</code> would report <code>0</code>. Always cast or use a numeric literal <em>before</em> the divide.</p>
+
+<h5>The repeated expression &mdash; why <code>HAVING</code> cannot see the alias</h5>
+<p><code>HAVING</code> is evaluated <em>before</em> the <code>SELECT</code> list's aliases exist, so <code>HAVING cancel_rate &gt; 5</code> fails with "column does not exist" in Postgres. That is why the solution copy-pastes the entire ratio. It works but is brittle &mdash; change the formula once and you must change it twice. The clean fix is to compute it once in a subquery (or CTE) and filter the alias outside:</p>
+<pre><code>SELECT product_id, cancel_rate FROM (
+  SELECT product_id,
+    100.0 * SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) / COUNT(*) AS cancel_rate
+  FROM orders GROUP BY product_id
+) t
+WHERE cancel_rate &gt; 5
+ORDER BY cancel_rate DESC;</code></pre>
+<p>One source of truth for the formula, and you get a free <code>ORDER BY</code>.</p>
+
+<h5>The small-sample problem &mdash; the senior follow-up</h5>
+<p>Product 2's 100&percnt; rests on two orders. A rate built on a tiny denominator is noise, not signal &mdash; any list of "problem products" sorted purely by rate will be topped by one-order flukes. A senior answer adds a volume floor:</p>
+<pre><code>... GROUP BY product_id
+HAVING COUNT(*) &gt;= 20
+   AND 100.0 * SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) / COUNT(*) &gt; 5</code></pre>
+<p>Naming the minimum-sample requirement &mdash; "5&percnt; of what?" &mdash; is what separates a metric from a real alert.</p>
+
+<h5>What counts as a cancellation? &mdash; the status taxonomy</h5>
+<p>The query treats only <code>'cancelled'</code> as a cancellation. Real order tables also carry <code>'refunded'</code>, <code>'returned'</code>, <code>'failed'</code>, <code>'rejected'</code>. And the denominator <code>COUNT(*)</code> includes <code>pending</code> orders &mdash; should an order still in flight count against the product? Pin the definition down: which statuses are cancellations, and is the denominator "all orders" or "all resolved orders"?</p>
+
+<h5>Edge case: a product with no orders</h5>
+<p>A product that never sold has no rows in <code>orders</code>, so <code>GROUP BY</code> never emits it &mdash; correct, it has no cancellation rate. There is no divide-by-zero risk here, because every group <code>GROUP BY</code> produces has <code>COUNT(*) &gt;= 1</code>. (Divide-by-zero would only appear if the denominator were a conditional <code>SUM</code> that could be 0 &mdash; then you would need <code>NULLIF(denominator, 0)</code>.)</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the <code>100.0</code> literal is what dodges integer-division truncation, recognise the repeated <code>HAVING</code> expression as a consequence of aliases not being visible there and refactor it into a subquery, and add a minimum-order-count floor so a 100&percnt; rate on two orders does not masquerade as a real quality alert.</div>

@@ -1,0 +1,61 @@
+<p>TikTok's growth team measures <em>activation</em>: the share of new users who do something meaningful within their first 7 days. The query left-joins users to activity with a date condition, then divides distinct activated users by distinct total users. The interviewer is watching one subtle, decisive thing &mdash; that the 7-day window lives in the <code>ON</code> clause, not the <code>WHERE</code> clause &mdash; and the integer-division guard.</p>
+
+<h4>1. The source data</h4>
+<table>
+  <thead><tr><th colspan="2"><code>users</code></th></tr><tr><th>user_id</th><th>signup_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td></tr>
+    <tr><td>2</td><td>2024-01-01</td></tr>
+    <tr><td>3</td><td>2024-01-01</td></tr>
+    <tr><td>4</td><td>2024-01-01</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th colspan="2"><code>activity</code></th></tr><tr><th>user_id</th><th>action_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-03</td></tr>
+    <tr><td>2</td><td>2024-01-20</td></tr>
+    <tr><td>3</td><td>2024-01-05</td></tr>
+  </tbody>
+</table>
+<p>Four users. User 1 acted on day 3 (<strong>inside</strong> the 7-day window), user 3 on day 5 (inside). User 2 acted on day 20 (<strong>outside</strong> &mdash; activity, but too late to count as activation). User 4 <strong>never acted</strong>. So 2 of 4 activated. User 2 is the trap: they have an activity row, but it must not count.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN with dated ON</code></h4>
+<pre><code>SELECT 100.0 * COUNT(DISTINCT a.user_id) / COUNT(DISTINCT u.user_id) AS activation_rate
+FROM users u LEFT JOIN activity a
+  ON u.user_id=a.user_id AND a.action_date &lt;= (u.signup_date + INTERVAL '+7 days');</code></pre>
+<p>The join keeps every user; the <code>ON</code> clause matches an activity row only if it belongs to the user <em>and</em> falls within 7 days of signup. The ratio counts distinct activated users over distinct total users.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>activation_rate</th></tr></thead>
+  <tbody>
+    <tr><td>50.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Numerator: <code>COUNT(DISTINCT a.user_id)</code> = 2 (users 1 and 3). User 2's late activity row joined but the date condition failed, so <code>a.user_id</code> is NULL for that pairing &mdash; and <code>COUNT(DISTINCT)</code> ignores NULLs. User 4 had nothing to join. Denominator: 4 total users. 100.0 &times; 2 / 4 = <strong>50&percnt;</strong>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The whole question: the date filter must be in <code>ON</code>, not <code>WHERE</code></h5>
+<p>This is the trap the interviewer set. With a <code>LEFT JOIN</code>, a condition in the <code>ON</code> clause decides <em>whether a row matches</em>; a non-matching user is still kept, just with NULLs on the activity side. Move that same condition to <code>WHERE</code> and it filters the <em>joined result</em> &mdash; and because un-activated users have <code>a.action_date = NULL</code>, the predicate <code>NULL &lt;= date</code> is unknown, so those users are <strong>dropped entirely</strong>:</p>
+<pre><code>-- WRONG: condition in WHERE silently turns the LEFT JOIN into an INNER JOIN
+SELECT 100.0 * COUNT(DISTINCT a.user_id) / COUNT(DISTINCT u.user_id)
+FROM users u LEFT JOIN activity a ON u.user_id = a.user_id
+WHERE a.action_date &lt;= u.signup_date + INTERVAL '7 days';
+-- denominator becomes 2, not 4 -> reports 100%, wildly wrong</code></pre>
+<p>User 4 vanishes from the denominator, and the rate jumps from 50&percnt; to 100&percnt;. <strong>Filter the right side of a <code>LEFT JOIN</code> in <code>ON</code>; reserve <code>WHERE</code> for the left side.</strong> Being able to articulate this is the entire senior signal here.</p>
+
+<h5>The <code>100.0</code> dodges integer division</h5>
+<p><code>COUNT(DISTINCT ...)</code> returns a <code>bigint</code> on both sides. <code>2 / 4</code> in integer arithmetic is <code>0</code>, not <code>0.5</code> &mdash; every activation rate below 100&percnt; would collapse to 0. Leading with the numeric literal <code>100.0</code> promotes the expression to numeric so the division keeps its fraction. Equivalent guards: <code>CAST(... AS numeric)</code>, or <code>... * 1.0</code>.</p>
+
+<h5>Window-boundary semantics &mdash; is day 7 in or out?</h5>
+<p><code>action_date &lt;= signup_date + 7 days</code> makes the window <em>inclusive</em> of the 7th day, and <code>&lt;=</code> also counts an action on the signup day itself (day 0). Is signup-day activity "activation", or must it be a <em>later</em> action? And should it be the first 7 calendar days or the first 7&times;24 hours? If <code>action_date</code> is a timestamp, date arithmetic can clip a few hours. Pin the boundary down rather than letting <code>&lt;=</code> default it.</p>
+
+<h5>The "first action" subtlety &mdash; <code>COUNT(DISTINCT)</code> already handles it</h5>
+<p>A user with three actions inside the window produces three joined rows, but <code>COUNT(DISTINCT a.user_id)</code> collapses them to one &mdash; correct, activation is per-user not per-action. Drop the <code>DISTINCT</code> and a hyperactive user would be counted many times and the rate could exceed 100&percnt;. The <code>DISTINCT</code> on <em>both</em> counts is essential, not decorative.</p>
+
+<h5>Edge case: zero users</h5>
+<p>If <code>users</code> is empty, the denominator <code>COUNT(DISTINCT u.user_id)</code> is 0 and the query throws <code>division by zero</code>. A cohort query that might run on an empty segment should guard it: <code>/ NULLIF(COUNT(DISTINCT u.user_id), 0)</code>, which yields NULL ("no cohort") instead of crashing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain precisely why the 7-day predicate belongs in <code>ON</code> &mdash; moving it to <code>WHERE</code> demotes the <code>LEFT JOIN</code> to an inner join and silently shrinks the denominator &mdash; keep <code>DISTINCT</code> on both counts, force numeric division, and guard the empty-cohort divide-by-zero with <code>NULLIF</code>.</div>

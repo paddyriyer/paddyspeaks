@@ -1,0 +1,68 @@
+<p>McKinsey's operations practice is modelling a manufacturing bill of materials &mdash; product 1 is built from sub-assemblies, each of which is built from smaller parts, recursively. They want, for the finished product, every component it ultimately contains, at what depth, and the total quantity. This is the textbook recursive-CTE question, and the interviewer is watching whether you anchor and recurse correctly, and whether you spot that quantities do not multiply down the tree here.</p>
+
+<h4>1. The source data &mdash; <code>bom</code></h4>
+<table>
+  <thead><tr><th>parent_id</th><th>child_id</th><th>qty</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td><td>2</td></tr>
+    <tr><td>1</td><td>3</td><td>1</td></tr>
+    <tr><td>2</td><td>4</td><td>3</td></tr>
+    <tr><td>2</td><td>5</td><td>1</td></tr>
+    <tr><td>3</td><td>5</td><td>2</td></tr>
+    <tr><td>4</td><td>6</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Part <strong>5 has two parents</strong> &mdash; it is used inside sub-assembly 2 <em>and</em> sub-assembly 3. That diamond shape is the interesting edge: when the recursion reaches part 5 down two different paths, both arrivals land at depth 2 and must be summed.</p>
+
+<h4>2. The SQL &mdash; <code>RECURSIVE expand</code></h4>
+<pre><code>WITH RECURSIVE expand AS (
+  SELECT parent_id, child_id, qty, 1 AS depth FROM bom WHERE parent_id = 1
+  UNION ALL
+  SELECT b.parent_id, b.child_id, b.qty, e.depth + 1
+  FROM bom b JOIN expand e ON b.parent_id = e.child_id
+)
+SELECT child_id, depth, SUM(qty) AS total_qty
+FROM expand
+GROUP BY child_id, depth
+ORDER BY depth, child_id;</code></pre>
+<p>The <strong>anchor</strong> selects the direct children of product 1 at depth 1. The <strong>recursive term</strong> joins <code>bom</code> back onto the working set &mdash; "for every child I have found, find <em>its</em> children" &mdash; incrementing depth each pass. The final query rolls the explosion up by component and depth.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>child_id</th><th>depth</th><th>total_qty</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>1</td><td>2</td></tr>
+    <tr><td>3</td><td>1</td><td>1</td></tr>
+    <tr><td>4</td><td>2</td><td>3</td></tr>
+    <tr><td>5</td><td>2</td><td>3</td></tr>
+    <tr><td>6</td><td>3</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Depth 1 holds the direct children (2, 3); depth 2 holds their children (4, 5); depth 3 holds part 6, three levels down. Part <strong>5 shows <code>total_qty = 3</code></strong> &mdash; it arrives via parent 2 (qty 1) and via parent 3 (qty 2), and the <code>GROUP BY child_id, depth</code> sums those two arrivals: 1 + 2 = 3. The diamond reconverged cleanly.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The two halves of a recursive CTE</h5>
+<p>Every recursive CTE is <code>anchor UNION ALL recursive-term</code>. The anchor is the base case &mdash; here, "depth 1 = the direct children of product 1". The recursive term references the CTE name (<code>expand</code>) and joins it to the source to take one more step down. Postgres runs the recursive term repeatedly, feeding each pass's <em>new</em> rows into the next, until a pass produces no rows. Drop the anchor's <code>WHERE parent_id = 1</code> and you explode every product at once; drop the increment and you lose the depth.</p>
+
+<h5>Quantities are summed, not multiplied &mdash; know which BOM question this is</h5>
+<p>The reference returns <code>SUM(qty)</code>: it reports the qty <em>as recorded on each edge</em>. That answers "how many of part X are listed across the structure". But a real "how many part 6 does one finished product 1 need?" question is multiplicative: product 1 needs 2&times;sub-assembly 2, each needs 3&times;part 4, each needs 5&times;part 6 &rarr; 2&times;3&times;5 = 30. That requires carrying a running product down the recursion:</p>
+<pre><code>WITH RECURSIVE expand AS (
+  SELECT child_id, qty AS eff_qty, 1 AS depth FROM bom WHERE parent_id = 1
+  UNION ALL
+  SELECT b.child_id, e.eff_qty * b.qty, e.depth + 1
+  FROM bom b JOIN expand e ON b.parent_id = e.child_id
+)
+SELECT child_id, SUM(eff_qty) AS total_needed FROM expand GROUP BY child_id;</code></pre>
+<p>Naming the difference &mdash; "summing edge quantities vs multiplying the path to get effective demand" &mdash; is the senior insight; they are different business questions.</p>
+
+<h5>The cycle trap &mdash; <code>UNION ALL</code> will loop forever</h5>
+<p>A BOM should be a DAG, but dirty data can introduce a cycle (part A contains part B contains part A). <code>UNION ALL</code> never deduplicates, so the recursion never terminates &mdash; it runs until it errors or exhausts memory. Defences: switch to <code>UNION</code> (deduplicates each pass, stops a pure cycle), cap the depth with <code>WHERE e.depth &lt; 20</code>, or use Postgres 14+ <code>CYCLE</code> detection (<code>CYCLE child_id SET is_cycle USING path</code>). Mentioning cycle protection unprompted signals real production experience.</p>
+
+<h5>Why <code>UNION ALL</code> and not <code>UNION</code> here</h5>
+<p>With <code>UNION ALL</code>, part 5 legitimately appears twice (once per parent path) and the final <code>GROUP BY</code> sums both &mdash; correct. <code>UNION</code> would deduplicate <em>identical</em> rows; because the two part-5 rows differ in <code>parent_id</code>/<code>qty</code> they survive anyway here, but in a tree where the same edge is reachable twice, <code>UNION</code> would wrongly drop a real contribution. Use <code>UNION ALL</code> for correct accumulation; use <code>UNION</code> only as a cycle guard, accepting it may under-count.</p>
+
+<h5>Edge case: a leaf part, or product 1 not existing</h5>
+<p>Part 6 is a leaf &mdash; no rows have <code>parent_id = 6</code> &mdash; so the recursive join finds nothing for it and the recursion naturally stops down that branch. If product 1 had no children at all, the anchor returns zero rows and the whole result is empty (no error). And the result lists components but never product 1 itself &mdash; the root is the input, not part of its own explosion.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the anchor/recursive-term split and how Postgres iterates to a fixpoint, distinguish summing recorded edge quantities from multiplying the path to get true component demand, and raise cycle protection (<code>UNION</code>, a depth cap, or <code>CYCLE</code>) before being asked &mdash; an infinite recursion on dirty BOM data is the production failure mode.</div>
