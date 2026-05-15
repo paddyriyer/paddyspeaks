@@ -1,0 +1,58 @@
+<p>UBS's retail-analytics team wants a single report that splits each product category into "high-value" and "low-value" orders and shows the average of each side. The reference solution does it with <code>AVG(CASE WHEN &hellip;)</code> &mdash; conditional aggregation. It is the right pattern, and the interview hinges on understanding what happens to a category that has <em>only</em> high-value orders, or <em>only</em> low.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>category</th><th>order_total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>books</td><td>$150</td></tr>
+    <tr><td>2</td><td>books</td><td>$40</td></tr>
+    <tr><td>3</td><td>books</td><td>$90</td></tr>
+    <tr><td>4</td><td>toys</td><td>$200</td></tr>
+    <tr><td>5</td><td>toys</td><td>$300</td></tr>
+    <tr><td>6</td><td>garden</td><td>$60</td></tr>
+  </tbody>
+</table>
+<p>Deliberately uneven categories. <strong>books</strong> has orders on both sides of $100. <strong>toys</strong> has only high-value orders ($200, $300). <strong>garden</strong> has only one order, and it is low-value. Those one-sided categories are the whole exercise.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(CASE WHEN &hellip;)</code></h4>
+<pre><code>SELECT category,
+  AVG(CASE WHEN order_total &gt; 100 THEN order_total END) AS avg_high_value,
+  AVG(CASE WHEN order_total &lt;= 100 THEN order_total END) AS avg_low_value
+FROM orders GROUP BY category;</code></pre>
+<p>Each <code>CASE</code> rewrites <code>order_total</code> to itself when the row qualifies, and to <strong>NULL</strong> otherwise (there is no <code>ELSE</code>). <code>AVG</code> then averages only the non-NULL values &mdash; so each column averages just its own side.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>category</th><th>avg_high_value</th><th>avg_low_value</th></tr></thead>
+  <tbody>
+    <tr><td>books</td><td>150.0000000000000000</td><td>65.0000000000000000</td></tr>
+    <tr><td>garden</td><td><em>NULL</em></td><td>60.0000000000000000</td></tr>
+    <tr><td>toys</td><td>250.0000000000000000</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>books gets both averages ($150 high, $65 low). toys has no low-value orders so <code>avg_low_value</code> is <strong>NULL</strong>; garden has no high-value orders so <code>avg_high_value</code> is <strong>NULL</strong>. The NULL is the correct answer to "what is the average of zero values" &mdash; not 0, not an error.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the missing-<code>ELSE</code> NULL is load-bearing</h5>
+<p>The trick that makes one-row-per-category pivots work is that <code>CASE</code> with no <code>ELSE</code> returns NULL, and <code>AVG</code> <em>ignores</em> NULLs. So <code>AVG(CASE WHEN order_total &gt; 100 THEN order_total END)</code> divides the sum of high-value orders by the <em>count of high-value orders</em> &mdash; the non-qualifying rows vanish from both numerator and denominator. Adding <code>ELSE 0</code> would be a serious bug: the zeros would join the average and drag it down. The absence of <code>ELSE</code> is intentional.</p>
+
+<h5>The cleaner Postgres idiom: <code>FILTER</code></h5>
+<p>PostgreSQL supports an aggregate <code>FILTER</code> clause that says the same thing more directly:</p>
+<pre><code>SELECT category,
+       AVG(order_total) FILTER (WHERE order_total &gt; 100)  AS avg_high_value,
+       AVG(order_total) FILTER (WHERE order_total &lt;= 100) AS avg_low_value
+FROM orders
+GROUP BY category;</code></pre>
+<p>Identical output. <code>FILTER</code> reads as "average these rows, but only where &hellip;" and avoids the easy <code>CASE</code> mistake of an accidental <code>ELSE</code>. The <code>CASE</code> form is the portable one; <code>FILTER</code> is the idiomatic one. Knowing both, and why they match, is the senior signal.</p>
+
+<h5>The boundary: where does $100 go?</h5>
+<p>The predicates are <code>&gt; 100</code> and <code>&lt;= 100</code>, so an order of exactly $100 is <em>low-value</em>. That is a real product decision, and it must be airtight: the two conditions have to <strong>partition</strong> the rows &mdash; every order in exactly one bucket. If someone wrote <code>&gt;= 100</code> and <code>&lt;= 100</code>, a $100 order would be counted in <em>both</em> averages; if they wrote <code>&gt; 100</code> and <code>&lt; 100</code>, it would fall into <em>neither</em> and silently disappear. Confirm which side the boundary belongs to.</p>
+
+<h5>The NULL-output trap downstream</h5>
+<p>The NULLs are correct, but a dashboard may not expect them &mdash; a chart could render NULL as a gap, or a later subtraction <code>avg_high_value - avg_low_value</code> would yield NULL for toys and garden. If the consumer needs a number, wrap deliberately: <code>COALESCE(AVG(CASE WHEN &hellip;), 0)</code>. But pause first &mdash; "average of zero high-value orders" is genuinely <em>unknown</em>, and forcing it to 0 can mislead. NULL is often the more honest value.</p>
+
+<h5>The unpriced-order edge case and the <code>order_total</code>/<code>amount</code> ambiguity</h5>
+<p>If <code>order_total</code> can be NULL, that row satisfies <em>neither</em> <code>&gt; 100</code> nor <code>&lt;= 100</code> (any comparison with NULL is unknown), so it is excluded from both averages &mdash; usually fine, but say it. Also: the schema ships both <code>order_total</code> and <code>amount</code>. They may be pre- vs post-discount values that disagree. Don't guess which one defines "value" &mdash; confirm it and note the assumption.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the missing <code>ELSE</code> is what makes conditional <code>AVG</code> correct (and that <code>ELSE 0</code> would corrupt it), offer <code>FILTER</code> as the idiomatic equivalent, guarantee the two predicates partition the rows so the $100 boundary lands in exactly one bucket, and treat the empty-bucket NULL as a deliberate "unknown" rather than papering over it with a zero.</div>

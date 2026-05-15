@@ -1,0 +1,68 @@
+<p>Adobe's HR-systems team is building a directory page that pairs every employee with their department's human-readable name. The fact table only stores a <code>dept_id</code>; the label lives in a separate <code>departments</code> table. A two-table join &mdash; the most routine query there is. The interview question underneath: <em>which join, and what happens to an employee whose <code>dept_id</code> is missing or wrong?</em></p>
+
+<h4>1. The source data</h4>
+<p><strong><code>departments</code></strong></p>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_name</th><th>location</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Engineering</td><td>Austin</td></tr>
+    <tr><td>20</td><td>Marketing</td><td>New York</td></tr>
+    <tr><td>30</td><td>Finance</td><td>Chicago</td></tr>
+  </tbody>
+</table>
+<p><strong><code>employees</code></strong></p>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>10</td></tr>
+    <tr><td>2</td><td>Ben</td><td>10</td></tr>
+    <tr><td>3</td><td>Cara</td><td>20</td></tr>
+    <tr><td>4</td><td>Dan</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>Eve</td><td>99</td></tr>
+  </tbody>
+</table>
+<p>Five employees, but two are awkward: <strong>Dan has a NULL <code>dept_id</code></strong> (a contractor not yet assigned) and <strong>Eve points at <code>dept_id</code> 99</strong> &mdash; a department that does not exist in the <code>departments</code> table. Those two rows decide the answer.</p>
+
+<h4>2. The SQL &mdash; <code>INNER JOIN on dept_id</code></h4>
+<pre><code>SELECT e.name, d.dept_name
+FROM employees e
+JOIN departments d ON e.dept_id = d.dept_id;</code></pre>
+<p>A plain <code>JOIN</code> &mdash; an <code>INNER JOIN</code> &mdash; matching each employee's <code>dept_id</code> to a department row, returning only employees whose department resolves.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>Ada</td><td>Engineering</td></tr>
+    <tr><td>Ben</td><td>Engineering</td></tr>
+    <tr><td>Cara</td><td>Marketing</td></tr>
+  </tbody>
+</table>
+<p>Three rows, not five. <strong>Dan and Eve are gone.</strong> Dan's <code>dept_id</code> is NULL, so <code>NULL = d.dept_id</code> is never true. Eve's <code>dept_id</code> 99 has no matching department row. An <code>INNER JOIN</code> keeps only rows that match on <em>both</em> sides &mdash; so both unmatched employees drop out silently.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The headcount question &mdash; is dropping Dan and Eve correct?</h5>
+<p>It depends entirely on the use case. For a directory page that only shows assigned staff, an <code>INNER JOIN</code> is fine. For a <em>headcount</em> &mdash; "how many employees do we have?" &mdash; silently losing two people is a bug. Use a <code>LEFT JOIN</code> to keep every employee:</p>
+<pre><code>SELECT e.name, COALESCE(d.dept_name, '(unassigned)') AS dept_name
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id;
+-- all 5 rows: Dan and Eve come back with dept_name = '(unassigned)'</code></pre>
+<p>The senior move is to ask the interviewer: "should employees with no resolvable department appear in this report?" The join type is the answer to that question, not a default.</p>
+
+<h5>NULL <code>dept_id</code> vs orphaned <code>dept_id</code> &mdash; two different bugs</h5>
+<p>Dan and Eve both disappear from the inner join, but for different reasons, and a good answer distinguishes them. Dan's <code>dept_id</code> is <strong>NULL</strong> &mdash; legitimately unassigned. Eve's is <strong>99</strong>, a non-NULL value that <em>should</em> match but does not &mdash; an orphaned foreign key, a genuine data-integrity violation. A <code>LEFT JOIN</code> filtered to unmatched rows separates the two:</p>
+<pre><code>SELECT e.emp_id, e.name, e.dept_id
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.dept_id IS NULL;
+-- Dan (NULL — expected) and Eve (99 — orphaned FK, needs fixing)</code></pre>
+<p>Eve's row is the one to escalate: it means a department was deleted without reassigning its staff, or a typo went uncaught. A proper <code>FOREIGN KEY</code> constraint would have blocked it at write time.</p>
+
+<h5>The duplicate-rows trap</h5>
+<p>This join is one-to-many done right (many employees, one department), so no row multiplication. But if <code>departments</code> had two rows with <code>dept_id = 10</code> &mdash; a dirty dimension table &mdash; every Engineering employee would appear <em>twice</em>. Before trusting a join, confirm the join key is unique on the dimension side. A quick <code>SELECT dept_id, COUNT(*) FROM departments GROUP BY dept_id HAVING COUNT(*) &gt; 1</code> proves it.</p>
+
+<h5>Qualify your columns</h5>
+<p><code>dept_id</code> exists in <em>both</em> tables, so an unqualified <code>SELECT dept_id</code> is ambiguous and errors. <code>name</code> and <code>dept_name</code> happen to be unique here, but qualifying every column (<code>e.name</code>, <code>d.dept_name</code>) is the habit that survives schema changes &mdash; the day someone adds a <code>name</code> column to <code>departments</code>, an unqualified query breaks.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>INNER JOIN</code> silently drops employees with a NULL or orphaned <code>dept_id</code>, choose <code>LEFT JOIN</code> deliberately when the report is a headcount, distinguish a legitimately-NULL key from an integrity-violating orphaned FK, and check the dimension side for duplicate keys before trusting the row count.</div>

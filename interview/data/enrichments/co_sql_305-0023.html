@@ -1,0 +1,62 @@
+<p>Okta's compensation team wants to flag employees who out-earn their own department's average &mdash; a quick "above the line" list for the next review. The reference solution does it with a correlated subquery: for each employee, re-compute the department average. It works, but the interviewer is watching whether you see the per-row re-execution, and whether you spot the subtle "employee compared against an average that includes themselves" wrinkle.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>$90,000</td></tr>
+    <tr><td>2</td><td>10</td><td>$100,000</td></tr>
+    <tr><td>3</td><td>10</td><td>$110,000</td></tr>
+    <tr><td>4</td><td>20</td><td>$80,000</td></tr>
+    <tr><td>5</td><td>30</td><td>$120,000</td></tr>
+    <tr><td>6</td><td>30</td><td>$160,000</td></tr>
+  </tbody>
+</table>
+<p>Dept 10 has three salaries around a $100K mean; dept 30 has two; <strong>dept 20 has a single employee</strong>. That one-person department is the edge case &mdash; an employee can never beat an average they alone define.</p>
+
+<h4>2. The SQL &mdash; <code>correlated AVG subquery</code></h4>
+<pre><code>SELECT emp_id, dept_id, salary
+FROM employees e
+WHERE salary &gt; (SELECT AVG(salary) FROM employees WHERE dept_id = e.dept_id);</code></pre>
+<p>For every row in the outer <code>employees e</code>, the subquery runs against <code>employees</code> again, filtered to <em>that row's</em> <code>dept_id</code>. The <code>e.dept_id</code> reference is the correlation &mdash; it ties the inner query to the current outer row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>10</td><td>110000</td></tr>
+    <tr><td>6</td><td>30</td><td>160000</td></tr>
+  </tbody>
+</table>
+<p>Two employees clear their department bar. In dept 10 (avg $100K) only emp 3 at $110K is above; emps 1 and 2 are at or below. In dept 30 (avg $140K) emp 6 at $160K beats it, emp 5 does not. <strong>Dept 20's lone employee is absent</strong> &mdash; their $80K <em>is</em> the average, and <code>80000 &gt; 80000</code> is false.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The single-employee department &mdash; correct, but worth naming</h5>
+<p>Emp 4 is dropped, and that is mathematically right: in a one-row group the salary equals the average, and the strict <code>&gt;</code> excludes it. But an interviewer wants you to <em>say</em> it: "a sole department member can never exceed their own average." If the business actually wants such employees flagged (or excluded with an explanation), that is a requirement to clarify, not an accident to leave silent.</p>
+
+<h5>The "compared against themselves" subtlety</h5>
+<p>The department average here <em>includes</em> the employee being tested. Emp 6's $160K is measured against $140K &mdash; an average their own salary pulled upward. Sometimes the fairer comparison is against peers <em>excluding</em> the individual:</p>
+<pre><code>SELECT emp_id, dept_id, salary
+FROM employees e
+WHERE salary &gt; (
+  SELECT AVG(salary) FROM employees
+  WHERE dept_id = e.dept_id AND emp_id &lt;&gt; e.emp_id
+);</code></pre>
+<p>Self-inclusive vs leave-one-out averages give different lists. Neither is "wrong" &mdash; but a senior names the choice.</p>
+
+<h5>The window-function rewrite &mdash; one pass instead of N</h5>
+<p>The correlated subquery conceptually re-scans the table once per employee. A window function computes every department average in a single pass:</p>
+<pre><code>SELECT emp_id, dept_id, salary
+FROM (
+  SELECT emp_id, dept_id, salary,
+         AVG(salary) OVER (PARTITION BY dept_id) AS dept_avg
+  FROM employees
+) t
+WHERE salary &gt; dept_avg;</code></pre>
+<p>The window must be wrapped in a subquery because you cannot reference a window result in <code>WHERE</code> &mdash; window functions are evaluated <em>after</em> <code>WHERE</code>. On large tables this is usually the faster, cleaner answer; a good optimizer may already de-correlate the original, but do not rely on it.</p>
+
+<h5>NULL salaries and the empty-department case</h5>
+<p><code>AVG</code> ignores NULL salaries, so an employee with a NULL salary is never <code>&gt;</code> anything (any comparison with NULL is unknown) and is silently dropped &mdash; fine, but state it. If a department somehow had only NULL salaries, the subquery returns NULL and again no rows qualify. The correlated form also naturally skips departments with no matching peers; the window form behaves identically.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the correlated subquery re-evaluates per outer row and offer the single-pass <code>AVG() OVER (PARTITION BY dept_id)</code> rewrite (wrapped because windows run after <code>WHERE</code>), and surface the two genuine ambiguities &mdash; the lone-employee department and whether the average should include the employee being tested.</div>

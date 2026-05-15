@@ -1,0 +1,63 @@
+<p>Snap's growth team suspects the signup funnel is double-counting people &mdash; the same human registering more than once under the same email. The reference solution groups registrations by email and keeps the groups with more than one row. It is the canonical duplicate-finder, and the interview is about the predicate placement and what "the same email" actually means.</p>
+
+<h4>1. The source data &mdash; <code>registrations</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>email</th><th>registered_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>pat@x.com</td><td>2024-01-01 09:00</td></tr>
+    <tr><td>2</td><td>sam@x.com</td><td>2024-01-02 10:00</td></tr>
+    <tr><td>3</td><td>pat@x.com</td><td>2024-02-15 11:00</td></tr>
+    <tr><td>4</td><td>pat@x.com</td><td>2024-03-20 12:00</td></tr>
+    <tr><td>5</td><td>sam@x.com</td><td>2024-04-01 13:00</td></tr>
+    <tr><td>6</td><td>lee@x.com</td><td>2024-04-02 14:00</td></tr>
+  </tbody>
+</table>
+<p><code>pat@x.com</code> appears <strong>three</strong> times, <code>sam@x.com</code> <strong>twice</strong>, and <code>lee@x.com</code> exactly <strong>once</strong>. The single-registration <code>lee</code> is the control: it must <em>not</em> appear in the output.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY &hellip; HAVING COUNT(*) &gt; 1</code></h4>
+<pre><code>SELECT email, COUNT(*) AS dup_count
+FROM registrations GROUP BY email HAVING COUNT(*) &gt; 1;</code></pre>
+<p>Collapse rows by email, count each group, and keep only groups whose count exceeds 1. The <code>HAVING</code> clause filters <em>after</em> the grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>email</th><th>dup_count</th></tr></thead>
+  <tbody>
+    <tr><td>pat@x.com</td><td>3</td></tr>
+    <tr><td>sam@x.com</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Two rows. <code>pat</code> registered three times, <code>sam</code> twice; <code>lee</code> is correctly absent because its group of one fails <code>COUNT(*) &gt; 1</code>. The query answers "which emails are duplicated, and how badly".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>HAVING</code> vs <code>WHERE</code> &mdash; the question the interviewer always asks</h5>
+<p><code>WHERE</code> filters individual rows <em>before</em> grouping; <code>HAVING</code> filters <em>groups</em> after the aggregate is computed. The duplicate condition is <code>COUNT(*) &gt; 1</code> &mdash; that count does not exist until grouping has happened, so it <strong>must</strong> live in <code>HAVING</code>. Writing <code>WHERE COUNT(*) &gt; 1</code> is a hard error. The reverse mistake is just as telling: a pre-grouping filter like "only registrations after 2024" belongs in <code>WHERE</code>, not <code>HAVING</code> &mdash; putting it in <code>HAVING</code> works but scans rows it could have skipped. The rule: row predicates &rarr; <code>WHERE</code>, aggregate predicates &rarr; <code>HAVING</code>.</p>
+
+<h5>"The same email" &mdash; case and whitespace</h5>
+<p>Email is case-insensitive by spec: <code>Pat@x.com</code> and <code>pat@x.com</code> are the same mailbox. But <code>GROUP BY email</code> on a plain text column groups them <em>separately</em> &mdash; so a real duplicate hides as two distinct groups of one and escapes the report. Normalise before grouping:</p>
+<pre><code>SELECT LOWER(TRIM(email)) AS email_norm, COUNT(*) AS dup_count
+FROM registrations
+GROUP BY LOWER(TRIM(email))
+HAVING COUNT(*) &gt; 1;</code></pre>
+<p><code>TRIM</code> kills stray leading/trailing spaces; <code>LOWER</code> folds case. Without this, the query under-reports duplicates &mdash; the most dangerous kind of wrong, because it looks clean.</p>
+
+<h5>From "which emails" to "which rows to delete"</h5>
+<p>The given query names the bad emails but not the surplus <em>rows</em>. The natural follow-up &mdash; "keep the earliest signup, flag the rest" &mdash; needs <code>ROW_NUMBER</code>:</p>
+<pre><code>SELECT user_id, email, registered_at
+FROM (
+  SELECT user_id, email, registered_at,
+         ROW_NUMBER() OVER (PARTITION BY LOWER(email)
+                            ORDER BY registered_at) AS rn
+  FROM registrations
+) t
+WHERE rn &gt; 1;          -- rn = 1 is the keeper; rn &gt; 1 are the duplicates</code></pre>
+<p>For <code>pat</code> this returns <code>user_id</code> 3 and 4 (the later two); <code>user_id</code> 1, the earliest, is kept. That is the row set a dedup job actually operates on.</p>
+
+<h5>NULL emails and the count semantics</h5>
+<p><code>COUNT(*)</code> counts rows regardless of NULLs, so two rows with a NULL email <em>do</em> form a group of 2 and would surface as duplicates &mdash; even though SQL normally treats NULL as "not equal to anything". <code>GROUP BY</code> is the exception: it puts all NULLs in one bucket. Decide whether NULL-email rows are real duplicates or junk to filter with <code>WHERE email IS NOT NULL</code> first. Note also that <code>COUNT(email)</code> would behave differently &mdash; it skips NULLs &mdash; so the choice of <code>COUNT(*)</code> here is deliberate.</p>
+
+<h5>Edge case: no duplicates at all</h5>
+<p>If every email is unique, every group fails <code>HAVING COUNT(*) &gt; 1</code> and the query returns <strong>zero rows</strong> &mdash; not a NULL, not a zero. A monitoring job should treat "0 rows" as the healthy state, not as a failed query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>COUNT(*) &gt; 1</code> must sit in <code>HAVING</code> because the count only exists post-grouping, normalise email with <code>LOWER(TRIM(&hellip;))</code> so case and whitespace variants do not hide real duplicates, and extend to <code>ROW_NUMBER</code> when the task shifts from "which emails" to "which rows to remove".</div>

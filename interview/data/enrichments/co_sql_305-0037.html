@@ -1,0 +1,68 @@
+<p>SAP's web-analytics team wants a traffic-by-hour profile &mdash; the classic "when does our site get busy" chart. The reference solution buckets each visit into its hour-of-day and counts. It works, and the interview is about the hours that have <em>no</em> visits, and whether "hour 9" means 9am on one day or 9am across all days.</p>
+
+<h4>1. The source data &mdash; <code>traffic</code></h4>
+<table>
+  <thead><tr><th>visit_id</th><th>visit_time</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-05-01 09:15</td></tr>
+    <tr><td>2</td><td>2024-05-01 09:45</td></tr>
+    <tr><td>3</td><td>2024-05-01 14:05</td></tr>
+    <tr><td>4</td><td>2024-05-01 14:30</td></tr>
+    <tr><td>5</td><td>2024-05-01 14:55</td></tr>
+    <tr><td>6</td><td>2024-05-01 23:10</td></tr>
+    <tr><td>7</td><td>2024-05-02 09:01</td></tr>
+  </tbody>
+</table>
+<p>Visits cluster at hours 9, 14 and 23 &mdash; and <strong>every other hour of the day has zero visits</strong>. Also note visits 1, 2 and 7 are all in "hour 9" but span <em>two different days</em>. Both facts shape what the query should return.</p>
+
+<h4>2. The SQL &mdash; <code>bucket by HH24</code></h4>
+<pre><code>SELECT CAST(TO_CHAR(visit_time, 'HH24') AS INTEGER) AS hr, COUNT(*) AS visits
+FROM traffic GROUP BY CAST(TO_CHAR(visit_time, 'HH24') AS INTEGER) ORDER BY hr;</code></pre>
+<p><code>TO_CHAR(visit_time, 'HH24')</code> formats the timestamp's hour as a two-digit 24-hour string (<code>'09'</code>, <code>'14'</code>, <code>'23'</code>); the cast turns it into an integer to group and sort cleanly.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>hr</th><th>visits</th></tr></thead>
+  <tbody>
+    <tr><td>9</td><td>3</td></tr>
+    <tr><td>14</td><td>3</td></tr>
+    <tr><td>23</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three rows. Hour 9 shows <strong>3</strong> &mdash; it folded together two visits from May 1 and one from May 2, because the bucket is hour-of-day and ignores the date. And hours 0&ndash;8, 10&ndash;13, 15&ndash;22 are simply <em>absent</em> &mdash; <code>GROUP BY</code> can only emit rows for hours that actually occur in the data.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>EXTRACT</code> as the cleaner alternative</h5>
+<p><code>CAST(TO_CHAR(&hellip;, 'HH24') AS INTEGER)</code> formats to text and parses back &mdash; a round trip. <code>EXTRACT</code> goes straight to a number:</p>
+<pre><code>SELECT EXTRACT(HOUR FROM visit_time) AS hr, COUNT(*) AS visits
+FROM traffic
+GROUP BY EXTRACT(HOUR FROM visit_time)
+ORDER BY hr;</code></pre>
+<p>Identical result, no string detour, and it sorts numerically by construction. Both are correct; <code>EXTRACT</code> is the idiom an interviewer expects. (<code>date_part('hour', visit_time)</code> is the same thing.)</p>
+
+<h5>The missing hours &mdash; the trap that biases the chart</h5>
+<p>The output has three rows, but a 24-hour profile has 24 slots. <code>GROUP BY</code> never invents a row for an hour with no visits &mdash; "zero" is not in the data, so it cannot be in the result. A chart drawn from this jumps 9 &rarr; 14 &rarr; 23 with the quiet hours <em>missing entirely</em>, not shown as 0. To get a true 0&ndash;23 profile, generate the hours and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT h.hr, COUNT(t.visit_id) AS visits
+FROM generate_series(0, 23) AS h(hr)
+LEFT JOIN traffic t
+  ON EXTRACT(HOUR FROM t.visit_time) = h.hr
+GROUP BY h.hr
+ORDER BY h.hr;</code></pre>
+<p>Now every hour 0&ndash;23 appears; empty hours show <code>COUNT(t.visit_id) = 0</code> &mdash; note <code>COUNT(t.visit_id)</code>, not <code>COUNT(*)</code>, so the unmatched LEFT-JOIN row counts as 0 rather than 1.</p>
+
+<h5>Hour-of-day vs hour-on-a-date &mdash; clarify the grain</h5>
+<p>Hour 9 = 3 because the query collapses across dates. That is right for "what is our typical busy hour", aggregating a week into a 24-bucket shape. It is <em>wrong</em> for "show traffic for each hour of May 1" &mdash; that needs the date in the grouping key:</p>
+<pre><code>SELECT date_trunc('hour', visit_time) AS hour_bucket, COUNT(*) AS visits
+FROM traffic
+GROUP BY date_trunc('hour', visit_time)
+ORDER BY hour_bucket;</code></pre>
+<p><code>date_trunc('hour', &hellip;)</code> keeps the calendar day, so May 1 09:00 and May 2 09:00 are separate buckets. Confirm which question is being asked before writing the <code>GROUP BY</code>.</p>
+
+<h5>The timezone landmine</h5>
+<p>"Hour of day" is meaningless without a timezone. If <code>visit_time</code> is stored UTC but the business cares about user-local time, every visit is bucketed into the wrong hour &mdash; a 9am-local spike shows up at some other UTC hour. Convert explicitly before extracting: <code>EXTRACT(HOUR FROM visit_time AT TIME ZONE 'America/Los_Angeles')</code>. Naming this is a strong senior signal; silently extracting from raw UTC is the common miss.</p>
+
+<h5>Edge case: empty table</h5>
+<p>With no rows, the plain <code>GROUP BY</code> version returns <strong>zero rows</strong> &mdash; no hours, no zeros. The <code>generate_series</code> version still returns all 24 hours, each with a count of 0. If a dashboard must always render a full 24-bar chart, the <code>generate_series</code> form is the only one that survives an empty input.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>EXTRACT</code>/<code>date_part</code> over the <code>TO_CHAR</code>-and-cast round trip, recognise that <code>GROUP BY</code> omits zero-traffic hours and fill them with a <code>generate_series</code> <code>LEFT JOIN</code> using <code>COUNT(column)</code>, distinguish hour-of-day from hour-on-a-date, and raise the timezone question before bucketing.</div>

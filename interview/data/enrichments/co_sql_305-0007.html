@@ -1,0 +1,53 @@
+<p>Google's commerce-analytics team needs every order placed in a reporting window &mdash; here, the first two months of 2024 &mdash; to feed a quarterly revenue review. <code>BETWEEN</code> makes this a one-liner. But <code>BETWEEN</code> has a famous edge: it is <em>inclusive on both ends</em>, and when the column is a <code>timestamp</code> rather than a pure <code>date</code>, that inclusivity quietly drops the last day of the range. An interviewer asking a "simple" date filter is usually testing exactly this.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2023-12-31</td><td>$100</td><td>completed</td></tr>
+    <tr><td>2</td><td>2024-01-01</td><td>$150</td><td>completed</td></tr>
+    <tr><td>3</td><td>2024-01-20</td><td>$80</td><td>pending</td></tr>
+    <tr><td>4</td><td>2024-02-28</td><td>$200</td><td>completed</td></tr>
+    <tr><td>5</td><td>2024-02-29</td><td>$60</td><td>completed</td></tr>
+    <tr><td>6</td><td>2024-03-01</td><td>$90</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Six orders straddling the window. Note the deliberate boundary rows: order 1 on <strong>2023-12-31</strong> (just before), order 2 on <strong>2024-01-01</strong> (the lower bound), order 4 on <strong>2024-02-28</strong> (the literal upper bound), and order 5 on <strong>2024-02-29</strong> &mdash; 2024 is a leap year, so Feb has 29 days.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE ... BETWEEN</code></h4>
+<pre><code>SELECT *
+FROM orders
+WHERE order_date BETWEEN '2024-01-01' AND '2024-02-28';</code></pre>
+<p><code>x BETWEEN a AND b</code> is shorthand for <code>x &gt;= a AND x &lt;= b</code> &mdash; inclusive at <em>both</em> endpoints.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>amount</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>2024-01-01</td><td>150</td><td>502</td><td>completed</td></tr>
+    <tr><td>3</td><td>2024-01-20</td><td>80</td><td>503</td><td>pending</td></tr>
+    <tr><td>4</td><td>2024-02-28</td><td>200</td><td>504</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Three orders. Order 1 (Dec 31) is correctly excluded; order 2 (Jan 1, the lower bound) and order 4 (Feb 28, the upper bound) are both <em>included</em> &mdash; that is the inclusive nature of <code>BETWEEN</code>. But order 5 on <strong>Feb 29 is missing</strong>: the window literally stops at Feb 28. Whether that is correct depends entirely on whether "the first two months" was meant to include the leap day.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>timestamp</code> trap &mdash; why <code>BETWEEN</code> on a date column is risky</h5>
+<p>Here <code>order_date</code> is a pure <code>DATE</code>, so <code>BETWEEN '2024-01-01' AND '2024-02-28'</code> captures all of Feb 28. But if the column were a <code>TIMESTAMP</code>, the literal <code>'2024-02-28'</code> is interpreted as <code>2024-02-28 00:00:00</code> &mdash; <em>midnight</em>. An order placed at <code>2024-02-28 14:30:00</code> is <em>after</em> that instant and gets <strong>silently dropped</strong>. The entire last day vanishes. The robust pattern for timestamp columns is a half-open interval:</p>
+<pre><code>SELECT *
+FROM orders
+WHERE order_date &gt;= '2024-01-01'
+  AND order_date &lt;  '2024-03-01';   -- note: &lt; the day AFTER the range</code></pre>
+<p><code>&gt;= start</code> and <code>&lt; next-day</code> is timezone-safe, leap-year-safe, and time-of-day-safe. Many senior engineers use this form even on pure <code>DATE</code> columns out of habit, so the query survives a future schema change to <code>timestamp</code>.</p>
+
+<h5>The leap-year boundary</h5>
+<p>Order 5 sits on Feb 29, 2024. The reference query's upper bound of <code>'2024-02-28'</code> excludes it. If the requirement is "all orders in January and February", the bound is wrong &mdash; it should be the last day of February, which in a leap year is the 29th. The half-open form <code>&lt; '2024-03-01'</code> sidesteps the leap-year arithmetic entirely: you never have to know how many days February has.</p>
+
+<h5><code>SELECT *</code> is a code-review smell</h5>
+<p><code>SELECT *</code> is fine in an interview scratchpad but flag it for production: it breaks if columns are reordered, ships unnecessary bytes over the wire, and defeats covering indexes. Name the columns the report actually needs &mdash; <code>SELECT order_id, order_date, amount</code>.</p>
+
+<h5>Edge cases: NULL dates and parameterised ranges</h5>
+<p>An order with a NULL <code>order_date</code> &mdash; perhaps a draft never submitted &mdash; is excluded by <code>BETWEEN</code>, because <code>NULL &gt;= '2024-01-01'</code> evaluates to NULL (not TRUE). That is usually right, but worth saying aloud. And in real code the range is rarely a literal &mdash; it comes from a parameter or a date dimension. Parameterise it: <code>WHERE order_date &gt;= $1 AND order_date &lt; $2</code>, and compute <code>$2</code> as <code>start_of_next_period</code> so the half-open invariant holds regardless of which month or quarter the user picks.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>BETWEEN</code> is inclusive on both ends and that on a <code>timestamp</code> column an upper bound of <code>'2024-02-28'</code> means midnight &mdash; silently dropping the last day &mdash; so prefer the half-open <code>&gt;= start AND &lt; next-day</code> form, which is also leap-year-proof, and replace <code>SELECT *</code> with named columns for production.</div>

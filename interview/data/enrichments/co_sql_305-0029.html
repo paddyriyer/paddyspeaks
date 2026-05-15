@@ -1,0 +1,62 @@
+<p>NVIDIA's sales-ops team wants a "customer context" report: for every customer, how many <em>other</em> orders they placed and what those add up to. The reference solution reaches for a self-join on <code>customer_id</code> &mdash; and that choice quietly inflates the numbers. An interviewer posing this is watching whether you notice the fan-out before the recruiter does.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>$100</td><td>completed</td></tr>
+    <tr><td>2</td><td>101</td><td>$200</td><td>completed</td></tr>
+    <tr><td>3</td><td>101</td><td>$50</td><td>completed</td></tr>
+    <tr><td>4</td><td>102</td><td>$300</td><td>completed</td></tr>
+    <tr><td>5</td><td>102</td><td>$80</td><td>completed</td></tr>
+    <tr><td>6</td><td>103</td><td>$500</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has <strong>three</strong> orders, 102 has two, and 103 has a <strong>single</strong> order. Those different group sizes are the whole interview &mdash; the single-order customer and the three-order customer behave very differently under this query.</p>
+
+<h4>2. The SQL &mdash; <code>self-join on customer_id</code></h4>
+<pre><code>SELECT a.customer_id, COUNT(b.order_id) AS related_orders, SUM(b.amount) AS total
+FROM orders a JOIN orders b ON a.customer_id = b.customer_id AND a.order_id &lt;&gt; b.order_id
+GROUP BY a.customer_id;</code></pre>
+<p>Every order <code>a</code> is joined to every <em>other</em> order <code>b</code> of the same customer. Then the rows are grouped back down per customer and counted and summed.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>related_orders</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>6</td><td>700</td></tr>
+    <tr><td>102</td><td>2</td><td>380</td></tr>
+  </tbody>
+</table>
+<p>Look hard at customer 101. It has three orders worth $350 total, yet the query reports <strong>6</strong> related orders summing to <strong>$700</strong> &mdash; exactly double. And customer 103 has <em>vanished</em> from the result entirely. Neither of those is a coincidence.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The fan-out: why a 3-order customer reports 6</h5>
+<p>With <code>M</code> orders, the self-join condition <code>a.order_id &lt;&gt; b.order_id</code> produces <code>M &times; (M &minus; 1)</code> rows per customer: each of the 3 <code>a</code> rows pairs with the other 2 <code>b</code> rows, so 3 &times; 2 = 6. <code>COUNT(b.order_id)</code> then counts all 6, and <code>SUM(b.amount)</code> adds each amount <code>(M &minus; 1)</code> times &mdash; here twice, so $350 becomes $700. The self-join didn't compute "other orders"; it computed <em>ordered pairs of distinct orders</em>, and the aggregate inherited that multiplicity.</p>
+
+<h5>The disappearing single-order customer</h5>
+<p>Customer 103 has one order. The condition <code>a.order_id &lt;&gt; b.order_id</code> can never be satisfied &mdash; there is no <em>other</em> order to pair with &mdash; so the inner <code>JOIN</code> drops it. If the report is meant to say "103 has 0 related orders, $0", an inner join is the wrong tool. A <code>LEFT JOIN</code> keeps the row:</p>
+<pre><code>SELECT a.customer_id,
+       COUNT(b.order_id)            AS related_orders,
+       COALESCE(SUM(b.amount), 0)   AS total
+FROM orders a
+LEFT JOIN orders b
+  ON a.customer_id = b.customer_id AND a.order_id &lt;&gt; b.order_id
+GROUP BY a.customer_id;</code></pre>
+<p>Now 103 appears with <code>related_orders = 0</code> &mdash; <code>COUNT(b.order_id)</code> ignores the NULL from the unmatched side &mdash; and <code>COALESCE</code> turns the NULL sum into 0.</p>
+
+<h5>The fix a senior actually reaches for: plain GROUP BY</h5>
+<p>"How many orders and what total per customer" needs no join at all. The self-join is a wrong turn:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS order_count, SUM(amount) AS total
+FROM orders
+GROUP BY customer_id;</code></pre>
+<p>This gives 101 &rarr; 3 orders, $350; 102 &rarr; 2, $380; 103 &rarr; 1, $500 &mdash; every customer present, every amount counted once. If the requirement genuinely is "<em>excluding the current order</em>", a window function expresses it without fan-out: <code>COUNT(*) OVER (PARTITION BY customer_id) - 1</code> and <code>SUM(amount) OVER (PARTITION BY customer_id) - amount</code>.</p>
+
+<h5>The interviewer's probe: "are these numbers right?"</h5>
+<p>The strongest answer doesn't just run the query &mdash; it sanity-checks the output against the input. "Customer 101 placed three orders totalling $350, but the report says $700. A self-join over a one-to-many relationship multiplies the aggregate by the group size; I'd switch to a <code>GROUP BY</code>." Catching a 2&times; inflation by eyeballing is the senior move; trusting the query is the junior one.</p>
+
+<h5>Edge case: NULL amounts and duplicate order rows</h5>
+<p>If <code>amount</code> can be NULL, <code>SUM</code> skips those rows silently &mdash; fine for revenue, but state it. And if <code>order_id</code> is not unique, <code>a.order_id &lt;&gt; b.order_id</code> stops being a reliable "different order" test; two genuinely distinct rows sharing an id would be wrongly excluded. A trustworthy <code>order_id</code> primary key is an assumption worth voicing.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that a self-join across a one-to-many relationship fans out and multiplies <code>SUM</code>/<code>COUNT</code> by the group size, notice the single-order customer silently dropped by the inner join, and replace the whole construction with a plain <code>GROUP BY</code> (or a window function) that counts every customer exactly once.</div>

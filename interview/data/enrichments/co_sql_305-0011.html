@@ -1,0 +1,51 @@
+<p>Samsung's payroll team is exporting a compensation file, and the <code>bonus</code> column is sparse &mdash; employees without a bonus this cycle have NULL, not 0. A downstream system that adds salary and bonus would produce NULL totals for those people. <code>COALESCE</code> is the one-function fix. The interview question underneath: <em>do you understand the difference between a NULL that means "zero" and a NULL that means "unknown"?</em></p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>bonus</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>$5,000</td></tr>
+    <tr><td>2</td><td>Ben</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>Cara</td><td>$0</td></tr>
+    <tr><td>4</td><td>Dan</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Four employees. Two have NULL bonuses (Ben, Dan), one has a genuine <strong>$0</strong> bonus (Cara). The NULL-vs-zero distinction is the whole interview: Cara already <em>has</em> a value; Ben and Dan have <em>no</em> value &mdash; and whether "no value" should become 0 is a business decision, not a default.</p>
+
+<h4>2. The SQL &mdash; <code>COALESCE(bonus, 0)</code></h4>
+<pre><code>SELECT emp_id, name, COALESCE(bonus, 0) AS bonus
+FROM employees;</code></pre>
+<p><code>COALESCE</code> returns its first non-NULL argument. For each row, if <code>bonus</code> is non-NULL it passes through unchanged; if <code>bonus</code> is NULL, the function returns <code>0</code> instead.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>bonus</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>5000</td></tr>
+    <tr><td>2</td><td>Ben</td><td>0</td></tr>
+    <tr><td>3</td><td>Cara</td><td>0</td></tr>
+    <tr><td>4</td><td>Dan</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>All four rows now carry a number &mdash; no NULLs to break downstream arithmetic. But look at Ben and Cara: both show <strong>0</strong>, yet they arrived there differently. Cara's 0 was real data; Ben's 0 was <em>manufactured</em> by <code>COALESCE</code>. The output column has lost the ability to tell those two cases apart &mdash; a deliberate trade-off worth naming.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why NULL breaks arithmetic in the first place</h5>
+<p>NULL is not a value; it is the <em>absence</em> of one. Any arithmetic touching it yields NULL: <code>50000 + NULL = NULL</code>, not <code>50000</code>. So a total-comp column computed as <code>salary + bonus</code> would be NULL for every employee without a bonus &mdash; the report would show blank pay for real employees. <code>COALESCE(bonus, 0)</code> substitutes a neutral value so the addition behaves:</p>
+<pre><code>SELECT emp_id, name, salary + COALESCE(bonus, 0) AS total_comp
+FROM employees;</code></pre>
+
+<h5>The semantic question: does NULL bonus <em>mean</em> zero?</h5>
+<p>Replacing NULL with 0 is correct only if "no bonus recorded" genuinely means "received nothing". For bonuses that is usually true. But consider <code>COALESCE(rating, 0)</code> on a performance score &mdash; a missing rating does <em>not</em> mean a score of zero; it means "not yet reviewed", and zeroing it would slander the employee. The senior instinct is to ask: "is a NULL here a real zero, or genuinely unknown?" If unknown, leaving the NULL &mdash; or surfacing a label like <code>'not reviewed'</code> &mdash; is more honest than a fake number.</p>
+
+<h5><code>COALESCE</code> vs <code>ISNULL</code> / <code>NVL</code> &mdash; portability</h5>
+<p><code>COALESCE</code> is ANSI SQL and works in every engine; it also takes <em>any number</em> of arguments and returns the first non-NULL: <code>COALESCE(bonus, dept_default_bonus, 0)</code>. The vendor-specific equivalents &mdash; SQL Server's <code>ISNULL</code>, Oracle's <code>NVL</code>, MySQL's <code>IFNULL</code> &mdash; are two-argument only and not portable. Always reach for <code>COALESCE</code>. One numeric subtlety: <code>COALESCE</code> resolves to a single result type, so <code>COALESCE(int_col, 0.0)</code> may promote the whole column to numeric &mdash; keep the fallback's type consistent with the column.</p>
+
+<h5>The trap: <code>COALESCE</code> is not <code>NULLIF</code>, and <code>= NULL</code> never works</h5>
+<p>Two adjacent mistakes. First, <code>NULLIF(a, b)</code> is the <em>opposite</em> tool &mdash; it turns a value <em>into</em> NULL when <code>a = b</code> (handy for <code>NULLIF(denominator, 0)</code> to dodge divide-by-zero). Don't confuse the two. Second, you cannot <em>filter</em> for NULLs with <code>WHERE bonus = NULL</code> &mdash; that expression is itself NULL and matches nothing. NULL comparisons need the dedicated predicate:</p>
+<pre><code>-- find the employees whose bonus was missing
+SELECT emp_id, name FROM employees WHERE bonus IS NULL;     -- correct
+-- WHERE bonus = NULL  -- returns ZERO rows, always</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that NULL poisons arithmetic so <code>COALESCE</code> is needed before any <code>+</code> or <code>SUM</code>, but pause on whether a NULL truly <em>means</em> zero or means "unknown" &mdash; zeroing an unknown rating is a bug &mdash; prefer portable <code>COALESCE</code> over <code>NVL</code>/<code>ISNULL</code>, and never test NULLs with <code>=</code>.</div>

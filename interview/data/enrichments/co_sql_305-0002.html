@@ -1,0 +1,63 @@
+<p>Apple's retail-ops team runs a "value pick" shelf near the till &mdash; the single cheapest item in the catalogue, refreshed nightly. The query behind it looks trivial: sort by price, take one. But "the cheapest product" hides a question the interviewer is really asking: <em>what happens when two products tie at the lowest price?</em> A one-row answer that silently picks one of them is a decision, and a senior candidate makes it on purpose.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>USB-C Cable</td><td>$12.99</td><td>Accessories</td></tr>
+    <tr><td>2</td><td>Laptop Sleeve</td><td>$29.99</td><td>Accessories</td></tr>
+    <tr><td>3</td><td>Screen Wipe</td><td>$12.99</td><td>Cleaning</td></tr>
+    <tr><td>4</td><td>Magic Mouse</td><td>$79.00</td><td>Peripherals</td></tr>
+    <tr><td>5</td><td>Power Adapter</td><td>$8.99</td><td>Power</td></tr>
+    <tr><td>6</td><td>HDMI Adapter</td><td>$45.00</td><td>Accessories</td></tr>
+  </tbody>
+</table>
+<p>One product &mdash; the Power Adapter at $8.99 &mdash; is cleanly the cheapest. But notice the <strong>tie at $12.99</strong> between the USB-C Cable and the Screen Wipe. It is not the answer here, but it is exactly the case the interviewer will reach for next.</p>
+
+<h4>2. The SQL &mdash; <code>ORDER BY price LIMIT 1</code></h4>
+<pre><code>SELECT product_id, name, price
+FROM products
+ORDER BY price ASC
+LIMIT 1;</code></pre>
+<p>Sort the whole table ascending by price, then keep only the first row. No aggregation, no grouping &mdash; just a sort and a cut.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td>Power Adapter</td><td>8.99</td></tr>
+  </tbody>
+</table>
+<p>One row. Because $8.99 is strictly below every other price, the answer is unambiguous and deterministic here. The fragility only shows up when the minimum is shared &mdash; which is the whole point of the follow-ups below.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie: <code>LIMIT 1</code> is non-deterministic</h5>
+<p>If the cheapest price were shared by two rows, <code>ORDER BY price LIMIT 1</code> would return <em>one</em> of them &mdash; and <em>which</em> one is up to the planner. Re-run after an index change or a vacuum and the answer can flip. To make it stable, add a tiebreak column so the sort is total:</p>
+<pre><code>SELECT product_id, name, price
+FROM products
+ORDER BY price ASC, product_id ASC
+LIMIT 1;</code></pre>
+<p>If the business actually wants <em>every</em> product at the minimum price, <code>LIMIT 1</code> is the wrong tool entirely &mdash; use a subquery:</p>
+<pre><code>SELECT product_id, name, price
+FROM products
+WHERE price = (SELECT MIN(price) FROM products);</code></pre>
+
+<h5><code>MIN(price)</code> vs <code>ORDER BY ... LIMIT 1</code></h5>
+<p>A frequent "equivalent" is <code>SELECT MIN(price) FROM products</code>. It is not equivalent: <code>MIN</code> returns the price <em>only</em>, not the <code>product_id</code> or <code>name</code>. The moment you need the identity of the product, you either sort-and-limit or filter against the <code>MIN</code> subquery. The subquery form also generalises cleanly to ties, which is why it is the safer default in a real codebase.</p>
+
+<h5>The window-function approach &mdash; and why it earns "top N cheapest"</h5>
+<p><code>RANK()</code> answers the tie question and extends to "show me the five cheapest" with a one-character edit:</p>
+<pre><code>SELECT product_id, name, price
+FROM (
+  SELECT product_id, name, price,
+         RANK() OVER (ORDER BY price ASC) AS rk
+  FROM products
+) t
+WHERE rk = 1;</code></pre>
+<p><code>RANK</code> assigns rank 1 to <em>all</em> rows at the minimum price, so ties are kept. Swap <code>WHERE rk = 1</code> for <code>WHERE rk &lt;= 5</code> and you have the cheapest five &mdash; the natural next request from a merchandiser.</p>
+
+<h5>Edge cases: empty table, NULL prices</h5>
+<p>On an empty table, <code>ORDER BY ... LIMIT 1</code> returns <strong>zero rows</strong> &mdash; not a NULL row, not an error. Code that expects exactly one row must handle the empty result. NULLs matter too: <code>price</code> should never be NULL for a sellable product, but if it is, <code>ORDER BY price ASC</code> in Postgres sorts NULLs <em>last</em>, so a NULL-priced row won't be mistaken for the cheapest. <code>MIN(price)</code> likewise skips NULLs. Worth a sentence to the interviewer: "I'm assuming <code>price</code> is non-NULL and non-negative; if returns or credits can make it negative, the 'cheapest' row may not be a real product."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>ORDER BY price LIMIT 1</code> is non-deterministic under ties and add a tiebreak, know when to switch to a <code>MIN</code> subquery or <code>RANK()</code> to return all tied rows, and call out the empty-table zero-row result and the NULL-price ordering before the interviewer has to probe.</div>

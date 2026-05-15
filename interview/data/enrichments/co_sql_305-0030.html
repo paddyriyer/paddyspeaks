@@ -1,0 +1,63 @@
+<p>Shopify's fulfilment team tracks how long each order takes to leave the warehouse &mdash; "days to ship" is a core SLA metric. The query is a single subtraction, and that is exactly why an interviewer uses it: the arithmetic is trivial, so the conversation is entirely about what the <em>data</em> does to that arithmetic.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>ship_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-03-01</td><td>2024-03-04</td><td>shipped</td></tr>
+    <tr><td>2</td><td>2024-03-02</td><td>2024-03-02</td><td>shipped</td></tr>
+    <tr><td>3</td><td>2024-03-03</td><td>2024-03-10</td><td>shipped</td></tr>
+    <tr><td>4</td><td>2024-03-05</td><td><em>NULL</em></td><td>pending</td></tr>
+    <tr><td>5</td><td>2024-03-06</td><td>2024-03-05</td><td>shipped</td></tr>
+  </tbody>
+</table>
+<p>Three rows are landmines. Order 4 has a <strong>NULL</strong> <code>ship_date</code> (not shipped yet). Order 2 shipped the <em>same day</em> it was ordered. Order 5 has a <code>ship_date</code> <em>before</em> its <code>order_date</code> &mdash; dirty data that should not physically exist.</p>
+
+<h4>2. The SQL &mdash; <code>ship_date &minus; order_date</code></h4>
+<pre><code>SELECT order_id, ship_date - order_date AS days_to_ship FROM orders;</code></pre>
+<p>In PostgreSQL, subtracting one <code>date</code> from another returns an <strong>integer</strong> &mdash; a count of days &mdash; not an <code>interval</code>. No casting needed.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>days_to_ship</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td></tr>
+    <tr><td>2</td><td>0</td></tr>
+    <tr><td>3</td><td>7</td></tr>
+    <tr><td>4</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>-1</td></tr>
+  </tbody>
+</table>
+<p>Order 2 returns <strong>0</strong> &mdash; correct, a same-day ship. Order 4 returns <strong>NULL</strong>: NULL minus a date is NULL, the right answer for "not yet shipped". Order 5 returns <strong>&minus;1</strong> &mdash; a negative SLA, which is a data-quality flag, not a real metric.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>date &minus; date</code> is an integer; <code>timestamp &minus; timestamp</code> is not</h5>
+<p>The clean integer here depends on both columns being <code>date</code> type. If they were <code>timestamp</code>, the same subtraction returns an <code>interval</code> like <code>3 days 04:30:00</code>, and a downstream consumer expecting a number breaks. When you need whole days from timestamps, be explicit:</p>
+<pre><code>SELECT order_id,
+       (ship_date::date - order_date::date)        AS days_to_ship,
+       EXTRACT(DAY FROM ship_date - order_date)    AS days_alt
+FROM orders;</code></pre>
+<p>Casting to <code>date</code> first truncates the time-of-day and restores integer subtraction. Naming the column types out loud is the senior tell.</p>
+
+<h5>The negative value &mdash; the trap the interviewer is fishing for</h5>
+<p>Order 5's &minus;1 is the moment that matters. A negative "days to ship" is impossible in the real world, so it signals a bad <code>ship_date</code> (a typo, a timezone slip, a backfill error). Don't let it poison an average. Either filter it or surface it as a quality column:</p>
+<pre><code>SELECT order_id, ship_date - order_date AS days_to_ship
+FROM orders
+WHERE ship_date &gt;= order_date;          -- drop impossible rows
+-- or flag them, never silently average them in:
+SELECT order_id,
+       ship_date - order_date AS days_to_ship,
+       (ship_date &lt; order_date) AS is_suspect
+FROM orders;</code></pre>
+
+<h5>The NULL row and how it behaves in aggregates</h5>
+<p>Order 4's NULL is correct per-row, but watch what it does downstream. <code>AVG(days_to_ship)</code> <em>skips</em> NULLs &mdash; the average is over shipped orders only, which is usually what an SLA wants. But <code>COUNT(*)</code> still counts the pending row, so <code>SUM(days_to_ship) / COUNT(*)</code> would be wrong. If "unshipped" should read as zero days, use <code>COALESCE(ship_date, CURRENT_DATE) - order_date</code> to measure age-so-far instead.</p>
+
+<h5>Business days, not calendar days</h5>
+<p>A frequent follow-up: "the warehouse is closed weekends &mdash; can you exclude them?" Plain subtraction counts calendar days. Business-day logic needs a calendar/dimension table joined on the date range, or a generate-series trick counting non-weekend days. Naming this limitation &mdash; "this is calendar days; business-day SLA needs a date dimension" &mdash; shows you understand the metric, not just the operator.</p>
+
+<h5>Inclusive vs exclusive day counts</h5>
+<p>Order 2 ships the same day and scores 0. Some SLA definitions call that "1 day" (the day itself counts). Confirm the convention: if shipping must be reported as <code>days + 1</code>, the consumer needs to know whether the boundary is inclusive. It is a one-character change with a real reporting impact.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that <code>date &minus; date</code> yields an integer while <code>timestamp &minus; timestamp</code> yields an interval, treat the negative result as a data-quality flag rather than a metric, explain how the NULL row flows through <code>AVG</code> versus <code>COUNT(*)</code>, and raise the calendar-vs-business-day distinction before it is asked.</div>

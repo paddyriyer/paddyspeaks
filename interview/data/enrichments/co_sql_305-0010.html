@@ -1,0 +1,80 @@
+<p>LinkedIn's lifecycle-marketing team wants the list of customers who signed up but never placed an order &mdash; the audience for a "your first order is on us" win-back campaign. This is the canonical <em>anti-join</em>: rows in one table with no match in another. The interview question is whether you know the <code>LEFT JOIN ... IS NULL</code> idiom, and &mdash; more sharply &mdash; <em>which</em> column you check for NULL.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>customers</code></strong></p>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>country</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ada</td><td>USA</td></tr>
+    <tr><td>2</td><td>Ben</td><td>USA</td></tr>
+    <tr><td>3</td><td>Cara</td><td>UK</td></tr>
+    <tr><td>4</td><td>Dan</td><td>UK</td></tr>
+    <tr><td>5</td><td>Eve</td><td>USA</td></tr>
+  </tbody>
+</table>
+<p><strong><code>orders</code></strong></p>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>$120</td></tr>
+    <tr><td>102</td><td>3</td><td>$80</td></tr>
+    <tr><td>103</td><td>1</td><td>$60</td></tr>
+  </tbody>
+</table>
+<p>Five customers; only customers 1 and 3 have ever ordered (customer 1 twice). So <strong>Ben, Dan, and Eve</strong> &mdash; ids 2, 4, 5 &mdash; are the never-ordered set. That is the answer the query must produce.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN ... WHERE NULL</code></h4>
+<pre><code>SELECT c.customer_id, c.name
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+WHERE o.order_id IS NULL;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every customer; customers with no order get NULLs in all <code>o.*</code> columns. The <code>WHERE</code> then keeps only those NULL-padded rows &mdash; the customers with no match.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>Ben</td></tr>
+    <tr><td>4</td><td>Dan</td></tr>
+    <tr><td>5</td><td>Eve</td></tr>
+  </tbody>
+</table>
+<p>Three customers, exactly the never-ordered set. Customers 1 and 3 matched real order rows, so their <code>o.order_id</code> was non-NULL and the <code>WHERE</code> filtered them out. Ben, Dan, and Eve produced only NULL-padded rows and survived the filter.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>WHERE</code> runs <em>after</em> the join &mdash; and why that is not a self-contradiction</h5>
+<p>It looks paradoxical: a <code>LEFT JOIN</code> exists to <em>keep</em> unmatched rows, then <code>WHERE</code> throws matched rows away. The order is what makes it work. The <code>LEFT JOIN</code> produces the full padded result first &mdash; matched rows with real values, unmatched rows with NULLs. Only then does <code>WHERE o.order_id IS NULL</code> run, selecting precisely the unmatched rows. Filtering for the NULL is how you isolate "no match". This <code>LEFT JOIN</code> + <code>IS NULL</code> pattern is the classic <strong>anti-join</strong>.</p>
+
+<h5>Check a column that <em>cannot</em> be NULL on its own &mdash; the subtle trap</h5>
+<p>The query checks <code>o.order_id IS NULL</code>. That works because <code>order_id</code> is the orders table's primary key &mdash; it is never NULL in a real order row, so a NULL there can <em>only</em> mean "no order matched". Check the wrong column and the query breaks:</p>
+<pre><code>-- TRAP: orders.amount can legitimately be NULL on a real order
+WHERE o.amount IS NULL
+-- This now returns never-ordered customers PLUS customers whose
+-- order exists but has a NULL amount. Two different populations, merged.</code></pre>
+<p>Always test the NULL on the join key or the primary key of the right table &mdash; a column whose NULL is <em>guaranteed</em> to mean "row absent", never "value missing".</p>
+
+<h5>Three ways to write an anti-join</h5>
+<pre><code>-- A. NOT EXISTS — usually the clearest, and NULL-safe
+SELECT c.customer_id, c.name
+FROM customers c
+WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id = c.customer_id);
+
+-- B. NOT IN — concise, but DANGEROUS if the subquery can return NULL
+SELECT customer_id, name
+FROM customers
+WHERE customer_id NOT IN (SELECT customer_id FROM orders);
+
+-- C. LEFT JOIN ... IS NULL — the reference solution
+</code></pre>
+<p>The <code>NOT IN</code> form has a notorious failure: if <em>any</em> row of <code>orders.customer_id</code> is NULL, <code>NOT IN</code> returns <strong>no rows at all</strong> &mdash; because <code>x NOT IN (1, 2, NULL)</code> evaluates to NULL, never TRUE. <code>NOT EXISTS</code> and <code>LEFT JOIN ... IS NULL</code> are immune to this. Prefer <code>NOT EXISTS</code> as the default; reach for <code>NOT IN</code> only when the column is provably NULL-free.</p>
+
+<h5>Edge case: "never ordered" vs "no <em>completed</em> order"</h5>
+<p>The reference query treats <em>any</em> row in <code>orders</code> as "has ordered". But a customer whose only order was <code>cancelled</code> arguably still belongs in a win-back campaign. If the definition is "no <em>completed</em> order", the status filter must go in the <code>ON</code> clause, not <code>WHERE</code> &mdash; putting it in <code>WHERE</code> would demote the <code>LEFT JOIN</code> to an <code>INNER JOIN</code> and break the anti-join:</p>
+<pre><code>SELECT c.customer_id, c.name
+FROM customers c
+LEFT JOIN orders o
+  ON c.customer_id = o.customer_id AND o.status = 'completed'
+WHERE o.order_id IS NULL;</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>LEFT JOIN ... IS NULL</code> anti-join pattern, insist on testing the NULL against the join key or PK (never a nullable attribute like <code>amount</code>), warn that <code>NOT IN</code> collapses to zero rows when the subquery contains a NULL, and put any status filter in <code>ON</code> so the outer join is preserved.</div>

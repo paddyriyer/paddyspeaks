@@ -1,0 +1,55 @@
+<p>Wix's HR system stores names split into <code>first_name</code> and <code>last_name</code>, and the employee directory wants a single display name. It is the canonical string-concatenation question &mdash; one line with <code>||</code> &mdash; but the interviewer is checking whether you know what happens when one of those name parts is NULL, because incomplete name records exist in every HR table.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>first_name</th><th>last_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td><td>Patel</td></tr>
+    <tr><td>2</td><td>Ben</td><td>Cohen</td></tr>
+    <tr><td>3</td><td>Cara</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td>Dan</td><td>Singh</td></tr>
+  </tbody>
+</table>
+<p>Employee 3 has a <code>first_name</code> but a <strong>NULL</strong> <code>last_name</code> &mdash; a single-name record, or a data-entry gap. That one NULL decides whether the directory shows <code>Cara</code> or shows nothing at all.</p>
+
+<h4>2. The SQL &mdash; <code>first_name || ' ' || last_name</code></h4>
+<pre><code>SELECT emp_id, first_name || ' ' || last_name AS full_name FROM employees;</code></pre>
+<p>The <code>||</code> operator concatenates strings. Three operands here: the first name, a literal space, and the last name.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>full_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana Patel</td></tr>
+    <tr><td>2</td><td>Ben Cohen</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td>Dan Singh</td></tr>
+  </tbody>
+</table>
+<p>Three names render fine &mdash; but employee 3 comes back with a completely <strong>NULL</strong> <code>full_name</code>, not <code>Cara</code>. One missing part nuked the whole string. The directory would show a blank row where Cara should be. That is the bug the question is built to expose.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>||</code> blanked the whole name &mdash; NULL propagation</h5>
+<p>In Postgres, <code>||</code> propagates NULL: if <em>any</em> operand is NULL, the entire expression is NULL. <code>'Cara' || ' ' || NULL</code> is NULL &mdash; the good first name is discarded along with the missing last name. This is the single most common mistake on concatenation questions, and the demo data is designed to catch it.</p>
+
+<h5>The fix: <code>COALESCE</code> each part, or use <code>CONCAT_WS</code></h5>
+<p>Two solid repairs. Defend each operand with <code>COALESCE</code>:</p>
+<pre><code>SELECT emp_id,
+  COALESCE(first_name, '') || ' ' || COALESCE(last_name, '') AS full_name
+FROM employees;</code></pre>
+<p>This keeps <code>Cara</code> &mdash; but leaves a trailing space (<code>'Cara '</code>), so wrap it in <code>TRIM(&hellip;)</code>. Cleaner is <code>CONCAT_WS</code>, which skips NULLs <em>and</em> drops the orphaned separator:</p>
+<pre><code>SELECT emp_id, CONCAT_WS(' ', first_name, last_name) AS full_name
+FROM employees;</code></pre>
+<p>For employee 3, <code>CONCAT_WS</code> returns a clean <code>Cara</code> &mdash; no NULL, no dangling space. It is the idiomatic answer once NULLs are in play.</p>
+
+<h5>Plain <code>CONCAT</code> &mdash; better than <code>||</code>, still imperfect</h5>
+<p><code>CONCAT(first_name, ' ', last_name)</code> treats NULL as an empty string, so it never blanks the whole row &mdash; an improvement on <code>||</code>. But it cannot remove the <em>separator</em> next to a missing value: employee 3 would render <code>'Cara '</code> with a trailing space. Only <code>CONCAT_WS</code> omits both the value and its delimiter.</p>
+
+<h5>The redundant <code>name</code> column &mdash; ask before you build</h5>
+<p>The schema already ships a <code>name</code> column alongside <code>first_name</code>/<code>last_name</code>. Before deriving <code>full_name</code> at all, ask: is <code>name</code> the authoritative display name? If it is populated and trustworthy, the whole concatenation may be unnecessary &mdash; or worse, may <em>disagree</em> with <code>name</code> and confuse the directory. Surfacing that duplication is the senior instinct: do not compute what the table already stores.</p>
+
+<h5>Edge cases: empty strings and whitespace</h5>
+<p>An <em>empty-string</em> <code>last_name</code> (<code>''</code>, not NULL) is a real value: <code>||</code> keeps it and you get <code>'Cara '</code> with a trailing space; <code>CONCAT_WS</code> keeps it too and emits a doubled space. Dirty data often has <code>''</code> where you expect NULL. Normalise with <code>NULLIF(TRIM(last_name), '')</code> so blanks become NULLs that <code>CONCAT_WS</code> will then drop, and the directory stays clean.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately flag that <code>||</code> propagates NULL and blanks the entire name when one part is missing, fix it with <code>CONCAT_WS</code> (which drops the NULL and its separator) or <code>COALESCE</code>+<code>TRIM</code>, and question whether the existing <code>name</code> column makes the derivation redundant in the first place.</div>
