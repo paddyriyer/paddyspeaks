@@ -1,0 +1,77 @@
+<p>Deutsche Bank's customer-360 team wants one view that stitches a customer to their transactions and to whoever referred them. The schema is a kitchen sink &mdash; every table carries half the columns of every other table &mdash; so the real skill is choosing the correct join keys and join <em>type</em>. An interviewer is watching whether you keep every customer in the result, and whether you understand what happens to the row count when a customer has many transactions.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>customers</code></strong></p>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anita</td></tr>
+    <tr><td>2</td><td>Boris</td></tr>
+    <tr><td>3</td><td>Chen</td></tr>
+  </tbody>
+</table>
+<p><strong><code>transactions</code></strong> (keyed to customer by <code>customer_id</code>)</p>
+<table>
+  <thead><tr><th>customer_id</th><th>txn_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>9001</td><td>250</td></tr>
+    <tr><td>1</td><td>9002</td><td>75</td></tr>
+    <tr><td>2</td><td>9003</td><td>400</td></tr>
+  </tbody>
+</table>
+<p><strong><code>referrals</code></strong> (a customer is the <code>referred_id</code>; <code>referrer_id</code> is who brought them in)</p>
+<table>
+  <thead><tr><th>referred_id</th><th>referrer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>88</td></tr>
+    <tr><td>3</td><td>88</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate cases: Anita has <strong>two</strong> transactions <em>and</em> a referral; Boris has a transaction but <strong>no referral</strong>; Chen has a referral but <strong>no transaction</strong>. Each tests a different corner of the join.</p>
+
+<h4>2. The SQL &mdash; <code>customers LEFT JOIN both</code></h4>
+<pre><code>SELECT c.customer_id, c.name, t.txn_id, t.amount, r.referrer_id
+FROM customers c
+LEFT JOIN transactions t ON c.customer_id = t.customer_id
+LEFT JOIN referrals r ON c.customer_id = r.referred_id;</code></pre>
+<p>Start from <code>customers</code> as the spine. <code>LEFT JOIN</code> transactions on <code>customer_id</code>, then <code>LEFT JOIN</code> referrals matching the customer to the <code>referred_id</code> column. Left joins guarantee every customer appears even when one or both side tables have nothing.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>txn_id</th><th>amount</th><th>referrer_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Anita</td><td>9001</td><td>250</td><td>88</td></tr>
+    <tr><td>1</td><td>Anita</td><td>9002</td><td>75</td><td>88</td></tr>
+    <tr><td>2</td><td>Boris</td><td>9003</td><td>400</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td>Chen</td><td><em>NULL</em></td><td><em>NULL</em></td><td>88</td></tr>
+  </tbody>
+</table>
+<p>Anita produces <strong>two rows</strong> &mdash; one per transaction &mdash; and her referrer 88 is <em>repeated</em> on both. Boris appears once with a NULL <code>referrer_id</code> (no referral). Chen appears with NULL transaction columns (no transaction). Four output rows from three customers: the transaction join multiplied Anita.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Join fan-out &mdash; why 3 customers became 4 rows</h5>
+<p>A <code>LEFT JOIN</code> to a table with <em>multiple</em> matches per key produces one output row per match. Anita has two transactions, so she fans out to two rows, and the referral join then duplicates her single referrer across both. This is correct join behaviour, but it has a sharp consequence: <code>COUNT(*)</code> on this result is <strong>4, not 3</strong>, and <code>SUM(t.amount)</code> is fine but <code>COUNT(DISTINCT c.customer_id)</code> is the only safe way to count customers. Always know the grain of your result &mdash; here it is "customer-transaction", not "customer".</p>
+
+<h5>The referrer repetition trap</h5>
+<p>Because the referral join happens after the transaction fan-out, <code>r.referrer_id = 88</code> is stamped onto <em>every</em> Anita row. If you later <code>SUM</code> or <code>COUNT</code> anything from <code>referrals</code> off this result, you double-count: referrer 88 looks like it referred Anita twice. When you need per-customer referral facts, aggregate the referral table separately or join it to a de-duplicated customer set.</p>
+
+<h5>LEFT vs INNER &mdash; who would disappear</h5>
+<p>If the transaction join were <code>INNER</code>, Chen (no transaction) would vanish. If the referral join were <code>INNER</code>, Boris (no referral) would vanish. With <em>both</em> inner, only Anita survives. The customer-360 view exists precisely to show every customer regardless of gaps &mdash; so both joins must be <code>LEFT</code>, with <code>customers</code> as the preserved left side.</p>
+
+<h5>Choosing the right key &mdash; the schema is a trap</h5>
+<p>Every table redundantly carries <code>customer_id</code>, <code>referrer_id</code>, <code>referred_id</code>, <code>txn_id</code>, <code>name</code>. The join must use the <em>semantically</em> correct key: transactions join on <code>customer_id</code>, but referrals join customer-to-<code>referred_id</code> (the customer is the one who <em>was</em> referred). Joining on <code>referrer_id</code> instead would answer a completely different question &mdash; "transactions of people this customer referred". Pick the key by meaning, not by name-matching.</p>
+
+<h5>Collapsing to one row per customer</h5>
+<p>If the consumer wants exactly one row per customer &mdash; transaction <em>summary</em>, not transaction detail &mdash; aggregate the transactions before the join so there is no fan-out:</p>
+<pre><code>SELECT c.customer_id, c.name,
+       t.txn_count, t.total_amount, r.referrer_id
+FROM customers c
+LEFT JOIN (
+  SELECT customer_id, COUNT(*) AS txn_count, SUM(amount) AS total_amount
+  FROM transactions GROUP BY customer_id
+) t ON c.customer_id = t.customer_id
+LEFT JOIN referrals r ON c.customer_id = r.referred_id;</code></pre>
+<p>Pre-aggregating makes <code>t</code> one row per customer, the join no longer multiplies, and the referrer is no longer repeated &mdash; three customers, three rows.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>LEFT JOIN</code> from <code>customers</code> so no customer is dropped, recognise that joining to the multi-row transactions table fans Anita out to two rows and inflates any naive <code>COUNT(*)</code>, pick the referral key by meaning (<code>referred_id</code>, not <code>referrer_id</code>), and pre-aggregate transactions when the consumer needs one row per customer.</div>

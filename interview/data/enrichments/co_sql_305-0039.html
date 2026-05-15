@@ -1,0 +1,69 @@
+<p>Nintendo's regional sales leads each run a territory, and the quarterly review opens with one slide: a ranked board of territories by revenue. The query is a textbook <code>GROUP BY</code> plus a ranking window &mdash; but the interesting moment is what happens when two territories finish the quarter at exactly the same total. An interviewer asking this wants to see that you know how <code>RANK()</code> behaves on a tie, and that you can rank an <em>aggregate</em>, not just a raw column.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>territory</th><th>rep_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>1</td><td>500</td></tr>
+    <tr><td>West</td><td>2</td><td>300</td></tr>
+    <tr><td>East</td><td>3</td><td>400</td></tr>
+    <tr><td>East</td><td>4</td><td>400</td></tr>
+    <tr><td>North</td><td>5</td><td>200</td></tr>
+    <tr><td>South</td><td>6</td><td>100</td></tr>
+    <tr><td>South</td><td>7</td><td>99</td></tr>
+  </tbody>
+</table>
+<p>Each territory has multiple reps, so the rows must be collapsed before ranking. The set-up is deliberate: West sums to 800 and East also sums to 800 &mdash; a <strong>tie at the top</strong>. That tie decides whether North is ranked 2 or 3.</p>
+
+<h4>2. The SQL &mdash; <code>RANK() OVER (ORDER BY SUM(...))</code></h4>
+<pre><code>SELECT territory, SUM(amount) AS total_sales,
+  RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY territory;</code></pre>
+<p>The <code>GROUP BY</code> collapses reps into one row per territory; <code>SUM(amount)</code> is the per-territory total. The window function then ranks those grouped rows &mdash; note that <code>SUM(amount)</code> inside <code>OVER(...)</code> is legal and refers to the same aggregate, evaluated after grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>territory</th><th>total_sales</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>800</td><td>1</td></tr>
+    <tr><td>West</td><td>800</td><td>1</td></tr>
+    <tr><td>North</td><td>200</td><td>3</td></tr>
+    <tr><td>South</td><td>199</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>East and West both land at <strong>rank 1</strong> &mdash; <code>RANK()</code> gives tied rows the same rank. Then North is <strong>rank 3, not 2</strong>: the rank after a tie skips by the size of the tie group. That gap is the headline behaviour of <code>RANK()</code>, and it is correct unless the business wants a gapless board.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The ordering of tied rows is not deterministic</h5>
+<p>East and West both show <code>rk = 1</code>, but which one is printed <em>first</em> is up to the planner &mdash; <code>ORDER BY SUM(amount) DESC</code> does not distinguish them. If the slide needs a stable order, add a tiebreaker to the window and to a final <code>ORDER BY</code>:</p>
+<pre><code>SELECT territory, SUM(amount) AS total_sales,
+  RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY territory
+ORDER BY rk, territory;</code></pre>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code></h5>
+<p>The interviewer's natural follow-up: "what if you don't want the gap?" Three window functions, three behaviours on the East/West tie:</p>
+<table>
+  <thead><tr><th>territory</th><th>total</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>800</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>West</td><td>800</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>North</td><td>200</td><td>3</td><td>2</td><td>3</td></tr>
+    <tr><td>South</td><td>199</td><td>4</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>DENSE_RANK</code> closes the gap (1, 1, 2). <code>ROW_NUMBER</code> ignores the tie entirely and forces a 1/2 split &mdash; wrong here, because it would arbitrarily declare one of two equal territories the winner.</p>
+
+<h5>Why not a correlated subquery?</h5>
+<p>The pre-window way to rank is to count how many territories outscored each one. It works but is O(n&sup2;) and far harder to read:</p>
+<pre><code>SELECT territory, total_sales,
+  (SELECT COUNT(*)+1 FROM (SELECT SUM(amount) s FROM sales GROUP BY territory) o
+   WHERE o.s &gt; t.total_sales) AS rk
+FROM (SELECT territory, SUM(amount) AS total_sales FROM sales GROUP BY territory) t;</code></pre>
+<p>On a real warehouse the window function sorts once and is the only sensible choice.</p>
+
+<h5>Edge case: NULL amounts and empty territories</h5>
+<p><code>SUM</code> skips NULL <code>amount</code> values, and a territory whose rows are <em>all</em> NULL sums to NULL &mdash; which sorts to the end under <code>DESC</code> by default. A territory with no rows at all simply never appears, since <code>GROUP BY</code> only emits groups that exist. If the board must list every known territory including zero-sellers, you need a <code>territories</code> dimension table and a <code>LEFT JOIN</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> rank the aggregate directly with <code>RANK() OVER (ORDER BY SUM(amount) DESC)</code>, explain that ties share a rank and the next rank skips, contrast <code>RANK</code>/<code>DENSE_RANK</code>/<code>ROW_NUMBER</code> for the gapless follow-up, and add an explicit tiebreaker so the printed order of tied territories is stable.</div>

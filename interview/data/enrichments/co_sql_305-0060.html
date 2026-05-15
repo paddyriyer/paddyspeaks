@@ -1,0 +1,60 @@
+<p>Walmart's merchandising team wants order volume bucketed by month for a trend chart. It is a one-line <code>GROUP BY</code> on a formatted date &mdash; but the interviewer is watching two things: whether you bucket on the month rather than the raw date, and whether you understand that the choice of <code>YYYY-MM</code> versus another format silently controls how the months sort.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>order_date</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-05</td><td>1</td><td>done</td></tr>
+    <tr><td>2</td><td>2024-01-20</td><td>2</td><td>done</td></tr>
+    <tr><td>3</td><td>2024-02-10</td><td>3</td><td>done</td></tr>
+    <tr><td>4</td><td>2024-02-15</td><td>4</td><td>done</td></tr>
+    <tr><td>5</td><td>2024-02-28</td><td>5</td><td>done</td></tr>
+    <tr><td>6</td><td>2024-03-01</td><td>6</td><td>done</td></tr>
+  </tbody>
+</table>
+<p>Six orders with <em>distinct</em> dates spread across three months &mdash; two in January, three in February, one in March. The interesting bit: every date differs, so the only way to get a clean three-row monthly chart is to collapse the day component.</p>
+
+<h4>2. The SQL &mdash; <code>TO_CHAR</code> month bucket</h4>
+<pre><code>SELECT TO_CHAR(order_date, 'YYYY-MM') AS year_month, COUNT(*) AS orders
+FROM orders GROUP BY TO_CHAR(order_date, 'YYYY-MM') ORDER BY year_month;</code></pre>
+<p><code>TO_CHAR(order_date, 'YYYY-MM')</code> renders each date as a <code>'2024-02'</code> string, discarding the day; <code>GROUP BY</code> on that string collapses all of a month's orders into one row; <code>COUNT(*)</code> tallies them.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year_month</th><th>orders</th></tr></thead>
+  <tbody>
+    <tr><td>2024-01</td><td>2</td></tr>
+    <tr><td>2024-02</td><td>3</td></tr>
+    <tr><td>2024-03</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three rows, one per month, correctly tallied. The output sorts chronologically &mdash; but only by luck of format: <code>'2024-01' &lt; '2024-02'</code> as <em>strings</em> happens to match calendar order. Pick a format like <code>'MM-YYYY'</code> and that coincidence breaks.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>String sort vs date sort &mdash; the format is load-bearing</h5>
+<p><code>year_month</code> is text, so <code>ORDER BY year_month</code> is a <em>lexical</em> sort. With <code>'YYYY-MM'</code> the big-endian layout means lexical order equals chronological order &mdash; even across year boundaries (<code>'2023-12' &lt; '2024-01'</code>). Switch the mask to <code>'MM-YYYY'</code> and you get <code>'01-2024'</code>, <code>'12-2023'</code>, <code>'01-2025'</code> sorting nonsensically. <code>YYYY-MM</code> is not cosmetic; it is what makes the sort correct.</p>
+
+<h5>The robust alternative &mdash; <code>DATE_TRUNC</code></h5>
+<p>To remove all doubt, bucket on a real date and format only for display:</p>
+<pre><code>SELECT DATE_TRUNC('month', order_date)::date AS month, COUNT(*) AS orders
+FROM orders
+GROUP BY DATE_TRUNC('month', order_date)::date
+ORDER BY month;</code></pre>
+<p><code>DATE_TRUNC</code> keeps the bucket a genuine <code>date</code> (the 1st of the month). It sorts chronologically by definition, supports date arithmetic, and joins cleanly to a calendar spine. Group by the date; apply <code>TO_CHAR</code> at the presentation edge if a string label is needed.</p>
+
+<h5>Missing months leave gaps</h5>
+<p>If no orders fall in a month, that month produces no row &mdash; <code>GROUP BY</code> only emits groups that exist. A trend chart with April absent draws a misleading line. Fix it with a generated month spine and a <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT m.month, COUNT(o.order_id) AS orders
+FROM generate_series('2024-01-01'::date,'2024-03-01'::date,'1 month') AS m(month)
+LEFT JOIN orders o ON DATE_TRUNC('month', o.order_date)::date = m.month
+GROUP BY m.month ORDER BY m.month;</code></pre>
+<p>Use <code>COUNT(o.order_id)</code>, not <code>COUNT(*)</code> &mdash; an empty month's left join yields one all-NULL row, and <code>COUNT(*)</code> would miscount it as 1.</p>
+
+<h5>Counting orders vs counting customers</h5>
+<p><code>COUNT(*)</code> counts order rows. If February's three orders came from one repeat customer, "orders" is 3 but "active customers" is 1. The question says orders, so <code>COUNT(*)</code> is right &mdash; but if a follow-up asks for monthly <em>active customers</em>, switch to <code>COUNT(DISTINCT customer_id)</code>. Know which the chart is labelled.</p>
+
+<h5>Status filtering and time zones</h5>
+<p>The table carries a <code>status</code>; cancelled orders inflate the volume. If the chart means realised orders, add <code>WHERE status = 'completed'</code>. And if <code>order_date</code> were a <code>timestamptz</code>, the month a late-night order falls into depends on the session time zone &mdash; truncate in an explicit zone for a reproducible bucket.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>TO_CHAR</code> returns a string whose lexical sort only matches the calendar because <code>YYYY-MM</code> is big-endian, prefer <code>DATE_TRUNC</code> to keep the bucket a real date, fill gaps with a generated month spine plus <code>COUNT(column)</code>, and distinguish counting orders from counting distinct customers.</div>

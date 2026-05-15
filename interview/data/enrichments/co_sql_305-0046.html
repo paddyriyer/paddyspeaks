@@ -1,0 +1,67 @@
+<p>Ubisoft's player-engagement team runs a re-activation campaign and needs the mailing list: every active customer who is <em>not</em> on the blacklist. It is the canonical "set difference" problem. The interviewer asking this is probing whether you reach for the right exclusion construct &mdash; and, above all, whether you know the silent way <code>NOT IN</code> breaks when the exclusion list contains a NULL.</p>
+
+<h4>1. The source data &mdash; <code>active_customers</code> and <code>blacklist</code></h4>
+<p>The solution ships its own fixture, so the data is fixed:</p>
+<table>
+  <thead><tr><th>active_customers.id</th></tr></thead>
+  <tbody>
+    <tr><td>1, 2, 3, 4, 5, 6, 7, 8</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>blacklist.id</th></tr></thead>
+  <tbody>
+    <tr><td>2, 5, 7</td></tr>
+  </tbody>
+</table>
+<p>Eight active customers; three of them &mdash; 2, 5, 7 &mdash; are blacklisted. The expected mailing list is the other five. Crucially, here <code>blacklist</code> contains <strong>no NULLs</strong> &mdash; which is exactly why this version of the query is safe.</p>
+
+<h4>2. The SQL &mdash; <code>NOT IN</code> subquery</h4>
+<pre><code>SELECT id FROM active_customers
+WHERE id NOT IN (SELECT id FROM blacklist);</code></pre>
+<p>For each active customer, <code>NOT IN</code> keeps the row only when its <code>id</code> matches none of the values returned by the subquery.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>3</td></tr>
+    <tr><td>4</td></tr>
+    <tr><td>6</td></tr>
+    <tr><td>8</td></tr>
+  </tbody>
+</table>
+<p>Five customers &mdash; 1, 3, 4, 6, 8 &mdash; the active set minus the three blacklisted ids. The query is correct <em>because the blacklist has no NULL</em>. Change that one fact and the result collapses, as the next section shows.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>NOT IN</code> + NULL trap &mdash; the entire point of the question</h5>
+<p>If <code>blacklist</code> ever contained a single NULL <code>id</code>, this query would return <strong>zero rows</strong>. <code>NOT IN (2, 5, 7, NULL)</code> expands to <code>id &lt;&gt; 2 AND id &lt;&gt; 5 AND id &lt;&gt; 7 AND id &lt;&gt; NULL</code>. That last comparison is never <em>true</em> &mdash; it is <em>unknown</em> &mdash; so the whole <code>AND</code> can never be true, and every row is filtered out. An empty mailing list, no error, campaign quietly dead. Always either guarantee no NULLs or filter them: <code>NOT IN (SELECT id FROM blacklist WHERE id IS NOT NULL)</code>.</p>
+
+<h5><code>NOT EXISTS</code> &mdash; the NULL-safe default</h5>
+<p>The robust idiom is <code>NOT EXISTS</code>, which is immune to the NULL problem:</p>
+<pre><code>SELECT a.id FROM active_customers a
+WHERE NOT EXISTS (
+  SELECT 1 FROM blacklist b WHERE b.id = a.id
+);</code></pre>
+<p><code>NOT EXISTS</code> asks "is there a matching row?" &mdash; a plain yes/no. A NULL in <code>blacklist</code> simply fails the <code>b.id = a.id</code> join and is ignored, rather than poisoning the whole predicate. For exclusion against a column that <em>might</em> be nullable, prefer <code>NOT EXISTS</code>.</p>
+
+<h5><code>LEFT JOIN / IS NULL</code> &mdash; the anti-join</h5>
+<p>A third correct form, the classic anti-join:</p>
+<pre><code>SELECT a.id FROM active_customers a
+LEFT JOIN blacklist b ON a.id = b.id
+WHERE b.id IS NULL;</code></pre>
+<p>Keep every active customer, then discard any that found a blacklist match (its joined columns stay NULL only for non-matches). Equivalent here; some planners optimise it identically to <code>NOT EXISTS</code>.</p>
+
+<h5><code>EXCEPT</code> &mdash; the set operator</h5>
+<p>Because this is literally set difference, <code>EXCEPT</code> expresses it directly:</p>
+<pre><code>SELECT id FROM active_customers
+EXCEPT
+SELECT id FROM blacklist;</code></pre>
+<p>One caveat that changes behaviour: <code>EXCEPT</code> also <em>de-duplicates</em> its inputs. If <code>active_customers</code> had the same id twice, <code>EXCEPT</code> collapses it to one row, whereas <code>NOT IN</code> and <code>NOT EXISTS</code> preserve both.</p>
+
+<h5>Edge case: empty blacklist</h5>
+<p>If <code>blacklist</code> were empty, <code>NOT IN (empty set)</code> is <em>true</em> for everyone, so all eight customers pass &mdash; the desired behaviour. (This is the one case where <code>NOT IN</code> is well-behaved with no rows; the danger is purely a NULL <em>value</em>, not an empty set.)</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the <code>NOT IN</code> + NULL trap unprompted &mdash; one NULL in the subquery empties the entire result &mdash; and default to <code>NOT EXISTS</code> (or a <code>LEFT JOIN / IS NULL</code> anti-join) for exclusion against any nullable column, reserving <code>EXCEPT</code> for true set difference while noting it de-duplicates.</div>

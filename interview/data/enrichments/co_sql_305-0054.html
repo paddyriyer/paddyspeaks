@@ -1,0 +1,67 @@
+<p>Samsung's e-commerce team launched a paid loyalty membership and the growth org wants the one number that justifies it: do loyalty members spend more per order than everyone else? The query is a single <code>GROUP BY</code> &mdash; but it quietly answers a narrower question than the business asked, and an interviewer is watching whether you notice the gap.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>is_loyalty</th><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>true</td><td>Seoul</td></tr>
+    <tr><td>2</td><td>false</td><td>Busan</td></tr>
+    <tr><td>3</td><td>true</td><td>Seoul</td></tr>
+    <tr><td>4</td><td>false</td><td>Seoul</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>200</td></tr>
+    <tr><td>1</td><td>11</td><td>400</td></tr>
+    <tr><td>3</td><td>12</td><td>300</td></tr>
+    <tr><td>2</td><td>13</td><td>100</td></tr>
+    <tr><td>2</td><td>14</td><td>150</td></tr>
+    <tr><td>4</td><td>15</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Four customers, six orders. Customer 1 (loyalty) placed two orders; the others one each. Notice the unit: the question is per-<em>order</em>, and customer 1 contributes <em>twice</em> to the loyalty bucket &mdash; orders, not customers, are being averaged.</p>
+
+<h4>2. The SQL &mdash; <code>AVG</code> grouped by flag</h4>
+<pre><code>SELECT c.is_loyalty, AVG(o.amount) AS avg_order, COUNT(*) AS n
+FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.is_loyalty;</code></pre>
+<p>An inner join attaches each order to its customer's loyalty flag, then <code>GROUP BY is_loyalty</code> splits orders into two buckets and averages each.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>is_loyalty</th><th>avg_order</th><th>n</th></tr></thead>
+  <tbody>
+    <tr><td>false</td><td>123.33</td><td>3</td></tr>
+    <tr><td>true</td><td>300.00</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Loyalty members average 300 per order against 123.33 for non-members &mdash; a headline the growth team will love. But each bucket has only 3 orders, and the loyalty figure is dominated by one customer's two orders. The <code>n</code> column is doing essential work: it tells the reader the sample is too thin to bank on.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The inner join silently drops zero-order customers</h5>
+<p>Customers in the table with no orders never appear &mdash; the <code>JOIN</code> has nothing to match. That is correct for "average order value" (no orders means no order amounts to average), but it means this query cannot answer "what fraction of loyalty members ever order". If the follow-up asks about <em>activation</em> or <em>conversion</em>, you need a <code>LEFT JOIN</code> and to count customers, not orders.</p>
+
+<h5>Per-order average vs per-customer average</h5>
+<p><code>AVG(o.amount)</code> averages every order equally, so a customer with ten orders sways the bucket ten times as much as a one-order customer. That is "average order value". A different, equally reasonable metric is average <em>customer</em> spend &mdash; total each customer first, then average the customers:</p>
+<pre><code>SELECT is_loyalty, AVG(customer_total) AS avg_customer_spend
+FROM (
+  SELECT c.is_loyalty, c.customer_id, SUM(o.amount) AS customer_total
+  FROM customers c JOIN orders o ON c.customer_id = o.customer_id
+  GROUP BY c.is_loyalty, c.customer_id
+) t
+GROUP BY is_loyalty;</code></pre>
+<p>These two numbers differ whenever order counts vary across customers. Naming which one the business wants &mdash; per order or per member &mdash; is the senior move.</p>
+
+<h5>The NULL three-way split in <code>is_loyalty</code></h5>
+<p><code>is_loyalty</code> is a boolean, and booleans have three states: true, false, and NULL (membership unknown). <code>GROUP BY</code> puts NULLs in their own group, so the result could surface a mysterious third row with no flag. Decide on purpose: either report it, or normalise with <code>COALESCE(c.is_loyalty, false)</code>, or filter <code>WHERE c.is_loyalty IS NOT NULL</code>. Silently shipping a NULL row to a dashboard invites a "what is this?" Slack message.</p>
+
+<h5>Correlation is not causation &mdash; the analyst's caveat</h5>
+<p>The number says members spend more; it does <em>not</em> say loyalty <em>causes</em> spend. High spenders are exactly the customers who opt into a paid program &mdash; classic selection bias. An over-the-bar answer delivers the SQL <em>and</em> the caveat: "this is a correlation; to claim impact you need a pre/post comparison or a holdout group."</p>
+
+<h5>Filtering to completed orders</h5>
+<p><code>orders</code> carries a <code>status</code>. Cancelled or pending orders sitting in the average distort it. If "order value" means realised revenue, add <code>WHERE o.status = 'completed'</code> &mdash; and confirm that definition before writing the query.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise this averages orders not customers and offer the per-customer alternative, handle the boolean's three-valued NULL group explicitly, note that the inner join excludes zero-order customers, and pair the number with the selection-bias caveat that correlation is not impact.</div>

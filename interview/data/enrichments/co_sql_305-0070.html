@@ -1,0 +1,57 @@
+<p>Deutsche Bank's digital-channels team reports an engagement rate for every piece of published content &mdash; engagements as a percentage of views. The catch is in the schema: <code>engagements</code> is not a clean integer. It arrived from an upstream feed as text, sometimes with units or labels glued on ("60 likes"). An interviewer posing this is testing whether you can sanitise a dirty numeric column and still guard the rate against zero-view content.</p>
+
+<h4>1. The source data &mdash; <code>content</code></h4>
+<table>
+  <thead><tr><th>content_id</th><th>views</th><th>engagements</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1000</td><td>150</td></tr>
+    <tr><td>2</td><td>500</td><td>60 likes</td></tr>
+    <tr><td>3</td><td>0</td><td>20</td></tr>
+    <tr><td>4</td><td>2000</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td>800</td><td><em>(empty string)</em></td></tr>
+  </tbody>
+</table>
+<p>Four edge cases. Content 2 has the unit suffix "60 likes" that must be stripped. Content 3 has <strong>zero views</strong> &mdash; the divide-by-zero. Content 4's engagements are NULL. Content 5's engagements are an empty string, which is not the same as NULL and would explode a naive cast.</p>
+
+<h4>2. The SQL &mdash; <code>regex-clean then divide</code></h4>
+<pre><code>SELECT content_id,
+  100.0 * NULLIF(regexp_replace(engagements::text, '[^-.0-9]', '', 'g'), '')::numeric / NULLIF(views, 0) AS engagement_rate_pct
+FROM content;</code></pre>
+<p><code>regexp_replace</code> strips every character that is not a digit, minus, or dot &mdash; turning "60 likes" into "60". The inner <code>NULLIF(&hellip;, '')</code> turns an empty result into NULL so the <code>::numeric</code> cast never sees a blank. <code>NULLIF(views, 0)</code> guards the denominator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>content_id</th><th>engagement_rate_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>15.0000000000000000</td></tr>
+    <tr><td>2</td><td>12.0000000000000000</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td></tr>
+    <tr><td>4</td><td><em>NULL</em></td></tr>
+    <tr><td>5</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Content 1 is a clean 150/1000 = 15%. Content 2 proves the cleaning worked: "60 likes" became 60, and 60/500 = 12%. The three NULL rows each fail for a <em>different</em> reason &mdash; content 3 from zero views, content 4 from NULL engagements, content 5 from the empty-string-to-NULL guard. None of them errors the query.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Reading the regex: a character-class delete</h5>
+<p><code>regexp_replace(text, '[^-.0-9]', '', 'g')</code> means "globally replace every character <em>not</em> in the set {<code>-</code>, <code>.</code>, digits} with nothing". The <code>^</code> inside the brackets negates the class; the <code>'g'</code> flag makes it replace all matches, not just the first. So "60 likes" &rarr; "60", "$1,200" &rarr; "1200". It is a blunt instrument &mdash; useful, but see the next two traps.</p>
+
+<h5>Why the inner <code>NULLIF(&hellip;, '')</code> is essential</h5>
+<p>After stripping, content 5's empty string stays empty, and content 2's text could in principle reduce to "" if it held no digits at all. Casting <code>''::numeric</code> raises <code>invalid input syntax for type numeric: ""</code> &mdash; which aborts the whole query. <code>NULLIF(stripped, '')</code> converts the blank to NULL <em>before</em> the cast; <code>NULL::numeric</code> is harmlessly NULL. This guard is not optional defensive padding; without it the query dies on row 5.</p>
+
+<h5>The regex is too permissive &mdash; the subtle bug</h5>
+<p>Keeping <em>all</em> digits, dots, and minuses can produce garbage. "12.3.4" survives as "12.3.4" and still fails the cast. "likes: 5, shares: 7" collapses to "57" &mdash; a silently wrong number. The character-delete approach assumes the field holds exactly one number with cosmetic noise. If the feed is messier, extract the first numeric token instead:</p>
+<pre><code>SELECT content_id,
+  100.0 * NULLIF((regexp_match(engagements, '[0-9]+(\.[0-9]+)?'))[1], '')::numeric
+        / NULLIF(views, 0) AS engagement_rate_pct
+FROM content;</code></pre>
+<p><code>regexp_match</code> pulls the first well-formed number and ignores the rest &mdash; far safer than blindly concatenating every digit.</p>
+
+<h5>Zero views &mdash; NULL, not zero</h5>
+<p>Content 3 has views = 0. <code>NULLIF(views, 0)</code> makes the denominator NULL, and the rate is NULL. That is defensible &mdash; "engagement rate of content nobody saw" is genuinely undefined. But if the dashboard must show a number, decide: <code>COALESCE(&hellip;, 0)</code> for "0%", or filter zero-view content out of the report entirely. NULL is the honest default; 0% is a presentation choice.</p>
+
+<h5>The real fix is upstream</h5>
+<p>A senior would name it: <code>engagements</code> should be a numeric column, with the cleaning done once in the ingestion pipeline, not re-derived on every dashboard query. Regex-scrubbing in the reporting layer is fragile and slow at scale. The query is a workaround; the data contract is the bug.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> sanitise the dirty text column with a regex but acknowledge its limits (multi-number garbage), keep the empty-string-to-NULL guard that stops the cast from aborting the whole query, treat zero views as NULL or 0% on purpose, and call out that the cleaning belongs in ingestion, not in every read.</div>

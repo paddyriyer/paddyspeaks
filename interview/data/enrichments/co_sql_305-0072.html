@@ -1,0 +1,74 @@
+<p>EY's media-analytics practice builds a popularity leaderboard for a streaming client: total plays per title, ranked. The play log has one row per play event, so a title appears many times &mdash; meaning you must aggregate first and rank the aggregate. An interviewer is watching two things: that you put <code>SUM</code> inside the <code>RANK</code>'s <code>ORDER BY</code> correctly, and that you know what <code>RANK</code> does when two titles tie on total plays.</p>
+
+<h4>1. The source data &mdash; <code>plays</code></h4>
+<table>
+  <thead><tr><th>content_id</th><th>play_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>500</td></tr>
+    <tr><td>1</td><td>300</td></tr>
+    <tr><td>2</td><td>900</td></tr>
+    <tr><td>3</td><td>400</td></tr>
+    <tr><td>3</td><td>400</td></tr>
+    <tr><td>4</td><td>100</td></tr>
+  </tbody>
+</table>
+<p>The rows are play batches, not titles &mdash; content 1 and content 3 each appear twice. The deliberate trap: content 1 totals 800 (500+300) and content 3 also totals 800 (400+400). They <strong>tie</strong>. That tie is the whole interview &mdash; it decides whether the title below them is ranked 3 or 4.</p>
+
+<h4>2. The SQL &mdash; <code>RANK over a grouped SUM</code></h4>
+<pre><code>SELECT content_id, SUM(play_count) AS plays,
+  RANK() OVER (ORDER BY SUM(play_count) DESC) AS popularity_rank
+FROM plays GROUP BY content_id;</code></pre>
+<p>Group by title, sum the play counts, and rank by that sum descending. The window function is allowed to reference the aggregate <code>SUM(play_count)</code> directly &mdash; window functions are evaluated <em>after</em> grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>content_id</th><th>plays</th><th>popularity_rank</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>900</td><td>1</td></tr>
+    <tr><td>3</td><td>800</td><td>2</td></tr>
+    <tr><td>1</td><td>800</td><td>2</td></tr>
+    <tr><td>4</td><td>100</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Content 2 leads at 900. Content 1 and content 3 both total 800 and both get <strong>rank 2</strong> &mdash; a genuine tie. Then content 4 gets <strong>rank 4, not 3</strong>: <code>RANK</code> skips the rank that the tie consumed. Ranks read 1, 2, 2, 4. The missing "3" is deliberate competition-ranking behaviour, and you should name it.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The window function runs after the GROUP BY</h5>
+<p>It looks circular &mdash; how can <code>RANK() OVER (ORDER BY SUM(play_count))</code> reference an aggregate? Logical evaluation order is the answer: <code>FROM</code> &rarr; <code>GROUP BY</code> &rarr; aggregates &rarr; <em>then</em> window functions &rarr; <code>SELECT</code> &rarr; <code>ORDER BY</code>. By the time <code>RANK</code> is computed, each title is already one row with a known <code>SUM</code>. You may not, however, reference the <em>alias</em> <code>plays</code> inside the <code>OVER</code> clause &mdash; repeat the <code>SUM(play_count)</code> expression, as the solution does.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> on the tie</h5>
+<table>
+  <thead><tr><th>content</th><th>plays</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>900</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>3</td><td>800</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>1</td><td>800</td><td>2</td><td>2</td><td>3</td></tr>
+    <tr><td>4</td><td>100</td><td>4 (skips!)</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> leaves a gap after a tie (1, 2, 2, 4). <code>DENSE_RANK</code> does not (1, 2, 2, 3). <code>ROW_NUMBER</code> refuses to tie at all &mdash; it hands content 1 and content 3 different numbers (2 and 3) chosen arbitrarily by physical row order, which for a leaderboard is simply wrong. Pick the function to match the product: a sports-style "joint 2nd, no 3rd place" is <code>RANK</code>; a "2nd tier" grouping is <code>DENSE_RANK</code>.</p>
+
+<h5>The non-deterministic tie order</h5>
+<p>Content 1 and content 3 both show rank 2, but <em>which one prints first</em> is undefined &mdash; the query has no <code>ORDER BY</code> on the final result, only inside the window. For a stable, reproducible leaderboard, add an outer sort with a tiebreaker:</p>
+<pre><code>SELECT content_id, SUM(play_count) AS plays,
+  RANK() OVER (ORDER BY SUM(play_count) DESC) AS popularity_rank
+FROM plays
+GROUP BY content_id
+ORDER BY popularity_rank, content_id;</code></pre>
+<p>Without the <code>content_id</code> tiebreaker, two runs of the same query can list the tied titles in different orders.</p>
+
+<h5>Top-N &mdash; the natural follow-up</h5>
+<p>"Give me the top 3 most-played titles" is not <code>LIMIT 3</code> if ties matter &mdash; that would arbitrarily cut one of the tied 800-play titles. Wrap and filter on the rank:</p>
+<pre><code>SELECT * FROM (
+  SELECT content_id, SUM(play_count) AS plays,
+    RANK() OVER (ORDER BY SUM(play_count) DESC) AS popularity_rank
+  FROM plays GROUP BY content_id
+) t
+WHERE popularity_rank &lt;= 3;</code></pre>
+<p>This returns content 2, 3, and 1 &mdash; and would return four rows if three titles tied for the cutoff, which is usually the desired "include all ties" semantics.</p>
+
+<h5>NULL play counts</h5>
+<p><code>SUM</code> skips NULL inputs. A title whose every play row is NULL would sum to NULL, and <code>ORDER BY SUM(...) DESC</code> sorts NULL first or last depending on <code>NULLS</code> handling &mdash; potentially ranking a data-quality hole as the #1 title. If NULL play counts are possible, use <code>SUM(COALESCE(play_count, 0))</code> or add <code>NULLS LAST</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate before ranking and explain that window functions run after <code>GROUP BY</code>, name the 1-2-2-4 gap as deliberate <code>RANK</code> semantics, contrast <code>RANK</code>/<code>DENSE_RANK</code>/<code>ROW_NUMBER</code> on the tie, and add a deterministic outer <code>ORDER BY</code> so the tied titles do not shuffle between runs.</div>

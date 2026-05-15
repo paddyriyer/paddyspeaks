@@ -1,0 +1,58 @@
+<p>AMD's fulfillment operations team wants a scorecard: per warehouse, what percentage of orders actually shipped? It is a conditional count over a total &mdash; a ratio. The interviewer is checking two reflexes: that you force floating-point division rather than integer truncation, and that you think about what "fulfilled" excludes and what an empty warehouse does to the denominator.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>warehouse_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>fulfilled</td><td>1</td></tr>
+    <tr><td>2</td><td>fulfilled</td><td>1</td></tr>
+    <tr><td>3</td><td>pending</td><td>1</td></tr>
+    <tr><td>4</td><td>fulfilled</td><td>2</td></tr>
+    <tr><td>5</td><td>cancelled</td><td>2</td></tr>
+    <tr><td>6</td><td>fulfilled</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Warehouse 1 has a mix &mdash; 2 fulfilled, 1 pending; warehouse 2 has a <code>cancelled</code> order alongside a fulfilled one; warehouse 3 has a single, fulfilled order. The <code>cancelled</code> row and the lone-order warehouse are the edge cases the interviewer planted.</p>
+
+<h4>2. The SQL &mdash; conditional <code>SUM</code> over <code>COUNT</code></h4>
+<pre><code>SELECT warehouse_id,
+  100.0 * SUM(CASE WHEN status='fulfilled' THEN 1 ELSE 0 END)/COUNT(*)
+    AS fulfillment_rate
+FROM orders GROUP BY warehouse_id;</code></pre>
+<p>The <code>CASE</code> emits 1 for a fulfilled order and 0 otherwise; <code>SUM</code> of those is the fulfilled count; dividing by <code>COUNT(*)</code> gives the fraction; the leading <code>100.0</code> scales it to a percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>fulfillment_rate</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>100.0000000000000000</td></tr>
+    <tr><td>2</td><td>50.0000000000000000</td></tr>
+    <tr><td>1</td><td>66.6666666666666667</td></tr>
+  </tbody>
+</table>
+<p>Warehouse 3 scores 100% (1 of 1), warehouse 2 scores 50% (1 of 2 &mdash; the cancelled order counts <em>against</em> it), warehouse 1 scores 66.67% (2 of 3). The result is correct &mdash; and 66.67% only because the leading <code>100.0</code> is a numeric literal that forced real division. Drop it and integer division would have returned a flat 0.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The integer-division trap &mdash; why <code>100.0</code> is essential</h5>
+<p>If you wrote <code>SUM(...) / COUNT(*) * 100</code>, both operands of the first division are integers, so Postgres does <em>integer</em> division: 2 / 3 evaluates to 0, then 0 &times; 100 = 0. Every warehouse would report 0% or 100%, nothing between. The leading <code>100.0</code> is a <code>numeric</code> literal &mdash; it promotes the whole expression to numeric arithmetic <em>before</em> the division, so 100.0 &times; 2 / 3 = 66.67. An explicit cast, <code>SUM(...)::numeric / COUNT(*)</code>, is equally valid; what you must not do is divide two integers and expect a fraction.</p>
+
+<h5><code>SUM(CASE...)</code> vs <code>COUNT(*) FILTER</code> &mdash; the modern idiom</h5>
+<p>The <code>SUM(CASE WHEN ... THEN 1 ELSE 0 END)</code> pattern is portable and universally understood, but Postgres offers a cleaner equivalent:</p>
+<pre><code>SELECT warehouse_id,
+  100.0 * COUNT(*) FILTER (WHERE status = 'fulfilled') / COUNT(*)
+    AS fulfillment_rate
+FROM orders
+GROUP BY warehouse_id;</code></pre>
+<p><code>COUNT(*) FILTER (WHERE ...)</code> states the intent directly &mdash; "count rows matching this predicate". Same result; better readability. Mention both: the <code>CASE</code> form for cross-engine portability, <code>FILTER</code> for Postgres clarity.</p>
+
+<h5>What counts as the denominator?</h5>
+<p>The query divides by <code>COUNT(*)</code> &mdash; <em>all</em> orders, including cancelled ones. Is that right? If a customer cancels, the warehouse arguably never had a chance to fulfill, so a fairer "fulfillment rate" excludes cancellations from the denominator: <code>COUNT(*) FILTER (WHERE status &lt;&gt; 'cancelled')</code>. That single decision moves warehouse 2 from 50% to 100%. There is no universally correct answer &mdash; but a senior engineer surfaces the choice instead of silently baking one in.</p>
+
+<h5>The empty / no-order warehouse</h5>
+<p>A warehouse with zero orders produces no <code>GROUP BY</code> row at all &mdash; it simply vanishes from the scorecard, which may hide an idle facility. And if you ever join from a warehouse dimension table, a warehouse with no orders would hit <code>COUNT(*) = 0</code> in the denominator and raise <em>division by zero</em>. Guard it: <code>100.0 * ... / NULLIF(COUNT(*), 0)</code>. Within a single <code>orders</code>-only <code>GROUP BY</code> every group has at least one row, so it cannot trigger here &mdash; but say why it is safe.</p>
+
+<h5>NULL and unexpected status values</h5>
+<p><code>status = 'fulfilled'</code> is false for NULL statuses and for any value the data team did not anticipate (<code>'returned'</code>, <code>'fulfilled '</code> with a stray space). Those rows land in the denominator but never the numerator &mdash; correct if they are genuinely not-fulfilled, a bug if a typo'd status should have counted. Validate the status domain, and consider <code>LOWER(TRIM(status))</code> if the source is dirty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the leading <code>100.0</code> is what averts integer-division truncation, offer <code>COUNT(*) FILTER (WHERE ...)</code> as the readable Postgres idiom, question whether cancelled orders belong in the denominator, and guard divide-by-zero with <code>NULLIF</code> whenever the row set is not guaranteed non-empty.</div>

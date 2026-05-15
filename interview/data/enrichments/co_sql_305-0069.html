@@ -1,0 +1,61 @@
+<p>Uber's growth team keeps a history of which region each rider belongs to, appending a row every time a rider's region is reassigned. They want the riders who have <em>ever</em> moved &mdash; the region-switchers &mdash; because those accounts behave differently for pricing and marketing. The schema looks join-shaped, but the real question is set cardinality: a switcher is a customer whose region history contains more than one distinct region. An interviewer is checking whether you reach for <code>COUNT(DISTINCT)</code> and not a naive <code>COUNT</code>.</p>
+
+<h4>1. The source data &mdash; <code>customer_regions</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>region</th><th>effective_date</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>EMEA</td><td>2025-01-01</td></tr>
+    <tr><td>101</td><td>APAC</td><td>2025-08-01</td></tr>
+    <tr><td>102</td><td>NA</td><td>2025-03-01</td></tr>
+    <tr><td>102</td><td>NA</td><td>2025-09-01</td></tr>
+    <tr><td>103</td><td>EMEA</td><td>2025-02-01</td></tr>
+    <tr><td>103</td><td>NA</td><td>2025-06-01</td></tr>
+    <tr><td>103</td><td>APAC</td><td>2025-11-01</td></tr>
+    <tr><td>104</td><td>NA</td><td>2025-04-01</td></tr>
+  </tbody>
+</table>
+<p>The trap is customer 102: <strong>two rows, same region</strong>. A re-confirmation of NA, or a duplicate load &mdash; either way 102 never actually switched. Customer 101 moved once, 103 moved twice, 104 has only a single row. A query that counts rows instead of distinct regions will wrongly flag 102.</p>
+
+<h4>2. The SQL &mdash; <code>HAVING COUNT(DISTINCT region) &gt; 1</code></h4>
+<pre><code>SELECT customer_id FROM customer_regions
+GROUP BY customer_id HAVING COUNT(DISTINCT region) &gt; 1;</code></pre>
+<p>Group the history by customer, count how many <em>distinct</em> region values each one has, and keep only those with more than one. <code>HAVING</code> filters on the aggregate &mdash; it is the <code>WHERE</code> clause for grouped rows.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>101</td></tr>
+    <tr><td>103</td></tr>
+  </tbody>
+</table>
+<p>Exactly the two genuine switchers. Customer 102 is correctly excluded: it has two rows but <code>COUNT(DISTINCT region)</code> is 1. Customer 104 has a single row, count 1, also excluded. The <code>DISTINCT</code> is what makes 102 disappear &mdash; remove it and 102 falsely joins the list.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(DISTINCT region)</code> &mdash; the trap in one line</h5>
+<p>The wrong query is <code>HAVING COUNT(*) &gt; 1</code>. That counts <em>rows</em>, so customer 102's duplicate NA entry pushes it to 2 and it gets reported as a switcher even though it never moved. <code>COUNT(DISTINCT region)</code> counts <em>unique region values</em>. The distinction is the entire question: "switched region" means the set of regions has size &gt; 1, not the row count.</p>
+
+<h5><code>HAVING</code> vs <code>WHERE</code></h5>
+<p>You cannot write <code>WHERE COUNT(DISTINCT region) &gt; 1</code> &mdash; <code>WHERE</code> is evaluated before rows are grouped, so aggregates are not available there. <code>HAVING</code> runs after the <code>GROUP BY</code>, on the grouped result. The mental model: <code>WHERE</code> filters input rows, <code>HAVING</code> filters output groups.</p>
+
+<h5>NULL regions are silently ignored</h5>
+<p><code>COUNT(DISTINCT region)</code> does not count NULL. A customer with history <code>{EMEA, NULL}</code> has <code>COUNT(DISTINCT region) = 1</code> and is <em>not</em> flagged &mdash; even though a missing-then-known region might be a real transition. If a NULL should count as its own state, you need to handle it explicitly:</p>
+<pre><code>SELECT customer_id FROM customer_regions
+GROUP BY customer_id
+HAVING COUNT(DISTINCT COALESCE(region, '__none__')) &gt; 1;</code></pre>
+<p>Decide whether NULL means "unknown, skip" or "a distinct state". The default behaviour silently picks the first.</p>
+
+<h5>Returning the switch path, not just the id</h5>
+<p>The interviewer's follow-up: "show me what they switched <em>from</em> and <em>to</em>." Order the history with a window function and read off the first and last region:</p>
+<pre><code>SELECT customer_id,
+       string_agg(region, ' &rarr; ' ORDER BY effective_date) AS region_path
+FROM customer_regions
+GROUP BY customer_id
+HAVING COUNT(DISTINCT region) &gt; 1;</code></pre>
+<p>For 103 that yields <code>EMEA &rarr; NA &rarr; APAC</code> &mdash; the full journey, with the duplicate-free distinct test still gating who appears.</p>
+
+<h5>"Switched" vs "currently in a different region"</h5>
+<p>Subtle product question: a customer could move EMEA &rarr; APAC &rarr; EMEA and end up back where they started. <code>COUNT(DISTINCT region) &gt; 1</code> still flags them &mdash; they <em>did</em> switch, twice. If the business instead means "current region differs from original region", that is a different query: compare the earliest and latest rows by <code>effective_date</code>. Confirm which definition the growth team wants.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT region)</code> so duplicate same-region rows do not masquerade as switches, explain why the aggregate filter belongs in <code>HAVING</code> not <code>WHERE</code>, flag that <code>COUNT(DISTINCT)</code> drops NULLs, and clarify whether "switched" means "ever changed" or "ends up different from where it started".</div>

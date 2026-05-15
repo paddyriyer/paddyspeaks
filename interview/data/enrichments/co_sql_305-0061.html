@@ -1,0 +1,72 @@
+<p>BMW's connected-services team wants to identify "recurring" customers &mdash; people who have ordered in at least three distinct months, a signal of genuine engagement rather than a one-off buyer. The query hinges on a single subtle word: <em>distinct months</em>. Three orders in one week is not recurring; three orders across three months is. The interviewer is checking whether you count the right thing.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2024-01-05</td></tr>
+    <tr><td>2</td><td>101</td><td>2024-02-10</td></tr>
+    <tr><td>3</td><td>101</td><td>2024-03-15</td></tr>
+    <tr><td>4</td><td>102</td><td>2024-01-05</td></tr>
+    <tr><td>5</td><td>102</td><td>2024-01-20</td></tr>
+    <tr><td>6</td><td>103</td><td>2024-01-01</td></tr>
+    <tr><td>7</td><td>103</td><td>2024-02-01</td></tr>
+    <tr><td>8</td><td>103</td><td>2024-03-01</td></tr>
+    <tr><td>9</td><td>103</td><td>2024-04-01</td></tr>
+  </tbody>
+</table>
+<p>Customer 102 has <strong>two orders in the same month</strong> (both January) &mdash; three orders would not be enough if they all clustered like this. That is the trap: order count and distinct-month count are different numbers.</p>
+
+<h4>2. The SQL &mdash; <code>HAVING COUNT(DISTINCT month)</code></h4>
+<pre><code>SELECT customer_id FROM orders
+GROUP BY customer_id
+HAVING COUNT(DISTINCT DATE_TRUNC('month', order_date)::DATE) &gt;= 3;</code></pre>
+<p>Group by customer; for each, <code>DATE_TRUNC('month', ...)</code> maps every order to its month, <code>COUNT(DISTINCT ...)</code> tallies how many <em>different</em> months appear, and <code>HAVING ... &gt;= 3</code> keeps only customers clearing the bar.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th></tr></thead>
+  <tbody>
+    <tr><td>101</td></tr>
+    <tr><td>103</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 (Jan, Feb, Mar &mdash; 3 months) and 103 (Jan&ndash;Apr &mdash; 4 months) qualify. Customer 102 is <strong>excluded</strong>: two orders, but both in January, so only <em>one</em> distinct month. Had the query counted orders instead of distinct months, 102's two-order total still falls short here &mdash; but a customer with three same-month orders would have wrongly slipped through. The <code>DISTINCT</code> is what enforces "recurring".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(DISTINCT month)</code> &mdash; the core distinction</h5>
+<p><code>COUNT(*)</code> counts order rows; <code>COUNT(DISTINCT DATE_TRUNC('month', order_date))</code> counts unique calendar months. They diverge the moment a customer orders twice in one month. "Recurring across months" demands the distinct count &mdash; a buyer who placed five orders on the same day is a one-month customer, not a recurring one. Choosing <code>DISTINCT</code> here is the entire correctness argument.</p>
+
+<h5>Why the filter belongs in <code>HAVING</code>, not <code>WHERE</code></h5>
+<p>The condition is on an <em>aggregate</em> &mdash; a per-customer count &mdash; and aggregates do not exist yet when <code>WHERE</code> runs. <code>WHERE</code> filters individual rows before grouping; <code>HAVING</code> filters groups after. You cannot write <code>WHERE COUNT(DISTINCT ...) &gt;= 3</code>; it must be <code>HAVING</code>. (A row-level predicate like <code>order_date &gt;= '2024-01-01'</code> would still go in <code>WHERE</code> &mdash; the two clauses cooperate.)</p>
+
+<h5>Returning the order count alongside the flag</h5>
+<p>A bare list of ids is rarely the end of the conversation. Surface the evidence:</p>
+<pre><code>SELECT customer_id,
+       COUNT(*) AS total_orders,
+       COUNT(DISTINCT DATE_TRUNC('month', order_date)::date) AS active_months
+FROM orders
+GROUP BY customer_id
+HAVING COUNT(DISTINCT DATE_TRUNC('month', order_date)::date) &gt;= 3
+ORDER BY active_months DESC;</code></pre>
+<p>Now the reader sees 101 with 3 months and 103 with 4 &mdash; the difference between "barely recurring" and "highly engaged" the bare-id query hides.</p>
+
+<h5>Consecutive months &mdash; the harder follow-up</h5>
+<p>"Recurring" sometimes means three <em>consecutive</em> months, not just any three. That is a different, harder problem &mdash; the classic gaps-and-islands. You rank the distinct months per customer and subtract the row number; consecutive months share a constant difference, forming an island:</p>
+<pre><code>SELECT customer_id FROM (
+  SELECT customer_id, mon,
+         mon - (ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY mon)
+                * INTERVAL '1 month') AS grp
+  FROM (SELECT DISTINCT customer_id,
+               DATE_TRUNC('month', order_date)::date AS mon
+        FROM orders) m
+) t
+GROUP BY customer_id, grp
+HAVING COUNT(*) &gt;= 3;</code></pre>
+<p>Clarify which definition the product means before reaching for this &mdash; the simple <code>HAVING</code> answers "any 3 months", not "3 in a row".</p>
+
+<h5>Status, NULL dates, and the time window</h5>
+<p>Cancelled orders should probably not count toward engagement &mdash; add <code>WHERE status = 'completed'</code> if so. An order with a NULL <code>order_date</code> truncates to NULL, and <code>COUNT(DISTINCT)</code> ignores NULLs, so it silently does not contribute a month &mdash; usually fine, worth stating. And "recurring" is often time-bounded ("3 months in the last year"): scope it with a <code>WHERE</code> on <code>order_date</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT month)</code> rather than <code>COUNT(*)</code> so same-month orders do not inflate engagement, explain why the aggregate filter must live in <code>HAVING</code> not <code>WHERE</code>, return the supporting counts instead of a bare id list, and ask whether "recurring" means any three months or three consecutive ones.</div>

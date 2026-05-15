@@ -1,0 +1,61 @@
+<p>Elastic's catalog team wants to surface "premium" products &mdash; the ones priced above the average <em>for their category</em>. An electronics item at $300 might be cheap; a stationery item at $300 is absurd. The interviewer is probing whether you can compare each row against a moving target that depends on the row itself &mdash; the canonical use of a correlated subquery.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>price</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>A</td></tr>
+    <tr><td>2</td><td>200</td><td>A</td></tr>
+    <tr><td>3</td><td>300</td><td>A</td></tr>
+    <tr><td>4</td><td>50</td><td>B</td></tr>
+    <tr><td>5</td><td>150</td><td>B</td></tr>
+    <tr><td>6</td><td>40</td><td>B</td></tr>
+  </tbody>
+</table>
+<p>Category A averages 200 (100, 200, 300); category B averages 80 (50, 150, 40). Product 5 at 150 is below A's average but well above B's &mdash; proof the comparison must be <em>per category</em>, not against one global mean.</p>
+
+<h4>2. The SQL &mdash; correlated <code>AVG</code> subquery</h4>
+<pre><code>SELECT product_id, category, price
+FROM products p
+WHERE price &gt; (SELECT AVG(price) FROM products WHERE category = p.category);</code></pre>
+<p>The inner query is <em>correlated</em>: <code>category = p.category</code> ties it to the outer row. For each product it recomputes the average of that product's own category, then keeps the row only if its price beats that average.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>category</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>A</td><td>300</td></tr>
+    <tr><td>5</td><td>B</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Only two products clear their category bar: product 3 (300 &gt; A's 200) and product 5 (150 &gt; B's 80). Product 2 at 200 is <em>equal</em> to A's average, and a strict <code>&gt;</code> excludes it. Product 1 (100) and the cheap B items fall below. The result correctly judges each item against its peers, not the whole catalog.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why a global average would be wrong</h5>
+<p>The naive version computes one average over every product:</p>
+<pre><code>SELECT product_id, category, price FROM products
+WHERE price &gt; (SELECT AVG(price) FROM products);  -- global avg = 140</code></pre>
+<p>That uncorrelated subquery runs once and returns 140. It would keep products 2, 3 and 5 &mdash; promoting product 2, which is merely average for category A, and it would mishandle a catalog where one category dwarfs another. The correlation <code>WHERE category = p.category</code> is the single line that makes the comparison fair.</p>
+
+<h5>The window-function rewrite &mdash; one pass, not n</h5>
+<p>The correlated subquery re-scans the table once per row &mdash; O(n&sup2;). A window function computes every category average in a single pass:</p>
+<pre><code>SELECT product_id, category, price
+FROM (
+  SELECT product_id, category, price,
+         AVG(price) OVER (PARTITION BY category) AS cat_avg
+  FROM products
+) t
+WHERE price &gt; cat_avg;</code></pre>
+<p>The window form needs a subquery because you cannot reference a window result in <code>WHERE</code> (windows are evaluated after <code>WHERE</code>). On a large catalog this is dramatically faster and the intent &mdash; "compare to my partition's average" &mdash; reads off the page.</p>
+
+<h5>The strict-inequality trap with ties</h5>
+<p><code>price &gt; avg</code> drops a product priced <em>exactly</em> at its category average &mdash; product 2 here. Is that intended? "Above average" usually means strictly above, so <code>&gt;</code> is right. But if the spec is "at or above", it must be <code>&gt;=</code>. With <code>&gt;=</code> product 2 would join the result. Confirm the boundary; it is a one-character decision that changes the answer.</p>
+
+<h5>NULL prices and the category filter</h5>
+<p><code>AVG(price)</code> skips NULL prices, so a category's average is over its priced items only. A product whose own <code>price</code> is NULL fails <code>price &gt; (...)</code> (NULL comparisons are unknown) and is excluded &mdash; usually fine. More subtly, if <code>category</code> itself is NULL, <code>category = p.category</code> is never true, so the subquery averages an empty set, returns NULL, and that row is dropped. NULL categories silently vanish &mdash; flag that to the catalog owner.</p>
+
+<h5>The type tag says "Joins"</h5>
+<p>This question is tagged "SQL / Joins", but there is no join &mdash; it is a correlated subquery. The two are related (a correlated subquery is conceptually a per-row lookup, and the window rewrite avoids both), but do not force a literal <code>JOIN</code> here. Solve the question; the tag is a loose label.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the correlation <code>category = p.category</code> as what makes the comparison per-category rather than global, offer the <code>AVG() OVER (PARTITION BY ...)</code> rewrite that turns O(n&sup2;) into one pass, and pin down whether "above average" is strict <code>&gt;</code> or inclusive <code>&gt;=</code> before committing.</div>

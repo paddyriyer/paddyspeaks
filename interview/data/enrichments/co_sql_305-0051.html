@@ -1,0 +1,57 @@
+<p>NVIDIA's order-operations team wants a working view of the fulfillment pipeline: every order whose status is shipped, delivered, or returned &mdash; the post-dispatch states. It looks like the simplest filter in SQL, and it nearly is. But the interviewer asking this is checking that you know how <code>IN</code> handles a value <em>not</em> in the list, how it behaves around NULL, and why <code>SELECT *</code> is a liability in anything but a quick check.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>shipped</td><td>101</td><td>100</td></tr>
+    <tr><td>2</td><td>pending</td><td>102</td><td>200</td></tr>
+    <tr><td>3</td><td>delivered</td><td>103</td><td>300</td></tr>
+    <tr><td>4</td><td>returned</td><td>104</td><td>400</td></tr>
+    <tr><td>5</td><td>cancelled</td><td>105</td><td>500</td></tr>
+    <tr><td>6</td><td>shipped</td><td>106</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>Six orders across five distinct statuses. Two &mdash; <strong>pending</strong> and <strong>cancelled</strong> &mdash; are not in the target list; they are the rows the filter must exclude. Order 6 confirms a status can repeat.</p>
+
+<h4>2. The SQL &mdash; <code>WHERE status IN (...)</code></h4>
+<pre><code>SELECT * FROM orders WHERE status IN ('shipped','delivered','returned');</code></pre>
+<p><code>status IN (a, b, c)</code> is exact shorthand for <code>status = a OR status = b OR status = c</code>. A row is kept when its status equals any one of the three listed values.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>status</th><th>customer_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>shipped</td><td>101</td><td>100</td></tr>
+    <tr><td>3</td><td>delivered</td><td>103</td><td>300</td></tr>
+    <tr><td>4</td><td>returned</td><td>104</td><td>400</td></tr>
+    <tr><td>6</td><td>shipped</td><td>106</td><td>600</td></tr>
+  </tbody>
+</table>
+<p>Four orders survive &mdash; the two <code>shipped</code> plus the one each <code>delivered</code> and <code>returned</code>. Orders 2 (pending) and 5 (cancelled) are dropped: their status matched none of the list, so every <code>OR</code> branch was false.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>IN</code> is just chained <code>OR</code> &mdash; and its NULL behaviour follows from that</h5>
+<p>Because <code>IN</code> expands to a chain of equality checks, a row with a <strong>NULL</strong> status is <em>not</em> returned: <code>NULL = 'shipped'</code> is unknown, never true, for every branch. That is fine for an inclusion list. It only bites you with the negation &mdash; <code>NOT IN</code> &mdash; where a NULL <em>in the list</em> can empty the whole result. Worth stating that the trap lives in <code>NOT IN</code>, not <code>IN</code>.</p>
+
+<h5><code>SELECT *</code> &mdash; fine for a probe, risky in production</h5>
+<p><code>SELECT *</code> is convenient at the prompt, but in a saved query or a view it is fragile: if someone adds a column to <code>orders</code>, the result shape changes silently and can break a downstream consumer or an <code>INSERT ... SELECT</code>. Name the columns you actually need:</p>
+<pre><code>SELECT order_id, status, customer_id, amount
+FROM orders
+WHERE status IN ('shipped','delivered','returned');</code></pre>
+
+<h5>Case sensitivity &mdash; the silent miss</h5>
+<p>String comparison in Postgres is case-sensitive, so <code>'Shipped'</code> or <code>'SHIPPED'</code> would <em>not</em> match <code>'shipped'</code> and that order would quietly disappear. If status casing isn't guaranteed clean, normalise both sides: <code>WHERE LOWER(status) IN ('shipped','delivered','returned')</code> &mdash; though note that wrapping the column in a function can prevent an index on <code>status</code> from being used.</p>
+
+<h5><code>IN</code> with a subquery &mdash; keeping the list dynamic</h5>
+<p>A hard-coded list goes stale when the business adds a status. If valid statuses live in a reference table, drive the filter from it:</p>
+<pre><code>SELECT order_id, status, customer_id, amount
+FROM orders
+WHERE status IN (SELECT status_name FROM post_dispatch_statuses);</code></pre>
+<p>This is also where the <code>NOT IN</code> + NULL hazard would matter &mdash; if the subquery could yield a NULL, a negated form would need a <code>WHERE ... IS NOT NULL</code> guard or a switch to <code>NOT EXISTS</code>.</p>
+
+<h5>Edge case: an empty <code>IN</code> list</h5>
+<p><code>status IN ()</code> is a syntax error in most engines, and an <code>IN</code> fed by a subquery that returns <em>no rows</em> matches nothing &mdash; the query returns zero rows, correctly. If the status set is built dynamically in application code, guard against generating an empty list.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>IN</code> is chained <code>OR</code> and that a NULL status simply fails to match (the real NULL trap belongs to <code>NOT IN</code>), replace <code>SELECT *</code> with an explicit column list for anything persisted, flag case sensitivity, and drive the list from a reference table when the valid statuses can change.</div>

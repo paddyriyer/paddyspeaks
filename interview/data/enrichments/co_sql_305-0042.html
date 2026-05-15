@@ -1,0 +1,64 @@
+<p>Target's pricing engine recomputes shelf prices nightly. Most products carry their base price; a subset are on promotion and need a percentage knocked off. The query is a <code>LEFT JOIN</code> with an arithmetic adjustment &mdash; but an interviewer asking this is watching for two things: that you use a <code>LEFT JOIN</code> so non-promoted products aren't dropped, and that you handle the NULL <code>discount_pct</code> the join produces for them.</p>
+
+<h4>1. The source data &mdash; <code>products</code> and <code>promotions</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>base_price</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>A</td></tr>
+    <tr><td>2</td><td>50</td><td>B</td></tr>
+    <tr><td>3</td><td>200</td><td>C</td></tr>
+    <tr><td>4</td><td>80</td><td>D</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>product_id</th><th>discount_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>20</td></tr>
+    <tr><td>3</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Only products 1 and 3 have a promotion row. Products 2 and 4 have <strong>no match</strong> in <code>promotions</code> &mdash; they are the edge case. They must still appear in the result, at their full base price.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN</code> + <code>COALESCE</code></h4>
+<pre><code>SELECT p.product_id, p.base_price,
+  p.base_price * (1 - COALESCE(pr.discount_pct,0)/100.0) AS adjusted_price
+FROM products p LEFT JOIN promotions pr ON p.product_id = pr.product_id;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every product even with no promotion; for those, <code>pr.discount_pct</code> arrives as NULL. <code>COALESCE(..., 0)</code> turns that NULL into a 0% discount, and <code>/100.0</code> forces decimal (not integer) division.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>base_price</th><th>adjusted_price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>80.00000000000000000000</td></tr>
+    <tr><td>3</td><td>200</td><td>100.00000000000000000000</td></tr>
+    <tr><td>2</td><td>50</td><td>50.00000000000000000000</td></tr>
+    <tr><td>4</td><td>80</td><td>80.00000000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Product 1: 100 &times; (1 &minus; 0.20) = 80. Product 3: 200 &times; (1 &minus; 0.50) = 100. Products 2 and 4 have no promotion, so <code>COALESCE</code> supplies 0 and they keep their base price &mdash; 50 and 80. All four products are present; that is the proof the <code>LEFT JOIN</code> did its job.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LEFT JOIN</code> and not <code>INNER JOIN</code> &mdash; the core trap</h5>
+<p>Swap in an <code>INNER JOIN</code> and products 2 and 4 vanish &mdash; only the two promoted products survive. A pricing feed missing two of its four products is a production incident. Whenever the task is "compute X for <em>every</em> row, applying an optional Y", the optional table goes on the right of a <code>LEFT JOIN</code>. <code>INNER JOIN</code> says "only rows that have a match", which is the opposite of what's wanted.</p>
+
+<h5>The NULL the <code>LEFT JOIN</code> manufactures</h5>
+<p>Keeping the unmatched rows means their <code>promotions</code> columns are NULL. Without the <code>COALESCE</code>, the arithmetic becomes <code>base_price * (1 - NULL/100.0)</code>, and NULL propagates &mdash; products 2 and 4 would show a NULL <code>adjusted_price</code>. The <code>LEFT JOIN</code> and the <code>COALESCE</code> are a pair: one keeps the row, the other repairs the gap it leaves.</p>
+
+<h5>The integer-division trap</h5>
+<p><code>/100.0</code> is deliberate. If the literal were <code>/100</code> and <code>discount_pct</code> were an <code>INTEGER</code>, some engines do integer division: <code>20/100</code> becomes <code>0</code>, every adjusted price equals the base price, and the bug is silent. Forcing one operand to be decimal (<code>100.0</code>, or a <code>::numeric</code> cast) guarantees real division.</p>
+
+<h5>Duplicate promotions &mdash; fan-out risk</h5>
+<p>The join assumes at most one promotion per product. If <code>promotions</code> can hold two rows for the same product (overlapping campaigns), the <code>LEFT JOIN</code> <em>fans out</em> &mdash; that product appears twice with two different prices. Defend against it by deduplicating to one discount first, e.g. the deepest:</p>
+<pre><code>SELECT p.product_id, p.base_price,
+  p.base_price * (1 - COALESCE(pr.discount_pct,0)/100.0) AS adjusted_price
+FROM products p
+LEFT JOIN (
+  SELECT product_id, MAX(discount_pct) AS discount_pct
+  FROM promotions GROUP BY product_id
+) pr ON p.product_id = pr.product_id;</code></pre>
+
+<h5>Edge case: bad discount values</h5>
+<p>Nothing here stops a <code>discount_pct</code> of 120 (negative price) or &minus;10 (a price <em>increase</em>). If the data isn't trusted, clamp it: <code>LEAST(GREATEST(COALESCE(pr.discount_pct,0),0),100)</code>. Mentioning this shows you think about data quality, not just the happy path.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose <code>LEFT JOIN</code> so unpromoted products survive, pair it with <code>COALESCE</code> to neutralise the NULL discount the join creates, force decimal division with <code>100.0</code> to dodge integer truncation, and flag the fan-out risk if a product can have multiple promotion rows.</div>

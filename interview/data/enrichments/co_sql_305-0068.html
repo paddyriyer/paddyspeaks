@@ -1,0 +1,62 @@
+<p>Lyft's program-management office wants a daily alert listing every project that has gone off the rails &mdash; over budget, or delivered past its deadline. The schema is messy in a very real way: <code>deadline</code> is stored as free text, not a proper date, and some rows carry junk like "TBD". An interviewer here is testing whether you can write an OR condition across two failure modes <em>and</em> defend a query against a column that cannot be trusted to be a date.</p>
+
+<h4>1. The source data &mdash; <code>projects</code></h4>
+<table>
+  <thead><tr><th>project_id</th><th>budget</th><th>actual_spend</th><th>deadline</th><th>end_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10000</td><td>12000</td><td>2026-03-01</td><td>2026-02-20</td><td>done</td></tr>
+    <tr><td>2</td><td>8000</td><td>7500</td><td>2026-04-15</td><td>2026-05-01</td><td>done</td></tr>
+    <tr><td>3</td><td>5000</td><td>4800</td><td>2026-01-10</td><td>2026-01-05</td><td>done</td></tr>
+    <tr><td>4</td><td>9000</td><td>6000</td><td>TBD</td><td>2026-06-01</td><td>active</td></tr>
+    <tr><td>5</td><td>4000</td><td>9000</td><td>2026-05-30</td><td><em>NULL</em></td><td>active</td></tr>
+  </tbody>
+</table>
+<p>The traps are deliberate. Project 1 is over budget. Project 2 is on budget but shipped late. Project 4 has a non-date <code>deadline</code> ("TBD") that would throw a cast error if you fed it to <code>::date</code> blindly. Project 5 is wildly over budget but has a NULL <code>end_date</code>.</p>
+
+<h4>2. The SQL &mdash; <code>regex-guarded date cast</code></h4>
+<pre><code>SELECT project_id FROM projects
+WHERE actual_spend &gt; budget
+   OR (deadline ~ '^\d{4}-\d{2}-\d{2}' AND end_date &gt; deadline::date);</code></pre>
+<p>Two failure conditions joined by <code>OR</code>: spend exceeds budget, or the project ended after its deadline. The deadline branch is gated by a regex test &mdash; <code>deadline ~ '^\d{4}-\d{2}-\d{2}'</code> &mdash; so the <code>::date</code> cast only runs on strings that actually look like a date.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>project_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td></tr>
+    <tr><td>2</td></tr>
+    <tr><td>5</td></tr>
+  </tbody>
+</table>
+<p>Project 1 fires on the budget branch (12000 &gt; 10000). Project 2 fires on the deadline branch (ended 2026-05-01, deadline 2026-04-15). Project 5 fires on budget (9000 &gt; 4000). Project 3 is clean &mdash; under budget and finished early. Project 4 is under budget, and its "TBD" deadline fails the regex so the cast is never attempted &mdash; no error, just excluded.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the regex guard is mandatory</h5>
+<p><code>deadline::date</code> on the string "TBD" raises <code>invalid input syntax for type date</code> &mdash; and in Postgres that aborts the <em>whole query</em>, not just one row. The regex <code>~ '^\d{4}-\d{2}-\d{2}'</code> filters to ISO-shaped strings first. Crucially, <code>AND</code> short-circuits: when the left side is false, Postgres never evaluates <code>end_date &gt; deadline::date</code>. Order matters &mdash; put the cheap, protective test first.</p>
+
+<h5>Short-circuiting is not guaranteed &mdash; the subtle version</h5>
+<p>SQL's <code>AND</code> short-circuits in practice, but the standard does not <em>promise</em> evaluation order, and the planner can reorder predicates. The bulletproof pattern is a safe cast that returns NULL instead of erroring:</p>
+<pre><code>-- Postgres 16+: never throws, bad strings become NULL
+WHERE actual_spend &gt; budget
+   OR end_date &gt; to_date(deadline, 'YYYY-MM-DD')   -- still errors on 'TBD' in older PG
+-- Robust everywhere: a CASE that gates the cast
+WHERE actual_spend &gt; budget
+   OR end_date &gt; (CASE WHEN deadline ~ '^\d{4}-\d{2}-\d{2}$'
+                       THEN deadline::date END)</code></pre>
+<p>Wrapping the cast in a <code>CASE</code> that yields NULL for non-dates is the most defensible form &mdash; a NULL comparison is simply false, so the row is excluded cleanly.</p>
+
+<h5>The NULL <code>end_date</code> &mdash; in-flight projects</h5>
+<p>Project 5 has no <code>end_date</code> because it hasn't finished. <code>end_date &gt; deadline::date</code> is NULL (unknown) for that row, so the deadline branch can never flag it &mdash; which is correct: a project that hasn't ended cannot be "late" yet. It still gets caught by the budget branch. But note the asymmetry: an unfinished project that is <em>already past</em> its deadline is arguably an alert too. If so, add <code>OR (end_date IS NULL AND deadline::date &lt; CURRENT_DATE)</code>.</p>
+
+<h5>The OR-defeats-the-index trap</h5>
+<p>An <code>OR</code> across two different columns usually prevents the planner from using an index on either &mdash; it falls back to a full scan, or a bitmap <code>OR</code> of two index scans if both columns are indexed. On a large <code>projects</code> table, a <code>UNION</code> of two single-condition queries can be faster because each arm uses its own index:</p>
+<pre><code>SELECT project_id FROM projects WHERE actual_spend &gt; budget
+UNION
+SELECT project_id FROM projects
+WHERE deadline ~ '^\d{4}-\d{2}-\d{2}' AND end_date &gt; deadline::date;</code></pre>
+
+<h5>The real fix is the schema</h5>
+<p>The honest senior comment: <code>deadline</code> should be a <code>date</code> column with a <code>CHECK</code> or NOT NULL constraint, not free text. Regex-guarding every read is a tax paid forever. Flag it &mdash; "this query works, but the data model is forcing defensive code; the deadline column wants a type."</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that casting an untrusted text column can abort the entire query, gate the cast with a regex or a NULL-returning <code>CASE</code> rather than relying on undefined short-circuit order, reason correctly about the NULL <code>end_date</code> meaning "not finished", and name the schema fix instead of just coding around it.</div>
