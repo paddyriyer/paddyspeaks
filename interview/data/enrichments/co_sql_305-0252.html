@@ -1,0 +1,58 @@
+<p>Apple's retail-finance team wants a discount-impact summary: gross revenue at list price, total discounts given, and the net after discounts. Three <code>SUM</code>s, no <code>GROUP BY</code> &mdash; a one-row report. The interviewer is testing whether you see what a <code>NULL</code> discount does to the arithmetic, and whether the three numbers stay internally consistent.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>list_price</th><th>discount_amount</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>10</td><td>completed</td></tr>
+    <tr><td>2</td><td>200</td><td>0</td><td>completed</td></tr>
+    <tr><td>3</td><td>150</td><td>50</td><td>completed</td></tr>
+    <tr><td>4</td><td>80</td><td><em>NULL</em></td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Order 4 has a <strong>NULL</strong> <code>discount_amount</code> &mdash; an order that simply was never discounted, and where the field was left blank rather than set to 0. Order 2 has an explicit <code>0</code>. The difference between NULL and 0 is the entire interview, because they behave differently inside <code>SUM(list_price - discount_amount)</code>.</p>
+
+<h4>2. The SQL &mdash; <code>three SUMs over orders</code></h4>
+<pre><code>SELECT SUM(list_price) AS gross,
+  SUM(discount_amount) AS total_discounts,
+  SUM(list_price - discount_amount) AS net
+FROM orders;</code></pre>
+<p>No <code>GROUP BY</code>, so the result is a single row. <code>gross</code> sums list prices, <code>total_discounts</code> sums the discounts, and <code>net</code> sums the per-row difference.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>gross</th><th>total_discounts</th><th>net</th></tr></thead>
+  <tbody>
+    <tr><td>530</td><td>60</td><td>390</td></tr>
+  </tbody>
+</table>
+<p>Here is the catch. <code>gross</code> = 530 and <code>total_discounts</code> = 60, so you would expect <code>net</code> = 530 &minus; 60 = <strong>470</strong>. But <code>net</code> comes back as <strong>390</strong>. The three columns do not reconcile &mdash; and a finance report whose numbers do not add up is a serious problem.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>net</code> is wrong: NULL propagates inside the row expression</h5>
+<p>For order 4, <code>list_price - discount_amount</code> is <code>80 - NULL</code>, which evaluates to <strong>NULL</strong> &mdash; any arithmetic with NULL yields NULL. <code>SUM</code> then skips that NULL row entirely. So <code>net</code> is the sum over only orders 1, 2, 3: (100&minus;10) + (200&minus;0) + (150&minus;50) = 90 + 200 + 100 = 390. Order 4's full $80 of revenue silently vanished from <code>net</code> &mdash; even though it is counted in <code>gross</code>. Meanwhile <code>SUM(discount_amount)</code> skips order 4's NULL and gives 60. The columns are computed over different row sets, so they cannot reconcile.</p>
+
+<h5>The fix: coalesce the discount before subtracting</h5>
+<p>Treat a missing discount as $0 &mdash; almost certainly the intended business meaning &mdash; so the subtraction never sees a NULL:</p>
+<pre><code>SELECT SUM(list_price) AS gross,
+  SUM(COALESCE(discount_amount, 0)) AS total_discounts,
+  SUM(list_price - COALESCE(discount_amount, 0)) AS net
+FROM orders;</code></pre>
+<p>Now <code>net</code> = (100&minus;10)+(200&minus;0)+(150&minus;50)+(80&minus;0) = 470, and <code>gross - total_discounts</code> = 530 &minus; 60 = 470. The identity holds. The senior instinct is to coalesce <em>every</em> nullable term in a financial calculation up front, not to discover the leak after the report ships.</p>
+
+<h5>An even safer rewrite &mdash; derive net from the other two</h5>
+<p>Because <code>net</code> is by definition <code>gross - total_discounts</code>, you can compute it once and guarantee consistency:</p>
+<pre><code>SELECT SUM(list_price) AS gross,
+       SUM(COALESCE(discount_amount, 0)) AS total_discounts,
+       SUM(list_price) - SUM(COALESCE(discount_amount, 0)) AS net
+FROM orders;</code></pre>
+<p>This makes the three numbers reconcile by construction &mdash; there is no second, independent definition of <code>net</code> that could drift. When a derived metric must equal a relationship between others, expressing it <em>as</em> that relationship is more robust than recomputing it row-by-row.</p>
+
+<h5>NULL <code>list_price</code> and the realised-revenue filter</h5>
+<p>If <code>list_price</code> can also be NULL, all three sums skip those rows &mdash; usually fine, but state it. And every row here is <code>completed</code>; on real data a discount-impact report almost always wants <code>WHERE status = 'completed'</code> so cancelled or returned orders do not inflate gross. Confirm the universe before summing.</p>
+
+<h5>The schema's redundant <code>amount</code> column</h5>
+<p>The table also carries an <code>amount</code> column alongside <code>list_price</code> and <code>discount_amount</code>. Is <code>amount</code> the already-netted price? If so, <code>net</code> could be cross-checked as <code>SUM(amount)</code> &mdash; and a mismatch against <code>SUM(list_price - discount)</code> would reveal dirty data. Don't guess which column is authoritative; ask, and reconcile.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that <code>list_price - discount_amount</code> goes NULL when the discount is NULL, that <code>SUM</code> then drops the whole row, and that this makes <code>net</code> fail to equal <code>gross - total_discounts</code> &mdash; coalesce every nullable term, or derive <code>net</code> directly from the other two sums so the report reconciles by construction.</div>

@@ -1,0 +1,61 @@
+<p>Google's people-analytics team needs a quick roster of everyone in Engineering. It looks trivial &mdash; join employees to departments, filter on the name &mdash; but the interviewer is probing join hygiene: do you filter on the <em>department name</em> rather than hard-coding a fragile <code>dept_id</code>, do you know what happens to employees with no department, and do you understand why this particular filter behaves the same in <code>WHERE</code> as in <code>ON</code>.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> and <code>departments</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>name</th><th>job_title</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>1</td><td>Ada</td><td>Engineer</td></tr>
+    <tr><td>11</td><td>1</td><td>Bao</td><td>Engineer</td></tr>
+    <tr><td>12</td><td>2</td><td>Cleo</td><td>AE</td></tr>
+    <tr><td>13</td><td><em>NULL</em></td><td>Dev</td><td>Intern</td></tr>
+    <tr><td>14</td><td>3</td><td>Eli</td><td>PMM</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_name</th><th>location</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Engineering</td><td>NYC</td></tr>
+    <tr><td>2</td><td>Sales</td><td>SF</td></tr>
+    <tr><td>3</td><td>Marketing</td><td>LA</td></tr>
+  </tbody>
+</table>
+<p>Two employees sit in Engineering. The interesting row is <strong>Dev</strong> &mdash; an intern with a <strong>NULL</strong> <code>dept_id</code>, unassigned to any department. How the join treats that row is the heart of the question.</p>
+
+<h4>2. The SQL &mdash; <code>INNER JOIN + name filter</code></h4>
+<pre><code>SELECT e.emp_id, d.dept_name FROM employees e JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.dept_name = 'Engineering';</code></pre>
+<p>An inner join on <code>dept_id</code> pairs each employee with their department row, then the <code>WHERE</code> keeps only the Engineering pairs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Engineering</td></tr>
+    <tr><td>11</td><td>Engineering</td></tr>
+  </tbody>
+</table>
+<p>Ada and Bao only. Dev never appears: a NULL <code>dept_id</code> can never satisfy <code>e.dept_id = d.dept_id</code> (NULL equals nothing, not even NULL), so the inner join drops the intern before the <code>WHERE</code> clause is even consulted.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Filter on the name, not a magic number</h5>
+<p>A tempting "simpler" answer is <code>WHERE e.dept_id = 1</code> &mdash; skip the join entirely. It returns the same rows <em>today</em>, but it hard-codes a surrogate key. If Engineering is re-keyed, merged, or the seed data differs across environments, the query silently returns the wrong team. Joining to <code>departments</code> and filtering on <code>dept_name</code> is self-documenting and survives re-keying. The interviewer wants the robust version.</p>
+
+<h5><code>ON</code> vs <code>WHERE</code> &mdash; identical here, not in general</h5>
+<p>You could write <code>JOIN departments d ON e.dept_id = d.dept_id AND d.dept_name = 'Engineering'</code> with no <code>WHERE</code>. For an <strong>inner</strong> join the two are equivalent &mdash; both rows that survive must match every predicate. The distinction bites only with <em>outer</em> joins: a predicate in <code>ON</code> filters the matched side while preserving unmatched rows, whereas the same predicate in <code>WHERE</code> runs after the join and discards the NULL-extended rows. Knowing that this case is safe &mdash; and why &mdash; is the senior detail.</p>
+
+<h5>"Include unassigned employees" &mdash; the LEFT JOIN follow-up</h5>
+<p>If the ask becomes "list everyone, and show their department even if unassigned," switch to a left join &mdash; but then the filter must move into <code>ON</code> or you re-drop the NULLs:</p>
+<pre><code>SELECT e.emp_id, d.dept_name
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id
+WHERE d.dept_name = 'Engineering' OR e.dept_id IS NULL;</code></pre>
+<p>Putting <code>d.dept_name = 'Engineering'</code> in a plain <code>WHERE</code> after a <code>LEFT JOIN</code> quietly converts it back into an inner join &mdash; a classic interview trap.</p>
+
+<h5>Case sensitivity and trailing whitespace</h5>
+<p><code>= 'Engineering'</code> is exact and case-sensitive in Postgres. Seed data with <code>'engineering'</code>, <code>'Engineering '</code>, or <code>'ENGINEERING'</code> would return zero rows with no error. Defensive form: <code>WHERE lower(trim(d.dept_name)) = 'engineering'</code> &mdash; though that also forfeits any index on <code>dept_name</code>, so prefer clean data plus a check constraint.</p>
+
+<h5>Duplicate department names</h5>
+<p>If <code>departments</code> has two rows both named "Engineering" (multi-region, no uniqueness constraint), the join multiplies: each engineer would appear once per matching department row. Confirm <code>dept_name</code> is unique, or aggregate with <code>DISTINCT</code> / disambiguate by <code>location</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> join and filter on the human-readable <code>dept_name</code> instead of hard-coding a surrogate <code>dept_id</code>, explain that the NULL <code>dept_id</code> intern is dropped by the inner join's equality, and know that the name predicate is interchangeable between <code>ON</code> and <code>WHERE</code> for inner joins but not for the left-join variant.</div>

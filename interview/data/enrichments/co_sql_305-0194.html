@@ -1,0 +1,62 @@
+<p>Twitter's growth team watches a single chart every morning: daily post engagement, smoothed into a 7-day rolling average so a viral spike or a quiet weekend doesn't make the line jump around. The raw daily number is noisy; the rolling average is what the exec deck shows. An interviewer asking this wants to see that you can aggregate <em>and</em> window in one query &mdash; and that you know what the window frame is actually measuring.</p>
+
+<h4>1. The source data &mdash; <code>posts</code></h4>
+<table>
+  <thead><tr><th>post_id</th><th>posted_date</th><th>likes</th><th>comments</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-01-01</td><td>10</td><td>2</td></tr>
+    <tr><td>2</td><td>2026-01-02</td><td>20</td><td>5</td></tr>
+    <tr><td>3</td><td>2026-01-03</td><td>5</td><td>1</td></tr>
+    <tr><td>4</td><td>2026-01-04</td><td>30</td><td>10</td></tr>
+    <tr><td>5</td><td>2026-01-05</td><td>0</td><td>0</td></tr>
+    <tr><td>6</td><td>2026-01-06</td><td>15</td><td>3</td></tr>
+    <tr><td>7</td><td>2026-01-07</td><td>40</td><td>8</td></tr>
+    <tr><td>8</td><td>2026-01-08</td><td>12</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>One post per day here, but that is an assumption &mdash; the table is keyed by <code>post_id</code>, not date. Day 5 has zero engagement (a dead post), and day 8 is the first day the window has a full 7 days behind it. Those two facts drive the result.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY then window</code></h4>
+<pre><code>SELECT posted_date, SUM(likes+comments) AS engagement,
+  AVG(SUM(likes+comments)) OVER (ORDER BY posted_date ROWS BETWEEN 6 PRECEDING AND CURRENT ROW) AS rolling
+FROM posts GROUP BY posted_date;</code></pre>
+<p>The inner <code>SUM(likes+comments)</code> collapses each day to one engagement number. The window function then averages that aggregate over the current row and the 6 rows before it &mdash; a 7-row sliding window. Nesting an aggregate inside a window function is legal precisely because the <code>GROUP BY</code> runs first.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>posted_date</th><th>engagement</th><th>rolling</th></tr></thead>
+  <tbody>
+    <tr><td>2026-01-01</td><td>12</td><td>12.000000</td></tr>
+    <tr><td>2026-01-02</td><td>25</td><td>18.500000</td></tr>
+    <tr><td>2026-01-03</td><td>6</td><td>14.333333</td></tr>
+    <tr><td>2026-01-04</td><td>40</td><td>20.750000</td></tr>
+    <tr><td>2026-01-05</td><td>0</td><td>16.600000</td></tr>
+    <tr><td>2026-01-06</td><td>18</td><td>16.833333</td></tr>
+    <tr><td>2026-01-07</td><td>48</td><td>21.285714</td></tr>
+    <tr><td>2026-01-08</td><td>16</td><td>21.857143</td></tr>
+  </tbody>
+</table>
+<p>Notice the <strong>ramp-up</strong>: on day 1 the rolling average equals the daily value (12), because the window has only one row to average. Day 3 averages three rows (12+25+6)/3 = 14.33. Only from day 7 onward does the window hold a full seven days. The early values are mathematically correct but not comparable to the later ones &mdash; a real dashboard often blanks the first six days.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ROWS</code> vs <code>RANGE</code> &mdash; the frame that bites</h5>
+<p><code>ROWS BETWEEN 6 PRECEDING AND CURRENT ROW</code> counts <em>7 physical rows</em>. That equals 7 calendar days only if there is exactly one row per date with no gaps. If a day has no posts the row is simply missing, so the window silently reaches back to the 7th-most-recent <em>row</em>, which could be 10 calendar days ago. If you truly need 7 <em>days</em> regardless of gaps, switch to a range frame:</p>
+<pre><code>AVG(...) OVER (ORDER BY posted_date
+  RANGE BETWEEN INTERVAL '6 days' PRECEDING AND CURRENT ROW)</code></pre>
+<p>The senior move is to say which one the metric needs and why &mdash; here, after the <code>GROUP BY</code> guarantees one row per date, <code>ROWS</code> is fine, but only because of that guarantee.</p>
+
+<h5>Why the aggregate can be nested in the window</h5>
+<p>SQL evaluates <code>GROUP BY</code> aggregation before window functions. So <code>SUM(likes+comments)</code> produces the per-day total, and <code>AVG(...) OVER (...)</code> sees those totals as its input rows. Writing <code>AVG(SUM(...))</code> looks like a double aggregate but is not &mdash; the outer call is a window function. Try <code>AVG(AVG(...))</code> without <code>OVER</code> and the engine rejects it.</p>
+
+<h5>The multiple-posts-per-day trap</h5>
+<p>If two posts share a date, <code>GROUP BY posted_date</code> sums them into one engagement figure &mdash; correct for a daily chart.</p>
+<pre><code>-- day with posts (10,2) and (5,3) -> engagement = 20, one row
+posted_date | engagement | rolling
+2026-01-01  | 20         | 20.000000</code></pre>
+<p>But if you forgot the <code>GROUP BY</code> and windowed over raw rows, each post would be its own window row and the "7-day" average would actually span far fewer than 7 days. Aggregate first, window second.</p>
+
+<h5>Edge cases: gaps, ties, and zero-engagement days</h5>
+<p>A zero day (day 5) correctly pulls the average down &mdash; that is real signal, not noise to discard. A genuinely missing day, by contrast, is invisible to a <code>ROWS</code> frame. If continuous dates matter, left-join against a generated date series so absent days appear as engagement 0. And <code>SUM(likes+comments)</code> returns NULL for that expression if <em>either</em> column is NULL on a row &mdash; coalesce the components (<code>SUM(COALESCE(likes,0)+COALESCE(comments,0))</code>) if the data is dirty.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> aggregate to one row per day before applying the window, name <code>ROWS</code> vs <code>RANGE</code> as the difference between "7 rows" and "7 days", flag that the ramp-up period produces shorter (non-comparable) averages, and pre-empt the missing-date gap rather than assuming one row per date.</div>

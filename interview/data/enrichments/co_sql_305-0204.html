@@ -1,0 +1,56 @@
+<p>Etsy's logistics team wants the <em>typical</em> basket size &mdash; the most common number of items per order &mdash; to size packaging and shipping bands. "Most common" means statistical mode. The reference computes it by counting how often each <code>item_count</code> appears and taking the top one. The interviewer is checking whether you reach for <code>GROUP BY ... ORDER BY COUNT(*)</code>, and whether you notice the answer is unstable when two basket sizes tie.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>item_count</th><th>customer_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>101</td><td>completed</td></tr>
+    <tr><td>2</td><td>1</td><td>102</td><td>completed</td></tr>
+    <tr><td>3</td><td>3</td><td>103</td><td>completed</td></tr>
+    <tr><td>4</td><td>2</td><td>104</td><td>completed</td></tr>
+    <tr><td>5</td><td>3</td><td>105</td><td>completed</td></tr>
+    <tr><td>6</td><td>1</td><td>106</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Basket size 3 occurs three times, size 1 twice, size 2 once. There is a clear winner here &mdash; but section 4 shows what happens when 3 and 1 each occur the same number of times, which is when the query gets fragile.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY, order by frequency, LIMIT 1</code></h4>
+<pre><code>SELECT item_count FROM orders GROUP BY item_count
+ORDER BY COUNT(*) DESC LIMIT 1;</code></pre>
+<p><code>GROUP BY item_count</code> makes one row per distinct basket size, <code>COUNT(*)</code> counts orders in each, <code>ORDER BY COUNT(*) DESC</code> sorts the most frequent first, and <code>LIMIT 1</code> takes the winner. A clean way to compute a mode without a dedicated function.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>item_count</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>One row: basket size 3 is the mode &mdash; it appears in three orders, more than any other size. The query answers the question. But it answers it with a confidence the data does not always justify: the moment two sizes are equally common, <code>LIMIT 1</code> still returns exactly one, chosen arbitrarily.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie trap &mdash; <code>LIMIT 1</code> hides a multimodal distribution</h5>
+<p>Suppose sizes 3 and 1 both appear twice. <code>ORDER BY COUNT(*) DESC</code> puts them adjacent with equal counts, and <code>LIMIT 1</code> picks whichever the planner sorted first &mdash; non-deterministic, and it silently conceals that the distribution has <em>two</em> modes. To surface ties, rank and keep all winners:</p>
+<pre><code>SELECT item_count FROM (
+  SELECT item_count, RANK() OVER (ORDER BY COUNT(*) DESC) AS rk
+  FROM orders GROUP BY item_count
+) t WHERE rk = 1;</code></pre>
+<p>This returns every basket size tied for most common &mdash; one row or several. Telling the interviewer "if it's bimodal, do you want both, or a tiebreak rule?" is the senior move.</p>
+
+<h5>Postgres has a built-in: <code>MODE()</code></h5>
+<p>You do not have to hand-roll this. The ordered-set aggregate <code>MODE()</code> computes it directly:</p>
+<pre><code>SELECT MODE() WITHIN GROUP (ORDER BY item_count) AS typical_basket
+FROM orders;</code></pre>
+<p>It returns the most frequent value, and on a tie it returns the <em>first</em> by the sort order &mdash; deterministic, unlike bare <code>LIMIT 1</code>. Knowing <code>MODE()</code> exists signals fluency; the <code>GROUP BY</code> form is the portable fallback for engines without it.</p>
+
+<h5>NULL item counts &mdash; are they a basket size?</h5>
+<p>If some orders have a NULL <code>item_count</code>, <code>GROUP BY</code> gathers them into their own group, and that NULL group could even <em>win</em> if NULLs are common &mdash; the query would return NULL as "the typical basket size", which is nonsense. <code>MODE()</code> ignores NULLs by definition. With the <code>GROUP BY</code> form, filter explicitly: <code>WHERE item_count IS NOT NULL</code>. Decide whether a NULL means "unknown" (exclude) or "zero items" (coalesce) before counting.</p>
+
+<h5>Mode vs average vs median &mdash; pick the right "typical"</h5>
+<p>"Typical basket size" is ambiguous. The mode is the most <em>common</em> value &mdash; great for discrete choices like packaging bands. But if the distribution is skewed, the business might actually want the median (<code>PERCENTILE_CONT(0.5)</code>) or the mean (<code>AVG</code>). The mode of a long-tail order-size distribution can be 1 even when most <em>items</em> ship in larger baskets. Confirm which statistic the decision needs.</p>
+
+<h5>Edge cases: empty table and a status filter</h5>
+<p>On an empty table the <code>GROUP BY</code> form returns zero rows and <code>MODE()</code> returns a single NULL row &mdash; a subtle difference worth knowing. Also consider whether cancelled orders belong in the mode: a cancelled order's item count may never have shipped, so a <code>WHERE status = 'completed'</code> filter is often the correct, unstated requirement.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute the mode with <code>GROUP BY ... ORDER BY COUNT(*)</code> or the built-in <code>MODE() WITHIN GROUP</code>, recognise that bare <code>LIMIT 1</code> hides a multimodal tie, exclude NULL counts so they cannot win spuriously, and question whether "typical" should be the mode, median, or mean.</div>

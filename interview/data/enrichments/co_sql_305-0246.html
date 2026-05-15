@@ -1,0 +1,64 @@
+<p>Google's supply-chain team scores suppliers by how fast they deliver and ranks them fastest-first. The query computes a per-supplier average and a <code>RANK()</code> in one pass. The interviewer is testing whether you can mix an aggregate and a window function correctly &mdash; and whether you know what <code>RANK</code> does when two suppliers tie on average speed.</p>
+
+<h4>1. The source data &mdash; <code>shipments</code></h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>days_to_deliver</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2</td></tr>
+    <tr><td>1</td><td>4</td></tr>
+    <tr><td>2</td><td>3</td></tr>
+    <tr><td>2</td><td>3</td></tr>
+    <tr><td>3</td><td>5</td></tr>
+    <tr><td>3</td><td>7</td></tr>
+    <tr><td>4</td><td>3</td></tr>
+    <tr><td>4</td><td>3</td></tr>
+  </tbody>
+</table>
+<p>Suppliers 1, 2 and 4 all average exactly <strong>3 days</strong> &mdash; a three-way tie at the top. That tie is the whole interview: it decides what rank the slow supplier (3) gets, and whether the tied trio share a number or get 1, 2, 3.</p>
+
+<h4>2. The SQL &mdash; <code>RANK over AVG</code></h4>
+<pre><code>SELECT supplier_id, AVG(days_to_deliver) AS avg_days,
+  RANK() OVER (ORDER BY AVG(days_to_deliver)) AS rk
+FROM shipments GROUP BY supplier_id;</code></pre>
+<p>The query groups by supplier, computes <code>AVG(days_to_deliver)</code>, and ranks ascending &mdash; lower average means faster, so rank 1 is the fastest. The window function runs <em>after</em> the <code>GROUP BY</code>, so it ranks one row per supplier, not raw shipments.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>supplier_id</th><th>avg_days</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>3.0000000000000000</td><td>1</td></tr>
+    <tr><td>2</td><td>3.0000000000000000</td><td>1</td></tr>
+    <tr><td>1</td><td>3.0000000000000000</td><td>1</td></tr>
+    <tr><td>3</td><td>6.0000000000000000</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>All three fast suppliers get <strong>rank 1</strong> &mdash; <code>RANK</code> gives tied rows the same rank. Then supplier 3 jumps to <strong>rank 4, not 2</strong>: <code>RANK</code> leaves a gap equal to the size of the tie group (1, 1, 1, 4). The numbers 2 and 3 simply do not appear.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>You can put an aggregate inside a window's <code>ORDER BY</code></h5>
+<p><code>RANK() OVER (ORDER BY AVG(days_to_deliver))</code> looks like a layering violation, but it is legal and standard. Logically the <code>GROUP BY</code> runs first, producing one row per supplier with a scalar <code>AVG</code>; the window function then operates on those grouped rows. Window functions are evaluated after grouping, so the aggregate is just an ordinary value to the <code>OVER</code> clause.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> &mdash; the gap question</h5>
+<p>With the three-way tie, the choice of function changes the output:</p>
+<table>
+  <thead><tr><th>supplier</th><th>avg_days</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>3</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>2</td><td>3</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>1</td><td>3</td><td>1</td><td>1</td><td>3</td></tr>
+    <tr><td>3</td><td>6</td><td>4 (skips!)</td><td>2</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> skips ranks after a tie (1,1,1,4). <code>DENSE_RANK</code> does not (1,1,1,2). <code>ROW_NUMBER</code> ignores the tie and assigns 1,2,3,4 arbitrarily &mdash; which fast supplier gets "1" is non-deterministic. For a supplier scorecard, <code>RANK</code> or <code>DENSE_RANK</code> is right; <code>ROW_NUMBER</code> would falsely declare one of three equally-fast suppliers the unique winner.</p>
+
+<h5>The result is unordered &mdash; add an explicit <code>ORDER BY</code></h5>
+<p>The window <code>ORDER BY</code> drives the ranking; it does <em>not</em> sort the final output. The demo rows happen to come back fastest-first, but that is not guaranteed. For a presentable scorecard, end with an explicit <code>ORDER BY rk</code> (or <code>ORDER BY avg_days</code>).</p>
+
+<h5>NULL delivery times &mdash; ascending sort puts them last</h5>
+<p>If a shipment has a NULL <code>days_to_deliver</code>, <code>AVG</code> ignores it &mdash; the supplier is still ranked on their recorded shipments. But a supplier whose deliveries are <em>all</em> NULL gets <code>avg_days = NULL</code>, and under an ascending <code>ORDER BY</code> Postgres sorts NULLs <em>last</em> &mdash; so they would rank as the "slowest", which may be misleading. Make the intent explicit with <code>ORDER BY AVG(days_to_deliver) NULLS LAST</code>, or filter unmeasured suppliers out.</p>
+
+<h5>Tie-awareness vs sample size</h5>
+<p>A supplier with one fast shipment and a supplier with fifty fast shipments can tie on average, but the one-shipment average is far less trustworthy. A senior answer mentions weighting by volume or adding <code>COUNT(*) AS shipment_count</code> to the output so a reader can judge confidence &mdash; ranking on a mean alone hides sample size.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that an aggregate is legal inside a window <code>ORDER BY</code> because windows run after grouping, choose <code>RANK</code> (gaps after ties) vs <code>DENSE_RANK</code> (no gaps) vs <code>ROW_NUMBER</code> (arbitrary tiebreak) on purpose, add a final <code>ORDER BY</code> for deterministic output, and surface shipment count so a tiny-sample average is not mistaken for a reliable one.</div>

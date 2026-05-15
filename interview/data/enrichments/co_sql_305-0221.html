@@ -1,0 +1,61 @@
+<p>Etsy's compensation team wants to see each department's average salary side by side with the company-wide average, to spot departments drifting above or below the line. The query pairs a grouped <code>AVG</code> with a scalar subquery for the global figure &mdash; but the interviewer is probing whether you understand the two averages are computed over <em>different</em> populations, whether NULL salaries skew things, and that an "average of averages" is not the company average.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>150000</td><td>Ada</td></tr>
+    <tr><td>2</td><td>10</td><td>130000</td><td>Bao</td></tr>
+    <tr><td>3</td><td>20</td><td>90000</td><td>Cleo</td></tr>
+    <tr><td>4</td><td>20</td><td>110000</td><td>Dev</td></tr>
+    <tr><td>5</td><td>30</td><td>200000</td><td>Eli</td></tr>
+  </tbody>
+</table>
+<p>Three departments of unequal size &mdash; two engineers in dept 10 and dept 20, but a <strong>single</strong> employee (Eli, a VP) in dept 30. That lopsided one-person department is the edge case that exposes how the two averages relate.</p>
+
+<h4>2. The SQL &mdash; <code>grouped AVG + scalar subquery</code></h4>
+<pre><code>SELECT dept_id, AVG(salary) AS dept_avg,
+  (SELECT AVG(salary) FROM employees) AS overall_avg
+FROM employees GROUP BY dept_id;</code></pre>
+<p>The outer query groups by department and averages within each group; the correlated-free scalar subquery computes one company-wide average and pastes it onto every row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_avg</th><th>overall_avg</th></tr></thead>
+  <tbody>
+    <tr><td>30</td><td>200000.000000000000</td><td>136000.000000000000</td></tr>
+    <tr><td>10</td><td>140000.000000000000</td><td>136000.000000000000</td></tr>
+    <tr><td>20</td><td>100000.000000000000</td><td>136000.000000000000</td></tr>
+  </tbody>
+</table>
+<p>Each department's average sits next to the constant company average of 136,000. Dept 30 (the lone VP) is far above; dept 20 is below. Note: 136,000 is the average of all <em>five employees</em> &mdash; <strong>not</strong> the average of the three dept averages, which would be (200000+140000+100000)/3 = 146,667. That distinction is the interview.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two averages, two populations</h5>
+<p><code>dept_avg</code> averages the rows in one group; <code>overall_avg</code> averages <em>all</em> rows. They are not related by any simple formula. The company average weights every employee equally, so a large department pulls it harder than a small one. The one-person dept 30 contributes only one of five salaries to <code>overall_avg</code> despite having the highest <code>dept_avg</code> &mdash; that is correct, and the senior point is to say it out loud rather than assume the global figure is "the average of the column you see."</p>
+
+<h5>The scalar subquery runs once &mdash; not per group</h5>
+<p><code>(SELECT AVG(salary) FROM employees)</code> has no correlation to the outer query, so the planner evaluates it a single time and reuses the constant. It is not re-run per department &mdash; performance is fine. The window-function alternative makes the "compute once, broadcast" intent explicit and avoids scanning the table twice:</p>
+<pre><code>SELECT DISTINCT dept_id,
+  AVG(salary) OVER (PARTITION BY dept_id) AS dept_avg,
+  AVG(salary) OVER ()                    AS overall_avg
+FROM employees;</code></pre>
+<p>An empty <code>OVER ()</code> averages across the whole result set &mdash; the cleanest way to say "global average."</p>
+
+<h5>The "average of averages" trap</h5>
+<p>A common wrong instinct for the company figure is to average the per-department averages: <code>AVG(dept_avg)</code>. That gives every department equal weight regardless of headcount &mdash; here 146,667 instead of 136,000. It only equals the true mean when all groups are the same size. If the business genuinely wants each <em>department</em> weighted equally (not each employee), that is a different, defensible metric &mdash; but name it as such; do not let it masquerade as the company average.</p>
+
+<h5>NULL salaries</h5>
+<p><code>AVG</code> ignores NULLs in both numerator and denominator. An employee with an unrecorded salary is dropped from their department's average <em>and</em> the overall average. Usually fine, but if a NULL means "unpaid intern = 0," fold it in with <code>AVG(COALESCE(salary, 0))</code>. And an employee with a NULL <code>dept_id</code> forms its own NULL group &mdash; decide whether to show or filter it.</p>
+
+<h5>Comparing the gap directly</h5>
+<p>Stakeholders usually want the <em>delta</em>, not two raw numbers. Compute it so the report is glanceable:</p>
+<pre><code>SELECT dept_id,
+  AVG(salary) AS dept_avg,
+  AVG(salary) OVER () AS overall_avg,
+  AVG(salary) - AVG(salary) OVER () AS gap_vs_company
+FROM employees GROUP BY dept_id;</code></pre>
+<p>A positive <code>gap_vs_company</code> flags an above-market department at a glance.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that the department average and the company average are over different populations and the global figure weights every employee (not every department) equally, reject "average of averages" as the company mean unless groups are equal-sized, note that the scalar subquery is uncorrelated and runs once, and handle NULL salaries deliberately.</div>

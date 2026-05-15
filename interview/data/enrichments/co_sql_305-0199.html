@@ -1,0 +1,56 @@
+<p>Tesla's battery-test rig writes a stream of sensor measurements, each with an auto-incrementing <code>measurement_id</code>. An engineer wants the total for odd-numbered readings versus even-numbered ones &mdash; a quick way to check the rig's two alternating sample channels are balanced. The query is a single-pass conditional aggregation, and the interviewer is checking whether you can pivot with <code>CASE</code> instead of two separate queries.</p>
+
+<h4>1. The source data &mdash; <code>measurements</code></h4>
+<table>
+  <thead><tr><th>measurement_id</th><th>value</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10.5</td></tr>
+    <tr><td>2</td><td>20.0</td></tr>
+    <tr><td>3</td><td>5.5</td></tr>
+    <tr><td>4</td><td>8.0</td></tr>
+    <tr><td>5</td><td>12.0</td></tr>
+    <tr><td>6</td><td><em>NULL</em></td></tr>
+    <tr><td>7</td><td>3.0</td></tr>
+  </tbody>
+</table>
+<p>Seven readings, but measurement 6 has a <strong>NULL</strong> <code>value</code> &mdash; a sensor dropout. It is even-numbered, so it lands in the even bucket. How <code>SUM</code> treats that NULL is the subtle part of the question.</p>
+
+<h4>2. The SQL &mdash; <code>conditional SUM with CASE</code></h4>
+<pre><code>SELECT
+  SUM(CASE WHEN measurement_id % 2 = 1 THEN value ELSE 0 END) AS odd_sum,
+  SUM(CASE WHEN measurement_id % 2 = 0 THEN value ELSE 0 END) AS even_sum
+FROM measurements;</code></pre>
+<p>Each <code>CASE</code> picks <code>value</code> for rows on its side of the parity test and 0 for the rest. <code>SUM</code> then totals each expression. One pass over the table produces both buckets &mdash; no self-join, no two queries, no <code>GROUP BY</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>odd_sum</th><th>even_sum</th></tr></thead>
+  <tbody>
+    <tr><td>31.0</td><td>28.0</td></tr>
+  </tbody>
+</table>
+<p>Odd: 10.5 + 5.5 + 12.0 + 3.0 = 31.0 (ids 1, 3, 5, 7). Even: 20.0 + 8.0 = 28.0 (ids 2, 4 &mdash; id 6's NULL contributed nothing). Two scalars, one row. Notice the NULL did <em>not</em> blow up the even total or turn it NULL &mdash; that is the behaviour worth being able to explain.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the NULL row vanished cleanly</h5>
+<p>For measurement 6, <code>CASE WHEN measurement_id % 2 = 0 THEN value ELSE 0 END</code> evaluates to <code>value</code>, which is NULL. <code>SUM</code> ignores NULL inputs, so that row simply does not contribute &mdash; <code>even_sum</code> is 20.0 + 8.0 = 28.0. The <code>ELSE 0</code> only fires for odd rows; it does not "fix" the NULL. If a dropout reading should count as 0 explicitly, wrap it: <code>SUM(CASE WHEN ... THEN COALESCE(value,0) ELSE 0 END)</code> &mdash; same result here, but it documents the intent and matters if you later divide by a count.</p>
+
+<h5>The negative-modulo trap &mdash; <code>%</code> on signed integers</h5>
+<p>This works only because <code>measurement_id</code> is positive. In Postgres the <code>%</code> operator follows the sign of the dividend: <code>-3 % 2 = -1</code>, not <code>1</code>. If IDs could ever be negative, <code>measurement_id % 2 = 1</code> would miss the odd negatives. The robust parity test is <code>ABS(measurement_id) % 2 = 1</code>, or <code>measurement_id % 2 &lt;&gt; 0</code> for "odd". For an auto-increment surrogate key it is academic &mdash; but say it, because the interviewer may be probing exactly that.</p>
+
+<h5>The <code>FILTER</code> clause &mdash; the modern idiom</h5>
+<p>Postgres offers a cleaner way to write conditional aggregates &mdash; <code>FILTER</code>:</p>
+<pre><code>SELECT
+  SUM(value) FILTER (WHERE measurement_id % 2 = 1) AS odd_sum,
+  SUM(value) FILTER (WHERE measurement_id % 2 = 0) AS even_sum
+FROM measurements;</code></pre>
+<p>This reads better and has a real semantic difference: <code>FILTER</code> excludes non-matching rows entirely, so there is no <code>ELSE 0</code> padding. On an empty side <code>FILTER</code> yields NULL where the <code>CASE</code> form yields 0 &mdash; usually you want that distinction visible. Mentioning <code>FILTER</code> signals current-Postgres fluency; the <code>CASE</code> form is the portable fallback for engines without it.</p>
+
+<h5>Edge cases: empty table and integer values</h5>
+<p>On an empty table the <code>CASE</code> version returns one row of <code>(0, 0)</code> &mdash; because <code>SUM</code> over zero non-NULL inputs is NULL, but every row that <em>would</em> exist contributes 0... actually no: with zero rows there is nothing to sum, so <code>SUM</code> returns NULL and the result is <code>(NULL, NULL)</code>. Wrap in <code>COALESCE(SUM(...), 0)</code> if a dashboard needs zeros. If <code>value</code> were an <code>INTEGER</code> column the sums stay integers &mdash; fine here, but cast to <code>numeric</code> if downstream math needs decimals.</p>
+
+<h5>Generalising to N buckets</h5>
+<p>Two buckets via two <code>CASE</code> columns is fine. If the ask grew to "sum by <code>measurement_id % 5</code>", do not write five columns &mdash; pivot to rows with a <code>GROUP BY</code>: <code>SELECT measurement_id % 5 AS bucket, SUM(value) FROM measurements GROUP BY 1</code>. The conditional-column trick is for a small, fixed set of buckets you want side by side.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for conditional aggregation (<code>CASE</code> inside <code>SUM</code>, or <code>FILTER</code>) to produce both buckets in one pass, explain that <code>SUM</code> silently skips the NULL reading, flag the signed-modulo gotcha, and know that <code>FILTER</code> returns NULL on an empty bucket where <code>CASE ... ELSE 0</code> returns 0.</div>

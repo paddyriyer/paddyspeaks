@@ -1,0 +1,51 @@
+<p>Apple's commerce team tags SKUs with structured prefixes and suffixes &mdash; <code>PROMO-</code> for promotional items, <code>-2025</code> for the 2025 catalogue year. An analyst needs to pull every order whose SKU matches either pattern. It looks like a trivial <code>LIKE</code> query, and it is &mdash; but the interviewer is checking whether you understand wildcard semantics, anchoring, and the OR's effect on the index.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>sku</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>PROMO-ABC</td><td>101</td><td>2025-01-01</td><td>completed</td><td>50</td></tr>
+    <tr><td>2</td><td>STD-2025</td><td>102</td><td>2025-02-01</td><td>completed</td><td>80</td></tr>
+    <tr><td>3</td><td>PROMO-XYZ-2025</td><td>103</td><td>2025-03-01</td><td>completed</td><td>120</td></tr>
+    <tr><td>4</td><td>STD-WIDGET</td><td>104</td><td>2025-04-01</td><td>completed</td><td>30</td></tr>
+    <tr><td>5</td><td>GIFT-2024</td><td>105</td><td>2024-05-01</td><td>completed</td><td>60</td></tr>
+  </tbody>
+</table>
+<p>Order 3's SKU <code>PROMO-XYZ-2025</code> matches <strong>both</strong> patterns &mdash; the <code>OR</code> must still return it exactly once. Order 5's <code>GIFT-2024</code> ends in <code>-2024</code>, a near-miss that proves the suffix anchor is doing real work.</p>
+
+<h4>2. The SQL &mdash; <code>LIKE with prefix and suffix wildcards</code></h4>
+<pre><code>SELECT * FROM orders WHERE sku LIKE 'PROMO-%' OR sku LIKE '%-2025';</code></pre>
+<p><code>LIKE 'PROMO-%'</code> matches any SKU that <em>starts</em> with the literal <code>PROMO-</code> (<code>%</code> is "zero or more characters"). <code>LIKE '%-2025'</code> matches any SKU that <em>ends</em> with <code>-2025</code>. The <code>OR</code> unions the two sets.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>sku</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>PROMO-ABC</td><td>101</td><td>2025-01-01</td><td>completed</td><td>50</td></tr>
+    <tr><td>2</td><td>STD-2025</td><td>102</td><td>2025-02-01</td><td>completed</td><td>80</td></tr>
+    <tr><td>3</td><td>PROMO-XYZ-2025</td><td>103</td><td>2025-03-01</td><td>completed</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Three of five rows match. Order 3 satisfies both predicates but appears <strong>once</strong> &mdash; <code>OR</code> is set membership, not concatenation, so no duplication. Order 4 (<code>STD-WIDGET</code>) matches neither; order 5 (<code>GIFT-2024</code>) is correctly excluded because its suffix is <code>-2024</code>, not <code>-2025</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>%</code> vs <code>_</code> &mdash; the two wildcards</h5>
+<p><code>%</code> matches any run of characters including the empty string; <code>_</code> matches exactly one character. So <code>LIKE 'PROMO-%'</code> would still match a SKU that is literally <code>PROMO-</code> with nothing after. If "PROMO- followed by at least one character" is required, write <code>LIKE 'PROMO-_%'</code> &mdash; one mandatory character, then any tail. Knowing the empty-match behaviour is the detail interviewers probe.</p>
+
+<h5>Anchoring &mdash; where the wildcards sit changes everything</h5>
+<p><code>'PROMO-%'</code> is anchored at the start; <code>'%PROMO-%'</code> would match <code>PROMO-</code> anywhere in the string (a substring search). <code>'%-2025'</code> is anchored at the end. A frequent bug is writing <code>'%PROMO%'</code> when you meant a true prefix &mdash; it would also catch a SKU like <code>OLD-PROMO-1</code>. Decide deliberately: prefix, suffix, or contains.</p>
+
+<h5>The <code>OR</code> and the index trap</h5>
+<p>A leading-anchored <code>LIKE 'PROMO-%'</code> can use a B-tree index on <code>sku</code> &mdash; it is effectively a range scan. But <code>LIKE '%-2025'</code> has a leading <code>%</code>, so it cannot; it forces a full scan. And once two predicates are joined by <code>OR</code>, many planners scan the whole table anyway. On a large <code>orders</code> table, a trailing-wildcard filter is a known performance smell &mdash; the senior fix is to store the catalogue year as its own indexed column rather than parsing it out of the SKU.</p>
+
+<h5>Escaping literal <code>%</code> and <code>_</code></h5>
+<p>If a SKU genuinely contains a percent sign or underscore, those characters are wildcards inside <code>LIKE</code> and must be escaped: <code>LIKE 'A\_B%' ESCAPE '\'</code> matches a literal underscore. This bites most often with <code>_</code>, since underscores are common in identifiers &mdash; <code>LIKE 'PROMO_%'</code> silently treats the underscore as "any one character", not a literal.</p>
+
+<h5>Case sensitivity and NULL SKUs</h5>
+<p><code>LIKE</code> is case-sensitive in Postgres &mdash; <code>'promo-abc'</code> would not match <code>'PROMO-%'</code>. Use <code>ILIKE</code> for case-insensitive matching, or normalise with <code>UPPER(sku) LIKE 'PROMO-%'</code> (which also defeats the index). And a <code>NULL</code> <code>sku</code> makes <code>LIKE</code> return <code>NULL</code>, not true &mdash; NULL-SKU orders are silently excluded by both predicates, which is usually correct but worth stating.</p>
+
+<h5><code>SELECT *</code> &mdash; acceptable here, flag it anyway</h5>
+<p>The solution uses <code>SELECT *</code>. For an ad-hoc analyst pull that is fine, but in shipping code it is fragile: a schema change reorders or adds columns and silently changes the result shape. Name the columns the consumer actually needs.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish <code>%</code> from <code>_</code> and know <code>%</code> matches the empty string, anchor patterns deliberately (prefix vs suffix vs contains), recognise that a leading-wildcard <code>LIKE</code> under an <code>OR</code> defeats the index and suggest a dedicated catalogue-year column, and remember <code>ILIKE</code>/escaping for case and literal-wildcard correctness.</div>

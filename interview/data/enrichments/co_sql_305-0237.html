@@ -1,0 +1,63 @@
+<p>Google's education-products team measures course stickiness with a re-enrollment rate: of all students who ever enrolled, what fraction came back and enrolled again in a <em>later</em> term. The reference solution self-joins <code>enrollments</code> to itself on a later term and divides distinct counts. It looks reasonable &mdash; but the join quietly poisons the denominator, and the rate it reports is mathematically pinned at 100%.</p>
+
+<h4>1. The source data &mdash; <code>enrollments</code></h4>
+<table>
+  <thead><tr><th>student_id</th><th>course_id</th><th>term</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>2025-S1</td></tr>
+    <tr><td>1</td><td>101</td><td>2025-S2</td></tr>
+    <tr><td>2</td><td>100</td><td>2025-S1</td></tr>
+    <tr><td>3</td><td>102</td><td>2025-S1</td></tr>
+    <tr><td>3</td><td>103</td><td>2025-S2</td></tr>
+    <tr><td>3</td><td>104</td><td>2025-S3</td></tr>
+    <tr><td>4</td><td>105</td><td>2025-S2</td></tr>
+  </tbody>
+</table>
+<p>Four distinct students. Students 1 and 3 re-enrolled in a later term; students 2 and 4 each appear in only one term and never came back. The correct re-enrollment rate is <strong>2 of 4 = 50%</strong>. Hold that number.</p>
+
+<h4>2. The SQL &mdash; <code>self-join, distinct-count ratio</code></h4>
+<p>The reference solution:</p>
+<pre><code>SELECT 100.0 * COUNT(DISTINCT b.student_id) / NULLIF(COUNT(DISTINCT a.student_id), 0) AS reenroll_rate
+FROM enrollments a
+JOIN enrollments b ON a.student_id = b.student_id AND b.term &gt; a.term;</code></pre>
+<p>This is <strong>broken</strong>. The <code>INNER JOIN</code> only emits rows for students who <em>have</em> a later-term enrollment &mdash; students 2 and 4 produce no join rows at all. So <code>a.student_id</code> and <code>b.student_id</code> range over <em>exactly the same set</em>: the re-enrollers. Numerator and denominator are identical, and the rate is always 100% regardless of the data. The denominator must be <em>all</em> students, which means the non-re-enrollers have to survive the join. Use a <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT 100.0 * COUNT(DISTINCT CASE WHEN later.student_id IS NOT NULL
+                                   THEN e.student_id END)
+            / NULLIF(COUNT(DISTINCT e.student_id), 0) AS reenroll_rate
+FROM enrollments e
+LEFT JOIN enrollments later
+  ON e.student_id = later.student_id AND later.term &gt; e.term;</code></pre>
+<p>Now every student appears via <code>e</code> (the denominator), and only those with a matched later term are counted in the numerator.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>reenroll_rate</th></tr></thead>
+  <tbody>
+    <tr><td>50.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>50% &mdash; matching the hand-count of 2 re-enrollers out of 4 students. Running the <em>original</em> solution against this same data returns <code>100</code>, which is the giveaway: a metric that cannot move is not measuring anything.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the inner join breaks the denominator</h5>
+<p>The mental model "<code>a</code> = everyone, <code>b</code> = the comebacks" is wrong because the join condition <code>b.term &gt; a.term</code> filters <em>both</em> aliases simultaneously &mdash; a row of <code>a</code> only survives if a partner row of <code>b</code> exists for it. A student with one term has no such partner, so they are absent from <code>a</code> too. Whenever a ratio's denominator is "the whole population", the population side must not be gated by an inner join.</p>
+
+<h5>The cleaner fix &mdash; aggregate per student first</h5>
+<p>A self-join is overkill. Counting distinct terms per student is more direct and obviously correct:</p>
+<pre><code>SELECT 100.0 * COUNT(*) FILTER (WHERE terms &gt; 1)
+            / NULLIF(COUNT(*), 0) AS reenroll_rate
+FROM (
+  SELECT student_id, COUNT(DISTINCT term) AS terms
+  FROM enrollments
+  GROUP BY student_id
+) per_student;</code></pre>
+<p>Each student becomes one row; <code>terms &gt; 1</code> means they enrolled in more than one term. No fan-out, no join, and the denominator is unambiguously every student. This is the version to reach for.</p>
+
+<h5>Define "re-enrollment" precisely</h5>
+<p>Does it mean "enrolled in any later term" (what the solution attempts) or "enrolled in the <em>same course</em> again"? The two give different numbers. If it is same-course retention, the join needs <code>a.course_id = b.course_id</code> as well, and the per-student version groups by <code>(student_id, course_id)</code>. Pin the definition before writing SQL &mdash; this ambiguity is exactly what the interviewer is testing.</p>
+
+<h5>The term-ordering trap</h5>
+<p><code>b.term &gt; a.term</code> compares <code>term</code> as text. With values like <code>'2025-S1'</code>, <code>'2025-S2'</code> lexical order happens to match chronological order &mdash; but <code>'2025-S10'</code> would sort <em>before</em> <code>'2025-S2'</code>, and a <code>'Fall'</code>/<code>'Spring'</code> scheme would sort alphabetically, not seasonally. For reliable comparison, terms need a real ordinal &mdash; a numeric sort key or a proper date. And the same-day case: if a student has two rows in the <em>same</em> term, <code>&gt;</code> (strict) correctly does not count that as re-enrollment, but <code>&gt;=</code> would &mdash; a subtle off-by-one.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that an inner self-join gates the denominator to only the re-enrollers, pinning the rate at 100%; fix it with a <code>LEFT JOIN</code> or, better, a per-student term count; nail down whether "re-enroll" means any later term or the same course; and never trust lexical ordering of term strings as a chronology.</div>

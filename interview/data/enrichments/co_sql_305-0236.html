@@ -1,0 +1,73 @@
+<p>Atlassian's education team runs an online course catalog and wants a popularity leaderboard &mdash; courses ranked by enrollment count. The query counts enrollments per course and applies a ranking window over that count. It works, but the interviewer is watching for two things: how the rank behaves when two courses are tied, and the subtle fact that you can rank by an aggregate you also computed.</p>
+
+<h4>1. The source data &mdash; <code>enrollments</code></h4>
+<table>
+  <thead><tr><th>course_id</th><th>student_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td></tr>
+    <tr><td>1</td><td>11</td></tr>
+    <tr><td>1</td><td>12</td></tr>
+    <tr><td>2</td><td>13</td></tr>
+    <tr><td>2</td><td>14</td></tr>
+    <tr><td>3</td><td>15</td></tr>
+    <tr><td>3</td><td>16</td></tr>
+    <tr><td>4</td><td>17</td></tr>
+  </tbody>
+</table>
+<p>Course 1 has 3 enrollments, courses 2 and 3 have 2 each &mdash; a <strong>tie</strong> &mdash; and course 4 has 1. That tie at the second position is the whole interview: it decides what rank course 4 receives.</p>
+
+<h4>2. The SQL &mdash; <code>RANK() OVER (ORDER BY COUNT(*) DESC)</code></h4>
+<pre><code>SELECT course_id, COUNT(*) AS enrolls,
+  RANK() OVER (ORDER BY COUNT(*) DESC) AS rk
+FROM enrollments
+GROUP BY course_id;</code></pre>
+<p>The <code>GROUP BY</code> reduces the table to one row per course with its enrollment count. The window function then ranks those grouped rows &mdash; and crucially, the window can reference <code>COUNT(*)</code> directly because window functions execute <em>after</em> grouping.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>course_id</th><th>enrolls</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>1</td></tr>
+    <tr><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>3</td><td>2</td><td>2</td></tr>
+    <tr><td>4</td><td>1</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Courses 2 and 3 both get <code>rk = 2</code> &mdash; they are tied at 2 enrollments. Then course 4 jumps to <strong>rank 4, not 3</strong>: <code>RANK</code> skips the position consumed by the tie. The ranks read 1, 2, 2, 4. That gap is deliberate competition-ranking behaviour, and whether it is what the product wants is a question to ask.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Window functions can see aggregates &mdash; the execution-order point</h5>
+<p>It surprises many candidates that <code>RANK() OVER (ORDER BY COUNT(*) DESC)</code> is legal. SQL evaluates <code>GROUP BY</code> and aggregates <em>before</em> window functions, so by the time the window runs, <code>COUNT(*)</code> is already a settled per-group value. You do not need a subquery or CTE to "materialise the count first" &mdash; though wrapping it in a CTE is fine for readability:</p>
+<pre><code>WITH counts AS (
+  SELECT course_id, COUNT(*) AS enrolls FROM enrollments GROUP BY course_id
+)
+SELECT course_id, enrolls, RANK() OVER (ORDER BY enrolls DESC) AS rk
+FROM counts;</code></pre>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code> &mdash; the tie behaviour</h5>
+<table>
+  <thead><tr><th>course</th><th>enrolls</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>3</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>2</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+    <tr><td>3</td><td>2</td><td>2</td><td>2</td><td>3</td></tr>
+    <tr><td>4</td><td>1</td><td>4 (skips!)</td><td>3</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> leaves a gap after a tie (1, 2, 2, 4). <code>DENSE_RANK</code> does not (1, 2, 2, 3). <code>ROW_NUMBER</code> ignores ties entirely and would give courses 2 and 3 <em>different</em> numbers, breaking the tie arbitrarily by physical row order &mdash; almost never right for a leaderboard. Name which semantics the product wants.</p>
+
+<h5>The "top N courses" follow-up &mdash; and the LIMIT trap</h5>
+<p>"Show the top 3" is the natural next ask. <code>LIMIT 3</code> after the ranking would cut off mid-tie &mdash; with our data it returns courses 1, 2, 3 but arbitrarily excludes nothing problematic here, yet on other data it could keep one tied course and drop its twin. The robust answer filters on the rank:</p>
+<pre><code>SELECT * FROM (
+  SELECT course_id, COUNT(*) AS enrolls,
+         RANK() OVER (ORDER BY COUNT(*) DESC) AS rk
+  FROM enrollments GROUP BY course_id
+) t
+WHERE rk &lt;= 3;</code></pre>
+<p>This keeps <em>all</em> courses tied at rank 3, which is the honest meaning of "top 3".</p>
+
+<h5>Counting distinct students and ordering determinism</h5>
+<p><code>COUNT(*)</code> counts enrollment rows. If a student could enroll in the same course twice (a re-take), <code>COUNT(*)</code> would overstate popularity &mdash; use <code>COUNT(DISTINCT student_id)</code> if "popular" means unique students. Also, the outer query has no <code>ORDER BY</code>, so the <em>display</em> order of rows is not guaranteed even though the <code>rk</code> values are; add <code>ORDER BY rk</code> for a stable leaderboard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> know that window functions run after aggregation so <code>RANK() OVER (ORDER BY COUNT(*))</code> needs no subquery, contrast <code>RANK</code>/<code>DENSE_RANK</code>/<code>ROW_NUMBER</code> by tie behaviour, filter on <code>rk &lt;= N</code> rather than <code>LIMIT</code> so ties aren't split, and use <code>COUNT(DISTINCT student_id)</code> if re-enrollments would inflate the count.</div>

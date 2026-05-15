@@ -1,0 +1,71 @@
+<p>Amazon's marketing-finance team wants a campaign P&amp;L: revenue attributed to each campaign, the budget spent, and the net. It is a join plus an aggregate &mdash; but the interviewer is watching for the campaign that drove <em>no</em> sales. Does your query still report it, and if so, what does its net look like?</p>
+
+<h4>1. The source data &mdash; <code>campaigns</code> and <code>sales</code></h4>
+<table>
+  <thead><tr><th>campaign_id</th><th>budget</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1000</td></tr>
+    <tr><td>2</td><td>500</td></tr>
+    <tr><td>3</td><td>2000</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>campaign_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>800</td></tr>
+    <tr><td>1</td><td>900</td></tr>
+    <tr><td>2</td><td>300</td></tr>
+  </tbody>
+</table>
+<p>Campaign 3 spent $2000 but generated <strong>no sales rows at all</strong>. That orphan campaign is the whole interview &mdash; it is exactly what the <code>LEFT JOIN</code> is there to preserve, and it is where a NULL silently appears.</p>
+
+<h4>2. The SQL &mdash; <code>LEFT JOIN campaigns to sales</code></h4>
+<pre><code>SELECT c.campaign_id, SUM(s.amount) AS revenue, c.budget,
+  SUM(s.amount) - c.budget AS net
+FROM campaigns c LEFT JOIN sales s ON c.campaign_id = s.campaign_id
+GROUP BY c.campaign_id, c.budget;</code></pre>
+<p>The <code>LEFT JOIN</code> keeps every campaign even when no sale matches; <code>GROUP BY</code> collapses each campaign's sale rows; <code>SUM(s.amount)</code> totals the revenue and <code>net</code> subtracts the budget.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>campaign_id</th><th>revenue</th><th>budget</th><th>net</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>300</td><td>500</td><td>-200</td></tr>
+    <tr><td>1</td><td>1700</td><td>1000</td><td>700</td></tr>
+    <tr><td>3</td><td><em>NULL</em></td><td>2000</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Campaign 1 nets +$700 (1700 revenue &minus; 1000 budget), campaign 2 nets &minus;$200. Campaign 3 is the catch: it has no sales, so <code>SUM(s.amount)</code> over zero rows is <strong>NULL</strong> &mdash; and <code>NULL - 2000</code> is also <strong>NULL</strong>. The campaign that lost the most money ($2000 spent, $0 earned) reports its net as a blank instead of &minus;$2000.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The bug-shaped behaviour: <code>SUM</code> of no rows is NULL</h5>
+<p>For a campaign with matching sales, <code>SUM</code> works fine. For campaign 3 the <code>LEFT JOIN</code> produces one row with <code>s.amount = NULL</code>, and <code>SUM</code> of an all-NULL set is <code>NULL</code>, not 0. Then any arithmetic on it &mdash; <code>NULL - c.budget</code> &mdash; is NULL too, because NULL propagates through <code>-</code>. The fix is to coalesce the revenue <em>before</em> subtracting:</p>
+<pre><code>SELECT c.campaign_id,
+  COALESCE(SUM(s.amount), 0) AS revenue,
+  c.budget,
+  COALESCE(SUM(s.amount), 0) - c.budget AS net
+FROM campaigns c LEFT JOIN sales s ON c.campaign_id = s.campaign_id
+GROUP BY c.campaign_id, c.budget;</code></pre>
+<p>Now campaign 3 correctly reports <code>revenue = 0</code> and <code>net = -2000</code> &mdash; the real loss surfaces. This is the answer an interviewer wants: the original query is not <em>wrong</em>, but it hides the most important number.</p>
+
+<h5>Why <code>LEFT JOIN</code> is non-negotiable here</h5>
+<p>Swap it for an inner <code>JOIN</code> and campaign 3 vanishes from the report entirely &mdash; the marketing team would never see that they burned $2000 for nothing. The direction matters too: <code>campaigns LEFT JOIN sales</code> keeps all campaigns. The whole point of a campaign P&amp;L is to expose the zero-revenue campaigns, so the outer join is load-bearing.</p>
+
+<h5>Aggregate before joining &mdash; avoiding the fan-out, and a cleaner shape</h5>
+<p>Joining first then grouping works, but pre-aggregating <code>sales</code> is often clearer and dodges row multiplication if other joins are added later:</p>
+<pre><code>SELECT c.campaign_id, COALESCE(s.revenue, 0) AS revenue, c.budget,
+       COALESCE(s.revenue, 0) - c.budget AS net
+FROM campaigns c
+LEFT JOIN (SELECT campaign_id, SUM(amount) AS revenue
+           FROM sales GROUP BY campaign_id) s
+  ON s.campaign_id = c.campaign_id;</code></pre>
+<p>Here there is no <code>GROUP BY</code> on the outer query at all &mdash; <code>campaigns</code> is already one row per campaign. Same numbers, and it scales better.</p>
+
+<h5>ROI as a ratio &mdash; and the divide-by-zero trap</h5>
+<p>Finance usually wants ROI, not just net: <code>revenue / budget</code>. If any campaign can have a $0 budget, that is a division by zero. Guard it with <code>NULLIF</code>: <code>COALESCE(SUM(s.amount),0) / NULLIF(c.budget, 0)</code> &mdash; a zero budget yields NULL ROI rather than an error.</p>
+
+<h5>Attribution and the duplicated schema columns</h5>
+<p>Note the schema gives <code>sales</code> its own <code>budget</code> column and <code>campaigns</code> its own <code>amount</code> column &mdash; redundant, and a trap. The query correctly takes <code>budget</code> from <code>campaigns</code> and <code>amount</code> from <code>sales</code>; pulling the wrong table's copy would double-count or mislabel. Always qualify columns (<code>c.budget</code>, <code>s.amount</code>) when names collide, and confirm which table is the source of truth.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that <code>SUM</code> over a <code>LEFT JOIN</code>'s unmatched rows is NULL and that <code>NULL - budget</code> hides the worst-performing campaign &mdash; coalesce revenue to 0 before the subtraction &mdash; keep the outer join so zero-revenue campaigns are reported, and guard ROI ratios against a zero budget with <code>NULLIF</code>.</div>

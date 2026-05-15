@@ -1,0 +1,59 @@
+<p>BMW's customer-analytics team wants a one-row-per-customer summary &mdash; how many orders each placed and how much they spent. A textbook <code>GROUP BY</code>. The interviewer is not testing whether you can write it; they are testing whether you know the difference between <code>COUNT(*)</code> and <code>COUNT(column)</code>, and what happens to the summary when an order has a <code>NULL</code> amount.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th><th>order_id</th><th>order_date</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>120</td><td>1</td><td>2024-01-01</td><td>completed</td></tr>
+    <tr><td>101</td><td>200</td><td>2</td><td>2024-01-05</td><td>completed</td></tr>
+    <tr><td>102</td><td>80</td><td>3</td><td>2024-01-02</td><td>cancelled</td></tr>
+    <tr><td>103</td><td><em>NULL</em></td><td>4</td><td>2024-01-03</td><td>pending</td></tr>
+    <tr><td>103</td><td>50</td><td>5</td><td>2024-01-04</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Customer 103 has two orders, but one carries a <strong>NULL</strong> <code>amount</code> (a pending order not yet priced). That NULL is the whole interview &mdash; it splits <code>COUNT(*)</code> from <code>COUNT(amount)</code>, and it determines whether the spend total is a number or NULL.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY customer</code></h4>
+<pre><code>SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS total
+FROM orders GROUP BY customer_id;</code></pre>
+<p>One group per <code>customer_id</code>. <code>COUNT(*)</code> tallies rows in the group; <code>SUM(amount)</code> adds their amounts.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2</td><td>320</td></tr>
+    <tr><td>103</td><td>2</td><td>50</td></tr>
+    <tr><td>102</td><td>1</td><td>80</td></tr>
+  </tbody>
+</table>
+<p>Customer 103 shows <code>orders = 2</code> but <code>total = 50</code>. <code>COUNT(*)</code> counted both rows; <code>SUM(amount)</code> skipped the NULL and added only the 50. The two columns disagree by design &mdash; that is the point. Note also the rows come back in no particular order; a <code>GROUP BY</code> does not sort its output.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(amount)</code> &mdash; rows vs values</h5>
+<p><code>COUNT(*)</code> counts rows regardless of NULLs. <code>COUNT(amount)</code> counts only rows where <code>amount</code> is non-NULL. For customer 103 that is 2 vs 1. Which one is "number of orders"? Almost always <code>COUNT(*)</code> &mdash; a pending order is still an order. But if the metric is "number of <em>priced</em> orders", <code>COUNT(amount)</code> is right. Say which you mean; the choice is a business decision, not a syntax preference.</p>
+
+<h5><code>SUM</code> over a group of all-NULLs returns NULL, not 0</h5>
+<p><code>SUM</code> ignores NULLs &mdash; here that quietly drops 103's pending order. Harmless when at least one row has a value, but if a customer's <em>every</em> order were unpriced, <code>SUM(amount)</code> returns <strong>NULL</strong>, not 0. A dashboard expecting a number then shows a blank. Guard it:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS orders,
+       COALESCE(SUM(amount), 0) AS total
+FROM orders GROUP BY customer_id;</code></pre>
+<p><code>COALESCE</code> wraps the aggregate, not the column &mdash; <code>SUM(COALESCE(amount,0))</code> also works and additionally makes a partly-NULL group treat the NULL row as a $0 order, which may or may not be what you want.</p>
+
+<h5>The "every column not aggregated must be grouped" rule</h5>
+<p>You can <code>SELECT</code> <code>customer_id</code> because it is in the <code>GROUP BY</code>. Adding <code>order_id</code> or <code>status</code> to the select list without aggregating them is a syntax error in Postgres &mdash; the engine cannot pick one <code>order_id</code> for a group of several. If you need a representative value, aggregate it explicitly: <code>MAX(order_date) AS last_order</code>, <code>STRING_AGG(status, ',')</code>, etc.</p>
+
+<h5>Customers with zero orders never appear</h5>
+<p>This query only sees customers who have at least one row in <code>orders</code>. A customer who registered but never ordered is simply absent &mdash; not shown as <code>orders = 0</code>. If the report must include them, start from the <code>customers</code> table and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT c.customer_id, COUNT(o.order_id) AS orders,
+       COALESCE(SUM(o.amount), 0) AS total
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.customer_id
+GROUP BY c.customer_id;</code></pre>
+<p>Crucially, count <code>o.order_id</code> here, not <code>*</code> &mdash; an unmatched customer produces one row of NULLs from the join, and <code>COUNT(*)</code> would wrongly report 1 order for them.</p>
+
+<h5>Should cancelled orders count?</h5>
+<p>Customer 102's only order is <code>cancelled</code> but still contributes to both the count and the total. "Total spent" usually means realised revenue, which excludes cancellations &mdash; add <code>WHERE status &lt;&gt; 'cancelled'</code> (or filter inside the aggregates with <code>SUM(amount) FILTER (WHERE status = 'completed')</code> if you want both the gross order count and net spend in one row).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate <code>COUNT(*)</code> (rows) versus <code>COUNT(col)</code> (non-NULL values) and pick the one the metric demands, wrap <code>SUM</code> in <code>COALESCE</code> so an all-NULL group reports 0 not NULL, switch to a <code>LEFT JOIN</code> with <code>COUNT(o.order_id)</code> when zero-order customers must appear, and question whether cancelled orders belong in the totals.</div>

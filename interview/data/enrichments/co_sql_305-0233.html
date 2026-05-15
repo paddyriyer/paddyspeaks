@@ -1,0 +1,63 @@
+<p>Atlassian's account-management team wants a one-line summary of what each customer has bought &mdash; a comma-separated list of products on a single row, so a CSM can glance at it without scrolling an order history. The query is a group-by with a string aggregate. It looks trivial, but the interviewer is probing whether you handle ordering, duplicates, and the engine-specific name of the function.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>product</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Mouse</td><td>1</td><td>25</td></tr>
+    <tr><td>101</td><td>Keyboard</td><td>2</td><td>75</td></tr>
+    <tr><td>101</td><td>Mouse</td><td>3</td><td>25</td></tr>
+    <tr><td>102</td><td>Monitor</td><td>4</td><td>300</td></tr>
+    <tr><td>103</td><td>Cable</td><td>5</td><td>12</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 ordered a <strong>Mouse twice</strong> (orders 1 and 3) &mdash; a duplicate product. Customers 102 and 103 each have a single order. The duplicate is the edge case: it decides whether the summary shows "Mouse" once or twice.</p>
+
+<h4>2. The SQL &mdash; <code>STRING_AGG with ORDER BY</code></h4>
+<pre><code>SELECT customer_id,
+       STRING_AGG(product, ', ' ORDER BY product) AS products
+FROM orders
+GROUP BY customer_id;</code></pre>
+<p><code>STRING_AGG</code> collapses all <code>product</code> values in a group into one delimited string. The inline <code>ORDER BY product</code> fixes the concatenation order so the output is stable across runs.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>products</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Keyboard, Mouse, Mouse</td></tr>
+    <tr><td>102</td><td>Monitor</td></tr>
+    <tr><td>103</td><td>Cable</td></tr>
+  </tbody>
+</table>
+<p>Customer 101's list reads "Keyboard, Mouse, Mouse" &mdash; the Mouse appears <strong>twice</strong> because they placed two Mouse orders, and <code>STRING_AGG</code> aggregates rows, not distinct values. For a "what has this customer ever bought" summary that repetition is usually unwanted noise.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>De-duplicating &mdash; <code>DISTINCT</code> inside the aggregate</h5>
+<p>If the summary should list each product once, add <code>DISTINCT</code>:</p>
+<pre><code>SELECT customer_id,
+       STRING_AGG(DISTINCT product, ', ' ORDER BY product) AS products
+FROM orders
+GROUP BY customer_id;
+-- customer 101 -> "Keyboard, Mouse"</code></pre>
+<p>One constraint: when you use <code>DISTINCT</code> in <code>STRING_AGG</code>, the <code>ORDER BY</code> expression must match the aggregated expression &mdash; you can order by <code>product</code> but not by, say, <code>order_date</code>. Confirm with the interviewer whether duplicates are signal (bought it 5 times) or noise.</p>
+
+<h5>Why the <code>ORDER BY</code> is not optional</h5>
+<p>Without <code>ORDER BY product</code>, the concatenation order is whatever the executor happens to produce &mdash; it can change between runs, between plan choices, after a vacuum. For anything compared, diffed, or snapshot-tested, an unordered <code>STRING_AGG</code> is a flaky-test generator. Always pin the order.</p>
+
+<h5>The dialect map &mdash; same idea, four names</h5>
+<table>
+  <thead><tr><th>engine</th><th>function</th></tr></thead>
+  <tbody>
+    <tr><td>Postgres</td><td><code>STRING_AGG(product, ', ' ORDER BY product)</code></td></tr>
+    <tr><td>MySQL</td><td><code>GROUP_CONCAT(product ORDER BY product SEPARATOR ', ')</code></td></tr>
+    <tr><td>Oracle / Snowflake</td><td><code>LISTAGG(product, ', ') WITHIN GROUP (ORDER BY product)</code></td></tr>
+    <tr><td>SQL Server</td><td><code>STRING_AGG(product, ', ') WITHIN GROUP (ORDER BY product)</code></td></tr>
+  </tbody>
+</table>
+<p>Naming that <code>LISTAGG</code> / <code>GROUP_CONCAT</code> are the same primitive under different syntax is a senior tell. Note <code>LISTAGG</code> also has a low default length cap on some engines &mdash; long lists can truncate or error.</p>
+
+<h5>NULL products and the array alternative</h5>
+<p><code>STRING_AGG</code> skips NULL inputs &mdash; a NULL <code>product</code> simply does not appear in the list, with no stray delimiter. That is usually desirable. If a downstream consumer needs to <em>process</em> the items rather than just display them, aggregate to a real array instead of a string &mdash; <code>ARRAY_AGG(DISTINCT product ORDER BY product)</code> &mdash; which avoids fragile delimiter-splitting later. A string is for humans; an array is for code.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> always pin <code>STRING_AGG</code> with an explicit <code>ORDER BY</code> for deterministic output, decide whether duplicates are signal or noise and reach for <code>DISTINCT</code> when they are noise, map the function to <code>LISTAGG</code>/<code>GROUP_CONCAT</code> across engines, and prefer <code>ARRAY_AGG</code> when the result feeds code rather than a human.</div>

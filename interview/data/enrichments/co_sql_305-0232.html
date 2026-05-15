@@ -1,0 +1,58 @@
+<p>DoorDash's customer-support tooling needs each customer's <em>most recent order</em> &mdash; the one an agent should pull up first. The reference solution uses a correlated subquery: keep a row only if its date equals the max date for that same customer. It produces the right rows, but the interviewer wants to see whether you spot what happens when a customer placed two orders on the same day.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>2026-01-05</td><td>completed</td><td>120</td></tr>
+    <tr><td>2</td><td>101</td><td>2026-03-10</td><td>completed</td><td>80</td></tr>
+    <tr><td>3</td><td>102</td><td>2026-02-01</td><td>completed</td><td>200</td></tr>
+    <tr><td>4</td><td>102</td><td>2026-02-01</td><td>cancelled</td><td>50</td></tr>
+    <tr><td>5</td><td>103</td><td>2026-04-15</td><td>completed</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 has a clear latest order (March beats January). But customer 102 placed <strong>two orders on the same date</strong>, 2026-02-01 &mdash; a tie. Customer 103 has a single order. The tie is the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>correlated subquery on MAX(order_date)</code></h4>
+<pre><code>SELECT * FROM orders o
+WHERE order_date = (
+  SELECT MAX(order_date) FROM orders WHERE customer_id = o.customer_id
+);</code></pre>
+<p>For each row <code>o</code>, the subquery computes the latest order date <em>for that customer</em>. The row survives only if its own date equals that max. One subquery execution per row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_date</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>101</td><td>2026-03-10</td><td>completed</td><td>80</td></tr>
+    <tr><td>3</td><td>102</td><td>2026-02-01</td><td>completed</td><td>200</td></tr>
+    <tr><td>4</td><td>102</td><td>2026-02-01</td><td>cancelled</td><td>50</td></tr>
+    <tr><td>5</td><td>103</td><td>2026-04-15</td><td>completed</td><td>150</td></tr>
+  </tbody>
+</table>
+<p>Customer 101 returns one row, as expected. But customer 102 returns <strong>two</strong> &mdash; orders 3 and 4 both match the max date of 2026-02-01. "The latest record" silently became "all records on the latest date". Whether that is a bug depends on whether the support tool expects exactly one row per customer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The same-day tie &mdash; date granularity matters</h5>
+<p>Matching on <code>order_date</code> assumes the date alone uniquely identifies "latest". It does not when two orders share a day. If the table has a finer column &mdash; a <code>created_at</code> timestamp, or a monotonically increasing <code>order_id</code> &mdash; tie-break on that instead. If it genuinely does not, you must <em>decide</em> which same-day order wins (newest <code>order_id</code>? highest amount?) and say so.</p>
+
+<h5>The window-function answer &mdash; exactly one row, ties broken</h5>
+<p><code>ROW_NUMBER</code> guarantees a single row per customer:</p>
+<pre><code>SELECT order_id, customer_id, order_date, status, amount
+FROM (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY customer_id
+                            ORDER BY order_date DESC, order_id DESC) AS rn
+  FROM orders
+) t
+WHERE rn = 1;</code></pre>
+<p>The <code>order_id DESC</code> secondary sort breaks the 02-01 tie deterministically &mdash; customer 102 returns only order 4. Swap <code>ROW_NUMBER</code> for <code>RANK</code> and you get the subquery's "all ties" behaviour back; the choice between them <em>is</em> the answer to "one row or all of them?"</p>
+
+<h5>Performance &mdash; correlated subquery vs window</h5>
+<p>The correlated subquery re-runs once per row of <code>orders</code>; on a large table that is a repeated aggregate scan and can degrade toward O(n&sup2;) without a good index on <code>(customer_id, order_date)</code>. The window-function form sorts once and assigns row numbers in a single pass &mdash; O(n log n). A correlated <code>NOT EXISTS</code> ("no later order exists for this customer") is a third idiom and often optimises well, but the window function is the cleanest default.</p>
+
+<h5>NULL dates and missing customers</h5>
+<p>If <code>order_date</code> can be NULL, that order can never equal <code>MAX(order_date)</code> (NULL is not equal to anything), so a customer whose only order has a NULL date returns <em>zero</em> rows &mdash; they vanish from the report. Decide whether that is acceptable or whether NULL dates should sort last via <code>ORDER BY order_date DESC NULLS LAST</code> in the window form.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that matching on <code>MAX(order_date)</code> returns every row on the latest <em>day</em>, not one row, switch to <code>ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC, &hellip;)</code> with an explicit tie-breaker when exactly one row is required, and note both the O(n&sup2;) risk of the correlated subquery and the NULL-date drop-out.</div>

@@ -1,0 +1,59 @@
+<p>Snowflake's revenue-operations team wants a regional scorecard: for each region, completed-order revenue in one column and cancelled-order revenue in another. The instinct of a junior is to run two separate queries and join them. The interviewer is watching for the one-pass idiom &mdash; <code>SUM</code> wrapped around a <code>CASE</code> &mdash; that pivots a status column into named measures.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>region</th><th>status</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>West</td><td>completed</td><td>100</td></tr>
+    <tr><td>West</td><td>cancelled</td><td>40</td></tr>
+    <tr><td>West</td><td>completed</td><td>60</td></tr>
+    <tr><td>East</td><td>completed</td><td>200</td></tr>
+    <tr><td>East</td><td>pending</td><td>75</td></tr>
+    <tr><td>North</td><td>cancelled</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>Three statuses appear, but the report only names two. East has a <strong>pending</strong> order &mdash; it belongs to neither bucket. North has <em>only</em> a cancelled order &mdash; its completed column will have to be 0, not absent.</p>
+
+<h4>2. The SQL &mdash; <code>SUM(CASE WHEN &hellip;)</code></h4>
+<pre><code>SELECT region,
+  SUM(CASE WHEN status='completed' THEN amount ELSE 0 END) AS completed_amt,
+  SUM(CASE WHEN status='cancelled' THEN amount ELSE 0 END) AS cancelled_amt
+FROM orders
+GROUP BY region;</code></pre>
+<p>Each <code>CASE</code> rewrites <code>amount</code> to either the real value or 0, depending on the row's status. <code>SUM</code> then totals the rewritten column per region &mdash; one scan, two pivoted measures.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>completed_amt</th><th>cancelled_amt</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>200</td><td>0</td></tr>
+    <tr><td>West</td><td>160</td><td>40</td></tr>
+    <tr><td>North</td><td>0</td><td>30</td></tr>
+  </tbody>
+</table>
+<p>West's completed column is 100 + 60 = 160; cancelled is 40. East's pending $75 order contributed to <em>neither</em> column &mdash; it fell through both <code>CASE</code> expressions to the <code>ELSE 0</code>. North shows <code>completed_amt = 0</code>: it has no completed orders, but the region still appears with an honest zero rather than dropping out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>ELSE 0</code> vs <code>ELSE NULL</code> decision</h5>
+<p>Write <code>ELSE 0</code> and a region with no matching orders sums to 0. Omit the <code>ELSE</code> (so it defaults to <code>ELSE NULL</code>) and <code>SUM</code> ignores the NULLs &mdash; for a region with <em>zero</em> completed orders, <code>SUM</code> over all-NULL returns <strong>NULL</strong>, not 0. Both are defensible: 0 says "we earned nothing", NULL says "no data". For a financial scorecard, 0 is almost always what stakeholders expect &mdash; but the difference surfaces a missing-data edge case worth naming.</p>
+
+<h5>SUM(CASE) vs COUNT(CASE) &mdash; revenue vs order count</h5>
+<p>This pattern generalises. To count cancelled <em>orders</em> rather than sum their revenue, two equivalent forms:</p>
+<pre><code>COUNT(CASE WHEN status='cancelled' THEN 1 END)        AS cancelled_orders,
+SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END)   AS cancelled_orders</code></pre>
+<p>Note the <code>COUNT</code> form deliberately has no <code>ELSE</code> &mdash; <code>COUNT</code> ignores NULL, so a bare <code>THEN 1</code> counts only the matching rows. Adding <code>ELSE 0</code> to a <code>COUNT</code> would count <em>every</em> row, a classic bug.</p>
+
+<h5>The modern idiom &mdash; <code>FILTER</code></h5>
+<p>Postgres offers a cleaner spelling of the same conditional aggregate:</p>
+<pre><code>SELECT region,
+  SUM(amount) FILTER (WHERE status='completed') AS completed_amt,
+  SUM(amount) FILTER (WHERE status='cancelled') AS cancelled_amt
+FROM orders
+GROUP BY region;</code></pre>
+<p>One nuance: <code>FILTER</code> has no <code>ELSE</code> branch, so an empty group yields NULL just like the <code>ELSE NULL</code> case &mdash; wrap in <code>COALESCE(&hellip;, 0)</code> if you need zeros. <code>FILTER</code> is the senior tell; not every engine supports it, so <code>SUM(CASE)</code> remains the portable fallback.</p>
+
+<h5>Status typos and total reconciliation</h5>
+<p>The <code>CASE</code> matches the literal string <code>'completed'</code>. A stray <code>'Completed'</code> or <code>'COMPLETED'</code> would silently fall into <code>ELSE 0</code> &mdash; revenue quietly lost. Defend with <code>LOWER(status)</code> or, better, a constrained enum. And a good sanity check: <code>completed_amt + cancelled_amt</code> should be <em>less than</em> <code>SUM(amount)</code> here precisely because pending orders exist &mdash; if they were equal, you would know no other statuses existed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pivot with a single-scan <code>SUM(CASE)</code> instead of joining separate queries, choose <code>ELSE 0</code> vs <code>ELSE NULL</code> deliberately for empty groups, reach for the <code>FILTER</code> idiom where supported, and guard against status-string typos that would silently route revenue into the <code>ELSE</code> bucket.</div>

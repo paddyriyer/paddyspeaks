@@ -1,0 +1,64 @@
+<p>Anthropic's revenue-analytics team wants every product ranked by total sales for a leaderboard. The query aggregates sales per product and applies <code>RANK()</code> over the summed total &mdash; but the interviewer is watching whether you understand you can rank <em>over an aggregate</em> in one pass, what <code>RANK</code> does at a tie, and how it differs from <code>DENSE_RANK</code> and <code>ROW_NUMBER</code>.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td></tr>
+    <tr><td>1</td><td>200</td></tr>
+    <tr><td>2</td><td>150</td></tr>
+    <tr><td>2</td><td>150</td></tr>
+    <tr><td>3</td><td>500</td></tr>
+    <tr><td>4</td><td>500</td></tr>
+    <tr><td>5</td><td>80</td></tr>
+  </tbody>
+</table>
+<p>Each product has several sale rows, so we sum first. The deliberate trap: products 3 and 4 each total <strong>500</strong> &mdash; an exact <strong>tie</strong> at the top. How the ranking handles that tie is the whole question.</p>
+
+<h4>2. The SQL &mdash; <code>RANK() over SUM(amount)</code></h4>
+<pre><code>SELECT product_id, SUM(amount) AS total,
+  RANK() OVER (ORDER BY SUM(amount) DESC) AS rk
+FROM sales GROUP BY product_id;</code></pre>
+<p><code>GROUP BY product_id</code> collapses each product to one row; the window function then ranks those grouped rows by their <code>SUM(amount)</code>, descending.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>total</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>500</td><td>1</td></tr>
+    <tr><td>4</td><td>500</td><td>1</td></tr>
+    <tr><td>2</td><td>300</td><td>3</td></tr>
+    <tr><td>1</td><td>300</td><td>3</td></tr>
+    <tr><td>5</td><td>80</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>Products 3 and 4 both get <strong>rank 1</strong> &mdash; neither outsells the other. Then rank <strong>2 is skipped</strong>: the next products land at rank 3. Products 1 and 2 also tie (300 each) and share rank 3, so rank 4 is skipped too. That gap-after-ties behaviour is exactly what <code>RANK</code> means.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Ranking over an aggregate &mdash; one pass, no subquery</h5>
+<p>The elegant part is <code>RANK() OVER (ORDER BY SUM(amount) DESC)</code>: the window function's <code>ORDER BY</code> can reference an <em>aggregate</em> of the same query. The engine applies <code>GROUP BY</code> first, producing one row per product, then evaluates the window over those grouped rows. No nested subquery is needed. A junior often writes a CTE that sums, then a second query that ranks &mdash; correct, but unnecessarily verbose.</p>
+
+<h5><code>RANK</code> vs <code>DENSE_RANK</code> vs <code>ROW_NUMBER</code></h5>
+<table>
+  <thead><tr><th>total</th><th>RANK</th><th>DENSE_RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>500</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>500</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>300</td><td>3 (skips 2)</td><td>2</td><td>3</td></tr>
+    <tr><td>300</td><td>3</td><td>2</td><td>4</td></tr>
+    <tr><td>80</td><td>5 (skips 4)</td><td>3</td><td>5</td></tr>
+  </tbody>
+</table>
+<p><code>RANK</code> leaves gaps after ties (competition ranking &mdash; "joint 1st, then 3rd"). <code>DENSE_RANK</code> never skips (1, 1, 2, 2, 3). <code>ROW_NUMBER</code> ignores ties entirely and assigns distinct numbers &mdash; which one of the tied 500-products gets 1 vs 2 is <em>arbitrary</em>. Name which semantics the leaderboard wants; for a sales leaderboard, <code>RANK</code> matching real-world competition ranking is usually right, but say so.</p>
+
+<h5>The <code>ROW_NUMBER</code> trap for "top product"</h5>
+<p>If the follow-up is "give me the single best-selling product," <code>ROW_NUMBER() OVER (ORDER BY SUM(amount) DESC) = 1</code> returns exactly one row &mdash; but it would pick product 3 <em>or</em> 4 non-deterministically and hide the tie. If the business needs to know there is a tie for first, filter on <code>RANK() = 1</code> instead and accept multiple rows. Choosing the wrong window function silently drops a real tie.</p>
+
+<h5>Determinism within a tie</h5>
+<p>Even with <code>RANK</code>, the <em>row order</em> among the two 500-products is unspecified &mdash; the engine may emit 3 then 4 or 4 then 3. If the output feeds a UI that must be stable, add a tiebreaker to the window <em>and</em> the final query: <code>ORDER BY SUM(amount) DESC, product_id</code>. Ranks stay tied; presentation order becomes reproducible.</p>
+
+<h5>NULL amounts and the missing <code>ORDER BY</code></h5>
+<p><code>SUM</code> skips NULL <code>amount</code> values; a product whose every sale is NULL sums to NULL, and <code>NULL</code> sorts last under <code>DESC</code> by default in Postgres &mdash; landing it at the bottom rank, which is probably fine but worth a deliberate <code>NULLS LAST</code>. Also: the query has no final <code>ORDER BY</code>, so although ranks are correct, the <em>rows</em> may not arrive in rank order &mdash; add <code>ORDER BY rk</code> for a presentable leaderboard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> rank directly over <code>SUM(amount)</code> in a single pass without a redundant subquery, articulate that <code>RANK</code> skips numbers after ties while <code>DENSE_RANK</code> does not and <code>ROW_NUMBER</code> ignores ties, pick the window function to match whether tied products should share a position, and add an explicit tiebreaker plus <code>ORDER BY rk</code> for a stable leaderboard.</div>

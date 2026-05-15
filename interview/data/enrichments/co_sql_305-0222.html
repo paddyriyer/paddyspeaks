@@ -1,0 +1,64 @@
+<p>EpicGames' player-analytics team wants each customer's profile alongside their lifetime spend. The natural shape is to aggregate orders in a subquery, then join it back to customers &mdash; but the interviewer is watching whether you notice that an <em>inner</em> join silently drops customers who never ordered, whether <code>SELECT *</code> across a join is safe, and how a derived table differs from a correlated subquery.</p>
+
+<h4>1. The source data &mdash; <code>customers</code> and <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>name</th><th>country</th><th>city</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>UK</td><td>London</td></tr>
+    <tr><td>2</td><td>Ben</td><td>FR</td><td>Paris</td></tr>
+    <tr><td>3</td><td>Cara</td><td>DE</td><td>Berlin</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th><th>order_id</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>1</td><td>completed</td></tr>
+    <tr><td>1</td><td>250</td><td>2</td><td>completed</td></tr>
+    <tr><td>2</td><td>75</td><td>3</td><td>completed</td></tr>
+  </tbody>
+</table>
+<p>Ann has two orders, Ben has one &mdash; and <strong>Cara has none</strong>. That zero-order customer is the whole interview: does she appear in the result or vanish?</p>
+
+<h4>2. The SQL &mdash; <code>join to an aggregating derived table</code></h4>
+<pre><code>SELECT * FROM customers c JOIN
+(SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id) o
+ON c.customer_id = o.customer_id;</code></pre>
+<p>The subquery <code>o</code> is a derived table: it pre-aggregates orders to one row per customer with a <code>total</code>. The outer query inner-joins customers to that.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>amount</th><th>name</th><th>email</th><th>signup_date</th><th>country</th><th>city</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0</td><td>Ann</td><td>a@x.com</td><td>2023-01-01</td><td>UK</td><td>London</td><td>350</td></tr>
+    <tr><td>2</td><td>0</td><td>Ben</td><td>b@x.com</td><td>2023-02-01</td><td>FR</td><td>Paris</td><td>75</td></tr>
+  </tbody>
+</table>
+<p>Ann's two orders sum to 350; Ben's single order is 75. <strong>Cara is gone</strong> &mdash; she has no row in the orders subquery, so the inner join finds no match and drops her. Also note the result has <em>two</em> <code>amount</code> columns muddled by <code>SELECT *</code>: the customer-table <code>amount</code> (here 0) and the order <code>total</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The inner-join drop &mdash; the central trap</h5>
+<p>"Each customer's spend" almost always means <em>every</em> customer, including those with zero orders shown as 0. The inner join cannot do that &mdash; no order rows, no match, no output. Use a <code>LEFT JOIN</code> and coalesce the NULL:</p>
+<pre><code>SELECT c.customer_id, c.name, COALESCE(o.total, 0) AS total
+FROM customers c
+LEFT JOIN (SELECT customer_id, SUM(amount) AS total FROM orders GROUP BY customer_id) o
+  ON c.customer_id = o.customer_id;
+-- Cara now appears with total = 0</code></pre>
+<p>For a churn or LTV analysis the zero-spend customers are often the <em>most</em> important rows &mdash; dropping them biases the whole dataset. Naming this is the senior signal.</p>
+
+<h5><code>SELECT *</code> across a join is a liability</h5>
+<p>Both tables have an <code>amount</code> column, so the result carries two columns of the same name &mdash; ambiguous for any downstream consumer, and a hazard if code refers to <code>amount</code> by name. <code>SELECT *</code> also breaks silently when either table gains or drops a column. Always project an explicit, named column list: <code>SELECT c.customer_id, c.name, o.total</code>.</p>
+
+<h5>Derived table vs correlated subquery</h5>
+<p>The subquery here is a <em>derived table</em> &mdash; it runs once, independently, producing a small aggregated relation the planner joins like any table. Contrast a correlated scalar subquery in the <code>SELECT</code> list:</p>
+<pre><code>SELECT c.*, (SELECT SUM(amount) FROM orders o WHERE o.customer_id = c.customer_id) AS total
+FROM customers c;</code></pre>
+<p>This naturally includes Cara (her subquery returns NULL), but conceptually re-evaluates per customer row. Modern planners often optimise both to a similar plan, yet the derived-table-plus-<code>LEFT JOIN</code> form is the clearer, more scalable idiom.</p>
+
+<h5>Aggregate before joining, not after</h5>
+<p>Pre-aggregating in the subquery keeps <code>o</code> at one row per customer, so the join does not fan out. If you instead joined raw <code>orders</code> to <code>customers</code> and aggregated afterward, each customer row would multiply by their order count before the <code>GROUP BY</code> &mdash; correct only if you remember to group by the customer key and are careful with any customer-level columns. Aggregate-then-join is the safer pattern.</p>
+
+<h5>Status filtering and the spend definition</h5>
+<p><code>SUM(amount)</code> over all orders includes cancelled and refunded ones. "Lifetime spend" usually means realised revenue, so a <code>WHERE status = 'completed'</code> inside the subquery is the filter to raise. Confirm the definition before coding.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise that the inner join silently drops zero-order customers and switch to <code>LEFT JOIN</code> with <code>COALESCE(total, 0)</code> when every customer must appear, replace <code>SELECT *</code> with an explicit column list to kill the duplicate <code>amount</code> ambiguity, and explain why aggregating inside a derived table before joining avoids row fan-out.</div>
