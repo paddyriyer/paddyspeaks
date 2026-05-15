@@ -11902,6 +11902,490 @@
         "The result is the long-form of the retention triangle; a BI tool pivots months_since_first into columns for the heatmap",
         "months_since_first = 0 rows ARE the cohort sizes \u2014 the leftmost column of the heatmap and the denominator for retention %"
       ]
+    },
+    {
+      "id": "sql-450",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "medium",
+      "prompt": "In a warehouse that supports `QUALIFY` (Snowflake / BigQuery / DuckDB), you write:\n\n```sql\nSELECT customer_id, order_id, ordered_at\nFROM orders\nQUALIFY ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY ordered_at DESC) = 1;\n```\n\nWhich rewrite is the exact ANSI-portable equivalent (for an engine with no `QUALIFY`)?",
+      "options": [
+        "Move the `ROW_NUMBER()` predicate into a `WHERE` clause unchanged",
+        "Move the `ROW_NUMBER()` predicate into a `HAVING` clause unchanged",
+        "Compute `ROW_NUMBER()` in a subquery / CTE, then filter `WHERE rn = 1` in the outer query",
+        "Add `GROUP BY customer_id` and keep the window function in `SELECT`"
+      ],
+      "answer": 2,
+      "explanation": "`QUALIFY` is to window functions what `HAVING` is to aggregates: it filters rows *after* the window pass. Because window functions are evaluated in the SELECT phase \u2014 after `WHERE` and after `GROUP BY`/`HAVING` \u2014 you cannot reference a window function (or its alias) directly in `WHERE` or `HAVING`. The portable pattern is to materialize the window column in an inner query and filter it in the outer query.\n\nOption A fails: `WHERE` runs before window functions exist. Option B fails: `HAVING` filters *aggregated groups* and also runs before the window phase; putting a bare `ROW_NUMBER()` there is a semantic error. Option D collapses rows \u2014 `GROUP BY` is a different operation entirely and would not return per-row `order_id`.\n\n`QUALIFY` is purely ergonomic sugar that saves one level of nesting; it is not in the SQL standard, and notably **PostgreSQL does not support it** \u2014 in Postgres you must use the subquery/CTE form."
+    },
+    {
+      "id": "sql-451",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "A reviewer flags this Postgres query as a latent bug:\n\n```sql\nSELECT\n  status,\n  date_trunc('month', created_at) AS status\n           -- alias reuses the name of a real column\nFROM tickets\nGROUP BY status;\n```\n\nThere is a column `tickets.status` AND the SELECT list also aliases a computed expression as `status`. What actually happens to the `GROUP BY status`?",
+      "options": [
+        "Postgres raises an ambiguity error and refuses to run the query",
+        "`GROUP BY status` resolves to the underlying *column* `tickets.status`, NOT the computed alias \u2014 so the grouping is not what the alias name suggests",
+        "`GROUP BY status` resolves to the computed `date_trunc` alias, because SELECT aliases always win",
+        "The query groups by both the column and the alias simultaneously"
+      ],
+      "answer": 1,
+      "explanation": "This is the 'avoid ambiguity when naming calculated fields' gotcha. PostgreSQL allows `GROUP BY` to reference an output column alias, but when a name is ambiguous between an *input column* and an *output alias*, the **input column wins**. So `GROUP BY status` here groups by `tickets.status` \u2014 even though a reader scanning the SELECT list sees a `date_trunc(...) AS status` and assumes the grouping is monthly.\n\nThe danger is that the query runs without error and returns plausible-looking rows, so the bug is silent. The fix is to never give a calculated field the same name as an existing column: pick a distinct alias like `created_month`. Then `GROUP BY created_month` is unambiguous and self-documenting.\n\nNote this resolution rule differs across engines and is exactly why relying on alias-in-GROUP-BY is fragile; some engines would error, some pick the alias. Distinct names sidestep the whole question."
+    },
+    {
+      "id": "sql-452",
+      "type": "multi",
+      "topic": "Performance",
+      "difficulty": "hard",
+      "prompt": "Implicit type casting in a `WHERE` clause is a classic performance footgun. Given a table `accounts` with a `varchar` column `account_no` that is indexed, which statements are correct? (Select all that apply.)",
+      "options": [
+        "`WHERE account_no = 4815162342` forces the engine to cast the *column* (every row) to a number, which can disable use of the index on `account_no`",
+        "Writing the literal with matching type \u2014 `WHERE account_no = '4815162342'` \u2014 keeps the predicate sargable and lets the index be used",
+        "Implicit casts can also change *results*, e.g. `'007'` and `'7'` are distinct strings but compare equal once both are coerced to integers",
+        "An implicit cast that fails to parse (e.g. a non-numeric string in the column) can raise a runtime error mid-scan, breaking the whole query",
+        "Implicit casting is always free because the optimizer pushes the conversion into the index"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "When a predicate compares two different types, the engine applies type-precedence rules and inserts a cast. If it casts the *column side* (e.g. `account_no::numeric = 4815162342`), the index on `account_no` is wrapped in a function and can no longer be used for a range/seek \u2014 a full scan results. Writing the literal with the column's own type keeps the predicate sargable.\n\nImplicit casts are not just a performance issue: they change semantics. Leading zeros, whitespace, and locale-dependent number parsing all mean a string-vs-number comparison can return rows you did not expect \u2014 or fail outright if a row holds a value that will not parse as a number, aborting the scan with a conversion error.\n\nOption E is the misconception: the optimizer cannot make an index seek out of `cast(indexed_col) = literal`. The right move is to match types explicitly at write time (or use a safe-cast function like `TRY_CAST` / `TRY_TO_NUMBER` when the data is genuinely dirty)."
+    },
+    {
+      "id": "sql-453",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Schema: `sales(region TEXT, product TEXT, amount INT)`. Produce a report with one subtotal row per region plus a single grand-total row, using `GROUP BY ROLLUP`. The catch: the grand-total row would otherwise have `NULL` in `region`, indistinguishable from a real NULL region. Use the `GROUPING()` function to print the literal text `Grand Total` in the `region` column of the total row (and `Region Total` is NOT needed \u2014 only per-region rows and the one grand total). Return columns `region, total`, ordered so the grand total sorts last.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE sales (region TEXT, product TEXT, amount INT);\nINSERT INTO sales VALUES\n  ('North','A',100),('North','B',50),\n  ('South','A',70),('South','C',30),\n  ('East','B',40);",
+      "model_answer": "SELECT\n  CASE WHEN GROUPING(region) = 1 THEN 'Grand Total' ELSE region END AS region,\n  SUM(amount) AS total\nFROM sales\nGROUP BY ROLLUP (region)\nORDER BY GROUPING(region), region;",
+      "expected_rows": [
+        {
+          "region": "East",
+          "total": 40
+        },
+        {
+          "region": "North",
+          "total": 150
+        },
+        {
+          "region": "South",
+          "total": 100
+        },
+        {
+          "region": "Grand Total",
+          "total": 290
+        }
+      ],
+      "key_points": [
+        "GROUP BY ROLLUP(region) adds one super-aggregate (grand total) row on top of the per-region groups",
+        "On the grand-total row, region is NULL; GROUPING(region) returns 1 there and 0 on real region rows",
+        "CASE on GROUPING(region) replaces the rollup-NULL with the label 'Grand Total' so it cannot be confused with a genuine NULL region",
+        "ORDER BY GROUPING(region) forces the total row to sort after the detail rows regardless of region text"
+      ]
+    },
+    {
+      "id": "sql-454",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "hard",
+      "prompt": "Schema: `sales(region TEXT, sold_on DATE, amount INT)`. You must report monthly totals for EVERY (region, month) combination across the first quarter of 2025 (Jan, Feb, Mar) \u2014 including combinations with zero sales, which must show `0` rather than being absent. Build the complete grid with a CROSS JOIN of the distinct regions against a `generate_series` of month starts, then LEFT JOIN the sales. Return `region, month_start, total`, ordered by `region, month_start`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE sales (region TEXT, sold_on DATE, amount INT);\nINSERT INTO sales VALUES\n  ('North', DATE '2025-01-10', 100),\n  ('North', DATE '2025-03-05', 40),\n  ('South', DATE '2025-02-20', 70);",
+      "model_answer": "SELECT\n  r.region,\n  gs::date AS month_start,\n  COALESCE(SUM(s.amount), 0) AS total\nFROM (SELECT DISTINCT region FROM sales) r\nCROSS JOIN generate_series(DATE '2025-01-01', DATE '2025-03-01', INTERVAL '1 month') AS gs\nLEFT JOIN sales s\n  ON s.region = r.region\n AND date_trunc('month', s.sold_on) = gs\nGROUP BY r.region, gs\nORDER BY r.region, month_start;",
+      "expected_rows": [
+        {
+          "region": "North",
+          "month_start": "2025-01-01",
+          "total": 100
+        },
+        {
+          "region": "North",
+          "month_start": "2025-02-01",
+          "total": 0
+        },
+        {
+          "region": "North",
+          "month_start": "2025-03-01",
+          "total": 40
+        },
+        {
+          "region": "South",
+          "month_start": "2025-01-01",
+          "total": 0
+        },
+        {
+          "region": "South",
+          "month_start": "2025-02-01",
+          "total": 70
+        },
+        {
+          "region": "South",
+          "month_start": "2025-03-01",
+          "total": 0
+        }
+      ],
+      "key_points": [
+        "CROSS JOIN of distinct regions against generate_series(...) builds the dense (region x month) grid first",
+        "generate_series with INTERVAL '1 month' yields the three Q1 month-start dates",
+        "LEFT JOIN sales onto the grid so empty cells survive",
+        "COALESCE(SUM(...), 0) converts the NULL of an empty group into 0; a plain SUM would leave NULL",
+        "Joining on date_trunc('month', sold_on) = month_start buckets each sale to its month"
+      ]
+    },
+    {
+      "id": "sql-455",
+      "type": "single",
+      "topic": "Set Operations",
+      "difficulty": "hard",
+      "prompt": "Given (PostgreSQL):\n\n```sql\nWITH a(v) AS (VALUES (1),(1),(1),(2),(2)),\n     b(v) AS (VALUES (1),(2),(2),(2))\nSELECT v FROM a\nEXCEPT ALL\nSELECT v FROM b\nORDER BY v;\n```\n\nWhat does `EXCEPT ALL` return here?",
+      "options": [
+        "`1, 1` \u2014 `EXCEPT ALL` subtracts multiplicities: value 1 appears 3 times on the left and 1 time on the right, leaving 2 copies; value 2 appears twice left and 3 times right, leaving 0",
+        "Empty \u2014 any value found in `b` removes all copies from `a`",
+        "`1, 1, 2, 2` \u2014 `EXCEPT ALL` only removes exact duplicate rows that appear in both, not by count",
+        "`1` \u2014 `EXCEPT ALL` deduplicates first, then subtracts"
+      ],
+      "answer": 0,
+      "explanation": "Plain `EXCEPT` is set-based: it deduplicates and a value present in the right side removes *all* copies on the left. `EXCEPT ALL` is the multiset (bag) version: for each value it computes `max(0, count_left - count_right)` and emits that many copies.\n\nValue 1: 3 on the left, 1 on the right -> 3 - 1 = 2 copies survive. Value 2: 2 on the left, 3 on the right -> max(0, 2 - 3) = 0 copies. So the result is exactly `1, 1`.\n\nThe same `ALL` distinction applies to `INTERSECT ALL` (which keeps `min(count_left, count_right)` copies) and is the bag-semantics counterpart of `UNION ALL`. Forgetting that the default form deduplicates is a common source of off-by-N bugs in reconciliation queries \u2014 if you need to count *how many* unmatched copies exist, you need `EXCEPT ALL`."
+    },
+    {
+      "id": "sql-456",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "Is the following query legal SQL, and what does it do?\n\n```sql\nSELECT 'fail-fast'\nFROM orders\nHAVING COUNT(*) FILTER (WHERE status = 'pending') > 0;\n```\n\nThere is no `GROUP BY` clause.",
+      "options": [
+        "Illegal \u2014 `HAVING` always requires a `GROUP BY`",
+        "Legal \u2014 with no `GROUP BY`, the whole table is one implicit group; the query returns the literal row if any pending order exists, otherwise no rows",
+        "Legal, but it returns one row per order in `orders`",
+        "Legal \u2014 but `HAVING` without `GROUP BY` behaves identically to `WHERE`"
+      ],
+      "answer": 1,
+      "explanation": "`HAVING` does not require `GROUP BY`. When you use an aggregate (or `HAVING`) with no `GROUP BY`, the entire input is treated as a single implicit group, and the query produces *at most one row*. `HAVING` then either keeps that one aggregate row or eliminates it.\n\nSo this query is a compact existence/threshold check: it yields the single row `'fail-fast'` when there is at least one pending order, and an empty result otherwise. It is a neat idiom for assertions and data-quality gates ('return a row only if the bad condition holds').\n\nOption D is wrong and important: `HAVING` is *not* the same as `WHERE`. `WHERE` filters individual input rows before aggregation; `HAVING` filters after aggregation and can reference aggregates. With no `GROUP BY`, `WHERE COUNT(*) > 0` is actually illegal because you cannot use an aggregate in `WHERE` at all."
+    },
+    {
+      "id": "sql-457",
+      "type": "single",
+      "topic": "Aggregation",
+      "difficulty": "medium",
+      "prompt": "You have `order_line(order_id INT, shipped BOOLEAN)` and want, per order, a flag that is TRUE only when **every** line of that order has shipped. Which `GROUP BY order_id` expression is the cleanest, correct choice?",
+      "options": [
+        "`BOOL_OR(shipped)` \u2014 TRUE if at least one line shipped",
+        "`BOOL_AND(shipped)` \u2014 TRUE only if all lines shipped (the logical AND across the group)",
+        "`COUNT(shipped) = COUNT(*)` \u2014 counts shipped lines",
+        "`MAX(shipped)` \u2014 booleans cannot be aggregated"
+      ],
+      "answer": 1,
+      "explanation": "`BOOL_AND(expr)` is the boolean aggregate that returns TRUE only when the expression is TRUE for *every* row in the group (it is the group-wide logical AND); it returns FALSE if any row is FALSE. That is exactly 'all lines shipped'. `BOOL_OR(expr)` is the dual \u2014 TRUE if *any* row is TRUE \u2014 which answers 'at least one line shipped', not what was asked.\n\n`COUNT(shipped) = COUNT(*)` does not work as written: `COUNT(shipped)` counts non-NULL values of `shipped`, so a FALSE still counts. You would need something like `COUNT(*) FILTER (WHERE shipped) = COUNT(*)`, which is more verbose.\n\nOption D's claim is false in PostgreSQL \u2014 `MAX`/`MIN` *do* work on booleans (FALSE < TRUE), so `MIN(shipped)` would also be correct \u2014 but `BOOL_AND` is the self-documenting, intent-revealing function. These boolean aggregates are also the natural tool for relational-division style 'group satisfies a universal condition' queries."
+    },
+    {
+      "id": "sql-458",
+      "type": "code",
+      "topic": "Aggregation",
+      "difficulty": "hard",
+      "prompt": "Schema: `task(project_id INT, task_id INT, done BOOLEAN)`. Return the `project_id` of every project that is fully complete \u2014 meaning ALL of its tasks have `done = true` \u2014 and also include any project that currently has zero tasks (an empty project is trivially complete). Use a boolean aggregate. Return one column `project_id`, ordered ascending. Note: projects with no tasks are listed in a separate `project` table.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE project (project_id INT);\nINSERT INTO project VALUES (1),(2),(3),(4);\nCREATE TABLE task (project_id INT, task_id INT, done BOOLEAN);\nINSERT INTO task VALUES\n  (1,10,true),(1,11,true),\n  (2,20,true),(2,21,false),\n  (3,30,false);\n-- project 4 has no tasks",
+      "model_answer": "SELECT p.project_id\nFROM project p\nLEFT JOIN task t ON t.project_id = p.project_id\nGROUP BY p.project_id\nHAVING BOOL_AND(COALESCE(t.done, true))\nORDER BY p.project_id;",
+      "expected_rows": [
+        {
+          "project_id": 1
+        },
+        {
+          "project_id": 4
+        }
+      ],
+      "key_points": [
+        "LEFT JOIN project to task so a task-less project still produces a group",
+        "BOOL_AND(done) is TRUE only when every task in the group is done",
+        "For the empty project, the LEFT JOIN yields a single row with t.done = NULL; COALESCE(t.done, true) treats that absence as 'trivially complete'",
+        "HAVING BOOL_AND(...) keeps only fully-complete projects; project 2 (one false) and project 3 (false) are excluded",
+        "Without COALESCE, BOOL_AND over a single NULL returns NULL and the empty project would be dropped"
+      ]
+    },
+    {
+      "id": "sql-459",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Ben-nour's reference lists four ways to find rows in table `A` with no matching key in table `B`. The `B.key` column is **nullable**. Which statement is the most accurate ranking of correctness and performance?",
+      "options": [
+        "`A.key NOT IN (SELECT key FROM B)` is the safest and should always be preferred",
+        "`NOT EXISTS (SELECT 1 FROM B WHERE B.key = A.key)` and `LEFT JOIN B ... WHERE B.key IS NULL` are both correct with NULLs and typically optimize well; `NOT IN` is the trap because a single NULL in `B.key` makes it return nothing",
+        "All four \u2014 `NOT IN`, `NOT EXISTS`, the `LEFT JOIN/IS NULL` anti-join, and `EXCEPT` \u2014 are exactly equivalent in every respect",
+        "`EXCEPT` is wrong for anti-joins because it cannot compare columns"
+      ],
+      "answer": 1,
+      "explanation": "`NOT EXISTS` and the `LEFT JOIN ... WHERE B.key IS NULL` anti-join both behave correctly in the presence of NULLs and modern planners usually execute them as the same efficient anti-join. They are the idioms to reach for.\n\n`NOT IN` is the gotcha: `x NOT IN (..., NULL)` expands to `x <> ... AND x <> NULL`, and `x <> NULL` is UNKNOWN, so the whole conjunction can never be TRUE \u2014 the query silently returns zero rows the moment any NULL appears in the subquery. That is why ben-nour explicitly notes 'NOT EXISTS is faster than NOT IN if your column allows NULL' and 'be aware of how NOT IN behaves with NULL values'.\n\n`EXCEPT` *can* implement an anti-join, but it has different semantics: it compares **entire rows** and deduplicates, whereas the anti-join compares only the join key and preserves duplicate left rows. So option C is wrong (they are not equivalent) and option D is wrong (`EXCEPT` does compare columns, just whole rows at once)."
+    },
+    {
+      "id": "sql-460",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "medium",
+      "prompt": "Ben-nour stresses 'read the documentation in full' using `GREATEST()` as the example. In PostgreSQL, what does `GREATEST(10, NULL, 25)` evaluate to, and why is this a documentation trap?",
+      "options": [
+        "`NULL` \u2014 like most expressions, any NULL argument poisons the whole result",
+        "`25` \u2014 PostgreSQL's `GREATEST`/`LEAST` skip NULL arguments and return the largest non-NULL value; some other engines (e.g. older MySQL) return NULL instead, so the behavior is engine-specific",
+        "An error \u2014 `GREATEST` requires all arguments to be non-NULL",
+        "`10` \u2014 `GREATEST` returns the first argument when a NULL is present"
+      ],
+      "answer": 1,
+      "explanation": "In PostgreSQL, `GREATEST` and `LEAST` are NULL-tolerant: they ignore NULL inputs and return the largest (or smallest) of the remaining values, so `GREATEST(10, NULL, 25)` is `25`. They return NULL only when *every* argument is NULL.\n\nThe trap is that this is **not universal**. Several databases treat `GREATEST`/`LEAST` like ordinary arithmetic, where any NULL operand makes the result NULL. So a query that 'works' on Postgres can silently produce NULLs (or vice versa) when ported. This is precisely ben-nour's point: a function you assume you understand can have edge-case behavior \u2014 particularly around NULL \u2014 that only the manual spells out.\n\nThe portable defensive move is to wrap arguments: `GREATEST(COALESCE(a, <neutral>), COALESCE(b, <neutral>))`, so the NULL-handling is explicit and identical on every engine."
+    },
+    {
+      "id": "sql-461",
+      "type": "code",
+      "topic": "String Functions",
+      "difficulty": "hard",
+      "prompt": "Schema: `log_line(id INT, raw TEXT)` where `raw` looks like `\"[2025-03-04] level=WARN msg=disk full\"`. Extract the level token (the value after `level=`, up to the next space) into a column `level`, using `regexp_replace` (or `substring` with a regex) \u2014 pure SQL, no application code. Return `id, level`, ordered by `id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE log_line (id INT, raw TEXT);\nINSERT INTO log_line VALUES\n  (1,'[2025-03-04] level=WARN msg=disk full'),\n  (2,'[2025-03-04] level=INFO msg=startup ok'),\n  (3,'[2025-03-05] level=ERROR msg=timeout');",
+      "model_answer": "SELECT\n  id,\n  regexp_replace(raw, '^.*level=([A-Z]+).*$', '\\1') AS level\nFROM log_line\nORDER BY id;",
+      "expected_rows": [
+        {
+          "id": 1,
+          "level": "WARN"
+        },
+        {
+          "id": 2,
+          "level": "INFO"
+        },
+        {
+          "id": 3,
+          "level": "ERROR"
+        }
+      ],
+      "key_points": [
+        "regexp_replace replaces the WHOLE matched string with the capture group, so anchoring with ^...$ is what turns it into an extractor",
+        "The capture group ([A-Z]+) grabs the level token; backreference \\1 in the replacement yields just that token",
+        "Greedy .* before and after consume the rest of the line so the entire string is rewritten to the group",
+        "An equivalent solution uses substring(raw from 'level=([A-Z]+)') which returns the first capture group directly"
+      ]
+    },
+    {
+      "id": "sql-462",
+      "type": "single",
+      "topic": "Window Functions",
+      "difficulty": "hard",
+      "prompt": "An engineer wants 'for each user, the row of their single most recent order' and writes this in PostgreSQL:\n\n```sql\nSELECT user_id, order_id, total\nFROM orders\nWHERE ordered_at = MAX(ordered_at) OVER (PARTITION BY user_id);\n```\n\nWhy is this rejected, and what is the correct fix?",
+      "options": [
+        "It is fine \u2014 Postgres allows window functions in `WHERE`",
+        "Window functions are not allowed in `WHERE` (they are computed after `WHERE`); wrap it in a subquery/CTE and filter there, e.g. `WHERE rn = 1` over `ROW_NUMBER()`, or use `DISTINCT ON`",
+        "`MAX(...) OVER (...)` is not a real window function \u2014 only ranking functions can use `OVER`",
+        "It fails only because `total` is not in the `PARTITION BY`"
+      ],
+      "answer": 1,
+      "explanation": "Window functions \u2014 including aggregate functions used as window functions like `MAX(...) OVER (...)` \u2014 are evaluated in the SELECT phase, which the SQL processing order places *after* `WHERE`. So a window function (or a column alias for one) simply does not exist yet when `WHERE` runs, and the engine raises an error such as 'window functions are not allowed in WHERE'.\n\nThe standard fixes all push the window computation one level down:\n\n```sql\nSELECT user_id, order_id, total\nFROM (\n  SELECT *, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY ordered_at DESC) AS rn\n  FROM orders\n) s\nWHERE rn = 1;\n```\n\nor, idiomatically in Postgres, `SELECT DISTINCT ON (user_id) ... ORDER BY user_id, ordered_at DESC`. Option C is wrong: aggregate functions are perfectly valid as window functions when given an `OVER` clause. Option D misdiagnoses it \u2014 the error is the clause, not the partition list."
+    },
+    {
+      "id": "sql-463",
+      "type": "code",
+      "topic": "Date/Time",
+      "difficulty": "medium",
+      "prompt": "Using PostgreSQL's `generate_series`, produce the 5 month-start dates of 2025 from January through May, each paired with its 1-based position in the series. Use `WITH ORDINALITY` so the position comes from the set-returning function itself rather than a window function. Return columns `month_num, month_start`, ordered by `month_num`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "SELECT 1;",
+      "model_answer": "SELECT\n  ord AS month_num,\n  m::date AS month_start\nFROM generate_series(DATE '2025-01-01', DATE '2025-05-01', INTERVAL '1 month')\n     WITH ORDINALITY AS t(m, ord)\nORDER BY ord;",
+      "expected_rows": [
+        {
+          "month_num": 1,
+          "month_start": "2025-01-01"
+        },
+        {
+          "month_num": 2,
+          "month_start": "2025-02-01"
+        },
+        {
+          "month_num": 3,
+          "month_start": "2025-03-01"
+        },
+        {
+          "month_num": 4,
+          "month_start": "2025-04-01"
+        },
+        {
+          "month_num": 5,
+          "month_start": "2025-05-01"
+        }
+      ],
+      "key_points": [
+        "generate_series with INTERVAL '1 month' yields the month-start dates",
+        "WITH ORDINALITY appends an extra bigint column numbering the rows 1..n",
+        "The alias t(m, ord) names both the value column and the ordinality column",
+        "This avoids needing ROW_NUMBER() OVER (...) just to get a position; any set-returning function supports WITH ORDINALITY"
+      ]
+    },
+    {
+      "id": "sql-464",
+      "type": "single",
+      "topic": "Common Bugs",
+      "difficulty": "hard",
+      "prompt": "Considering SQL's logical clause-processing order (`FROM` -> `WHERE` -> `GROUP BY` -> `HAVING` -> `SELECT` -> `ORDER BY`), which statement about referencing a SELECT-list **alias** elsewhere in the same query is correct?",
+      "options": [
+        "An alias defined in `SELECT` can be used in `WHERE`, because `SELECT` is written above `WHERE`",
+        "An alias defined in `SELECT` is reliably visible in `ORDER BY` (which runs last), but NOT in `WHERE` or `HAVING`, because those clauses are processed before `SELECT` produces the alias",
+        "An alias is visible in every clause of the query without restriction",
+        "An alias is never visible anywhere except inside the `SELECT` list itself"
+      ],
+      "answer": 1,
+      "explanation": "SQL is processed in logical order \u2014 `FROM`, `WHERE`, `GROUP BY`, `HAVING`, `SELECT`, then `ORDER BY` \u2014 regardless of the order the clauses are *written*. An output alias is created in the `SELECT` step, so only steps that run *after* `SELECT` can see it.\n\n`ORDER BY` runs last, so `ORDER BY my_alias` is portable and works everywhere. `WHERE`, `GROUP BY`, and `HAVING` all run *before* `SELECT`, so the alias does not exist yet \u2014 referencing it there is a name-resolution error in standard SQL. (PostgreSQL bends this only for `GROUP BY`, as a non-standard convenience, and that very leniency causes the alias-vs-column ambiguity trap.)\n\nThis is why the same logical expression often must be repeated in `WHERE`/`HAVING` or pushed into a CTE/subquery so the outer query can filter on the alias. Option A inverts cause and effect \u2014 written position is irrelevant; only logical processing order matters."
+    },
+    {
+      "id": "sql-465",
+      "type": "code",
+      "topic": "PostgreSQL",
+      "difficulty": "hard",
+      "prompt": "Schema: `price_change(product_id INT, changed_at TIMESTAMP, price NUMERIC, source TEXT)`. For each product, return its single most recent price. If two changes share the exact same `changed_at` for a product, break the tie by taking the row whose `source` is alphabetically last. Use `DISTINCT ON`. Return `product_id, price, source`, ordered by `product_id`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE price_change (product_id INT, changed_at TIMESTAMP, price NUMERIC, source TEXT);\nINSERT INTO price_change VALUES\n  (1, TIMESTAMP '2025-01-01 10:00', 9.99, 'manual'),\n  (1, TIMESTAMP '2025-02-01 10:00', 8.50, 'feed'),\n  (1, TIMESTAMP '2025-02-01 10:00', 8.75, 'manual'),\n  (2, TIMESTAMP '2025-01-15 09:00', 20.00, 'feed');",
+      "model_answer": "SELECT DISTINCT ON (product_id)\n  product_id, price::float8 AS price, source\nFROM price_change\nORDER BY product_id, changed_at DESC, source DESC;",
+      "expected_rows": [
+        {
+          "product_id": 1,
+          "price": 8.75,
+          "source": "manual"
+        },
+        {
+          "product_id": 2,
+          "price": 20.0,
+          "source": "feed"
+        }
+      ],
+      "key_points": [
+        "DISTINCT ON (product_id) keeps exactly one row per product",
+        "The kept row is the FIRST one per the ORDER BY, so ORDER BY must start with the DISTINCT ON column(s): product_id",
+        "changed_at DESC makes the most recent change first",
+        "source DESC is the explicit tie-breaker: with two rows at the same timestamp, 'manual' > 'feed' so the manual row wins",
+        "Omitting the tie-breaker would make the chosen row arbitrary among the tied timestamps"
+      ]
+    },
+    {
+      "id": "sql-466",
+      "type": "single",
+      "topic": "NULL Semantics",
+      "difficulty": "hard",
+      "prompt": "You need a join that treats two NULLs in the key as a *match* (e.g. matching staging rows where a NULL `region` means the same thing on both sides). A plain `ON a.region = b.region` fails because `NULL = NULL` is UNKNOWN. Which join predicate correctly matches NULL-to-NULL?",
+      "options": [
+        "`ON a.region = b.region OR (a.region IS NULL AND b.region IS NULL)` \u2014 explicit, and `ON a.region IS NOT DISTINCT FROM b.region` does the same thing more concisely",
+        "`ON a.region = b.region` \u2014 equality already matches NULLs inside an `ON` clause",
+        "`ON COALESCE(a.region, 0) = COALESCE(b.region, 0)` is the only correct way and has no downsides",
+        "`ON a.region <> b.region` matches NULLs"
+      ],
+      "answer": 0,
+      "explanation": "Ordinary equality is NULL-blind: `NULL = NULL` evaluates to UNKNOWN, and a join keeps a pair only when the `ON` predicate is TRUE \u2014 so two NULL keys never join. This is true *inside* `ON` just as it is in `WHERE`, which makes option B wrong.\n\nThe portable explicit fix is `a.region = b.region OR (a.region IS NULL AND b.region IS NULL)`. SQL provides a dedicated NULL-safe comparison that does exactly this: `IS NOT DISTINCT FROM` returns TRUE when both sides are equal *or* both are NULL, and FALSE otherwise (it never returns UNKNOWN). So `ON a.region IS NOT DISTINCT FROM b.region` is the clean form. (MySQL spells the same operator `<=>`.)\n\nThe `COALESCE`-to-a-sentinel trick in option C can work, but it is fragile: it needs a sentinel value that genuinely cannot occur in the data, it can defeat index usage on the join key, and it silently breaks if a real value ever equals the sentinel. Option D is simply wrong \u2014 inequality with a NULL operand is also UNKNOWN."
+    },
+    {
+      "id": "sql-467",
+      "type": "code",
+      "topic": "Set Operations",
+      "difficulty": "medium",
+      "prompt": "Schema: `score(player TEXT, points INT)`. Return the top-scoring players using the standard `FETCH FIRST ... ROWS WITH TIES` clause so that, instead of an arbitrary cutoff, anyone tied at the boundary is also included. Request the top 2 rows WITH TIES. Return `player, points` ordered by `points` DESC then `player` ASC.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE score (player TEXT, points INT);\nINSERT INTO score VALUES\n  ('Ana', 95),('Ben', 95),('Cy', 88),('Dee', 88),('Eli', 70);",
+      "model_answer": "SELECT player, points\nFROM score\nORDER BY points DESC\nFETCH FIRST 2 ROWS WITH TIES;",
+      "expected_rows": [
+        {
+          "player": "Ana",
+          "points": 95
+        },
+        {
+          "player": "Ben",
+          "points": 95
+        }
+      ],
+      "key_points": [
+        "FETCH FIRST n ROWS WITH TIES is the ANSI-standard alternative to LIMIT",
+        "WITH TIES extends the result to include every row tied with the last returned row on the ORDER BY key",
+        "Ties are judged ONLY by the ORDER BY columns; here ORDER BY points DESC means rows tied on points are pulled in",
+        "Ana and Ben both have 95, so a request for 2 returns exactly those 2; LIMIT 2 could cut a tied row arbitrarily",
+        "WITH TIES requires an ORDER BY clause to be present"
+      ]
+    },
+    {
+      "id": "sql-468",
+      "type": "single",
+      "topic": "ORDER BY",
+      "difficulty": "hard",
+      "prompt": "In PostgreSQL, where do NULLs sort by **default** (when you do not write `NULLS FIRST`/`NULLS LAST`)?",
+      "options": [
+        "NULLs always sort first, regardless of `ASC`/`DESC`",
+        "NULLs always sort last, regardless of `ASC`/`DESC`",
+        "NULLs are treated as the largest value: with `ORDER BY col ASC` they sort LAST, and with `ORDER BY col DESC` they sort FIRST \u2014 so the default flips with sort direction",
+        "NULLs are removed from the result entirely unless `NULLS LAST` is specified"
+      ],
+      "answer": 2,
+      "explanation": "In PostgreSQL, for ordering purposes NULL is considered larger than any non-NULL value. The default is `NULLS LAST` for `ASC` and `NULLS FIRST` for `DESC` \u2014 so simply adding `DESC` to a sort moves NULLs from the bottom to the top of the result.\n\nThat flip is a real-world gotcha: a query that showed empty/unknown values at the end suddenly shows them first the moment someone reverses the sort, which can put NULL rows at the top of a 'latest first' report. It is also engine-dependent \u2014 some databases default NULLs to sort first in *both* directions \u2014 so code that relies on the implicit behavior is not portable.\n\nThe fix is to be explicit: write `ORDER BY col DESC NULLS LAST` (or `NULLS FIRST`) whenever NULL placement matters. The `NULLS FIRST`/`NULLS LAST` modifiers are independent of `ASC`/`DESC`, so you fully control placement regardless of direction."
+    },
+    {
+      "id": "sql-469",
+      "type": "code",
+      "topic": "Joins",
+      "difficulty": "hard",
+      "prompt": "Schema: two staging snapshots `snap_a(region TEXT, metric INT)` and `snap_b(region TEXT, metric INT)`. The `region` value can legitimately be NULL (meaning 'unspecified'), and a NULL region in A should match a NULL region in B. Join the two snapshots on `region` using a NULL-safe predicate so NULL pairs with NULL, and return `region, a_metric, b_metric` for matched rows, ordered with the NULL region last. Use `IS NOT DISTINCT FROM`.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE snap_a (region TEXT, metric INT);\nINSERT INTO snap_a VALUES ('North',10),('South',20),(NULL,5);\nCREATE TABLE snap_b (region TEXT, metric INT);\nINSERT INTO snap_b VALUES ('North',11),('East',99),(NULL,7);",
+      "model_answer": "SELECT a.region AS region, a.metric AS a_metric, b.metric AS b_metric\nFROM snap_a a\nJOIN snap_b b ON a.region IS NOT DISTINCT FROM b.region\nORDER BY a.region NULLS LAST;",
+      "expected_rows": [
+        {
+          "region": "North",
+          "a_metric": 10,
+          "b_metric": 11
+        },
+        {
+          "region": null,
+          "a_metric": 5,
+          "b_metric": 7
+        }
+      ],
+      "key_points": [
+        "A plain ON a.region = b.region would drop the NULL/NULL pair because NULL = NULL is UNKNOWN",
+        "IS NOT DISTINCT FROM is the NULL-safe equality: TRUE when both equal or both NULL, FALSE otherwise",
+        "It joins North-to-North and NULL-to-NULL; South and East have no counterpart and are excluded by the inner join",
+        "ORDER BY ... NULLS LAST places the unspecified-region row after the named regions"
+      ]
+    },
+    {
+      "id": "sql-470",
+      "type": "single",
+      "topic": "PostgreSQL",
+      "difficulty": "hard",
+      "prompt": "Ben-nour recommends CTEs for organizing complex queries. A subtle PostgreSQL detail: how does a CTE interact with the optimizer across versions, and what does the `MATERIALIZED` keyword do?",
+      "options": [
+        "A CTE is always materialized to a temp result and never inlined, in every Postgres version",
+        "Before PostgreSQL 12 a CTE was always an 'optimization fence' (always materialized, never inlined); since 12 a non-recursive CTE used once may be inlined \u2014 and you can force the old behavior with `WITH cte AS MATERIALIZED (...)` or prevent it with `AS NOT MATERIALIZED`",
+        "`MATERIALIZED` forces the CTE to be inlined into the main query",
+        "CTEs are never materialized; they are pure syntactic substitution"
+      ],
+      "answer": 1,
+      "explanation": "Historically, a PostgreSQL CTE acted as an 'optimization fence': it was always evaluated to a separate intermediate result and the planner never pushed predicates into it or inlined it. That made CTEs predictable but sometimes slower than an equivalent subquery, because filters could not be pushed down.\n\nPostgreSQL 12 changed the default: a non-recursive, side-effect-free CTE that is referenced exactly once can now be **inlined** into the surrounding query, so the planner optimizes across the boundary. CTEs referenced multiple times, recursive CTEs, or CTEs containing data-modifying statements are still materialized.\n\nYou control it explicitly with the keywords: `WITH cte AS MATERIALIZED (...)` forces the fence (always materialize \u2014 useful when the CTE is expensive and reused, or when you deliberately want the fence), and `AS NOT MATERIALIZED` permits/forces inlining. Option C inverts the keyword's meaning; option A describes only the pre-12 world."
+    },
+    {
+      "id": "sql-471",
+      "type": "single",
+      "topic": "Joins",
+      "difficulty": "medium",
+      "prompt": "Ben-nour suggests simplifying joins with `USING` when both tables share the join column name. Given `SELECT * FROM orders o JOIN customers c USING (customer_id)` versus the `ON o.customer_id = c.customer_id` form, which statement is correct?",
+      "options": [
+        "`USING` makes the join faster because it skips the optimizer",
+        "With `USING (customer_id)`, the result has `customer_id` as a SINGLE merged column (not two); also, an *unqualified* `customer_id` is unambiguous, whereas with `ON` a `SELECT *` yields the column twice and a bare `customer_id` reference is ambiguous",
+        "`USING` and `ON` produce byte-identical output column lists",
+        "`USING` can only be used with `INNER JOIN`"
+      ],
+      "answer": 1,
+      "explanation": "`USING (col)` requires the column to be named identically in both tables and does two things beyond `ON`. First, it **coalesces** the two join columns into one output column, so `SELECT *` returns `customer_id` exactly once instead of `o.customer_id` and `c.customer_id` side by side. Second, that single merged column can be referenced *unqualified* without ambiguity \u2014 handy in `GROUP BY`/`ORDER BY` and exactly why it reduces clutter.\n\nWith `ON o.customer_id = c.customer_id`, both columns survive into `SELECT *`, so the key appears twice, and writing a bare `customer_id` later is an 'ambiguous column' error \u2014 you must qualify it.\n\nOption A is false: `USING` and `ON` generate the same execution plan; there is no optimizer shortcut. Option C is false precisely because of the merged-vs-duplicated column difference. Option D is false: `USING` works with `LEFT`, `RIGHT`, and `FULL` outer joins too (in an outer join the merged column is the `COALESCE` of the two sides)."
     }
   ]
 }
