@@ -1,0 +1,48 @@
+<p>Google's analytics teams profile every incoming dataset before modelling &mdash; a one-call summary of every numeric column catches scaling problems, skew, and silent nulls early. "Calculate Descriptive Statistics for Numeric Columns" tests whether you know pandas' aggregation surface well enough to assemble a richer profile than the default <code>df.describe()</code> &mdash; and whether you handle column selection and missing data correctly.</p>
+
+<h4>1. The input data &mdash; a DataFrame</h4>
+<table>
+  <thead><tr><th>region</th><th>price</th><th>units</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>10.0</td><td>5</td></tr>
+    <tr><td>West</td><td>20.0</td><td>3</td></tr>
+    <tr><td>East</td><td>30.0</td><td>8</td></tr>
+    <tr><td>West</td><td>40.0</td><td><em>NaN</em></td></tr>
+    <tr><td>East</td><td>50.0</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>region</code> is non-numeric and must be excluded; <code>units</code> has one null to exercise the <code>count</code> vs <code>nulls</code> distinction.</p>
+
+<h4>2. The approach</h4>
+<p><code>select_dtypes(include='number')</code> drops <code>region</code>, leaving only <code>price</code> and <code>units</code>. <code>num.agg([...])</code> runs eight reducers at once and returns a stats-by-column frame; <code>.T</code> transposes it so each <em>row</em> is a column and each <em>column</em> is a statistic &mdash; the natural profile layout.</p>
+<p>Three extras are bolted on: the 25th and 75th percentiles via <code>quantile</code>, their difference as the <code>iqr</code> (a robust spread measure), and <code>nulls</code> via <code>isna().sum()</code>. The <code>count</code> from <code>agg</code> counts <em>non-null</em> values, so <code>count + nulls</code> equals the row total &mdash; the two columns are complementary by design.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th></th><th>count</th><th>mean</th><th>median</th><th>std</th><th>min</th><th>max</th><th>p25</th><th>p75</th><th>iqr</th><th>nulls</th></tr></thead>
+  <tbody>
+    <tr><td><strong>price</strong></td><td>5</td><td>30.0</td><td>30.0</td><td>15.81</td><td>10.0</td><td>50.0</td><td>20.0</td><td>40.0</td><td>20.0</td><td>0</td></tr>
+    <tr><td><strong>units</strong></td><td>4</td><td>5.0</td><td>4.5</td><td>2.16</td><td>3.0</td><td>8.0</td><td>3.75</td><td>5.75</td><td>2.0</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>For <code>price</code>, <code>std</code> uses the sample formula (ddof=1): variance = ((20&sup2;+10&sup2;+0+10&sup2;+20&sup2;)/4) = 250, so std = &radic;250 &asymp; 15.81. For <code>units</code>, <code>count</code> is 4 (the <code>NaN</code> is skipped) while <code>nulls</code> is 1; mean of {5,3,8,4} = 5.0, median = 4.5. <code>skew</code> and <code>kurt</code> appear too &mdash; both are 0 for the perfectly symmetric <code>price</code> column.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(R &middot; C) for R rows and C numeric columns &mdash; each statistic is a linear pass, and the constant factor is the eight-plus reducers. <code>quantile</code> sorts internally, so it is O(R log R) per column; that is the asymptotic bottleneck.</p>
+
+<h5>The idiomatic alternative &mdash; <code>describe</code> with percentiles</h5>
+<pre><code>df.describe(percentiles=[.25, .5, .75]).T</code></pre>
+<p><code>describe</code> gives count/mean/std/min/quartiles/max in one call and already auto-selects numeric columns. The hand-rolled version exists to add <code>skew</code>, <code>kurt</code>, <code>iqr</code>, and an explicit <code>nulls</code> column &mdash; knowing that <code>describe</code> covers 80% of this for free is the senior framing.</p>
+
+<h5>The edge case &mdash; no numeric columns, or single-row input</h5>
+<p>If every column is non-numeric, <code>num</code> is an empty frame and <code>agg</code> returns an empty result &mdash; no crash, but a downstream consumer may not expect zero rows. With a single row, <code>std</code>, <code>skew</code>, and <code>kurt</code> are <code>NaN</code> (sample variance needs n&gt;1) &mdash; a real gotcha. Boolean columns count as numeric and sneak into the profile; integer columns with nulls get silently upcast to float.</p>
+
+<h5>The follow-up &mdash; group the profile by a category</h5>
+<p>"Now give me these stats per <code>region</code>." That is <code>df.groupby('region').agg(...)</code>, which the interviewer uses to test whether you can pivot from a global summary to a grouped one without rebuilding the logic.</p>
+
+<h5>The trap &mdash; running <code>agg</code> on the raw DataFrame</h5>
+<p>Calling <code>df.agg(['mean', ...])</code> without <code>select_dtypes</code> either throws on the string column or, worse, silently produces <code>NaN</code>/garbage for it &mdash; <code>mean</code> of strings is undefined. Equally, assuming <code>count</code> equals the row total is wrong the moment nulls exist; that is precisely why the separate <code>nulls</code> column has to be computed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> filter to numeric dtypes <em>before</em> aggregating, know that <code>count</code> excludes nulls so a dedicated <code>nulls</code> column is needed, and cite <code>df.describe()</code> as the built-in baseline this function deliberately extends.</div>

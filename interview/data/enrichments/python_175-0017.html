@@ -1,0 +1,44 @@
+<p>Google's Search Quality team computes a rolling-median latency over the last <em>k</em> requests to monitor tail behaviour without letting one slow query distort the signal the way a mean would. "Sliding Window Median" tests whether you can keep a window <em>sorted</em> as it slides &mdash; an O(log k) insert/delete problem dressed up as an array question. The naive re-sort is the trap the interviewer is watching for.</p>
+
+<h4>1. The input data</h4>
+<pre><code>nums = [1, 3, -1, -3, 5, 3, 6, 7]
+k    = 3</code></pre>
+<p>Seven windows of width 3 slide across eight values. Negative numbers are deliberate &mdash; they catch off-by-one errors in any homemade comparison logic.</p>
+
+<h4>2. The approach</h4>
+<p>A <code>SortedList</code> from <code>sortedcontainers</code> holds the current window in sorted order, backed by a list of small lists so <code>add</code> and <code>remove</code> are both O(log k) plus a localized memmove. The window is seeded with <code>nums[:k]</code>.</p>
+<p>The closure <code>med()</code> reads the middle without scanning: for odd <em>k</em> both <code>k//2</code> and <code>(k-1)//2</code> point at the same central index; for even <em>k</em> they straddle the two middle elements and the average is the true median. Each slide does exactly two mutations &mdash; <code>add(nums[i])</code> brings in the new element, <code>remove(nums[i-k])</code> evicts the one that fell off the left &mdash; then records a fresh median. The window size never changes, so the index arithmetic stays valid throughout.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>window</th><th>sorted</th><th>median</th></tr></thead>
+  <tbody>
+    <tr><td>[1, 3, -1]</td><td>[-1, 1, 3]</td><td>1.0</td></tr>
+    <tr><td>[3, -1, -3]</td><td>[-3, -1, 3]</td><td>-1.0</td></tr>
+    <tr><td>[-1, -3, 5]</td><td>[-3, -1, 5]</td><td>-1.0</td></tr>
+    <tr><td>[-3, 5, 3]</td><td>[-3, 3, 5]</td><td>3.0</td></tr>
+    <tr><td>[5, 3, 6]</td><td>[3, 5, 6]</td><td>5.0</td></tr>
+    <tr><td>[3, 6, 7]</td><td>[3, 6, 7]</td><td>6.0</td></tr>
+  </tbody>
+</table>
+<pre><code>medianSlidingWindow(nums, 3)  ->  [1.0, -1.0, -1.0, 3.0, 5.0, 6.0]</code></pre>
+<p>Every result is a float because <code>med()</code> uses <code>/</code>, even when the window length is odd.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n log k) time &mdash; each of the n&minus;k slides does two O(log k) operations on the structure. O(k) space for the window. The naive "re-sort every window" alternative is O(n&middot;k log k) and is the answer the interviewer wants you to <em>reject</em> out loud.</p>
+
+<h5>The idiomatic alternative &mdash; two heaps</h5>
+<p>Without <code>sortedcontainers</code>, the textbook solution is a max-heap (lower half) plus a min-heap (upper half) kept balanced in size. The catch is <em>lazy deletion</em>: heaps cannot remove an arbitrary expiring element, so you stamp it for removal in a <code>dict</code> and discard it only when it surfaces at a heap top. That is far more code &mdash; naming <code>SortedList</code> as the pragmatic choice while knowing the two-heap fallback is the senior move.</p>
+
+<h5>The edge case &mdash; even k and integer overflow of precision</h5>
+<p>With even <em>k</em>, the median of two large odd numbers is a genuine <code>.5</code> value &mdash; returning <code>int</code> here is wrong. Also <code>(a + b) / 2</code> can lose precision for very large ints in some languages; Python's arbitrary-precision ints keep the sum exact, so the float division is the only rounding step. A window of <code>k == 1</code> still works: both indices are 0.</p>
+
+<h5>The follow-up &mdash; streaming, unbounded window</h5>
+<p>"What if k is the whole stream so far?" Then it is the classic <em>Find Median from Data Stream</em>: two heaps, no eviction, O(log n) per insert. The interviewer is checking you can drop the fixed-window assumption cleanly.</p>
+
+<h5>The trap &mdash; <code>list.remove</code> on a plain list</h5>
+<p>Keeping a plain Python list and calling <code>list.remove(nums[i-k])</code> is O(k) per slide for the linear scan <em>and</em> the shift &mdash; quietly O(n&middot;k). Worse, if the window holds duplicates, <code>list.remove</code> deletes the <em>first</em> match, which is still correct for a value-based eviction but masks the performance bug. <code>SortedList.remove</code> is O(log k) and equally duplicate-safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> say "this is an ordered-multiset problem" within the first sentence, reach for <code>SortedList</code> for clean O(n log k), and articulate <em>why</em> two heaps need lazy deletion rather than hand-waving the eviction.</div>

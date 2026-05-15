@@ -1,0 +1,50 @@
+<p>Amazon's data-engineering teams constantly land nested JSON from APIs and event streams into flat tables for the warehouse. "Flatten Nested JSON to CSV with Dot-Notation Columns" tests whether you can write a clean <em>recursive</em> traversal that handles dicts <em>and</em> lists, builds path-prefixed column names, and bottoms out on scalars &mdash; without losing data or crashing on irregular shapes.</p>
+
+<h4>1. The input data</h4>
+<pre><code>[
+  {"id": 1, "name": "Ann",
+   "address": {"city": "NYC", "zip": "10001"},
+   "tags": ["vip", "new"]},
+  {"id": 2, "name": "Bob",
+   "address": {"city": "LA", "zip": "90001"},
+   "tags": ["new"]}
+]</code></pre>
+<p>Two records with a nested object (<code>address</code>) and a list (<code>tags</code>) &mdash; the two recursion cases the function must handle.</p>
+
+<h4>2. The approach</h4>
+<p><code>flatten()</code> recurses on three cases. For a <strong>dict</strong>, it walks each <code>k, v</code> and recurses with the prefix extended by <code>{k}.</code>. For a <strong>list</strong>, it recurses on each element using the <em>index</em> as the path segment (<code>tags.0</code>, <code>tags.1</code>). For a <strong>scalar</strong> (the base case), it writes one entry, stripping the trailing dot from the accumulated prefix with <code>rstrip('.')</code>. Each level <code>out.update(...)</code>s the child results, so a single flat dict bubbles up.</p>
+<p><code>json_to_csv</code> loads the file, normalizes a top-level object to a one-element list, flattens every row, and hands the list of flat dicts to <code>pd.DataFrame</code>. Pandas <em>unions</em> all keys into columns and fills missing cells with <code>NaN</code> &mdash; which matters when rows have different shapes.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>id</th><th>name</th><th>address.city</th><th>address.zip</th><th>tags.0</th><th>tags.1</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ann</td><td>NYC</td><td>10001</td><td>vip</td><td>new</td></tr>
+    <tr><td>2</td><td>Bob</td><td>LA</td><td>90001</td><td>new</td><td><em>NaN</em></td></tr>
+  </tbody>
+</table>
+<pre><code>id,name,address.city,address.zip,tags.0,tags.1
+1,Ann,NYC,10001,vip,new
+2,Bob,LA,90001,new,</code></pre>
+<p>Bob's <code>tags.1</code> is empty because his <code>tags</code> list has only one element &mdash; pandas aligns columns and leaves the missing cell blank in CSV.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(N) where N is the total number of leaf scalars across all records &mdash; every node is visited once. Recursion depth equals the nesting depth, which is the space cost. The DataFrame holds all columns &times; all rows.</p>
+
+<h5>The idiomatic alternative &mdash; <code>pandas.json_normalize</code></h5>
+<p>Pandas ships a built-in for exactly this:</p>
+<pre><code>df = pd.json_normalize(data)   # dicts -&gt; dotted columns automatically</code></pre>
+<p>But note <code>json_normalize</code> by default flattens <em>dicts</em> only and leaves lists as cell values &mdash; the hand-rolled <code>flatten</code> here also explodes list <em>indices</em> into columns. Knowing where the stdlib/pandas shortcut stops, and why you'd still hand-roll, is the senior point.</p>
+
+<h5>The edge case &mdash; empty containers and key collisions</h5>
+<p>An empty <code>{}</code> or <code>[]</code> produces <em>no</em> entries &mdash; that column silently disappears for that row, which can drop data unexpectedly. Worse, a key literally containing a dot (<code>{"a.b": 1}</code>) is ambiguous against a real nested path <code>{"a": {"b": 1}}</code> &mdash; both yield column <code>a.b</code> and one overwrites the other. <code>None</code> values pass through as <code>NaN</code>.</p>
+
+<h5>The follow-up &mdash; index-based list columns are a schema landmine</h5>
+<p>"What happens when one record has 3 tags and another has 50?" You get 50 sparse columns. The interviewer wants you to recognize that arrays of homogeneous items usually belong in a <em>long</em> format (one row per tag) or a single delimited string, not index columns &mdash; i.e. when to <em>not</em> flatten.</p>
+
+<h5>The trap &mdash; treating lists as scalars</h5>
+<p>If <code>flatten</code> omitted the <code>isinstance(obj, list)</code> branch, a list would hit the <code>else</code> and be written as a single cell like <code>['vip', 'new']</code> &mdash; a stringified Python literal that no SQL loader can parse. Equally, falling into infinite recursion on a self-referential structure (rare in JSON, common in Python objects) crashes; JSON's acyclic guarantee is what makes the naive recursion safe.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> handle dict <em>and</em> list recursion explicitly, then immediately question whether index-based list columns are the right model &mdash; a senior knows flattening is a schema decision, not just a code exercise, and names <code>json_normalize</code> while explaining its limits.</div>

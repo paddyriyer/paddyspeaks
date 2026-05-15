@@ -1,0 +1,56 @@
+<p>Netflix asks "Max Area of Island" to test grid traversal under a connectivity definition. A 2D map of <code>0</code>s (water) and <code>1</code>s (land); an island is a maximal blob of 4-directionally connected land. The real signal: do you flood-fill cleanly, do you avoid re-counting the same cell, and do you understand that <em>mutating the grid in place</em> is the cheapest "visited" set you can get.</p>
+
+<h4>1. The input data</h4>
+<p>A 4&times;5 grid. <code>1</code> = land:</p>
+<pre><code>grid = [
+  [1, 1, 0, 0, 0],
+  [1, 1, 0, 0, 1],
+  [0, 0, 0, 1, 1],
+  [0, 0, 0, 0, 0],
+]
+# island A (top-left) = 4 cells
+# island B (right)    = 3 cells</code></pre>
+
+<h4>2. The approach</h4>
+<p>A <strong>depth-first flood fill</strong>. The outer double loop scans every cell; when it hits an unvisited <code>1</code>, it calls <code>dfs</code>, which returns the size of that whole island, and <code>best</code> tracks the maximum.</p>
+<p><code>dfs(r, c)</code> folds three concerns into one base check &mdash; <code>r&lt;0 or c&lt;0 or r&gt;=R or c&gt;=C</code> handles out-of-bounds, and <code>grid[r][c] != 1</code> handles both water and already-counted land. If valid, it does the key trick: <code>grid[r][c] = 0</code> &mdash; <strong>sink the cell</strong>. That single assignment marks it visited <em>using the grid itself</em>, so no separate <code>seen</code> set is needed. Then it returns <code>1 + dfs(...)</code> over all four neighbours; the four recursive sizes sum into this island's area.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>island</th><th>cells</th><th>area</th></tr></thead>
+  <tbody>
+    <tr><td>A (top-left blob)</td><td>(0,0)(0,1)(1,0)(1,1)</td><td>4</td></tr>
+    <tr><td>B (right blob)</td><td>(1,4)(2,3)(2,4)</td><td>3</td></tr>
+  </tbody>
+</table>
+<pre><code>maxAreaOfIsland(grid) -&gt; 4</code></pre>
+<p>The scan finds island A first (area 4), then island B (area 3). <code>best = max(4, 3) = 4</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(R&middot;C)</strong> &mdash; the outer loop visits every cell once, and because <code>dfs</code> sinks each land cell to <code>0</code>, no cell is ever explored twice. <strong>Space O(R&middot;C)</strong> worst case for the recursion stack (one giant all-land island degenerates to a stack as deep as the cell count).</p>
+
+<h5>The idiomatic alternative &mdash; iterative stack BFS/DFS</h5>
+<p>To avoid the recursion limit on a large all-land grid, use an explicit stack:</p>
+<pre><code>def area(sr, sc):
+    stack, size = [(sr, sc)], 0
+    while stack:
+        r, c = stack.pop()
+        if 0&lt;=r&lt;R and 0&lt;=c&lt;C and grid[r][c] == 1:
+            grid[r][c] = 0
+            size += 1
+            stack += [(r+1,c),(r-1,c),(r,c+1),(r,c-1)]
+    return size</code></pre>
+<p>Same O(R&middot;C) time; the stack lives on the heap, so it scales to grids that would blow Python's recursion limit.</p>
+
+<h5>The edge case</h5>
+<p><code>if not grid</code> guards a fully empty input. A grid of <em>all water</em> &rarr; <code>dfs</code> never fires &rarr; <code>best</code> stays <code>0</code>, correct. A single <code>1</code> &rarr; area 1. Note <code>len(grid[0])</code> assumes a non-empty, rectangular first row; a grid like <code>[[]]</code> (one empty row) would set <code>C = 0</code> and the loops simply do nothing &mdash; fine, but worth flagging.</p>
+
+<h5>The follow-up</h5>
+<p>"Count the number of distinct islands" (just increment a counter per <code>dfs</code> call) or "you may <em>not</em> mutate the input grid." For the immutable variant, swap the in-place sink for a <code>visited</code> <code>set</code> of <code>(r, c)</code> coordinates &mdash; same algorithm, O(R&middot;C) extra space. Diagonal connectivity adds four more direction deltas.</p>
+
+<h5>The trap</h5>
+<p>Forgetting to sink the cell (omitting <code>grid[r][c] = 0</code>) causes infinite recursion &mdash; the DFS bounces between two adjacent land cells forever. The other trap is using a <code>visited</code> set but adding a cell to it only <em>after</em> recursing into neighbours; mark visited the instant you enter the cell, or you double-count and may recurse infinitely.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> sinks visited land in place so the grid <em>is</em> the visited set (zero extra space for marking), folds bounds and visited checks into one early-return, marks a cell visited on entry not on exit, and proactively offers the explicit-stack rewrite for grids large enough to overflow the recursion limit.</div>

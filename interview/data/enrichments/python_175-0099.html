@@ -1,0 +1,57 @@
+<p>Meta's data and growth teams constantly turn raw event logs into a multi-tab spreadsheet for non-technical stakeholders &mdash; PMs and marketers who live in Excel, not SQL. This question tests the everyday "analyst engineer" pipeline: pull from a DB, reshape with pandas, and emit a polished <code>.xlsx</code> with several sheets. It probes whether you know <code>groupby</code> / <code>unstack</code> / <code>nlargest</code> and &mdash; the senior detail &mdash; the <code>ExcelWriter</code> context manager that writes multiple sheets to one file.</p>
+
+<h4>1. The input data</h4>
+<p>An <code>events</code> table in <code>events.db</code>. Three columns; raw rows:</p>
+<table>
+  <thead><tr><th>user_id</th><th>event_type</th><th>ts</th></tr></thead>
+  <tbody>
+    <tr><td>u1</td><td>login</td><td>2026-05-10 08:00</td></tr>
+    <tr><td>u1</td><td>click</td><td>2026-05-10 09:30</td></tr>
+    <tr><td>u2</td><td>login</td><td>2026-05-10 10:00</td></tr>
+    <tr><td>u1</td><td>click</td><td>2026-05-11 07:15</td></tr>
+    <tr><td>u2</td><td>click</td><td>2026-05-11 11:45</td></tr>
+    <tr><td>u3</td><td>login</td><td>2026-05-11 12:00</td></tr>
+  </tbody>
+</table>
+
+<h4>2. The approach</h4>
+<p><code>pd.read_sql</code> runs the query over the live <code>sqlite3</code> connection and materialises a DataFrame &mdash; SQL does the I/O, pandas does the shaping. <code>pd.to_datetime</code> parses the text timestamps, then <code>df['ts'].dt.date</code> extracts the calendar date so rows can be bucketed per day.</p>
+<p>The <code>with pd.ExcelWriter(...) as xl</code> block is the crux: a single workbook, three <code>.to_excel(xl, sheet_name)</code> calls, each landing on its own tab.</p>
+<ul>
+  <li><strong>daily_events</strong>: <code>groupby(['date','event_type']).size()</code> counts per (day, type), then <code>.unstack(fill_value=0)</code> pivots <code>event_type</code> into columns &mdash; a tidy date&times;type matrix, zeros where a type didn't occur.</li>
+  <li><strong>top_users</strong>: <code>groupby('user_id').size().nlargest(50)</code> &mdash; total events per user, top 50 by count.</li>
+  <li><strong>event_totals</strong>: <code>groupby('event_type').size()</code> &mdash; one grand total per event type.</li>
+</ul>
+
+<h4>3. The output</h4>
+<p><strong>Sheet <code>daily_events</code></strong> (date index, event types as columns):</p>
+<table>
+  <thead><tr><th>date</th><th>click</th><th>login</th></tr></thead>
+  <tbody>
+    <tr><td>2026-05-10</td><td>1</td><td>2</td></tr>
+    <tr><td>2026-05-11</td><td>2</td><td>1</td></tr>
+  </tbody>
+</table>
+<p><strong>Sheet <code>top_users</code></strong>: u1 = 3, u2 = 2, u3 = 1. <strong>Sheet <code>event_totals</code></strong>: click = 3, login = 3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><strong>Time O(n log n)</strong> dominated by the <code>groupby</code> sorts (hash-grouping is near-linear; <code>nlargest</code> on n rows for k items is O(n log k)). <strong>Space O(n)</strong> &mdash; the whole table is loaded into memory, which is the scaling weakness.</p>
+
+<h5>The idiomatic alternative</h5>
+<p><code>groupby(...).size()</code> is the clean count idiom, but for the daily matrix <code>pivot_table</code> says the intent in one call:</p>
+<pre><code>df.pivot_table(index='date', columns='event_type',
+               values='user_id', aggfunc='count', fill_value=0)</code></pre>
+<p>Also prefer <code>size()</code> over <code>count()</code> for pure row counts: <code>count()</code> is per-column and skips NaNs, <code>size()</code> counts every row including nulls &mdash; almost always what "how many events" means.</p>
+
+<h5>The edge case</h5>
+<p>If a date has zero rows for some event type, <code>unstack(fill_value=0)</code> fills <code>0</code> rather than leaving <code>NaN</code> &mdash; correct. But if the <em>entire table</em> is empty, <code>read_sql</code> returns an empty frame and <code>.dt</code> accessor on a non-datetime empty column can raise; guard with an early "if df.empty" return. Also: <code>.dt.date</code> yields Python <code>date</code> objects, losing timezone &mdash; fine for daily buckets, lossy if you later need hourly.</p>
+
+<h5>The follow-up</h5>
+<p>"The events table is 500M rows &mdash; this OOMs." Push the aggregation into SQL (<code>GROUP BY date, event_type</code> server-side, return only the small rollup), or stream with <code>pd.read_sql(..., chunksize=100_000)</code> and accumulate. The senior moves the <code>groupby</code> to where the data lives.</p>
+
+<h5>The trap</h5>
+<p>Calling <code>.to_excel('report.xlsx')</code> three times with separate paths &mdash; each call <em>overwrites</em> the file, leaving only the last sheet. Multiple tabs require <em>one</em> <code>ExcelWriter</code> shared across the writes. Forgetting the <code>with</code> block (or not calling <code>.save()</code>/<code>.close()</code>) produces a truncated, unopenable file.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> uses a single <code>ExcelWriter</code> context manager for the multi-sheet workbook, picks <code>size()</code> over <code>count()</code> deliberately, knows <code>unstack(fill_value=0)</code> avoids ragged NaN holes, and &mdash; when the data won't fit in RAM &mdash; pushes the aggregation into SQL or switches to chunked reads instead of scaling up the box.</div>

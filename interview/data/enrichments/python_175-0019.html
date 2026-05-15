@@ -1,0 +1,46 @@
+<p>Apple's iCloud team de-duplicates device identifiers before a sync batch &mdash; if any UDID appears twice, the batch is malformed and gets rejected. "Contains Duplicate" is an Easy warm-up, but the interviewer is really checking one reflex: do you reach for a <code>set</code> immediately, or do you write nested loops? The one-liner is correct; the conversation around it is what scores.</p>
+
+<h4>1. The input data</h4>
+<pre><code>nums = [1, 2, 3, 1]</code></pre>
+<p>Four integers, with <code>1</code> appearing at index 0 and index 3. A clean example also worth discussing: <code>[1, 2, 3, 4]</code> &mdash; all distinct.</p>
+
+<h4>2. The approach</h4>
+<p>The solution builds <code>set(nums)</code>, which discards every repeated element by definition, then compares lengths. If <code>len(nums) != len(set(nums))</code>, at least one value collapsed during set construction &mdash; that is a duplicate. One pass to build the set, one cheap length read.</p>
+<p>The elegance is that it never has to <em>find</em> the duplicate or count occurrences; the size difference is a sufficient witness. <code>set</code> construction is amortized O(1) per insertion via hashing.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>input</th><th>len(nums)</th><th>len(set(nums))</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>[1, 2, 3, 1]</td><td>4</td><td>3</td><td><code>True</code></td></tr>
+    <tr><td>[1, 2, 3, 4]</td><td>4</td><td>4</td><td><code>False</code></td></tr>
+  </tbody>
+</table>
+<pre><code>containsDuplicate([1, 2, 3, 1])  ->  True</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n) time to hash every element into the set, O(n) extra space for the set itself. The nested-loop alternative is O(n&sup2;) time / O(1) space &mdash; only defensible if the interviewer explicitly forbids extra memory.</p>
+
+<h5>The idiomatic alternative &mdash; early exit</h5>
+<p>The one-liner always consumes the whole list. To bail the instant a repeat is seen:</p>
+<pre><code>def containsDuplicate(nums):
+    seen = set()
+    for n in nums:
+        if n in seen:
+            return True
+        seen.add(n)
+    return False</code></pre>
+<p>Same O(n) worst case, but on <code>[1, 1, &lt;a million more&gt;]</code> it returns after two elements instead of hashing the entire input. For an interview, mention both and let the interviewer pick.</p>
+
+<h5>The edge case &mdash; empty and single-element lists</h5>
+<p><code>[]</code> and <code>[5]</code> both yield <code>len == len(set)</code>, so the function correctly returns <code>False</code> &mdash; no special-casing needed. Be careful with <em>unhashable</em> elements though: a list of lists raises <code>TypeError</code> on set construction. And <code>nan</code> is famously not equal to itself, so a list with two <code>float('nan')</code> values keeps both in the set and reports no duplicate.</p>
+
+<h5>The follow-up &mdash; "Contains Duplicate II / III"</h5>
+<p>The natural escalation is "duplicate within index distance k" (sliding-window set) or "near-duplicate within value distance t" (bucketing / <code>SortedList</code>). The interviewer wants to see that you can graduate from a global set to a <em>windowed</em> one without rewriting from scratch.</p>
+
+<h5>The trap &mdash; sorting first</h5>
+<p>Sorting and scanning adjacent pairs works but is O(n log n) &mdash; strictly worse than the hash set and it mutates or copies the input. Candidates who reach for <code>sorted()</code> here are signalling they default to comparison-based thinking when hashing is available.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state O(n)/O(n) instantly, then volunteer the early-exit variant and the unhashable-element / <code>nan</code> caveats unprompted &mdash; turning a trivial question into evidence you think about input shape and failure modes.</div>

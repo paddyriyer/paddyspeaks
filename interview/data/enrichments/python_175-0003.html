@@ -1,0 +1,43 @@
+<p>Amazon asks this because moving averages are everywhere in their stack &mdash; smoothing latency metrics, demand forecasts, fraud signals &mdash; and they all arrive as unbounded streams. The interviewer is checking whether you can keep a rolling window in <em>constant</em> time and memory, rather than recomputing a sum over the whole window on every tick. It looks trivial; the trap is the naive O(k)-per-call solution.</p>
+
+<h4>1. The input data</h4>
+<p>A window <code>size = 3</code>, then a stream of calls to <code>next(val)</code>:</p>
+<pre><code>m = MovingAverage(3)
+m.next(1)
+m.next(10)
+m.next(3)
+m.next(5)</code></pre>
+
+<h4>2. The approach</h4>
+<p>The class keeps two pieces of state: a <code>collections.deque</code> created with <code>maxlen=size</code>, and a running integer/float sum <code>self.s</code>. The <code>maxlen</code> argument is the key trick &mdash; a bounded deque automatically discards the oldest element when it overflows. On each <code>next(val)</code>, the code checks whether the deque is already full (<code>len(self.q) == self.q.maxlen</code>); if so, it subtracts the element about to fall off the left (<code>self.q[0]</code>) from the running sum <em>before</em> appending. Then it appends the new value and adds it to the sum. The average is <code>self.s / len(self.q)</code>. Because the deque length tracks how many values have actually arrived, the early calls (before the window fills) divide by the correct smaller count.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>call</th><th>window contents</th><th>running sum</th><th>returned average</th></tr></thead>
+  <tbody>
+    <tr><td>next(1)</td><td>[1]</td><td>1</td><td>1.0</td></tr>
+    <tr><td>next(10)</td><td>[1, 10]</td><td>11</td><td>5.5</td></tr>
+    <tr><td>next(3)</td><td>[1, 10, 3]</td><td>14</td><td>4.666...</td></tr>
+    <tr><td>next(5)</td><td>[10, 3, 5]</td><td>18</td><td>6.0</td></tr>
+  </tbody>
+</table>
+<p>On the fourth call the window is full, so <code>1</code> is evicted: the sum goes 14 &minus; 1 + 5 = 18, divided by 3.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p><code>next</code> is <strong>O(1) time</strong> &mdash; one pop-check, one append, two arithmetic ops &mdash; and <strong>O(k) space</strong> for a window of size k. That O(1) per call is the whole point: it is what makes the structure usable on an infinite stream.</p>
+
+<h5>The idiomatic alternative</h5>
+<p>You <em>could</em> store the deque and compute <code>sum(self.q) / len(self.q)</code> each call, dropping the running-sum bookkeeping. It is shorter and less bug-prone, but it is O(k) per call. Naming this tradeoff &mdash; "I can trade the running sum for clarity if k is tiny" &mdash; shows judgment. At interview scale either passes; at Amazon scale the running sum wins.</p>
+
+<h5>The edge case &mdash; the empty window</h5>
+<p>Before any <code>next</code> call the deque is empty; calling the average then would be <code>0 / 0</code> &rarr; <code>ZeroDivisionError</code>. The given API only divides inside <code>next</code> after an append, so <code>len</code> is always &ge; 1 &mdash; safe by construction. Worth stating aloud so the interviewer knows you saw it.</p>
+
+<h5>The follow-up &mdash; floating-point drift</h5>
+<p>"This runs for months &mdash; any problem?" Yes: continually adding and subtracting floats lets rounding error accumulate, so <code>self.s</code> slowly diverges from the true window sum. Fixes: periodically recompute <code>sum(self.q)</code> to resync, use <code>math.fsum</code>, or keep integer inputs as integers. For a sliding <em>median</em> instead of mean, the answer changes entirely &mdash; two heaps.</p>
+
+<h5>The trap &mdash; a plain list</h5>
+<p>Using a Python <code>list</code> and <code>pop(0)</code> to evict looks fine but is <strong>O(k)</strong>: removing index 0 shifts every remaining element. A <code>deque</code> popping from the left is O(1). Picking the wrong container quietly turns an O(1) design into O(k).</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior reaches for <code>deque(maxlen=...)</code> so eviction is automatic, keeps a running sum for true O(1) updates, and pre-empts long-run float drift &mdash; a junior recomputes <code>sum()</code> every call or evicts from a list with <code>pop(0)</code>.</div>
