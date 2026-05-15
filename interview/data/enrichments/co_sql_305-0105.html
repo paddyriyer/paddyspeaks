@@ -1,0 +1,67 @@
+<p>Meta's growth team wants a fast read on how engaged users are: not the average action count &mdash; an average is hostage to a handful of power users &mdash; but the <em>shape</em> of the distribution. How many users are dormant, casual, regular, or heavy? The question looks like a one-liner, and it is. The interview is whether your buckets are watertight: no user lands in two, and no user falls through a crack.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>action_count</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0</td></tr>
+    <tr><td>2</td><td>3</td></tr>
+    <tr><td>3</td><td>7</td></tr>
+    <tr><td>4</td><td>10</td></tr>
+    <tr><td>5</td><td>55</td></tr>
+    <tr><td>6</td><td>100</td></tr>
+    <tr><td>7</td><td>240</td></tr>
+    <tr><td>8</td><td>8</td></tr>
+  </tbody>
+</table>
+<p>The interesting rows are the <strong>boundary values</strong>: user 4 sits exactly on <code>10</code> and user 6 sits exactly on <code>100</code>. A bucket definition that uses <code>&lt;</code> where it means <code>&le;</code> would silently misfile them. Those two rows are the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>CASE</code> buckets + <code>COUNT</code></h4>
+<pre><code>SELECT
+  CASE WHEN action_count = 0 THEN '0'
+       WHEN action_count &lt;= 10 THEN '1-10'
+       WHEN action_count &lt;= 100 THEN '11-100'
+       ELSE '100+' END AS bucket,
+  COUNT(*) AS users
+FROM activity GROUP BY 1;</code></pre>
+<p><code>CASE</code> evaluates top-down and stops at the first match, so the bands do not need to restate their lower edge &mdash; reaching the <code>&le; 100</code> arm already implies the value is above 10. <code>GROUP BY 1</code> groups by the first select-list item, the computed bucket.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>bucket</th><th>users</th></tr></thead>
+  <tbody>
+    <tr><td>1-10</td><td>4</td></tr>
+    <tr><td>0</td><td>1</td></tr>
+    <tr><td>100+</td><td>1</td></tr>
+    <tr><td>11-100</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Eight users, eight slots filled: 1 dormant, 4 casual (incl. user 4 at exactly 10), 2 regular (incl. user 6 at exactly 100), 1 heavy. The counts sum to 8 &mdash; the proof the buckets are exhaustive and disjoint. Note the rows come back in <em>group order</em>, not label order: there is no <code>ORDER BY</code>, so the engine returns groups however it likes.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The ordering follow-up &mdash; buckets sort as strings</h5>
+<p>A dashboard wants buckets in ascending order, but <code>ORDER BY bucket</code> sorts the <em>labels</em> lexically: <code>'0'</code>, <code>'1-10'</code>, <code>'100+'</code>, <code>'11-100'</code> &mdash; <code>'100+'</code> lands before <code>'11-100'</code> because <code>'0'</code> &lt; <code>'1'</code> as text. Carry an explicit sort key:</p>
+<pre><code>SELECT bucket, users FROM (
+  SELECT CASE WHEN action_count = 0 THEN '0'
+              WHEN action_count &lt;= 10 THEN '1-10'
+              WHEN action_count &lt;= 100 THEN '11-100'
+              ELSE '100+' END AS bucket,
+         MIN(action_count) AS sort_key,
+         COUNT(*) AS users
+  FROM activity GROUP BY 1
+) t ORDER BY sort_key;</code></pre>
+
+<h5>The empty-bucket trap</h5>
+<p>If no user has zero actions, the <code>'0'</code> bucket simply does not appear &mdash; <code>GROUP BY</code> only emits buckets that have rows. A dashboard expecting all four bars every week will silently lose one. The fix is to <code>LEFT JOIN</code> a tiny buckets dimension (a 4-row <code>VALUES</code> list) against the activity counts, so empty buckets render as zero rather than vanishing.</p>
+
+<h5>NULL action counts</h5>
+<p><code>action_count = 0</code> and every <code>&le;</code> comparison return <em>unknown</em> for a NULL, so a user with a NULL count falls through every arm into the <code>ELSE</code> and is misfiled as <code>'100+'</code> &mdash; the worst possible bucket. If NULLs are possible, handle them first: <code>WHEN action_count IS NULL THEN 'unknown'</code>, or filter them out with intent.</p>
+
+<h5>width_bucket &mdash; the built-in for equal-width bins</h5>
+<p>For evenly-sized numeric bins, Postgres ships <code>width_bucket(value, low, high, count)</code>, which removes the hand-written ladder entirely. It does not fit here &mdash; our buckets are logarithmic (0, 1-10, 11-100, 100+), not equal-width &mdash; but naming it shows you know the histogram is a first-class operation, not always a <code>CASE</code>.</p>
+
+<h5>Negative counts and the open-ended top bucket</h5>
+<p><code>ELSE</code> is a catch-all: a stray negative <code>action_count</code> would land in <code>'100+'</code>, which is nonsense. If the column should never be negative, that is a data-quality check worth a sentence. And <code>'100+'</code> being unbounded is a deliberate product choice &mdash; whales and a user with 101 actions share a bucket; if the team cares about that tail, add a <code>'1000+'</code> arm.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> get the <code>&le;</code> boundaries exactly right so edge values land in one bucket only, prove exhaustiveness by checking the counts sum to the row total, anticipate that string-labelled buckets sort lexically and empty buckets disappear, and handle NULL counts before the <code>ELSE</code> arm swallows them.</div>

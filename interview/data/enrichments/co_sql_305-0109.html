@@ -1,0 +1,52 @@
+<p>OpenAI's finance team reports revenue every year, and the headline slide is always year-over-year growth. The arithmetic is trivial &mdash; this year minus last year, over last year. The interview is whether you reach for a window function instead of a self-join, and whether you have thought about the year when last year's revenue was zero, or when there is no last year at all.</p>
+
+<h4>1. The source data &mdash; <code>revenue</code></h4>
+<table>
+  <thead><tr><th>year</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>1000</td></tr>
+    <tr><td>2021</td><td>1200</td></tr>
+    <tr><td>2022</td><td>900</td></tr>
+    <tr><td>2023</td><td>900</td></tr>
+    <tr><td>2024</td><td>1800</td></tr>
+  </tbody>
+</table>
+<p>Three deliberate cases: 2020 has <strong>no prior year</strong> (the growth must be NULL, not zero); 2022&rarr;2023 is <strong>flat</strong> (exactly 0% growth, which must not be confused with NULL); and 2021&rarr;2022 is a <strong>decline</strong> (a negative percentage). One dataset, every edge.</p>
+
+<h4>2. The SQL &mdash; <code>LAG</code> over year</h4>
+<pre><code>SELECT year, amount,
+  100.0 * (amount - LAG(amount) OVER (ORDER BY year)) / NULLIF(LAG(amount) OVER (ORDER BY year),0) AS yoy_pct
+FROM revenue;</code></pre>
+<p><code>LAG(amount) OVER (ORDER BY year)</code> pulls the previous year's value into the current row. <code>NULLIF(prev, 0)</code> turns a zero denominator into NULL so the division yields NULL rather than a divide-by-zero error. <code>100.0</code> forces floating-point arithmetic.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>year</th><th>amount</th><th>yoy_pct</th></tr></thead>
+  <tbody>
+    <tr><td>2020</td><td>1000</td><td><em>NULL</em></td></tr>
+    <tr><td>2021</td><td>1200</td><td>20.0000000000000000</td></tr>
+    <tr><td>2022</td><td>900</td><td>-25.0000000000000000</td></tr>
+    <tr><td>2023</td><td>900</td><td>0.00000000000000000000</td></tr>
+    <tr><td>2024</td><td>1800</td><td>100.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>2020 is NULL &mdash; there is no 2019 to compare against, and <code>LAG</code> correctly returns NULL for the first row. 2021 grew 20%, 2022 fell 25%, 2023 was dead flat at <strong>exactly 0</strong> (distinct from NULL: a real, measured no-change), and 2024 doubled to +100%. The trailing zeros are just <code>numeric</code> display precision.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>LAG</code> beats a self-join</h5>
+<p>The pre-window-function way is <code>FROM revenue r JOIN revenue p ON p.year = r.year - 1</code>. It works, but it is more code, it silently drops the first year (no match for <code>year - 1</code>), and crucially <code>year - 1</code> assumes years are contiguous integers &mdash; a gap (no 2022 row) breaks the join. <code>LAG</code> takes the <em>previous row in sort order</em> regardless of the numeric gap, sorts once, and is the idiomatic answer.</p>
+
+<h5>The gap trap &mdash; "previous row" is not "previous year"</h5>
+<p>That same strength is a subtlety. If 2022 were missing entirely, <code>LAG</code> would compare 2023 against <strong>2021</strong> and label it a one-year change &mdash; it is really a two-year change. <code>LAG</code> does not know calendar years; it knows row adjacency. On data that may have missing years, either generate a dense year series and <code>LEFT JOIN</code>, or join explicitly on <code>year - 1</code> and accept the gap-induced NULLs as honest.</p>
+
+<h5>The divide-by-zero guard is load-bearing</h5>
+<p>If a year had <code>amount = 0</code>, the next year's growth divides by zero. Without <code>NULLIF</code> that is a hard error in Postgres &mdash; the whole query fails, not just one row. <code>NULLIF(prev, 0)</code> converts the zero to NULL, and <code>x / NULL</code> is NULL: the report degrades gracefully to "undefined growth" for that one year. Growth from a zero base is genuinely undefined (infinite), so NULL is the honest answer.</p>
+
+<h5>The integer-division trap</h5>
+<p>The <code>100.0</code> multiplier is not cosmetic. If both <code>amount</code> columns are integers and you wrote <code>100 * (amount - prev) / prev</code>, integer division truncates: a +20% change could compute as <code>100 * 200 / 1000</code> = <code>20000 / 1000</code> = 20 here, but <code>100 * 50 / 1000</code> would truncate to 5 instead of 5.0 in subtler cases &mdash; and intermediate truncation can drop the fractional part entirely. Forcing one operand to <code>numeric</code>/float (the <code>100.0</code>) keeps the math exact.</p>
+
+<h5>NULL vs 0 &mdash; do not COALESCE them together</h5>
+<p>It is tempting to wrap the result in <code>COALESCE(yoy_pct, 0)</code> to avoid NULLs on a dashboard. Resist it: the 2020 NULL means "no comparison possible" and the 2023 zero means "measured, no change". Collapsing both to 0 tells finance that 2020 had flat growth &mdash; a factual error. Render the NULL as an em-dash in the UI, not as a number.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>LAG</code> over a self-join, recognise that <code>LAG</code> follows row adjacency not calendar years so missing years silently distort the comparison, keep the <code>NULLIF</code> divide-by-zero guard, force float arithmetic to dodge integer truncation, and never collapse a "no prior year" NULL into a "0% change" zero.</div>

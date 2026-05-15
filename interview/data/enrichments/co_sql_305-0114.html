@@ -1,0 +1,52 @@
+<p>Red Hat's compensation team wants a per-department salary summary &mdash; total payroll, average pay, and headcount &mdash; for a budget review. It is a textbook <code>GROUP BY</code> with three aggregates. The interview is in the details: how the average treats NULL salaries, why <code>COUNT(*)</code> and <code>COUNT(salary)</code> can disagree, and what a single-person department does to the numbers.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>90000</td><td>Ann</td></tr>
+    <tr><td>2</td><td>10</td><td>110000</td><td>Ben</td></tr>
+    <tr><td>3</td><td>20</td><td>70000</td><td>Cy</td></tr>
+    <tr><td>4</td><td>20</td><td>75000</td><td>Dee</td></tr>
+    <tr><td>5</td><td>30</td><td>60000</td><td>Eve</td></tr>
+  </tbody>
+</table>
+<p>Department 30 has a <strong>single employee</strong> &mdash; its "average" is just that one salary, and the budget reviewer should know the figure is one data point, not a mean of many. Departments 10 and 20 each have two. That lone-member group is the edge case worth surfacing.</p>
+
+<h4>2. The SQL &mdash; three aggregates over <code>dept_id</code></h4>
+<pre><code>SELECT dept_id, SUM(salary) AS total, AVG(salary) AS avg, COUNT(*) AS headcount
+FROM employees GROUP BY dept_id;</code></pre>
+<p>One row per <code>dept_id</code>. <code>SUM</code> totals payroll, <code>AVG</code> means it, <code>COUNT(*)</code> counts rows. Note <code>avg</code> is a SQL reserved word used as an alias here &mdash; legal but worth flagging.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>total</th><th>avg</th><th>headcount</th></tr></thead>
+  <tbody>
+    <tr><td>30</td><td>60000</td><td>60000.000000000000</td><td>1</td></tr>
+    <tr><td>10</td><td>200000</td><td>100000.000000000000</td><td>2</td></tr>
+    <tr><td>20</td><td>145000</td><td>72500.000000000000</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Department 10 totals 200K across two people (avg 100K); department 30's "average" of 60K is simply Eve's salary &mdash; a mean of one. The rows arrive unordered (no <code>ORDER BY</code>), and the trailing zeros are <code>numeric</code> display precision; round in the presentation layer.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>COUNT(*)</code> vs <code>COUNT(salary)</code> trap</h5>
+<p>The query uses <code>COUNT(*)</code> for headcount &mdash; correct, it counts <em>people</em>. But if any employee had a NULL <code>salary</code>, <code>COUNT(*)</code> still counts them while <code>AVG(salary)</code> and <code>SUM(salary)</code> silently skip them. So <code>total / headcount</code> would <em>not</em> equal the reported <code>avg</code>: the average divides by the count of <em>non-NULL salaries</em>, headcount divides by all rows. If you want the count that matches the average, that is <code>COUNT(salary)</code>. Reporting both is the honest move:</p>
+<pre><code>SELECT dept_id, SUM(salary) AS total, AVG(salary) AS avg_salary,
+       COUNT(*) AS headcount, COUNT(salary) AS paid_headcount
+FROM employees GROUP BY dept_id;</code></pre>
+
+<h5>NULL salary &mdash; skipped, not zero</h5>
+<p>This is the same NULL story from the other side. A NULL salary contributes nothing to <code>SUM</code> and is excluded from <code>AVG</code>'s denominator &mdash; it does not pull the average toward zero. If a NULL salary should be treated as $0 (e.g. an unpaid intern), fold it in explicitly with <code>SUM(COALESCE(salary,0))</code> and <code>AVG(COALESCE(salary,0))</code>. If a NULL means "unknown / pending", skipping it is right &mdash; but say which interpretation you chose.</p>
+
+<h5>Employees with no department</h5>
+<p>If an employee has <code>dept_id IS NULL</code>, they form their own group: <code>GROUP BY</code> treats NULL as a single distinct grouping value, so the result gets a row with a NULL <code>dept_id</code>. A budget review usually wants those flagged ("unassigned") rather than silently bucketed. Decide whether to <code>WHERE dept_id IS NOT NULL</code>, or <code>COALESCE(dept_id, -1)</code> into an explicit "unassigned" bucket.</p>
+
+<h5>The follow-up &mdash; department name, not just an ID</h5>
+<p><code>dept_id = 30</code> means nothing to a budget reviewer. The natural extension joins a <code>departments</code> table for the name. The senior detail: use a <code>LEFT JOIN</code> so a department with zero employees still appears (with NULL aggregates) &mdash; an inner join silently hides empty departments, which a headcount report specifically needs to see.</p>
+
+<h5>Single-member groups and integer division</h5>
+<p>Department 30's average being a single salary is not wrong, but a reviewer may misread it as a population mean &mdash; consider showing <code>headcount</code> prominently so a "1" is visible. Separately, if <code>salary</code> were an <code>INTEGER</code> column, <code>AVG</code> still returns <code>numeric</code> in Postgres so no truncation here &mdash; but a hand-rolled <code>SUM(salary)/COUNT(*)</code> on integer columns <em>would</em> truncate; another reason to use <code>AVG</code> directly.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> distinguish <code>COUNT(*)</code> (people) from <code>COUNT(salary)</code> (the average's true denominator) and report both when NULL salaries are possible, decide deliberately whether a NULL salary is "skip" or "$0", flag NULL-<code>dept_id</code> employees rather than silently grouping them, and <code>LEFT JOIN</code> the departments table so empty departments still surface.</div>

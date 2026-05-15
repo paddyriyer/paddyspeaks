@@ -1,0 +1,70 @@
+<p>Broadcom's sales operations team wants a single result set that delivers every grain of a sales breakdown at once: each region&times;product cell, every region subtotal, every product subtotal, and the grand total. The reference solution builds this by hand with four <code>UNION ALL</code> branches. The interview is whether you recognise it as a reimplementation of <code>CUBE</code> &mdash; and can name the trade-offs of doing it the long way.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>product</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>Widget</td><td>100</td></tr>
+    <tr><td>East</td><td>Gadget</td><td>200</td></tr>
+    <tr><td>West</td><td>Widget</td><td>150</td></tr>
+    <tr><td>West</td><td>Gadget</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>A clean 2&times;2 grid &mdash; deliberately small so every total is verifiable by eye. The interesting part is the <em>output</em>: subtotal and grand-total rows carry <code>NULL</code> in the dimension they roll up, and that overloading of NULL is the whole interview.</p>
+
+<h4>2. The SQL &mdash; four <code>UNION ALL</code> grains</h4>
+<pre><code>SELECT region, product, SUM(amount) AS total FROM sales GROUP BY region, product
+UNION ALL
+SELECT region, NULL, SUM(amount) FROM sales GROUP BY region
+UNION ALL
+SELECT NULL, product, SUM(amount) FROM sales GROUP BY product
+UNION ALL
+SELECT NULL, NULL, SUM(amount) FROM sales
+ORDER BY region, product;</code></pre>
+<p>Branch 1 is the finest grain (region&times;product); branch 2 totals by region; branch 3 by product; branch 4 is the grand total. <code>UNION ALL</code> stacks them &mdash; no dedup, because the grains never collide.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>product</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>Gadget</td><td>200</td></tr>
+    <tr><td>East</td><td>Widget</td><td>100</td></tr>
+    <tr><td>East</td><td><em>NULL</em></td><td>300</td></tr>
+    <tr><td>West</td><td>Gadget</td><td>50</td></tr>
+    <tr><td>West</td><td>Widget</td><td>150</td></tr>
+    <tr><td>West</td><td><em>NULL</em></td><td>200</td></tr>
+    <tr><td><em>NULL</em></td><td>Gadget</td><td>250</td></tr>
+    <tr><td><em>NULL</em></td><td>Widget</td><td>250</td></tr>
+    <tr><td><em>NULL</em></td><td><em>NULL</em></td><td>500</td></tr>
+  </tbody>
+</table>
+<p>Nine rows: 4 detail cells, 2 region subtotals (East 300, West 200), 2 product subtotals (Gadget 250, Widget 250), 1 grand total (500). <code>ORDER BY</code> sorts NULLs last in Postgres, so each region's subtotal trails its detail rows. The grand-total 500 reconciles every margin &mdash; that cross-check is how you prove the breakdown is complete.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>This is <code>GROUP BY CUBE</code> &mdash; say so</h5>
+<p>Four branches scanning the same table is the long-hand of one clause:</p>
+<pre><code>SELECT region, product, SUM(amount) AS total
+FROM sales
+GROUP BY CUBE (region, product)
+ORDER BY region, product;</code></pre>
+<p><code>CUBE (region, product)</code> generates all 2&sup2; grouping combinations &mdash; (region, product), (region), (product), () &mdash; in a single pass over the table. The <code>UNION ALL</code> version scans <code>sales</code> <em>four times</em>; <code>CUBE</code> scans once. Identical output, dramatically better plan. Naming <code>CUBE</code> is the headline senior signal here.</p>
+
+<h5><code>ROLLUP</code> vs <code>CUBE</code> &mdash; pick the right one</h5>
+<p><code>CUBE</code> gives <em>every</em> combination. If the report is hierarchical &mdash; region, then product within region, then grand total, but <em>no</em> standalone product subtotals &mdash; that is <code>ROLLUP (region, product)</code>, which yields only (region, product), (region), (). Choosing <code>CUBE</code> when the business wants a hierarchy produces extra rows that confuse the reader; choosing <code>ROLLUP</code> when they want the full cross-tab omits the product totals. Match the operator to the shape of the question.</p>
+
+<h5>The NULL-overloading trap &mdash; <code>GROUPING()</code></h5>
+<p>Subtotal rows mark the rolled-up dimension with NULL. But what if <code>region</code> itself legitimately contains NULL values (sales with no region)? Then a row with <code>region = NULL</code> is ambiguous: is it the grand subtotal, or the "no region" detail cell? You cannot tell them apart by eye. The fix is the <code>GROUPING()</code> function, which returns 1 for a rolled-up column and 0 for a real value:</p>
+<pre><code>SELECT
+  CASE WHEN GROUPING(region) = 1 THEN 'All regions' ELSE region END AS region,
+  CASE WHEN GROUPING(product) = 1 THEN 'All products' ELSE product END AS product,
+  SUM(amount) AS total
+FROM sales GROUP BY CUBE (region, product);</code></pre>
+
+<h5>Why <code>UNION ALL</code>, not <code>UNION</code></h5>
+<p>The branches produce disjoint grains, so no duplicate rows exist to remove &mdash; <code>UNION ALL</code> is correct. Using plain <code>UNION</code> would force a needless dedup sort over the whole result, pure wasted work. And a subtle hazard: if two different grains ever <em>did</em> compute the same (region, product, total) triple, <code>UNION</code> would silently collapse them into one row and corrupt the totals. <code>UNION ALL</code> is both faster and safer here.</p>
+
+<h5>Column-type alignment across branches</h5>
+<p>A bare <code>NULL</code> literal is untyped. In branch 2, <code>SELECT region, NULL, ...</code> &mdash; Postgres infers the NULL's type from the union with the other branches' <code>product</code> column, so it works. But if the branches disagreed on types, or you fed this into a stricter engine, you would need an explicit <code>CAST(NULL AS text)</code> to align the column. The aggregate aliases also only need to be named in the <em>first</em> <code>SELECT</code>; later branches inherit the column names.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise the four-way <code>UNION ALL</code> as a hand-rolled <code>CUBE</code> and collapse it to a single-pass <code>GROUP BY CUBE</code>, choose <code>ROLLUP</code> vs <code>CUBE</code> by whether the report is hierarchical or a full cross-tab, and use <code>GROUPING()</code> to disambiguate subtotal-NULLs from genuine NULL data.</div>
