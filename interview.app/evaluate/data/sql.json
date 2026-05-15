@@ -11673,6 +11673,235 @@
         "Guard the gap calculation against NULL inputs: explicit CASE wrapper so the gap stays NULL when either side missing",
         "Casting via ::numeric(10,2) is a convenient way to format inline"
       ]
+    },
+    {
+      "id": "sql-444",
+      "type": "code",
+      "topic": "Growth Accounting",
+      "difficulty": "hard",
+      "prompt": "**Growth accounting \u2014 daily new / retained / resurrected / churned.**\n\nSchema: `dau(dt, user_id, inc_amt)` \u2014 one row per active user per day; `inc_amt` is the value they created that day.\n\nFor each day, classify the active-user base into four buckets:\n- **new** \u2014 user's FIRST-ever active day is this day\n- **retained** \u2014 user was also active the PREVIOUS day\n- **resurrected** \u2014 user is not new, and was NOT active the previous day (came back from dormancy)\n- **churned** \u2014 user was active the previous day but NOT this day (report as a negative number)\n\nReturn columns: `day, dau, new_users, retained, resurrected, churned`, ordered by day. Note: a trailing row appears for the day AFTER the last activity, capturing the final day's churn.\n\nHint: a FULL OUTER self-join of the activity table to itself, offset by one day (`tm.dt = lm.dt + 1`), puts each user's today-row next to their yesterday-row. Churned users exist only on the `lm` side.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n-- Derive first_dt per user, then FULL OUTER self-join offset by 1 day.\n",
+      "schema": "CREATE TABLE dau (dt DATE, user_id TEXT, inc_amt NUMERIC);\nINSERT INTO dau VALUES\n  ('2025-01-01','A',10),('2025-01-01','B',5),\n  ('2025-01-02','A',8),('2025-01-02','C',12),\n  ('2025-01-03','A',6),('2025-01-03','B',7),\n  ('2025-01-04','C',4);",
+      "model_answer": "WITH first_dt AS (\n  SELECT user_id, MIN(dt) AS first_dt FROM dau GROUP BY user_id\n),\ndau_decorated AS (\n  SELECT d.dt, d.user_id, f.first_dt\n  FROM dau d JOIN first_dt f ON d.user_id = f.user_id\n  WHERE d.inc_amt > 0\n)\nSELECT\n  COALESCE(tm.dt, lm.dt + 1) AS day,\n  COUNT(DISTINCT tm.user_id) AS dau,\n  COUNT(DISTINCT CASE WHEN tm.first_dt = tm.dt THEN tm.user_id END) AS new_users,\n  COUNT(DISTINCT CASE WHEN lm.user_id IS NOT NULL THEN tm.user_id END) AS retained,\n  COUNT(DISTINCT CASE WHEN tm.first_dt <> tm.dt AND lm.user_id IS NULL THEN tm.user_id END) AS resurrected,\n  -1 * COUNT(DISTINCT CASE WHEN tm.user_id IS NULL THEN lm.user_id END) AS churned\nFROM dau_decorated tm\nFULL OUTER JOIN dau_decorated lm\n  ON tm.user_id = lm.user_id AND tm.dt = lm.dt + 1\nGROUP BY 1\nORDER BY 1;",
+      "expected_rows": [
+        {
+          "day": "2025-01-01",
+          "dau": 2,
+          "new_users": 2,
+          "retained": 0,
+          "resurrected": 0,
+          "churned": 0
+        },
+        {
+          "day": "2025-01-02",
+          "dau": 2,
+          "new_users": 1,
+          "retained": 1,
+          "resurrected": 0,
+          "churned": -1
+        },
+        {
+          "day": "2025-01-03",
+          "dau": 2,
+          "new_users": 0,
+          "retained": 1,
+          "resurrected": 1,
+          "churned": -1
+        },
+        {
+          "day": "2025-01-04",
+          "dau": 1,
+          "new_users": 0,
+          "retained": 0,
+          "resurrected": 1,
+          "churned": -2
+        },
+        {
+          "day": "2025-01-05",
+          "dau": 0,
+          "new_users": 0,
+          "retained": 0,
+          "resurrected": 0,
+          "churned": -1
+        }
+      ],
+      "key_points": [
+        "FULL OUTER JOIN (not INNER, not LEFT) \u2014 churned users appear ONLY on the lm (yesterday) side; an inner/left join from tm would silently drop them",
+        "Self-join offset: tm.dt = lm.dt + 1 pairs today's row with yesterday's row for the same user",
+        "new = first_dt equals the day; retained = matched on the lm side; resurrected = NOT new AND NOT matched on lm side",
+        "churned counted from lm.user_id where tm.user_id IS NULL, negated by convention so the buckets sum visually",
+        "COALESCE(tm.dt, lm.dt + 1) so the churn-only row (no tm match) still gets a day label",
+        "This is the canonical Social Capital / Reforge growth-accounting query \u2014 the identity DAU(t) = retained + new + resurrected holds by construction"
+      ]
+    },
+    {
+      "id": "sql-445",
+      "type": "single",
+      "topic": "Growth Accounting",
+      "difficulty": "hard",
+      "prompt": "In the standard growth-accounting framework, the active-user base each period is decomposed into **new**, **retained**, **resurrected**, and **churned**. Two identities hold. Which pair is correct? (Treat `churned` as a positive count here.)",
+      "options": [
+        "`MAU(t) = retained(t) + new(t) + resurrected(t)` and `MAU(t\u22121) = retained(t) + churned(t)`",
+        "`MAU(t) = retained(t) + new(t) + churned(t)` and `MAU(t\u22121) = retained(t) + resurrected(t)`",
+        "`MAU(t) = retained(t) + churned(t)` and `MAU(t\u22121) = new(t) + resurrected(t)`",
+        "`MAU(t) = new(t) + resurrected(t)` and `MAU(t\u22121) = retained(t) + churned(t) + new(t)`"
+      ],
+      "answer": 0,
+      "explanation": "The two growth-accounting identities are the whole point of the framework \u2014 they let you reconcile a user-count delta into its causes.\n\n**`MAU(t) = retained(t) + new(t) + resurrected(t)`** \u2014 everyone active THIS period is either: also active last period (retained), brand-new (new), or returning from dormancy (resurrected). Those three are mutually exclusive and exhaustive over this period's active base.\n\n**`MAU(t\u22121) = retained(t) + churned(t)`** \u2014 everyone active LAST period either stayed (retained) or left (churned). Note `new` and `resurrected` do NOT appear here \u2014 by definition they were not active last period.\n\nSubtracting the two:\n`MAU(t) \u2212 MAU(t\u22121) = new(t) + resurrected(t) \u2212 churned(t)`\n\nThat's the net-growth decomposition: your MAU went up or down by exactly (new + resurrected) minus churned. A flat MAU with high new + high churn is a leaky bucket \u2014 the identity makes that visible where a single MAU number hides it."
+    },
+    {
+      "id": "sql-446",
+      "type": "single",
+      "topic": "Growth Accounting",
+      "difficulty": "medium",
+      "prompt": "The growth-accounting query joins the daily-activity table to itself, offset by one day (`tm.dt = lm.dt + 1`), to classify each day's users. Why must this be a **FULL OUTER JOIN** rather than INNER or LEFT?",
+      "options": [
+        "FULL OUTER JOIN is faster than INNER JOIN on large tables",
+        "Churned users \u2014 active yesterday (`lm`) but NOT today (`tm`) \u2014 exist only on the `lm` side; an INNER or LEFT (from `tm`) join would silently drop them, making churn impossible to count",
+        "FULL OUTER JOIN automatically deduplicates the user rows",
+        "INNER JOIN can't be used with a self-join in standard SQL"
+      ],
+      "answer": 1,
+      "explanation": "The classification needs to see THREE kinds of rows:\n\n1. **Matched both sides** (tm + lm) \u2192 user active today AND yesterday \u2192 *retained*\n2. **Only tm side** (lm is NULL) \u2192 user active today, not yesterday \u2192 *new* or *resurrected*\n3. **Only lm side** (tm is NULL) \u2192 user active yesterday, not today \u2192 *churned*\n\nAn INNER JOIN keeps only case 1 \u2014 you'd see retained users and nothing else.\nA LEFT JOIN from `tm` keeps cases 1 and 2 \u2014 you'd see today's users but never the churned ones, because a churned user has no `tm` row to anchor the LEFT JOIN.\n\nOnly a FULL OUTER JOIN preserves all three. Churn is the bucket that lives exclusively on the unmatched `lm` side, which is exactly why people who reach for LEFT JOIN here get a query that 'runs fine' but reports zero churn forever \u2014 a silent, dangerous bug."
+    },
+    {
+      "id": "sql-447",
+      "type": "code",
+      "topic": "Growth Accounting",
+      "difficulty": "hard",
+      "prompt": "**Cumulative LTV by weekly cohort.**\n\nSchema: `wau(week, user_id, inc_amt)` \u2014 one row per active user per week, `inc_amt` is value created that week.\n\nFor each weekly signup cohort (a user's cohort = the week of their first activity), produce the cumulative-LTV curve: for each `weeks_since_first`, how many users were active, what % of the cohort that is, the cumulative value through that week, and cumulative value per cohort member.\n\nReturn columns: `first_week, weeks_since_first, users, cohort_num_users, retained_pctg, cum_amt, cum_amt_per_user`, ordered by `first_week, weeks_since_first`.\n\nHint: build a per-cohort-per-offset `cohorts` table, a `cohort_sizes` table (offset 0), then a **semi-cartesian self-join** of `cohorts` to itself on the same cohort where `c2.weeks_since_first <= c1.weeks_since_first` \u2014 summing `c2.inc_amt` gives the running cumulative.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n-- cohorts \u2192 cohort_sizes \u2192 semi-cartesian self-join for the cumulative.\n",
+      "schema": "CREATE TABLE wau (week DATE, user_id TEXT, inc_amt NUMERIC);\nINSERT INTO wau VALUES\n  ('2025-01-06','A',20),('2025-01-06','B',10),\n  ('2025-01-13','A',15),('2025-01-13','C',30),\n  ('2025-01-20','A',5),('2025-01-20','B',8),('2025-01-20','C',12);",
+      "model_answer": "WITH first_week AS (\n  SELECT user_id, MIN(week) AS first_week FROM wau GROUP BY user_id\n),\nwau_d AS (\n  SELECT w.week, w.user_id, w.inc_amt, f.first_week\n  FROM wau w JOIN first_week f ON w.user_id = f.user_id\n),\ncohorts AS (\n  SELECT first_week, (week - first_week)/7 AS weeks_since_first,\n         COUNT(DISTINCT user_id) AS users, SUM(inc_amt) AS inc_amt\n  FROM wau_d GROUP BY 1,2\n),\ncohort_sizes AS (\n  SELECT first_week, users FROM cohorts WHERE weeks_since_first = 0\n)\nSELECT c1.first_week, c1.weeks_since_first, c1.users,\n       cs.users AS cohort_num_users,\n       ROUND(1.0*c1.users/cs.users, 3) AS retained_pctg,\n       SUM(c2.inc_amt) AS cum_amt,\n       ROUND(1.0*SUM(c2.inc_amt)/cs.users, 2) AS cum_amt_per_user\nFROM cohorts c1\nJOIN cohort_sizes cs ON cs.first_week = c1.first_week\nJOIN cohorts c2 ON c1.first_week = c2.first_week AND c2.weeks_since_first <= c1.weeks_since_first\nGROUP BY 1,2,3,4\nORDER BY 1,2;",
+      "expected_rows": [
+        {
+          "first_week": "2025-01-06",
+          "weeks_since_first": 0,
+          "users": 2,
+          "cohort_num_users": 2,
+          "retained_pctg": 1,
+          "cum_amt": 30,
+          "cum_amt_per_user": 15
+        },
+        {
+          "first_week": "2025-01-06",
+          "weeks_since_first": 1,
+          "users": 1,
+          "cohort_num_users": 2,
+          "retained_pctg": 0.5,
+          "cum_amt": 45,
+          "cum_amt_per_user": 22.5
+        },
+        {
+          "first_week": "2025-01-06",
+          "weeks_since_first": 2,
+          "users": 2,
+          "cohort_num_users": 2,
+          "retained_pctg": 1,
+          "cum_amt": 58,
+          "cum_amt_per_user": 29
+        },
+        {
+          "first_week": "2025-01-13",
+          "weeks_since_first": 0,
+          "users": 1,
+          "cohort_num_users": 1,
+          "retained_pctg": 1,
+          "cum_amt": 30,
+          "cum_amt_per_user": 30
+        },
+        {
+          "first_week": "2025-01-13",
+          "weeks_since_first": 1,
+          "users": 1,
+          "cohort_num_users": 1,
+          "retained_pctg": 1,
+          "cum_amt": 42,
+          "cum_amt_per_user": 42
+        }
+      ],
+      "key_points": [
+        "Cohort key = week of first activity per user (MIN(week))",
+        "weeks_since_first = (week - first_week)/7 \u2014 integer week offset",
+        "cohort_sizes pins each cohort's size at weeks_since_first = 0 \u2014 the denominator for retention % and per-user LTV",
+        "The semi-cartesian self-join (c2.weeks_since_first <= c1.weeks_since_first) is what makes cum_amt cumulative \u2014 SUM(c2.inc_amt) accumulates every offset up to and including the current one",
+        "retained_pctg = users at offset N / cohort size; cum_amt_per_user = cumulative value / cohort size",
+        "An alternative is SUM(...) OVER (PARTITION BY first_week ORDER BY weeks_since_first) \u2014 the window-function form; the self-join form predates QUALIFY-era SQL and still appears in the canonical growth-accounting template"
+      ]
+    },
+    {
+      "id": "sql-448",
+      "type": "single",
+      "topic": "Growth Accounting",
+      "difficulty": "medium",
+      "prompt": "In growth accounting, a user is classified as **resurrected** on day `t` when which condition holds?",
+      "options": [
+        "The user is active on day `t` and their first-ever active day is also `t`",
+        "The user is active on day `t`, their first active day is BEFORE `t`, and they were NOT active on day `t\u22121`",
+        "The user is active on day `t` and also on day `t\u22121`",
+        "The user was active on day `t\u22121` but is not active on day `t`"
+      ],
+      "answer": 1,
+      "explanation": "Resurrected = a returning dormant user. Three conditions must ALL hold:\n\n1. **Active on day `t`** \u2014 they show up in today's data.\n2. **Not new** \u2014 `first_dt < t`. They have history; this isn't their first appearance. (Option A describes *new*, not resurrected.)\n3. **Not active on day `t\u22121`** \u2014 there's a gap. They lapsed and came back. (If they were active yesterday, they'd be *retained* \u2014 option C.)\n\nIn the query this is `tm.first_dt <> tm.dt AND lm.user_id IS NULL` \u2014 'not new' AND 'no matching yesterday row.'\n\nThe subtle trap: forgetting condition 2. If you only check `lm.user_id IS NULL` (not active yesterday), you'd count brand-new users as resurrected too \u2014 every new user is trivially 'not active yesterday.' The `first_dt <> dt` guard is what separates a first-timer from a comeback. Option D is the definition of *churned*, the opposite direction entirely."
+    },
+    {
+      "id": "sql-449",
+      "type": "code",
+      "topic": "Growth Accounting",
+      "difficulty": "hard",
+      "prompt": "**Monthly cohort retention triangle.**\n\nSchema: `activity(activity_date, user_id)` \u2014 one row per user per day they were active (a user may appear many times).\n\nProduce the classic retention heatmap dataset: for each monthly signup cohort (cohort = month of a user's first activity), and each calendar month they were subsequently active, the count of distinct active users and the month-offset.\n\nReturn columns: `first_month, month, months_since_first, active_users`, ordered by `first_month, month`. All dates as the first day of the month.\n\nHint: derive `first_month` per user, derive the set of distinct (month, user) pairs, join, and compute the offset as a difference of (year*12 + month) values \u2014 NOT a raw date subtraction, which gives days.",
+      "language": "sql",
+      "starter": "-- Your SQL here\n",
+      "schema": "CREATE TABLE activity (activity_date DATE, user_id TEXT);\nINSERT INTO activity VALUES\n  ('2025-01-05','A'),('2025-01-20','A'),('2025-02-10','A'),('2025-03-03','A'),\n  ('2025-01-12','B'),('2025-02-15','B'),\n  ('2025-02-08','C'),('2025-03-20','C'),\n  ('2025-03-09','D');",
+      "model_answer": "WITH first_month AS (\n  SELECT user_id, DATE_TRUNC('month', MIN(activity_date))::date AS first_month\n  FROM activity GROUP BY user_id\n),\nmonthly AS (\n  SELECT DISTINCT DATE_TRUNC('month', activity_date)::date AS month, user_id FROM activity\n)\nSELECT f.first_month, m.month,\n       (EXTRACT(YEAR FROM m.month) * 12 + EXTRACT(MONTH FROM m.month))\n       - (EXTRACT(YEAR FROM f.first_month) * 12 + EXTRACT(MONTH FROM f.first_month)) AS months_since_first,\n       COUNT(DISTINCT m.user_id) AS active_users\nFROM monthly m JOIN first_month f ON m.user_id = f.user_id\nGROUP BY 1,2,3\nORDER BY 1,2;",
+      "expected_rows": [
+        {
+          "first_month": "2025-01-01",
+          "month": "2025-01-01",
+          "months_since_first": 0,
+          "active_users": 2
+        },
+        {
+          "first_month": "2025-01-01",
+          "month": "2025-02-01",
+          "months_since_first": 1,
+          "active_users": 2
+        },
+        {
+          "first_month": "2025-01-01",
+          "month": "2025-03-01",
+          "months_since_first": 2,
+          "active_users": 1
+        },
+        {
+          "first_month": "2025-02-01",
+          "month": "2025-02-01",
+          "months_since_first": 0,
+          "active_users": 1
+        },
+        {
+          "first_month": "2025-02-01",
+          "month": "2025-03-01",
+          "months_since_first": 1,
+          "active_users": 1
+        },
+        {
+          "first_month": "2025-03-01",
+          "month": "2025-03-01",
+          "months_since_first": 0,
+          "active_users": 1
+        }
+      ],
+      "key_points": [
+        "first_month = DATE_TRUNC('month', MIN(activity_date)) per user \u2014 the cohort label",
+        "Distinct (month, user) pairs first \u2014 a user active 12 days in March must count once for March, not 12 times",
+        "months_since_first via (year*12 + month) arithmetic \u2014 raw date subtraction yields DAYS, and month lengths differ, so you cannot divide by 30",
+        "COUNT(DISTINCT user_id) per (first_month, month) cell",
+        "The result is the long-form of the retention triangle; a BI tool pivots months_since_first into columns for the heatmap",
+        "months_since_first = 0 rows ARE the cohort sizes \u2014 the leftmost column of the heatmap and the denominator for retention %"
+      ]
     }
   ]
 }
