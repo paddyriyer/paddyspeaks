@@ -1,0 +1,53 @@
+<p>Google uses "Evaluate Reverse Polish Notation" to test the canonical stack application: postfix expressions need no parentheses and no precedence rules, so a single left-to-right pass with a stack evaluates them. The interesting wrinkles are integer division semantics and operand <em>order</em> &mdash; the two places candidates quietly get it wrong.</p>
+
+<h4>1. The input data</h4>
+<pre><code>tokens = ["2", "1", "+", "3", "*"]</code></pre>
+<p>This is infix <code>(2 + 1) * 3</code>. A second case worth tracing for division: <code>["10", "6", "9", "3", "+", "-11", "*", "/", "*", "17", "+", "5", "+"]</code>.</p>
+
+<h4>2. The approach</h4>
+<p>Iterate the tokens. A numeric token is pushed onto stack <code>st</code> as an <code>int</code>. An operator token pops the <em>top two</em> operands &mdash; and order matters: <code>b = st.pop()</code> comes off first (the right operand), <code>a = st.pop()</code> second (the left operand), because the right operand was pushed most recently.</p>
+<p>For <code>+ - *</code> the code builds the expression string and uses <code>eval</code>. For <code>/</code> it computes <code>int(a / b)</code> &mdash; true division then truncation, which rounds <em>toward zero</em> (so <code>-7 / 2</code> becomes <code>-3</code>, not <code>-4</code>). The result is pushed back. After all tokens, the single remaining value <code>st[0]</code> is the answer &mdash; a well-formed RPN expression always reduces to exactly one.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>token</th><th>action</th><th>stack after</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>push 2</td><td>[2]</td></tr>
+    <tr><td>1</td><td>push 1</td><td>[2, 1]</td></tr>
+    <tr><td>+</td><td>b=1, a=2 &rarr; push 3</td><td>[3]</td></tr>
+    <tr><td>3</td><td>push 3</td><td>[3, 3]</td></tr>
+    <tr><td>*</td><td>b=3, a=3 &rarr; push 9</td><td>[9]</td></tr>
+  </tbody>
+</table>
+<pre><code>evalRPN(["2","1","+","3","*"])  ->  9</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n) time &mdash; one pass, each token does O(1) stack work. O(n) space for the stack in the worst case (a long run of operands before any operator). Optimal; there is no sub-linear answer.</p>
+
+<h5>The idiomatic alternative &mdash; an operator dispatch table</h5>
+<pre><code>import operator
+OPS = {'+': operator.add, '-': operator.sub, '*': operator.mul,
+       '/': lambda a, b: int(a / b)}
+def evalRPN(tokens):
+    st = []
+    for t in tokens:
+        if t in OPS:
+            b, a = st.pop(), st.pop()
+            st.append(OPS[t](a, b))
+        else:
+            st.append(int(t))
+    return st[0]</code></pre>
+<p>This drops <code>eval</code> entirely &mdash; a real senior would never ship <code>eval</code> on tokenized input, even "trusted" input, because it is a code-execution surface. The dispatch table is faster and safe.</p>
+
+<h5>The edge case &mdash; operand order and negative truncation</h5>
+<p>Subtraction and division are <em>non-commutative</em>: swapping <code>a</code> and <code>b</code> computes <code>b - a</code> &mdash; a silent sign error. And Python's <code>//</code> floors (<code>-7 // 2 == -4</code>), whereas the problem demands truncation toward zero (<code>-3</code>); that is exactly why the code uses <code>int(a / b)</code> rather than <code>a // b</code>. The detail that <code>"-11"</code> parses fine as a negative <em>operand</em> via <code>int()</code> while <code>"-"</code> is the operator also matters.</p>
+
+<h5>The follow-up &mdash; validate, or convert infix to RPN</h5>
+<p>"What if the expression is malformed?" Then <code>st.pop()</code> raises <code>IndexError</code> on too few operands, and <code>len(st) != 1</code> at the end signals too many &mdash; a senior adds those guards. The deeper follow-up is the <em>shunting-yard</em> algorithm: convert infix to RPN, which requires real precedence handling.</p>
+
+<h5>The trap &mdash; <code>t.isdigit()</code> to detect numbers</h5>
+<p>Branching on <code>t.isdigit()</code> instead of <code>t in '+-*/'</code> mis-classifies negative numbers: <code>"-11".isdigit()</code> is <code>False</code>, so <code>-11</code> would be treated as an operator and crash. Test for the operator set explicitly &mdash; the operator alphabet is tiny and known, the operand space is not.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> get the pop order right (right operand first), use truncating division deliberately for negatives, and replace <code>eval</code> with an <code>operator</code> dispatch table &mdash; shipping <code>eval</code> on input is the kind of thing that fails a security-conscious interviewer.</div>

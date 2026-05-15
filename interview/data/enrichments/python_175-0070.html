@@ -1,0 +1,48 @@
+<p>Meta frames "Koko Eating Bananas" as a capacity-planning question: given a deadline of <em>h</em> hours, what is the minimum throughput rate that still finishes the job? The insight the interviewer is hunting for is that you can <em>binary-search the answer itself</em> &mdash; the feasibility function is monotone, so the space of speeds is searchable even though it is not a sorted array.</p>
+
+<h4>1. The input data</h4>
+<pre><code>piles = [3, 6, 7, 11]
+h     = 8</code></pre>
+<p>Four piles, an 8-hour limit. At speed <code>k</code>, a pile of size <code>p</code> takes <code>ceil(p / k)</code> hours &mdash; Koko finishes a pile then idles the rest of that hour.</p>
+
+<h4>2. The approach</h4>
+<p>The candidate speeds form the range <code>[1, max(piles)]</code> &mdash; never slower than 1, never usefully faster than the biggest pile (one pile per hour is already maximal). Crucially, feasibility is <em>monotone</em>: if speed <code>k</code> finishes in time, so does every speed &gt; <code>k</code>. That monotonicity is what licenses binary search.</p>
+<p>The loop bisects on <code>m</code>. The hours needed are <code>sum((p + m - 1) // m for p in piles)</code> &mdash; the <code>(p + m - 1) // m</code> idiom is ceiling division without floats. If the total is <code>&lt;= h</code>, speed <code>m</code> works, so <code>m</code> might be the answer &mdash; keep it by setting <code>hi = m</code>. Otherwise <code>m</code> is too slow, so <code>lo = m + 1</code>. The <code>lo &lt; hi</code> loop converges on the smallest feasible speed (a lower-bound bisection), and <code>lo</code> is returned.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>lo, hi</th><th>m</th><th>hours = &Sigma; ceil(p/m)</th><th>&le; 8?</th><th>action</th></tr></thead>
+  <tbody>
+    <tr><td>1, 11</td><td>6</td><td>1+1+2+2 = 6</td><td>yes</td><td>hi = 6</td></tr>
+    <tr><td>1, 6</td><td>3</td><td>1+2+3+4 = 10</td><td>no</td><td>lo = 4</td></tr>
+    <tr><td>4, 6</td><td>5</td><td>1+2+2+3 = 8</td><td>yes</td><td>hi = 5</td></tr>
+    <tr><td>4, 5</td><td>4</td><td>1+2+2+3 = 8</td><td>yes</td><td>hi = 4</td></tr>
+  </tbody>
+</table>
+<pre><code>minEatingSpeed([3,6,7,11], 8)  ->  4</code></pre>
+<p>At speed 4: piles take 1, 2, 2, 3 hours = 8 total. Speed 3 needs 10 hours &mdash; too slow. So 4 is the minimum.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n log M) where n is the pile count and M is <code>max(piles)</code> &mdash; the bisection does log M iterations, each summing over n piles. O(1) space. The brute-force "try every speed from 1 upward" is O(n &middot; M) &mdash; the log factor is the entire payoff of the question.</p>
+
+<h5>The idiomatic alternative &mdash; <code>math.ceil</code> and <code>bisect</code></h5>
+<p><code>(p + m - 1) // m</code> can read as <code>math.ceil(p / m)</code> &mdash; clearer, at the cost of float division. More elegantly, the whole loop is a <code>bisect</code> over a predicate:</p>
+<pre><code>import bisect
+class Feasible:
+    def __getitem__(self, k):
+        return sum(-(-p // k) for p in piles) &lt;= h
+lo = bisect.bisect_left(Feasible(), True, 1, max(piles))</code></pre>
+<p>The <code>-(-p // k)</code> trick is another ceiling-division idiom. Most seniors keep the explicit loop &mdash; it is more readable than abusing <code>bisect</code> &mdash; but naming "search on answer" out loud is the key move.</p>
+
+<h5>The edge case &mdash; tight and loose deadlines</h5>
+<p>If <code>h == len(piles)</code>, every pile gets exactly one hour, so the answer is <code>max(piles)</code> &mdash; and the bisection correctly never goes below it. The problem guarantees <code>h &gt;= len(piles)</code> (otherwise infeasible). A single pile reduces to <code>ceil(pile / k) &lt;= h</code>, solved directly. <code>lo</code> starting at 1, not 0, avoids a division-by-zero in the rate computation.</p>
+
+<h5>The follow-up &mdash; "Capacity to Ship Packages in D Days"</h5>
+<p>The identical pattern appears in ship-capacity, "split array into k subarrays minimizing the max sum," and minimum-time scheduling problems. The interviewer wants to confirm you recognize the <em>family</em>: a monotone feasibility predicate plus binary search on the parameter.</p>
+
+<h5>The trap &mdash; float ceiling, and searching <code>h</code> instead of speed</h5>
+<p>Using <code>math.ceil(p / m)</code> with huge pile sizes risks float-precision error at the boundary &mdash; integer ceiling division is exact. The bigger trap is binary-searching the wrong axis: candidates sometimes try to search over <em>hours</em>, but hours are an output, not a tunable input. The searchable variable is the speed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> identify "binary search on the answer" because feasibility is monotone, justify the search bounds <code>[1, max(piles)]</code> rather than guessing them, and use exact integer ceiling division &mdash; then connect it to the ship-capacity / array-split family unprompted.</div>

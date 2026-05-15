@@ -1,0 +1,45 @@
+<p>Amazon poses "Container With Most Water" to test one specific instinct: recognizing when a brute-force O(n&sup2;) pair scan can be collapsed to a single O(n) two-pointer sweep by a <em>greedy elimination</em> argument. The real challenge is not coding the loop &mdash; it is proving that moving the shorter wall is always safe.</p>
+
+<h4>1. The input data</h4>
+<pre><code>h = [1, 8, 6, 2, 5, 4, 8, 3, 7]</code></pre>
+<p>Nine vertical lines of these heights. Water held between lines i and j is <code>(j - i) * min(h[i], h[j])</code> &mdash; width times the shorter wall.</p>
+
+<h4>2. The approach</h4>
+<p>Two pointers start at the extremes: <code>l = 0</code>, <code>r = len(h) - 1</code> &mdash; the <em>widest</em> possible container. Each step computes the area for the current pair and updates <code>best</code>.</p>
+<p>Then the greedy move: advance the pointer at the <em>shorter</em> wall inward. Why is this safe? The area is capped by the shorter wall. Keeping the shorter wall and shrinking the width can only ever decrease area &mdash; so every pair involving that shorter wall is already dominated by the area we just recorded. Discarding it loses nothing. Moving the taller wall instead would throw away potentially better pairs. The loop ends when the pointers meet.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>l, r</th><th>heights</th><th>width</th><th>area</th><th>best</th><th>move</th></tr></thead>
+  <tbody>
+    <tr><td>0, 8</td><td>1, 7</td><td>8</td><td>8</td><td>8</td><td>l++ (1&lt;7)</td></tr>
+    <tr><td>1, 8</td><td>8, 7</td><td>7</td><td>49</td><td>49</td><td>r-- (7&lt;8)</td></tr>
+    <tr><td>1, 7</td><td>8, 3</td><td>6</td><td>18</td><td>49</td><td>r-- (3&lt;8)</td></tr>
+    <tr><td>1, 6</td><td>8, 8</td><td>5</td><td>40</td><td>49</td><td>r-- (tie)</td></tr>
+    <tr><td>1, 5</td><td>8, 4</td><td>4</td><td>16</td><td>49</td><td>r--</td></tr>
+    <tr><td>1, 4</td><td>8, 5</td><td>3</td><td>15</td><td>49</td><td>r--</td></tr>
+    <tr><td>1, 3</td><td>8, 2</td><td>2</td><td>4</td><td>49</td><td>r--</td></tr>
+    <tr><td>1, 2</td><td>8, 6</td><td>1</td><td>6</td><td>49</td><td>r--</td></tr>
+  </tbody>
+</table>
+<pre><code>maxArea(h)  ->  49</code></pre>
+<p>The winning container is lines at index 1 (height 8) and index 8 (height 7): width 7 &times; min(8,7) = 49.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n) time &mdash; each iteration advances exactly one pointer, so the pointers together travel n steps. O(1) space. The brute force over all pairs is O(n&sup2;); the interviewer wants the linear collapse <em>and</em> the correctness argument.</p>
+
+<h5>The idiomatic alternative &mdash; there isn't a cleaner one, but tighten the tie case</h5>
+<p>The two-pointer sweep is already optimal. The one nuance: when <code>h[l] == h[r]</code>, the code moves <code>r</code> (the <code>else</code> branch). Moving either is fine for correctness &mdash; both walls are equally limiting &mdash; but you could move <em>both</em> at once as a micro-optimization, since no pair using either as the shorter wall can beat the current area. Mention it; do not over-engineer it.</p>
+
+<h5>The edge case &mdash; fewer than two lines</h5>
+<p><code>[]</code> or <code>[5]</code>: <code>l &lt; r</code> is false immediately, so <code>best</code> stays 0 &mdash; correct, you cannot form a container. Heights of <code>0</code> are valid input and simply contribute 0 area. All-equal heights still work, narrowing width each step.</p>
+
+<h5>The follow-up &mdash; "Trapping Rain Water"</h5>
+<p>The classic escalation swaps the objective: instead of one big container, sum water trapped <em>above every bar</em>. Same two-pointer skeleton, but now you track <code>left_max</code> and <code>right_max</code> and accumulate. Interviewers love this pairing because it reuses the pointer idea with a harder invariant.</p>
+
+<h5>The trap &mdash; moving the taller wall</h5>
+<p>If you advance whichever pointer has the <em>taller</em> wall, you can step past the optimal pair and report a smaller area. The fix is not "try both" (that is O(n&sup2;) again) &mdash; it is the elimination proof: the shorter wall caps the area, so it is the one that can be safely retired. A candidate who moves the wrong pointer has memorized the loop without understanding it.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> do not just write the two-pointer loop &mdash; <em>prove</em> the greedy step. Saying "the shorter wall bounds the area, so any other pair using it is already dominated" is the sentence that demonstrates real understanding rather than pattern recall.</div>

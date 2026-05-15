@@ -1,0 +1,54 @@
+<p>Google asks "Reverse Linked List" of nearly every candidate &mdash; it is the litmus test for pointer manipulation. The code is four lines, so the interview is entirely about whether you can mutate three references in the correct order without losing the rest of the list, and whether you can explain the in-place O(1)-space invariant.</p>
+
+<h4>1. The input data</h4>
+<pre><code>class ListNode:
+    def __init__(self, val, next=None):
+        self.val, self.next = val, next
+
+# list:  1 -> 2 -> 3 -> 4 -> None
+head = ListNode(1, ListNode(2, ListNode(3, ListNode(4))))</code></pre>
+<p>A singly linked list of four nodes. The goal is <code>4 -&gt; 3 -&gt; 2 -&gt; 1 -&gt; None</code>, reusing the same node objects.</p>
+
+<h4>2. The approach</h4>
+<p>The algorithm walks the list once, flipping each node's <code>next</code> to point <em>backward</em>. <code>prev</code> trails behind, starting at <code>None</code> &mdash; the new tail's <code>next</code>.</p>
+<p>The single line <code>head.next, prev, head = prev, head, head.next</code> does three updates atomically. Python evaluates the entire <em>right side first</em> &mdash; <code>prev</code>, <code>head</code>, <code>head.next</code> are all read before any assignment &mdash; then binds left to right. So it (1) rewires the current node's <code>next</code> to <code>prev</code>, (2) advances <code>prev</code> to the current node, (3) advances <code>head</code> to the originally-next node. Capturing <code>head.next</code> on the right <em>before</em> overwriting it is what prevents losing the rest of the list. When <code>head</code> becomes <code>None</code>, <code>prev</code> holds the new head.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>step</th><th>head</th><th>prev (reversed so far)</th></tr></thead>
+  <tbody>
+    <tr><td>start</td><td>1</td><td>None</td></tr>
+    <tr><td>after 1</td><td>2</td><td>1 &rarr; None</td></tr>
+    <tr><td>after 2</td><td>3</td><td>2 &rarr; 1 &rarr; None</td></tr>
+    <tr><td>after 3</td><td>4</td><td>3 &rarr; 2 &rarr; 1 &rarr; None</td></tr>
+    <tr><td>after 4</td><td>None</td><td>4 &rarr; 3 &rarr; 2 &rarr; 1 &rarr; None</td></tr>
+  </tbody>
+</table>
+<pre><code>reverseList(head)  ->  4 -> 3 -> 2 -> 1 -> None</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n) time &mdash; exactly one visit per node. O(1) space &mdash; only the two pointers <code>prev</code> and <code>head</code>, no matter how long the list. This is the optimal answer and the reason interviewers prefer the iterative form.</p>
+
+<h5>The idiomatic alternative &mdash; the explicit three-pointer form</h5>
+<pre><code>def reverseList(head):
+    prev = None
+    while head:
+        nxt = head.next   # save before overwriting
+        head.next = prev
+        prev = head
+        head = nxt
+    return prev</code></pre>
+<p>Functionally identical, just spelling out the temp variable that the tuple-swap hides. Many interviewers <em>prefer</em> this version &mdash; the tuple trick is clever but obscures the "save the next pointer first" lesson. Knowing both, and articulating why the temp matters, is the senior move.</p>
+
+<h5>The edge case &mdash; empty list and single node</h5>
+<p>An empty list (<code>head is None</code>) skips the loop entirely and returns <code>None</code> &mdash; correct. A single node enters once: its <code>next</code> becomes <code>None</code> (already was), <code>prev</code> becomes that node, <code>head</code> becomes <code>None</code> &mdash; returns the same node. No special-casing needed; the loop condition handles both.</p>
+
+<h5>The follow-up &mdash; reverse a sublist, or do it recursively</h5>
+<p>"Reverse only nodes between positions m and n" (Reverse Linked List II) reuses this core inside a bounded segment with careful boundary stitching. The recursive form &mdash; recurse to the tail, then unwind setting <code>head.next.next = head</code> &mdash; is elegant but O(n) stack space, which the interviewer will make you state as the tradeoff.</p>
+
+<h5>The trap &mdash; overwriting <code>next</code> before saving it</h5>
+<p>Writing <code>head.next = prev</code> <em>first</em> and only then trying to advance <code>head = head.next</code> is the classic bug: <code>head.next</code> now points to <code>prev</code>, so you walk <em>backward</em> into the already-reversed part instead of forward &mdash; an infinite loop or truncated list. The whole discipline of the problem is: capture the forward pointer before you clobber it. The tuple swap enforces this automatically; the manual form requires the <code>nxt</code> temp.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that Python evaluates the tuple's right-hand side fully before assigning &mdash; that is <em>why</em> the one-liner is safe &mdash; state O(n)/O(1) crisply, and offer the explicit three-pointer version because it teaches the "save next first" rule the slick one-liner conceals.</div>

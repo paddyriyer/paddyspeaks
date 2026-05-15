@@ -1,0 +1,50 @@
+<p>Meta's Growth team measures the longest unbroken streak of consecutive daily-active dates for a cohort &mdash; gaps matter, but the dates arrive unsorted and with duplicates. "Longest Consecutive Sequence" is famous because the obvious solution (sort, then scan) is O(n log n), and the interviewer explicitly wants O(n). That constraint forces the hash-set insight.</p>
+
+<h4>1. The input data</h4>
+<pre><code>nums = [100, 4, 200, 1, 3, 2]</code></pre>
+<p>Scrambled on purpose. The hidden run is 1&rarr;2&rarr;3&rarr;4 (length 4); <code>100</code> and <code>200</code> are isolated singletons.</p>
+
+<h4>2. The approach</h4>
+<p>Dump everything into a <code>set</code> &mdash; this gives O(1) membership tests and silently drops duplicates. Then iterate the set, but only do real work at the <em>start</em> of a run: <code>n</code> is a run start exactly when <code>n - 1</code> is absent. That single guard is the whole trick.</p>
+<p>From a confirmed start, walk upward with <code>while cur + 1 in s</code>, counting length, and update <code>best</code>. Because the inner walk only ever fires from a start element, each value is visited by the <code>while</code> loop at most once across the entire run &mdash; making the algorithm linear despite the nested loop.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>n</th><th>is start? (n&minus;1 absent)</th><th>walk</th><th>length</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>yes (0 absent)</td><td>1&rarr;2&rarr;3&rarr;4</td><td>4</td></tr>
+    <tr><td>2</td><td>no (1 present)</td><td>skipped</td><td>&mdash;</td></tr>
+    <tr><td>3</td><td>no (2 present)</td><td>skipped</td><td>&mdash;</td></tr>
+    <tr><td>4</td><td>no (3 present)</td><td>skipped</td><td>&mdash;</td></tr>
+    <tr><td>100</td><td>yes (99 absent)</td><td>100</td><td>1</td></tr>
+    <tr><td>200</td><td>yes (199 absent)</td><td>200</td><td>1</td></tr>
+  </tbody>
+</table>
+<pre><code>longestConsecutive(nums)  ->  4</code></pre>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>O(n) time &mdash; the set build is O(n), and although there is a <code>while</code> inside the <code>for</code>, the start-guard ensures every element is the target of <code>cur + 1 in s</code> at most once. O(n) space for the set. Stating <em>why</em> the nested loop is still linear is the point of the question.</p>
+
+<h5>The idiomatic alternative &mdash; sort, when O(n log n) is acceptable</h5>
+<pre><code>def longestConsecutive(nums):
+    if not nums: return 0
+    nums = sorted(set(nums))
+    best = run = 1
+    for i in range(1, len(nums)):
+        run = run + 1 if nums[i] == nums[i-1] + 1 else 1
+        best = max(best, run)
+    return best</code></pre>
+<p>Shorter and cache-friendly, but O(n log n). The right call only when the interviewer relaxes the time bound &mdash; otherwise the hash-set version is the expected answer.</p>
+
+<h5>The edge case &mdash; empty input and duplicates</h5>
+<p><code>[]</code> never enters the loop, so <code>best</code> stays <code>0</code> &mdash; correct. Duplicates like <code>[1, 1, 1]</code> collapse in the set, so the run length is 1, not 3 &mdash; consecutive means <em>distinct</em> consecutive integers. A single element returns 1.</p>
+
+<h5>The follow-up &mdash; return the actual range, or handle a stream</h5>
+<p>"Don't just give me the length &mdash; give me the start and end." Track <code>best_start</code> alongside <code>best</code>. The harder follow-up is an online stream where you must maintain longest-so-far with a union-find or an interval map keyed on endpoints &mdash; that probes whether you can drop the "all data up front" assumption.</p>
+
+<h5>The trap &mdash; walking from every element</h5>
+<p>Dropping the <code>if n - 1 not in s</code> guard turns the algorithm O(n&sup2;): every element of a length-L run re-walks the rest of that run (L + (L&minus;1) + ... = O(L&sup2;)). The code still returns the correct answer, so the bug is invisible in tests &mdash; it only shows up as a timeout on large input. The guard is not an optimization; it is the algorithm.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> pre-empt "but that's a nested loop, isn't it O(n&sup2;)?" by explaining the amortization &mdash; each value is walked once because walks only start at run heads. Knowing <em>why</em> it is O(n) beats knowing <em>that</em> it is.</div>

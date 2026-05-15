@@ -249,7 +249,7 @@
 <!-- ==================== PART 03 ==================== -->
 <section id="part-03">
 <div class="part-eyebrow">§ 03 — Twelve Scenarios</div>
-<h2 class="part-title">The nineteen most-asked modeling prompts — full walk-throughs.</h2>
+<h2 class="part-title">The twenty most-asked modeling prompts — full walk-throughs.</h2>
 
 <!-- Scenario 1: Uber trip -->
 <div class="scenario" id="sc-uber-trip">
@@ -5858,6 +5858,225 @@ ORDER BY hops_from_seed;
 <strong>Senior framing.</strong> "Fraud is five orthogonal problems pretending to be a model. Identity resolution is a <em>graph</em> with typed edges of varying strength — strong edges form the action cluster, weak edges feed the analyst. Decision replay forces SCD2 on ruleset + model + feature snapshot, with all three IDs stamped on every fact row — otherwise you cannot defend a block to a regulator six months later. Account sharing and account takeover and multi-account fraud look identical in raw transactions (identity ↔ account not 1:1) and the schema must disambiguate them, because each has a different false-positive class. The feedback loop matters more than the model — analyst verdicts come back in hours, chargebacks in 30-180 days, and the <code>fact_outcome_label</code> union is the training set of record. The interview red flag is <em>"we add a risk_score column to transactions"</em> without graph, frozen decision context, or feedback fact. Real systems at Stripe, Wise, Coinbase, PayPal all land on this shape; the differences are which graph backend (Neo4j vs JanusGraph vs a Postgres recursive CTE), whether the cluster job is real-time or batch, and how aggressively the feature store separates online from offline."
 </div>
 </div>
+
+<div class="scenario" id="sc-growth-accounting">
+<h4 class="sub-head">Scenario 20 — Growth accounting · DAU/WAU/MAU, the new/retained/resurrected/churned state machine, cohort LTV</h4>
+
+<h4 class="sub-head">Why this is hard — a single MAU number hides a leaky bucket</h4>
+<p>"How many monthly active users do we have?" is the question a junior answers with <code>COUNT(DISTINCT user_id)</code>. The senior answer: <em>that number is nearly useless on its own.</em> A flat 10M MAU can mean a healthy stable product OR a bucket leaking 2M users a month and refilling with 2M new ones — a business about to fall off a cliff. The framework that fixes this is <strong>growth accounting</strong> (the Social Capital / Reforge model), and it forces four design problems:</p>
+<ul>
+  <li><strong>Define the activity event.</strong> Netflix counts a <em>viewing session ≥ 2 min</em>; Uber counts a <em>completed trip</em>; Spotify counts a <em>track play ≥ 30s</em>. The grain of <code>fact_activity</code> IS the product's definition of "active" — get it wrong and every downstream metric is wrong.</li>
+  <li><strong>The state machine.</strong> Every period, each user is exactly one of: <strong>new</strong> (first-ever active period), <strong>retained</strong> (active last period too), <strong>resurrected</strong> (was dormant, came back), or <strong>churned</strong> (active last period, gone this period). Plus, for revenue: <strong>expansion</strong> and <strong>contraction</strong>.</li>
+  <li><strong>The frozen cohort.</strong> A user's cohort = the period of their <em>first</em> activity, and it never changes. Cohort retention and LTV curves are only meaningful if the cohort key is immutable — which means it's a derived dimension, computed once, SCD0.</li>
+  <li><strong>The generalized value column.</strong> The whole framework runs on one column, <code>inc_amt</code> — incremental value created by a user in a period. Set <code>inc_amt = 1</code> and you get pure engagement growth accounting; set <code>inc_amt = daily_revenue</code> and the identical query produces MRR growth accounting with expansion/contraction. One model, two metrics.</li>
+</ul>
+
+<p class="callout" style="background:#fff8e1;border-left:4px solid #d4a017;padding:14px 18px;border-radius:4px;"><strong>The two identities that make it work:</strong> <code>MAU(t) = retained(t) + new(t) + resurrected(t)</code> and <code>MAU(t−1) = retained(t) + churned(t)</code>. Subtract them: <code>ΔMAU = new + resurrected − churned</code>. That decomposition is the entire point — it turns "MAU is flat" into "we added 2M new + 0.3M resurrected and lost 2.3M churned," which is an actionable, alarming, completely different statement.</p>
+
+<h4 class="sub-head">Section 1 — Dimensional Model</h4>
+<table>
+  <thead><tr><th>Type</th><th>Tables</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Atomic activity fact</td><td>fact_activity</td><td>The grain: one row per (user, day, activity). Holds <code>inc_amt</code>. Netflix=viewing-session, Uber=completed-trip, Spotify=track-play. Everything else derives from here</td></tr>
+    <tr><td>Period rollups</td><td>agg_dau, agg_wau, agg_mau</td><td>One row per (period, user) with summed <code>inc_amt</code>. <code>date_trunc</code> rollups — materialized so the growth-accounting joins don't re-scan raw activity</td></tr>
+    <tr><td>User dimension</td><td>dim_user</td><td>SCD2 on plan / country / acquisition_channel. The slowly-changing attributes you'll want to <em>slice</em> growth accounting by</td></tr>
+    <tr><td>Cohort dimension (frozen)</td><td>dim_user_cohort</td><td>SCD0 — <code>first_dt</code>, <code>first_week</code>, <code>first_month</code>, <code>acquisition_channel_at_signup</code>. Computed ONCE; never updated. The immutable cohort key</td></tr>
+    <tr><td>Growth-accounting facts</td><td>fact_dau_growth, fact_mau_growth, fact_mrr_growth</td><td>One row per period: <code>active</code>, <code>new</code>, <code>retained</code>, <code>resurrected</code>, <code>churned</code> (+ <code>expansion</code>, <code>contraction</code> for MRR). Produced by the FULL OUTER self-join offset by one period</td></tr>
+    <tr><td>Cohort-retention fact</td><td>fact_cohort_retention</td><td>(first_period, active_period, periods_since_first, active_users, inc_amt). The long-form retention triangle a BI tool pivots into a heatmap</td></tr>
+    <tr><td>Cohort-LTV fact</td><td>fact_cohort_ltv</td><td>Cumulative: (first_period, periods_since_first, retained_pctg, cum_amt, cum_amt_per_user). The LTV curve per cohort</td></tr>
+    <tr><td>Metric-definition dimension</td><td>dim_metric_definition</td><td>SCD2 — versioned definition of "active" (session length threshold, dedup grain, period boundary). When marketing changes the bar, OLD numbers must not silently move</td></tr>
+  </tbody>
+</table>
+
+<h4 class="sub-head">Section 2 — Enhanced graphical data model — Growth Accounting · Activity → State Machine → Cohort Curves</h4>
+<svg viewBox="0 0 1440 660" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1440px;height:auto;background:#fafbfc;border:1px solid #e2e8f0;border-radius:10px;padding:0;margin:14px 0;display:block">
+  <defs><marker id="arrGA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker></defs>
+  <text x="720" y="30" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="17" font-weight="700" fill="#0f172a" letter-spacing="0.6">GROWTH ACCOUNTING · ACTIVITY → STATE MACHINE → COHORT CURVES</text>
+
+  <rect x="20" y="56" width="330" height="580" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="370" y="56" width="640" height="580" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <rect x="1030" y="56" width="390" height="580" fill="#f1f5f9" stroke="#cbd5e0" rx="10"/>
+  <text x="185" y="84" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">ATOMIC ACTIVITY + COHORT</text>
+  <text x="690" y="84" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">GROWTH-ACCOUNTING STATE MACHINE</text>
+  <text x="1225" y="84" text-anchor="middle" font-family="Helvetica,sans-serif" font-size="14" font-weight="700" fill="#0f172a" letter-spacing="2">COHORT CURVES</text>
+
+  <g transform="translate(40,110)">
+    <rect width="290" height="92" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="290" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fact_activity (atomic grain)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">user_id · dt · activity_type</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">inc_amt (=1 engagement / =$ revenue)</text>
+    <text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">session ≥ N min / trip / track-play</text>
+  </g>
+  <g transform="translate(40,222)">
+    <rect width="290" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="290" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▦ agg_dau · agg_wau · agg_mau</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">date_trunc rollups · summed inc_amt</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">materialized — joins don't re-scan raw</text>
+  </g>
+  <g transform="translate(40,322)">
+    <rect width="290" height="92" fill="#fef3c7" stroke="#92400e" rx="6"/>
+    <rect width="290" height="30" fill="#92400e" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_user_cohort (SCD0 — FROZEN)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">first_dt · first_week · first_month</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#475569">acquisition_channel_at_signup</text>
+    <text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">computed once · cohort key never moves</text>
+  </g>
+  <g transform="translate(40,434)">
+    <rect width="290" height="80" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="290" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_user (SCD2)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">plan · country · channel</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">slice growth accounting by these</text>
+  </g>
+  <g transform="translate(40,534)">
+    <rect width="290" height="76" fill="#fde68a" stroke="#854d0e" rx="6"/>
+    <rect width="290" height="30" fill="#854d0e" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▣ dim_metric_definition (SCD2)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">active_threshold · dedup_grain</text>
+    <text x="20" y="63" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">versioned — old numbers stay stable</text>
+  </g>
+
+  <g transform="translate(395,115)">
+    <rect width="590" height="150" fill="#ecfdf5" stroke="#166534" rx="6"/>
+    <rect width="590" height="30" fill="#166534" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="14" font-weight="600" fill="#fff">⚙ FULL OUTER self-join · offset by one period</text>
+    <text x="20" y="52" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">tm (this period)  ⟗  lm (last period)   ON  tm.dt = lm.dt + 1</text>
+    <text x="20" y="74" font-family="JetBrains Mono,monospace" font-size="10" fill="#15803d">matched both       → RETAINED</text>
+    <text x="20" y="90" font-family="JetBrains Mono,monospace" font-size="10" fill="#15803d">tm only · first=dt  → NEW</text>
+    <text x="20" y="106" font-family="JetBrains Mono,monospace" font-size="10" fill="#15803d">tm only · first&lt;dt  → RESURRECTED</text>
+    <text x="20" y="122" font-family="JetBrains Mono,monospace" font-size="10" fill="#b91c1c">lm only            → CHURNED (negative)</text>
+    <text x="20" y="140" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">for MRR: inc_amt delta → EXPANSION / CONTRACTION</text>
+  </g>
+  <g transform="translate(395,285)">
+    <rect width="285" height="92" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="285" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fact_dau_growth · fact_mau_growth</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period · active · new · retained</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">resurrected · churned</text>
+    <text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">satisfies the two identities</text>
+  </g>
+  <g transform="translate(700,285)">
+    <rect width="285" height="92" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="285" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fact_mrr_growth</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">period · rev · new · retained</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">resurrected · expansion · contraction</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">churned</text>
+  </g>
+  <g transform="translate(395,397)">
+    <rect width="590" height="78" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="590" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">↻ Quick-ratio &amp; leaky-bucket diagnostics</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">quick_ratio = (new + resurrected) / |churned|   ·   &gt; 1 ⇒ growing</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">the single number that exposes a flat-MAU leaky bucket</text>
+  </g>
+  <g transform="translate(395,495)">
+    <rect width="590" height="76" fill="#fff" stroke="#cbd5e0" rx="6"/>
+    <rect width="590" height="30" fill="#1f2937" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⌖ Identities (hold by construction)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">MAU(t)   = retained + new + resurrected</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">MAU(t-1) = retained + churned</text>
+  </g>
+
+  <g transform="translate(1055,115)">
+    <rect width="340" height="92" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="340" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fact_cohort_retention</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">first_period · active_period</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">periods_since_first · active_users</text>
+    <text x="20" y="80" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">long-form retention triangle</text>
+  </g>
+  <g transform="translate(1055,227)">
+    <rect width="340" height="100" fill="#dbeafe" stroke="#1e40af" rx="6"/>
+    <rect width="340" height="30" fill="#1e40af" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">★ fact_cohort_ltv (cumulative)</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">first_period · periods_since_first</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">retained_pctg · cum_amt</text>
+    <text x="20" y="78" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cum_amt_per_user</text>
+    <text x="20" y="92" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#94a3b8">semi-cartesian cumulative join</text>
+  </g>
+  <g transform="translate(1055,347)">
+    <rect width="340" height="120" fill="#f8fafc" stroke="#cbd5e0" rx="6"/>
+    <rect width="340" height="30" fill="#475569" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">▤ Retention heatmap (BI pivot)</text>
+    <text x="20" y="52" font-family="JetBrains Mono,monospace" font-size="9" fill="#1e293b">cohort \ M+   0    1    2    3</text>
+    <text x="20" y="68" font-family="JetBrains Mono,monospace" font-size="9" fill="#15803d">2025-01     100%  62%  48%  41%</text>
+    <text x="20" y="82" font-family="JetBrains Mono,monospace" font-size="9" fill="#15803d">2025-02     100%  58%  44%   ·</text>
+    <text x="20" y="96" font-family="JetBrains Mono,monospace" font-size="9" fill="#15803d">2025-03     100%  64%   ·    ·</text>
+    <text x="20" y="112" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">flattening curve ⇒ retention floor found</text>
+  </g>
+  <g transform="translate(1055,487)">
+    <rect width="340" height="84" fill="#ecfdf5" stroke="#166534" rx="6"/>
+    <rect width="340" height="30" fill="#166534" rx="6"/>
+    <text x="14" y="20" font-family="Helvetica,sans-serif" font-size="13" font-weight="600" fill="#fff">⚙ LTV : CAC decision</text>
+    <text x="20" y="50" font-family="JetBrains Mono,monospace" font-size="10" fill="#1e293b">cum_amt_per_user asymptote vs CAC</text>
+    <text x="20" y="64" font-family="JetBrains Mono,monospace" font-size="9" font-style="italic" fill="#64748b">payback-period gate for spend</text>
+  </g>
+
+  <line x1="330" y1="156" x2="391" y2="180" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrGA)"/>
+  <line x1="330" y1="262" x2="391" y2="200" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrGA)"/>
+  <line x1="985" y1="330" x2="1051" y2="160" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrGA)"/>
+  <line x1="985" y1="340" x2="1051" y2="275" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrGA)"/>
+</svg>
+
+<h4 class="sub-head">Section 3 — One model, two metrics: the <code>inc_amt</code> generalization</h4>
+<p>The cleverness of growth accounting is that <em>engagement</em> growth and <em>revenue</em> growth run the identical query — only the value column changes:</p>
+<ul>
+  <li><strong><code>inc_amt = 1</code></strong> → user-count growth accounting. new/retained/resurrected/churned are <em>headcounts</em>. This is the DAU/MAU leaky-bucket view.</li>
+  <li><strong><code>inc_amt = daily_revenue</code></strong> → MRR growth accounting. Now the same join also produces <strong>expansion</strong> (a retained user whose <code>inc_amt</code> went UP) and <strong>contraction</strong> (retained, but DOWN). Revenue identities: <code>MRR(t) = retained + new + resurrected + expansion</code> and <code>MRR(t−1) = retained + churned + contraction</code>.</li>
+</ul>
+<p><strong>Company lens.</strong> <em>Netflix</em> — activity = a viewing session; resurrection is the win-back of a lapsed subscriber; the metric that matters is monthly, because the subscription is monthly. <em>Uber</em> — activity = a completed trip; resurrection is enormous and seasonal (riders lapse for months, return for an airport run); weekly cohorts expose this. <em>Spotify</em> — activity = a 30-second play; DAU-dominant; the critical state transition isn't churn, it's <em>free → premium</em>, which growth accounting models as a contraction-to-expansion flip on <code>inc_amt</code>.</p>
+
+<h4 class="sub-head">Section 4 — Stakeholder SQL</h4>
+<p><strong>Growth analyst — the quick ratio (is the bucket leaking?)</strong></p>
+<pre><code>SELECT period,
+       active, new, resurrected, churned,
+       ROUND((new + resurrected) / NULLIF(ABS(churned), 0), 2) AS quick_ratio
+FROM fact_mau_growth
+ORDER BY period;
+-- quick_ratio > 1 ⇒ growing; ≈ 1 ⇒ treadmill; &lt; 1 ⇒ shrinking even if MAU looks flat.
+</code></pre>
+<p><strong>Finance — net revenue retention by cohort</strong></p>
+<pre><code>SELECT first_month,
+       MAX(CASE WHEN months_since_first = 0  THEN cum_amt_per_user END) AS m0,
+       MAX(CASE WHEN months_since_first = 12 THEN cum_amt_per_user END) AS m12,
+       ROUND(MAX(CASE WHEN months_since_first = 12 THEN cum_amt_per_user END)
+           / NULLIF(MAX(CASE WHEN months_since_first = 0 THEN cum_amt_per_user END), 0), 2) AS ltv_multiple
+FROM fact_cohort_ltv
+GROUP BY first_month ORDER BY first_month;
+</code></pre>
+<p><strong>Growth marketing — does retention floor out? (heatmap source)</strong></p>
+<pre><code>SELECT first_month, months_since_first,
+       ROUND(100.0 * active_users
+             / FIRST_VALUE(active_users) OVER (PARTITION BY first_month ORDER BY months_since_first), 1) AS retention_pct
+FROM fact_cohort_retention
+ORDER BY first_month, months_since_first;
+-- A curve that flattens (e.g. settles at 41%) means you found your retention floor —
+-- those users are the real product-market fit.
+</code></pre>
+
+<h4 class="sub-head">Section 5 — Worked numerical example · the flat-MAU trap</h4>
+<p>A streaming product reports MAU of 10.0M in March and 10.1M in April — leadership calls it "stable, slight growth." Growth accounting on the April row:</p>
+<table>
+  <thead><tr><th>Bucket</th><th>April users</th><th>Reading</th></tr></thead>
+  <tbody>
+    <tr><td>retained</td><td>7.6M</td><td>active in March AND April</td></tr>
+    <tr><td>new</td><td>1.9M</td><td>first-ever active in April</td></tr>
+    <tr><td>resurrected</td><td>0.6M</td><td>lapsed, came back</td></tr>
+    <tr><td><strong>MAU(April)</strong></td><td><strong>10.1M</strong></td><td>= 7.6 + 1.9 + 0.6 ✓ (identity 1)</td></tr>
+    <tr><td>churned</td><td>−2.4M</td><td>active in March, gone in April</td></tr>
+    <tr><td><strong>MAU(March)</strong></td><td><strong>10.0M</strong></td><td>= 7.6 retained + 2.4 churned ✓ (identity 2)</td></tr>
+  </tbody>
+</table>
+<p><strong>Quick ratio = (1.9 + 0.6) / 2.4 = 1.04.</strong> The product is on a treadmill: it spent an entire month of acquisition spend to net +0.1M. The "+100K MAU" headline hides a 24% monthly churn rate. The growth-accounting decomposition turns one comfortable number into one alarming one — and points the team at retention, not acquisition. A cohort-retention heatmap confirms it: if month-1 retention is 60% and falling cohort-over-cohort, the leak is widening. The fix lives in the product, not the ad budget.</p>
+
+<h4 class="sub-head">Section 6 — Senior framing</h4>
+<div class="senior-signal">
+<strong>Senior framing.</strong> "Growth accounting exists because <code>COUNT(DISTINCT user_id)</code> is a vanity metric — a flat MAU can be a stable product or a bucket leaking and refilling, and the single number cannot tell you which. The framework decomposes every period's active base into new / retained / resurrected / churned via a FULL OUTER self-join offset by one period — FULL OUTER specifically, because churned users live only on the previous-period side and any inner/left join silently reports zero churn. Two identities hold by construction and give you ΔMAU = new + resurrected − churned. The whole thing generalizes through one column, <code>inc_amt</code>: set it to 1 for engagement, to revenue for MRR growth accounting with expansion and contraction — same query, two metrics. Cohorts must be frozen (SCD0 on first-activity period) or retention curves become meaningless. The interview red flag is answering 'how do we measure growth?' with a MAU number and no decomposition; the senior answer names the leaky bucket, computes the quick ratio, and reaches for a cohort-retention heatmap to find the retention floor. Netflix, Uber, and Spotify all run this exact framework — they differ only in what counts as an 'activity event' and whether daily, weekly, or monthly cohorts best expose their resurrection behaviour."
+</div>
+</div>
 </section>
 
 <div class="ornament">· · ·</div>
@@ -6179,7 +6398,7 @@ WHERE a.student_sk IS NULL;</code></pre>
 <p>Drill those three sentence-shapes until they're reflex. The interviewer cannot give you a senior score if these never come out of your mouth.</p>
 
 <div class="cross-link" style="background:linear-gradient(135deg,#f0f9ff,#fff);border-color:#bae6fd;">
-<span><strong style="color:#0369a1;">Now go practise.</strong> Pair this design deep-dive with the Practice Q&amp;A bank — 1032 real interview questions with embedded SQL &amp; Python runtimes.</span>
+<span><strong style="color:#0369a1;">Now go practise.</strong> Pair this design deep-dive with the Practice Q&amp;A bank — 1437 real interview questions with embedded SQL &amp; Python runtimes.</span>
 <a href="/interview.app/" style="color:#0369a1;">→ Practice · Q&amp;A bank</a>
 </div>
 

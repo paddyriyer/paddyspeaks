@@ -1,0 +1,39 @@
+<p>Google asks Accounts Merge because it is identity resolution &mdash; the real problem of deciding when two records describe the same person. A user signs up multiple times with overlapping emails; you must stitch those accounts into one. The interviewer is testing whether you recognize a graph-connectivity problem hiding inside a list of string lists, and whether you reach for Union-Find rather than hand-rolling a graph traversal.</p>
+
+<h4>1. The input data</h4>
+<p>A list of accounts, each <code>[name, email1, email2, ...]</code>:</p>
+<pre><code>accounts = [
+  ['John', 'j1@x.com', 'j2@x.com'],
+  ['John', 'j3@x.com'],
+  ['John', 'j1@x.com', 'j3@x.com'],
+  ['Mary', 'm@x.com'],
+]</code></pre>
+<p>The first and third Johns share <code>j1@x.com</code>; the third also has <code>j3@x.com</code>, which bridges to the second John. All three Johns are one person. Mary stands alone. Note: a shared <em>name</em> means nothing &mdash; only a shared <em>email</em> merges accounts.</p>
+
+<h4>2. The approach</h4>
+<p>This is <strong>Union-Find (disjoint-set union)</strong> over emails. Think of every email as a graph node; emails listed in the same account are connected. <code>parent</code> maps each email to its set representative. <code>find(x)</code> climbs to the root and applies <em>path compression</em> &mdash; <code>parent[x] = parent[parent[x]]</code> &mdash; flattening the tree so future lookups are near-instant. For each account, the code registers every email with <code>parent.setdefault(e, e)</code> (a new email is its own root) and records its owner in <code>email_name</code>, then unions each email with the account's <em>first</em> email via <code>parent[find(e)] = find(acc[1])</code> &mdash; pointing one root at the other. Because emails are shared <em>across</em> accounts, those unions transitively chain separate accounts into one component. Finally, a <code>defaultdict(list)</code> buckets every email under <code>find(e)</code>, and each bucket becomes <code>[name] + sorted(emails)</code>.</p>
+
+<h4>3. The output</h4>
+<p>The three Johns collapse into one component; emails are sorted within each merged account:</p>
+<pre><code>[['John', 'j1@x.com', 'j2@x.com', 'j3@x.com'],
+ ['Mary', 'm@x.com']]</code></pre>
+<p>Trace: account 0 unions j1&ndash;j2. Account 1 leaves j3 in its own set. Account 2 unions j1&ndash;j1 (no-op) then j3&ndash;j1 &mdash; <em>that</em> edge bridges the j3 set into the j1/j2 set. Result: one John with all three emails.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>With path compression, <code>find</code> runs in near-constant <strong>amortized O(&alpha;(n))</strong> &mdash; the inverse Ackermann function, effectively &le; 4 for any realistic input. Processing all emails is O(n &middot; &alpha;(n)); the final sort dominates at <strong>O(n log n)</strong> for n total emails. Space is O(n) for the two maps. The interviewer wants to hear "the sort is the expensive part, the union-find is essentially linear."</p>
+
+<h5>The idiomatic alternative &mdash; DFS over a graph</h5>
+<p>You can model each account as a graph (connect <code>acc[1]</code> to every other email), then DFS/BFS to find connected components. It is equally correct and often easier to explain, but Union-Find is more compact, has no recursion-depth risk, and is the canonical answer. Naming both &mdash; and why you picked DSU &mdash; is the senior move. Note: this solution unions by pointing arbitrarily; adding <em>union by rank</em> is the textbook companion optimization.</p>
+
+<h5>The edge case &mdash; same name, different people; same email, "different" names</h5>
+<p>Two distinct people both named "John" with no shared email must stay separate &mdash; the algorithm gets this right because it keys on emails, never names. The mirror case: the problem guarantees one email belongs to one person, so <code>email_name</code> overwriting is harmless; if that guarantee were dropped, the merge would be ambiguous &mdash; worth flagging to the interviewer.</p>
+
+<h5>The follow-up &mdash; streaming accounts, or scale beyond memory</h5>
+<p>"Accounts arrive one at a time and never stop." Union-Find is naturally incremental &mdash; each new account just runs more unions, no rebuild needed, which is a genuine advantage over recomputing a graph. "Now it does not fit in memory" pushes toward a distributed connected-components job (e.g. iterative label propagation in Spark/MapReduce).</p>
+
+<h5>The trap &mdash; merging by name, or one pairwise pass</h5>
+<p>Grouping accounts by the name string is the headline wrong answer &mdash; it both over-merges (two unrelated Johns) and under-merges (it ignores the email bridges). The other trap is a single pairwise sweep "merge account i with account j if they share an email": that misses <em>transitive</em> chains where A&ndash;B and B&ndash;C share emails but A and C do not. Transitivity is exactly what Union-Find delivers for free.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior names this as connected components, picks Union-Find with path compression, keys strictly on emails (never names), and explains that the final sort &mdash; not the unions &mdash; sets the O(n log n) bound &mdash; a junior groups by name or does one non-transitive pairwise pass.</div>

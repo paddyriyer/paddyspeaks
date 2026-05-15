@@ -1,0 +1,45 @@
+<p>Google's data-infrastructure interviews ask this because exactly-once delivery is a myth &mdash; pub/sub systems redeliver, clients retry, and the same event arrives twice. A deduplicator with a time-to-live window is the standard defense: remember recent event IDs, but bound the memory so it does not grow forever. The question tests whether you can keep <em>two</em> data structures in sync &mdash; one for fast membership, one for ordered expiry.</p>
+
+<h4>1. The input data</h4>
+<p>A deduplicator with <code>ttl_seconds = 10</code>, then a stream of <code>(event_id, timestamp)</code> calls to <code>is_new</code>:</p>
+<pre><code>d = Deduplicator(ttl_seconds=10)
+d.is_new('x', 100)
+d.is_new('y', 105)
+d.is_new('x', 108)
+d.is_new('z', 115)
+d.is_new('x', 116)</code></pre>
+
+<h4>2. The approach</h4>
+<p>Two structures cooperate. <code>self.seen</code> is a dict <code>event_id &rarr; timestamp</code> giving O(1) "have I seen this?" checks. <code>self.q</code> is a <code>deque</code> holding <code>(event_id, ts)</code> in arrival order, which is also <em>timestamp</em> order, so the oldest entry is always at the left. Every call first runs an eviction loop: while the front entry's timestamp plus the TTL is strictly less than the current <code>ts</code>, it has expired &mdash; <code>popleft()</code> it from the deque and <code>seen.pop(eid, None)</code> it from the dict. After eviction, if <code>event_id</code> is still in <code>seen</code> it is a live duplicate, so return <code>False</code>; otherwise record it in both structures and return <code>True</code>. The deque gives ordered expiry; the dict gives fast lookup &mdash; neither alone suffices.</p>
+
+<h4>3. The output</h4>
+<table>
+  <thead><tr><th>call</th><th>evicted first</th><th>in window after</th><th>result</th></tr></thead>
+  <tbody>
+    <tr><td>is_new('x', 100)</td><td>&mdash;</td><td>x</td><td>True</td></tr>
+    <tr><td>is_new('y', 105)</td><td>&mdash;</td><td>x, y</td><td>True</td></tr>
+    <tr><td>is_new('x', 108)</td><td>none (110 &ge; 108)</td><td>x, y</td><td>False</td></tr>
+    <tr><td>is_new('z', 115)</td><td>x (110 &lt; 115)</td><td>y, z</td><td>True</td></tr>
+    <tr><td>is_new('x', 116)</td><td>y (115 &lt; 116)</td><td>z, x</td><td>True</td></tr>
+  </tbody>
+</table>
+<p>At ts 108, x's expiry is 100+10=110, not &lt; 108, so x is still live &rarr; duplicate. At ts 115, x expired (110 &lt; 115) but y (105+10=115) is <em>not</em> &lt; 115, so y survives. By ts 116, x has long since aged out and counts as new again.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Complexity</h5>
+<p>Each call is <strong>amortized O(1)</strong>: the lookup is O(1), and although the eviction loop can pop several entries in one call, every event is pushed once and popped once across the stream's lifetime. Space is O(w) where w is the number of distinct events inside the TTL window &mdash; the bound the design exists to guarantee.</p>
+
+<h5>The idiomatic alternative &mdash; the dict <em>is</em> ordered</h5>
+<p>Since Python 3.7 dicts preserve insertion order, the separate deque is technically redundant: you could iterate <code>self.seen</code> from the front and delete expired keys. The deque still earns its place because <code>popleft()</code> is a clean O(1) and the intent ("FIFO expiry queue") is explicit. Naming this tradeoff shows you know the language.</p>
+
+<h5>The edge case &mdash; a refreshed duplicate keeps the OLD timestamp</h5>
+<p>When a duplicate hits, the code returns <code>False</code> and does <em>not</em> update the stored timestamp. So the TTL counts from <em>first</em> sight, not last &mdash; a sliding-window-by-arrival policy. If the requirement were "expire 10s after the most recent occurrence," you would have to refresh <code>seen[eid]</code> and move the deque entry, which the current single-deque design cannot do cleanly.</p>
+
+<h5>The follow-up &mdash; out-of-order timestamps</h5>
+<p>"Events can arrive late, with a smaller ts than the previous call." The deque is then no longer sorted by timestamp, so front-eviction breaks. The fix is a min-heap keyed on expiry time instead of a deque, or bucketing events into fixed time windows. The interviewer is probing whether you assumed monotonic time without saying so.</p>
+
+<h5>The trap &mdash; an unbounded set</h5>
+<p>The tempting answer is <code>if eid in seen: return False; seen.add(eid)</code> with a plain <code>set</code> and no expiry. It is correct for correctness but leaks memory forever &mdash; on an infinite stream the set grows without bound. The TTL and the eviction loop are the entire reason this is a Medium, not an Easy.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> a senior pairs a dict for lookup with an ordered structure for expiry, states the "TTL from first sight vs last sight" semantics out loud, and asks whether timestamps are monotonic before trusting deque-front eviction &mdash; a junior uses one unbounded set and leaks.</div>
