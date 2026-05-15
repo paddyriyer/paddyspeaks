@@ -1,0 +1,70 @@
+<p>GoDaddy's catalogue team wants every product stamped with a position when the list is sorted cheapest-first &mdash; a stable sequence number for pagination and "rank 1&ndash;10 by price" widgets. It looks like a trivial <code>ROW_NUMBER()</code> call, and it is. The interview lives in one detail: the data has two products at the same price, and <code>ROW_NUMBER</code> handles a tie very differently from how a human would expect a "rank" to behave.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Domain Basic</td><td>$9.99</td></tr>
+    <tr><td>2</td><td>Domain Premium</td><td>$49.99</td></tr>
+    <tr><td>3</td><td>SSL Cert</td><td>$49.99</td></tr>
+    <tr><td>4</td><td>Hosting Lite</td><td>$2.99</td></tr>
+    <tr><td>5</td><td>Hosting Pro</td><td>$19.99</td></tr>
+  </tbody>
+</table>
+<p>Domain Premium and SSL Cert are <strong>tied at $49.99</strong>. That tie is the whole question: <code>ROW_NUMBER</code> must still hand them two different numbers, and <em>which</em> product gets the lower one is not determined by price.</p>
+
+<h4>2. The SQL &mdash; <code>ROW_NUMBER() OVER (ORDER BY price)</code></h4>
+<pre><code>SELECT product_id, name, price,
+  ROW_NUMBER() OVER (ORDER BY price ASC) AS price_rank
+FROM products;</code></pre>
+<p><code>ROW_NUMBER()</code> assigns a strictly increasing integer, 1..n, walking the rows in ascending price order &mdash; no two rows ever share a value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>name</th><th>price</th><th>price_rank</th></tr></thead>
+  <tbody>
+    <tr><td>4</td><td>Hosting Lite</td><td>2.99</td><td>1</td></tr>
+    <tr><td>1</td><td>Domain Basic</td><td>9.99</td><td>2</td></tr>
+    <tr><td>5</td><td>Hosting Pro</td><td>19.99</td><td>3</td></tr>
+    <tr><td>2</td><td>Domain Premium</td><td>49.99</td><td>4</td></tr>
+    <tr><td>3</td><td>SSL Cert</td><td>49.99</td><td>5</td></tr>
+  </tbody>
+</table>
+<p>The two $49.99 products get ranks <strong>4 and 5</strong> &mdash; distinct numbers for an identical price. Domain Premium landed at 4 and SSL Cert at 5, but that ordering is <em>arbitrary</em>: nothing in <code>ORDER BY price</code> distinguishes them, so the engine is free to swap them between runs.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The non-determinism trap &mdash; an <code>ORDER BY</code> with no tiebreaker</h5>
+<p><code>ORDER BY price</code> alone does not specify what happens within a price group. The plan, the index used, even insert order can change which tied row gets 4 vs 5. For a "sequence number" that must be stable across runs &mdash; pagination keys, reproducible reports &mdash; that is a real bug. Fix it with a deterministic tiebreaker:</p>
+<pre><code>ROW_NUMBER() OVER (ORDER BY price ASC, product_id ASC)</code></pre>
+<p>Adding the unique <code>product_id</code> guarantees a total order, so the same product always gets the same number.</p>
+
+<h5><code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> &mdash; pick by intent</h5>
+<table>
+  <thead><tr><th>product</th><th>price</th><th>ROW_NUMBER</th><th>RANK</th><th>DENSE_RANK</th></tr></thead>
+  <tbody>
+    <tr><td>Hosting Pro</td><td>$19.99</td><td>3</td><td>3</td><td>3</td></tr>
+    <tr><td>Domain Premium</td><td>$49.99</td><td>4</td><td>4</td><td>4</td></tr>
+    <tr><td>SSL Cert</td><td>$49.99</td><td>5</td><td>4</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>If the title's "sequence" means a unique 1..n line number, <code>ROW_NUMBER</code> is right. If two products at the same price should <em>share</em> a position, that is <code>RANK</code> (ties share, next value skips) or <code>DENSE_RANK</code> (ties share, no gap). The question says "sequence", so <code>ROW_NUMBER</code> fits &mdash; but naming the distinction shows you chose it rather than reached for the first window function you remembered.</p>
+
+<h5>Top-N pagination &mdash; why the subquery wrapper is mandatory</h5>
+<p>You cannot filter on a window function in <code>WHERE</code> &mdash; <code>WHERE price_rank &lt;= 10</code> fails, because <code>WHERE</code> runs before window functions are computed. Wrap it:</p>
+<pre><code>SELECT * FROM (
+  SELECT product_id, name, price,
+         ROW_NUMBER() OVER (ORDER BY price ASC, product_id) AS price_rank
+  FROM products
+) ranked
+WHERE price_rank &lt;= 10;</code></pre>
+<p>Snowflake/BigQuery offer <code>QUALIFY price_rank &lt;= 10</code> as sugar for exactly this; Postgres has no <code>QUALIFY</code>, so the subquery (or a CTE) is the idiom.</p>
+
+<h5>NULL prices and the descending case</h5>
+<p>If <code>price</code> can be NULL, ascending order puts NULLs <em>last</em> by default in Postgres, so unpriced products get the highest ranks &mdash; rarely intended. Be explicit: <code>ORDER BY price ASC NULLS FIRST</code>, or filter <code>WHERE price IS NOT NULL</code>. (Note other engines default NULLs differently &mdash; never rely on the default across databases.)</p>
+
+<h5>Per-category sequencing &mdash; the likely follow-up</h5>
+<p>"Sequence within each category" just needs a <code>PARTITION BY</code> &mdash; the counter restarts at 1 per group:</p>
+<pre><code>ROW_NUMBER() OVER (PARTITION BY category ORDER BY price ASC, product_id)</code></pre>
+
+<div class="takeaway"><strong>Senior signal:</strong> add a unique tiebreaker (<code>product_id</code>) to the <code>ORDER BY</code> so the sequence is deterministic across runs, articulate <code>ROW_NUMBER</code> vs <code>RANK</code> vs <code>DENSE_RANK</code> by how each treats the $49.99 tie, and know that filtering a window result needs a subquery/CTE because <code>WHERE</code> cannot see <code>price_rank</code>.</div>

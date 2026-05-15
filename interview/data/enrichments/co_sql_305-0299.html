@@ -1,0 +1,71 @@
+<p>Salesforce's catalogue team is auditing how products are classified &mdash; not how many products exist, but how many distinct <em>classification</em> values are in use. It is a one-line query, and that is precisely why it is an interview question: <code>COUNT(DISTINCT classification)</code> hides a decision about NULLs, and a decision about whether "distinct values" and "the set of categories you intended" are actually the same thing.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>classification</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Hardware</td></tr>
+    <tr><td>2</td><td>Software</td></tr>
+    <tr><td>3</td><td>Hardware</td></tr>
+    <tr><td>4</td><td>Service</td></tr>
+    <tr><td>5</td><td><em>NULL</em></td></tr>
+    <tr><td>6</td><td>Software</td></tr>
+    <tr><td>7</td><td>Service</td></tr>
+  </tbody>
+</table>
+<p>Seven products, but only three real classification labels &mdash; Hardware, Software, Service &mdash; each appearing twice. Product 5 has a <strong>NULL</strong> classification: it was never categorised. That NULL is the entire interview, because the answer depends on whether you count it.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT classification)</code></h4>
+<pre><code>SELECT COUNT(DISTINCT classification) AS distinct_classes FROM products;</code></pre>
+<p><code>DISTINCT</code> inside <code>COUNT</code> de-duplicates the values first, then counts how many unique ones remain. No <code>GROUP BY</code>, so the result is a single number.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>distinct_classes</th></tr></thead>
+  <tbody>
+    <tr><td>3</td></tr>
+  </tbody>
+</table>
+<p>The answer is <strong>3</strong> &mdash; Hardware, Software, Service. The four duplicate rows are folded away by <code>DISTINCT</code>, and the NULL is <em>not</em> counted. That is correct standard behaviour, but it is a behaviour you should be able to state out loud rather than be surprised by.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>COUNT(DISTINCT col)</code> ignores NULL &mdash; the one fact to say aloud</h5>
+<p>Every aggregate <code>COUNT(column)</code> skips NULLs, and <code>COUNT(DISTINCT column)</code> is no exception. Product 5's NULL contributes nothing, so the count is 3, not 4. If the audit question is really "how many distinct states does this column take, <em>including</em> uncategorised", you have to add the NULL back yourself:</p>
+<pre><code>SELECT COUNT(DISTINCT classification)
+       + COUNT(*) FILTER (WHERE classification IS NULL AND FALSE) AS bad,
+       COUNT(DISTINCT classification)
+       + (CASE WHEN COUNT(*) FILTER (WHERE classification IS NULL) &gt; 0
+               THEN 1 ELSE 0 END) AS distinct_including_null
+FROM products;</code></pre>
+<p>The clean idiom is the <code>CASE</code> form: add 1 if any NULL exists. Decide deliberately &mdash; "3 categories" and "3 categories plus an unclassified bucket" are different answers to different questions.</p>
+
+<h5><code>COUNT(DISTINCT)</code> vs <code>COUNT(*)</code> vs <code>COUNT(col)</code></h5>
+<table>
+  <thead><tr><th>expression</th><th>result</th><th>what it counts</th></tr></thead>
+  <tbody>
+    <tr><td><code>COUNT(*)</code></td><td>7</td><td>all rows</td></tr>
+    <tr><td><code>COUNT(classification)</code></td><td>6</td><td>rows with a non-NULL value</td></tr>
+    <tr><td><code>COUNT(DISTINCT classification)</code></td><td>3</td><td>unique non-NULL values</td></tr>
+  </tbody>
+</table>
+<p>Three different numbers from one column. An interviewer may ask all three at once to see whether you can articulate the difference crisply. The gap between 7 and 6 is the NULL row; the gap between 6 and 3 is the duplicates.</p>
+
+<h5>Surfacing the unclassified backlog</h5>
+<p>The audit's real follow-up is usually "how complete is our classification?" &mdash; which the bare count cannot answer. Report coverage alongside it:</p>
+<pre><code>SELECT COUNT(DISTINCT classification) AS distinct_classes,
+       COUNT(*) FILTER (WHERE classification IS NULL) AS unclassified,
+       ROUND(100.0 * COUNT(classification) / COUNT(*), 1) AS pct_classified
+FROM products;</code></pre>
+<p>This turns a trivia number into something a data-quality owner can act on: the count of categories <em>and</em> the size of the uncategorised backlog.</p>
+
+<h5>Distinct values, but messy ones &mdash; the data-quality trap</h5>
+<p><code>COUNT(DISTINCT)</code> compares values exactly and case-sensitively. If the column contains <code>'Hardware'</code>, <code>'hardware'</code>, and <code>'Hardware '</code> (trailing space), they count as three distinct classifications even though a human sees one. That inflates the count and is a real catalogue problem. A more honest audit normalises first:</p>
+<pre><code>SELECT COUNT(DISTINCT LOWER(TRIM(classification))) AS distinct_classes
+FROM products;</code></pre>
+<p>Mentioning this shows you treat "distinct" as a data-quality question, not just a keyword.</p>
+
+<h5>Performance at scale</h5>
+<p><code>COUNT(DISTINCT)</code> must de-duplicate, which means a hash or sort over the column &mdash; cheap here, but on a billion-row table it is heavier than a plain <code>COUNT(*)</code>. If an approximate answer is acceptable for a dashboard, some engines offer <code>APPROX_COUNT_DISTINCT</code> (or <code>HyperLogLog</code>); Postgres has no built-in for it but the trade-off is worth naming. For an exact audit, <code>COUNT(DISTINCT)</code> is correct &mdash; just know it is not free.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>COUNT(DISTINCT)</code> drops NULLs and decide on purpose whether "uncategorised" deserves its own bucket, distinguish <code>COUNT(*)</code> / <code>COUNT(col)</code> / <code>COUNT(DISTINCT col)</code> in one breath, and treat case and whitespace variants as a real data-quality risk that can inflate the distinct count.</div>

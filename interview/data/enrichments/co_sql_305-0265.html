@@ -1,0 +1,75 @@
+<p>PayPal's merchant-analytics team ranks products by profit margin to decide which to promote. "Rank by margin" sounds trivial, but the interviewer picked <code>DENSE_RANK</code> specifically &mdash; and the dataset almost certainly has a tie and a NULL margin. The real question is whether you know how this window function treats both, because the default behaviour is not what most people assume.</p>
+
+<h4>1. The source data &mdash; <code>products</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>profit_margin</th><th>name</th><th>category</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>0.42</td><td>A</td><td>x</td></tr>
+    <tr><td>2</td><td>0.35</td><td>B</td><td>x</td></tr>
+    <tr><td>3</td><td>0.42</td><td>C</td><td>y</td></tr>
+    <tr><td>4</td><td>0.28</td><td>D</td><td>y</td></tr>
+    <tr><td>5</td><td><em>NULL</em></td><td>E</td><td>z</td></tr>
+  </tbody>
+</table>
+<p>Products 1 and 3 are <strong>tied</strong> at 0.42 &mdash; that exercises the "dense" part. Product 5 has a <strong>NULL</strong> margin (never computed, maybe a new SKU). Where NULL lands in a <code>DESC</code> sort is the trap.</p>
+
+<h4>2. The SQL &mdash; <code>DENSE_RANK() OVER (ORDER BY profit_margin DESC)</code></h4>
+<pre><code>SELECT product_id, profit_margin,
+  DENSE_RANK() OVER (ORDER BY profit_margin DESC) AS rk
+FROM products;</code></pre>
+<p>No <code>PARTITION BY</code>, so the ranking is over the whole table. <code>DENSE_RANK</code> assigns consecutive integers with no gaps after a tie.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>profit_margin</th><th>rk</th></tr></thead>
+  <tbody>
+    <tr><td>5</td><td><em>NULL</em></td><td>1</td></tr>
+    <tr><td>1</td><td>0.42</td><td>2</td></tr>
+    <tr><td>3</td><td>0.42</td><td>2</td></tr>
+    <tr><td>2</td><td>0.35</td><td>3</td></tr>
+    <tr><td>4</td><td>0.28</td><td>4</td></tr>
+  </tbody>
+</table>
+<p>Look at the top row: the <strong>NULL-margin product ranks #1</strong>. In Postgres, <code>ORDER BY &hellip; DESC</code> places NULLs <em>first</em> by default &mdash; so a product with no known margin outranks every product that actually earns money. The two 0.42 products correctly share rank 2, and the next product is rank 3 (no gap, that is "dense"). But the NULL at the top is almost certainly a bug in the result, not a feature.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The NULL-ordering trap &mdash; the headline issue</h5>
+<p>SQL's rule: in an <code>ASC</code> sort NULLs come last, in a <code>DESC</code> sort NULLs come first. Nobody wants an unpriced product crowned the most profitable. Fix it explicitly with <code>NULLS LAST</code>:</p>
+<pre><code>SELECT product_id, profit_margin,
+  DENSE_RANK() OVER (ORDER BY profit_margin DESC NULLS LAST) AS rk
+FROM products;
+-- now: 0.42 -&gt; 1, 0.42 -&gt; 1, 0.35 -&gt; 2, 0.28 -&gt; 3, NULL -&gt; 4</code></pre>
+<p>Even better, decide whether NULL-margin products belong in the ranking at all &mdash; often you want <code>WHERE profit_margin IS NOT NULL</code> so they are excluded entirely rather than ranked last.</p>
+
+<h5><code>DENSE_RANK</code> vs <code>RANK</code> vs <code>ROW_NUMBER</code></h5>
+<table>
+  <thead><tr><th>margin</th><th>DENSE_RANK</th><th>RANK</th><th>ROW_NUMBER</th></tr></thead>
+  <tbody>
+    <tr><td>0.42</td><td>1</td><td>1</td><td>1</td></tr>
+    <tr><td>0.42</td><td>1</td><td>1</td><td>2</td></tr>
+    <tr><td>0.35</td><td>2</td><td>3 (gap)</td><td>3</td></tr>
+    <tr><td>0.28</td><td>3</td><td>4</td><td>4</td></tr>
+  </tbody>
+</table>
+<p><code>DENSE_RANK</code> gives 1,1,2,3 &mdash; no gap, ideal when rank means "tier" or "Nth distinct value". <code>RANK</code> gives 1,1,3,4 &mdash; competition ranking, gap equals the size of the tie group. <code>ROW_NUMBER</code> gives 1,2,3,4 &mdash; ignores ties, breaks them arbitrarily. The interviewer's choice of <code>DENSE_RANK</code> signals they want tiers.</p>
+
+<h5>The non-deterministic tiebreak follow-up</h5>
+<p>Products 1 and 3 both get rank 2, but which prints <em>first</em> is undefined &mdash; the window only ordered by margin. If the output row order matters (it does for a UI list), add a deterministic tiebreaker:</p>
+<pre><code>DENSE_RANK() OVER (ORDER BY profit_margin DESC NULLS LAST)
+-- and the outer query:
+ORDER BY rk, product_id;</code></pre>
+<p>The tiebreaker does not change <em>ranks</em> &mdash; both products stay rank 2 &mdash; it just makes the listing reproducible.</p>
+
+<h5>"Top 3 margins" &mdash; the natural extension</h5>
+<p>Because <code>DENSE_RANK</code> has no gaps, <code>WHERE rk &lt;= 3</code> reliably means "the three best distinct margins" and returns every product at those margins, ties included. With <code>RANK</code> a tie could push real contenders past the cutoff. Wrap the window in a subquery &mdash; you cannot filter on a window function in the same <code>SELECT</code>'s <code>WHERE</code>:</p>
+<pre><code>SELECT * FROM (
+  SELECT product_id, profit_margin,
+    DENSE_RANK() OVER (ORDER BY profit_margin DESC NULLS LAST) AS rk
+  FROM products
+) t WHERE rk &lt;= 3;</code></pre>
+
+<h5>Per-category ranking</h5>
+<p>The schema carries a <code>category</code> column, and "top margin within each category" is the more useful business question. Add <code>PARTITION BY category</code> and the ranking restarts per group &mdash; same window, one extra clause.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> immediately flag that <code>ORDER BY &hellip; DESC</code> sorts NULLs first &mdash; so an unpriced product would falsely rank #1 &mdash; and fix it with <code>NULLS LAST</code> or a <code>WHERE</code> filter; contrast <code>DENSE_RANK</code> / <code>RANK</code> / <code>ROW_NUMBER</code> by tie behaviour; and add a deterministic tiebreaker for reproducible output.</div>

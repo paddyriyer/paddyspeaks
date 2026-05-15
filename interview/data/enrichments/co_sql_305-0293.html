@@ -1,0 +1,62 @@
+<p>Spotify's growth team separates two very different events: a brand-new user signing up, and a lapsed user coming <em>back</em>. The second is a "reactivation", and it is what retention campaigns are measured against. The definition hinges on a gap: how long must a user be silent before their next play counts as a reactivation? The reference solution picks "more than 30 days", and the interview is about whether you treat that threshold &mdash; and the day-arithmetic behind it &mdash; deliberately.</p>
+
+<h4>1. The source data &mdash; <code>activity</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>action_date</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2025-01-05</td></tr>
+    <tr><td>1</td><td>2025-01-20</td></tr>
+    <tr><td>1</td><td>2025-03-10</td></tr>
+    <tr><td>2</td><td>2025-01-08</td></tr>
+    <tr><td>2</td><td>2025-02-25</td></tr>
+    <tr><td>3</td><td>2025-01-15</td></tr>
+    <tr><td>4</td><td>2025-02-01</td></tr>
+    <tr><td>4</td><td>2025-04-15</td></tr>
+  </tbody>
+</table>
+<p>User 1's Jan 5&rarr;Jan 20 gap is 15 days &mdash; not a reactivation; Jan 20&rarr;Mar 10 is 49 days &mdash; a reactivation in March. User 2's Jan 8&rarr;Feb 25 gap is 48 days &mdash; reactivation in February. User 3 has a single play, so no gap exists at all (the edge case). User 4's Feb 1&rarr;Apr 15 gap is 73 days &mdash; reactivation in April.</p>
+
+<h4>2. The SQL &mdash; <code>LAG gap &gt; 30 days, counted per month</code></h4>
+<pre><code>WITH gaps AS (
+  SELECT user_id, action_date,
+    LAG(action_date) OVER (PARTITION BY user_id ORDER BY action_date) AS prev
+  FROM (SELECT DISTINCT user_id, action_date FROM activity) d
+)
+SELECT DATE_TRUNC('month', action_date)::DATE AS month, COUNT(DISTINCT user_id) AS reactivated
+FROM gaps
+WHERE (action_date - prev) &gt; 30
+GROUP BY DATE_TRUNC('month', action_date)::DATE;</code></pre>
+<p>The inner <code>SELECT DISTINCT</code> collapses multiple actions on the same day, <code>LAG</code> fetches each user's previous active date, and the filter keeps rows where more than 30 days elapsed. The outer query buckets those reactivation events by month.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>month</th><th>reactivated</th></tr></thead>
+  <tbody>
+    <tr><td>2025-02-01</td><td>1</td></tr>
+    <tr><td>2025-03-01</td><td>1</td></tr>
+    <tr><td>2025-04-01</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>February reactivates user 2, March reactivates user 1, April reactivates user 4. User 3 never appears &mdash; with one play, <code>LAG</code> returns NULL, <code>action_date - prev</code> is NULL, and the filter drops the row. January has no reactivations because every January play is a user's first. The answer is correct for this data; the discussion below is about where the definition could bend.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>action_date - prev</code> is integer day arithmetic &mdash; know the type</h5>
+<p>Subtracting two <code>DATE</code> values in Postgres yields an <code>integer</code> number of days, so <code>&gt; 30</code> compares cleanly. The same expression on <code>TIMESTAMP</code> columns would yield an <code>interval</code>, and <code>interval &gt; 30</code> is a type error &mdash; you would need <code>&gt; INTERVAL '30 days'</code>. Always check whether the column is a date or a timestamp before writing the gap comparison; this is a frequent silent break when the schema changes under you.</p>
+
+<h5>The <code>&gt; 30</code> boundary is a product decision</h5>
+<p>Why 30 and not 28, or "one calendar month", or 60? A gap of exactly 30 days is currently <em>not</em> a reactivation (<code>&gt;</code>, not <code>&gt;=</code>). Spotify might define dormancy as a full calendar month, in which case January 5 to February 5 should count regardless of day count. State the threshold as an assumption and ask. The SQL is trivial to change; the wrong definition silently miscounts the headline retention number every month.</p>
+
+<h5>The single-action edge case is handled &mdash; say so</h5>
+<p>User 3 has exactly one play. <code>LAG</code> over a one-row partition returns NULL, the gap is NULL, and <code>NULL &gt; 30</code> is unknown, so the <code>WHERE</code> drops it. That is the correct outcome &mdash; a user who has only ever played once cannot have "come back". But it is correct <em>by accident</em> of NULL semantics; an interviewer wants you to point at it and confirm it is intended, not leave it implicit.</p>
+
+<h5><code>COUNT(DISTINCT user_id)</code> guards against a double-count</h5>
+<p>If a user reactivated twice in the same month &mdash; lapsed, returned, lapsed again, returned again &mdash; they would produce two qualifying rows in that month. <code>COUNT(DISTINCT user_id)</code> counts them once; a plain <code>COUNT(*)</code> would count the user twice. Which is right depends on the metric: "how many users reactivated" wants <code>DISTINCT</code>; "how many reactivation events occurred" wants <code>COUNT(*)</code>. Name the metric.</p>
+
+<h5>Gap months and ordering</h5>
+<p>The output only has rows for months that contained a reactivation &mdash; a month with zero reactivations is simply absent. For a dashboard you would left-join against a month spine so zero months show as 0 rather than vanishing. Also note there is no <code>ORDER BY</code>: <code>GROUP BY</code> does not guarantee sorted output, so add <code>ORDER BY month</code> if the consumer expects chronological rows.</p>
+
+<h5>The window must be partitioned</h5>
+<p><code>LAG(&hellip;) OVER (PARTITION BY user_id ORDER BY action_date)</code> &mdash; the <code>PARTITION BY user_id</code> is essential. Without it, <code>LAG</code> would compare one user's first play to a different user's last play, manufacturing gaps that mean nothing. Per-user time series almost always need to partition by the entity before any <code>LAG</code>/<code>LEAD</code>/running aggregate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state the &gt;30-day threshold as a negotiable product definition, know that <code>date - date</code> returns an integer (and <code>timestamp - timestamp</code> an interval that needs different syntax), confirm the single-action user is correctly excluded via NULL semantics, and justify <code>COUNT(DISTINCT user_id)</code> over <code>COUNT(*)</code> by naming whether the metric is users or events.</div>

@@ -1,0 +1,62 @@
+<p>Hulu's recruiting-ops team reports "time to fill" &mdash; the average number of days a job requisition stays open before someone is hired. It is one <code>AVG</code> over a date difference, but the interview is in the <code>WHERE</code> clause: requisitions that are still open have no <code>filled_at</code> date, and if you let them in, the metric quietly breaks.</p>
+
+<h4>1. The source data &mdash; <code>requisitions</code></h4>
+<table>
+  <thead><tr><th>req_id</th><th>opened_at</th><th>filled_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-01-01</td><td>2024-01-31</td></tr>
+    <tr><td>2</td><td>2024-02-01</td><td>2024-02-15</td></tr>
+    <tr><td>3</td><td>2024-03-01</td><td>2024-05-01</td></tr>
+    <tr><td>4</td><td>2024-04-01</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p>Three reqs were filled; req 4 is <strong>still open</strong> &mdash; its <code>filled_at</code> is NULL. That open req is the whole question: a half-finished requisition has no cycle time yet, so it must be excluded from the average, not counted as zero.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(filled_at - opened_at)</code></h4>
+<pre><code>SELECT AVG(filled_at - opened_at) AS avg_cycle_days
+FROM requisitions
+WHERE filled_at IS NOT NULL;</code></pre>
+<p>Subtracting two <code>date</code> values in Postgres yields an <strong>integer number of days</strong>. <code>AVG</code> over those integers gives the mean cycle time; the <code>WHERE</code> keeps only completed requisitions.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_cycle_days</th></tr></thead>
+  <tbody>
+    <tr><td>35.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>The three filled reqs took 30, 14, and 61 days; (30 + 14 + 61) / 3 = 35. Req 4 never entered the arithmetic. The result is a high-precision <code>numeric</code> &mdash; <code>AVG</code> of integers promotes to <code>numeric</code> so the mean is not truncated &mdash; which a dashboard would round to <code>35</code> days.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why the <code>WHERE</code> is non-negotiable</h5>
+<p>Drop the filter and req 4 contributes <code>NULL - '2024-04-01' = NULL</code>. <code>AVG</code> skips NULLs, so the <em>number</em> stays 35 &mdash; which feels safe but is a trap. The danger is the opposite mistake: someone "fixes" open reqs by coalescing the gap to 0, or by measuring against today:</p>
+<pre><code>-- WRONG: counts a still-open req as a 0-day fill
+SELECT AVG(COALESCE(filled_at, opened_at) - opened_at) FROM requisitions;
+-- pulls the average DOWN to 26.25 with a fake zero</code></pre>
+<p>An open requisition has <em>no</em> cycle time &mdash; not a zero one. The <code>WHERE filled_at IS NOT NULL</code> states that explicitly. Say it out loud in the interview: "I'm averaging only filled reqs; open ones have no cycle time yet."</p>
+
+<h5>The <code>AVG</code>-skips-NULL subtlety</h5>
+<p>Even without the <code>WHERE</code>, <code>AVG(filled_at - opened_at)</code> returns 35, because the NULL difference is ignored by <code>AVG</code> in both numerator and denominator. So the filter is not strictly needed for <em>correctness of the number</em> &mdash; but it is needed for <em>clarity of intent</em>, and it matters the instant you also want <code>COUNT(*)</code>: with the filter, <code>COUNT(*)</code> is "reqs filled"; without it, <code>COUNT(*)</code> is "all reqs" and disagrees with the average's denominator.</p>
+
+<h5>"Aging" open reqs &mdash; the follow-up</h5>
+<p>Recruiters care about open reqs too: how long has each been sitting? That is a different metric &mdash; measure against the current date, and only for unfilled reqs:</p>
+<pre><code>SELECT req_id, CURRENT_DATE - opened_at AS days_open
+FROM requisitions
+WHERE filled_at IS NULL
+ORDER BY days_open DESC;</code></pre>
+<p>Never blend the two: completed cycle time uses <code>filled_at</code>, current age uses <code>CURRENT_DATE</code>. Averaging them together compares finished races with runners still on the track.</p>
+
+<h5>Timestamp columns change the units</h5>
+<p>If <code>opened_at</code> and <code>filled_at</code> were <code>timestamp</code> rather than <code>date</code>, subtraction yields an <code>interval</code>, not an integer &mdash; and <code>AVG(interval)</code> returns an interval like <code>35 days 04:00:00</code>. To force whole days, extract first:</p>
+<pre><code>AVG(EXTRACT(EPOCH FROM (filled_at - opened_at)) / 86400) AS avg_cycle_days</code></pre>
+
+<h5>Median beats mean for cycle time</h5>
+<p>One six-month executive search drags the mean up and misrepresents the typical req. Recruiting metrics are usually reported as a median:</p>
+<pre><code>SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY filled_at - opened_at)
+         AS median_cycle_days
+FROM requisitions
+WHERE filled_at IS NOT NULL;</code></pre>
+<p>Offering the median unprompted shows you understand the metric, not just the syntax.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> exclude open requisitions because they have no cycle time yet &mdash; and never paper over them with a coalesced zero &mdash; know that <code>date - date</code> is integer days while <code>timestamp - timestamp</code> is an interval, keep completed-cycle and aging metrics separate, and suggest a median for a skew-prone duration.</div>

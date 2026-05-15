@@ -1,0 +1,59 @@
+<p>Anthropic's people-data team is consolidating an HR system. The <code>employees</code> table carries a denormalised <code>dept_name</code> that has gone stale &mdash; some rows are NULL, some hold an old abbreviation &mdash; while the authoritative names live in a clean <code>departments</code> dimension. The task is a classic data-sync: refresh <code>employees.dept_name</code> from the dimension. Other engines call this <code>MERGE</code>; the interview is whether you know the Postgres way and what it does to rows that <em>don't</em> match.</p>
+
+<h4>1. The source data &mdash; <code>employees</code> (before) and <code>departments</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>dept_name (before)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Alice</td><td>1</td><td><em>NULL</em></td></tr>
+    <tr><td>102</td><td>Bob</td><td>2</td><td><em>NULL</em></td></tr>
+    <tr><td>103</td><td>Carol</td><td>3</td><td>Mktg <em>(stale)</em></td></tr>
+    <tr><td>104</td><td>Dave</td><td>9</td><td><em>NULL</em></td></tr>
+  </tbody>
+</table>
+<p><code>departments</code> holds <code>1=Engineering, 2=Sales, 3=Marketing, 4=Finance</code>. Two edge rows matter: Carol's <code>dept_name</code> is the stale <code>Mktg</code> (must be overwritten with <code>Marketing</code>), and Dave's <code>dept_id 9</code> <strong>has no match</strong> in <code>departments</code> &mdash; an orphaned foreign key.</p>
+
+<h4>2. The SQL &mdash; <code>UPDATE &hellip; FROM</code> (the Postgres MERGE)</h4>
+<pre><code>UPDATE employees e
+   SET dept_name = d.dept_name
+  FROM departments d
+ WHERE e.dept_id = d.dept_id;</code></pre>
+<p><code>UPDATE &hellip; FROM</code> joins the target to a source in one statement: every employee whose <code>dept_id</code> matches a department gets that department's name written back.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>name</th><th>dept_id</th><th>dept_name (after)</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>Alice</td><td>1</td><td>Engineering</td></tr>
+    <tr><td>102</td><td>Bob</td><td>2</td><td>Sales</td></tr>
+    <tr><td>103</td><td>Carol</td><td>3</td><td>Marketing</td></tr>
+    <tr><td>104</td><td>Dave</td><td>9</td><td>NULL</td></tr>
+  </tbody>
+</table>
+<p>Alice and Bob get filled, Carol's stale <code>Mktg</code> is corrected to <code>Marketing</code>. Dave is the lesson: his <code>dept_id 9</code> matched nothing, so the <code>WHERE</code> excluded his row and <code>dept_name</code> stayed at its prior value (NULL here). The <code>UPDATE &hellip; FROM</code> only touches matched rows &mdash; it is a <code>MERGE</code>'s <code>WHEN MATCHED</code> branch, with no <code>WHEN NOT MATCHED</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The mental model: <code>FROM</code> is an inner join to the target</h5>
+<p><code>UPDATE t &hellip; FROM s WHERE t.k = s.k</code> behaves like an inner join &mdash; only rows of <code>t</code> that find a partner in <code>s</code> are updated; the rest are left exactly as they were. That is why Dave is untouched, not set to NULL or errored. If you wanted unmatched employees blanked out, that is a <em>different</em> statement (a second <code>UPDATE &hellip; WHERE NOT EXISTS &hellip;</code>).</p>
+
+<h5>The fan-out trap &mdash; a non-unique join key</h5>
+<p>This is safe only because <code>departments.dept_id</code> is a primary key, so each employee matches at most one department. If the source key were <em>not</em> unique &mdash; say two rows for <code>dept_id 3</code> &mdash; Postgres picks one match arbitrarily and the result is non-deterministic. Standard <code>MERGE</code> raises an error in that case ("MERGE command cannot affect row a second time"); <code>UPDATE &hellip; FROM</code> does not warn you. Always confirm the source key is unique before trusting it.</p>
+
+<h5>True ANSI <code>MERGE</code> &mdash; Postgres 15+</h5>
+<p>Modern Postgres supports the standard statement, which is clearer about intent and can express insert/delete branches too:</p>
+<pre><code>MERGE INTO employees e
+USING departments d ON e.dept_id = d.dept_id
+WHEN MATCHED THEN UPDATE SET dept_name = d.dept_name;</code></pre>
+<p>For an update-only sync the two are equivalent; <code>MERGE</code> wins when you also need <code>WHEN NOT MATCHED THEN INSERT</code>. Naming both, and saying <code>UPDATE &hellip; FROM</code> predates <code>MERGE</code> and still works everywhere, is the senior answer.</p>
+
+<h5>The deeper question &mdash; should <code>dept_name</code> exist at all?</h5>
+<p>This whole exercise exists because <code>dept_name</code> is denormalised onto <code>employees</code>, which is precisely why it drifted stale. The principled fix is to <em>drop</em> the column and join to <code>departments</code> at read time, or expose a view:</p>
+<pre><code>CREATE VIEW employee_full AS
+SELECT e.emp_id, e.name, e.dept_id, d.dept_name
+FROM employees e LEFT JOIN departments d ON e.dept_id = d.dept_id;</code></pre>
+<p>A <code>LEFT JOIN</code> view also surfaces Dave's orphan cleanly as a NULL rather than freezing a stale value. Flagging the data-modelling root cause &mdash; not just executing the sync &mdash; is what is being tested.</p>
+
+<h5>Idempotency and the no-op write</h5>
+<p>Re-running this <code>UPDATE</code> is safe: it just rewrites the same names. But Postgres still issues a physical row update even when the value is unchanged, generating dead tuples and WAL. On a large table, guard it: add <code>AND e.dept_name IS DISTINCT FROM d.dept_name</code> so only genuinely stale rows are touched. <code>IS DISTINCT FROM</code> (not <code>&lt;&gt;</code>) is required because the existing value may be NULL.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> recognise <code>UPDATE &hellip; FROM</code> as an inner-join sync that leaves unmatched rows untouched (Dave stays NULL), insist the source key is unique to avoid silent non-deterministic fan-out, name ANSI <code>MERGE</code> as the modern equivalent, and call out that the stale-<code>dept_name</code> problem is a denormalisation smell better cured with a join or view.</div>

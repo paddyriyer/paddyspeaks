@@ -1,0 +1,62 @@
+<p>Amazon is sizing fulfillment for a Prime sale and needs to flag warehouses running hot &mdash; anything above 80% utilization gets put on a capacity-watch list. The data is <code>capacity</code> and <code>used</code> per warehouse. The reference solution does something defensive and slightly surprising: it strips non-numeric characters out of each value before dividing. The interview question is why a senior engineer would write that, and where the approach is fragile.</p>
+
+<h4>1. The source data &mdash; <code>warehouses</code></h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>capacity</th><th>used</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1000</td><td>900</td></tr>
+    <tr><td>2</td><td>1000</td><td>750</td></tr>
+    <tr><td>3</td><td>500</td><td>480</td></tr>
+    <tr><td>4</td><td>2000</td><td>1000</td></tr>
+    <tr><td>5</td><td>800</td><td>800</td></tr>
+  </tbody>
+</table>
+<p>Utilization is <code>used / capacity</code>: warehouse 1 = 90%, 2 = 75%, 3 = 96%, 4 = 50%, 5 = 100%. Only 1, 3, and 5 clear the 80% threshold. Warehouse 5 is the edge case &mdash; exactly full, 100%, completely out of headroom.</p>
+
+<h4>2. The SQL &mdash; sanitise, then compute utilization</h4>
+<pre><code>SELECT warehouse_id, capacity, used,
+  NULLIF(regexp_replace(capacity::text, '[^-.0-9]', '', 'g'), '')::numeric
+    - NULLIF(regexp_replace(used::text, '[^-.0-9]', '', 'g'), '')::numeric AS available,
+  100.0*NULLIF(regexp_replace(used::text, '[^-.0-9]', '', 'g'), '')::numeric
+    / NULLIF(NULLIF(regexp_replace(capacity::text, '[^-.0-9]', '', 'g'), '')::numeric, 0) AS utilization_pct
+FROM warehouses
+WHERE 100.0*NULLIF(regexp_replace(used::text, '[^-.0-9]', '', 'g'), '')::numeric
+    / NULLIF(NULLIF(regexp_replace(capacity::text, '[^-.0-9]', '', 'g'), '')::numeric, 0) &gt; 80;</code></pre>
+<p><code>regexp_replace(&hellip;, '[^-.0-9]', '', 'g')</code> deletes every character that is not a digit, dot, or minus &mdash; so <code>"1,000 units"</code> would become <code>1000</code>. <code>NULLIF(&hellip;, '')</code> turns an emptied string into NULL, and the inner <code>NULLIF(&hellip;, 0)</code> guards against divide-by-zero.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>warehouse_id</th><th>capacity</th><th>used</th><th>available</th><th>utilization_pct</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>1000</td><td>900</td><td>100</td><td>90.0000000000000000</td></tr>
+    <tr><td>3</td><td>500</td><td>480</td><td>20</td><td>96.0000000000000000</td></tr>
+    <tr><td>5</td><td>800</td><td>800</td><td>0</td><td>100.0000000000000000</td></tr>
+  </tbody>
+</table>
+<p>Three warehouses cross 80%. Warehouse 5 shows <code>available = 0</code> at 100% &mdash; it is the most urgent on the watch list. Warehouses 2 (75%) and 4 (50%) are correctly filtered out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why sanitise at all &mdash; defensive parsing of dirty columns</h5>
+<p>The regex scrub only does anything if <code>capacity</code>/<code>used</code> are <em>text</em> columns holding values like <code>"1,000"</code>, <code>"2000 sqft"</code>, or <code>"950u"</code> &mdash; a common reality when warehouse data is ingested from spreadsheets or legacy systems. Stripping to <code>[-.0-9]</code> then casting to <code>numeric</code> rescues the number. If the columns are already a proper numeric type (as here), the regex is dead weight: the real fix is to clean the schema so <code>capacity</code> is <code>numeric</code> and the query becomes <code>100.0 * used / NULLIF(capacity, 0)</code>. Say that out loud &mdash; sanitising in every query is a smell.</p>
+
+<h5>The double-<code>NULLIF</code> &mdash; two different jobs</h5>
+<p>There are two nested <code>NULLIF</code>s on the capacity term and they are not redundant. The <em>inner</em> <code>NULLIF(regexp_replace(&hellip;), '')</code> handles a value that scrubbed down to an empty string (e.g. <code>"N/A"</code>) &mdash; casting <code>''</code> to numeric would error, so it becomes NULL first. The <em>outer</em> <code>NULLIF(&hellip;, 0)</code> handles a genuine zero capacity, preventing divide-by-zero. Drop either and a specific dirty-data row crashes the report.</p>
+
+<h5>The repeated-expression trap &mdash; compute utilization once</h5>
+<p>The utilization formula is written <em>three times</em> &mdash; twice in <code>SELECT</code>, once in <code>WHERE</code>. That is error-prone (change one, forget another) and re-evaluates the regex per usage. You cannot reference a <code>SELECT</code> alias in <code>WHERE</code>, so lift it into a CTE or subquery and filter the clean column:</p>
+<pre><code>WITH w AS (
+  SELECT warehouse_id, capacity, used,
+         100.0 * used / NULLIF(capacity, 0) AS utilization_pct
+  FROM warehouses
+)
+SELECT * FROM w WHERE utilization_pct &gt; 80;</code></pre>
+<p>One definition, one place to fix it &mdash; the maintainability point an interviewer wants raised.</p>
+
+<h5>The boundary &mdash; is exactly 80% on the list?</h5>
+<p>The filter is <code>&gt; 80</code>, strict, so a warehouse at precisely 80.0% is <em>excluded</em>. Whether the watch list is "above 80" or "80 and above" is a business decision &mdash; confirm it and switch to <code>&gt;= 80</code> if needed. With float-derived percentages, also beware that a value you think is exactly 80 may be 79.9999; <code>numeric</code> arithmetic (as used here) avoids that, which is another reason to cast to <code>numeric</code> not <code>float</code>.</p>
+
+<h5>The NULL-utilization row silently drops</h5>
+<p>If a warehouse has NULL or zero capacity, <code>utilization_pct</code> is NULL, and <code>NULL &gt; 80</code> is <em>unknown</em> &mdash; the row is filtered out. A warehouse whose capacity is unknown is arguably the one ops most needs flagged. Decide deliberately: surface those rows separately with <code>WHERE utilization_pct &gt; 80 OR capacity IS NULL</code>, rather than letting them vanish.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain the regex scrub as defensive parsing for dirty text columns &mdash; while noting the real fix is a clean numeric schema &mdash; distinguish the two nested <code>NULLIF</code>s (empty-string cast vs divide-by-zero), refactor the thrice-repeated formula into a CTE, and treat the strict <code>&gt; 80</code> boundary and the dropped NULL-capacity rows as explicit business decisions.</div>

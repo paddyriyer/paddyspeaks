@@ -1,0 +1,68 @@
+<p>Stripe's billing-integrity team is hunting for accidental double charges &mdash; the same customer billed the same amount more than once. The naive read is "find duplicates", but a subscription that legitimately bills $9.99 every month is <em>also</em> the same user and the same amount, repeated. The interview question is whether you can tell a real duplicate from a recurring charge, and whether you ask before you accuse the billing system of a bug.</p>
+
+<h4>1. The source data &mdash; <code>payments</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>amount</th><th>paid_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>9.99</td><td>2025-01-01 10:00</td></tr>
+    <tr><td>1</td><td>9.99</td><td>2025-01-15 10:00</td></tr>
+    <tr><td>1</td><td>9.99</td><td>2025-02-01 10:00</td></tr>
+    <tr><td>2</td><td>49.00</td><td>2025-01-05 10:00</td></tr>
+    <tr><td>2</td><td>49.00</td><td>2025-02-05 10:00</td></tr>
+    <tr><td>3</td><td>19.50</td><td>2025-01-10 10:00</td></tr>
+    <tr><td>4</td><td>100.00</td><td>2025-01-12 10:00</td></tr>
+    <tr><td>4</td><td>100.00</td><td>2025-01-13 10:00</td></tr>
+    <tr><td>5</td><td>12.34</td><td>2025-01-20 10:00</td></tr>
+  </tbody>
+</table>
+<p>User 4 paid $100 twice <em>one day apart</em> &mdash; that smells like a genuine double charge. User 1's three $9.99 payments are spread across months &mdash; almost certainly a monthly subscription. User 2's two $49 payments are a month apart, same story. The query below treats all of them identically, which is exactly the tension to surface.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY user, amount HAVING COUNT &gt; 1</code></h4>
+<pre><code>SELECT user_id, amount, COUNT(*) AS times_paid
+FROM payments GROUP BY user_id, amount HAVING COUNT(*) &gt; 1;</code></pre>
+<p>Group every payment by the pair <code>(user_id, amount)</code>, count the rows in each group, and keep only groups with more than one. <code>HAVING</code> filters on the aggregate, after grouping &mdash; a <code>WHERE COUNT(*) &gt; 1</code> would be a syntax error.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>amount</th><th>times_paid</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>9.99</td><td>3</td></tr>
+    <tr><td>2</td><td>49.00</td><td>2</td></tr>
+    <tr><td>4</td><td>100.00</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Three groups survive. The query is doing exactly what it says &mdash; but notice it cannot tell user 4's same-day double charge apart from user 1's monthly subscription. All three are flagged with equal confidence. That is the gap between "rows with the same value" and "suspicious payments".</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The follow-up: "which of these are actually fraud?"</h5>
+<p>The senior answer is to add a <em>time window</em>. A real accidental double charge happens within minutes or hours; a subscription repeats monthly. Bring <code>paid_at</code> into the analysis and only flag payments that are close together:</p>
+<pre><code>SELECT user_id, amount, paid_at
+FROM (
+  SELECT user_id, amount, paid_at,
+    paid_at - LAG(paid_at) OVER (PARTITION BY user_id, amount ORDER BY paid_at) AS gap
+  FROM payments
+) t
+WHERE gap &lt; INTERVAL '1 hour';</code></pre>
+<p>Against this data only user 4 would survive a one-hour window (his payments are a day apart, so widen to a day or use a business-defined threshold). User 1 and user 2, spaced a month apart, drop out. <em>That</em> is the duplicate-detection query; the reference query is merely a same-value report.</p>
+
+<h5>The schema is wider than the query &mdash; use <code>payment_id</code></h5>
+<p>The table also has <code>payment_id</code>, <code>customer_id</code>, <code>method</code>, and <code>status</code>. A defensible duplicate check would group on <code>customer_id</code> rather than <code>user_id</code> if customers can have multiple user accounts, and would almost certainly exclude refunds and failures: <code>WHERE status = 'succeeded'</code>. A failed retry that later succeeds is not a double charge. Flagging it as one sends a real customer a false apology email.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(amount)</code> when amounts can be NULL</h5>
+<p>If <code>amount</code> could be NULL, two subtleties bite. First, <code>GROUP BY</code> treats all NULLs as one group, so NULL-amount payments collapse together &mdash; usually not meaningful. Second, <code>COUNT(*)</code> counts those rows while <code>COUNT(amount)</code> would not. Here <code>COUNT(*)</code> is right (we want row counts), but say why. Filter NULL amounts out explicitly if they are not real charges.</p>
+
+<h5>Floating-point amounts &mdash; the silent miss</h5>
+<p><code>GROUP BY</code> on money compares values exactly. If <code>amount</code> were a <code>FLOAT</code>/<code>DOUBLE</code> column, 9.99 stored from two code paths might be 9.99000000001 and 9.99, landing in different groups and a duplicate slipping through. This is why payment amounts belong in <code>NUMERIC</code>/<code>DECIMAL</code>, never binary floating point. Mention it &mdash; it shows you think about how money is stored, not just queried.</p>
+
+<h5>Getting back the offending rows, not just the count</h5>
+<p><code>GROUP BY</code> tells you a duplicate <em>exists</em> but throws away the individual <code>payment_id</code>s you would need to refund. To recover them, a window count keeps every row:</p>
+<pre><code>SELECT *
+FROM (
+  SELECT *, COUNT(*) OVER (PARTITION BY user_id, amount) AS n
+  FROM payments
+) t
+WHERE n &gt; 1;</code></pre>
+<p>Now you have each duplicated payment with its <code>payment_id</code> &mdash; actionable, where the grouped query is only diagnostic.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> name the difference between "same user, same amount" and a genuine accidental double charge, propose a time-window check on <code>paid_at</code> so monthly subscriptions are not falsely flagged, exclude non-succeeded statuses, and switch to a windowed <code>COUNT(*) OVER</code> when the business needs the actual <code>payment_id</code>s rather than a count.</div>

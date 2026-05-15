@@ -1,0 +1,60 @@
+<p>Red Hat's revenue-ops team wants to know which January orders did <em>not</em> recur in February &mdash; the churn signal hiding between two monthly snapshots. The instinct is a <code>LEFT JOIN ... WHERE IS NULL</code>, but there is a cleaner, more declarative tool: the set operator <code>EXCEPT</code>. The interview is about knowing it exists, knowing it de-duplicates, and knowing how it treats NULLs differently from a join.</p>
+
+<h4>1. The source data &mdash; <code>orders_jan</code> and <code>orders_feb</code></h4>
+<table>
+  <thead><tr><th>orders_jan.order_id</th><th>orders_feb.order_id</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td><td>1003</td></tr>
+    <tr><td>1002</td><td>1005</td></tr>
+    <tr><td>1003</td><td>1006</td></tr>
+    <tr><td>1004</td><td>1007</td></tr>
+    <tr><td>1005</td><td></td></tr>
+  </tbody>
+</table>
+<p>January holds five order IDs, February four. The overlap is <code>{1003, 1005}</code> &mdash; orders present in both months. The IDs unique to January are <code>{1001, 1002, 1004}</code>; those unique to February (<code>{1006, 1007}</code>) are <em>not</em> what this query returns &mdash; <code>EXCEPT</code> is directional, and that asymmetry is the whole point.</p>
+
+<h4>2. The SQL &mdash; <code>EXCEPT</code></h4>
+<pre><code>SELECT order_id FROM orders_jan
+EXCEPT
+SELECT order_id FROM orders_feb;</code></pre>
+<p><code>EXCEPT</code> takes the rows produced by the first <code>SELECT</code> and removes any that also appear in the second. The result is "in January, not in February".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th></tr></thead>
+  <tbody>
+    <tr><td>1001</td></tr>
+    <tr><td>1002</td></tr>
+    <tr><td>1004</td></tr>
+  </tbody>
+</table>
+<p>Three IDs survive &mdash; <code>{1001, 1002, 1004}</code>, the January orders with no February match. (The rows come back in no guaranteed order; <code>EXCEPT</code> does not sort.) The shared orders 1003 and 1005 are removed; the February-only orders 1006 and 1007 never had a chance to appear, because they are not in the left-hand set.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>EXCEPT</code> is directional &mdash; flipping the operands flips the question</h5>
+<p><code>A EXCEPT B</code> is not <code>B EXCEPT A</code>. The query above answers "lost orders" (in Jan, gone by Feb). Swap the tables and you get "new orders" (in Feb, absent in Jan):</p>
+<pre><code>SELECT order_id FROM orders_feb
+EXCEPT
+SELECT order_id FROM orders_jan;
+-- returns {1006, 1007}</code></pre>
+<p>State which direction the business asked for. Getting churn and acquisition backwards is a silent, plausible-looking error.</p>
+
+<h5><code>EXCEPT</code> de-duplicates &mdash; <code>EXCEPT ALL</code> does not</h5>
+<p>Plain <code>EXCEPT</code> behaves like <code>DISTINCT</code>: if January listed order 1002 three times, the result still shows 1002 once. That is usually right for "which order IDs". But if you are doing multiset arithmetic &mdash; "how many <em>occurrences</em> remain after subtraction" &mdash; you want <code>EXCEPT ALL</code>, which subtracts row counts: three copies minus one copy leaves two. Know both forms and pick on purpose.</p>
+
+<h5>The <code>LEFT JOIN ... IS NULL</code> equivalent &mdash; and where it differs</h5>
+<p>The classic anti-join writes the same idea procedurally:</p>
+<pre><code>SELECT j.order_id
+FROM orders_jan j
+LEFT JOIN orders_feb f ON j.order_id = f.order_id
+WHERE f.order_id IS NULL;</code></pre>
+<p>It returns the same IDs <em>here</em>, but it is not identical. The anti-join does <strong>not</strong> de-duplicate &mdash; duplicate January rows come through duplicated. And <code>NOT IN (SELECT order_id FROM orders_feb)</code>, a third tempting form, is a genuine trap: if February's list contains a single NULL, <code>NOT IN</code> returns <em>zero rows</em> for everything, because <code>x &lt;&gt; NULL</code> is unknown. <code>EXCEPT</code> sidesteps that NULL landmine entirely &mdash; it treats two NULLs as equal and matches them.</p>
+
+<h5>How <code>EXCEPT</code> handles NULL rows</h5>
+<p>For set operators, NULL is <em>not</em> special: <code>EXCEPT</code> uses <code>NOT DISTINCT</code> semantics, so a NULL <code>order_id</code> in January is removed if February also has a NULL <code>order_id</code>. This is the opposite of how <code>=</code> behaves in a <code>JOIN</code> or <code>NOT IN</code>. If order IDs can be NULL, that difference is the deciding factor in which construct is correct &mdash; and it is exactly the kind of detail a senior is expected to volunteer.</p>
+
+<h5>Column compatibility and ordering</h5>
+<p>Both <code>SELECT</code>s must return the same number of columns with compatible types &mdash; <code>EXCEPT</code> compares whole rows positionally, not by name. And the result has no inherent order; if revenue-ops wants a sorted list, append <code>ORDER BY order_id</code> after the entire <code>EXCEPT</code> expression (not after the first <code>SELECT</code>). For very large snapshots, <code>EXCEPT</code> and the anti-join usually plan similarly &mdash; both can hash &mdash; so the choice is about correctness and clarity, not speed.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> reach for <code>EXCEPT</code> as the declarative tool for set difference, state that it is directional and de-duplicating (with <code>EXCEPT ALL</code> as the multiset variant), and explain that it matches NULLs as equal &mdash; the precise behaviour that makes it safer than <code>NOT IN</code> when the compared column is nullable.</div>
