@@ -84,5 +84,13 @@
   "co_sql_305-0240": {
     "reason": "The reference solution measures reliability as SUM(CASE WHEN on_time IS NOT NULL THEN 1 ELSE 0 END)/COUNT(*), which counts shipments that have ANY recorded outcome rather than shipments that arrived ON TIME. A supplier whose every shipment was late but logged scores 100% reliability -- the all-late supplier ranks first, which is nonsensical for a 'reliability checker'. The CASE must test the boolean (on_time) itself, so that both late and unlogged shipments fall to the ELSE 0 branch.",
     "solution": "SELECT supplier_id, 100.0 * SUM(CASE WHEN on_time THEN 1 ELSE 0 END)/COUNT(*) AS reliability\nFROM shipments GROUP BY supplier_id ORDER BY reliability DESC;"
+  },
+  "co_sql_305-0272": {
+    "reason": "The on-time rate uses CASE WHEN on_time IS NOT NULL THEN 1.0 ELSE 0 END, which scores any shipment with a recorded status as on-time -- including late shipments where on_time = false. It measures 'fraction of shipments with a non-NULL status', not 'fraction delivered on time'. With a realistic boolean column, every supplier that has no NULL rows scores a perfect 1.0 and ties at rank 1, so the ranking does not reflect on-time performance at all. The condition must test the boolean value itself.",
+    "solution": "SELECT supplier_id,\n  AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) AS rate,\n  RANK() OVER (ORDER BY AVG(CASE WHEN on_time THEN 1.0 ELSE 0 END) DESC) AS rk\nFROM shipments GROUP BY supplier_id;"
+  },
+  "co_sql_305-0303": {
+    "reason": "The SELECT projected two columns both named appt_id (a.appt_id and b.appt_id). SQL permits duplicate column names, but result rows materialized as name-keyed objects collapse the two appt_id keys into one, silently dropping one side of every overlapping pair and yielding a garbled single-column result that does not answer the question. Distinct column aliases are required.",
+    "solution": "SELECT a.appt_id AS appt_id_a, b.appt_id AS appt_id_b\nFROM appointments a\nJOIN appointments b\n  ON a.doctor_id = b.doctor_id\n AND a.appt_id < b.appt_id\n AND a.start_ts < b.end_ts\n AND b.start_ts < a.end_ts;"
   }
 }

@@ -1,0 +1,54 @@
+<p>Bloomberg's pricing desk stores product prices one row per region &mdash; long format &mdash; but the analyst wants them side by side: one row per product with a US, EU, and APAC column to eyeball regional spreads. This is the classic long-to-wide pivot, and the interviewer is checking whether you reach for the conditional-aggregation idiom and understand why the <code>MAX</code> wrapper is load-bearing.</p>
+
+<h4>1. The source data &mdash; <code>prices</code></h4>
+<table>
+  <thead><tr><th>product_id</th><th>region</th><th>price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>US</td><td>100</td></tr>
+    <tr><td>1</td><td>EU</td><td>110</td></tr>
+    <tr><td>1</td><td>APAC</td><td>95</td></tr>
+    <tr><td>2</td><td>US</td><td>200</td></tr>
+    <tr><td>2</td><td>EU</td><td>220</td></tr>
+    <tr><td>3</td><td>APAC</td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Product 1 is priced in all three regions; product 2 is <strong>missing APAC</strong>; product 3 exists <strong>only in APAC</strong>. Those gaps are the interview &mdash; a pivot must leave the missing cells as NULL, not drop the product or invent a price.</p>
+
+<h4>2. The SQL &mdash; conditional aggregation pivot</h4>
+<pre><code>SELECT product_id,
+  MAX(CASE WHEN region='US'   THEN price END) AS us_price,
+  MAX(CASE WHEN region='EU'   THEN price END) AS eu_price,
+  MAX(CASE WHEN region='APAC' THEN price END) AS apac_price
+FROM prices
+GROUP BY product_id;</code></pre>
+<p>One row per product via <code>GROUP BY</code>. Each <code>CASE</code> picks out the price for one region (and yields NULL for the other regions' rows); <code>MAX</code> then collapses the group, keeping the single non-NULL value.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>product_id</th><th>us_price</th><th>eu_price</th><th>apac_price</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>110</td><td>95</td></tr>
+    <tr><td>2</td><td>200</td><td>220</td><td><em>NULL</em></td></tr>
+    <tr><td>3</td><td><em>NULL</em></td><td><em>NULL</em></td><td>50</td></tr>
+  </tbody>
+</table>
+<p>Three products, three columns. Product 2's <code>apac_price</code> is NULL &mdash; correct, there is no APAC row for it. Product 3 shows up with only <code>apac_price</code> filled &mdash; the pivot did not drop it just because two regions are missing. The NULLs are honest "no price here" markers, exactly what the analyst needs to spot coverage gaps.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>MAX</code> and not the bare <code>CASE</code></h5>
+<p>This is the detail interviewers probe. <code>CASE WHEN region='US' THEN price END</code> on its own returns one value <em>per row</em>: 100 for product 1's US row, NULL for its EU and APAC rows. Without an aggregate you would get three rows back per product, each with two NULLs &mdash; not a pivot at all. <code>MAX</code> (inside the <code>GROUP BY</code>) crushes those three rows into one, and because <code>MAX</code> ignores NULLs it surfaces the single real price. <code>MIN</code> or <code>SUM</code> would work identically <em>here</em> &mdash; one value per region per product &mdash; but see the next point.</p>
+
+<h5>The duplicate-price trap</h5>
+<p>The whole idiom assumes <strong>one price per (product, region)</strong>. If a product had two US rows &mdash; 100 and 105 &mdash; <code>MAX</code> silently returns 105 and the other is lost. <code>SUM</code> would return 205, a number that was never a real price. Neither is "right"; the data is ambiguous. A senior answer flags it: "this assumes region is unique per product &mdash; if not, I need a rule: latest price? average? and I'd add <code>price_date</code> to the key." Pick the aggregate that matches the business rule, do not let <code>MAX</code> hide a data-quality problem.</p>
+
+<h5>The native <code>crosstab</code> &mdash; and why <code>CASE</code> often wins anyway</h5>
+<p>Postgres ships a <code>crosstab</code> function in the <code>tablefunc</code> extension that pivots more declaratively. But it requires the extension to be installed, has a fiddly column-definition signature, and still needs the region list spelled out. The conditional-aggregation pattern is pure standard SQL, portable to every engine, and easy to read &mdash; which is why it remains the interview-preferred answer. Mention <code>crosstab</code> exists; reach for <code>CASE</code>.</p>
+
+<h5>Dynamic regions &mdash; the honest limitation</h5>
+<p>The query hard-codes three regions. A new region &mdash; <code>LATAM</code> &mdash; will <em>not</em> appear; its rows are simply ignored by every <code>CASE</code>. SQL cannot produce a variable number of columns from data: the column list must be known at query-compile time. If regions are open-ended you either (a) generate the SQL dynamically in application code after a <code>SELECT DISTINCT region</code>, or (b) keep the data long and let the BI tool pivot at render time. Stating this limitation out loud is the senior signal &mdash; juniors promise a query that "adapts" and there is no such thing.</p>
+
+<h5>Comparing the pivoted columns</h5>
+<p>Once wide, regional analysis is trivial &mdash; but mind the NULLs. <code>us_price - apac_price</code> is NULL whenever either region is missing (product 2, product 3), so a "biggest US-vs-APAC gap" query must decide whether a missing region means "skip this product" or counts as a known zero. <code>COALESCE</code> only if a missing price genuinely means free; usually it means unknown, and NULL should propagate.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use conditional aggregation for the pivot and explain that the <code>MAX</code> wrapper collapses the per-row <code>CASE</code> values into one row per product; flag that the idiom assumes one price per region and that <code>MAX</code> would silently mask duplicates; and state plainly that the region columns are fixed at compile time &mdash; SQL cannot pivot an open-ended set without dynamic SQL.</div>
