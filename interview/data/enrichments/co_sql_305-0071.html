@@ -1,0 +1,66 @@
+<p>This question lands at Hulu but is pure airline-operations logic: find the flights that have been overbooked &mdash; more tickets sold than seats on the plane &mdash; and by how many. It is one of the simplest queries in the bank, which is exactly why an interviewer uses it: they want to see whether you pick the right comparison operator, surface the exactly-full edge case, and treat NULL capacity deliberately rather than letting it slip through.</p>
+
+<h4>1. The source data &mdash; <code>flights</code></h4>
+<table>
+  <thead><tr><th>flight_id</th><th>capacity</th><th>tickets_sold</th></tr></thead>
+  <tbody>
+    <tr><td>UA100</td><td>180</td><td>185</td></tr>
+    <tr><td>UA200</td><td>200</td><td>200</td></tr>
+    <tr><td>UA300</td><td>150</td><td>142</td></tr>
+    <tr><td>UA400</td><td>220</td><td>235</td></tr>
+    <tr><td>UA500</td><td>160</td><td>161</td></tr>
+  </tbody>
+</table>
+<p>The decisive row is UA200: <strong>tickets sold exactly equals capacity</strong>. A full flight is not an overbooked flight, and the choice of <code>&gt;</code> versus <code>&gt;=</code> is what separates the two. UA500 is the minimal overbook &mdash; just one seat over &mdash; and should still appear.</p>
+
+<h4>2. The SQL &mdash; <code>strict-greater filter</code></h4>
+<pre><code>SELECT flight_id, tickets_sold - capacity AS overbooked_by
+FROM flights WHERE tickets_sold &gt; capacity;</code></pre>
+<p>Keep only rows where tickets sold strictly exceeds capacity, and project the difference as <code>overbooked_by</code>. No grouping &mdash; each flight is already one row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>flight_id</th><th>overbooked_by</th></tr></thead>
+  <tbody>
+    <tr><td>UA100</td><td>5</td></tr>
+    <tr><td>UA400</td><td>15</td></tr>
+    <tr><td>UA500</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>Three flights are overbooked. UA200 is correctly absent &mdash; 200 = 200 is full, not over. UA300 is under-sold and excluded. UA500 makes the cut at +1, confirming the filter does not accidentally require a minimum overbook size. UA400 at +15 is the operations team's biggest headache.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>&gt;</code> vs <code>&gt;=</code> &mdash; the one-character interview</h5>
+<p>"Overbooked" means <em>more</em> tickets than seats, strictly. <code>tickets_sold &gt; capacity</code> excludes the exactly-full flight UA200; <code>&gt;=</code> would wrongly include it with <code>overbooked_by = 0</code>. A flight at capacity is a success, not an alert. State the definition out loud &mdash; "full is not overbooked" &mdash; and let it justify the operator.</p>
+
+<h5>NULL capacity or NULL tickets &mdash; the silent drop</h5>
+<p>If a flight has NULL <code>capacity</code> (plane not yet assigned), then <code>tickets_sold &gt; capacity</code> evaluates to NULL, which is not true, so the row is silently excluded. That may be wrong &mdash; an unassigned-aircraft flight with tickets sold is arguably a worse problem. Decide explicitly:</p>
+<pre><code>SELECT flight_id, tickets_sold - capacity AS overbooked_by
+FROM flights
+WHERE tickets_sold &gt; capacity
+   OR capacity IS NULL;   -- flag missing-capacity flights for review</code></pre>
+<p>And the projected <code>overbooked_by</code> would itself be NULL for such a row &mdash; NULL minus anything is NULL. Mention it; do not let NULLs vanish unremarked.</p>
+
+<h5>Ordering &mdash; worst first</h5>
+<p>An alert list is only useful if the biggest problems are at the top. The query as written returns rows in physical order. Add the sort the operations team actually wants:</p>
+<pre><code>SELECT flight_id, tickets_sold - capacity AS overbooked_by
+FROM flights
+WHERE tickets_sold &gt; capacity
+ORDER BY overbooked_by DESC;</code></pre>
+<p>You <em>can</em> sort by the alias <code>overbooked_by</code> &mdash; <code>ORDER BY</code> is evaluated after the <code>SELECT</code> list, so column aliases are visible there (unlike in <code>WHERE</code>).</p>
+
+<h5>Overbooking rate &mdash; the analytical follow-up</h5>
+<p>Operations rarely stops at "which flights"; they want "how badly, proportionally". A 1-seat overbook on a 50-seat regional jet is worse than 5 seats on a 400-seat widebody:</p>
+<pre><code>SELECT flight_id,
+       tickets_sold - capacity AS overbooked_by,
+       ROUND(100.0 * (tickets_sold - capacity) / NULLIF(capacity, 0), 1) AS overbook_pct
+FROM flights
+WHERE tickets_sold &gt; capacity
+ORDER BY overbook_pct DESC;</code></pre>
+<p>The <code>NULLIF(capacity, 0)</code> guards the impossible-but-possible zero-capacity row, and <code>100.0</code> keeps the division in numeric arithmetic.</p>
+
+<h5>Aggregate view &mdash; fleet health</h5>
+<p>A dashboard often wants one number: how much overbooking is there across the whole fleet? <code>SELECT SUM(GREATEST(tickets_sold - capacity, 0)) AS total_overbooked_seats FROM flights;</code> &mdash; <code>GREATEST(&hellip;, 0)</code> clamps under-sold flights to 0 so they do not subtract from the total.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> choose strict <code>&gt;</code> and articulate why a full flight is not overbooked, notice that NULL capacity silently drops rows and decide what to do about it, sort the alert worst-first using the projected alias, and offer the proportional overbooking rate as the metric operations actually act on.</div>

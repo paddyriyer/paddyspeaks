@@ -1,0 +1,65 @@
+<p>Samsung's HR-systems team wants a roster of higher-paid employees with their department name attached. The query is a join plus a filter &mdash; about as basic as SQL gets &mdash; which is exactly why interviewers use it as a warm-up: they want to see clean join syntax, a sensible join type, and whether you notice the small things, like an employee whose department row is missing, or a filter threshold that looks suspiciously low.</p>
+
+<h4>1. The source data</h4>
+<p><strong><code>employees</code></strong></p>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>150</td><td>Dev</td></tr>
+    <tr><td>2</td><td>10</td><td>90</td><td>Eve</td></tr>
+    <tr><td>3</td><td>20</td><td>200</td><td>Fay</td></tr>
+    <tr><td>4</td><td>20</td><td>100</td><td>Gus</td></tr>
+    <tr><td>5</td><td>30</td><td>120</td><td>Hal</td></tr>
+  </tbody>
+</table>
+<p><strong><code>departments</code></strong></p>
+<table>
+  <thead><tr><th>dept_id</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>Engineering</td></tr>
+    <tr><td>20</td><td>Sales</td></tr>
+    <tr><td>30</td><td>Support</td></tr>
+  </tbody>
+</table>
+<p>The edge cases: Gus earns exactly <strong>100</strong>, which is the boundary &mdash; <code>&gt; 100</code> excludes him. Eve at 90 is below the threshold. And the salary values are tiny (90&ndash;200), a strong hint the column is in thousands, or the <code>&gt; 100</code> literal is a placeholder &mdash; worth flagging.</p>
+
+<h4>2. The SQL &mdash; <code>INNER JOIN + WHERE</code></h4>
+<pre><code>SELECT e.emp_id, e.salary, d.dept_name
+FROM employees e JOIN departments d ON e.dept_id = d.dept_id
+WHERE e.salary &gt; 100;</code></pre>
+<p>Join each employee to their department on <code>dept_id</code>, then keep only employees earning more than 100. The bare <code>JOIN</code> keyword is an <code>INNER JOIN</code> &mdash; only rows that match on both sides survive.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>salary</th><th>dept_name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>150</td><td>Engineering</td></tr>
+    <tr><td>3</td><td>200</td><td>Sales</td></tr>
+    <tr><td>5</td><td>120</td><td>Support</td></tr>
+  </tbody>
+</table>
+<p>Three employees clear the bar. Eve (90) and Gus (exactly 100) are filtered out &mdash; Gus is the boundary proof that <code>&gt;</code> is strict. Every surviving employee got a department name because all <code>dept_id</code> values matched a department row. That last clause is an assumption worth not taking for granted.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>&gt;</code> vs <code>&gt;=</code> &mdash; the boundary employee</h5>
+<p>Gus earns exactly 100. <code>salary &gt; 100</code> excludes him; <code>salary &gt;= 100</code> would include him. Neither is "right" in the abstract &mdash; it depends on whether the requirement is "more than 100" or "at least 100". The senior move is to confirm the intent before writing the operator, and to point at Gus as the row that makes the choice visible.</p>
+
+<h5>INNER JOIN vs LEFT JOIN &mdash; the missing-department trap</h5>
+<p>This <code>INNER JOIN</code> silently drops any employee whose <code>dept_id</code> has no matching row in <code>departments</code> &mdash; a contractor in a not-yet-created department, or a bad <code>dept_id</code>. If the roster must include <em>every</em> qualifying employee even when the department is unknown, use a <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT e.emp_id, e.salary, d.dept_name
+FROM employees e
+LEFT JOIN departments d ON e.dept_id = d.dept_id
+WHERE e.salary &gt; 100;</code></pre>
+<p>Now an employee with an orphan <code>dept_id</code> still appears, with <code>dept_name</code> as NULL. Whether to use <code>INNER</code> or <code>LEFT</code> is a real decision &mdash; "do unmatched employees belong in this report?" &mdash; not a stylistic toss-up.</p>
+
+<h5>The filter belongs in <code>WHERE</code>, and that is fine here</h5>
+<p><code>salary</code> lives on <code>employees</code>, the preserved side of any join, so <code>WHERE e.salary &gt; 100</code> is safe even if you switch to a <code>LEFT JOIN</code>. The trap to remember: a predicate on the <em>right</em> table in the <code>WHERE</code> clause would convert a <code>LEFT JOIN</code> back into an <code>INNER JOIN</code>. Filtering the left table never has that effect.</p>
+
+<h5>NULL <code>salary</code> or NULL <code>dept_id</code></h5>
+<p>An employee with NULL <code>salary</code> fails <code>salary &gt; 100</code> (the comparison is unknown, not true) and is excluded &mdash; usually fine, but say so. An employee with NULL <code>dept_id</code> can never match a department, so the <code>INNER JOIN</code> drops them; under a <code>LEFT JOIN</code> they survive with a NULL department. NULLs quietly remove rows at both the join and the filter &mdash; name them rather than letting them disappear.</p>
+
+<h5>The suspicious threshold &mdash; a data-literacy flag</h5>
+<p>Salaries of 90 to 200 are not dollars; the column is almost certainly in thousands, or the <code>100</code> is a stand-in the question never fleshed out. A senior engineer flags the unit ambiguity: "is <code>salary</code> in thousands? is 100 the real cutoff, or a placeholder?" Writing the query is easy; noticing that the literal might be wrong is the value-add. Parameterise it rather than hard-coding: <code>WHERE e.salary &gt; :threshold</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> confirm whether the cutoff is "more than" or "at least" and point at the boundary employee, choose <code>INNER</code> vs <code>LEFT JOIN</code> deliberately based on whether unmatched-department employees belong in the roster, know that a right-table <code>WHERE</code> predicate degrades a left join, and flag the suspiciously low salary threshold as a unit or placeholder ambiguity.</div>

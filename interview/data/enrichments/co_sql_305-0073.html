@@ -1,0 +1,64 @@
+<p>Snap's community team wants a quick read on its forum: who posts the most, and when did each of them last show up. It is two metrics per user &mdash; a count and a recency &mdash; from a single grouped scan of the post log. Easy on the surface, but the interviewer is checking whether you understand that <code>COUNT(*)</code> and <code>MAX(posted_at)</code> coexist happily in one <code>GROUP BY</code>, and whether you handle the user who has gone quiet.</p>
+
+<h4>1. The source data &mdash; <code>posts</code></h4>
+<table>
+  <thead><tr><th>post_id</th><th>user_id</th><th>posted_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>2026-05-01 09:00</td></tr>
+    <tr><td>2</td><td>10</td><td>2026-05-03 14:00</td></tr>
+    <tr><td>3</td><td>10</td><td>2026-05-10 18:30</td></tr>
+    <tr><td>4</td><td>20</td><td>2026-05-02 11:00</td></tr>
+    <tr><td>5</td><td>20</td><td>2026-05-09 08:15</td></tr>
+    <tr><td>6</td><td>30</td><td>2026-05-05 16:45</td></tr>
+  </tbody>
+</table>
+<p>User 10 is the heavy poster (3 posts), user 20 is moderate (2), and user 30 is a <strong>single-post user</strong> &mdash; the edge case. A single-member group still aggregates correctly: <code>COUNT</code> is 1 and <code>MAX</code> equals that one timestamp. Worth confirming, because grouping logic that quietly assumes &ldquo;more than one row&rdquo; breaks here.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT + MAX per user</code></h4>
+<pre><code>SELECT user_id, COUNT(*) AS posts,
+  MAX(posted_at) AS last_post_at
+FROM posts GROUP BY user_id ORDER BY posts DESC;</code></pre>
+<p>One row per <code>user_id</code>. <code>COUNT(*)</code> is the post tally, <code>MAX(posted_at)</code> is the most recent post time, and <code>ORDER BY posts DESC</code> puts the most active users on top.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>posts</th><th>last_post_at</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>3</td><td>2026-05-10 18:30:00</td></tr>
+    <tr><td>20</td><td>2</td><td>2026-05-09 08:15:00</td></tr>
+    <tr><td>30</td><td>1</td><td>2026-05-05 16:45:00</td></tr>
+  </tbody>
+</table>
+<p>User 10 leads with 3 posts, last seen 2026-05-10. User 30, the single-post user, returns cleanly: count 1, and <code>MAX</code> of one timestamp is just that timestamp. Two aggregates, one pass, no join &mdash; this is the canonical grouped-summary shape.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Two aggregates, one GROUP BY</h5>
+<p>A frequent beginner instinct is to compute the count and the recency in two separate queries and join them. Unnecessary &mdash; any number of aggregate functions can sit in one <code>SELECT</code> over the same <code>GROUP BY</code>. Each is computed independently across the group's rows. One scan produces both columns; the join is wasted work.</p>
+
+<h5><code>COUNT(*)</code> vs <code>COUNT(posted_at)</code></h5>
+<p>Here they agree, but they are not the same. <code>COUNT(*)</code> counts <em>rows</em>; <code>COUNT(posted_at)</code> counts rows where <code>posted_at</code> is non-NULL. If a post could have a NULL timestamp (a draft, a bad import), <code>COUNT(*)</code> still counts it as a post while <code>COUNT(posted_at)</code> would not. For "how many posts did this user make", <code>COUNT(*)</code> is right &mdash; a post exists whether or not its timestamp survived.</p>
+
+<h5>The user who never posted &mdash; the missing-zero trap</h5>
+<p>This query can only ever report users who appear in <code>posts</code>. A registered user with zero posts produces no rows, so they are absent &mdash; not shown with <code>posts = 0</code>. If the community team wants <em>every</em> user including the silent ones, you must start from the users table and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT u.user_id,
+       COUNT(p.post_id)      AS posts,
+       MAX(p.posted_at)      AS last_post_at
+FROM users u
+LEFT JOIN posts p ON p.user_id = u.user_id
+GROUP BY u.user_id
+ORDER BY posts DESC;</code></pre>
+<p>Note the count is <code>COUNT(p.post_id)</code>, not <code>COUNT(*)</code>: after a <code>LEFT JOIN</code>, a user with no posts has one all-NULL joined row, and <code>COUNT(*)</code> would wrongly report 1. <code>COUNT(p.post_id)</code> counts only real posts, yielding the correct 0.</p>
+
+<h5>Stabilising the sort</h5>
+<p><code>ORDER BY posts DESC</code> leaves users with equal post counts in arbitrary order. For a deterministic leaderboard, add a tiebreaker &mdash; most-recently-active first reads naturally: <code>ORDER BY posts DESC, last_post_at DESC</code>. Without it, two equally-active users can swap places between runs.</p>
+
+<h5>Inactive-user follow-up &mdash; using <code>MAX</code> as a filter</h5>
+<p>The recency column doubles as a churn signal. "Which users haven't posted in 30 days?" is a <code>HAVING</code> on the same <code>MAX</code>:</p>
+<pre><code>SELECT user_id, MAX(posted_at) AS last_post_at
+FROM posts
+GROUP BY user_id
+HAVING MAX(posted_at) &lt; CURRENT_DATE - INTERVAL '30 days';</code></pre>
+<p>This is why <code>MAX(posted_at)</code> is more useful than it looks &mdash; the same aggregate that reports recency also identifies the at-risk accounts.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute both aggregates in a single <code>GROUP BY</code> rather than joining two queries, distinguish <code>COUNT(*)</code> from <code>COUNT(column)</code>, recognise that an inner-join-style summary silently omits zero-post users and switch to a <code>LEFT JOIN</code> with <code>COUNT(post_id)</code> when every user must appear, and add a deterministic tiebreaker to the leaderboard sort.</div>

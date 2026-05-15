@@ -1,0 +1,60 @@
+<p>Etsy's seller-analytics team reports profit margin by region so the merchandising org can see where the marketplace makes money. Margin looks like a one-line ratio, but it hides two real decisions: whether you average per-row margins or compute one margin from the totals, and what happens when a region has zero revenue. An interviewer is watching whether you aggregate <em>then</em> divide, not divide then aggregate.</p>
+
+<h4>1. The source data &mdash; <code>sales</code></h4>
+<table>
+  <thead><tr><th>region</th><th>revenue</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>North</td><td>1000</td><td>600</td></tr>
+    <tr><td>North</td><td>500</td><td>350</td></tr>
+    <tr><td>South</td><td>2000</td><td>2200</td></tr>
+    <tr><td>East</td><td>800</td><td>0</td></tr>
+    <tr><td>West</td><td>0</td><td>0</td></tr>
+  </tbody>
+</table>
+<p>Three edge cases are baked in. <strong>South</strong> sells at a loss (cost &gt; revenue). <strong>East</strong> has zero cost &mdash; a 100% margin. And <strong>West</strong> has zero revenue, which would divide by zero if nothing guarded it.</p>
+
+<h4>2. The SQL &mdash; <code>margin from group totals</code></h4>
+<pre><code>SELECT region,
+  100.0 * (SUM(revenue) - SUM(cost)) / NULLIF(SUM(revenue),0) AS profit_margin_pct
+FROM sales GROUP BY region;</code></pre>
+<p>For each region, sum revenue and cost separately, take the difference (gross profit), and divide by total revenue. <code>NULLIF(SUM(revenue), 0)</code> converts a zero denominator into NULL so the division is defined.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>region</th><th>profit_margin_pct</th></tr></thead>
+  <tbody>
+    <tr><td>East</td><td>100.0000000000000000</td></tr>
+    <tr><td>South</td><td>-10.0000000000000000</td></tr>
+    <tr><td>West</td><td><em>NULL</em></td></tr>
+    <tr><td>North</td><td>36.6666666666666667</td></tr>
+  </tbody>
+</table>
+<p>North combines its two rows: revenue 1500, cost 950, profit 550, margin 550/1500 = 36.67%. South returns &minus;10% &mdash; a real loss, correctly negative. East is exactly 100%. West, with zero revenue, returns <strong>NULL</strong> rather than crashing the query. Note the long decimal tail &mdash; <code>numeric</code> division does not round on its own.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Aggregate then divide &mdash; the heart of the question</h5>
+<p>The correct margin is <code>(&sum;revenue &minus; &sum;cost) / &sum;revenue</code>. A common mistake is to compute a margin per row and then average those:</p>
+<pre><code>-- WRONG: averages percentages, ignores that rows have different sizes
+SELECT region, AVG(100.0 * (revenue - cost) / NULLIF(revenue,0))
+FROM sales GROUP BY region;</code></pre>
+<p>For North that gives <code>AVG(40%, 30%) = 35%</code>, not 36.67%. Averaging ratios weights a $500 sale the same as a $1000 sale. Margin is a <em>weighted</em> quantity &mdash; sum the parts, divide once.</p>
+
+<h5>Why <code>NULLIF</code> and not <code>CASE</code></h5>
+<p><code>NULLIF(SUM(revenue), 0)</code> is the compact idiom for "guard this denominator". The verbose equivalent is <code>CASE WHEN SUM(revenue) = 0 THEN NULL ELSE SUM(revenue) END</code> &mdash; identical behaviour, more typing. Either way the result for a zero-revenue region is NULL. If the dashboard wants 0% there instead, wrap the whole expression: <code>COALESCE(100.0 * &hellip; / NULLIF(&hellip;,0), 0)</code> &mdash; but a region with no sales arguably has <em>undefined</em> margin, so NULL is often the more honest answer.</p>
+
+<h5>The integer-division trap</h5>
+<p>The leading <code>100.0</code> is load-bearing. If both <code>revenue</code> and <code>cost</code> were <code>integer</code> columns and you wrote <code>100 * (SUM(revenue) - SUM(cost)) / SUM(revenue)</code>, Postgres does integer division on the final step and a 36.67% margin truncates to 36 &mdash; or worse, a small-profit region truncates to 0%. Multiplying by <code>100.0</code> (a numeric literal) promotes the whole expression to numeric arithmetic. <code>(SUM(revenue) - SUM(cost))::numeric</code> would do the same job.</p>
+
+<h5>Rounding for the report</h5>
+<p>The 16-digit decimal tail is ugly on a slide. Round at the presentation layer:</p>
+<pre><code>SELECT region,
+  ROUND(100.0 * (SUM(revenue) - SUM(cost)) / NULLIF(SUM(revenue),0), 2) AS profit_margin_pct
+FROM sales GROUP BY region
+ORDER BY profit_margin_pct DESC NULLS LAST;</code></pre>
+<p>The <code>NULLS LAST</code> keeps the zero-revenue region from sorting to the top as if it were the best performer.</p>
+
+<h5>NULLs inside the columns</h5>
+<p><code>SUM</code> skips NULL inputs, so a row with NULL <code>cost</code> contributes its revenue but no cost &mdash; inflating margin. If a missing cost should mean "cost unknown, exclude the sale", filter it; if it means "cost was zero", use <code>SUM(COALESCE(cost, 0))</code>. Decide which, and say so.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> compute one margin from summed totals rather than averaging per-row ratios, explain why margin is weighted, guard the zero-revenue denominator with <code>NULLIF</code>, keep the numeric promotion (<code>100.0</code>) so integer division never truncates the percentage, and decide deliberately whether a no-revenue region is 0% or NULL.</div>

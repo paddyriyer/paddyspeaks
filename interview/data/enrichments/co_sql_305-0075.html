@@ -1,0 +1,59 @@
+<p>Vercel's people-ops team reports a training-completion rate per employee &mdash; what fraction of assigned courses each person has finished. The schema hides a real-world mess: <code>completed</code> is not a clean boolean. The upstream system has written it as <code>'true'</code>, <code>'t'</code>, <code>'1'</code>, and various casings, all meaning the same thing. An interviewer wants to see whether you can normalise that flag correctly and still get the percentage arithmetic right.</p>
+
+<h4>1. The source data &mdash; <code>training</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>course_id</th><th>completed</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>100</td><td>true</td></tr>
+    <tr><td>1</td><td>101</td><td>false</td></tr>
+    <tr><td>1</td><td>102</td><td>1</td></tr>
+    <tr><td>2</td><td>100</td><td>t</td></tr>
+    <tr><td>2</td><td>101</td><td>t</td></tr>
+    <tr><td>3</td><td>100</td><td>0</td></tr>
+    <tr><td>3</td><td>101</td><td>false</td></tr>
+  </tbody>
+</table>
+<p>The trap is the mixed encoding. Employee 1's three rows use <code>'true'</code>, <code>'false'</code>, and <code>'1'</code> &mdash; the <code>'1'</code> must count as completed. Employee 2 is fully done (two <code>'t'</code> values). Employee 3 has finished nothing (<code>'0'</code> and <code>'false'</code>). A query that only recognises one spelling of "true" will undercount.</p>
+
+<h4>2. The SQL &mdash; <code>normalise then average a flag</code></h4>
+<pre><code>SELECT emp_id,
+  100.0 * SUM(CASE WHEN completed::text IN ('1','true','t','TRUE','True') THEN 1 ELSE 0 END)/COUNT(*) AS completion_rate
+FROM training GROUP BY emp_id;</code></pre>
+<p>The <code>CASE</code> maps any recognised "truthy" spelling to 1 and everything else to 0. <code>SUM</code> of those 1s is the count of completed courses; <code>COUNT(*)</code> is the total assigned. The ratio, times <code>100.0</code>, is the percentage.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>emp_id</th><th>completion_rate</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>0.00000000000000000000</td></tr>
+    <tr><td>2</td><td>100.0000000000000000</td></tr>
+    <tr><td>1</td><td>66.6666666666666667</td></tr>
+  </tbody>
+</table>
+<p>Employee 1 scores 66.67% &mdash; 2 of 3 (the <code>'true'</code> and the <code>'1'</code> both counted, the <code>'false'</code> did not). Employee 2 is 100% (2 of 2). Employee 3 is 0% (0 of 2). The <code>'1'</code> being counted is the proof the normalisation worked &mdash; a single-spelling check would have given employee 1 only 33%.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The "sum a 0/1 flag, divide by count" idiom</h5>
+<p><code>SUM(CASE WHEN &lt;cond&gt; THEN 1 ELSE 0 END) / COUNT(*)</code> is the canonical way to compute "what fraction of rows satisfy a condition". Postgres also lets you write it with a filtered aggregate, which many reviewers find cleaner:</p>
+<pre><code>SELECT emp_id,
+  100.0 * COUNT(*) FILTER (WHERE completed::text IN ('1','true','t','TRUE','True'))
+        / COUNT(*) AS completion_rate
+FROM training GROUP BY emp_id;</code></pre>
+<p>Identical result; the <code>FILTER</code> clause states intent more directly than a <code>CASE</code> buried in a <code>SUM</code>.</p>
+
+<h5>The integer-division trap &mdash; why <code>100.0</code> leads</h5>
+<p><code>SUM(...)</code> and <code>COUNT(*)</code> are both integers. Writing <code>SUM(...) / COUNT(*)</code> first does <em>integer</em> division: employee 1's 2/3 becomes <code>0</code>, and after <code>* 100</code> the rate is a flat 0% &mdash; catastrophically wrong. Putting <code>100.0</code> first promotes the whole chain to numeric, so the division happens in numeric arithmetic. <code>SUM(...)::numeric / COUNT(*)</code> achieves the same. This is the single most common bug in percentage queries.</p>
+
+<h5>The fragile allow-list &mdash; the real weakness</h5>
+<p>The <code>IN ('1','true','t','TRUE','True')</code> list is a guess at every spelling the source might emit. It misses <code>'TRUE '</code> with a trailing space, <code>'yes'</code>, <code>'Y'</code>, <code>'T'</code> uppercase. A sturdier normalisation lower-cases and trims first, shrinking the list to the real distinct values:</p>
+<pre><code>CASE WHEN lower(trim(completed::text)) IN ('1','true','t','yes','y') THEN 1 ELSE 0 END</code></pre>
+<p>Best of all, if the source were a real <code>boolean</code> column the entire <code>CASE</code> collapses to <code>SUM(completed::int)</code> &mdash; the cleanup is a tax imposed by a bad data type. Name that.</p>
+
+<h5>What happens to unrecognised values</h5>
+<p>The <code>ELSE 0</code> means anything <em>not</em> in the allow-list &mdash; including <code>NULL</code>, an empty string, or a typo like <code>'ture'</code> &mdash; is silently treated as "not completed". That is a decision: a NULL <code>completed</code> might mean "not done" or "status unknown". If unknown rows should be <em>excluded</em> from the denominator rather than counted as failures, filter them out before aggregating, or the rate is artificially depressed.</p>
+
+<h5>The empty-assignment edge case</h5>
+<p>An employee assigned zero courses would have <code>COUNT(*) = 0</code> and the division would be <code>x/0</code>. They produce no group here because they have no rows &mdash; but if you <code>LEFT JOIN</code> from an employee roster to include everyone, guard it: <code>/ NULLIF(COUNT(*), 0)</code>, yielding NULL ("no courses assigned") rather than a divide-by-zero error.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> normalise the messy completed flag with <code>lower(trim(...))</code> instead of guessing every casing, keep the numeric promotion (<code>100.0</code> first) so integer division never zeroes the rate, decide deliberately whether NULL/unknown rows are failures or excluded, and call out that a proper boolean column would erase the whole <code>CASE</code>.</div>
