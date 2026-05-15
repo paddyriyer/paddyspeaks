@@ -1,0 +1,59 @@
+<p>Okta's compensation team is building department-level pay bands for the next review cycle. They don't just want the average &mdash; they want a <em>normal range</em>: the salary band you'd expect most of a department to fall inside. The reference solution answers it with a one-pass standard-deviation band, <code>mean &plusmn; &sigma;</code> &mdash; and the way it computes &sigma; is the part worth slowing down on.</p>
+
+<h4>1. The source data &mdash; <code>employees</code></h4>
+<table>
+  <thead><tr><th>emp_id</th><th>dept_id</th><th>salary</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>10</td><td>$90,000</td></tr>
+    <tr><td>2</td><td>10</td><td>$100,000</td></tr>
+    <tr><td>3</td><td>10</td><td>$110,000</td></tr>
+    <tr><td>4</td><td>20</td><td>$80,000</td></tr>
+    <tr><td>5</td><td>30</td><td>$120,000</td></tr>
+    <tr><td>6</td><td>30</td><td>$140,000</td></tr>
+  </tbody>
+</table>
+<p>Three departments with deliberately different shapes: dept&nbsp;10 has three salaries spread around $100K, dept&nbsp;30 has two, and <strong>dept&nbsp;20 has a single employee</strong>. That one-row group is the edge case that quietly breaks naive solutions.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(x*x) &minus; AVG(x)*AVG(x)</code></h4>
+<pre><code>WITH d AS (
+  SELECT dept_id, AVG(salary) AS mu, AVG(salary*salary) - AVG(salary)*AVG(salary) AS var_pop
+  FROM employees GROUP BY dept_id
+)
+SELECT dept_id, mu AS avg_salary,
+  CASE WHEN var_pop &gt; 0 THEN ROUND(mu - SQRT(var_pop), 2) ELSE mu END AS lower_bound,
+  CASE WHEN var_pop &gt; 0 THEN ROUND(mu + SQRT(var_pop), 2) ELSE mu END AS upper_bound
+FROM d ORDER BY dept_id;</code></pre>
+<p>The CTE computes two things per department: the mean <code>mu</code>, and <code>var_pop</code> &mdash; the population variance &mdash; via the algebraic identity <code>Var(X) = E[X&sup2;] &minus; E[X]&sup2;</code>. The outer query turns that into a band <code>mu &plusmn; SQRT(var_pop)</code>, which is the mean plus or minus one population standard deviation.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>dept_id</th><th>avg_salary</th><th>lower_bound</th><th>upper_bound</th></tr></thead>
+  <tbody>
+    <tr><td>10</td><td>100000.00</td><td>91835.03</td><td>108164.97</td></tr>
+    <tr><td>20</td><td>80000.00</td><td>80000.00</td><td>80000.00</td></tr>
+    <tr><td>30</td><td>130000.00</td><td>120000.00</td><td>140000.00</td></tr>
+  </tbody>
+</table>
+<p>Dept&nbsp;10's three salaries give a &sigma; of about $8,165, so the band is roughly $91.8K&ndash;$108.2K. Dept&nbsp;30's two salaries sit exactly $10K either side of their $130K mean. Dept&nbsp;20, with one employee, has <strong>zero variance</strong> &mdash; the band collapses onto the mean.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>E[X&sup2;] &minus; E[X]&sup2;</code> identity</h5>
+<p>Variance is <em>defined</em> as the mean squared deviation, <code>E[(X &minus; &mu;)&sup2;]</code>. Expanding the square gives the equivalent <code>E[X&sup2;] &minus; E[X]&sup2;</code> &mdash; the mean of the squares minus the square of the mean. The payoff is that it needs only <code>AVG(salary)</code> and <code>AVG(salary*salary)</code>, both computable in a <strong>single pass</strong> over the rows, with no self-join back to the per-department mean. That is exactly why the formula appears in interview answers.</p>
+
+<h5>Why this is the <em>population</em> variance, not the sample variance</h5>
+<p>This identity divides the squared spread by <code>N</code> (the count of rows). The <em>sample</em> variance divides by <code>N &minus; 1</code> (Bessel's correction) to stay unbiased when the rows are a sample of a larger population. Pick deliberately: a department's roster is the whole population, so <code>VAR_POP</code> is defensible here. If an interviewer pushes, name both &mdash; and prefer the built-ins:</p>
+<pre><code>SELECT dept_id,
+  AVG(salary)                          AS mu,
+  STDDEV_POP(salary)                   AS sigma_pop,   -- divides by N
+  STDDEV_SAMP(salary)                  AS sigma_samp   -- divides by N-1
+FROM employees GROUP BY dept_id;</code></pre>
+<p><code>AVG(salary) &plusmn; STDDEV_POP(salary)</code> says the same thing as the hand-rolled CTE, in one line, and the engine handles the numerics for you.</p>
+
+<h5>The single-employee department &mdash; and why <code>var_pop &gt; 0</code> is guarded</h5>
+<p>Dept&nbsp;20 has one row, so its variance is genuinely 0 and <code>SQRT(0)</code> is a clean 0. So why the <code>CASE WHEN var_pop &gt; 0</code> guard at all? Floating-point. <code>E[X&sup2;] &minus; E[X]&sup2;</code> subtracts two large, nearly-equal numbers &mdash; <em>catastrophic cancellation</em> &mdash; and can land on a tiny <em>negative</em> value like <code>-0.0000001</code> for a department that is mathematically zero-variance. <code>SQRT</code> of a negative argument raises an error. The guard turns that failure into a sensible <code>lower_bound = upper_bound = mu</code>.</p>
+
+<h5>A wart to call out: inconsistent rounding</h5>
+<p>Look closely at the output. The bounds for depts 10 and 30 run through <code>ROUND(&hellip;, 2)</code>, but dept&nbsp;20 takes the <code>ELSE mu</code> branch &mdash; which returns <code>mu</code> <em>unrounded</em>. And <code>avg_salary</code> is never rounded at all. In a real engine those columns come back with a long decimal tail. A senior answer wraps the mean too: <code>ROUND(mu, 2) AS avg_salary</code>, and rounds inside both <code>CASE</code> branches so every row is formatted identically.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> derive the band from <code>E[X&sup2;] &minus; E[X]&sup2;</code> and explain the single-pass advantage, distinguish population from sample variance and reach for <code>STDDEV_POP</code> rather than reinventing it, pre-empt the <code>SQRT</code>-of-negative failure that the <code>var_pop &gt; 0</code> guard exists to absorb, and tidy the rounding so every column is formatted consistently.</div>

@@ -1,0 +1,58 @@
+<p>Accenture's analytics team publishes a weekly metrics pack, and the headline number every client asks for is <em>average order value</em> &mdash; AOV. It looks like a one-line query, and it is. But the one line hides three decisions that change the number, and an interviewer asking this is really probing whether you make those decisions on purpose.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>customer_id</th><th>order_total</th><th>status</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>101</td><td>$120</td><td>completed</td></tr>
+    <tr><td>2</td><td>102</td><td>$80</td><td>completed</td></tr>
+    <tr><td>3</td><td>101</td><td>$200</td><td>completed</td></tr>
+    <tr><td>4</td><td>103</td><td>$50</td><td>cancelled</td></tr>
+    <tr><td>5</td><td>104</td><td>$150</td><td>completed</td></tr>
+    <tr><td>6</td><td>102</td><td><em>NULL</em></td><td>pending</td></tr>
+  </tbody>
+</table>
+<p>Six orders &mdash; but one has a <strong>NULL</strong> <code>order_total</code> (a pending order not yet priced), and one is <strong>cancelled</strong>. Those two rows are the whole interview.</p>
+
+<h4>2. The SQL &mdash; <code>AVG(order_total)</code></h4>
+<pre><code>SELECT AVG(order_total) AS avg_order_value FROM orders;</code></pre>
+<p>One aggregate over every row in the table. No <code>GROUP BY</code>, so the result is a single row.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>avg_order_value</th></tr></thead>
+  <tbody>
+    <tr><td>120</td></tr>
+  </tbody>
+</table>
+<p>The five priced orders &mdash; 120, 80, 200, 50, 150 &mdash; sum to 600, and 600 &divide; 5 = 120. The pending order never entered the arithmetic. Whether that is correct depends on what the client meant.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>AVG</code> silently skips NULLs</h5>
+<p><code>AVG(order_total)</code> is really <code>SUM(order_total) / COUNT(order_total)</code>, and <code>COUNT(column)</code> counts only non-NULL values. So the NULL row is dropped from <em>both</em> the numerator and the denominator &mdash; the average is over 5 rows, not 6. That is usually what you want, but say it out loud. If a pending order should count as a $0 sale, fold the NULL in explicitly:</p>
+<pre><code>SELECT AVG(COALESCE(order_total, 0)) AS avg_order_value FROM orders;
+-- 600 / 6 = 100, not 120</code></pre>
+<p>Same column, same table, a $20 swing in the headline metric &mdash; purely from how NULL is treated.</p>
+
+<h5>The <code>AVG</code> vs <code>SUM / COUNT(*)</code> trap</h5>
+<p>A common "equivalent" rewrite is wrong:</p>
+<pre><code>SELECT SUM(order_total) / COUNT(*) AS avg_order_value FROM orders;
+-- 600 / 6 = 100</code></pre>
+<p><code>COUNT(*)</code> counts <em>rows</em> (6), while <code>AVG</code> divides by <em>non-NULL values</em> (5). The two agree only when the column has no NULLs. If you ever hand-roll an average, pair <code>SUM(col)</code> with <code>COUNT(col)</code> &mdash; never <code>COUNT(*)</code>.</p>
+
+<h5>The cancelled order &mdash; the filter the interviewer is waiting for</h5>
+<p>Order 4 is cancelled but still priced at $50, so it is sitting inside the average. AOV almost always means <em>realised</em> revenue per order, which excludes cancellations:</p>
+<pre><code>SELECT AVG(order_total) AS avg_order_value
+FROM orders
+WHERE status = 'completed';
+-- AVG(120, 80, 200, 150) = 137.5</code></pre>
+<p>Confirm the definition before writing SQL: "should this be over all orders, or only completed ones?" Getting the filter right matters more than the aggregate.</p>
+
+<h5>Edge cases: empty tables and integer columns</h5>
+<p><code>AVG</code> over a table with no matching rows returns <strong>NULL</strong>, not 0 &mdash; wrap it in <code>COALESCE(AVG(&hellip;), 0)</code> if the dashboard needs a number. And if <code>order_total</code> were an <code>INTEGER</code> column, some engines do integer division and truncate the average; cast first with <code>AVG(order_total::numeric)</code> to be safe.</p>
+
+<h5>Which column is the source of truth?</h5>
+<p>The schema ships both <code>order_total</code> and <code>amount</code>. They are often near-duplicates that drift apart &mdash; one pre-discount, one post-discount; one with tax, one without. Don't guess: ask which column the business treats as the order value, and note the assumption in a comment.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> state that <code>AVG</code> ignores NULLs and decide on purpose whether a NULL means "skip" or "$0", never substitute <code>COUNT(*)</code> for <code>COUNT(col)</code> in a hand-rolled average, add the <code>status = 'completed'</code> filter that turns a raw average into a real AOV, and flag the empty-table NULL and the <code>order_total</code>/<code>amount</code> ambiguity before anyone has to ask.</div>
