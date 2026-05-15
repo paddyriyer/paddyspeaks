@@ -1,0 +1,67 @@
+<p>Slack's customer-success team wants to spotlight "power users" &mdash; the people sending the most messages this year &mdash; for a case-study program. The ask sounds like a leaderboard, and the SQL is short. But "top 10" hides a tie problem, and the date filter hides a timezone problem, and an interviewer asking this wants both said out loud.</p>
+
+<h4>1. The source data &mdash; <code>messages</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>sent_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-02-01</td></tr>
+    <tr><td>1</td><td>2024-02-02</td></tr>
+    <tr><td>1</td><td>2024-03-01</td></tr>
+    <tr><td>1</td><td>2024-04-01</td></tr>
+    <tr><td>2</td><td>2024-05-01</td></tr>
+    <tr><td>2</td><td>2024-06-01</td></tr>
+    <tr><td>3</td><td>2023-12-30</td></tr>
+    <tr><td>3</td><td>2024-01-02</td></tr>
+    <tr><td>3</td><td>2024-01-03</td></tr>
+    <tr><td>5</td><td>2024-08-01</td></tr>
+    <tr><td>5</td><td>2024-08-02</td></tr>
+  </tbody>
+</table>
+<p>Two things to watch. User 3 has a message dated <strong>2023-12-30</strong> &mdash; just outside the window &mdash; so the filter must drop exactly that row. And users 2, 3, and 5 each land on the same count: with limited leaderboard slots, ties decide who makes the cut.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT</code> + <code>ORDER BY</code> + <code>LIMIT</code></h4>
+<pre><code>SELECT user_id, COUNT(*) AS msgs FROM messages
+WHERE sent_at &gt;= '2024-01-01'
+GROUP BY user_id ORDER BY msgs DESC LIMIT 10;</code></pre>
+<p>Filter to messages from 2024 onward, count per user, sort by count descending, keep the top 10.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>msgs</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4</td></tr>
+    <tr><td>3</td><td>2</td></tr>
+    <tr><td>5</td><td>2</td></tr>
+    <tr><td>2</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>User 1 is the clear leader at 4. User 3 counts 2, not 3 &mdash; the 2023-12-30 message was filtered out, exactly as intended. Users 2, 3, and 5 are all tied at 2, and the order they appear in (3, 5, 2 here) is <strong>arbitrary</strong>: nothing in <code>ORDER BY msgs DESC</code> breaks that tie, so the engine returns them in whatever order is convenient. On a table large enough for the tie to straddle the <code>LIMIT 10</code> boundary, that arbitrariness becomes a correctness bug.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The tie at the <code>LIMIT</code> boundary &mdash; the silent bug</h5>
+<p><code>LIMIT 10</code> with an unstable sort means: if users ranked 10th and 11th have the same count, <em>which one gets the slot is undefined</em>, and can flip between runs or after a planner change. Two fixes. Add a deterministic tiebreaker so the result is at least stable and reproducible:</p>
+<pre><code>SELECT user_id, COUNT(*) AS msgs FROM messages
+WHERE sent_at &gt;= '2024-01-01'
+GROUP BY user_id
+ORDER BY msgs DESC, user_id ASC   -- stable: ties broken by user_id
+LIMIT 10;</code></pre>
+<p>Or, if the business rule is "include everyone tied for 10th", drop <code>LIMIT</code> and use a window function:</p>
+<pre><code>SELECT user_id, msgs FROM (
+  SELECT user_id, COUNT(*) AS msgs,
+         RANK() OVER (ORDER BY COUNT(*) DESC) AS rk
+  FROM messages WHERE sent_at &gt;= '2024-01-01'
+  GROUP BY user_id
+) t WHERE rk &lt;= 10;</code></pre>
+<p>The senior move is asking which the team wants: "exactly 10 rows" or "the top-10 ranks, ties included".</p>
+
+<h5>The date filter &mdash; <code>'2024-01-01'</code> is a timestamp at midnight</h5>
+<p><code>sent_at &gt;= '2024-01-01'</code> compares against 2024-01-01 00:00:00. That correctly includes everything on or after New Year. The trap is the <em>upper</em> bound if the spec is "this year": <code>sent_at &lt;= '2024-12-31'</code> silently excludes everything after midnight on the 31st &mdash; almost a full day of messages. The robust pattern is a half-open interval: <code>sent_at &gt;= '2024-01-01' AND sent_at &lt; '2025-01-01'</code>. Half-open ranges never miss the last day and never double-count the boundary.</p>
+
+<h5>Timezones &mdash; whose midnight?</h5>
+<p>If <code>sent_at</code> is <code>timestamptz</code>, the literal <code>'2024-01-01'</code> is interpreted in the session timezone. A message sent at 11pm Pacific on Dec 31 is already Jan 1 in UTC. For a global product like Slack, "this year" is genuinely ambiguous &mdash; confirm whether the boundary is UTC or a business timezone, and if needed convert explicitly with <code>sent_at AT TIME ZONE 'America/Los_Angeles'</code>.</p>
+
+<h5><code>COUNT(*)</code> vs counting distinct days</h5>
+<p><code>COUNT(*)</code> counts message rows. "Power user" might instead mean <em>active days</em> &mdash; someone who sends one message every day is arguably more engaged than someone who dumps 50 in an hour. That is <code>COUNT(DISTINCT sent_at::date)</code>. Different metric, different ranking; worth a clarifying question before committing to raw volume.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that <code>ORDER BY msgs DESC LIMIT 10</code> has an undefined tie-break at the cut line and either add a deterministic key or switch to <code>RANK()</code>, prefer a half-open date range so the last day is never lost, and raise the timezone interpretation of "this year" before writing the filter.</div>

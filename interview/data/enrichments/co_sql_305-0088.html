@@ -1,0 +1,63 @@
+<p>LinkedIn's recruiting-tools team is filtering a candidate pool for a data-analytics role: they need everyone who lists <em>both</em> Python and SQL. The catch is the data model &mdash; skills are crammed into a single <code>skills_array</code> text column rather than a proper related table. The interview is whether you make the substring search work <em>and</em> whether you flag that this schema is the real problem.</p>
+
+<h4>1. The source data &mdash; <code>candidates</code></h4>
+<table>
+  <thead><tr><th>candidate_id</th><th>name</th><th>skills_array</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td><td>python,sql,excel</td></tr>
+    <tr><td>2</td><td>Ben</td><td>java,sql</td></tr>
+    <tr><td>3</td><td>Cara</td><td>python,r</td></tr>
+    <tr><td>4</td><td>Dan</td><td>sql,python,tableau</td></tr>
+    <tr><td>5</td><td>Eve</td><td>python</td></tr>
+  </tbody>
+</table>
+<p>Only Ana and Dan have <em>both</em> skills. Note Dan lists them in the order <code>sql,python</code> &mdash; order must not matter. Ben has SQL but not Python; Cara and Eve have Python but not SQL. The "both required" logic is the whole question.</p>
+
+<h4>2. The SQL &mdash; <code>two LIKE predicates, ANDed</code></h4>
+<pre><code>SELECT candidate_id, name FROM candidates
+WHERE skills_array LIKE '%python%'
+  AND skills_array LIKE '%sql%';</code></pre>
+<p>Each <code>LIKE '%...%'</code> tests whether the substring appears anywhere in the text. Joining them with <code>AND</code> demands that <em>both</em> appear &mdash; the conjunction is what enforces "both skills".</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>candidate_id</th><th>name</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ana</td></tr>
+    <tr><td>4</td><td>Dan</td></tr>
+  </tbody>
+</table>
+<p>Ana and Dan match. Dan's reversed order (<code>sql,python</code>) is irrelevant &mdash; two independent substring tests do not care about position. Ben, Cara and Eve each have only one of the two skills and fall out.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Why <code>AND</code>, not a single pattern</h5>
+<p>You cannot express "both substrings, any order" in one <code>LIKE</code> pattern &mdash; <code>LIKE '%python%sql%'</code> only matches when "python" precedes "sql", so it would <em>miss Dan</em>. Two separate <code>LIKE</code> predicates joined by <code>AND</code> is the correct shape: each is order-independent, and the conjunction requires both. Using <code>OR</code> instead would return anyone with <em>either</em> skill &mdash; a different, much larger pool.</p>
+
+<h5>The substring trap &mdash; partial-word false matches</h5>
+<p><code>LIKE '%sql%'</code> matches any text <em>containing</em> "sql" &mdash; including <code>mysql</code>, <code>postgresql</code>, <code>nosql</code>. A candidate listing only <code>mysql</code> would be wrongly flagged as having "sql". Likewise <code>%python%</code> would match a hypothetical <code>micropython</code>. The robust fix is to match whole tokens, not loose substrings:</p>
+<pre><code>-- normalise to delimiter-padded tokens, then match exactly
+SELECT candidate_id, name FROM candidates
+WHERE ',' || skills_array || ',' LIKE '%,python,%'
+  AND ',' || skills_array || ',' LIKE '%,sql,%';</code></pre>
+<p>Wrapping the value in commas turns "is this an exact element" into a substring test that cannot match a partial word.</p>
+
+<h5>The real fix &mdash; the schema is wrong</h5>
+<p>The senior observation is that <code>skills_array</code> stuffing a list into one text column is the underlying defect. The correct model is a junction table, <code>candidate_skills(candidate_id, skill)</code>, one row per skill. Then the query is exact, indexable, and clean:</p>
+<pre><code>SELECT candidate_id
+FROM candidate_skills
+WHERE skill IN ('python', 'sql')
+GROUP BY candidate_id
+HAVING COUNT(DISTINCT skill) = 2;</code></pre>
+<p>The <code>HAVING COUNT(DISTINCT skill) = 2</code> idiom is the canonical "has all of these" pattern and scales to any number of required skills. Naming the schema as the root cause &mdash; while still solving the question as posed &mdash; is the over-the-bar answer.</p>
+
+<h5>If it really is a Postgres array</h5>
+<p>The column is named <code>skills_array</code>; if it is genuinely a <code>text[]</code> rather than a delimited string, <code>LIKE</code> is the wrong tool entirely &mdash; use the array-contains operator, which is exact and index-friendly:</p>
+<pre><code>SELECT candidate_id, name FROM candidates
+WHERE skills_array @&gt; ARRAY['python','sql'];</code></pre>
+<p><code>@&gt;</code> ("contains") tests that the left array includes every element of the right &mdash; no false partial matches, and a GIN index makes it fast.</p>
+
+<h5>Case sensitivity and whitespace</h5>
+<p><code>LIKE</code> is case-sensitive in Postgres, so <code>Python</code> or <code>SQL</code> in mixed case would not match the lowercase patterns. Normalise with <code>ILIKE</code> or <code>lower(skills_array)</code>. And free-text lists often carry stray spaces (<code>python, sql</code>) &mdash; the comma-padding trick above must account for <code>", "</code> as well as <code>","</code>, or trim first.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use two ANDed predicates so skill order does not matter, recognise that bare <code>%sql%</code> false-matches <code>mysql</code>/<code>postgresql</code> and fix it with token-exact matching, and name the real problem &mdash; a delimited skills column should be a junction table, where <code>HAVING COUNT(DISTINCT skill) = N</code> answers "has all of these" cleanly.</div>

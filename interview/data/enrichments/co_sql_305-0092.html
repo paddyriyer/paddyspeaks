@@ -1,0 +1,61 @@
+<p>Meta's growth team runs a churn-prevention loop: any creator who has gone quiet for too long gets a re-engagement nudge. The PM hands you a one-liner &mdash; "find users who haven't posted in over 30 days" &mdash; and it sounds trivial. The interview lives in three quiet decisions: what counts as "now", whether the boundary is inclusive, and what to do with someone who has never posted at all.</p>
+
+<h4>1. The source data &mdash; <code>posts</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>posted_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2026-05-10 09:00</td></tr>
+    <tr><td>1</td><td>2026-05-12 10:00</td></tr>
+    <tr><td>2</td><td>2026-02-01 08:00</td></tr>
+    <tr><td>3</td><td>2026-04-13 12:00</td></tr>
+    <tr><td>3</td><td>2026-04-14 12:00</td></tr>
+    <tr><td>4</td><td>2026-05-14 23:30</td></tr>
+    <tr><td>5</td><td>2025-11-20 00:00</td></tr>
+  </tbody>
+</table>
+<p>With <code>CURRENT_DATE</code> at 2026-05-15, user 3's most recent post is exactly <strong>31 days</strong> old &mdash; sitting one day past the threshold. That boundary row is the whole interview: it proves whether your comparison is <code>&gt;</code> or <code>&gt;=</code>.</p>
+
+<h4>2. The SQL &mdash; <code>HAVING</code> on a date difference</h4>
+<pre><code>SELECT user_id, MAX(posted_at::date) AS last_post,
+  CURRENT_DATE - MAX(posted_at::date) AS days_silent
+FROM posts GROUP BY user_id HAVING CURRENT_DATE - MAX(posted_at::date) &gt; 30;</code></pre>
+<p>Per user, take the latest post date, subtract it from today to get an integer day count, then keep only groups whose gap exceeds 30. <code>HAVING</code> filters after the aggregate, because the condition depends on <code>MAX</code>.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>user_id</th><th>last_post</th><th>days_silent</th></tr></thead>
+  <tbody>
+    <tr><td>2</td><td>2026-02-01</td><td>103</td></tr>
+    <tr><td>3</td><td>2026-04-14</td><td>31</td></tr>
+    <tr><td>5</td><td>2025-11-20</td><td>176</td></tr>
+  </tbody>
+</table>
+<p>Users 1 (3 days) and 4 (1 day) drop out &mdash; both posted this week. User 3 survives at exactly 31 days: strict <code>&gt; 30</code> includes day 31. Had the spec meant "at least 30 days", you would write <code>&gt;= 30</code> and the answer set could change. Notice <code>days_silent</code> is computed from <code>MAX(posted_at::date)</code>, the same expression as in <code>HAVING</code> &mdash; SQL has no way to reuse the <code>SELECT</code> alias inside <code>HAVING</code>.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The user who never posted is invisible &mdash; and that may be the real churn risk</h5>
+<p><code>posts</code> only contains users who have posted. A creator who signed up and never published has zero rows, so <code>GROUP BY</code> produces no group for them and they can never appear. For a re-engagement campaign that is backwards &mdash; the never-posted user is the most disengaged of all. If the audience is "all users", start from the users table and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT u.user_id,
+       CURRENT_DATE - MAX(p.posted_at::date) AS days_silent
+FROM users u
+LEFT JOIN posts p ON p.user_id = u.user_id
+GROUP BY u.user_id
+HAVING MAX(p.posted_at::date) IS NULL
+    OR CURRENT_DATE - MAX(p.posted_at::date) &gt; 30;</code></pre>
+<p>Naming this gap unprompted is the senior move &mdash; the query as written silently scopes the campaign to people who already engage.</p>
+
+<h5><code>CURRENT_DATE</code> vs <code>NOW()</code> &mdash; midnight versus this instant</h5>
+<p><code>CURRENT_DATE</code> is today at 00:00; <code>NOW()</code> / <code>CURRENT_TIMESTAMP</code> is the exact moment, with hours and microseconds. Subtracting two <code>date</code> values yields a clean <code>integer</code> day count, which is why the solution casts with <code>::date</code>. If you instead did <code>NOW() - MAX(posted_at)</code> you get an <code>interval</code>, and "&gt; 30" no longer type-checks &mdash; you would compare against <code>INTERVAL '30 days'</code>. Casting to <code>date</code> first keeps the arithmetic in plain integers and makes "30 days" unambiguous.</p>
+
+<h5>Why <code>HAVING</code> and not <code>WHERE</code></h5>
+<p><code>WHERE</code> runs before grouping, on individual rows; <code>HAVING</code> runs after, on aggregates. The condition here references <code>MAX(posted_at)</code>, which does not exist until the group is formed &mdash; so it must be <code>HAVING</code>. A frequent mistake is filtering <code>WHERE posted_at &lt; CURRENT_DATE - 30</code>, which throws away recent posts <em>before</em> the <code>MAX</code> is taken and can mislabel an active user as silent.</p>
+<pre><code>-- WRONG: drops user 1's recent posts, then MAX sees only old ones
+SELECT user_id FROM posts
+WHERE posted_at::date &lt; CURRENT_DATE - 30
+GROUP BY user_id;</code></pre>
+
+<h5>Reproducibility &mdash; freezing "today"</h5>
+<p><code>CURRENT_DATE</code> makes the query non-deterministic: rerun it tomorrow and the answer shifts. For a batch job that must be auditable, parameterise the reference date (<code>WHERE &hellip; :as_of_date</code>) so a backfill for last Tuesday gives last Tuesday's answer. Interviewers like to hear that a "live" query and a "reproducible report" are different requirements.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>HAVING</code> because the filter depends on <code>MAX</code>, recognise that <code>::date</code> arithmetic yields integer days while <code>NOW()</code> yields an interval, pin down whether the 30-day boundary is inclusive, and flag that users with zero posts never appear &mdash; the most churned cohort is missing unless you <code>LEFT JOIN</code> from the users table.</div>

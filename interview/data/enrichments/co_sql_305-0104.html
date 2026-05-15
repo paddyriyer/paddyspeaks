@@ -1,0 +1,61 @@
+<p>Meta's finance team &mdash; here looking at a pharma portfolio &mdash; wants the three most profitable drugs, where profit is revenue minus cost. It is an <code>ORDER BY ... LIMIT</code>, the shortest kind of ranking query. The interview is about what <code>LIMIT 3</code> does when drugs are <em>tied</em> in profit, and whether "profit" should really be a raw subtraction.</p>
+
+<h4>1. The source data &mdash; <code>drugs</code></h4>
+<table>
+  <thead><tr><th>drug_id</th><th>name</th><th>revenue</th><th>cost</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Aspirin</td><td>1000</td><td>400</td></tr>
+    <tr><td>2</td><td>Insulin</td><td>5000</td><td>2000</td></tr>
+    <tr><td>3</td><td>Statin</td><td>3000</td><td>1000</td></tr>
+    <tr><td>4</td><td>Antibiotic</td><td>2000</td><td>1900</td></tr>
+    <tr><td>5</td><td>Vaccine</td><td>8000</td><td>5000</td></tr>
+  </tbody>
+</table>
+<p>Compute profit and a tie appears: Insulin (5000 &minus; 2000) and Vaccine (8000 &minus; 5000) both net <strong>3000</strong>. With <code>LIMIT 3</code> and a fourth-place drug (Statin at 2000) below them, that tie sits comfortably inside the cut &mdash; but it sets up the trap for when a tie straddles the boundary.</p>
+
+<h4>2. The SQL &mdash; <code>ORDER BY</code> a computed column, <code>LIMIT 3</code></h4>
+<pre><code>SELECT name, revenue - cost AS profit FROM drugs
+ORDER BY profit DESC LIMIT 3;</code></pre>
+<p>Profit is computed inline, the result is sorted highest-first, and the top three rows are returned.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>name</th><th>profit</th></tr></thead>
+  <tbody>
+    <tr><td>Insulin</td><td>3000</td></tr>
+    <tr><td>Vaccine</td><td>3000</td></tr>
+    <tr><td>Statin</td><td>2000</td></tr>
+  </tbody>
+</table>
+<p>Top three by profit. Insulin and Vaccine are tied at 3000 and the order between them is <strong>arbitrary</strong> &mdash; <code>ORDER BY profit DESC</code> alone does not say which 3000 comes first, so the engine is free to swap them. Here both are inside the top 3 so it does not change <em>membership</em>; but if the tie spanned positions 3 and 4, <code>LIMIT 3</code> would keep one and drop the other unpredictably.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>ORDER BY</code> can reference a <code>SELECT</code> alias &mdash; <code>WHERE</code> cannot</h5>
+<p>Notice <code>ORDER BY profit</code> uses the alias defined in the <code>SELECT</code> list. That is allowed: <code>ORDER BY</code> is logically evaluated <em>after</em> the <code>SELECT</code> projection, so the alias exists. <code>WHERE</code> and <code>GROUP BY</code> run <em>before</em> projection, so <code>WHERE profit &gt; 0</code> would fail with "column does not exist" &mdash; you would repeat the expression: <code>WHERE revenue - cost &gt; 0</code>. Knowing which clauses can see the alias is a senior detail.</p>
+
+<h5>The tie at the <code>LIMIT</code> boundary &mdash; the real bug</h5>
+<p><code>LIMIT 3</code> with an unstable sort means: if the 3rd and 4th drugs tie on profit, which one is "top 3" is undefined and can flip between runs. Two fixes, depending on intent. Make it deterministic with a tiebreaker:</p>
+<pre><code>SELECT name, revenue - cost AS profit FROM drugs
+ORDER BY profit DESC, name ASC   -- stable: ties broken alphabetically
+LIMIT 3;</code></pre>
+<p>Or, if the rule is "include everyone tied for 3rd", drop <code>LIMIT</code> and rank:</p>
+<pre><code>SELECT name, profit FROM (
+  SELECT name, revenue - cost AS profit,
+         RANK() OVER (ORDER BY revenue - cost DESC) AS rk
+  FROM drugs) t
+WHERE rk &lt;= 3;</code></pre>
+<p>With <code>RANK</code>, two drugs tied for 1st both get rank 1, the next is rank 3, and "top 3 ranks" may return more than three rows. Asking "if there's a tie for last place, one row or all?" is the over-the-bar move.</p>
+
+<h5>Raw profit vs profit margin</h5>
+<p><code>revenue - cost</code> is <em>absolute</em> profit. A blockbuster with huge revenue and huge cost can out-rank an efficient drug. Finance often cares about <em>margin</em> &mdash; profit as a fraction of revenue:</p>
+<pre><code>SELECT name, revenue - cost AS profit,
+       ROUND(100.0 * (revenue - cost) / NULLIF(revenue, 0), 1) AS margin_pct
+FROM drugs
+ORDER BY margin_pct DESC LIMIT 3;</code></pre>
+<p>The <code>NULLIF(revenue, 0)</code> guards against a divide-by-zero for a drug with no revenue. "Most profitable" by dollars and by margin can be entirely different lists &mdash; clarify which the finance team means.</p>
+
+<h5>NULL revenue or cost</h5>
+<p>If any drug has a NULL <code>revenue</code> or <code>cost</code>, then <code>revenue - cost</code> is NULL. In Postgres, <code>ORDER BY ... DESC</code> places NULLs <em>first</em> by default &mdash; so a drug with missing data could be wrongly ranked as the most profitable. Defend with <code>NULLS LAST</code>, or filter incomplete rows: <code>WHERE revenue IS NOT NULL AND cost IS NOT NULL</code>.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> spot that <code>ORDER BY profit DESC LIMIT 3</code> has an undefined tie-break at the cut line &mdash; add a deterministic key or switch to <code>RANK()</code> depending on whether ties for last should be included &mdash; note that <code>ORDER BY</code> can use the <code>SELECT</code> alias while <code>WHERE</code> cannot, and offer profit margin (with a divide-by-zero guard) as the likely real metric.</div>

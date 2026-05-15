@@ -1,0 +1,67 @@
+<p>LinkedIn's job-marketplace team has a data-quality alarm: the same employer keeps posting what looks like the same role over and over, inflating search results and annoying job-seekers. Your task is to surface those duplicate listings. The hard part is not the SQL &mdash; it is agreeing on what "duplicate" even means, because the obvious definition catches legitimate reposts too.</p>
+
+<h4>1. The source data &mdash; <code>jobs</code></h4>
+<table>
+  <thead><tr><th>job_id</th><th>title</th><th>company_id</th><th>posted_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Software Engineer</td><td>10</td><td>2026-01-01</td></tr>
+    <tr><td>2</td><td>Software Engineer</td><td>10</td><td>2026-01-05</td></tr>
+    <tr><td>3</td><td>Software Engineer</td><td>10</td><td>2026-02-10</td></tr>
+    <tr><td>4</td><td>Data Scientist</td><td>20</td><td>2026-01-12</td></tr>
+    <tr><td>5</td><td>Data Scientist</td><td>20</td><td>2026-03-01</td></tr>
+    <tr><td>6</td><td>Product Manager</td><td>30</td><td>2026-02-20</td></tr>
+    <tr><td>7</td><td>Recruiter</td><td>40</td><td>2026-04-04</td></tr>
+    <tr><td>8</td><td>Recruiter</td><td>40</td><td>2026-04-15</td></tr>
+    <tr><td>9</td><td>Designer</td><td>50</td><td>2026-04-02</td></tr>
+  </tbody>
+</table>
+<p>Company 10 posted "Software Engineer" three times; companies 20 and 40 posted their roles twice. But look at the dates &mdash; company 10's third posting is in February, five weeks after the first. Is that a duplicate, or a genuine new requisition? The single-posting role (Designer) is the control case.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY</code> + <code>HAVING COUNT &gt; 1</code></h4>
+<pre><code>SELECT title, company_id, COUNT(*) AS dups FROM jobs
+GROUP BY title, company_id HAVING COUNT(*) &gt; 1;</code></pre>
+<p>Group rows by the (title, company) pair, count how many listings fall into each group, and keep only the groups with more than one. This is the canonical "find duplicates" shape.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>title</th><th>company_id</th><th>dups</th></tr></thead>
+  <tbody>
+    <tr><td>Recruiter</td><td>40</td><td>2</td></tr>
+    <tr><td>Software Engineer</td><td>10</td><td>3</td></tr>
+    <tr><td>Data Scientist</td><td>20</td><td>2</td></tr>
+  </tbody>
+</table>
+<p>Three duplicate groups; Designer (one posting) is correctly absent. The result has no <code>ORDER BY</code>, so the row order shown is arbitrary &mdash; add <code>ORDER BY dups DESC</code> if a human will read it. Notice the query reports the <em>groups</em>, not the individual offending rows: it tells you company 10 has a problem, but not which of <code>job_id</code> 1, 2, 3 to keep.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>"Duplicate" is a product decision, not a SQL fact</h5>
+<p>Grouping on <code>(title, company_id)</code> assumes any two identical titles from one company are duplicates. That over-reports: a company genuinely hiring two engineers, or reposting a role a quarter later after the first hire fell through, is not spam. Real definitions usually add a time window:</p>
+<pre><code>-- duplicates only if posted within 14 days of each other
+SELECT a.job_id, b.job_id, a.title, a.company_id
+FROM jobs a JOIN jobs b
+  ON a.company_id = b.company_id
+ AND a.title = b.title
+ AND a.job_id &lt; b.job_id
+ AND b.posted_at - a.posted_at &lt;= 14;</code></pre>
+<p>With a 14-day window, company 10's January pair (4 days apart) is a duplicate but the February posting is not. Surfacing that "duplicate depends on a time threshold" is the senior instinct &mdash; the bare <code>GROUP BY</code> would flag a legitimate repost.</p>
+
+<h5>Titles are dirty &mdash; exact-match misses near-duplicates</h5>
+<p>"Software Engineer", "Software Engineer ", "Sr. Software Engineer", "Software Engineer (Remote)" all hash to different groups under <code>GROUP BY title</code>, so genuine duplicates slip through. Production de-duplication normalises first: <code>GROUP BY LOWER(TRIM(title)), company_id</code> at minimum, and often a fuzzy match (<code>similarity()</code> from <code>pg_trgm</code>) or a hash of normalised text. Mention that exact string equality is a fragile key for human-entered data.</p>
+
+<h5>Finding the rows to delete, not just the counts</h5>
+<p>The interviewer's natural follow-up: "now keep the earliest posting and flag the rest for removal." That is a window function ranking each posting within its group:</p>
+<pre><code>SELECT job_id, title, company_id, posted_at
+FROM (
+  SELECT *,
+    ROW_NUMBER() OVER (PARTITION BY title, company_id
+                       ORDER BY posted_at) AS rn
+  FROM jobs
+) t
+WHERE rn &gt; 1;   -- everything except the first posting per group</code></pre>
+<p><code>ROW_NUMBER</code> is the right tool here precisely because we want <em>exactly one</em> survivor per group &mdash; ties broken arbitrarily are fine, since both copies are duplicates anyway.</p>
+
+<h5>NULLs in the grouping key</h5>
+<p>If some rows have a NULL <code>title</code> or NULL <code>company_id</code>, <code>GROUP BY</code> collapses all NULLs into a single group (SQL treats NULLs as equal <em>for grouping</em>, unlike <code>=</code>). So two listings with missing titles get reported as duplicates of each other &mdash; possibly noise. Decide whether NULL-keyed rows should be excluded with a <code>WHERE title IS NOT NULL</code> guard.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> treat "duplicate" as a definition to negotiate &mdash; raise the time-window and title-normalisation questions before the bare <code>GROUP BY ... HAVING COUNT(*) &gt; 1</code> ships, and know that finding the actual rows to delete needs <code>ROW_NUMBER</code> over a partition, not the group counts.</div>

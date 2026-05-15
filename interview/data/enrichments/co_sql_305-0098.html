@@ -1,0 +1,63 @@
+<p>PayPal's ledger team needs a current balance per account, derived from a stream of transactions. The query is a tidy conditional sum &mdash; credits add, debits subtract. The interview is about the assumptions baked into that one <code>CASE</code>: that every non-credit is a debit, that every transaction counts regardless of status, and that summing a mutable log is the same as a stored balance.</p>
+
+<h4>1. The source data &mdash; <code>transactions</code></h4>
+<table>
+  <thead><tr><th>account_id</th><th>txn_type</th><th>amount</th><th>transaction_id</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>credit</td><td>100</td><td>1</td></tr>
+    <tr><td>1</td><td>debit</td><td>30</td><td>2</td></tr>
+    <tr><td>1</td><td>credit</td><td>50</td><td>3</td></tr>
+    <tr><td>2</td><td>debit</td><td>200</td><td>4</td></tr>
+    <tr><td>2</td><td>credit</td><td>75</td><td>5</td></tr>
+    <tr><td>3</td><td>credit</td><td>500</td><td>6</td></tr>
+  </tbody>
+</table>
+<p>Account 1 nets positive across three transactions. Account 2 is the edge case: a 200 debit against only a 75 credit leaves a <strong>negative</strong> balance &mdash; an overdraft the query must be willing to report. Account 3 has a single transaction.</p>
+
+<h4>2. The SQL &mdash; signed conditional <code>SUM</code></h4>
+<pre><code>SELECT account_id,
+  SUM(CASE WHEN txn_type='credit' THEN amount ELSE -amount END) AS balance
+FROM transactions GROUP BY account_id;</code></pre>
+<p>Per account, each credit contributes <code>+amount</code> and everything else contributes <code>-amount</code>; <code>SUM</code> folds the signed values into one balance.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>account_id</th><th>balance</th></tr></thead>
+  <tbody>
+    <tr><td>3</td><td>500</td></tr>
+    <tr><td>2</td><td>-125</td></tr>
+    <tr><td>1</td><td>120</td></tr>
+  </tbody>
+</table>
+<p>Account 1: 100 &minus; 30 + 50 = 120. Account 2: 75 &minus; 200 = <strong>&minus;125</strong> &mdash; the overdraft surfaces correctly. Account 3: a lone 500 credit. Rows are unordered absent an <code>ORDER BY</code>. The negative balance is the point: the query does not clamp at zero, and for a ledger that is right &mdash; a negative balance is real information, not an error.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>The <code>ELSE -amount</code> trap &mdash; "everything that isn't a credit is a debit"</h5>
+<p>The <code>CASE</code> has no explicit <code>debit</code> branch; it assumes every non-credit row is a debit. Real ledgers have more types: <code>refund</code>, <code>fee</code>, <code>reversal</code>, <code>chargeback</code>, <code>hold</code>, <code>adjustment</code>. A <code>refund</code> probably should add, not subtract &mdash; but <code>ELSE -amount</code> silently subtracts it, corrupting the balance. Be explicit:</p>
+<pre><code>SUM(CASE
+      WHEN txn_type IN ('credit','refund','reversal') THEN amount
+      WHEN txn_type IN ('debit','fee','chargeback')   THEN -amount
+      ELSE 0   -- or RAISE: an unknown type should not be guessed
+    END) AS balance</code></pre>
+<p>Naming the open-ended <code>ELSE</code> as a risk &mdash; and asking for the full list of transaction types &mdash; is the senior instinct.</p>
+
+<h5>Status is in the schema and the query ignores it</h5>
+<p>The table has a <code>status</code> column &mdash; transactions can be <code>pending</code>, <code>failed</code>, <code>completed</code>, <code>reversed</code>. The solution sums <em>all</em> of them. A failed debit that still subtracts, or a pending credit counted as settled, gives a wrong balance. A "current available balance" almost always filters:</p>
+<pre><code>SELECT account_id, SUM(CASE WHEN txn_type='credit' THEN amount
+                            ELSE -amount END) AS balance
+FROM transactions
+WHERE status = 'completed'
+GROUP BY account_id;</code></pre>
+<p>There is a genuine product distinction here: <em>posted</em> balance (completed only) versus <em>available</em> balance (also nets pending holds). Surfacing that the query conflates them is over-the-bar.</p>
+
+<h5>Accounts with no transactions are missing</h5>
+<p>A newly opened account with zero transactions has no rows, so <code>GROUP BY</code> produces no group &mdash; it is absent rather than showing a balance of 0. If the report must list every account, <code>LEFT JOIN</code> from the accounts table and <code>COALESCE(SUM(...), 0)</code> the balance.</p>
+
+<h5>Negative amounts &mdash; sign applied twice</h5>
+<p>The <code>CASE</code> assumes <code>amount</code> is always stored positive and the <em>type</em> carries the sign. If the data instead stores debits as negative numbers already, then <code>ELSE -amount</code> flips a negative into a positive &mdash; a debit that <em>adds</em> to the balance. Confirm the sign convention: is <code>amount</code> a magnitude, or already signed? The two conventions need opposite queries.</p>
+
+<h5>Summing a log vs. trusting a stored balance</h5>
+<p>Recomputing the balance from the full transaction history is correct and auditable, but O(history) per account &mdash; expensive once an account has millions of rows. Production ledgers keep a materialised balance (or periodic snapshots) and only sum transactions <em>since</em> the last snapshot. Mentioning the snapshot pattern shows you have thought past the 6-row demo to a real ledger.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> challenge the implicit "non-credit means debit" by enumerating real transaction types, filter on <code>status</code> and distinguish posted vs available balance, confirm whether <code>amount</code> is a magnitude or already signed, and note that summing the whole log does not scale &mdash; snapshots do.</div>

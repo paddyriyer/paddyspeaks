@@ -1,0 +1,60 @@
+<p>Infosys is building an engagement dashboard for a client's portal and the first tile is the simplest one: <em>daily active users</em> &mdash; how many distinct people logged in each day. The login table stores a full <code>timestamp</code> per event, and a single user logs in many times a day. Two things must go right: collapse timestamps to calendar days, and count <em>people</em>, not <em>events</em>.</p>
+
+<h4>1. The source data &mdash; <code>logins</code></h4>
+<table>
+  <thead><tr><th>user_id</th><th>login_at</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>2024-06-01 08:00</td></tr>
+    <tr><td>2</td><td>2024-06-01 09:30</td></tr>
+    <tr><td>1</td><td>2024-06-01 22:00</td></tr>
+    <tr><td>3</td><td>2024-06-02 10:00</td></tr>
+    <tr><td>1</td><td>2024-06-02 11:00</td></tr>
+    <tr><td>2</td><td>2024-06-03 07:00</td></tr>
+  </tbody>
+</table>
+<p>User 1 logs in <strong>twice on 2024-06-01</strong> (08:00 and 22:00). That repeat is the whole interview: a naive count would tally it twice and overstate the active-user number.</p>
+
+<h4>2. The SQL &mdash; <code>COUNT(DISTINCT user_id) per day</code></h4>
+<pre><code>SELECT DATE(login_at) AS day, COUNT(DISTINCT user_id) AS daily_logins
+FROM logins GROUP BY DATE(login_at);</code></pre>
+<p><code>DATE(login_at)</code> truncates each timestamp to its calendar date, so all of a day's events collapse into one group. <code>COUNT(DISTINCT user_id)</code> then counts unique people inside that group.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>day</th><th>daily_logins</th></tr></thead>
+  <tbody>
+    <tr><td>2024-06-01</td><td>2</td></tr>
+    <tr><td>2024-06-02</td><td>2</td></tr>
+    <tr><td>2024-06-03</td><td>1</td></tr>
+  </tbody>
+</table>
+<p>2024-06-01 has three login <em>events</em> but only <strong>2</strong> distinct users &mdash; user 1's two logins count once. That is the metric working correctly: this is daily <em>active users</em>, not daily login volume.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>DISTINCT</code> is the whole point &mdash; users vs events</h5>
+<p>Drop the <code>DISTINCT</code> and you get a different metric. <code>COUNT(*)</code> per day counts login <em>events</em> (3 on 2024-06-01); <code>COUNT(DISTINCT user_id)</code> counts unique <em>people</em> (2). The column name <code>daily_logins</code> is honestly a bit misleading &mdash; the query computes daily active users. Be precise about which one the dashboard tile actually wants; for a "DAU" tile it is the distinct count, for "login volume" it is the row count.</p>
+
+<h5>Why truncating the timestamp is mandatory</h5>
+<p>Grouping by the raw <code>login_at</code> would put every event in its own group &mdash; 08:00 and 22:00 are different timestamps even on the same date &mdash; so you would get one row per login, not one per day. <code>DATE()</code> (or the more explicit <code>date_trunc('day', login_at)</code>) is what bins events into calendar days. <code>date_trunc</code> returns a timestamp at midnight rather than a bare date, which matters if a downstream join expects a timestamp type.</p>
+
+<h5>The timezone trap</h5>
+<p>"Which day" depends on <em>whose</em> day. If <code>login_at</code> is stored in UTC, user 1's 22:00 UTC login might actually be the next calendar day in their local timezone &mdash; and DAU would be attributed to the wrong day. For a global portal, convert before truncating:</p>
+<pre><code>SELECT DATE(login_at AT TIME ZONE 'America/New_York') AS day,
+       COUNT(DISTINCT user_id) AS dau
+FROM logins
+GROUP BY 1;</code></pre>
+<p>Naming the timezone assumption &mdash; "are these UTC, and whose midnight defines the day?" &mdash; is a senior reflex.</p>
+
+<h5>Missing days &mdash; gaps in the result</h5>
+<p>This query only emits rows for days that <em>had</em> a login. A day with zero activity simply will not appear &mdash; the dashboard would skip it rather than show a 0, which breaks a time series chart. To get a continuous axis, generate the date spine and <code>LEFT JOIN</code>:</p>
+<pre><code>SELECT d::date AS day, COUNT(DISTINCT l.user_id) AS dau
+FROM generate_series(DATE '2024-06-01', DATE '2024-06-03', INTERVAL '1 day') d
+LEFT JOIN logins l ON DATE(l.login_at) = d::date
+GROUP BY d
+ORDER BY d;</code></pre>
+
+<h5>Ordering and NULL user_ids</h5>
+<p>The solution has no <code>ORDER BY</code>, so day order is not guaranteed &mdash; add <code>ORDER BY day</code> for a chart-ready result. And if <code>user_id</code> can be NULL (anonymous or logged-out hits), <code>COUNT(DISTINCT user_id)</code> ignores NULLs entirely &mdash; sometimes desirable, sometimes a silent undercount; decide deliberately.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> use <code>COUNT(DISTINCT user_id)</code> so repeat logins do not inflate the count, explain that truncating the timestamp is what bins events into days, raise the timezone question for a global product, and note that zero-activity days vanish from the result unless you join against a generated date spine.</div>

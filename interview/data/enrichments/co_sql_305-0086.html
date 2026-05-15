@@ -1,0 +1,64 @@
+<p>Walmart's customer-analytics team wants a list of <em>high-value customers</em> for a loyalty campaign &mdash; specifically, anyone whose lifetime spend tops $1,000. The data is one row per order, so the work is: aggregate to the customer, then keep only the customers whose total clears the bar. The interview hinges on <em>where</em> that "clears the bar" filter goes &mdash; <code>WHERE</code> or <code>HAVING</code>.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>customer_id</th><th>order_id</th><th>amount</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>1</td><td>600</td></tr>
+    <tr><td>101</td><td>2</td><td>700</td></tr>
+    <tr><td>102</td><td>3</td><td>300</td></tr>
+    <tr><td>103</td><td>4</td><td>1500</td></tr>
+    <tr><td>104</td><td>5</td><td>400</td></tr>
+    <tr><td>104</td><td>6</td><td>400</td></tr>
+    <tr><td>104</td><td>7</td><td>400</td></tr>
+  </tbody>
+</table>
+<p>Customer 104 is the edge case: <strong>no single order exceeds $1,000</strong> (each is $400), yet three orders sum to $1,200. Any solution that filters on individual order amounts would wrongly drop them.</p>
+
+<h4>2. The SQL &mdash; <code>GROUP BY + HAVING SUM</code></h4>
+<pre><code>SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS total
+FROM orders
+GROUP BY customer_id
+HAVING SUM(amount) &gt; 1000;</code></pre>
+<p><code>GROUP BY customer_id</code> rolls orders up per customer; <code>HAVING SUM(amount) &gt; 1000</code> tests the aggregated total and keeps only the groups that pass.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>customer_id</th><th>orders</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>101</td><td>2</td><td>1300</td></tr>
+    <tr><td>103</td><td>1</td><td>1500</td></tr>
+    <tr><td>104</td><td>3</td><td>1200</td></tr>
+  </tbody>
+</table>
+<p>Customer 102 (total $300) is correctly excluded. Customer 104 <strong>is included</strong> &mdash; their $1,200 comes from three modest orders, exactly the case a per-order filter would miss. Customer 103 qualifies on a single big order. The output is a clean target list for the campaign.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5><code>WHERE</code> vs <code>HAVING</code> &mdash; the central distinction</h5>
+<p><code>WHERE</code> filters <em>rows</em>, before grouping. <code>HAVING</code> filters <em>groups</em>, after aggregation. You cannot put an aggregate in <code>WHERE</code> &mdash; <code>WHERE SUM(amount) &gt; 1000</code> is a syntax error, because at the row stage no <code>SUM</code> exists yet. The threshold is on a per-customer total, which only exists post-aggregation, so it <em>must</em> be <code>HAVING</code>. This is the single most important point of the question.</p>
+
+<h5>Why a <code>WHERE amount &gt; 1000</code> answer is wrong</h5>
+<p>A tempting but incorrect attempt filters individual orders first:</p>
+<pre><code>SELECT customer_id, COUNT(*), SUM(amount)
+FROM orders
+WHERE amount &gt; 1000           -- WRONG: tests each order, not the total
+GROUP BY customer_id;</code></pre>
+<p>This keeps only orders <em>individually</em> over $1,000, then sums those survivors. Customer 104 (three $400 orders) contributes nothing and vanishes; customer 101 (orders of 600 and 700) also vanishes. The result would list <em>only</em> customer 103 &mdash; a badly truncated campaign list. The filter must apply to the sum, not the parts.</p>
+
+<h5><code>WHERE</code> and <code>HAVING</code> together &mdash; both have a job</h5>
+<p>They are not rivals; a real query often uses both. <code>WHERE</code> trims rows <em>before</em> aggregating (cheaper, and changes what goes into the sum); <code>HAVING</code> trims groups after. Counting only completed orders toward lifetime value:</p>
+<pre><code>SELECT customer_id, COUNT(*) AS orders, SUM(amount) AS total
+FROM orders
+WHERE status = 'completed'      -- row filter: which orders count
+GROUP BY customer_id
+HAVING SUM(amount) &gt; 1000;       -- group filter: which customers qualify</code></pre>
+<p>The schema ships a <code>status</code> column &mdash; flagging that cancelled/refunded orders probably should not count toward "high value" is the senior observation.</p>
+
+<h5>Strict <code>&gt;</code> vs <code>&gt;=</code> on the boundary</h5>
+<p><code>HAVING SUM(amount) &gt; 1000</code> excludes a customer whose total is <em>exactly</em> $1,000. "Tops $1,000" is ambiguous &mdash; if the campaign means "$1,000 or more", it must be <code>&gt;= 1000</code>. With this dataset no total lands exactly on 1000 so it makes no visible difference, but confirm the boundary intent rather than guessing.</p>
+
+<h5>The NULL-amount edge</h5>
+<p><code>SUM</code> ignores NULL <code>amount</code> values, so an order with a NULL amount silently contributes 0 to the total &mdash; usually fine, but if a NULL should disqualify or flag a customer, handle it explicitly. And a customer all of whose orders have NULL amounts gets <code>SUM = NULL</code>; <code>NULL &gt; 1000</code> is unknown, so they are excluded &mdash; the desired outcome here, but worth stating you know why.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> articulate that <code>HAVING</code> filters post-aggregation groups while <code>WHERE</code> filters pre-aggregation rows, recognise that a per-order <code>WHERE amount &gt; 1000</code> wrongly drops customers who clear the bar via many small orders, and use <code>WHERE</code> and <code>HAVING</code> together &mdash; e.g. a <code>status</code> row filter alongside the <code>SUM</code> group filter.</div>

@@ -1,0 +1,73 @@
+<p>Booking.com's revenue team wants every order tagged into a size band &mdash; Small, Medium, or Large &mdash; so dashboards can slice conversion and support load by order value. A <code>CASE</code> expression is the obvious tool. What the interviewer is actually testing is whether you understand how <code>CASE</code> evaluates top-to-bottom, where the band <em>boundaries</em> fall, and what happens at the exact threshold values.</p>
+
+<h4>1. The source data &mdash; <code>orders</code></h4>
+<table>
+  <thead><tr><th>order_id</th><th>total</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>30</td></tr>
+    <tr><td>2</td><td>49.99</td></tr>
+    <tr><td>3</td><td>50</td></tr>
+    <tr><td>4</td><td>250</td></tr>
+    <tr><td>5</td><td>499.99</td></tr>
+    <tr><td>6</td><td>500</td></tr>
+    <tr><td>7</td><td>1200</td></tr>
+  </tbody>
+</table>
+<p>Orders 3 (<code>total = 50</code>) and 6 (<code>total = 500</code>) sit <strong>exactly on the boundaries</strong>. Those two rows are the whole interview &mdash; they expose whether the cut-offs are inclusive or exclusive.</p>
+
+<h4>2. The SQL &mdash; <code>CASE bucketing</code></h4>
+<pre><code>SELECT order_id,
+  CASE WHEN total &lt; 50 THEN 'Small'
+       WHEN total &lt; 500 THEN 'Medium' ELSE 'Large' END AS bucket
+FROM orders;</code></pre>
+<p><code>CASE</code> tests branches in order and stops at the first true one. The <code>ELSE</code> catches everything that fell through. There is no <code>WHERE</code>, so every order is returned and labelled.</p>
+
+<h4>3. The resulting analysis</h4>
+<table>
+  <thead><tr><th>order_id</th><th>bucket</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Small</td></tr>
+    <tr><td>2</td><td>Small</td></tr>
+    <tr><td>3</td><td>Medium</td></tr>
+    <tr><td>4</td><td>Medium</td></tr>
+    <tr><td>5</td><td>Medium</td></tr>
+    <tr><td>6</td><td>Large</td></tr>
+    <tr><td>7</td><td>Large</td></tr>
+  </tbody>
+</table>
+<p>Order 3 at exactly 50 lands in <strong>Medium</strong> (because <code>50 &lt; 50</code> is false, so it falls past the first branch); order 6 at exactly 500 lands in <strong>Large</strong> for the same reason. The bands are <em>lower-bound-inclusive</em>: Small is [0, 50), Medium is [50, 500), Large is [500, &infin;). Order 5 at 499.99 stays Medium &mdash; one cent decides the label.</p>
+
+<h4>4. Strategic explanations</h4>
+
+<h5>Order matters &mdash; <code>CASE</code> short-circuits</h5>
+<p><code>CASE WHEN ... WHEN ...</code> is not a set of independent rules; it is a ladder. The first branch that evaluates true wins and the rest are skipped. That is why the Medium branch can be written as the bare <code>total &lt; 500</code> &mdash; any row reaching it has <em>already failed</em> <code>total &lt; 50</code>, so the lower bound is implied. Re-order the branches and the logic breaks: put <code>total &lt; 500</code> first and every Small order would be mislabelled Medium.</p>
+
+<h5>The boundary-semantics trap</h5>
+<p>"Under 50 is Small, 50 to 500 is Medium" is ambiguous in English. This <code>CASE</code> resolves it as <em>lower-inclusive, upper-exclusive</em>. An interviewer may want the opposite &mdash; e.g. Medium is "50 up to <em>and including</em> 500". Be explicit and write it to match:</p>
+<pre><code>CASE WHEN total &lt;= 50  THEN 'Small'
+     WHEN total &lt;= 500 THEN 'Medium'
+     ELSE 'Large' END</code></pre>
+<p>With this version order 3 becomes Small and order 6 becomes Medium. State which convention you are using and confirm the boundary rows are where the business expects.</p>
+
+<h5>The NULL row falls into <code>ELSE</code> &mdash; usually wrong</h5>
+<p>If <code>total</code> is NULL, every comparison (<code>NULL &lt; 50</code>, <code>NULL &lt; 500</code>) is <em>unknown</em>, never true &mdash; so the row drops through to <code>ELSE</code> and is silently labelled <strong>'Large'</strong>. A NULL-priced order tagged as the biggest band is a real reporting bug. Handle NULL on purpose with an explicit branch:</p>
+<pre><code>CASE WHEN total IS NULL  THEN 'Unknown'
+     WHEN total &lt; 50     THEN 'Small'
+     WHEN total &lt; 500    THEN 'Medium'
+     ELSE 'Large' END</code></pre>
+<p>Put the <code>IS NULL</code> test first so it catches the row before any comparison can mis-route it.</p>
+
+<h5>Counting orders per bucket</h5>
+<p>The natural follow-up is "how many orders in each band". Wrap the <code>CASE</code> in a subquery and group, or group by the expression directly:</p>
+<pre><code>SELECT CASE WHEN total &lt; 50 THEN 'Small'
+            WHEN total &lt; 500 THEN 'Medium' ELSE 'Large' END AS bucket,
+       COUNT(*) AS orders
+FROM orders
+GROUP BY 1
+ORDER BY 1;</code></pre>
+<p>For this data: Small 2, Medium 3, Large 2. Knowing you can <code>GROUP BY</code> a positional reference (or repeat the expression) to a derived label is a small but expected fluency.</p>
+
+<h5>The schema has both <code>total</code> and <code>amount</code></h5>
+<p>The table ships <code>total</code> and <code>amount</code> as separate columns &mdash; classic near-duplicates that drift (pre- vs post-discount, with vs without tax). The solution buckets on <code>total</code>; confirm that is the value the business means by "order size" rather than assuming.</p>
+
+<div class="takeaway"><strong>Senior signal:</strong> explain that <code>CASE</code> short-circuits so branch order encodes the lower bounds, state the inclusive/exclusive boundary convention and verify the on-threshold rows, and pre-empt the NULL row silently landing in <code>ELSE</code> by giving it an explicit first branch.</div>
