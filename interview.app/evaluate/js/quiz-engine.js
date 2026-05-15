@@ -11,13 +11,17 @@ const STORAGE_PREFIX = "paddyspeaks.skillcheck.";
 const DEFAULT_QUIZ_LENGTH = 20;
 
 const SECTIONS = {
-  sql:    { slug: "sql",    label: "SQL",            file: "./data/sql.json" },
-  python: { slug: "python", label: "Python",         file: "./data/python.json" },
+  sql:    { slug: "sql",    label: "SQL",            file: "./data/sql.json",    companyFile: "./data/sql-companies.json" },
+  python: { slug: "python", label: "Python",         file: "./data/python.json", companyFile: "./data/python-companies.json" },
   design: { slug: "design", label: "Data & System Design", file: "./data/design.json" },
 };
 
 const params = new URLSearchParams(window.location.search);
 const sectionSlug = params.get("section");
+// Company mode: ?companies=Google,Amazon narrows the quiz to a company-tagged
+// pool. Empty → the default topic-randomized bank.
+const selectedCompanies = (params.get("companies") || "")
+  .split(",").map(s => s.trim()).filter(Boolean);
 
 const state = {
   section: null,
@@ -55,15 +59,28 @@ async function init() {
     renderError("Unknown section. Pick one from the start page.");
     return;
   }
+  const sec = SECTIONS[sectionSlug];
+  const companyMode = selectedCompanies.length > 0 && !!sec.companyFile;
   try {
-    const res = await fetch(SECTIONS[sectionSlug].file);
+    const res = await fetch(companyMode ? sec.companyFile : sec.file);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.section = data;
-    state.bank = data.questions;
-    if (!Array.isArray(state.bank) || state.bank.length === 0) {
+    let bank = data.questions;
+    if (!Array.isArray(bank) || bank.length === 0) {
       throw new Error("Question bank is empty.");
     }
+    if (companyMode) {
+      const want = new Set(selectedCompanies.map(c => c.toLowerCase()));
+      bank = bank.filter(q => q.company && want.has(q.company.toLowerCase()));
+      if (bank.length === 0) {
+        renderError(`No ${sec.label} questions for the selected ${selectedCompanies.length > 1 ? "companies" : "company"}. Go back and pick another.`);
+        return;
+      }
+      state.section.title = `${sec.label} · ${selectedCompanies.join(", ")}`;
+      state.section.tagline = "Company-tagged questions — self-rated against the model answer";
+    }
+    state.bank = bank;
     prepareAttempt();
     if (state.submitted) {
       renderResults();
@@ -140,7 +157,14 @@ function shuffleArray(arr) {
 // ──────────────────────────────────────────
 // localStorage persistence
 // ──────────────────────────────────────────
-function storageKey() { return STORAGE_PREFIX + sectionSlug; }
+function storageKey() {
+  // Each company selection gets its own saved attempt, so switching companies
+  // — or company vs topic mode — never restores a stale, mismatched draw.
+  const suffix = selectedCompanies.length
+    ? ":co=" + selectedCompanies.slice().sort().join(",")
+    : "";
+  return STORAGE_PREFIX + sectionSlug + suffix;
+}
 
 function persist() {
   const payload = {
@@ -305,7 +329,7 @@ function renderCode(q) {
       <pre><code>${escapeHTML(q.schema)}</code></pre>
     </details>
   ` : "";
-  const canRun = (q.language === "sql" && q.schema) || (q.language === "python");
+  const canRun = q.runnable !== false && ((q.language === "sql" && q.schema) || (q.language === "python"));
   const output = state.runOutputs[q.id];
   return `
     ${schemaPanel}
