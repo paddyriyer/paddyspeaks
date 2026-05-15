@@ -12386,6 +12386,246 @@
       ],
       "answer": 1,
       "explanation": "`USING (col)` requires the column to be named identically in both tables and does two things beyond `ON`. First, it **coalesces** the two join columns into one output column, so `SELECT *` returns `customer_id` exactly once instead of `o.customer_id` and `c.customer_id` side by side. Second, that single merged column can be referenced *unqualified* without ambiguity \u2014 handy in `GROUP BY`/`ORDER BY` and exactly why it reduces clutter.\n\nWith `ON o.customer_id = c.customer_id`, both columns survive into `SELECT *`, so the key appears twice, and writing a bare `customer_id` later is an 'ambiguous column' error \u2014 you must qualify it.\n\nOption A is false: `USING` and `ON` generate the same execution plan; there is no optimizer shortcut. Option C is false precisely because of the merged-vs-duplicated column difference. Option D is false: `USING` works with `LEFT`, `RIGHT`, and `FULL` outer joins too (in an outer join the merged column is the `COALESCE` of the two sides)."
+    },
+    {
+      "id": "sql-472",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Snowflake stores table data in micro-partitions. Which statement best describes them?",
+      "options": [
+        "Fixed 1 GB files that the user sizes and manages with a PARTITION BY clause in DDL",
+        "Immutable, columnar units holding ~50\u2013500 MB of uncompressed data, created automatically, each carrying per-column min/max metadata used to prune partitions that cannot match a filter",
+        "A row-store format optimized for single-row OLTP lookups",
+        "An in-memory cache of the most recently queried rows"
+      ],
+      "answer": 1,
+      "explanation": "Micro-partitions are immutable, automatically created columnar units of roughly 50\u2013500 MB of uncompressed data. Snowflake records per-column metadata (including min/max) for each one; the optimizer uses that to skip \u2014 'prune' \u2014 micro-partitions that cannot satisfy a predicate. You never create or size them, and there is no PARTITION BY DDL in Snowflake."
+    },
+    {
+      "id": "sql-473",
+      "type": "multi",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Which statements about Snowflake clustering keys are correct? (Select all that apply)",
+      "options": [
+        "A clustering key co-locates rows with similar values into the same micro-partitions, improving pruning for filters and joins on that key",
+        "Automatic Clustering reorganizes the table in the background and consumes credits",
+        "Every table should have an explicit clustering key for best performance",
+        "Clustering helps most on large (multi-TB) tables frequently filtered on a column that is NOT the natural load order",
+        "A clustering key sorts the whole table on every INSERT, exactly like a traditional B-tree index"
+      ],
+      "answer": [
+        0,
+        1,
+        3
+      ],
+      "explanation": "Clustering keys co-locate similar values so the optimizer prunes more micro-partitions. Automatic Clustering maintains them as a background, credit-consuming service. Small tables, or tables already well-ordered by load, gain little \u2014 clustering targets large tables filtered on a non-load-order column. It is not an index and does not sort on every insert; it is a background reorganization with a real cost, so you do not add one to every table."
+    },
+    {
+      "id": "sql-474",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "A teammate ran `DELETE FROM orders` with no WHERE clause 10 minutes ago. The table has default Time Travel retention. What is the simplest recovery?",
+      "options": [
+        "It is unrecoverable \u2014 DELETE is permanent",
+        "Use Time Travel: `INSERT INTO orders SELECT * FROM orders BEFORE(STATEMENT => '<delete_query_id>')` (or `AT(OFFSET => -600)`) to read the pre-delete rows and put them back",
+        "Run `UNDROP TABLE orders`",
+        "Open a Snowflake support ticket to restore the table from Fail-safe"
+      ],
+      "answer": 1,
+      "explanation": "Time Travel lets you query a table's prior state within its retention window (default 1 day; up to 90 on Enterprise edition). `SELECT ... BEFORE(STATEMENT => '<query_id>')` or `AT(OFFSET => -600)` returns the rows as they were before the DELETE \u2014 re-insert them. `UNDROP` recovers a DROPped object, not deleted rows. Fail-safe is a 7-day, Snowflake-operated last resort, not a self-service tool."
+    },
+    {
+      "id": "sql-475",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "`CREATE TABLE orders_dev CLONE orders;` on a 5 TB table finishes in seconds. Why is it instant, and what storage does the clone cost initially?",
+      "options": [
+        "It is a lazy view \u2014 querying it re-reads `orders`; it stores nothing and cannot be written to",
+        "It copies all 5 TB asynchronously; storage doubles once the background copy completes",
+        "A clone is a new, independent, writable object that initially references the source's existing micro-partitions by metadata; it adds storage only as either copy diverges and writes new micro-partitions",
+        "Clones are read-only snapshots that can never be modified"
+      ],
+      "answer": 2,
+      "explanation": "Zero-copy cloning creates a new, fully writable object that at first references the same immutable micro-partitions as the source \u2014 so it is a metadata operation and effectively instant, with no added storage. Because micro-partitions are immutable, any DML on the clone (or the source) writes NEW micro-partitions, and you are billed only for that divergence. A clone is neither a view nor read-only."
+    },
+    {
+      "id": "sql-476",
+      "type": "multi",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Which statements about Snowflake Streams (change tracking) are correct? (Select all that apply)",
+      "options": [
+        "A stream records a change-tracking offset \u2014 it does not store a separate copy of the changed data",
+        "Consuming a stream inside a DML transaction advances its offset to the current table version",
+        "An append-only stream surfaces only INSERTs, skipping the change metadata for updates and deletes",
+        "A stream becomes stale if it is not consumed within the source table's data-retention period",
+        "Re-reading an un-consumed stream returns a different set of rows each time"
+      ],
+      "answer": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "explanation": "A stream is a logical CDC bookmark: it stores an offset, not data, and exposes the change rows (with METADATA$ACTION / METADATA$ISUPDATE / METADATA$ROW_ID) between the offset and the current table version. Reading the stream is repeatable \u2014 it returns the same rows until a DML transaction consumes it, which advances the offset. Append-only streams track only inserts, which is cheaper. A stream goes stale once its offset falls outside the table's Time Travel retention, because the change data is no longer available."
+    },
+    {
+      "id": "sql-477",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "You want a SQL statement to run frequently, but only when new rows have actually landed. The cheapest idiomatic Snowflake pattern is:",
+      "options": [
+        "A task on a 1-minute schedule that unconditionally runs the MERGE every cycle",
+        "A task guarded by `WHEN SYSTEM$STREAM_HAS_DATA('my_stream')`, so it skips \u2014 and, for a serverless task, bills nothing for \u2014 cycles where the stream is empty",
+        "An external cron job that polls the table and calls the Snowflake REST API",
+        "A materialized view, since it refreshes itself only when new data arrives"
+      ],
+      "answer": 1,
+      "explanation": "The Stream + Task pattern: schedule a task frequently and guard its body with `WHEN SYSTEM$STREAM_HAS_DATA('my_stream')`. When the stream is empty the task does not execute its body, and a serverless task incurs no compute charge for that skipped run. A materialized view cannot run arbitrary MERGE logic, and an unconditional 1-minute task burns credits doing nothing."
+    },
+    {
+      "id": "sql-478",
+      "type": "open",
+      "topic": "Snowflake",
+      "difficulty": "hard",
+      "prompt": "You maintain a Type-2 slowly-changing dimension `dim_customer` (customer_id, name, tier, valid_from, valid_to, is_current). Source changes arrive in a stream `customer_stream` on the raw table. Write the SQL that expires the current version when a tracked attribute changes and opens a new version, and describe how a Task drives it.",
+      "model_answer": "SCD2 needs two effects per change \u2014 close the old version and open a new one. A single MERGE cannot both update a matched row and insert that row's replacement on the same business key, so use two statements inside one transaction (a stored procedure):\n\n-- Step 1: close the active version for customers whose tracked attributes changed\nUPDATE dim_customer d\nSET    valid_to = CURRENT_TIMESTAMP(), is_current = FALSE\nFROM   customer_stream s\nWHERE  d.customer_id = s.customer_id\n  AND  d.is_current = TRUE\n  AND  s.metadata$action = 'INSERT'\n  AND  (d.name <> s.name OR d.tier <> s.tier);\n\n-- Step 2: open a new current version for changed rows and brand-new customers\nINSERT INTO dim_customer (customer_id, name, tier, valid_from, valid_to, is_current)\nSELECT s.customer_id, s.name, s.tier, CURRENT_TIMESTAMP(), NULL, TRUE\nFROM   customer_stream s\nWHERE  s.metadata$action = 'INSERT'\n  AND  NOT EXISTS (\n        SELECT 1 FROM dim_customer d\n        WHERE d.customer_id = s.customer_id\n          AND d.is_current = TRUE\n          AND d.name = s.name AND d.tier = s.tier);\n\nA stored procedure wraps both statements so they run in one transaction \u2014 the stream is consistent across both reads and its offset advances exactly once, on commit. A Task calls the procedure on a schedule, guarded by WHEN SYSTEM$STREAM_HAS_DATA('customer_stream') so empty cycles cost nothing.",
+      "key_points": [
+        "SCD2 requires two effects per change: expire the old row (set valid_to + is_current = FALSE) and insert the new version (valid_from = now, valid_to = NULL, is_current = TRUE)",
+        "One MERGE cannot both update a matched row and insert its replacement on the same key \u2014 use two statements, or MERGE against a source UNIONed with itself (one copy flagged 'close', one 'open')",
+        "Compare the tracked attributes explicitly so unchanged rows do not create spurious new versions",
+        "Run both statements in one transaction (a stored procedure) so the stream stays consistent across both reads and its offset advances once",
+        "Drive it with a Task guarded by SYSTEM$STREAM_HAS_DATA so empty cycles are free"
+      ]
+    },
+    {
+      "id": "sql-479",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Snowflake's query result cache can return a previous result without running the query or starting a warehouse. Which change INVALIDATES the cached result for a syntactically identical query?",
+      "options": [
+        "Running the query from a different worksheet, or by a different user",
+        "Any change to the underlying table data, or the cached result simply ageing past 24 hours",
+        "Resizing the virtual warehouse",
+        "Re-running the query within 24 hours"
+      ],
+      "answer": 1,
+      "explanation": "The result cache serves a stored result for a syntactically identical query when the underlying data has not changed and the result is younger than 24 hours (the 24h clock resets on each reuse, up to a 31-day maximum). It is account-wide \u2014 a different user or warehouse still gets a hit, and result reuse does not even start a warehouse. Underlying DML or 24h expiry is what invalidates it; warehouse resize is irrelevant."
+    },
+    {
+      "id": "sql-480",
+      "type": "multi",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Snowflake has several caching layers. Which statements are correct? (Select all that apply)",
+      "options": [
+        "Result cache: returns a full prior result with no running warehouse and no compute cost",
+        "Warehouse local-disk (SSD) cache: caches micro-partition data on the warehouse's nodes, and is lost when the warehouse is suspended",
+        "Metadata cache: lets queries such as `COUNT(*)` or `MIN`/`MAX` be answered from per-partition statistics without scanning data",
+        "Suspending and resuming a warehouse preserves its local-disk cache, so it resumes warm",
+        "A larger warehouse produces more result-cache hits"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Three layers: (1) result cache \u2014 account-level, returns the stored result with no warehouse needed; (2) warehouse local-disk cache \u2014 micro-partition data cached on the running warehouse's nodes, warmed by use and dropped on suspend, so a resumed warehouse starts cold; (3) metadata cache \u2014 the Cloud Services layer answers COUNT / MIN / MAX and similar from micro-partition statistics with no scan. Warehouse size has nothing to do with result-cache hit rate."
+    },
+    {
+      "id": "sql-481",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Your pipeline stages large intermediate tables that are fully rebuilt every run and never need recovery. Which table type minimizes storage cost?",
+      "options": [
+        "Permanent \u2014 the default, with up to 90 days of Time Travel plus 7 days of Fail-safe",
+        "Transient \u2014 no Fail-safe and at most 1 day of Time Travel, so you pay only for active storage",
+        "Temporary \u2014 but it stays available across sessions for the whole team",
+        "External \u2014 but it cannot be written by a transformation job"
+      ],
+      "answer": 1,
+      "explanation": "Transient tables skip the 7-day Fail-safe period and cap Time Travel at 0\u20131 day, so you avoid paying for recovery storage you do not need on disposable intermediates. Permanent tables carry Fail-safe. Temporary tables are similar to transient but are session-scoped \u2014 they vanish at session end and are not shareable across the team's runs. Transient is the right pick for rebuilt-every-run staging."
+    },
+    {
+      "id": "sql-482",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Files land in cloud storage in small batches every few minutes, all day. You want them loaded continuously without managing a warehouse or a schedule. The idiomatic choice is:",
+      "options": [
+        "A scheduled task running `COPY INTO` on a user-managed virtual warehouse",
+        "Snowpipe \u2014 event/notification-driven `COPY INTO` on Snowflake-managed serverless compute, billed per file processed",
+        "An `INSERT` loop driven from an external script",
+        "A materialized view defined over the external stage"
+      ],
+      "answer": 1,
+      "explanation": "Snowpipe is the continuous-ingestion service: it wraps `COPY INTO`, is triggered by cloud-storage event notifications (or the REST API), and runs on Snowflake-managed serverless compute billed per file \u2014 there is no warehouse to size or schedule. Bulk `COPY INTO` on your own warehouse suits large, infrequent, scheduled loads; Snowpipe suits frequent micro-batches."
+    },
+    {
+      "id": "sql-483",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "Dynamic Tables were introduced to simplify a pattern that was previously hand-built with Streams + Tasks. What do they provide?",
+      "options": [
+        "A real-time OLTP index on a Snowflake table",
+        "A table defined declaratively by a query plus a `TARGET_LAG`, which Snowflake refreshes automatically and incrementally to stay within that lag \u2014 replacing hand-written stream/task pipelines",
+        "A table whose schema changes automatically to follow its source",
+        "An in-memory copy of a table for sub-millisecond lookups"
+      ],
+      "answer": 1,
+      "explanation": "A Dynamic Table is defined by a query and a `TARGET_LAG`; Snowflake figures out the incremental refresh and keeps the result within that freshness target automatically. It removes much of the manual Stream + Task plumbing for transformation DAGs \u2014 you declare the desired state and the freshness you want, instead of orchestrating CDC offsets and schedules yourself."
+    },
+    {
+      "id": "sql-484",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "hard",
+      "prompt": "A multi-TB events table is queried two ways: (a) highly selective point lookups by `event_id` returning a handful of rows, and (b) range scans by `event_date`. Which Snowflake features fit each access pattern?",
+      "options": [
+        "A clustering key on a composite of both columns handles everything",
+        "Search Optimization Service for the selective point lookups on `event_id`; a clustering key on `event_date` for the range scans",
+        "Search Optimization Service for both access patterns",
+        "Neither helps \u2014 only a larger warehouse will"
+      ],
+      "answer": 1,
+      "explanation": "The Search Optimization Service builds a per-table search-access path that accelerates highly selective point lookups and equality filters returning few rows \u2014 ideal for `event_id` lookups. A clustering key co-locates rows by a column so range and selective scans prune micro-partitions \u2014 ideal for `event_date` ranges. They solve different problems and can coexist on one table; a bigger warehouse does not fix poor pruning."
+    },
+    {
+      "id": "sql-485",
+      "type": "open",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "A column `payload` is of type `VARIANT` and holds JSON like:\n\n```json\n{\"user\": {\"id\": 42, \"plan\": \"pro\"}, \"events\": [{\"t\": \"click\"}, {\"t\": \"view\"}]}\n```\n\nWrite Snowflake SQL that returns one row per event with the user's id as an INTEGER and the event type \u2014 and explain the casting.",
+      "model_answer": "SELECT\n    payload:user.id::INT     AS user_id,\n    f.value:t::STRING        AS event_type\nFROM   raw_events,\n       LATERAL FLATTEN(input => payload:events) f;\n\nExplanation: the colon `:` descends into a VARIANT, and `.key` (or `['key']`) reaches a nested object member \u2014 so `payload:user.id` walks into the user object. Path access always returns a VARIANT, so `::INT` and `::STRING` cast each value to a typed result; without the cast a VARIANT string comes back with its JSON quotes (e.g. \"pro\" instead of pro), a common reporting bug. `LATERAL FLATTEN(input => payload:events)` explodes the events array into one row per element, with the element exposed in the `value` column.",
+      "key_points": [
+        "`:` descends into a VARIANT; `.key` or `['key']` reaches nested object members; `[n]` indexes an array",
+        "Path access yields a VARIANT \u2014 cast with `::INT` / `::STRING` to get a typed, unquoted value",
+        "`LATERAL FLATTEN(input => path)` turns an array into one row per element, exposed in the `value` column",
+        "Selecting a VARIANT string without casting keeps the JSON double-quotes \u2014 a frequent bug in reports"
+      ]
+    },
+    {
+      "id": "sql-486",
+      "type": "single",
+      "topic": "Snowflake",
+      "difficulty": "medium",
+      "prompt": "A virtual warehouse is created with `MIN_CLUSTER_COUNT = 1`, `MAX_CLUSTER_COUNT = 5`, and `SCALING_POLICY = STANDARD`. What does this configure?",
+      "options": [
+        "It splits a single query across 5 warehouses to make that query faster",
+        "Multi-cluster scaling for concurrency: Snowflake starts extra same-size clusters (up to 5) when queries begin to queue, and shuts them down as load falls \u2014 it absorbs concurrent users, it does not speed up one query",
+        "It automatically resizes the warehouse from XS up to 5XL based on load",
+        "It keeps 5 clusters running at all times for redundancy"
+      ],
+      "answer": 1,
+      "explanation": "A multi-cluster warehouse scales OUT for concurrency: when queries start queuing, Snowflake spins up additional clusters of the SAME size (up to MAX) and retires them as demand drops. It does not make an individual query faster \u2014 that is scaling UP to a bigger warehouse size. The STANDARD policy favors starting clusters sooner to minimize queuing; ECONOMY favors keeping running clusters fully loaded to conserve credits."
     }
   ]
 }

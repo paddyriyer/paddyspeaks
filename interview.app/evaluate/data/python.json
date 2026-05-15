@@ -6075,6 +6075,148 @@
         "churned = prev - cur (set difference)",
         "The identity active = new + retained + resurrected holds by construction"
       ]
+    },
+    {
+      "id": "py-368",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "In Snowpark for Python, what happens when you run `df = session.table('orders').filter(col('amount') > 100).select('id')`?",
+      "options": [
+        "The matching rows are fetched into a local pandas DataFrame immediately",
+        "Nothing executes in Snowflake yet \u2014 Snowpark builds a lazy logical plan; SQL runs only when an action such as `collect()`, `show()`, or `to_pandas()` is called",
+        "It creates a permanent Snowflake table named `df`",
+        "It streams rows one at a time into the Python process"
+      ],
+      "answer": 1,
+      "explanation": "Snowpark DataFrames are lazy. `table()`, `filter()`, `select()`, `join()`, `with_column()` and friends are transformations that just extend a logical plan \u2014 no SQL is sent. The plan is compiled to SQL and executed in Snowflake only on an ACTION: `collect()`, `show()`, `to_pandas()`, `count()`, `write.save_as_table()`, and so on. That lets the whole chain push down to the warehouse as a single query."
+    },
+    {
+      "id": "py-369",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "You have a Snowpark `df`. Which statement correctly matches each action to its result?",
+      "options": [
+        "`df.collect()` returns a list of `Row` objects; `df.to_pandas()` returns a pandas DataFrame; `df.show()` prints a preview and returns `None`",
+        "All three return a pandas DataFrame",
+        "`df.show()` returns the full result set as a list",
+        "`df.collect()` writes the result back into a Snowflake table"
+      ],
+      "answer": 0,
+      "explanation": "`collect()` runs the query and pulls every row into the client as a list of `Row` objects. `to_pandas()` runs it and materializes a pandas DataFrame (over the Arrow result format). `show()` is a debugging convenience \u2014 it prints a formatted preview (10 rows by default) to stdout and returns `None`. None of them write back to Snowflake; that is `df.write.save_as_table()`."
+    },
+    {
+      "id": "py-370",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "A colleague claims 'Snowpark just downloads the table and filters it in Python.' Why is that wrong for `session.table('big').filter(col('x') > 0).count()`?",
+      "options": [
+        "It is correct \u2014 Snowpark always pulls the data to the client first",
+        "Snowpark compiles the DataFrame plan to SQL that runs inside the Snowflake warehouse; only the final small result (the count) crosses the network",
+        "Snowpark runs the filter on the Cloud Services layer and never uses a warehouse",
+        "Snowpark caches the entire table in the Python process on first access"
+      ],
+      "answer": 1,
+      "explanation": "The whole point of Snowpark is push-down: the lazy DataFrame plan is translated to SQL and executed by the virtual warehouse, next to the data. For `count()`, only the integer result returns \u2014 the multi-TB table never ships to the client. Client-side data movement happens only when you explicitly ask for it (`to_pandas()`, `collect()`). The misconception confuses Snowpark with plain pandas."
+    },
+    {
+      "id": "py-371",
+      "type": "multi",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "Using `snowflake-connector-python`, which are safe and correct ways to run a parameterized query? (Select all that apply)",
+      "options": [
+        "`cur.execute('SELECT * FROM t WHERE id = %s', (user_id,))` \u2014 the driver binds the value",
+        "`cur.execute(f'SELECT * FROM t WHERE id = {user_id}')` \u2014 build the SQL with an f-string",
+        "`cur.executemany('INSERT INTO t VALUES (%s, %s)', rows)` for a batch of tuples",
+        "Binding parameters protects against SQL injection by keeping data separate from the SQL text"
+      ],
+      "answer": [
+        0,
+        2,
+        3
+      ],
+      "explanation": "The connector's default paramstyle uses `%s` placeholders with a tuple or list of values, so the driver binds the data separately from the SQL text \u2014 correct and injection-safe. `executemany` applies one statement across many parameter rows. Building SQL with an f-string concatenates untrusted input directly into the statement \u2014 the classic SQL-injection bug. Always bind; never interpolate."
+    },
+    {
+      "id": "py-372",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "You need to load a large pandas DataFrame into Snowflake from Python. The most efficient first-class helper is:",
+      "options": [
+        "Loop over the rows calling `cur.execute('INSERT ...')` once per row",
+        "`write_pandas(conn, df, 'TARGET_TABLE')` \u2014 it writes the frame to Parquet, stages it, and bulk-loads via `COPY INTO`",
+        "`df.to_sql()` from pandas with a Snowflake SQLAlchemy dialect, inserting row by row",
+        "Serialize the DataFrame to JSON and `INSERT` it as one VARIANT value"
+      ],
+      "answer": 1,
+      "explanation": "`write_pandas` (from `snowflake.connector.pandas_tools`) chunks the DataFrame to Parquet, PUTs it to a temporary internal stage, and runs `COPY INTO` \u2014 a true bulk load, far faster than per-row INSERTs. Row-by-row `execute` or `to_sql` is orders of magnitude slower. The mirror direction is `cursor.fetch_pandas_all()` / `fetch_pandas_batches()`, which read results back over Arrow."
+    },
+    {
+      "id": "py-373",
+      "type": "multi",
+      "topic": "Snowpark",
+      "difficulty": "hard",
+      "prompt": "Which statements about Snowflake's Python UDFs, UDTFs, and stored procedures are correct? (Select all that apply)",
+      "options": [
+        "A scalar UDF returns one value per input row; a UDTF returns a set of rows per input row or per partition",
+        "A stored procedure holds procedural / orchestration logic and may have side effects; a UDF should be deterministic and is called inside a SELECT",
+        "A vectorized (pandas) UDF receives a batch of rows as a pandas DataFrame or Series, improving throughput",
+        "A UDF can run arbitrary `CREATE TABLE` and DML statements, just like a stored procedure"
+      ],
+      "answer": [
+        0,
+        1,
+        2
+      ],
+      "explanation": "Scalar UDF: row in, value out. UDTF: row or partition in, rows out \u2014 good for explode-style logic. Stored procedure: procedural code that can run DML/DDL and orchestrate work, used for side effects rather than inside a SELECT. A vectorized (pandas) UDF uses the batch API so Python sees many rows at once, amortizing per-call overhead. A UDF is meant to be a pure function \u2014 it cannot execute DML or DDL; that is the procedure's job."
+    },
+    {
+      "id": "py-374",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "In Snowpark, why does `df.filter(col('status') == 'active')` use `col('status')` rather than the bare Python string `'status'` in the comparison?",
+      "options": [
+        "Purely stylistic \u2014 both forms behave identically",
+        "`col('status')` is a Column expression; comparing it builds a Snowpark expression that compiles to a SQL predicate, whereas a bare `'status' == 'active'` would just evaluate to a Python bool in the client",
+        "`col()` downloads that column's values into Python",
+        "`col()` is required only to avoid case-sensitivity errors"
+      ],
+      "answer": 1,
+      "explanation": "`col('status')` (from `snowflake.snowpark.functions`) yields a `Column` object. Operators on it (`==`, `>`, `&`, `|`) are overloaded to build a Snowpark expression tree, which becomes a SQL `WHERE` clause on push-down. If you wrote `'status' == 'active'` you would just get the Python bool `False`, evaluated client-side \u2014 not a predicate. `lit()`, `when()`, and `coalesce()` are other expression builders in the same module."
+    },
+    {
+      "id": "py-375",
+      "type": "single",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "A Snowpark `df` is built from an expensive join, and you then call several actions on it (`count()`, `show()`, `to_pandas()`). Each action re-runs the whole join. What fixes that?",
+      "options": [
+        "Nothing \u2014 re-running the plan is unavoidable",
+        "`cached = df.cache_result()` \u2014 it materializes the current result into a temporary table once, and later actions read from that table",
+        "Add `.collect()` right after the join \u2014 it caches the plan automatically",
+        "Switch the warehouse to a larger size"
+      ],
+      "answer": 1,
+      "explanation": "Because DataFrames are lazy, every action recompiles and re-executes the entire plan. `cache_result()` runs the plan once, stores the rows in a temporary table, and returns a new DataFrame backed by that table \u2014 so subsequent actions are cheap reads. `collect()` returns rows to the client but does not cache the plan for further DataFrame operations. A bigger warehouse speeds each run but still pays for the join every time."
+    },
+    {
+      "id": "py-376",
+      "type": "open",
+      "topic": "Snowpark",
+      "difficulty": "medium",
+      "prompt": "Explain the `mode` options of Snowpark's `df.write.save_as_table('t', mode=...)` \u2014 `append`, `overwrite`, `errorifexists`, `ignore` \u2014 and give a safe choice for an idempotent daily rebuild of a reporting table.",
+      "model_answer": "append: adds this DataFrame's rows to the table, creating it if it does not exist.\noverwrite: replaces the table's contents (and can replace its schema) \u2014 the table ends with exactly this DataFrame's rows.\nerrorifexists: fails if the table already exists.\nignore: does nothing if the table already exists.\n\nFor an idempotent daily rebuild \u2014 the job can re-run and must leave the table in the same final state regardless of how many times it ran \u2014 use overwrite. The result is fully determined by the input, with no duplicate rows from a re-run. append is not idempotent (a re-run doubles the rows); errorifexists and ignore are create-once semantics, not rebuild semantics.",
+      "key_points": [
+        "`append` = insert into the existing table (not idempotent on re-run); `overwrite` = replace contents; `errorifexists` = fail if it exists; `ignore` = no-op if it exists",
+        "An idempotent rebuild means re-running yields the same final state \u2014 `overwrite` guarantees that",
+        "Re-running an `append` doubles the data \u2014 a classic backfill bug",
+        "`overwrite` can also change the table's schema, so pair it with a known-good DataFrame schema"
+      ]
     }
   ]
 }
